@@ -52,8 +52,7 @@ class FusionHands(
         lastTimestamp = stamp
         val image = BitmapImageBuilder(bitmap).build()
         val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
-        val base = video.detectForVideo(image, options, stamp)
-        image.close()
+        val base = try { video.detectForVideo(image, options, stamp) } finally { image.close() }
         if (yolo == null || rotationDegrees != 0 || base.landmarks().size >= 2) return base
         frames++
         val now = android.os.SystemClock.elapsedRealtime()

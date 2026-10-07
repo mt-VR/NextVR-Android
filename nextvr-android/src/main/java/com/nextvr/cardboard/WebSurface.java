@@ -61,6 +61,7 @@ final class WebSurface {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setUseWideViewPort(!shell); s.setLoadWithOverviewMode(!shell);
+        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); // Always pair the APK bridge with this APK's UI.
         web.setVerticalScrollBarEnabled(false); web.setHorizontalScrollBarEnabled(false);
         if(shell) web.addJavascriptInterface(bridge,"NativeXR");
         if(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
@@ -123,6 +124,7 @@ final class WebSurface {
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
             headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; font-src 'self'; connect-src https:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
+            headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
         } catch(Exception e) { return denied(); }
     }

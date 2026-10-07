@@ -46,6 +46,8 @@ test('runtime shell cannot load untrusted executable content into its native bri
   assert.ok(java.includes('if(shell) web.addJavascriptInterface'));
   assert.ok(java.includes('s.setAllowFileAccess(false)'));
   assert.ok(java.includes('request.deny()'));
+  assert.ok(java.includes('if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE)'));
+  assert.ok(java.includes('headers.put("Cache-Control","no-store")'));
 });
 
 test('atlas slots do not move surviving windows after a close', () => {
