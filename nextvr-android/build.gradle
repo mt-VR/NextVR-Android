@@ -19,6 +19,8 @@ android {
         // See the release notes for details.
         minSdkVersion = 26
         targetSdkVersion = 35
+        // Must match the NDK used by the vendored Cardboard SDK module.
+        ndkVersion = "29.0.14206865"
         versionCode 1
         versionName "1.0.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'

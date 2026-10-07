@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   build:
     name: Build NextVR debug APK
@@ -20,18 +24,61 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Show runner Android toolchain
+        run: |
+          set -x
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$ANDROID_HOME" || true
+          ls "$ANDROID_HOME/ndk" 2>/dev/null || echo "no ndk preinstalled"
+          ls "$ANDROID_HOME/cmake" 2>/dev/null || echo "no cmake preinstalled"
+          which sdkmanager || true
+        continue-on-error: true
+
       - name: Install NDK and CMake
         run: |
-          sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1"
+          set -x
+          sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" || \
+            sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" --channel=0
+          sdkmanager --list_installed || true
+        continue-on-error: true
 
       - name: Build Cardboard SDK and NextVR
-        run: ./gradlew :nextvr-android:assembleDebug --stacktrace
+        id: build
+        run: |
+          set -o pipefail
+          ./gradlew :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
+        continue-on-error: true
+
+      - name: Publish build diagnostics
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          if [ ! -f /tmp/build.log ]; then echo "no build log captured" > /tmp/build.log; fi
+          # Strip ANSI colour codes, keep the last 60k characters (check-run limit).
+          tail -c 60000 /tmp/build.log | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/build-tail.txt
+          case "$OUTCOME" in
+            success) CONCLUSION=success ;;
+            *) CONCLUSION=failure ;;
+          esac
+          jq -n --rawfile t /tmp/build-tail.txt \
+                --arg c "$CONCLUSION" \
+                --arg sha "${{ github.sha }}" \
+                '{name: "gradle-diagnostics", head_sha: $sha, status: "completed",
+                  conclusion: $c,
+                  output: {title: "Gradle build log (tail)", summary: "Build output for this commit", text: $t}}' \
+            > /tmp/payload.json
+          gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json
+
+      - name: Fail if the build failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
