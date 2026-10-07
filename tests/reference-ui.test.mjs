@@ -28,10 +28,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const pairs=[...nativeSource.matchAll(/(?:program|cameraProgram) = link\(\s*("(?:\\.|[^"\\])*"),\s*("(?:\\.|[^"\\])*")\);/g)]
       .map(m=>[JSON.parse(m[1]),JSON.parse(m[2]).replace(/#extension GL_OES_EGL_image_external : require\n/,'').replaceAll('samplerExternalOES','sampler2D')]);
     assert.equal(pairs.length,2);
+    const handSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/cardboard/PhoneXrHandRenderer.kt',import.meta.url),'utf8');
+    const handShader=handSource.match(/colorProgram=SpatialRenderer.link\(\s*("(?:\\.|[^"\\])*"),\s*("(?:\\.|[^"\\])*")\)/);
+    assert.ok(handShader,'PhoneXR native hand shader is included in validation');
+    pairs.push([JSON.parse(handShader[1]),JSON.parse(handShader[2])]);
     const shaderResult=await page.evaluate(pairs=>{
-      const gl=document.createElement('canvas').getContext('webgl');
-      if(!gl) return ['No WebGL context for shader validation'];
-      const errors=[];
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=2;
+      const gl=canvas.getContext('webgl');
+      if(!gl) return {errors:['No WebGL context for shader validation'],pixels:[]};
+      const errors=[],programs=[];
       for(const [vertex,fragment] of pairs) {
         const program=gl.createProgram();
         for(const [kind,source] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]) {
@@ -39,11 +44,26 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
           if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) errors.push(gl.getShaderInfoLog(shader));
           gl.attachShader(program,shader);gl.deleteShader(shader);
         }
-        gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))errors.push(gl.getProgramInfoLog(program));gl.deleteProgram(program);
+        gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))errors.push(gl.getProgramInfoLog(program));programs.push(program);
       }
-      gl.getExtension('WEBGL_lose_context')?.loseContext();return errors;
+      // A labelled upright bitmap uploaded with no platform texture transform. Actual camera
+      // GLSL must keep R/G at the top, B/W at the bottom, and never mirror left/right.
+      const program=programs[1];gl.useProgram(program);gl.viewport(0,0,2,2);
+      const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+      const a=gl.getAttribLocation(program,'aPosition');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+      gl.uniform4f(gl.getUniformLocation(program,'uProjection'),1,1,0,0);
+      gl.uniform2f(gl.getUniformLocation(program,'uSpan'),2,2);
+      const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,2,2,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,0,0,255,0,255,0,255,0,0,255,255,255,255,255,255]));
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+      const pixels=new Uint8Array(16);gl.readPixels(0,0,2,2,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+      const result={errors,pixels:Array.from(pixels)};
+      gl.getExtension('WEBGL_lose_context')?.loseContext();return result;
     },pairs);
-    assert.deepEqual(shaderResult,[],'Camera and spatial-compositor GLSL compile and link');
+    assert.deepEqual(shaderResult.errors,[],'Camera, spatial-compositor and native hand GLSL compile and link');
+    assert.deepEqual(shaderResult.pixels,[0,0,255,255,255,255,255,255,255,0,0,255,0,255,0,255],'Camera shader preserves upright bitmap corners (readPixels is bottom-up)');
     await page.addInitScript(()=>{
       window.__frames=[]; window.__touches=[]; window.__frameSeq=0;
       window.NativeXR={

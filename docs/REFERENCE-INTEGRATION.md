@@ -175,9 +175,11 @@ Automated tests (`npm test`) run the actual bundled reference UI in headless Chr
 - native browser DOWN/UP ray routing;
 - native PhoneXR processed hand → immediate pinch → browser press/release;
 - loss-of-tracking CANCEL without a spurious click;
-- white-handle drag/detach and repin;
+- PhoneXR fist grabbing/release without clicking, hidden grabbed-hand ray, plus white-handle drag/detach and repin;
 - atlas capacity, stable slots and no overlap;
-- camera/compositor shader grammar and linking through ANGLE (OES samplers substituted with
+- native stride-aware YUV conversion using padded/interleaved test planes and labelled colors;
+- camera/hand/compositor shader grammar and linking, plus labelled bitmap corner rendering through
+  the actual camera GLSL in ANGLE (OES samplers substituted with
   2D samplers for WebGL; actual Android external-texture support still needs device testing);
 - orientation-only native render path and bridge security invariants.
 
