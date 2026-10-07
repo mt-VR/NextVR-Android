@@ -16,6 +16,7 @@
 
 #include "nextvr_app.h"
 #include <time.h>
+#include <GLES3/gl3.h>
 #include <android/log.h>
 
 namespace ndk_nextvr {
@@ -74,7 +75,7 @@ void NextVrApp::OnDrawFrame() {
   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
   for (int eye = 0; eye < 2; ++eye) {
     glViewport(eye * screen_width_ / 2, 0, screen_width_ / 2, screen_height_);
     auto view = (GetMatrixFromGlArray(eye_matrices_[eye]) * head).ToGlArray();
@@ -177,7 +178,7 @@ void NextVrApp::GlSetup() {
   // Generate depth buffer to perform depth test.
   glGenRenderbuffers(1, &depthRenderBuffer_);
   glBindRenderbuffer(GL_RENDERBUFFER, depthRenderBuffer_);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, screen_width_,
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, screen_width_,
                         screen_height_);
   CHECKGLERROR("Create Render buffer");
 
@@ -189,6 +190,7 @@ void NextVrApp::GlSetup() {
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                             GL_RENDERBUFFER, depthRenderBuffer_);
 
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthRenderBuffer_);
   CHECKGLERROR("GlSetup");
 }
 

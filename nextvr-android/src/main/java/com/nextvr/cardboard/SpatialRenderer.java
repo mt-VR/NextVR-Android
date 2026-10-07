@@ -50,12 +50,45 @@ final class SpatialRenderer {
         final float[] matrix = new float[16], uv = new float[4];
         final float[] glass = new float[]{0,0,1,1};
     }
-    final Texture camera = new Texture(), atlas = new Texture();
+    static final class CameraTexture {
+        final int id;
+        private android.graphics.Bitmap pending;
+        private boolean closed;
+        volatile boolean active, ready;
+        int width, height;
+        CameraTexture() {
+            int[] ids=new int[1];GLES20.glGenTextures(1,ids,0);id=ids[0];
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
+        }
+        synchronized void offer(android.graphics.Bitmap bitmap) {
+            if(closed){bitmap.recycle();return;}
+            if(pending!=null)pending.recycle();pending=bitmap;active=true;
+        }
+        synchronized void clear() { active=ready=false;if(pending!=null){pending.recycle();pending=null;} }
+        synchronized void release() { closed=true;clear(); }
+        synchronized void update() {
+            if(pending==null)return;
+            android.graphics.Bitmap bitmap=pending;pending=null;
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
+            if(width==bitmap.getWidth() && height==bitmap.getHeight()) android.opengl.GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D,0,0,0,bitmap);
+            else { android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,bitmap,0);width=bitmap.getWidth();height=bitmap.getHeight(); }
+            bitmap.recycle();ready=active;
+        }
+    }
+    final CameraTexture camera = new CameraTexture();
+    final Texture atlas = new Texture();
+    final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
+    volatile com.nextvr.cardboard.hands.PhoneXrHands.Frame hands;
+    volatile String handTargets = "[]";
+    volatile boolean showHands = true;
     final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();
     volatile List<Panel> panels = new ArrayList<>();
     // Shared optical mapping for camera, landmark overlay and interaction rays.
     volatile float cameraAspect = 4f / 3f;
-    volatile int cameraRotation;
     volatile float mappingX = 1, mappingY = 1;
     private final float[] identity = new float[16], mv = new float[16], mvp = new float[16];
     private final FloatBuffer vertices = floats(new float[]{-.5f,-.5f,0,0, .5f,-.5f,1,0, -.5f,.5f,0,1, .5f,.5f,1,1});
@@ -63,7 +96,7 @@ final class SpatialRenderer {
     private final int aPosition, aUv, uMvp, uTexture, uTransform, uRect;
     private final int cameraProgram;
     private final int[] viewport = new int[4];
-    private float spanX = 2.2f, spanY = 1.5f;
+    volatile float spanX = 2.2f, spanY = 1.5f;
     private float[] eyeProjection;
     private int renderPass;
     private final FloatBuffer screen = floats(new float[]{-1,-1, 1,-1, -1,1, 1,1});
@@ -71,14 +104,14 @@ final class SpatialRenderer {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uMvp; uniform mat4 uTransform; uniform vec4 uRect; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;gl_Position=uMvp*vec4(aPosition,0.,1.);vUv=(uTransform*vec4(uRect.xy+aUv*uRect.zw,0.,1.)).xy;}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform samplerExternalOES uCamera; uniform mat4 uCameraTransform; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform float uRotation; uniform bool uBackdrop; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec2 uv=((ndc+uProjection.zw)/uProjection.xy)/uSpan+.5; if(uRotation>2.5)uv=vec2(uv.y,1.-uv.x);else if(uRotation>1.5)uv=1.-uv;else if(uRotation>.5)uv=vec2(1.-uv.y,uv.x); uv=(uCameraTransform*vec4(uv,0.,1.)).xy; vec2 d=vec2(.009); vec3 blurred=(cameraAt(uv)*2.+cameraAt(uv+vec2(d.x,0.))+cameraAt(uv-vec2(d.x,0.))+cameraAt(uv+vec2(0.,d.y))+cameraAt(uv-vec2(0.,d.y)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y); vec2 d=vec2(.009); vec3 blurred=(cameraAt(uv)*2.+cameraAt(uv+vec2(d.x,0.))+cameraAt(uv-vec2(d.x,0.))+cameraAt(uv+vec2(0.,d.y))+cameraAt(uv-vec2(0.,d.y)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uMvp=GLES20.glGetUniformLocation(program,"uMvp"); uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
         // A full-screen camera pass before *any* world surfaces. Camera image is never world-locked.
         cameraProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; varying vec2 vNdc; uniform samplerExternalOES uTexture; uniform mat4 uTransform; uniform vec4 uProjection; uniform vec2 uSpan; uniform float uRotation; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=clamp(ray/uSpan+.5,0.,1.); if(uRotation>2.5) uv=vec2(uv.y,1.-uv.x); else if(uRotation>1.5) uv=1.-uv; else if(uRotation>.5) uv=vec2(1.-uv.y,uv.x); gl_FragColor=vec4(texture2D(uTexture,(uTransform*vec4(uv,0.,1.)).xy).rgb,1.);}");
+            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform vec2 uSpan; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+ray.x/uSpan.x,.5-ray.y/uSpan.y); gl_FragColor=vec4(texture2D(uTexture,clamp(uv,0.,1.)).rgb,1.);}");
     }
     static List<Panel> decode(String json) throws Exception {
         JSONArray arr = new JSONArray(json);
@@ -115,6 +148,8 @@ final class SpatialRenderer {
             for(Panel p:sorted) if(!p.overlay) drawPanel(p,view,projection);
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
+        if(hands!=null) handRenderer.draw(hands,spanX/2,spanY/2,projection,handTargets,showHands);
+        GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p,identity,projection);
         GLES20.glDisable(GLES20.GL_BLEND);
@@ -136,9 +171,7 @@ final class SpatialRenderer {
         GLES20.glUniform4f(GLES20.glGetUniformLocation(program,"uViewport"),viewport[0],viewport[1],viewport[2],viewport[3]);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(program,"uProjection"),eyeProjection[0],eyeProjection[5],eyeProjection[8],eyeProjection[9]);
         GLES20.glUniform2f(GLES20.glGetUniformLocation(program,"uSpan"),spanX,spanY);
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uRotation"),cameraRotation/90f);
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(program,"uCameraTransform"),1,false,camera.transform,0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,camera.id);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,camera.id);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uCamera"),1);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,tex.id);
         GLES20.glUniform1i(uTexture,0); GLES20.glUniformMatrix4fv(uMvp,1,false,matrix,0);
@@ -153,17 +186,16 @@ final class SpatialRenderer {
         GLES20.glUseProgram(cameraProgram);
         int a=GLES20.glGetAttribLocation(cameraProgram,"aPosition");
         screen.position(0); GLES20.glVertexAttribPointer(a,2,GLES20.GL_FLOAT,false,8,screen); GLES20.glEnableVertexAttribArray(a);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,camera.id);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,camera.id);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(cameraProgram,"uTexture"),0);
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(cameraProgram,"uTransform"),1,false,camera.transform,0);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(cameraProgram,"uProjection"),p[0],p[5],p[8],p[9]);
         // Same 72-degree reference interaction viewport as the HTML prototype. Aspect-fill, no stretch.
+        cameraAspect=(float)camera.width/camera.height;
         float referenceY=2*(float)Math.tan(Math.toRadians(36));
         float sx=2*(1+Math.abs(p[8]))/p[0], sy=2*(1+Math.abs(p[9]))/p[5];
         sx=Math.max(sx,sy*cameraAspect); sy=sx/cameraAspect;
         mappingX=sx/(referenceY*1.5f); mappingY=sy/referenceY; spanX=sx; spanY=sy;
         GLES20.glUniform2f(GLES20.glGetUniformLocation(cameraProgram,"uSpan"),sx,sy);
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(cameraProgram,"uRotation"),cameraRotation/90f);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4); GLES20.glDisableVertexAttribArray(a);
     }
     private static FloatBuffer floats(float[] a) { FloatBuffer b=ByteBuffer.allocateDirect(a.length*4).order(ByteOrder.nativeOrder()).asFloatBuffer(); b.put(a).position(0); return b; }
@@ -172,7 +204,7 @@ final class SpatialRenderer {
         int[] ok=new int[1]; GLES20.glGetShaderiv(id,GLES20.GL_COMPILE_STATUS,ok,0);
         if(ok[0]==0) throw new IllegalStateException(GLES20.glGetShaderInfoLog(id)); return id;
     }
-    private static int link(String vert,String frag) {
+    static int link(String vert,String frag) {
         int v=shader(GLES20.GL_VERTEX_SHADER,vert), f=shader(GLES20.GL_FRAGMENT_SHADER,frag), p=GLES20.glCreateProgram();
         GLES20.glAttachShader(p,v); GLES20.glAttachShader(p,f); GLES20.glLinkProgram(p);
         GLES20.glDeleteShader(v); GLES20.glDeleteShader(f);

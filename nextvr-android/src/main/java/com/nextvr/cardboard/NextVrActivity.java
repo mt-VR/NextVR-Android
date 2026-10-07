@@ -54,7 +54,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private final Map<String,WebSurface> browsers=new HashMap<>();
     private final Map<String,String> browserUrls=new HashMap<>();
     private final Set<String> pendingBrowsers=new HashSet<>();
-    private boolean resumed,closed,ready;
+    private volatile boolean resumed,closed;
+    private boolean ready;
+    private volatile com.nextvr.cardboard.hands.PhoneXrHands.Frame pendingHands;
+    private final AtomicBoolean handsPending=new AtomicBoolean();
     private final AtomicBoolean posePending=new AtomicBoolean();
     private long lastPose;
     private ValueCallback<Uri[]> fileCallback;
@@ -78,12 +81,29 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         sounds.setOnLoadCompleteListener((pool,id,status)->soundReady=status==0);
         try(var asset=getAssets().openFd("ui/click.wav")) { clickSound=sounds.load(asset,1); } catch(Exception e) { report("UI sound could not load: "+e.getMessage()); }
         camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
-            @Override public void hands(String json) { main.post(()->{ if(shell!=null && resumed) shell.evaluate("window.nextvrHands&&window.nextvrHands("+json+","+(renderer==null?1:renderer.mappingX)+","+(renderer==null?1:renderer.mappingY)+")"); }); }
-            @Override public void geometry(float aspect,int rotation) { SpatialRenderer r=renderer; if(r!=null) { r.cameraAspect=aspect; r.cameraRotation=rotation; } }
+            @Override public void frame(android.graphics.Bitmap bitmap) {
+                SpatialRenderer r=renderer;
+                if(r!=null && resumed && !closed)r.camera.offer(bitmap);else bitmap.recycle();
+            }
+            @Override public void hands(com.nextvr.cardboard.hands.PhoneXrHands.Frame frame) {
+                SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                pendingHands=frame;
+                if(!handsPending.compareAndSet(false,true))return;
+                main.post(()->{
+                    handsPending.set(false);
+                    var latest=pendingHands;
+                    if(shell!=null && resumed && !closed && latest!=null) shell.evaluate(
+                        "window.nextvrHands&&window.nextvrHands("+latest.json()+","+(renderer==null?1:renderer.mappingX)+","+(renderer==null?1:renderer.mappingY)+")");
+                });
+            }
+            @Override public void stopped() {
+                SpatialRenderer r=renderer;if(r!=null){r.camera.clear();r.hands=null;}
+                main.post(()->{if(shell!=null)shell.evaluate("window.nextvrHands&&window.nextvrHands({hands:[]})");});
+            }
             @Override public void error(String message) { report(message); }
         });
         glView=findViewById(R.id.surface_view);
-        glView.setEGLContextClientVersion(2); glView.setPreserveEGLContextOnPause(true);
+        glView.setEGLContextClientVersion(3); glView.setPreserveEGLContextOnPause(true);
         glView.setRenderer(new GLSurfaceView.Renderer() {
             @Override public void onSurfaceCreated(GL10 gl,EGLConfig config) {
                 nativeOnSurfaceCreated(nativeApp);
@@ -93,7 +113,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(closed || renderer!=fresh) return;
                     camera.stop(); releaseWeb();
                     if(previous!=null) {
-                        previous.camera.surface.release(); previous.atlas.surface.release();
+                        previous.camera.release(); previous.atlas.surface.release();
                         for(SpatialRenderer.Texture t:previous.browsers.values()) t.surface.release();
                     }
                     ready=false;
@@ -115,7 +135,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},10);
     }
-    @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) r.draw(view,projection); }
+    @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
         long now=SystemClock.uptimeMillis();
         if(now-lastPose<30 || !posePending.compareAndSet(false,true)) return;
@@ -129,7 +149,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     private void startCamera() {
         if(!resumed || renderer==null || checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) return;
-        camera.start(renderer.camera.surface,getWindowManager().getDefaultDisplay().getRotation());
+        camera.start(getWindowManager().getDefaultDisplay().getRotation());
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
@@ -156,7 +176,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override protected void onDestroy() {
         closed=true; releaseWeb();
         SpatialRenderer old=renderer; renderer=null;
-        camera.destroy(()->{ if(old!=null) { old.camera.surface.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
+        camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
@@ -249,7 +269,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 main.post(()->{ try { syncBrowsers(specs,target); } catch(Exception e) { report("Browser surface failed: "+e.getMessage()); } });
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
-        @JavascriptInterface public void hands(boolean enabled) { camera.handsEnabled=enabled; }
+        @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
+        @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
+        @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
         @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
         @JavascriptInterface public void touch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;

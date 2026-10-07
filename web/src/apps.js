@@ -405,9 +405,9 @@ function settingsApp() {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
       const c = el('div', 'card');
       c.append(row(t('on'), 'Rastrear as mãos', toggle('handsOn', v => v ? startHands() : stopHands())));
-      c.append(row(t('sens'), 'Mais alto = responde mais rápido, treme mais', slider('handSens', .5, 2, .05)));
-      c.append(row('Desenhar mãos', 'Esqueleto por cima das janelas', toggle('handDraw')));
-      c.append(row('Confirmação do pinch', 'Frames para validar o toque (evita clique acidental)', slider('pinchHold', 1, 5, 1)));
+      c.append(row(t('sens'), 'PhoneXR: native landmark and pointer filters', el('span', 'note', 'OrangeHanding / One Euro')));
+      c.append(row('Desenhar mãos', 'PhoneXR silhouettes over windows', toggle('handDraw')));
+      c.append(row('Pinch', 'PhoneXR: fist guard + palm-width hysteresis', el('span', 'note', '0.32 / 0.50')));
       page.append(c);
     }],
     [t('windows'), () => {
@@ -857,3 +857,14 @@ if (native) {
   window.nextvrSuspend = () => stopHands();
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }
+
+// PhoneXR palm gestures use the existing reference shell, not a second launcher theme.
+on('phone-library', () => { const w=wins.find(w=>w.id==='library');if(w)close(w);else libraryApp(); });
+on('phone-menu', () => {
+  const existing=wins.find(w=>w.id==='hand-menu');if(existing){close(existing);return;}
+  const body=el('div','pad');body.append(el('h2',null,'NextVR'));
+  for(const [label,run] of [[t('center'),recenter],[t('apps'),libraryApp],[t('settings'),settingsApp]]) {
+    const button=el('button','go',label);button.style.margin='12px';button.onclick=run;body.append(button);
+  }
+  open({id:'hand-menu',title:'NextVR',node:body,w:760,h:420});
+});

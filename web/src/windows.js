@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
-import { cursor } from './hands.js';
+import { cursor, screenPoint } from './hands.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m — janela confortável, não gigante
 export const wins = [];
@@ -543,3 +543,117 @@ if (native) {
   updateBattery(); setInterval(updateBattery, 30000);
   document.addEventListener('click', e => { if (e.target.closest('button')) window.NativeXR.click(); }, true);
 }
+
+/* PhoneXR spatial interaction adapter (VrHomeActivity b878d8b): fist grabs, metric NEAR touch,
+ * palm actions and FAR targets. Uses the existing Cardboard camera and reference window meshes;
+ * none of these operations introduce head-position tracking. */
+let fistGrab = null, nearContact = null;
+const fistBefore = new Map(), palmBefore = new Map();
+let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
+function phoneRay(x, y) {
+  camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
+  const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
+}
+function palmScreen(h, packet) { return { x:(h.palm[0]-.5)*packet.scaleX+.5, y:(h.palm[1]-.5)*packet.scaleY+.5 }; }
+function windowPoint(w, point) {
+  const local=w.obj.worldToLocal(point.clone()), scale=w.obj.getWorldScale(new THREE.Vector3());
+  return { local, scale, u:local.x/w.w+.5, v:.5-local.y/w.h, d:local.z*scale.z };
+}
+function fistHit(r) {
+  let best=null;
+  for(const w of wins) {
+    const center=w.obj.getWorldPosition(new THREE.Vector3());
+    const normal=new THREE.Vector3(0,0,1).transformDirection(w.obj.matrixWorld);
+    const hit=r.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(normal,center),new THREE.Vector3());
+    if(!hit)continue;
+    const {local,scale}=windowPoint(w,hit);
+    if(Math.abs(local.x)*scale.x>w.w*scale.x/2+.08 || Math.abs(local.y)*scale.y>w.h*scale.y/2+.08)continue;
+    const distance=r.ray.origin.distanceTo(hit);
+    if(!best || distance<best.distance) best={win:w,point:hit,distance};
+  }
+  return best;
+}
+function endNear(cancel=false) {
+  if(nearContact?.down) nativeTouch({win:nearContact.win,u:nearContact.u,v:nearContact.v},cancel?3:1);
+  nearContact=null;
+}
+on('phonehands', packet => {
+  lastPhonePacket=packet;
+  const ids=new Set(packet.hands.map(h=>h.id));
+  for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
+  for(const id of palmBefore.keys())if(!ids.has(id))palmBefore.delete(id);
+  if(fistGrab) {
+    const h=packet.hands.find(h=>h.id===fistGrab.id);
+    if(!h || !h.fist || !wins.includes(fistGrab.win)) { fistGrab.win.shell.classList.remove('moving');fistGrab=null; }
+    else {
+      packet.consumed.add(h.id);
+      const p=palmScreen(h,packet),r=phoneRay(p.x,p.y);
+      const at=r.ray.at(fistGrab.distance,new THREE.Vector3());contentRoot.worldToLocal(at);
+      fistGrab.win.target.copy(fistGrab.start).add(at.sub(fistGrab.origin));
+      fistGrab.win.obj.position.copy(fistGrab.win.target);
+    }
+  }
+  for(const h of packet.hands) {
+    const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
+    if(!fistGrab && h.fist && !before) {
+      const p=palmScreen(h,packet),r=phoneRay(p.x,p.y),hit=fistHit(r);
+      if(hit) {
+        if(cursor.hand?.id===h.id) { emit('pinchcancel');cursor.down=false;cursor.hand=null; }
+        const w=hit.win;focus(w);w.pinned=false;w.shell.classList.add('free','moving');layout();
+        fistGrab={id:h.id,win:w,distance:hit.distance,start:w.obj.position.clone(),origin:contentRoot.worldToLocal(hit.point.clone())};
+        packet.consumed.add(h.id);
+      }
+    }
+    if(h.palmFacesEyes && !h.fist && !packet.consumed.has(h.id)) {
+      packet.consumed.add(h.id);
+      if(h.pinching && !palmBefore.get(h.id)) emit(h.left?'phone-library':'phone-menu');
+      palmBefore.set(h.id,h.pinching);
+    } else palmBefore.set(h.id,false);
+  }
+  // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
+  let best=null;
+  for(const h of packet.hands) {
+    if(packet.consumed.has(h.id) || !h.head || h.head.length!==63)continue;
+    const tip=new THREE.Vector3().fromArray(h.head,24);
+    if(tip.length()>.7)continue;
+    tip.applyMatrix4(camera.matrixWorld);
+    for(const w of wins) {
+      const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
+      const margin=current?.07:.03;
+      if(p.d>(current?.20:.15) || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
+      if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
+    }
+  }
+  if(!best) { endNear(!ids.has(nearContact?.id));return; }
+  packet.blockFar=true;packet.consumed.add(best.id);
+  if(!best.current) {
+    endNear();emit('pinchcancel');cursor.down=false;cursor.hand=null;
+    nearContact={...best,down:false,previousD:1};
+  } else {
+    nearContact.d+=(best.d-nearContact.d)*.45;
+    nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
+  }
+  const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
+  const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
+  if(!n.down && inside && n.d<=.012 && n.previousD>.012){focus(n.win);nativeTouch(hit,0);n.down=true;}
+  else if(n.down && (n.d>=.035 || !inside)){nativeTouch(hit,1);n.down=false;}
+  else if(n.down)nativeTouch(hit,2);
+  n.previousD=n.d;
+});
+onFrame(()=>{
+  if(!native)return;
+  const packet=lastPhonePacket, targets=[];
+  for(const h of packet.hands) {
+    if(nearContact?.id===h.id) {
+      const n=nearContact;
+      const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
+    }
+    if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
+    const p=screenPoint(h.aim),r=phoneRay(p.x,p.y);
+    const list=wins.flatMap(w=>[w.hit,w.grab]);list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
+    const hit=r.intersectObjects(list,false)[0];
+    targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
+  }
+  window.NativeXR.handTargets?.(JSON.stringify(targets));
+});

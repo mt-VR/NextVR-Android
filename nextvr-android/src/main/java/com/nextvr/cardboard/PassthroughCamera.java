@@ -2,9 +2,7 @@ package com.nextvr.cardboard;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.ImageFormat;
-import android.graphics.SurfaceTexture;
+import android.graphics.*;
 import android.hardware.camera2.*;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
@@ -13,161 +11,151 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
-import android.view.Surface;
-import com.google.mediapipe.framework.image.BitmapImageBuilder;
-import com.google.mediapipe.framework.image.MPImage;
-import com.google.mediapipe.tasks.core.BaseOptions;
-import com.google.mediapipe.tasks.vision.core.RunningMode;
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker;
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.nextvr.cardboard.hands.PhoneXrHands;
+import com.samrat.orangehanding.FusionHands;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/** One rear-camera owner: zero-copy preview to GL and a bounded YUV analysis stream. */
+/** PhoneXR's upright-bitmap pipeline with Camera2 ownership and bounded latest-frame queues.
+ * One frame is oriented ONCE, then used for both the GL camera texture and OrangeHanding.
+ * No OES camera preview / SurfaceTexture matrix / second shader rotation can flip it again.
+ */
 final class PassthroughCamera {
     interface Listener {
-        void hands(String json);
-        void geometry(float aspect, int rotation);
+        /** Ownership of this upright bitmap transfers to the renderer. */
+        void frame(Bitmap upright);
+        void hands(PhoneXrHands.Frame frame);
         void error(String message);
+        void stopped();
     }
     private final Context context;
     private final Listener listener;
-    private final HandlerThread thread = new HandlerThread("NextVR camera + hands");
+    private final HandlerThread thread=new HandlerThread("NextVR Camera2");
     private final Handler handler;
+    private final ExecutorService tracking=Executors.newSingleThreadExecutor(r->new Thread(r,"PhoneXR OrangeHanding"));
+    private final AtomicBoolean busy=new AtomicBoolean();
+    private final PhoneXrHands hands=new PhoneXrHands();
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader reader;
-    private Surface preview;
-    private HandLandmarker detector;
-    private int generation, rotation;
-    private long lastAnalysis;
-    volatile boolean handsEnabled = true;
-    private boolean destroyed;
-    PassthroughCamera(Context context, Listener listener) {
-        this.context=context; this.listener=listener; thread.start(); handler=new Handler(thread.getLooper());
+    private FusionHands detector; // Created, used and closed on the SAME thread (GPU delegate).
+    private volatile int generation;
+    private int rotation;
+    private volatile boolean destroyed;
+    volatile boolean handsEnabled=true;
+    volatile float scaleX=1.1f,scaleY=.73f;
+
+    PassthroughCamera(Context context,Listener listener) {
+        this.context=context;this.listener=listener;thread.start();handler=new Handler(thread.getLooper());
     }
-    void start(SurfaceTexture texture, int displayRotation) {
-        handler.post(() -> open(texture,displayRotation));
-    }
-    @SuppressLint("MissingPermission") // Activity gates this call on the runtime CAMERA grant.
-    private void open(SurfaceTexture texture,int displayRotation) {
-        if(destroyed) return;
-        closeCamera(); final int token=++generation;
+    void start(int displayRotation) { handler.post(()->open(displayRotation)); }
+    @SuppressLint("MissingPermission")
+    private void open(int displayRotation) {
+        if(destroyed)return;
+        closeCamera();final int token=++generation;
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
-            String id=null; CameraCharacteristics chars=null;
+            String id=null;CameraCharacteristics chars=null;
             for(String candidate:manager.getCameraIdList()) {
                 CameraCharacteristics c=manager.getCameraCharacteristics(candidate);
                 Integer facing=c.get(CameraCharacteristics.LENS_FACING);
-                if(facing!=null && facing==CameraCharacteristics.LENS_FACING_BACK) { id=candidate; chars=c; break; }
+                if(facing!=null && facing==CameraCharacteristics.LENS_FACING_BACK){id=candidate;chars=c;break;}
             }
-            if(id==null) throw new IllegalStateException("A rear camera is required for passthrough");
+            if(id==null)throw new IllegalStateException("Rear camera required");
             StreamConfigurationMap map=chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            if(map==null) throw new IllegalStateException("Camera has no supported output sizes");
-            // Select a preview/analysis pair with IDENTICAL aspect ratio, rather than assuming 16:9.
-            Size[] previews=map.getOutputSizes(SurfaceTexture.class), analyses=map.getOutputSizes(ImageFormat.YUV_420_888);
-            Size selected=null, analysis=null; long best=Long.MAX_VALUE;
-            for(Size p:previews) for(Size a:analyses) {
-                if(p.getWidth()>1920 || a.getWidth()>640 || a.getHeight()>640) continue;
-                if(p.getWidth()*a.getHeight()!=p.getHeight()*a.getWidth()) continue;
-                long score=Math.abs(p.getWidth()-1280)*10L+Math.abs(a.getWidth()-640);
-                if(score<best) { best=score; selected=p; analysis=a; }
+            if(map==null)throw new IllegalStateException("No camera output sizes");
+            Size selected=null;long best=Long.MAX_VALUE;
+            for(Size size:map.getOutputSizes(ImageFormat.YUV_420_888)) {
+                if(size.getWidth()>1920 || size.getHeight()>1080)continue;
+                long score=Math.abs(size.getWidth()-1280)*10L+Math.abs(size.getHeight()-720);
+                if(score<best){best=score;selected=size;}
             }
-            if(selected==null) throw new IllegalStateException("No compatible camera preview/analysis stream pair");
+            if(selected==null)throw new IllegalStateException("No suitable YUV stream");
             Integer sensor=chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
-            rotation=((sensor==null?90:sensor)-displayRotation*90+360)%360;
-            float aspect=(float)selected.getWidth()/selected.getHeight();
-            listener.geometry(rotation%180==0?aspect:1/aspect,rotation);
-            texture.setDefaultBufferSize(selected.getWidth(),selected.getHeight());
-            preview=new Surface(texture);
-            reader=ImageReader.newInstance(analysis.getWidth(),analysis.getHeight(),ImageFormat.YUV_420_888,2);
-            reader.setOnImageAvailableListener(this::analyze,handler);
-            manager.openCamera(id,new CameraDevice.StateCallback() {
+            rotation=CameraGeometry.uprightRotation(sensor==null?90:sensor,displayRotation);
+            android.util.Log.i("NextVR-Camera","rear="+id+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false");
+            reader=ImageReader.newInstance(selected.getWidth(),selected.getHeight(),ImageFormat.YUV_420_888,2);
+            reader.setOnImageAvailableListener(source->onFrame(source,token),handler);
+            manager.openCamera(id,new CameraDevice.StateCallback(){
                 @Override public void onOpened(CameraDevice device) {
-                    if(token!=generation || destroyed) { device.close(); return; }
+                    if(token!=generation || destroyed){device.close();return;}
                     camera=device;
                     try {
-                        device.createCaptureSession(Arrays.asList(preview,reader.getSurface()),new CameraCaptureSession.StateCallback() {
+                        device.createCaptureSession(Collections.singletonList(reader.getSurface()),new CameraCaptureSession.StateCallback(){
                             @Override public void onConfigured(CameraCaptureSession configured) {
-                                if(token!=generation) { configured.close(); return; }
-                                session=configured;
+                                if(token!=generation){configured.close();return;}session=configured;
                                 try {
                                     CaptureRequest.Builder request=device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-                                    request.addTarget(preview); request.addTarget(reader.getSurface());
+                                    request.addTarget(reader.getSurface());
                                     request.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
                                     session.setRepeatingRequest(request.build(),null,handler);
-                                } catch(Exception e) { fail("Camera preview failed",e); }
+                                }catch(Exception e){fail("Camera preview failed",e);}
                             }
-                            @Override public void onConfigureFailed(CameraCaptureSession failed) { if(token==generation) fail("Camera stream configuration failed",null); }
+                            @Override public void onConfigureFailed(CameraCaptureSession failed){if(token==generation)fail("Camera configuration failed",null);}
                         },handler);
-                    } catch(Exception e) { fail("Cannot create camera session",e); }
+                    }catch(Exception e){fail("Camera session failed",e);}
                 }
-                @Override public void onDisconnected(CameraDevice device) { device.close(); if(token==generation) fail("Camera disconnected — reopen NextVR to retry",null); }
-                @Override public void onError(CameraDevice device,int error) { device.close(); if(token==generation) fail("Camera unavailable ("+error+") — reopen NextVR to retry",null); }
+                @Override public void onDisconnected(CameraDevice device){device.close();if(token==generation)fail("Camera disconnected",null);}
+                @Override public void onError(CameraDevice device,int code){device.close();if(token==generation)fail("Camera error "+code,null);}
             },handler);
-        } catch(Exception e) { fail("Cannot start passthrough",e); }
+        }catch(Exception e){fail("Cannot start passthrough",e);}
     }
-    private void analyze(ImageReader source) {
-        Image image=null; Bitmap bitmap=null;
+    private void onFrame(ImageReader source,int token) {
+        Image image=null;Bitmap upright=null;
         try {
-            image=source.acquireLatestImage(); if(image==null) return;
-            long now=SystemClock.uptimeMillis();
-            if(!handsEnabled || now-lastAnalysis<68) return;
-            lastAnalysis=now;
-            if(detector==null) detector=HandLandmarker.createFromOptions(context,
-                HandLandmarker.HandLandmarkerOptions.builder()
-                    .setBaseOptions(BaseOptions.builder().setModelAssetPath("hand_landmarker.task").build())
-                    .setRunningMode(RunningMode.VIDEO).setNumHands(2)
-                    .setMinHandDetectionConfidence(.45f).setMinHandPresenceConfidence(.4f).setMinTrackingConfidence(.45f).build());
-            bitmap=toBitmap(image);
+            image=source.acquireLatestImage();if(image==null || token!=generation)return;
+            Image.Plane[] p=image.getPlanes();
+            int[] pixels=nativeYuvToArgb(p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
+                image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
+                p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride());
+            upright=Bitmap.createBitmap(pixels,image.getWidth(),image.getHeight(),Bitmap.Config.ARGB_8888);
             if(rotation!=0) {
-                android.graphics.Matrix m=new android.graphics.Matrix(); m.postRotate(rotation);
-                Bitmap upright=Bitmap.createBitmap(bitmap,0,0,bitmap.getWidth(),bitmap.getHeight(),m,true);
-                if(upright!=bitmap) { bitmap.recycle(); bitmap=upright; }
+                Matrix matrix=new Matrix();matrix.postRotate(rotation);
+                Bitmap rotated=Bitmap.createBitmap(upright,0,0,upright.getWidth(),upright.getHeight(),matrix,true);
+                if(rotated!=upright){upright.recycle();upright=rotated;}
             }
-            MPImage input=new BitmapImageBuilder(bitmap).build();
-            try {
-                HandLandmarkerResult result=detector.detectForVideo(input,now);
-                JSONArray landmarks=new JSONArray(), handedness=new JSONArray();
-                // Map camera aspect-fill to the SAME 1200x800 interaction viewport used by the GL shader.
-                for(int h=0;h<result.landmarks().size();h++) {
-                    JSONArray points=new JSONArray();
-                    for(var p:result.landmarks().get(h)) points.put(new JSONObject().put("x",p.x()).put("y",p.y()));
-                    landmarks.put(points);
-                    handedness.put(new JSONArray().put(new JSONObject().put("categoryName",result.handedness().get(h).get(0).categoryName())));
-                }
-                listener.hands(new JSONObject().put("landmarks",landmarks).put("handedness",handedness).toString());
-            } finally { input.close(); }
-        } catch(Exception e) {
-            handsEnabled=false; listener.error("Hand tracking failed; passthrough remains active. "+e.getMessage());
-            listener.hands("{\"landmarks\":[],\"handedness\":[]}");
-        } finally { if(image!=null) image.close(); if(bitmap!=null) bitmap.recycle(); }
+            // As in the fork: detect on a 640px copy, never on the bitmap the GL thread owns.
+            if(handsEnabled && busy.compareAndSet(false,true)) {
+                Bitmap small=Bitmap.createBitmap(640,640*upright.getHeight()/upright.getWidth(),Bitmap.Config.ARGB_8888);
+                new Canvas(small).drawBitmap(upright,null,new Rect(0,0,small.getWidth(),small.getHeight()),new Paint(Paint.FILTER_BITMAP_FLAG));
+                long stamp=SystemClock.elapsedRealtime();float sx=scaleX,sy=scaleY;
+                tracking.execute(()->{
+                    try {
+                        if(token!=generation || destroyed || !handsEnabled)return;
+                        if(detector==null) {
+                            try { detector=new FusionHands(context,true,"hand_landmarker.task",250L); }
+                            catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",250L); }
+                            if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
+                        }
+                        PhoneXrHands.Frame result=hands.process(detector.detect(small,stamp,0),sx,sy);
+                        if(token==generation && !destroyed && handsEnabled)listener.hands(result);
+                    }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
+                    finally{small.recycle();busy.set(false);}
+                });
+            }
+            listener.frame(upright);upright=null;
+        }catch(Exception e){fail("Camera frame failed",e);}
+        finally{if(image!=null)image.close();if(upright!=null)upright.recycle();}
     }
-    private static Bitmap toBitmap(Image image) {
-        int w=image.getWidth(), h=image.getHeight(); int[] rgba=new int[w*h];
-        Image.Plane[] planes=image.getPlanes();
-        ByteBuffer y=planes[0].getBuffer(), u=planes[1].getBuffer(), v=planes[2].getBuffer();
-        int ys=planes[0].getRowStride(), us=planes[1].getRowStride(), vs=planes[2].getRowStride();
-        for(int row=0;row<h;row++) for(int col=0;col<w;col++) {
-            int yy=(y.get(row*ys+col*planes[0].getPixelStride())&255)-16;
-            int uu=(u.get(row/2*us+col/2*planes[1].getPixelStride())&255)-128;
-            int vv=(v.get(row/2*vs+col/2*planes[2].getPixelStride())&255)-128;
-            int r=(298*yy+409*vv+128)>>8, g=(298*yy-100*uu-208*vv+128)>>8, b=(298*yy+516*uu+128)>>8;
-            rgba[row*w+col]=0xff000000|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b);
-        }
-        return Bitmap.createBitmap(rgba,w,h,Bitmap.Config.ARGB_8888);
+    private void clearHands() { hands.reset();listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos())); }
+    void enableHands(boolean enabled) {
+        handsEnabled=enabled;
+        if(!enabled)tracking.execute(this::clearHands);
     }
-    private static int clamp(int n) { return Math.max(0,Math.min(255,n)); }
-    private void fail(String message,Exception e) { closeCamera(); listener.error(message+(e==null?"":": "+e.getMessage())); }
-    private void closeCamera() {
+    private void fail(String message,Exception e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
+    private void closeCamera(){
         ++generation;
-        if(session!=null) { session.close(); session=null; }
-        if(camera!=null) { camera.close(); camera=null; }
-        if(reader!=null) { reader.close(); reader=null; }
-        if(preview!=null) { preview.release(); preview=null; }
+        if(session!=null){session.close();session=null;}
+        if(camera!=null){camera.close();camera=null;}
+        if(reader!=null){reader.close();reader=null;}
+        listener.stopped();
     }
-    void stop() { handler.post(() -> { closeCamera(); listener.hands("{\"landmarks\":[],\"handedness\":[]}"); }); }
-    void destroy(Runnable afterClose) { handler.post(() -> { destroyed=true; closeCamera(); if(detector!=null) detector.close(); afterClose.run(); thread.quitSafely(); }); }
+    void stop(){handler.post(()->{closeCamera();tracking.execute(this::clearHands);});}
+    void destroy(Runnable afterClose){
+        handler.post(()->{destroyed=true;closeCamera();tracking.execute(()->{if(detector!=null)detector.close();clearHands();});tracking.shutdown();afterClose.run();thread.quitSafely();});
+    }
+    private static native int[] nativeYuvToArgb(ByteBuffer y,ByteBuffer u,ByteBuffer v,int w,int h,int ys,int us,int vs,int yp,int up,int vp);
 }

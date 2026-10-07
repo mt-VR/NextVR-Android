@@ -94,19 +94,19 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const touches=await page.evaluate(()=>window.__touches);
     assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'Gaze/button down reaches browser texture');
     assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'Gaze/button up reaches browser texture');
-    // The native detector feeds the archive's actual One Euro / two-frame pinch latch.
+    // Native PhoneXR decisions drive spatial interaction; no JS landmark/gesture heuristic.
     const hand = gap => {
       const points=Array.from({length:21},()=>({x:.5,y:.5}));
       points[0]={x:.5,y:.75}; points[9]={x:.5,y:.5};
       points[4]={x:.5-gap/2,y:.5}; points[8]={x:.5+gap/2,y:.5};
-      return {landmarks:[points],handedness:[[{categoryName:'Left'}]]};
+      return {hands:[{id:'right',left:false,points:points.flatMap(p=>[p.x,p.y,0]),head:null,base:[0,-.2],aim:[0,0],palm:[.5,.5],palmWidth:.2,pinching:gap<.1,fist:false,palmFacesEyes:false}]};
     };
     await page.evaluate(()=>{window.__touches=[];window.nextvrResume();});
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
     await feed(hand(.04));
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
     // Lost tracking must CANCEL rather than releasing/clicking a link accidentally.
-    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({landmarks:[],handedness:[]});});
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});});
     await page.waitForFunction(()=>window.__touches.some(t=>t.action===3),null,{timeout:12000});
     const loss=await page.evaluate(()=>window.__touches);
     assert.ok(!loss.some(t=>t.action===1),'Tracking loss does not click');
