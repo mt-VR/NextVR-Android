@@ -16,6 +16,7 @@
 
 #include "nextvr_app.h"
 #include <time.h>
+#include <android/log.h>
 
 namespace ndk_nextvr {
 NextVrApp::NextVrApp(JavaVM* vm, jobject obj, jobject /*assets*/) : vm_(vm) {
@@ -28,7 +29,7 @@ NextVrApp::NextVrApp(JavaVM* vm, jobject obj, jobject /*assets*/) : vm_(vm) {
   env->DeleteLocalRef(cls);
   Cardboard_initializeAndroid(vm, obj);
   head_tracker_ = CardboardHeadTracker_create();
-  CardboardHeadTracker_setLowPassFilter(head_tracker_, 10.f);
+  CardboardHeadTracker_setLowPassFilter(head_tracker_, 6.f);
 }
 NextVrApp::~NextVrApp() {
   CardboardHeadTracker_destroy(head_tracker_);
@@ -63,13 +64,13 @@ void NextVrApp::OnDrawFrame() {
   float position[3], orientation[4];
   CardboardHeadTracker_getPose(head_tracker_, now + 50000000LL, kLandscapeLeft, position, orientation);
   // Deliberately discard translation. No neck model, VINS, ARCore or 6 DoF.
-  const Matrix4x4 rotation = Quatf::FromXYZW(orientation).ToMatrix();
+  Matrix4x4 rotation = Quatf::FromXYZW(orientation).ToMatrix();
   auto raw = rotation.ToGlArray();
   jfloatArray view_array = env->NewFloatArray(16);
   jfloatArray projection_array = env->NewFloatArray(16);
   env->SetFloatArrayRegion(view_array, 0, 16, raw.data());
   env->CallVoidMethod(activity_, pose_, view_array);
-  const Matrix4x4 head = rotation * GetTranslationMatrix({0.f, -1.55f, 0.f});
+  Matrix4x4 head = rotation * GetTranslationMatrix({0.f, -1.55f, 0.f});
   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
@@ -98,7 +99,7 @@ bool NextVrApp::UpdateDeviceParams() {
   int size;
   CardboardQrCode_getSavedDeviceParams(&buffer, &size);
 
-  // If there are no parameters saved yet, returns false.
+  // Use the SDK-owned Cardboard v1 defaults until the user explicitly pairs a viewer.
   bool defaults = size == 0;
   if (defaults) CardboardQrCode_getCardboardV1DeviceParams(&buffer, &size);
 
