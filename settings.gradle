@@ -1,0 +1,3 @@
+// NextVR: ':sdk' is the Google Cardboard SDK for Android NDK (vendored, Apache-2.0) and
+// ':nextvr-android' is the NextVR application built on top of it.
+include ':sdk', ':nextvr-android'

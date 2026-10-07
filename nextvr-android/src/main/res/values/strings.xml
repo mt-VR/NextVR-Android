@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name"
+            description="Application name. [CHAR_LIMIT=30]">
+            NextVR</string>
+
+    <!-- Strings present in the 'VR' activity -->
+    <string name="title_activity_vr"
+            description="VR activity title. [CHAR_LIMIT=30]">
+            NextVR</string>
+    <string name="read_storage_permission"
+            description="Text shown on Android Toast when permissions are not granted.
+                         [CHAR_LIMIT=90]">
+            NextVR needs to read your external storage to load the Cardboard device parameters.</string>
+    <string name="low_storage_error"
+            description="Text shown on Android Toast when detector dependencies can not be
+                         downloaded due to low storage. [CHAR_LIMIT=70]">
+            Detector dependencies cannot be downloaded due to low device storage</string>
+
+    <!-- Strings present in the 'Settings' menu -->
+    <string name="switch_viewer"
+            description="Short text shown on the settings menu to let the user switch viewer.
+                         [CHAR_LIMIT=30]">
+            Switch Cardboard viewer</string>
+    <string name="about_nextvr"
+            description="Short text shown on the settings menu to open the About dialog.
+                         [CHAR_LIMIT=30]">
+            About NextVR</string>
+    <string name="about_title"
+            description="Title of the About dialog. [CHAR_LIMIT=30]">
+            About NextVR</string>
+    <string name="about_message"
+            description="Body of the About dialog. %1$s is the app version, %2$s is the
+                         Cardboard SDK version.">
+            NextVR %1$s\nPowered by the Google Cardboard SDK for Android NDK %2$s.\n\nPoint your head at an object and press the viewer button to collect it.</string>
+
+    <!-- Keep in sync with the Cardboard SDK vendored in sdk/ (see README.md). -->
+    <string name="cardboard_sdk_version" translatable="false">1.35.0</string>
+</resources>

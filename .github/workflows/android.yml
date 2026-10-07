@@ -1,0 +1,42 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "arena/6d6e17db-nextvr-android", "main" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build NextVR debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install NDK and CMake
+        run: |
+          sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1"
+
+      - name: Build Cardboard SDK and NextVR
+        run: ./gradlew :nextvr-android:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextvr-debug-apk
+          path: nextvr-android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
