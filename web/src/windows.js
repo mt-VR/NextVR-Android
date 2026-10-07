@@ -13,7 +13,8 @@ const dockAt = { y: EYE - .6, z: -1.7, h: .12 };
 
 /* =================== uma janela =================== */
 class Win {
-  constructor({ id, title, node, w = 1040, h = 660 }) {
+  constructor({ id, title, node, w = 1040, h = 660, onboarding = false }) {
+    this.onboarding=onboarding;
     this.id = id; this.title = title; this.w = w; this.h = h;
     this.pinned = true;                       // nasce presa acima da dock
     this.target = new THREE.Vector3();
@@ -46,7 +47,7 @@ class Win {
 
     this.el = el; this.shell = shell; this.handle = handle;
     this.obj = new CSS3DObject(shell);
-    this.obj.scale.setScalar(PX * S.winScale);
+    this.obj.scale.setScalar(PX * (this.onboarding ? 1.15 : S.winScale));
     contentRoot.add(this.obj);
 
     // planos invisíveis só para o cursor da mão acertar
@@ -78,17 +79,18 @@ class Win {
     const flat = Math.hypot(o.position.x, o.position.z) || .001;
     const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
     o.rotation.set(pitch, yaw, 0, 'YXZ');
-    o.scale.setScalar(PX * S.winScale);
+    const scale=this.onboarding ? 1.15 : S.winScale;
+    o.scale.setScalar(PX * scale);
 
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
-    this.hit.scale.setScalar(S.winScale);
+    this.hit.scale.setScalar(scale);
 
     // a alça acompanha a janela, 34 px abaixo da borda
-    const down = (this.h / 2 + 34) * PX * S.winScale;
+    const down = (this.h / 2 + 34) * PX * scale;
     this.grab.position.copy(o.position);
     this.grab.rotation.copy(o.rotation);
     this.grab.translateY(-down);
-    this.grab.scale.setScalar(S.winScale);
+    this.grab.scale.setScalar(scale);
   }
 }
 
@@ -103,7 +105,8 @@ function plane(w, h, win) {
  * Soltas: ficam onde o usuário largou, e não entram no arranjo.
  */
 function layout() {
-  const pin = wins.filter(w => w.pinned);
+  for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-1.05);
+  const pin = wins.filter(w => w.pinned && !w.onboarding);
   const n = pin.length; if (!n) return;
   const perRow = Math.min(n, 4);                    // até 4 por fileira, em arco
   const step = Math.min(.78, Math.max(.52, .5 + n * .05));
@@ -132,6 +135,7 @@ export function open(spec) {
   // aparece já perto do destino, sem voar da origem
   w.obj.position.set(0, dockAt.y, dockAt.z);
   wins.push(w); layout(); focus(w);
+  if(w.onboarding){w.obj.position.copy(w.target);w.handle.hidden=true;w.apply(0);}
   emit('wins', wins);
   return w;
 }
@@ -159,6 +163,7 @@ const ndc = new THREE.Vector2();
 const drag = { win: null, dist: 2 };
 
 function startDrag(w, nx, ny) {
+  if(w.onboarding)return;
   drag.win = w; focus(w);
   drag.dist = w.obj.position.length() || 2;
   w.pinned = false;                       // soltou da dock
@@ -186,7 +191,7 @@ function hitAt(x, y) {
   ndc.set(x * 2 - 1, -(y * 2 - 1));
   ray.setFromCamera(ndc, camera);
   const list = [];
-  for (const w of wins) { list.push(w.grab, w.hit); }
+  for (const w of wins) { if(!w.onboarding)list.push(w.grab);list.push(w.hit); }
   const h = ray.intersectObjects(list, false)[0];
   if (!h) return null;
   const w = h.object.userData.win;
@@ -196,6 +201,13 @@ function hitAt(x, y) {
   return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height };
 }
 
+// Same mesh ray and atlas coordinates as native touch, but used only for setup gaze fallback.
+export function gazeElement() {
+  camera.updateMatrixWorld(true);contentRoot.updateMatrixWorld(true);
+  const hit=hitAt(.5,.5);if(!hit || hit.handle)return null;
+  const rect=hit.win.el.getBoundingClientRect();
+  return {win:hit.win,element:document.elementFromPoint(rect.left+hit.u*rect.width,rect.top+hit.v*rect.height)};
+}
 let nativePress = null;
 function nativeTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
@@ -569,6 +581,7 @@ function windowPoint(w, point) {
 function fistHit(r) {
   let best=null;
   for(const w of wins) {
+    if(w.onboarding)continue;
     const center=w.obj.getWorldPosition(new THREE.Vector3());
     const normal=new THREE.Vector3(0,0,1).transformDirection(w.obj.matrixWorld);
     const hit=r.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(normal,center),new THREE.Vector3());

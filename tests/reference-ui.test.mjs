@@ -80,8 +80,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
     assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
     assert.equal(await page.locator('.win-title').innerText(),'Next VR');
-    await page.locator('.lang-option[data-lang="en"]').click();
+    // Real gaze selection, with no hands and no mouse/DOM click: setup must not be blocked by tracking.
+    await page.evaluate(()=>{window.nextvrResume();window.nextvrHands({hands:[]});});
+    const language=await page.evaluate(()=>{
+      const shell=document.querySelector('.win-shell'),button=shell.querySelector('[data-lang="en"]');
+      const r=shell.getBoundingClientRect(),b=button.getBoundingClientRect();
+      const panel=window.__last.panels.filter(p=>!p.overlay)[1];
+      return {matrix:panel.matrix,rect:panel.rect,glass:panel.glass,width:r.width,height:r.height,
+        x:b.left+b.width/2-r.left-r.width/2,y:r.height/2-(b.top+b.height/2-r.top),buttonHeight:b.height};
+    });
+    const languageMatrix=new THREE.Matrix4().fromArray(language.matrix);
+    const centre=new THREE.Vector3().setFromMatrixPosition(languageMatrix);
+    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+1.05)<.001,'Language window is close and at eye level');
+    const widthMetres=languageMatrix.elements[0]*language.glass[2];
+    assert.ok(2*Math.atan(widthMetres/2/1.05)*180/Math.PI>50,'Setup has a readable angular size');
+    assert.ok(language.buttonHeight>=180,'Large language hit targets');
+    const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
+    const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
+    await page.waitForFunction(()=>document.querySelector('.lang-option.gaze-hover')?.dataset.lang==='en');
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
+    await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-tile').count(),13);
@@ -137,6 +157,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(hand(.04));
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down&&t.end?.length===3));
+    // A slow native detector supplies its completion-based validity; 500 ms is not a lost hand.
+    await page.evaluate(h=>{clearInterval(window.__feed);window.__touches=[];window.nextvrHands({...h,validForMs:1400,inferenceMs:600});},hand(.04));
+    await page.waitForTimeout(650);
+    assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===3)),false,'Slow inference must not flicker/cancel between valid results');
     // Lost tracking must CANCEL rather than releasing/clicking a link accidentally.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});});
     await page.waitForFunction(()=>window.__touches.some(t=>t.action===3),null,{timeout:12000});

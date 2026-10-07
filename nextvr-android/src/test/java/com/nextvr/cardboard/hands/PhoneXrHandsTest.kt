@@ -62,6 +62,34 @@ class PhoneXrHandsTest {
         assertTrue(next.grabX>first.grabX)
         assertTrue(next.grabX<next.shape.palmX)
     }
+    @Test fun slowInferenceIsFreshOnCompletionNotOnCapture() {
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,2_000_000_000L)
+        assertEquals(1_000_000_000L,frame.timestampNs)
+        assertTrue(frame.isFresh(2_100_000_000L)) // old renderer rejected this immediately
+        assertTrue(frame.isFresh(2_700_000_000L)) // CPU cadence, not a hard 500 ms timer
+        assertFalse(frame.isFresh(3_500_000_001L)) // stalled detector still expires
+        assertEquals(1_500_000_000L,frame.validForNs)
+    }
+    @Test fun fastInferenceStillExpiresPromptly() {
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,1_020_000_000L)
+        assertEquals(500_000_000L,frame.validForNs)
+        assertFalse(frame.isFresh(1_520_000_001L))
+    }
+    @Test fun briefMissCanKeepOnlyTheSilhouetteNeverTheClick() {
+        val engine=PhoneXrHands();val presentation=HandPresentation()
+        val seen=engine.process(result(points(.2f),1000),1f,1f,1_050_000_000L)
+        assertSame(seen,presentation.silhouette(seen,1_050_000_000L))
+        val missing=engine.process(result(null,1050),1f,1f,1_100_000_000L)
+        assertTrue(missing.hands.isEmpty())
+        assertSame(seen,presentation.silhouette(missing,1_100_000_000L))
+        assertNull(presentation.silhouette(missing,1_231_000_000L))
+    }
+    @Test fun stalledResultCannotKeepASilhouetteForever() {
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f)
+        val presentation=HandPresentation()
+        assertSame(frame,presentation.silhouette(frame,1_100_000_000L))
+        assertNull(presentation.silhouette(frame,1_600_000_000L))
+    }
     @Test fun nativeFilterHasRestingDeadZone() {
         val filter=HandGestures.OneEuro(minCutoff=1.4f,beta=12f,deadZone=.0008f)
         assertEquals(.5f,filter.filter(.5f,1000000000),0f)

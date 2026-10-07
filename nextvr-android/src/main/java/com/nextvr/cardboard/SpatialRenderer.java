@@ -148,7 +148,8 @@ final class SpatialRenderer {
             for(Panel p:sorted) if(!p.overlay) drawPanel(p,view,projection);
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
-        if(hands!=null) handRenderer.draw(hands,spanX/2,spanY/2,projection,handTargets,showHands);
+        com.nextvr.cardboard.hands.PhoneXrHands.Frame handFrame=hands;
+        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p,identity,projection);

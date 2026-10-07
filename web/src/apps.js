@@ -1,7 +1,9 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native } from './core.js';
-import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus } from './windows.js';
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, onFrame } from './core.js';
+import { startHands, stopHands, tracking, cursor } from './hands.js';
+import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, gazeElement } from './windows.js';
+
+import { DwellSelection } from './dwell.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const openOut = url => { if (native) return webWindow('browser-extra', t('browser'), url); try { window.open(url, '_blank', 'noopener'); } catch { toast('Bloqueado pelo navegador'); } };
@@ -812,15 +814,38 @@ function languageWindow() {
       <button class="lang-option" data-lang="en"><b>🇺🇸</b><span>English</span></button>
       <button class="lang-option" data-lang="es"><b>🇪🇸</b><span>Español</span></button>
     </div>
-    <div class="lang-status">A janela desaparece depois da escolha.</div>`;
+    <div class="lang-status">Look at a language for 1.2 seconds, or press the viewer button.<br><span class="lang-tracking">Hand tracking is starting…</span></div>`;
   body.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => finishLanguage(b.dataset.lang));
-  const w = open({ id:'language', title:'Next VR', node:body, w:760, h:520 });
+  const w = open({ id:'language', title:'Next VR', node:body, w:880, h:600, onboarding:true });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();
+  w.el.querySelector('[data-act="pin"]')?.remove();
   return w;
 }
 
+const setupDwell=new DwellSelection();
+const gazeRing=el('div','setup-gaze');gazeRing.hidden=true;
+document.getElementById('hud').append(gazeRing);
+let setupButton=null, setupActive=true;
+on('handframe', frame=>{
+  const node=langWin?.el.querySelector('.lang-tracking');
+  const text=frame.hands.length?`Hands detected: ${frame.hands.length}`:'No hand detected — gaze selection still works';
+  if(node && node.textContent!==text)node.textContent=text;
+});
+onFrame((dt,now)=>{
+  if(!native || !langWin || !setupActive){gazeRing.hidden=true;return;}
+  const hit=gazeElement();
+  const button=hit?.win===langWin ? hit.element?.closest('.lang-option') : null;
+  if(setupButton!==button){setupButton?.classList.remove('gaze-hover');button?.classList.add('gaze-hover');setupButton=button;}
+  const {progress,activate}=setupDwell.update(cursor.down?null:button,now);
+  gazeRing.hidden=false;gazeRing.style.setProperty('--progress',`${progress*360}deg`);
+  gazeRing.classList.toggle('over',!!button);
+  if(activate){setupDwell.reset();button.click();}
+});
+
 async function finishLanguage(lang) {
+  if(!langWin)return;
+  setupDwell.reset();gazeRing.hidden=true;
   setLang(lang);                                  // atualiza dock, menu e todas as telas
   if (langWin) { close(langWin); langWin = null; }
   document.getElementById('perm').hidden = false;
@@ -853,7 +878,7 @@ if (S.lang) {
 if (native) {
   // Native owns permission/lifecycle; a page gesture must not open another camera stream.
   document.getElementById('perm').hidden = true;
-  window.nextvrResume = () => { startGyro(); if (S.handsOn) startHands(); };
-  window.nextvrSuspend = () => stopHands();
+  window.nextvrResume = () => { setupActive=true;setupDwell.reset();startGyro(); if (S.handsOn) startHands(); };
+  window.nextvrSuspend = () => { setupActive=false;setupDwell.reset();gazeRing.hidden=true;stopHands(); };
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }

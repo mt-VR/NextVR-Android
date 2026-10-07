@@ -13,7 +13,9 @@ class PhoneXrHands {
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
                     val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float)
-    data class Frame(val hands: List<Hand>, val timestampNs: Long) {
+    data class Frame @JvmOverloads constructor(val hands: List<Hand>, val timestampNs: Long,
+        val completedNs: Long = timestampNs, val validForNs: Long = 500_000_000L) {
+        fun isFresh(nowNs: Long) = nowNs >= completedNs && nowNs - completedNs <= validForNs
         fun json(): String {
             val a = JSONArray()
             for (h in hands) a.put(JSONObject().put("id", if(h.left) "left" else "right")
@@ -24,7 +26,9 @@ class PhoneXrHands {
                 .put("palm", JSONArray(listOf(h.shape.palmX, h.shape.palmY)))
                 .put("grab", JSONArray(listOf(h.grabX,h.grabY)))
                 .put("palmWidth", h.shape.palmWidth).put("palmToFace", h.shape.palmToFace))
-            return JSONObject().put("hands", a).put("timestampNs", timestampNs).toString()
+            return JSONObject().put("hands", a).put("timestampNs", timestampNs)
+                .put("validForMs", validForNs / 1_000_000L)
+                .put("inferenceMs", (completedNs - timestampNs).coerceAtLeast(0) / 1_000_000L).toString()
         }
     }
     private class State {
@@ -41,7 +45,8 @@ class PhoneXrHands {
     }
     private val states = HashMap<Boolean, State>()
     fun reset() = states.clear()
-    fun process(result: HandLandmarkerResult, scaleX: Float, scaleY: Float): Frame {
+    @JvmOverloads fun process(result: HandLandmarkerResult, scaleX: Float, scaleY: Float,
+        completedNs: Long = result.timestampMs() * 1_000_000L): Frame {
         val stamp = result.timestampMs() * 1_000_000L
         val present = HashSet<Boolean>()
         val seen = result.landmarks().mapIndexedNotNull { index, raw ->
@@ -66,6 +71,10 @@ class PhoneXrHands {
                 state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
         }
         states.keys.retainAll(present)
-        return Frame(seen,stamp)
+        // Capture time belongs to the filters, not the result-expiry clock. Cold start / CPU
+        // inference may take >500 ms: a newly completed result must still get displayed.
+        val validity = ((completedNs - stamp).coerceAtLeast(0) * 2 + 150_000_000L)
+            .coerceIn(500_000_000L, 1_500_000_000L)
+        return Frame(seen,stamp,completedNs,validity)
     }
 }

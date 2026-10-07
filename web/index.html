@@ -137,16 +137,19 @@
   .big{display:grid;place-items:center;height:100%;text-align:center;padding:40px;gap:18px}
 
   /* primeira execução: a escolha de idioma fica dentro de uma única janela 3D */
-  .langwin{height:520px;width:760px;padding:44px 54px;display:flex;flex-direction:column;justify-content:center;
+  .langwin{height:100%;width:100%;padding:32px 36px;display:flex;flex-direction:column;justify-content:flex-start;
     background:linear-gradient(145deg,rgba(30,35,46,.96),rgba(16,20,29,.96));}
-  .langwin h1{font-size:34px;margin:0 0 8px;letter-spacing:-.6px}
-  .langwin p{font-size:17px;color:var(--soft);margin:0 0 25px;line-height:1.5}
-  .lang-options{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
-  .lang-option{min-height:120px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.07);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:17px;font-weight:600}
+  .langwin h1{font-size:38px;margin:0 0 8px;letter-spacing:-.6px}
+  .langwin p{font-size:20px;color:var(--soft);margin:0 0 25px;line-height:1.5}
+  .lang-options{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+  .lang-option{min-height:180px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.07);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:24px;font-weight:600}
   .lang-option b{font-size:34px}
-  .lang-option:hover,.lang-option:focus-visible{background:rgba(155,186,255,.18);border-color:var(--accent)}
-  .lang-status{margin-top:23px;color:var(--faint);font-size:13px}
+  .lang-option.gaze-hover,.lang-option:hover,.lang-option:focus-visible{background:rgba(155,186,255,.18);border-color:var(--accent)}
+  .lang-status{margin-top:16px;color:var(--soft);font-size:18px;line-height:1.5}
+  .lang-tracking{font-size:16px;color:var(--soft)}
+  #hud .setup-gaze{position:absolute;left:50%;top:50%;width:24px;height:24px;transform:translate(-50%,-50%);border:2px solid #fff;border-radius:50%;pointer-events:none;box-shadow:0 0 4px #000;background:rgba(0,0,0,.35)}
+  #hud .setup-gaze.over{background:conic-gradient(#9bbaff var(--progress,0deg),rgba(0,0,0,.4) 0deg)}
   @media(max-width:700px){.langwin{width:calc(100vw - 36px);height:auto;padding:30px 22px}.lang-options{grid-template-columns:1fr}.lang-option{min-height:70px;flex-direction:row;justify-content:flex-start;padding:0 20px}.lang-option b{font-size:28px}}
 
   /* ---------- loja (igual ao print) ---------- */

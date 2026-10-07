@@ -21,20 +21,38 @@ class PhoneXrHandRenderer {
     private var handPoints=emptyList<FloatArray>()
     private var viewScaleX=1f
     private var viewScaleY=1f
+    private val presentation=com.nextvr.cardboard.hands.HandPresentation()
+    private data class Mesh(val vertices:FloatArray,val color:FloatArray)
+    private var meshFrame:PhoneXrHands.Frame?=null
+    private data class Geometry(val sx:Float,val sy:Float,val meshes:List<Mesh>)
+    private val meshSets=ArrayList<Geometry>(2)
+    private var meshes=emptyList<Mesh>()
     private val hasStencil=true
     private var touching=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
 
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
-        if(SystemClock.elapsedRealtimeNanos()-frame.timestampNs>500_000_000L) return
-        this.frame=frame;handPoints=frame.hands.map { it.points };viewScaleX=sx;viewScaleY=sy
+        val now=SystemClock.elapsedRealtimeNanos()
+        val visible=presentation.silhouette(frame,now)
+        viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(colorProgram,"uMatrix"),1,false,projection,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
-        if(showSilhouette) drawHandSkeletons(position)
+        if(showSilhouette && visible!=null) {
+            this.frame=visible
+            if(meshFrame!==visible) { meshSets.clear();meshFrame=visible }
+            val cached=meshSets.firstOrNull { it.sx==sx && it.sy==sy }
+            meshes=if(cached!=null)cached.meshes else {
+                handPoints=visible.hands.map { it.points }
+                buildHandMeshes().also { meshSets.add(Geometry(sx,sy,it)) }
+            }
+            drawHandSkeletons(position)
+        } else { meshFrame=null;meshSets.clear();meshes=emptyList() }
+        // Missing/stalled tracking may retain a short visual outline, but never a ray/press.
+        if(!frame.isFresh(now))return
         val targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
         for(hand in frame.hands) {
             val id=if(hand.left) "left" else "right"
@@ -64,17 +82,23 @@ class PhoneXrHandRenderer {
         GLES20.glDisableVertexAttribArray(position)
     }
 private fun drawHandSkeletons(position: Int) {
+        val color=GLES20.glGetUniformLocation(colorProgram,"uColor")
+        GLES20.glEnable(GLES20.GL_STENCIL_TEST)
+        GLES20.glStencilMask(0xff)
+        GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
+        GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
+        for(mesh in meshes) {
+            GLES20.glUniform4fv(color,1,mesh.color,0)
+            drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
+        }
+        GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+    }
+
+    // Same PhoneXR tessellation and colors, built once per detection, not twice per eye/frame.
+    private fun buildHandMeshes():List<Mesh> {
             val hands = handPoints
-            if (hands.isEmpty()) return
-            val color = GLES20.glGetUniformLocation(colorProgram, "uColor")
+            val result=ArrayList<Mesh>()
             val pinching = frame.hands.any { it.pinching }
-            if (hasStencil) {
-                // A pixel passes only while its stencil is 0, and is then marked 1: drawn once.
-                GLES20.glEnable(GLES20.GL_STENCIL_TEST)
-                GLES20.glStencilMask(0xFF)
-                GLES20.glStencilFunc(GLES20.GL_GREATER, 1, 0xFF)
-                GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_REPLACE)
-            }
             for (hand in hands) {
                 fun x(i: Int) = (hand[i * 3] - .5f) * 2f * viewScaleX
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
@@ -119,16 +143,15 @@ private fun drawHandSkeletons(position: Int) {
                             bone(base + 2, base + 3, r * .85f * f, r * .76f * f)
                         }
                     }
-                    when {
-                        outline && pinching -> GLES20.glUniform4f(color, 1f, 1f, 1f, 1f)
-                        outline -> GLES20.glUniform4f(color, .78f, .79f, .84f, .9f)
-                        // Without a stencil overlaps would darken, so the fill is then solid.
-                        else -> GLES20.glUniform4f(color, .09f, .09f, .16f, if (hasStencil) .62f else 1f)
+                    val rgba=when {
+                        outline && pinching -> floatArrayOf(1f,1f,1f,1f)
+                        outline -> floatArrayOf(.78f,.79f,.84f,.9f)
+                        else -> floatArrayOf(.09f,.09f,.16f,.62f)
                     }
-                    drawArray(shape.toFloatArray(), GLES20.GL_TRIANGLES, position)
+                    result.add(Mesh(shape.toFloatArray(),rgba))
                 }
             }
-            if (hasStencil) GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+            return result
         }
 
 private fun handDisc(out: ArrayList<Float>, x: Float, y: Float, r: Float) {

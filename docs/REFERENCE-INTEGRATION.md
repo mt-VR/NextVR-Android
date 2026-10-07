@@ -129,11 +129,34 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   Hand-local metric geometry does not move/track the head or establish a room origin.
 - Native targets come from the real reference dock/window/keyboard meshes and are transformed
   back to head space for the PhoneXR rings. Browser holds deliver native MOVE events.
+- Result freshness is measured from inference **completion**, not the camera capture timestamp.
+  Capture timestamps still drive the original landmark filters. A 500–1500 ms bounded watchdog
+  follows detector latency, so a slow CPU result is not expired before its first presentation.
+  An explicitly empty result still cancels interaction immediately. A silhouette alone can bridge
+  a missed detection for at most 180 ms; it cannot preserve a click or a pointer.
+- Silhouette geometry is cached per result/per optical span and shared across display frames,
+  instead of rebuilding thousands of boxed vertices for each eye on every refresh.
+- GPU inference failure (not just delegate creation failure) retries on CPU. YOLO rescue checks
+  run at most every 500 ms on the GPU path / 750 ms on CPU to reduce background contention;
+  the fork's hand detector, gesture thresholds and visualization geometry remain in use.
 - Safety adaptations: disappearance/stale tracking cancels a held gesture rather than clicking;
   held pointer ownership, matching dock/keyboard releases and lifecycle resets are preserved.
 - Upstream `palmButtons()` and `drawPalmButtons()` have definitions but no active call sites at
   this pinned revision. They are not turned into invented menus/actions in this integration.
 - Cardboard viewer-button / screen-tap fallback uses the same spatial hit-testing at gaze centre.
+
+### Accessible first-run selection
+
+The archive's language window remains a spatial HTML surface, but first-run placement is now
+fixed at eye height, 1.05 m ahead, independently of saved workspace distance/scale. Its 880×600
+surface at scale 1.15 spans approximately 54 degrees horizontally, with 180 px tall language
+buttons and unclipped instructions. It does not animate in from the distant dock or allow dragging
+away before setup. Normal dock/workspace placement remains unchanged.
+
+A visible centre reticle and 1.2-second continuous gaze dwell can select a language **without
+hands or a mouse**. It uses the same world ray/window mesh/atlas coordinates as hand input.
+Changing target, looking away, suspension or a stalled frame loop resets dwell; it fires once.
+The viewer-button/tap path remains available. The window reports actual detected-hand counts.
 
 ### Audio
 
@@ -169,7 +192,8 @@ real world while wearing the viewer.**
 
 Automated tests (`npm test`) run the actual bundled reference UI in headless Chromium and check:
 
-- boot/language flow, exact dock order, store/library contents;
+- real pose-driven gaze language selection with no hand input, near eye-level setup geometry,
+  enlarged hit targets, exact dock order, store/library contents;
 - opening/closing multiple windows and native browser lifecycle specifications;
 - reference dock position, world anchoring during head rotation;
 - native browser DOWN/UP ray routing;
@@ -184,7 +208,7 @@ Automated tests (`npm test`) run the actual bundled reference UI in headless Chr
 - orientation-only native render path and bridge security invariants.
 
 JVM tests exercise all rear-camera quarter turns, non-mirrored corner mapping, native pinch
-hysteresis/fist suppression, handedness, shoulder aim, resting dead zones and hand-loss resets.
+hysteresis/fist suppression, handedness, shoulder aim, resting dead zones hand-loss resets, slow-inference completion timing, bounded expiry and visual-only dropout retention.
 
 Android CI runs these tests and builds the vendored SDK and debug APK for `arm64-v8a` and `armeabi-v7a`. The first build
 caught native Matrix4x4 const-compatibility and logging-header issues; these were fixed, and the

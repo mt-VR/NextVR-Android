@@ -60,7 +60,7 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 
 | Action | How |
 | --- | --- |
-| Start | Grant camera permission; select a language in the reference's floating welcome window. |
+| Start | Grant camera permission. Look at a language in the close, eye-level welcome window for 1.2 seconds, or use the viewer button. Hands are not required for setup. |
 | Look around | Existing Cardboard head orientation; windows stay in the world. |
 | Select | Aim the PhoneXR shoulder ray and pinch thumb/index. |
 | Move a window | Close a fist over the window, move your palm, then open to release. The white lower handle also works. |

@@ -41,6 +41,7 @@ final class PassthroughCamera {
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader reader;
+    private boolean gpuDetector;
     private FusionHands detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
     private int rotation;
@@ -126,11 +127,21 @@ final class PassthroughCamera {
                     try {
                         if(token!=generation || destroyed || !handsEnabled)return;
                         if(detector==null) {
-                            try { detector=new FusionHands(context,true,"hand_landmarker.task",250L); }
-                            catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",250L); }
+                            try { detector=new FusionHands(context,true,"hand_landmarker.task",500L);gpuDetector=true; }
+                            catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
                             if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
                         }
-                        PhoneXrHands.Frame result=hands.process(detector.detect(small,stamp,0),sx,sy);
+                        com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
+                        try { detected=detector.detect(small,stamp,0); }
+                        catch(RuntimeException gpuFailure) {
+                            // Some drivers accept delegate creation but fail on the first inference.
+                            if(!gpuDetector)throw gpuFailure;
+                            android.util.Log.w("NextVR-Hands","GPU inference failed; switching to CPU",gpuFailure);
+                            detector.close();detector=null;gpuDetector=false;
+                            detector=new FusionHands(context,false,"hand_landmarker.task",750L);
+                            hands.reset();detected=detector.detect(small,stamp,0);
+                        }
+                        PhoneXrHands.Frame result=hands.process(detected,sx,sy,SystemClock.elapsedRealtimeNanos());
                         if(token==generation && !destroyed && handsEnabled)listener.hands(result);
                     }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
                     finally{small.recycle();busy.set(false);}

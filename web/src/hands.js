@@ -4,7 +4,7 @@ import { settings as S, on, emit, toast, onFrame, native } from './core.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
-let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null;
+let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
 export const tracking = () => enabled;
 export async function startHands() {
   if (!native) { toast('PhoneXR hands require the Android camera pipeline.'); return false; }
@@ -24,7 +24,9 @@ export function screenPoint(tangent) { return { x: .5 + tangent[0] / (2*TAN_X), 
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   scaleX=sx;scaleY=sy;lastFrame=performance.now();
+  validForMs=Math.max(500,Math.min(1500,Number(frame.validForMs)||500));
   hands.splice(0,hands.length,...(frame.hands || []));
+  emit('handframe',{...frame,hands});
   const packet={ hands, consumed:new Set(), scaleX, scaleY };
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
@@ -45,7 +47,7 @@ const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 onFrame(()=>{
   if (native && visual!==!!S.handDraw) { visual=!!S.handDraw; window.NativeXR.handVisuals?.(visual); }
-  if (hands.length && performance.now()-lastFrame>500) {
+  if (hands.length && performance.now()-lastFrame>validForMs) {
     hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }
 });
