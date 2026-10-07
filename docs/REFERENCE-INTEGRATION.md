@@ -136,6 +136,9 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   a missed detection for at most 180 ms; it cannot preserve a click or a pointer.
 - Silhouette geometry is cached per result/per optical span and shared across display frames,
   instead of rebuilding thousands of boxed vertices for each eye on every refresh.
+- MediaPipe 0.10.35 `MPImage.close()` recycles its backing bitmap. The detector now wraps an
+  independently owned copy, leaving the borrowed frame readable by YOLO, crop rescue, and GPU
+  failure recovery. An Android bitmap ownership regression test exercises that close/copy path.
 - GPU inference failure (not just delegate creation failure) retries on CPU. YOLO rescue checks
   run at most every 500 ms on the GPU path / 750 ms on CPU to reduce background contention;
   the fork's hand detector, gesture thresholds and visualization geometry remain in use.

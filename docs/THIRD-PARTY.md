@@ -11,7 +11,9 @@
   `FusionHands.kt`, `Crops.kt`, `Yolo11Pose.kt` are copied; native smoothing/rays and the GL
   silhouette/drop/beam/ring methods are adapted from `VrHomeActivity.kt`. Local changes adapt
   package/bridge/window ownership, serialize YOLO destruction and close the model's asset file
-  descriptor. Its Compose UI, game runtimes and 6 DoF code are not copied. The pinned upstream
+  descriptor. Further integration fixes give MediaPipe an owned bitmap copy, close it on
+  inference failure, reduce rescue scheduling contention and cache hand geometry without
+  changing its shape. Its Compose UI, game runtimes and 6 DoF code are not copied. The pinned upstream
   tree has no root license file: do not assume these additions inherit Cardboard's Apache license;
   establish appropriate source-code permission before third-party redistribution.
 - **MediaPipe Tasks Vision 0.10.35**: Google, Apache-2.0 library fetched through Gradle.

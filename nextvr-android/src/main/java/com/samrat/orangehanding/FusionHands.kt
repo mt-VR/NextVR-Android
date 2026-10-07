@@ -50,7 +50,7 @@ class FusionHands(
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult {
         val stamp = maxOf(timestampMs, lastTimestamp + 1)
         lastTimestamp = stamp
-        val image = BitmapImageBuilder(bitmap).build()
+        val image = MpImageInput.copyOf(bitmap)
         val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
         val base = try { video.detectForVideo(image, options, stamp) } finally { image.close() }
         if (yolo == null || rotationDegrees != 0 || base.landmarks().size >= 2) return base
