@@ -1,0 +1,9 @@
+name: CI probe
+on:
+  push:
+    branches: [ "arena/6d6e17db-nextvr-android" ]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "actions-available"
