@@ -15,6 +15,7 @@ class PhoneXrHandRenderer {
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; void main(){gl_Position=uMatrix*vec4(aPosition,1.);}",
         "precision highp float; uniform vec4 uColor; void main(){gl_FragColor=uColor;}")
+    private var vertexBuffer=ByteBuffer.allocateDirect(65536).order(ByteOrder.nativeOrder()).asFloatBuffer()
     private val position=GLES20.glGetAttribLocation(colorProgram,"aPosition")
     private lateinit var frame: PhoneXrHands.Frame
     private var handPoints=emptyList<FloatArray>()
@@ -37,14 +38,15 @@ class PhoneXrHandRenderer {
         val targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
         for(hand in frame.hands) {
             val id=if(hand.left) "left" else "right"
-            val target=(0 until targets.length()).map { targets.getJSONObject(it) }.firstOrNull { it.optString("id")==id }
+            val target=(0 until targets.length()).mapNotNull { targets.optJSONObject(it) }.firstOrNull { it.optString("id")==id }
             if(target?.optBoolean("hidden")==true) continue
             val direct=target?.optBoolean("direct")==true
             val down=target?.optBoolean("down") ?: hand.pinching
             val end=target?.optJSONArray("end")
             val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
-            val e=if(end!=null && end.length()==3) FloatArray(3){end.getDouble(it).toFloat()}
+            val e=if(end!=null && end.length()==3) FloatArray(3){end.optDouble(it,Double.NaN).toFloat()}
                   else floatArrayOf(hand.aimX/length*1.2f,hand.aimY/length*1.2f,-1.2f/length)
+            if(e.any { !it.isFinite() } || e[2]>=-.05f)continue
             touching=direct && down
             drawBeam(floatArrayOf(if(direct)0f else hand.baseX,if(direct)0f else hand.baseY,if(direct)0f else -1f,
                 e[0],e[1],e[2],if(end!=null)1f else 0f),down,position)
@@ -53,8 +55,9 @@ class PhoneXrHandRenderer {
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
     private fun drawArray(data:FloatArray,mode:Int,position:Int) {
-        val buffer=ByteBuffer.allocateDirect(data.size*4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-        buffer.put(data).position(0)
+        if(vertexBuffer.capacity()<data.size)vertexBuffer=ByteBuffer.allocateDirect(data.size*8).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        val buffer=vertexBuffer
+        buffer.clear();buffer.put(data);buffer.flip()
         GLES20.glEnableVertexAttribArray(position)
         GLES20.glVertexAttribPointer(position,3,GLES20.GL_FLOAT,false,0,buffer)
         GLES20.glDrawArrays(mode,0,data.size/3)

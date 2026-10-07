@@ -8,7 +8,7 @@ import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 /* ============================ estado ============================ */
 const DEF = {
   lang: null,
-  handsOn: true, handSens: 1, handDraw: 1, pinchHold: 2,
+  handsOn: true, handDraw: 1,
   winCurve: 1, winScale: 1, winDist: 2.2, winTilt: 1,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   env: 'studio', quality: 'auto', showFps: 0,

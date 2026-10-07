@@ -545,16 +545,23 @@ if (native) {
 }
 
 /* PhoneXR spatial interaction adapter (VrHomeActivity b878d8b): fist grabs, metric NEAR touch,
- * palm actions and FAR targets. Uses the existing Cardboard camera and reference window meshes;
+ * edge highlights and FAR targets. Uses the existing Cardboard camera and reference window meshes;
  * none of these operations introduce head-position tracking. */
 let fistGrab = null, nearContact = null;
-const fistBefore = new Map(), palmBefore = new Map();
+const fistBefore = new Map();
 let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
 function phoneRay(x, y) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
   const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
 }
-function palmScreen(h, packet) { return { x:(h.palm[0]-.5)*packet.scaleX+.5, y:(h.palm[1]-.5)*packet.scaleY+.5 }; }
+function palmScreen(h, packet, filtered=false) {
+  const p=filtered?(h.grab||h.palm):h.palm;
+  return { x:(p[0]-.5)*packet.scaleX+.5, y:(p[1]-.5)*packet.scaleY+.5 };
+}
+function grabDirection(r) {
+  return r.ray.direction.clone().applyQuaternion(contentRoot.getWorldQuaternion(new THREE.Quaternion()).invert());
+}
+function grabHeight(d,radius) { return radius*d.y/Math.hypot(d.x,d.z); }
 function windowPoint(w, point) {
   const local=w.obj.worldToLocal(point.clone()), scale=w.obj.getWorldScale(new THREE.Vector3());
   return { local, scale, u:local.x/w.w+.5, v:.5-local.y/w.h, d:local.z*scale.z };
@@ -581,34 +588,40 @@ on('phonehands', packet => {
   lastPhonePacket=packet;
   const ids=new Set(packet.hands.map(h=>h.id));
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
-  for(const id of palmBefore.keys())if(!ids.has(id))palmBefore.delete(id);
   if(fistGrab) {
     const h=packet.hands.find(h=>h.id===fistGrab.id);
     if(!h || !h.fist || !wins.includes(fistGrab.win)) { fistGrab.win.shell.classList.remove('moving');fistGrab=null; }
     else {
       packet.consumed.add(h.id);
-      const p=palmScreen(h,packet),r=phoneRay(p.x,p.y);
-      const at=r.ray.at(fistGrab.distance,new THREE.Vector3());contentRoot.worldToLocal(at);
-      fistGrab.win.target.copy(fistGrab.start).add(at.sub(fistGrab.origin));
-      fistGrab.win.obj.position.copy(fistGrab.win.target);
+      const p=palmScreen(h,packet,true),r=phoneRay(p.x,p.y),d=grabDirection(r),g=fistGrab;
+      const yaw=g.startYaw+Math.atan2(-d.x,-d.z)-g.pointerYaw;
+      g.win.target.set(-Math.sin(yaw)*g.radius,g.startHeight+grabHeight(d,g.radius)-g.pointerHeight,-Math.cos(yaw)*g.radius);
+      g.win.obj.position.copy(g.win.target);
+    }
+  }
+  for(const w of wins)w.shell.classList.remove('phone-grab-hover');
+  if(!fistGrab) {
+    const h=packet.hands.find(h=>!h.fist);
+    if(h) {
+      const p=palmScreen(h,packet),hit=fistHit(phoneRay(p.x,p.y));
+      if(hit) {
+        const {local,scale}=windowPoint(hit.win,hit.point),w=hit.win;
+        if(Math.abs(local.x)*scale.x>w.w*scale.x/2-.06 || Math.abs(local.y)*scale.y>w.h*scale.y/2-.06)w.shell.classList.add('phone-grab-hover');
+      }
     }
   }
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
     if(!fistGrab && h.fist && !before) {
-      const p=palmScreen(h,packet),r=phoneRay(p.x,p.y),hit=fistHit(r);
+      const p=palmScreen(h,packet,true),r=phoneRay(p.x,p.y),hit=fistHit(r);
       if(hit) {
         if(cursor.hand?.id===h.id) { emit('pinchcancel');cursor.down=false;cursor.hand=null; }
         const w=hit.win;focus(w);w.pinned=false;w.shell.classList.add('free','moving');layout();
-        fistGrab={id:h.id,win:w,distance:hit.distance,start:w.obj.position.clone(),origin:contentRoot.worldToLocal(hit.point.clone())};
+        const pos=w.obj.position,d=grabDirection(r),radius=Math.hypot(pos.x,pos.z);
+        fistGrab={id:h.id,win:w,radius,startYaw:Math.atan2(-pos.x,-pos.z),startHeight:pos.y,pointerYaw:Math.atan2(-d.x,-d.z),pointerHeight:grabHeight(d,radius)};
         packet.consumed.add(h.id);
       }
     }
-    if(h.palmFacesEyes && !h.fist && !packet.consumed.has(h.id)) {
-      packet.consumed.add(h.id);
-      if(h.pinching && !palmBefore.get(h.id)) emit(h.left?'phone-library':'phone-menu');
-      palmBefore.set(h.id,h.pinching);
-    } else palmBefore.set(h.id,false);
   }
   // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
   let best=null;

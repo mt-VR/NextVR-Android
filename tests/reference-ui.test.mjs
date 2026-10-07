@@ -45,10 +45,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     },pairs);
     assert.deepEqual(shaderResult,[],'Camera and spatial-compositor GLSL compile and link');
     await page.addInitScript(()=>{
-      window.__frames=[]; window.__touches=[];
+      window.__frames=[]; window.__touches=[]; window.__frameSeq=0;
       window.NativeXR={
-        frame(scene,browsers){window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
+        frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
+        handTargets(json){window.__handTargets=JSON.parse(json);}, handVisuals(){},
         touch(id,action,x,y){ window.__touches.push({id,action,x,y}); }
       };
     });
@@ -75,8 +76,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
     await page.locator('.dock [data-id="kb"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
-    // Let the original bounded exponential open animation settle before comparing world transforms.
-    await page.waitForTimeout(1200);
+    // Count actual compositor updates, not wall time: CI's software renderer can be slow.
+    const settle=async()=>{
+      await page.evaluate(()=>window.__settle=null);
+      await page.waitForFunction(()=>{
+        const prev=window.__settle,seq=window.__frameSeq;
+        if(prev?.seq===seq)return false;
+        const values=window.__last.panels.filter(p=>!p.overlay).flatMap(p=>p.matrix);
+        const stable=prev?.values.length===values.length && values.every((v,i)=>Math.abs(v-prev.values[i])<.00015);
+        const count=stable?prev.count+1:0;window.__settle={seq,values,count};return count>=3;
+      },null,{timeout:25000});
+    };
+    await settle();
     const before=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).map(p=>p.matrix));
     const pose=new THREE.Matrix4().makeRotationY(.5).toArray();
     await page.evaluate(p=>window.nextvrPose(p),pose);
@@ -105,6 +116,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
     await feed(hand(.04));
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down&&t.end?.length===3));
     // Lost tracking must CANCEL rather than releasing/clicking a link accidentally.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});});
     await page.waitForFunction(()=>window.__touches.some(t=>t.action===3),null,{timeout:12000});
@@ -120,7 +132,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('.win-shell').filter({has:page.locator('.win-title', {hasText:'Browser'})}).locator('[data-act="close"]').click();
     await page.waitForFunction(()=>!window.__last.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('.win-shell').count(),2);
-    await page.waitForTimeout(900);
+    await settle();
     const libraryMatrix=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix);
     const handle=new THREE.Vector3(0,-364/980,0).applyMatrix4(new THREE.Matrix4().fromArray(libraryMatrix));
     const handleView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),handle,new THREE.Vector3(0,1,0)).invert();
@@ -133,6 +145,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell.moving').count(),0);
     await page.locator('.win-shell.free [data-act="pin"]').click();
     assert.equal(await page.locator('.win-shell.free').count(),0,'Repin restores the dock/window relationship');
+    await settle();
+    // PhoneXR's fist grabs the whole window, not the old pinch handle. It must not click the page.
+    const lib=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix);
+    const libCentre=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(lib));
+    const fistView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),libCentre,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},fistView.toArray());
+    const fist=hand(.4);fist.hands[0].fist=true;
+    await feed(fist);
+    await page.waitForFunction(()=>!!document.querySelector('.win-shell.moving'));
+    assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden));
+    fist.hands[0].palm=[.62,.45];
+    await feed(fist);
+    await page.waitForFunction(original=>{
+      const current=window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix;
+      return Math.abs(current[12]-original[12])>.03;
+    },lib);
+    await feed(hand(.4));
+    await page.waitForFunction(()=>!document.querySelector('.win-shell.moving'));
+    assert.equal(await page.locator('.win-shell.free').count(),1,'Opening the fist releases the detached window');
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrSuspend();});
+
     assert.deepEqual(errors,[]);
   } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve)); }
 });

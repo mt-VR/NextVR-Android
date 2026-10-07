@@ -1,6 +1,5 @@
 #include <jni.h>
-#include <algorithm>
-#include <cstdint>
+#include "camera_pixels.h"
 
 // YUV strides belong to each individual plane. No assumptions about NV21 vs planar layouts.
 extern "C" JNIEXPORT jintArray JNICALL
@@ -21,11 +20,6 @@ Java_com_nextvr_cardboard_PassthroughCamera_nativeYuvToArgb(
   }
   jintArray out=env->NewIntArray(w*h);if(!out)return nullptr;
   auto* pixels=static_cast<jint*>(env->GetPrimitiveArrayCritical(out,nullptr));if(!pixels)return nullptr;
-  auto clamp=[](int n){return std::clamp(n,0,255);};
-  for(int row=0;row<h;row++)for(int col=0;col<w;col++) {
-    int yy=int(y[row*ys+col*yp])-16, uu=int(u[(row/2)*us+(col/2)*up])-128, vv=int(v[(row/2)*vs+(col/2)*vp])-128;
-    int r=(298*yy+409*vv+128)>>8, g=(298*yy-100*uu-208*vv+128)>>8, b=(298*yy+516*uu+128)>>8;
-    pixels[row*w+col]=static_cast<jint>(0xff000000u|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b));
-  }
+  ConvertYuvArgb(y,u,v,w,h,ys,us,vs,yp,up,vp,reinterpret_cast<uint32_t*>(pixels));
   env->ReleasePrimitiveArrayCritical(out,pixels,0);return out;
 }

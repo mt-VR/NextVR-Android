@@ -24,13 +24,21 @@ test('Cardboard view inversion has the expected orientation, with no translation
   assert.ok(result.x > 0);
   assert.equal(camera.elements[12],0); assert.equal(camera.elements[13],0);
 });
-test('render path removes the room and uses Cardboard stereo with a camera OES pass', async () => {
+test('render path removes the room and uses Cardboard stereo with an upright 2D camera pass', async () => {
   const cpp=await readFile('nextvr-android/src/main/jni/nextvr_app.cc','utf8');
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/SpatialRenderer.java','utf8');
   assert.ok(cpp.includes('CardboardHeadTracker_getPose'));
   assert.ok(cpp.includes('CardboardDistortionRenderer_renderEyeToDisplay'));
   assert.ok(!cpp.includes('DrawRoom') && !cpp.includes('GetTranslationMatrix(position)'));
   assert.ok(java.includes('samplerExternalOES') && java.includes('GL_ONE_MINUS_SRC_ALPHA'));
+  assert.ok(java.includes('uniform sampler2D uCamera'));
+  const camera=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java','utf8');
+  assert.ok(!camera.includes('getTransformMatrix(') && !camera.includes('new SurfaceTexture(') && camera.includes('nativeYuvToArgb'));
+  assert.equal((camera.match(/postRotate\(/g)||[]).length,1);
+  assert.ok(camera.includes('detect(small,stamp,0)'), 'No second rotation in the detector');
+  assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
+  const hands=await readFile('web/src/hands.js','utf8');
+  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold') && !hands.includes('lineTo('));
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');

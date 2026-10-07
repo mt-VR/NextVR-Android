@@ -857,14 +857,3 @@ if (native) {
   window.nextvrSuspend = () => stopHands();
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }
-
-// PhoneXR palm gestures use the existing reference shell, not a second launcher theme.
-on('phone-library', () => { const w=wins.find(w=>w.id==='library');if(w)close(w);else libraryApp(); });
-on('phone-menu', () => {
-  const existing=wins.find(w=>w.id==='hand-menu');if(existing){close(existing);return;}
-  const body=el('div','pad');body.append(el('h2',null,'NextVR'));
-  for(const [label,run] of [[t('center'),recenter],[t('apps'),libraryApp],[t('settings'),settingsApp]]) {
-    const button=el('button','go',label);button.style.margin='12px';button.onclick=run;body.append(button);
-  }
-  open({id:'hand-menu',title:'NextVR',node:body,w:760,h:420});
-});

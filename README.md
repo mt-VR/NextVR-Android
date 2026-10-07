@@ -1,7 +1,7 @@
 # NextVR — Android/Cardboard passthrough workspace
 
 NextVR now combines the **HTML spatial experience from this repository's `references.zip`** with
-native Camera2 passthrough, MediaPipe hands, hardware-rendered browser surfaces and the existing
+native Camera2 passthrough, PhoneXR/OrangeHanding hands, hardware-rendered browser surfaces and the existing
 Google Cardboard SDK (**v1.35.0**).
 
 The old artificial room and collectible objects have been removed. The camera is the background;
@@ -28,7 +28,7 @@ included or enabled.**
 Open the repository root in Android Studio and select `nextvr-android`, or:
 
 ```bash
-./gradlew :nextvr-android:assembleDebug
+./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug
 adb install -r nextvr-android/build/outputs/apk/debug/nextvr-android-debug.apk
 ```
 
@@ -62,8 +62,9 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 | --- | --- |
 | Start | Grant camera permission; select a language in the reference's floating welcome window. |
 | Look around | Existing Cardboard head orientation; windows stay in the world. |
-| Select | Point with the thumb/index midpoint and pinch. |
-| Move a window | Pinch and hold its white lower handle; move, then release. |
+| Select | Aim the PhoneXR shoulder ray and pinch thumb/index. |
+| Move a window | Close a fist over the window, move your palm, then open to release. The white lower handle also works. |
+| Direct touch | Touch a surface within arm’s reach with your index fingertip; default distant windows use the ray. |
 | Return to dock arc | Use the window's repin control. |
 | Browser scrolling | Hold a pinch on the page and move. |
 | Type | Focus a field and use the floating keyboard. |
@@ -74,8 +75,9 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 | Exit | Native close control or Android back. |
 
 Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome, animations and hand-overlay drawing come from
-the prototype. Passthrough is the only environment.
+styling, menus, settings, gallery, browser chrome and animations come from
+the prototype. **All tracking, filtering, hand silhouettes and pointer gestures come from PhoneXR**,
+not the archive’s blue skeleton. Passthrough is the only environment.
 
 ## Code map
 
@@ -84,11 +86,13 @@ the prototype. Passthrough is the only environment.
 | `references.zip` | Unmodified primary visual/UX reference |
 | `web/index.html`, `web/src/apps.js` | Reference styling, dock, library/store and application surfaces |
 | `web/src/windows.js` | World layout, animation, drag, keyboard, ray interaction |
-| `web/src/hands.js` | Reference One Euro filter, skeleton, midpoint pointer, pinch latch |
+| `web/src/hands.js` | Processed PhoneXR hand/ray adapter; no web detector or gesture thresholds |
+| `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native PhoneXR gesture/filter pipeline and GL silhouettes/pointers |
+| `…/com/samrat/orangehanding/` | Fork’s MediaPipe/YOLO FusionHands detector and crop rescue |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
 | `web/src/core.js` | Reference state, localization, content root and native pose input |
-| `nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java` | Camera2 lifecycle, OES preview and bounded native MediaPipe analysis |
-| `…/SpatialRenderer.java` | Camera/HTML OES shaders, glass, alpha and per-eye world composition |
+| `nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
+| `…/SpatialRenderer.java` | 2D camera + OES HTML shaders, glass, alpha and per-eye world composition |
 | `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, touch/media handling |
 | `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, HTML/native bridge and Android audio |
 | `nextvr-android/src/main/jni/nextvr_app.cc` | Existing Cardboard orientation, stereo framebuffer and distortion infrastructure |
@@ -99,5 +103,5 @@ the prototype. Passthrough is the only environment.
 
 The Cardboard SDK/sample retains its Apache-2.0 headers and [license](LICENSE-CARDBOARD-SDK).
 See [third-party provenance](docs/THIRD-PARTY.md) for the bundled web libraries/model and the
-technical reference consulted. No UI theme or positional-tracking system from the linked
+technical source integrated, including YOLO model distribution restrictions. No UI theme or positional-tracking system from the linked
 NextVR repository has been substituted for the supplied prototype.

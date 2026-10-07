@@ -19,19 +19,24 @@ Inspected before implementation:
    MediaPipe, OES shaders), `HandGestures.kt`, `HandTrackingService.kt`, `CardboardCameraView.kt`,
    `CinemaHands.kt`, `CinemaRenderer.kt`, and `VirtualScreen.kt`.
 
-The user clarified that the archive in **NextVR-Android** is the intended reference. No separate,
-complete unpublished PhoneXR fork was available. Accordingly, hand drawing/filtering/pinch behavior
-comes from that archive; the linked port is a technical reference, **not its UI theme or 6 DoF**.
+The archive in **NextVR-Android** defines the spatial UI, not the hands. After the first APK,
+the user explicitly corrected the hand-source interpretation: **the complete hand pipeline must
+come from the linked PhoneXR-derived fork**. The archive's detector, skeleton, filters, midpoint
+pointer and pinch-confirmation code have therefore been removed. No UI theme or 6 DoF system
+from the linked repository replaces the archive's workspace.
 
 ## Architecture
 
 ```
-Camera2 rear camera
-  ├─ preview Surface → SurfaceTexture → external OES camera shader
-  └─ same-aspect YUV ImageReader (latest image, queue depth 2)
-       → sensor/display rotation → bundled native MediaPipe VIDEO detector
-       → normalized landmarks → reference One Euro / pinch / hand-overlay code
-
+Camera2 rear camera → one YUV_420_888 ImageReader (latest frame, queue depth 2)
+  → stride-aware native YUV-to-ARGB conversion
+  → sensor/display rotation ONCE → upright, unmirrored bitmap
+       ├─ GL_TEXTURE_2D → camera + glass backdrop shaders
+       └─ independent 640px bitmap → PhoneXR OrangeHanding FusionHands
+             → MediaPipe VIDEO + YOLO wrist rescue + MediaPipe crop detection
+             → native PhoneXR landmark filters / shapes / latch / shoulder rays
+                  ├─ native GL silhouette / drop / stick / beam / target ring
+                  └─ reference surface hit-testing / fist grabbing / NEAR touch
 Reference HTML/CSS + spatial JS
   ├─ original dock / windows / keyboard / menus / layout / animations
   ├─ hardware WebView on private VirtualDisplay / Presentation
@@ -45,7 +50,7 @@ Unmodified Cardboard SDK + existing native renderer infrastructure
 
 The renderer does **not** display one flat UI texture in front of the user. Each HTML spatial object
 has its own world transform, bounds, texture region and stereo projection. Only the hand/status
-HUD is intentionally head-locked, as in the prototype. The browser and UI are rendered once and
+HUD is intentionally head-locked; the hand visuals now come from PhoneXR. The browser and UI are rendered once and
 sampled for both eyes; there are no duplicate browser sessions playing duplicate audio.
 
 ### Preserved spatial behavior
@@ -70,9 +75,11 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
   switching. The environment choice is camera passthrough only.
 - Native orientation replaces **only** the web sensor input; native builds never register the web
   `deviceorientation` listener or open a second `getUserMedia` camera.
-- Camera selection uses a rear lens and matching preview/analysis aspect ratios. Shader sampling
-  and landmark-to-pointer mapping share the same per-eye field-of-view coverage. Crop transforms,
-  0/90/180/270-degree rotations, and premultiplied alpha are handled explicitly.
+- Rear-camera pixels are rotated `(sensorOrientation - displayRotation*90 + 360) % 360` once
+  before either tracking or rendering. There is no mirrored preview, camera SurfaceTexture,
+  secondary shader quarter-turn, or independently rotated tracking image. Camera and glass
+  sample the same top-left bitmap UV mapping; the silhouette uses the same optical spans.
+  WebView textures still use their own required OES/SurfaceTexture transforms.
 - Hardware HTML atlas is 4096² with stable slots for **six windows**, dock, keyboard and HUD.
   Closing one window does not relocate surviving texture regions. The application reports the
   limit rather than silently dropping a window. A 4096² RGBA buffer is 64 MiB before buffering;
@@ -95,19 +102,38 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
 
 ### Hands
 
-MediaPipe runs on the camera worker, independently of the GL thread, at a maximum of about 15 Hz.
-Its model is in the APK. The archive's behavior is retained:
+The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit above, not
+`references.zip`. Models are bundled; nothing is downloaded at runtime.
 
-- Two hands, 21 landmarks, original blue/white links and joints, pinch ring and white center.
-- One Euro filtering, sensitivity control, 280 ms tracking grace.
-- Thumb/index distance normalized by wrist/middle-knuckle span, `.40/.62` hysteresis and
-  configurable confirmation frames (default two).
-- Thumb/index midpoint cursor. Visual field-of-view mapping is applied **after** gesture
-  calculation so camera cropping does not change the pinch threshold.
-- Pinch selects; hold the white handle and move to drag. Native browser holds deliver MOVE.
-- Safety fixes: disappearing hands cancel a held gesture instead of accidentally clicking;
-  pointer ownership remains with a held hand; dock/keyboard releases require a matching press.
-- Cardboard viewer-button / screen-tap fallback uses the same ray at the center of the view.
+- `FusionHands`, `Crops`, `Yolo11Pose` and `HandGestures` are vendored from the fork. VIDEO
+  tracking uses MediaPipe 0.10.35; YOLO11 pose periodically supplies wrist locations to the CPU
+  crop rescuer via LiteRT 1.4.0. See licensing/provenance before redistribution.
+- Camera and tracking have independent bounded queues. Tracking runs on one dedicated worker;
+  GPU construction/inference/destruction stay on that thread, with CPU construction fallback.
+  YOLO has the fork's separate executor. Teardown queues interpreter close after pending work.
+- The fork's 63 native landmark filters, dead zones, physical rear-camera handedness, palm-width
+  `.32/.50` pinch hysteresis and fist guard replace all prototype gesture code. There is no
+  prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
+- A stable thumb/index **base-weighted** aim point drives the shoulder-origin pointer, using
+  the fork's lead and native cursor filters. The held hand owns the click; both hands get rays.
+- The actual GL geometry routines from `VrHomeActivity` draw dark filled silhouettes with light
+  outlines, the white drop/stick, fading pressed beam and hollow inverted target ring. A packed
+  depth/stencil framebuffer prevents repeated alpha blending inside a silhouette. No blue web
+  skeleton or archive pinch ring remains. The hand-visibility option affects silhouettes only.
+- A fist closing over a window (plus the outside margin) grabs it. Palm motion changes its yaw
+  and height; opening/disappearing releases it. Native `.6/1` One Euro grab filtering and white
+  edge-hover feedback follow the fork. The archive's white lower handle also remains usable.
+- Metric index-tip NEAR interaction uses the fork's .7 m arm reach, .15/.20 m proximity
+  hysteresis, .012/.035 m touch hysteresis, margins, and .45 smoothing; FAR pointing is suppressed
+  during a contact. The archive's default windows remain farther away and use FAR pointing.
+  Hand-local metric geometry does not move/track the head or establish a room origin.
+- Native targets come from the real reference dock/window/keyboard meshes and are transformed
+  back to head space for the PhoneXR rings. Browser holds deliver native MOVE events.
+- Safety adaptations: disappearance/stale tracking cancels a held gesture rather than clicking;
+  held pointer ownership, matching dock/keyboard releases and lifecycle resets are preserved.
+- Upstream `palmButtons()` and `drawPalmButtons()` have definitions but no active call sites at
+  this pinned revision. They are not turned into invented menus/actions in this integration.
+- Cardboard viewer-button / screen-tap fallback uses the same spatial hit-testing at gaze centre.
 
 ### Audio
 
@@ -147,7 +173,7 @@ Automated tests (`npm test`) run the actual bundled reference UI in headless Chr
 - opening/closing multiple windows and native browser lifecycle specifications;
 - reference dock position, world anchoring during head rotation;
 - native browser DOWN/UP ray routing;
-- native landmark → confirmed pinch → browser press/release;
+- native PhoneXR processed hand → immediate pinch → browser press/release;
 - loss-of-tracking CANCEL without a spurious click;
 - white-handle drag/detach and repin;
 - atlas capacity, stable slots and no overlap;
@@ -155,12 +181,15 @@ Automated tests (`npm test`) run the actual bundled reference UI in headless Chr
   2D samplers for WebGL; actual Android external-texture support still needs device testing);
 - orientation-only native render path and bridge security invariants.
 
-Android CI builds the vendored SDK and debug APK for `arm64-v8a` and `armeabi-v7a`. The first build
+JVM tests exercise all rear-camera quarter turns, non-mirrored corner mapping, native pinch
+hysteresis/fist suppression, handedness, shoulder aim, resting dead zones and hand-loss resets.
+
+Android CI runs these tests and builds the vendored SDK and debug APK for `arm64-v8a` and `armeabi-v7a`. The first build
 caught native Matrix4x4 const-compatibility and logging-header issues; these were fixed, and the
 next build passed. See branch CI for the final revision's build result.
 
 **No physical Android device or headset is attached to this workspace.** Passing JS tests and
-APK compilation do not verify camera alignment, actual lens/head motion, MediaPipe accuracy,
+APK compilation do not verify camera alignment, actual lens/head motion, OrangeHanding accuracy,
 WebView transparency on a particular GPU, audible output, thermal behavior or exact visual parity.
 Use the following acceptance checklist before describing this as a device-verified reproduction.
 
@@ -173,7 +202,7 @@ Use the following acceptance checklist before describing this as a device-verifi
 4. Verify correct head rotation, stable world windows, recenter and **no positional motion**.
 5. Compare dock, typography, proportions, spacing, shadows, focus, open animations, window arc,
    drag, repin, keyboard and six-window limit against the supplied prototype.
-6. Two hands near/far, slow/fast movement, pinch hold/release, hand loss, hand switching, browser
+6. PhoneXR silhouettes and both rays, fist grab/edge highlight, near/far movement, pinch hold/release, hand loss, hand switching, browser
    scrolling, sliders and entering text using the floating keyboard.
 7. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,
    Bluetooth/headphones, audio-focus loss, background/foreground and screen lock.

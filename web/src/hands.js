@@ -1,6 +1,6 @@
 // Android PhoneXR hands adapter. No web detector, landmark filter, skeleton drawing or pinch
 // thresholds here: OrangeHanding + PhoneXrHands + the fork's native GL renderer own those systems.
-import { settings as S, on, emit, toast, onFrame, native, viewport } from './core.js';
+import { settings as S, on, emit, toast, onFrame, native } from './core.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;

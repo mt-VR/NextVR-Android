@@ -22,6 +22,7 @@ class PhoneXrHandsTest {
         override fun timestampMs()=stamp
         override fun landmarks()=if(p==null) emptyList() else listOf(p)
         override fun worldLandmarks()=emptyList<List<Landmark>>()
+        override fun handednesses()=handedness()
         override fun handedness()=if(p==null) emptyList() else listOf(listOf(Category.create(1f,0,"Right","Right")))
     }
     @Test fun forkPinchThresholdsAreImmediateAndHysteretic() {
@@ -50,6 +51,16 @@ class PhoneXrHandsTest {
         assertTrue(engine.process(result(points(.2f),1000),1f,1f).hands.single().pinching)
         assertTrue(engine.process(result(null,1016),1f,1f).hands.isEmpty())
         assertFalse(engine.process(result(points(.8f),1032),1f,1f).hands.single().pinching)
+    }
+    @Test fun fistUsesTheForkGrabFilterNotTheFarPointerFilter() {
+        val engine=PhoneXrHands()
+        val first=engine.process(result(points(.2f,true),1000),1f,1f).hands.single()
+        assertTrue(first.shape.fist)
+        assertEquals(first.shape.palmX,first.grabX,0f)
+        val moved=points(.2f,true).map { NormalizedLandmark.create(it.x()+.15f,it.y(),it.z()) }
+        val next=engine.process(result(moved,1016),1f,1f).hands.single()
+        assertTrue(next.grabX>first.grabX)
+        assertTrue(next.grabX<next.shape.palmX)
     }
     @Test fun nativeFilterHasRestingDeadZone() {
         val filter=HandGestures.OneEuro(minCutoff=1.4f,beta=12f,deadZone=.0008f)
