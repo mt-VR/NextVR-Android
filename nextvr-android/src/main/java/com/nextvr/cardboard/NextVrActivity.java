@@ -1,293 +1,296 @@
-/*
- * Copyright 2019 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.nextvr.cardboard;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
-import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
-import android.os.Build.VERSION;
-import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
-import android.provider.Settings;
-import androidx.appcompat.app.AppCompatActivity;
-import android.util.Log;
-import android.view.MenuInflater;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.URLUtil;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.WebView;
 import android.widget.PopupMenu;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
+import androidx.annotation.Keep;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-/**
- * The main Activity of the NextVR Cardboard application.
- *
- * <p>It is built on top of the Google Cardboard SDK for Android NDK (see
- * https://developers.google.com/cardboard/develop/c/quickstart). The activity owns the native
- * {@code NextVrApp} instance, hosts the {@link GLSurfaceView} used for stereoscopic rendering and
- * forwards Android lifecycle events, screen size changes and viewer button presses to native code.
- */
-// TODO(b/184737638) upstream: Remove decorator once the AndroidX migration is completed.
-@SuppressWarnings("deprecation")
+/** Cardboard orientation + Camera2 passthrough + the reference's HTML spatial workspace. */
 public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
-  static {
-    // Native library built from nextvr-android/CMakeLists.txt (links the Cardboard SDK).
-    System.loadLibrary("nextvr_jni");
-  }
+    static { System.loadLibrary("nextvr_jni"); }
+    private long nativeApp;
+    private GLSurfaceView glView;
+    private volatile SpatialRenderer renderer;
+    private final Handler main=new Handler(Looper.getMainLooper());
+    private PassthroughCamera camera;
+    private WebSurface shell;
+    private final Map<String,WebSurface> browsers=new HashMap<>();
+    private final Map<String,String> browserUrls=new HashMap<>();
+    private final Set<String> pendingBrowsers=new HashSet<>();
+    private boolean resumed,closed,ready;
+    private final AtomicBoolean posePending=new AtomicBoolean();
+    private long lastPose;
+    private ValueCallback<Uri[]> fileCallback;
+    private AudioManager audio;
+    private AudioFocusRequest focus;
+    private SoundPool sounds;
+    private int clickSound;
+    private boolean soundReady,audioFocused;
 
-  private static final String TAG = NextVrActivity.class.getSimpleName();
-
-  // Permission request codes
-  private static final int PERMISSIONS_REQUEST_CODE = 2;
-
-  // Opaque native pointer to the native NextVrApp instance.
-  // This object is owned by the NextVrActivity instance and passed to the native methods.
-  private long nativeApp;
-
-  private GLSurfaceView glView;
-
-  @SuppressLint("ClickableViewAccessibility")
-  @Override
-  public void onCreate(Bundle savedInstance) {
-    super.onCreate(savedInstance);
-
-    nativeApp = nativeOnCreate(getAssets());
-
-    setContentView(R.layout.activity_vr);
-    glView = findViewById(R.id.surface_view);
-    glView.setEGLContextClientVersion(2);
-    Renderer renderer = new Renderer();
-    glView.setRenderer(renderer);
-    glView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
-    glView.setOnTouchListener(
-        (v, event) -> {
-          if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            // A tap on the screen emulates the Cardboard viewer button (used on viewers without a
-            // magnet/button, and handy while testing on the emulator).
-            glView.queueEvent(
-                () -> {
-                  nativeOnTriggerEvent(nativeApp);
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        nativeApp=nativeOnCreate(getAssets());
+        setContentView(R.layout.activity_vr);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+        audio=getSystemService(AudioManager.class);
+        AudioAttributes attributes=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build();
+        focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attributes)
+            .setOnAudioFocusChangeListener(change -> setAudioEnabled(change==AudioManager.AUDIOFOCUS_GAIN),main).build();
+        sounds=new SoundPool.Builder().setMaxStreams(4).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build();
+        sounds.setOnLoadCompleteListener((pool,id,status)->soundReady=status==0);
+        try(var asset=getAssets().openFd("ui/click.wav")) { clickSound=sounds.load(asset,1); } catch(Exception e) { report("UI sound could not load: "+e.getMessage()); }
+        camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
+            @Override public void hands(String json) { main.post(()->{ if(shell!=null && resumed) shell.evaluate("window.nextvrHands&&window.nextvrHands("+json+","+(renderer==null?1:renderer.mappingX)+","+(renderer==null?1:renderer.mappingY)+")"); }); }
+            @Override public void geometry(float aspect,int rotation) { SpatialRenderer r=renderer; if(r!=null) { r.cameraAspect=aspect; r.cameraRotation=rotation; } }
+            @Override public void error(String message) { report(message); }
+        });
+        glView=findViewById(R.id.surface_view);
+        glView.setEGLContextClientVersion(2); glView.setPreserveEGLContextOnPause(true);
+        glView.setRenderer(new GLSurfaceView.Renderer() {
+            @Override public void onSurfaceCreated(GL10 gl,EGLConfig config) {
+                nativeOnSurfaceCreated(nativeApp);
+                SpatialRenderer previous=renderer;
+                SpatialRenderer fresh=new SpatialRenderer(); renderer=fresh;
+                main.post(()->{
+                    if(closed || renderer!=fresh) return;
+                    camera.stop(); releaseWeb();
+                    if(previous!=null) {
+                        previous.camera.surface.release(); previous.atlas.surface.release();
+                        for(SpatialRenderer.Texture t:previous.browsers.values()) t.surface.release();
+                    }
+                    ready=false;
+                    shell=new WebSurface(NextVrActivity.this,fresh.atlas.surface,SpatialRenderer.ATLAS,SpatialRenderer.ATLAS,true,new Bridge(),WebSurface.HOME);
+                    startCamera();
                 });
+            }
+            @Override public void onSurfaceChanged(GL10 gl,int w,int h) { nativeSetScreenParams(nativeApp,w,h); }
+            @Override public void onDrawFrame(GL10 gl) { SpatialRenderer r=renderer; if(r!=null) r.update(); nativeOnDrawFrame(nativeApp); }
+        });
+        // Cardboard button and a screen tap use the same ray/pinch path. No flat screen UI replacement.
+        glView.setOnTouchListener((v,event)->{
+            if(event.getActionMasked()==MotionEvent.ACTION_DOWN || event.getActionMasked()==MotionEvent.ACTION_UP || event.getActionMasked()==MotionEvent.ACTION_CANCEL) {
+                if(shell!=null) shell.evaluate("window.nextvrTrigger&&window.nextvrTrigger("+(event.getActionMasked()==MotionEvent.ACTION_DOWN)+")");
+            }
             return true;
-          }
-          return false;
         });
-
-    // TODO(b/139010241) upstream: Avoid that action and status bar are displayed when pressing
-    // settings button.
-    setImmersiveSticky();
-    View decorView = getWindow().getDecorView();
-    decorView.setOnSystemUiVisibilityChangeListener(
-        (visibility) -> {
-          if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-            setImmersiveSticky();
-          }
-        });
-
-    // Forces screen to max brightness.
-    WindowManager.LayoutParams layout = getWindow().getAttributes();
-    layout.screenBrightness = 1.f;
-    getWindow().setAttributes(layout);
-
-    // Prevents screen from dimming/locking.
-    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-  }
-
-  @Override
-  protected void onPause() {
-    super.onPause();
-    nativeOnPause(nativeApp);
-    glView.onPause();
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-
-    // On Android P and below, checks for activity to READ_EXTERNAL_STORAGE. When it is not granted,
-    // the application will request them. For Android Q and above, READ_EXTERNAL_STORAGE is optional
-    // and scoped storage will be used instead. If it is provided (but not checked) and there are
-    // device parameters saved in external storage those will be migrated to scoped storage.
-    if (VERSION.SDK_INT < VERSION_CODES.Q && !isReadExternalStorageEnabled()) {
-      requestPermissions();
-      return;
+        immersive();
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{Manifest.permission.CAMERA},10);
     }
-
-    glView.onResume();
-    nativeOnResume(nativeApp);
-  }
-
-  @Override
-  protected void onDestroy() {
-    super.onDestroy();
-    nativeOnDestroy(nativeApp);
-    nativeApp = 0;
-  }
-
-  @Override
-  public void onWindowFocusChanged(boolean hasFocus) {
-    super.onWindowFocusChanged(hasFocus);
-    if (hasFocus) {
-      setImmersiveSticky();
+    @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) r.draw(view,projection); }
+    @Keep public void headPose(float[] view) {
+        long now=SystemClock.uptimeMillis();
+        if(now-lastPose<30 || !posePending.compareAndSet(false,true)) return;
+        lastPose=now;
+        StringBuilder json=new StringBuilder("["); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
+        main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });
     }
-  }
-
-  private class Renderer implements GLSurfaceView.Renderer {
-    @Override
-    public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
-      nativeOnSurfaceCreated(nativeApp);
+    void shellReady() {
+        ready=true;
+        if(shell!=null) { shell.evaluate("window.nextvrResume&&window.nextvrResume()"); shell.audio(audioFocused); }
     }
-
-    @Override
-    public void onSurfaceChanged(GL10 gl10, int width, int height) {
-      nativeSetScreenParams(nativeApp, width, height);
+    private void startCamera() {
+        if(!resumed || renderer==null || checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) return;
+        camera.start(renderer.camera.surface,getWindowManager().getDefaultDisplay().getRotation());
     }
-
-    @Override
-    public void onDrawFrame(GL10 gl10) {
-      nativeOnDrawFrame(nativeApp);
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
+        super.onRequestPermissionsResult(code,permissions,grants);
+        if(code==10) {
+            if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
+            else new AlertDialog.Builder(this).setTitle("Camera passthrough requires permission")
+                .setMessage("NextVR cannot show your surroundings without the rear camera. Grant Camera permission in Android settings, then reopen NextVR. Do not walk while wearing the viewer.")
+                .setPositiveButton("Settings",(d,w)->startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))))
+                .setNegativeButton("Exit",(d,w)->finish()).show();
+        }
     }
-  }
-
-  /** Callback for when close button is pressed. */
-  public void closeSample(View view) {
-    Log.d(TAG, "Leaving VR experience");
-    finish();
-  }
-
-  /** Callback for when the settings_menu button is pressed. */
-  public void showSettings(View view) {
-    PopupMenu popup = new PopupMenu(this, view);
-    MenuInflater inflater = popup.getMenuInflater();
-    inflater.inflate(R.menu.settings_menu, popup.getMenu());
-    popup.setOnMenuItemClickListener(this);
-    popup.show();
-  }
-
-  @Override
-  public boolean onMenuItemClick(MenuItem item) {
-    if (item.getItemId() == R.id.switch_viewer) {
-      nativeSwitchViewer(nativeApp);
-      return true;
+    @Override protected void onResume() {
+        super.onResume(); resumed=true; glView.onResume(); nativeOnResume(nativeApp);
+        requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
+        for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
     }
-    if (item.getItemId() == R.id.about_nextvr) {
-      showAboutDialog();
-      return true;
+    @Override protected void onPause() {
+        resumed=false; camera.stop();
+        if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
+        for(WebSurface b:browsers.values()) b.pause();
+        setAudioEnabled(false); audio.abandonAudioFocusRequest(focus);
+        nativeOnPause(nativeApp); glView.onPause(); super.onPause();
     }
-    return false;
-  }
-
-  /** Shows a short "About" dialog with the build information. */
-  private void showAboutDialog() {
-    String versionName = "";
-    try {
-      versionName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-    } catch (PackageManager.NameNotFoundException e) {
-      Log.w(TAG, "Could not read package info", e);
+    @Override protected void onDestroy() {
+        closed=true; camera.destroy(); releaseWeb();
+        if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
+        sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
-    String message =
-        getString(R.string.about_message, versionName, getString(R.string.cardboard_sdk_version));
-    new AlertDialog.Builder(this)
-        .setTitle(R.string.about_title)
-        .setMessage(message)
-        .setPositiveButton(android.R.string.ok, null)
-        .show();
-  }
-
-  /**
-   * Checks for READ_EXTERNAL_STORAGE permission.
-   *
-   * @return whether the READ_EXTERNAL_STORAGE is already granted.
-   */
-  private boolean isReadExternalStorageEnabled() {
-    return ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-        == PackageManager.PERMISSION_GRANTED;
-  }
-
-  /** Handles the requests for activity permission to READ_EXTERNAL_STORAGE. */
-  private void requestPermissions() {
-    final String[] permissions = new String[] {Manifest.permission.READ_EXTERNAL_STORAGE};
-    ActivityCompat.requestPermissions(this, permissions, PERMISSIONS_REQUEST_CODE);
-  }
-
-  /**
-   * Callback for the result from requesting permissions.
-   *
-   * <p>When READ_EXTERNAL_STORAGE permission is not granted, the settings view will be launched
-   * with a toast explaining why it is required.
-   */
-  @Override
-  public void onRequestPermissionsResult(
-      int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-    if (!isReadExternalStorageEnabled()) {
-      Toast.makeText(this, R.string.read_storage_permission, Toast.LENGTH_LONG).show();
-      if (!ActivityCompat.shouldShowRequestPermissionRationale(
-          this, Manifest.permission.READ_EXTERNAL_STORAGE)) {
-        // Permission denied with checking "Do not ask again". Note that in Android R "Do not ask
-        // again" is not available anymore.
-        launchPermissionsSettings();
-      }
-      finish();
+    private void releaseWeb() {
+        ready=false;
+        for(WebSurface b:new ArrayList<>(browsers.values())) b.release();
+        browsers.clear(); browserUrls.clear(); pendingBrowsers.clear();
+        if(shell!=null) { shell.release(); shell=null; }
     }
-  }
-
-  private void launchPermissionsSettings() {
-    Intent intent = new Intent();
-    intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-    intent.setData(Uri.fromParts("package", getPackageName(), null));
-    startActivity(intent);
-  }
-
-  private void setImmersiveSticky() {
-    getWindow()
-        .getDecorView()
-        .setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-  }
-
-  private native long nativeOnCreate(AssetManager assetManager);
-
-  private native void nativeOnDestroy(long nativeApp);
-
-  private native void nativeOnSurfaceCreated(long nativeApp);
-
-  private native void nativeOnDrawFrame(long nativeApp);
-
-  private native void nativeOnTriggerEvent(long nativeApp);
-
-  private native void nativeOnPause(long nativeApp);
-
-  private native void nativeOnResume(long nativeApp);
-
-  private native void nativeSetScreenParams(long nativeApp, int width, int height);
-
-  private native void nativeSwitchViewer(long nativeApp);
+    void onWebRendererGone() { main.post(()->{ releaseWeb(); finish(); }); }
+    private void requestAudio() { setAudioEnabled(audio.requestAudioFocus(focus)==AudioManager.AUDIOFOCUS_REQUEST_GRANTED); }
+    private void setAudioEnabled(boolean enabled) {
+        audioFocused=enabled;
+        if(shell!=null) shell.audio(enabled); for(WebSurface b:browsers.values()) b.audio(enabled);
+        if(!enabled) sounds.autoPause(); else sounds.autoResume();
+    }
+    void report(String message) {
+        android.util.Log.w("NextVR",message);
+        main.post(()->{ if(closed) return; Toast.makeText(this,message,Toast.LENGTH_LONG).show();
+            if(shell!=null && ready) shell.evaluate("window.nextvrMessage&&window.nextvrMessage("+JSONObject.quote(message)+")"); });
+    }
+    void chooseFiles(ValueCallback<Uri[]> callback,WebChromeClient.FileChooserParams params) {
+        if(fileCallback!=null) fileCallback.onReceiveValue(null); fileCallback=callback;
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,params.getMode()==WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE);
+        try { startActivityForResult(intent,20); } catch(Exception e) { fileCallback.onReceiveValue(null); fileCallback=null; report("No photo picker available"); }
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request==20 && fileCallback!=null) {
+            ArrayList<Uri> values=new ArrayList<>();
+            if(result==RESULT_OK && data!=null) {
+                if(data.getClipData()!=null) for(int i=0;i<data.getClipData().getItemCount();i++) values.add(data.getClipData().getItemAt(i).getUri());
+                else if(data.getData()!=null) values.add(data.getData());
+            }
+            fileCallback.onReceiveValue(values.isEmpty()?null:values.toArray(new Uri[0])); fileCallback=null;
+        }
+    }
+    void download(String url,String agent,String disposition,String mime) {
+        if(!WebSurface.isWebUrl(url)) { report("Only HTTP(S) downloads are supported"); return; }
+        new AlertDialog.Builder(this).setTitle("Download file?").setMessage(URLUtil.guessFileName(url,disposition,mime))
+            .setNegativeButton(android.R.string.cancel,null).setPositiveButton("Download",(d,w)->{
+                try {
+                    DownloadManager.Request request=new DownloadManager.Request(Uri.parse(url));
+                    request.setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,URLUtil.guessFileName(url,disposition,mime));
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    String cookies=CookieManager.getInstance().getCookie(url); if(cookies!=null) request.addRequestHeader("Cookie",cookies);
+                    request.addRequestHeader("User-Agent",agent);
+                    getSystemService(DownloadManager.class).enqueue(request); report("Download started");
+                } catch(Exception e) { report("Download failed: "+e.getMessage()); }
+            }).show();
+    }
+    private void syncBrowsers(JSONArray specs,SpatialRenderer target) throws Exception {
+        if(renderer!=target || shell==null || closed) return;
+        Set<String> live=new HashSet<>();
+        for(int i=0;i<specs.length();i++) {
+            JSONObject spec=specs.getJSONObject(i); String id=spec.getString("id"), url=spec.getString("url");
+            if(!id.matches("[a-zA-Z0-9_-]{1,64}") || !WebSurface.isWebUrl(url)) continue;
+            live.add(id);
+            WebSurface existing=browsers.get(id);
+            if(existing!=null) { if(!url.equals(browserUrls.get(id))) { browserUrls.put(id,url); existing.web.loadUrl(url); } continue; }
+            if(!pendingBrowsers.add(id)) continue;
+            browserUrls.put(id,url);
+            int width=Math.max(100,Math.min(1600,spec.getInt("width"))), height=Math.max(100,Math.min(1200,spec.getInt("height")));
+            glView.queueEvent(()->{
+                if(renderer!=target) return;
+                SpatialRenderer.Texture texture=new SpatialRenderer.Texture(); target.browsers.put(id,texture);
+                main.post(()->{
+                    if(closed || renderer!=target || !pendingBrowsers.remove(id)) return;
+                    WebSurface browser=new WebSurface(this,texture.surface,width,height,false,null,browserUrls.get(id));
+                    browsers.put(id,browser); browser.audio(audioFocused); if(!resumed) browser.pause();
+                });
+            });
+        }
+        Set<String> all=new HashSet<>(browserUrls.keySet());
+        for(String id:all) if(!live.contains(id)) {
+            pendingBrowsers.remove(id); browserUrls.remove(id);
+            WebSurface old=browsers.remove(id); if(old!=null) old.release();
+            glView.queueEvent(()->{ SpatialRenderer.Texture t=target.browsers.remove(id); if(t!=null) t.release(); });
+        }
+    }
+    private final class Bridge {
+        @JavascriptInterface public void frame(String scene,String browserSpecs) {
+            if(scene.length()>100000 || browserSpecs.length()>20000) return;
+            try {
+                SpatialRenderer target=renderer; if(target==null) return;
+                target.panels=SpatialRenderer.decode(scene);
+                JSONArray specs=new JSONArray(browserSpecs);
+                main.post(()->{ try { syncBrowsers(specs,target); } catch(Exception e) { report("Browser surface failed: "+e.getMessage()); } });
+            } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
+        }
+        @JavascriptInterface public void hands(boolean enabled) { camera.handsEnabled=enabled; }
+        @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
+        @JavascriptInterface public void touch(String id,int action,float x,float y) {
+            if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
+            if(!Float.isFinite(x)||!Float.isFinite(y)) return;
+            main.post(()->{ WebSurface target=id.equals("shell")?shell:browsers.get(id); if(target!=null && resumed) {
+                target.touch(action,x,y);
+                if(action==MotionEvent.ACTION_UP && target!=shell) target.web.evaluateJavascript(
+                    "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
+                    value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(id)+")"); });
+            } });
+        }
+        @JavascriptInterface public void key(String id,String key) {
+            if(key.length()>16) return;
+            main.post(()->{
+                WebSurface b=browsers.get(id); if(b==null) return;
+                android.view.inputmethod.InputConnection input=b.web.onCreateInputConnection(new android.view.inputmethod.EditorInfo());
+                if(input==null) return;
+                if(key.equals("⌫")) input.deleteSurroundingText(1,0);
+                else if(key.equals("⏎")) { input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,android.view.KeyEvent.KEYCODE_ENTER)); input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,android.view.KeyEvent.KEYCODE_ENTER)); }
+                else input.commitText(key,1);
+            });
+        }
+        @JavascriptInterface public String battery() {
+            Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if(state==null) return "null";
+            int level=state.getIntExtra("level",0), scale=state.getIntExtra("scale",100), status=state.getIntExtra("status",0);
+            return "{\"level\":"+((float)level/Math.max(1,scale))+",\"charging\":"+(status==2||status==5)+"}";
+        }
+    }
+    public void closeSample(View v) { finish(); }
+    public void showSettings(View v) { PopupMenu menu=new PopupMenu(this,v); menu.getMenuInflater().inflate(R.menu.settings_menu,menu.getMenu()); menu.setOnMenuItemClickListener(this); menu.show(); }
+    @Override public boolean onMenuItemClick(MenuItem item) {
+        if(item.getItemId()==R.id.switch_viewer) { camera.stop(); nativeSwitchViewer(nativeApp); return true; }
+        if(item.getItemId()==R.id.about_nextvr) { new AlertDialog.Builder(this).setTitle("NextVR").setMessage("Camera passthrough · Cardboard 3 DoF · Spatial HTML\nUse seated. Monoscopic camera video is not depth-correct and is not safe for walking.").setPositiveButton(android.R.string.ok,null).show(); return true; }
+        return false;
+    }
+    @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus); if(focus) immersive(); }
+    private void immersive() { getWindow().getDecorView().setSystemUiVisibility(5894|View.SYSTEM_UI_FLAG_LAYOUT_STABLE); }
+    private native long nativeOnCreate(AssetManager assets);
+    private native void nativeOnDestroy(long app);
+    private native void nativeOnSurfaceCreated(long app);
+    private native void nativeOnDrawFrame(long app);
+    private native void nativeOnPause(long app);
+    private native void nativeOnResume(long app);
+    private native void nativeSetScreenParams(long app,int width,int height);
+    private native void nativeSwitchViewer(long app);
 }

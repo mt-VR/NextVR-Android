@@ -15,241 +15,78 @@
  */
 
 #include "nextvr_app.h"
-
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
-#include <android/log.h>
-
-#include <array>
-#include <cmath>
-#include <fstream>
-
-#include "cardboard.h"
+#include <time.h>
 
 namespace ndk_nextvr {
-
-namespace {
-
-// The objects are about 1 meter in radius, so the min/max target distance are
-// set so that the objects are always within the room (which is about 5 meters
-// across) and the reticle is always closer than any objects.
-constexpr float kMinTargetDistance = 2.5f;
-constexpr float kMaxTargetDistance = 3.5f;
-constexpr float kMinTargetHeight = 0.5f;
-constexpr float kMaxTargetHeight = kMinTargetHeight + 3.0f;
-
-constexpr float kDefaultFloorHeight = -1.7f;
-
-// 6 Hz cutoff frequency for the velocity filter of the head tracker.
-constexpr int kVelocityFilterCutoffFrequency = 6;
-
-constexpr uint64_t kPredictionTimeWithoutVsyncNanos = 50000000;
-
-// Angle threshold for determining whether the controller is pointing at the
-// object.
-constexpr float kAngleLimit = 0.2f;
-
-// Number of different possible targets
-constexpr int kTargetMeshCount = 3;
-
-// Simple shaders to render .obj files without any lighting.
-constexpr const char* kObjVertexShader =
-    R"glsl(
-    uniform mat4 u_MVP;
-    attribute vec4 a_Position;
-    attribute vec2 a_UV;
-    varying vec2 v_UV;
-
-    void main() {
-      v_UV = a_UV;
-      gl_Position = u_MVP * a_Position;
-    })glsl";
-
-constexpr const char* kObjFragmentShader =
-    R"glsl(
-    precision mediump float;
-
-    uniform sampler2D u_Texture;
-    varying vec2 v_UV;
-
-    void main() {
-      // The y coordinate of this sample's textures is reversed compared to
-      // what OpenGL expects, so we invert the y coordinate.
-      gl_FragColor = texture2D(u_Texture, vec2(v_UV.x, 1.0 - v_UV.y));
-    })glsl";
-
-}  // anonymous namespace
-
-NextVrApp::NextVrApp(JavaVM* vm, jobject obj,
-                                     jobject asset_mgr_obj)
-    : head_tracker_(nullptr),
-      lens_distortion_(nullptr),
-      distortion_renderer_(nullptr),
-      screen_params_changed_(false),
-      device_params_changed_(false),
-      screen_width_(0),
-      screen_height_(0),
-      depthRenderBuffer_(0),
-      framebuffer_(0),
-      texture_(0),
-      obj_program_(0),
-      obj_position_param_(0),
-      obj_uv_param_(0),
-      obj_modelview_projection_param_(0),
-      target_object_meshes_(kTargetMeshCount),
-      target_object_not_selected_textures_(kTargetMeshCount),
-      target_object_selected_textures_(kTargetMeshCount),
-      cur_target_object_(RandomUniformInt(kTargetMeshCount)) {
-  JNIEnv* env;
-  vm->GetEnv((void**)&env, JNI_VERSION_1_6);
-  java_asset_mgr_ = env->NewGlobalRef(asset_mgr_obj);
-  asset_mgr_ = AAssetManager_fromJava(env, asset_mgr_obj);
-
+NextVrApp::NextVrApp(JavaVM* vm, jobject obj, jobject /*assets*/) : vm_(vm) {
+  JNIEnv* env = nullptr;
+  vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+  activity_ = env->NewGlobalRef(obj);
+  jclass cls = env->GetObjectClass(obj);
+  draw_eye_ = env->GetMethodID(cls, "drawEye", "([F[F)V");
+  pose_ = env->GetMethodID(cls, "headPose", "([F)V");
+  env->DeleteLocalRef(cls);
   Cardboard_initializeAndroid(vm, obj);
   head_tracker_ = CardboardHeadTracker_create();
-  CardboardHeadTracker_setLowPassFilter(head_tracker_,
-                                        kVelocityFilterCutoffFrequency);
+  CardboardHeadTracker_setLowPassFilter(head_tracker_, 10.f);
 }
-
 NextVrApp::~NextVrApp() {
   CardboardHeadTracker_destroy(head_tracker_);
   CardboardLensDistortion_destroy(lens_distortion_);
   CardboardDistortionRenderer_destroy(distortion_renderer_);
+  JNIEnv* env = nullptr;
+  vm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+  env->DeleteGlobalRef(activity_);
 }
-
-void NextVrApp::OnSurfaceCreated(JNIEnv* env) {
-  const int obj_vertex_shader =
-      LoadGLShader(GL_VERTEX_SHADER, kObjVertexShader);
-  const int obj_fragment_shader =
-      LoadGLShader(GL_FRAGMENT_SHADER, kObjFragmentShader);
-
-  obj_program_ = glCreateProgram();
-  glAttachShader(obj_program_, obj_vertex_shader);
-  glAttachShader(obj_program_, obj_fragment_shader);
-  glLinkProgram(obj_program_);
-  glUseProgram(obj_program_);
-
-  CHECKGLERROR("Obj program");
-
-  obj_position_param_ = glGetAttribLocation(obj_program_, "a_Position");
-  obj_uv_param_ = glGetAttribLocation(obj_program_, "a_UV");
-  obj_modelview_projection_param_ = glGetUniformLocation(obj_program_, "u_MVP");
-
-  CHECKGLERROR("Obj program params");
-
-  NEXTVR_CHECK(room_.Initialize(obj_position_param_, obj_uv_param_,
-                                        "CubeRoom.obj", asset_mgr_));
-  NEXTVR_CHECK(
-      room_tex_.Initialize(env, java_asset_mgr_, "CubeRoom_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_meshes_[0].Initialize(
-      obj_position_param_, obj_uv_param_, "Icosahedron.obj", asset_mgr_));
-  NEXTVR_CHECK(target_object_not_selected_textures_[0].Initialize(
-      env, java_asset_mgr_, "Icosahedron_Blue_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_selected_textures_[0].Initialize(
-      env, java_asset_mgr_, "Icosahedron_Pink_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_meshes_[1].Initialize(
-      obj_position_param_, obj_uv_param_, "QuadSphere.obj", asset_mgr_));
-  NEXTVR_CHECK(target_object_not_selected_textures_[1].Initialize(
-      env, java_asset_mgr_, "QuadSphere_Blue_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_selected_textures_[1].Initialize(
-      env, java_asset_mgr_, "QuadSphere_Pink_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_meshes_[2].Initialize(
-      obj_position_param_, obj_uv_param_, "TriSphere.obj", asset_mgr_));
-  NEXTVR_CHECK(target_object_not_selected_textures_[2].Initialize(
-      env, java_asset_mgr_, "TriSphere_Blue_BakedDiffuse.png"));
-  NEXTVR_CHECK(target_object_selected_textures_[2].Initialize(
-      env, java_asset_mgr_, "TriSphere_Pink_BakedDiffuse.png"));
-
-  // Target object first appears directly in front of user.
-  model_target_ = GetTranslationMatrix({0.0f, 1.5f, kMinTargetDistance});
-
-  CHECKGLERROR("OnSurfaceCreated");
+void NextVrApp::OnSurfaceCreated(JNIEnv* /*env*/) {
+  // Names from a lost EGL context must NOT be deleted in the new context.
+  CardboardDistortionRenderer_destroy(distortion_renderer_);
+  distortion_renderer_ = nullptr;
+  framebuffer_ = texture_ = depthRenderBuffer_ = 0;
+  screen_params_changed_ = device_params_changed_ = true;
 }
-
 void NextVrApp::SetScreenParams(int width, int height) {
-  screen_width_ = width;
-  screen_height_ = height;
-  screen_params_changed_ = true;
+  screen_width_ = width; screen_height_ = height; screen_params_changed_ = true;
 }
-
-void NextVrApp::OnDrawFrame() {
-  if (!UpdateDeviceParams()) {
-    return;
-  }
-
-  // Update Head Pose.
-  head_view_ = GetPose();
-
-  // Incorporate the floor height into the head_view
-  head_view_ =
-      head_view_ * GetTranslationMatrix({0.0f, kDefaultFloorHeight, 0.0f});
-
-  // Bind buffer
-  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
-
-  glEnable(GL_DEPTH_TEST);
-  glEnable(GL_CULL_FACE);
-  glDisable(GL_SCISSOR_TEST);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  // Draw eyes views
-  for (int eye = 0; eye < 2; ++eye) {
-    glViewport(eye == kLeft ? 0 : screen_width_ / 2, 0, screen_width_ / 2,
-               screen_height_);
-
-    Matrix4x4 eye_matrix = GetMatrixFromGlArray(eye_matrices_[eye]);
-    Matrix4x4 eye_view = eye_matrix * head_view_;
-
-    Matrix4x4 projection_matrix =
-        GetMatrixFromGlArray(projection_matrices_[eye]);
-    Matrix4x4 modelview_target = eye_view * model_target_;
-    modelview_projection_target_ = projection_matrix * modelview_target;
-    modelview_projection_room_ = projection_matrix * eye_view;
-
-    // Draw room and target
-    DrawWorld();
-  }
-
-  // Render
-  CardboardDistortionRenderer_renderEyeToDisplay(
-      distortion_renderer_, /* target_display = */ 0, /* x = */ 0, /* y = */ 0,
-      screen_width_, screen_height_, &left_eye_texture_description_,
-      &right_eye_texture_description_);
-
-  CHECKGLERROR("onDrawFrame");
-}
-
-void NextVrApp::OnTriggerEvent() {
-  if (IsPointingAtTarget()) {
-    HideTarget();
-  }
-}
-
 void NextVrApp::OnPause() { CardboardHeadTracker_pause(head_tracker_); }
-
 void NextVrApp::OnResume() {
-  CardboardHeadTracker_resume(head_tracker_);
-
-  // Parameters may have changed.
-  device_params_changed_ = true;
-
-  // Check for device parameters existence in external storage. If they're
-  // missing, we must scan a Cardboard QR code and save the obtained parameters.
-  uint8_t* buffer;
-  int size;
-  CardboardQrCode_getSavedDeviceParams(&buffer, &size);
-  if (size == 0) {
-    SwitchViewer();
+  CardboardHeadTracker_resume(head_tracker_); device_params_changed_ = true;
+}
+void NextVrApp::SwitchViewer() { CardboardQrCode_scanQrCodeAndSaveDeviceParams(); }
+void NextVrApp::OnTriggerEvent() {} // Input goes to the same spatial ray as pinch input in Java/HTML.
+void NextVrApp::OnDrawFrame() {
+  if (screen_width_ <= 0 || screen_height_ <= 0 || !UpdateDeviceParams()) return;
+  JNIEnv* env = nullptr;
+  vm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+  timespec ts; clock_gettime(CLOCK_BOOTTIME, &ts);
+  const int64_t now = int64_t(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+  float position[3], orientation[4];
+  CardboardHeadTracker_getPose(head_tracker_, now + 50000000LL, kLandscapeLeft, position, orientation);
+  // Deliberately discard translation. No neck model, VINS, ARCore or 6 DoF.
+  const Matrix4x4 rotation = Quatf::FromXYZW(orientation).ToMatrix();
+  auto raw = rotation.ToGlArray();
+  jfloatArray view_array = env->NewFloatArray(16);
+  jfloatArray projection_array = env->NewFloatArray(16);
+  env->SetFloatArrayRegion(view_array, 0, 16, raw.data());
+  env->CallVoidMethod(activity_, pose_, view_array);
+  const Matrix4x4 head = rotation * GetTranslationMatrix({0.f, -1.55f, 0.f});
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+  glDisable(GL_SCISSOR_TEST);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  for (int eye = 0; eye < 2; ++eye) {
+    glViewport(eye * screen_width_ / 2, 0, screen_width_ / 2, screen_height_);
+    auto view = (GetMatrixFromGlArray(eye_matrices_[eye]) * head).ToGlArray();
+    env->SetFloatArrayRegion(view_array, 0, 16, view.data());
+    env->SetFloatArrayRegion(projection_array, 0, 16, projection_matrices_[eye]);
+    env->CallVoidMethod(activity_, draw_eye_, view_array, projection_array);
+    if (env->ExceptionCheck()) break;
   }
-  CardboardQrCode_destroy(buffer);
+  env->DeleteLocalRef(view_array); env->DeleteLocalRef(projection_array);
+  glDisable(GL_BLEND); glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
+  CardboardDistortionRenderer_renderEyeToDisplay(distortion_renderer_, 0, 0, 0,
+      screen_width_, screen_height_, &left_eye_texture_description_, &right_eye_texture_description_);
 }
-
-void NextVrApp::SwitchViewer() {
-  CardboardQrCode_scanQrCodeAndSaveDeviceParams();
-}
-
 bool NextVrApp::UpdateDeviceParams() {
   // Checks if screen or device parameters changed
   if (!screen_params_changed_ && !device_params_changed_) {
@@ -262,15 +99,14 @@ bool NextVrApp::UpdateDeviceParams() {
   CardboardQrCode_getSavedDeviceParams(&buffer, &size);
 
   // If there are no parameters saved yet, returns false.
-  if (size == 0) {
-    return false;
-  }
+  bool defaults = size == 0;
+  if (defaults) CardboardQrCode_getCardboardV1DeviceParams(&buffer, &size);
 
   CardboardLensDistortion_destroy(lens_distortion_);
   lens_distortion_ = CardboardLensDistortion_create(buffer, size, screen_width_,
                                                     screen_height_);
 
-  CardboardQrCode_destroy(buffer);
+  if (!defaults) CardboardQrCode_destroy(buffer);
 
   GlSetup();
 
@@ -369,74 +205,5 @@ void NextVrApp::GlTeardown() {
   CHECKGLERROR("GlTeardown");
 }
 
-Matrix4x4 NextVrApp::GetPose() {
-  std::array<float, 4> out_orientation;
-  std::array<float, 3> out_position;
-  CardboardHeadTracker_getPose(
-      head_tracker_, GetBootTimeNano() + kPredictionTimeWithoutVsyncNanos,
-      kLandscapeLeft, &out_position[0], &out_orientation[0]);
-  return GetTranslationMatrix(out_position) *
-         Quatf::FromXYZW(&out_orientation[0]).ToMatrix();
-}
 
-void NextVrApp::DrawWorld() {
-  DrawRoom();
-  DrawTarget();
-}
-
-void NextVrApp::DrawTarget() {
-  glUseProgram(obj_program_);
-
-  std::array<float, 16> target_array = modelview_projection_target_.ToGlArray();
-  glUniformMatrix4fv(obj_modelview_projection_param_, 1, GL_FALSE,
-                     target_array.data());
-
-  if (IsPointingAtTarget()) {
-    target_object_selected_textures_[cur_target_object_].Bind();
-  } else {
-    target_object_not_selected_textures_[cur_target_object_].Bind();
-  }
-  target_object_meshes_[cur_target_object_].Draw();
-
-  CHECKGLERROR("DrawTarget");
-}
-
-void NextVrApp::DrawRoom() {
-  glUseProgram(obj_program_);
-
-  std::array<float, 16> room_array = modelview_projection_room_.ToGlArray();
-  glUniformMatrix4fv(obj_modelview_projection_param_, 1, GL_FALSE,
-                     room_array.data());
-
-  room_tex_.Bind();
-  room_.Draw();
-
-  CHECKGLERROR("DrawRoom");
-}
-
-void NextVrApp::HideTarget() {
-  cur_target_object_ = RandomUniformInt(kTargetMeshCount);
-
-  float angle = RandomUniformFloat(-M_PI, M_PI);
-  float distance = RandomUniformFloat(kMinTargetDistance, kMaxTargetDistance);
-  float height = RandomUniformFloat(kMinTargetHeight, kMaxTargetHeight);
-  std::array<float, 3> target_position = {std::cos(angle) * distance, height,
-                                          std::sin(angle) * distance};
-
-  model_target_ = GetTranslationMatrix(target_position);
-}
-
-bool NextVrApp::IsPointingAtTarget() {
-  // Compute vectors pointing towards the reticle and towards the target object
-  // in head space.
-  Matrix4x4 head_from_target = head_view_ * model_target_;
-
-  const std::array<float, 4> unit_quaternion = {0.f, 0.f, 0.f, 1.f};
-  const std::array<float, 4> point_vector = {0.f, 0.f, -1.f, 0.f};
-  const std::array<float, 4> target_vector = head_from_target * unit_quaternion;
-
-  float angle = AngleBetweenVectors(point_vector, target_vector);
-  return angle < kAngleLimit;
-}
-
-}  // namespace ndk_nextvr
+} // namespace ndk_nextvr
