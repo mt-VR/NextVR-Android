@@ -1,0 +1,15 @@
+.idea/*
+!.idea/codeStyles/
+
+*.iml
+.gradle
+local.properties
+.DS_Store
+build
+.cxx
+
+gitlog.json
+.externalNativeBuild
+
+# Cardboard SDK native artifacts extracted from the sdk AAR by the extractNdk task
+nextvr-android/libraries/

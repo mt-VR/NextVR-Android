@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brazilian Portuguese strings. -->
+    <string name="app_name">NextVR</string>
+    <string name="title_activity_vr">NextVR</string>
+    <string name="read_storage_permission">O NextVR precisa ler o armazenamento externo para carregar os parâmetros do visor Cardboard.</string>
+    <string name="switch_viewer">Trocar visor Cardboard</string>
+    <string name="about_nextvr">Sobre o NextVR</string>
+    <string name="about_title">Sobre o NextVR</string>
+    <string name="about_message">NextVR %1$s\nCriado com o SDK do Google Cardboard para Android NDK %2$s.\n\nAponte a cabeça para um objeto e aperte o botão do visor para coletá-lo.</string>
+</resources>
