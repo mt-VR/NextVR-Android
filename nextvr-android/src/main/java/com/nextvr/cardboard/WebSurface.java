@@ -50,6 +50,7 @@ final class WebSurface {
         presentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         presentation.getWindow().setFormat(PixelFormat.TRANSLUCENT);
         presentation.getWindow().addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+        presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         web=new WebView(presentation.getContext());
         web.setBackgroundColor(shell?Color.TRANSPARENT:Color.WHITE);
@@ -76,6 +77,7 @@ final class WebSurface {
             }
             @Override public void onPageFinished(WebView view,String address) {
                 if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) view.evaluateJavascript(AUDIO_SCRIPT,null);
+                audio(owner.isAudioFocused());
                 if(shell) owner.shellReady();
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {

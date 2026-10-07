@@ -5,17 +5,17 @@ import { pack, ATLAS_SIZE } from '../web/src/atlas.js';
 import * as THREE from 'three';
 
 test('atlas keeps the HUD clear and allocates non-overlapping padded surfaces', () => {
-  const rects = pack([{width:980,height:78}, ...Array(6).fill({width:1040,height:660}), {width:1150,height:450}]);
+  const rects = pack([{width:980,height:78,kind:'dock'}, ...Array.from({length:6},(_,slot)=>({width:1040,height:660,slot})), {width:1150,height:450,kind:'keyboard'}]);
   for (let i=0;i<rects.length;i++) {
     const [x,y,w,h]=rects[i];
-    assert.ok(x>=0 && y>=1024 && x+w<=ATLAS_SIZE && y+h<=ATLAS_SIZE);
+    assert.ok(x>=0 && y>=800 && x+w<=ATLAS_SIZE && y+h<=ATLAS_SIZE);
     for (let j=0;j<i;j++) {
       const [a,b,c,d]=rects[j]; assert.ok(x+w<=a || a+c<=x || y+h<=b || b+d<=y);
     }
   }
 });
 test('atlas rejects overflow rather than silently replacing another window texture', () => {
-  assert.throws(()=>pack(Array(30).fill({width:1040,height:660})), /full/);
+  assert.throws(()=>pack(Array.from({length:7},(_,slot)=>({width:1040,height:660,slot}))), /full/);
 });
 test('Cardboard view inversion has the expected orientation, with no translation', () => {
   const head = new THREE.Matrix4().makeRotationY(.7);
@@ -38,4 +38,9 @@ test('runtime shell cannot load untrusted executable content into its native bri
   assert.ok(java.includes('if(shell) web.addJavascriptInterface'));
   assert.ok(java.includes('s.setAllowFileAccess(false)'));
   assert.ok(java.includes('request.deny()'));
+});
+
+test('atlas slots do not move surviving windows after a close', () => {
+  const a={width:1040,height:660,slot:0}, b={width:1040,height:660,slot:1};
+  assert.deepEqual(pack([a,b])[1],pack([b])[0]);
 });

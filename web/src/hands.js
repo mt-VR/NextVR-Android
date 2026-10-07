@@ -84,7 +84,8 @@ export function stopHands() {
   if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
   if (cam.video) cam.video.remove();
   cam.stream = cam.video = null;
-  hands.forEach(h => { h.live = false; h.pinch = false; });
+  hands.forEach(h => { h.live = false; h.pinch = false; h.armed = h.released = 0; h.justDown = h.justUp = false; });
+  if (native) { nativeResult = null; nativeSeen = -1e9; }
   cursor.active = false; cursor.down = false;
   emit('hands', false);
 }
@@ -94,9 +95,9 @@ const DET_MS = 68;                  // ~15 Hz: preserva CPU/GPU para render e ja
 const GRACE = 280;                  // ms que a mão continua válida após sumir → não pisca
 const PINCH_IN = .40, PINCH_OUT = .62;   // histerese: fecha em 0.40, só abre em 0.62
 
-let nativeResult = null, nativeSeen = -1e9;
+let nativeResult = null, nativeSeen = -1e9, nativeScaleX = 1, nativeScaleY = 1;
 if (native) window.nextvrHands = (result, sx = 1, sy = 1) => {
-  for (const hand of result.landmarks || []) for (const p of hand) { p.x = (p.x - .5) * sx + .5; p.y = (p.y - .5) * sy + .5; }
+  nativeScaleX = sx; nativeScaleY = sy; // Mapping is visual only; pinch thresholds stay in raw camera space.
   nativeResult = result; nativeSeen = performance.now();
 };
 function detect(now) {
@@ -155,11 +156,12 @@ function detect(now) {
   }
 
   // o cursor segue a mão que está pinçando; senão, a mais recente
-  const pick = hands.find(h => h.live && h.pinch) || hands.filter(h => h.live).sort((a, b) => b.seen - a.seen)[0];
+  if (cursor.down && cursor.hand && !cursor.hand.live) { cursor.down = false; emit('pinchcancel', cursor); }
+  const pick = (cursor.down && cursor.hand?.live ? cursor.hand : null) || hands.find(h => h.live && h.pinch) || hands.filter(h => h.live).sort((a, b) => b.seen - a.seen)[0];
   if (pick) {
     const tip = pick.pts[8], thumb = pick.pts[4];
-    cursor.x = (tip.x + thumb.x) / 2;            // ponto entre os dois dedos: é onde o olho espera
-    cursor.y = (tip.y + thumb.y) / 2;
+    cursor.x = (((tip.x + thumb.x) / 2) - .5) * nativeScaleX + .5;            // ponto entre os dois dedos: é onde o olho espera
+    cursor.y = (((tip.y + thumb.y) / 2) - .5) * nativeScaleY + .5;
     cursor.active = true; cursor.hand = pick;
     if (pick.justDown) { cursor.down = true; emit('pinchdown', cursor); }
     if (pick.justUp) { cursor.down = false; emit('pinchup', cursor); }
@@ -188,7 +190,7 @@ function draw() {
     for (const h of hands) {
       if (!h.live) continue;
       const fade = Math.max(.25, 1 - (performance.now() - h.seen) / 280);
-      const X = i => h.pts[i].x * W, Y = i => h.pts[i].y * H;
+      const X = i => ((h.pts[i].x - .5) * nativeScaleX + .5) * W, Y = i => ((h.pts[i].y - .5) * nativeScaleY + .5) * H;
 
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.strokeStyle = `rgba(0,0,0,${.4 * fade})`; ctx.lineWidth = 9 * s;
@@ -221,7 +223,7 @@ onFrame((dt, now) => { detect(now); draw(); });
 
 if (native) {
   window.nextvrTrigger = down => {
-    cursor.x = cursor.y = .5; cursor.active = true; cursor.down = down;
+    cursor.x = cursor.y = .5; cursor.hand = null; cursor.active = true; cursor.down = down;
     emit(down ? 'pinchdown' : 'pinchup', cursor);
     if (!down) cursor.active = false;
   };

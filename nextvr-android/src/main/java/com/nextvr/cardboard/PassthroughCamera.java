@@ -169,5 +169,5 @@ final class PassthroughCamera {
         if(preview!=null) { preview.release(); preview=null; }
     }
     void stop() { handler.post(() -> { closeCamera(); listener.hands("{\"landmarks\":[],\"handedness\":[]}"); }); }
-    void destroy() { handler.post(() -> { destroyed=true; closeCamera(); if(detector!=null) detector.close(); thread.quitSafely(); }); }
+    void destroy(Runnable afterClose) { handler.post(() -> { destroyed=true; closeCamera(); if(detector!=null) detector.close(); afterClose.run(); thread.quitSafely(); }); }
 }

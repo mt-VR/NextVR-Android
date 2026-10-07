@@ -154,7 +154,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         nativeOnPause(nativeApp); glView.onPause(); super.onPause();
     }
     @Override protected void onDestroy() {
-        closed=true; camera.destroy(); releaseWeb();
+        closed=true; releaseWeb();
+        SpatialRenderer old=renderer; renderer=null;
+        camera.destroy(()->{ if(old!=null) { old.camera.surface.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
@@ -165,6 +167,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(shell!=null) { shell.release(); shell=null; }
     }
     void onWebRendererGone() { main.post(()->{ releaseWeb(); finish(); }); }
+    boolean isAudioFocused() { return audioFocused; }
     private void requestAudio() { setAudioEnabled(audio.requestAudioFocus(focus)==AudioManager.AUDIOFOCUS_REQUEST_GRANTED); }
     private void setAudioEnabled(boolean enabled) {
         audioFocused=enabled;

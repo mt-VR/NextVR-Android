@@ -33,6 +33,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForFunction(()=>window.__last?.panels.length>=3);
     assert.deepEqual(errors,[]);
+    await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
     assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
     assert.equal(await page.locator('.win-title').innerText(),'Next VR');
@@ -71,9 +72,45 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const touches=await page.evaluate(()=>window.__touches);
     assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'Gaze/button down reaches browser texture');
     assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'Gaze/button up reaches browser texture');
+    // The native detector feeds the archive's actual One Euro / two-frame pinch latch.
+    const hand = gap => {
+      const points=Array.from({length:21},()=>({x:.5,y:.5}));
+      points[0]={x:.5,y:.75}; points[9]={x:.5,y:.5};
+      points[4]={x:.5-gap/2,y:.5}; points[8]={x:.5+gap/2,y:.5};
+      return {landmarks:[points],handedness:[[{categoryName:'Left'}]]};
+    };
+    await page.evaluate(()=>{window.__touches=[];window.nextvrResume();});
+    const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
+    await feed(hand(.04));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
+    // Lost tracking must CANCEL rather than releasing/clicking a link accidentally.
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({landmarks:[],handedness:[]});});
+    await page.waitForFunction(()=>window.__touches.some(t=>t.action===3),null,{timeout:12000});
+    const loss=await page.evaluate(()=>window.__touches);
+    assert.ok(!loss.some(t=>t.action===1),'Tracking loss does not click');
+    await page.evaluate(()=>window.__touches=[]);
+    await feed(hand(.04));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.action===0),null,{timeout:12000});
+    await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.action===1),null,{timeout:12000});
+    await page.evaluate(()=>clearInterval(window.__feed));
+    await page.evaluate(()=>window.nextvrSuspend());
     await page.locator('.win-shell').filter({has:page.locator('.win-title', {hasText:'Browser'})}).locator('[data-act="close"]').click();
     await page.waitForFunction(()=>!window.__last.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('.win-shell').count(),2);
+    await page.waitForTimeout(900);
+    const libraryMatrix=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix);
+    const handle=new THREE.Vector3(0,-364/980,0).applyMatrix4(new THREE.Matrix4().fromArray(libraryMatrix));
+    const handleView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),handle,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>{window.nextvrPose(p);window.nextvrTrigger(true);},handleView.toArray());
+    await page.waitForFunction(()=>!!document.querySelector('.win-shell.moving'));
+    const shifted=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),handle.clone().add(new THREE.Vector3(.3,.2,0)),new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>window.nextvrPose(p),shifted.toArray()); await page.waitForTimeout(150);
+    await page.evaluate(()=>window.nextvrTrigger(false));
+    assert.equal(await page.locator('.win-shell.free').count(),1,'White handle detaches the window from the dock arc');
+    assert.equal(await page.locator('.win-shell.moving').count(),0);
+    await page.locator('.win-shell.free [data-act="pin"]').click();
+    assert.equal(await page.locator('.win-shell.free').count(),0,'Repin restores the dock/window relationship');
     assert.deepEqual(errors,[]);
   } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve)); }
 });

@@ -111,6 +111,7 @@ function dpr() {
   return Math.min(devicePixelRatio, 1.6);     // auto
 }
 function resize() {
+  document.documentElement.dataset.quality = S.quality;
   if (!native) { viewport.width = innerWidth; viewport.height = innerHeight; }
   const w = viewport.width, h = viewport.height;
   camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -242,10 +243,12 @@ setEnvironment(S.env);
 
 if (native) {
   const poseMatrix = new THREE.Matrix4();
+  let firstPose = true;
   window.nextvrPose = values => {
     poseMatrix.fromArray(values).invert();
     camera.quaternion.setFromRotationMatrix(poseMatrix);
     camera.position.set(0, EYE, 0); camera.updateMatrixWorld(true);
+    if (firstPose) { contentRoot.rotation.y = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; firstPose = false; }
   };
   window.nextvrMessage = toast;
 }

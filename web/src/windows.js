@@ -205,6 +205,11 @@ function nativeTouch(hit, action) {
   const br = browser?.getBoundingClientRect();
   const id = browser ? browser.dataset.nativeBrowser : 'shell';
   const x = rect.left + px - (br?.left || 0), y = rect.top + py - (br?.top || 0);
+  if (nativePress && nativePress.id !== id) {
+    window.NativeXR.touch(nativePress.id, 3, nativePress.x, nativePress.y);
+    nativePress = null;
+    if (action !== 0) return;
+  }
   if (action === 0) nativePress = { id, win: hit.win, x, y };
   if (nativePress && nativePress.id === id) {
     nativePress.x = x; nativePress.y = y;
@@ -373,8 +378,13 @@ if (navigator.getBattery) {
 /** O teclado está aberto? (para o botão de teclado da dock) */
 export const keyboardOpen = () => !!kbObj;
 
+let dockArmed = -1;
+on('pinchcancel', () => { dockArmed = -1; });
 function dockPinch(type) {
-  const r = dockTest(cursor.x, cursor.y); if (!r) return;
+  const r = dockTest(cursor.x, cursor.y);
+  if (type === 'down') { dockArmed = r ? r.i : -1; return; }
+  const armed = dockArmed; dockArmed = -1;
+  if (!r || r.i !== armed) return;
   if (type === 'up') {
     const b = dockBtns[r.i];
     if (b) { b.style.transform = 'scale(.88)'; setTimeout(() => b.style.transform = '', 150); b.click(); }
@@ -462,6 +472,7 @@ export function keyboard(on_, field) {
 }
 
 function press(k, btn) {
+  if (native) window.NativeXR.click();
   if (btn) { btn.classList.add('hot'); setTimeout(() => btn.classList.remove('hot'), 110); }
   if (k === '⌨') return keyboard(false);
   if (k === '⇧') { kbShift = !kbShift; paintShift(); return; }
@@ -494,8 +505,10 @@ function placeKb() {
   }
   kbHit.position.copy(kbObj.position); kbHit.rotation.copy(kbObj.rotation);
 }
+let kbArmed = null;
+on('pinchcancel', () => { kbArmed = null; });
 function kbPinch(type) {
-  if (!kbObj || type !== 'up') return false;
+  if (!kbObj) return false;
   ndc.set(cursor.x * 2 - 1, -(cursor.y * 2 - 1));
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObject(kbHit, false)[0]; if (!hit) return false;
@@ -504,12 +517,17 @@ function kbPinch(type) {
   const px = (local.x / g.width + .5) * kbObj.element.offsetWidth;
   const py = (.5 - local.y / g.height) * kbObj.element.offsetHeight;
   const b = deepPick(kbObj.element, px, py);
-  if (b && b.dataset && b.dataset.k) { press(b.dataset.k, b); return true; }
+  if (type === 'down') { kbArmed = b; return true; }
+  if (b && b === kbArmed && b.dataset && b.dataset.k) press(b.dataset.k, b);
+  kbArmed = null;
   return true;
 }
 
 /* =================== laço =================== */
+let layoutSettings = '';
 onFrame(dt => {
+  const nextSettings = `${S.winScale}:${S.winDist}`;
+  if (layoutSettings !== nextSettings) { layoutSettings = nextSettings; layout(); }
   placeDock(); placeKb();
   if (nativePress && cursor.active && cursor.down) {
     const h = hitAt(cursor.x, cursor.y);

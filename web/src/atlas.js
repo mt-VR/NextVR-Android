@@ -4,14 +4,17 @@ export const ATLAS_SIZE = 4096;
 export const VIEW = { width: 1200, height: 800 };
 const PAD = 160;
 
-// A shelf packer with an explicitly reserved head-locked HUD region. Pure and testable.
+// Stable slots: opening/closing a window never relocates another window's pixels while its
+// SurfaceTexture is in flight. The 6-window limit is explicit, not a silent atlas overflow.
 export function pack(sizes, limit = ATLAS_SIZE) {
-  let x = 0, y = 1024, row = 0;
-  return sizes.map(({ width, height }) => {
+  return sizes.map(({ width, height, kind = 'window', slot = 0 }) => {
     const w = Math.ceil(width) + PAD * 2, h = Math.ceil(height) + PAD * 2;
-    if (x + w > limit) { x = 0; y += row; row = 0; }
-    if (w > limit || y + h > limit) throw new Error('Workspace texture is full; close a window first.');
-    const rect = [x, y, w, h]; x += w; row = Math.max(row, h); return rect;
+    const x = kind === 'window' ? (slot % 3) * 1360 : 0;
+    const y = kind === 'dock' ? 800 : kind === 'keyboard' ? 3160 : 1200 + Math.floor(slot / 3) * 980;
+    const capacity = kind === 'dock' ? 400 : kind === 'keyboard' ? 936 : 980;
+    if (slot > 5 || w > (kind === 'window' ? 1360 : limit) || h > capacity || x + w > limit || y + h > limit)
+      throw new Error('Workspace texture is full; close a window first.');
+    return [x, y, w, h];
   });
 }
 
@@ -26,6 +29,7 @@ export class AtlasRenderer {
     this.domElement.id = 'atlas';
     this.last = 0;
     this.lastError = '';
+    this.slots = new Map();
   }
   setSize() {}
   render(scene) {
@@ -36,7 +40,15 @@ export class AtlasRenderer {
       if (o.element.parentNode !== this.domElement) this.domElement.append(o.element);
       o.element.style.transform = 'none';
     }
-    const sizes = objects.map(o => ({ width: o.element.offsetWidth, height: o.element.offsetHeight }));
+    for (const id of this.slots.keys()) if (!objects.some(o => o.id === id)) this.slots.delete(id);
+    const sizes = objects.map(o => {
+      const kind = o.element.classList.contains('dock') ? 'dock' : o.element.classList.contains('kb') ? 'keyboard' : 'window';
+      if (kind === 'window' && !this.slots.has(o.id)) {
+        const used = new Set(this.slots.values()); let slot = 0; while (used.has(slot)) slot++;
+        this.slots.set(o.id, slot);
+      }
+      return { width: o.element.offsetWidth, height: o.element.offsetHeight, kind, slot: this.slots.get(o.id) || 0 };
+    });
     let rects;
     try { rects = pack(sizes); } catch (e) {
       if (this.lastError !== e.message) { this.lastError = e.message; window.nextvrMessage?.(e.message); }
@@ -47,7 +59,7 @@ export class AtlasRenderer {
       const e = o.element, [x, y, w, h] = rects[i];
       e.style.left = `${x + PAD}px`; e.style.top = `${y + PAD}px`;
       const matrix = o.matrixWorld.clone().multiply(new THREE.Matrix4().makeScale(w, h, 1));
-      panels.push({ matrix: matrix.toArray(), rect: rects[i] });
+      panels.push({ matrix: matrix.toArray(), rect: rects[i], glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
       const origin = e.getBoundingClientRect();
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();
@@ -83,7 +95,7 @@ export class AtlasRenderer {
     panels.push({ overlay: true, matrix: hud.toArray(), rect: [0, 0, VIEW.width, VIEW.height] });
     // GL renders head motion at display rate. Only CSS layout/animations cross this bridge at 30 Hz.
     const now = performance.now();
-    if (now - this.last >= 30) {
+    if (now - this.last >= ({ low: 66, auto: 30, high: 16 }[document.documentElement.dataset.quality] || 30)) {
       this.last = now;
       window.NativeXR.frame(JSON.stringify(panels), JSON.stringify(browsers));
     }
