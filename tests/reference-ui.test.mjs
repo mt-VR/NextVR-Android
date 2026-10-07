@@ -22,6 +22,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     browser=await chromium.launch({executablePath:await bundledChromium.executablePath(),args:bundledChromium.args,headless:true});
     const page=await browser.newPage({viewport:{width:4096,height:4096},deviceScaleFactor:1});
     const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+    // Validate native GLSL grammar/linking with ANGLE. Only the platform-specific OES sampler is
+    // replaced for WebGL; this does not pretend to validate an Android external-texture driver.
+    const nativeSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/cardboard/SpatialRenderer.java',import.meta.url),'utf8');
+    const pairs=[...nativeSource.matchAll(/(?:program|cameraProgram) = link\(\s*("(?:\\.|[^"\\])*"),\s*("(?:\\.|[^"\\])*")\);/g)]
+      .map(m=>[JSON.parse(m[1]),JSON.parse(m[2]).replace(/#extension GL_OES_EGL_image_external : require\n/,'').replaceAll('samplerExternalOES','sampler2D')]);
+    assert.equal(pairs.length,2);
+    const shaderResult=await page.evaluate(pairs=>{
+      const gl=document.createElement('canvas').getContext('webgl');
+      if(!gl) return ['No WebGL context for shader validation'];
+      const errors=[];
+      for(const [vertex,fragment] of pairs) {
+        const program=gl.createProgram();
+        for(const [kind,source] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]) {
+          const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);
+          if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) errors.push(gl.getShaderInfoLog(shader));
+          gl.attachShader(program,shader);gl.deleteShader(shader);
+        }
+        gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))errors.push(gl.getProgramInfoLog(program));gl.deleteProgram(program);
+      }
+      gl.getExtension('WEBGL_lose_context')?.loseContext();return errors;
+    },pairs);
+    assert.deepEqual(shaderResult,[],'Camera and spatial-compositor GLSL compile and link');
     await page.addInitScript(()=>{
       window.__frames=[]; window.__touches=[];
       window.NativeXR={

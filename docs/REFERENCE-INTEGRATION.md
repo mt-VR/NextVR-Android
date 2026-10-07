@@ -151,6 +151,8 @@ Automated tests (`npm test`) run the actual bundled reference UI in headless Chr
 - loss-of-tracking CANCEL without a spurious click;
 - white-handle drag/detach and repin;
 - atlas capacity, stable slots and no overlap;
+- camera/compositor shader grammar and linking through ANGLE (OES samplers substituted with
+  2D samplers for WebGL; actual Android external-texture support still needs device testing);
 - orientation-only native render path and bridge security invariants.
 
 Android CI builds the vendored SDK and debug APK for `arm64-v8a` and `armeabi-v7a`. The first build

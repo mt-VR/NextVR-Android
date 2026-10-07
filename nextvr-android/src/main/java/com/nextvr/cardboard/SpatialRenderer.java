@@ -65,12 +65,13 @@ final class SpatialRenderer {
     private final int[] viewport = new int[4];
     private float spanX = 2.2f, spanY = 1.5f;
     private float[] eyeProjection;
+    private int renderPass;
     private final FloatBuffer screen = floats(new float[]{-1,-1, 1,-1, -1,1, 1,1});
     SpatialRenderer() {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uMvp; uniform mat4 uTransform; uniform vec4 uRect; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;gl_Position=uMvp*vec4(aPosition,0.,1.);vUv=(uTransform*vec4(uRect.xy+aUv*uRect.zw,0.,1.)).xy;}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform samplerExternalOES uCamera; uniform mat4 uCameraTransform; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform float uRotation; uniform bool uBackdrop; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec2 uv=((ndc+uProjection.zw)/uProjection.xy)/uSpan+.5; if(uRotation>2.5)uv=vec2(uv.y,1.-uv.x);else if(uRotation>1.5)uv=1.-uv;else if(uRotation>.5)uv=vec2(1.-uv.y,uv.x); uv=(uCameraTransform*vec4(uv,0.,1.)).xy; vec2 d=vec2(.009); vec3 blurred=(cameraAt(uv)*2.+cameraAt(uv+vec2(d.x,0.))+cameraAt(uv-vec2(d.x,0.))+cameraAt(uv+vec2(0.,d.y))+cameraAt(uv-vec2(0.,d.y)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform samplerExternalOES uCamera; uniform mat4 uCameraTransform; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform float uRotation; uniform bool uBackdrop; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec2 uv=((ndc+uProjection.zw)/uProjection.xy)/uSpan+.5; if(uRotation>2.5)uv=vec2(uv.y,1.-uv.x);else if(uRotation>1.5)uv=1.-uv;else if(uRotation>.5)uv=vec2(1.-uv.y,uv.x); uv=(uCameraTransform*vec4(uv,0.,1.)).xy; vec2 d=vec2(.009); vec3 blurred=(cameraAt(uv)*2.+cameraAt(uv+vec2(d.x,0.))+cameraAt(uv-vec2(d.x,0.))+cameraAt(uv+vec2(0.,d.y))+cameraAt(uv-vec2(0.,d.y)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uMvp=GLES20.glGetUniformLocation(program,"uMvp"); uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
@@ -106,19 +107,30 @@ final class SpatialRenderer {
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         List<Panel> sorted = new ArrayList<>(panels);
         sorted.sort(Comparator.comparingDouble(p -> p.overlay ? Double.MAX_VALUE : depth(p,view)));
-        for(Panel p:sorted) {
-            Texture tex=p.browser.isEmpty()?atlas:browsers.get(p.browser);
-            if(tex==null || !tex.ready) continue;
-            Matrix.multiplyMM(mv,0,p.overlay?identity:view,0,p.matrix,0);
-            Matrix.multiplyMM(mvp,0,projection,0,mv,0);
-            drawTexture(tex,mvp,p);
+        // Opaque pixels establish depth before translucent borders/shadows. Unlike a single
+        // painter pass, this also handles intersecting/detached windows without solid alpha halos.
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST); GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        for(renderPass=0;renderPass<2;renderPass++) {
+            GLES20.glDepthMask(renderPass==0);
+            for(Panel p:sorted) if(!p.overlay) drawPanel(p,view,projection);
         }
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
+        renderPass=2;
+        for(Panel p:sorted) if(p.overlay) drawPanel(p,identity,projection);
         GLES20.glDisable(GLES20.GL_BLEND);
+    }
+    private void drawPanel(Panel p,float[] view,float[] projection) {
+        Texture tex=p.browser.isEmpty()?atlas:browsers.get(p.browser);
+        if(tex==null || !tex.ready) return;
+        Matrix.multiplyMM(mv,0,view,0,p.matrix,0);
+        Matrix.multiplyMM(mvp,0,projection,0,mv,0);
+        drawTexture(tex,mvp,p);
     }
     private float depth(Panel p,float[] v) { return v[2]*p.matrix[12]+v[6]*p.matrix[13]+v[10]*p.matrix[14]+v[14]; }
     private void drawTexture(Texture tex,float[] matrix,Panel panel) {
         float[] uv=panel.uv;
         GLES20.glUseProgram(program);
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uPass"),renderPass);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uBackdrop"),camera.ready && !panel.overlay && panel.browser.isEmpty()?1:0);
         GLES20.glUniform4fv(GLES20.glGetUniformLocation(program,"uGlass"),1,panel.glass,0);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(program,"uViewport"),viewport[0],viewport[1],viewport[2],viewport[3]);
