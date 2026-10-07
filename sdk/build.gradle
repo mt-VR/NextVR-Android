@@ -23,7 +23,10 @@ android {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
         externalNativeBuild.cmake {
-            arguments "-DANDROID_STL=c++_static"
+            // NextVR: the Unity plugin (and its iOS/Unity-only sources) is not
+            // vendored in this repository, so the SDK is built as a plain
+            // Android NDK library.
+            arguments "-DANDROID_STL=c++_static", "-DCARDBOARDSDK_UNITY_PLUGIN=OFF"
         }
         defaultConfig {
             consumerProguardFiles 'proguard-rules.pro'

@@ -139,15 +139,21 @@ if(CARDBOARDSDK_RENDERING_GLESv3)
     )
 endif()
 
-set_property(
-    TARGET GfxPluginCardboard
-    APPEND_STRING
-    PROPERTY
-        LINK_FLAGS
-        " -Wl,--version-script=\"${CMAKE_CURRENT_SOURCE_DIR}/cardboard_api.lds\""
-)
-set_property(
-    TARGET GfxPluginCardboard
-    APPEND
-    PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/cardboard_api.lds"
-)
+# NextVR: the version script exports Unity-only entry points (JNI_OnLoad,
+# RenderAPI_Vulkan_OnPluginLoad). It is therefore only applied when the Unity
+# plugin sources are part of the build. See README.md ("Local modifications to
+# the vendored Cardboard SDK").
+if(CARDBOARDSDK_UNITY_PLUGIN)
+    set_property(
+        TARGET GfxPluginCardboard
+        APPEND_STRING
+        PROPERTY
+            LINK_FLAGS
+            " -Wl,--version-script=\"${CMAKE_CURRENT_SOURCE_DIR}/cardboard_api.lds\""
+    )
+    set_property(
+        TARGET GfxPluginCardboard
+        APPEND
+        PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/cardboard_api.lds"
+    )
+endif()
