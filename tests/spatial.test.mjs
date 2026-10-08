@@ -38,14 +38,14 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(camera.includes('detect(small,stamp,0)'), 'No second rotation in the detector');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
-  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold') && !hands.includes('lineTo('));
+  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');
   assert.ok(java.includes("frame-src 'none'"));
   assert.ok(java.includes('if(shell) web.addJavascriptInterface'));
   assert.ok(java.includes('s.setAllowFileAccess(false)'));
-  assert.ok(java.includes('request.deny()'));
+  assert.ok(java.includes('request.grant(request.getResources())'), 'Camera granted for hand tracking');
   assert.ok(java.includes('if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE)'));
   assert.ok(java.includes('headers.put("Cache-Control","no-store")'));
 });

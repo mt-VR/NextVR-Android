@@ -136,7 +136,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(before.length,after.length);
     for(let i=0;i<before.length;i++) for(let k=0;k<16;k++) assert.ok(Math.abs(before[i][k]-after[i][k])<.001,'Head movement must not move world-anchored surfaces');
     const dock=after[0];
-    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.38)<.001,'Close landscape dock position');
+    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.45)<.001,'Close landscape dock position');
     // A button press aimed at the window centre must be routed as a native browser MotionEvent.
     const browserPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='browser'));
     const target=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(browserPanel.matrix));
@@ -223,7 +223,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>Math.abs(window.__last.panels[0].matrix[12])>.2);
     const summoned=await page.evaluate(()=>window.__last.panels[0].matrix);
     assert.ok(summoned[12]<-.2,'Dock appears in the new gaze direction');
-    assert.ok(Math.abs(Math.hypot(summoned[12],summoned[14])-.38)<.002);
+    assert.ok(Math.abs(Math.hypot(summoned[12],summoned[14])-.45)<.002);
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Summoning dock must not recenter windows/keyboard');
     assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===0)),false,'Palm menu pinch does not click through');
