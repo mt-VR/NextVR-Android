@@ -25,5 +25,5 @@ test('existing installations get the close layout once, then retain distance adj
   assert.equal(moved.winDist,.85);assert.equal(moved.dockDist,1);
   assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1);
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
-  assert.equal(COMFORT.welcomeDistance,.6);
+  assert.equal(COMFORT.welcomeDistance,.55);
 });

@@ -13,7 +13,7 @@ export class PalmDockGesture {
       let activate=false;
       if(!h.pinching){if(state.openSince===null)state.openSince=now;state.held=false;}
       else {
-        activate=!state.held && state.openSince!==null && now-state.openSince>=150;
+        activate=!state.held && state.openSince!==null && now-state.openSince>=80;
         state.held=true;state.openSince=null;
       }
       buttons.push({hand:h,activate});
