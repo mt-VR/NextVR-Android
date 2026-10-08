@@ -164,19 +164,21 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Disable native hand silhouette visuals (we draw JS skeletons instead).
   if (!jsDrawingInit && native) { jsDrawingInit = true; window.NativeXR.handVisuals?.(false); }
 
-  // Draw hand skeletons + update pinch cursors.
-  const canvas = ensureOverlay();
-  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-  for (let i = 0; i < hands.length; i++) {
-    drawHandSkeleton(hands[i].points);
-    updatePinchCursor(hands[i], i);
-  }
-  // Hide unused cursors.
-  for (let i = hands.length; i < pinchCursors.length; i++) {
-    if (pinchCursors[i]) pinchCursors[i].classList.remove('active');
-  }
-  // Two-hand pinch recenter.
-  checkTwoHandRecenter(hands);
+  // Draw hand skeletons + update pinch cursors (safe: drawing errors must not break interaction).
+  try {
+    const canvas = ensureOverlay();
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < hands.length; i++) {
+      drawHandSkeleton(hands[i].points);
+      updatePinchCursor(hands[i], i);
+    }
+    // Hide unused cursors.
+    for (let i = hands.length; i < pinchCursors.length; i++) {
+      if (pinchCursors[i]) pinchCursors[i].classList.remove('active');
+    }
+    // Two-hand pinch recenter.
+    checkTwoHandRecenter(hands);
+  } catch (_) { /* drawing is best-effort */ }
 
   emit('handframe', { ...frame, hands });
   const consumed = palmMenu(hands, scaleX, scaleY);
