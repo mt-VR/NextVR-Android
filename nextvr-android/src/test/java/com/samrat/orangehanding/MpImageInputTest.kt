@@ -13,6 +13,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class MpImageInputTest {
+    @Test fun reusableAnalysisBufferNeverAliasesTheOwnedInferenceImage() {
+        val frame=Bitmap.createBitmap(16,16,Bitmap.Config.ARGB_8888)
+        try {
+            frame.eraseColor(Color.RED)
+            val first=MpImageInput.copyOf(frame)
+            frame.eraseColor(Color.BLUE)
+            assertEquals(Color.RED,BitmapExtractor.extract(first).getPixel(4,4))
+            first.close();assertFalse(frame.isRecycled)
+            val next=MpImageInput.copyOf(frame)
+            assertEquals(Color.BLUE,BitmapExtractor.extract(next).getPixel(4,4))
+            next.close();assertFalse(frame.isRecycled)
+        } finally { frame.recycle() }
+    }
+
     @Test fun closingMediaPipeInputDoesNotRecycleFrameNeededForRescueOrRetry() {
         val frame=Bitmap.createBitmap(16,16,Bitmap.Config.ARGB_8888)
         frame.eraseColor(Color.RED)

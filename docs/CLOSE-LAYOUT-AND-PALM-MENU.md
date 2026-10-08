@@ -52,8 +52,8 @@ black background). No AI approximation or invented logo is used.
   losing a tracked hand, and inference-duration-based backoff. Two tracked hands need no YOLO.
   YOLO uses one CPU thread; its errors disable only recovery, not the whole app. Stale wrist
   locations are timed from sampling, not completion. Primary MediaPipe keeps running separately.
-- Limit/deduplicate hand-target bridge packets to 30 Hz instead of parsing identical JSON every
-  display frame. Existing geometry caches and completion-based result freshness remain.
+- Limit/deduplicate hand-target bridge packets to 30 Hz; cache parsed targets and shader uniform
+  locations so both eyes reuse them rather than parsing identical JSON every display frame. Existing geometry caches and completion-based result freshness remain.
 
 These are allocation/scheduling changes validated by regression tests, not measured on-device
 FPS/thermal improvements. Verify tracking latency, recovery quality, heat, and direct touch on

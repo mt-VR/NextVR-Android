@@ -15,6 +15,10 @@ class PhoneXrHandRenderer {
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; void main(){gl_Position=uMatrix*vec4(aPosition,1.);}",
         "precision highp float; uniform vec4 uColor; void main(){gl_FragColor=uColor;}")
+    private val matrixUniform=GLES20.glGetUniformLocation(colorProgram,"uMatrix")
+    private val colorUniform=GLES20.glGetUniformLocation(colorProgram,"uColor")
+    private var targetsText:String?=null
+    private var targets=JSONArray()
     private var vertexBuffer=ByteBuffer.allocateDirect(65536).order(ByteOrder.nativeOrder()).asFloatBuffer()
     private val position=GLES20.glGetAttribLocation(colorProgram,"aPosition")
     private lateinit var frame: PhoneXrHands.Frame
@@ -37,7 +41,7 @@ class PhoneXrHandRenderer {
         val visible=presentation.silhouette(frame,now)
         viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(colorProgram,"uMatrix"),1,false,projection,0)
+        GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
@@ -53,7 +57,11 @@ class PhoneXrHandRenderer {
         } else { meshFrame=null;meshSets.clear();meshes=emptyList() }
         // Missing/stalled tracking may retain a short visual outline, but never a ray/press.
         if(!frame.isFresh(now))return
-        val targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
+        // Both eyes/display frames commonly reuse the same bridge packet.
+        if(targetsText!=targetsJson){
+            targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
+            targetsText=targetsJson
+        }
         for(hand in frame.hands) {
             val id=if(hand.left) "left" else "right"
             val target=(0 until targets.length()).mapNotNull { targets.optJSONObject(it) }.firstOrNull { it.optString("id")==id }
@@ -82,7 +90,7 @@ class PhoneXrHandRenderer {
         GLES20.glDisableVertexAttribArray(position)
     }
 private fun drawHandSkeletons(position: Int) {
-        val color=GLES20.glGetUniformLocation(colorProgram,"uColor")
+        val color=colorUniform
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
@@ -180,7 +188,7 @@ private fun handBone(out: ArrayList<Float>, x1: Float, y1: Float, x2: Float, y2:
         }
 
 private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
-            val color = GLES20.glGetUniformLocation(colorProgram, "uColor")
+            val color = colorUniform
             if (b[2] < -.05f) {
                 val hx = b[0] / -b[2]; val hy = b[1] / -b[2]
                 val tx = b[3] / -b[5]; val ty = b[4] / -b[5]
