@@ -1,4 +1,4 @@
-// Android PhoneXR hands adapter — MediaPipe-style visuals + two-hand pinch recenter.
+// Android PhoneXR hands adapter — finger silhouette visuals + pinch cursors + two-hand recenter.
 import { settings as S, on, emit, toast, onFrame, native, viewport } from './core.js';
 import { PalmDockGesture } from './palm-dock.js';
 
@@ -7,15 +7,7 @@ export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
 
-// ── hand skeleton connections (same as @mediapipe/hands) ─────────────────────
-const HAND_CONN = [
-  [0,1],[1,2],[2,3],[3,4],       // thumb
-  [0,5],[5,6],[6,7],[7,8],       // index
-  [0,9],[9,10],[10,11],[11,12],  // middle
-  [0,13],[13,14],[14,15],[15,16],// ring
-  [0,17],[17,18],[18,19],[19,20],// pinky
-  [5,9],[9,13],[13,17]           // palm
-];
+// ── finger silhouette drawing (ported from NovaMR HTML) ──────────────────────
 const pinchCursors = [];
 let jsDrawingInit = false;
 
@@ -29,35 +21,93 @@ function ensureOverlay() {
   return c;
 }
 
-/** Draw a single hand skeleton (purple lines + dots with glow). */
-function drawHandSkeleton(points) {
-  const canvas = ensureOverlay();
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+/** Convert flat landmark array (63 floats) → array of {x,y} in pixel coords. */
+function toPixelPoints(pts, w, h) {
   const p = [];
-  for (let i = 0; i < 21; i++) p.push({ x: points[i * 3] * w, y: points[i * 3 + 1] * h });
+  for (let i = 0; i < 21; i++) p.push({ x: pts[i * 3] * w, y: pts[i * 3 + 1] * h });
+  return p;
+}
 
-  // connections
-  ctx.lineWidth = 3;
+/** Euclidean distance between two {x,y} points. */
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/** Perpendicular unit normal of segment a→b (rotated 90° CCW). */
+function norm(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  return { x: -dy / len, y: dx / len };
+}
+
+/**
+ * Compute left/right silhouette edges for a finger (array of {x,y} landmarks).
+ * Width tapers toward the tip; the tip itself gets a fixed small width.
+ */
+function fingerSides(points) {
+  const left = [], right = [];
+  for (let i = 0; i < points.length; i++) {
+    let n;
+    if (i === 0) {
+      n = norm(points[0], points[1]);
+    } else if (i === points.length - 1) {
+      n = norm(points[i - 1], points[i]);
+    } else {
+      const n1 = norm(points[i - 1], points[i]);
+      const n2 = norm(points[i], points[i + 1]);
+      n = { x: (n1.x + n2.x) / 2, y: (n1.y + n2.y) / 2 };
+      const len = Math.sqrt(n.x * n.x + n.y * n.y) || 1;
+      n.x /= len; n.y /= len;
+    }
+    const w = i === points.length - 1
+      ? 5
+      : Math.max(7, dist(points[i], points[Math.min(i + 1, points.length - 1)]) * 0.32);
+    left.push({ x: points[i].x + n.x * w, y: points[i].y + n.y * w });
+    right.push({ x: points[i].x - n.x * w, y: points[i].y - n.y * w });
+  }
+  return { left, right };
+}
+
+/**
+ * Draw a hand as a single purple outlined silhouette — the exact style from NovaMR HTML.
+ * `p` is an array of 21 {x,y} landmarks in pixel coordinates.
+ */
+function drawHandSilhouette(p, ctx) {
+  const fingers = [
+    [1, 2, 3, 4],       // thumb
+    [5, 6, 7, 8],       // index
+    [9, 10, 11, 12],    // middle
+    [13, 14, 15, 16],   // ring
+    [17, 18, 19, 20]    // pinky
+  ];
+  const sides = fingers.map(ids => fingerSides(ids.map(i => p[i])));
+
+  ctx.beginPath();
+  ctx.moveTo(p[0].x, p[0].y);
+
+  // Walk around each finger: up the left edge, down the right edge.
+  for (let f = 0; f < 5; f++) {
+    if (f > 0) ctx.lineTo(sides[f].left[0].x, sides[f].left[0].y);
+    for (const pt of sides[f].left) ctx.lineTo(pt.x, pt.y);
+    for (let i = sides[f].right.length - 1; i >= 0; i--)
+      ctx.lineTo(sides[f].right[i].x, sides[f].right[i].y);
+  }
+
+  ctx.lineTo(p[0].x, p[0].y); // close back to wrist
+
   ctx.strokeStyle = '#a83cff';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.shadowColor = '#8b2cff';
-  ctx.shadowBlur = 10;
-  for (const [a, b] of HAND_CONN) {
-    ctx.beginPath(); ctx.moveTo(p[a].x, p[a].y); ctx.lineTo(p[b].x, p[b].y); ctx.stroke();
-  }
-  // landmarks
-  ctx.shadowColor = '#b45cff'; ctx.shadowBlur = 12;
-  for (let i = 0; i < p.length; i++) {
-    ctx.beginPath();
-    ctx.arc(p[i].x, p[i].y, (i === 4 || i === 8) ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = (i === 4 || i === 8) ? '#d39aff' : '#a83cff';
-    ctx.fill();
-  }
+  ctx.shadowBlur = 9;
+  ctx.stroke();
   ctx.shadowBlur = 0;
 }
 
-/** Get or create a pinch-cursor element for hand index `i`. */
+// ── pinch cursors (purple glow dots) ─────────────────────────────────────────
+
 function ensurePinchCursor(i) {
   if (pinchCursors[i]) return pinchCursors[i];
   const el = document.createElement('div');
@@ -67,7 +117,6 @@ function ensurePinchCursor(i) {
   return el;
 }
 
-/** Show / position / hide a pinch cursor based on hand pinch state. */
 function updatePinchCursor(hand, idx) {
   const el = ensurePinchCursor(idx);
   const canvas = document.getElementById('overlay');
@@ -100,7 +149,6 @@ const menuNodes = new Map();
 function palmMenu(frameHands, sx, sy) {
   const consumed = new Set();
   const old = new Set(menuNodes.keys());
-  // First, update state for hands still present.
   for (const h of frameHands) {
     old.delete(h.id);
     const nod = menuGesture.update(h, viewport.width * (cursor.down ? 0.06 : 0.05), h.palm);
@@ -111,7 +159,6 @@ function palmMenu(frameHands, sx, sy) {
     consumed.add(h.id);
     if (nod) emit('palmmenu', { hand: h, node: nod, anchor: h.palm });
   }
-  // Transition away hands that left frame with grace.
   for (const id of old) {
     const st = menuNodes.get(id);
     if (!st) continue;
@@ -161,22 +208,24 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   validForMs = Math.max(500, Math.min(1500, Number(frame.validForMs) || 500));
   hands.splice(0, hands.length, ...(frame.hands || []));
 
-  // Disable native hand silhouette visuals (we draw JS skeletons instead).
+  // Disable native hand silhouette visuals (we draw JS silhouettes instead).
   if (!jsDrawingInit && native) { jsDrawingInit = true; window.NativeXR.handVisuals?.(false); }
 
-  // Draw hand skeletons + update pinch cursors (safe: drawing errors must not break interaction).
+  // Draw finger silhouettes + update pinch cursors (safe: drawing errors must not break interaction).
   try {
     const canvas = ensureOverlay();
-    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < hands.length; i++) {
-      drawHandSkeleton(hands[i].points);
-      updatePinchCursor(hands[i], i);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < hands.length; i++) {
+        const px = toPixelPoints(hands[i].points, canvas.width, canvas.height);
+        drawHandSilhouette(px, ctx);
+        updatePinchCursor(hands[i], i);
+      }
+      for (let i = hands.length; i < pinchCursors.length; i++) {
+        if (pinchCursors[i]) pinchCursors[i].classList.remove('active');
+      }
     }
-    // Hide unused cursors.
-    for (let i = hands.length; i < pinchCursors.length; i++) {
-      if (pinchCursors[i]) pinchCursors[i].classList.remove('active');
-    }
-    // Two-hand pinch recenter.
     checkTwoHandRecenter(hands);
   } catch (_) { /* drawing is best-effort */ }
 
