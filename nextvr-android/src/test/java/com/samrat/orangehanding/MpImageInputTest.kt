@@ -27,6 +27,15 @@ class MpImageInputTest {
         } finally { frame.recycle() }
     }
 
+    @Test fun uniquelyOwnedAnalysisBitmapTransfersWithoutAnAliasCopy() {
+        val frame=Bitmap.createBitmap(16,16,Bitmap.Config.ARGB_8888)
+        frame.eraseColor(Color.GREEN)
+        val image=MpImageInput.takeOwnership(frame)
+        assertEquals(Color.GREEN,BitmapExtractor.extract(image).getPixel(4,4))
+        image.close()
+        assertTrue(frame.isRecycled)
+    }
+
     @Test fun closingMediaPipeInputDoesNotRecycleFrameNeededForRescueOrRetry() {
         val frame=Bitmap.createBitmap(16,16,Bitmap.Config.ARGB_8888)
         frame.eraseColor(Color.RED)

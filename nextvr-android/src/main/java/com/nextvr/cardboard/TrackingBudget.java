@@ -1,20 +1,24 @@
 package com.nextvr.cardboard;
 
-/** Bounded analysis admission/resolution; no queued camera frames and no gesture changes. */
+/**
+ * Adaptive hand-input resolution only. Frame cadence is owned by Camera2 and the single-flight
+ * admission flag in PassthroughCamera; this class must never impose an independent FPS ceiling.
+ */
 public final class TrackingBudget {
-    private int width=512, slow=0, fast=0;
+    private int width=640, slow=0, fast=0;
     private double averageMs=40;
-    private long nextMs=0;
+
     public synchronized int width() { return width; }
-    public synchronized boolean ready(long nowMs) { return nowMs>=nextMs; }
-    public synchronized void started(long nowMs) { nextMs=nowMs+33; }
-    public synchronized void completed(long nowMs,long inferenceMs) {
+
+    public synchronized void completed(long inferenceMs) {
         averageMs=.8*averageMs+.2*Math.min(500,Math.max(1,inferenceMs));
-        // Require sustained pressure/recovery; do not oscillate sizes every frame.
-        slow=averageMs>85?slow+1:0; fast=averageMs<45?fast+1:0;
-        if(slow>=6 && width>384){width=384;slow=fast=0;}
-        else if(fast>=90 && width<640){width=width==384?512:640;fast=slow=0;}
-        nextMs=Math.max(nextMs,nowMs+Math.min(16,Math.max(2,inferenceMs/8)));
+        // Keep the reference's 640 px input for landmark precision. Reduce it only after sustained
+        // pressure, and restore it only after sustained headroom to prevent resolution oscillation.
+        slow=averageMs>85?slow+1:0;
+        fast=averageMs<55?fast+1:0;
+        if(slow>=8 && width>512){width=512;slow=fast=0;}
+        else if(fast>=90 && width<640){width=640;fast=slow=0;}
     }
-    public synchronized void reset(){width=512;slow=fast=0;averageMs=40;nextMs=0;}
+
+    public synchronized void reset(){width=640;slow=fast=0;averageMs=40;}
 }

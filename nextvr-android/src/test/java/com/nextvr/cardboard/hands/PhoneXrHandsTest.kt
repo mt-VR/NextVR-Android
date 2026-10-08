@@ -25,12 +25,12 @@ class PhoneXrHandsTest {
         override fun handednesses()=handedness()
         override fun handedness()=if(p==null) emptyList() else listOf(listOf(Category.create(1f,0,"Right","Right")))
     }
-    @Test fun forkPinchThresholdsAreImmediateAndHysteretic() {
+    @Test fun pinchThresholdsMatchPhoneXrAndRemainHysteretic() {
         val latch=HandGestures.PinchLatch()
-        assertFalse(latch.update(HandGestures.shape(points(.34f),false)))
-        assertTrue(latch.update(HandGestures.shape(points(.31f),false))) // no prototype two-frame gate
-        assertTrue(latch.update(HandGestures.shape(points(.45f),false)))
-        assertFalse(latch.update(HandGestures.shape(points(.51f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.31f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.29f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.47f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.49f),false)))
     }
     @Test fun fistIsNotAClick() {
         val shape=HandGestures.shape(points(.2f,true),false)
@@ -74,6 +74,14 @@ class PhoneXrHandsTest {
         val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,1_020_000_000L)
         assertEquals(500_000_000L,frame.validForNs)
         assertFalse(frame.isFresh(1_520_000_001L))
+    }
+    @Test fun cameraFrameAgeDoesNotAssumeTheSensorAndElapsedClocksShareAnEpoch() {
+        // Capture timestamp is near zero here while completion is elapsedRealtime-like. Production
+        // supplies the age measured from camera callback entry instead of subtracting these clocks.
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,2_000_000_000L,300_000_000L)
+        assertEquals(750_000_000L,frame.validForNs)
+        assertTrue(frame.isFresh(2_700_000_000L))
+        assertFalse(frame.isFresh(2_750_000_001L))
     }
     @Test fun briefMissCanKeepOnlyTheSilhouetteNeverTheClick() {
         val engine=PhoneXrHands();val presentation=HandPresentation()

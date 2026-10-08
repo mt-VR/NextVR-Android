@@ -31,6 +31,10 @@ class FusionHands(
     /** How often YOLO looks for lost hands, at most (it only runs while a hand is missing). */
     private val yoloEveryMs: Long = 250,
 ) : AutoCloseable {
+    /** A unique input was consumed by a failed delegate; this copy is only made on that rare path. */
+    class RetryableInferenceException(val retryBitmap: Bitmap, cause: RuntimeException) :
+        RuntimeException("Hand inference failed; retry bitmap retained", cause)
+
     private val video: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f)
     private val appContext=context.applicationContext
     private val model=handModel
@@ -50,59 +54,79 @@ class FusionHands(
     /** Recovery is enabled (possibly still lazy-loading) unless the model failed. */
     val fused get() = !yoloFailed
 
-    fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult {
+    /** Detect without taking ownership; useful to callers that keep/reuse [bitmap]. */
+    fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
+        detectInternal(bitmap, timestampMs, rotationDegrees, takeOwnership = false)
+
+    /** Detect a unique per-frame bitmap and transfer it to MediaPipe (no extra pixel copy). */
+    fun detectOwned(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
+        detectInternal(bitmap, timestampMs, rotationDegrees, takeOwnership = true)
+
+    private fun detectInternal(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int,
+        takeOwnership: Boolean): HandLandmarkerResult {
         val stamp = maxOf(timestampMs, lastTimestamp + 1)
         lastTimestamp = stamp
-        val image = MpImageInput.copyOf(bitmap)
-        val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
-        val base = try { video.detectForVideo(image, options, stamp) } finally { image.close() }
-        if (yoloFailed || rotationDegrees != 0) return base
-        frames++
-        val now = android.os.SystemClock.elapsedRealtime()
-        // Ask YOLO (in the background, on a small copy) where the wrists are, a few times a second.
-        if (recoveryBudget.shouldRun(now,base.landmarks().size,yoloBusy.get()) && yoloBusy.compareAndSet(false, true)) {
-            val copy = runCatching {
-                val w = 320
-                Bitmap.createBitmap(w, w * bitmap.height / bitmap.width, Bitmap.Config.ARGB_8888).also {
-                    android.graphics.Canvas(it).drawBitmap(bitmap, null, android.graphics.Rect(0, 0, it.width, it.height), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
-                }
-            }.getOrNull()
-            if (copy == null) yoloBusy.set(false)
-            else yoloThread.execute {
-                val started=android.os.SystemClock.elapsedRealtime()
-                try {
-                    if(yolo==null)yolo=Yolo11Pose(appContext,threads=1)
-                    wrists = findWrists(copy)
-                    wristsAt = now // Age the sampled image, not the completion of a potentially slow inference.
-                } catch(error:Exception) {
-                    yoloFailed=true;wrists=emptyList()
-                    android.util.Log.w("NextVR-Hands","YOLO recovery disabled after failure; primary tracking continues",error)
-                } finally {
-                    recoveryBudget.completed(android.os.SystemClock.elapsedRealtime()-started)
-                    copy.recycle()
-                    yoloBusy.set(false)
+        val image = if (takeOwnership) MpImageInput.takeOwnership(bitmap) else MpImageInput.copyOf(bitmap)
+        try {
+            val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
+            val base = video.detectForVideo(image, options, stamp)
+            if (yoloFailed || rotationDegrees != 0) return base
+            frames++
+            val now = android.os.SystemClock.elapsedRealtime()
+            // Ask YOLO (in the background, on a small copy) where the wrists are, a few times a second.
+            if (recoveryBudget.shouldRun(now,base.landmarks().size,yoloBusy.get()) && yoloBusy.compareAndSet(false, true)) {
+                val copy = runCatching {
+                    val w = 320
+                    Bitmap.createBitmap(w, w * bitmap.height / bitmap.width, Bitmap.Config.ARGB_8888).also {
+                        android.graphics.Canvas(it).drawBitmap(bitmap, null, android.graphics.Rect(0, 0, it.width, it.height), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+                    }
+                }.getOrNull()
+                if (copy == null) yoloBusy.set(false)
+                else yoloThread.execute {
+                    val started=android.os.SystemClock.elapsedRealtime()
+                    try {
+                        if(yolo==null)yolo=Yolo11Pose(appContext,threads=1)
+                        wrists = findWrists(copy)
+                        wristsAt = now // Age the sampled image, not the completion of a potentially slow inference.
+                    } catch(error:Exception) {
+                        yoloFailed=true;wrists=emptyList()
+                        android.util.Log.w("NextVR-Hands","YOLO recovery disabled after failure; primary tracking continues",error)
+                    } finally {
+                        recoveryBudget.completed(android.os.SystemClock.elapsedRealtime()-started)
+                        copy.recycle()
+                        yoloBusy.set(false)
+                    }
                 }
             }
-        }
-        // Rescue only with fresh wrists, and every other frame: MediaPipe usually takes the hand back itself.
-        val seen = wrists
-        if (base.landmarks().size>=2 || seen.isEmpty() || now - wristsAt > 500 || frames % 2 != 0) return base
+            // Rescue only with fresh wrists, and every other frame: MediaPipe usually takes the hand back itself.
+            val seen = wrists
+            if (base.landmarks().size>=2 || seen.isEmpty() || now - wristsAt > 500 || frames % 2 != 0) return base
 
-        val landmarks = ArrayList(base.landmarks())
-        val world = ArrayList(base.worldLandmarks())
-        val sides = ArrayList(base.handedness())
-        for (wrist in seen) {
-            if (landmarks.size >= 2) break
-            // A wrist near a hand MediaPipe already has is that hand.
-            val covered = landmarks.any { hand -> hypot(hand[0].x() - wrist[0], hand[0].y() - wrist[1]) < .1f }
-            if (covered) continue
-            val found = rescueAt(bitmap, wrist) ?: continue
-            landmarks += found.first
-            world += found.second
-            sides += found.third
+            val landmarks = ArrayList(base.landmarks())
+            val world = ArrayList(base.worldLandmarks())
+            val sides = ArrayList(base.handedness())
+            for (wrist in seen) {
+                if (landmarks.size >= 2) break
+                // A wrist near a hand MediaPipe already has is that hand.
+                val covered = landmarks.any { hand -> hypot(hand[0].x() - wrist[0], hand[0].y() - wrist[1]) < .1f }
+                if (covered) continue
+                val found = rescueAt(bitmap, wrist) ?: continue
+                landmarks += found.first
+                world += found.second
+                sides += found.third
+            }
+            if (landmarks.size == base.landmarks().size) return base
+            return Result(stamp, landmarks, world, sides)
+        } catch (error: RuntimeException) {
+            if (!takeOwnership) throw error
+            // Preserve the frame only on a failed owned inference, so Camera2 can retry on CPU.
+            val retry = bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: throw error
+            throw RetryableInferenceException(retry, error)
+        } finally {
+            // In owned mode this releases the unique analysis bitmap; borrowed mode releases only
+            // MpImageInput's defensive copy. Keep it alive through YOLO-copy and crop rescue above.
+            image.close()
         }
-        if (landmarks.size == base.landmarks().size) return base
-        return Result(stamp, landmarks, world, sides)
     }
 
     private fun findWrists(bitmap: Bitmap): List<FloatArray> {

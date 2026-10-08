@@ -14,7 +14,8 @@ class PhoneXrHands {
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
                     val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float)
     data class Frame @JvmOverloads constructor(val hands: List<Hand>, val timestampNs: Long,
-        val completedNs: Long = timestampNs, val validForNs: Long = 500_000_000L) {
+        val completedNs: Long = timestampNs, val validForNs: Long = 500_000_000L,
+        val frameAgeNs: Long = (completedNs - timestampNs).coerceAtLeast(0)) {
         fun isFresh(nowNs: Long) = nowNs >= completedNs && nowNs - completedNs <= validForNs
         fun json(): String {
             val a = JSONArray()
@@ -30,7 +31,7 @@ class PhoneXrHands {
                 .put("palmWidth", h.shape.palmWidth).put("palmToFace", h.shape.palmToFace))
             return JSONObject().put("hands", a).put("timestampNs", timestampNs)
                 .put("validForMs", validForNs / 1_000_000L)
-                .put("inferenceMs", (completedNs - timestampNs).coerceAtLeast(0) / 1_000_000L).toString()
+                .put("inferenceMs", frameAgeNs.coerceAtLeast(0) / 1_000_000L).toString()
         }
     }
     private class State {
@@ -48,7 +49,9 @@ class PhoneXrHands {
     private val states = HashMap<Boolean, State>()
     fun reset() = states.clear()
     @JvmOverloads fun process(result: HandLandmarkerResult, scaleX: Float, scaleY: Float,
-        completedNs: Long = result.timestampMs() * 1_000_000L): Frame {
+        completedNs: Long = result.timestampMs() * 1_000_000L, frameAgeNs: Long? = null): Frame {
+        // MediaPipe/filter time is the camera capture timestamp. It is deliberately kept separate
+        // from elapsedRealtime, since Camera2 timestamps are not guaranteed to share that clock.
         val stamp = result.timestampMs() * 1_000_000L
         val present = HashSet<Boolean>()
         val seen = result.landmarks().mapIndexedNotNull { index, raw ->
@@ -73,10 +76,11 @@ class PhoneXrHands {
                 state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
         }
         states.keys.retainAll(present)
-        // Capture time belongs to the filters, not the result-expiry clock. Cold start / CPU
-        // inference may take >500 ms: a newly completed result must still get displayed.
-        val validity = ((completedNs - stamp).coerceAtLeast(0) * 2 + 150_000_000L)
+        // Capture time drives One Euro dt; expiry uses measured frame age on the elapsedRealtime
+        // clock instead. Camera2 sensor timestamps may have a different epoch from that clock.
+        val ageNs = (frameAgeNs ?: (completedNs - stamp)).coerceAtLeast(0)
+        val validity = (ageNs.coerceAtMost(675_000_000L) * 2 + 150_000_000L)
             .coerceIn(500_000_000L, 1_500_000_000L)
-        return Frame(seen,stamp,completedNs,validity)
+        return Frame(seen,stamp,completedNs,validity,ageNs)
     }
 }
