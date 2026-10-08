@@ -27,6 +27,16 @@ class PhoneXrHandRenderer {
     private var viewScaleY=1f
     private val presentation=com.nextvr.cardboard.hands.HandPresentation()
     private data class Mesh(val vertices:FloatArray,val color:FloatArray)
+    /** Primitive builder: a hand mesh is tens of thousands of floats per result frame. */
+    private class FloatBuilder(initialCapacity:Int) {
+        private var values=FloatArray(maxOf(3,initialCapacity))
+        private var count=0
+        fun vertex(x:Float,y:Float,z:Float) {
+            if(count+3>values.size)values=values.copyOf(maxOf(count+3,values.size*2))
+            values[count++]=x;values[count++]=y;values[count++]=z
+        }
+        fun toFloatArray()=values.copyOf(count)
+    }
     private var meshFrame:PhoneXrHands.Frame?=null
     private data class Geometry(val sx:Float,val sy:Float,val meshes:List<Mesh>)
     private val meshSets=ArrayList<Geometry>(2)
@@ -119,7 +129,7 @@ private fun drawHandSkeletons(position: Int) {
                 for (pass in 0..1) {
                     val outline = if (hasStencil) pass == 1 else pass == 0
                     val grow = if (outline) edge else 0f
-                    val shape = ArrayList<Float>(4096)
+                    val shape = FloatBuilder(8192)
                     fun disc(i: Int, radius: Float) = handDisc(shape, x(i), y(i), radius + grow)
                     fun bone(i: Int, j: Int, ri: Float, rj: Float) {
                         handBone(shape, x(i), y(i), x(j), y(j), ri + grow, rj + grow)
@@ -132,7 +142,7 @@ private fun drawHandSkeletons(position: Int) {
                     cx /= ring.size; cy /= ring.size
                     for (k in ring.indices) {
                         val i = ring[k]; val j = ring[(k + 1) % ring.size]
-                        shape.addAll(listOf(cx, cy, -1f, x(i), y(i), -1f, x(j), y(j), -1f))
+                        shape.vertex(cx,cy,-1f);shape.vertex(x(i),y(i),-1f);shape.vertex(x(j),y(j),-1f)
                     }
                     bone(0, 1, r * 1.1f, r * 1.15f)
                     bone(0, 17, r * 1.1f, r * .9f)
@@ -162,20 +172,18 @@ private fun drawHandSkeletons(position: Int) {
             return result
         }
 
-private fun handDisc(out: ArrayList<Float>, x: Float, y: Float, r: Float) {
+private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
             val segments = 14
             for (k in 0 until segments) {
                 val a0 = (k * 2 * Math.PI / segments).toFloat()
                 val a1 = ((k + 1) * 2 * Math.PI / segments).toFloat()
-                out.addAll(listOf(
-                    x, y, -1f,
-                    x + kotlin.math.cos(a0) * r, y + kotlin.math.sin(a0) * r, -1f,
-                    x + kotlin.math.cos(a1) * r, y + kotlin.math.sin(a1) * r, -1f,
-                ))
+                out.vertex(x,y,-1f)
+                out.vertex(x + kotlin.math.cos(a0) * r,y + kotlin.math.sin(a0) * r,-1f)
+                out.vertex(x + kotlin.math.cos(a1) * r,y + kotlin.math.sin(a1) * r,-1f)
             }
         }
 
-private fun handBone(out: ArrayList<Float>, x1: Float, y1: Float, x2: Float, y2: Float, r1: Float, r2: Float) {
+private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Float, r1: Float, r2: Float) {
             val length = hypot(x2 - x1, y2 - y1)
             if (length < 1e-6f) return
             val nx = -(y2 - y1) / length
@@ -184,7 +192,8 @@ private fun handBone(out: ArrayList<Float>, x1: Float, y1: Float, x2: Float, y2:
             val bx = x1 - nx * r1; val by = y1 - ny * r1
             val cx = x2 + nx * r2; val cy = y2 + ny * r2
             val dx = x2 - nx * r2; val dy = y2 - ny * r2
-            out.addAll(listOf(ax, ay, -1f, bx, by, -1f, cx, cy, -1f, bx, by, -1f, dx, dy, -1f, cx, cy, -1f))
+            out.vertex(ax,ay,-1f);out.vertex(bx,by,-1f);out.vertex(cx,cy,-1f)
+            out.vertex(bx,by,-1f);out.vertex(dx,dy,-1f);out.vertex(cx,cy,-1f)
         }
 
 private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
@@ -195,14 +204,15 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                 var dx = tx - hx; var dy = ty - hy
                 val l = kotlin.math.sqrt(dx * dx + dy * dy)
                 if (l > 1e-4f) { dx /= l; dy /= l } else { dx = 0f; dy = 1f }
-                val shape = ArrayList<Float>(96 * 3)
+                val shape = FloatBuilder(96 * 3)
                 val sx: Float; val sy: Float
                 if (!down) {
                     // The drop: a round end at the hand and a point towards the target.
                     val r = CURSOR_R
                     val tip = CURSOR_R * .9f
                     handDisc(shape, hx, hy, r)
-                    shape.addAll(listOf(hx - dy * r, hy + dx * r, -1f, hx + dy * r, hy - dx * r, -1f, hx + dx * (r + tip), hy + dy * (r + tip), -1f))
+                    shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
+                    shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
                     GLES20.glUniform4f(color, .95f, .95f, .97f, .9f)
                     drawArray(shape.toFloatArray(), GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
@@ -262,11 +272,13 @@ private fun ring3d(x: Float, y: Float, z: Float, outer: Float, inner: Float, pos
             for (k in 0 until steps) {
                 val a0 = (k * 2 * Math.PI / steps).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / steps).toFloat()
                 val c0 = kotlin.math.cos(a0); val s0 = kotlin.math.sin(a0); val c1 = kotlin.math.cos(a1); val s1 = kotlin.math.sin(a1)
-                val o = k * 18
-                floatArrayOf(
-                    x + c0 * inner, y + s0 * inner, z, x + c0 * outer, y + s0 * outer, z, x + c1 * outer, y + s1 * outer, z,
-                    x + c0 * inner, y + s0 * inner, z, x + c1 * outer, y + s1 * outer, z, x + c1 * inner, y + s1 * inner, z,
-                ).copyInto(data, o)
+                var o = k * 18
+                data[o++]=x+c0*inner;data[o++]=y+s0*inner;data[o++]=z
+                data[o++]=x+c0*outer;data[o++]=y+s0*outer;data[o++]=z
+                data[o++]=x+c1*outer;data[o++]=y+s1*outer;data[o++]=z
+                data[o++]=x+c0*inner;data[o++]=y+s0*inner;data[o++]=z
+                data[o++]=x+c1*outer;data[o++]=y+s1*outer;data[o++]=z
+                data[o++]=x+c1*inner;data[o++]=y+s1*inner;data[o]=z
             }
             drawArray(data, GLES20.GL_TRIANGLES, position)
         }
