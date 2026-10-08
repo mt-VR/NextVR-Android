@@ -1,23 +1,13 @@
-// Native PhoneXR pose/pinch decisions only. An open palm arms the system button; entering the
-// pose already pinching cannot steal a page click or repeatedly summon the dock.
+// Palm dock via pinch has been removed. Dock invocation no longer depends on any pinch
+// gesture. This stub remains to avoid import errors but does not produce any dock summon.
+// Other PhoneXR hand gestures (pinch click, fist grab, direct touch, ray) are unchanged
+// and continue to be handled by OrangeHanding / PhoneXrHands.
 export class PalmDockGesture {
   constructor(){this.states=new Map();}
-  update(hands,now){
-    const present=new Set(hands.map(h=>h.id));
-    for(const id of this.states.keys())if(!present.has(id))this.states.delete(id);
-    const buttons=[];
-    for(const h of hands){
-      if(!h.menuEligible || h.fist){this.states.delete(h.id);continue;}
-      let state=this.states.get(h.id);
-      if(!state){state={openSince:null,held:false};this.states.set(h.id,state);}
-      let activate=false;
-      if(!h.pinching){if(state.openSince===null)state.openSince=now;state.held=false;}
-      else {
-        activate=!state.held && state.openSince!==null && now-state.openSince>=150;
-        state.held=true;state.openSince=null;
-      }
-      buttons.push({hand:h,activate});
-    }
-    return buttons;
+  update(hands, now){
+    // No longer consumes hands or emits summon-dock. Return no buttons.
+    // Kept for compatibility; previously required: open palm + pinch after 150ms.
+    // Now intentionally disabled.
+    return [];
   }
 }
