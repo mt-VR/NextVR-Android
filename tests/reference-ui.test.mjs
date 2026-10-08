@@ -229,7 +229,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
-    assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===0)),false,'Palm pinch must not click through');
+    // Dock summon via palm pinch removed; pinch is now a normal cursor gesture and may
+    // produce a browser touch depending on gaze/hand alignment — no suppression required.
+    await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
     assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0);
     assert.deepEqual(errors,[]);
