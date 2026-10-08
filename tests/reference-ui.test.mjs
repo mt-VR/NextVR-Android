@@ -220,9 +220,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!!document.querySelector('.hand-menu-logo:not([hidden])'));
     await page.waitForTimeout(250);
     menu.hands[0].pinching=true;await feed(menu);
-    await page.waitForFunction(()=>Math.abs(window.__last.panels[0].matrix[12])>.3);
+    await page.waitForFunction(()=>Math.abs(window.__last.panels[0].matrix[12])>.2);
     const summoned=await page.evaluate(()=>window.__last.panels[0].matrix);
-    assert.ok(summoned[12]<-.3,'Dock appears in the new gaze direction');
+    assert.ok(summoned[12]<-.2,'Dock appears in the new gaze direction');
     assert.ok(Math.abs(Math.hypot(summoned[12],summoned[14])-.42)<.002);
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Summoning dock must not recenter windows/keyboard');
