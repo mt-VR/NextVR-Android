@@ -115,7 +115,7 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   GPU construction/inference/destruction stay on that thread, with CPU construction fallback.
   YOLO has the fork's separate executor. Teardown queues interpreter close after pending work.
 - The fork's 63 native landmark filters, dead zones, physical rear-camera handedness, palm-width
-  `.32/.50` pinch hysteresis and fist guard replace all prototype gesture code. There is no
+  `.30/.48` pinch hysteresis and fist guard replace all prototype gesture code. There is no
   prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
 - A stable thumb/index **base-weighted** aim point drives the shoulder-origin pointer, using
   the fork's lead and native cursor filters. The held hand owns the click; both hands get rays.

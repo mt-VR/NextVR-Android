@@ -9,14 +9,14 @@ avoid stacking large nearby panels. The same atlas limits, text/icon ordering, C
 orientation and rotation-only world remain. Existing installs migrate distance settings once;
 subsequent distance adjustments are kept. Settings offers 0.60–1.80 m window distances.
 
-## Palm button
+## Palm button (pinch summon removed)
 
 The native PhoneXR metric palm-facing-eyes predicate (normal toward the eyes + fingers upright)
-exposes a system button between thumb/index tips. An open palm for at least 150 ms arms it;
-a subsequent native pinch summons the dock to the current head heading. It does not recenter
-windows or an already-open keyboard. Entering the pose already pinching, a fist, tracking loss,
-and a held pinch cannot repeatedly trigger it. The active menu hand is consumed before normal
-window click/touch handling. Native hand shape/filter/pinch thresholds are unchanged.
+remains available for hand shape evaluation, but the subsequent pinch that previously summoned
+the dock has been removed. Dock invocation no longer depends on any pinch gesture. Other PhoneXR
+gestures (pinch click, fist grab, direct touch, ray) and hand shape/filter/pinch thresholds are
+unchanged. When a dock recenter is needed, use the dock's recenter control; windows and
+keyboard remain where placed and are not recentered automatically.
 
 **Artwork status:** the requested silver-on-black logo is visible in chat but the announced
 attachment file was not available in this workspace, including after re-upload. No replacement

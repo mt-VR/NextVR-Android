@@ -58,10 +58,9 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 
 ## Latest close-layout update
 
-See [1.0.2 placement, palm-menu gesture, performance changes, and artwork status](docs/CLOSE-LAYOUT-AND-PALM-MENU.md).
+See [1.0.2 placement, performance changes, and artwork status](docs/CLOSE-LAYOUT-AND-PALM-MENU.md).
 The welcome window is now 0.60 m away, apps default to 0.85 m and the dock to 0.65 m.
-Turn your palm toward you, hold it open briefly, then pinch the button between thumb/index to
-bring only the dock to your current heading. Exact new-logo packaging remains pending an
+The dock remains at its heading; palm-pinch summon has been removed. Exact new-logo packaging remains pending an
 accessible source file; the existing icon is retained explicitly, not passed off as the new logo.
 
 ## Controls
