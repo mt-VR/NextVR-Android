@@ -19,11 +19,19 @@ test('forward pointing, fists and lost hands cannot activate the dock menu',()=>
   g.update([hand(false)],200);g.update([],500);
   assert.equal(g.update([hand(true)],700)[0].activate,false);
 });
+test('fist during pinch transition preserves the open-palm timer',()=>{
+  const g=new PalmDockGesture();
+  g.update([hand(false)],0);
+  assert.equal(g.update([hand(true)],200)[0].activate,true);
+  g.update([hand(false)],300);
+  g.update([hand(false,{fist:true})],400);
+  assert.equal(g.update([hand(true)],500)[0].activate,true);
+});
 test('existing installations get the close layout once, then retain distance adjustments',()=>{
   const old={lang:'en',winDist:2.2,dockDist:1.5,winScale:1.1};
   const moved=migrateComfort(old);
-  assert.equal(moved.winDist,.72);assert.equal(moved.dockDist,1);
+  assert.equal(moved.winDist,.68);assert.equal(moved.dockDist,1);
   assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1);
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
-  assert.equal(COMFORT.welcomeDistance,.45);
+  assert.equal(COMFORT.welcomeDistance,.42);
 });

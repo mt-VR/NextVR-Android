@@ -13,6 +13,6 @@ object PalmMenuPose {
         val c=FloatArray(3){(w[it]+m[it])/2};val up=FloatArray(3){m[it]-w[it]}
         fun len(a:FloatArray)=kotlin.math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]).coerceAtLeast(1e-6f)
         val facing=-(n[0]*c[0]+n[1]*c[1]+n[2]*c[2])/(len(n)*len(c))
-        return facing>.25f && up[1]/len(up)>.18f
+        return facing>.15f && up[1]/len(up)>.08f
     }
 }
