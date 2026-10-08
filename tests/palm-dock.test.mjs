@@ -22,8 +22,8 @@ test('forward pointing, fists and lost hands cannot activate the dock menu',()=>
 test('existing installations get the close layout once, then retain distance adjustments',()=>{
   const old={lang:'en',winDist:2.2,dockDist:1.5,winScale:1.1};
   const moved=migrateComfort(old);
-  assert.equal(moved.winDist,.85);assert.equal(moved.dockDist,1);
+  assert.equal(moved.winDist,.72);assert.equal(moved.dockDist,1);
   assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1);
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
-  assert.equal(COMFORT.welcomeDistance,.55);
+  assert.equal(COMFORT.welcomeDistance,.45);
 });

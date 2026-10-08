@@ -25,7 +25,7 @@ class PhoneXrHands {
                 .put("pinching", h.pinching).put("fist", h.shape.fist)
                 .put("palm", JSONArray(listOf(h.shape.palmX, h.shape.palmY)))
                 .put("grab", JSONArray(listOf(h.grabX,h.grabY)))
-                .put("menuEligible", !h.shape.fist && PalmMenuPose.eligible(h.head,h.left))
+                .put("menuEligible", !h.shape.fist && (PalmMenuPose.eligible(h.head,h.left) || h.shape.palmToFace))
                 .put("menuPoint", JSONArray(listOf(h.shape.pinchX,h.shape.pinchY)))
                 .put("palmWidth", h.shape.palmWidth).put("palmToFace", h.shape.palmToFace))
             return JSONObject().put("hands", a).put("timestampNs", timestampNs)
