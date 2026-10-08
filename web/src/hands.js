@@ -1,10 +1,33 @@
 // Android PhoneXR hands adapter. No web detector, landmark filter, skeleton drawing or pinch
 // thresholds here: OrangeHanding + PhoneXrHands + the fork's native GL renderer own those systems.
-import { settings as S, on, emit, toast, onFrame, native } from './core.js';
+import { settings as S, on, emit, toast, onFrame, native, viewport } from './core.js';
+import { PalmDockGesture } from './palm-dock.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
+const menuGesture=new PalmDockGesture(),menuNodes=new Map();
+function palmMenu(frameHands,sx,sy){
+  const buttons=menuGesture.update(frameHands,performance.now()),visible=new Set();
+  for(const {hand:h,activate} of buttons){
+    visible.add(h.id);
+    let node=menuNodes.get(h.id);
+    if(!node){
+      node=document.createElement('div');node.className='hand-menu-logo';
+      const image=document.createElement('img');image.src='./logo.png';image.alt='Summon dock';node.append(image);
+      document.getElementById('hud').append(node);menuNodes.set(h.id,node);
+    }
+    const p=h.menuPoint||[(h.points[12]+h.points[24])/2,(h.points[13]+h.points[25])/2];
+    node.style.left=`${((p[0]-.5)*sx+.5)*viewport.width}px`;
+    node.style.top=`${((p[1]-.5)*sy+.5)*viewport.height}px`;
+    const size=Math.max(32,Math.min(68,h.palmWidth*sx*viewport.width*.35));
+    node.style.width=node.style.height=`${size}px`;node.hidden=false;
+    node.classList.toggle('pressed',!!h.pinching);
+    if(activate)emit('summon-dock');
+  }
+  for(const [id,node] of menuNodes)if(!visible.has(id))node.hidden=true;
+  return visible;
+}
 export const tracking = () => enabled;
 export async function startHands() {
   if (!native) { toast('PhoneXR hands require the Android camera pipeline.'); return false; }
@@ -15,7 +38,7 @@ function cancel() {
   cursor.down = cursor.active = false; cursor.hand = null;
 }
 export function stopHands() {
-  cancel(); hands.length = 0; enabled = false; lastFrame = -Infinity;
+  cancel(); hands.length = 0; palmMenu([],scaleX,scaleY); enabled = false; lastFrame = -Infinity;
   emit('phonehands', { hands: [], consumed: new Set(), scaleX, scaleY });
   if (native) window.NativeXR.hands(false);
   emit('hands', false);
@@ -27,7 +50,9 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   validForMs=Math.max(500,Math.min(1500,Number(frame.validForMs)||500));
   hands.splice(0,hands.length,...(frame.hands || []));
   emit('handframe',{...frame,hands});
-  const packet={ hands, consumed:new Set(), scaleX, scaleY };
+  const consumed=palmMenu(hands,scaleX,scaleY);
+  if(cursor.hand && consumed.has(cursor.hand.id))cancel();
+  const packet={ hands, consumed, scaleX, scaleY };
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
   if(packet.blockFar){cancel();return;}
@@ -48,7 +73,7 @@ canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 onFrame(()=>{
   if (native && visual!==!!S.handDraw) { visual=!!S.handDraw; window.NativeXR.handVisuals?.(visual); }
   if (hands.length && performance.now()-lastFrame>validForMs) {
-    hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
+    hands.length=0;palmMenu([],scaleX,scaleY);cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }
 });
 if (native) window.nextvrTrigger = down => {

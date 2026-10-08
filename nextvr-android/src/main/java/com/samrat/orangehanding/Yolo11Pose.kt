@@ -129,7 +129,7 @@ class Yolo11Pose(context: Context, threads: Int = 2) : AutoCloseable {
 
     private fun sigmoid(x: Float) = 1f / (1f + kotlin.math.exp(-x))
 
-    override fun close() = interpreter.close()
+    override fun close() { interpreter.close();square.recycle() }
 
     companion object {
         const val MODEL = "yolo11n-pose.tflite"

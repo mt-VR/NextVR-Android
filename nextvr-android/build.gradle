@@ -21,8 +21,8 @@ android {
         targetSdkVersion = 35
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 3
+        versionName "1.0.2"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
 import { cursor, screenPoint } from './hands.js';
+import { COMFORT } from './comfort.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m — janela confortável, não gigante
 export const wins = [];
@@ -47,7 +48,7 @@ class Win {
 
     this.el = el; this.shell = shell; this.handle = handle;
     this.obj = new CSS3DObject(shell);
-    this.obj.scale.setScalar(PX * (this.onboarding ? 1.15 : S.winScale));
+    this.obj.scale.setScalar(PX * (this.onboarding ? COMFORT.welcomeScale : S.winScale));
     contentRoot.add(this.obj);
 
     // planos invisíveis só para o cursor da mão acertar
@@ -79,7 +80,7 @@ class Win {
     const flat = Math.hypot(o.position.x, o.position.z) || .001;
     const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
     o.rotation.set(pitch, yaw, 0, 'YXZ');
-    const scale=this.onboarding ? 1.15 : S.winScale;
+    const scale=this.onboarding ? COMFORT.welcomeScale : S.winScale;
     o.scale.setScalar(PX * scale);
 
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
@@ -105,12 +106,12 @@ function plane(w, h, win) {
  * Soltas: ficam onde o usuário largou, e não entram no arranjo.
  */
 function layout() {
-  for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-1.05);
+  for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
   const pin = wins.filter(w => w.pinned && !w.onboarding);
   const n = pin.length; if (!n) return;
-  const perRow = Math.min(n, 4);                    // até 4 por fileira, em arco
-  const step = Math.min(.78, Math.max(.52, .5 + n * .05));
-  const dist = (-dockAt.z) + .5 + (S.winDist - 2.2);
+  const perRow = Math.min(n, native?3:4);                    // até 4 por fileira, em arco
+  const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
+  const step = native?Math.min(1.3,2*Math.atan(Math.max(...pin.map(w=>w.w))*PX*S.winScale/(2*dist))+.08):Math.min(.78, Math.max(.52,.5+n*.05));
 
   pin.forEach((w, i) => {
     const row = Math.floor(i / perRow);
@@ -120,7 +121,7 @@ function layout() {
 
     const wh = w.w * PX * S.winScale, hh = w.h * PX * S.winScale;
     const d = dist + row * .55;                     // fileira de trás, mais afastada
-    const lift = dockAt.y + dockAt.h / 2 + .14 + hh / 2 + row * (hh + .16);
+    const lift = native?EYE+row*(hh+.16):dockAt.y + dockAt.h / 2 + .14 + hh / 2 + row * (hh + .16);
     w.target.set(Math.sin(a) * d, lift, -Math.cos(a) * d);
   });
 }
@@ -415,15 +416,23 @@ function dockTest(x, y) {
   return null;
 }
 
-let dockKey = '';
+let dockKey = '', dockYaw=0,kbYaw=0;
+on('recenter',()=>{dockYaw=kbYaw=0;});
+on('summon-dock',()=>{
+  camera.updateMatrixWorld(true);contentRoot.updateMatrixWorld(true);
+  const direction=camera.getWorldDirection(new THREE.Vector3()).transformDirection(contentRoot.matrixWorld.clone().invert());
+  dockYaw=Math.atan2(-direction.x,-direction.z);
+  placeDock(); // Deliberately no layout/recenter: existing windows remain anchored.
+  window.NativeXR?.click();
+});
 function placeDock() {
   const land = viewport.width > viewport.height;
-  const dist = (land ? 1.42 : 1.75) * S.dockDist;      // paisagem: mais perto
-  const drop = land ? -.50 : -.60;
-  const sc = PX * (land ? .74 : .88) * S.dockSize;      // sem aumentar de tamanho
+  const dist = (native?COMFORT.dockDistance:(land ? 1.42 : 1.75)) * S.dockDist;      // paisagem: mais perto
+  const drop = native?-COMFORT.dockDrop:(land ? -.50 : -.60);
+  const sc = PX * (native?COMFORT.dockScale:(land ? .74 : .88)) * S.dockSize;      // sem aumentar de tamanho
 
-  dockObj.position.set(0, EYE + drop, -dist);
-  dockObj.rotation.set(.26, 0, 0);
+  dockObj.position.set(-Math.sin(dockYaw)*dist, EYE + drop, -Math.cos(dockYaw)*dist);
+  dockObj.rotation.set(.26, dockYaw, 0,'YXZ');
   dockObj.scale.setScalar(sc);
 
   const w = dockEl.offsetWidth * sc, h = dockEl.offsetHeight * sc;
@@ -437,8 +446,8 @@ function placeDock() {
   dockHit.position.copy(dockObj.position);
   dockHit.rotation.copy(dockObj.rotation);
 
-  if (dockAt.y !== dockObj.position.y || dockAt.z !== dockObj.position.z) {
-    dockAt.y = dockObj.position.y; dockAt.z = dockObj.position.z; layout();
+  if (dockAt.y !== dockObj.position.y || dockAt.z !== -dist) {
+    dockAt.y = dockObj.position.y; dockAt.z = -dist; layout();
   }
 }
 
@@ -475,8 +484,8 @@ export function keyboard(on_, field) {
   }
   el.addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) press(b.dataset.k, b); });
 
-  kbObj = new CSS3DObject(el);
-  kbObj.scale.setScalar(PX * .9);
+  kbObj = new CSS3DObject(el);kbYaw=dockYaw;
+  kbObj.scale.setScalar(PX * (native?COMFORT.keyboardScale:.9));
   contentRoot.add(kbObj);
   kbHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
   contentRoot.add(kbHit);
@@ -507,8 +516,9 @@ function paintShift() {
 let kbKey = '';
 function placeKb() {
   if (!kbObj) return;
-  kbObj.position.set(0, EYE - .58, (dockAt.z) + .35);   // à frente da dock, inclinado
-  kbObj.rotation.set(.5, 0, 0);
+  const distance=native?COMFORT.keyboardDistance:-dockAt.z-.35;
+  kbObj.position.set(-Math.sin(kbYaw)*distance, EYE-(native?COMFORT.keyboardDrop:.58), -Math.cos(kbYaw)*distance);   // à frente da dock, inclinado
+  kbObj.rotation.set(.5, kbYaw, 0,'YXZ');
   const w = kbObj.element.offsetWidth * kbObj.scale.x, h = kbObj.element.offsetHeight * kbObj.scale.x;
   const key = w.toFixed(3) + 'x' + h.toFixed(3);
   if (w > 0 && key !== kbKey) {
@@ -666,8 +676,9 @@ on('phonehands', packet => {
   else if(n.down)nativeTouch(hit,2);
   n.previousD=n.d;
 });
-onFrame(()=>{
-  if(!native)return;
+let lastTargetAt=0,lastTargets='';
+onFrame((dt,now)=>{
+  if(!native || now-lastTargetAt<33)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
     if(nearContact?.id===h.id) {
@@ -681,5 +692,6 @@ onFrame(()=>{
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }
-  window.NativeXR.handTargets?.(JSON.stringify(targets));
+  const json=JSON.stringify(targets);
+  if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 });

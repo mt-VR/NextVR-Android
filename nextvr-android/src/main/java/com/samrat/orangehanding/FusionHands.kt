@@ -32,20 +32,23 @@ class FusionHands(
     private val yoloEveryMs: Long = 250,
 ) : AutoCloseable {
     private val video: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f)
-    private val rescue: HandLandmarker = landmarker(context, handModel, false, RunningMode.IMAGE, .3f)
-    private val yolo: Yolo11Pose? = runCatching { Yolo11Pose(context, threads = 2) }.getOrNull()
+    private val appContext=context.applicationContext
+    private val model=handModel
+    private var rescue: HandLandmarker? = null // Lazily created only when a crop actually needs recovery.
+    private var yolo: Yolo11Pose? = null // Created/used/closed on the background YOLO executor.
+    @Volatile private var yoloFailed=false
+    private val recoveryBudget=RecoveryBudget(yoloEveryMs)
     /** YOLO runs here, never on the tracking thread: hands come out as fast as MediaPipe alone. */
     private val yoloThread = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "PhoneXR YOLO11").apply { priority = Thread.MIN_PRIORITY } }
     private val yoloBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private var lastTimestamp = -1L
     private var frames = 0
-    private var lastYoloAt = 0L
     /** Wrists YOLO saw most recently (x, y, elbow x, elbow y, physical left, person width) and when. */
     @Volatile private var wrists: List<FloatArray> = emptyList()
     @Volatile private var wristsAt = 0L
 
-    /** True when the YOLO11 model loaded; without it this is plain MediaPipe. */
-    val fused get() = yolo != null
+    /** Recovery is enabled (possibly still lazy-loading) unless the model failed. */
+    val fused get() = !yoloFailed
 
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult {
         val stamp = maxOf(timestampMs, lastTimestamp + 1)
@@ -53,12 +56,11 @@ class FusionHands(
         val image = MpImageInput.copyOf(bitmap)
         val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
         val base = try { video.detectForVideo(image, options, stamp) } finally { image.close() }
-        if (yolo == null || rotationDegrees != 0 || base.landmarks().size >= 2) return base
+        if (yoloFailed || rotationDegrees != 0) return base
         frames++
         val now = android.os.SystemClock.elapsedRealtime()
         // Ask YOLO (in the background, on a small copy) where the wrists are, a few times a second.
-        if (now - lastYoloAt >= yoloEveryMs && yoloBusy.compareAndSet(false, true)) {
-            lastYoloAt = now
+        if (recoveryBudget.shouldRun(now,base.landmarks().size,yoloBusy.get()) && yoloBusy.compareAndSet(false, true)) {
             val copy = runCatching {
                 val w = 320
                 Bitmap.createBitmap(w, w * bitmap.height / bitmap.width, Bitmap.Config.ARGB_8888).also {
@@ -67,10 +69,16 @@ class FusionHands(
             }.getOrNull()
             if (copy == null) yoloBusy.set(false)
             else yoloThread.execute {
+                val started=android.os.SystemClock.elapsedRealtime()
                 try {
+                    if(yolo==null)yolo=Yolo11Pose(appContext,threads=1)
                     wrists = findWrists(copy)
-                    wristsAt = android.os.SystemClock.elapsedRealtime()
+                    wristsAt = now // Age the sampled image, not the completion of a potentially slow inference.
+                } catch(error:Exception) {
+                    yoloFailed=true;wrists=emptyList()
+                    android.util.Log.w("NextVR-Hands","YOLO recovery disabled after failure; primary tracking continues",error)
                 } finally {
+                    recoveryBudget.completed(android.os.SystemClock.elapsedRealtime()-started)
                     copy.recycle()
                     yoloBusy.set(false)
                 }
@@ -78,7 +86,7 @@ class FusionHands(
         }
         // Rescue only with fresh wrists, and every other frame: MediaPipe usually takes the hand back itself.
         val seen = wrists
-        if (seen.isEmpty() || now - wristsAt > 500 || frames % 2 != 0) return base
+        if (base.landmarks().size>=2 || seen.isEmpty() || now - wristsAt > 500 || frames % 2 != 0) return base
 
         val landmarks = ArrayList(base.landmarks())
         val world = ArrayList(base.worldLandmarks())
@@ -124,7 +132,10 @@ class FusionHands(
         val box = RectF(cx * bitmap.width - side / 2, cy * bitmap.height - side / 2, cx * bitmap.width + side / 2, cy * bitmap.height + side / 2)
         val crop = Crops.square(bitmap, box, 224) ?: return null
         val image = BitmapImageBuilder(crop.bitmap).build()
-        val result = runCatching { rescue.detect(image) }.getOrNull()
+        val result = runCatching {
+            val detector=rescue ?: landmarker(appContext,model,false,RunningMode.IMAGE,.3f).also { rescue=it }
+            detector.detect(image)
+        }.getOrNull()
         image.close()
         crop.bitmap.recycle()
         val hand = result?.landmarks()?.firstOrNull() ?: return null
@@ -137,7 +148,7 @@ class FusionHands(
 
     override fun close() {
         video.close()
-        rescue.close()
+        rescue?.close()
         // Android integration: interpreter destruction is queued after the last inference.
         yoloThread.execute { yolo?.close() }
         yoloThread.shutdown()

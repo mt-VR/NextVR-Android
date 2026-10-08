@@ -1,5 +1,6 @@
 // NextVR — núcleo: estado, idiomas, cena, giroscópio e centralização.
 import * as THREE from 'three';
+import { migrateComfort } from './comfort.js';
 import { AtlasRenderer, VIEW } from './atlas.js';
 export const native = !!window.NativeXR;
 export const viewport = native ? VIEW : { width: innerWidth, height: innerHeight };
@@ -15,6 +16,7 @@ const DEF = {
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
+if(native){S=migrateComfort(S);try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
 export const settings = S;
 export const save = () => { try { localStorage.setItem('nextvr.v1', JSON.stringify(S)); } catch {} };
 

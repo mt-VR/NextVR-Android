@@ -1,5 +1,8 @@
 # Reference integration and verification
 
+> **1.0.2 supersedes the older distance and recovery-cadence figures below.** See
+> [close-layout/palm-menu update](CLOSE-LAYOUT-AND-PALM-MENU.md), including the pending logo file.
+
 ## Source of truth
 
 Inspected before implementation:

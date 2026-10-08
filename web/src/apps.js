@@ -418,7 +418,7 @@ function settingsApp() {
       c.append(row(t('curve'), '1 = encara o centro; menor = mais aberta', slider('winCurve', 0, 1, .05)));
       c.append(row('Inclinação', 'Ajuste vertical ao subir/descer', slider('winTilt', 0, 1.5, .05)));
       c.append(row(t('scale'), 'Tamanho das janelas', slider('winScale', .6, 1.6, .05)));
-      c.append(row(t('dist'), 'Distância do arco', slider('winDist', 1.5, 3.4, .1)));
+      c.append(row(t('dist'), 'Distância do arco', slider('winDist', native?.6:1.5, native?1.8:3.4, .05)));
       page.append(c);
     }],
     [t('dock'), () => {

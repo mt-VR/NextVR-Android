@@ -91,9 +91,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     });
     const languageMatrix=new THREE.Matrix4().fromArray(language.matrix);
     const centre=new THREE.Vector3().setFromMatrixPosition(languageMatrix);
-    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+1.05)<.001,'Language window is close and at eye level');
+    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.60)<.001,'Language window is close and at eye level');
     const widthMetres=languageMatrix.elements[0]*language.glass[2];
-    assert.ok(2*Math.atan(widthMetres/2/1.05)*180/Math.PI>50,'Setup has a readable angular size');
+    assert.ok(2*Math.atan(widthMetres/2/.60)*180/Math.PI>65,'Setup has a readable angular size');
     assert.ok(language.buttonHeight>=180,'Large language hit targets');
     const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
     const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
@@ -136,7 +136,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(before.length,after.length);
     for(let i=0;i<before.length;i++) for(let k=0;k<16;k++) assert.ok(Math.abs(before[i][k]-after[i][k])<.001,'Head movement must not move world-anchored surfaces');
     const dock=after[0];
-    assert.ok(Math.abs(dock[13]-1.05)<.001 && Math.abs(dock[14]+1.42)<.001,'Prototype landscape dock position');
+    assert.ok(Math.abs(dock[13]-1.23)<.001 && Math.abs(dock[14]+.65)<.001,'Close landscape dock position');
     // A button press aimed at the window centre must be routed as a native browser MotionEvent.
     const browserPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='browser'));
     const target=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(browserPanel.matrix));
@@ -211,6 +211,24 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell.free').count(),1,'Opening the fist releases the detached window');
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrSuspend();});
 
+    await settle();
+    const anchored=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
+    const summonView=new THREE.Matrix4().makeRotationY(-.7);
+    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},summonView.toArray());
+    const menu=hand(.4);menu.hands[0].menuEligible=true;menu.hands[0].menuPoint=[.5,.5];
+    await feed(menu);
+    await page.waitForFunction(()=>!!document.querySelector('.hand-menu-logo:not([hidden])'));
+    await page.waitForTimeout(250);
+    menu.hands[0].pinching=true;await feed(menu);
+    await page.waitForFunction(()=>Math.abs(window.__last.panels[0].matrix[12])>.3);
+    const summoned=await page.evaluate(()=>window.__last.panels[0].matrix);
+    assert.ok(summoned[12]<-.3,'Dock appears in the new gaze direction');
+    assert.ok(Math.abs(Math.hypot(summoned[12],summoned[14])-.65)<.002);
+    const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
+    for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Summoning dock must not recenter windows/keyboard');
+    assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===0)),false,'Palm menu pinch does not click through');
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
+    assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0);
     assert.deepEqual(errors,[]);
   } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve)); }
 });

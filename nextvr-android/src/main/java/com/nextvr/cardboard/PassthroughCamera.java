@@ -37,6 +37,12 @@ final class PassthroughCamera {
     private final Handler handler;
     private final ExecutorService tracking=Executors.newSingleThreadExecutor(r->new Thread(r,"PhoneXR OrangeHanding"));
     private final AtomicBoolean busy=new AtomicBoolean();
+    private final TrackingBudget budget=new TrackingBudget();
+    private int[] cameraPixels;
+    private Bitmap analysisBitmap;
+    private Canvas analysisCanvas;
+    private final Paint analysisPaint=new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Rect analysisRect=new Rect();
     private final PhoneXrHands hands=new PhoneXrHands();
     private CameraDevice camera;
     private CameraCaptureSession session;
@@ -105,23 +111,33 @@ final class PassthroughCamera {
         }catch(Exception e){fail("Cannot start passthrough",e);}
     }
     private void onFrame(ImageReader source,int token) {
-        Image image=null;Bitmap upright=null;
+        Image image=null;Bitmap upright=null;boolean admitted=false,queued=false;
         try {
             image=source.acquireLatestImage();if(image==null || token!=generation)return;
             Image.Plane[] p=image.getPlanes();
-            int[] pixels=nativeYuvToArgb(p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
+            int pixelCount=image.getWidth()*image.getHeight();
+            if(cameraPixels==null || cameraPixels.length!=pixelCount)cameraPixels=new int[pixelCount];
+            nativeYuvToArgb(cameraPixels,p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
                 image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride());
-            upright=Bitmap.createBitmap(pixels,image.getWidth(),image.getHeight(),Bitmap.Config.ARGB_8888);
+            upright=Bitmap.createBitmap(cameraPixels,image.getWidth(),image.getHeight(),Bitmap.Config.ARGB_8888);
             if(rotation!=0) {
                 Matrix matrix=new Matrix();matrix.postRotate(rotation);
                 Bitmap rotated=Bitmap.createBitmap(upright,0,0,upright.getWidth(),upright.getHeight(),matrix,true);
                 if(rotated!=upright){upright.recycle();upright=rotated;}
             }
-            // As in the fork: detect on a 640px copy, never on the bitmap the GL thread owns.
-            if(handsEnabled && busy.compareAndSet(false,true)) {
-                Bitmap small=Bitmap.createBitmap(640,640*upright.getHeight()/upright.getWidth(),Bitmap.Config.ARGB_8888);
-                new Canvas(small).drawBitmap(upright,null,new Rect(0,0,small.getWidth(),small.getHeight()),new Paint(Paint.FILTER_BITMAP_FLAG));
+            // Reuse one bounded analysis bitmap; the atomic busy flag owns it until inference finishes.
+            if(handsEnabled && budget.ready(SystemClock.elapsedRealtime()) && busy.compareAndSet(false,true)) {
+                admitted=true;
+                int width=budget.width(),height=width*upright.getHeight()/upright.getWidth();
+                if(analysisBitmap==null || analysisBitmap.getWidth()!=width || analysisBitmap.getHeight()!=height) {
+                    if(analysisBitmap!=null)analysisBitmap.recycle();
+                    analysisBitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
+                    analysisCanvas=new Canvas(analysisBitmap);analysisRect.set(0,0,width,height);
+                }
+                Bitmap small=analysisBitmap;
+                analysisCanvas.drawBitmap(upright,null,analysisRect,analysisPaint);
+                budget.started(SystemClock.elapsedRealtime());
                 long stamp=SystemClock.elapsedRealtime();float sx=scaleX,sy=scaleY;
                 tracking.execute(()->{
                     try {
@@ -131,6 +147,7 @@ final class PassthroughCamera {
                             catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
                             if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
                         }
+                        long inferenceStart=SystemClock.elapsedRealtime();
                         com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
                         try { detected=detector.detect(small,stamp,0); }
                         catch(RuntimeException gpuFailure) {
@@ -141,15 +158,16 @@ final class PassthroughCamera {
                             detector=new FusionHands(context,false,"hand_landmarker.task",750L);
                             hands.reset();detected=detector.detect(small,stamp,0);
                         }
+                        budget.completed(SystemClock.elapsedRealtime(),SystemClock.elapsedRealtime()-inferenceStart);
                         PhoneXrHands.Frame result=hands.process(detected,sx,sy,SystemClock.elapsedRealtimeNanos());
                         if(token==generation && !destroyed && handsEnabled)listener.hands(result);
                     }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
-                    finally{small.recycle();busy.set(false);}
-                });
+                    finally{busy.set(false);}
+                });queued=true;
             }
             listener.frame(upright);upright=null;
         }catch(Exception e){fail("Camera frame failed",e);}
-        finally{if(image!=null)image.close();if(upright!=null)upright.recycle();}
+        finally{if(admitted&&!queued)busy.set(false);if(image!=null)image.close();if(upright!=null)upright.recycle();}
     }
     private void clearHands() { hands.reset();listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos())); }
     void enableHands(boolean enabled) {
@@ -166,7 +184,7 @@ final class PassthroughCamera {
     }
     void stop(){handler.post(()->{closeCamera();tracking.execute(this::clearHands);});}
     void destroy(Runnable afterClose){
-        handler.post(()->{destroyed=true;closeCamera();tracking.execute(()->{if(detector!=null)detector.close();clearHands();});tracking.shutdown();afterClose.run();thread.quitSafely();});
+        handler.post(()->{destroyed=true;closeCamera();tracking.execute(()->{if(detector!=null)detector.close();if(analysisBitmap!=null){analysisBitmap.recycle();analysisBitmap=null;}clearHands();});tracking.shutdown();afterClose.run();thread.quitSafely();});
     }
-    private static native int[] nativeYuvToArgb(ByteBuffer y,ByteBuffer u,ByteBuffer v,int w,int h,int ys,int us,int vs,int yp,int up,int vp);
+    private static native void nativeYuvToArgb(int[] output,ByteBuffer y,ByteBuffer u,ByteBuffer v,int w,int h,int ys,int us,int vs,int yp,int up,int vp);
 }

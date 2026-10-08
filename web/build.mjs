@@ -1,10 +1,15 @@
 import { build } from 'esbuild';
-import { mkdir, copyFile, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, readFile, access } from 'node:fs/promises';
 import * as icons from 'simple-icons';
 const out = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
 await mkdir(out, { recursive: true });
 await build({ entryPoints: ['web/src/apps.js'], bundle: true, format: 'iife', target: 'chrome80', minify: true, outfile: new URL('app.js', out).pathname, legalComments: 'eof' });
 await copyFile('web/index.html', new URL('index.html', out));
+// Never silently manufacture the user's artwork. Retain the existing icon until the supplied
+// file is available and tools/prepare_branding.py has prepared both platform and hand assets.
+const customLogo=await access('artwork/finger-logo.png').then(()=>true,()=>false);
+await copyFile(customLogo?'artwork/finger-logo.png':'artwork/nextvr_ic_launcher_master.png',new URL('logo.png',out));
+await writeFile(new URL('branding.json',out),JSON.stringify({customLogo,source:customLogo?'supplied-artwork':'existing-icon-placeholder'})+'\n');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';
 for (const weight of [400,500,600,700,800]) {
