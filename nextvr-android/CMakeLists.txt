@@ -35,7 +35,7 @@ set(CARDBOARD_INCLUDE_DIR ${libs_dir})
 
 # === NextVR app ===
 # Sources
-file(GLOB native_srcs "src/main/jni/*.cc")
+file(GLOB native_srcs CONFIGURE_DEPENDS "src/main/jni/*.cc")
 # Output binary (loaded by NextVrActivity through System.loadLibrary("nextvr_jni"))
 add_library(nextvr_jni SHARED ${native_srcs})
 # Includes

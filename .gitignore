@@ -13,3 +13,7 @@ gitlog.json
 
 # Cardboard SDK native artifacts extracted from the sdk AAR by the extractNdk task
 nextvr-android/libraries/
+
+node_modules/
+playwright-report/
+test-results/
