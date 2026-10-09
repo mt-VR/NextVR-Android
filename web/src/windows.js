@@ -72,7 +72,7 @@ class Win {
   apply(dt) {
     const o = this.obj;
     // Smooth but bounded: the window does not snap to the dock or rubber-band while moving.
-    const k = 1 - Math.exp(-dt * (this.pinned ? 9 : 13));
+    const k = 1 - Math.exp(-dt * (this.pinned ? 6 : 10));
     o.position.lerp(this.target, k);
 
     // rotação sai SÓ da posição da janela — a câmera não entra na conta

@@ -2,6 +2,7 @@ package com.nextvr.cardboard.hands
 
 /** PhoneXR palmFacesEyes: palm toward eyes AND fingers upright. Never a forward-pointing click. */
 object PalmMenuPose {
+    /** Check from 3D head-space landmarks (when world landmarks are available). */
     fun eligible(p:FloatArray?,left:Boolean):Boolean {
         if(p==null || p.size!=63)return false
         fun v(i:Int)=floatArrayOf(p[i*3],p[i*3+1],p[i*3+2])
@@ -12,6 +13,6 @@ object PalmMenuPose {
         val c=FloatArray(3){(w[it]+m[it])/2};val up=FloatArray(3){m[it]-w[it]}
         fun len(a:FloatArray)=kotlin.math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]).coerceAtLeast(1e-6f)
         val facing=-(n[0]*c[0]+n[1]*c[1]+n[2]*c[2])/(len(n)*len(c))
-        return facing>.6f && up[1]/len(up)>.55f
+        return facing>.15f && up[1]/len(up)>.08f
     }
 }

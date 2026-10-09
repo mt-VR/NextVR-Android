@@ -219,7 +219,7 @@ function loop(now) {
     // The Cardboard pose is already filtered and predicted; do not smooth or replace it.
   } else if (gyroLive()) {
     // frame-rate independent: suaviza sem o atraso exagerado de um fator fixo por frame
-    camera.quaternion.slerp(gyro.q, 1 - Math.exp(-dt * 18));
+    camera.quaternion.slerp(gyro.q, 1 - Math.exp(-dt * 12));
     if (dragYaw) { camera.rotateY(dragYaw); dragYaw = 0; }
   } else {
     camera.quaternion.setFromEuler(new THREE.Euler(dragPitch, camera.rotation.y + dragYaw, 0, 'YXZ'));

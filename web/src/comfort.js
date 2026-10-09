@@ -1,7 +1,12 @@
-export const COMFORT = Object.freeze({ version:2, welcomeDistance:.60, welcomeScale:.90,
-  windowDistance:.85, dockDistance:.65, dockDrop:.32, dockScale:.55,
-  keyboardDistance:.60, keyboardDrop:.50, keyboardScale:.60 });
+export const COMFORT = Object.freeze({ version:6, welcomeDistance:.42, welcomeScale:1.0,
+  windowDistance:.68, dockDistance:.45, dockDrop:.22, dockScale:.90,
+  keyboardDistance:.45, keyboardDrop:.38, keyboardScale:.92 });
 export function migrateComfort(settings) {
   if(settings.comfortVersion===COMFORT.version)return settings;
-  return {...settings,comfortVersion:COMFORT.version,winDist:COMFORT.windowDistance,dockDist:1};
+  const s={...settings,comfortVersion:COMFORT.version,winDist:COMFORT.windowDistance,dockDist:1};
+  if(settings.comfortVersion===5)return s;
+  if(settings.comfortVersion===4)return s;
+  if(settings.comfortVersion===3)return s;
+  if(settings.comfortVersion===2)return s;
+  return s;
 }

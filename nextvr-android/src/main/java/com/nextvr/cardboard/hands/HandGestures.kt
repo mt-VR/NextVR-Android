@@ -75,7 +75,7 @@ object HandGestures {
             pinch = !fist && gap < .35f,
             pinchStrength = strength,
             fist = fist,
-            palmToFace = palmToFace && abs(cross) > palm * palm * .15f,
+            palmToFace = palmToFace && abs(cross) > palm * palm * .06f,
             pinchX = (p[4].x() + p[8].x()) / 2,
             pinchY = (p[4].y() + p[8].y()) / 2,
             palmWidth = palm,
