@@ -75,9 +75,7 @@ class PhoneXrHandRenderer {
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
         if(showSilhouette && visible!=null) {
             this.frame=visible
-            // Predicted to display time: the silhouette tracks the render rate even when the
-            // detection rate drops (app open, GPU contention) — no stepping, no flicker.
-            meshes=meshesFor(visible.predicted(now),sx,sy,now)
+            meshes=meshesFor(visible,sx,sy,now)
             drawHandSkeletons(position)
         } else { meshSets.clear();meshes=emptyList();meshPoints=emptyList() }
         // Missing/stalled tracking may retain a short visual outline, but never a ray/press.
@@ -87,8 +85,7 @@ class PhoneXrHandRenderer {
             targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
             targetsText=targetsJson
         }
-        // Beam positions are predicted to display time; pinch state is always the newest one.
-        for(hand in frame.predicted(now).hands) {
+        for(hand in frame.hands) {
             val id=if(hand.left) "left" else "right"
             var target:JSONObject?=null
             for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }

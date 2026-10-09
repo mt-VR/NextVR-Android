@@ -10,59 +10,13 @@ import org.json.JSONObject
  * these rays against its own window geometry. No reference-prototype gesture heuristics remain.
  */
 class PhoneXrHands {
-    companion object { /** Prediction is only trusted within one normal tracking interval (~250 ms). */
-        const val MAX_PREDICT_GAP_NS = 250_000_000L }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
                     val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float)
     data class Frame @JvmOverloads constructor(val hands: List<Hand>, val timestampNs: Long,
         val completedNs: Long = timestampNs, val validForNs: Long = 500_000_000L,
-        val frameAgeNs: Long = (completedNs - timestampNs).coerceAtLeast(0),
-        val previous: Frame? = null) {
+        val frameAgeNs: Long = (completedNs - timestampNs).coerceAtLeast(0)) {
         fun isFresh(nowNs: Long) = nowNs >= completedNs && nowNs - completedNs <= validForNs
-        // Presentation-only temporal prediction, the same idea Quest uses to keep hands fluid at
-        // display rate while tracking runs slower (e.g. GPU contention with an open app's WebView):
-        // extrapolate the last detection along its own velocity, at most one tracking interval.
-        // At the detection instant it shows the detection exactly (zero added latency); gestures
-        // (pinch/fist) always come from the newest detection and are never extrapolated.
-        private var predictBucket = -1L
-        private var predictCache: Frame? = null
-        fun predicted(nowNs: Long): Frame {
-            val bucket = nowNs / 2_000_000L
-            if (bucket == predictBucket) return predictCache ?: this
-            val result = predictedUncached(nowNs)
-            predictBucket = bucket; predictCache = result
-            return result
-        }
-        private fun predictedUncached(nowNs: Long): Frame {
-            val prev = previous ?: return this
-            if (hands.isEmpty() || prev.hands.isEmpty()) return this
-            val gap = completedNs - prev.completedNs
-            // Never extrapolate across a long gap: a hand reappearing after a dropout must show
-            // up exactly where it was detected, not drift along a stale velocity.
-            if (gap <= 0L || gap > MAX_PREDICT_GAP_NS) return this
-            val dt = ((nowNs - completedNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
-            if (dt <= 0f) return this
-            val t = 1f + dt
-            val byId = prev.hands.associateBy { it.left }
-            val predicted = hands.map { h ->
-                val p = byId[h.left] ?: return@map h
-                Hand(h.left, lerp(p.points, h.points, t), lerp(p.head, h.head, t), h.shape,
-                    lerp(p.baseX, h.baseX, t), lerp(p.baseY, h.baseY, t),
-                    lerp(p.aimX, h.aimX, t), lerp(p.aimY, h.aimY, t),
-                    h.pinching, lerp(p.grabX, h.grabX, t), lerp(p.grabY, h.grabY, t))
-            }
-            return Frame(predicted, timestampNs, completedNs, validForNs, frameAgeNs)
-        }
-        private fun lerp(a: FloatArray, b: FloatArray, t: Float): FloatArray {
-            if (a.size != b.size) return b
-            val out = FloatArray(a.size)
-            for (i in a.indices) out[i] = a[i] + (b[i] - a[i]) * t
-            return out
-        }
-        private fun lerp(a: FloatArray?, b: FloatArray?, t: Float): FloatArray? =
-            if (a == null || b == null) b else lerp(a, b, t)
-        private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
         fun json(): String {
             val a = JSONArray()
             for (h in hands) a.put(JSONObject().put("id", if(h.left) "left" else "right")
@@ -93,8 +47,7 @@ class PhoneXrHands {
         val grabY = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
     }
     private val states = HashMap<Boolean, State>()
-    private var previous: Frame? = null
-    fun reset() { states.clear(); previous = null }
+    fun reset() = states.clear()
     @JvmOverloads fun process(result: HandLandmarkerResult, scaleX: Float, scaleY: Float,
         completedNs: Long = result.timestampMs() * 1_000_000L, frameAgeNs: Long? = null): Frame {
         // MediaPipe/filter time is the camera capture timestamp. It is deliberately kept separate
@@ -128,11 +81,6 @@ class PhoneXrHands {
         val ageNs = (frameAgeNs ?: (completedNs - stamp)).coerceAtLeast(0)
         val validity = (ageNs.coerceAtMost(675_000_000L) * 2 + 150_000_000L)
             .coerceIn(500_000_000L, 1_500_000_000L)
-        // Chain the previous detection so the renderer can predict positions to display time.
-        // A frame without hands keeps the old chain (retention handles dropouts) but does not
-        // replace it, so a reappearing hand never extrapolates across a long gap.
-        val frame = Frame(seen,stamp,completedNs,validity,ageNs,previous)
-        if (seen.isNotEmpty()) previous = frame
-        return frame
+        return Frame(seen,stamp,completedNs,validity,ageNs)
     }
 }
