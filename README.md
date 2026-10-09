@@ -1,7 +1,8 @@
 # NextVR — Android/Cardboard passthrough workspace
 
-NextVR now combines the **HTML spatial experience from this repository's `references.zip`** with
-native Camera2 passthrough, PhoneXR/OrangeHanding hands, hardware-rendered browser surfaces and the existing
+NextVR combines the spatial HTML workspace with the latest visual assets from
+**`new_references.zip`** (the primary visual source), native Camera2 passthrough,
+PhoneXR/OrangeHanding hands, hardware-rendered browser surfaces and the existing
 Google Cardboard SDK (**v1.35.0**).
 
 The old artificial room and collectible objects have been removed. The camera is the background;
@@ -56,26 +57,28 @@ to the Cardboard compositor. Browser contents run in isolated WebViews in the sa
 The headless Chromium test dependency needs standard Linux browser libraries (`libnss3`, `libnspr4`)
 on minimal development images. The Ubuntu CI runner already supplies them.
 
-## Latest close-layout update
+## Latest UI/input update
 
-See [1.0.2 placement, performance changes, and artwork status](docs/CLOSE-LAYOUT-AND-PALM-MENU.md).
-The welcome window is now 0.60 m away, apps default to 0.85 m and the dock to 0.65 m.
-The dock remains at its heading; palm-pinch summon has been removed. Exact new-logo packaging remains pending an
-accessible source file; the existing icon is retained explicitly, not passed off as the new logo.
+See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md).
+The VR UI accepts only PhoneXR hand input: gaze dwell, viewer-button activation and touchscreen
+forwarding were removed end to end. Floating windows now use deliberate drag thresholds, bounded
+world placement and proportional hand resizing. The current `N` mark and component icons are
+extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
 ## Controls
 
 | Action | How |
 | --- | --- |
-| Start | Grant camera permission. Look at a language in the close, eye-level welcome window for 1.2 seconds, or use the viewer button. Hands are not required for setup. |
-| Look around | Existing Cardboard head orientation; windows stay in the world. |
+| Start | Grant camera permission, aim the PhoneXR hand ray at a language in the close welcome window and pinch. |
+| Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
 | Select | Aim the PhoneXR shoulder ray and pinch thumb/index. |
-| Move a window | Close a fist over the window, move your palm, then open to release. The white lower handle also works. |
-| Direct touch | Touch a surface within arm’s reach with your index fingertip; default distant windows use the ray. |
-| Return to dock arc | Use the window's repin control. |
-| Browser scrolling | Hold a pinch on the page and move. |
-| Type | Focus a field and use the floating keyboard. |
-| Fallback input | Look at a control and press the viewer button / tap the phone screen. |
+| Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
+| Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
+| Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
+| Return to dock arc | Use the window's crosshair/repin control. |
+| Browser scrolling | Hold a hand pinch on the page and move. |
+| Type | Focus a field with the hand and use the floating keyboard. |
+| Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Crosshair/recenter control on the dock. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
@@ -90,9 +93,10 @@ not the archive’s blue skeleton. Passthrough is the only environment.
 
 | Path | Responsibility |
 | --- | --- |
-| `references.zip` | Unmodified primary visual/UX reference |
-| `web/index.html`, `web/src/apps.js` | Reference styling, dock, library/store and application surfaces |
-| `web/src/windows.js` | World layout, animation, drag, keyboard, ray interaction |
+| `new_references.zip` | Unmodified primary visual/component reference; current `N` and icon paths originate here |
+| `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
+| `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
+| `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
 | `web/src/hands.js` | Processed PhoneXR hand/ray adapter; no web detector or gesture thresholds |
 | `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native PhoneXR gesture/filter pipeline and GL silhouettes/pointers |
 | `…/com/samrat/orangehanding/` | Fork’s MediaPipe/YOLO FusionHands detector and crop rescue |
@@ -100,7 +104,7 @@ not the archive’s blue skeleton. Passthrough is the only environment.
 | `web/src/core.js` | Reference state, localization, content root and native pose input |
 | `nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
 | `…/SpatialRenderer.java` | 2D camera + OES HTML shaders, glass, alpha and per-eye world composition |
-| `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, touch/media handling |
+| `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, PhoneXR contact/media handling |
 | `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, HTML/native bridge and Android audio |
 | `nextvr-android/src/main/jni/nextvr_app.cc` | Existing Cardboard orientation, stereo framebuffer and distortion infrastructure |
 | `sdk/`, `java_api/`, `proto/`, `third_party/` | Vendored official Cardboard SDK |

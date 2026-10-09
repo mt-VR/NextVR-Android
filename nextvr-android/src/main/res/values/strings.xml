@@ -32,7 +32,7 @@
     <string name="about_message"
             description="Body of the About dialog. %1$s is the app version, %2$s is the
                          Cardboard SDK version.">
-            NextVR %1$s\nPowered by the Google Cardboard SDK for Android NDK %2$s.\n\nPoint your head at an object and press the viewer button to collect it.</string>
+            NextVR %1$s\nPowered by the Google Cardboard SDK for Android NDK %2$s.\n\nUse hand tracking to point, pinch, move, and resize spatial windows. Looking at the UI or touching the phone screen does not activate it.</string>
 
     <!-- Keep in sync with the Cardboard SDK vendored in sdk/ (see README.md). -->
     <string name="cardboard_sdk_version" translatable="false">1.35.0</string>

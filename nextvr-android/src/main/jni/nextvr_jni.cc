@@ -66,11 +66,6 @@ JNI_METHOD(void, nativeOnDrawFrame)
   native(native_app)->OnDrawFrame();
 }
 
-JNI_METHOD(void, nativeOnTriggerEvent)
-(JNIEnv* /*env*/, jobject /*obj*/, jlong native_app) {
-  native(native_app)->OnTriggerEvent();
-}
-
 JNI_METHOD(void, nativeOnPause)
 (JNIEnv* /*env*/, jobject /*obj*/, jlong native_app) {
   native(native_app)->OnPause();

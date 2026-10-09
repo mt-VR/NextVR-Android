@@ -30,7 +30,6 @@ class NextVrApp {
   void OnSurfaceCreated(JNIEnv*);
   void SetScreenParams(int, int);
   void OnDrawFrame();
-  void OnTriggerEvent();
   void OnPause();
   void OnResume();
   void SwitchViewer();

@@ -54,9 +54,3 @@ onFrame(()=>{
     hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }
 });
-if (native) window.nextvrTrigger = down => {
-  if(cursor.hand) cancel();
-  cursor.x=cursor.y=.5;cursor.hand=null;cursor.active=true;cursor.down=down;
-  emit(down?'pinchdown':'pinchup',cursor);
-  if(!down)cursor.active=false;
-};

@@ -1,5 +1,9 @@
 # Close layout, palm dock button, and tracking budget (1.0.2)
 
+> Historical record only. Current placement, exclusive hand input, resizing and artwork are
+> documented in [UI-INTERACTION-REVISION.md](UI-INTERACTION-REVISION.md). The values and pending
+> artwork note below describe the earlier 1.0.2 state and are no longer runtime behavior.
+
 ## Layout
 
 The requested closer layout changes Android spatial placement, not the reference's DOM theme:

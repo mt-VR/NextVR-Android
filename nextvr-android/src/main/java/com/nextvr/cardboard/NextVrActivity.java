@@ -124,13 +124,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             @Override public void onSurfaceChanged(GL10 gl,int w,int h) { nativeSetScreenParams(nativeApp,w,h); }
             @Override public void onDrawFrame(GL10 gl) { SpatialRenderer r=renderer; if(r!=null) r.update(); nativeOnDrawFrame(nativeApp); }
         });
-        // Cardboard button and a screen tap use the same ray/pinch path. No flat screen UI replacement.
-        glView.setOnTouchListener((v,event)->{
-            if(event.getActionMasked()==MotionEvent.ACTION_DOWN || event.getActionMasked()==MotionEvent.ACTION_UP || event.getActionMasked()==MotionEvent.ACTION_CANCEL) {
-                if(shell!=null) shell.evaluate("window.nextvrTrigger&&window.nextvrTrigger("+(event.getActionMasked()==MotionEvent.ACTION_DOWN)+")");
-            }
-            return true;
-        });
+        // Não registre toque no GLSurfaceView: câmera e pose continuam ativas, mas somente os
+        // resultados PhoneXR podem entrar na ponte de interação da UI espacial.
         immersive();
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},10);
@@ -273,11 +268,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
         @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
-        @JavascriptInterface public void touch(String id,int action,float x,float y) {
+        /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
+        @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
             if(!Float.isFinite(x)||!Float.isFinite(y)) return;
             main.post(()->{ WebSurface target=id.equals("shell")?shell:browsers.get(id); if(target!=null && resumed) {
-                target.touch(action,x,y);
+                target.dispatchHandEvent(action,x,y);
                 if(action==MotionEvent.ACTION_UP && target!=shell) target.web.evaluateJavascript(
                     "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
                     value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(id)+")"); });
@@ -305,7 +301,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     public void showSettings(View v) { PopupMenu menu=new PopupMenu(this,v); menu.getMenuInflater().inflate(R.menu.settings_menu,menu.getMenu()); menu.setOnMenuItemClickListener(this); menu.show(); }
     @Override public boolean onMenuItemClick(MenuItem item) {
         if(item.getItemId()==R.id.switch_viewer) { camera.stop(); nativeSwitchViewer(nativeApp); return true; }
-        if(item.getItemId()==R.id.about_nextvr) { new AlertDialog.Builder(this).setTitle("NextVR").setMessage("Camera passthrough · Cardboard 3 DoF · Spatial HTML\nUse seated. Monoscopic camera video is not depth-correct and is not safe for walking.").setPositiveButton(android.R.string.ok,null).show(); return true; }
+        if(item.getItemId()==R.id.about_nextvr) { new AlertDialog.Builder(this).setTitle("NextVR").setMessage("Camera passthrough · Cardboard 3 DoF · Spatial HTML\nHand tracking is the only spatial UI input. Use seated. Monoscopic camera video is not depth-correct and is not safe for walking.").setPositiveButton(android.R.string.ok,null).show(); return true; }
         return false;
     }
     @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus); if(focus) immersive(); }

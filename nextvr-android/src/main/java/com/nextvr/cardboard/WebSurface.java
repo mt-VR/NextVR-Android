@@ -10,7 +10,6 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.net.Uri;
 import android.os.SystemClock;
-import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.ViewGroup;
@@ -129,10 +128,11 @@ final class WebSurface {
     }
     private static WebResourceResponse denied() { return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",new HashMap<>(),new ByteArrayInputStream(new byte[0])); }
     void evaluate(String script) { if(!released) web.evaluateJavascript(script,null); }
-    void touch(int action,float x,float y) {
+    /** Injeta no WebView somente o contato espacial já validado pelo pipeline PhoneXR. */
+    void dispatchHandEvent(int action,float x,float y) {
         if(released) return;
         long now=SystemClock.uptimeMillis(); if(action==MotionEvent.ACTION_DOWN) downTime=now;
-        MotionEvent event=MotionEvent.obtain(downTime,now,action,x,y,0); event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        MotionEvent event=MotionEvent.obtain(downTime,now,action,x,y,0);
         container.dispatchTouchEvent(event); event.recycle();
     }
     void audio(boolean on) { evaluate("window.__nextvrAudio&&window.__nextvrAudio("+on+")"); }

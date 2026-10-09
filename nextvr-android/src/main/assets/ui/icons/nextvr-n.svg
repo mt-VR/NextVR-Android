@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="152 148 430 430" role="img" aria-label="NextVR">
+  <defs>
+    <linearGradient id="nvGrey" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="430" y2="480">
+      <stop offset="0" stop-color="#9a9aa1"/>
+      <stop offset="1" stop-color="#55555b"/>
+    </linearGradient>
+    <path id="nvN" d="M283 277 L320 388 L292 474 L213 474 Z M292 253 L370 253 L443 474 L363 474 Z M437 253 L522 253 L452 452 L413 340 Z"/>
+  </defs>
+  <use href="#nvN" transform="translate(8 10)" fill="#000" opacity=".5"/>
+  <use href="#nvN" fill="url(#nvGrey)"/>
+</svg>

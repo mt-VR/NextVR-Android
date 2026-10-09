@@ -59,7 +59,8 @@ export class AtlasRenderer {
       const e = o.element, [x, y, w, h] = rects[i];
       e.style.left = `${x + PAD}px`; e.style.top = `${y + PAD}px`;
       const matrix = o.matrixWorld.clone().multiply(new THREE.Matrix4().makeScale(w, h, 1));
-      panels.push({ matrix: matrix.toArray(), rect: rects[i], glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
+      panels.push({ id:e.dataset.windowId || (sizes[i].kind==='dock'?'dock':sizes[i].kind),
+        matrix: matrix.toArray(), rect: rects[i], glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
       const origin = e.getBoundingClientRect();
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();
