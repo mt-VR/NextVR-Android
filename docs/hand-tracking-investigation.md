@@ -301,3 +301,68 @@ O código final é a UNIÃO das duas:
   de hand-frame pré-serializado na thread de tracking (JSON fora do thread principal) + o
   `PerfLog.published` do main; o `PassthroughCamera` é a união: mailbox/drain do PR #9 +
   conversão nativa fuseada com rotação desta branch.
+
+---
+
+# 2026-10-09 (5ª rodada) — fim do piscar com app aberto, silhueta 60 Hz e teclado Meta Quest completo
+
+## Bug persistente: a mão ainda piscava com um app aberto
+
+A 4ª rodada havia adicionado predição temporal e retenção de 500 ms, mas dois caminhos ainda
+apagavam a mão sob carga (app aberto = WebView + landmarker disputando GPU/CPU):
+
+1. **Frame stale apagava o silhuete** (`HandPresentation.silhouette`): quando o detector
+   atrasava mais de `validForNs`, o MESMO objeto `Frame` continua sendo desenhado a cada frame
+   de display — mas `!isFresh` zerava `lastVisible` e retornava `null`. Com gaps de detecção
+   > 500 ms (GPU ocupada pelo app), a mão apagava e reaparecia a cada resultado: o piscar.
+   **Corrigido:** a retenção agora cobre entregas stale E resultados vazios (700 ms base,
+   nunca menos que a validade do próprio frame — rastreador lento de ~1 s mantém a janela
+   dele). A mão **esvanece** no fim da retenção (`fade`, últimos 200 ms) em vez de sumir de
+   uma vez. Perda real de mão ainda some em até 700 ms; clique/fist nunca são retidos.
+2. **Cursor/raio sumiam no mesmo limiar** (`PhoneXrHandRenderer.draw`): o `return` em
+   `!isFresh` apagava o drop/anel junto. **Corrigido:** drop e anel são desenhados a partir do
+   frame retido/preditivo (com fade), mas `down` (linha do raio, press) só vem de tracking
+   **live** — sem clique fantasma durante stalls.
+
+## Suavidade: silhueta segue a predição na taxa do display
+
+O epsilon de reconstrução da malha (~2 px) deixava a silhueta atualizar em degraus de 10–20 Hz
+enquanto o cursor ia a 60 Hz. **Corrigido:** a tesselação passou a reescrever **builders
+poolados in place** (zero alocação por reconstrução; o `toFloatArray()` por passada saiu do
+caminho) com epsilon sub-pixel (~0.4 px). Mão em movimento reconstrói a cada frame de display a
+partir da pose `predicted(now)` — silhueta desliza junto do cursor; mão parada (dead zone do
+One Euro) reutiliza os mesmos buffers. Sem a pressão de GC do caminho antigo de alocar
+centenas de KB por frame.
+
+## Piscar do ponteiro perto de janelas (FAR ⇄ NEAR)
+
+Com um app aberto à frente, a mão em repouso cruza o limiar de profundidade do near-touch
+(15/20 cm) por ruído e o ponteiro alternava entre o raio FAR e o indicador NEAR — outro
+piscar observado. **Corrigido:** histerese ampla (entra a ≤ 11 cm, sai só a > 26 cm; margem
+2 cm → 8 cm) + retenção de 240 ms na saída da zona (o contato direto continua por um instante
+em vez de alternar). O outline de grab da janela (`phone-grab-hover`) também ficou adesivo
+(350 ms) para não piscar a borda da janela com o ruído da palma.
+
+## Teclado Meta Quest completo (além do deitado da 4ª rodada)
+
+Layout substituído pelo estilo Meta Quest (o deitado `-π/2 + 0.35` foi mantido — o teste do CI
+continua exigindo `matrix[6] < 0`):
+
+- Fileira de números `1..0` + backspace largo; `qwertyuiop`; `asdfghjklç` + enter claro
+  (tecla de ação); `⇧` + `zxcvbnm,.`; fileira inferior com idioma, emoji, espaço largo,
+  ditado e fechar.
+- Shift estilo Quest: um toque = maiúscula de um só caractere; dois toques = trava; três =
+  solta. Rótulos acompanham o estado.
+- 47 teclas (o teste do CI exige > 30); painel mais escuro, teclas arredondadas maiores
+  (88 px), enter claro como no Quest; emoji cicla 8 emojis; ditado mostra aviso localizado
+  (pt/en/es).
+
+## Testes desta rodada
+
+- `PhoneXrHandsTest`: `briefMiss...`/`stalledResult...` ajustados para a retenção de 700 ms e
+  agora cobrem o frame stale (regressão do bug de piscar); +2 testes (fade no fim da retenção;
+  retenção acompanha a validade de um rastreador lento de 1 s).
+- Suite node: **30/30** (inclui o boot completo do HTML no Chromium com o novo teclado e o
+  teclado deitado verificado no atlas).
+- APK: build no CI (`assembleDebug` + testes JVM) e publicação no branch `apk-dist` pelo job
+  `publish-apk`; validação física continua em aparelho real (`adb logcat -s NextVR-Perf`).

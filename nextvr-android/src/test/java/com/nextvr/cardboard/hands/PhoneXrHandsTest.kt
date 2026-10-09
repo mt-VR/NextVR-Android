@@ -90,16 +90,38 @@ class PhoneXrHandsTest {
         val missing=engine.process(result(null,1050),1f,1f,1_100_000_000L)
         assertTrue(missing.hands.isEmpty())
         assertSame(seen,presentation.silhouette(missing,1_100_000_000L))
-        // Retention matches the shortest frame validity (500 ms): transient stalls (floating
-        // window opening, GC pause) no longer blink the silhouette off and on.
-        assertSame(seen,presentation.silhouette(missing,1_500_000_000L))
-        assertNull(presentation.silhouette(missing,1_551_000_000L))
+        // Retention (700 ms) covers transient stalls — a floating window opening, a GC pause,
+        // GPU contention while an app is open — without blinking the silhouette off and on.
+        assertSame(seen,presentation.silhouette(missing,1_550_000_000L))
+        assertNull(presentation.silhouette(missing,1_751_000_000L))
     }
     @Test fun stalledResultCannotKeepASilhouetteForever() {
         val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f)
         val presentation=HandPresentation()
         assertSame(frame,presentation.silhouette(frame,1_100_000_000L))
-        assertNull(presentation.silhouette(frame,1_600_000_000L))
+        // The bug this guards: the same frame object is drawn every display frame while the
+        // detector is stalled (app open, GPU contention). A stale delivery must keep the last
+        // pose instead of blinking the hand off until the next result arrives.
+        assertSame(frame,presentation.silhouette(frame,1_600_000_000L))
+        assertNull(presentation.silhouette(frame,1_750_000_000L))
+    }
+    @Test fun silhouetteFadesOutAtTheEndOfRetentionInsteadOfPopping() {
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f)
+        val presentation=HandPresentation()
+        assertSame(frame,presentation.silhouette(frame,1_100_000_000L))
+        assertEquals(1f,presentation.fade(frame,1_500_000_000L),0f)      // full while recent
+        assertEquals(.5f,presentation.fade(frame,1_600_000_000L),.01f)   // fading over the last 200 ms
+        assertEquals(0f,presentation.fade(frame,1_750_000_000L),0f)
+    }
+    @Test fun slowTrackerKeepsItsOwnValidityAsMinimumRetention() {
+        // A detector legitimately reporting every ~1 s (validForNs 1.5 s) must not be hidden
+        // between results: retention stretches to the frame's own validity window.
+        val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,2_000_000_000L)
+        assertEquals(1_500_000_000L,frame.validForNs)
+        val presentation=HandPresentation()
+        assertSame(frame,presentation.silhouette(frame,2_000_000_000L))
+        assertSame(frame,presentation.silhouette(frame,3_100_000_000L))
+        assertNull(presentation.silhouette(frame,3_501_000_000L))
     }
     @Test fun nativeFilterHasRestingDeadZone() {
         val filter=HandGestures.OneEuro(minCutoff=1.4f,beta=12f,deadZone=.0008f)

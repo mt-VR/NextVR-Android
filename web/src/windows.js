@@ -537,20 +537,29 @@ function placeDock() {
   }
 }
 
-/* =================== teclado flutuante =================== */
+/* =================== teclado flutuante (estilo Meta Quest, deitado) =================== */
+/* Layout Meta Quest: fileira de números, QWERTY com Ç, shift com trava de 2 toques,
+ * espaço largo e utilitários (idioma, emoji, ditado, fechar) na fileira inferior. */
 const ROWS = [
-  ['q','w','e','r','t','y','u','i','o','p',{ k:'⌫', cls:'wide', icon:'backspace', label:'Apagar' }],
+  ['1','2','3','4','5','6','7','8','9','0',{ k:'⌫', cls:'wide', icon:'backspace', label:'Apagar' }],
+  ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l','ç',{ k:'⏎', cls:'enter', icon:'enter', label:'Enter' }],
-  [{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.',{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' }],
-  [{ k:'@lang', cls:'util', icon:'globe', label:'Idioma' },{ k:'@settings', cls:'util', icon:'settings', label:'Configurações' },
-    { k:' ', cls:'space', lbl:'espaço' },{ k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
+  [{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.'],
+  [{ k:'@lang', cls:'util', icon:'globe', label:'Idioma' },
+   { k:'@emoji', cls:'util', icon:'smile', label:'Emoji' },
+   { k:' ', cls:'space', lbl:'espaço' },
+   { k:'@mic', cls:'util', icon:'mic', label:'Ditado' },
+   { k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
 ];
-let kbObj = null, kbHit = null, kbTarget = null, kbShift = false;
+const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
+let emojiIndex = 0;
+let kbObj = null, kbHit = null, kbTarget = null, kbShift = false, kbShiftLock = false;
 
 export function keyboard(on_, field) {
   if (!on_) {
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
-    kbTarget = null; return;
+    kbTarget = null; kbShift = kbShiftLock = false;
+    return;
   }
   kbTarget = field;
   if (kbObj) return;
@@ -585,17 +594,35 @@ function press(k, btn) {
   if (native) window.NativeXR.click();
   if (btn) { btn.classList.add('hot'); setTimeout(() => btn.classList.remove('hot'), 110); }
   if (k === '@close') return keyboard(false);
-  if (k === '⇧') { kbShift = !kbShift; paintShift(); return; }
-  if (k === '@lang' || k === '@settings') return;
+  if (k === '⇧') {
+    // Meta Quest: um toque escreve em maiúsculas uma vez; o segundo trava; o terceiro solta.
+    if (!kbShift) { kbShift = true; kbShiftLock = false; }
+    else if (!kbShiftLock) kbShiftLock = true;
+    else { kbShift = false; kbShiftLock = false; }
+    paintShift(); return;
+  }
+  if (k === '@lang') return;
+  if (k === '@mic') { toast(t('micOff')); return; }
+  if (k === '@emoji') { type(EMOJI_CYCLE[emojiIndex++ % EMOJI_CYCLE.length]); return; }
+  type(k);
+}
+function type(k) {
   if (!kbTarget) return;
-  if (kbTarget.nativeId) { window.NativeXR.key(kbTarget.nativeId, kbShift ? k.toUpperCase() : k); return; }
-  if (k === '⌫') kbTarget.value = kbTarget.value.slice(0, -1);
+  const isAction = k === '⌫' || k === '⏎';
+  const ch = kbShift ? k.toUpperCase() : k;
+  if (kbTarget.nativeId) {
+    window.NativeXR.key(kbTarget.nativeId, ch);
+  } else if (k === '⌫') kbTarget.value = kbTarget.value.slice(0, -1);
   else if (k === '⏎') { kbTarget.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return; }
-  else kbTarget.value += kbShift ? k.toUpperCase() : k;
-  kbTarget.dispatchEvent(new Event('input', { bubbles: true }));
+  else kbTarget.value += ch;
+  if (!kbTarget.nativeId) kbTarget.dispatchEvent(new Event('input', { bubbles: true }));
+  // Shift avulso dura uma tecla; o travado permanece até ser solto.
+  if (!isAction && kbShift && !kbShiftLock) { kbShift = false; paintShift(); }
 }
 function paintShift() {
   if (!kbObj) return;
+  for (const b of kbObj.element.querySelectorAll('[data-k="⇧"]'))
+    b.dataset.state = !kbShift ? '' : kbShiftLock ? 'lock' : 'once';
   for (const b of kbObj.element.querySelectorAll('[data-k]')) {
     const k = b.dataset.k;
     if (k.length === 1 && /[a-zç]/i.test(k)) b.textContent = kbShift ? k.toUpperCase() : k.toLowerCase();
@@ -667,6 +694,9 @@ if (native) {
 let nearContact = null;
 const fistBefore = new Map();
 let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
+/** Sticky feedback windows: hand noise must not flash outlines or swap FAR/NEAR pointers. */
+let hoverWin = null, hoverAt = 0;
+const NEAR_HOVER_HOLD_MS = 350, NEAR_HOLD_MS = 240;
 function phoneRay(x, y) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
   const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
@@ -709,17 +739,23 @@ on('phonehands', packet => {
     if(!h || !h.fist || !wins.includes(drag.win))endDrag();
     else { packet.consumed.add(h.id);const p=palmScreen(h,packet,true);dragTo(p.x,p.y); }
   }
-  for(const w of wins)w.shell.classList.remove('phone-grab-hover');
+  // The grab outline is sticky for a moment: palm noise must not flash the window border.
+  const nowMs=performance.now();
   if(!(drag.win && drag.source==='fist')) {
     const h=packet.hands.find(h=>!h.fist);
     if(h) {
       const p=palmScreen(h,packet),hit=fistHit(phoneRay(p.x,p.y));
       if(hit) {
         const {local,scale}=windowPoint(hit.win,hit.point),w=hit.win;
-        if(Math.abs(local.x)*scale.x>w.w*scale.x/2-.06 || Math.abs(local.y)*scale.y>w.h*scale.y/2-.06)w.shell.classList.add('phone-grab-hover');
+        if(Math.abs(local.x)*scale.x>w.w*scale.x/2-.06 || Math.abs(local.y)*scale.y>w.h*scale.y/2-.06){
+          hoverWin=hit.win;hoverAt=nowMs;
+        }
       }
     }
   }
+  for(const w of wins)if(w!==hoverWin||nowMs-hoverAt>NEAR_HOVER_HOLD_MS)w.shell.classList.remove('phone-grab-hover');
+  if(hoverWin&&nowMs-hoverAt<=NEAR_HOVER_HOLD_MS)hoverWin.shell.classList.add('phone-grab-hover');
+  else hoverWin=null;
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
     if(!drag.win && !resizing.win && h.fist && !before) {
@@ -731,6 +767,9 @@ on('phonehands', packet => {
     }
   }
   // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
+  // The near-touch zone has wide hysteresis and a short hold: a resting hand in front of an open
+  // window jitters across a naive depth threshold and used to blink the pointer between the FAR
+  // ray and direct touch. Enter only when clearly close; stay until clearly away.
   let best=null;
   for(const h of packet.hands) {
     if(packet.consumed.has(h.id) || !h.head || h.head.length!==63)continue;
@@ -739,19 +778,25 @@ on('phonehands', packet => {
     tip.applyMatrix4(camera.matrixWorld);
     for(const w of wins) {
       const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
-      const margin=current?.07:.03;
-      if(p.d>(current?.20:.15) || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
+      // Hysteresis: a contact already engaged stays until clearly away (0.26 m / 8 cm margin).
+      const margin=current?.08:.02;
+      const dMax=current?.26:.11;
+      if(p.d>dMax || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
+  }
+  if(!best && nearContact && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
+    best={...nearContact,current:true,held:true};   // brief zone exit: keep the direct pointer
   }
   if(!best) { endNear(!ids.has(nearContact?.id));return; }
   packet.blockFar=true;packet.consumed.add(best.id);
   if(!best.current) {
     endNear();emit('pinchcancel');cursor.down=false;cursor.hand=null;
-    nearContact={...best,down:false,previousD:1};
+    nearContact={...best,down:false,previousD:1,lastSeen:nowMs};
   } else {
     nearContact.d+=(best.d-nearContact.d)*.45;
     nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
+    if(!best.held)nearContact.lastSeen=nowMs;
   }
   const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
   const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
