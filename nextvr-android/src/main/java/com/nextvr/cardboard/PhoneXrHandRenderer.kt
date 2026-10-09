@@ -4,8 +4,10 @@ import android.opengl.GLES20
 import android.os.SystemClock
 import com.nextvr.cardboard.hands.PhoneXrHands
 import org.json.JSONArray
+import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /** PhoneXR VrHomeActivity b878d8b silhouette and pointer routines, retained below.
@@ -35,9 +37,11 @@ class PhoneXrHandRenderer {
             if(count+3>values.size)values=values.copyOf(maxOf(count+3,values.size*2))
             values[count++]=x;values[count++]=y;values[count++]=z
         }
+        fun reset(){count=0}
         fun toFloatArray()=values.copyOf(count)
     }
-    private var meshFrame:PhoneXrHands.Frame?=null
+    private var meshPoints=emptyList<FloatArray>()
+    private var meshBuiltAt=0L
     private data class Geometry(val sx:Float,val sy:Float,val meshes:List<Mesh>)
     private val meshSets=ArrayList<Geometry>(2)
     private var meshes=emptyList<Mesh>()
@@ -45,6 +49,20 @@ class PhoneXrHandRenderer {
     private var touching=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
+    /** Normalized landmark delta that forces a mesh rebuild (~2 px at 640 px analysis width). */
+    private val MESH_REBUILD_EPSILON=.0035f
+    /** Even a slowly drifting hand refreshes its silhouette at least this often. */
+    private val MESH_REBUILD_MAX_NS=120_000_000L
+    private val RING_STEPS=40
+    /** Reused per-frame scratch on the GL thread: the beam/ring path used to allocate a 720-float
+     *  ring array plus ~30 small arrays per hand per eye per frame — GC churn exactly under load. */
+    private val ringData=FloatArray(RING_STEPS*18)
+    private val beamEnd=FloatArray(3)
+    private val beamLine=FloatArray(7)
+    private val acrossA=FloatArray(3)
+    private val acrossB=FloatArray(3)
+    private val quad=FloatArray(18)
+    private val beamShape=FloatBuilder(96*3)
 
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
@@ -57,14 +75,11 @@ class PhoneXrHandRenderer {
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
         if(showSilhouette && visible!=null) {
             this.frame=visible
-            if(meshFrame!==visible) { meshSets.clear();meshFrame=visible }
-            val cached=meshSets.firstOrNull { it.sx==sx && it.sy==sy }
-            meshes=if(cached!=null)cached.meshes else {
-                handPoints=visible.hands.map { it.points }
-                buildHandMeshes().also { meshSets.add(Geometry(sx,sy,it)) }
-            }
+            // Predicted to display time: the silhouette tracks the render rate even when the
+            // detection rate drops (app open, GPU contention) — no stepping, no flicker.
+            meshes=meshesFor(visible.predicted(now),sx,sy,now)
             drawHandSkeletons(position)
-        } else { meshFrame=null;meshSets.clear();meshes=emptyList() }
+        } else { meshSets.clear();meshes=emptyList();meshPoints=emptyList() }
         // Missing/stalled tracking may retain a short visual outline, but never a ray/press.
         if(!frame.isFresh(now))return
         // Both eyes/display frames commonly reuse the same bridge packet.
@@ -72,23 +87,46 @@ class PhoneXrHandRenderer {
             targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
             targetsText=targetsJson
         }
-        for(hand in frame.hands) {
+        // Beam positions are predicted to display time; pinch state is always the newest one.
+        for(hand in frame.predicted(now).hands) {
             val id=if(hand.left) "left" else "right"
-            val target=(0 until targets.length()).mapNotNull { targets.optJSONObject(it) }.firstOrNull { it.optString("id")==id }
+            var target:JSONObject?=null
+            for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
             if(target?.optBoolean("hidden")==true) continue
             val direct=target?.optBoolean("direct")==true
             val down=target?.optBoolean("down") ?: hand.pinching
             val end=target?.optJSONArray("end")
             val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
-            val e=if(end!=null && end.length()==3) FloatArray(3){end.optDouble(it,Double.NaN).toFloat()}
-                  else floatArrayOf(hand.aimX/length*1.2f,hand.aimY/length*1.2f,-1.2f/length)
-            if(e.any { !it.isFinite() } || e[2]>=-.05f)continue
+            val e=beamEnd
+            if(end!=null && end.length()==3) { for(i in 0 until 3) e[i]=end.optDouble(i,Double.NaN).toFloat() }
+            else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
+            if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
             touching=direct && down
-            drawBeam(floatArrayOf(if(direct)0f else hand.baseX,if(direct)0f else hand.baseY,if(direct)0f else -1f,
-                e[0],e[1],e[2],if(end!=null)1f else 0f),down,position)
+            val b=beamLine
+            b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
+            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null)1f else 0f
+            drawBeam(b,down,position)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+    }
+    /** Rebuild the hand meshes only when the landmarks really moved (or aged out). The
+     * tessellation allocates hundreds of KB per result; doing it on every detection makes the
+     * GL thread allocate ~10 MB/s and stutter exactly when the system is busy — e.g. while a
+     * floating window is opening, which is when the hand used to flicker. A resting hand now
+     * reuses the cached mesh; a moving hand still rebuilds every frame. */
+    private fun meshesFor(frame:PhoneXrHands.Frame,sx:Float,sy:Float,nowNs:Long):List<Mesh> {
+        val cached=meshSets.firstOrNull { it.sx==sx && it.sy==sy }
+        val points=frame.hands.map { it.points }
+        val moved=points.size!=meshPoints.size || points.indices.any { i ->
+            val a=points[i];val b=meshPoints[i];var j=0;var d=0f
+            while(j<a.size) { val delta=abs(a[j]-b[j]);if(delta>d)d=delta;j++ }
+            d>MESH_REBUILD_EPSILON
+        }
+        if(cached!=null && !moved && nowNs-meshBuiltAt<MESH_REBUILD_MAX_NS)return cached.meshes
+        meshSets.clear()
+        handPoints=points;meshPoints=points;meshBuiltAt=nowNs
+        return buildHandMeshes().also { meshSets.add(Geometry(sx,sy,it)) }
     }
     private fun drawArray(data:FloatArray,mode:Int,position:Int) {
         if(vertexBuffer.capacity()<data.size)vertexBuffer=ByteBuffer.allocateDirect(data.size*8).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -204,7 +242,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                 var dx = tx - hx; var dy = ty - hy
                 val l = kotlin.math.sqrt(dx * dx + dy * dy)
                 if (l > 1e-4f) { dx /= l; dy /= l } else { dx = 0f; dy = 1f }
-                val shape = FloatBuilder(96 * 3)
+                val shape = beamShape; shape.reset()
                 val sx: Float; val sy: Float
                 if (!down) {
                     // The drop: a round end at the hand and a point towards the target.
@@ -232,25 +270,26 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                     // The line, only while clicking: from the stick's end, fading out before the target.
                     val sz = -1f
                     val ex = b[3]; val ey = b[4]; val ez = b[5]
-                    fun across(px: Float, py: Float, pz: Float, width: Float): FloatArray {
+                    fun across(px: Float, py: Float, pz: Float, width: Float, out: FloatArray) {
                         val lx = ex - sx; val ly = ey - sy; val lz = ez - sz
                         var cx = ly * pz - lz * py; var cy = lz * px - lx * pz; var cz = lx * py - ly * px
                         val cl = kotlin.math.sqrt(cx * cx + cy * cy + cz * cz).coerceAtLeast(1e-6f)
-                        cx = cx / cl * width; cy = cy / cl * width; cz = cz / cl * width
-                        return floatArrayOf(cx, cy, cz)
+                        out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
                     val segments = 10
+                    val wa = acrossA; val wb = acrossB; val q = quad
                     for (k in 0 until segments) {
                         val t0 = k / segments.toFloat() * RAY_SHOWN; val t1 = (k + 1) / segments.toFloat() * RAY_SHOWN
                         val ax = sx + (ex - sx) * t0; val ay = sy + (ey - sy) * t0; val az = sz + (ez - sz) * t0
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
-                        val wa = across(ax, ay, az, .006f)
-                        val wb = across(bx, by, bz, .006f)
+                        across(ax, ay, az, .006f, wa)
+                        across(bx, by, bz, .006f, wb)
                         GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f))
-                        drawArray(floatArrayOf(
-                            ax - wa[0], ay - wa[1], az - wa[2], ax + wa[0], ay + wa[1], az + wa[2], bx + wb[0], by + wb[1], bz + wb[2],
-                            ax - wa[0], ay - wa[1], az - wa[2], bx + wb[0], by + wb[1], bz + wb[2], bx - wb[0], by - wb[1], bz - wb[2],
-                        ), GLES20.GL_TRIANGLES, position)
+                        q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
+                        q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
+                        q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
+                        q[15]=bx-wb[0];q[16]=by-wb[1];q[17]=bz-wb[2]
+                        drawArray(q, GLES20.GL_TRIANGLES, position)
                     }
                 }
             }
@@ -267,8 +306,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
         }
 
 private fun ring3d(x: Float, y: Float, z: Float, outer: Float, inner: Float, position: Int) {
-            val steps = 40
-            val data = FloatArray(steps * 18)
+            val steps = RING_STEPS
+            val data = ringData
             for (k in 0 until steps) {
                 val a0 = (k * 2 * Math.PI / steps).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / steps).toFloat()
                 val c0 = kotlin.math.cos(a0); val s0 = kotlin.math.sin(a0); val c1 = kotlin.math.cos(a1); val s1 = kotlin.math.sin(a1)

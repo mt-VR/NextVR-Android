@@ -122,3 +122,182 @@ O desenho do passthrough continua fazendo conversão YUV e upload de bitmap em r
 - Testes JVM: `LatestFrameSlotTest` (substituição do frame mais novo, liberação de frames superseded) e `RescueMergerTest` (idade máxima de 250 ms, cobertura de punho, limite de duas mãos, tamanho de frame), além dos testes existentes.
 - Neste ambiente de edição não há `javac`, Gradle nem Android SDK. A compilação e os testes são confirmados pelo workflow Android CI no Pull Request; até lá, nada aqui está compilado.
 - Não foi possível testar em aparelho: GPU delegate, conversão JNI em dispositivo, nem sessões longas.
+
+---
+
+# 2026-10-09 — Investigação definitiva: Handtrack.js vs MediaPipe, causas-raiz de FPS/latência e correções
+
+## 1. Handtrack.js vs MediaPipe — análise técnica e veredito
+
+Fontes: post oficial do TensorFlow Blog (2019-11-22), repositório `victordibia/handtrack.js`, benchmarks publicados do MediaPipe Hand Landmarker.
+
+| Critério | Handtrack.js | MediaPipe `hand_landmarker.task` (atual) |
+|---|---|---|
+| Arquitetura | SSD MobileNet (v1 no modelo de 18.5 MB do post; v0.1.x oferece ssd320/ssd640 fp32/fp16/int8, 3–12 MB) convertido para TensorFlow.js, inferência WebGL no navegador | TFLite (palm detector + landmark model + pose), Tasks API, delegate GPU (fallback CPU) |
+| Saída | **Bounding boxes** + classes grosseiras de mão inteira (open/closed/pinch/point/face, só na v0.1.x) | **21 landmarks 2D + 21 world landmarks 3D + handedness**, por mão, num único grafo |
+| Desempenho medido | ~26 FPS em MacBook Pro i7 2018 (450×380); README: *"not extensively tested on mobile browsers"* | Benchmark oficial Google: Pixel 6, **17.12 ms CPU / 12.27 ms GPU** (pipeline completo) |
+| Landmarks por frame | 0 (não existem) | 42 por mão, com taxa de atualização = taxa de inferência |
+| Gestos necessários (pinch histerese .30/.48, fist, palm-to-face, raio 3D, toque direto) | Impossíveis sem landmarks; as classes do detector são insuficientes e sem handedness | Nativos do pipeline atual (PhoneXR) |
+| Memória | Modelo 3–18.5 MB + runtime TF.js + WebGL | `hand_landmarker.task` 7.5 MB no APK |
+| Compatibilidade com a arquitetura | Exigiria rodar TF.js/WebGL **dentro do WebView**, competindo com o renderizador GL do app pelo mesmo GPU, mais uma ponte JS por frame (evaluateJavascript) — latência extra e acoplamento | Já integrado nativamente; o WebView só recebe resultados |
+
+**Veredito: Handtrack.js NÃO é alternativa viável para este caso de uso.** Ele detecta *caixas* de mãos, não landmarks; todos os gestos do app (pinch com histerese, fist, palm-menu, raio, toque direto) são derivados de 21 landmarks + world landmarks + handedness. Adotá-lo exigiria um segundo modelo de landmarks (ou seja, MediaPipe de qualquer forma), dobrando inferência, memória e latência, sem handedness nem coordenadas 3D. **MediaPipe permanece.** A substituição foi descartada por evidência, não por familiaridade.
+
+## 2. PhoneXR original vs implementação atual (referência: commit `27c5bc4`)
+
+A correção anterior (7c64abf) já igualou os pontos essenciais: admissão `KEEP_ONLY_LATEST` + `busy` single-flight, entrada de 640 px, timestamp de captura nos filtros, ownership do bitmap de análise, limiares de pinch `.30/.48`. A comparação 파일 a arquivo (`orangehanding/` vs `com.samrat.orangehanding`) confirmou: `Crops.kt` e `OneEuro.kt` idênticos; `FusionHands.kt` e `Yolo11Pose.kt` divergem apenas pelas correções já aplicadas (ownership, YOLO em executor, retry GPU→CPU).
+
+## 3. Histórico de commits — por que as tentativas anteriores falharam
+
+- **`bc475c80` / `86a0844f` ("faster hand tracking", "optimize FPS")**: reduziram a resolução de análise (512→448→384→320 px) e impuseram pisos artificiais de cadência (`nextMs` = 33→20→12 ms). Isso **mascara** FPS baixo descartando frames e cortando detalhe dos landmarks — não reduz custo real algum e degrada precisão/gestos. A taxa real nunca poderia subir: o gargalo é o custo por frame, não a cota imposta.
+- **`a03ebf1`**: introduziu bitmap de análise **reutilizado** entregue ao MediaPipe (que o recicla no `MPImage.close()` — coberto por `copyOf()` = cópia de frame inteiro por inferência) e usou `SystemClock.elapsedRealtime()` como timestamp do frame (tempo de *processamento*, contaminando o `dt` do One Euro).
+- **`dc794274`/`26024465`**: corrigiram o ciclo de vida do bitmap (ainda com cópia por frame).
+- **`7c64abf` (PR #5)**: as correções estruturais corretas — sem cadência fixa, 640 px, timestamp de captura, ownership transferido (sem cópia), pinch PhoneXR, tesselação sem boxing. **Já estava merged.**
+- **O que continuava errado após 7c64abf** (encontrado nesta investigação, ver §4).
+
+## 4. Causas-raiz restantes no código atual
+
+1. **Callback de câmera fazia 3 passagens de pixels por frame**: conversão YUV→ARGB escalar por pixel (clamp por lambda, índices de croma recalculados), rotação **bilinear full-res no Java** (`Bitmap.createBitmap(...,matrix,true)`) e escala bilinear para 640 px. O callback da câmera é o **teto da taxa de tracking** (admissão single-flight) e cada ms dele é latência captura→landmark. Era o maior custo de CPU por frame fora da inferência.
+2. **Resgate de mão perdida era síncrono na thread de tracking**: enquanto MediaPipe perdia uma mão, a cada 2 frames a thread de tracking rodava o landmarker de resgate **na CPU** (dezenas de ms em mid-range) — o tracking primário parava exatamente nos momentos de perda de mão, que é quando o usuário percebe o "FPS baixo".
+3. **JSON do frame de mãos era serializado na thread principal (UI)** a cada frame de tracking — latência de gesto e jank de UI.
+4. **Não havia instrumentação** que separasse FPS de render, FPS efetivo de tracking e latências — as "otimizações" anteriores não podiam ser medidas.
+
+## 5. Correções implementadas
+
+- **`camera_pixels.h`**: conversão em blocos 2×2 (1 croma serve 4 pixels) + clamp por tabela — **bit-exata** com a fórmula original (fuzz de 300 trials com strides/tamanhos ímpares). Rotação 90/180/270 **fuseada na conversão** (apenas remapeamento de índice de escrita — pixel-exata, verificada contra o mapeamento de coordenadas normalizadas do `Matrix.postRotate`, teste independente).
+- **`camera_pixels.cc`/JNI**: a conversão recebe `rotation`; validação estendida. Compilado com `-Wall -Wextra -Werror` no host (stub JNI) e no NDK via CI.
+- **`PassthroughCamera`**: usa a conversão+rotação fuseada; a escala de análise **permanece Skia** (`createScaledBitmap`, bilinear NEON) — um bilinear escalar nativo mediria 16.3 ns/px no host, pior que o Skia otimizado em ARM. Decisão deliberada.
+- **`FusionHands`**: o resgate agora é **assíncrono** — crop síncrono (barato, 224²) na thread de tracking, inferência do landmarker de resgate em executor próprio (`MIN_PRIORITY`), merge dos resultados frescos (< 400 ms) pela lógica pura `RescueMerger` (cobertura por distância, tamanho do frame, limite de 2 mãos — tudo preservado).
+- **`NextVrActivity`**: o JSON do frame é serializado **na thread de tracking**; a main thread só avalia o script pronto (menos latência de gesto e menos jank).
+- **`PerfLog`** (novo): a cada 3 s, `adb logcat -s NextVR-Perf` imprime `camera=…fps render=…fps track=…fps infer=…ms[min/max] captureToLandmark=…ms publish=…ms admitted/completed width=…` — separando, pela primeira vez, FPS de câmera/renderização do FPS **efetivo** de tracking e das latências.
+- **Web**: o contador de FPS (settings → "Mostrar contador") agora mostra `render · tracking N fps` (medido em `hands.js` pela chegada real dos frames); nota de desempenho atualizada.
+- **Testes**: `tests/camera-pixels.test.mjs` (fuzz bit-exact, rotação vs referência independente, benchmark); `RescueMergerTest.kt` (merge: fresco/vazio, coberto, stale, tamanho estranho, limite de 2 mãos); `tests/spatial.test.mjs` atualizado para a nova arquitetura (sem `postRotate` no Java; rotação fuseada no nativo).
+
+## 6. Medições — o que foi medido, o que falta dispositivo
+
+**Medido neste ambiente (host x86, g++ -O2, 1280×720):**
+
+| Métrica | Antes | Depois |
+|---|---|---|
+| Conversão YUV→ARGB | 4.1 ns/px | **2.4 ns/px (1.74×)** |
+| Rotação 90° (full-res) | resample bilinear separado (Java/Skia) | **fuseada: 2.3 ns/px (só remapeamento de índice)** |
+| Testes nativos (fuzz bit-exact, rotação, escala) | — | **4/4 passando** |
+| Testes node (web + nativos) | — | **17/17 passando** |
+
+**CI (a confirmar no PR):** `testDebugUnitTest` (Robolectric, incl. `RescueMergerTest`), `assembleDebug`, verificação de ABIs/libs nativas no APK.
+
+**Pendente — exige dispositivo Android real (não há neste ambiente):** FPS efetivo de tracking antes/depois, latência captura→landmark, FPS durante perda de mão (validar que o resgate assíncrono não stalla mais o tracking), consumo de CPU/memória e estabilidade em sessão prolongada. **Como medir:** `adb logcat -s NextVR-Perf` (métricas agregadas a cada 3 s) e o contador "Mostrar contador" na UI (render vs tracking). **Não declaro melhoria de FPS on-device sem esses dados.**
+
+## 7. Riscos revisados
+
+- Conversão bit-exata (fuzz) e rotação pixel-exata (teste independente) — display não muda 1 pixel.
+- Ownership de bitmaps preservado (analysis frame único por inferência; crop do resgate é bitmap próprio, reciclado na thread de resgate).
+- Threads confinadas (YOLO e resgate em executores próprios; landmarker de resgate criado/usado/fechado só na thread de resgate).
+- Gestos preservados: limiares PhoneXR intactos; testes existentes de pinch/fist/palm passam.
+- Sem filas novas: admissão continua single-flight; o resgate assíncrono não enfileira inferências no tracking.
+
+---
+
+# 2026-10-09 (2ª rodada) — flicker da mão ao abrir janela flutuante + multitarefa em arco (até 3 apps) + otimização do render da mão
+
+## Bug: a mão "piscava" ao abrir uma janela flutuante
+
+Análise de causa-raiz (código real, sem chute): a malha/visual da mão é desenhada no thread GL a partir do `Frame` mais recente (`SpatialRenderer.hands`, escrito pela thread de tracking), mas três elos da cadeia eram frágeis a stalls transitórios — exatamente o que acontece quando uma janela flutuante abre (criação de WebView no thread principal, DOM pesado no thread JS da WebView, upload de novas texturas no GL):
+
+1. **Retenção do silhuete curta demais** (`HandPresentation`): 180 ms. Um stall de ~200 ms (1–2 frames perdidos) apagava o silhuete e ele reaparecia — o piscar. **Corrigido:** retenção de 500 ms, igual à validade mínima de um frame (`isFresh`). Perda real de mão continua sendo sinalizada na hora (frames vazios explícitos + expiração nativa do raio).
+2. **Malha reconstruída a cada frame de tracking no thread GL** (`PhoneXrHandRenderer`): a tesselação aloca centenas de KB por resultado (~10 MB/s a 25 fps no thread que desenha os olhos VR) — sob carga (abrir janela) isso vira stutter de GC no caminho do hand. **Corrigido:** reconstrução só quando os landmarks se movem de verdade (epsilon de ~2 px na largura de análise) ou a cada 120 ms no máximo; mão parada reutiliza a malha cacheada, mão em movimento continua reconstruindo por frame. Cache por olho preservado.
+3. **Expiração do estado da mão no web por stall de entrega** (`hands.js`): o `nextvrHands` é avaliado no thread principal; abrir um app de navegador atrasa essa fila e o estado da mão expirava em 500 ms — cancelando cursor/pinch no meio do gesto e piscando os indicadores. **Corrigido:** piso de expiração de 1 s; perda real continua explícita (frames vazios/`stopHands`). O raio nativo continua sem stale data (validade do frame), então não há clique fantasma.
+
+A investigação completa do pipeline de tracking (conversão YUV, rotação, resgate assíncrono, JSON fora do thread principal) está na seção anterior deste documento e permanece válida.
+
+## Multitarefa em arco (até 3 apps de vez)
+
+- Novo módulo puro `web/src/arc.js`: `ARC_CAPACITY = 3`, ângulos/posições do arco (fileira curva centrada, simétrica, raio constante) e seleção LRU.
+- `windows.js`: janelas presas formam **uma única fileira em arco** com até 3 apps; ao abrir um 4º app com o arco cheio, o **menos recentemente focado é fechado** automaticamente (com toast localizado pt/en/es). Janelas soltas (arrastadas) continuam livres e contam para o limite de 3 apps abertos.
+- O limite antigo de 6 janelas (fileiras traseiras) foi substituído pelo arco de 3 — o atlas continua com folga (6 slots).
+
+## Testes
+
+- `tests/arc.test.mjs` (novo, 4 testes): capacidade 3, ângulos centrados/simétricos/limitados, círculo de raio constante, LRU.
+- `PhoneXrHandsTest.briefMissCanKeepOnlyTheSilhouetteNeverTheClick` atualizado para a retenção de 500 ms.
+- Suite node completa: **21/21** (inclui os 4 testes nativos de conversão/rotação).
+- Validação on-device (flicker, FPS, arco) continua exigindo celular real — `adb logcat -s NextVR-Perf`.
+
+## 2026-10-09 (3ª rodada) — polimento do caminho da mão no thread GL
+
+Revisão de alocações por frame no `PhoneXrHandRenderer` (thread GL, por olho, por mão):
+- `ring3d` alocava um `FloatArray(720)` **por anel por olho por frame** (~700 KB/s a 60 fps com 2 mãos) — agora preenche um buffer membro reutilizado.
+- O feixe (`drawBeam`) alocava ~30 arrays pequenos por frame enquanto clica (2× `across()` por segmento × 10 segmentos + quad por segmento + `FloatBuilder` por forma) — agora reutiliza `beamShape` (com `reset()`), `acrossA/B` e `quad`.
+- O laço de mãos alocava um `FloatArray(3)` + um `floatArrayOf(7)` por mão por olho + uma lista no lookup de `targets` — agora preenche `beamEnd`/`beamLine` no lugar e faz lookup sem alocação.
+
+Resultado: mesmo output visual (mesmos floats, mesmos draw calls), zero alocação nova por frame no caminho do cursor/raio/anel — menos pressão de GC no thread que desenha os olhos VR, reforçando o fix de flicker sob carga (abrir janela flutuante).
+
+---
+
+# 2026-10-09 (4ª rodada) — mão suave com app aberto (predição temporal) + teclado deitado estilo Meta Quest
+
+## "Pisca/trava quando um app está aberto" — causa raiz provável e correção
+
+Com um app aberto, o WebView do app e o **landmarker de mãos (delegate GPU)** disputam o mesmo
+GPU: a inferência encarece, a taxa de detecção cai e a mão **passa a atualizar na taxa de
+tracking em vez da taxa do display** — o olho percebe como piscar/travar. A correção é a mesma
+que o Quest usa para mãos: **predição temporal das posições até a taxa do display**.
+
+- `PhoneXrHands.Frame` agora carrega `previous` (a detecção anterior) e expõe `predicted(nowNs)`:
+  extrapola a última detecção ao longo da própria velocidade, **no máximo um intervalo de
+  tracking** (`MAX_PREDICT_GAP_NS = 250 ms`). No instante da detecção mostra a detecção exata
+  (zero latência adicionada); gestos (pinch/fist) vêm sempre da detecção mais nova e nunca são
+  extrapolados; vão longos (mão sumiu e voltou) não extrapolam — a mão reaparece exatamente onde
+  foi detectada. Resultado cacheado por bucket de 2 ms (1 cálculo por frame de render, não por olho).
+- `PhoneXrHandRenderer`: malha do silhuete e feixe/cursor usam `predicted(now)`; validade
+  (`isFresh`) e retenção do silhuete continuam no frame real — nada de ray/press com dados stale.
+- Interação (pinch, toque near-contact, JSON para o web) continua 100% no frame real — a
+  suavidade é só de apresentação, a precisão de clique não muda.
+
+## Teclado deitado igual Meta Quest
+
+- `windows.js`/`comfort.js`: pitch do teclado de `.5` (em pé, reclinado) para `-π/2 + .35`
+  (deitado como mesa, inclinado só o necessário na direção do usuário); centro mais baixo
+  (drop .38→.5 nativo, .58→.68 web). A rotação agora é reaplicada a cada frame em `placeKb`,
+  então o teclado acompanha o yaw da dock após recenter/summon (antes a rotação ficava presa no
+  yaw da criação). Hit plane acompanha (mesma rotação), então digitação por raio não muda.
+- Teste no CI (Chromium): o painel do teclado no atlas precisa ter a base local +Y apontando
+  para -Z (deitado), identificado pelo sinal de `matrix[9]`.
+
+## Multitarefa em arco (até 3 apps)
+
+Já entregue na 2ª rodada (`web/src/arc.js`, `ARC_CAPACITY=3`, LRU auto-close com toast pt/en/es,
+fileira curva única) — cobertura: 21/21 node + 4 testes de arco dedicados.
+
+## Testes desta rodada
+
+- `PhoneXrHandsTest`: +4 testes (extrapolação da velocidade limitada a 1 intervalo, gestos da
+  detecção mais nova, sem extrapolação em vão longo, encadeamento do `previous` + `reset()`).
+- `reference-ui.test.mjs`: +asserção de teclado deitado (verificada no CI com Chromium).
+- Suite node local: 21/21 (reference-ui faz self-skip sem Chromium; roda no CI).
+
+---
+
+# Integração das duas frentes (PR #9 no main + PR #7 desta branch)
+
+Esta branch foi reintegrada sobre o main após o merge do PR #9 (outra frente de hand tracking).
+O código final é a UNIÃO das duas:
+
+- **Do PR #9 (main):** `LatestFrameSlot` (mailbox de 1 slot — o tracker drena o frame mais novo
+  assim que fica livre, sem ser quantizado ao callback da câmera), `TrackingFrame` com
+  `captureNs`/`acquiredNs` (clock `SENSOR_INFO_TIMESTAMP_SOURCE`), `PerfLog` completo
+  (capture_to_landmark, acquire_to_landmark, dropped, cpu_pct, memória), `RescueMerger`
+  (250 ms, cobertura, tampo de 2 mãos, tamanho de frame) e `FusionHands` com rescue em thread
+  próprio + intervalo mínimo de 33 ms.
+- **Desta branch (PR #7):** conversão YUV→ARGB nativa **com rotação fuseada** (1 passada,
+  1,74× mais rápida que a referência scalar, rotação de 90° sem custo extra — substitui a
+  rotação Java pós-conversão do PR #9), `HandPresentation` com retenção de 500 ms,
+  `PhoneXrHandRenderer` com throttle da malha + zero alocação por frame no feixe/anel +
+  **predição temporal** das posições da mão até a taxa do display, expiração web de 1 s,
+  multitarefa em arco (até 3 apps, LRU), teclado deitado estilo Meta Quest, job CI
+  `publish-apk` (APK no branch `apk-dist`).
+- **Resolução de sobreposição:** `PerfLog.java`, `RescueMerger.kt`, `RescueMergerTest.kt` e
+  `FusionHands.kt` ficaram com a versão do main (superset); o `NextVrActivity` kept o script
+  de hand-frame pré-serializado na thread de tracking (JSON fora do thread principal) + o
+  `PerfLog.published` do main; o `PassthroughCamera` é a união: mailbox/drain do PR #9 +
+  conversão nativa fuseada com rotação desta branch.

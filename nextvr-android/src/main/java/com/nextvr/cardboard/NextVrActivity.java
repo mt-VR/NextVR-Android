@@ -57,6 +57,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile boolean resumed,closed;
     private boolean ready;
     private volatile com.nextvr.cardboard.hands.PhoneXrHands.Frame pendingHands;
+    /** Hand-frame script serialized on the tracking thread; the main thread only evaluates it. */
+    private volatile String pendingHandsScript;
+    private volatile long pendingPublishNs;
     private final AtomicBoolean handsPending=new AtomicBoolean();
     private final AtomicBoolean posePending=new AtomicBoolean();
     private long lastPose;
@@ -87,15 +90,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.cardboard.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                // Serialize on the tracking thread: the main thread only evaluates the finished
+                // script, so JSON building never adds gesture latency or UI jank.
+                float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
                 pendingHands=frame;
+                pendingHandsScript="window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")";
+                pendingPublishNs=SystemClock.elapsedRealtimeNanos();
                 if(!handsPending.compareAndSet(false,true))return;
                 main.post(()->{
                     handsPending.set(false);
-                    var latest=pendingHands;
-                    if(shell!=null && resumed && !closed && latest!=null) {
-                        shell.evaluate(
-                        "window.nextvrHands&&window.nextvrHands("+latest.json()+","+(renderer==null?1:renderer.mappingX)+","+(renderer==null?1:renderer.mappingY)+")");
-                        if(!latest.getHands().isEmpty()) PerfLog.published(latest.getCompletedNs());
+                    String script=pendingHandsScript;
+                    if(shell!=null && resumed && !closed && script!=null && pendingHands!=null) {
+                        shell.evaluate(script);
+                        if(!pendingHands.getHands().isEmpty()) PerfLog.published(pendingPublishNs);
                     }
                 });
             }

@@ -8,6 +8,7 @@ import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stabilizeWindowPosition, clampResize, maxResizeAtHeight, resizeFromPointer,
   stabilizeResize } from './window-geometry.js';
+import { ARC_CAPACITY, arcLayout, pickLru } from './arc.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m — janela confortável, não gigante
 export const wins = [];
@@ -130,29 +131,24 @@ function plane(w, h, win) {
   m.userData.win = win; contentRoot.add(m); return m;
 }
 
-/* =================== layout =================== */
+/* =================== layout — multitarefa em arco =================== */
 /**
- * Presas: em arco logo acima da dock — é onde o app nasce.
- * Soltas: ficam onde o usuário largou, e não entram no arranjo.
+ * Multitarefa em arco: as janelas presas formam UMA fileira curva, centrada, com até
+ * ARC_CAPACITY (3) apps de vez — o arco é a superfície de multitarefa. Soltas (arrastadas)
+ * ficam onde o usuário largou, e não entram no arranjo.
  */
 function layout() {
   for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
   const pin = wins.filter(w => w.pinned && !w.onboarding);
   const n = pin.length; if (!n) return;
-  const perRow = Math.min(n, native?3:4);                    // até 4 por fileira, em arco
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
   const step = native?Math.min(1.3,2*Math.atan(Math.max(...pin.map(w=>w.w*w.resizeScale))*PX*S.winScale/(2*dist))+.08):Math.min(.78, Math.max(.52,.5+n*.05));
 
-  pin.forEach((w, i) => {
-    const row = Math.floor(i / perRow);
-    const k = i % perRow;
-    const inRow = Math.min(perRow, n - row * perRow);
-    const a = inRow === 1 ? 0 : (-((inRow - 1) * step) / 2) + k * step;
-
+  arcLayout(n, { step, dist }).forEach(([x, z], i) => {
+    const w = pin[i];
     const hh = w.h * PX * S.winScale * w.resizeScale;
-    const d = dist + row * .55;                     // fileira de trás, mais afastada
-    const lift = native?EYE+row*(hh+.16):dockAt.y + dockAt.h / 2 + .14 + hh / 2 + row * (hh + .16);
-    w.target.set(Math.sin(a) * d, lift, -Math.cos(a) * d);
+    const lift = native?EYE:dockAt.y + dockAt.h / 2 + .14 + hh / 2;   // base alinhada na fileira única
+    w.target.set(x, lift, z);
   });
 }
 on('recenter', layout);
@@ -161,7 +157,12 @@ on('resize', layout);
 export function open(spec) {
   const same = wins.find(w => w.id === spec.id);
   if (same) { focus(same); return same; }
-  if (native && wins.length >= 6) { toast('Close a window before opening another (6 window limit).'); return null; }
+  const apps = wins.filter(w => !w.onboarding);
+  if (apps.length >= ARC_CAPACITY) {
+    // Multitarefa em arco: até 3 apps de vez. Com o arco cheio, o menos recente sai para o novo entrar.
+    const lru = pickLru(apps);
+    if (lru) { toast(`${t('arcFull')}: ${lru.title}`); close(lru); }
+  }
   const w = new Win(spec);
   // aparece já perto do destino, sem voar da origem
   w.obj.position.set(0, dockAt.y, dockAt.z);
@@ -184,6 +185,7 @@ export function close(w) {
 export function focus(w) {
   if (focused === w) return;
   focused = w;
+  w.lastFocus = performance.now();          // ordem de foco = ordem de uso no arco (LRU)
   wins.forEach(x => x.el.classList.toggle('focus', x === focused));
 }
 /** Devolve a janela para cima da dock. */
@@ -601,11 +603,16 @@ function paintShift() {
 }
 
 let kbKey = '';
+/** Inclinação do teclado deitado na direção do usuário (rad) — estilo Meta Quest. */
+const KB_TILT = .35;
 function placeKb() {
   if (!kbObj) return;
   const distance=native?COMFORT.keyboardDistance:-dockAt.z-.35;
-  kbObj.position.set(-Math.sin(kbYaw)*distance, EYE-(native?COMFORT.keyboardDrop:.58), -Math.cos(kbYaw)*distance);   // à frente da dock, inclinado
-  kbObj.rotation.set(.5, kbYaw, 0,'YXZ');
+  kbObj.position.set(-Math.sin(kbYaw)*distance, EYE-(native?COMFORT.keyboardDrop:.68), -Math.cos(kbYaw)*distance);   // à frente da dock, deitado como mesa
+  // Deitado igual Meta Quest: -π/2 é o plano horizontal (teclado "deitado"), KB_TILT inclina
+  // só o necessário na direção do usuário para ler e digitar. Aplicado a cada frame para
+  // acompanhar o yaw da dock após recenter/summon.
+  kbObj.rotation.set(-Math.PI / 2 + KB_TILT, kbYaw, 0, 'YXZ');
   const w = kbObj.element.offsetWidth * kbObj.scale.x, h = kbObj.element.offsetHeight * kbObj.scale.x;
   const key = w.toFixed(3) + 'x' + h.toFixed(3);
   if (w > 0 && key !== kbKey) {

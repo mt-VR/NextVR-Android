@@ -142,6 +142,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
     await page.locator('.dock [data-id="kb"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
+    // Keyboard lies flat like a desk (Meta Quest style): the panel's local +Y (top edge) must
+    // point away from the user (-Z), i.e. matrix column 1 has a negative Z component.
+    const kbPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.rect[1]===3160));
+    assert.ok(kbPanel,'Keyboard panel is composited into the atlas');
+    assert.ok(kbPanel.matrix[9]<0,'Keyboard lies flat (Meta Quest style), top edge away from the user');
     // Count actual compositor updates, not wall time: CI's software renderer can be slow.
     const settle=async()=>{
       await page.evaluate(()=>window.__settle=null);

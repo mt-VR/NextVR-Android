@@ -441,7 +441,7 @@ function settingsApp() {
       }
       c.append(row(t('quality'), 'Resolução de renderização', seg));
       page.append(c);
-      page.append(el('p','note','O hand tracking roda a ~22 Hz, separado do render, para não derrubar o fps.'));
+      page.append(el('p','note','O hand tracking roda na própria cadência (single-flight, sem fila), separado do render. Ative o contador de FPS para ver as duas taxas: render e tracking.'));
     }],
   ];
   let cur = 0;

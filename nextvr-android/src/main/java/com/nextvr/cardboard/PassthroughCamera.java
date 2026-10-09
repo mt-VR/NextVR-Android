@@ -146,15 +146,15 @@ final class PassthroughCamera {
             Image.Plane[] p=image.getPlanes();
             int pixelCount=image.getWidth()*image.getHeight();
             if(cameraPixels==null || cameraPixels.length!=pixelCount)cameraPixels=new int[pixelCount];
+            // One native pass fills the upright pixels; the quarter-turn rotation is fused into
+            // the conversion (write-index remapping, pixel-exact), so no Java-side rotate
+            // resample exists anymore.
+            boolean quarter=rotation==90||rotation==270;
+            int outW=quarter?image.getHeight():image.getWidth(),outH=quarter?image.getWidth():image.getHeight();
             nativeYuvToArgb(cameraPixels,p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
                 image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
-                p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride());
-            upright=Bitmap.createBitmap(cameraPixels,image.getWidth(),image.getHeight(),Bitmap.Config.ARGB_8888);
-            if(rotation!=0) {
-                Matrix matrix=new Matrix();matrix.postRotate(rotation);
-                Bitmap rotated=Bitmap.createBitmap(upright,0,0,upright.getWidth(),upright.getHeight(),matrix,true);
-                if(rotated!=upright){upright.recycle();upright=rotated;}
-            }
+                p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
+            upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
@@ -268,5 +268,5 @@ final class PassthroughCamera {
             tracking.shutdown();afterClose.run();thread.quitSafely();
         });
     }
-    private static native void nativeYuvToArgb(int[] output,ByteBuffer y,ByteBuffer u,ByteBuffer v,int w,int h,int ys,int us,int vs,int yp,int up,int vp);
+    private static native void nativeYuvToArgb(int[] output,ByteBuffer y,ByteBuffer u,ByteBuffer v,int w,int h,int ys,int us,int vs,int yp,int up,int vp,int rotation);
 }

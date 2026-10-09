@@ -130,3 +130,39 @@ jobs:
           path: nextvr-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+  # Publishes the built debug APK to the disposable `apk-dist` branch so the file can be
+  # fetched with plain git (the Actions artifact download redirects to a blob host that
+  # some restricted environments cannot reach). The branch carries only dist/app-debug.apk.
+  publish-apk:
+    name: Publish debug APK to apk-dist branch
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nextvr-debug-apk
+          path: apk
+
+      - name: Push APK to apk-dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find "$GITHUB_WORKSPACE/apk" -name '*.apk' -print -quit)
+          test -n "$APK"
+          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
+          git init -q -b apk-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$APK" dist/app-debug.apk
+          printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
+          git add dist
+          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin apk-dist
+          echo "APK published: branch apk-dist, path dist/app-debug.apk"
