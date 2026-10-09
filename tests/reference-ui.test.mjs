@@ -217,21 +217,26 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrSuspend();});
 
     await settle();
+    // Palm-pinch dock summon has been removed: dock no longer appears via palm+pinch.
+    // Verify that a hand with menuEligible and pinching does NOT summon the dock and does not
+    // produce a hand-menu-logo, and that windows remain unmoved.
     const anchored=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
+    const dockBefore=await page.evaluate(()=>window.__last.panels[0].matrix.slice());
     const summonView=new THREE.Matrix4().makeRotationY(-.7);
     await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},summonView.toArray());
     const menu=hand(.4);menu.hands[0].menuEligible=true;menu.hands[0].menuPoint=[.5,.5];
     await feed(menu);
-    await page.waitForFunction(()=>!!document.querySelector('.hand-menu-logo:not([hidden])'));
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0,'Palm menu logo must not appear after pinch dock removal');
     menu.hands[0].pinching=true;await feed(menu);
-    await page.waitForFunction(()=>Math.abs(window.__last.panels[0].matrix[12])>.2);
+    await page.waitForTimeout(500);
     const summoned=await page.evaluate(()=>window.__last.panels[0].matrix);
-    assert.ok(summoned[12]<-.2,'Dock appears in the new gaze direction');
-    assert.ok(Math.abs(Math.hypot(summoned[12],summoned[14])-.45)<.002);
+    assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
-    for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Summoning dock must not recenter windows/keyboard');
-    assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===0)),false,'Palm menu pinch does not click through');
+    for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
+    // Dock summon via palm pinch removed; pinch is now a normal cursor gesture and may
+    // produce a browser touch depending on gaze/hand alignment — no suppression required.
+    await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
     assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0);
     assert.deepEqual(errors,[]);

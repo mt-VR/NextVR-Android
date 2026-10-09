@@ -3,29 +3,30 @@ import assert from 'node:assert/strict';
 import { PalmDockGesture } from '../web/src/palm-dock.js';
 import { COMFORT,migrateComfort } from '../web/src/comfort.js';
 const hand=(pinching,extra={})=>({id:'left',menuEligible:true,fist:false,pinching,...extra});
-test('palm menu requires an open palm then pinch; held pinch summons only once',()=>{
+test('palm dock pinch gesture has been removed — no pinch summons the dock',()=>{
   const g=new PalmDockGesture();
-  assert.equal(g.update([hand(true)],0)[0].activate,false);
-  g.update([hand(false)],100);
-  assert.equal(g.update([hand(true)],300)[0].activate,true);
-  assert.equal(g.update([hand(true)],600)[0].activate,false);
+  // Previously required open palm then pinch after 150ms; now disabled.
+  assert.deepEqual(g.update([hand(true)],0),[]);
+  assert.deepEqual(g.update([hand(false)],100),[]);
+  assert.deepEqual(g.update([hand(true)],300),[]);
+  assert.deepEqual(g.update([hand(true)],600),[]);
   g.update([hand(false)],700);
-  assert.equal(g.update([hand(true)],900)[0].activate,true);
+  assert.deepEqual(g.update([hand(true)],900),[]);
 });
-test('forward pointing, fists and lost hands cannot activate the dock menu',()=>{
+test('palm dock remains disabled for any hand state',()=>{
   const g=new PalmDockGesture();
   assert.deepEqual(g.update([hand(false,{menuEligible:false})],0),[]);
   assert.deepEqual(g.update([hand(true,{fist:true})],100),[]);
   g.update([hand(false)],200);g.update([],500);
-  assert.equal(g.update([hand(true)],700)[0].activate,false);
+  assert.deepEqual(g.update([hand(true)],700),[]);
 });
-test('fist during pinch transition preserves the open-palm timer',()=>{
+test('fist during pinch transition cannot reactivate the removed palm dock',()=>{
   const g=new PalmDockGesture();
   g.update([hand(false)],0);
-  assert.equal(g.update([hand(true)],200)[0].activate,true);
+  assert.deepEqual(g.update([hand(true)],200),[]);
   g.update([hand(false)],300);
   g.update([hand(false,{fist:true})],400);
-  assert.equal(g.update([hand(true)],500)[0].activate,true);
+  assert.deepEqual(g.update([hand(true)],500),[]);
 });
 test('existing installations get the close layout once, then retain distance adjustments',()=>{
   const old={lang:'en',winDist:2.2,dockDist:1.5,winScale:1.1};

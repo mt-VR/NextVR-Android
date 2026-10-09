@@ -35,10 +35,11 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   const camera=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java','utf8');
   assert.ok(!camera.includes('getTransformMatrix(') && !camera.includes('new SurfaceTexture(') && camera.includes('nativeYuvToArgb'));
   assert.equal((camera.match(/postRotate\(/g)||[]).length,1);
-  assert.ok(camera.includes('detect(small,stamp,0)'), 'No second rotation in the detector');
+  assert.ok(camera.includes('detectOwned(inferenceFrame,stamp,0)'), 'The already-upright, owned analysis frame is not rotated twice');
+  assert.ok(camera.includes('image.getTimestamp()/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
-  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
+  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold') && !hands.includes('lineTo('));
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');

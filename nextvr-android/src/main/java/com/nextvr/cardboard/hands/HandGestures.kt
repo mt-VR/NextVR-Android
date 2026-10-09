@@ -7,9 +7,9 @@ import kotlin.math.sqrt
 
 /** Quest-style hand gestures from MediaPipe landmarks, and a filter that keeps tracking calm. */
 object HandGestures {
-    /** Small ease-increase for the click threshold; the fist guard and gesture model are unchanged. */
-    const val PINCH_CLOSE_GAP = .32f
-    const val PINCH_OPEN_GAP = .50f
+    /** PhoneXR reference hysteresis for a deliberate pinch click. */
+    const val PINCH_CLOSE_GAP = .30f
+    const val PINCH_OPEN_GAP = .48f
 
     data class Shape(
         /** Thumb and index tips together: click. */

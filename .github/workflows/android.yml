@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "main" ]
+    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
