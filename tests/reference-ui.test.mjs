@@ -75,17 +75,34 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
         handTargets(json){window.__handTargets=JSON.parse(json);}, handVisuals(){},
-        touch(id,action,x,y){ window.__touches.push({id,action,x,y}); }
+        handTouch(id,action,x,y){
+          window.__touches.push({id,action,x,y});
+          if(id!=='shell')return;
+          const target=document.elementFromPoint(x,y);
+          if(action===0){window.__shellArmed=target;target?.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));}
+          else if(action===2)target?.dispatchEvent(new PointerEvent('pointermove',{bubbles:true}));
+          else if(action===1){target?.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));if(target&&target===window.__shellArmed)target.click();window.__shellArmed=null;}
+          else if(action===3){window.__shellArmed?.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true}));window.__shellArmed=null;}
+        }
       };
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForFunction(()=>window.__last?.panels.length>=3);
     assert.deepEqual(errors,[]);
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
+    const hand = (gap,extra={}) => {
+      const points=Array.from({length:21},()=>({x:.5,y:.5}));
+      points[0]={x:.5,y:.75}; points[9]={x:.5,y:.5};
+      points[4]={x:.5-gap/2,y:.5}; points[8]={x:.5+gap/2,y:.5};
+      return {hands:[{id:'right',left:false,points:points.flatMap(p=>[p.x,p.y,0]),head:null,
+        base:[0,-.2],aim:[0,0],palm:[.5,.5],grab:[.5,.5],palmWidth:.2,pinching:gap<.1,
+        fist:false,palmFacesEyes:false,...extra}]};
+    };
+    const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
     const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
     assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
     assert.equal(await page.locator('.win-title').innerText(),'Next VR');
-    // Real gaze selection, with no hands and no mouse/DOM click: setup must not be blocked by tracking.
+    // Pose/gaze alone and the removed viewer callback cannot select setup; PhoneXR pinch can.
     await page.evaluate(()=>{window.nextvrResume();window.nextvrHands({hands:[]});});
     const language=await page.evaluate(()=>{
       const shell=document.querySelector('.win-shell'),button=shell.querySelector('[data-lang="en"]');
@@ -103,8 +120,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
     const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
-    await page.waitForFunction(()=>document.querySelector('.lang-option.gaze-hover')?.dataset.lang==='en');
+    await page.waitForTimeout(1400);
+    assert.equal(await page.locator('.lang-option').count(),3,'looking at setup never selects it');
+    assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
+    await feed(hand(.04));await page.waitForTimeout(250);await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
+    await page.evaluate(()=>clearInterval(window.__feed));
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
@@ -142,23 +163,22 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     for(let i=0;i<before.length;i++) for(let k=0;k<16;k++) assert.ok(Math.abs(before[i][k]-after[i][k])<.001,'Head movement must not move world-anchored surfaces');
     const dock=after[0];
     assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.45)<.001,'Close landscape dock position');
-    // A button press aimed at the window centre must be routed as a native browser MotionEvent.
+    // Only a PhoneXR pinch aimed at the window centre reaches the native browser surface.
     const browserPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='browser'));
     const target=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(browserPanel.matrix));
     const view=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),target,new THREE.Vector3(0,1,0)).invert();
-    await page.evaluate(p=>{window.nextvrPose(p);window.nextvrTrigger(true);window.nextvrTrigger(false);},view.toArray());
+    await page.evaluate(p=>{window.nextvrPose(p);window.__touches=[];},view.toArray());
+    await page.waitForTimeout(250);
+    assert.deepEqual(await page.evaluate(()=>window.__touches),[],'head pose alone produces no input');
+    await feed(hand(.04));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
+    await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===1),null,{timeout:12000});
     const touches=await page.evaluate(()=>window.__touches);
-    assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'Gaze/button down reaches browser texture');
-    assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'Gaze/button up reaches browser texture');
+    assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'hand pinch down reaches browser texture');
+    assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'hand pinch up reaches browser texture');
     // Native PhoneXR decisions drive spatial interaction; no JS landmark/gesture heuristic.
-    const hand = gap => {
-      const points=Array.from({length:21},()=>({x:.5,y:.5}));
-      points[0]={x:.5,y:.75}; points[9]={x:.5,y:.5};
-      points[4]={x:.5-gap/2,y:.5}; points[8]={x:.5+gap/2,y:.5};
-      return {hands:[{id:'right',left:false,points:points.flatMap(p=>[p.x,p.y,0]),head:null,base:[0,-.2],aim:[0,0],palm:[.5,.5],palmWidth:.2,pinching:gap<.1,fist:false,palmFacesEyes:false}]};
-    };
     await page.evaluate(()=>{window.__touches=[];window.nextvrResume();});
-    const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
     await feed(hand(.04));
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down&&t.end?.length===3));
@@ -182,38 +202,67 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!window.__last.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('.win-shell').count(),2);
     await settle();
-    const libraryMatrix=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix);
-    const handle=new THREE.Vector3(0,-364/980,0).applyMatrix4(new THREE.Matrix4().fromArray(libraryMatrix));
+    const libraryPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library'));
+    const libraryMatrix=libraryPanel.matrix;
+    const handle=new THREE.Vector3(0,-364/libraryPanel.rect[3],0).applyMatrix4(new THREE.Matrix4().fromArray(libraryMatrix));
     const handleView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),handle,new THREE.Vector3(0,1,0)).invert();
-    await page.evaluate(p=>{window.nextvrPose(p);window.nextvrTrigger(true);},handleView.toArray());
+    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);},handleView.toArray());
+    await feed(hand(.04));await page.waitForTimeout(300);
+    assert.equal(await page.locator('.win-shell.moving').count(),0,'a stationary pinch is selection, not drag');
+    assert.equal(await page.locator('.win-shell.free').count(),0,'a stationary pinch keeps the window pinned');
+    await feed(hand(.04,{aim:[.12,.08]}));
     await page.waitForFunction(()=>!!document.querySelector('.win-shell.moving'));
-    const shifted=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),handle.clone().add(new THREE.Vector3(.3,.2,0)),new THREE.Vector3(0,1,0)).invert();
-    await page.evaluate(p=>window.nextvrPose(p),shifted.toArray()); await page.waitForTimeout(150);
-    await page.evaluate(()=>window.nextvrTrigger(false));
-    assert.equal(await page.locator('.win-shell.free').count(),1,'White handle detaches the window from the dock arc');
+    await feed(hand(.4,{aim:[.12,.08]}));
+    await page.waitForFunction(()=>!document.querySelector('.win-shell.moving'));
+    assert.equal(await page.locator('.win-shell.free').count(),1,'White handle detaches the window only after deliberate hand movement');
     assert.equal(await page.locator('.win-shell.moving').count(),0);
     await page.locator('.win-shell.free [data-act="pin"]').click();
     assert.equal(await page.locator('.win-shell.free').count(),0,'Repin restores the dock/window relationship');
     await settle();
     // PhoneXR's fist grabs the whole window, not the old pinch handle. It must not click the page.
-    const lib=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix);
+    const lib=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library').matrix);
     const libCentre=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(lib));
     const fistView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),libCentre,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},fistView.toArray());
-    const fist=hand(.4);fist.hands[0].fist=true;
-    await feed(fist);
-    await page.waitForFunction(()=>!!document.querySelector('.win-shell.moving'));
+    const fist=hand(.4,{fist:true});
+    await feed(fist);await page.waitForTimeout(300);
+    assert.equal(await page.locator('.win-shell.moving').count(),0,'closing a fist without moving does not drag');
     assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden));
-    fist.hands[0].palm=[.62,.45];
+    fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
     await feed(fist);
     await page.waitForFunction(original=>{
-      const current=window.__last.panels.filter(p=>!p.overlay&&!p.browser)[1].matrix;
+      const current=window.__last.panels.find(p=>p.id==='library').matrix;
       return Math.abs(current[12]-original[12])>.03;
     },lib);
+    fist.hands[0].palm=fist.hands[0].grab=[.62,.99];
+    await feed(fist);await page.waitForTimeout(500);
     await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.win-shell.moving'));
     assert.equal(await page.locator('.win-shell.free').count(),1,'Opening the fist releases the detached window');
+    const bounded=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library').matrix);
+    assert.ok(bounded[13]>=1.10,'window bottom is kept above the lower usable boundary');
+    const boundedRadius=Math.hypot(bounded[12],bounded[14]);
+    assert.ok(boundedRadius>=.37&&boundedRadius<=1.61,'window remains inside radial limits');
+
+    // Every existing window has a distinct hand resize target. It preserves aspect/content and centre.
+    await page.locator('.win-shell.free [data-act="pin"]').click();await settle();
+    const resizePanel=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library'));
+    const resizePoint=new THREE.Vector3((1040/2-48)/resizePanel.rect[2],-(660/2-48)/resizePanel.rect[3],0)
+      .applyMatrix4(new THREE.Matrix4().fromArray(resizePanel.matrix));
+    const resizeView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),resizePoint,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>window.nextvrPose(p),resizeView.toArray());
+    await feed(hand(.04));await page.waitForTimeout(250);
+    assert.equal(await page.locator('.win-shell.resizing').count(),0,'pinch without motion does not resize');
+    await feed(hand(.04,{aim:[.18,-.12]}));
+    await page.waitForFunction(()=>Number(document.querySelector('[data-window-id="library"]').dataset.resizeScale)>1.02);
+    assert.equal(await page.locator('.win-shell.resizing').count(),1);
+    await feed(hand(.4,{aim:[.18,-.12]}));
+    await page.waitForFunction(()=>!document.querySelector('.win-shell.resizing'));
+    const resized=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library').matrix);
+    for(const i of [12,13,14])assert.ok(Math.abs(resized[i]-resizePanel.matrix[i])<.006,'resize keeps window centre stable');
+    assert.ok(Math.hypot(resized[0],resized[1],resized[2])>Math.hypot(resizePanel.matrix[0],resizePanel.matrix[1],resizePanel.matrix[2])*1.02);
+    assert.equal(await page.locator('[data-window-id="library"] .win-body').evaluate(e=>[e.parentElement.offsetWidth,e.parentElement.offsetHeight].join('x')),'1040x660','content keeps its reference aspect without clipping');
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrSuspend();});
 
     await settle();
@@ -234,8 +283,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
-    // Dock summon via palm pinch removed; pinch is now a normal cursor gesture and may
-    // produce a browser touch depending on gaze/hand alignment — no suppression required.
+    // Dock summon via palm pinch was removed; the pinch remains a normal hand-ray gesture.
     await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
     assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0);

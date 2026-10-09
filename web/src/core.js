@@ -16,7 +16,7 @@ const DEF = {
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
-if(native){S=migrateComfort(S);try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
+if(native){S=migrateComfort(S);S.handsOn=true;try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
 export const settings = S;
 export const save = () => { try { localStorage.setItem('nextvr.v1', JSON.stringify(S)); } catch {} };
 
@@ -34,6 +34,7 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     notif:'Notificações', noNotif:'Sem notificações novas', profile:'Perfil',
+    repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
   },
   en: {
     desktop:'Desktop', browser:'Browser', youtube:'YouTube', gallery:'Gallery',
@@ -47,6 +48,7 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     notif:'Notifications', noNotif:'No new notifications', profile:'Profile',
+    repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
   },
   es: {
     desktop:'Escritorio', browser:'Navegador', youtube:'YouTube', gallery:'Galería',
@@ -60,6 +62,7 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     notif:'Notificaciones', noNotif:'Sin notificaciones nuevas', profile:'Perfil',
+    repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
   },
 };
 export const t = k => (STR[S.lang] || STR.pt)[k] || k;

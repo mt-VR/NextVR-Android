@@ -1,7 +1,8 @@
 # Reference integration and verification
 
-> **1.0.2 supersedes the older distance and recovery-cadence figures below.** See
-> [close-layout/palm-menu update](CLOSE-LAYOUT-AND-PALM-MENU.md), including the pending logo file.
+> The current UI/input behavior is documented in
+> [UI interaction revision](UI-INTERACTION-REVISION.md). It supersedes the older gaze/touch,
+> placement and pending-artwork notes in historical documents.
 
 ## Source of truth
 
@@ -9,24 +10,24 @@ Inspected before implementation:
 
 1. This repository's existing Java activity, C++ renderer, Cardboard SDK, JNI, resources,
    build configuration and CI.
-2. **This repository's `references.zip`**, not the `reference.zip` in the other repository.
-   SHA-256: `aabc3bd5391186a25e7f9111a0e2c1c4dc24e0b2b82f45dd6a4fc910cd4787e1`.
-   It contains the complete web prototype (`index.html`, `core.js`, `windows.js`, `hands.js`,
-   `apps.js`), two standalone store/library HTML examples, `WebUiContent.kt`, and installation notes.
-3. The archive's PhoneXR integration example. It describes HTML in a private virtual display,
-   with JavaScript/native messaging and existing spatial window chrome. It is **not a complete
-   Android port**: its own notes identify an intentionally non-compiling `item as Nothing` and
-   unavailable `GameStore` types. Those placeholders were not copied into the app.
+2. **`new_references.zip` is the primary and newest visual source.**
+   SHA-256: `268ee731352e5385e1b9ea111dac7f0fe6611627959459f3dd110412b73cf42d`.
+   Its self-contained `index.html` supplies the current `N` artwork, settings/crosshair/move/close,
+   status and media vectors, glass palette and current component treatment. Those paths are
+   extracted into `web/assets/nextvr-n.svg` and `web/src/reference-icons.js` without network loads.
+3. `references.zip` (SHA-256 `aabc3bd5391186a25e7f9111a0e2c1c4dc24e0b2b82f45dd6a4fc910cd4787e1`)
+   remains a **legacy structural reference** for floating windows, the dock arc, store/library and
+   keyboard components absent from the new archive. It never overrides a differing new asset.
+   Its incomplete Android placeholders (`item as Nothing`, unavailable `GameStore`) are not used.
 4. `mt-VR/NextVR` at `b878d8b9ba9fe6b408e22bb3c48086494efbbbe6`, particularly
    `ComposeContent.kt`, `VrWindows.kt` (`BrowserContent`), `VrHomeActivity.kt` (camera,
    MediaPipe, OES shaders), `HandGestures.kt`, `HandTrackingService.kt`, `CardboardCameraView.kt`,
    `CinemaHands.kt`, `CinemaRenderer.kt`, and `VirtualScreen.kt`.
 
-The archive in **NextVR-Android** defines the spatial UI, not the hands. After the first APK,
-the user explicitly corrected the hand-source interpretation: **the complete hand pipeline must
-come from the linked PhoneXR-derived fork**. The archive's detector, skeleton, filters, midpoint
-pointer and pinch-confirmation code have therefore been removed. No UI theme or 6 DoF system
-from the linked repository replaces the archive's workspace.
+The archives define visual/structural UI, not the runtime hands. **The complete hand pipeline comes
+from the linked PhoneXR-derived fork.** Archive detector, skeleton, gaze/dwell, midpoint pointer
+and pinch-confirmation code are removed. PhoneXR is now also the sole source allowed to activate
+VR controls; Cardboard pose still orients the view but is never interpreted as selection.
 
 ## Architecture
 
@@ -58,19 +59,21 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
 
 ### Preserved spatial behavior
 
-- Original dock DOM, CSS, SVG icons, spacing, active dots and press/hover transitions.
+- Reference dock DOM, glass CSS, current `new_references.zip` SVG controls, spacing, active dots
+  and press/hover transitions.
 - Dock order: profile, status, notifications, keyboard, recenter, separator, browser, store,
   Discord, gallery, separator, settings, YouTube, nine-dot library.
 - `EYE = 1.55 m`, `PX = 0.00105 m/px`.
-- Landscape dock: `(0, 1.05, -1.42)`, x tilt `0.26 rad`, scale `PX × 0.74`.
-- Default windows: `1040 × 660 px`, curved arc above/behind the dock; original row spacing,
-  center-facing orientation and exponential position interpolation.
-- White external handle, detach/drag/release, repin, close, focus outlines, relayout, keyboard,
-  language window, browser chrome, store, library, gallery and settings.
+- Native dock: `(0, 1.33, -0.45)`, x tilt `0.26 rad`, scale `PX × 0.90` after migration.
+- Default windows: `1040 × 660 px`, centred at eye height on a 0.68 m curved arc; second-row
+  placement, centre-facing orientation and exponential position interpolation remain available.
+- White external handle, deliberate detach/drag/release, proportional corner resize, repin, close,
+  focus outlines, relayout, keyboard, language window, browser chrome, store, library, gallery and
+  settings. Detached windows are clamped to the usable front arc with their full resized height.
 - Recenter rotates the content root, not Cardboard's sensor reference. Opening an app never
   recenters. No native positions from `CardboardHeadTracker_getPose` are applied.
-- Prototype window-distance setting is connected to layout (the supplied code stored it without
-  applying it). Its default layout remains unchanged.
+- The window-distance setting is connected to layout. Existing installations migrate once to the
+  close-layout defaults; later user adjustments are retained.
 
 ### Necessary Android adaptations
 
@@ -96,9 +99,12 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
   click sound are bundled; network access is not required to boot the workspace or track hands.
 - Browser pages use independent WebViews, **not iframes with a privileged native bridge**.
   Their content is placed within the reference window's body and clipped to its scroll viewport.
-- Native DOWN/MOVE/UP/CANCEL delivery enables actual page clicks, scrolling, range inputs and the
-  Android photo picker. Browser text input is delivered through `InputConnection` from the
-  reference floating keyboard. Video fullscreen stays inside its spatial surface.
+- `GLSurfaceView` has no touch listener, the JS `nextvrTrigger` callback and JNI/Cardboard trigger
+  path are absent, and no gaze/dwell selector exists. Only PhoneXR calls the privileged
+  `handTouch` bridge. Its synthetic DOWN/MOVE/UP/CANCEL delivery enables page clicks, scrolling,
+  range inputs and the Android photo picker; physical phone touches are never forwarded there.
+  Browser text input is delivered through `InputConnection` from the hand-operated floating
+  keyboard. Video fullscreen stays inside its spatial surface.
 - External pages cannot access `NativeXR`. The shell blocks remote scripts/frames with CSP;
   file access, mixed content and unsolicited website camera/microphone permissions are disabled.
 - Gallery selection uses Android's document picker, without broad storage permission.
@@ -123,13 +129,18 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   outlines, the white drop/stick, fading pressed beam and hollow inverted target ring. A packed
   depth/stencil framebuffer prevents repeated alpha blending inside a silhouette. No blue web
   skeleton or archive pinch ring remains. The hand-visibility option affects silhouettes only.
-- A fist closing over a window (plus the outside margin) grabs it. Palm motion changes its yaw
-  and height; opening/disappearing releases it. Native `.6/1` One Euro grab filtering and white
-  edge-hover feedback follow the fork. The archive's white lower handle also remains usable.
+- A fist closing over a window arms grab; it does not detach until filtered palm motion crosses an
+  18 px logical threshold. Fist and white-handle drags share a fixed world plane, preserve the
+  initial hand/window offset, reject subcentimeter jitter, cap one-frame jumps and enforce radial,
+  yaw and full-window vertical bounds. Opening/disappearing releases without generating a click.
+- Pinching the distinct corner target arms proportional resize after a separate threshold. Per-window
+  scale is clamped to 0.72–1.40 and further limited by available vertical space, so the centre stays
+  stable and the fixed-aspect HTML/browser content is neither clipped nor distorted.
 - Metric index-tip NEAR interaction uses the fork's .7 m arm reach, .15/.20 m proximity
   hysteresis, .012/.035 m touch hysteresis, margins, and .45 smoothing; FAR pointing is suppressed
-  during a contact. The archive's default windows remain farther away and use FAR pointing.
-  Hand-local metric geometry does not move/track the head or establish a room origin.
+  during a contact. A surface uses NEAR only when the metric fingertip actually reaches it;
+  otherwise the same hand keeps FAR pointing. Hand-local metric geometry does not move/track the
+  head or establish a room origin.
 - Native targets come from the real reference dock/window/keyboard meshes and are transformed
   back to head space for the PhoneXR rings. Browser holds deliver native MOVE events.
 - Result freshness is measured from inference **completion**, not the camera capture timestamp.
@@ -149,20 +160,16 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   held pointer ownership, matching dock/keyboard releases and lifecycle resets are preserved.
 - Upstream `palmButtons()` and `drawPalmButtons()` have definitions but no active call sites at
   this pinned revision. They are not turned into invented menus/actions in this integration.
-- Cardboard viewer-button / screen-tap fallback uses the same spatial hit-testing at gaze centre.
+- Cardboard orientation remains a rendering input only. Viewer-button and phone-screen events have
+  no route into hit-testing, highlights, clicks, drag, resize or first-run selection.
 
 ### Accessible first-run selection
 
-The archive's language window remains a spatial HTML surface, but first-run placement is now
-fixed at eye height, 1.05 m ahead, independently of saved workspace distance/scale. Its 880×600
-surface at scale 1.15 spans approximately 54 degrees horizontally, with 180 px tall language
-buttons and unclipped instructions. It does not animate in from the distant dock or allow dragging
-away before setup. Normal dock/workspace placement remains unchanged.
-
-A visible centre reticle and 1.2-second continuous gaze dwell can select a language **without
-hands or a mouse**. It uses the same world ray/window mesh/atlas coordinates as hand input.
-Changing target, looking away, suspension or a stalled frame loop resets dwell; it fires once.
-The viewer-button/tap path remains available. The window reports actual detected-hand counts.
+The language window is fixed at eye height, 0.42 m ahead, independently of saved workspace
+settings. Its 880×600 surface has 180 px language targets and does not permit move/resize/close
+before setup. Looking at it for any duration does nothing. The window reports actual detected-hand
+counts and explicitly instructs the user to point and pinch; only a PhoneXR hand can finish setup.
+The camera remains active for that hand tracking even though touchscreen event forwarding is off.
 
 ### Audio
 
@@ -198,14 +205,16 @@ real world while wearing the viewer.**
 
 Automated tests (`npm test`) run the actual bundled reference UI in headless Chromium and check:
 
-- real pose-driven gaze language selection with no hand input, near eye-level setup geometry,
-  enlarged hit targets, exact dock order, store/library contents;
+- gaze/head pose held on first run does not select; PhoneXR pinch does, with near eye-level setup
+  geometry, enlarged hit targets, exact dock order and store/library contents;
+- static absence of touchscreen/viewer/JNI trigger paths and presence of only the `handTouch` bridge;
 - opening/closing multiple windows and native browser lifecycle specifications;
-- reference dock position, world anchoring during head rotation;
-- native browser DOWN/UP ray routing;
-- native PhoneXR processed hand → immediate pinch → browser press/release;
-- loss-of-tracking CANCEL without a spurious click;
-- PhoneXR fist grabbing/release without clicking, hidden grabbed-hand ray, plus white-handle drag/detach and repin;
+- reference dock position and world anchoring during head rotation;
+- native browser DOWN/UP routing from PhoneXR, plus loss-of-tracking CANCEL without a click;
+- fist and white-handle thresholds, no movement on selection tremor, bounded low/radial placement,
+  stable proportional corner resize, repin and isolation from other window/atlas state;
+- strict UTF-8 decoding, boundary declarations and a repository-wide mojibake regression scan;
+- SHA-256/provenance and exact vector-path checks against `new_references.zip`;
 - atlas capacity, stable slots and no overlap;
 - native stride-aware YUV conversion using padded/interleaved test planes and labelled colors;
 - camera/hand/compositor shader grammar and linking, plus labelled bitmap corner rendering through
@@ -232,13 +241,15 @@ Use the following acceptance checklist before describing this as a device-verifi
 3. Check rear-camera orientation, crop, mirroredness and landmark alignment in both landscape
    orientations/sensor-mount configurations. Inspect both eyes, not just a screenshot.
 4. Verify correct head rotation, stable world windows, recenter and **no positional motion**.
-5. Compare dock, typography, proportions, spacing, shadows, focus, open animations, window arc,
-   drag, repin, keyboard and six-window limit against the supplied prototype.
-6. PhoneXR silhouettes and both rays, fist grab/edge highlight, near/far movement, pinch hold/release, hand loss, hand switching, browser
-   scrolling, sliders and entering text using the floating keyboard.
-7. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,
+5. Confirm a long gaze, viewer-button press and touchscreen tap never activate/highlight the VR UI,
+   while the rear camera continues tracking hands.
+6. Compare dock, typography, restored icons, proportions, spacing, shadows, focus, window arc,
+   thresholded drag, placement bounds, proportional resize, repin, keyboard and six-window limit.
+7. Verify PhoneXR silhouettes and both rays, fist grab/edge highlight, near/far movement, pinch
+   hold/release, hand loss/switching, browser scrolling, sliders and floating-keyboard input.
+8. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,
    Bluetooth/headphones, audio-focus loss, background/foreground and screen lock.
-8. Photo picker and return to VR; browser download confirmation; offline/error paths.
-9. Pause/resume repeatedly and force EGL/WebView context loss; inspect logcat for camera, surface,
-   MediaPipe and GL errors. Verify no stale textures, camera leak or continuing background audio.
-10. Profile 10+ minutes on target phones for GPU memory, frame time, UI/camera latency and heat.
+9. Photo picker and return to VR; browser download confirmation; offline/error paths.
+10. Pause/resume repeatedly and force EGL/WebView context loss; inspect logcat for camera, surface,
+    MediaPipe and GL errors. Verify no stale textures, camera leak or continuing background audio.
+11. Profile 10+ minutes on target phones for GPU memory, frame time, UI/camera latency and heat.

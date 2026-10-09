@@ -55,7 +55,6 @@ void NextVrApp::OnResume() {
   CardboardHeadTracker_resume(head_tracker_); device_params_changed_ = true;
 }
 void NextVrApp::SwitchViewer() { CardboardQrCode_scanQrCodeAndSaveDeviceParams(); }
-void NextVrApp::OnTriggerEvent() {} // Input goes to the same spatial ray as pinch input in Java/HTML.
 void NextVrApp::OnDrawFrame() {
   if (screen_width_ <= 0 || screen_height_ <= 0 || !UpdateDeviceParams()) return;
   JNIEnv* env = nullptr;

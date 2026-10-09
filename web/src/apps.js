@@ -1,11 +1,11 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, onFrame } from './core.js';
-import { startHands, stopHands, tracking, cursor } from './hands.js';
-import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, gazeElement } from './windows.js';
-
-import { DwellSelection } from './dwell.js';
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native } from './core.js';
+import { startHands, stopHands, tracking } from './hands.js';
+import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus } from './windows.js';
+import { icon } from './reference-icons.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
 const openOut = url => { if (native) return webWindow('browser-extra', t('browser'), url); try { window.open(url, '_blank', 'noopener'); } catch { toast('Bloqueado pelo navegador'); } };
 
 /* ============ janela com página externa (Google, Discord) ============ */
@@ -21,8 +21,8 @@ function webWindow(id, title, url, note) {
 
   const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
   const fld = el('input', 'fld'); fld.value = url; fld.placeholder = t('search');
-  const go = el('button', 'go', '↵');
-  const out = el('button', 'go', '↗'); out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
+  const go = el('button', 'go', icon('enter')); go.setAttribute('aria-label', t('open')); go.title=t('open');
+  const out = el('button', 'go', icon('external')); out.setAttribute('aria-label', t('open')); out.title=t('open'); out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
   bar.append(fld, go, out);
 
   const warn = el('div', 'warn', note || '');
@@ -44,7 +44,7 @@ function webWindow(id, title, url, note) {
     frame.src = u;
     warn.style.display = 'block';
     warn.innerHTML = `Se a área ficar branca, <b>o site recusou abrir em iframe</b> (Google, YouTube e Discord fazem isso).
-      No app Android isso funciona, porque lá é WebView. Aqui, use ↗ para abrir fora.`;
+      No app Android isso funciona, porque lá é WebView. Aqui, use o botão Abrir fora.`;
   };
   go.onclick = () => nav(fld.value);
   fld.addEventListener('keydown', e => { if (e.key === 'Enter') nav(fld.value); });
@@ -145,22 +145,14 @@ async function ytTrending() {
   return ytSearch('em alta brasil');
 }
 
-/* ---------- player com som: API oficial + destrave por toque real ---------- */
+/* ---------- player com som: acionado somente pelo controle selecionado com a mão ---------- */
 let ytPlayer = null, ytApiPromise = null;
 
-/**
- * O navegador só libera áudio depois de uma interação REAL do usuário. Como o
- * pinch é sintetizado, ele não conta. Então usamos a API do IFrame para forçar
- * `unMute()` e refazemos isso a cada toque real na tela.
- */
 function ytUnmute() {
   try {
     if (ytPlayer && ytPlayer.unMute) { ytPlayer.unMute(); ytPlayer.setVolume && ytPlayer.setVolume(100); }
   } catch {}
 }
-['pointerdown', 'touchstart', 'keydown'].forEach(ev =>
-  addEventListener(ev, () => setTimeout(ytUnmute, 0), { capture: true })
-);
 
 function loadYtApi() {
   if (ytApiPromise) return ytApiPromise;
@@ -184,10 +176,10 @@ function ytDestroy() {
 function youtube() {
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f12';
   const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
-  const back = el('button', 'go', '←'); back.style.display = 'none';
+  const back = el('button', 'go', icon('back')); back.setAttribute('aria-label','Voltar'); back.title='Voltar'; back.style.display = 'none';
   const fld = el('input', 'fld'); fld.placeholder = 'Pesquisar no YouTube ou colar link';
-  const go = el('button', 'go', '🔎');
-  const out = el('button', 'go', '↗'); out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
+  const go = el('button', 'go', icon('search')); go.setAttribute('aria-label',t('searchYt')); go.title=t('searchYt');
+  const out = el('button', 'go', icon('external')); out.setAttribute('aria-label','Abrir fora'); out.title='Abrir fora'; out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
   bar.append(back, fld, go, out);
 
   const chips = el('div', 'yt-chips');
@@ -218,10 +210,10 @@ function youtube() {
   }
   function showError(q) {
     back.style.display = 'none'; chips.style.display = '';
-    scroll.innerHTML = `<div class="yt-err"><div style="font-size:46px">📡</div>`
+    scroll.innerHTML = `<div class="yt-err"><div style="display:grid;place-items:center;font-size:46px">${icon('wifi')}</div>`
       + `<div class="yt-err-t">Sem conexão com a busca</div>`
       + `<div class="yt-err-s">Verifique a internet e tente de novo. Dá para colar um link direto também.</div>`
-      + `<button class="yt-btn" data-retry>↻ TENTAR DE NOVO</button></div>`;
+      + `<button class="yt-btn" data-retry>${iconText('refresh','TENTAR DE NOVO')}</button></div>`;
     scroll.querySelector('[data-retry]').onclick = () => (q ? doSearch(q) : doHome());
   }
   async function doSearch(q) {
@@ -254,12 +246,11 @@ function youtube() {
           <div class="yt-ptitle">${escH(v.title)}</div>
           ${v.chan ? `<div class="yt-pchan">${escH(v.chan)}${v.views ? ' · ' + escH(v.views) : ''}</div>` : ''}
           <div class="yt-prow">
-            <button class="yt-btn" data-back>← VOLTAR</button>
-            <button class="yt-btn" data-snd>🔊 ATIVAR SOM</button>
-            <button class="yt-btn" data-out>ABRIR ↗</button>
+            <button class="yt-btn" data-back>${iconText('back','VOLTAR')}</button>
+            <button class="yt-btn" data-snd>${iconText('volume','ATIVAR SOM')}</button>
+            <button class="yt-btn" data-out>${iconText('external','ABRIR')}</button>
           </div>
-          <p class="yt-pchan" style="margin-top:10px">Sem som? Dê um toque na tela do celular uma vez —
-          o navegador só libera áudio depois de um toque real.</p>
+          <p class="yt-pchan" style="margin-top:10px">Use o controle de som com a mão e ajuste o volume pelas teclas do Android.</p>
         </div></div>`;
 
     const holder = scroll.querySelector('.yt-holder');
@@ -406,10 +397,10 @@ function settingsApp() {
     [t('hands'), () => {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
       const c = el('div', 'card');
-      c.append(row(t('on'), 'Rastrear as mãos', toggle('handsOn', v => v ? startHands() : stopHands())));
+      c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
       c.append(row(t('sens'), 'PhoneXR: native landmark and pointer filters', el('span', 'note', 'OrangeHanding / One Euro')));
       c.append(row('Desenhar mãos', 'PhoneXR silhouettes over windows', toggle('handDraw')));
-      c.append(row('Pinch', 'PhoneXR: fist guard + palm-width hysteresis', el('span', 'note', '0.32 / 0.50')));
+      c.append(row('Pinch', 'PhoneXR: fist guard + palm-width hysteresis', el('span', 'note', '0.30 / 0.48')));
       page.append(c);
     }],
     [t('windows'), () => {
@@ -573,15 +564,15 @@ function gameCard(g) {
   return `<article class="st-card" data-card="${g.id}">${coverArt(g)}
     <div class="st-name">${g.name}</div><div class="st-meta">${g.cat}</div>
     <div class="st-sub">${done ? 'Na biblioteca de apps' : 'Toque para ver e baixar'}</div>
-    <div class="st-row" style="justify-content:flex-end"><button class="st-heart${fav ? ' on' : ''}" data-fav="${g.id}" aria-label="Favorito">♡</button></div>
+    <div class="st-row" style="justify-content:flex-end"><button class="st-heart${fav ? ' on' : ''}" data-fav="${g.id}" aria-label="Favorito">${icon('heart')}</button></div>
     <div class="st-row">${btns}</div></article>`;
 }
 
 function buildStore() {
   const root = el('div', 'st');
   const tabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}">${n}</button>`).join('');
-  let html = `<div class="st-top"><span class="st-logo">∞</span><div class="st-tabs">${tabs}</div>`
-    + `<button class="st-ava" data-ava>🙂</button><button class="st-x" data-x>✕</button></div>`;
+  let html = `<div class="st-top"><img class="st-logo-img" src="./icons/nextvr-n.svg" alt="NextVR"><div class="st-tabs">${tabs}</div>`
+    + `<button class="st-ava" data-ava aria-label="Perfil">${icon('user')}</button><button class="st-x" data-x aria-label="Fechar">${icon('x')}</button></div>`;
 
   if (storeTab === 'apps') {
     html += `<p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.</p>
@@ -592,7 +583,7 @@ function buildStore() {
     const list = GAMES.filter(g => favs.includes(g.id));
     html += list.length
       ? `<div class="st-sec"><h3>Lista de desejos</h3></div><div class="st-cards">${list.map(gameCard).join('')}</div>`
-      : `<p class="st-note">Toque no ♡ de um jogo para salvar aqui.</p>`;
+      : `<p class="st-note">Selecione o ícone de favorito de um jogo para salvá-lo aqui.</p>`;
   } else {
     const rank = GAMES.map((g, i) => `<button class="st-ri" data-rank="${g.id}">${thumbArt(g)}
       <span><span class="st-rk">${i + 1}. ${g.name}</span><div class="st-cat">${g.cat}</div>
@@ -656,7 +647,7 @@ function startDownload(id) {
     clearInterval(timer); delete downloading[id];
     if (!installed.includes(id)) installed.push(id);
     touchLib(id, true); persistShop(); paintStore(); paintLibrary();
-    toast(g.name + ' foi para a biblioteca de apps ✓');
+    toast(g.name + ' foi para a biblioteca de apps com sucesso');
   }, 170);
 }
 function removeGame(id) {
@@ -702,21 +693,21 @@ function buildLibrary() {
   const root = el('div', 'lib');
   const fLabel = libFilter === 'games' ? 'Jogos' : libFilter === 'apps' ? 'Apps' : 'Todas';
   root.innerHTML = `<div class="lib-head"><h2 class="lib-title">Apps</h2>
-      <button class="lib-sbtn" data-s>🔍︎</button>
+      <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
       <input class="lib-search" data-q placeholder="Buscar" value="${libQuery.replace(/"/g, '&quot;')}">
       <span style="flex:1"></span>
-      <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ▾</button>
-      <button class="lib-pill" data-filter>${fLabel} (${list.length}) ▾</button></div>
+      <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ${icon('chevronDown')}</button>
+      <button class="lib-pill" data-filter>${fLabel} (${list.length}) ${icon('chevronDown')}</button></div>
     <div class="lib-scroll"><div class="lib-grid">${
       list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
     }</div>
     ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na loja.' : 'Nenhum app encontrado.'}</div>`}
-    <p class="lib-note">Tocar abre o app dentro de uma janela do NextVR. Sites que bloqueiam
-    incorporação mostram o aviso e o botão ↗ para abrir fora. Os 4 jogos VR são demonstração:
+    <p class="lib-note">Selecionar abre o app dentro de uma janela do NextVR. Sites que bloqueiam
+    incorporação mostram o aviso e o botão Abrir fora. Os 4 jogos VR são demonstração:
     eles abrem no APK Android.</p></div>
-    <div class="lib-bottom"><button data-x aria-label="Fechar">✕</button>
-      <button data-top aria-label="Topo">–</button><span>Apps</span>
-      <button data-az aria-label="Ordenar">•••</button></div>`;
+    <div class="lib-bottom"><button data-x aria-label="Fechar">${icon('x')}</button>
+      <button data-top aria-label="Topo">${icon('top')}</button><span>Apps</span>
+      <button data-az aria-label="Ordenar">${icon('more')}</button></div>`;
 
   const q = root.querySelector('[data-q]');
   if (libQuery || root.querySelector('[data-q]').value) q.classList.add('open');
@@ -760,18 +751,11 @@ function libraryApp() {
 }
 
 /* ============ dock (mesma ordem do print) ============ */
-const DK_SVG = (inner, fill) => `<svg viewBox="0 0 24 24" fill="${fill || 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-const DK = {
-  bell:    DK_SVG('<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/>'),
-  kb:      DK_SVG('<rect x="3" y="6.5" width="18" height="11" rx="2.6"/><path d="M7 10.4h.01M10.4 10.4h.01M13.8 10.4h.01M17.2 10.4h.01M7.6 14h8.8"/>'),
-  center:  DK_SVG('<circle cx="12" cy="12" r="3.3"/><path d="M12 3v3.6M12 17.4V21M3 12h3.6M17.4 12H21"/>'),
-  compass: DK_SVG('<circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4z" fill="currentColor" stroke="none"/>'),
-  store:   DK_SVG('<path d="M4 9.2 5.6 4h12.8L20 9.2"/><path d="M4.6 9.2V20h14.8V9.2"/><path d="M4 9.2c0 1.9 1.6 2.4 2.7 2.4s2.7-.5 2.7-2.4c0 1.9 1.2 2.4 2.6 2.4s2.7-.5 2.7-2.4c0 1.9 1.4 2.4 2.7 2.4S20 11.1 20 9.2"/><path d="M10 20v-5h4v5"/>'),
-  people:  DK_SVG('<circle cx="9" cy="9" r="3"/><path d="M3.6 19c0-3.1 2.4-5 5.4-5s5.4 1.9 5.4 5"/><circle cx="17" cy="10" r="2.4"/><path d="M16.2 14.2c2.6 0 4.4 1.6 4.4 4.3"/>'),
-  camera:  DK_SVG('<path d="M4 8.2h3.1L8.6 6h6.8l1.5 2.2H20V19H4z"/><circle cx="12" cy="13.4" r="3.4"/>'),
-  gear:    DK_SVG('<circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="12" r="7.4" stroke-width="2.7" stroke-dasharray="2.5 3.1"/><circle cx="12" cy="12" r="5.4"/>'),
-  play:    DK_SVG('<rect x="3" y="6" width="18" height="12" rx="3.6"/><path d="M10.2 9.4v5.2l4.6-2.6z" fill="currentColor" stroke="none"/>'),
-};
+const DK = Object.freeze({
+  bell:icon('notification'), kb:icon('keyboard'), center:icon('crosshair'),
+  compass:icon('compass'), store:icon('store'), people:icon('people'),
+  camera:icon('camera'), gear:icon('settings'), play:icon('play'),
+});
 
 function makeDock() {
   buildDock([
@@ -807,14 +791,14 @@ boot.hidden = true;
 
 function languageWindow() {
   const body = el('div', 'langwin');
-  body.innerHTML = `<h1>Escolha seu idioma</h1>
+  body.innerHTML = `<div class="lang-brand"><img src="./icons/nextvr-n.svg" alt="NextVR"><h1>Escolha seu idioma</h1></div>
     <p>Choose your language · Elige tu idioma</p>
     <div class="lang-options" role="list">
       <button class="lang-option" data-lang="pt"><b>🇧🇷</b><span>Português</span></button>
       <button class="lang-option" data-lang="en"><b>🇺🇸</b><span>English</span></button>
       <button class="lang-option" data-lang="es"><b>🇪🇸</b><span>Español</span></button>
     </div>
-    <div class="lang-status">Look at a language for 1.2 seconds, or press the viewer button.<br><span class="lang-tracking">Hand tracking is starting…</span></div>`;
+    <div class="lang-status">Aponte com a mão e faça uma pinça para escolher.<br><span class="lang-tracking">Iniciando o hand tracking…</span></div>`;
   body.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => finishLanguage(b.dataset.lang));
   const w = open({ id:'language', title:'Next VR', node:body, w:880, h:600, onboarding:true });
   // No language means no normal shell yet: the only close path is choosing a language.
@@ -823,29 +807,14 @@ function languageWindow() {
   return w;
 }
 
-const setupDwell=new DwellSelection();
-const gazeRing=el('div','setup-gaze');gazeRing.hidden=true;
-document.getElementById('hud').append(gazeRing);
-let setupButton=null, setupActive=true;
 on('handframe', frame=>{
   const node=langWin?.el.querySelector('.lang-tracking');
-  const text=frame.hands.length?`Hands detected: ${frame.hands.length}`:'No hand detected — gaze selection still works';
+  const text=frame.hands.length?`Mãos detectadas: ${frame.hands.length}`:'Aguardando uma mão…';
   if(node && node.textContent!==text)node.textContent=text;
-});
-onFrame((dt,now)=>{
-  if(!native || !langWin || !setupActive){gazeRing.hidden=true;return;}
-  const hit=gazeElement();
-  const button=hit?.win===langWin ? hit.element?.closest('.lang-option') : null;
-  if(setupButton!==button){setupButton?.classList.remove('gaze-hover');button?.classList.add('gaze-hover');setupButton=button;}
-  const {progress,activate}=setupDwell.update(cursor.down?null:button,now);
-  gazeRing.hidden=false;gazeRing.style.setProperty('--progress',`${progress*360}deg`);
-  gazeRing.classList.toggle('over',!!button);
-  if(activate){setupDwell.reset();button.click();}
 });
 
 async function finishLanguage(lang) {
   if(!langWin)return;
-  setupDwell.reset();gazeRing.hidden=true;
   setLang(lang);                                  // atualiza dock, menu e todas as telas
   if (langWin) { close(langWin); langWin = null; }
   document.getElementById('perm').hidden = false;
@@ -878,7 +847,7 @@ if (S.lang) {
 if (native) {
   // Native owns permission/lifecycle; a page gesture must not open another camera stream.
   document.getElementById('perm').hidden = true;
-  window.nextvrResume = () => { setupActive=true;setupDwell.reset();startGyro(); if (S.handsOn) startHands(); };
-  window.nextvrSuspend = () => { setupActive=false;setupDwell.reset();gazeRing.hidden=true;stopHands(); };
+  window.nextvrResume = () => { startGyro(); if (S.handsOn) startHands(); };
+  window.nextvrSuspend = () => { stopHands(); };
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }

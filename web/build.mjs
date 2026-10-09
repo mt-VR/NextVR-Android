@@ -1,15 +1,16 @@
 import { build } from 'esbuild';
-import { mkdir, copyFile, writeFile, readFile, access } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile } from 'node:fs/promises';
 import * as icons from 'simple-icons';
 const out = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
 await mkdir(out, { recursive: true });
 await build({ entryPoints: ['web/src/apps.js'], bundle: true, format: 'iife', target: 'chrome80', minify: true, outfile: new URL('app.js', out).pathname, legalComments: 'eof' });
 await copyFile('web/index.html', new URL('index.html', out));
-// Never silently manufacture the user's artwork. Retain the existing icon until the supplied
-// file is available and tools/prepare_branding.py has prepared both platform and hand assets.
-const customLogo=await access('artwork/finger-logo.png').then(()=>true,()=>false);
-await copyFile(customLogo?'artwork/finger-logo.png':'artwork/nextvr_ic_launcher_master.png',new URL('logo.png',out));
-await writeFile(new URL('branding.json',out),JSON.stringify({customLogo,source:customLogo?'supplied-artwork':'existing-icon-placeholder'})+'\n');
+await mkdir(new URL('icons/', out), { recursive: true });
+// O "N" é o vetor original inline da referência mais recente, extraído sem redesenho.
+await copyFile('web/assets/nextvr-n.svg', new URL('icons/nextvr-n.svg', out));
+await writeFile(new URL('branding.json',out),JSON.stringify({
+  source:'new_references.zip:index.html#nvN',format:'svg',asset:'icons/nextvr-n.svg'
+})+'\n','utf8');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';
 for (const weight of [400,500,600,700,800]) {
@@ -17,8 +18,7 @@ for (const weight of [400,500,600,700,800]) {
   await copyFile(`node_modules/@fontsource/inter/files/${name}`, new URL(`fonts/${name}`, out));
   css += `@font-face{font-family:Inter;font-style:normal;font-weight:${weight};font-display:swap;src:url('./fonts/${name}') format('woff2')}\n`;
 }
-await writeFile(new URL('fonts.css', out), css);
-await mkdir(new URL('icons/', out), { recursive: true });
+await writeFile(new URL('fonts.css', out), css, 'utf8');
 for (const [slug,color] of Object.entries({youtube:'FF0000',tiktok:'ffffff',discord:'ffffff',twitch:'ffffff',whatsapp:'ffffff',instagram:'ffffff',x:'ffffff',facebook:'ffffff',telegram:'ffffff',spotify:'1DB954'})) {
   const icon = Object.values(icons).find(i => i.slug === slug);
   if (!icon) throw new Error(`Missing bundled icon: ${slug}`);
