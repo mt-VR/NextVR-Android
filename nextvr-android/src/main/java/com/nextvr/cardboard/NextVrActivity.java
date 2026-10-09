@@ -92,8 +92,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 main.post(()->{
                     handsPending.set(false);
                     var latest=pendingHands;
-                    if(shell!=null && resumed && !closed && latest!=null) shell.evaluate(
+                    if(shell!=null && resumed && !closed && latest!=null) {
+                        shell.evaluate(
                         "window.nextvrHands&&window.nextvrHands("+latest.json()+","+(renderer==null?1:renderer.mappingX)+","+(renderer==null?1:renderer.mappingY)+")");
+                        if(!latest.getHands().isEmpty()) PerfLog.published(latest.getCompletedNs());
+                    }
                 });
             }
             @Override public void stopped() {
@@ -122,7 +125,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 });
             }
             @Override public void onSurfaceChanged(GL10 gl,int w,int h) { nativeSetScreenParams(nativeApp,w,h); }
-            @Override public void onDrawFrame(GL10 gl) { SpatialRenderer r=renderer; if(r!=null) r.update(); nativeOnDrawFrame(nativeApp); }
+            @Override public void onDrawFrame(GL10 gl) { PerfLog.renderFrame(); SpatialRenderer r=renderer; if(r!=null) r.update(); nativeOnDrawFrame(nativeApp); }
         });
         // Cardboard button and a screen tap use the same ray/pinch path. No flat screen UI replacement.
         glView.setOnTouchListener((v,event)->{

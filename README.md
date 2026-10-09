@@ -86,6 +86,12 @@ styling, menus, settings, gallery, browser chrome and animations come from
 the prototype. **All tracking, filtering, hand silhouettes and pointer gestures come from PhoneXR**,
 not the archive’s blue skeleton. Passthrough is the only environment.
 
+## Hand tracking performance
+
+Performance measurement and the hand-tracking investigation are documented in
+[`docs/hand-tracking-investigation.md`](docs/hand-tracking-investigation.md). Device measurement
+procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
+
 ## Code map
 
 | Path | Responsibility |
