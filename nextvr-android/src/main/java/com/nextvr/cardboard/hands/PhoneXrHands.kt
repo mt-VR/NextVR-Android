@@ -47,7 +47,7 @@ class PhoneXrHands {
             val byId = prev.hands.associateBy { it.left }
             val predicted = hands.map { h ->
                 val p = byId[h.left] ?: return@map h
-                Hand(h.left, lerp(p.points, h.points, t), lerp(p.head, h.head, t), h.shape,
+                Hand(h.left, lerp(p.points, h.points, t), lerpNullable(p.head, h.head, t), h.shape,
                     lerp(p.baseX, h.baseX, t), lerp(p.baseY, h.baseY, t),
                     lerp(p.aimX, h.aimX, t), lerp(p.aimY, h.aimY, t),
                     h.pinching, lerp(p.grabX, h.grabX, t), lerp(p.grabY, h.grabY, t))
@@ -60,7 +60,9 @@ class PhoneXrHands {
             for (i in a.indices) out[i] = a[i] + (b[i] - a[i]) * t
             return out
         }
-        private fun lerp(a: FloatArray?, b: FloatArray?, t: Float): FloatArray? =
+        // Named separately: FloatArray and FloatArray? erase to the same JVM type, so two lerp
+        // overloads differing only in nullability would be a platform declaration clash.
+        private fun lerpNullable(a: FloatArray?, b: FloatArray?, t: Float): FloatArray? =
             if (a == null || b == null) b else lerp(a, b, t)
         private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
         fun json(): String {
