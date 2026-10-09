@@ -2,7 +2,7 @@
 // thresholds here: OrangeHanding + PhoneXrHands + the fork's native GL renderer own those systems.
 // Dock invocation is NOT via pinch: the palm+pinch dock gesture has been removed. Other PhoneXR
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
-import { settings as S, on, emit, toast, onFrame, native, viewport } from './core.js';
+import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
@@ -25,8 +25,12 @@ export function stopHands() {
 export function screenPoint(tangent) { return { x: .5 + tangent[0] / (2*TAN_X), y: .5 - tangent[1] / (2*TAN_Y) }; }
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
+  reportHandFrame();
   scaleX=sx;scaleY=sy;lastFrame=performance.now();
-  validForMs=Math.max(500,Math.min(1500,Number(frame.validForMs)||500));
+  // Floor of 1 s: opening a floating window stalls the WebView/main thread briefly, delaying
+  // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
+  // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
+  validForMs=Math.max(1000,Math.min(1500,Number(frame.validForMs)||500));
   hands.splice(0,hands.length,...(frame.hands || []));
   emit('handframe',{...frame,hands});
   const consumed=new Set();

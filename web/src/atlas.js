@@ -5,7 +5,8 @@ export const VIEW = { width: 1200, height: 800 };
 const PAD = 160;
 
 // Stable slots: opening/closing a window never relocates another window's pixels while its
-// SurfaceTexture is in flight. The 6-window limit is explicit, not a silent atlas overflow.
+// SurfaceTexture is in flight. The atlas still reserves 6 window slots; the arc multitasking
+// layer (arc.js) is what keeps at most 3 apps open at once, well inside the atlas capacity.
 export function pack(sizes, limit = ATLAS_SIZE) {
   return sizes.map(({ width, height, kind = 'window', slot = 0 }) => {
     const w = Math.ceil(width) + PAD * 2, h = Math.ceil(height) + PAD * 2;

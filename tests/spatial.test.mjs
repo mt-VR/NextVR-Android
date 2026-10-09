@@ -34,9 +34,12 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(java.includes('uniform sampler2D uCamera'));
   const camera=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java','utf8');
   assert.ok(!camera.includes('getTransformMatrix(') && !camera.includes('new SurfaceTexture(') && camera.includes('nativeYuvToArgb'));
-  assert.equal((camera.match(/postRotate\(/g)||[]).length,1);
-  assert.ok(camera.includes('detectOwned(inferenceFrame,stamp,0)'), 'The already-upright, owned analysis frame is not rotated twice');
-  assert.ok(camera.includes('image.getTimestamp()/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
+  assert.ok(!camera.includes('postRotate('), 'Upright rotation is fused into the native YUV pass (pixel-exact index remap), not a Java bilinear resample');
+  assert.ok(/nativeYuvToArgb\(cameraPixels,[\s\S]*?rotation\)/.test(camera), 'The native conversion receives the quarter-turn rotation');
+  const pixels=await readFile('nextvr-android/src/main/jni/camera_pixels.h','utf8');
+  assert.ok(pixels.includes('ConvertYuvArgbRot<90>') && pixels.includes('ConvertYuvArgbRot<270>'), 'Quarter turns are fused write-index remaps in the converter');
+  assert.ok(camera.includes('detectOwned(frame.bitmap,frame.stamp,0)'), 'The already-upright, owned analysis frame is not rotated twice');
+  assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold') && !hands.includes('lineTo('));

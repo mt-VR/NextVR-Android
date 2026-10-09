@@ -33,6 +33,7 @@ const STR = {
     pickPhotos:'Escolher fotos', noPhotos:'Nenhuma foto escolhida ainda.',
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
+    arcFull:'Arco cheio (máx. 3 apps) — fechando',
     notif:'Notificações', noNotif:'Sem notificações novas', profile:'Perfil',
     repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
   },
@@ -47,6 +48,7 @@ const STR = {
     pickPhotos:'Pick photos', noPhotos:'No photos picked yet.',
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
+    arcFull:'Arc full (max 3 apps) — closing',
     notif:'Notifications', noNotif:'No new notifications', profile:'Profile',
     repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
   },
@@ -61,6 +63,7 @@ const STR = {
     pickPhotos:'Elegir fotos', noPhotos:'Aún no hay fotos elegidas.',
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
+    arcFull:'Arco lleno (máx. 3 apps) — cerrando',
     notif:'Notificaciones', noNotif:'Sin notificaciones nuevas', profile:'Perfil',
     repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
   },
@@ -215,6 +218,13 @@ const frameSubs = [];
 export const onFrame = f => frameSubs.push(f);
 
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
+// Hand tracking runs on its own native cadence; measure its frame arrival separately from render.
+let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
+export const reportHandFrame = () => {
+  const now = performance.now();
+  if (handLast > 0) { handAcc += (now - handLast) / 1000; handN++; if (handAcc >= 1) { handFps = Math.round(handN / handAcc); handAcc = 0; handN = 0; } }
+  handLast = now;
+};
 function loop(now) {
   const dt = Math.min((now - last) / 1000, .05); last = now;
 
@@ -237,7 +247,9 @@ function loop(now) {
   fpsAcc += dt; fpsN++;
   if (fpsAcc >= 1) {
     const el = document.getElementById('fps');
-    el.textContent = S.showFps ? Math.round(fpsN / fpsAcc) + ' fps' : '';
+    el.textContent = S.showFps
+      ? Math.round(fpsN / fpsAcc) + ' fps' + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
+      : '';
     fpsAcc = 0; fpsN = 0;
   }
   requestAnimationFrame(loop);
