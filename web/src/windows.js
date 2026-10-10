@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
-import { cursor, screenPoint } from './hands.js';
+import { cursor, screenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
@@ -696,8 +696,16 @@ function fistHit(r) {
   }
   return best;
 }
-function endNear(cancel=false) {
-  if(nearContact?.down) handTouch({win:nearContact.win,u:nearContact.u,v:nearContact.v},cancel?3:1);
+function endNear(cancel=false, packet=lastPhonePacket) {
+  const ended=nearContact;
+  if(ended?.down) {
+    handTouch({win:ended.win,u:ended.u,v:ended.v},cancel?3:1);
+    // Leaving the near band can end contact before the smoothed depth release threshold is
+    // sampled. Keep the same still-closed pinch from immediately becoming a second FAR press.
+    if(!cancel && packet.hands.some(h=>h.id===ended.id&&h.pinching)) {
+      pinchSuppressed.add(ended.id);packet.consumed.add(ended.id);
+    }
+  }
   nearContact=null;
 }
 on('phonehands', packet => {
@@ -731,7 +739,7 @@ on('phonehands', packet => {
     if(!drag.win && !resizing.win && h.fist && !before) {
       const p=palmScreen(h,packet,true),hit=fistHit(phoneRay(p.x,p.y));
       if(hit) {
-        if(cursor.hand?.id===h.id) { emit('pinchcancel');cursor.down=false;cursor.hand=null; }
+        if(cursor.hand?.id===h.id) cancelHandInput();
         if(startDrag(hit.win,p.x,p.y,'fist',h.id))packet.consumed.add(h.id);
       }
     }
@@ -750,7 +758,7 @@ on('phonehands', packet => {
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
   }
-  if(!best) { endNear(!ids.has(nearContact?.id));return; }
+  if(!best) { endNear(!ids.has(nearContact?.id),packet);return; }
   if(!best.current) {
     endNear();
     // Entering the zone starts from the real depth. A fingertip that is already behind the glass
@@ -765,7 +773,7 @@ on('phonehands', packet => {
   const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
   if(!n.down && inside && n.d<=.012 && n.previousD>.012){
     // A real push through the glass takes over from a FAR ray press already in progress.
-    if(cursor.down){emit('pinchcancel');cursor.down=false;cursor.hand=null;}
+    if(cursor.down)cancelHandInput();
     focus(n.win);handTouch(hit,0);n.down=true;
   }
   else if(n.down && (n.d>=.035 || !inside)){

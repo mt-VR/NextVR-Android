@@ -18,12 +18,19 @@ class PhoneXrHandsTest {
         if(fist){set(12,.5f,.75f);set(16,.55f,.75f);set(20,.6f,.75f)}
         return p
     }
-    private fun result(p:List<NormalizedLandmark>?,stamp:Long)=object:HandLandmarkerResult(){
+    private fun result(p:List<NormalizedLandmark>?,stamp:Long,world:List<Landmark>?=null)=object:HandLandmarkerResult(){
         override fun timestampMs()=stamp
         override fun landmarks()=if(p==null) emptyList() else listOf(p)
-        override fun worldLandmarks()=emptyList<List<Landmark>>()
+        override fun worldLandmarks()=if(p==null||world==null) emptyList() else listOf(world)
         override fun handednesses()=handedness()
         override fun handedness()=if(p==null) emptyList() else listOf(listOf(Category.create(1f,0,"Right","Right")))
+    }
+    private fun worldPoints(indexGapX:Float,indexGapZ:Float):List<Landmark> {
+        val points=MutableList(21){Landmark.create(0f,0f,0f)}
+        fun set(i:Int,x:Float,y:Float=0f,z:Float=0f){points[i]=Landmark.create(x,y,z)}
+        set(5,-.5f);set(17,.5f) // palm width = 1 metre in this normalized fixture
+        set(4,0f);set(8,indexGapX,0f,indexGapZ)
+        return points
     }
     @Test fun pinchThresholdsMatchPhoneXrAndRemainHysteretic() {
         val latch=HandGestures.PinchLatch()
@@ -32,9 +39,30 @@ class PhoneXrHandsTest {
         assertTrue(latch.update(HandGestures.shape(points(.47f),false)))
         assertFalse(latch.update(HandGestures.shape(points(.49f),false)))
     }
+    @Test fun metricThreeDimensionalPinchWorksWhenCameraProjectionLooksOpen() {
+        val engine=PhoneXrHands()
+        // The image landmarks show a 0.4-palm-width gap (too wide for the 2D close threshold),
+        // but depth separation makes the true 3D gap sqrt(.28^2 + .21^2) = .35; the normalized
+        // metric gap is .28, so the rotated-hand pinch must register.
+        val pressed=engine.process(result(points(.4f),1000,worldPoints(.28f,.21f)),1f,1f).hands.single()
+        assertEquals(.28f,pressed.shape.pinchGap,1e-5f)
+        assertTrue(pressed.pinching)
+
+        val released=engine.process(result(points(.4f),1040,worldPoints(.6f,.45f)),1f,1f).hands.single()
+        assertEquals(.6f,released.shape.pinchGap,1e-5f)
+        assertFalse(released.pinching)
+    }
     @Test fun fistIsNotAClick() {
         val shape=HandGestures.shape(points(.2f,true),false)
         assertTrue(shape.fist);assertFalse(HandGestures.PinchLatch().update(shape))
+    }
+    @Test fun aSlowlySampledOpenPinchReleasesOnItsFirstObservedOpenFrame() {
+        val latch=HandGestures.PinchLatch()
+        assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.2f),false)))
+        // No elapsed-time or consecutive-frame debounce: the next completed inference is enough.
+        assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
+        assertFalse(latch.pinching)
     }
     @Test fun nativeRearHandednessAndShoulderRayMatchFork() {
         val hand=PhoneXrHands().process(result(points(.2f),1000),1f,1f).hands.single()
@@ -147,16 +175,24 @@ class PhoneXrHandsTest {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
         val second=engine.process(result(points(.2f),1040),1f,1f,1_040_000_000L)
-        assertSame(first,second.previous)
+        assertNotSame(first,second.previous)
+        assertSame(first.hands,second.previous?.hands)
+        assertNull(second.previous?.previous) // Prediction history stays one sample deep, not session-long.
+        val third=engine.process(result(points(.2f),1080),1f,1f,1_080_000_000L)
+        assertNotSame(second,third.previous)
+        assertSame(second.hands,third.previous?.hands)
+        assertNull(third.previous?.previous)
         engine.reset()
-        val third=engine.process(result(points(.2f),2000),1f,1f,2_000_000_000L)
-        assertNull(third.previous)
+        val afterReset=engine.process(result(points(.2f),2000),1f,1f,2_000_000_000L)
+        assertNull(afterReset.previous)
         // An empty frame neither breaks nor replaces the chain.
         val engine2=PhoneXrHands()
         val a=engine2.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
         val empty=engine2.process(result(null,1040),1f,1f,1_040_000_000L)
         assertTrue(empty.hands.isEmpty())
         val b=engine2.process(result(points(.2f),1080),1f,1f,1_080_000_000L)
-        assertSame(a,b.previous)
+        assertNotSame(a,b.previous)
+        assertSame(a.hands,b.previous?.hands)
+        assertNull(b.previous?.previous)
     }
 }

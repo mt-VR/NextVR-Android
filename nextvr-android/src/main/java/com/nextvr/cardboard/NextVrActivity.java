@@ -56,11 +56,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private final Set<String> pendingBrowsers=new HashSet<>();
     private volatile boolean resumed,closed;
     private boolean ready;
-    private volatile com.nextvr.cardboard.hands.PhoneXrHands.Frame pendingHands;
-    /** Hand-frame script serialized on the tracking thread; the main thread only evaluates it. */
-    private volatile String pendingHandsScript;
-    private volatile long pendingPublishNs;
+    /** Preserves gesture/contact edges while coalescing only safe pose-only hand frames. */
+    private final HandFrameMailbox handFrames=new HandFrameMailbox();
     private final AtomicBoolean handsPending=new AtomicBoolean();
+    /** Coalesces adjacent ACTION_MOVE events but keeps touch edges ordered for each WebView. */
+    private final HandTouchEventQueue handTouchEvents=new HandTouchEventQueue();
+    private final AtomicBoolean handTouchPending=new AtomicBoolean();
     private final AtomicBoolean posePending=new AtomicBoolean();
     private long lastPose;
     private ValueCallback<Uri[]> fileCallback;
@@ -90,25 +91,16 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.cardboard.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
-                // Serialize on the tracking thread: the main thread only evaluates the finished
-                // script, so JSON building never adds gesture latency or UI jank.
+                // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
+                // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                pendingHands=frame;
-                pendingHandsScript="window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")";
-                pendingPublishNs=SystemClock.elapsedRealtimeNanos();
-                if(!handsPending.compareAndSet(false,true))return;
-                main.post(()->{
-                    handsPending.set(false);
-                    String script=pendingHandsScript;
-                    if(shell!=null && resumed && !closed && script!=null && pendingHands!=null) {
-                        shell.evaluate(script);
-                        if(!pendingHands.getHands().isEmpty()) PerfLog.published(pendingPublishNs);
-                    }
-                });
+                handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")");
+                scheduleHandFrameDrain();
             }
             @Override public void stopped() {
                 SpatialRenderer r=renderer;if(r!=null){r.camera.clear();r.hands=null;}
-                main.post(()->{if(shell!=null)shell.evaluate("window.nextvrHands&&window.nextvrHands({hands:[]})");});
+                handFrames.requestReset();
+                scheduleHandFrameDrain();
             }
             @Override public void error(String message) { report(message); }
         });
@@ -139,6 +131,52 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         immersive();
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},10);
+    }
+    private void scheduleHandFrameDrain() {
+        if(handsPending.compareAndSet(false,true))main.post(this::drainHandFrames);
+    }
+    private void drainHandFrames() {
+        for(;;) {
+            HandFrameMailbox.Batch batch=handFrames.drain();
+            if(shell!=null && resumed && !closed) {
+                StringBuilder scripts=new StringBuilder();
+                if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
+                for(HandFrameMailbox.FrameScript pending:batch.frames()) {
+                    com.nextvr.cardboard.hands.PhoneXrHands.Frame frame=pending.frame();
+                    if(frame.isFresh(SystemClock.elapsedRealtimeNanos())) {
+                        scripts.append(pending.script()).append(';');
+                        if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
+                    } else {
+                        // A queued press that outlived its native validity must cancel, never click.
+                        scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
+                    }
+                }
+                // One WebView evaluation guarantees the ordered frame edges run in one JS task,
+                // before a later batch can overtake them on Chromium's asynchronous evaluator.
+                if(scripts.length()>0)shell.evaluate(scripts.toString());
+            }
+            handsPending.set(false);
+            if(handFrames.isEmpty() || !handsPending.compareAndSet(false,true))return;
+        }
+    }
+    private void scheduleHandTouchDrain() {
+        if(handTouchPending.compareAndSet(false,true))main.post(this::drainHandTouchEvents);
+    }
+    private void drainHandTouchEvents() {
+        for(;;) {
+            HandTouchEventQueue.Event event=handTouchEvents.poll();
+            if(event==null) {
+                handTouchPending.set(false);
+                if(handTouchEvents.isEmpty() || !handTouchPending.compareAndSet(false,true))return;
+                continue;
+            }
+            WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
+            if(target==null || !resumed || closed)continue;
+            target.dispatchHandEvent(event.action,event.x,event.y);
+            if(event.action==MotionEvent.ACTION_UP && target!=shell)target.web.evaluateJavascript(
+                "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
+                value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(event.id)+")"); });
+        }
     }
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
@@ -265,13 +303,23 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
     }
     private final class Bridge {
+        private String lastBrowserSpecs;
         @JavascriptInterface public void frame(String scene,String browserSpecs) {
             if(scene.length()>100000 || browserSpecs.length()>20000) return;
             try {
                 SpatialRenderer target=renderer; if(target==null) return;
                 target.panels=SpatialRenderer.decode(scene);
                 JSONArray specs=new JSONArray(browserSpecs);
-                main.post(()->{ try { syncBrowsers(specs,target); } catch(Exception e) { report("Browser surface failed: "+e.getMessage()); } });
+                boolean changed;
+                synchronized(this) {
+                    changed=!browserSpecs.equals(lastBrowserSpecs);
+                    if(changed)lastBrowserSpecs=browserSpecs;
+                }
+                // Browser lifecycle/configuration changes are infrequent. Posting the same sync on
+                // every atlas frame only competes with tracking and hand input on the UI queue.
+                if(changed)main.post(()->{ try { syncBrowsers(specs,target); }
+                    catch(Exception e) { synchronized(Bridge.this) { if(browserSpecs.equals(lastBrowserSpecs))lastBrowserSpecs=null; }
+                        report("Browser surface failed: "+e.getMessage()); } });
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
@@ -281,13 +329,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
         @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
-            if(!Float.isFinite(x)||!Float.isFinite(y)) return;
-            main.post(()->{ WebSurface target=id.equals("shell")?shell:browsers.get(id); if(target!=null && resumed) {
-                target.dispatchHandEvent(action,x,y);
-                if(action==MotionEvent.ACTION_UP && target!=shell) target.web.evaluateJavascript(
-                    "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
-                    value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(id)+")"); });
-            } });
+            if(id==null || (!id.equals("shell") && !id.matches("[a-zA-Z0-9_-]{1,64}")) || !Float.isFinite(x)||!Float.isFinite(y)) return;
+            handTouchEvents.offer(id,action,x,y);
+            scheduleHandTouchDrain();
         }
         @JavascriptInterface public void key(String id,String key) {
             if(key.length()>16) return;

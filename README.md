@@ -59,10 +59,13 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 
 ## Latest UI/input update
 
-See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md).
-The VR UI accepts only PhoneXR hand input: gaze dwell, viewer-button activation and touchscreen
-forwarding were removed end to end. Floating windows now use deliberate drag thresholds, bounded
-world placement and proportional hand resizing. The current `N` mark and component icons are
+See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the
+[hand-input investigation](docs/hand-tracking-investigation.md). The VR UI accepts only PhoneXR
+hand input: gaze dwell, viewer-button activation and touchscreen forwarding are absent end to end;
+head rotation updates the view only. Recognized pinch/fist/contact transitions are preserved across
+slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
+Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
+resizing. The current `N` mark and component icons are
 extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
 ## Controls
