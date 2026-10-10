@@ -1062,4 +1062,3 @@ demora.
 - **Não compilado neste ambiente** (sem JDK/Gradle): `compileDebugKotlin`/`assembleDebug` e os
   testes JVM confirmam no CI do PR. Validação on-device (YouTube: clique vs scrub; arrasto de
   janela; piscar em aparelho lento) continua exigindo telefone real.
-

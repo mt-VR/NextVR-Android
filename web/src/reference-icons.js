@@ -44,6 +44,7 @@ const REFERENCE_ICONS = Object.freeze({
 // Ícones funcionais que não existem no arquivo novo. São paths vetoriais locais (não caracteres
 // de fonte), usados apenas onde a referência não fornece um equivalente.
 const APP_ICONS = Object.freeze({
+  appGrid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>',
   external:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/>',
   enter:'<path d="M20 5v7H7"/><path d="m11 8-4 4 4 4"/>',

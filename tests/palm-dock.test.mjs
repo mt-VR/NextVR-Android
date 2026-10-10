@@ -28,11 +28,14 @@ test('fist during pinch transition cannot reactivate the removed palm dock',()=>
   g.update([hand(false,{fist:true})],400);
   assert.deepEqual(g.update([hand(true)],500),[]);
 });
-test('existing installations get the close layout once, then retain distance adjustments',()=>{
+test('existing installations get the close layout and compact default size once, then retain adjustments',()=>{
   const old={lang:'en',winDist:2.2,dockDist:1.5,winScale:1.1};
   const moved=migrateComfort(old);
   assert.equal(moved.winDist,.68);assert.equal(moved.dockDist,1);
-  assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1);
+  assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1,'a deliberately adjusted window size is preserved');
+  assert.equal(migrateComfort({comfortVersion:6,winScale:1}).winScale,COMFORT.windowScale,'old default-size installs become compact');
+  assert.equal(migrateComfort({comfortVersion:6,winScale:.9}).winScale,.9,'customized sizes are preserved');
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
   assert.equal(COMFORT.welcomeDistance,.42);
+  assert.equal(COMFORT.dockDistance,.55,'default dock placement is slightly farther from the viewer');
 });

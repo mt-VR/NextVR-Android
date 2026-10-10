@@ -49,7 +49,7 @@ const nativeShim = () => {
     },
     battery() { return '{"level":0.72,"charging":false}'; },
     hands() {}, click() {}, key() {},
-    handTargets(json) { window.__handTargets = JSON.parse(json); }, handVisuals() {},
+    handTargets(json) { window.__handTargets = JSON.parse(json); },
     handTouch(id, action, x, y) {
       window.__touches.push({ id, action, x, y });
       if (id !== 'shell') return;

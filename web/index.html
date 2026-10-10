@@ -214,52 +214,66 @@
   .st-heart.on .ui-icon{fill:currentColor}
   .st-note{margin:12px 2px;color:#9aa0ab;font-size:15px;line-height:1.65}
 
-  /* ---------- biblioteca de apps (igual ao print) ---------- */
-  .lib{background:#2b2b30;height:100%;display:flex;flex-direction:column}
+  /* ---------- biblioteca: grade Quest com navegação lateral e capas ---------- */
+  .lib{height:100%;display:flex;overflow:hidden;background:linear-gradient(145deg,#262930,#1d2026);color:#f2f4f8}
+  .lib-rail{width:70px;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;
+    padding:17px 10px;background:rgba(9,12,17,.24);border-right:1px solid rgba(255,255,255,.07)}
+  .lib-nav{position:relative;width:46px;height:46px;flex:none;display:grid;place-items:center;border-radius:15px;
+    color:#aeb5c2;transition:background .15s,color .15s,transform .15s}
+  .lib-nav .ui-icon{width:23px;height:23px}
+  .lib-nav:hover,.lib-nav[aria-pressed="true"]{background:rgba(255,255,255,.14);color:#fff}
+  .lib-nav[aria-pressed="true"]:before{content:'';position:absolute;left:-11px;width:3px;height:20px;border-radius:3px;background:#a98bff}
+  .lib-nav:active{transform:scale(.94)}
+  .lib-rail-spacer{flex:1}
+  .lib-nav-store{color:#ffc16a;background:rgba(255,173,76,.1)}
+  .lib-main{flex:1;min-width:0;display:flex;flex-direction:column}
   .lib-head{display:flex;align-items:center;gap:10px;padding:16px 22px 12px}
   .lib-title{font-size:24px;font-weight:800;margin:0;letter-spacing:-.3px}
-  .lib-sbtn{font-size:22px;color:#cfd3da;width:44px;height:44px;flex:none;display:grid;place-items:center}
+  .lib-sbtn{color:#cfd3da;width:44px;height:44px;flex:none;display:grid;place-items:center}
   .lib-sbtn .ui-icon{width:24px;height:24px}
   .lib-search{display:none;flex:0 1 200px;min-width:0;background:rgba(255,255,255,.1);
     border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:9px 16px;color:#fff;
     font:500 15px Inter,sans-serif;outline:none}
   .lib-search.open{display:block}
-  .lib-pill{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.13);border-radius:999px;
-    padding:9px 17px;font-size:14px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .lib-head-spacer{flex:1;min-width:6px}
+  .lib-pill{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:999px;
+    padding:9px 14px;font-size:14px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
   .lib-pill .ui-icon{width:16px;height:16px}
   .lib-pill:active{background:rgba(255,255,255,.22)}
-  .lib-scroll{flex:1;min-height:0;overflow-y:auto;padding:2px 22px 12px}
-  .lib-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
-  .lib-tile{position:relative;aspect-ratio:7/4;min-height:120px;border-radius:15px;overflow:hidden;
-    display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;color:#fff}
-  .lib-tile:active{filter:brightness(1.25)}
-  .lib-tile img.logo{width:38px;height:38px;object-fit:contain;flex:none}
-  .lib-tile .nm{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .lib-tile .fb{display:none}
-  .lib-tile.nologo .fb{display:inline}
-  .lx-netflix{color:#E50914;font-weight:900;font-size:27px;letter-spacing:.12em}
-  .lx-prime{font-size:20px;font-weight:600;line-height:1.05;text-align:center}
+  .lib-scroll{flex:1;min-height:0;overflow-y:auto;padding:3px 22px 18px}
+  .lib-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:19px 14px}
+  .lib-tile{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0;
+    border-radius:15px;text-align:left;color:#fff;transition:transform .14s,filter .14s}
+  .lib-tile:active{filter:brightness(1.18);transform:scale(.985)}
+  .lib-cover{position:relative;isolation:isolate;width:100%;aspect-ratio:16/9;min-height:82px;overflow:hidden;
+    display:grid;place-items:center;border:1px solid rgba(255,255,255,.14);border-radius:15px;
+    background-color:#272b34;box-shadow:0 9px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12)}
+  .lib-cover:before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:linear-gradient(135deg,rgba(255,255,255,.13),transparent 48%),radial-gradient(ellipse at 50% 110%,rgba(0,0,0,.23),transparent 70%)}
+  .lib-brand{position:relative;z-index:1;width:100%;height:100%;display:grid;place-items:center;padding:12px;text-align:center}
+  .lib-brand img.logo{width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 2px 7px rgba(0,0,0,.2))}
+  .lib-brand .nm{font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .lib-brand .fb{display:none}
+  .lib-tile.nologo .lib-brand .fb{display:inline}
+  .lib-icon{width:54px;height:54px;display:grid;place-items:center;color:#fff;filter:drop-shadow(0 3px 8px rgba(0,0,0,.2))}
+  .lib-icon .ui-icon{width:100%;height:100%;stroke-width:1.65}
+  .lib-label{display:block;overflow:hidden;color:#e8ebf1;font-size:15px;font-weight:600;line-height:1.3;
+    text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+  .lx-netflix{color:#ff2433;font-weight:900;font-size:27px;letter-spacing:.12em;text-shadow:0 2px 7px #0008}
+  .lx-prime{font-size:20px;font-weight:700;line-height:1.05;text-align:center;text-shadow:0 2px 6px #0005}
   .lx-prime b{display:block}
   .lx-prime:after{content:'';display:block;width:56px;height:7px;border-bottom:3px solid #4aa8ff;
     border-radius:0 0 50% 50%;margin:2px auto 0}
-  .lx-pluto{font-size:23px;font-weight:800;display:flex;align-items:center;gap:5px}
+  .lx-pluto{font-size:23px;font-weight:800;display:flex;align-items:center;gap:5px;text-shadow:0 2px 5px #0008}
   .lx-pluto i{font-style:normal;font-size:12px;color:#ffd23f;border:2px solid #ffd23f;border-radius:50%;
     width:27px;height:27px;display:inline-grid;place-items:center}
-  .lib-tile.game{flex-direction:column;align-items:flex-start;justify-content:flex-end}
-  .lib-tile.game:before{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.62),transparent 62%)}
-  .lib-art{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1.05}
-  .lib-gname{position:relative;font-size:16px;font-weight:700;text-shadow:0 1px 4px #000}
-  .lib-vr{position:absolute;top:9px;right:9px;font-size:10px;font-weight:700;border:1.5px solid rgba(255,255,255,.7);
-    background:rgba(20,20,24,.5);border-radius:5px;padding:3px 7px}
-  .lib-empty{padding:40px 8px;text-align:center;color:rgba(255,255,255,.7);font-size:15px}
-  .lib-note{margin:14px 2px 0;font-size:12px;color:rgba(255,255,255,.4)}
-  .lib-bottom{display:flex;align-items:center;justify-content:space-between;margin:0 22px 4px;
-    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:6px 10px}
-  .lib-bottom button{min-width:48px;height:36px;border-radius:9px;display:grid;place-items:center;
-    font-size:16px;font-weight:700;color:#dcdce2}
-  .lib-bottom button .ui-icon{width:19px;height:19px}
-  .lib-bottom button:active{background:rgba(255,255,255,.16);color:#fff}
-  .lib-bottom span{font-size:13px;font-weight:600;color:rgba(255,255,255,.82)}
+  .lib-game-cover{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover}
+  .lib-tile.game .lib-cover:before{z-index:1;background:linear-gradient(0deg,rgba(0,0,0,.68),transparent 70%),linear-gradient(135deg,rgba(255,255,255,.1),transparent 48%)}
+  .lib-art{position:absolute;inset:0;z-index:2;display:grid;place-items:center;text-align:center;line-height:1.05}
+  .lib-vr{position:absolute;top:9px;right:9px;z-index:3;font-size:10px;font-weight:700;border:1.5px solid rgba(255,255,255,.7);
+    background:rgba(20,20,24,.56);border-radius:5px;padding:3px 7px}
+  .lib-empty{padding:40px 8px;text-align:center;color:rgba(255,255,255,.7);font-size:15px;grid-column:1/-1}
+  @media(max-width:900px){.lib-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:15px 12px}.lib-head{padding-left:15px;padding-right:15px}.lib-scroll{padding-left:15px;padding-right:15px}}
 
   /* ---------- teclado estilo Meta Quest: painel escuro, deitado, teclas graúdas ---------- */
   .kb{width:1150px;background:rgba(24,26,31,.93);border:1px solid rgba(255,255,255,.09);
@@ -279,7 +293,7 @@
   .key[data-state="lock"]{background:#7a8497;color:#fff}
 
   /* ---------- dock: cápsula horizontal (igual ao print) ---------- */
-  .dock{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
+  .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
     align-items:center;gap:10px;width:max-content;padding:11px 16px 16px 12px;border-radius:999px;
     background:linear-gradient(180deg,rgba(46,50,60,.94),rgba(21,24,30,.97));
     border:1px solid rgba(255,255,255,.11);
@@ -287,6 +301,17 @@
     box-shadow:0 24px 64px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.15),inset 0 -1px 0 rgba(0,0,0,.35);
     pointer-events:auto}
   .dock button{color:#e9edf4}
+  /* Quest-style grabber: the hit area floats below the dock; only a short white pill is drawn.
+     Atlas padding keeps this detached control visible without adding a second dock panel. */
+  .dock-grab{position:absolute;left:50%;top:calc(100% + 14px);bottom:auto;transform:translateX(-50%);z-index:5;
+    width:164px;height:18px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 4px;
+    border:0;border-radius:0;background:transparent;color:#fff;cursor:grab;touch-action:none;pointer-events:auto}
+  .dock-grab::after{content:"";display:block;width:68px;height:4px;border-radius:99px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 8px rgba(255,255,255,.32),0 2px 8px rgba(0,0,0,.38);
+    transition:width .16s,height .16s,background .16s,box-shadow .16s}
+  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:82px;height:5px;background:#fff;
+    box-shadow:0 0 12px rgba(255,255,255,.55),0 2px 8px rgba(0,0,0,.42)}
+  .dock.moving .dock-grab{cursor:grabbing}
 
   /* perfil + status (hora, wifi, bateria) */
   .dock-av{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;
