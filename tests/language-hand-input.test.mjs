@@ -30,9 +30,19 @@ async function startServer() {
   return server;
 }
 
-// Native shim: records handTouch calls and replays them as DOM pointer events, like WebSurface.
+// Native shim: records native-surface input and observes the shell's local DOM pointer events.
 const nativeShim = () => {
   window.__touches = [];
+  window.__shellEvents = [];
+  window.__shellClicks = [];
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+    document.addEventListener(type, event => {
+      if (event.target?.closest?.('.win-shell')) window.__shellEvents.push(type);
+    }, true);
+  }
+  document.addEventListener('click', event => {
+    if (event.target?.closest?.('.win-shell')) window.__shellClicks.push(event.target.closest('[data-lang]')?.dataset.lang ?? null);
+  }, true);
   window.NativeXR = {
     frame(scene, browsers) {
       window.__last = { panels: JSON.parse(scene), browsers: JSON.parse(browsers) };
@@ -96,14 +106,17 @@ async function languageTarget(page, selector) {
 // Each step: depth (m) : pinching (0/1) : hold (ms). Hold times are long enough for the smoothed
 // depth to settle, which is about 700 ms at the 50 ms feed cadence.
 async function runSequence(page, aim, steps) {
-  await page.evaluate(() => { window.__touches = []; clearInterval(window.__feed); window.__feed = setInterval(() => window.nextvrHands(structuredClone(window.__h)), 50); });
+  await page.evaluate(() => { window.__touches = []; window.__shellEvents = []; window.__shellClicks = []; clearInterval(window.__feed); window.__feed = setInterval(() => window.nextvrHands(structuredClone(window.__h)), 50); });
   for (const step of steps.split(',')) {
     const [depth, pinch, ms] = step.split(':');
     await page.evaluate(h => { window.__h = h; }, handAt(aim, Number(depth), pinch === '1'));
     await page.waitForTimeout(Number(ms));
   }
   await page.evaluate(() => clearInterval(window.__feed));
-  return page.evaluate(() => window.__touches.filter(t => t.id === 'shell').map(t => t.action));
+  return page.evaluate(() => {
+    const domActions = window.__shellEvents.map(type => ({ pointerdown: 0, pointerup: 1, pointermove: 2, pointercancel: 3 }[type]));
+    return domActions.length ? domActions : window.__touches.filter(t => t.id === 'shell').map(t => t.action);
+  });
 }
 
 const optionsLeft = page => page.locator('.lang-option').count();
@@ -126,8 +139,13 @@ test('language window: a detected press and release remain distinct at a slow sa
       window.nextvrHands(frames[2]);
     }, samples);
     await page.waitForFunction(() => !document.querySelector('.lang-option'), null, { timeout: 5000 });
-    const edges = await page.evaluate(() => window.__touches.filter(t => t.id === 'shell' && (t.action === 0 || t.action === 1 || t.action === 3)).map(t => t.action));
+    const edges = await page.evaluate(() => window.__shellEvents
+      .filter(type => type === 'pointerdown' || type === 'pointerup' || type === 'pointercancel')
+      .map(type => ({ pointerdown: 0, pointerup: 1, pointercancel: 3 }[type])));
     assert.deepEqual(edges, [ACTION.down, ACTION.up], 'one slow-sampled pinch creates one complete click, not a held press');
+    assert.deepEqual(await page.evaluate(() => window.__shellClicks), ['en'], 'the language option activates exactly once on release');
+    assert.equal(await page.evaluate(() => window.__touches.some(t => t.id === 'shell')), false,
+      'the onboarding DOM click does not leave a synthetic Android touch held in the atlas WebView');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')).lang), 'en');
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); server.close(); }
