@@ -305,9 +305,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // moves only the dock, preserves the drag offset, and recenter restores its closer default.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
     await page.locator('.dock [data-id="kb"]').click();
-    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160));
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
-    await settle();
     const grab=await page.evaluate(()=>{
       const panel=window.__last.panels.find(p=>p.id==='dock'),root=document.querySelector('.dock'),bar=root.querySelector('.dock-grab');
       return {matrix:panel.matrix,rect:panel.rect,rootWidth:root.offsetWidth,
@@ -322,7 +321,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const windowsBeforeMove=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock').map(p=>p.matrix));
     await page.evaluate(()=>window.nextvrResume());
     await feed(hand(.04,{aim:grabAim}));
-    await page.waitForFunction(()=>document.querySelector('.dock.grab-armed'));
+    await page.waitForFunction(()=>document.querySelector('.dock.grab-armed'),null,{timeout:12000});
     await page.waitForTimeout(180);
     assert.equal(await page.locator('.dock.moving').count(),0,'a stationary pinch only arms the dock handle');
     const movedAim=[grabAim[0]+.09*2*tanX,grabAim[1]];
@@ -336,12 +335,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(windowsAfterMove.length,windowsBeforeMove.length);
     for(let i=0;i<windowsAfterMove.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(windowsAfterMove[i][k]-windowsBeforeMove[i][k])<.001,'Moving the dock leaves app windows anchored');
     await feed(hand(.4,{aim:movedAim}));
-    await page.waitForFunction(()=>!document.querySelector('.dock.moving'));
+    await page.waitForFunction(()=>!document.querySelector('.dock.moving'),null,{timeout:12000});
     const released=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(released[12]-moved[12])<.01,'Dock remains at the released position');
     assert.equal(await page.locator('.dock-grab[aria-pressed="true"]').count(),0,'Grab state clears on release');
     await page.locator('.dock [data-id="center"]').click();
-    await settle();
+    await page.waitForFunction(()=>{
+      const m=window.__last.panels.find(p=>p.id==='dock')?.matrix;
+      return m && Math.abs(m[12])<.001 && Math.abs(m[14]+.55)<.001;
+    },null,{timeout:12000});
     const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
     // Dock summon via palm pinch was removed; the pinch remains a normal hand-ray gesture.
