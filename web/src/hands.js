@@ -3,8 +3,10 @@
 // Dock invocation is NOT via pinch: the palm+pinch dock gesture has been removed. Other PhoneXR
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
+import { HandClickState } from './hand-input.js';
 export const hands = [];
-export const cursor = { x: .5, y: .5, active: false, down: false, hand: null };
+export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null };
+const clickState = new HandClickState();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
 export const tracking = () => enabled;
@@ -12,10 +14,16 @@ export async function startHands() {
   if (!native) { toast('PhoneXR hands require the Android camera pipeline.'); return false; }
   enabled = true; window.NativeXR.hands(true); emit('hands', true); return true;
 }
-function cancel() {
-  if (cursor.down) emit('pinchcancel', cursor);
-  cursor.down = cursor.active = false; cursor.hand = null;
+function emitClickEvents(events) {
+  for (const event of events) emit(`pinch${event}`, cursor);
 }
+function cancel() {
+  const events = clickState.cancel();
+  cursor.down = cursor.active = false; cursor.phase = clickState.phase; cursor.hand = null;
+  emitClickEvents(events);
+}
+/** Cancel an in-progress ray press before another hand gesture takes ownership. */
+export function cancelHandInput() { cancel(); }
 export function stopHands() {
   cancel(); hands.length = 0; enabled = false; lastFrame = -Infinity;
   emit('phonehands', { hands: [], consumed: new Set(), scaleX, scaleY });
@@ -39,15 +47,14 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   emit('phonehands', packet);
   if(packet.blockFar){cancel();return;}
   const available=hands.filter(h=>!packet.consumed.has(h.id));
-  const chosen=(cursor.down && available.find(h=>h.id===cursor.hand?.id))
+  const chosen=(clickState.down && available.find(h=>h.id===clickState.handId))
     || available.find(h=>h.pinching) || [...available].sort((a,b)=>b.palmWidth-a.palmWidth)[0];
   if (!chosen) { cancel(); return; }
-  if (cursor.hand && cursor.hand.id!==chosen.id) cancel();
-  const wasDown=cursor.down;
   const point=screenPoint(chosen.aim);
-  cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;cursor.down=chosen.pinching;
-  if (cursor.down && !wasDown) emit('pinchdown',cursor);
-  else if (!cursor.down && wasDown) emit('pinchup',cursor);
+  cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;
+  const clickEvents=clickState.update(chosen.id, chosen.pinching);
+  cursor.down=clickState.down;cursor.phase=clickState.phase;
+  emitClickEvents(clickEvents);
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');

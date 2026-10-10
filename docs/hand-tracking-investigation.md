@@ -333,3 +333,38 @@ A janela de boas-vindas (idioma, a ~0,42 m) aparecia, mas o toque com a mão nã
 - `tests/language-hand-input.test.mjs` (Chromium, pula se o Chromium não existir): envia `head` com 63 floats pelo bridge `nextvrHands`, em cinco cenários: raio distante (0,60 m) seleciona; pairar na faixa com pinça (0,36 m) usa o raio; começar atrás do vidro não gera toque e o raio continua funcionando depois; empurrar através do vidro seleciona; após soltar com pinça ainda ativa, há um único UP e nenhum DOWN novo.
 - Verificado contra o bundle de HEAD (antes da correção): falham os cenários "pairar na faixa" e "começar atrás do vidro" (toque preso/bloqueado). O cenário de pinça após UP também falha (reinício `0` após `1`). Com a correção, todos passam.
 - Limite: testes automatizados usam um mock do `NativeXR` no Chromium; não validam o `WebSurface`/`handTouch` real do Android nem a pose física da mão. Ver a lista de validação em dispositivo no PR.
+
+# 2026-10-10 — Follow-up: slow tracking, missed pinch edges, and held UI presses
+
+## Root cause
+
+The current `PinchLatch` is sample-driven, not time-debounced: the first completed landmark result above the open threshold (`.48` palm widths) returns `pinching=false`. Slow inference therefore delays the release until that result arrives; it does not, by itself, keep a pinch latched. A pinch shorter than the interval between analyzed images can still be unobserved, because no UI code can reconstruct a gesture that MediaPipe never sampled. `LatestFrameSlot` intentionally replaces old camera images to bound latency, so increasing a queue of camera frames would only make interactions older.
+
+The deterministic state-loss bug was after inference, in the main-thread publication path. `NextVrActivity.hands()` serialized every result but stored it in a single `pendingHandsScript`; while `handsPending` was true, each newer result overwrote the prior one. A detected `pinching=true` or `false` transition could consequently disappear before the WebView evaluated it. If DOWN was lost, a short click became a hover; if UP was lost after a previously delivered DOWN, the WebView kept receiving held-state MOVE events until tracking expired or was cancelled. This is why changing pinch thresholds or making the silhouette predict more smoothly did not cure the click.
+
+A second queue amplified the delay: `Bridge.handTouch()` posted every display-rate `ACTION_MOVE` independently to the Android main thread, while the shell also posted browser synchronization work on repeated atlas frames. An UP/CANCEL could sit behind obsolete pointer moves and no-op syncs. These are UI transport/frame-synchronization problems, not evidence that a particular phone's tracking FPS is low; no device performance log was available for this investigation.
+
+## Earlier attempts reviewed
+
+- PRs #4, #5 and #7 concentrated on detector/FPS cost, camera conversion, prediction and tracking throughput. Those changes help pose freshness, but they did not preserve a recognized DOWN/UP edge once the UI publisher coalesced frames.
+- Commit `05436f7` temporarily added gaze dwell as a first-run escape hatch. Commit `c451930` subsequently removed dwell, viewer-trigger and touchscreen routes. The current native UI remains hand-only; Cardboard head pose updates the rendered view but is not an activation source.
+- The merged `82fdd5a` fix corrected near-contact hit blocking and the `previousD=1` stuck-DOWN case. That covered a separate direct-touch geometry bug but left the latest-only native hand-script slot and display-rate Android MOVE posts unchanged.
+- The longer stale-frame retention/prediction work in the still-open PR #10 is presentation/performance work. It cannot create an unobserved pinch edge or recover an overwritten release, and retaining a down state longer is not a click fix.
+
+## Fix
+
+- Add a bounded `HandFrameMailbox`: keep pinch/fist/hand-presence edges in order, retain every tracking sample while an index tip is in the same `.7 m` near-reach band used by the UI (plus the exit sample), and coalesce only safe pose-only snapshots. If the bounded queue overflows, publish an explicit neutral reset and only the newest state rather than replaying stale presses.
+- Publish frames in batches on the UI thread without overwriting transitions. Frames older than their native validity are converted to an empty-hand reset, so a delayed queue can cancel but cannot create a stale click.
+- Add an ordered Android hand-touch queue: DOWN/UP/CANCEL are preserved, while adjacent MOVE events for the same surface collapse to their newest coordinates. Repeated identical browser-spec synchronization no longer adds idle work to the main queue.
+- Make the web pinch path an explicit `hovering → pressing → holding → releasing` state machine. A hand loss/ownership change cancels; it never becomes an accidental click. There is no time-based press/release debounce, so the first observed open sample releases immediately.
+- When direct near contact leaves its valid band while the pinch is still closed, release the contact and suppress that same pinch until it opens instead of starting a second FAR press. Bound `Frame.previous` to the one prior sample actually needed for prediction, avoiding a session-long chain of landmark frames.
+- Keep native UI activation exclusive to PhoneXR hand input. No gaze dwell, head-directed selection, viewer trigger, or physical touchscreen route is reintroduced.
+
+## Verification
+
+- `HandFrameMailboxTest` covers preserved DOWN/UP/repress order, safe pose coalescing, all near-touch trajectory samples, overflow reset and stop/reset ordering.
+- `HandTouchEventQueueTest` verifies MOVE coalescing cannot merge or reorder DOWN, UP or CANCEL.
+- `hand-input-state.test.mjs` checks hover, press, hold, release, ownership change, tracking loss and slow samples. Language UI regressions include a 5 Hz pinch, near-band hover, direct-touch exit while still pinched, and the existing behind-glass/release cases.
+- `PhoneXrHandsTest` verifies release on the first observed open sample and one-sample-bounded prediction history.
+- Local result in the Arena container: `npm run build:ui` and `git diff --check` succeeded; `npm test` reported 33 passed and 8 explicitly skipped. The skipped browser tests could not launch Chromium because `libnspr4.so` is absent. Node syntax checks passed. Android/JVM tests were not run locally because Java/Gradle/Android SDK are not installed; CI is required to compile and execute them.
+- These are source/unit/browser-harness checks. They do **not** establish device-level tracking FPS, physical-hand accuracy, or WebView touch behavior on a phone; those remain to be checked on hardware.

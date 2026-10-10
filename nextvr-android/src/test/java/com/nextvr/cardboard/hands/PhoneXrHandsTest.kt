@@ -36,6 +36,14 @@ class PhoneXrHandsTest {
         val shape=HandGestures.shape(points(.2f,true),false)
         assertTrue(shape.fist);assertFalse(HandGestures.PinchLatch().update(shape))
     }
+    @Test fun aSlowlySampledOpenPinchReleasesOnItsFirstObservedOpenFrame() {
+        val latch=HandGestures.PinchLatch()
+        assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.2f),false)))
+        // No elapsed-time or consecutive-frame debounce: the next completed inference is enough.
+        assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
+        assertFalse(latch.pinching)
+    }
     @Test fun nativeRearHandednessAndShoulderRayMatchFork() {
         val hand=PhoneXrHands().process(result(points(.2f),1000),1f,1f).hands.single()
         assertTrue(hand.left) // raw MediaPipe Right is physical Left for an unmirrored rear image
@@ -147,16 +155,24 @@ class PhoneXrHandsTest {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
         val second=engine.process(result(points(.2f),1040),1f,1f,1_040_000_000L)
-        assertSame(first,second.previous)
+        assertNotSame(first,second.previous)
+        assertSame(first.hands,second.previous?.hands)
+        assertNull(second.previous?.previous) // Prediction history stays one sample deep, not session-long.
+        val third=engine.process(result(points(.2f),1080),1f,1f,1_080_000_000L)
+        assertNotSame(second,third.previous)
+        assertSame(second.hands,third.previous?.hands)
+        assertNull(third.previous?.previous)
         engine.reset()
-        val third=engine.process(result(points(.2f),2000),1f,1f,2_000_000_000L)
-        assertNull(third.previous)
+        val afterReset=engine.process(result(points(.2f),2000),1f,1f,2_000_000_000L)
+        assertNull(afterReset.previous)
         // An empty frame neither breaks nor replaces the chain.
         val engine2=PhoneXrHands()
         val a=engine2.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
         val empty=engine2.process(result(null,1040),1f,1f,1_040_000_000L)
         assertTrue(empty.hands.isEmpty())
         val b=engine2.process(result(points(.2f),1080),1f,1f,1_080_000_000L)
-        assertSame(a,b.previous)
+        assertNotSame(a,b.previous)
+        assertSame(a.hands,b.previous?.hands)
+        assertNull(b.previous?.previous)
     }
 }

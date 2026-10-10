@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test';
 import bundledChromium from '@sparticuz/chromium';
 import * as THREE from 'three';
 
-test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:90000}, async () => {
+test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:90000}, async (t) => {
   const base = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
   const server=createServer(async(req,res)=>{
     try {
@@ -22,8 +22,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     try {
       browser=await chromium.launch({executablePath:await bundledChromium.executablePath(),args:bundledChromium.args,headless:true});
     } catch(launchErr) {
-      console.log('Skipping reference-ui test: Chromium not available ('+launchErr.message?.slice(0,80)+')');
-      server.close(); return;
+      t.skip('Chromium unavailable: '+launchErr.message?.slice(0,80));
+      return;
     }
     const page=await browser.newPage({viewport:{width:4096,height:4096},deviceScaleFactor:1});
     const errors=[]; page.on('pageerror',e=>errors.push(e.message));

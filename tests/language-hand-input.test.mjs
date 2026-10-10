@@ -108,12 +108,37 @@ async function runSequence(page, aim, steps) {
 
 const optionsLeft = page => page.locator('.lang-option').count();
 
-test("language window: far ray pinch selects English", { timeout: 120000 }, async () => {
+test('language window: a detected press and release remain distinct at a slow sample cadence', { timeout: 120000 }, async (t) => {
   const server = await startServer();
   let browser;
   try {
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { console.log('Skipping language-hand-input test: Chromium not available (' + err.message?.slice(0, 80) + ')'); return; }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
+    const aim = await languageTarget(page, '[data-lang="en"]');
+    const samples = [handAt(aim, .60, false), handAt(aim, .60, true), handAt(aim, .60, false)];
+    await page.evaluate(async frames => {
+      window.__touches = [];
+      window.nextvrHands(frames[0]);
+      await new Promise(resolve => setTimeout(resolve, 220)); // five completed samples per second
+      window.nextvrHands(frames[1]);
+      await new Promise(resolve => setTimeout(resolve, 220));
+      window.nextvrHands(frames[2]);
+    }, samples);
+    await page.waitForFunction(() => !document.querySelector('.lang-option'), null, { timeout: 5000 });
+    const edges = await page.evaluate(() => window.__touches.filter(t => t.id === 'shell' && (t.action === 0 || t.action === 1 || t.action === 3)).map(t => t.action));
+    assert.deepEqual(edges, [ACTION.down, ACTION.up], 'one slow-sampled pinch creates one complete click, not a held press');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')).lang), 'en');
+    assert.deepEqual(errors, []);
+  } finally { await browser?.close(); server.close(); }
+});
+
+test("language window: far ray pinch selects English", { timeout: 120000 }, async (t) => {
+  const server = await startServer();
+  let browser;
+  try {
+    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.60:0:700,0.60:1:700,0.60:0:700');
@@ -124,12 +149,12 @@ test("language window: far ray pinch selects English", { timeout: 120000 }, asyn
   } finally { await browser?.close(); server.close(); }
 });
 
-test('language window: hovering in the near band with a pinch still uses the far ray', { timeout: 120000 }, async () => {
+test('language window: hovering in the near band with a pinch still uses the far ray', { timeout: 120000 }, async (t) => {
   const server = await startServer();
   let browser;
   try {
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { console.log('Skipping language-hand-input test: Chromium not available (' + err.message?.slice(0, 80) + ')'); return; }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.36:0:700,0.36:1:700,0.36:0:700');
@@ -139,12 +164,12 @@ test('language window: hovering in the near band with a pinch still uses the far
   } finally { await browser?.close(); server.close(); }
 });
 
-test('language window: starting behind the glass never leaves a press stuck DOWN', { timeout: 120000 }, async () => {
+test('language window: starting behind the glass never leaves a press stuck DOWN', { timeout: 120000 }, async (t) => {
   const server = await startServer();
   let browser;
   try {
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { console.log('Skipping language-hand-input test: Chromium not available (' + err.message?.slice(0, 80) + ')'); return; }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.50:0:900,0.46:0:900,0.40:0:900');
@@ -157,12 +182,12 @@ test('language window: starting behind the glass never leaves a press stuck DOWN
   } finally { await browser?.close(); server.close(); }
 });
 
-test('language window: push through the glass selects once, and a held pinch cannot restart the press', { timeout: 150000 }, async () => {
+test('language window: push through the glass selects once, and a held pinch cannot restart the press', { timeout: 150000 }, async (t) => {
   const server = await startServer();
   let browser;
   try {
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { console.log('Skipping language-hand-input test: Chromium not available (' + err.message?.slice(0, 80) + ')'); return; }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Approach from the front, press through the glass without pinching, pull back to release.
@@ -173,12 +198,29 @@ test('language window: push through the glass selects once, and a held pinch can
   } finally { await browser?.close(); server.close(); }
 });
 
-test('language window: releasing a push while still pinched emits one UP and no second DOWN', { timeout: 150000 }, async () => {
+test('language window: leaving direct-touch range releases and suppresses the held pinch', { timeout: 150000 }, async (t) => {
   const server = await startServer();
   let browser;
   try {
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { console.log('Skipping language-hand-input test: Chromium not available (' + err.message?.slice(0, 80) + ')'); return; }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
+    const aim = await languageTarget(page, 'h1');
+    // Leave the near band while pinched, dwell past the panel with the pinch still held, then open.
+    const actions = await runSequence(page, aim, '0.30:0:700,0.40:0:700,0.42:0:700,0.43:0:900,0.60:1:900,0.60:1:900,0.42:1:900,0.42:0:900');
+    const edges = actions.filter(a => a === ACTION.down || a === ACTION.up || a === ACTION.cancel);
+    assert.deepEqual(edges, [ACTION.down, ACTION.up], 'one direct contact ends once and cannot restart as a ray press: ' + JSON.stringify(actions));
+    assert.equal(await optionsLeft(page), 3, 'title press leaves the window open');
+    assert.deepEqual(errors, []);
+  } finally { await browser?.close(); server.close(); }
+});
+
+test('language window: releasing a push while still pinched emits one UP and no second DOWN', { timeout: 150000 }, async (t) => {
+  const server = await startServer();
+  let browser;
+  try {
+    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
+    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     // The title is not a button, so this press must not close the window.
     const aim = await languageTarget(page, 'h1');

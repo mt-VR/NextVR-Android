@@ -133,7 +133,10 @@ class PhoneXrHands {
         // Chain the previous detection so the renderer can predict positions to display time.
         // A frame without hands keeps the old chain (retention handles dropouts) but does not
         // replace it, so a reappearing hand never extrapolates across a long gap.
-        val frame = Frame(seen,stamp,completedNs,validity,ageNs,previous)
+        // Prediction needs only the immediately preceding sample. Do not retain the whole session's
+        // landmark history through Frame.previous (which would grow without bound at camera FPS).
+        val prior = previous?.copy(previous = null)
+        val frame = Frame(seen,stamp,completedNs,validity,ageNs,prior)
         if (seen.isNotEmpty()) previous = frame
         return frame
     }
