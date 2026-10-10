@@ -52,6 +52,7 @@ import android.util.Log;
  * tools/perf/summarize_logcat.py turns a captured log into the table used in the investigation.
  */
 public final class PerfLog {
+    private static final String TAG = "NextVR-Perf";
     private static final long WINDOW_MS = 3000L;
     private static long windowStartMs = -1, windowStartCpuMs = -1;
     private static long cameraFrames, renderFrames, results, dropped, rescues, rescuesFound;
@@ -184,7 +185,38 @@ public final class PerfLog {
         publishCount++;
     }
 
+    /**
+     * Emits the summary for the window that just ended. The line is diagnostics only, so a failure
+     * to build it is reported and the window still closes: the caller is the GL thread's render
+     * callback, where an escaping exception aborts the whole session. The window is reset either
+     * way so one bad line cannot turn into a per-frame retry.
+     */
     private static void emit(long now) {
+        try {
+            emitLine(now);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "perf summary dropped: " + e);
+        } finally {
+            closeWindow(now);
+        }
+    }
+
+    /** Starts the next window and forgets every count the next summary reports on. */
+    private static void closeWindow(long now) {
+        windowStartMs = now;
+        windowStartCpuMs = Process.getElapsedCpuTime();
+        cameraFrames = renderFrames = results = dropped = rescues = rescuesFound = 0;
+        recoverySkips = replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
+        slotSum = 0; narrowFrames = wideFrames = probeCount = 0; analysisSkips = 0;
+        losses = 0; emptyMs = 0; gapMaxMs = 0;
+        intervalSum = intervalSqSum = 0; intervalCount = 0;
+        inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
+        captureSum = acquireSum = publishSum = 0;
+        captureCount = acquireCount = publishCount = 0;
+    }
+
+    /** Formats and logs the summary line for the window ending at [now]. */
+    private static void emitLine(long now) {
         double seconds = (now - windowStartMs) / 1000.0;
         long cpu = Process.getElapsedCpuTime();
         double cpuPct = windowStartCpuMs < 0 ? -1 : 100.0 * (cpu - windowStartCpuMs) / Math.max(1L, now - windowStartMs);
@@ -198,12 +230,12 @@ public final class PerfLog {
         double intervalMean = intervalCount == 0 ? -1 : intervalSum / intervalCount;
         double jitter = intervalCount == 0 ? -1
             : Math.sqrt(Math.max(0.0, intervalSqSum / intervalCount - intervalMean * intervalMean));
-        Log.i("NextVR-Perf", String.format(java.util.Locale.US,
+        Log.i(TAG, String.format(java.util.Locale.US,
             "window=%.1fs camera=%.1f render=%.1f track=%.1f cam_work=%.1f cam_work_max=%.1f "
                 + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f slots=%.2f narrow=%d wide=%d probe=%d "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
                 + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d rescues=%d rescue_found=%d recovery_skips=%d "
-                + "loss=%d empty_ms=%.0f gap_max=%.0f track_jitter=%.1f "
+                + "loss=%d empty_ms=%.0f gap_max=%d track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
             cameraFrames / seconds,
@@ -225,15 +257,5 @@ public final class PerfLog {
             dropped, analysisSkips, rescues, rescuesFound, recoverySkips,
             losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
-        windowStartMs = now;
-        windowStartCpuMs = cpu;
-        cameraFrames = renderFrames = results = dropped = rescues = rescuesFound = 0;
-        recoverySkips = replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
-        slotSum = 0; narrowFrames = wideFrames = probeCount = 0; analysisSkips = 0;
-        losses = 0; emptyMs = 0; gapMaxMs = 0;
-        intervalSum = intervalSqSum = 0; intervalCount = 0;
-        inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
-        captureSum = acquireSum = publishSum = 0;
-        captureCount = acquireCount = publishCount = 0;
     }
 }
