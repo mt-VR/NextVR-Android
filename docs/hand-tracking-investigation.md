@@ -372,3 +372,133 @@ After the first APK, the user reported that the cursor and hover highlight appea
 - Local result in the Arena container: `npm run build:ui` and `git diff --check` succeeded; `npm test` reported 33 passed and 8 explicitly skipped. The skipped browser tests could not launch Chromium because `libnspr4.so` is absent. Node syntax checks passed. Android/JVM tests were not run locally because Java/Gradle/Android SDK are not installed.
 - CI for PR #12 then ran the complete Node suite with Chromium (41/41 passed, no skips), all 48 Android JVM unit tests (0 skipped/failures/errors), `:nextvr-android:assembleDebug`, and native-library verification for both `armeabi-v7a` and `arm64-v8a`; all passed. The debug APK was published by the workflow.
 - These are source/unit/browser-harness checks. They do **not** establish device-level tracking FPS, physical-hand accuracy, or WebView touch behavior on a phone; those remain to be checked on hardware.
+---
+
+# 2026-10-09 (5ª rodada) — fim do piscar com app aberto, silhueta 60 Hz e teclado Meta Quest completo
+
+## Bug persistente: a mão ainda piscava com um app aberto
+
+A 4ª rodada havia adicionado predição temporal e retenção de 500 ms, mas dois caminhos ainda
+apagavam a mão sob carga (app aberto = WebView + landmarker disputando GPU/CPU):
+
+1. **Frame stale apagava o silhuete** (`HandPresentation.silhouette`): quando o detector
+   atrasava mais de `validForNs`, o MESMO objeto `Frame` continua sendo desenhado a cada frame
+   de display — mas `!isFresh` zerava `lastVisible` e retornava `null`. Com gaps de detecção
+   > 500 ms (GPU ocupada pelo app), a mão apagava e reaparecia a cada resultado: o piscar.
+   **Corrigido:** a retenção agora cobre entregas stale E resultados vazios (700 ms base,
+   nunca menos que a validade do próprio frame — rastreador lento de ~1 s mantém a janela
+   dele). A mão **esvanece** no fim da retenção (`fade`, últimos 200 ms) em vez de sumir de
+   uma vez. Perda real de mão ainda some em até 700 ms; clique/fist nunca são retidos.
+2. **Cursor/raio sumiam no mesmo limiar** (`PhoneXrHandRenderer.draw`): o `return` em
+   `!isFresh` apagava o drop/anel junto. **Corrigido:** drop e anel são desenhados a partir do
+   frame retido/preditivo (com fade), mas `down` (linha do raio, press) só vem de tracking
+   **live** — sem clique fantasma durante stalls.
+
+## Suavidade: silhueta segue a predição na taxa do display
+
+O epsilon de reconstrução da malha (~2 px) deixava a silhueta atualizar em degraus de 10–20 Hz
+enquanto o cursor ia a 60 Hz. **Corrigido:** a tesselação passou a reescrever **builders
+poolados in place** (zero alocação por reconstrução; o `toFloatArray()` por passada saiu do
+caminho) com epsilon sub-pixel (~0.4 px). Mão em movimento reconstrói a cada frame de display a
+partir da pose `predicted(now)` — silhueta desliza junto do cursor; mão parada (dead zone do
+One Euro) reutiliza os mesmos buffers. Sem a pressão de GC do caminho antigo de alocar
+centenas de KB por frame.
+
+## Piscar do ponteiro perto de janelas (FAR ⇄ NEAR)
+
+Com um app aberto à frente, a mão em repouso cruza o limiar de profundidade do near-touch
+(15/20 cm) por ruído e o ponteiro alternava entre o raio FAR e o indicador NEAR — outro
+piscar observado. **Corrigido:** histerese ampla (entra a ≤ 11 cm, sai só a > 26 cm; margem
+2 cm → 8 cm) + retenção de 240 ms na saída da zona (o contato direto continua por um instante
+em vez de alternar). O outline de grab da janela (`phone-grab-hover`) também ficou adesivo
+(350 ms) para não piscar a borda da janela com o ruído da palma.
+
+## Teclado Meta Quest completo (além do deitado da 4ª rodada)
+
+Layout substituído pelo estilo Meta Quest (o deitado `-π/2 + 0.35` foi mantido — o teste do CI
+continua exigindo `matrix[6] < 0`):
+
+- Fileira de números `1..0` + backspace largo; `qwertyuiop`; `asdfghjklç` + enter claro
+  (tecla de ação); `⇧` + `zxcvbnm,.`; fileira inferior com idioma, emoji, espaço largo,
+  ditado e fechar.
+- Shift estilo Quest: um toque = maiúscula de um só caractere; dois toques = trava; três =
+  solta. Rótulos acompanham o estado.
+- 47 teclas (o teste do CI exige > 30); painel mais escuro, teclas arredondadas maiores
+  (88 px), enter claro como no Quest; emoji cicla 8 emojis; ditado mostra aviso localizado
+  (pt/en/es).
+
+## Testes desta rodada
+
+- `PhoneXrHandsTest`: `briefMiss...`/`stalledResult...` ajustados para a retenção de 700 ms e
+  agora cobrem o frame stale (regressão do bug de piscar); +2 testes (fade no fim da retenção;
+  retenção acompanha a validade de um rastreador lento de 1 s).
+- Suite node: **30/30** (inclui o boot completo do HTML no Chromium com o novo teclado e o
+  teclado deitado verificado no atlas).
+- APK: build no CI (`assembleDebug` + testes JVM) e publicação no branch `apk-dist` pelo job
+  `publish-apk`; validação física continua em aparelho real (`adb logcat -s NextVR-Perf`).
+
+---
+
+# 2026-10-09 (6ª rodada) — onboarding de idioma estilo Meta + cursor predito no shell
+
+## Primeira execução: só a janelinha de idioma (como no Meta)
+
+Antes a dock já existia por baixo da janela de idioma — apareciam duas superfícies e a mão
+podia acertar a dock antes de escolher a língua. Agora o boot sem idioma escolhido:
+
+- `setDockVisible(false)` **antes** de `languageWindow()`: a dock sai do atlas (nenhum painel,
+  nenhum pixel) e sai do hit-test da mão. Esconder o `CSS3DObject` não basta — o `Raycaster`
+  do three.js ignora `object.visible`, então `dockTest()` e a lista de `handTargets` têm gate
+  explícito (`if (dockVisible)`), e `dockArmed` é zerado ao esconder.
+- O chrome de status (`#stat`: mãos/giro/fps, ainda sem tradução) fica `hidden` durante o
+  onboarding — na tela resta apenas a janelinha de idioma sobre o passthrough.
+- `finishLanguage()` → `setLang(lang)`, `close(langWin)`, `setDockVisible(true)`, `#stat` de
+  volta, `#perm` visível e giroscópio/mãos iniciados **do próprio gesto** do botão (com
+  `recenter()` 280 ms depois). A dock é reconstruída por `on('lang', makeDock)` sem perder a
+  visibilidade (`buildDock` não toca `dockObj.visible`).
+- Multitarefa em arco intocada: `ARC_CAPACITY = 3` + LRU continuam valendo depois da escolha.
+
+Com a dock escondida, a ordem dos painéis não-overlay muda (o `dockObj` é adicionado no escopo
+do módulo, antes de qualquer janela): o teste de boot passou a ler `panels.filter(p=>!p.overlay)[0]`
+e a contar 2 painéis no boot (janela de idioma + HUD), voltando a afirmar os 12 botões da dock
+depois da seleção de idioma.
+
+## Mão mais fluida: predição do cursor no shell (mesmo princípio do `Frame.predicted()`)
+
+A silhueta nativa já deslizava na taxa do display (5ª rodada), mas o **cursor do shell** ainda
+andava em degraus de ~30 Hz: arrastar/redimensionar janela e a ponta do raio/anel só mudavam
+quando um frame de tracking novo chegava ao WebView.
+
+- `hands.js`: `updateCursorVelocity(point, now)` mantém a velocidade do cursor com low-pass
+  (.45) e `predictedCursor(now)` extrapola **apenas para apresentação** — teto de 250 ms,
+  1.6 u/s e .06 por eixo, sempre limitado à tela. Velocidade zera com mão parada/nova, após
+  lacuna > .3 s e em `cancel()`. Como o One Euro nativo tem zona morta, mirar parado ⇒
+  velocidade ~0 ⇒ nenhuma predição (o comportamento "pinch parado é seleção, não arrasto"
+  continua intacto).
+- `windows.js`: `dragTo`/`resizeTo` e o cálculo do alvo do raio/anel usam `predictedCursor(now)`;
+  `nativePress` (input no DOM) e todo `hitAt` de decisão de gesto continuam na detecção real —
+  posição predita nunca vira clique nem evento de página.
+- Cadência dos `handTargets` 33 ms → 16 ms: o anel acompanha a predição na taxa do display.
+
+## Menos contenção com app aberto (a cena parada não cruza mais a ponte)
+
+Com uma janela de app aberta, o shell reenviava a cena JSON (até 24 painéis × 16 doubles) 30×/s
+mesmo com tudo parado, e o lado nativo decodificava isso **e postava um `syncBrowsers` no thread
+principal** a cada envio — concorrência direta com o script de mão (`shell.evaluate`) e com o
+WebView. Duas camadas de cache:
+
+- `atlas.js`: `scene`/`specs` só cruzam `NativeXR.frame()` quando mudam em relação ao último
+  envio (cena estabilizada é bit-idêntica: o lerp converge no piso do float32). `invalidate()`
+  força o reenvio completo.
+- `NextVrActivity.Bridge.frame`: mesma comparação no lado nativo, com o cache descartado quando
+  a instância do `SpatialRenderer` muda (superfície recriada) — um renderer novo sempre recebe
+  decode completo e sync de browsers. `cachedSpecs` só é gravado depois do parse bem-sucedido.
+- `window.nextvrResume` chama `css3d.invalidate?.()`: shell retomado/recriado recebe a cena
+  inteira de novo, mesmo que nada tenha se movido.
+
+## Testes desta rodada
+
+- `reference-ui`: boot afirma dock ausente dos painéis e do DOM + `#stat` oculto; após escolher
+  o idioma afirma a volta da dock com os 12 botões de antes, `.win-shell` zerado (a janelinha
+  fechou junto com a escolha) e `#stat` visível.
+- Suite node: **30/30**. APK novamente pelo CI (`assembleDebug` + testes JVM) e `apk-dist`.

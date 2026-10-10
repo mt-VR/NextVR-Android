@@ -303,23 +303,32 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
     }
     private final class Bridge {
-        private String lastBrowserSpecs;
+        // frame() runs on the WebView bridge thread. A recreated renderer needs a full scene and
+        // browser sync, even if the WebView sends exactly the same JSON as before.
+        private SpatialRenderer cachedTarget;
+        private String cachedScene, cachedSpecs;
         @JavascriptInterface public void frame(String scene,String browserSpecs) {
             if(scene.length()>100000 || browserSpecs.length()>20000) return;
             try {
                 SpatialRenderer target=renderer; if(target==null) return;
-                target.panels=SpatialRenderer.decode(scene);
-                JSONArray specs=new JSONArray(browserSpecs);
-                boolean changed;
+                boolean specsChanged;
                 synchronized(this) {
-                    changed=!browserSpecs.equals(lastBrowserSpecs);
-                    if(changed)lastBrowserSpecs=browserSpecs;
+                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
+                    specsChanged=!browserSpecs.equals(cachedSpecs);
                 }
-                // Browser lifecycle/configuration changes are infrequent. Posting the same sync on
-                // every atlas frame only competes with tracking and hand input on the UI queue.
-                if(changed)main.post(()->{ try { syncBrowsers(specs,target); }
-                    catch(Exception e) { synchronized(Bridge.this) { if(browserSpecs.equals(lastBrowserSpecs))lastBrowserSpecs=null; }
-                        report("Browser surface failed: "+e.getMessage()); } });
+                if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
+                if(specsChanged) {
+                    JSONArray specs=new JSONArray(browserSpecs);
+                    synchronized(this) { cachedSpecs=browserSpecs; }
+                    // Do not queue a no-op sync every frame: it competes with hand input on main.
+                    main.post(()->{ try { syncBrowsers(specs,target); }
+                        catch(Exception e) {
+                            synchronized(Bridge.this) {
+                                if(target==cachedTarget && browserSpecs.equals(cachedSpecs))cachedSpecs=null;
+                            }
+                            report("Browser surface failed: "+e.getMessage());
+                        } });
+                }
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }

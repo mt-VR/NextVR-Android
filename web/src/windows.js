@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
-import { cursor, screenPoint, cancelHandInput } from './hands.js';
+import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
@@ -383,6 +383,18 @@ contentRoot.add(dockObj);
 const dockHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
 contentRoot.add(dockHit);
 
+/* Onboarding estilo Meta: enquanto não há idioma escolhido, SÓ a janelinha de idioma existe.
+ * Esconder o CSS3DObject tira a dock do atlas (sem painel, sem pixels) e o gate em dockTest/
+ * handTargets tira ela do hit-test da mão — a janela de idioma é a única superfície interativa.
+ * Depois da escolha, a dock volta inteira com todas as funcionalidades e o idioma selecionado. */
+let dockVisible = true;
+export function setDockVisible(visible) {
+  dockVisible = !!visible;
+  dockObj.visible = dockVisible;
+  if (!dockVisible) dockArmed = -1;
+}
+export const dockShown = () => dockVisible;
+
 let dockItems = [], dockBtns = [];
 const dockWins = [];                       // { b, win } → ponto branco quando a janela está aberta
 
@@ -490,6 +502,7 @@ function dockPinch(type) {
   }
 }
 function dockTest(x, y) {
+  if (!dockVisible) return null;
   ndc.set(x * 2 - 1, -(y * 2 - 1));
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObject(dockHit, false)[0]; if (!hit) return null;
@@ -537,20 +550,29 @@ function placeDock() {
   }
 }
 
-/* =================== teclado flutuante =================== */
+/* =================== teclado flutuante (estilo Meta Quest, deitado) =================== */
+/* Layout Meta Quest: fileira de números, QWERTY com Ç, shift com trava de 2 toques,
+ * espaço largo e utilitários (idioma, emoji, ditado, fechar) na fileira inferior. */
 const ROWS = [
-  ['q','w','e','r','t','y','u','i','o','p',{ k:'⌫', cls:'wide', icon:'backspace', label:'Apagar' }],
+  ['1','2','3','4','5','6','7','8','9','0',{ k:'⌫', cls:'wide', icon:'backspace', label:'Apagar' }],
+  ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l','ç',{ k:'⏎', cls:'enter', icon:'enter', label:'Enter' }],
-  [{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.',{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' }],
-  [{ k:'@lang', cls:'util', icon:'globe', label:'Idioma' },{ k:'@settings', cls:'util', icon:'settings', label:'Configurações' },
-    { k:' ', cls:'space', lbl:'espaço' },{ k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
+  [{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.'],
+  [{ k:'@lang', cls:'util', icon:'globe', label:'Idioma' },
+   { k:'@emoji', cls:'util', icon:'smile', label:'Emoji' },
+   { k:' ', cls:'space', lbl:'espaço' },
+   { k:'@mic', cls:'util', icon:'mic', label:'Ditado' },
+   { k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
 ];
-let kbObj = null, kbHit = null, kbTarget = null, kbShift = false;
+const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
+let emojiIndex = 0;
+let kbObj = null, kbHit = null, kbTarget = null, kbShift = false, kbShiftLock = false;
 
 export function keyboard(on_, field) {
   if (!on_) {
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
-    kbTarget = null; return;
+    kbTarget = null; kbShift = kbShiftLock = false;
+    return;
   }
   kbTarget = field;
   if (kbObj) return;
@@ -585,17 +607,35 @@ function press(k, btn) {
   if (native) window.NativeXR.click();
   if (btn) { btn.classList.add('hot'); setTimeout(() => btn.classList.remove('hot'), 110); }
   if (k === '@close') return keyboard(false);
-  if (k === '⇧') { kbShift = !kbShift; paintShift(); return; }
-  if (k === '@lang' || k === '@settings') return;
+  if (k === '⇧') {
+    // Meta Quest: um toque escreve em maiúsculas uma vez; o segundo trava; o terceiro solta.
+    if (!kbShift) { kbShift = true; kbShiftLock = false; }
+    else if (!kbShiftLock) kbShiftLock = true;
+    else { kbShift = false; kbShiftLock = false; }
+    paintShift(); return;
+  }
+  if (k === '@lang') return;
+  if (k === '@mic') { toast(t('micOff')); return; }
+  if (k === '@emoji') { type(EMOJI_CYCLE[emojiIndex++ % EMOJI_CYCLE.length]); return; }
+  type(k);
+}
+function type(k) {
   if (!kbTarget) return;
-  if (kbTarget.nativeId) { window.NativeXR.key(kbTarget.nativeId, kbShift ? k.toUpperCase() : k); return; }
-  if (k === '⌫') kbTarget.value = kbTarget.value.slice(0, -1);
+  const isAction = k === '⌫' || k === '⏎';
+  const ch = kbShift ? k.toUpperCase() : k;
+  if (kbTarget.nativeId) {
+    window.NativeXR.key(kbTarget.nativeId, ch);
+  } else if (k === '⌫') kbTarget.value = kbTarget.value.slice(0, -1);
   else if (k === '⏎') { kbTarget.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return; }
-  else kbTarget.value += kbShift ? k.toUpperCase() : k;
-  kbTarget.dispatchEvent(new Event('input', { bubbles: true }));
+  else kbTarget.value += ch;
+  if (!kbTarget.nativeId) kbTarget.dispatchEvent(new Event('input', { bubbles: true }));
+  // Shift avulso dura uma tecla; o travado permanece até ser solto.
+  if (!isAction && kbShift && !kbShiftLock) { kbShift = false; paintShift(); }
 }
 function paintShift() {
   if (!kbObj) return;
+  for (const b of kbObj.element.querySelectorAll('[data-k="⇧"]'))
+    b.dataset.state = !kbShift ? '' : kbShiftLock ? 'lock' : 'once';
   for (const b of kbObj.element.querySelectorAll('[data-k]')) {
     const k = b.dataset.k;
     if (k.length === 1 && /[a-zç]/i.test(k)) b.textContent = kbShift ? k.toUpperCase() : k.toLowerCase();
@@ -641,16 +681,22 @@ function kbPinch(type) {
 
 /* =================== laço =================== */
 let layoutSettings = '';
-onFrame(dt => {
+onFrame((dt, now) => {
   const nextSettings = `${S.winScale}:${S.winDist}`;
   if (layoutSettings !== nextSettings) { layoutSettings = nextSettings; layout(); }
   placeDock(); placeKb();
   if (nativePress && cursor.active && cursor.down) {
+    // DOM input stays on the real detection: never feed a predicted point to a page.
     const h = hitAt(cursor.x, cursor.y);
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 2);
   }
-  if (resizing.win && cursor.active && cursor.down) resizeTo(cursor.x,cursor.y);
-  if (drag.win && drag.source!=='fist' && cursor.active && cursor.down) dragTo(cursor.x,cursor.y);
+  // World-space motion (drag/resize) follows the predicted cursor, so the window glides at the
+  // display rate instead of stepping at the tracking rate — the same idea as the native silhouette.
+  if ((resizing.win || (drag.win && drag.source!=='fist')) && cursor.active && cursor.down) {
+    const p = predictedCursor(now);
+    if (resizing.win) resizeTo(p.x,p.y);
+    if (drag.win && drag.source!=='fist') dragTo(p.x,p.y);
+  }
   for (const w of wins) w.apply(dt);
 });
 
@@ -669,6 +715,9 @@ const fistBefore = new Map();
 /** Hands whose direct touch just ended while still pinched: the ray ignores them until the pinch opens. */
 const pinchSuppressed = new Set();
 let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
+/** Sticky feedback windows: hand noise must not flash outlines or swap FAR/NEAR pointers. */
+let hoverWin = null, hoverAt = 0;
+const NEAR_HOVER_HOLD_MS = 350, NEAR_HOLD_MS = 240;
 function phoneRay(x, y) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
   const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
@@ -723,17 +772,23 @@ on('phonehands', packet => {
     if(!h || !h.fist || !wins.includes(drag.win))endDrag();
     else { packet.consumed.add(h.id);const p=palmScreen(h,packet,true);dragTo(p.x,p.y); }
   }
-  for(const w of wins)w.shell.classList.remove('phone-grab-hover');
+  // The grab outline is sticky for a moment: palm noise must not flash the window border.
+  const nowMs=performance.now();
   if(!(drag.win && drag.source==='fist')) {
     const h=packet.hands.find(h=>!h.fist);
     if(h) {
       const p=palmScreen(h,packet),hit=fistHit(phoneRay(p.x,p.y));
       if(hit) {
         const {local,scale}=windowPoint(hit.win,hit.point),w=hit.win;
-        if(Math.abs(local.x)*scale.x>w.w*scale.x/2-.06 || Math.abs(local.y)*scale.y>w.h*scale.y/2-.06)w.shell.classList.add('phone-grab-hover');
+        if(Math.abs(local.x)*scale.x>w.w*scale.x/2-.06 || Math.abs(local.y)*scale.y>w.h*scale.y/2-.06){
+          hoverWin=hit.win;hoverAt=nowMs;
+        }
       }
     }
   }
+  for(const w of wins)if(w!==hoverWin||nowMs-hoverAt>NEAR_HOVER_HOLD_MS)w.shell.classList.remove('phone-grab-hover');
+  if(hoverWin&&nowMs-hoverAt<=NEAR_HOVER_HOLD_MS)hoverWin.shell.classList.add('phone-grab-hover');
+  else hoverWin=null;
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
     if(!drag.win && !resizing.win && h.fist && !before) {
@@ -745,6 +800,9 @@ on('phonehands', packet => {
     }
   }
   // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
+  // The near-touch zone has wide hysteresis and a short hold: a resting hand in front of an open
+  // window jitters across a naive depth threshold and used to blink the pointer between the FAR
+  // ray and direct touch. Enter only when clearly close; stay until clearly away.
   let best=null;
   for(const h of packet.hands) {
     if(packet.consumed.has(h.id) || !h.head || h.head.length!==63)continue;
@@ -753,21 +811,27 @@ on('phonehands', packet => {
     tip.applyMatrix4(camera.matrixWorld);
     for(const w of wins) {
       const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
-      const margin=current?.07:.03;
-      if(p.d>(current?.20:.15) || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
+      // Hysteresis: a contact already engaged stays until clearly away (0.26 m / 8 cm margin).
+      const margin=current?.08:.02;
+      const dMax=current?.26:.11;
+      if(p.d>dMax || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
   }
+  // Brief near-band jitter keeps an existing contact, but never keeps a press after tracking loss.
+  if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
+      && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
+    best={...nearContact,current:true,held:true};
+  }
   if(!best) { endNear(!ids.has(nearContact?.id),packet);return; }
   if(!best.current) {
-    endNear();
-    // Entering the zone starts from the real depth. A fingertip that is already behind the glass
-    // (or inside the band) is not a press: the old initial value of 1 pressed on entry and then
-    // never released, because release needs the fingertip in front again.
-    nearContact={...best,down:false,previousD:best.d};
+    endNear(false,packet);
+    // A fingertip already behind the glass cannot press merely by entering the near zone.
+    nearContact={...best,down:false,previousD:best.d,lastSeen:nowMs};
   } else {
     nearContact.d+=(best.d-nearContact.d)*.45;
     nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
+    if(!best.held)nearContact.lastSeen=nowMs;
   }
   const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
   const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
@@ -789,7 +853,8 @@ on('phonehands', packet => {
 });
 let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
-  if(!native || now-lastTargetAt<33)return;lastTargetAt=now;
+  // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
+  if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
     if(nearContact?.id===h.id && nearContact.down) {
@@ -798,8 +863,10 @@ onFrame((dt,now)=>{
       targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
-    const p=screenPoint(h.aim),r=phoneRay(p.x,p.y);
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
+    // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
+    const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
+    const r=phoneRay(p.x,p.y);
+    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }

@@ -87,7 +87,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       };
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
-    await page.waitForFunction(()=>window.__last?.panels.length>=3);
+    // Meta-style onboarding: only the language picker window (+ HUD overlay) is composited.
+    await page.waitForFunction(()=>window.__last?.panels.length>=2);
     assert.deepEqual(errors,[]);
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const hand = (gap,extra={}) => {
@@ -99,15 +100,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         fist:false,palmFacesEyes:false,...extra}]};
     };
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
-    const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
+    // Like Meta's first-run flow: the dock is neither composited nor in the DOM yet, so the
+    // language picker is the only surface the hand can reach.
+    assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during language onboarding');
+    assert.equal(await page.locator('.dock').count(),0,'Meta-style onboarding shows only the language picker');
+    assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden until a language exists');
     assert.equal(await page.locator('.win-title').innerText(),'Next VR');
     // Pose/gaze alone and the removed viewer callback cannot select setup; PhoneXR pinch can.
     await page.evaluate(()=>{window.nextvrResume();window.nextvrHands({hands:[]});});
     const language=await page.evaluate(()=>{
       const shell=document.querySelector('.win-shell'),button=shell.querySelector('[data-lang="en"]');
       const r=shell.getBoundingClientRect(),b=button.getBoundingClientRect();
-      const panel=window.__last.panels.filter(p=>!p.overlay)[1];
+      const panel=window.__last.panels.filter(p=>!p.overlay)[0];   // dock hidden: the picker is first
       return {matrix:panel.matrix,rect:panel.rect,glass:panel.glass,width:r.width,height:r.height,
         x:b.left+b.width/2-r.left-r.width/2,y:r.height/2-(b.top+b.height/2-r.top),buttonHeight:b.height};
     });
@@ -127,6 +131,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
     await page.evaluate(()=>clearInterval(window.__feed));
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
+    // Choosing the language closes the picker and brings the whole shell back, Meta-style:
+    // the dock returns with every previous function, in the selected language.
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
+    const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
+    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
+    assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
+    assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));

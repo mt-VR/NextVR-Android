@@ -12,6 +12,13 @@ import kotlin.math.hypot
 
 /** PhoneXR VrHomeActivity b878d8b silhouette and pointer routines, retained below.
  * The old HTML skeleton/ring is not used. Stencil makes each translucent silhouette blend once.
+ *
+ * Smoothness/flicker rules:
+ *  - the silhouette follows the per-display-frame predicted pose (Quest-style presentation
+ *    prediction), rebuilt in place with pooled buffers — no stepping at the detection rate;
+ *  - a stalled detector or a brief miss retains the last pose and fades it out at the end of
+ *    the retention window instead of blinking the hand off and on while an app is open;
+ *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
     private val colorProgram=SpatialRenderer.link(
@@ -28,11 +35,10 @@ class PhoneXrHandRenderer {
     private var viewScaleX=1f
     private var viewScaleY=1f
     private val presentation=com.nextvr.cardboard.hands.HandPresentation()
-    private data class Mesh(val vertices:FloatArray,val color:FloatArray)
     /** Primitive builder: a hand mesh is tens of thousands of floats per result frame. */
     private class FloatBuilder(initialCapacity:Int) {
-        private var values=FloatArray(maxOf(3,initialCapacity))
-        private var count=0
+        var values=FloatArray(maxOf(3,initialCapacity)); private set
+        var count=0; private set
         fun vertex(x:Float,y:Float,z:Float) {
             if(count+3>values.size)values=values.copyOf(maxOf(count+3,values.size*2))
             values[count++]=x;values[count++]=y;values[count++]=z
@@ -40,17 +46,24 @@ class PhoneXrHandRenderer {
         fun reset(){count=0}
         fun toFloatArray()=values.copyOf(count)
     }
+    /** One pooled buffer per pass and hand; refilled in place on every shape change. */
+    private class Mesh(initialCapacity:Int) {
+        val vertices=FloatBuilder(initialCapacity)
+        val color=FloatArray(4)
+    }
+    private val meshPool=ArrayList<Mesh>()
+    private var meshes=emptyList<Mesh>()
     private var meshPoints=emptyList<FloatArray>()
     private var meshBuiltAt=0L
-    private data class Geometry(val sx:Float,val sy:Float,val meshes:List<Mesh>)
-    private val meshSets=ArrayList<Geometry>(2)
-    private var meshes=emptyList<Mesh>()
+    private var meshScaleX=0f
+    private var meshScaleY=0f
     private val hasStencil=true
     private var touching=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
-    /** Normalized landmark delta that forces a mesh rebuild (~2 px at 640 px analysis width). */
-    private val MESH_REBUILD_EPSILON=.0035f
+    /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
+     * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
+    private val MESH_REBUILD_EPSILON=.0006f
     /** Even a slowly drifting hand refreshes its silhouette at least this often. */
     private val MESH_REBUILD_MAX_NS=120_000_000L
     private val RING_STEPS=40
@@ -67,6 +80,9 @@ class PhoneXrHandRenderer {
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
         val visible=presentation.silhouette(frame,now)
+        // Live tracking drives presses; a retained pose is visual only.
+        val live=frame.hands.isNotEmpty() && frame.isFresh(now)
+        val fade=if(visible==null)0f else presentation.fade(visible,now)
         viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
         GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
@@ -78,23 +94,24 @@ class PhoneXrHandRenderer {
             // Predicted to display time: the silhouette tracks the render rate even when the
             // detection rate drops (app open, GPU contention) — no stepping, no flicker.
             meshes=meshesFor(visible.predicted(now),sx,sy,now)
-            drawHandSkeletons(position)
-        } else { meshSets.clear();meshes=emptyList();meshPoints=emptyList() }
-        // Missing/stalled tracking may retain a short visual outline, but never a ray/press.
-        if(!frame.isFresh(now))return
+            drawHandSkeletons(position,fade)
+        } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
+        // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
+        val visual=visible?.predicted(now)
+        if(visual==null)return
         // Both eyes/display frames commonly reuse the same bridge packet.
         if(targetsText!=targetsJson){
             targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
             targetsText=targetsJson
         }
-        // Beam positions are predicted to display time; pinch state is always the newest one.
-        for(hand in frame.predicted(now).hands) {
+        // Beam positions are predicted to display time; pinch state is always the live one.
+        for(hand in visual.hands) {
             val id=if(hand.left) "left" else "right"
             var target:JSONObject?=null
             for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
             if(target?.optBoolean("hidden")==true) continue
             val direct=target?.optBoolean("direct")==true
-            val down=target?.optBoolean("down") ?: hand.pinching
+            val down=live && (target?.optBoolean("down") ?: hand.pinching)
             val end=target?.optJSONArray("end")
             val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
             val e=beamEnd
@@ -105,56 +122,63 @@ class PhoneXrHandRenderer {
             val b=beamLine
             b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null)1f else 0f
-            drawBeam(b,down,position)
+            drawBeam(b,down,position,fade)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
-    /** Rebuild the hand meshes only when the landmarks really moved (or aged out). The
-     * tessellation allocates hundreds of KB per result; doing it on every detection makes the
-     * GL thread allocate ~10 MB/s and stutter exactly when the system is busy — e.g. while a
-     * floating window is opening, which is when the hand used to flicker. A resting hand now
-     * reuses the cached mesh; a moving hand still rebuilds every frame. */
+    /** Rebuild the hand meshes in place whenever the predicted pose moves. The tessellation
+     * writes into pooled builders with zero per-frame allocation: a resting hand reuses the
+     * exact same buffers and a moving hand rebuilds every display frame, so the silhouette
+     * glides with the prediction instead of stepping at the detection rate. */
     private fun meshesFor(frame:PhoneXrHands.Frame,sx:Float,sy:Float,nowNs:Long):List<Mesh> {
-        val cached=meshSets.firstOrNull { it.sx==sx && it.sy==sy }
         val points=frame.hands.map { it.points }
-        val moved=points.size!=meshPoints.size || points.indices.any { i ->
+        val moved=points.size!=meshPoints.size || sx!=meshScaleX || sy!=meshScaleY || points.indices.any { i ->
             val a=points[i];val b=meshPoints[i];var j=0;var d=0f
             while(j<a.size) { val delta=abs(a[j]-b[j]);if(delta>d)d=delta;j++ }
             d>MESH_REBUILD_EPSILON
         }
-        if(cached!=null && !moved && nowNs-meshBuiltAt<MESH_REBUILD_MAX_NS)return cached.meshes
-        meshSets.clear()
-        handPoints=points;meshPoints=points;meshBuiltAt=nowNs
-        return buildHandMeshes().also { meshSets.add(Geometry(sx,sy,it)) }
+        if(!moved && nowNs-meshBuiltAt<MESH_REBUILD_MAX_NS)return meshes
+        handPoints=points;meshPoints=points;meshBuiltAt=nowNs;meshScaleX=sx;meshScaleY=sy
+        buildHandMeshes()
+        return meshes
     }
-    private fun drawArray(data:FloatArray,mode:Int,position:Int) {
-        if(vertexBuffer.capacity()<data.size)vertexBuffer=ByteBuffer.allocateDirect(data.size*8).order(ByteOrder.nativeOrder()).asFloatBuffer()
+    private fun drawArray(data:FloatArray,mode:Int,position:Int)=drawArray(data,data.size,mode,position)
+    private fun drawArray(builder:FloatBuilder,mode:Int,position:Int)=drawArray(builder.values,builder.count,mode,position)
+    private fun drawArray(data:FloatArray,count:Int,mode:Int,position:Int) {
+        if(vertexBuffer.capacity()<count)vertexBuffer=ByteBuffer.allocateDirect(count*8).order(ByteOrder.nativeOrder()).asFloatBuffer()
         val buffer=vertexBuffer
-        buffer.clear();buffer.put(data);buffer.flip()
+        buffer.clear();buffer.put(data,0,count);buffer.flip()
         GLES20.glEnableVertexAttribArray(position)
         GLES20.glVertexAttribPointer(position,3,GLES20.GL_FLOAT,false,0,buffer)
-        GLES20.glDrawArrays(mode,0,data.size/3)
+        GLES20.glDrawArrays(mode,0,count/3)
         GLES20.glDisableVertexAttribArray(position)
     }
-private fun drawHandSkeletons(position: Int) {
+private fun drawHandSkeletons(position: Int, fade: Float) {
         val color=colorUniform
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
         GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
         for(mesh in meshes) {
-            GLES20.glUniform4fv(color,1,mesh.color,0)
+            GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
     }
 
-    // Same PhoneXR tessellation and colors, built once per detection, not twice per eye/frame.
-    private fun buildHandMeshes():List<Mesh> {
+    // Same PhoneXR tessellation and colors, refilled in place per detection, not per eye/frame.
+    private fun buildHandMeshes() {
             val hands = handPoints
             val result=ArrayList<Mesh>()
             val pinching = frame.hands.any { it.pinching }
+            var used=0
+            fun mesh(): Mesh {
+                val m=if(used<meshPool.size)meshPool[used] else Mesh(8192).also{meshPool.add(it)}
+                used++
+                m.vertices.reset()
+                return m
+            }
             for (hand in hands) {
                 fun x(i: Int) = (hand[i * 3] - .5f) * 2f * viewScaleX
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
@@ -167,7 +191,8 @@ private fun drawHandSkeletons(position: Int) {
                 for (pass in 0..1) {
                     val outline = if (hasStencil) pass == 1 else pass == 0
                     val grow = if (outline) edge else 0f
-                    val shape = FloatBuilder(8192)
+                    val m = mesh()
+                    val shape = m.vertices
                     fun disc(i: Int, radius: Float) = handDisc(shape, x(i), y(i), radius + grow)
                     fun bone(i: Int, j: Int, ri: Float, rj: Float) {
                         handBone(shape, x(i), y(i), x(j), y(j), ri + grow, rj + grow)
@@ -204,10 +229,11 @@ private fun drawHandSkeletons(position: Int) {
                         outline -> floatArrayOf(.78f,.79f,.84f,.9f)
                         else -> floatArrayOf(.09f,.09f,.16f,.62f)
                     }
-                    result.add(Mesh(shape.toFloatArray(),rgba))
+                    m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
+                    result.add(m)
                 }
             }
-            return result
+            meshes = result
         }
 
 private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
@@ -234,7 +260,7 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
             out.vertex(bx,by,-1f);out.vertex(dx,dy,-1f);out.vertex(cx,cy,-1f)
         }
 
-private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
+private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             val color = colorUniform
             if (b[2] < -.05f) {
                 val hx = b[0] / -b[2]; val hy = b[1] / -b[2]
@@ -251,8 +277,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, .95f, .95f, .97f, .9f)
-                    drawArray(shape.toFloatArray(), GLES20.GL_TRIANGLES, position)
+                    GLES20.glUniform4f(color, .95f, .95f, .97f, .9f*fade)
+                    drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {
                     // Clicking: a stick along the ray, rounded at both ends.
@@ -262,8 +288,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, 1f, 1f, 1f, .95f)
-                    drawArray(shape.toFloatArray(), GLES20.GL_TRIANGLES, position)
+                    GLES20.glUniform4f(color, 1f, 1f, 1f, .95f*fade)
+                    drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
                 if (down) {
@@ -284,7 +310,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
                         across(ax, ay, az, .006f, wa)
                         across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f))
+                        GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f) * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -300,7 +326,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int) {
             val outer = (if (down || touching) .009f else .012f) * depth
             val inner = outer - .005f * depth
             GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
-            GLES20.glUniform4f(color, 1f, 1f, 1f, 1f)
+            GLES20.glUniform4f(color, fade, fade, fade, 1f)
             ring3d(b[3], b[4], b[5], outer, inner, position)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         }
