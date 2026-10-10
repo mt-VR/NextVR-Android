@@ -329,6 +329,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>document.querySelector('.dock.moving'),null,{timeout:12000});
     await page.waitForFunction(x=>Math.abs(window.__last.panels.find(p=>p.id==='dock').matrix[12]-x)>.025,
       grab.matrix[12],{timeout:12000});
+    await page.waitForTimeout(300); // Let the display-rate cursor prediction settle before sampling.
     const moved=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(moved[12]-grab.matrix[12])>.025,'Pinching and moving the bar repositions the dock');
     const windowsAfterMove=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock').map(p=>p.matrix));
