@@ -265,13 +265,27 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
     }
     private final class Bridge {
+        /** The WebView resends the same scene/specs JSON at 30 Hz even while nothing moves.
+         *  Re-decoding it (up to 24 panels x 16 doubles) and posting a browser sync to the main
+         *  thread every time is pure contention with the hand bridge — worst exactly when an app
+         *  window is open and the main thread is busy, which is when the hand feels stuttery.
+         *  Both are skipped while the payload is unchanged. The cache is dropped whenever the
+         *  renderer instance changes (surface recreated), so a fresh SpatialRenderer always
+         *  receives a full decode and browser sync. frame() runs on the WebView's single
+         *  JavaBridge thread, so these fields need no locking. */
+        private SpatialRenderer cachedTarget;
+        private String cachedScene,cachedSpecs;
         @JavascriptInterface public void frame(String scene,String browserSpecs) {
             if(scene.length()>100000 || browserSpecs.length()>20000) return;
             try {
                 SpatialRenderer target=renderer; if(target==null) return;
-                target.panels=SpatialRenderer.decode(scene);
-                JSONArray specs=new JSONArray(browserSpecs);
-                main.post(()->{ try { syncBrowsers(specs,target); } catch(Exception e) { report("Browser surface failed: "+e.getMessage()); } });
+                if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
+                if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
+                if(!browserSpecs.equals(cachedSpecs)) {
+                    JSONArray specs=new JSONArray(browserSpecs);
+                    cachedSpecs=browserSpecs;
+                    main.post(()->{ try { syncBrowsers(specs,target); } catch(Exception e) { report("Browser surface failed: "+e.getMessage()); } });
+                }
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }

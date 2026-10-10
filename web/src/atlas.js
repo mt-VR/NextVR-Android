@@ -29,6 +29,8 @@ export class AtlasRenderer {
     this.domElement = document.createElement('div');
     this.domElement.id = 'atlas';
     this.last = 0;
+  this.sent = null;
+  this.sentSpecs = null;
     this.lastError = '';
     this.slots = new Map();
   }
@@ -99,7 +101,17 @@ export class AtlasRenderer {
     const now = performance.now();
     if (now - this.last >= ({ low: 66, auto: 30, high: 16 }[document.documentElement.dataset.quality] || 30)) {
       this.last = now;
-      window.NativeXR.frame(JSON.stringify(panels), JSON.stringify(browsers));
+      const scene = JSON.stringify(panels), specs = JSON.stringify(browsers);
+      // A settled scene is bit-identical frame to frame, so do not cross the bridge for it: the
+      // 30 Hz payload handoff and the native decode it triggers run on the same threads that
+      // deliver hand tracking, and dropping them is what keeps the pointer smooth with apps open.
+      // invalidate() forces the next full send after a shell resume or recreate.
+      if (scene !== this.sent || specs !== this.sentSpecs) {
+        this.sent = scene; this.sentSpecs = specs;
+        window.NativeXR.frame(scene, specs);
+      }
     }
   }
+  /** Forget the cached payload so the next frame re-sends the whole scene to the native side. */
+  invalidate() { this.sent = this.sentSpecs = null; }
 }

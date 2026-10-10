@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
-import { cursor, screenPoint } from './hands.js';
+import { cursor, screenPoint, predictedCursor } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
@@ -383,6 +383,18 @@ contentRoot.add(dockObj);
 const dockHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
 contentRoot.add(dockHit);
 
+/* Onboarding estilo Meta: enquanto não há idioma escolhido, SÓ a janelinha de idioma existe.
+ * Esconder o CSS3DObject tira a dock do atlas (sem painel, sem pixels) e o gate em dockTest/
+ * handTargets tira ela do hit-test da mão — a janela de idioma é a única superfície interativa.
+ * Depois da escolha, a dock volta inteira com todas as funcionalidades e o idioma selecionado. */
+let dockVisible = true;
+export function setDockVisible(visible) {
+  dockVisible = !!visible;
+  dockObj.visible = dockVisible;
+  if (!dockVisible) dockArmed = -1;
+}
+export const dockShown = () => dockVisible;
+
 let dockItems = [], dockBtns = [];
 const dockWins = [];                       // { b, win } → ponto branco quando a janela está aberta
 
@@ -490,6 +502,7 @@ function dockPinch(type) {
   }
 }
 function dockTest(x, y) {
+  if (!dockVisible) return null;
   ndc.set(x * 2 - 1, -(y * 2 - 1));
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObject(dockHit, false)[0]; if (!hit) return null;
@@ -668,16 +681,22 @@ function kbPinch(type) {
 
 /* =================== laço =================== */
 let layoutSettings = '';
-onFrame(dt => {
+onFrame((dt, now) => {
   const nextSettings = `${S.winScale}:${S.winDist}`;
   if (layoutSettings !== nextSettings) { layoutSettings = nextSettings; layout(); }
   placeDock(); placeKb();
   if (nativePress && cursor.active && cursor.down) {
+    // DOM input stays on the real detection: never feed a predicted point to a page.
     const h = hitAt(cursor.x, cursor.y);
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 2);
   }
-  if (resizing.win && cursor.active && cursor.down) resizeTo(cursor.x,cursor.y);
-  if (drag.win && drag.source!=='fist' && cursor.active && cursor.down) dragTo(cursor.x,cursor.y);
+  // World-space motion (drag/resize) follows the predicted cursor, so the window glides at the
+  // display rate instead of stepping at the tracking rate — the same idea as the native silhouette.
+  if ((resizing.win || (drag.win && drag.source!=='fist')) && cursor.active && cursor.down) {
+    const p = predictedCursor(now);
+    if (resizing.win) resizeTo(p.x,p.y);
+    if (drag.win && drag.source!=='fist') dragTo(p.x,p.y);
+  }
   for (const w of wins) w.apply(dt);
 });
 
@@ -807,7 +826,8 @@ on('phonehands', packet => {
 });
 let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
-  if(!native || now-lastTargetAt<33)return;lastTargetAt=now;
+  // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
+  if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
     if(nearContact?.id===h.id) {
@@ -816,8 +836,10 @@ onFrame((dt,now)=>{
       targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
-    const p=screenPoint(h.aim),r=phoneRay(p.x,p.y);
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
+    // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
+    const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
+    const r=phoneRay(p.x,p.y);
+    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }

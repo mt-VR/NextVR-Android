@@ -366,3 +366,69 @@ continua exigindo `matrix[6] < 0`):
   teclado deitado verificado no atlas).
 - APK: build no CI (`assembleDebug` + testes JVM) e publicação no branch `apk-dist` pelo job
   `publish-apk`; validação física continua em aparelho real (`adb logcat -s NextVR-Perf`).
+
+---
+
+# 2026-10-09 (6ª rodada) — onboarding de idioma estilo Meta + cursor predito no shell
+
+## Primeira execução: só a janelinha de idioma (como no Meta)
+
+Antes a dock já existia por baixo da janela de idioma — apareciam duas superfícies e a mão
+podia acertar a dock antes de escolher a língua. Agora o boot sem idioma escolhido:
+
+- `setDockVisible(false)` **antes** de `languageWindow()`: a dock sai do atlas (nenhum painel,
+  nenhum pixel) e sai do hit-test da mão. Esconder o `CSS3DObject` não basta — o `Raycaster`
+  do three.js ignora `object.visible`, então `dockTest()` e a lista de `handTargets` têm gate
+  explícito (`if (dockVisible)`), e `dockArmed` é zerado ao esconder.
+- O chrome de status (`#stat`: mãos/giro/fps, ainda sem tradução) fica `hidden` durante o
+  onboarding — na tela resta apenas a janelinha de idioma sobre o passthrough.
+- `finishLanguage()` → `setLang(lang)`, `close(langWin)`, `setDockVisible(true)`, `#stat` de
+  volta, `#perm` visível e giroscópio/mãos iniciados **do próprio gesto** do botão (com
+  `recenter()` 280 ms depois). A dock é reconstruída por `on('lang', makeDock)` sem perder a
+  visibilidade (`buildDock` não toca `dockObj.visible`).
+- Multitarefa em arco intocada: `ARC_CAPACITY = 3` + LRU continuam valendo depois da escolha.
+
+Com a dock escondida, a ordem dos painéis não-overlay muda (o `dockObj` é adicionado no escopo
+do módulo, antes de qualquer janela): o teste de boot passou a ler `panels.filter(p=>!p.overlay)[0]`
+e a contar 2 painéis no boot (janela de idioma + HUD), voltando a afirmar os 12 botões da dock
+depois da seleção de idioma.
+
+## Mão mais fluida: predição do cursor no shell (mesmo princípio do `Frame.predicted()`)
+
+A silhueta nativa já deslizava na taxa do display (5ª rodada), mas o **cursor do shell** ainda
+andava em degraus de ~30 Hz: arrastar/redimensionar janela e a ponta do raio/anel só mudavam
+quando um frame de tracking novo chegava ao WebView.
+
+- `hands.js`: `updateCursorVelocity(point, now)` mantém a velocidade do cursor com low-pass
+  (.45) e `predictedCursor(now)` extrapola **apenas para apresentação** — teto de 250 ms,
+  1.6 u/s e .06 por eixo, sempre limitado à tela. Velocidade zera com mão parada/nova, após
+  lacuna > .3 s e em `cancel()`. Como o One Euro nativo tem zona morta, mirar parado ⇒
+  velocidade ~0 ⇒ nenhuma predição (o comportamento "pinch parado é seleção, não arrasto"
+  continua intacto).
+- `windows.js`: `dragTo`/`resizeTo` e o cálculo do alvo do raio/anel usam `predictedCursor(now)`;
+  `nativePress` (input no DOM) e todo `hitAt` de decisão de gesto continuam na detecção real —
+  posição predita nunca vira clique nem evento de página.
+- Cadência dos `handTargets` 33 ms → 16 ms: o anel acompanha a predição na taxa do display.
+
+## Menos contenção com app aberto (a cena parada não cruza mais a ponte)
+
+Com uma janela de app aberta, o shell reenviava a cena JSON (até 24 painéis × 16 doubles) 30×/s
+mesmo com tudo parado, e o lado nativo decodificava isso **e postava um `syncBrowsers` no thread
+principal** a cada envio — concorrência direta com o script de mão (`shell.evaluate`) e com o
+WebView. Duas camadas de cache:
+
+- `atlas.js`: `scene`/`specs` só cruzam `NativeXR.frame()` quando mudam em relação ao último
+  envio (cena estabilizada é bit-idêntica: o lerp converge no piso do float32). `invalidate()`
+  força o reenvio completo.
+- `NextVrActivity.Bridge.frame`: mesma comparação no lado nativo, com o cache descartado quando
+  a instância do `SpatialRenderer` muda (superfície recriada) — um renderer novo sempre recebe
+  decode completo e sync de browsers. `cachedSpecs` só é gravado depois do parse bem-sucedido.
+- `window.nextvrResume` chama `css3d.invalidate?.()`: shell retomado/recriado recebe a cena
+  inteira de novo, mesmo que nada tenha se movido.
+
+## Testes desta rodada
+
+- `reference-ui`: boot afirma dock ausente dos painéis e do DOM + `#stat` oculto; após escolher
+  o idioma afirma a volta da dock com os 12 botões de antes, `.win-shell` zerado (a janelinha
+  fechou junto com a escolha) e `#stat` visível.
+- Suite node: **30/30**. APK novamente pelo CI (`assembleDebug` + testes JVM) e `apk-dist`.
