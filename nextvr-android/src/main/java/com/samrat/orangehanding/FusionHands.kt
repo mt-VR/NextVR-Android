@@ -45,7 +45,12 @@ import kotlin.math.max
  *
  * The result is an ordinary [HandLandmarkerResult], so everything written for MediaPipe keeps working.
  */
-class FusionHands(
+/**
+ * [yoloEveryMs] and [secondHandProbeMs] carry default values, and the caller here is Java:
+ * `@JvmOverloads` is what lets `PassthroughCamera` build this with four arguments and leave the
+ * probe interval at its default.
+ */
+class FusionHands @JvmOverloads constructor(
     context: Context,
     useGpu: Boolean = false,
     handModel: String = "hand_landmarker.task",

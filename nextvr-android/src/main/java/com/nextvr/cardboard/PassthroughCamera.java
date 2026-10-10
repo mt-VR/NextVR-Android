@@ -301,15 +301,18 @@ final class PassthroughCamera {
      * re-enabled): the new value is then the whole window's count. */
     private static long delta(long now,long reported) { return now<reported?now:now-reported; }
 
-    private void clearHands() { hands.reset();listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos())); }
+    /**
+     * Runs on the tracking thread, which is also the thread that owns the landmarker. Hands are gone,
+     * so the narrow/wide decision made against the frames that just expired is forgotten too: the next
+     * session searches both slots again until one hand proves the second slot idle.
+     */
+    private void clearHands() {
+        if(detector!=null)detector.resetSlots();
+        hands.reset();
+        listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
+    }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;
-        if(!enabled && detector!=null) {
-            // Hand tracking is being turned off (shell backgrounded, gated UI): forget the narrow
-            // stretch, which was decided against frames that are about to be long gone, so the next
-            // session searches both hands again until one hand proves the second slot idle.
-            detector.resetSlots();
-        }
         if(!enabled) {
             TrackingFrame waiting=slot.clear();
             if(waiting!=null)waiting.release();

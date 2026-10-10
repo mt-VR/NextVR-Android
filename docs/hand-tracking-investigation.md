@@ -724,8 +724,9 @@ aparelho para validar; não entra em uma rodada de desempenho.
 
 ## Riscos desta rodada
 
-- Pausar o tracking (`enableHands(false)`) chama `resetSlots()`: a retomada volta a procurar as duas
-  mãos antes de decidir de novo. Sem isso, a decisão NARROW ficaria ancorada em timestamps antigos.
+- Todo `clearHands()` (pausa, retomada, troca de delegate, destroy) chama `resetSlots()` no thread de
+  tracking — o mesmo thread dono do landmarker: a retomada volta a procurar as duas mãos antes de
+  decidir de novo. Sem isso, a decisão NARROW ficaria ancorada em timestamps que já envelheceram.
 - Na primeira mão levantada da sessão, o WIDE→NARROW troca de grafo no frame seguinte: um frame de
   detecção (não-rastreamento), potencialmente mais caro e sem suavização de ROI. É 1 frame por transição
   e o `HandMovement`/`OneEuro` já amortece; o log `narrow=`/`wide=` mostra se a máquina estiver
