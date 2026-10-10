@@ -64,6 +64,10 @@ final class PassthroughCamera {
     private final AnalysisGate analysisGate=new AnalysisGate(AnalysisGate.DEFAULT_MAX_PENDING_AGE_MS);
     /** Judges the GPU delegate on measured inference cost, not on whether it threw (see DelegateWatch). */
     private final DelegateWatch delegateWatch=new DelegateWatch();
+    /** Tolerates a failed camera frame instead of tearing the camera down on the first one. */
+    private final TrackingFailureGuard frameFailures=new TrackingFailureGuard();
+    /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
+    private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
     /** Recovery rounds already reported for the current detector, so the log gets the delta only. */
     private int reportedSkips;
     private long reportedNarrow,reportedWide,reportedProbes;
@@ -90,7 +94,7 @@ final class PassthroughCamera {
     @SuppressLint("MissingPermission")
     private void open(int displayRotation) {
         if(destroyed)return;
-        closeCamera();final int token=++generation;
+        closeCamera();final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
             String id=null;CameraCharacteristics chars=null;
@@ -204,7 +208,19 @@ final class PassthroughCamera {
             long handoffStart=SystemClock.elapsedRealtime();
             listener.frame(upright);upright=null;
             PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
-        }catch(Exception e){fail("Camera frame failed",e);}
+            frameFailures.succeeded();
+        }catch(Throwable e){
+            // A frame that fails once is not an outage: the next camera frame arrives in ~33 ms and
+            // carries the same scene, and the work that can throw here (the native conversion, the
+            // resample's allocation) is exactly the kind that succeeds on a retry. The camera is only
+            // torn down when the failure repeats on consecutive frames. Throwable, not Exception: an
+            // Error here would kill the camera looper and freeze the passthrough with no report.
+            if(frameFailures.failed())fail("Camera frame failed",e);
+            else {
+                PerfLog.cameraRetry();
+                if(frameFailures.consecutive()==1)android.util.Log.w("NextVR-Camera","frame failed; retrying on the next frame",e);
+            }
+        }
         finally{
             if(image!=null)image.close();
             if(upright!=null)upright.recycle();
@@ -231,6 +247,14 @@ final class PassthroughCamera {
                 continue;
             }
             try { track(frame); }
+            catch(Throwable unexpected) {
+                // track() already counts every Exception. An Error takes a different door: it would
+                // escape the executor task, kill the worker and leave `scheduled` stuck at true, so
+                // every later frame would be dropped with no error and no recovery. The realistic
+                // case here is an OutOfMemoryError from a bitmap allocation under memory pressure -
+                // a per-frame failure like any other, which the guard retries and eventually reports.
+                handleTrackingFailure(unexpected);
+            }
             finally { frame.release(); }
         }
     }
@@ -308,7 +332,24 @@ final class PassthroughCamera {
             // or skipping tracker in the perf log (see PerfLog.result).
             PerfLog.result(inferenceMs,frame.captureNs,frame.acquiredNs,completedNs,result.getHands().size());
             if(frame.token==generation && !destroyed && handsEnabled)listener.hands(result);
-        }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
+            trackFailures.succeeded();
+        }catch(Exception e){handleTrackingFailure(e);}
+    }
+    /**
+     * The one place a failed tracking frame is judged: a single failure (a bitmap the delegate
+     * rejected, a transient allocation failure while a WebView was rasterizing) must not end hand
+     * tracking for the rest of the session - the next frame arrives in ~33 ms and carries the same
+     * hand. Only a failure that repeats on consecutive frames is an outage, and that still stops the
+     * hands and reports it, instead of retrying forever behind a frozen cursor.
+     */
+    private void handleTrackingFailure(Throwable failure) {
+        if(!trackFailures.failed()) {
+            PerfLog.handRetry();
+            if(trackFailures.consecutive()==1)android.util.Log.w("NextVR-Hands","frame failed; retrying on the next frame",failure);
+            return;
+        }
+        android.util.Log.e("NextVR-Hands","hand tracking stopped after "+trackFailures.consecutive()+" consecutive failures",failure);
+        handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+failure.getMessage());clearHands();
     }
     /** A counter that went backwards means the reported stream restarted (graphs rebuilt, tracking
      * re-enabled): the new value is then the whole window's count. */
@@ -326,13 +367,16 @@ final class PassthroughCamera {
     }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;
-        if(!enabled) {
+        // Re-enabling after an outage is a fresh start: the streak that stopped the session must not
+        // count against the new one, or the very first hiccup would stop it again immediately.
+        if(enabled)trackFailures.reset();
+        else {
             TrackingFrame waiting=slot.clear();
             if(waiting!=null)waiting.release();
             tracking.execute(this::clearHands);
         }
     }
-    private void fail(String message,Exception e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
+    private void fail(String message,Throwable e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
     private void closeCamera(){
         ++generation;
         if(session!=null){session.close();session=null;}

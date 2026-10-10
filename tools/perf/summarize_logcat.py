@@ -113,9 +113,9 @@ def summarise(rows, title):
 
 
 SELF_TEST = """\
-01-01 12:00:00.000 I/NextVR-Perf( 1): window=3.0s camera=29.8 render=60.1 track=14.9 infer_mean=31.2 infer_max=40.0 capture_to_landmark=95.0 acquire_to_landmark=60.0 publish=3.0 cam_work=18.0 cam_work_max=44.0 handoff=1.4 handoff_max=9.0 slots=2.00 narrow=0 wide=45 probe=0 dropped=12 skips=0 replayed=6.00 stale=9 coalesced=0 rescues=3 rescue_found=1 recovery_skips=0 loss=0 empty_ms=0 gap_max=120 track_jitter=9.0 cpu_pct=85.0 native_mb=210.5 java_mb=60.2 delegate=GPU
-01-01 12:00:03.000 I/NextVR-Perf( 1): window=3.0s camera=30.0 render=59.9 track=29.1 infer_mean=28.0 infer_max=33.0 capture_to_landmark=-1.0 acquire_to_landmark=45.0 publish=-1.0 cam_work=5.1 cam_work_max=7.0 handoff=0.2 handoff_max=1.0 slots=1.13 narrow=82 wide=5 probe=4 dropped=0 skips=3 replayed=1.00 stale=0 coalesced=0 rescues=0 rescue_found=0 recovery_skips=2 loss=1 empty_ms=120 gap_max=70 track_jitter=4.0 cpu_pct=70.0 native_mb=211.0 java_mb=61.0 delegate=GPU
-01-01 12:00:06.000 I/NextVR-Perf( 1): window=3.0s camera=30.0 render=60.0 track=28.5 infer_mean=29.0 infer_max=35.0 capture_to_landmark=80.0 acquire_to_landmark=42.0 publish=2.5 cam_work=5.4 cam_work_max=8.0 handoff=0.2 handoff_max=1.0 slots=1.10 narrow=80 wide=6 probe=6 dropped=0 skips=0 replayed=1.02 stale=0 coalesced=12 rescues=0 rescue_found=0 recovery_skips=0 loss=0 empty_ms=0 gap_max=40 track_jitter=2.0 cpu_pct=72.0 native_mb=212.0 java_mb=61.5 delegate=GPU
+01-01 12:00:00.000 I/NextVR-Perf( 1): window=3.0s camera=29.8 render=60.1 track=14.9 infer_mean=31.2 infer_max=40.0 capture_to_landmark=95.0 acquire_to_landmark=60.0 publish=3.0 cam_work=18.0 cam_work_max=44.0 handoff=1.4 handoff_max=9.0 slots=2.00 narrow=0 wide=45 probe=0 dropped=12 skips=0 replayed=6.00 stale=9 coalesced=0 rescues=3 rescue_found=1 recovery_skips=0 camera_retries=2 hand_retries=1 loss=0 empty_ms=0 gap_max=120 track_jitter=9.0 cpu_pct=85.0 native_mb=210.5 java_mb=60.2 delegate=GPU
+01-01 12:00:03.000 I/NextVR-Perf( 1): window=3.0s camera=30.0 render=59.9 track=29.1 infer_mean=28.0 infer_max=33.0 capture_to_landmark=-1.0 acquire_to_landmark=45.0 publish=-1.0 cam_work=5.1 cam_work_max=7.0 handoff=0.2 handoff_max=1.0 slots=1.13 narrow=82 wide=5 probe=4 dropped=0 skips=3 replayed=1.00 stale=0 coalesced=0 rescues=0 rescue_found=0 recovery_skips=2 camera_retries=0 hand_retries=3 loss=1 empty_ms=120 gap_max=70 track_jitter=4.0 cpu_pct=70.0 native_mb=211.0 java_mb=61.0 delegate=GPU
+01-01 12:00:06.000 I/NextVR-Perf( 1): window=3.0s camera=30.0 render=60.0 track=28.5 infer_mean=29.0 infer_max=35.0 capture_to_landmark=80.0 acquire_to_landmark=42.0 publish=2.5 cam_work=5.4 cam_work_max=8.0 handoff=0.2 handoff_max=1.0 slots=1.10 narrow=80 wide=6 probe=6 dropped=0 skips=0 replayed=1.02 stale=0 coalesced=12 rescues=0 rescue_found=0 recovery_skips=0 camera_retries=1 hand_retries=0 loss=0 empty_ms=0 gap_max=40 track_jitter=2.0 cpu_pct=72.0 native_mb=212.0 java_mb=61.5 delegate=GPU
 unrelated line that must be ignored
 """
 
@@ -129,6 +129,7 @@ def self_test():
     assert rows[0]["stale"] == 9 and rows[1]["narrow"] == 82
     assert rows[1]["skips"] == 3 and rows[1]["loss"] == 1 and rows[1]["empty_ms"] == 120
     assert rows[0]["gap_max"] == 120 and rows[2]["track_jitter"] == 2.0
+    assert rows[0]["camera_retries"] == 2 and rows[1]["hand_retries"] == 3
     assert abs(rows[1]["slots"] - 1.13) < 1e-9 and rows[2]["coalesced"] == 12
     text = summarise(rows, "self-test")
     assert "| track | fps |" in text and "Delegate: GPU" in text

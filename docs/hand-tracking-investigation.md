@@ -642,6 +642,9 @@ As três leituras que importam:
 Um item deixado **de propósito**: `FusionHands.track()` ancora `handsEnabled=false` em qualquer
 exceção, encerrando o tracking da sessão. É frágil, mas muda comportamento de falha e precisa de
 aparelho para validar; não entra em uma rodada de desempenho.
+(Corrigido depois, na rodada de 2026-10-10 no fim deste documento — o sítio é
+`PassthroughCamera.track()`, não `FusionHands`; a queda agora exige 5 falhas consecutivas e a
+validação on-device continua pendente.)
 
 ## Correções desta rodada
 
@@ -1062,3 +1065,83 @@ demora.
 - **Não compilado neste ambiente** (sem JDK/Gradle): `compileDebugKotlin`/`assembleDebug` e os
   testes JVM confirmam no CI do PR. Validação on-device (YouTube: clique vs scrub; arrasto de
   janela; piscar em aparelho lento) continua exigindo telefone real.
+
+# 2026-10-10 — Robustez do tracking: pinça fantasma, mão duplicada e falha isolada que encerrava a sessão
+
+## Causas encontradas (código real)
+
+- **Pinça fantasma numa detecção colapsada (`HandGestures`)**: o gap da pinça é uma RAZÃO pela
+  largura da palma. Numa detecção degenerada (glitch do modelo devolvendo os 21 pontos no mesmo
+  lugar, ou uma mão a meio pixel da câmera) a largura da palma ia a ~0 e `0/0,02 = 0` chegava ao
+  latch como pinça FECHADA — um clique sem mão nenhuma atrás. `MIN_PALM = 0,008` (0,8 % da imagem)
+  separa medida de ruído: abaixo disso o gap é reportado aberto (`1`). Mãos reais medem ≈0,03–0,05
+  de palma mesmo no limite de detecção, então nenhum gesto real é afetado.
+- **Duas mãos com o mesmo rótulo (`PhoneXrHands`)**: quando o MediaPipe rotula as duas mãos como o
+  mesmo lado (mãos cruzadas ou vistas de perfil), as duas publicavam o MESMO `id` e compartilhavam o
+  MESMO estado (filtro One Euro e latch): os samples de uma puxavam o filtro da outra e uma mão
+  aberta podia SOLTAR a pinça que a vizinha segurava; no web, que casa `id` com press/drag, as duas
+  eram indistinguíveis. O segundo rótulo duplicado agora vai para o lado livre, então cada mão
+  mantém `id`, filtro e latch próprios, qualquer que seja a ordem em que o detector as reporte.
+- **Alocação por frame no thread de tracking (`PalmMenuPose`)**: `eligible()` montava uma dúzia de
+  `FloatArray`s (e uma lambda por landmark) por mão por frame — dentro do `Frame.json()`, que o
+  thread de tracking serializa entre duas inferências — para um campo que o web só lê como booleano.
+  Reescrito com escalares, sem boxing; mesmos limiares e mesma regra de sinal (diff conferido contra
+  HEAD), com teste de regressão para o espelhamento por lado.
+- **Qualquer exceção encerrava o tracking da sessão (`PassthroughCamera`)**: o item registrado como
+  deixado de propósito na rodada de desempenho (a âncora `handsEnabled=false` em qualquer exceção,
+  então atribuída a `FusionHands.track()` e que na verdade mora em `PassthroughCamera.track()`). Uma
+  única falha de inferência (bitmap recusado pelo delegate, alocação transitória sob pressão de
+  memória) desligava as mãos até reiniciar o app. Agora um `TrackingFailureGuard` por caminho conta
+  falhas CONSECUTIVAS: uma falha é retentada no frame seguinte (~33 ms, mesma mão) e só a quinta
+  seguida é queda — aí sim `handsEnabled=false`, `listener.error(...)` e `clearHands()` (frame
+  vazio, que cancela press em curso, como antes). `reset()` em `enableHands(true)` e ao reabrir a
+  câmera: reativar começa com a streak limpa.
+- **O mesmo no callback da câmera**: um frame com falha é retentado em vez de derrubar a câmera no
+  primeiro erro; cinco seguidos ainda chamam `fail(...)`.
+- **`Throwable`, não `Exception`, nos dois caminhos**: um `Error` (o caso realista é um
+  `OutOfMemoryError` de bitmap sob pressão de memória — o cenário que `native_mb`/`java_mb`
+  instrumentam) escapava do `catch`, matava a thread do executor/looper e deixava o pipeline parado
+  em SILÊNCIO: `scheduled` ficava preso em `true`, todo frame seguinte era descartado sem erro e sem
+  recuperação. Agora é a mesma falha contada, retentada e, se persistente, reportada.
+- **`PerfLog`**: `camera_retries`/`hand_retries` por janela (uma rajada com as mãos ainda funcionando
+  é evidência de ambiente/delegate instável, não de queda); o sumarizador
+  (`tools/perf/summarize_logcat.py`) ganhou as duas linhas e o `--self-test` verifica que elas são
+  parseadas.
+
+## Investigado e descartado (registrado para não refazer)
+
+- Troca de lado da mão segurando uma pinça (`predicted=false`): NÃO é defeito. Na troca de rótulo o
+  `id` muda e o `HandClickState` já CANCELA em vez de clicar ("losing/changing the hand cancels
+  rather than clicks") — a direção segura. Predições nunca alimentam a máquina de gestos.
+
+## Validação
+
+- JVM (harness local, Kotlin puro sobre stubs — sem Android SDK): **55 testes, 55 passam, 0 falham**.
+  Inclui `TrackingFailureGuardTest` (uma falha tolerada, queda só na N-ésima consecutiva, reset por
+  frame bom e explícito, tolerância inválida rejeitada), as 3 novas de `PhoneXrHandsTest` (ids
+  distintos e filtros independentes com rótulo duplicado; a vizinha não solta a pinça segura em
+  nenhuma ordem; detecção colapsada/meio pixel nunca é pinça e a mão real no limite de detecção
+  ainda mede o próprio gap) e os 2 novos de `PalmMenuPoseTest` (palma ereta de frente para os olhos;
+  o espelhamento por lado julgado pela mesma regra).
+- A primeira execução do harness pegou um teste errado desta rodada
+  (`oneGoodFrameResetsTheTolerance` esperava tolerância infinita após o reset); corrigido, e o
+  contrato ficou explícito: depois de um frame bom, a streak recomeça e são necessárias as N falhas
+  consecutivas de novo.
+- Node: 48 testes (40 passando, 8 do Chromium pulados neste ambiente) — sem mudança de web nesta
+  rodada.
+- `python3 tools/perf/summarize_logcat.py --self-test` passa com as métricas novas.
+- O primeiro CI do PR pegou 9 erros de símbolo em `PassthroughCamera.java`: as DECLARAÇÕES dos dois
+  guards se perderam numa edição concorrente do workspace (os usos ficaram, as declarações não).
+  Corrigido e conferido símbolo a símbolo (toda chamada nova × declaração) antes do reenvio — o
+  harness Kotlin não compila Java, então esse tipo de erro só aparece no CI.
+- O CI também pegou (run seguinte) um override ausente de `handedness()` no helper de duas mãos de
+  `PhoneXrHandsTest`: o stub do harness declarava `handedness()` como opcional, então o erro só
+  existia na API real do MediaPipe. O stub foi endurecido (abstrato, como o real) para o harness
+  acusar isso antes do CI.
+- **Não compilado neste ambiente** (sem Android SDK/Gradle): `PassthroughCamera.java`/`PerfLog.java`
+  passaram por checagem de sintaxe (tree-sitter, 0 erros) e conferência de que os 35 especificadores
+  da linha de resumo batem com os 35 argumentos antes do reenvio; o CI confirmou
+  `compileDebugJavaWithJavac`, os testes JVM/Robolectric (**15 classes, 93 testes, 0 falhas**), o
+  `assembleDebug`, a verificação das bibliotecas nativas nos dois ABIs e a publicação do APK. Node:
+  48/48 com Chromium. Validação on-device pendente: as 5 falhas seguidas para a queda, as rajadas em
+  `camera_retries`/`hand_retries` e a palma colapsada continuam exigindo aparelho real.

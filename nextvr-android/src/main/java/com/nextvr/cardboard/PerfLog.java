@@ -45,6 +45,12 @@ import android.util.Log;
  * track_jitter     : stddev of the intervals between results - rate stability, independent of rate
  * rescues          : crop rescues finished (found: how many of them produced a hand)
  * recoverySkips    : YOLO rounds shed because the primary inference was already the bottleneck
+ * camera_retries   : camera frames that failed and were retried on the next frame instead of
+ *                    tearing the camera down on the first one; five in a row still do (the guard
+ *                    in TrackingFailureGuard, mirrored by hand_retries on the tracking thread)
+ * hand_retries     : hand-tracking frames that failed and were retried instead of ending the
+ *                    session's hand tracking; five in a row still stop the hands and report it.
+ *                    A burst with the hands still tracked is a flaky delegate, not an outage.
  * cpu_pct          : process CPU time over wall time, all threads
  * native_mb / java_mb : memory, for long-session stability
  *
@@ -65,6 +71,8 @@ public final class PerfLog {
     /** Tracking-loss separation: results that OBSERVED no hand after a result that had one are
      * real losses; a tracker that is merely slow or skipping shows up as gap/jitter instead. */
     private static long losses;
+    /** Per-frame failures retried instead of ending the path on the spot (TrackingFailureGuard). */
+    private static long cameraRetries, handRetries;
     private static int lastHands = -1;
     private static long emptySinceMs = -1;
     private static double emptyMs;
@@ -112,6 +120,14 @@ public final class PerfLog {
 
     /** A YOLO recovery round was shed because the primary inference was already slow. */
     public static synchronized void recoverySkipped() { recoverySkips++; }
+
+    /** A camera-callback frame failed and is being retried on the next frame instead of tearing the
+     * camera down on the first one; five consecutive failures still do (TrackingFailureGuard). */
+    public static synchronized void cameraRetry() { cameraRetries++; }
+
+    /** A hand-tracking frame failed and is being retried on the next frame instead of ending the
+     * session's hand tracking; five consecutive failures still stop the hands (TrackingFailureGuard). */
+    public static synchronized void handRetry() { handRetries++; }
 
     /** Which landmarker is doing the primary inference, for A/B runs ("GPU" or "CPU"). */
     public static synchronized void delegate(String name) { delegate = name; }
@@ -207,6 +223,7 @@ public final class PerfLog {
         windowStartCpuMs = Process.getElapsedCpuTime();
         cameraFrames = renderFrames = results = dropped = rescues = rescuesFound = 0;
         recoverySkips = replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
+        cameraRetries = handRetries = 0;
         slotSum = 0; narrowFrames = wideFrames = probeCount = 0; analysisSkips = 0;
         losses = 0; emptyMs = 0; gapMaxMs = 0;
         intervalSum = intervalSqSum = 0; intervalCount = 0;
@@ -235,6 +252,7 @@ public final class PerfLog {
                 + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f slots=%.2f narrow=%d wide=%d probe=%d "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
                 + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d rescues=%d rescue_found=%d recovery_skips=%d "
+                + "camera_retries=%d hand_retries=%d "
                 + "loss=%d empty_ms=%.0f gap_max=%d track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
@@ -255,6 +273,7 @@ public final class PerfLog {
             replayedBatches == 0 ? -1.0 : replayedFrames / (double) replayedBatches,
             staleFrames, coalescedFrames,
             dropped, analysisSkips, rescues, rescuesFound, recoverySkips,
+            cameraRetries, handRetries,
             losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
     }

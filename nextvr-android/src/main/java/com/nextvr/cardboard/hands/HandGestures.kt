@@ -13,6 +13,15 @@ object HandGestures {
     /** PhoneXR reference hysteresis for a deliberate pinch click. */
     const val PINCH_CLOSE_GAP = .30f
     const val PINCH_OPEN_GAP = .48f
+    /**
+     * Smallest palm (index to pinky base, in image widths) a landmark set may have and still be
+     * measured. The pinch gap is a RATIO to the palm, so a collapsed or sub-pixel palm turns it into
+     * 0/0.02 = 0 and every threshold reads "fully closed": a model glitch (or a hand the detector
+     * returns as a single point) used to arrive at the web layer as a phantom pinch - a click with
+     * no hand. Real hands are far above this floor even at the detection limit (a hand filling 12 %
+     * of the frame height measures roughly .03-.05 here), so nothing legitimate is lost.
+     */
+    const val MIN_PALM = .008f
 
     data class Shape(
         /** Thumb and index tips together: click. */
@@ -57,9 +66,12 @@ object HandGestures {
             val dy = p[a].y() - p[b].y()
             return sqrt(dx * dx + dy * dy)
         }
-        val palm = d(5, 17).coerceAtLeast(.02f)
+        val palmRaw = d(5, 17)
+        val palm = palmRaw.coerceAtLeast(.02f)
         // Pinch hysteresis is applied by the caller; here only the distance relative to the palm.
-        val gap = d(4, 8) / palm
+        // A palm below [MIN_PALM] is not a measurement at all: report the hand open instead of
+        // letting the degenerate ratio close a pinch nobody made.
+        val gap = if (palmRaw < MIN_PALM) 1f else d(4, 8) / palm
         val strength = ((.9f - gap) / .6f).coerceIn(0f, 1f)
         var others = 0
         for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.04f) others++

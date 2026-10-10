@@ -32,6 +32,66 @@ class PhoneXrHandsTest {
         set(4,0f);set(8,indexGapX,0f,indexGapZ)
         return points
     }
+    /** A two-hand result: one landmark list per hand, one handedness label per hand. */
+    private fun twoResults(hands:List<List<NormalizedLandmark>>,sides:List<String>,stamp:Long):HandLandmarkerResult {
+        // handednesses() is deprecated and handedness() is the current member of the real abstract
+        // class; the JVM harness stub used to make handedness() optional, which hid the override the
+        // Android build demands. Both return the same list here.
+        val labels=sides.map{listOf(Category.create(1f,0,it,it))}
+        return object:HandLandmarkerResult(){
+            override fun timestampMs()=stamp
+            override fun landmarks()=hands
+            override fun worldLandmarks()=emptyList<List<Landmark>>()
+            override fun handednesses()=labels
+            override fun handedness()=labels
+        }
+    }
+    @Test fun twoHandsLabelledTheSameSideGetDistinctIdsAndTheirOwnGestures() {
+        // MediaPipe labels both hands the same side when they cross or are seen edge-on. The two
+        // hands must never share one published `id` - the web layer owns presses, drags and the
+        // reach/consumed sets per id - nor one filter/pinch state: one hand's samples then pulled
+        // the other's One Euro filters and updated its latch, so an open hand could release a
+        // pinch that its neighbour was really holding.
+        val engine=PhoneXrHands()
+        val frame=engine.process(twoResults(listOf(points(.2f),points(.9f)),listOf("Right","Right"),1000),1f,1f)
+        assertEquals(2,frame.hands.size)
+        assertEquals(2,frame.hands.map{it.left}.toSet().size)
+        assertEquals(2,frame.hands.map{it.pinching}.toSet().size)
+        assertTrue(frame.hands.any{it.pinching})
+        // The order the detector reports the two hands in must not change any of that.
+        val reversed=PhoneXrHands().process(twoResults(listOf(points(.9f),points(.2f)),listOf("Right","Right"),1000),1f,1f)
+        assertEquals(2,reversed.hands.map{it.left}.toSet().size)
+        assertEquals(2,reversed.hands.map{it.pinching}.toSet().size)
+    }
+    @Test fun theNeighbourHandCannotReleaseAHeldPinch() {
+        val engine=PhoneXrHands()
+        repeat(4) { i ->
+            val frame=engine.process(twoResults(listOf(points(.2f),points(.9f)),listOf("Right","Right"),1000+i*16L),1f,1f)
+            // One hand stays pinched across every frame; the open neighbour never releases it.
+            assertEquals(1,frame.hands.count{it.pinching})
+        }
+        repeat(4) { i ->
+            val frame=engine.process(twoResults(listOf(points(.9f),points(.2f)),listOf("Right","Right"),2000+i*16L),1f,1f)
+            assertEquals(1,frame.hands.count{it.pinching})
+        }
+    }
+    @Test fun aCollapsedDetectionIsNeverAPinch() {
+        // A model glitch can return every landmark on the same point. The pinch gap is a RATIO to
+        // the palm, so 0/0.02 = 0 used to reach the latch as a fully closed pinch: a click with no
+        // hand behind it. A sub-pixel palm is not a measurement, so the hand is reported open.
+        val collapsed=MutableList(21){NormalizedLandmark.create(.5f,.5f,0f)}
+        val shape=HandGestures.shape(collapsed,false)
+        assertFalse(shape.pinch)
+        assertFalse(shape.fist)
+        assertEquals(1f,shape.pinchGap,0f)
+        assertFalse(HandGestures.PinchLatch().update(shape))
+        assertFalse(PhoneXrHands().process(result(collapsed,1000),1f,1f).hands.single().pinching)
+        // A hand measured at half a pixel across (0.5 % of the image) reads the same.
+        val speck=collapsed.map{NormalizedLandmark.create(.5f+(it.x()-.5f)*.005f,.5f,.0f)}
+        assertEquals(1f,HandGestures.shape(speck,false).pinchGap,0f)
+        // And a real hand at the detection limit still measures its own gap.
+        assertTrue(HandGestures.shape(points(.2f).map{NormalizedLandmark.create(.5f+(it.x()-.5f)*.1f,.4f+(it.y()-.4f)*.1f,0f)},false).pinch)
+    }
     @Test fun pinchThresholdsMatchPhoneXrAndRemainHysteretic() {
         val latch=HandGestures.PinchLatch()
         assertFalse(latch.update(HandGestures.shape(points(.31f),false)))
