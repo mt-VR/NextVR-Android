@@ -301,3 +301,35 @@ O código final é a UNIÃO das duas:
   de hand-frame pré-serializado na thread de tracking (JSON fora do thread principal) + o
   `PerfLog.published` do main; o `PassthroughCamera` é a união: mailbox/drain do PR #9 +
   conversão nativa fuseada com rotação desta branch.
+
+# 2026-10-10 — janela de idioma visível mas não respondia à mão (PhoneXR)
+
+## Sintoma
+
+A janela de boas-vindas (idioma, a ~0,42 m) aparecia, mas o toque com a mão não escolhia nenhum idioma. Em alguns alcances havia um "toque preso" (DOWN sem UP) e, em outros, nenhum evento era enviado.
+
+## Causa raiz (código de `web/src/windows.js`, handler `phonehands`)
+
+1. **O caminho de proximidade bloqueava o raio em toda a faixa.** Qualquer dedo com `d` em (−0,12; 0,15) m de um vidro consumia a mão e definia `blockFar`. Na janela de idioma (0,42 m), a faixa 0,27–0,54 m cobria a região em que o usuário aponta; o raio distante, que é o que escolhe o idioma, era bloqueado.
+2. **`previousD = 1` causava DOWN/UP travado.** Ao entrar na zona por trás do vidro, `previousD` começava em 1, então `d ≤ 0,012` disparava DOWN imediatamente. O UP exige `d ≥ 0,035` à frente do vidro, então um dedo que começava atrás nunca soltava o toque.
+3. **Pinça segurada após o UP reiniciava o toque.** O mesmo pinch ainda ativo era reconvertido em raio no mesmo ponto.
+4. **Os testes não cobriam o caminho.** `reference-ui.test.mjs` envia `head: null`, então o caminho de proximidade nunca rodava nos testes automatizados.
+
+## Tentativas anteriores e por que falharam
+
+- PR #4, #5, #7 (ver tabela acima): trataram latência e predição da mão. Não alteraram a seleção por toque, então a janela de idioma continuou sem resposta.
+- PR #10 (`arena/72f414c5-nextvr-android`): mudou o onboarding (dock oculto, `finishLanguage` restaura a UI) e ajustou histerese, mas manteve `previousD = 1`, a regra DOWN em `d ≤ 0,012`, `blockFar` durante a zona e o posicionamento de 0,42 m. Medido com o harness em `/tmp/repro` (assets do PR): a 0,52 m e 0,45 m o toque ficava preso em DOWN sem selecionar; a 0,36 m não havia evento; só o raio distante (0,60 m e 0,30 m) selecionava.
+
+## Correção
+
+- `previousD` começa em `best.d` na entrada da zona; um dedo que já está atrás ou dentro da faixa não gera toque.
+- DOWN só ocorre numa travessia real da frente para o vidro (`previousD > .012`). Antes disso, um toque de raio em andamento é cancelado (`pinchcancel`), para o toque direto assumir.
+- `blockFar` e `consumed` são definidos apenas enquanto há um toque ativo (`n.down`). Pairar sobre a janela não bloqueia mais o raio.
+- UP ao soltar (`d ≥ .035` ou fora da janela). Se a pinça continuar após o UP, a mão entra em `pinchSuppressed` até a pinça abrir, sem reiniciar o toque.
+- O anel de `handTargets` direto só é desenhado quando `nearContact.down`; ao pairar, aparece o anel do raio distante.
+
+## Testes
+
+- `tests/language-hand-input.test.mjs` (Chromium, pula se o Chromium não existir): envia `head` com 63 floats pelo bridge `nextvrHands`, em cinco cenários: raio distante (0,60 m) seleciona; pairar na faixa com pinça (0,36 m) usa o raio; começar atrás do vidro não gera toque e o raio continua funcionando depois; empurrar através do vidro seleciona; após soltar com pinça ainda ativa, há um único UP e nenhum DOWN novo.
+- Verificado contra o bundle de HEAD (antes da correção): falham os cenários "pairar na faixa" e "começar atrás do vidro" (toque preso/bloqueado). O cenário de pinça após UP também falha (reinício `0` após `1`). Com a correção, todos passam.
+- Limite: testes automatizados usam um mock do `NativeXR` no Chromium; não validam o `WebSurface`/`handTouch` real do Android nem a pose física da mão. Ver a lista de validação em dispositivo no PR.
