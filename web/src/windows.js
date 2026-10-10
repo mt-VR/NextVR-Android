@@ -666,6 +666,8 @@ if (native) {
  * none of these operations introduce head-position tracking. */
 let nearContact = null;
 const fistBefore = new Map();
+/** Hands whose direct touch just ended while still pinched: the ray ignores them until the pinch opens. */
+const pinchSuppressed = new Set();
 let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
 function phoneRay(x, y) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
@@ -702,6 +704,10 @@ on('phonehands', packet => {
   lastPhonePacket=packet;
   const ids=new Set(packet.hands.map(h=>h.id));
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
+  for(const id of pinchSuppressed) {
+    const h=packet.hands.find(h=>h.id===id);
+    if(!h || !h.pinching) pinchSuppressed.delete(id); else packet.consumed.add(id);
+  }
 
   // Punho é um gesto válido de grab, mas só descola a janela depois do limiar de movimento.
   if(drag.win && drag.source==='fist') {
@@ -745,27 +751,40 @@ on('phonehands', packet => {
     }
   }
   if(!best) { endNear(!ids.has(nearContact?.id));return; }
-  packet.blockFar=true;packet.consumed.add(best.id);
   if(!best.current) {
-    endNear();emit('pinchcancel');cursor.down=false;cursor.hand=null;
-    nearContact={...best,down:false,previousD:1};
+    endNear();
+    // Entering the zone starts from the real depth. A fingertip that is already behind the glass
+    // (or inside the band) is not a press: the old initial value of 1 pressed on entry and then
+    // never released, because release needs the fingertip in front again.
+    nearContact={...best,down:false,previousD:best.d};
   } else {
     nearContact.d+=(best.d-nearContact.d)*.45;
     nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
   }
   const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
   const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
-  if(!n.down && inside && n.d<=.012 && n.previousD>.012){focus(n.win);handTouch(hit,0);n.down=true;}
-  else if(n.down && (n.d>=.035 || !inside)){handTouch(hit,1);n.down=false;}
+  if(!n.down && inside && n.d<=.012 && n.previousD>.012){
+    // A real push through the glass takes over from a FAR ray press already in progress.
+    if(cursor.down){emit('pinchcancel');cursor.down=false;cursor.hand=null;}
+    focus(n.win);handTouch(hit,0);n.down=true;
+  }
+  else if(n.down && (n.d>=.035 || !inside)){
+    handTouch(hit,1);n.down=false;
+    // Still pinched while pulling back: that pinch must not restart as a ray press on the same spot.
+    if(packet.hands.some(h=>h.id===n.id&&h.pinching)){pinchSuppressed.add(n.id);packet.consumed.add(n.id);}
+  }
   else if(n.down)handTouch(hit,2);
   n.previousD=n.d;
+  // Only an actual press owns the hand. Hovering within reach leaves the FAR ray pinch working,
+  // which is how the welcome window's language options (about 0.42 m away) are chosen.
+  if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
 });
 let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
   if(!native || now-lastTargetAt<33)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
-    if(nearContact?.id===h.id) {
+    if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
       targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
