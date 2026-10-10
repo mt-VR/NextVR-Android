@@ -217,7 +217,11 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(),center);
   const hit=ray.ray.intersectPlane(plane,new THREE.Vector3());
   if(!hit)return false;
-  Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,anchor:null});
+  // Âncora estável capturada NO MOMENTO DO GRAB: a janela segue deltas relativos a este ponto
+  // fixo — nunca é reavaliada contra a posição defasada da janela nem contra o ponto onde o
+  // gesto foi ativado (que já embutiria o salto que disparou o arrasto e o descartaria).
+  Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,
+    anchor:{hit:hit.clone(),center:center.clone(),applied:new THREE.Vector3()}});
   return true;
 }
 function activateDrag() {
@@ -233,10 +237,6 @@ function dragTo(nx, ny) {
   if(!hit)return false;
   if(!drag.active) {
     if(!dragGestureActivated(drag.start,{x:nx,y:ny},viewport.width,viewport.height))return false;
-    // Âncora estável, capturada no instante em que o arrasto realmente começa: a janela passa a
-    // seguir puros deltas relativos a este ponto, e não a perseguir a própria posição anterior.
-    drag.anchor={ hit:hit.clone(), center:w.obj.getWorldPosition(new THREE.Vector3()),
-      applied:new THREE.Vector3() };
     activateDrag();
   }
   const a=drag.anchor;

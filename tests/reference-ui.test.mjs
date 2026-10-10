@@ -259,28 +259,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(fist);await page.waitForTimeout(300);
     assert.equal(await page.locator('.win-shell.moving').count(),0,'closing a fist without moving does not drag');
     assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
-    console.error('FIST-DIAG-before '+await page.evaluate(()=>JSON.stringify({
-      targets:window.__handTargets,
-      panels:(window.__last?.panels||[]).map(p=>({id:p.id,at:p.matrix?.slice(12,15)})),
-      moving:document.querySelectorAll('.win-shell.moving').length,
-      free:document.querySelectorAll('.win-shell.free').length })));
-    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden))
-      .catch(async e=>{ console.error('FIST-DIAG-timeout '+await page.evaluate(()=>JSON.stringify({
-        targets:window.__handTargets,
-        panels:(window.__last?.panels||[]).map(p=>({id:p.id,at:p.matrix?.slice(12,15)})) }))); throw e; });
-    console.error('FIST-DIAG-ok '+await page.evaluate(()=>JSON.stringify(window.__handTargets)));
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden));
     fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
     await feed(fist);
-    await page.waitForTimeout(400);
-    console.error('FIST-DIAG-move '+await page.evaluate(()=>JSON.stringify({
-      targets:window.__handTargets,
-      lib:(window.__last?.panels||[]).find(p=>p.id==='library')?.matrix?.slice(12,15),
-      moving:document.querySelectorAll('.win-shell.moving').length,
-      free:document.querySelectorAll('.win-shell.free').length })));
     await page.waitForFunction(original=>{
       const current=window.__last.panels.find(p=>p.id==='library').matrix;
       return Math.abs(current[12]-original[12])>.03;
-    },lib).catch(async e=>{ console.error('FIST-DIAG-move-timeout lib='+JSON.stringify(await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library')?.matrix?.slice(12,15)))); throw e; });
+    },lib);
     fist.hands[0].palm=fist.hands[0].grab=[.62,.99];
     await feed(fist);await page.waitForTimeout(500);
     await feed(hand(.4));
