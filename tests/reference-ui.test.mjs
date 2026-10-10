@@ -271,10 +271,16 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     console.error('FIST-DIAG-ok '+await page.evaluate(()=>JSON.stringify(window.__handTargets)));
     fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
     await feed(fist);
+    await page.waitForTimeout(400);
+    console.error('FIST-DIAG-move '+await page.evaluate(()=>JSON.stringify({
+      targets:window.__handTargets,
+      lib:(window.__last?.panels||[]).find(p=>p.id==='library')?.matrix?.slice(12,15),
+      moving:document.querySelectorAll('.win-shell.moving').length,
+      free:document.querySelectorAll('.win-shell.free').length })));
     await page.waitForFunction(original=>{
       const current=window.__last.panels.find(p=>p.id==='library').matrix;
       return Math.abs(current[12]-original[12])>.03;
-    },lib);
+    },lib).catch(async e=>{ console.error('FIST-DIAG-move-timeout lib='+JSON.stringify(await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library')?.matrix?.slice(12,15)))); throw e; });
     fist.hands[0].palm=fist.hands[0].grab=[.62,.99];
     await feed(fist);await page.waitForTimeout(500);
     await feed(hand(.4));
