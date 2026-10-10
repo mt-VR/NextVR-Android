@@ -127,14 +127,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForTimeout(1400);
     assert.equal(await page.locator('.lang-option').count(),3,'looking at setup never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
-    await feed(hand(.02));await page.waitForTimeout(250);
-    const handOverlay=await page.evaluate(()=>{
-      const canvas=document.getElementById('overlay'),data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-      let cyan=0;for(let i=0;i<data.length;i+=4)if(data[i+3]>0&&data[i]<100&&data[i+1]>150&&data[i+2]>190)cyan++;
-      return {width:canvas.width,height:canvas.height,cyan};
-    });
-    assert.deepEqual([handOverlay.width,handOverlay.height],[1200,800],'native hand overlay uses the Cardboard reference viewport');
-    assert.ok(handOverlay.cyan>0,'MediaPipe landmarks draw the cyan hand contour and visible pinch cursor');
+    await feed(hand(.02));
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down),null,{timeout:5000});
+    assert.ok(await page.evaluate(()=>window.__handTargets.some(t=>t.id==='right'&&t.down)),
+      'a live PhoneXR pinch reaches the native hand renderer as an active pointer target');
     await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
     await page.evaluate(()=>clearInterval(window.__feed));
@@ -212,31 +208,45 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(p=>{window.nextvrPose(p);window.__touches=[];},view.toArray());
     await page.waitForTimeout(250);
     assert.deepEqual(await page.evaluate(()=>window.__touches),[],'head pose alone produces no input');
+    // Click-vs-drag arbitration: a still pinched hold is a click candidate and must send NO page
+    // input while the decision window is open (immediate DOWN+MOVE was what scrubbed pages).
     await feed(hand(.04));
-    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
+    await page.waitForTimeout(500);
+    assert.deepEqual(await page.evaluate(()=>window.__touches),[],'a still pinched hold sends no page input before release');
     await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===1),null,{timeout:12000});
     const touches=await page.evaluate(()=>window.__touches);
-    assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'hand pinch down reaches browser texture');
-    assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'hand pinch up reaches browser texture');
+    assert.ok(touches.some(t=>t.id==='browser' && t.action===0),'hand pinch tap reaches the browser texture (down)');
+    assert.ok(touches.some(t=>t.id==='browser' && t.action===1),'hand pinch tap reaches the browser texture (up)');
+    assert.equal(touches.filter(t=>t.action===2).length,0,'a click never streams moves (that is what made clicks drag)');
     // Native PhoneXR decisions drive spatial interaction; no JS landmark/gesture heuristic.
     await page.evaluate(()=>{window.__touches=[];window.nextvrResume();});
     await feed(hand(.04));
-    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down&&t.end?.length===3));
     // A slow native detector supplies its completion-based validity; 500 ms is not a lost hand.
     await page.evaluate(h=>{clearInterval(window.__feed);window.__touches=[];window.nextvrHands({...h,validForMs:1400,inferenceMs:600});},hand(.04));
     await page.waitForTimeout(650);
     assert.equal(await page.evaluate(()=>window.__touches.some(t=>t.action===3)),false,'Slow inference must not flicker/cancel between valid results');
-    // Lost tracking must CANCEL rather than releasing/clicking a link accidentally.
+    // Losing an undecided hold sends nothing at all: no phantom click on the way out.
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});});
+    await page.waitForTimeout(250);
+    assert.deepEqual(await page.evaluate(()=>window.__touches),[],'losing an undecided hold must not click');
+    // A deliberate sweep commits the press as a drag; losing tracking mid-press CANCELs it
+    // rather than releasing/clicking a link accidentally.
+    await feed(hand(.04));await page.waitForTimeout(200);
+    await feed(hand(.04,{aim:[.05,0]}));await page.waitForTimeout(200);
+    await feed(hand(.04,{aim:[.08,0]}));await page.waitForTimeout(250);
+    assert.ok(await page.evaluate(()=>window.__touches.some(t=>t.id==='browser'&&t.action===0)),'a deliberate sweep commits the content press');
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});});
     await page.waitForFunction(()=>window.__touches.some(t=>t.action===3),null,{timeout:12000});
     const loss=await page.evaluate(()=>window.__touches);
     assert.ok(!loss.some(t=>t.action===1),'Tracking loss does not click');
+    // Recovery: the ray works again, still as a clean tap (down+up at release).
     await page.evaluate(()=>window.__touches=[]);
-    await feed(hand(.04));
-    await page.waitForFunction(()=>window.__touches.some(t=>t.action===0),null,{timeout:12000});
+    await feed(hand(.04));await page.waitForTimeout(400);
     await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__touches.some(t=>t.action===1),null,{timeout:12000});
     await page.evaluate(()=>clearInterval(window.__feed));
     await page.evaluate(()=>window.nextvrSuspend());

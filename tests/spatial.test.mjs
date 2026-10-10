@@ -42,12 +42,16 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
-  const overlay=await readFile('web/src/hand-overlay.js','utf8');
+  const nativeHands=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PhoneXrHandRenderer.kt','utf8');
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
-  assert.ok(hands.includes("import { HandOverlay }") && hands.includes('handOverlay.render(dt,now,S.handDraw)'), 'The overlay renders on the display loop');
-  assert.ok(overlay.includes("ctx.strokeStyle = '#27e8ff'") && overlay.includes('drawHand(ctx, state'), 'Native MediaPipe landmarks render the cyan contour');
-  assert.ok(overlay.includes('MAX_PREDICTION_MS') && overlay.includes('MAX_PREDICTION_STEP'), 'Visual look-ahead is bounded and presentation-only');
-  assert.ok(!hands.includes('navigator.mediaDevices.getUserMedia'), 'The overlay must not open a second camera');
+  assert.ok(hands.includes('NativeXR.handVisuals?.(visual)'), 'The UI setting controls only the native silhouette visibility');
+  assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands)'),
+    'The native pass owns hand contours and rays');
+  assert.ok(nativeHands.includes('meshes=meshesFor(visible.predicted(now),sx,sy,now)')
+    && nativeHands.includes('drawHandSkeletons(position,fade)'), 'The hand contour follows the predicted pose in the native render pass');
+  assert.ok(nativeHands.includes('MESH_REBUILD_EPSILON') && nativeHands.includes('MESH_REBUILD_MAX_NS'),
+    'The native contour caches resting meshes and refreshes moving poses at display rate');
+  assert.ok(!hands.includes('navigator.mediaDevices.getUserMedia'), 'The renderer must not open a second camera');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');

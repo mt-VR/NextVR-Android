@@ -133,6 +133,10 @@ final class WebSurface {
     void dispatchHandEvent(int action,float x,float y) {
         if(released) return;
         long now=SystemClock.uptimeMillis(); if(action==MotionEvent.ACTION_DOWN) downTime=now;
+        // A click is one clean tap: DOWN and UP can land in the same millisecond on a fast drain.
+        // Keep the stream strictly ordered so Chromium's gesture detector never sees a zero- or
+        // negative-duration touch (a tap is still a tap at 1 ms).
+        else if(now<=downTime) now=downTime+1;
         MotionEvent.PointerProperties properties=new MotionEvent.PointerProperties();
         properties.id=0;
         properties.toolType=MotionEvent.TOOL_TYPE_FINGER;

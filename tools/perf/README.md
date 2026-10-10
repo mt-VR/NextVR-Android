@@ -36,6 +36,11 @@ Campos que existem para separar as três origens possíveis da lentidão:
 | `replayed` | frames de mão que o WebView avalia por dreno. >1,5 significa fila crescendo | ~1,0 |
 | `stale` | frames que perderam a validade nativa antes do script rodar; cada um converte um toque em curso em cancelamento | 0 |
 | `coalesced` | poses substituídas que o orçamento de dreno jogou fora em vez de reavaliar | >0 só em backlog |
+| `skips` | frames de câmera cuja cópia de análise NÃO foi produzida porque o slot já tinha um frame novo não lido (AnalysisGate): o mesmo desperdício de `dropped`, evitado. Num aparelho em que o tracker acompanha a câmera, o slot está vazio a cada callback e isto fica 0 | 0 em aparelho rápido; cresce com inferência > período da câmera |
+| `loss` | resultados sem mão logo após um resultado com mão: perda REAL de tracking (o detector viu o frame e não achou a mão) | 0 em cena estática; picos isolados quando a mão sai de cena |
+| `empty_ms` | ms da janela em corridas de mão perdida (depois de um `loss`, até a mão voltar); não conta a busca de palma inicial | pequeno; cresce com oclusão/cena difícil |
+| `gap_max` | maior intervalo entre dois resultados na janela: stall de scheduler/GPU/GC — o tracker LENTO, não o detector cego | ≲ 2× o intervalo médio (1000/track) |
+| `track_jitter` | desvio padrão dos intervalos entre resultados: estabilidade da taxa, independente da taxa | ≲ 20 % do intervalo médio |
 | `recovery_skips` | rodadas de recuperação (YOLO) cortadas porque a inferência primária já estava acima do orçamento | livre em repouso; cresce sob carga |
 
 Para comparar APKs, o que importa em `track` é o par com `slots` e `cam_work`: um `track` baixo com
@@ -50,6 +55,9 @@ Não é medida pelo logcat. Filme a mão e a tela (ou a lente) com um cronômetr
 ```sh
 python3 tools/bench/hand_host_bench.py           # custo por delegate/tamanho, sem Android
 python3 tools/bench/hand_input_policy_bench.py   # matriz numHands=1/2 x tamanho x mãos na cena
+python3 tools/bench/hand_confidence_sweep.py     # limiares, modos (VIDEO/IMAGE/LIVE_STREAM) e ruído
+python3 tools/bench/one_euro_sweep.py            # jitter/lag do filtro temporal, por taxa de inferência
+sh        tools/bench/mk_gl_stubs.sh             # host sem libGL: stubs p/ o delegate CPU carregar
 python3 tools/bench/pipeline_sim.py --hands 1    # câmera -> tracking -> WebView, com custos medidos
 python3 tools/bench/pipeline_sim.py --gpu 2 --busy-ui 2 --hiccup-ms 900
 ```

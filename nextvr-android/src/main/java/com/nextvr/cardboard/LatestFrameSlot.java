@@ -32,6 +32,12 @@ final class LatestFrameSlot<T> {
         return item;
     }
 
+    /** The newest waiting frame WITHOUT taking it, or null. Lets the publisher judge whether a new
+     * item is worth producing at all (see AnalysisGate). */
+    synchronized T peek() {
+        return pending;
+    }
+
     /** Empties the slot (camera stopped, hands disabled). Returns the discarded frame, or null. */
     synchronized T clear() {
         return poll();

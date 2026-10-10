@@ -72,6 +72,7 @@ class Sim:
             setattr(self, k, v)
         for k, v in over.items():
             setattr(self, k, v)
+        self.skip_scale_gate_ms = getattr(self, "skip_scale_gate", args.skip_scale_gate_ms)
         self.period = 1000.0 / self.camera_fps
         self.wide_cost = self.inference_wide * self.gpu
         self.narrow_cost = self.inference_narrow * self.gpu
@@ -84,6 +85,7 @@ class Sim:
         self.main_scheduled = False
         self.results = []
         self.dropped = self.stale = self.replayed = self.batches = 0
+        self.skips = 0
         self.rescue_busy_until = -1.0
         self.next_rescue = 0.0
         self.next_hiccup = self.hiccup_every_ms
@@ -95,7 +97,18 @@ class Sim:
         # Arrival is when the callback actually runs: this thread's own pixel work delays it, and
         # pretending otherwise would hide exactly the coupling being measured here.
         start = max(now, self.camera_free)
-        work = start + self.conv_ms + self.scale_ms
+        scale = self.scale_ms
+        if (self.pending is not None and self.skip_scale_gate_ms > 0
+                and start - self.pending[1] <= self.skip_scale_gate_ms):
+            # The slot still holds a frame the tracker has not taken, younger than the gate: this
+            # camera frame's analysis copy would be superseded unread, so it is not produced at
+            # all (AnalysisGate in the app). The camera thread only pays conversion + hand-off.
+            scale = 0.0
+            self.skips += 1
+            work = start + self.conv_ms
+            self.camera_free = work + self.handoff_ms + (self.conv_ms if self.blocking_handoff else 0)
+            return (work + self.period, 0, k + 1, None)
+        work = start + self.conv_ms + scale
         if self.pending is not None:
             self.dropped += 1  # the slot overwrites a frame the tracker has not taken yet
         self.pending = (start, work)
@@ -213,6 +226,7 @@ class Sim:
             "per_drain": round(self.replayed / max(1, self.batches), 2),
             "coalesced": getattr(self, "coalesced", 0),
             "dropped": self.dropped,
+            "skips": self.skips,
             "narrow": round(100.0 * self.policy.narrow_frames
                              / max(1, self.policy.narrow_frames + self.policy.wide_frames)),
             "probes": self.policy.probes,
@@ -242,6 +256,9 @@ def main():
     ap.add_argument("--hiccup-ms", type=float, default=0.0,
                     help="WebView stall every --hiccup-every-ms (route change, GC, dock animation)")
     ap.add_argument("--hiccup-every-ms", type=float, default=5000.0)
+    ap.add_argument("--skip-scale-gate-ms", type=float, default=40.0,
+                    help="age under which a pending analysis frame makes a new resample redundant "
+                         "(0 disables: every camera frame resamples, today's code)")
     ap.add_argument("--hands", type=int, default=1, choices=(0, 1, 2),
                     help="0 = searching for a hand, 1 = one hand up, 2 = both hands up")
     args = ap.parse_args()
@@ -250,27 +267,33 @@ def main():
 
     variants = [
         ("before  numHands=2, rescue always, blocking hand-off, unbounded drain",
-         dict(narrow_enabled=False, rescue_gated=False, bound_drain=False, blocking_handoff=True)),
+         dict(narrow_enabled=False, rescue_gated=False, bound_drain=False, blocking_handoff=True,
+              skip_scale_gate=0.0)),
         ("after   adaptive slots, gated rescue, fast hand-off, bounded drain",
-         dict(narrow_enabled=True, rescue_gated=True, bound_drain=True, blocking_handoff=False)),
+         dict(narrow_enabled=True, rescue_gated=True, bound_drain=True, blocking_handoff=False,
+              skip_scale_gate=0.0)),
+        ("after + age-gated analysis resample (AnalysisGate)",
+         dict(narrow_enabled=True, rescue_gated=True, bound_drain=True, blocking_handoff=False,
+              skip_scale_gate=40.0)),
     ]
     print(f"camera {args.camera_fps:g} fps | conv {args.conv_ms} ms | resample {args.scale_ms} ms | "
           f"inference wide {args.inference_wide} / narrow {args.inference_narrow} ms | gpu x{args.gpu} "
           f"| ui x{args.busy_ui} | hiccup {args.hiccup_ms:g} ms | hands {args.hands}\n")
     header = (f"{'variant':64} | {'track':>6} {'infer':>6} {'lat':>6} {'p95':>6} {'shown':>6} "
-              f"{'stale':>5} {'/drain':>6} {'drop':>4} {'narrow':>6} {'probe':>5} {'rec':>4}")
+              f"{'stale':>5} {'/drain':>6} {'drop':>4} {'skip':>4} {'narrow':>6} {'probe':>5} {'rec':>4}")
     print(header)
     print("-" * len(header))
     for label, extra in variants:
         s = Sim(args, **extra).run()
         print(f"{label:64} | {s['track_hz']:5.1f}H {s['infer_mean']:5.1f}m {s['lat_med']:5.1f}m "
               f"{s['lat_p95']:5.1f}m {s['shown']:5.1f}m {s['stale']:5d} {s['per_drain']:6.2f} "
-              f"{s['dropped']:4d} {s['narrow']:5d}% {s['probes']:5d} {s['rescues']:4d}")
+              f"{s['dropped']:4d} {s['skips']:4d} {s['narrow']:5d}% {s['probes']:5d} {s['rescues']:4d}")
     print("\ncolumns: track = landmark results/s; infer = mean inference cost on the tracking thread;")
     print("lat/p95 = capture -> result; shown = age of the landmark pair the display is using;")
     print("stale = hand frames that lost native validity before the WebView ran them (each one turns")
     print("an in-flight press into a cancel); drop = camera frames superseded before the tracker took")
-    print("them; narrow = frames billed at the one-hand cost; probe = second-hand rechecks; rec =")
+    print("them; skip = camera frames whose redundant analysis resample was not produced at all;")
+    print("narrow = frames billed at the one-hand cost; probe = second-hand rechecks; rec =")
     print("recovery rounds started. Host-measured costs; validate on device with adb logcat -s NextVR-Perf.")
 
 

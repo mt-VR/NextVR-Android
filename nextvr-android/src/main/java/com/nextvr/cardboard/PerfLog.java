@@ -34,6 +34,15 @@ import android.util.Log;
  *                    run them; each one is a cancelled press, so a growing count is "clicks vanish
  *                    under load"
  * dropped          : camera frames superseded before the tracker took them
+ * skips            : camera frames whose analysis copy was never produced because the slot already
+ *                    held a frame young enough (AnalysisGate): the same waste as `dropped`, avoided.
+ *                    Zero on a device fast enough that the slot is empty at every camera callback.
+ * loss             : results that observed NO hand right after one that did - real tracking losses,
+ *                    as opposed to a slow/skipping tracker, which shows in gap_max/track_jitter
+ * empty_ms         : milliseconds of the window spent in a lost-hand run (after a loss, until the
+ *                    hand is back); the cost of a loss to the user, not of the initial palm search
+ * gap_max          : longest interval between two results in the window (scheduler stalls, GC)
+ * track_jitter     : stddev of the intervals between results - rate stability, independent of rate
  * rescues          : crop rescues finished (found: how many of them produced a hand)
  * recoverySkips    : YOLO rounds shed because the primary inference was already the bottleneck
  * cpu_pct          : process CPU time over wall time, all threads
@@ -47,11 +56,20 @@ public final class PerfLog {
     private static long windowStartMs = -1, windowStartCpuMs = -1;
     private static long cameraFrames, renderFrames, results, dropped, rescues, rescuesFound;
     private static long recoverySkips, replayedFrames, replayedBatches, staleFrames, coalescedFrames;
-    private static long narrowFrames, wideFrames, probeCount;
+    private static long narrowFrames, wideFrames, probeCount, analysisSkips;
     private static double slotSum;
     private static double inferSum, inferMax, camWorkSum, camWorkMax, handoffSum, handoffMax;
     private static double captureSum, acquireSum, publishSum;
     private static long captureCount, acquireCount, publishCount;
+    /** Tracking-loss separation: results that OBSERVED no hand after a result that had one are
+     * real losses; a tracker that is merely slow or skipping shows up as gap/jitter instead. */
+    private static long losses;
+    private static int lastHands = -1;
+    private static long emptySinceMs = -1;
+    private static double emptyMs;
+    private static long lastResultMs = -1, gapMaxMs;
+    private static double intervalSum, intervalSqSum;
+    private static long intervalCount;
     private static String delegate = "none";
     private PerfLog() {}
 
@@ -81,6 +99,12 @@ public final class PerfLog {
 
     /** A camera frame was superseded by a newer one before the tracker could take it. */
     public static synchronized void droppedFrame() { dropped++; }
+
+    /** A camera frame whose analysis copy was NOT produced: the slot already held a frame young
+     * enough that this one would have been superseded unread (AnalysisGate). Counts the camera
+     * thread work and the analysis bitmaps the gate saved; compare with `dropped`, which is the
+     * same waste WITHOUT the gate. */
+    public static synchronized void analysisSkipped() { analysisSkips++; }
 
     /** A crop rescue finished on its worker thread; [found] when it produced a hand. */
     public static synchronized void rescueDone(boolean found) { rescues++; if (found) rescuesFound++; }
@@ -116,9 +140,13 @@ public final class PerfLog {
     /**
      * A tracking result is ready. [inferenceMs] is the primary inference; [captureNs] the sensor
      * capture time on the elapsedRealtime clock or a negative value when it is not comparable;
-     * [acquiredNs] when the frame was taken from the camera; [completedNs] when landmarks exist.
+     * [acquiredNs] when the frame was taken from the camera; [completedNs] when landmarks exist;
+     * [hands] how many hands the merged result carries, so the log can separate a real tracking
+     * loss (a result that saw no hand after one that did: `loss`, `empty_ms`) from a tracker that
+     * is merely slow or skipping (long `gap_max` / `track_jitter` with the hand intact).
      */
-    public static synchronized void result(long inferenceMs, long captureNs, long acquiredNs, long completedNs) {
+    public static synchronized void result(long inferenceMs, long captureNs, long acquiredNs,
+            long completedNs, int hands) {
         results++;
         inferSum += inferenceMs;
         inferMax = Math.max(inferMax, inferenceMs);
@@ -128,6 +156,26 @@ public final class PerfLog {
             captureSum += (completedNs - captureNs) / 1e6;
             captureCount++;
         }
+        long now = SystemClock.elapsedRealtime();
+        if (lastResultMs >= 0) {
+            long gap = now - lastResultMs;
+            gapMaxMs = Math.max(gapMaxMs, gap);
+            intervalSum += gap;
+            intervalSqSum += (double) gap * gap;
+            intervalCount++;
+        }
+        lastResultMs = now;
+        if (hands == 0) {
+            // The palm search before the first hand of a session is not a loss.
+            if (emptySinceMs < 0 && lastHands > 0) {
+                emptySinceMs = now;
+                losses++;
+            }
+        } else if (emptySinceMs >= 0) {
+            emptyMs += now - emptySinceMs;
+            emptySinceMs = -1;
+        }
+        lastHands = hands;
     }
 
     /** The landmark result was evaluated by the WebView on the main thread. */
@@ -143,11 +191,19 @@ public final class PerfLog {
         Runtime rt = Runtime.getRuntime();
         double javaMb = (rt.totalMemory() - rt.freeMemory()) / 1048576.0;
         double nativeMb = Debug.getNativeHeapAllocatedSize() / 1048576.0;
+        if (emptySinceMs >= 0) {
+            emptyMs += now - emptySinceMs;   // still lost: keep counting into the next window
+            emptySinceMs = now;
+        }
+        double intervalMean = intervalCount == 0 ? -1 : intervalSum / intervalCount;
+        double jitter = intervalCount == 0 ? -1
+            : Math.sqrt(Math.max(0.0, intervalSqSum / intervalCount - intervalMean * intervalMean));
         Log.i("NextVR-Perf", String.format(java.util.Locale.US,
             "window=%.1fs camera=%.1f render=%.1f track=%.1f cam_work=%.1f cam_work_max=%.1f "
                 + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f slots=%.2f narrow=%d wide=%d probe=%d "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
-                + "replayed=%.2f stale=%d coalesced=%d dropped=%d rescues=%d rescue_found=%d recovery_skips=%d "
+                + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d rescues=%d rescue_found=%d recovery_skips=%d "
+                + "loss=%d empty_ms=%.0f gap_max=%.0f track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
             cameraFrames / seconds,
@@ -166,13 +222,16 @@ public final class PerfLog {
             publishCount == 0 ? -1.0 : publishSum / publishCount,
             replayedBatches == 0 ? -1.0 : replayedFrames / (double) replayedBatches,
             staleFrames, coalescedFrames,
-            dropped, rescues, rescuesFound, recoverySkips,
+            dropped, analysisSkips, rescues, rescuesFound, recoverySkips,
+            losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
         windowStartMs = now;
         windowStartCpuMs = cpu;
         cameraFrames = renderFrames = results = dropped = rescues = rescuesFound = 0;
         recoverySkips = replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
-        slotSum = 0; narrowFrames = wideFrames = probeCount = 0;
+        slotSum = 0; narrowFrames = wideFrames = probeCount = 0; analysisSkips = 0;
+        losses = 0; emptyMs = 0; gapMaxMs = 0;
+        intervalSum = intervalSqSum = 0; intervalCount = 0;
         inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
         captureSum = acquireSum = publishSum = 0;
         captureCount = acquireCount = publishCount = 0;

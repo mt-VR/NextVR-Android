@@ -74,11 +74,68 @@ class PhoneXrHandsTest {
         assertEquals(hand.baseX+(hand.baseX-shoulder)*.25f,hand.aimX,1e-5f)
         assertEquals(hand.baseY+(hand.baseY+1f)*.25f,hand.aimY,1e-5f)
     }
-    @Test fun missingHandResetsNativeFiltersAndLatch() {
+    @Test fun briefMissIsBridgedByAPredictionThatHoldsButNeverStartsAGesture() {
         val engine=PhoneXrHands()
-        assertTrue(engine.process(result(points(.2f),1000),1f,1f).hands.single().pinching)
-        assertTrue(engine.process(result(null,1016),1f,1f).hands.isEmpty())
+        val pinching=engine.process(result(points(.2f),1000),1f,1f).hands.single()
+        assertTrue(pinching.pinching);assertFalse(pinching.predicted)
+        // A missed detection no longer blinks the hand away: the motion model bridges it, holding
+        // the pinch that really started (continuity) and marking itself as a prediction.
+        val bridged=engine.process(result(null,1016),1f,1f).hands.single()
+        assertTrue(bridged.predicted)
+        assertTrue(bridged.pinching)
+        assertTrue(bridged.confidence>0f && bridged.confidence<1f)
+        // Predictions never START a gesture: an open hand that blinks out stays open.
+        val engine2=PhoneXrHands()
+        engine2.process(result(points(.8f),1000),1f,1f)
+        assertFalse(engine2.process(result(null,1016),1f,1f).hands.single().pinching)
+        // A real detection still releases on its first observed open frame.
         assertFalse(engine.process(result(points(.8f),1032),1f,1f).hands.single().pinching)
+    }
+    @Test fun predictionContinuesTheLastMotionAndDecaysConfidence() {
+        val engine=PhoneXrHands()
+        var last=PhoneXrHands.Frame(emptyList(),0L)
+        for ((i,stampMs) in listOf(1000L,1040L,1080L).withIndex()) {
+            val p=points(.2f).map { NormalizedLandmark.create(it.x()+.04f*i,it.y(),it.z()) }
+            last=engine.process(result(p,stampMs),1f,1f,stampMs*1_000_000L)
+        }
+        val third=last.hands.single()
+        val bridged=engine.process(result(null,1160),1f,1f,1_160_000_000L).hands.single()
+        assertTrue(bridged.predicted)
+        // 80 ms into a 600 ms horizon: confidence has decayed but is still substantial.
+        assertTrue(bridged.confidence>.5f && bridged.confidence<1f)
+        // The bridge continues along the motion (+x here) without teleporting away.
+        assertTrue(bridged.points[0]>third.points[0])
+        assertTrue(bridged.points[0]<third.points[0]+.1f)
+    }
+    @Test fun prolongedLossHidesTheHandInsteadOfPredictingForever() {
+        val engine=PhoneXrHands()
+        engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
+        assertTrue(engine.process(result(null,1300),1f,1f,1_300_000_000L).hands.isNotEmpty())
+        // Past the prediction horizon the hand is hidden outright; the web layer then cancels any
+        // held press — it is never completed as a click by tracking loss.
+        assertTrue(engine.process(result(null,1700),1f,1f,1_700_000_000L).hands.isEmpty())
+    }
+    @Test fun reacquisitionEasesInsteadOfSnapping() {
+        val engine=PhoneXrHands()
+        val before=engine.process(result(points(.8f),1000),1f,1f,1_000_000_000L).hands.single()
+        engine.process(result(null,1100),1f,1f,1_100_000_000L) // brief miss keeps the filter state
+        val moved=points(.8f).map { NormalizedLandmark.create(it.x()+.2f,it.y(),it.z()) }
+        val back=engine.process(result(moved,1200),1f,1f,1_200_000_000L).hands.single()
+        assertFalse(back.predicted)
+        // The first reacquired sample lands strictly between the pre-loss pose and the raw one:
+        // the One Euro state survived the miss, so the hand eases back instead of snapping.
+        val rawX=moved[0].x()
+        assertTrue(back.points[0]>before.points[0]+.01f)
+        assertTrue(back.points[0]<rawX)
+    }
+    @Test fun prolongedLossDropsTheStateSoAReturningHandStartsFresh() {
+        val engine=PhoneXrHands()
+        assertTrue(engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L).hands.single().pinching)
+        // 2.6 s later the state is gone: no stale prediction and a fresh latch on return.
+        assertTrue(engine.process(result(null,2600),1f,1f,2_600_000_000L).hands.isEmpty())
+        val back=engine.process(result(points(.2f),2640),1f,1f,2_640_000_000L).hands.single()
+        assertFalse(back.predicted)
+        assertTrue(back.pinching)
     }
     @Test fun fistUsesTheForkGrabFilterNotTheFarPointerFilter() {
         val engine=PhoneXrHands()
@@ -111,17 +168,20 @@ class PhoneXrHandsTest {
         assertTrue(frame.isFresh(2_700_000_000L))
         assertFalse(frame.isFresh(2_750_000_001L))
     }
-    @Test fun briefMissCanKeepOnlyTheSilhouetteNeverTheClick() {
+    @Test fun briefMissKeepsOnlyTheSilhouetteNeverTheClick() {
         val engine=PhoneXrHands();val presentation=HandPresentation()
         val seen=engine.process(result(points(.2f),1000),1f,1f,1_050_000_000L)
         assertSame(seen,presentation.silhouette(seen,1_050_000_000L))
+        // A missed detection is bridged by a prediction (the silhouette follows it), while the held
+        // pinch is held — the miss itself never starts, completes, or cancels a click.
         val missing=engine.process(result(null,1050),1f,1f,1_100_000_000L)
-        assertTrue(missing.hands.isEmpty())
-        assertSame(seen,presentation.silhouette(missing,1_100_000_000L))
-        // Retention (700 ms) covers transient stalls — a floating window opening, a GC pause,
-        // GPU contention while an app is open — without blinking the silhouette off and on.
-        assertSame(seen,presentation.silhouette(missing,1_550_000_000L))
-        assertNull(presentation.silhouette(missing,1_751_000_000L))
+        assertTrue(missing.hands.single().predicted)
+        assertSame(missing,presentation.silhouette(missing,1_100_000_000L))
+        // Past the horizon the frame is empty: retention keeps ONLY the fading silhouette while a
+        // stalled detector runs out its window, and never a press.
+        val gone=engine.process(result(null,1700),1f,1f,1_750_000_000L)
+        assertTrue(gone.hands.isEmpty())
+        assertNull(presentation.silhouette(gone,2_500_000_000L))
     }
     @Test fun stalledResultCannotKeepASilhouetteForever() {
         val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f)
@@ -193,6 +253,34 @@ class PhoneXrHandsTest {
         val second=PhoneXrHands.Frame(listOf(b),3_000_000_000L,3_000_000_000L,500_000_000L,0L,first)
         assertArrayEquals(b.points,second.predicted(3_040_000_000L).hands.single().points,0f)
     }
+    @Test fun aHandThatBlinksOutBrieflyResumesFilteredInsteadOfSnapping() {
+        val engine=PhoneXrHands()
+        repeat(6){ engine.process(result(points(.2f),1000+it*33L),1f,1f) }
+        val settled=engine.process(result(points(.2f),1200),1f,1f).hands.single()
+        // One missed inference (occlusion, palm-detector miss) is BRIDGED by the motion model -
+        // the hand is never hidden while the prediction horizon holds.
+        assertTrue(engine.process(result(null,1233),1f,1f).hands.single().predicted)
+        val moved=points(.2f).map{ NormalizedLandmark.create(it.x()+.2f,it.y(),it.z()) }
+        val back=engine.process(result(moved,1266),1f,1f).hands.single()
+        val wristX=back.points[0]
+        // Smooth correction: the resumed filter is between where the hand was and the raw sample,
+        // not on it - a reset state would show the raw 0.7 and snap the silhouette. The measured
+        // resumed sample for this 66 ms gap sits at ~0.67 with the beta=12 landmark filter: fast
+        // enough to track real hand motion, but still short of the raw 0.7.
+        assertTrue(wristX>settled.points[0]+.01f)
+        assertTrue(wristX<moved[0].x()-.02f)
+    }
+    @Test fun aHandAbsentLongerThanTheGraceResumesFromTheRawDetection() {
+        val engine=PhoneXrHands()
+        repeat(6){ engine.process(result(points(.2f),1000+it*33L),1f,1f) }
+        engine.process(result(points(.2f),1200),1f,1f)
+        assertTrue(engine.process(result(null,1233),1f,1f).hands.single().predicted)
+        val moved=points(.2f).map{ NormalizedLandmark.create(it.x()+.2f,it.y(),it.z()) }
+        // 2 s absent: the hand may be anywhere; the old filter state must not drag it back.
+        // (The bridge expires at the horizon; the state is pruned before this result may reuse it.)
+        val back=engine.process(result(moved,3200),1f,1f).hands.single()
+        assertEquals(moved[0].x(),back.points[0],1e-6f)
+    }
     @Test fun processChainsThePreviousDetectionAndResetClearsIt() {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
@@ -207,11 +295,12 @@ class PhoneXrHandsTest {
         engine.reset()
         val afterReset=engine.process(result(points(.2f),2000),1f,1f,2_000_000_000L)
         assertNull(afterReset.previous)
-        // An empty frame neither breaks nor replaces the chain.
+        // An empty result neither breaks nor replaces the chain: its bridged prediction is not a
+        // detection, so the previous link still points at the last real sample.
         val engine2=PhoneXrHands()
         val a=engine2.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
         val empty=engine2.process(result(null,1040),1f,1f,1_040_000_000L)
-        assertTrue(empty.hands.isEmpty())
+        assertTrue(empty.hands.single().predicted)
         val b=engine2.process(result(points(.2f),1080),1f,1f,1_080_000_000L)
         assertNotSame(a,b.previous)
         assertSame(a.hands,b.previous?.hands)
