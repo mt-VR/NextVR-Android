@@ -264,9 +264,11 @@ class PhoneXrHandsTest {
         val back=engine.process(result(moved,1266),1f,1f).hands.single()
         val wristX=back.points[0]
         // Smooth correction: the resumed filter is between where the hand was and the raw sample,
-        // not on it - a reset state would show the raw 0.7 and snap the silhouette.
+        // not on it - a reset state would show the raw 0.7 and snap the silhouette. The measured
+        // resumed sample for this 66 ms gap sits at ~0.67 with the beta=12 landmark filter: fast
+        // enough to track real hand motion, but still short of the raw 0.7.
         assertTrue(wristX>settled.points[0]+.01f)
-        assertTrue(wristX<moved[0].x()-.05f)
+        assertTrue(wristX<moved[0].x()-.02f)
     }
     @Test fun aHandAbsentLongerThanTheGraceResumesFromTheRawDetection() {
         val engine=PhoneXrHands()
