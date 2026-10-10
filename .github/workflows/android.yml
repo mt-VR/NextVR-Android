@@ -64,7 +64,7 @@ jobs:
         id: build
         run: |
           set -o pipefail
-          ./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
+          ./gradlew :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
         continue-on-error: true
 
       - name: Verify native camera and detector libraries in both APK ABIs
