@@ -7,6 +7,9 @@ import kotlin.math.sqrt
 
 /** Quest-style hand gestures from MediaPipe landmarks, and a filter that keeps tracking calm. */
 object HandGestures {
+    private val FOLDED_TIPS = intArrayOf(12, 16, 20)
+    private val FOLDED_PIPS = intArrayOf(10, 14, 18)
+
     /** PhoneXR reference hysteresis for a deliberate pinch click. */
     const val PINCH_CLOSE_GAP = .30f
     const val PINCH_OPEN_GAP = .48f
@@ -58,9 +61,8 @@ object HandGestures {
         // Pinch hysteresis is applied by the caller; here only the distance relative to the palm.
         val gap = d(4, 8) / palm
         val strength = ((.9f - gap) / .6f).coerceIn(0f, 1f)
-        val tips = intArrayOf(12, 16, 20)
-        val pips = intArrayOf(10, 14, 18)
-        val others = tips.indices.count { d(0, tips[it]) < d(0, pips[it]) * 1.04f }
+        var others = 0
+        for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.04f) others++
         val indexCurled = d(0, 8) < d(0, 6) * 1.04f
         // A fist has every finger folded. A pinch with the index bent and the other fingers open
         // (or closed) is not a fist.

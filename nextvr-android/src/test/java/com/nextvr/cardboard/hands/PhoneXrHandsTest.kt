@@ -152,7 +152,7 @@ class PhoneXrHandsTest {
         assertNull(presentation.silhouette(frame,3_501_000_000L))
     }
     @Test fun nativeFilterHasRestingDeadZone() {
-        val filter=HandGestures.OneEuro(minCutoff=1.4f,beta=12f,deadZone=.0008f)
+        val filter=HandGestures.OneEuro(minCutoff=1.2f,beta=8f,deadZone=.0012f)
         assertEquals(.5f,filter.filter(.5f,1000000000),0f)
         assertEquals(.5f,filter.filter(.5001f,1016000000),0f)
         assertTrue(filter.filter(.8f,1032000000)>.6f)

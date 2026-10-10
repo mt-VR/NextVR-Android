@@ -489,30 +489,38 @@ const GAMES = [
 ];
 const gameById = id => GAMES.find(g => g.id === id);
 
-/* apps da biblioteca, mesmas imagens/cores do print */
+/* Apps web e ferramentas NextVR são representados por capas locais, sem depender de uma CDN. */
 const LIB_APPS = [
-  { id:'netflix', name:'Netflix', bg:'#0b0b0d', html:'<span class="lx-netflix">NETFLIX</span>' },
-  { id:'youtube', name:'YouTube', bg:'#1e1e22', slug:'youtube', color:'FF0000' },
-  { id:'tiktok', name:'TikTok', bg:'#0b0b0d', slug:'tiktok', color:'ffffff' },
-  { id:'discord', name:'Discord', bg:'#5865F2', slug:'discord', color:'ffffff' },
-  { id:'twitch', name:'Twitch', bg:'#9146FF', slug:'twitch', color:'ffffff' },
-  { id:'prime', name:'prime video', bg:'#0f2347', html:'<span class="lx-prime">prime<b>video</b></span>' },
-  { id:'pluto', name:'pluto tv', bg:'#0b0b0d', html:'<span class="lx-pluto">pluto<i>tv</i></span>' },
-  { id:'whatsapp', name:'WhatsApp', bg:'#25D366', slug:'whatsapp', color:'ffffff' },
+  { id:'netflix', name:'Netflix', bg:'linear-gradient(145deg,#301014,#09090b)', html:'<span class="lx-netflix">NETFLIX</span>' },
+  { id:'youtube', name:'YouTube', bg:'linear-gradient(145deg,#352020,#111115)', slug:'youtube', color:'FF0000' },
+  { id:'tiktok', name:'TikTok', bg:'linear-gradient(145deg,#173035,#101014)', slug:'tiktok', color:'ffffff' },
+  { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
+  { id:'twitch', name:'Twitch', bg:'linear-gradient(145deg,#b184ff,#6133b2)', slug:'twitch', color:'ffffff' },
+  { id:'prime', name:'prime video', bg:'linear-gradient(145deg,#173e70,#0b172b)', html:'<span class="lx-prime">prime<b>video</b></span>' },
+  { id:'pluto', name:'pluto tv', bg:'linear-gradient(145deg,#34343a,#111115)', html:'<span class="lx-pluto">pluto<i>tv</i></span>' },
+  { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', slug:'whatsapp', color:'ffffff' },
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram', color:'ffffff', iconOnly:true },
-  { id:'x', name:'X Twitter', label:'Twitter', bg:'#000000', slug:'x', color:'ffffff' },
-  { id:'facebook', name:'Facebook', bg:'#1877F2', slug:'facebook', color:'ffffff', iconOnly:true },
-  { id:'telegram', name:'Telegram', bg:'#229ED9', slug:'telegram', color:'ffffff' },
-  { id:'spotify', name:'Spotify', bg:'#101012', slug:'spotify', color:'1DB954' },
+  { id:'x', name:'X Twitter', label:'Twitter', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
+  { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', slug:'facebook', color:'ffffff', iconOnly:true },
+  { id:'telegram', name:'Telegram', bg:'linear-gradient(145deg,#69caff,#147eaf)', slug:'telegram', color:'ffffff' },
+  { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
+  { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#63aaff,#3052bb)', icon:'compass' },
+  { id:'store', name:'Store', bg:'linear-gradient(145deg,#ffc45c,#d96b17)', icon:'store' },
+  { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#ff8096,#bd254b)', icon:'camera' },
+  { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
 ];
-/* ordem padrão = a do print (jogos entram no meio quando baixados) */
-const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify'];
+/* Ordem previsível; os jogos instalados surgem na posição habitual entre os apps. */
+const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
 
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
   youtube:  () => youtube(),
+  browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
+  store:    () => storeApp(),
+  gallery:  () => gallery(),
+  settings: () => settingsApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
@@ -659,6 +667,8 @@ function removeGame(id) {
 
 /* ---------- biblioteca ---------- */
 let libSort = 'recent', libFilter = 'all', libQuery = '';
+const LIB_FILTERS = ['all', 'games', 'apps', 'recent'];
+const LIB_FILTER_LABELS = { all:'Todas', games:'Jogos', apps:'Apps', recent:'Recentes' };
 function touchLib(id, silent) {
   libRecent = [id, ...libRecent.filter(x => x !== id)].slice(0, 40);
   persistShop(); if (!silent) paintLibrary();
@@ -671,46 +681,59 @@ function libItems() {
   list.sort((a, b) => ord(a.id) - ord(b.id));
   if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
   if (libFilter === 'apps') list = list.filter(x => x.kind === 'app');
+  if (libFilter === 'recent') list = list.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
   if (q) list = list.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
   if (libSort === 'az') return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  if (!libRecent.length) return list;
   const rank = id => { const i = libRecent.indexOf(id); return i < 0 ? 1e6 : i; };
   return [...list].sort((a, b) => rank(a.id) - rank(b.id));
 }
 function appTile(a) {
   const logo = a.slug
-    ? `<img class="logo" src="./icons/${a.slug}.svg" alt="" draggable="false" referrerpolicy="no-referrer" onerror="this.closest('button').classList.add('nologo');this.remove()">` : '';
-  const text = a.html ? a.html : `<span class="nm${a.iconOnly ? ' fb' : ''}">${a.label || a.name}</span>`;
-  return `<button class="lib-tile" data-app="${a.id}" style="background:${a.bg}">${logo}${text}</button>`;
+    ? `<img class="logo" src="./icons/${a.slug}.svg" alt="" draggable="false" referrerpolicy="no-referrer" onerror="this.closest('button').classList.add('nologo');this.remove()">`
+    : a.icon ? `<span class="lib-icon">${icon(a.icon)}</span>` : '';
+  const mark = a.html ? a.html : logo ? logo : `<span class="nm">${a.label || a.name}</span>`;
+  const cover = a.slug ? `${logo}<span class="nm fb">${a.label || a.name}</span>` : mark;
+  return `<button class="lib-tile" data-app="${a.id}" aria-label="Abrir ${a.name}">`
+    + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand">${cover}</span></span>`
+    + `<span class="lib-label">${a.label || a.name}</span></button>`;
 }
 function gameTile(g) {
-  return `<button class="lib-tile game" data-game="${g.id}" style="background:${g.bg}">`
-    + `<span class="lib-art">${g.mark}</span><span class="lib-vr">VR</span><span class="lib-gname">${g.name}</span></button>`;
+  const image = g.img ? `<img class="lib-game-cover" src="${g.img}" alt="" loading="lazy" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '';
+  return `<button class="lib-tile game" data-game="${g.id}" aria-label="Abrir ${g.name}">`
+    + `<span class="lib-cover" style="background:${g.bg}">${image}<span class="lib-art">${g.mark}</span>`
+    + `<span class="lib-vr">VR</span></span><span class="lib-label">${g.name}</span></button>`;
 }
 function buildLibrary() {
   const list = libItems();
   const root = el('div', 'lib');
-  const fLabel = libFilter === 'games' ? 'Jogos' : libFilter === 'apps' ? 'Apps' : 'Todas';
-  root.innerHTML = `<div class="lib-head"><h2 class="lib-title">Apps</h2>
-      <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
-      <input class="lib-search" data-q placeholder="Buscar" value="${libQuery.replace(/"/g, '&quot;')}">
-      <span style="flex:1"></span>
-      <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ${icon('chevronDown')}</button>
-      <button class="lib-pill" data-filter>${fLabel} (${list.length}) ${icon('chevronDown')}</button></div>
-    <div class="lib-scroll"><div class="lib-grid">${
-      list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
-    }</div>
-    ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na loja.' : 'Nenhum app encontrado.'}</div>`}
-    <p class="lib-note">Selecionar abre o app dentro de uma janela do NextVR. Sites que bloqueiam
-    incorporação mostram o aviso e o botão Abrir fora. Os 4 jogos VR são demonstração:
-    eles abrem no APK Android.</p></div>
-    <div class="lib-bottom"><button data-x aria-label="Fechar">${icon('x')}</button>
-      <button data-top aria-label="Topo">${icon('top')}</button><span>Apps</span>
-      <button data-az aria-label="Ordenar">${icon('more')}</button></div>`;
+  const fLabel = LIB_FILTER_LABELS[libFilter] || LIB_FILTER_LABELS.all;
+  const navButton = (id, label, glyph) => `<button class="lib-nav" data-nav="${id}" title="${label}" aria-label="${label}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
+  root.innerHTML = `<nav class="lib-rail" aria-label="Navegação da biblioteca">
+      ${navButton('all','Todas as aplicações','appGrid')}
+      ${navButton('apps','Aplicativos','device')}
+      ${navButton('games','Jogos','controller')}
+      ${navButton('recent','Recentes','timer')}
+      <span class="lib-rail-spacer"></span>
+      <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
+    </nav>
+    <section class="lib-main">
+      <div class="lib-head"><h2 class="lib-title">Apps</h2>
+        <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
+        <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
+        <span class="lib-head-spacer"></span>
+        <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ${icon('chevronDown')}</button>
+        <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
+      </div>
+      <div class="lib-scroll"><div class="lib-grid">${
+        list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
+      }</div>
+      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
+      </div>
+    </section>`;
 
   const q = root.querySelector('[data-q]');
-  if (libQuery || root.querySelector('[data-q]').value) q.classList.add('open');
+  if (libQuery) q.classList.add('open');
   q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
   q.addEventListener('focus', () => keyboard(true, q));
 
@@ -718,11 +741,9 @@ function buildLibrary() {
     const c = s => e.target.closest(s);
     let m;
     if (c('[data-s]')) { const i = root.querySelector('[data-q]'); i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
+    if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
-    if (c('[data-filter]')) { libFilter = libFilter === 'all' ? 'games' : libFilter === 'games' ? 'apps' : 'all'; paintLibrary(); return; }
-    if (c('[data-x]')) { const w = wins.find(x => x.id === 'library'); if (w) close(w); return; }
-    if (c('[data-top]')) { root.querySelector('.lib-scroll').scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    if (c('[data-az]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
+    if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`Abrindo ${g.name}… (demonstração)`); return; }
     if ((m = c('[data-app]'))) {
       const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;

@@ -150,7 +150,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),13);
+    assert.equal(await page.locator('.lib-tile').count(),17,'Quest-style library includes the web apps and built-in NextVR tools');
+    assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
+    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent filters');
+    await page.locator('.lib-nav[data-nav="games"]').click();
+    assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
+    await page.locator('.lib-nav[data-nav="recent"]').click();
+    assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
+    await page.locator('.lib-nav[data-nav="all"]').click();
+    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete library');
     await page.locator('.dock [data-id="store"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
     await page.locator('.dock [data-id="browser"]').click();
@@ -180,6 +188,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       },null,{timeout:25000});
     };
     await settle();
+    const dockWindowGap=await page.evaluate(()=>{
+      const dock=window.__last.panels.find(p=>p.id==='dock');
+      const win=window.__last.panels.find(p=>p.id==='library');
+      const dockTop=dock.matrix[13]+Math.abs(dock.matrix[5]*dock.glass[3])/2;
+      const windowBottom=win.matrix[13]-Math.abs(win.matrix[5]*win.glass[3])/2;
+      return windowBottom-dockTop;
+    });
+    assert.ok(dockWindowGap>.08,'Pinned app windows float clearly above the dock with a visible gap');
     const before=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).map(p=>p.matrix));
     const pose=new THREE.Matrix4().makeRotationY(.5).toArray();
     await page.evaluate(p=>window.nextvrPose(p),pose);

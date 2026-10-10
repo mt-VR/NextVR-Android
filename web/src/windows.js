@@ -147,7 +147,9 @@ function layout() {
   arcLayout(n, { step, dist }).forEach(([x, z], i) => {
     const w = pin[i];
     const hh = w.h * PX * S.winScale * w.resizeScale;
-    const lift = native?EYE:dockAt.y + dockAt.h / 2 + .14 + hh / 2;   // base alinhada na fileira única
+    // Keep the full window visibly above the dock in native Cardboard and desktop preview.
+    // The 14 cm breathing gap is added to the dock's top edge before centring the window.
+    const lift = dockAt.y + dockAt.h / 2 + .14 + hh / 2;
     w.target.set(x, lift, z);
   });
 }
