@@ -9,7 +9,25 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
  */
 class PhoneXrHands {
     companion object { /** Prediction is only trusted within one normal tracking interval (~250 ms). */
-        const val MAX_PREDICT_GAP_NS = 250_000_000L }
+        const val MAX_PREDICT_GAP_NS = 250_000_000L
+        /**
+         * How long a hand's filter state survives its absence.
+         *
+         * Dropping the state on the first empty result makes a hand that blinks out for one or two
+         * inferences - an occlusion, a frame the palm detector misses - reappear with its filters
+         * RESET: the first sample after the dropout is shown raw, a visible snap to wherever the
+         * hand now is. Keeping the state for this window lets the One Euro filters resume from
+         * where they were and converge to the new position with their adaptive cutoff: the
+         * reappearance is a smooth correction, not a jump. The dt clamp inside the filter (0.2 s)
+         * already treats the gap as one long step instead of fast motion.
+         *
+         * Beyond the window the state is dropped: a hand returning after seconds may be somewhere
+         * else entirely, and resuming an old filter there would drag the silhouette across the
+         * view. 750 ms covers a ~2-frame dropout at 30 Hz and a ~1-frame dropout at 15 Hz while
+         * staying in the same range as the silhouette retention, so a hand the UI has already
+         * faded out never comes back filtered from a stale position.
+         */
+        const val STATE_GRACE_NS = 750_000_000L }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
                     val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float)
@@ -124,6 +142,8 @@ class PhoneXrHands {
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
         val grabY = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
+        /** Capture time of the last result that saw this hand; the grace window below keys off it. */
+        var lastSeenNs = 0L
     }
     private val states = HashMap<Boolean, State>()
     private var previous: Frame? = null
@@ -133,13 +153,17 @@ class PhoneXrHands {
         // MediaPipe/filter time is the camera capture timestamp. It is deliberately kept separate
         // from elapsedRealtime, since Camera2 timestamps are not guaranteed to share that clock.
         val stamp = result.timestampMs() * 1_000_000L
-        val present = HashSet<Boolean>()
+        // Prune BEFORE this result reuses any state: a hand absent for less than STATE_GRACE_NS
+        // keeps its filters, so a brief dropout resumes from where it stopped (smooth correction)
+        // instead of snapping to the raw first sample; a longer absence gets a fresh state, so a
+        // hand returning after seconds is never dragged from a stale position (see STATE_GRACE_NS).
+        states.entries.removeAll { it.value.lastSeenNs < stamp - STATE_GRACE_NS }
         val seen = result.landmarks().mapIndexedNotNull { index, raw ->
             if(raw.size != 21) return@mapIndexedNotNull null
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
             val left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
-            present += left
             val state = states.getOrPut(left) { State() }
+            state.lastSeenNs = stamp
             val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
                 state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),
                 state.landmarks[i*3+2].filter(p.z(),stamp)) }
@@ -166,7 +190,6 @@ class PhoneXrHands {
                 head,shape,bx,by,state.x.filter(bx+(bx-shoulder)*.25f,stamp),
                 state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
         }
-        states.keys.retainAll(present)
         // Capture time drives One Euro dt; expiry uses measured frame age on the elapsedRealtime
         // clock instead. Camera2 sensor timestamps may have a different epoch from that clock.
         val ageNs = (frameAgeNs ?: (completedNs - stamp)).coerceAtLeast(0)

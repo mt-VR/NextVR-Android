@@ -193,6 +193,30 @@ class PhoneXrHandsTest {
         val second=PhoneXrHands.Frame(listOf(b),3_000_000_000L,3_000_000_000L,500_000_000L,0L,first)
         assertArrayEquals(b.points,second.predicted(3_040_000_000L).hands.single().points,0f)
     }
+    @Test fun aHandThatBlinksOutBrieflyResumesFilteredInsteadOfSnapping() {
+        val engine=PhoneXrHands()
+        repeat(6){ engine.process(result(points(.2f),1000+it*33L),1f,1f) }
+        val settled=engine.process(result(points(.2f),1200),1f,1f).hands.single()
+        // One missed inference (occlusion, palm-detector miss), then the hand back, 0.2 to the right.
+        assertTrue(engine.process(result(null,1233),1f,1f).hands.isEmpty())
+        val moved=points(.2f).map{ NormalizedLandmark.create(it.x()+.2f,it.y(),it.z()) }
+        val back=engine.process(result(moved,1266),1f,1f).hands.single()
+        val wristX=back.points[0]
+        // Smooth correction: the resumed filter is between where the hand was and the raw sample,
+        // not on it - a reset state would show the raw 0.7 and snap the silhouette.
+        assertTrue(wristX>settled.points[0]+.01f)
+        assertTrue(wristX<moved[0].x()-.05f)
+    }
+    @Test fun aHandAbsentLongerThanTheGraceResumesFromTheRawDetection() {
+        val engine=PhoneXrHands()
+        repeat(6){ engine.process(result(points(.2f),1000+it*33L),1f,1f) }
+        engine.process(result(points(.2f),1200),1f,1f)
+        assertTrue(engine.process(result(null,1233),1f,1f).hands.isEmpty())
+        val moved=points(.2f).map{ NormalizedLandmark.create(it.x()+.2f,it.y(),it.z()) }
+        // 2 s absent: the hand may be anywhere; the old filter state must not drag it back.
+        val back=engine.process(result(moved,3200),1f,1f).hands.single()
+        assertEquals(moved[0].x(),back.points[0],1e-6f)
+    }
     @Test fun processChainsThePreviousDetectionAndResetClearsIt() {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
