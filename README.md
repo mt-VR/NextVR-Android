@@ -76,6 +76,7 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
 | Select | Aim the PhoneXR shoulder ray and pinch thumb/index. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
+| Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |

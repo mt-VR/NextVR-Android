@@ -37,6 +37,7 @@ const STR = {
     micOff:'Ditado por voz indisponível neste aparelho',
     notif:'Notificações', noNotif:'Sem notificações novas', profile:'Perfil',
     repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
+    moveDock:'Mover a dock',
   },
   en: {
     desktop:'Desktop', browser:'Browser', youtube:'YouTube', gallery:'Gallery',
@@ -53,6 +54,7 @@ const STR = {
     micOff:'Voice dictation is unavailable on this device',
     notif:'Notifications', noNotif:'No new notifications', profile:'Profile',
     repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
+    moveDock:'Move the dock',
   },
   es: {
     desktop:'Escritorio', browser:'Navegador', youtube:'YouTube', gallery:'Galería',
@@ -69,6 +71,7 @@ const STR = {
     micOff:'El dictado por voz no está disponible en este dispositivo',
     notif:'Notificaciones', noNotif:'Sin notificaciones nuevas', profile:'Perfil',
     repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
+    moveDock:'Mover el dock',
   },
 };
 export const t = k => (STR[S.lang] || STR.pt)[k] || k;

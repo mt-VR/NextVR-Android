@@ -64,7 +64,8 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
 - Dock order: profile, status, notifications, keyboard, recenter, separator, browser, store,
   Discord, gallery, separator, settings, YouTube, nine-dot library.
 - `EYE = 1.55 m`, `PX = 0.00105 m/px`.
-- Native dock: `(0, 1.33, -0.45)`, x tilt `0.26 rad`, scale `PX × 0.90` after migration.
+- Native dock default: `(0, 1.33, -0.55)`, x tilt `0.26 rad`, scale `PX × 0.90` after
+  migration; the lower grab bar moves it to a bounded custom position.
 - Default windows: `1040 × 660 px`, centred at eye height on a 0.68 m curved arc; second-row
   placement, centre-facing orientation and exponential position interpolation remain available.
 - White external handle, deliberate detach/drag/release, proportional corner resize, repin, close,

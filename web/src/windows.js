@@ -197,6 +197,7 @@ const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 const drag = { win:null, source:null, hand:null, start:null, active:false, plane:null, offset:null };
 const resizing = { win:null, start:null, active:false, startScale:1, startDistance:1 };
+const dockDrag = { source:null, start:null, active:false, plane:null, offset:null };
 
 function setRay(nx, ny, target=ray) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
@@ -245,6 +246,47 @@ function dragTo(nx, ny) {
 function endDrag() {
   if(drag.win)drag.win.shell.classList.remove('moving');
   Object.assign(drag,{win:null,source:null,hand:null,start:null,active:false,plane:null,offset:null});
+}
+function startDockDrag(nx,ny,source='pinch') {
+  if(!dockVisible || drag.win || resizing.win)return false;
+  if(dockDrag.start)endDockDrag();
+  setRay(nx,ny);
+  const center=dockObj.getWorldPosition(new THREE.Vector3());
+  const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(),center);
+  const hit=ray.ray.intersectPlane(plane,new THREE.Vector3());
+  if(!hit)return false;
+  Object.assign(dockDrag,{source,start:{x:nx,y:ny},active:false,plane,offset:center.clone().sub(hit)});
+  dockEl.classList.add('grab-armed');
+  dockGrabEl.setAttribute('aria-pressed','true');
+  return true;
+}
+function activateDockDrag() {
+  if(!dockDrag.start || dockDrag.active)return;
+  dockDrag.active=true;
+  dockEl.classList.remove('grab-armed');
+  dockEl.classList.add('moving');
+}
+function dockDragTo(nx,ny) {
+  if(!dockDrag.start)return false;
+  if(!dockDrag.active) {
+    if(!dragGestureActivated(dockDrag.start,{x:nx,y:ny},viewport.width,viewport.height))return false;
+    activateDockDrag();
+  }
+  setRay(nx,ny);
+  const hit=ray.ray.intersectPlane(dockDrag.plane,new THREE.Vector3());
+  if(!hit)return false;
+  const local=contentRoot.worldToLocal(hit.add(dockDrag.offset));
+  const limited=clampWindowPosition(local,dockAt.h/2,EYE);
+  const stable=clampWindowPosition(stabilizeWindowPosition(dockObj.position,limited),dockAt.h/2,EYE);
+  dockPlacement=new THREE.Vector3(stable.x,stable.y,stable.z);
+  dockYaw=Math.atan2(-stable.x,-stable.z);
+  placeDock();
+  return true;
+}
+function endDockDrag() {
+  dockEl?.classList.remove('grab-armed','moving');
+  dockGrabEl?.setAttribute('aria-pressed','false');
+  Object.assign(dockDrag,{source:null,start:null,active:false,plane:null,offset:null});
 }
 
 function pointerDistance(w,nx,ny) {
@@ -343,7 +385,7 @@ function handTouch(hit, action) {
 }
 function cancelPress() {
   if (nativePress) sendPress(nativePress, 3);
-  nativePress = null; endDrag(); endResize();
+  nativePress = null; endDrag(); endResize(); endDockDrag();
 }
 on('pinchcancel', cancelPress);
 function clickThrough(hit, type) {
@@ -384,6 +426,7 @@ on('pinchdown', () => {
   if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
   if (h) { focus(h.win); clickThrough(h, 'down'); return; }
   if (kbPinch('down')) return;
+  if (dockGrabTest(cursor.x,cursor.y)) { startDockDrag(cursor.x,cursor.y,'pinch'); return; }
   dockPinch('down');
 });
 on('pinchup', () => {
@@ -395,6 +438,7 @@ on('pinchup', () => {
   }
   if (resizing.win) { endResize(); return; }
   if (drag.win) { endDrag(); return; }
+  if (dockDrag.start) { endDockDrag(); return; }
   const h = hitAt(cursor.x, cursor.y);
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
   if (kbPinch('up')) return;
@@ -404,10 +448,32 @@ on('pinchup', () => {
 /* =================== dock =================== */
 const dockEl = document.createElement('div');
 dockEl.className = 'dock';
+const dockGrabEl = document.createElement('button');
+dockGrabEl.type = 'button';
+dockGrabEl.className = 'dock-grab';
+dockGrabEl.title = t('moveDock');
+dockGrabEl.setAttribute('aria-label', t('moveDock'));
+dockGrabEl.setAttribute('aria-pressed', 'false');
 const dockObj = new CSS3DObject(dockEl);
 contentRoot.add(dockObj);
 const dockHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
-contentRoot.add(dockHit);
+const dockMoveHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
+contentRoot.add(dockHit, dockMoveHit);
+if (!native) {
+  const point = e => ({ x:e.clientX / viewport.width, y:e.clientY / viewport.height });
+  dockGrabEl.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    const p=point(e);
+    if (startDockDrag(p.x,p.y,'desktop')) dockGrabEl.setPointerCapture(e.pointerId);
+  });
+  dockGrabEl.addEventListener('pointermove', e => {
+    if (dockDrag.source==='desktop') { const p=point(e); dockDragTo(p.x,p.y); }
+  });
+  dockGrabEl.addEventListener('pointerup', e => {
+    if (dockDrag.source==='desktop') { endDockDrag(); if(dockGrabEl.hasPointerCapture(e.pointerId))dockGrabEl.releasePointerCapture(e.pointerId); }
+  });
+  dockGrabEl.addEventListener('pointercancel', endDockDrag);
+}
 
 /* Onboarding estilo Meta: enquanto não há idioma escolhido, SÓ a janelinha de idioma existe.
  * Esconder o CSS3DObject tira a dock do atlas (sem painel, sem pixels) e o gate em dockTest/
@@ -417,7 +483,7 @@ let dockVisible = true;
 export function setDockVisible(visible) {
   dockVisible = !!visible;
   dockObj.visible = dockVisible;
-  if (!dockVisible) dockArmed = -1;
+  if (!dockVisible) { dockArmed = -1; endDockDrag(); }
 }
 export const dockShown = () => dockVisible;
 
@@ -467,7 +533,10 @@ export function buildDock(items) {
     b.addEventListener('click', () => it.run());
     dockEl.appendChild(b); dockBtns.push(b);
   }
-  tick(); refreshNet(); paintBat(); syncDots();
+  dockGrabEl.title = t('moveDock');
+  dockGrabEl.setAttribute('aria-label', t('moveDock'));
+  dockEl.appendChild(dockGrabEl);
+  tick(); refreshNet(); paintBat(); syncDots(); placeDock();
 }
 function sep() { const s = document.createElement('span'); s.className = 'dock-sep'; return s; }
 
@@ -527,26 +596,35 @@ function dockPinch(type) {
     if (b) { b.style.transform = 'scale(.88)'; setTimeout(() => b.style.transform = '', 150); b.click(); }
   }
 }
+function dockGrabTest(x,y) {
+  if (!dockVisible || !dockGrabKey) return false;
+  setRay(x,y);
+  return ray.intersectObject(dockMoveHit,false).length>0;
+}
 function dockTest(x, y) {
   if (!dockVisible) return null;
-  ndc.set(x * 2 - 1, -(y * 2 - 1));
-  ray.setFromCamera(ndc, camera);
+  setRay(x,y);
   const hit = ray.intersectObject(dockHit, false)[0]; if (!hit) return null;
   const local = dockHit.worldToLocal(hit.point.clone());
-  const px = (local.x / dockHit.geometry.parameters.width + .5) * dockEl.offsetWidth;
+  const g=dockHit.geometry.parameters;
+  const px = (local.x / g.width + .5) * dockEl.offsetWidth;
+  const py = (.5 - local.y / g.height) * dockEl.offsetHeight;
   for (let i = 0; i < dockBtns.length; i++) {
     const b = dockBtns[i];
-    if (px >= b.offsetLeft && px <= b.offsetLeft + b.offsetWidth) return { i };
+    if (px >= b.offsetLeft && px <= b.offsetLeft + b.offsetWidth
+        && py >= b.offsetTop && py <= b.offsetTop + b.offsetHeight) return { i };
   }
   return null;
 }
 
-let dockKey = '', dockYaw=0,kbYaw=0;
-on('recenter',()=>{dockYaw=kbYaw=0;});
+let dockKey = '', dockGrabKey='', dockYaw=0,kbYaw=0,dockPlacement=null;
+on('recenter',()=>{dockYaw=kbYaw=0;dockPlacement=null;endDockDrag();placeDock();});
 on('summon-dock',()=>{
   camera.updateMatrixWorld(true);contentRoot.updateMatrixWorld(true);
   const direction=camera.getWorldDirection(new THREE.Vector3()).transformDirection(contentRoot.matrixWorld.clone().invert());
   dockYaw=Math.atan2(-direction.x,-direction.z);
+  dockPlacement=null;
+  endDockDrag();
   placeDock(); // Deliberately no layout/recenter: existing windows remain anchored.
   window.NativeXR?.click();
 });
@@ -556,7 +634,8 @@ function placeDock() {
   const drop = native?-COMFORT.dockDrop:(land ? -.50 : -.60);
   const sc = PX * (native?COMFORT.dockScale:(land ? .74 : .88)) * S.dockSize;      // sem aumentar de tamanho
 
-  dockObj.position.set(-Math.sin(dockYaw)*dist, EYE + drop, -Math.cos(dockYaw)*dist);
+  if (dockPlacement) dockObj.position.copy(dockPlacement);
+  else dockObj.position.set(-Math.sin(dockYaw)*dist, EYE + drop, -Math.cos(dockYaw)*dist);
   dockObj.rotation.set(.26, dockYaw, 0,'YXZ');
   dockObj.scale.setScalar(sc);
 
@@ -566,12 +645,24 @@ function placeDock() {
     dockKey = key;
     dockHit.geometry.dispose();
     dockHit.geometry = new THREE.PlaneGeometry(w, h);
-    dockAt.h = h; layout();
+    dockAt.h = h;
+    if(!dockPlacement)layout();
+  }
+  const grabW=dockGrabEl.offsetWidth*sc, grabH=dockGrabEl.offsetHeight*sc;
+  const grabKey=grabW.toFixed(3)+'x'+grabH.toFixed(3);
+  if(grabW>0 && grabKey!==dockGrabKey) {
+    dockGrabKey=grabKey;
+    dockMoveHit.geometry.dispose();
+    dockMoveHit.geometry=new THREE.PlaneGeometry(grabW,grabH);
   }
   dockHit.position.copy(dockObj.position);
   dockHit.rotation.copy(dockObj.rotation);
+  dockMoveHit.position.copy(dockObj.position);
+  dockMoveHit.rotation.copy(dockObj.rotation);
+  dockMoveHit.translateY((dockEl.offsetHeight/2-dockGrabEl.offsetTop-dockGrabEl.offsetHeight/2)*sc);
+  dockMoveHit.translateZ(.004);
 
-  if (dockAt.y !== dockObj.position.y || dockAt.z !== -dist) {
+  if (!dockPlacement && (dockAt.y !== dockObj.position.y || dockAt.z !== -dist)) {
     dockAt.y = dockObj.position.y; dockAt.z = -dist; layout();
   }
 }
@@ -722,6 +813,9 @@ onFrame((dt, now) => {
     const p = predictedCursor(now);
     if (resizing.win) resizeTo(p.x,p.y);
     if (drag.win && drag.source!=='fist') dragTo(p.x,p.y);
+  }
+  if (dockDrag.start && cursor.active && cursor.down) {
+    const p=predictedCursor(now); dockDragTo(p.x,p.y);
   }
   for (const w of wins) w.apply(dt);
 });
@@ -892,7 +986,7 @@ onFrame((dt,now)=>{
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockHit);if(kbHit && kbObj)list.push(kbHit);
+    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }

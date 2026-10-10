@@ -35,4 +35,5 @@ test('existing installations get the close layout once, then retain distance adj
   assert.equal(moved.lang,'en');assert.equal(moved.winScale,1.1);
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
   assert.equal(COMFORT.welcomeDistance,.42);
+  assert.equal(COMFORT.dockDistance,.55,'default dock placement is slightly farther from the viewer');
 });

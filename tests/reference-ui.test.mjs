@@ -134,8 +134,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // Choosing the language closes the picker and brings the whole shell back, Meta-style:
     // the dock returns with every previous function, in the selected language.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
-    const ids=await page.locator('.dock button').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
+    const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
     assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
+    assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
@@ -179,7 +180,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(before.length,after.length);
     for(let i=0;i<before.length;i++) for(let k=0;k<16;k++) assert.ok(Math.abs(before[i][k]-after[i][k])<.001,'Head movement must not move world-anchored surfaces');
     const dock=after[0];
-    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.45)<.001,'Close landscape dock position');
+    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.55)<.001,'Dock sits a little farther from the user');
     // Only a PhoneXR pinch aimed at the window centre reaches the native browser surface.
     const browserPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='browser'));
     const target=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(browserPanel.matrix));
@@ -300,6 +301,49 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
+    // The dock's lower white grab bar is a real PhoneXR pinch target. A deliberate ray drag
+    // moves only the dock, preserves the drag offset, and recenter restores its closer default.
+    await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
+    await page.locator('.dock [data-id="kb"]').click();
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160));
+    await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
+    await settle();
+    const grab=await page.evaluate(()=>{
+      const panel=window.__last.panels.find(p=>p.id==='dock'),root=document.querySelector('.dock'),bar=root.querySelector('.dock-grab');
+      return {matrix:panel.matrix,rect:panel.rect,rootWidth:root.offsetWidth,
+        top:bar.offsetTop,height:bar.offsetHeight};
+    });
+    const grabLocal=new THREE.Vector3((160+grab.rootWidth/2)/grab.rect[2]-.5,
+      .5-(160+grab.top+grab.height/2)/grab.rect[3],0);
+    const grabWorld=grabLocal.applyMatrix4(new THREE.Matrix4().fromArray(grab.matrix));
+    const direction=grabWorld.sub(new THREE.Vector3(0,1.55,0));
+    const tanX=Math.tan(36*Math.PI/180)*1.5;
+    const grabAim=[direction.x/-direction.z,direction.y/-direction.z];
+    const windowsBeforeMove=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock').map(p=>p.matrix));
+    await page.evaluate(()=>window.nextvrResume());
+    await feed(hand(.04,{aim:grabAim}));
+    await page.waitForFunction(()=>document.querySelector('.dock.grab-armed'));
+    await page.waitForTimeout(180);
+    assert.equal(await page.locator('.dock.moving').count(),0,'a stationary pinch only arms the dock handle');
+    const movedAim=[grabAim[0]+.09*2*tanX,grabAim[1]];
+    await feed(hand(.04,{aim:movedAim}));
+    await page.waitForFunction(()=>document.querySelector('.dock.moving'),null,{timeout:12000});
+    await page.waitForFunction(x=>Math.abs(window.__last.panels.find(p=>p.id==='dock').matrix[12]-x)>.025,
+      grab.matrix[12],{timeout:12000});
+    const moved=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(moved[12]-grab.matrix[12])>.025,'Pinching and moving the bar repositions the dock');
+    const windowsAfterMove=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock').map(p=>p.matrix));
+    assert.equal(windowsAfterMove.length,windowsBeforeMove.length);
+    for(let i=0;i<windowsAfterMove.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(windowsAfterMove[i][k]-windowsBeforeMove[i][k])<.001,'Moving the dock leaves app windows anchored');
+    await feed(hand(.4,{aim:movedAim}));
+    await page.waitForFunction(()=>!document.querySelector('.dock.moving'));
+    const released=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(released[12]-moved[12])<.01,'Dock remains at the released position');
+    assert.equal(await page.locator('.dock-grab[aria-pressed="true"]').count(),0,'Grab state clears on release');
+    await page.locator('.dock [data-id="center"]').click();
+    await settle();
+    const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
     // Dock summon via palm pinch was removed; the pinch remains a normal hand-ray gesture.
     await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});

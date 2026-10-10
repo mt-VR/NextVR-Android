@@ -58,6 +58,16 @@ Agora punho e alça usam o mesmo estado de gesto:
 Não há compensação arbitrária adicionada ao algoritmo antigo: a conversão e o modelo de drag que
 produziam a singularidade foram substituídos.
 
+## Movimentação da dock
+
+A dock agora tem uma linha branca curta e uma área de captura maior e invisível na margem inferior.
+Pinçar essa alça inicia um drag no plano espacial inicial, preservando o offset entre o ponto de
+captura e o centro da dock; a dock só se solta depois do mesmo limiar deliberado de 18 px usado
+pelas janelas. Assim, um pinch parado não a desloca. A posição é limitada ao arco frontal e à faixa
+vertical confortável; a dock passa a encarar o usuário e fica nessa posição até Centralizar ou
+recentralizar a vista. A alça tem um hit-test 3D próprio, separado dos botões para que a pinça nela
+nunca abra um app. A posição padrão do headset foi ajustada de 45 cm para 55 cm.
+
 ## Redimensionamento
 
 Todas as instâncias da classe de janela recebem uma alça vetorial no canto inferior direito e um
