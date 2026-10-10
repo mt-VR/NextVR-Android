@@ -112,10 +112,21 @@ class PhoneXrHands {
             val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
                 state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),
                 state.landmarks[i*3+2].filter(p.z(),stamp)) }
-            val shape = HandGestures.shape(points,left)
+            val imageShape = HandGestures.shape(points,left)
+            val world = result.worldLandmarks().getOrNull(index)
+            // The 2D gap can look open when the hand is rotated and the fingertips separate in
+            // camera depth. Prefer MediaPipe's metric 3D thumb-index distance when available;
+            // keep the filtered-image measurement as a safe fallback for results without world
+            // landmarks. PinchLatch still provides close/open hysteresis for either measurement.
+            val metricGap = world?.let { HandGestures.pinchGap3d(it) }?.takeIf { it.isFinite() }
+            val shape = if (metricGap == null) imageShape else imageShape.copy(
+                pinch = !imageShape.fist && metricGap < .35f,
+                pinchStrength = ((.9f - metricGap) / .6f).coerceIn(0f, 1f),
+                pinchGap = metricGap,
+            )
             if(!shape.fist || !state.fist){state.grabX.reset();state.grabY.reset()}
             state.fist=shape.fist
-            val head = result.worldLandmarks().getOrNull(index)?.let { HandGestures.headPoints(points,it,scaleX,scaleY) }
+            val head = world?.let { HandGestures.headPoints(points,it,scaleX,scaleY) }
             val bx = (shape.aimX-.5f)*2f*scaleX
             val by = (.5f-shape.aimY)*2f*scaleY
             val rightSide = head?.let { it[0]>0f } ?: (bx>0f)

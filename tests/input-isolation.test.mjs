@@ -12,9 +12,10 @@ test('native VR shell exposes only the PhoneXR hand interaction bridge',async()=
     readFile('nextvr-android/src/main/jni/nextvr_app.cc','utf8'),
     readFile('nextvr-android/src/main/jni/nextvr_app.h','utf8'),readFile('nextvr-android/src/main/jni/nextvr_jni.cc','utf8'),
   ]);
-  assert.ok(!activity.includes('setOnTouchListener'),'phone touchscreen must not be forwarded by GLSurfaceView');
+  assert.ok(!activity.includes('setOnTouchListener'),'no physical touchscreen selection route is installed');
   assert.ok(!activity.includes('nextvrTrigger') && !hands.includes('nextvrTrigger'));
-  assert.ok(!surface.includes('SOURCE_TOUCHSCREEN'),'hand events must not masquerade as physical touchscreen input');
+  assert.match(surface,/properties\.toolType=MotionEvent\.TOOL_TYPE_FINGER[\s\S]*InputDevice\.SOURCE_TOUCHSCREEN/,
+    'WebView must receive a correctly typed synthetic pointer stream from the hand-only bridge');
   assert.match(activity,/@JavascriptInterface public void handTouch\(/);
   assert.match(surface,/void dispatchHandEvent\(/);
   assert.ok(windows.includes('window.NativeXR.handTouch'));

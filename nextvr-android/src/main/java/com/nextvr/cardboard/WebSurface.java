@@ -10,6 +10,7 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.net.Uri;
 import android.os.SystemClock;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.ViewGroup;
@@ -132,7 +133,20 @@ final class WebSurface {
     void dispatchHandEvent(int action,float x,float y) {
         if(released) return;
         long now=SystemClock.uptimeMillis(); if(action==MotionEvent.ACTION_DOWN) downTime=now;
-        MotionEvent event=MotionEvent.obtain(downTime,now,action,x,y,0);
+        MotionEvent.PointerProperties properties=new MotionEvent.PointerProperties();
+        properties.id=0;
+        properties.toolType=MotionEvent.TOOL_TYPE_FINGER;
+        MotionEvent.PointerCoords coordinates=new MotionEvent.PointerCoords();
+        coordinates.x=x; coordinates.y=y;
+        coordinates.pressure=(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL)?0f:1f;
+        coordinates.size=1f;
+        // WebView/Chromium classifies a default MotionEvent.obtain() as SOURCE_UNKNOWN. Give the
+        // hand-generated pointer stream a complete touch identity so WebView emits the expected
+        // pointer/touch/click sequence. This method is reached only through the PhoneXR hand bridge;
+        // the Activity still has no physical-screen touch listener or selection fallback.
+        MotionEvent event=MotionEvent.obtain(downTime,now,action,1,
+            new MotionEvent.PointerProperties[]{properties},new MotionEvent.PointerCoords[]{coordinates},
+            0,0,1f,1f,0,0,InputDevice.SOURCE_TOUCHSCREEN,0);
         container.dispatchTouchEvent(event); event.recycle();
     }
     void audio(boolean on) { evaluate("window.__nextvrAudio&&window.__nextvrAudio("+on+")"); }
