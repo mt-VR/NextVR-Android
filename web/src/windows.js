@@ -295,6 +295,32 @@ function hitAt(x, y) {
   return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height };
 }
 let nativePress = null;
+const activationTarget = el => el?.closest?.('button,a,input,textarea,select,[role="button"]') || el;
+function shellPointer(press, action, x, y, target) {
+  const currentTarget = target ? activationTarget(target) : null;
+  if (action === 0) {
+    press.target = currentTarget;
+    press.activation = currentTarget;
+  }
+  const eventTarget = press.target || currentTarget;
+  if (!eventTarget) return;
+  const pointer = action === 0 ? 'pointerdown' : action === 1 ? 'pointerup' : action === 2 ? 'pointermove' : 'pointercancel';
+  eventTarget.dispatchEvent(new PointerEvent(pointer, {
+    bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch', isPrimary: true,
+    button: 0, buttons: action === 0 || action === 2 ? 1 : 0, clientX: x, clientY: y,
+  }));
+  if (action === 1 && press.activation && press.activation === currentTarget) {
+    // The shell is already executing in this WebView. Activate its own DOM directly instead of
+    // round-tripping a synthetic Android touch through the atlas WebView: that path can leave
+    // Chromium's touch target in :active without ever synthesizing click on some WebView builds.
+    if (typeof press.activation.click === 'function') press.activation.click();
+    if (press.activation.matches?.('input,textarea')) press.activation.focus();
+  }
+}
+function sendPress(press, action, x = press.x, y = press.y, target = null) {
+  if (press.id === 'shell' && press.win?.onboarding) shellPointer(press, action, x, y, target);
+  else window.NativeXR.handTouch(press.id, action, x, y);
+}
 function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
@@ -304,19 +330,19 @@ function handTouch(hit, action) {
   const id = browser ? browser.dataset.nativeBrowser : 'shell';
   const x = rect.left + px - (br?.left || 0), y = rect.top + py - (br?.top || 0);
   if (nativePress && nativePress.id !== id) {
-    window.NativeXR.handTouch(nativePress.id, 3, nativePress.x, nativePress.y);
+    sendPress(nativePress, 3);
     nativePress = null;
     if (action !== 0) return;
   }
   if (action === 0) nativePress = { id, win: hit.win, x, y };
   if (nativePress && nativePress.id === id) {
     nativePress.x = x; nativePress.y = y;
-    window.NativeXR.handTouch(id, action, x, y);
+    sendPress(nativePress, action, x, y, el);
   }
   if (action === 1 || action === 3) nativePress = null;
 }
 function cancelPress() {
-  if (nativePress) window.NativeXR.handTouch(nativePress.id, 3, nativePress.x, nativePress.y);
+  if (nativePress) sendPress(nativePress, 3);
   nativePress = null; endDrag(); endResize();
 }
 on('pinchcancel', cancelPress);
