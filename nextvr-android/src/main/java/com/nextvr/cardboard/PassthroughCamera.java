@@ -60,12 +60,19 @@ final class PassthroughCamera {
     /** True while a drain task is queued or running on the tracking thread. */
     private final AtomicBoolean scheduled=new AtomicBoolean();
     private final TrackingBudget budget=new TrackingBudget();
+    /** Judges the GPU delegate on measured inference cost, not on whether it threw (see DelegateWatch). */
+    private final DelegateWatch delegateWatch=new DelegateWatch();
+    /** Recovery rounds already reported for the current detector, so the log gets the delta only. */
+    private int reportedSkips;
+    private long reportedNarrow,reportedWide,reportedProbes;
     private int[] cameraPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader reader;
     private boolean gpuDetector;
+    /** Cleared once the GPU delegate has been dropped for measured slowness; never retried. */
+    private boolean preferGpu=true;
     private boolean timestampIsRealtime;
     private FusionHands detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
@@ -133,8 +140,16 @@ final class PassthroughCamera {
             },handler);
         }catch(Exception e){fail("Cannot start passthrough",e);}
     }
+    /**
+     * Camera callback: the ONE place the pixels of a frame are read, and the thread that both the
+     * passthrough texture and the tracking input are produced on. Its per-frame cost is therefore
+     * also the ceiling on the landmark rate, so the work here is kept minimal and the HAL buffer is
+     * returned as soon as the pixels are copied out (an ImageReader with maxImages=2 starves the
+     * camera if a callback holds a buffer through a texture upload).
+     */
     private void onFrame(ImageReader source,int token) {
         Image image=null;Bitmap upright=null;
+        long workStartMs=SystemClock.elapsedRealtime();
         try {
             image=source.acquireLatestImage();if(image==null || token!=generation)return;
             PerfLog.cameraFrame();
@@ -169,7 +184,15 @@ final class PassthroughCamera {
                     requestTracking();
                 }
             }
+            // The pixels are already copied out, so the HAL buffer goes back BEFORE the display
+            // hand-off: holding it across the renderer's texture upload starves the camera at
+            // maxImages=2, which shows up as a lower landmark rate rather than as a slow picture.
+            long workMs=SystemClock.elapsedRealtime()-workStartMs;
+            PerfLog.cameraWork(workMs);
+            if(image!=null){image.close();image=null;}
+            long handoffStart=SystemClock.elapsedRealtime();
             listener.frame(upright);upright=null;
+            PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
         }catch(Exception e){fail("Camera frame failed",e);}
         finally{
             if(image!=null)image.close();
@@ -204,8 +227,14 @@ final class PassthroughCamera {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
             if(detector==null) {
-                try { detector=new FusionHands(context,true,"hand_landmarker.task",500L);gpuDetector=true; }
-                catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
+                if(preferGpu) {
+                    try { detector=new FusionHands(context,true,"hand_landmarker.task",500L);gpuDetector=true; }
+                    catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
+                } else {
+                    // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
+                    // pick it up again on the next creation, or a failed CPU rebuild would loop.
+                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false;
+                }
                 PerfLog.delegate(gpuDetector?"GPU":"CPU");
                 if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
             }
@@ -232,6 +261,35 @@ final class PassthroughCamera {
             }
             long inferenceMs=SystemClock.elapsedRealtime()-inferenceStart;
             budget.completed(inferenceMs);
+            // The landmarker counts since its graphs were built, and graphs are rebuilt on a delegate
+            // switch: a counter that went backwards restarted, so its whole value is this window's.
+            long narrow=detector.narrowFrames(),wide=detector.wideFrames(),probes=detector.probes();
+            PerfLog.handSlots(detector.currentSlots(),delta(narrow,reportedNarrow),
+                delta(wide,reportedWide),delta(probes,reportedProbes));
+            reportedNarrow=narrow; reportedWide=wide; reportedProbes=probes;
+            int skipped=detector.recoverySkips();
+            for(int i=reportedSkips;i<skipped;i++)PerfLog.recoverySkipped();
+            reportedSkips=skipped;
+            // A GPU delegate that stays slow is not a failure: it is the tracker queueing behind the
+            // display path. The measured cost of the inference is the only evidence of that available
+            // here, so the delegate is judged on it and abandoned when it stops being the fast path.
+            if(gpuDetector&&delegateWatch.shouldDrop(inferenceMs)) {
+                android.util.Log.i("NextVR-Perf","GPU delegate held at "+String.format(java.util.Locale.US,
+                    "%.1f ms mean",delegateWatch.averageMs())+"; switching the landmarker to CPU");
+                try {
+                    detector.close();detector=null;gpuDetector=false;
+                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);
+                    delegateWatch.reset();
+                    preferGpu=false;
+                    PerfLog.delegate("CPU (after a slow GPU)");
+                    // The new graphs have no region-of-interest history, so the filters start fresh.
+                    hands.reset();budget.reset();
+                    reportedSkips=detector.recoverySkips();
+                }catch(RuntimeException failure) {
+                    android.util.Log.w("NextVR-Hands","CPU fallback after a slow GPU delegate failed",failure);
+                    detector=null;   // rebuilt on the next frame; hands stay on the old path till then
+                }
+            }
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
             PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
@@ -239,7 +297,20 @@ final class PassthroughCamera {
             if(frame.token==generation && !destroyed && handsEnabled)listener.hands(result);
         }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
     }
-    private void clearHands() { hands.reset();listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos())); }
+    /** A counter that went backwards means the reported stream restarted (graphs rebuilt, tracking
+     * re-enabled): the new value is then the whole window's count. */
+    private static long delta(long now,long reported) { return now<reported?now:now-reported; }
+
+    /**
+     * Runs on the tracking thread, which is also the thread that owns the landmarker. Hands are gone,
+     * so the narrow/wide decision made against the frames that just expired is forgotten too: the next
+     * session searches both slots again until one hand proves the second slot idle.
+     */
+    private void clearHands() {
+        if(detector!=null)detector.resetSlots();
+        hands.reset();
+        listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
+    }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;
         if(!enabled) {

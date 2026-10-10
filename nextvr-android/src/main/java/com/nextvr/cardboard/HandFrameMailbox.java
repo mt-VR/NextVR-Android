@@ -16,10 +16,29 @@ import java.util.Map;
  * including the first sample leaving it, because the web layer needs the depth trajectory to
  * distinguish a real push from merely appearing behind a window. The queue is bounded; overflow
  * requests an explicit neutral reset and then publishes only the newest frame (fail closed).
+ *
+ * When a drain would evaluate more than {@link #DEFAULT_COLLAPSE_ABOVE} frames, runs of identical
+ * gesture state are collapsed to their newest samples: the ordered sequence of edges the web layer
+ * sees is untouched, and only poses a later same-state sample already replaced are dropped. That is
+ * what keeps a backlog from making the drain slower than the interval that grows it (see the field
+ * documentation).
  */
 public final class HandFrameMailbox {
     public static final int DEFAULT_MAX_QUEUED_FRAMES = 96;
-    private static final float NEAR_REACH_METRES = .7f;
+    /**
+     * A drain that has to evaluate this many frames starts coalescing. The bound is not about
+     * memory, it is about stability: every queued frame is one more nextvrHands() call inside a
+     * single WebView evaluation, so a backlog makes each drain slower than the interval that grows
+     * it - the queue feeds itself, frames age past their native validity, and an aged frame is a
+     * CANCEL. "The dock is smooth but my clicks vanish when an app is open" is that failure.
+     */
+    public static final int DEFAULT_COLLAPSE_ABOVE = 8;
+    /**
+     * Samples kept per run of equal gesture state. One would be enough for the click state machine
+     * (it only reacts to edges); two keeps a depth delta, which is what tells a real near-touch push
+     * from a hand that merely appeared behind the glass.
+     */
+    public static final int TRAJECTORY_TAIL = 2;
 
     public static final class FrameScript {
         private final PhoneXrHands.Frame frame;
@@ -37,17 +56,23 @@ public final class HandFrameMailbox {
     public static final class Batch {
         private final boolean resetBeforeFrames;
         private final List<FrameScript> frames;
+        private final int coalesced;
 
-        private Batch(boolean resetBeforeFrames, List<FrameScript> frames) {
+        private Batch(boolean resetBeforeFrames, List<FrameScript> frames, int coalesced) {
             this.resetBeforeFrames = resetBeforeFrames;
             this.frames = Collections.unmodifiableList(frames);
+            this.coalesced = coalesced;
         }
 
         public boolean resetBeforeFrames() { return resetBeforeFrames; }
         public List<FrameScript> frames() { return frames; }
+
+        /** Poses dropped because the drain budget was reached, for the perf log. */
+        public int coalesced() { return coalesced; }
     }
 
     private final int maxQueuedFrames;
+    private final int collapseAbove;
     private final ArrayDeque<FrameScript> transitions = new ArrayDeque<>();
     private Map<String, Integer> lastGestureState = Collections.emptyMap();
     private FrameScript latest;
@@ -55,11 +80,15 @@ public final class HandFrameMailbox {
     private boolean overflowed;
     private boolean resetRequested;
 
-    public HandFrameMailbox() { this(DEFAULT_MAX_QUEUED_FRAMES); }
+    public HandFrameMailbox() { this(DEFAULT_MAX_QUEUED_FRAMES, DEFAULT_COLLAPSE_ABOVE); }
 
-    public HandFrameMailbox(int maxQueuedFrames) {
+    public HandFrameMailbox(int maxQueuedFrames) { this(maxQueuedFrames, DEFAULT_COLLAPSE_ABOVE); }
+
+    public HandFrameMailbox(int maxQueuedFrames, int collapseAbove) {
         if (maxQueuedFrames < 1) throw new IllegalArgumentException("maxQueuedFrames must be positive");
+        if (collapseAbove < TRAJECTORY_TAIL + 1) throw new IllegalArgumentException("collapseAbove must leave room for a run");
         this.maxQueuedFrames = maxQueuedFrames;
+        this.collapseAbove = collapseAbove;
     }
 
     /** Called on the tracking thread. The script is serialized before it reaches this mailbox. */
@@ -99,6 +128,7 @@ public final class HandFrameMailbox {
     public synchronized Batch drain() {
         boolean reset = resetRequested || overflowed;
         List<FrameScript> frames = new ArrayList<>();
+        int coalesced = 0;
         if (latest != null) {
             if (reset) {
                 // Never replay an unbounded/invalid sequence after a reset. The current state is
@@ -107,13 +137,40 @@ public final class HandFrameMailbox {
             } else {
                 frames.addAll(transitions);
                 if (frames.isEmpty() || frames.get(frames.size() - 1) != latest) frames.add(latest);
+                coalesced = collapseToDrainBudget(frames);
             }
         }
         transitions.clear();
         latest = null;
         overflowed = false;
         resetRequested = false;
-        return new Batch(reset, frames);
+        return new Batch(reset, frames, coalesced);
+    }
+
+    /**
+     * Collapses runs of equal gesture state to their newest {@link #TRAJECTORY_TAIL} samples and
+     * returns how many were dropped. Gesture edges are never lost: the state sequence the web layer
+     * sees stays the same, only poses a later sample of the same state already replaced disappear.
+     * Applied only once a drain is bigger than the configured bound, so a normal 60 Hz drain is
+     * byte-for-byte what it was.
+     */
+    private int collapseToDrainBudget(List<FrameScript> frames) {
+        if (frames.size() <= collapseAbove) return 0;
+        List<Map<String, Integer>> state = new ArrayList<>(frames.size());
+        for (FrameScript frame : frames) state.add(gestureState(frame.frame()));
+        List<FrameScript> kept = new ArrayList<>(frames.size());
+        int runStart = 0;
+        for (int i = 1; i <= frames.size(); i++) {
+            if (i < frames.size() && state.get(i).equals(state.get(runStart))) continue;
+            for (int k = Math.max(runStart, i - TRAJECTORY_TAIL); k < i; k++) kept.add(frames.get(k));
+            runStart = i;
+        }
+        int dropped = frames.size() - kept.size();
+        if (dropped > 0) {
+            frames.clear();
+            frames.addAll(kept);
+        }
+        return dropped;
     }
 
     public synchronized boolean isEmpty() {
@@ -144,4 +201,6 @@ public final class HandFrameMailbox {
         float x = head[24], y = head[25], z = head[26];
         return x * x + y * y + z * z <= NEAR_REACH_METRES * NEAR_REACH_METRES;
     }
+
+    private static final float NEAR_REACH_METRES = .7f;
 }
