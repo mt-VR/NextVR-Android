@@ -131,9 +131,13 @@ class FusionHands @JvmOverloads constructor(
         lastTimestamp = stamp
         val image = if (takeOwnership) MpImageInput.takeOwnership(bitmap) else MpImageInput.copyOf(bitmap)
         try {
-            val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
             val active = if (slots.slotsFor(startedAt, lastHands) == 1) narrow else wide
-            val base = active.detectForVideo(image, options, stamp)
+            // The upright pipeline feeds rotation 0 every frame; building ImageProcessingOptions
+            // per inference would allocate a builder plus options on the tracking thread for a
+            // no-op. The plain overload is the same graph with an identity transform.
+            val base = if (rotationDegrees == 0) active.detectForVideo(image, stamp)
+                else active.detectForVideo(image,
+                    ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build(), stamp)
             lastHands = base.landmarks().size
             lastInferenceMs = android.os.SystemClock.elapsedRealtime() - startedAt
             if (yoloFailed || rotationDegrees != 0) return base
