@@ -20,3 +20,6 @@ test-results/
 
 # Built APKs are CI artifacts (branch apk-dist); never commit them locally
 *.apk
+
+# Python tooling scratch (tools/bench, tools/perf)
+__pycache__/

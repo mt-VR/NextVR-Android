@@ -90,6 +90,44 @@ class HandFrameMailboxTest {
         assertEquals(listOf("current-hold"), batch.frames().map { it.script() })
     }
 
+    @Test fun aBacklogCollapsesSameStatePosesButNeverLosesAnEdgeOrTheNewestTrajectory() {
+        // A stalled WebView drain would otherwise replay every queued sample: one more
+        // nextvrHands() call each, a longer evaluation, more frames aging out, more cancels.
+        val mailbox = HandFrameMailbox(96, 4)
+        offer(mailbox, 1, "far", tipDistance = .9f)
+        mailbox.drain()
+
+        // A long near-reach run: every sample is kept by the retention rule, so a drain has to bound it.
+        for (sequence in 2..9) offer(mailbox, sequence.toLong(), "near-$sequence", tipDistance = .5f)
+        val batch = mailbox.drain()
+
+        assertEquals(listOf("near-8", "near-9"), batch.frames().map { it.script() })
+        assertEquals(6, batch.coalesced())
+        assertTrue(mailbox.isEmpty())
+    }
+
+    @Test fun aBacklogKeepsEveryPinchEdgeInOrderEvenPastTheDrainBound() {
+        val mailbox = HandFrameMailbox(96, 4)
+        offer(mailbox, 1, "hover")
+        mailbox.drain()
+
+        // Four press/release cycles queued while the UI was stuck: the edges must survive in order.
+        for (cycle in 0..3) {
+            offer(mailbox, 2L + cycle * 2, "down-$cycle", pinching = true)
+            offer(mailbox, 3L + cycle * 2, "up-$cycle")
+        }
+        val batch = mailbox.drain()
+
+        // Eight frames is over the bound, but every one of them changes the state, so nothing may be
+        // dropped: the budget costs superseded poses, never an edge. The overflow rule (96 frames)
+        // stays the hard bound for a sequence that cannot be replayed safely.
+        assertEquals(
+            listOf("down-0", "up-0", "down-1", "up-1", "down-2", "up-2", "down-3", "up-3"),
+            batch.frames().map { it.script() },
+        )
+        assertEquals(0, batch.coalesced())
+    }
+
     @Test fun cameraStopCreatesAnOrderedNeutralBoundary() {
         val mailbox = HandFrameMailbox()
         offer(mailbox, 1, "stale-down", pinching = true)

@@ -33,6 +33,16 @@ import kotlin.math.max
  * A rescued hand is merged into the next primary results while it is still fresh
  * ([RescueMerger.MAX_AGE_MS]); the result stamp is always the primary frame's capture stamp.
  *
+ * Cost of the primary inference is dominated by how many HAND SLOTS the graph processes, not by the
+ * input size, so [HandSlotPolicy] decides that per frame: one slot while a single hand is tracked
+ * (~2.5x cheaper, measured) and two slots whenever nothing is tracked, whenever two hands are
+ * reported, and on a periodic probe so a second hand entering is still found. Both graphs are kept
+ * loaded so the switch is free.
+ *
+ * The recovery workers are off this thread but not off the CPU, so they are additionally gated on
+ * the measured cost of the last primary inference (see [RecoveryBudget]) and the rescue only runs
+ * while NO hand is tracked: filling in a deliberately-ignored second hand is the probe's job.
+ *
  * The result is an ordinary [HandLandmarkerResult], so everything written for MediaPipe keeps working.
  */
 class FusionHands(
@@ -41,12 +51,16 @@ class FusionHands(
     handModel: String = "hand_landmarker.task",
     /** How often YOLO looks for lost hands, at most (it only runs while a hand is missing). */
     private val yoloEveryMs: Long = 250,
+    /** How often a narrow (one-slot) stretch re-checks for a second hand. */
+    secondHandProbeMs: Long = HandSlotPolicy.DEFAULT_PROBE_MS,
 ) : AutoCloseable {
     /** A unique input was consumed by a failed delegate; this copy is only made on that rare path. */
     class RetryableInferenceException(val retryBitmap: Bitmap, cause: RuntimeException) :
         RuntimeException("Hand inference failed; retry bitmap retained", cause)
 
-    private val video: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f)
+    private val wide: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 2)
+    private val narrow: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 1)
+    private val slots = HandSlotPolicy(secondHandProbeMs)
     private val appContext = context.applicationContext
     private val model = handModel
     @Volatile private var yoloFailed = false
@@ -65,12 +79,37 @@ class FusionHands(
     /** Tracking-thread only: when the last crop was handed to the rescue thread (elapsedRealtime ms). */
     private var lastRescueStart = Long.MIN_VALUE / 2
     private var lastTimestamp = -1L
+    /** Hands in the last primary result, and how long that result's inference took: the policy and
+     * the recovery gate are both driven by these, and both are tracking-thread only. */
+    private var lastHands = 0
+    private var lastInferenceMs = 0L
     /** Wrists YOLO saw most recently (x, y, elbow x, elbow y, physical left, person width) and when. */
     @Volatile private var wrists: List<FloatArray> = emptyList()
     @Volatile private var wristsAt = 0L
 
     /** Recovery is enabled (possibly still lazy-loading) unless the model failed. */
     val fused get() = !yoloFailed
+
+    /** Slots the primary graph is currently processing (1 or 2), for the perf log. */
+    fun currentSlots() = if (slots.lastWasWide()) 2 else 1
+
+    /** Frames of each kind, so a device log can attribute the landmark rate. */
+    fun narrowFrames() = slots.narrowFrames()
+
+    fun wideFrames() = slots.wideFrames()
+
+    /** Second-hand re-checks paid for while narrow. */
+    fun probes() = slots.probes()
+
+    /** YOLO rounds shed because the primary inference was already the bottleneck. */
+    fun recoverySkips() = recoveryBudget.suppressedCount()
+
+    /**
+     * Hand tracking is being paused: forget the slot decision. It was made from frames that will be
+     * far in the past by the time the next one arrives, and the graphs keep their own
+     * region-of-interest history across a pause, so resuming should search both hands again.
+     */
+    fun resetSlots() = slots.reset()
 
     /** Detect without taking ownership; useful to callers that keep/reuse [bitmap]. */
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
@@ -82,16 +121,21 @@ class FusionHands(
 
     private fun detectInternal(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int,
         takeOwnership: Boolean): HandLandmarkerResult {
+        val startedAt = android.os.SystemClock.elapsedRealtime()
         val stamp = maxOf(timestampMs, lastTimestamp + 1)
         lastTimestamp = stamp
         val image = if (takeOwnership) MpImageInput.takeOwnership(bitmap) else MpImageInput.copyOf(bitmap)
         try {
             val options = ImageProcessingOptions.builder().setRotationDegrees(rotationDegrees).build()
-            val base = video.detectForVideo(image, options, stamp)
+            val active = if (slots.slotsFor(startedAt, lastHands) == 1) narrow else wide
+            val base = active.detectForVideo(image, options, stamp)
+            lastHands = base.landmarks().size
+            lastInferenceMs = android.os.SystemClock.elapsedRealtime() - startedAt
             if (yoloFailed || rotationDegrees != 0) return base
             val now = android.os.SystemClock.elapsedRealtime()
             // Ask YOLO (in the background, on a small copy) where the wrists are, a few times a second.
-            if (recoveryBudget.shouldRun(now, base.landmarks().size, yoloBusy.get()) && yoloBusy.compareAndSet(false, true)) {
+            if (recoveryBudget.shouldRun(now, base.landmarks().size, yoloBusy.get(), lastInferenceMs) &&
+                yoloBusy.compareAndSet(false, true)) {
                 val copy = runCatching {
                     val w = 320
                     Bitmap.createBitmap(w, w * bitmap.height / bitmap.width, Bitmap.Config.ARGB_8888).also {
@@ -100,7 +144,7 @@ class FusionHands(
                 }.getOrNull()
                 if (copy == null) yoloBusy.set(false)
                 else yoloThread.execute {
-                    val started = android.os.SystemClock.elapsedRealtime()
+                    val yoloStarted = android.os.SystemClock.elapsedRealtime()
                     try {
                         if (yolo == null) yolo = Yolo11Pose(appContext, threads = 1)
                         wrists = findWrists(copy)
@@ -109,20 +153,28 @@ class FusionHands(
                         yoloFailed = true; wrists = emptyList()
                         android.util.Log.w("NextVR-Hands", "YOLO recovery disabled after failure; primary tracking continues", error)
                     } finally {
-                        recoveryBudget.completed(android.os.SystemClock.elapsedRealtime() - started)
+                        recoveryBudget.completed(android.os.SystemClock.elapsedRealtime() - yoloStarted)
                         copy.recycle()
                         yoloBusy.set(false)
                     }
                 }
             }
-            // Start a background rescue for a wrist MediaPipe still misses. Never blocks this thread.
-            if (!rescueFailed && base.landmarks().size < 2) scheduleRescue(bitmap, base, now)
+            // Start a background rescue for a wrist the primary result has no hand for at all.
+            // Only while NOTHING is tracked: a second hand deliberately left out of a one-slot
+            // frame is the probe's business, and a rescue competing with a slow primary inference
+            // makes the frame the user is waiting for even slower.
+            if (!rescueFailed && base.landmarks().isEmpty() && lastInferenceMs <= RESCUE_PRESSURE_MS)
+                scheduleRescue(bitmap, base, now)
             // Merge rescues that finished in the meantime, while they are still fresh.
             val finished = synchronized(rescued) {
                 rescued.removeAll { now - it.atMs > RescueMerger.MAX_AGE_MS }
                 rescued.toList()
             }
-            return RescueMerger.merge(base, finished, now, bitmap.width, bitmap.height) ?: base
+            val merged = RescueMerger.merge(base, finished, now, bitmap.width, bitmap.height) ?: base
+            // A merged rescue hand counts too: if the frame ends up showing two hands, the next one
+            // must process two slots so the pair does not flicker between the probe frames.
+            lastHands = merged.landmarks().size
+            return merged
         } catch (error: RuntimeException) {
             if (!takeOwnership) throw error
             // Preserve the frame only on a failed owned inference, so Camera2 can retry on CPU.
@@ -190,7 +242,7 @@ class FusionHands(
     /** Rescue thread: landmarks on the crop, mapped back to frame coordinates, kept for merging. */
     private fun runRescue(crop: Crops.Crop, width: Int, height: Int, requestedAtMs: Long) {
         try {
-            val detector = rescue ?: landmarker(appContext, model, false, RunningMode.IMAGE, .3f).also { rescue = it }
+            val detector = rescue ?: landmarker(appContext, model, false, RunningMode.IMAGE, .3f, 1).also { rescue = it }
             val image = BitmapImageBuilder(crop.bitmap).build()
             val result = try { detector.detect(image) } finally { image.close() } // closing recycles crop.bitmap
             val hand = result.landmarks().firstOrNull()
@@ -205,7 +257,7 @@ class FusionHands(
                     while (rescued.size > 2) rescued.removeAt(0)
                 }
             }
-            com.nextvr.cardboard.PerfLog.rescueDone()
+            com.nextvr.cardboard.PerfLog.rescueDone(hand != null)
         } catch (error: Exception) {
             rescueFailed = true
             android.util.Log.w("NextVR-Hands", "Hand rescue disabled after failure; primary tracking continues", error)
@@ -216,7 +268,8 @@ class FusionHands(
     }
 
     override fun close() {
-        video.close()
+        wide.close()
+        narrow.close()
         // Interpreter and landmarker destruction are queued after their last inference.
         yoloThread.execute { yolo?.close() }
         yoloThread.shutdown()
@@ -242,13 +295,16 @@ class FusionHands(
     companion object {
         /** Lower bound between two rescue crops; one primary frame at 30 fps. */
         private const val RESCUE_MIN_INTERVAL_MS = 33L
+        /** A rescue is a second CPU inference: skip it while the primary is already this slow. */
+        private const val RESCUE_PRESSURE_MS = 45L
 
-        private fun landmarker(context: Context, model: String, gpu: Boolean, mode: RunningMode, confidence: Float): HandLandmarker {
+        private fun landmarker(context: Context, model: String, gpu: Boolean, mode: RunningMode,
+            confidence: Float, numHands: Int): HandLandmarker {
             val base = BaseOptions.builder().setModelAssetPath(model).setDelegate(if (gpu) Delegate.GPU else Delegate.CPU).build()
             val options = HandLandmarker.HandLandmarkerOptions.builder()
                 .setBaseOptions(base)
                 .setRunningMode(mode)
-                .setNumHands(2)
+                .setNumHands(numHands)
                 .setMinHandDetectionConfidence(confidence)
                 .setMinHandPresenceConfidence(confidence)
                 .setMinTrackingConfidence(.35f)

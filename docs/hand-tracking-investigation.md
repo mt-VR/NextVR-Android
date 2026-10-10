@@ -502,3 +502,241 @@ WebView. Duas camadas de cache:
   o idioma afirma a volta da dock com os 12 botões de antes, `.win-shell` zerado (a janelinha
   fechou junto com a escolha) e `#stat` visível.
 - Suite node: **30/30**. APK novamente pelo CI (`assembleDebug` + testes JVM) e `apk-dist`.
+
+---
+
+# 2026-10-10 (7ª rodada) — "o feed e a dock são instantâneos, a mão não": custo por slot de mão
+
+## Sintoma
+
+Depois da 6ª rodada, com o shell e a pass-through já estáveis, a queixa mudou de lado: o vídeo da
+câmera e a dock respondem na hora, mas o tracking da mão continua lento (cursor arrastado, toque que
+precisa ser "segurado" para contar). Isso é um diagnóstico, não só uma queixa: as três coisas saem do
+mesmo sensor e do mesmo thread da câmera. Se dois caminhos estão fluidos e o terceiro não, o gargalo é
+o que **só** o terceiro caminho faz — não a câmera, não o display, não o WebView em repouso.
+
+## Como foi medido nesta rodada (sandbox, sem aparelho)
+
+Sem adb nem SDK aqui, a medição foi feita em três camadas, cada uma atingível de novo por qualquer
+pessoa que for revisar:
+
+| Camada | Ferramenta | O que entrega |
+|---|---|---|
+| custo de pixel do caminho da câmera | `/tmp` benchmark C++ (`-O2 -march=native`) replicando `camera_pixels.cc` passo a passo, e `tests/camera-pixels.test.mjs` | ms por frame de cada etapa da conversão, isolada |
+| custo do MediaPipe por configuração | `tools/bench/hand_input_policy_bench.py` (matriz `numHands` × largura de análise × nº de mãos na cena), com o `taskset -c 0` do `hand_host_bench.py` | mediana de 3 × 40 frames por célula, em um único core |
+| cadeia inteira | `tools/bench/pipeline_sim.py` (novo) — eventos discretos de câmera → tracking → WebView, com `LatestFrameSlot`, `HandSlotPolicy`, resgate, mailbox e orçamento de dreno reais (o `SlotPolicy` do simulador é espelho fiel de `HandSlotPolicy.kt`) | qual alavanca muda `track`, latência e frames velhos |
+
+**Todos os números abaixo são de host (x86-64, 2 cores), não FPS de celular.** Eles valem como razão e
+proporção — "o segundo slot custa 2,4× a mais", "reamos 13 ms só para preparar a frame do tracker" —
+e a confirmação no aparelho é o `adb logcat -s NextVR-Perf`, que agora imprime os campos novos
+(`cam_work`, `handoff`, `slots`, `narrow`, `wide`, `probe`, `stale`, `coalesced`, `recovery_skips`).
+
+## Medição A — o thread da câmera paga 18 ms/frame, e ~70% disso é só para o tracker
+
+Geometria real do caminho: sensor 1280×720 → upright 720×1280 → cópia de análise
+`largura × (largura·1280/720)`.
+
+| Etapa (1 frame, host) | ms |
+|---|---|
+| `nativeYuvToArgb` com rotação 90° (scatter) | 5,018 |
+| mesma conversão sem rotação (flat) | 2,567 |
+| `Bitmap.createBitmap(int[])` para o display | 0,267 |
+| reamostragem bilinear escalar para 640×1138 (análise) | 12,680 |
+| **total hoje** | **17,965** |
+
+Duas conclusões práticas:
+
+- A reamostragem existe **só** para o tracker; o display usa a cópia grande. Um kernel fundido
+  YUV→análise (sem passar pelo `int[]` grande) mede 5,20 ms em 640, 3,58 em 512, 2,60 em 448,
+  2,14 em 384, 1,43 em 320 — ou seja, o trabalho da câmera poderia cair de ~18 para ~9 ms. Foi
+  **rejeitado** nesta rodada: é código JNI novo (assinatura `nativeYuvToArgb` precisa continuar
+  intacta para o teste `camera-pixels`), e o Skia já faz o resize vetorizado dentro de
+  `createScaledBitmap`, então o ganho real no aparelho é incerto. Fica registrado como próximo passo.
+- Variações de rotação medidas (150 reps): scatter 3,458 ms, tiled16 6,542, tiled32 6,236,
+  flat+transpose32 10,312. O scatter atual já é o melhor dos quatro — não há vitória barata aí.
+
+E o mais importante da medição A: **esse custo não é só latência, é admissão.** O `Image` fica preso a
+1 dos 2 buffers do `ImageReader` durante os ~18 ms, e o `requestTracking()`/`close()` só acontecem no
+fim. Uma câmera que entrega 30 frames/s com 18 ms de trabalho por frame no mesmo thread é uma câmera
+que oscila entre 30 e 15 Hz, e o `track` herda a oscilação.
+
+## Medição B — o imposto do segundo slot (a maior vitória da rodada)
+
+`hand_input_policy_bench.py`, medianas (host, 1 core, CPU delegate, 640 px):
+
+| configuração | mean (ms) | p95 (ms) |
+|---|---|---|
+| `numHands=1`, uma mão na cena | 11,8 | 14,3 |
+| `numHands=2`, uma mão na cena | 29,1 | 35,7 |
+| `numHands=1`, nenhuma mão | 17,6 | — |
+| `numHands=2`, nenhuma mão | 15,5 | — |
+| `numHands=1`, 640 vs 320 px | 12,28 vs 12,12 | — |
+
+Uma mão levantada — o caso usado em 90% do tempo — custa **2,47×** mais porque `numHands=2` faz o
+segmentador/ROI do detector trabalhar duas slots mesmo quando a segunda está vazia. O grafo atual era
+`numHands=2` sempre. Ou seja: o `track` fica preso no teto do modelo (~34 Hz de teto no host contra
+~80 Hz com uma slot), e com cauda pior (p95 35,7 vs 14,3) — "lento" e "travando" ao mesmo tempo.
+
+Também está aí por que reduzir a resolução **não** é a resposta: a 12,28 ms vs 12,12 ms, o custo do
+`LANDMARK` por mão detectada é dominante, não o número de pixels. E a medição C abaixo mostra que a
+largura não compra recall.
+
+## Medição C — recall não depende da largura de análise
+
+Mãos ocupando de 18% a 65% da altura do frame: recall 1,00 em todas as larguras de 1280 até 320 px.
+Diminuir a análise é seguro para *não perder* a mão, e inútil para *ganhar* taxa. É por isso que o
+degrau de 640/512/448 em `TrackingBudget` foi mantido como remédio de emergência (protege o aparelho
+de um modelo que ficou lento) e não como política de taxa.
+
+## Medição D — o resgate competindo com o primário
+
+Com YOLO + resgate rodando junto, a inferência primária medida foi de média 28,4 / p95 36 ms para
+**33,5 / 46 ms** (+28% na cauda). O resgate roda em `THREAD_PRIORITY_MIN`, mas "prioridade baixa" não
+devolve o core nem a largura de banda de memória. Somado ao fato de o `RescueMerger` estar liberado a
+cada ~33 ms enquanto nada está perdido, isso é contenção paga no caminho crítico. Por isso o
+`RecoveryBudget` agora tem um portão de carga (abaixo), e o resgate do `FusionHands` virou
+`numHands=1` — em `runRescue` o resultado é `firstOrNull()`, então pagar a segunda slot ali era
+imposto puro.
+
+## Modelo E — a cadeia inteira, antes e depois
+
+`python3 tools/bench/pipeline_sim.py` (custos acima como parâmetros; "antes" = `numHands=2`, resgate
+sempre, hand-off bloqueante, dreno sem limite):
+
+| cenário | variante | track | inferência | latência med/p95 | idade no display | stale | por dreno | narrow |
+|---|---|---|---|---|---|---|---|---|
+| uma mão, UI parada | antes | 25,9 Hz | 31,7 ms | 34,8 / 40,0 | 56,8 ms | 0 | 1,00 | 0% |
+| uma mão, UI parada | depois | 25,9 Hz | 16,1 ms | 17,5 / 34,8 | 41,2 ms | 0 | 1,00 | 75% |
+| uma mão, GPU ×2 + UI 2× | antes | **17,0 Hz** | 58,2 ms | 78,2 / 95,6 | 109,7 ms | 0 | 1,00 (drop 532) | 0% |
+| uma mão, GPU ×2 + UI 2× | depois | **25,9 Hz** | 32,2 ms | 34,6 / 63,9 | 63,6 ms | 0 | 1,00 (drop 0) | 75% |
+| uma mão, câmera 60 fps | antes | 33,4 Hz | 29,1 ms | 43,0 / 51,1 | 57,5 ms | 0 | 1,00 (drop 728) | 0% |
+| uma mão, câmera 60 fps | depois | 45,5 Hz | 14,3 ms | 17,5 / 34,8 | 32,0 ms | 0 | 1,00 (drop 0) | 86% |
+| travada 900 ms a cada 5 s | antes | 25,9 Hz | 31,7 ms | 34,8 / 40,0 | 56,8 ms | **121** | 1,19 | 0% |
+| travada 900 ms a cada 5 s | depois | 25,9 Hz | 16,1 ms | 17,5 / 34,8 | 41,2 ms | **0** | 1,01 | 75% |
+| duas mãos / procurando mão | — | idêntico | idêntico | idêntico | idêntico | — | — | 0% |
+
+As três leituras que importam:
+
+1. **Com uma mão levantada, o modelo "depois" nunca é mais caro que o "antes"** e é ~1,98× mais barato
+   por frame em média (29,1 → 14,7 ms/frame medidos no `logic_check.py`, mesma conta que o
+   `hand_input_policy_bench.py` faz). Com duas mãos ou procurando mão, o resultado é bit-idêntico: a
+   política só age onde há algo a economizar.
+2. O ganho maior aparece **quando há contenção** (GPU/threads disputados): 17,0 → 25,9 Hz e 532 frames
+   descartados indo a zero, porque o thread da câmera deixa de esperar o caminho do display.
+3. `stale` é o número da *queixa do toque*: com o WebView travando 900 ms a cada 5 s, o dreno sem
+   limite reavaliava 121 frames que já tinham perdido a validade nativa — cada um deles é um toque em
+   curso virando cancelamento. O orçamento de dreno corta isso a zero sem perder nenhum edge.
+
+## Diagnóstico (as sete causas, com a medição correspondente)
+
+| # | Causa | Evidência | Status |
+|---|---|---|---|
+| 1 | `numHands=2` sempre: imposto de 2,47× em todo frame de uma mão | medição B | **corrigido** (`HandSlotPolicy`) |
+| 2 | ~18 ms de pixel no thread da câmera por frame, segurando 1 de 2 buffers | medição A | parcialmente (hand-off fora do lock, medição nova); fusão YUV→análise fica registrada como próximo passo |
+| 3 | `CameraTexture.offer()` e `update()` no mesmo monitor **com `texSubImage2D` dentro**: a câmera espera o upload da textura | código + o `handoff=` do log | **corrigido** (upload fora do monitor; só o ponteiro é trocado sob lock) |
+| 4 | resgate a cada ~33 ms + `urgentUntil=now+1500` tempestade, em `THREAD_PRIORITY_MIN` que ainda disputa ciclo | medição D | **corrigido** (resgate só com `landmarks().isEmpty()`, `numHands=1`, portão de carga no `RecoveryBudget`) |
+| 5 | `TrackingBudget` com limiar de 85 ms que nunca disparava (o `infer_mean` real é 28-45 ms) e descida de resolução inútil para taxa | medições B/C | **reajustado** (orçamento 50 ms, alívio 26 ms, 6 frames de pressão, 90 de alívio, EWMA re-semeado no degrau) |
+| 6 | delegate GPU escolhido uma vez; a volta ao CPU só acontecia por exceção | código | **corrigido** (`DelegateWatch`: média **e** amostra atual acima do orçamento por N resultados consecutivos) |
+| 7 | `Frame.json()` alocando no thread de tracking + `drainHandFrames` reavaliando tudo sem limite | código + linha `stale`/`replayed` | **corrigido** (StringBuilder sem `org.json`; colapso de poses substituídas no mailbox) |
+
+Um item deixado **de propósito**: `FusionHands.track()` ancora `handsEnabled=false` em qualquer
+exceção, encerrando o tracking da sessão. É frágil, mas muda comportamento de falha e precisa de
+aparelho para validar; não entra em uma rodada de desempenho.
+
+## Correções desta rodada
+
+- **`HandSlotPolicy.kt` (novo)** — a máquina de estados das slots: WIDE (procura as duas) enquanto não
+  há nada garantido; NARROW (uma mão) quando um frame WIDE viu exatamente uma mão; volta para WIDE no
+  frame seguinte se a mão sumiu ou se aparecerem duas. Uma recheckagem (`probe`) a cada 150 ms para não
+  perder a segunda mão para sempre. O relógio do probe **não** é re-ancorado por um próprio probe — sem
+  isso, cada probe empurraria o próximo um frame para frente e a cadência esticaria sozinha.
+- **`FusionHands.kt`** — dois landmarkers `VIDEO` (WIDE `numHands=2`, NARROW `numHands=1`), o ativo
+  decidido por `slotsFor()`. Cada grafo mantém seu próprio histórico de ROI, então o frame seguinte a uma
+  troca é um frame de detecção (barato), o que torna o probe de 150 ms suficiente. Resgate só quando
+  `base.landmarks().isEmpty() && lastInferenceMs <= 45`, agora com `numHands=1`.
+- **`RecoveryBudget.kt`** — `shouldRun(now, hands, busy, primaryMs)`: se a inferência primária já está
+  acima do orçamento de carga (40 ms), a rodada é adiada (`lastStart += interval/2`) e contada em
+  `suppressed`. Não é um `dutyInterval` maior: isso sobreviveria à carga e travaria a recuperação
+  seguinte.
+- **`DelegateWatch.java` (novo)** — dispara a troca GPU→CPU só quando a **média EWMA e a amostra
+  atual** passam do orçamento por `patience` resultados consecutivos. Com a média sozinha, um frame
+  rápido depois de três lentos ainda deixa a média alta e o disparo acontecia no meio da recuperação.
+- **`PassthroughCamera.java`** — publica a frame de análise e `requestTracking()` **antes** do hand-off
+  para o display (o tracker não espera mais o bitmap), mede `cameraWork`/`cameraHandoff`, reporta
+  `handSlots`/`recovery_skips`, e recria o `FusionHands` no delegate alternativo quando o `DelegateWatch`
+  dispara (`preferGpu` é limpo no abandono para uma rebuild que falhou no CPU não ficar girando a cada
+  30 frames).
+- **`SpatialRenderer.java`** — `CameraTexture.update()` faz o `texSubImage2D`/`glTexImage2D` **fora** do
+  monitor; sob lock só troca o ponteiro/`latestVersion`. A câmera deixa de blockar atrás do upload.
+- **`PhoneXrHands.kt`** — `Frame.json()` serializa com `StringBuilder` (sem `org.json`, sem boxing de
+  63 floats em `Double`), emitindo `null` para NaN/Inf em vez de `JSONObject.NULL`.
+- **`HandFrameMailbox.java`** — `collapseToDrainBudget()`: num dreno acima de 8 frames, cada corrida de
+  estado de gesto idêntico é reduzida às últimas 2 amostras (a cauda de trajetória que o `HandMovement`
+  precisa). **Edges nunca são descartados** — a primeira versão do corte, que simplesmente aparava o
+  começo da fila, comia DOWN de pinque tremendo. `Batch.coalesced()` saiu do caminho; `lastCoalesced()`
+  (morto) foi removido.
+- **`PerfLog.java`** — `cam_work`/`cam_work_max`, `handoff`/`handoff_max`, `slots`/`narrow`/`wide`/`probe`,
+  `replayed`/`stale`/`coalesced`, `rescue_found`, `recovery_skips` na mesma linha de ~3 s. O
+  `handSlots` recebe **deltas** do chamador (o landmarker conta desde que os grafos foram criados, e
+  eles são recriados numa troca de delegate), então as colunas `narrow`/`wide`/`probe` são contagens da
+  janela como todas as outras; um contador que diminuiu é tratado como recomeço.
+- **`NextVrActivity.drainHandFrames()`** — conta quantos frames do lote já perderam a validade e reporta
+  em `handDrain(frames, stale, coalesced)`.
+
+## Rejeitado depois de medir (registrado para não refazer)
+
+| Ideia | Por que não |
+|---|---|
+| fundir YUV→análise em um kernel só | 12,68 ms de reamostragem escalar no host é pior que o `createScaledBitmap` vetorizado do Skia; só ganha se eliminar o `int[]` grande, o que mexe no JNI validado por `tests/camera-pixels.test.mjs`. Fica como próximo passo com medição própria |
+| reusar o `int[]` no bitmap do display / `AndroidBitmap_lockPixels` | 0,267 ms medidos. Não é o gargalo |
+| descer `TrackingBudget` mais cedo/agressivo para ganhar taxa | medição C: custo por mão detectada domina o de pixels; 640→320 muda 0,16 ms |
+| fixar `CONTROL_AE_TARGET_FPS_RANGE` em 60 | empurraria 3,6 MB de upload para 60/s (~216 MB/s) e arriscaria o feed fluido que já funciona. Candidato a teste em aparelho, não a padrão |
+| `numHands=2` no resgate | `runRescue` usa `firstOrNull()`: pagaria o imposto de 2,4× exatamente no caminho de recuperação |
+| coalescer o dreno cortando pelo começo da fila | descartava edges reais de pinque (testado no espelho Python) |
+
+## Testes desta rodada
+
+- `HandSlotPolicyTest` (novo, 7 casos): procurando mão = sempre WIDE; uma mão entra em NARROW e não paga
+  mais a segunda slot; o probe sai no intervalo e não estica a cadência; perder a mão volta para WIDE no
+  frame seguinte; duas mãos ficam WIDE sem oscilar; contadores de narrow/wide/probe; `reset()` volta ao
+  estado inicial.
+- `DelegateWatchTest` (novo, 5 casos): pico isolado não é tendência; carga sustentada dispara e trava;
+  uma sequência rápida zera a paciência; `reset()` limpa a média; orçamento inválido rejeitado.
+- `TrackingBudgetTest` reescrito com o novo degrau (640/512/448, pressão 50, alívio 26, 6 frames de
+  pressão para descer, alívio por tempo ~90 frames para subir, EWMA re-semeado).
+- `RecoveryBudgetTest` ganhou o caso do portão de carga (2 suprimidas, adiamento dentro da janela, volta
+  quando o primário tem folga) e mantém os dois casos antigos intactos.
+- `HandFrameMailboxTest` ganhou dois casos: um backlog de pose colapsa para a cauda (8 frames enfileirados
+  viram os 2 últimos, `coalesced=6`; o teste usa `collapseAbove=4` só para exercitar o caminho curto) e
+  oito edges de pinque alternados passam **todos**, sem colapso (`coalesced=0` — o orçamento custa poses
+  substituídas, nunca um edge). Os cinco casos anteriores continuam bit-idênticos: drenam ≤8 frames,
+  abaixo do limiar padrão de colapso.
+- `logic_check.py` (sandbox) espelha `TrackingBudget`, `DelegateWatch`, `HandSlotPolicy`,
+  `RecoveryBudget` e o colapso do mailbox, roda as mesmas asserções dos testes JVM e mais a cadência de
+  30 fps (`[1,1,1,1,1,2,1]`, um probe por 150 ms; `narrowFrames=9, wideFrames=2, probes=1` em 10 frames)
+  — todas passando. Custo médio por frame 29,1 → 14,7 ms (1,98×).
+- `python3 tools/perf/summarize_logcat.py --self-test` cobre os campos novos (e afirma que nenhuma
+  métrica declarada chega como `n/a`). Suite node: **33 pass, 0 fail, 8 puladas** (as puladas pedem
+  Chromium, ausente aqui). `javalang` parseia os 15 `.java` de `src/main`+`src/test`.
+- Não rodado aqui e deixado para o CI/aparelho: `gradle :nextvr-android:testDebugUnitTest` e
+  `assembleDebug` (não há JDK/SDK no sandbox). A assinatura JNI `nativeYuvToArgb` não foi tocada,
+  exatamente para não mexer no que o teste de câmera valida.
+
+## Riscos desta rodada
+
+- Pausar o tracking (`enableHands(false)`) chama `resetSlots()`: a retomada volta a procurar as duas
+  mãos antes de decidir de novo. Sem isso, a decisão NARROW ficaria ancorada em timestamps antigos.
+- Na primeira mão levantada da sessão, o WIDE→NARROW troca de grafo no frame seguinte: um frame de
+  detecção (não-rastreamento), potencialmente mais caro e sem suavização de ROI. É 1 frame por transição
+  e o `HandMovement`/`OneEuro` já amortece; o log `narrow=`/`wide=` mostra se a máquina estiver
+  oscilando (oscilação = `wide` ≈ `narrow` em contagem, o que não deve acontecer com uma mão estável).
+- Duas landmarkers `VIDEO` criadas na inicialização custa o dobro de `createFromOptions` uma vez, antes
+  de qualquer mão aparecer — uma travadinha no boot, não durante o uso.
+- Com NARROW ativo o grafo **não vê** a segunda mão por até 150 ms; o resgate está condicionado a
+  `landmarks().isEmpty()`, então a segunda mão que entra em cena depende do probe, não do resgate. Se o
+  probe de 150 ms se mostrar lento demais no aparelho, o ajuste é o `DEFAULT_PROBE_MS`, não o
+  `numHands` fixo.
+- Colapso do dreno só atua acima de 8 frames; um backlog que não é *pose-idêntico* (pinque tremendo) é
+  reavaliado inteiro, como antes — o limite duro continua sendo o overflow de 96 frames → reset neutro.
+- O `DelegateWatch` troca de delegate uma vez e não volta (o `preferGpu` fica limpo até reabrir a
+  câmera). É intencional: girar GPU↔CPU a cada janela de carga seria pior que o problema.

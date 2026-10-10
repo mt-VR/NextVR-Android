@@ -2,8 +2,6 @@ package com.nextvr.cardboard.hands
 
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
-import org.json.JSONArray
-import org.json.JSONObject
 
 /** Adapted from mt-VR/NextVR b878d8b VrHomeActivity.onHands/LandmarkSmoother.
  * Detection, smoothing, shapes, pinch and shoulder rays are native. The HTML shell only hit-tests
@@ -66,20 +64,53 @@ class PhoneXrHands {
             if (a == null || b == null) b else lerp(a, b, t)
         private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
         fun json(): String {
-            val a = JSONArray()
-            for (h in hands) a.put(JSONObject().put("id", if(h.left) "left" else "right")
-                .put("left", h.left).put("points", JSONArray(h.points.toList()))
-                .put("head", h.head?.let { JSONArray(it.toList()) } ?: JSONObject.NULL)
-                .put("base", JSONArray(listOf(h.baseX, h.baseY))).put("aim", JSONArray(listOf(h.aimX, h.aimY)))
-                .put("pinching", h.pinching).put("fist", h.shape.fist)
-                .put("palm", JSONArray(listOf(h.shape.palmX, h.shape.palmY)))
-                .put("grab", JSONArray(listOf(h.grabX,h.grabY)))
-                .put("menuEligible", !h.shape.fist && (PalmMenuPose.eligible(h.head,h.left) || h.shape.palmToFace))
-                .put("menuPoint", JSONArray(listOf(h.shape.pinchX,h.shape.pinchY)))
-                .put("palmWidth", h.shape.palmWidth).put("palmToFace", h.shape.palmToFace))
-            return JSONObject().put("hands", a).put("timestampNs", timestampNs)
-                .put("validForMs", validForNs / 1_000_000L)
-                .put("inferenceMs", frameAgeNs.coerceAtLeast(0) / 1_000_000L).toString()
+            // Hand-rolled instead of org.json: this runs on the TRACKING thread between two
+            // inferences, and JSONArray(listOf(...)) boxes every one of the 63+63 floats per hand
+            // into a Double plus an ArrayList - ~600 short-lived objects per frame at 30 Hz, which
+            // is exactly the allocation that turns into a GC pause inside the tracking loop. The
+            // text is the same JSON, with float (not double) digits, which is smaller for the WebView
+            // to parse and far below the sub-pixel resolution of a landmark.
+            val sb = StringBuilder(1024)
+            sb.append("{\"hands\":[")
+            for ((index, h) in hands.withIndex()) {
+                if (index > 0) sb.append(',')
+                sb.append("{\"id\":\"").append(if (h.left) "left" else "right").append('"')
+                    .append(",\"left\":").append(h.left)
+                    .append(",\"points\":")
+                appendFloats(sb, h.points)
+                sb.append(",\"head\":")
+                val head = h.head
+                if (head == null) sb.append("null") else appendFloats(sb, head)
+                sb.append(",\"base\":[").append(h.baseX).append(',').append(h.baseY).append(']')
+                    .append(",\"aim\":[").append(h.aimX).append(',').append(h.aimY).append(']')
+                    .append(",\"pinching\":").append(h.pinching)
+                    .append(",\"fist\":").append(h.shape.fist)
+                    .append(",\"palm\":[").append(h.shape.palmX).append(',').append(h.shape.palmY).append(']')
+                    .append(",\"grab\":[").append(h.grabX).append(',').append(h.grabY).append(']')
+                    .append(",\"menuEligible\":").append(!h.shape.fist && (PalmMenuPose.eligible(head, h.left) || h.shape.palmToFace))
+                    .append(",\"menuPoint\":[").append(h.shape.pinchX).append(',').append(h.shape.pinchY).append(']')
+                    .append(",\"palmWidth\":").append(h.shape.palmWidth)
+                    .append(",\"palmToFace\":").append(h.shape.palmToFace)
+                    .append('}')
+            }
+            return sb.append("],\"timestampNs\":").append(timestampNs)
+                .append(",\"validForMs\":").append(validForNs / 1_000_000L)
+                .append(",\"inferenceMs\":").append(frameAgeNs.coerceAtLeast(0) / 1_000_000L)
+                .append('}').toString()
+        }
+
+        private fun appendFloats(sb: StringBuilder, values: FloatArray): StringBuilder {
+            sb.append('[')
+            for (i in values.indices) {
+                if (i > 0) sb.append(',')
+                appendFinite(sb, values[i])
+            }
+            return sb.append(']')
+        }
+
+        /** Matches org.json, which writes null for a value a JSON consumer could not use. */
+        private fun appendFinite(sb: StringBuilder, value: Float) {
+            if (value.isFinite()) sb.append(value) else sb.append("null")
         }
     }
     private class State {

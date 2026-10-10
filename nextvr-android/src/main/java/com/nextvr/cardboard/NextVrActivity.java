@@ -138,6 +138,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private void drainHandFrames() {
         for(;;) {
             HandFrameMailbox.Batch batch=handFrames.drain();
+            int stale=0;
             if(shell!=null && resumed && !closed) {
                 StringBuilder scripts=new StringBuilder();
                 if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
@@ -149,12 +150,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     } else {
                         // A queued press that outlived its native validity must cancel, never click.
                         scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
+                        stale++;
                     }
                 }
                 // One WebView evaluation guarantees the ordered frame edges run in one JS task,
                 // before a later batch can overtake them on Chromium's asynchronous evaluator.
                 if(scripts.length()>0)shell.evaluate(scripts.toString());
             }
+            PerfLog.handDrain(batch.frames().size(),stale,batch.coalesced());
             handsPending.set(false);
             if(handFrames.isEmpty() || !handsPending.compareAndSet(false,true))return;
         }

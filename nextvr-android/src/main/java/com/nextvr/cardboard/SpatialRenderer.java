@@ -70,13 +70,24 @@ final class SpatialRenderer {
         }
         synchronized void clear() { active=ready=false;if(pending!=null){pending.recycle();pending=null;} }
         synchronized void release() { closed=true;clear(); }
-        synchronized void update() {
-            if(pending==null)return;
-            android.graphics.Bitmap bitmap=pending;pending=null;
+        /**
+         * Take the frame under the monitor, then upload OUTSIDE it. The camera thread calls offer()
+         * for every frame; if the 3.6 MB texSubImage2D is issued while the monitor is held, a busy
+         * GL thread (rasterizing an open app) makes the camera callback wait on the display path -
+         * and the camera callback is the only producer of tracking input, so the landmark rate drops
+         * with the picture still looking perfectly smooth.
+         */
+        void update() {
+            android.graphics.Bitmap bitmap;
+            synchronized(this) {
+                bitmap=pending;pending=null;
+                if(bitmap==null)return;
+            }
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
             if(width==bitmap.getWidth() && height==bitmap.getHeight()) android.opengl.GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D,0,0,0,bitmap);
             else { android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,bitmap,0);width=bitmap.getWidth();height=bitmap.getHeight(); }
-            bitmap.recycle();ready=active;
+            bitmap.recycle();
+            synchronized(this) { ready=active; }
         }
     }
     final CameraTexture camera = new CameraTexture();
