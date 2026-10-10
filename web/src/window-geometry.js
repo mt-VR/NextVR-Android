@@ -49,20 +49,24 @@ export function resizeGestureActivated(start, current, width, height) {
 }
 
 /**
- * Remove jitter subcentimétrico e limita saltos de uma única amostra sem adicionar offset.
- * Movimentos normais preservam 65% da amostra mais recente; o restante chega nas próximas frames.
+ * Passo do arrasto com âncora estável: a posição da janela é SEMPRE `âncora + delta aplicado`,
+ * nunca rederivada de uma posição anterior defasada (que fazia a janela puxar de um lado para o
+ * outro ao perseguir o cursor em 65% por amostra). O delta relativo à âncora é aplicado por
+ * inteiro — zero lag adicional enquanto a mão se move — com duas proteções:
+ *
+ *  - deltas acumulados iguais ou menores que a zona morta não movem a janela (sem tremor em
+ *    repouso), mas continuam acumulando: um arrasto muito lento nunca trava;
+ *  - um único amostra nunca move mais que `maxMotionStep` (escudo contra um frame ruim).
  */
-export function stabilizeWindowPosition(previous, candidate) {
-  const dx = finite(candidate?.x) - finite(previous?.x);
-  const dy = finite(candidate?.y) - finite(previous?.y);
-  const dz = finite(candidate?.z) - finite(previous?.z);
-  const distance = Math.hypot(dx, dy, dz);
-  if (!Number.isFinite(distance) || distance <= WINDOW_LIMITS.motionDeadZone)
-    return { x: finite(previous?.x), y: finite(previous?.y), z: finite(previous?.z) };
-  const step = Math.min(WINDOW_LIMITS.maxMotionStep, distance * .65);
-  const amount = step / distance;
-  return { x: finite(previous?.x) + dx * amount, y: finite(previous?.y) + dy * amount,
-    z: finite(previous?.z) + dz * amount };
+export function stepDragDelta(applied, delta) {
+  const ax = finite(applied?.x), ay = finite(applied?.y), az = finite(applied?.z);
+  const dx = finite(delta?.x) - ax, dy = finite(delta?.y) - ay, dz = finite(delta?.z) - az;
+  const step = Math.hypot(dx, dy, dz);
+  if (!Number.isFinite(step) || step <= WINDOW_LIMITS.motionDeadZone)
+    return { x: ax, y: ay, z: az };
+  const move = Math.min(step, WINDOW_LIMITS.maxMotionStep);
+  const amount = move / step;
+  return { x: ax + dx * amount, y: ay + dy * amount, z: az + dz * amount };
 }
 
 export function clampResize(value, maximum = WINDOW_LIMITS.maxResize) {

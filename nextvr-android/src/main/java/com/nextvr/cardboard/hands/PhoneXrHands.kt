@@ -6,12 +6,24 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 /** Adapted from mt-VR/NextVR b878d8b VrHomeActivity.onHands/LandmarkSmoother.
  * Detection, smoothing, shapes, pinch and shoulder rays are native. The HTML shell only hit-tests
  * these rays against its own window geometry. No reference-prototype gesture heuristics remain.
+ *
+ * Temporal tracking (confidence-aware): a hand that briefly disappears from the detector — which on
+ * slower phones is usually a late or skipped inference, not a real loss — keeps being published as
+ * a predicted hand, extrapolated along its own velocity from the capture-timeline motion model,
+ * with confidence decaying to zero over [PREDICT_HORIZON_NS]. Predictions bridge the gap instead
+ * of blinking the hand away; they never start a pinch or a fist (gesture flags are held, never
+ * created), and once the horizon passes the hand is hidden and the web layer cancels any press.
+ * Reacquisition eases instead of snapping because the filter state survives brief misses
+ * ([STATE_RETAIN_NS]) and the One Euro filters converge back to the measurement on their own.
  */
 class PhoneXrHands {
-    companion object { /** Prediction is only trusted within one normal tracking interval (~250 ms). */
-        const val MAX_PREDICT_GAP_NS = 250_000_000L
+    companion object {
+        /** Velocity stays trustworthy across detection gaps up to one slow-tracking interval. */
+        const val MAX_PREDICT_GAP_NS = 600_000_000L
+        /** A missing hand is predicted for this long (confidence 1 → 0), then hidden for good. */
+        const val PREDICT_HORIZON_NS = 600_000_000L
         /**
-         * How long a hand's filter state survives its absence.
+         * How long a hand's filter/gesture state survives its absence.
          *
          * Dropping the state on the first empty result makes a hand that blinks out for one or two
          * inferences - an occlusion, a frame the palm detector misses - reappear with its filters
@@ -19,18 +31,28 @@ class PhoneXrHands {
          * hand now is. Keeping the state for this window lets the One Euro filters resume from
          * where they were and converge to the new position with their adaptive cutoff: the
          * reappearance is a smooth correction, not a jump. The dt clamp inside the filter (0.2 s)
-         * already treats the gap as one long step instead of fast motion.
+         * already treats the gap as one long step instead of fast motion. The same window covers
+         * the motion-model bridge below (PREDICT_HORIZON_NS), so a bridged hand is always backed
+         * by live filter state.
          *
          * Beyond the window the state is dropped: a hand returning after seconds may be somewhere
          * else entirely, and resuming an old filter there would drag the silhouette across the
-         * view. 750 ms covers a ~2-frame dropout at 30 Hz and a ~1-frame dropout at 15 Hz while
-         * staying in the same range as the silhouette retention, so a hand the UI has already
-         * faded out never comes back filtered from a stale position.
+         * view. Pruning happens BEFORE a result may reuse state, so a hand that reappears after a
+         * long silence also starts fresh instead of easing out of a pose from seconds ago.
          */
-        const val STATE_GRACE_NS = 750_000_000L }
+        const val STATE_RETAIN_NS = 1_500_000_000L
+        /** One prediction step may never move a landmark further than this (normalized units). */
+        const val MAX_PREDICT_STEP = .35f
+        /** Per-sample weight of the velocity estimate from consecutive detections. */
+        private const val VELOCITY_EMA = .5f
+    }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
-                    val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float)
+                    val aimX: Float, val aimY: Float, val pinching: Boolean, val grabX: Float, val grabY: Float,
+                    /** False for a real detection; true for a motion-model bridge between detections. */
+                    val predicted: Boolean = false,
+                    /** 1 for a fresh detection, decaying toward 0 as a prediction ages out. */
+                    val confidence: Float = 1f)
     data class Frame @JvmOverloads constructor(val hands: List<Hand>, val timestampNs: Long,
         val completedNs: Long = timestampNs, val validForNs: Long = 500_000_000L,
         val frameAgeNs: Long = (completedNs - timestampNs).coerceAtLeast(0),
@@ -53,7 +75,10 @@ class PhoneXrHands {
         private fun predictedUncached(nowNs: Long): Frame {
             val prev = previous ?: return this
             if (hands.isEmpty() || prev.hands.isEmpty()) return this
-            val gap = completedNs - prev.completedNs
+            // Velocity is measured on the CAPTURE timeline. Completion gaps jitter with inference
+            // latency (that is the frame timing that differs between devices), so using them made
+            // the same hand motion extrapolate differently — and drift — on slower phones.
+            val gap = timestampNs - prev.timestampNs
             // Never extrapolate across a long gap: a hand reappearing after a dropout must show
             // up exactly where it was detected, not drift along a stale velocity.
             if (gap <= 0L || gap > MAX_PREDICT_GAP_NS) return this
@@ -66,7 +91,8 @@ class PhoneXrHands {
                 Hand(h.left, lerp(p.points, h.points, t), lerpNullable(p.head, h.head, t), h.shape,
                     lerp(p.baseX, h.baseX, t), lerp(p.baseY, h.baseY, t),
                     lerp(p.aimX, h.aimX, t), lerp(p.aimY, h.aimY, t),
-                    h.pinching, lerp(p.grabX, h.grabX, t), lerp(p.grabY, h.grabY, t))
+                    h.pinching, lerp(p.grabX, h.grabX, t), lerp(p.grabY, h.grabY, t),
+                    h.predicted, h.confidence)
             }
             return Frame(predicted, timestampNs, completedNs, validForNs, frameAgeNs)
         }
@@ -109,7 +135,10 @@ class PhoneXrHands {
                     .append(",\"menuPoint\":[").append(h.shape.pinchX).append(',').append(h.shape.pinchY).append(']')
                     .append(",\"palmWidth\":").append(h.shape.palmWidth)
                     .append(",\"palmToFace\":").append(h.shape.palmToFace)
-                    .append('}')
+                    .append(",\"predicted\":").append(h.predicted)
+                    .append(",\"confidence\":")
+                appendFinite(sb, h.confidence)
+                sb.append('}')
             }
             return sb.append("],\"timestampNs\":").append(timestampNs)
                 .append(",\"validForMs\":").append(validForNs / 1_000_000L)
@@ -142,8 +171,74 @@ class PhoneXrHands {
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
         val grabY = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
-        /** Capture time of the last result that saw this hand; the grace window below keys off it. */
-        var lastSeenNs = 0L
+
+        /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
+        var sawDetection = false
+        /** Capture time of the last real detection; pruning and prediction key off it. */
+        var lastStampNs = 0L
+        var lastHand: PhoneXrHands.Hand? = null
+        val vPoints = FloatArray(63)
+        val vHead = FloatArray(63)
+        val vBase = FloatArray(2)
+        val vAim = FloatArray(2)
+        val vGrab = FloatArray(2)
+        val vPalm = FloatArray(2)
+
+        /** Feed the newest real detection: blend its velocity estimate, never snap the model. */
+        fun noteDetection(stampNs: Long, hand: PhoneXrHands.Hand) {
+            val previous = lastHand
+            if (previous != null && stampNs > lastStampNs) {
+                val dt = ((stampNs - lastStampNs) / 1e9f).coerceIn(.008f, .6f)
+                fun blend(old: Float, now: Float, before: Float) =
+                    old + ((now - before) / dt - old) * VELOCITY_EMA
+                for (i in 0 until 63) {
+                    vPoints[i] = blend(vPoints[i], hand.points[i], previous.points[i])
+                    val nowHead = hand.head
+                    val oldHead = previous.head
+                    if (nowHead != null && oldHead != null && nowHead.size == oldHead.size && i < nowHead.size)
+                        vHead[i] = blend(vHead[i], nowHead[i], oldHead[i])
+                }
+                vBase[0] = blend(vBase[0], hand.baseX, previous.baseX)
+                vBase[1] = blend(vBase[1], hand.baseY, previous.baseY)
+                vAim[0] = blend(vAim[0], hand.aimX, previous.aimX)
+                vAim[1] = blend(vAim[1], hand.aimY, previous.aimY)
+                vGrab[0] = blend(vGrab[0], hand.grabX, previous.grabX)
+                vGrab[1] = blend(vGrab[1], hand.grabY, previous.grabY)
+                vPalm[0] = blend(vPalm[0], hand.shape.palmX, previous.shape.palmX)
+                vPalm[1] = blend(vPalm[1], hand.shape.palmY, previous.shape.palmY)
+            } else {
+                // First sample or a rewound stamp: the model starts from rest, never from a guess.
+                vPoints.fill(0f); vHead.fill(0f); vBase.fill(0f)
+                vAim.fill(0f); vGrab.fill(0f); vPalm.fill(0f)
+            }
+            lastStampNs = stampNs
+            lastHand = hand
+            sawDetection = true
+        }
+
+        /**
+         * The hand's pose between detections, extrapolated along its velocity, or null once the
+         * prediction horizon has passed. The gesture flags are COPIED from the last detection —
+         * a prediction can hold a pinch/fist that really started but can never begin a new one.
+         */
+        fun predict(stampNs: Long): PhoneXrHands.Hand? {
+            val hand = lastHand ?: return null
+            if (!sawDetection) return null
+            val since = stampNs - lastStampNs
+            if (since <= 0L || since > PREDICT_HORIZON_NS) return null
+            val t = since / 1e9f
+            fun step(velocity: Float) = (velocity * t).coerceIn(-MAX_PREDICT_STEP, MAX_PREDICT_STEP)
+            val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i]) }
+            val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i]) } }
+            val shape = hand.shape.copy(palmX = hand.shape.palmX + step(vPalm[0]),
+                palmY = hand.shape.palmY + step(vPalm[1]))
+            return PhoneXrHands.Hand(hand.left, points, head, shape,
+                hand.baseX + step(vBase[0]), hand.baseY + step(vBase[1]),
+                hand.aimX + step(vAim[0]), hand.aimY + step(vAim[1]),
+                hand.pinching, hand.grabX + step(vGrab[0]), hand.grabY + step(vGrab[1]),
+                predicted = true,
+                confidence = 1f - since.toFloat() / PREDICT_HORIZON_NS)
+        }
     }
     private val states = HashMap<Boolean, State>()
     private var previous: Frame? = null
@@ -153,31 +248,35 @@ class PhoneXrHands {
         // MediaPipe/filter time is the camera capture timestamp. It is deliberately kept separate
         // from elapsedRealtime, since Camera2 timestamps are not guaranteed to share that clock.
         val stamp = result.timestampMs() * 1_000_000L
-        // Prune BEFORE this result reuses any state: a hand absent for less than STATE_GRACE_NS
-        // keeps its filters, so a brief dropout resumes from where it stopped (smooth correction)
-        // instead of snapping to the raw first sample; a longer absence gets a fresh state, so a
-        // hand returning after seconds is never dragged from a stale position (see STATE_GRACE_NS).
-        states.entries.removeAll { it.value.lastSeenNs < stamp - STATE_GRACE_NS }
-        val seen = result.landmarks().mapIndexedNotNull { index, raw ->
-            if(raw.size != 21) return@mapIndexedNotNull null
+        // Prune BEFORE this result may reuse any state: a hand that reappears after a long
+        // silence must not resume a stale filter from where it vanished (see STATE_RETAIN_NS).
+        // A briefer absence keeps its filters and is bridged by the motion model below.
+        states.entries.removeAll { it.value.lastStampNs < stamp - STATE_RETAIN_NS }
+        val seen = ArrayList<Hand>()
+        val detected = HashSet<Boolean>()
+        result.landmarks().forEachIndexed { index, raw ->
+            if(raw.size != 21) return@forEachIndexed
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
             val left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            detected += left
             val state = states.getOrPut(left) { State() }
-            state.lastSeenNs = stamp
             val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
                 state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),
                 state.landmarks[i*3+2].filter(p.z(),stamp)) }
             val imageShape = HandGestures.shape(points,left)
             val world = result.worldLandmarks().getOrNull(index)
-            // The 2D gap can look open when the hand is rotated and the fingertips separate in
-            // camera depth. Prefer MediaPipe's metric 3D thumb-index distance when available;
-            // keep the filtered-image measurement as a safe fallback for results without world
-            // landmarks. PinchLatch still provides close/open hysteresis for either measurement.
+            // Gesture decisions are measured on the RAW detection: the position filters exist to
+            // steady the cursor and must never delay, smooth over, or drift a pinch edge. PinchLatch
+            // still provides close/open hysteresis for either measurement. The 2D gap can look open
+            // when the hand is rotated and the fingertips separate in camera depth, so MediaPipe's
+            // metric 3D thumb-index distance is preferred when world landmarks are available.
+            val rawShape = HandGestures.shape(raw,left)
             val metricGap = world?.let { HandGestures.pinchGap3d(it) }?.takeIf { it.isFinite() }
-            val shape = if (metricGap == null) imageShape else imageShape.copy(
-                pinch = !imageShape.fist && metricGap < .35f,
-                pinchStrength = ((.9f - metricGap) / .6f).coerceIn(0f, 1f),
-                pinchGap = metricGap,
+            val gap = metricGap ?: rawShape.pinchGap
+            val shape = imageShape.copy(
+                pinch = !rawShape.fist && gap < .35f,
+                pinchStrength = ((.9f - gap) / .6f).coerceIn(0f, 1f),
+                pinchGap = gap,
             )
             if(!shape.fist || !state.fist){state.grabX.reset();state.grabY.reset()}
             state.fist=shape.fist
@@ -186,23 +285,43 @@ class PhoneXrHands {
             val by = (.5f-shape.aimY)*2f*scaleY
             val rightSide = head?.let { it[0]>0f } ?: (bx>0f)
             val shoulder = if(rightSide) .45f else -.45f
-            Hand(left,FloatArray(63) { i -> when(i%3) { 0->points[i/3].x();1->points[i/3].y();else->points[i/3].z() } },
+            val hand = Hand(left,FloatArray(63) { i -> when(i%3) { 0->points[i/3].x();1->points[i/3].y();else->points[i/3].z() } },
                 head,shape,bx,by,state.x.filter(bx+(bx-shoulder)*.25f,stamp),
                 state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
+            state.noteDetection(stamp,hand)
+            seen.add(hand)
+        }
+        // Hands missing from this result are not gone: the detector blinked or the inference was
+        // late. Bridge them with the motion model while confidence holds; a real, lasting loss ends
+        // at the horizon with the hand simply absent — the web layer then cancels, never clicks.
+        val iterator = states.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.key in detected) continue
+            val age = if (entry.value.sawDetection) stamp - entry.value.lastStampNs else Long.MAX_VALUE
+            if (age > STATE_RETAIN_NS) {
+                // Prolonged loss: forget the filter/motion state so a returning hand starts fresh
+                // instead of easing out of a pose from seconds ago.
+                iterator.remove()
+                continue
+            }
+            val predicted = entry.value.predict(stamp) ?: continue
+            seen.add(predicted)
         }
         // Capture time drives One Euro dt; expiry uses measured frame age on the elapsedRealtime
         // clock instead. Camera2 sensor timestamps may have a different epoch from that clock.
         val ageNs = (frameAgeNs ?: (completedNs - stamp)).coerceAtLeast(0)
         val validity = (ageNs.coerceAtMost(675_000_000L) * 2 + 150_000_000L)
             .coerceIn(500_000_000L, 1_500_000_000L)
-        // Chain the previous detection so the renderer can predict positions to display time.
-        // A frame without hands keeps the old chain (retention handles dropouts) but does not
-        // replace it, so a reappearing hand never extrapolates across a long gap.
-        // Prediction needs only the immediately preceding sample. Do not retain the whole session's
-        // landmark history through Frame.previous (which would grow without bound at camera FPS).
+        // Chain the previous DETECTION so the renderer can predict positions to display time.
+        // A frame whose hands are all predicted keeps the old chain (retention handles dropouts)
+        // but does not replace it, so velocities always come from real measurements and prediction
+        // errors cannot compound. Prediction needs only the immediately preceding sample. Do not
+        // retain the whole session's landmark history through Frame.previous (which would grow
+        // without bound at camera FPS).
         val prior = previous?.copy(previous = null)
         val frame = Frame(seen,stamp,completedNs,validity,ageNs,prior)
-        if (seen.isNotEmpty()) previous = frame
+        if (detected.isNotEmpty()) previous = frame
         return frame
     }
 }

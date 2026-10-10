@@ -6,7 +6,7 @@ import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.j
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
-  stabilizeWindowPosition, clampResize, maxResizeAtHeight, resizeFromPointer,
+  stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
   stabilizeResize } from './window-geometry.js';
 import { ARC_CAPACITY, arcLayout, pickLru } from './arc.js';
 
@@ -195,7 +195,7 @@ export const focusedWin = () => focused;
 /* =================== mover e redimensionar =================== */
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const drag = { win:null, source:null, hand:null, start:null, active:false, plane:null, offset:null };
+const drag = { win:null, source:null, hand:null, start:null, active:false, plane:null, anchor:null };
 const resizing = { win:null, start:null, active:false, startScale:1, startDistance:1 };
 
 function setRay(nx, ny, target=ray) {
@@ -217,7 +217,11 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(),center);
   const hit=ray.ray.intersectPlane(plane,new THREE.Vector3());
   if(!hit)return false;
-  Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,offset:center.clone().sub(hit)});
+  // Âncora estável capturada NO MOMENTO DO GRAB: a janela segue deltas relativos a este ponto
+  // fixo — nunca é reavaliada contra a posição defasada da janela nem contra o ponto onde o
+  // gesto foi ativado (que já embutiria o salto que disparou o arrasto e o descartaria).
+  Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,
+    anchor:{hit:hit.clone(),center:center.clone(),applied:new THREE.Vector3()}});
   return true;
 }
 function activateDrag() {
@@ -228,23 +232,28 @@ function activateDrag() {
 }
 function dragTo(nx, ny) {
   const w=drag.win;if(!w)return false;
+  setRay(nx,ny);
+  const hit=ray.ray.intersectPlane(drag.plane,new THREE.Vector3());
+  if(!hit)return false;
   if(!drag.active) {
     if(!dragGestureActivated(drag.start,{x:nx,y:ny},viewport.width,viewport.height))return false;
     activateDrag();
   }
-  setRay(nx,ny);
-  const hit=ray.ray.intersectPlane(drag.plane,new THREE.Vector3());
-  if(!hit)return false;
-  const local=contentRoot.worldToLocal(hit.add(drag.offset));
-  const limited=boundedPosition(w,local);
-  const stable=boundedPosition(w,stabilizeWindowPosition(w.obj.position,limited));
-  w.target.copy(stable);
+  const a=drag.anchor;
+  const delta=hit.clone().sub(a.hit);
+  a.applied.copy(stepDragDelta(a.applied,delta));
+  // Delta relativo no espaço do mundo -> centro local; a âncora nunca é reavaliada contra o
+  // estado defasado da janela, então não há retroalimentação (janela puxando de um lado para o
+  // outro) nem acúmulo de erro: o mesmo delta devolve sempre a mesma posição.
+  const world=a.center.clone().add(a.applied);
+  const limited=boundedPosition(w,contentRoot.worldToLocal(world));
+  w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
   return true;
 }
 function endDrag() {
   if(drag.win)drag.win.shell.classList.remove('moving');
-  Object.assign(drag,{win:null,source:null,hand:null,start:null,active:false,plane:null,offset:null});
+  Object.assign(drag,{win:null,source:null,hand:null,start:null,active:false,plane:null,anchor:null});
 }
 
 function pointerDistance(w,nx,ny) {
@@ -295,6 +304,10 @@ function hitAt(x, y) {
   return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height };
 }
 let nativePress = null;
+/* Pinch over window content: the DOWN is not sent yet — the click-vs-drag arbiter decides.
+ * A still pinch becomes one clean tap on release; a sweeping one commits a drag (DOWN at the
+ * pinch anchor, then moves). This is what keeps a YouTube click from arriving as a scrub. */
+let pendingPress = null;
 const activationTarget = el => el?.closest?.('button,a,input,textarea,select,[role="button"]') || el;
 function shellPointer(press, action, x, y, target) {
   const currentTarget = target ? activationTarget(target) : null;
@@ -343,7 +356,7 @@ function handTouch(hit, action) {
 }
 function cancelPress() {
   if (nativePress) sendPress(nativePress, 3);
-  nativePress = null; endDrag(); endResize();
+  nativePress = null; pendingPress = null; endDrag(); endResize();
 }
 on('pinchcancel', cancelPress);
 function clickThrough(hit, type) {
@@ -382,11 +395,30 @@ on('pinchdown', () => {
   const h = hitAt(cursor.x, cursor.y);
   if (h?.resize) { startResize(h.win,cursor.x,cursor.y); return; }
   if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
-  if (h) { focus(h.win); clickThrough(h, 'down'); return; }
+  if (h) {
+    focus(h.win);
+    // Content press: hold the DOWN until the click-vs-drag arbiter classifies the gesture.
+    pendingPress = { win: h.win, hit: h };
+    return;
+  }
   if (kbPinch('down')) return;
   dockPinch('down');
 });
 on('pinchup', () => {
+  if (pendingPress && cursor.mode === 'drag') {
+    // Classified a drag but the release beat the frame loop: commit the DOWN at the anchor now.
+    clickThrough(pendingPress.hit, 'down'); pendingPress = null;
+  }
+  if (pendingPress) {
+    // Click — or released before the decision window elapsed (a tap). DOWN and UP go out at the
+    // SAME point so the page synthesizes a click, never a drag from between-sample movement.
+    const h = hitAt(cursor.x, cursor.y);
+    const target = (h && !h.handle && !h.resize && h.win === pendingPress.win) ? h : pendingPress.hit;
+    pendingPress = null;
+    clickThrough(target, 'down');
+    clickThrough(target, 'up');
+    return;
+  }
   if (nativePress) {
     const h = hitAt(cursor.x, cursor.y);
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 1);
@@ -711,8 +743,15 @@ onFrame((dt, now) => {
   const nextSettings = `${S.winScale}:${S.winDist}`;
   if (layoutSettings !== nextSettings) { layoutSettings = nextSettings; layout(); }
   placeDock(); placeKb();
+  if (pendingPress && cursor.mode === 'drag') {
+    // Arbiter classified the held pinch as a drag: commit the content DOWN at the pinch anchor
+    // exactly once; from here on the move stream below follows the hand.
+    clickThrough(pendingPress.hit, 'down');
+    pendingPress = null;
+  }
   if (nativePress && cursor.active && cursor.down) {
-    // DOM input stays on the real detection: never feed a predicted point to a page.
+    // DOM input follows the latest sample (a real detection or the native motion-model bridge) —
+    // never the web-side display extrapolation (predictedCursor), which may overshoot.
     const h = hitAt(cursor.x, cursor.y);
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 2);
   }

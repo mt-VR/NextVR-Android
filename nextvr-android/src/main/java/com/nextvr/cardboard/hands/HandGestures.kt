@@ -225,6 +225,14 @@ object HandGestures {
     /**
      * One Euro filter (Casiez et al.): strong smoothing when the hand is still, little lag when it
      * moves fast. This is what keeps the cursor and controllers from shaking.
+     *
+     * The derivative is measured on the RAW signal (the classic formulation), not on the filter's
+     * own lag error. The lag-error variant made the adaptive cutoff depend on the frame rate —
+     * the same hand speed was smoothed more on a slow tracker (big dt) than on a fast one — and
+     * inflated the velocity estimate whenever the filter lagged behind, which read as drift until
+     * the next sample pulled it back. With the raw derivative the cutoff follows the hand's true
+     * speed: heavy smoothing at rest, near-zero added lag at speed, and the state always converges
+     * to the measurement (no positional error accumulates).
      */
     class OneEuro(
         private val minCutoff: Float = 1.2f,
@@ -235,22 +243,27 @@ object HandGestures {
     ) {
         private var value = Float.NaN
         private var shown = Float.NaN
+        private var raw = Float.NaN
         private var derivative = 0f
         private var lastNs = 0L
 
-        fun filter(raw: Float, timeNs: Long): Float {
+        fun filter(sample: Float, timeNs: Long): Float {
             if (value.isNaN() || lastNs == 0L) {
-                value = raw
-                shown = raw
+                value = sample
+                shown = sample
+                raw = sample
                 lastNs = timeNs
-                return raw
+                return shown
             }
+            // A stale or replayed stamp must never run the filter backwards in time; hold instead.
+            if (timeNs <= lastNs) return shown
             val dt = ((timeNs - lastNs) / 1e9f).coerceIn(1e-3f, .2f)
             lastNs = timeNs
-            val rawDerivative = (raw - value) / dt
+            val rawDerivative = (sample - raw) / dt
+            raw = sample
             derivative += alpha(derivativeCutoff, dt) * (rawDerivative - derivative)
             val cutoff = minCutoff + beta * abs(derivative)
-            value += alpha(cutoff, dt) * (raw - value)
+            value += alpha(cutoff, dt) * (sample - value)
             // Hysteresis: the output follows only once the filtered value leaves the dead zone.
             val gap = value - shown
             if (abs(gap) > deadZone) shown = value - deadZone * kotlin.math.sign(gap)
@@ -260,6 +273,7 @@ object HandGestures {
         fun reset() {
             value = Float.NaN
             shown = Float.NaN
+            raw = Float.NaN
             derivative = 0f
             lastNs = 0L
         }
