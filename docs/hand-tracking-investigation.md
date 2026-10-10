@@ -718,9 +718,17 @@ aparelho para validar; não entra em uma rodada de desempenho.
 - `python3 tools/perf/summarize_logcat.py --self-test` cobre os campos novos (e afirma que nenhuma
   métrica declarada chega como `n/a`). Suite node: **33 pass, 0 fail, 8 puladas** (as puladas pedem
   Chromium, ausente aqui). `javalang` parseia os 15 `.java` de `src/main`+`src/test`.
-- Não rodado aqui e deixado para o CI/aparelho: `gradle :nextvr-android:testDebugUnitTest` e
-  `assembleDebug` (não há JDK/SDK no sandbox). A assinatura JNI `nativeYuvToArgb` não foi tocada,
-  exatamente para não mexer no que o teste de câmera valida.
+- Não dava para rodar aqui (sem JDK/SDK no sandbox): `gradle :nextvr-android:testDebugUnitTest` e
+  `assembleDebug`. O CI rodou: **12 classes JVM, 69 testes, 0 falhas, 0 skips** (`HandSlotPolicyTest`
+  7, `DelegateWatchTest` 5, `TrackingBudgetTest` 5, `HandFrameMailboxTest` 7, `RecoveryBudgetTest` 3,
+  `PhoneXrHandsTest` 19, e as demais intactas), `assembleDebug`, a checagem de que
+  `Java_com_nextvr_cardboard_PassthroughCamera_nativeYuvToArgb` continua presente nos dois ABIs, e o
+  APK publicado em `apk-dist`.
+- Um erro dessa rodada que só o CI pegou: adicionar um 5º parâmetro com default no construtor de
+  `FusionHands` quebrou as 5 chamadas Java de 4 argumentos (default Kotlin é invisível para Java sem
+  `@JvmOverloads`). Corrigido com `class FusionHands @JvmOverloads constructor(...)`. Lição para as
+  próximas rodadas: **a assinatura pública de um construtor/`@JvmStatic` consumido por Java precisa de
+  `@JvmOverloads`** — e o `compileDebugKotlin` passa mesmo assim, então o erro só aparece no javac.
 
 ## Riscos desta rodada
 
