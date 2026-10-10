@@ -10,7 +10,7 @@ import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stabilizeResize } from './window-geometry.js';
 import { ARC_CAPACITY, arcLayout, pickLru } from './arc.js';
 
-const PX = 0.00105;                 // 1040 px ≈ 1.09 m — janela confortável, não gigante
+const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
 let focused = null;
 
@@ -813,7 +813,7 @@ onFrame((dt, now) => {
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 2);
   }
   // World-space motion (drag/resize) follows the predicted cursor, so the window glides at the
-  // display rate instead of stepping at the tracking rate — the same idea as the native silhouette.
+  // display rate instead of stepping at the tracking rate — the same idea as native ray presentation.
   if ((resizing.win || (drag.win && drag.source!=='fist')) && cursor.active && cursor.down) {
     const p = predictedCursor(now);
     if (resizing.win) resizeTo(p.x,p.y);

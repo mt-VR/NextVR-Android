@@ -17,6 +17,9 @@ test('native VR shell exposes only the PhoneXR hand interaction bridge',async()=
   assert.match(surface,/properties\.toolType=MotionEvent\.TOOL_TYPE_FINGER[\s\S]*InputDevice\.SOURCE_TOUCHSCREEN/,
     'WebView must receive a correctly typed synthetic pointer stream from the hand-only bridge');
   assert.match(activity,/@JavascriptInterface public void handTouch\(/);
+  assert.doesNotMatch(activity,/handVisuals/);
+  assert.doesNotMatch(hands,/handVisuals/);
+  assert.doesNotMatch(bundle,/handVisuals/,'the APK bundle must not call the removed GL silhouette toggle');
   assert.match(surface,/void dispatchHandEvent\(/);
   assert.ok(windows.includes('window.NativeXR.handTouch'));
   assert.ok(!windows.includes('window.NativeXR.touch('));

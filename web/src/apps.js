@@ -398,9 +398,9 @@ function settingsApp() {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
       const c = el('div', 'card');
       c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
-      c.append(row(t('sens'), 'PhoneXR: native landmark and pointer filters', el('span', 'note', 'OrangeHanding / One Euro')));
-      c.append(row('Desenhar mãos', 'PhoneXR silhouettes over windows', toggle('handDraw')));
-      c.append(row('Pinch', 'PhoneXR: fist guard + palm-width hysteresis', el('span', 'note', '0.30 / 0.48')));
+      c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
+      c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
+      c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.30 / 0.48')));
       page.append(c);
     }],
     [t('windows'), () => {

@@ -42,7 +42,10 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
-  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold') && !hands.includes('lineTo('));
+  assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
+  assert.ok(hands.includes("ctx.strokeStyle='#27e8ff'") && hands.includes('drawHandsOverlay'), 'Native MediaPipe landmarks render the cyan contour in the overlay');
+  assert.ok(hands.includes('drawPinchCursor(drawHand(hand,sx,sy),hand.pinching)'), 'The pinch cursor follows native pinch state, including depth-rotated poses');
+  assert.ok(!hands.includes('navigator.mediaDevices.getUserMedia'), 'The overlay must not open a second camera');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');

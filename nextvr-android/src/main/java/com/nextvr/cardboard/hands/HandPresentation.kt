@@ -1,19 +1,19 @@
 package com.nextvr.cardboard.hands
 
-/** Presentation only: a brief missed detection can retain the silhouette, NEVER a held click.
+/** Presentation only: a brief missed detection can retain the last hand pose/ray, NEVER a held click.
  * Called on the GL thread. Empty results cancel interaction immediately in the web adapter.
  *
  * The retention covers BOTH transient empty results and stale/stalled deliveries (GPU contention
- * while an app surface or floating window is open): the hand fades out at the end of the window
- * instead of blinking off and on, while a genuinely lost hand still disappears promptly. A slow
- * tracker keeps its own longer validity as the minimum retention, so a detector that legitimately
- * reports every ~1 s is not hidden between results.
+ * while an app surface or floating window is open): the native pointer fades out at the end of
+ * the window instead of blinking off and on, while a genuinely lost hand still disappears
+ * promptly. A slow tracker keeps its own longer validity as the minimum retention, so a detector
+ * reporting every ~1 s is not hidden between results.
  */
 class HandPresentation {
     companion object {
         /** Base retention after the last visible detection. */
         const val RETENTION_NS = 700_000_000L
-        /** Last stretch of the retention during which the silhouette fades to zero. */
+        /** Last stretch of the retention during which the retained pose fades to zero. */
         const val FADE_NS = 200_000_000L
     }
     private var lastVisible: PhoneXrHands.Frame? = null

@@ -72,9 +72,9 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 
 | Action | How |
 | --- | --- |
-| Start | Grant camera permission, aim the PhoneXR hand ray at a language in the close welcome window and pinch. |
+| Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
-| Select | Aim the PhoneXR shoulder ray and pinch thumb/index. |
+| Select | Aim the MediaPipe hand ray and pinch thumb/index; the tracked hands use the cyan contour and pinch cursor. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
 | Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
@@ -89,9 +89,11 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 | Exit | Native close control or Android back. |
 
 Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome and animations come from
-the prototype. **All tracking, filtering, hand silhouettes and pointer gestures come from PhoneXR**,
-not the archive’s blue skeleton. Passthrough is the only environment.
+styling, menus, settings, gallery, browser chrome and animations come from the prototype. The
+provided cyan contour and pinch cursor are drawn from the APK's existing native MediaPipe
+landmarks; the camera stays with Camera2 passthrough, so the WebView does not open a competing
+`getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
+remain in place. Passthrough is the only environment.
 
 ## Hand tracking performance
 
@@ -107,8 +109,8 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
 | `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
-| `web/src/hands.js` | Processed PhoneXR hand/ray adapter; no web detector or gesture thresholds |
-| `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native PhoneXR gesture/filter pipeline and GL silhouettes/pointers |
+| `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
+| `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
 | `…/com/samrat/orangehanding/` | Fork’s MediaPipe/YOLO FusionHands detector and crop rescue |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
 | `web/src/core.js` | Reference state, localization, content root and native pose input |

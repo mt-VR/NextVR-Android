@@ -95,7 +95,6 @@ final class SpatialRenderer {
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
     volatile com.nextvr.cardboard.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
-    volatile boolean showHands = true;
     final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();
     volatile List<Panel> panels = new ArrayList<>();
     // Shared optical mapping for camera, landmark overlay and interaction rays.
@@ -160,7 +159,9 @@ final class SpatialRenderer {
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
         com.nextvr.cardboard.hands.PhoneXrHands.Frame handFrame=hands;
-        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands);
+        // The MediaPipe landmarks are contoured on the transparent HTML overlay; this native pass
+        // remains responsible only for depth-aware hand rays and their target markers.
+        if(handFrame!=null) handRenderer.draw(handFrame,projection,handTargets);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p,identity,projection);

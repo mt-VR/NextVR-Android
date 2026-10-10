@@ -74,7 +74,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       window.NativeXR={
         frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
-        handTargets(json){window.__handTargets=JSON.parse(json);}, handVisuals(){},
+        handTargets(json){window.__handTargets=JSON.parse(json);},
         handTouch(id,action,x,y){
           window.__touches.push({id,action,x,y});
           if(id!=='shell')return;
@@ -127,7 +127,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForTimeout(1400);
     assert.equal(await page.locator('.lang-option').count(),3,'looking at setup never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
-    await feed(hand(.04));await page.waitForTimeout(250);await feed(hand(.4));
+    await feed(hand(.02));await page.waitForTimeout(250);
+    const handOverlay=await page.evaluate(()=>{
+      const canvas=document.getElementById('overlay'),data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      let cyan=0;for(let i=0;i<data.length;i+=4)if(data[i+3]>0&&data[i]<100&&data[i+1]>150&&data[i+2]>190)cyan++;
+      return {width:canvas.width,height:canvas.height,cyan};
+    });
+    assert.deepEqual([handOverlay.width,handOverlay.height],[1200,800],'native hand overlay uses the Cardboard reference viewport');
+    assert.ok(handOverlay.cyan>0,'MediaPipe landmarks draw the cyan hand contour and visible pinch cursor');
+    await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
     await page.evaluate(()=>clearInterval(window.__feed));
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
@@ -301,7 +309,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
     const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
     for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
-    // The dock's lower white grab bar is a real PhoneXR pinch target. A deliberate ray drag
+    // The detached white grab bar under the dock is a real MediaPipe pinch target. A deliberate ray drag
     // moves only the dock, preserves the drag offset, and recenter restores its closer default.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
     await page.locator('.dock [data-id="kb"]').click();
@@ -309,9 +317,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const grab=await page.evaluate(()=>{
       const panel=window.__last.panels.find(p=>p.id==='dock'),root=document.querySelector('.dock'),bar=root.querySelector('.dock-grab');
-      return {matrix:panel.matrix,rect:panel.rect,rootWidth:root.offsetWidth,
+      return {matrix:panel.matrix,rect:panel.rect,rootWidth:root.offsetWidth,rootHeight:root.offsetHeight,
         top:bar.offsetTop,height:bar.offsetHeight};
     });
+    assert.ok(grab.top>=grab.rootHeight+10,'The grab pill floats below the dock instead of touching its body');
     const grabLocal=new THREE.Vector3((160+grab.rootWidth/2)/grab.rect[2]-.5,
       .5-(160+grab.top+grab.height/2)/grab.rect[3],0);
     const grabWorld=grabLocal.applyMatrix4(new THREE.Matrix4().fromArray(grab.matrix));

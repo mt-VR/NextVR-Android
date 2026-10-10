@@ -39,7 +39,8 @@ Camera2 rear camera → one YUV_420_888 ImageReader (latest frame, queue depth 2
        └─ independent 640px bitmap → PhoneXR OrangeHanding FusionHands
              → MediaPipe VIDEO + YOLO wrist rescue + MediaPipe crop detection
              → native PhoneXR landmark filters / shapes / latch / shoulder rays
-                  ├─ native GL silhouette / drop / stick / beam / target ring
+                  ├─ transparent WebView overlay → cyan contour + pinch cursor for each hand
+                  ├─ native GL → shoulder ray / drop / stick / beam / target ring
                   └─ reference surface hit-testing / fist grabbing / NEAR touch
 Reference HTML/CSS + spatial JS
   ├─ original dock / windows / keyboard / menus / layout / animations
@@ -53,9 +54,10 @@ Unmodified Cardboard SDK + existing native renderer infrastructure
 ```
 
 The renderer does **not** display one flat UI texture in front of the user. Each HTML spatial object
-has its own world transform, bounds, texture region and stereo projection. Only the hand/status
-HUD is intentionally head-locked; the hand visuals now come from PhoneXR. The browser and UI are rendered once and
-sampled for both eyes; there are no duplicate browser sessions playing duplicate audio.
+has its own world transform, bounds, texture region and stereo projection. The cyan hand contour and
+pinch cursor share the head-locked camera overlay with the status HUD; they are drawn in the WebView
+from landmarks already produced by the native MediaPipe pipeline. The browser and UI are rendered
+once and sampled for both eyes; there are no duplicate browser sessions playing duplicate audio.
 
 ### Preserved spatial behavior
 
@@ -65,9 +67,10 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
   Discord, gallery, separator, settings, YouTube, nine-dot library.
 - `EYE = 1.55 m`, `PX = 0.00105 m/px`.
 - Native dock default: `(0, 1.33, -0.55)`, x tilt `0.26 rad`, scale `PX × 0.90` after
-  migration; the lower grab bar moves it to a bounded custom position.
-- Default windows: `1040 × 660 px`, centred at eye height on a 0.68 m curved arc; second-row
-  placement, centre-facing orientation and exponential position interpolation remain available.
+  migration; a detached white pill below the dock moves it to a bounded custom position.
+- Default windows: `1040 × 660 px` at `0.75×` world scale, centred at eye height on a 0.68 m
+  curved arc; second-row placement, centre-facing orientation and exponential position
+  interpolation remain available.
 - White external handle, deliberate detach/drag/release, proportional corner resize, repin, close,
   focus outlines, relayout, keyboard, language window, browser chrome, store, library, gallery and
   settings. Detached windows are clamped to the usable front arc with their full resized height.
@@ -85,7 +88,7 @@ sampled for both eyes; there are no duplicate browser sessions playing duplicate
 - Rear-camera pixels are rotated `(sensorOrientation - displayRotation*90 + 360) % 360` once
   before either tracking or rendering. There is no mirrored preview, camera SurfaceTexture,
   secondary shader quarter-turn, or independently rotated tracking image. Camera and glass
-  sample the same top-left bitmap UV mapping; the silhouette uses the same optical spans.
+  sample the same top-left bitmap UV mapping; landmark-to-overlay mapping uses the same optical spans.
   WebView textures still use their own required OES/SurfaceTexture transforms.
 - Hardware HTML atlas is 4096² with stable slots for **six windows**, dock, keyboard and HUD.
   Closing one window does not relocate surviving texture regions. The application reports the
@@ -126,10 +129,11 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
 - A stable thumb/index **base-weighted** aim point drives the shoulder-origin pointer, using
   the fork's lead and native cursor filters. The held hand owns the click; both hands get rays.
-- The actual GL geometry routines from `VrHomeActivity` draw dark filled silhouettes with light
-  outlines, the white drop/stick, fading pressed beam and hollow inverted target ring. A packed
-  depth/stencil framebuffer prevents repeated alpha blending inside a silhouette. No blue web
-  skeleton or archive pinch ring remains. The hand-visibility option affects silhouettes only.
+- The transparent overlay now draws the supplied cyan outer contour and one pinch cursor per hand
+  from the native MediaPipe landmarks. It reuses the existing rear-camera results rather than
+  opening a second WebView `getUserMedia` stream or fetching the JavaScript tracker from a CDN.
+  The native GL pass remains responsible for the depth-aware shoulder ray and target marker; the
+  hand-visibility setting controls the contour/cursors.
 - A fist closing over a window arms grab; it does not detach until filtered palm motion crosses an
   18 px logical threshold. Fist and white-handle drags share a fixed world plane, preserve the
   initial hand/window offset, reject subcentimeter jitter, cap one-frame jumps and enforce radial,
@@ -147,10 +151,12 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
 - Result freshness is measured from inference **completion**, not the camera capture timestamp.
   Capture timestamps still drive the original landmark filters. A 500–1500 ms bounded watchdog
   follows detector latency, so a slow CPU result is not expired before its first presentation.
-  An explicitly empty result still cancels interaction immediately. A silhouette alone can bridge
-  a missed detection for at most 180 ms; it cannot preserve a click or a pointer.
-- Silhouette geometry is cached per result/per optical span and shared across display frames,
-  instead of rebuilding thousands of boxed vertices for each eye on every refresh.
+  An explicitly empty result cancels interaction immediately. The native pointer renderer can retain
+  the last pose for up to `max(700 ms, frame validity)` and fades it during the final 200 ms; this
+  presentation-only retention cannot preserve a held click. The WebView contour clears on an empty
+  result and is redrawn from each incoming native landmark frame.
+- Native ray/target geometry reuses GL-thread scratch buffers across display frames; the previous
+  filled hand mesh and stencil pass have been removed.
 - MediaPipe 0.10.35 `MPImage.close()` recycles its backing bitmap. The detector now wraps an
   independently owned copy, leaving the borrowed frame readable by YOLO, crop rescue, and GPU
   failure recovery. An Android bitmap ownership regression test exercises that close/copy path.
@@ -169,7 +175,8 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
 The language window is fixed at eye height, 0.42 m ahead, independently of saved workspace
 settings. Its 880×600 surface has 180 px language targets and does not permit move/resize/close
 before setup. Looking at it for any duration does nothing. The window reports actual detected-hand
-counts and explicitly instructs the user to point and pinch; only a PhoneXR hand can finish setup.
+counts and explicitly instructs the user to point and pinch; only a hand from the native MediaPipe
+pipeline can finish setup.
 The camera remains active for that hand tracking even though touchscreen event forwarding is off.
 
 ### Audio
@@ -246,8 +253,9 @@ Use the following acceptance checklist before describing this as a device-verifi
    while the rear camera continues tracking hands.
 6. Compare dock, typography, restored icons, proportions, spacing, shadows, focus, window arc,
    thresholded drag, placement bounds, proportional resize, repin, keyboard and six-window limit.
-7. Verify PhoneXR silhouettes and both rays, fist grab/edge highlight, near/far movement, pinch
-   hold/release, hand loss/switching, browser scrolling, sliders and floating-keyboard input.
+7. Verify the cyan contour and pinch cursors for both hands plus both native rays, fist grab/edge
+   highlight, near/far movement, pinch hold/release, hand loss/switching, browser scrolling, sliders
+   and floating-keyboard input.
 8. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,
    Bluetooth/headphones, audio-focus loss, background/foreground and screen lock.
 9. Photo picker and return to VR; browser download confirmation; offline/error paths.
