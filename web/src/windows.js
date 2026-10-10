@@ -330,11 +330,11 @@ function hitAt(x, y) {
   const h = ray.intersectObjects(list, false)[0];
   if (!h) return null;
   const w = h.object.userData.win;
-  if (h.object.userData.isResize) return { win:w, resize:true };
-  if (h.object.userData.isHandle) return { win:w, handle:true };
+  if (h.object.userData.isResize) return { win:w, resize:true, distance:h.distance };
+  if (h.object.userData.isHandle) return { win:w, handle:true, distance:h.distance };
   const local = h.object.worldToLocal(h.point.clone());
   const g = h.object.geometry.parameters;
-  return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height };
+  return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height, distance:h.distance };
 }
 let nativePress = null;
 const activationTarget = el => el?.closest?.('button,a,input,textarea,select,[role="button"]') || el;
@@ -422,11 +422,16 @@ function box(el, root) {
 
 on('pinchdown', () => {
   const h = hitAt(cursor.x, cursor.y);
+  const dockGrab = dockGrabTest(cursor.x,cursor.y);
+  // The dock is intentionally in front of app windows. Prefer its grab bar only when the
+  // ray actually reaches it before any window surface; otherwise preserve normal window input.
+  if (dockGrab && (!h || dockGrab.distance < h.distance)) {
+    startDockDrag(cursor.x,cursor.y,'pinch'); return;
+  }
   if (h?.resize) { startResize(h.win,cursor.x,cursor.y); return; }
   if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
   if (h) { focus(h.win); clickThrough(h, 'down'); return; }
   if (kbPinch('down')) return;
-  if (dockGrabTest(cursor.x,cursor.y)) { startDockDrag(cursor.x,cursor.y,'pinch'); return; }
   dockPinch('down');
 });
 on('pinchup', () => {
@@ -597,9 +602,9 @@ function dockPinch(type) {
   }
 }
 function dockGrabTest(x,y) {
-  if (!dockVisible || !dockGrabKey) return false;
+  if (!dockVisible || !dockGrabKey) return null;
   setRay(x,y);
-  return ray.intersectObject(dockMoveHit,false).length>0;
+  return ray.intersectObject(dockMoveHit,false)[0]||null;
 }
 function dockTest(x, y) {
   if (!dockVisible) return null;
