@@ -17,3 +17,6 @@ nextvr-android/libraries/
 node_modules/
 playwright-report/
 test-results/
+
+# Built APKs are CI artifacts (branch apk-dist); never commit them locally
+*.apk

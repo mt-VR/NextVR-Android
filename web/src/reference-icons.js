@@ -49,6 +49,7 @@ const APP_ICONS = Object.freeze({
   enter:'<path d="M20 5v7H7"/><path d="m11 8-4 4 4 4"/>',
   backspace:'<path d="M21 5H9l-6 7 6 7h12z"/><path d="m12 9 6 6M18 9l-6 6"/>',
   shift:'<path d="m12 3-7 8h4v9h6v-9h4z"/>',
+  smile:'<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
   back:'<path d="m15 18-6-6 6-6"/>',
   refresh:'<path d="M20 7v5h-5"/><path d="M18.5 16a8 8 0 1 1 .8-9L20 12"/>',
   heart:'<path d="M20.8 5.7a5.5 5.5 0 0 0-7.8 0L12 6.8l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 22l8.8-8.5a5.5 5.5 0 0 0 0-7.8z"/>',

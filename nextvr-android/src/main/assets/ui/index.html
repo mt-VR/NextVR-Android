@@ -261,19 +261,22 @@
   .lib-bottom button:active{background:rgba(255,255,255,.16);color:#fff}
   .lib-bottom span{font-size:13px;font-weight:600;color:rgba(255,255,255,.82)}
 
-  /* ---------- teclado (igual ao print: painel escuro, teclas graúdas, enter azul) ---------- */
-  .kb{width:1150px;background:rgba(24,28,34,.95);border:1px solid rgba(255,255,255,.08);
-    border-radius:30px;padding:20px 20px 16px;display:flex;flex-direction:column;gap:11px;
+  /* ---------- teclado estilo Meta Quest: painel escuro, deitado, teclas graúdas ---------- */
+  .kb{width:1150px;background:rgba(24,26,31,.93);border:1px solid rgba(255,255,255,.09);
+    border-radius:28px;padding:18px 18px 14px;display:flex;flex-direction:column;gap:10px;
     backdrop-filter:blur(18px);pointer-events:auto;box-shadow:0 44px 130px rgba(0,0,0,.65)}
-  .kb-row{display:flex;gap:11px;flex-wrap:nowrap}
-  .key{flex:1 1 0;min-width:0;height:92px;border-radius:16px;background:#2b3139;color:#e8edf4;
-    display:grid;place-items:center;font-size:30px;font-weight:500;box-shadow:0 3px 0 rgba(0,0,0,.35)}
-  .key.wide{flex:1.7 1 0}
-  .key.space{flex:5 1 0}
-  .key.enter{background:#2d7ff9;color:#fff;flex:1.9 1 0;font-size:34px}
-  .key.util{background:transparent;color:#9aa6b6;font-size:26px;box-shadow:none}
-  .key .ui-icon{width:34px;height:34px}
+  .kb-row{display:flex;gap:10px;flex-wrap:nowrap}
+  .key{flex:1 1 0;min-width:0;height:88px;border-radius:16px;background:#343941;color:#eef1f6;
+    display:grid;place-items:center;font-size:29px;font-weight:500;box-shadow:0 3px 0 rgba(0,0,0,.32)}
+  .key.wide{flex:1.65 1 0;background:#2a2e35}
+  .key.wide .ui-icon{width:34px;height:34px}
+  .key.space{flex:5.2 1 0;font-size:21px;font-weight:600;color:#9aa6b6;letter-spacing:.04em}
+  .key.enter{flex:1.9 1 0;background:#e6eaf1;color:#171a1f}
+  .key.util{background:#2a2e35;color:#c6cdd8;font-size:24px;box-shadow:0 3px 0 rgba(0,0,0,.28)}
+  .key .ui-icon{width:32px;height:32px}
   .key.hot{background:#fff;color:#14181d;transform:translateY(2px);box-shadow:none}
+  .key[data-state="once"]{background:#4a5160;color:#fff}
+  .key[data-state="lock"]{background:#7a8497;color:#fff}
 
   /* ---------- dock: cápsula horizontal (igual ao print) ---------- */
   .dock{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;

@@ -1,7 +1,7 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native } from './core.js';
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus } from './windows.js';
+import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -817,6 +817,10 @@ async function finishLanguage(lang) {
   if(!langWin)return;
   setLang(lang);                                  // atualiza dock, menu e todas as telas
   if (langWin) { close(langWin); langWin = null; }
+  // Estilo Meta: a janelinha de idioma fecha e TUDO volta ao normal — dock completa com as
+  // funcionalidades de antes, no idioma escolhido, e a multitarefa continua em arco (3 apps).
+  setDockVisible(true);
+  document.getElementById('stat').hidden = false;   // volta tudo ao normal, no idioma escolhido
   document.getElementById('perm').hidden = false;
   // Ask both permissions from the language button while it is still a user gesture.
   const gyroPromise = startGyro();
@@ -833,21 +837,29 @@ document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : s
 on('hands', v => { document.getElementById('dotHand').classList.toggle('on', !!v); });
 on('gyro', v => { document.getElementById('dotGyro').classList.toggle('on', !!v); });
 
-// Dock existe por baixo da janela inicial; só os apps aparecem após a seleção.
+// Onboarding estilo Meta: sem idioma escolhido, SÓ a janelinha de idioma aparece na tela —
+// a dock fica escondida (fora do atlas e fora do hit-test da mão). Depois da escolha ela volta
+// inteira, com todas as funcionalidades de antes e o idioma selecionado.
 makeDock();
 if (S.lang) {
+  setDockVisible(true);
   if (native) { startGyro(); if (S.handsOn) startHands(); }
   document.getElementById('perm').hidden = false;
   // Permissions/camera are user-gesture gated on mobile. Do not wake them on boot.
   setTimeout(() => recenter(), 280);
 } else {
+  setDockVisible(false);
+  // Nada de chrome de status (mãos/giro/fps, ainda sem tradução) sobre a escolha de idioma.
+  document.getElementById('stat').hidden = true;
   langWin = languageWindow();
 }
 
 if (native) {
   // Native owns permission/lifecycle; a page gesture must not open another camera stream.
   document.getElementById('perm').hidden = true;
-  window.nextvrResume = () => { startGyro(); if (S.handsOn) startHands(); };
+  // A resumed or recreated shell must receive the whole scene again even if nothing moved: the
+  // atlas bridge skips payloads that are bit-identical to the one already sent.
+  window.nextvrResume = () => { css3d.invalidate?.(); startGyro(); if (S.handsOn) startHands(); };
   window.nextvrSuspend = () => { stopHands(); };
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }
