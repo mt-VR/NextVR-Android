@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WINDOW_LIMITS, clampWindowPosition, gestureDistancePx, dragGestureActivated,
-  resizeGestureActivated, stabilizeWindowPosition, clampResize, maxResizeAtHeight,
+  resizeGestureActivated, stepDragDelta, clampResize, maxResizeAtHeight,
   resizeFromPointer, stabilizeResize } from '../web/src/window-geometry.js';
 
 const near=(actual,expected,epsilon=1e-6)=>assert.ok(Math.abs(actual-expected)<=epsilon,`${actual} ≉ ${expected}`);
@@ -35,13 +35,24 @@ test('a selection-sized hand tremor never starts drag or resize',()=>{
   assert.equal(resizeGestureActivated(start,{x:.52,y:.5},1200,800),true);
 });
 
-test('movement filter removes jitter and caps an involuntary one-frame jump',()=>{
-  const at={x:0,y:1.55,z:-.68};
-  assert.deepEqual(stabilizeWindowPosition(at,{x:.002,y:1.553,z:-.679}),at);
-  const jumped=stabilizeWindowPosition(at,{x:4,y:-8,z:7});
-  assert.ok(Math.hypot(jumped.x-at.x,jumped.y-at.y,jumped.z-at.z)<=WINDOW_LIMITS.maxMotionStep+1e-8);
-  const normal=stabilizeWindowPosition(at,{x:.1,y:1.6,z:-.7});
-  assert.ok(normal.x>0 && normal.x<.1);
+test('anchor deltas ignore resting jitter, follow motion without lag and cap a one-frame jump',()=>{
+  const zero={x:0,y:0,z:0};
+  // Resting jitter below the dead zone never moves the window…
+  assert.deepEqual(stepDragDelta(zero,{x:.002,y:.003,z:-.001}),zero);
+  // …but the offset keeps accumulating, so a very slow drag cannot deadlock below the dead zone.
+  const slow=stepDragDelta(zero,{x:.008,y:0,z:0});
+  assert.ok(slow.x>0 && slow.x<=.008+1e-8);
+  // Normal motion applies the full relative delta in one update: zero added lag, no chasing.
+  const moved=stepDragDelta(zero,{x:.1,y:-.05,z:.02});
+  assert.deepEqual(moved,{x:.1,y:-.05,z:.02});
+  // The same delta always maps to the same position (stable anchor) — no reference drift.
+  assert.deepEqual(stepDragDelta(moved,{x:.1,y:-.05,z:.02}),moved);
+  // An involuntary one-frame jump moves at most maxMotionStep.
+  const jumped=stepDragDelta(zero,{x:4,y:-8,z:7});
+  assert.ok(Math.hypot(jumped.x,jumped.y,jumped.z)<=WINDOW_LIMITS.maxMotionStep+1e-8);
+  // A direction reversal is applied cleanly too (relative to the anchor, not the lagged position).
+  const back=stepDragDelta(moved,{x:0,y:0,z:0});
+  assert.deepEqual(back,{x:0,y:0,z:0});
 });
 
 test('resize is proportional, bounded and stops at the vertical edge without moving the center',()=>{

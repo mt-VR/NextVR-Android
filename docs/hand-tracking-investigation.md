@@ -749,3 +749,106 @@ aparelho para validar; não entra em uma rodada de desempenho.
   reavaliado inteiro, como antes — o limite duro continua sendo o overflow de 96 frames → reset neutro.
 - O `DelegateWatch` troca de delegate uma vez e não volta (o `preferGpu` fica limpo até reabrir a
   câmera). É intencional: girar GPU↔CPU a cada janela de carga seria pior que o problema.
+
+---
+
+# 2026-10-10 — Clique vs arrasto, arrasto de janela estável, suavização sem drift e ponte temporal com confiança
+
+Rodada pedida pelo usuário, com quatro problemas reportados no uso real: (1) em sites como YouTube a
+pinça só arrasta — não dá para clicar sem arrastar por acidente; (2) o arrasto de janela puxa a
+janela de um lado para o outro em vez de mover suave; (3) a suavização "deriva" até o próximo
+frame; (4) em aparelhos mais antigos/lentos a mão pisca e perde continuidade quando a inferência
+demora.
+
+## Causas-raiz encontradas (código real)
+
+1. **Clique virava arrasto:** `pinchdown` despachava touch-DOWN para o WebView no mesmo frame do
+   fechamento da pinça e, a cada frame de tracking, repassava MOVE à página sempre que o cursor se
+   mexia — tremor de mão já era um "arrasto" para o YouTube (scrub/seleção), e o clique nunca
+   existia.
+2. **Arrasto de janela oscilava:** `dragTo` rederivava a posição a cada frame perseguindo
+   `w.obj.position` em 65 % por amostra (`stabilizeWindowPosition`) — uma referência defasada por
+   construção — enquanto o cursor de entrada era extrapulado por uma velocidade medida nos
+   intervalos de ENTREGA no WebView (que zerava em rajadas de dreno e explodia com jitter de
+   entrega). Perseguição + overshoot = puxar de um lado para o outro.
+3. **Suavização com drift:** `HandGestures.OneEuro` calculava a derivada de `(raw − filtrado)` em
+   vez do sinal bruto — o cutoff adaptativo dependia da taxa de frames (mesma velocidade da mão
+   era filtrada mais forte num tracker lento) e o erro de seguimento inflava a velocidade estimada,
+   que era exatamente o "deriva até o próximo frame esticar e corrigir". Além disso, a distância de
+   pinça vinha de landmarks FILTRADOS (borda de pinça atrasada/abrasada pelo filtro).
+4. **Piscar/perda de continuidade:** um resultado vazio do MediaPipe era publicado cru → o web
+   executava `cancel()` no mesmo frame (cursor e clique morriam); `states` era apagado em qualquer
+   miss → os filtros reiniciavam e a mão SNAPAVA na reaquisição; `Frame.predicted` media velocidade
+   pelo relógio de CONCLUSÃO da inferência (que varia com a latência do aparelho) e se recusava a
+   prever exatamente quando o tracking é lento (teto de 250 ms).
+
+## O que mudou
+
+### Clique vs arrasto (`hand-input.js` `ClickDragArbiter`, `hands.js`, `windows.js`)
+
+- O DOWN de conteúdo (página/app) não é mais enviado no fechamento da pinça: fica `pendingPress`.
+- Janela curta de decisão (150 ms) + deslocamento medido a partir da âncora da pinça, em px
+  lógicos: `dragOnPx=18` (igual a `dragActivationPx`) classifica DRAG, com `sustainSamples=2`
+  contra um único amostra ruidosa; `dragOffPx=8` é o limiar de saída — histerese de dois limiares
+  impede alternância instável, e o estado DRAG é definitivo (nunca volta a clique no meio).
+- Clique = uma **tap limpa** no ponto de soltura: DOWN e UP nas MESMAS coordenadas, sem MOVEs — o
+  Chromium sintetiza click e nunca drag. Soltura dentro da janela de decisão também é tap.
+- DRAG = DOWN na âncora da pinça, depois o fluxo de MOVEs segue a mão (scrub do timeline etc.).
+- Classificação usa só detecções reais; predições do modelo de movimento jamais classificam gesto.
+
+### Arrasto de janela com âncora estável (`window-geometry.js` `stepDragDelta`, `windows.js`)
+
+- No instante em que o arrasto realmente ativa (limiar de 18 px), congela-se a âncora
+  `{hit, center}` no espaço do mundo; cada atualização é `centro_âncora + delta_relativo` — a
+  posição nunca é rederivada de uma referência defasada, então o mesmo delta devolve sempre a
+  mesma posição (sem realimentação nem acúmulo de erro).
+- `stepDragDelta` (puro, testado): deltas acumulados ≤ 6 mm não movem (sem tremor em repouso, mas
+  acumulam — arrasto muito lento nunca trava); um frame nunca move mais que 14 cm (escudo contra
+  frame ruim); em movimento o delta é aplicado por inteiro — zero lag adicional (antes: 65 % por
+  amostra = banda elástica).
+- Velocidade do cursor agora é medida na linha do tempo de CAPTURA (`timestampNs`), com low-pass
+  mais forte, piso de repouso (mão parada = sem extrapolação) e sem zerar em rajadas de dreno.
+
+### Suavização (`HandGestures.OneEuro`)
+
+- Reescrito na formulação clássica de Casiez: a derivada vem do sinal BRUTO — o cutoff adaptativo
+  agora segue a velocidade real da mão (forte em repouso, quase sem lag em movimento rápido), é
+  independente da taxa de frames e converge para a medição (nenhum erro posicional acumula).
+- Zona morta com histerese mantida (tremor zero em repouso). Timestamps fora de ordem são
+  ignorados em vez de reordenar o filtro.
+- Medidas de gesto (distância de pinça 2D) passam a vir do landmark BRUTO (o gap métrico 3D já era
+  bruto): a suavização nunca atrasa nem abrasa uma borda de pinça; pinch/fist/click/drag não são
+  afetados pelo filtro.
+
+### Ponte temporal com confiança (`PhoneXrHands`, `PhoneXrHandRenderer`, `hands.js`)
+
+- Modelo de movimento leve por mão (velocidade EMA no timeline de captura): uma mão que falta no
+  resultado é PUBLICADA como predição (`predicted:true`, `confidence` decaindo a 0 em 600 ms),
+  em vez de sumir. Flags de gesto são COPIADAS da última detecção — uma predição segura um
+  pinch/fist que realmente começou, mas nunca INICIA um.
+- O web ignora predições na máquina de gestos: o clique segurado atravessa o gap, e perda real
+  (horizonte vencido → frame vazio) **cancela** — nunca completa um clique. No GL, `down` exige
+  detecção viva; o silhueta/feixe desaparece com fade pela confiança (decaimento gradual).
+- Reaquisição suave: o estado dos filtros sobrevive a misses curtos (1,5 s) — o One Euro converge
+  de volta sozinho, sem snap; após perda prolongada o estado é descartado e a volta começa fresca.
+- Velocidade de `Frame.predicted` (extrapolação até a taxa do display) passa a usar intervalos de
+  CAPTURA (não de conclusão), teto de gap elevado para 600 ms (trackers lentos ganham predição
+  exatamente onde precisam), e a cadeia `previous` continua só com detecções reais — erros de
+  predição não se compõem.
+- Tempo de evento do toque sintético estritamente ordenado (`WebSurface`): um tap rápido (DOWN+UP
+  no mesmo milissegundo) nunca vira duração zero para o detector de gestos do Chromium.
+
+## Validação
+
+- Node: 48 testes (40 passando, 8 do Chromium pulados neste ambiente — rodam no CI). Novos:
+  7 do `ClickDragArbiter` (janela de decisão, limiares com histerese, sustain, promoção
+  clique→drag, tap rápido, id de mão alheio) e a reescrita do teste de `stepDragDelta` (âncora
+  estável, sem lag, zona morta acumulativa, teto por frame).
+- JVM/Robolectric (CI): `PhoneXrHandsTest` reescrito para o novo contrato — ponte de predição que
+  segura e nunca inicia gesto, continuação de velocidade com decaimento de confiança, horizonte de
+  perda, reaquisição sem snap, descarte de estado após perda prolongada, cadeia `previous` intacta.
+  Os testes de validade/extrapolação existentes permanecem (o clamp de 1 intervalo de display
+  ficou).
+- **Não compilado neste ambiente** (sem JDK/Gradle): `compileDebugKotlin`/`assembleDebug` e os
+  testes JVM confirmam no CI do PR. Validação on-device (YouTube: clique vs scrub; arrasto de
+  janela; piscar em aparelho lento) continua exigindo telefone real.

@@ -80,9 +80,12 @@ class PhoneXrHandRenderer {
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
         val visible=presentation.silhouette(frame,now)
-        // Live tracking drives presses; a retained pose is visual only.
+        // Live tracking drives presses; a retained or motion-model-predicted pose is visual only.
         val live=frame.hands.isNotEmpty() && frame.isFresh(now)
-        val fade=if(visible==null)0f else presentation.fade(visible,now)
+        // Gradual confidence decay instead of abruptly hiding a hand whose detection blinked out:
+        // the silhouette fades along the prediction's confidence and the retention fade, whichever
+        // is weaker, so a lost hand dims out smoothly rather than popping away.
+        val fade=if(visible==null)0f else minOf(presentation.fade(visible,now),visible.hands.minOf{it.confidence})
         viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
         GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
@@ -111,7 +114,9 @@ class PhoneXrHandRenderer {
             for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
             if(target?.optBoolean("hidden")==true) continue
             val direct=target?.optBoolean("direct")==true
-            val down=live && (target?.optBoolean("down") ?: hand.pinching)
+            // A predicted hand may keep the beam visible but can never press: no gesture is ever
+            // triggered by the motion model, only by a live detection.
+            val down=live && !hand.predicted && (target?.optBoolean("down") ?: hand.pinching)
             val end=target?.optJSONArray("end")
             val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
             val e=beamEnd
