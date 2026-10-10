@@ -22,7 +22,24 @@ class PhoneXrHands {
         const val MAX_PREDICT_GAP_NS = 600_000_000L
         /** A missing hand is predicted for this long (confidence 1 → 0), then hidden for good. */
         const val PREDICT_HORIZON_NS = 600_000_000L
-        /** Filter/gesture state survives brief misses this long so reacquisition eases, not snaps. */
+        /**
+         * How long a hand's filter/gesture state survives its absence.
+         *
+         * Dropping the state on the first empty result makes a hand that blinks out for one or two
+         * inferences - an occlusion, a frame the palm detector misses - reappear with its filters
+         * RESET: the first sample after the dropout is shown raw, a visible snap to wherever the
+         * hand now is. Keeping the state for this window lets the One Euro filters resume from
+         * where they were and converge to the new position with their adaptive cutoff: the
+         * reappearance is a smooth correction, not a jump. The dt clamp inside the filter (0.2 s)
+         * already treats the gap as one long step instead of fast motion. The same window covers
+         * the motion-model bridge below (PREDICT_HORIZON_NS), so a bridged hand is always backed
+         * by live filter state.
+         *
+         * Beyond the window the state is dropped: a hand returning after seconds may be somewhere
+         * else entirely, and resuming an old filter there would drag the silhouette across the
+         * view. Pruning happens BEFORE a result may reuse state, so a hand that reappears after a
+         * long silence also starts fresh instead of easing out of a pose from seconds ago.
+         */
         const val STATE_RETAIN_NS = 1_500_000_000L
         /** One prediction step may never move a landmark further than this (normalized units). */
         const val MAX_PREDICT_STEP = .35f
@@ -157,6 +174,7 @@ class PhoneXrHands {
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
+        /** Capture time of the last real detection; pruning and prediction key off it. */
         var lastStampNs = 0L
         var lastHand: PhoneXrHands.Hand? = null
         val vPoints = FloatArray(63)
@@ -230,6 +248,10 @@ class PhoneXrHands {
         // MediaPipe/filter time is the camera capture timestamp. It is deliberately kept separate
         // from elapsedRealtime, since Camera2 timestamps are not guaranteed to share that clock.
         val stamp = result.timestampMs() * 1_000_000L
+        // Prune BEFORE this result may reuse any state: a hand that reappears after a long
+        // silence must not resume a stale filter from where it vanished (see STATE_RETAIN_NS).
+        // A briefer absence keeps its filters and is bridged by the motion model below.
+        states.entries.removeAll { it.value.lastStampNs < stamp - STATE_RETAIN_NS }
         val seen = ArrayList<Hand>()
         val detected = HashSet<Boolean>()
         result.landmarks().forEachIndexed { index, raw ->

@@ -60,6 +60,8 @@ final class PassthroughCamera {
     /** True while a drain task is queued or running on the tracking thread. */
     private final AtomicBoolean scheduled=new AtomicBoolean();
     private final TrackingBudget budget=new TrackingBudget();
+    /** Skips analysis copies that would supersede an unread, still-fresh pending frame. */
+    private final AnalysisGate analysisGate=new AnalysisGate(AnalysisGate.DEFAULT_MAX_PENDING_AGE_MS);
     /** Judges the GPU delegate on measured inference cost, not on whether it threw (see DelegateWatch). */
     private final DelegateWatch delegateWatch=new DelegateWatch();
     /** Recovery rounds already reported for the current detector, so the log gets the delta only. */
@@ -173,15 +175,24 @@ final class PassthroughCamera {
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
-                int width=budget.width(),height=Math.max(1,width*upright.getHeight()/upright.getWidth());
-                Bitmap analysis=Bitmap.createScaledBitmap(upright,width,height,true);
-                if(analysis==upright)analysis=upright.copy(Bitmap.Config.ARGB_8888,false);
-                if(analysis!=null) {
-                    long captureNs=timestampIsRealtime?sensorNs:-1L;
-                    TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
-                    TrackingFrame superseded=slot.offer(frame);
-                    if(superseded!=null){superseded.release();PerfLog.droppedFrame();}
-                    requestTracking();
+                // While an inference outruns the camera the slot still holds an unread frame younger
+                // than the gate: this frame's analysis copy would be superseded without ever being
+                // tracked, so it is not produced at all - the resample and its multi-megabyte bitmap
+                // stay off the thread whose cost caps the tracking rate (AnalysisGate).
+                TrackingFrame waiting=slot.peek();
+                if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
+                    int width=budget.width(),height=Math.max(1,width*upright.getHeight()/upright.getWidth());
+                    Bitmap analysis=Bitmap.createScaledBitmap(upright,width,height,true);
+                    if(analysis==upright)analysis=upright.copy(Bitmap.Config.ARGB_8888,false);
+                    if(analysis!=null) {
+                        long captureNs=timestampIsRealtime?sensorNs:-1L;
+                        TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
+                        TrackingFrame superseded=slot.offer(frame);
+                        if(superseded!=null){superseded.release();PerfLog.droppedFrame();}
+                        requestTracking();
+                    }
+                } else {
+                    PerfLog.analysisSkipped();
                 }
             }
             // The pixels are already copied out, so the HAL buffer goes back BEFORE the display
@@ -293,7 +304,9 @@ final class PassthroughCamera {
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
             PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
-            PerfLog.result(inferenceMs,frame.captureNs,frame.acquiredNs,completedNs);
+            // The processed (merged) hand count: what separates a real tracking loss from a slow
+            // or skipping tracker in the perf log (see PerfLog.result).
+            PerfLog.result(inferenceMs,frame.captureNs,frame.acquiredNs,completedNs,result.getHands().size());
             if(frame.token==generation && !destroyed && handsEnabled)listener.hands(result);
         }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
     }

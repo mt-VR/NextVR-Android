@@ -752,6 +752,216 @@ aparelho para validar; não entra em uma rodada de desempenho.
 
 ---
 
+# 2026-10-10 — Measured configuration validation, redundant-work removal, loss/jitter instrumentation
+
+This round did NOT start from a symptom; it started from the open questions the previous rounds
+left ("não medido ainda", "exige dispositivo"). Every configuration constant the pipeline carries
+was re-derived from measurements on the shipped model, and the two places where the code still did
+work nobody consumes were removed or instrumented. What follows is the evidence, the decisions it
+supported, and what deliberately did not change.
+
+## Method
+
+- Host: 2 vCPU x86_64, no GPU. Python MediaPipe Tasks **0.10.35** - the same runtime version the
+  Android AAR (`com.google.mediapipe:tasks-vision:0.10.35`) ships - so graph behaviour, thresholds
+  and modes match the app. CPU delegate; on a machine without libGL the Tasks C library is loaded
+  through no-op GL/EGL stubs (`tools/bench/mk_gl_stubs.sh`), which is safe because the CPU delegate
+  never calls GL.
+- Input: five stock hand photos, normalised by `hand_confidence_sweep.py:load_hands` (BGR→RGB and
+  fingers-up orientation). Two bench bugs were found and fixed on the way: skin fed as BGR is blue
+  skin and the palm detector finds nothing, and a landscape photo pasted with the app's upright
+  rotation comes out sideways - both silently produced "no hand" scenes.
+- Geometry is the app's own: 1280x720 sensor, upright 720x1280, analysis width 640 (portrait
+  640x1138), camera period 33 ms.
+- Caveat carried in every table: this shared host's absolute milliseconds drift ±20 % between runs
+  of the *same* configuration. Ratios (narrow/wide), frame counts (ghost/acquire/recall) and the
+  noise characterisation are the robust results; absolute ms are a rank, not a phone number.
+  Device confirmation remains `adb logcat -s NextVR-Perf` (see the checklist at the end).
+
+## 1. Baseline reproduction (`tools/bench/hand_host_bench.py`)
+
+| Case | This host | Previous round's host |
+|---|---|---|
+| Palm search, no hand, VIDEO wide | 15.7 ms | ~17 ms |
+| One hand tracked, VIDEO wide | 27.4 ms | ~29 ms |
+| Two hands tracked, VIDEO wide | 23.3 ms | ~21 ms |
+| Rescue landmarker, IMAGE, 224 px crop | 23.4 ms (p95 42) | ~20 ms (p95 ~30) |
+| YOLO11n-pose, 1 / 2 threads | 33.3 / 18.1 ms | ~26 / ~14.5 ms |
+
+Same shape, same ranks: cost is in the models and in how many hand slots run, not in input size.
+
+## 2. Configuration sweep (`tools/bench/hand_confidence_sweep.py`, new)
+
+One configuration per row; behaviour counted in 33 ms frames. "blur" = blurred-hand frames still
+tracked (flicker source), "ghost" = frames reporting a hand AFTER the hand left (phantom cursor),
+"acq" = frames until a hand entering the scene is detected, "small" = recall of a hand 12 % of
+frame height (the distance limit), "false" = detections on empty frames, "search"/"track1" = mean
+cost of the palm-search branch / of tracking one hand.
+
+| Configuration | track1 ms | blur | ghost | acq | small | false | search ms |
+|---|---|---|---|---|---|---|---|
+| **current: det/pres .45, track .35, 2 slots** | 32.3 | 20/20 | 0 | 1 | 12/12 | 0 | 16.9 |
+| track .20 | 33.0 | 20/20 | 0 | 1 | 12/12 | 0 | 17.2 |
+| track .50 (MediaPipe default) | 32.4 | 20/20 | 0 | 1 | 12/12 | 0 | 18.2 |
+| track .65 | 32.2 | 20/20 | 0 | 1 | 12/12 | 0 | 17.7 |
+| det/pres .30 | 30.2 | 20/20 | 0 | 1 | 12/12 | 0 | 25.5 |
+| det/pres .60 | 39.6 | 20/20 | 0 | 1 | 12/12 | 0 | 20.9 |
+| **num_hands 1 (the NARROW graph)** | 15.2 | 20/20 | 0 | 1 | 11/12 | 0 | 17.1 |
+
+Decisions, each from a row above:
+
+- **`minHandDetectionConfidence` / `minHandPresenceConfidence` stay .45.** Lowering to .30 makes
+  the palm-search branch ~50 % slower (more candidates survive into the landmark stage) and buys
+  zero recall; raising to .60 makes tracked frames ~20 % slower and buys zero precision (false
+  positives are 0 at every threshold, on this scene set). .45 is the measured knee.
+- **`minTrackingConfidence` stays .35.** 0.20–0.65 is indistinguishable in cost AND in behaviour
+  (blur retention 20/20, ghost 0, acquire 1 frame everywhere): the presence model, not this
+  threshold, decides the degraded-hand case here. .35 is the conservative end for holding the ROI
+  through blur, so it stays; the MediaPipe default of .5 buys nothing.
+- **No ghost hands at any threshold**: a phantom cursor is not one of this pipeline's failure
+  modes; presence gating could not be blamed for stale clicks.
+- **The slot policy's premise re-confirmed on this runtime**: tracking one hand costs 2.1–2.3x less
+  with `numHands=1` (15.2–16.7 ms vs 32.3–38.6 ms), while palm search costs the same either way
+  (16.9 vs 17.1) - exactly the asymmetry `HandSlotPolicy` exploits. Unchanged.
+- **Running modes.** VIDEO (ROI reused between detections) is the app's mode. IMAGE re-runs the
+  palm detector every frame and only looked cheaper (38.2 vs 42.8 ms) because detection happens to
+  bill one hand while the two-slot VIDEO graph bills both - the very waste the slot policy removes.
+  LIVE_STREAM submits in 0.9 ms but delivers results on a listener thread and silently drops inputs
+  under backpressure: the same keep-only-latest semantics `LatestFrameSlot` already gives, minus
+  the app's control over GPU→CPU fallback, retry bitmap ownership, slot policy and instrumentation,
+  and with no measured cost win. **Synchronous VIDEO on the tracking thread stays.**
+- **Lighter models: evaluated, not adopted.** The shipped bundle is `hand_detector.tflite` (2.34 MB
+  palm detector) + `hand_landmarks_detector.tflite` (5.48 MB landmarks+handedness) - the Tasks
+  "full" variant; Google publishes no lighter Tasks bundle, and the legacy `hand_landmark_lite`
+  tflite has a different signature (the Tasks graph expects the handedness outputs), so repacking
+  it would be an unsupported model, unverifiable on device. The supported cost lever is slots,
+  measured above at 2.1–2.3x and already adaptive. (Handtrack.js was rejected in an earlier round
+  for lacking landmarks entirely.)
+- **Frame formats: no cheaper supported path.** One fused YUV→ARGB pass with the rotation baked in
+  feeds both the display bitmap and the analysis copy; `BitmapImageBuilder` needs ARGB_8888 for
+  SRGB input, and the analysis resample is Skia's NEON bilinear (measured faster than a scalar
+  native resample in an earlier round). `MpImageInput.takeOwnership` already avoids the
+  per-inference pixel copy. Nothing redundant left in the conversion chain.
+
+## 3. Temporal filter validation (`tools/bench/one_euro_sweep.py`, new)
+
+Measured landmark noise of the tracking branch at 640 px: **static rms step 0.277 px** (per
+landmark std 0.177 px), **moving residual 1.828 px** around a known translation. The sweep ports
+`HandGestures.OneEuro` (dead zone included) and scores candidates on rest jitter, slow-drift
+tremor, lag during a 300 ms / 192 px swipe, settling error 150 ms after the swipe, and 90 % rise:
+
+| Candidate (landmark x/y) | rest jitter px | drift tremor px | swipe lag px | settle px | rise frames |
+|---|---|---|---|---|---|
+| **current 1.4 / beta 12 / dz .0008** | 0.041 | 1.154 | 10.19 | 0.53 | 9 |
+| no dead zone | 0.063 | 1.168 | 9.68 | 0.66 | 9 |
+| minCutoff 0.8 / beta 10 | 0.041 | 1.124 | 12.02 | 0.56 | 9 |
+| minCutoff 2.0 / beta 14 | 0.041 | 1.185 | 8.86 | 0.48 | 9 |
+| beta 6 | 0.041 | 1.118 | 15.12 | 1.40 | 9 |
+| beta 20 | 0.041 | 1.191 | 7.38 | 0.41 | 9 |
+
+- The current configuration cuts rest jitter 6.8x below the measured input noise (0.277 → 0.041 px,
+  sub-perceptual at any display scale) while reaching 90 % of a swipe inside the swipe's own
+  duration and settling to 0.53 px within 150 ms. The dead zone earns its place (0.041 vs 0.063).
+- Beta is the only real lever left: 20 trades +3 % drift tremor and more sensitivity to unmodelled
+  occlusion outliers for ~3 px less swipe lag; 6 costs 5 px of lag for nothing. **12 stays** - the
+  knee of the measured frontier.
+- Rate independence, the reason the filters are stamped with the camera capture time: the same
+  trajectory at 15/30/60 Hz rises in 333/300/283 **ms** (constant in time, not in frames) with rest
+  jitter 0.058/0.041/0.029 px. A sliding-window average would add latency proportional to its
+  window and was not considered further.
+
+## 4. Redundant work removed: `AnalysisGate`
+
+While an inference outruns the camera period - the saturated case, i.e. precisely a low-end device
+or a phone with an app open - every Camera2 callback used to rescale the frame and allocate a
+~2.9 MB ARGB analysis bitmap that superseded an unread one (`dropped` in the perf log): work and
+GC churn on the thread whose cost is the ceiling of the tracking rate, for pixels no inference ever
+sees. `AnalysisGate` skips producing the copy while the slot already holds a pending frame younger
+than 40 ms of CAMERA time (sensor stamps, not elapsedRealtime - epochs may differ); `LatestFrameSlot.peek()`
+exposes the pending frame without taking it. When the tracker keeps up, the slot is empty at every
+callback and the gate never fires: the healthy path is bit-identical to before.
+
+`tools/bench/pipeline_sim.py` gained the policy as a variant (`--skip-scale-gate-ms`), 60 s, 30 fps:
+
+| Device surrogate (wide/narrow ms) | variant | track | p95 | shown | dropped | skips |
+|---|---|---|---|---|---|---|
+| low-end 90/45 | after (today) | 16.4 Hz | 122.4 | 110.2 | 571 | 0 |
+| low-end 90/45 | after + gate | 16.5 Hz | 126.9 | 118.3 | 163 | 411 |
+| mid 45/22 | both | 25.9 Hz | 50.7 | 54.5 | 0 | 0 |
+| powerful 20/9 | both | 25.9 Hz | 25.7 | 36.8 | 0 | 0 |
+
+The gate converts 411 wasted resamples+allocations into skips at the saturated end, for +4.5 ms
+p95 and +8 ms shown age (the pending frame can be one camera period older); mid and powerful
+devices never fire it. `PerfLog` reports `skips` next to `dropped` so a device run shows which side
+of the trade the phone is on. Unit-tested (`AnalysisGateTest`, plus a `peek` test in
+`LatestFrameSlotTest`).
+
+## 5. Smooth re-acquisition: filter-state grace (`PhoneXrHands.STATE_GRACE_NS`)
+
+Dropping a hand's One Euro state on the first empty result (`states.keys.retainAll(present)`)
+meant a hand that blinked out for one or two inferences - an occlusion, a missed palm detection -
+reappeared with RESET filters: the first sample shown raw, a visible snap. States now survive
+750 ms of absence (capture-clock), so a brief dropout resumes filtering from where it stopped and
+the adaptive cutoff converges to the new position: a correction, not a jump. Beyond the window the
+state is still dropped, so a hand returning after seconds is never dragged from a stale position.
+Pinch behaviour is untouched: the latch still releases on the first observed open sample
+(`aSlowlySampledOpenPinchReleasesOnItsFirstObservedOpenFrame` and
+`missingHandResetsNativeFiltersAndLatch` still pass), and two new tests pin both sides of the grace
+window (`PhoneXrHandsTest`).
+
+## 6. Loss vs slowness, and the prediction contract, instrumented
+
+"Tracking loss" had two possible meanings in the log and neither was measured. `PerfLog.result`
+now takes the merged hand count and separates them:
+
+- **real loss** (the detector saw the frame and found no hand after a frame that had one):
+  `loss` events and `empty_ms` spent in lost-hand runs - excludes the initial palm search;
+- **slow or skipping tracker** (results late or shed, hand intact): `gap_max` and `track_jitter`
+  (stddev of result intervals) - rate stability independent of rate.
+
+`tools/perf/summarize_logcat.py` and `tools/perf/README.md` carry the new fields (self-test
+updated). With these, a device session can attribute a bad window to the detector, the scheduler
+or the camera thread (`cam_work`) without guessing.
+
+The hand-loss prediction contract, restated against the code that implements it: velocity
+extrapolation (`Frame.predicted`) is capped at one tracking interval and is presentation-only -
+pinch/fist and every click source read the newest real detection; `HandPresentation`'s retention
+plus fade is the time-based confidence decay of the displayed pose (full while trustworthy,
+fading over the last 200 ms, gone at the end of validity); a predicted pose can never trigger a
+click or pinch, and a reappearing hand is shown where it was detected, never extrapolated across
+the gap (`MAX_PREDICT_GAP_NS`). This round's grace window makes the *filter* side of that
+reappearance smooth without touching any of those guarantees.
+
+## 7. Deliberately unchanged
+
+Model bundle and delegate policy (`DelegateWatch` judges the GPU on measured cost, one-way);
+thresholds (.45/.45/.35, rows above); slot policy and its 150 ms probe (premise re-measured);
+pinch hysteresis .30/.48; silhouette retention/fade; latest-slot admission; WebView mailbox and
+touch queue; One Euro constants (frontier measured). Every change above is either a removal of
+work nobody consumes or an addition of measurement, except the grace window, which fixes a
+visible snap and is pinned by tests on both sides.
+
+## 8. Device validation checklist (powerful vs low-end, before/after APK)
+
+Same scene, light and hand distance; ≥15 min per session; `adb logcat -d -v time -s NextVR-Perf >
+session.log`, then `python3 tools/perf/summarize_logcat.py session.log`. Compare, per device class:
+
+| Question | Fields | Expected with this round's changes |
+|---|---|---|
+| Is the tracker or the camera the ceiling? | `track` vs `camera`, `cam_work`, `infer_mean` | unchanged relation; `cam_work` lower when saturated |
+| Wasted camera-thread work | `dropped` vs `skips` | saturated: `skips` > 0 and `dropped` ≈ 0 (was all `dropped`); healthy: both 0 |
+| Real tracking losses | `loss`, `empty_ms` | isolated events on occlusion/exit; not a steady drip |
+| Slow/skipping tracker | `gap_max`, `track_jitter` | `gap_max` ≲ 2× mean interval; jitter ≲ 20 % of it |
+| Slot policy paying off | `slots`, `narrow`/`wide`/`probe` | one hand: `slots` ≈ 1.0–1.2, `narrow` ≫ `wide` |
+| UI keeping up | `replayed`, `stale`, `coalesced` | `replayed` ≈ 1.0, `stale` = 0 |
+| Cost of the pipeline | `cpu_pct`, `native_mb`, `java_mb` | no upward drift over the session |
+| Gesture responsiveness | filmed hand+screen, finger move → visual click | unchanged vs the previous APK (no debounce added anywhere) |
+| Landmark jitter at rest | film a still hand / watch the cursor | rest jitter measured ≤0.05 px @640 on host; device must show a still cursor |
+
+Host numbers in this section rank options and justify the constants; the table above is what
+confirms them on hardware, per device class. Nothing here claims an on-device FPS gain without
+those logs.
+
 # 2026-10-10 — Clique vs arrasto, arrasto de janela estável, suavização sem drift e ponte temporal com confiança
 
 Rodada pedida pelo usuário, com quatro problemas reportados no uso real: (1) em sites como YouTube a
@@ -852,3 +1062,4 @@ demora.
 - **Não compilado neste ambiente** (sem JDK/Gradle): `compileDebugKotlin`/`assembleDebug` e os
   testes JVM confirmam no CI do PR. Validação on-device (YouTube: clique vs scrub; arrasto de
   janela; piscar em aparelho lento) continua exigindo telefone real.
+

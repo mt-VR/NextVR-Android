@@ -47,6 +47,19 @@ public class LatestFrameSlotTest {
     }
 
     @Test
+    public void peekShowsTheWaitingFrameWithoutTakingIt() {
+        LatestFrameSlot<String> slot = new LatestFrameSlot<>();
+        assertNull(slot.peek());
+        slot.offer("f1");
+        assertEquals("f1", slot.peek());
+        assertEquals("f1", slot.peek());          // peeking must not consume
+        assertEquals("f1", slot.offer("f2"));
+        assertEquals("f2", slot.peek());
+        assertEquals("f2", slot.poll());
+        assertNull(slot.peek());
+    }
+
+    @Test
     public void nextFrameIsAvailableImmediatelyAfterTakingPrevious() {
         // Models the tracker finishing an inference: the newest frame is ready at once, with no
         // wait for the next camera callback. This is the property that removes the 15 Hz floor.
