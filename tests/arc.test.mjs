@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARC_CAPACITY, arcAngles, arcLayout, arcStep, windowAngle, pickLru } from '../web/src/arc.js';
+import { ARC_CAPACITY, arcAngles, arcSlots, arcLayout, arcStep, windowAngle, pickLru,
+  ARC_TOP_ROW_STEP } from '../web/src/arc.js';
 
-test('arc capacity is three apps at once', () => {
-  assert.equal(ARC_CAPACITY, 3);
+test('arc capacity is five apps at once', () => {
+  assert.equal(ARC_CAPACITY, 5);
 });
 
 test('the first app is centered and the next ones alternate around it', () => {
@@ -12,7 +13,20 @@ test('the first app is centered and the next ones alternate around it', () => {
   // Two apps: one in the CENTER, the second beside it (was [-.4, .4]: two displaced windows).
   assert.deepEqual(arcAngles(2, .8), [0, .8]);
   assert.deepEqual(arcAngles(3, .8), [0, .8, -.8]);
-  assert.deepEqual(arcAngles(5, .8), [0, .8, -.8], 'never more slots than the capacity');
+  // Cinco lugares: as três primeiras na fileira principal, as duas restantes numa fileira
+  // superior centrada — nenhuma janela fora do yaw alcançável do workspace.
+  assert.deepEqual(arcSlots(5, .8), [
+    { angle: 0, row: 0 }, { angle: .8, row: 0 }, { angle: -.8, row: 0 },
+    { angle: -.4, row: 1 }, { angle: .4, row: 1 }]);
+  assert.deepEqual(arcSlots(4, .8), [
+    { angle: 0, row: 0 }, { angle: .8, row: 0 }, { angle: -.8, row: 0 }, { angle: 0, row: 1 }]);
+  assert.deepEqual(arcSlots(3, .8), [
+    { angle: 0, row: 0 }, { angle: .8, row: 0 }, { angle: -.8, row: 0 }]);
+  assert.equal(arcSlots(7, .8).length, ARC_CAPACITY, 'never more slots than the capacity');
+  assert.equal(arcSlots(5, .8).every(s => Math.abs(s.angle) <= .8), true,
+    'cinco slots ficam todos dentro do yaw alcançável');
+  assert.equal(arcSlots(5, .8).filter(s => s.row === 1).length, 2);
+  assert.ok(ARC_TOP_ROW_STEP > 1, 'a fileira de cima fica acima da principal, sem sobrepor');
 });
 
 test('arc layout keeps every window on the circle, facing the user', () => {

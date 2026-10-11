@@ -120,12 +120,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
     const widthMetres=languageMatrix.elements[0]*language.glass[2];
     assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>65,'Setup has a readable angular size');
-    assert.ok(language.buttonHeight>=180,'Large language hit targets');
+    assert.ok(language.buttonHeight>=40,'Language rows stay large enough for a hand pinch');
+    assert.equal(await page.locator('.lang-option').count(),12,'the picker lists every language from the reference');
     const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
     const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
     await page.waitForTimeout(1400);
-    assert.equal(await page.locator('.lang-option').count(),3,'looking at setup never selects it');
+    assert.equal(await page.locator('.lang-option[aria-pressed="true"]').count(),1,'looking at setup never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
     await feed(hand(.02));
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down),null,{timeout:5000});

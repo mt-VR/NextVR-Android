@@ -73,6 +73,46 @@ export function stepDragDelta(applied, delta) {
   return { x: ax + dx * amount, y: ay + dy * amount, z: az + dz * amount };
 }
 
+/**
+ * Curvatura "360" da superfície da janela. A janela vira um pedaço de cilindro em volta do
+ * usuário: a LARGURA não muda (as pontas ficam onde estavam), só o meio recua — é o efeito da
+ * parede de vidro curva da referência. `angle` é a meia-abertura em radianos (0 = plana).
+ *
+ * Tudo aqui trabalha em unidades locais da janela (px do CSS3D), as mesmas que o shader nativo
+ * reconstrói por metro; por isso raio e deslocamento são lineares na largura.
+ */
+export const CURVE_LIMITS = Object.freeze({ maxAngle: 1.15 });
+
+/** Meia-abertura válida (rad) da curvatura. */
+export function curveAngle(angle) {
+  const a = Number.isFinite(angle) ? angle : 0;
+  return Math.max(0, Math.min(CURVE_LIMITS.maxAngle, a));
+}
+
+/** Raio (unidades locais) do cilindro: o arco tem a MESMA largura da janela plana. */
+export function curveRadius(width, angle) {
+  const a = curveAngle(angle);
+  return a < 1e-4 ? Infinity : (Math.max(0, width) / 2) / Math.sin(a);
+}
+
+/**
+ * Deslocamento em z (para o usuário, +z local) da superfície curvada no ponto `x` (0 = centro).
+ * Fora do arco (|x| > raio, só acontece na margem transparente do atlas) a superfície segue reta
+ * na tangente — sem degrau.
+ */
+export function curveOffset(x, radius) {
+  if (!Number.isFinite(radius) || radius <= 0) return 0;
+  const rest = radius * radius - x * x;
+  return rest <= 0 ? radius : radius - Math.sqrt(rest);
+}
+
+/** Quanto a borda (x = largura/2) avança: raio * (1 - cos(angle)). */
+export function curveBulge(width, angle) {
+  const a = curveAngle(angle);
+  if (a < 1e-4) return 0;
+  return curveRadius(width, a) * (1 - Math.cos(a));
+}
+
 export function clampResize(value, maximum = WINDOW_LIMITS.maxResize) {
   const max = clamp(finite(maximum), WINDOW_LIMITS.minResize, WINDOW_LIMITS.maxResize);
   return clamp(Number.isFinite(value) ? value : 1, WINDOW_LIMITS.minResize, max);

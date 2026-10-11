@@ -5,6 +5,8 @@ import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
@@ -38,6 +40,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -59,6 +64,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     /** Preserves gesture/contact edges while coalescing only safe pose-only hand frames. */
     private final HandFrameMailbox handFrames=new HandFrameMailbox();
     private final AtomicBoolean handsPending=new AtomicBoolean();
+    /** Decodifica os panoramas de ambiente fora da thread do bridge da WebView. */
+    private final ExecutorService envLoader=Executors.newSingleThreadExecutor();
     /** Coalesces adjacent ACTION_MOVE events but keeps touch edges ordered for each WebView. */
     private final HandTouchEventQueue handTouchEvents=new HandTouchEventQueue();
     private final AtomicBoolean handTouchPending=new AtomicBoolean();
@@ -115,7 +122,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(closed || renderer!=fresh) return;
                     camera.stop(); releaseWeb();
                     if(previous!=null) {
-                        previous.camera.release(); previous.atlas.surface.release();
+                        previous.camera.release(); previous.atlas.surface.release(); previous.environment.release();
                         for(SpatialRenderer.Texture t:previous.browsers.values()) t.surface.release();
                     }
                     ready=false;
@@ -224,6 +231,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         SpatialRenderer old=renderer; renderer=null;
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
+        envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
     private void releaseWeb() {
@@ -333,6 +341,27 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                         } });
                 }
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
+        }
+        /**
+         * Ambiente escolhido na interface do shell: "passthrough" mantem a camera, os demais
+         * carregam o panorama 360 de assets/ui/env/<id>.jpg. O JPEG e grande (~18 MB em bitmap),
+         * entao a decodificacao roda fora da thread do bridge e o resultado sobe para a textura
+         * no proximo frame do renderer.
+         */
+        @JavascriptInterface public void env(String id) {
+            if(id==null || !(id.equals("passthrough")||id.equals("sunset")||id.equals("night")||id.equals("space"))) return;
+            final String environment=id;
+            envLoader.execute(()->{
+                Bitmap bitmap=null;
+                try {
+                    if(!environment.equals("passthrough")) {
+                        try(InputStream in=getAssets().open("ui/env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
+                    }
+                } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
+                SpatialRenderer target=renderer;
+                if(target!=null && !closed) target.setEnvironment(environment,bitmap);
+                else if(bitmap!=null) bitmap.recycle();
+            });
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }

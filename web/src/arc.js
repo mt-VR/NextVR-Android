@@ -1,28 +1,38 @@
-// Multitarefa em arco: até 3 apps abertos por vez, numa única fileira curva centrada
+// Multitarefa em arco: até 5 apps abertos por vez, numa única fileira curva centrada
 // (o "arco" do multitarefa). Módulo puro, sem DOM, para ser testado direto no node.
 
 /** Quantos apps o arco comporta ao mesmo tempo. */
-export const ARC_CAPACITY = 3;
+export const ARC_CAPACITY = 5;
 
 /**
- * Ângulos (rad) dos slots do arco para n janelas, NA ORDEM em que as janelas os ocupam: o primeiro
- * app fica no CENTRO (0) e os seguintes alternam direita/esquerda em volta dele (+passo, -passo).
+ * Slots do arco para n janelas, NA ORDEM em que as janelas os ocupam. O primeiro app fica no
+ * CENTRO (ângulo 0) e os seguintes alternam direita/esquerda em volta dele (+passo, -passo).
  *
  * Antes o arco era simétrico — duas janelas viravam [-passo/2, +passo/2], ou seja NENHUMA no centro
  * e as duas deslocadas, sobrepostas na visão do usuário. Agora o centro é sempre ocupado primeiro,
- * e como o layout é por índice, fechar um app faz os que sobraram deslizarem para os primeiros
+ * e como o layout é por índice, fechar um app faz os que sobraram descerem para os primeiros
  * slots: o app que estava ao lado vai para o centro.
+ *
+ * Com CINCO lugares a fileira única não cabe no campo de visão: cinco janelas de meia janela de
+ * folga pedem ~4 rad de arco, e o usuário só alcança ±1,3 rad. As três primeiras continuam na
+ * fileira principal (centro, direita, esquerda) e as outras duas vão para uma FILEIRA SUPERIOR,
+ * centrada e mais larga — mesmo tamanho de janela, tudo ao alcance do olhar. A fileira de cima se
+ * recentra sozinha (uma janela em cima fica no meio; duas ficam em ±passo/2).
  *
  * Nunca devolve mais slots que ARC_CAPACITY.
  */
-export function arcAngles(n, step) {
+export function arcSlots(n, step) {
   const count = Math.max(0, Math.min(ARC_CAPACITY, n | 0));
+  const bottom = Math.min(3, count), top = count - bottom;
   const out = [];
-  for (let k = 0; k < count; k++) {
-    if (k === 0) out.push(0);
-    else out.push((k % 2 ? 1 : -1) * Math.ceil(k / 2) * step);
-  }
+  for (let k = 0; k < bottom; k++) out.push({ angle: k === 0 ? 0 : (k % 2 ? step : -step), row: 0 });
+  for (let k = 0; k < top; k++) out.push({ angle: top === 1 ? 0 : (k === 0 ? -step / 2 : step / 2), row: 1 });
   return out;
+}
+
+/** Ângulos do arco na ordem dos slots (compatibilidade: o layout usa `arcSlots`). */
+export function arcAngles(n, step) {
+  return arcSlots(n, step).map(s => s.angle);
 }
 
 /**
@@ -32,6 +42,9 @@ export function arcAngles(n, step) {
 export function arcLayout(n, { step, dist }) {
   return arcAngles(n, step).map(a => [Math.sin(a) * dist, -Math.cos(a) * dist]);
 }
+
+/** Altura relativa da fileira superior, em unidades de altura de janela (`halfHeight`). */
+export const ARC_TOP_ROW_STEP = 1.22;
 
 /** Largura angular (rad) que uma janela de `width` metros ocupa a `dist` metros do olho. */
 export function windowAngle(width, dist) {

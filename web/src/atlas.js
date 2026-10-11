@@ -5,8 +5,8 @@ export const VIEW = { width: 1200, height: 800 };
 const PAD = 160;
 
 // Stable slots: opening/closing a window never relocates another window's pixels while its
-// SurfaceTexture is in flight. The atlas still reserves 6 window slots; the arc multitasking
-// layer (arc.js) is what keeps at most 3 apps open at once, well inside the atlas capacity.
+// SurfaceTexture is in flight. The atlas reserves 6 window slots; the arc multitasking layer
+// (arc.js) keeps at most 5 apps open at once, inside the atlas capacity.
 export function pack(sizes, limit = ATLAS_SIZE) {
   return sizes.map(({ width, height, kind = 'window', slot = 0 }) => {
     const w = Math.ceil(width) + PAD * 2, h = Math.ceil(height) + PAD * 2;
@@ -62,8 +62,12 @@ export class AtlasRenderer {
       const e = o.element, [x, y, w, h] = rects[i];
       e.style.left = `${x + PAD}px`; e.style.top = `${y + PAD}px`;
       const matrix = o.matrixWorld.clone().multiply(new THREE.Matrix4().makeScale(w, h, 1));
+      // `curve` (radianos, 0 = plana) é a curvatura 360 da janela: o shader nativo dobra o quad
+      // no cilindro correspondente. Sem curvatura o caminho é exatamente o de antes.
+      const curve = +(e.dataset.curve || 0);
       panels.push({ id:e.dataset.windowId || (sizes[i].kind==='dock'?'dock':sizes[i].kind),
-        matrix: matrix.toArray(), rect: rects[i], glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
+        matrix: matrix.toArray(), rect: rects[i], curve,
+        glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
       const origin = e.getBoundingClientRect();
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();
@@ -89,7 +93,7 @@ export class AtlasRenderer {
             clip.left - origin.left + cw / 2 - sizes[i].width / 2,
             sizes[i].height / 2 - (clip.top - origin.top + ch / 2), .5))
           .multiply(new THREE.Matrix4().makeScale(cw, ch, 1));
-        panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height],
+        panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height], curve: +(e.dataset.curve || 0),
           uv: [(clip.left - box.left) / width, (box.bottom - clip.bottom) / height, cw / width, ch / height] });
       }
     });

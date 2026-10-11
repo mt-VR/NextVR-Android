@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WINDOW_LIMITS, clampWindowPosition, gestureDistancePx, dragGestureActivated,
   resizeGestureActivated, stepDragDelta, clampResize, maxResizeAtHeight,
-  resizeFromPointer, stabilizeResize } from '../web/src/window-geometry.js';
+  resizeFromPointer, stabilizeResize, CURVE_LIMITS, curveAngle, curveRadius, curveOffset,
+  curveBulge } from '../web/src/window-geometry.js';
 
 const near=(actual,expected,epsilon=1e-6)=>assert.ok(Math.abs(actual-expected)<=epsilon,`${actual} ≉ ${expected}`);
 
@@ -90,4 +91,28 @@ test('resize is proportional, bounded and stops at the vertical edge without mov
   assert.ok(nearBottom>=WINDOW_LIMITS.minResize && nearBottom<WINDOW_LIMITS.maxResize);
   const smooth=stabilizeResize(1,1.4);
   assert.ok(smooth>1 && smooth<=1.07);
+});
+
+test('curvatura 360: a largura não muda, só o meio recua', () => {
+  const angle = .7, width = 1040;
+  const radius = curveRadius(width, angle);
+  assert.equal(curveOffset(0, radius), 0, 'o centro fica exatamente onde a janela plana estava');
+  assert.ok(curveOffset(width / 2, radius) > 0, 'as pontas vêm para perto do usuário');
+  assert.ok(Math.abs(curveOffset(width / 2, radius) - curveBulge(width, angle)) < 1e-6);
+  // O arco tem a mesma corda da janela plana: a ponta continua em x = largura/2.
+  assert.ok(Math.abs(radius * Math.sin(angle) - width / 2) < 1e-9);
+  // Monotônico do centro para a borda, e simétrico.
+  const xs = [0, 100, 260, 400, width / 2];
+  for (let i = 1; i < xs.length; i++) assert.ok(curveOffset(xs[i], radius) > curveOffset(xs[i - 1], radius));
+  assert.equal(curveOffset(-xs[3], radius), curveOffset(xs[3], radius));
+});
+
+test('curvatura 360: desligada (0) é plana e o ângulo é limitado', () => {
+  assert.equal(curveRadius(1040, 0), Infinity);
+  assert.equal(curveOffset(520, curveRadius(1040, 0)), 0);
+  assert.equal(curveBulge(1040, 0), 0);
+  assert.equal(curveAngle(9), CURVE_LIMITS.maxAngle);
+  assert.equal(curveAngle(-1), 0);
+  // Mais curvatura = mais recuo, para a mesma janela.
+  assert.ok(curveBulge(1040, .5) < curveBulge(1040, .9));
 });

@@ -7,9 +7,18 @@ await build({ entryPoints: ['web/src/apps.js'], bundle: true, format: 'iife', ta
 await copyFile('web/index.html', new URL('index.html', out));
 await mkdir(new URL('icons/', out), { recursive: true });
 // O "N" é o vetor original inline da referência mais recente, extraído sem redesenho.
-await copyFile('web/assets/nextvr-n.svg', new URL('icons/nextvr-n.svg', out));
+// Logo do app: o N cromado fornecido pelo usuário (chrome sobre preto, recortado com alfa), no
+// lugar do antigo vetor "N" da referência. O mesmo arquivo vira o ícone do APK.
+await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
+// Ilustração (mão com o controle) da tela de escolha de idioma.
+await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
+await mkdir(new URL('env/', out), { recursive: true });
+for (const id of ['sunset','night','space'])
+  await copyFile(`web/env/${id}.jpg`, new URL(`env/${id}.jpg`, out));
 await writeFile(new URL('branding.json',out),JSON.stringify({
-  source:'new_references.zip:index.html#nvN',format:'svg',asset:'icons/nextvr-n.svg'
+  source:'logo fornecida pelo usuário (chrome N sobre preto)',
+  format:'png',asset:'icons/nextvr-n.png',icon:'res/drawable-*-xhdpi/nextvr_ic_launcher.png',
+  environments:['env/sunset.jpg','env/night.jpg','env/space.jpg']
 })+'\n','utf8');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';
