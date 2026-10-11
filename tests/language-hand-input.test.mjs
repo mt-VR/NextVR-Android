@@ -121,6 +121,12 @@ async function runSequence(page, aim, steps) {
 
 // The glass surface sits |aim| metres from the eye, and that changes with the window layout: the
 // direct-contact sequences below are built from it instead of hard-coded depths.
+//
+// Offsets are relative to that surface, in metres, positive BEYOND the glass. The direct-touch path
+// measures `d`, the distance in FRONT of the glass, so with `c = surface/plane` the offset `v` gives
+// d = -v*c: it only captures within [-.12, .11] (a fingertip about 12 cm behind or 11 cm in front of
+// the glass), presses when d crosses from >.012 to <=.012 (a push through) and releases at d >= .035
+// (3.5 cm back out). Offsets therefore stay clear of those bands unless the step wants a press.
 const steps = (surface, depths, pinches, ms = 900) =>
   depths.map((v, i) => (surface + v).toFixed(3) + ':' + (pinches[i] ? 1 : 0) + ':' + ms).join(',');
 
@@ -180,7 +186,8 @@ test('language window: hovering in the near band with a pinch still uses the far
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
-    const actions = await runSequence(page, aim, '0.36:0:700,0.36:1:700,0.36:0:700');
+    const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
+    const actions = await runSequence(page, aim, steps(surface, [-.22, -.22, -.22], [0, 1, 0], 700));
     assert.ok(actions.includes(ACTION.down) && actions.at(-1) === ACTION.up, 'band hover does not block the ray: ' + JSON.stringify(actions));
     await page.waitForFunction(() => !document.querySelector('.lang-option'), null, { timeout: 5000 });
     assert.deepEqual(errors, []);
@@ -195,11 +202,14 @@ test('language window: starting behind the glass never leaves a press stuck DOWN
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
-    const actions = await runSequence(page, aim, '0.50:0:900,0.46:0:900,0.40:0:900');
+    const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
+    // Começa atrás do vidro (fora da faixa) e vem para a frente: sem pinça, nada pode apertar.
+    const actions = await runSequence(page, aim, steps(surface, [.06, .02, -.02], [0, 0, 0]));
     assert.deepEqual(actions, [], 'no touch from behind the glass without a pinch: ' + JSON.stringify(actions));
     assert.equal(await optionsLeft(page), 12, 'window stays open');
-    // The far ray must still work afterwards (no stuck press or lingering block).
-    const after = await runSequence(page, aim, '0.60:0:700,0.60:1:700,0.60:0:700');
+    // A pinça longe (bem atrás, fora da faixa de toque direto) ainda aperta e solta: nada ficou
+    // preso nem bloqueando o raio depois da aproximação.
+    const after = await runSequence(page, aim, steps(surface, [.25, .25, .25], [0, 1, 0], 700));
     assert.ok(after.includes(ACTION.down) && after.at(-1) === ACTION.up, 'far ray works after approach: ' + JSON.stringify(after));
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); server.close(); }
@@ -257,9 +267,12 @@ test('language window: releasing a push while still pinched emits one UP and no 
     // The title is not a button, so this press must not close the window.
     const aim = await languageTarget(page, '.lq-title');
     const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
+    // Chega de longe, encosta no vidro (aperta), e sai de novo POR SAÍDA DE FAIXA: voltar para
+    // dentro do alcance com a pinça ainda fechada não pode virar um segundo toque, e a pinça só
+    // abre depois que a mão já está longe.
     const actions = await runSequence(page, aim, steps(surface,
-      [-.06, -.02, -.004, .008, -.02, -.02, -.004, .008, -.02, -.02],
-      [0, 0, 1, 1, 1, 1, 1, 1, 1, 0], 800));
+      [-.15, -.05, -.005, .01, -.02, -.08, -.15, -.15],
+      [0, 0, 1, 1, 1, 1, 1, 0], 800));
     const firstUp = actions.indexOf(ACTION.up);
     assert.ok(firstUp > 0, 'pushing through the glass produced a press: ' + JSON.stringify(actions));
     assert.equal(actions.slice(firstUp + 1).filter(a => a === ACTION.down).length, 0, 'no restart after release while pinched: ' + JSON.stringify(actions));
