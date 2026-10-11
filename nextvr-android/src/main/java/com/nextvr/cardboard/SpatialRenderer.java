@@ -99,8 +99,14 @@ final class SpatialRenderer {
     }
     /**
      * Ambiente panoramico 360: o bitmap e decodificado fora da GL thread (a interface pede pelo
-     * bridge) e sobe para a textura no proximo frame, igual ao caminho da camera. Wrap em S e
-     * REPEAT para a costura do panorama em +-180 graus nao aparecer.
+     * bridge) e sobe para a textura no proximo frame, igual ao caminho da camera.
+     *
+     * O wrap e CLAMP_TO_EDGE de proposito, nos dois eixos: a textura tem 3072x1536 (nao e potencia
+     * de dois) e, num contexto GLES2 estrito, wrap REPEAT/filtro com mipmap em textura NPOT da
+     * textura INCOMPLETA — e textura incompleta amostra preto, ou seja, o ceu sumiria. A costura em
+     * +-180 graus perde a interpolacao de uma coluna, o que nao se ve num fundo desfocado; um ceu
+     * preto se veria. Sem mipmap tambem: o panorama tem ~8,5 px por grau e a tela amplia no centro,
+     * entao nao ha minificacao a corrigir.
      */
     static final class EnvTexture {
         final int id;
@@ -112,7 +118,7 @@ final class SpatialRenderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_REPEAT);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
         }
         synchronized void offer(android.graphics.Bitmap bitmap) {

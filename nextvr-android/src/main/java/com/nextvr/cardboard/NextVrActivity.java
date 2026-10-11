@@ -345,9 +345,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
         /**
          * Ambiente escolhido na interface do shell: "passthrough" mantem a camera, os demais
-         * carregam o panorama 360 de assets/ui/env/<id>.jpg. O JPEG e grande (~18 MB em bitmap),
-         * entao a decodificacao roda fora da thread do bridge e o resultado sobe para a textura
-         * no proximo frame do renderer.
+         * carregam o panorama 360 de assets/env/<id>.jpg (3072x1536). O bitmap aberto passa de
+         * 18 MB, entao a decodificacao roda fora da thread do bridge e o resultado sobe para a
+         * textura no proximo frame do renderer. O arquivo de assets/ui/env/<id>.jpg e so a
+         * miniatura 480x240 que a lista de ambientes da interface mostra — usa-lo como ceu daria
+         * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
             if(id==null || !(id.equals("passthrough")||id.equals("sunset")||id.equals("night")||id.equals("space"))) return;
@@ -357,7 +359,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             Bitmap bitmap=null;
             try {
                 if(!environment.equals("passthrough")) {
-                    try(InputStream in=getAssets().open("ui/env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
+                    try(InputStream in=getAssets().open("env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
                 }
             } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
             SpatialRenderer target=renderer;

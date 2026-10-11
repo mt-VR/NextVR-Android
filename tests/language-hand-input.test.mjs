@@ -119,6 +119,11 @@ async function runSequence(page, aim, steps) {
   });
 }
 
+// The glass surface sits |aim| metres from the eye, and that changes with the window layout: the
+// direct-contact sequences below are built from it instead of hard-coded depths.
+const steps = (surface, depths, pinches, ms = 900) =>
+  depths.map((v, i) => (surface + v).toFixed(3) + ':' + (pinches[i] ? 1 : 0) + ':' + ms).join(',');
+
 const optionsLeft = page => page.locator('.lang-option').count();
 
 test('language window: a detected press and release remain distinct at a slow sample cadence', { timeout: 120000 }, async (t) => {
@@ -192,7 +197,7 @@ test('language window: starting behind the glass never leaves a press stuck DOWN
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.50:0:900,0.46:0:900,0.40:0:900');
     assert.deepEqual(actions, [], 'no touch from behind the glass without a pinch: ' + JSON.stringify(actions));
-    assert.equal(await optionsLeft(page), 3, 'window stays open');
+    assert.equal(await optionsLeft(page), 12, 'window stays open');
     // The far ray must still work afterwards (no stuck press or lingering block).
     const after = await runSequence(page, aim, '0.60:0:700,0.60:1:700,0.60:0:700');
     assert.ok(after.includes(ACTION.down) && after.at(-1) === ACTION.up, 'far ray works after approach: ' + JSON.stringify(after));
@@ -208,9 +213,15 @@ test('language window: push through the glass selects once, and a held pinch can
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
-    // Approach from the front, press through the glass without pinching, pull back to release.
-    const push = await runSequence(page, aim, '0.30:0:700,0.40:0:700,0.42:0:700,0.43:0:900,0.42:0:900,0.36:0:900');
-    assert.ok(push.includes(ACTION.down) && push.at(-1) === ACTION.up, 'push-through press completes: ' + JSON.stringify(push));
+    // A superfície do vidro está a |aim| do olho, e essa distância muda com o layout da janela: as
+    // profundidades da sequência saem dela, senão o dedo nunca chega a atravessar o painel.
+    const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
+    // Aproxima, atravessa o vidro SEM pinçar (contato direto) e volta para soltar. Os tempos são
+    // longos o bastante para a profundidade suavizada assentar (~700 ms no ritmo de 50 ms).
+    const pushSteps = [surface - .12, surface - .02, surface - .004, surface + .008, surface - .004, surface - .07]
+      .map(v => v.toFixed(3) + ':0:900').join(',');
+    const pushed = await runSequence(page, aim, pushSteps);
+    assert.ok(pushed.includes(ACTION.down) && pushed.at(-1) === ACTION.up, 'push-through press completes: ' + JSON.stringify(pushed));
     await page.waitForFunction(() => !document.querySelector('.lang-option'), null, { timeout: 5000 });
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); server.close(); }
@@ -223,12 +234,15 @@ test('language window: leaving direct-touch range releases and suppresses the he
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
-    const aim = await languageTarget(page, 'h1');
+    const aim = await languageTarget(page, '.lq-title');
+    const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
     // Leave the near band while pinched, dwell past the panel with the pinch still held, then open.
-    const actions = await runSequence(page, aim, '0.30:0:700,0.40:0:700,0.42:0:700,0.43:0:900,0.60:1:900,0.60:1:900,0.42:1:900,0.42:0:900');
+    const actions = await runSequence(page, aim, steps(surface,
+      [-.20, -.10, -.06, -.01, .18, .18, -.04, -.04],
+      [0, 0, 0, 0, 1, 1, 1, 0]));
     const edges = actions.filter(a => a === ACTION.down || a === ACTION.up || a === ACTION.cancel);
     assert.deepEqual(edges, [ACTION.down, ACTION.up], 'one direct contact ends once and cannot restart as a ray press: ' + JSON.stringify(actions));
-    assert.equal(await optionsLeft(page), 3, 'title press leaves the window open');
+    assert.equal(await optionsLeft(page), 12, 'title press leaves the window open');
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); server.close(); }
 });
@@ -241,13 +255,16 @@ test('language window: releasing a push while still pinched emits one UP and no 
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     // The title is not a button, so this press must not close the window.
-    const aim = await languageTarget(page, 'h1');
-    const actions = await runSequence(page, aim, '0.40:0:800,0.44:0:800,0.465:1:900,0.48:1:900,0.42:1:900,0.42:1:900,0.465:1:900,0.48:1:900,0.42:1:900,0.42:0:900');
+    const aim = await languageTarget(page, '.lq-title');
+    const surface = aim.distanceTo(new THREE.Vector3(0, EYE_Y, 0));
+    const actions = await runSequence(page, aim, steps(surface,
+      [-.06, -.02, -.004, .008, -.02, -.02, -.004, .008, -.02, -.02],
+      [0, 0, 1, 1, 1, 1, 1, 1, 1, 0], 800));
     const firstUp = actions.indexOf(ACTION.up);
     assert.ok(firstUp > 0, 'pushing through the glass produced a press: ' + JSON.stringify(actions));
     assert.equal(actions.slice(firstUp + 1).filter(a => a === ACTION.down).length, 0, 'no restart after release while pinched: ' + JSON.stringify(actions));
     assert.equal(actions.filter(a => a === ACTION.up).length, 1, 'exactly one release: ' + JSON.stringify(actions));
-    assert.equal(await optionsLeft(page), 3, 'title press leaves the window open');
+    assert.equal(await optionsLeft(page), 12, 'title press leaves the window open');
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); server.close(); }
 });

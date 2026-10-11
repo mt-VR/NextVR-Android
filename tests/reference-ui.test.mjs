@@ -178,7 +178,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       await page.evaluate(()=>window.__settle=null);
       await page.waitForFunction(()=>{
         const prev=window.__settle,seq=window.__frameSeq;
-        if(prev?.seq===seq)return false;
+        // Sem animação de janela a cena fica bit a bit igual e a ponte PARA de enviar: nenhum envio
+        // novo também é a cena assentada (o atlas só cruza quando algo muda). Exigir dois envios
+        // parados seguidos cobriria o caso de um envio ainda em voo logo após o reset.
+        if(prev?.seq===seq){const count=prev.count+1;window.__settle={...prev,count};return count>=2;}
         const values=window.__last.panels.filter(p=>!p.overlay).flatMap(p=>p.matrix);
         const stable=prev?.values.length===values.length && values.every((v,i)=>Math.abs(v-prev.values[i])<.00015);
         const count=stable?prev.count+1:0;window.__settle={seq,values,count};return count>=3;
