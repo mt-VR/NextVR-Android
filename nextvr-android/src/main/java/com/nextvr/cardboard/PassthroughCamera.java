@@ -12,7 +12,10 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
 import com.nextvr.cardboard.hands.PhoneXrHands;
+import com.samrat.orangehanding.DirectHands;
 import com.samrat.orangehanding.FusionHands;
+import com.samrat.orangehanding.HandEngine;
+import com.samrat.orangehanding.RetryableInferenceException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -80,7 +83,11 @@ final class PassthroughCamera {
     /** Cleared once the GPU delegate has been dropped for measured slowness; never retried. */
     private boolean preferGpu=true;
     private boolean timestampIsRealtime;
-    private FusionHands detector; // Created, used and closed on the SAME thread (GPU delegate).
+    /** A/B hand-tracking engine selected at runtime (settings app): PhoneXR's pipeline or the
+     * simple direct path. Read when the landmarker is built, so switching recreates it. */
+    static final String ENGINE_PHONEXR="phonexr",ENGINE_SIMPLE="simple";
+    private volatile String engineId=ENGINE_PHONEXR;
+    private HandEngine detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
     private int rotation;
     private volatile boolean destroyed;
@@ -261,24 +268,13 @@ final class PassthroughCamera {
     private void track(TrackingFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
-            if(detector==null) {
-                if(preferGpu) {
-                    try { detector=new FusionHands(context,true,"hand_landmarker.task",500L);gpuDetector=true; }
-                    catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
-                } else {
-                    // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
-                    // pick it up again on the next creation, or a failed CPU rebuild would loop.
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false;
-                }
-                PerfLog.delegate(gpuDetector?"GPU":"CPU");
-                if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
-            }
+            if(detector==null)buildDetector();
             long inferenceStart=SystemClock.elapsedRealtime();
             com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
             try { detected=detector.detectOwned(frame.bitmap,frame.stamp,0); }
             catch(RuntimeException inferenceFailure) {
-                FusionHands.RetryableInferenceException retryable = inferenceFailure instanceof FusionHands.RetryableInferenceException
-                    ? (FusionHands.RetryableInferenceException)inferenceFailure : null;
+                RetryableInferenceException retryable = inferenceFailure instanceof RetryableInferenceException
+                    ? (RetryableInferenceException)inferenceFailure : null;
                 if(!gpuDetector || retryable==null) {
                     if(retryable!=null && !retryable.getRetryBitmap().isRecycled())retryable.getRetryBitmap().recycle();
                     throw inferenceFailure;
@@ -287,8 +283,8 @@ final class PassthroughCamera {
                 Bitmap retryFrame=retryable.getRetryBitmap();
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);
-                    PerfLog.delegate("CPU");
+                    detector=createDetector(false);
+                    PerfLog.delegate("CPU "+engineName());
                     hands.reset();
                     // Borrowed input preserves the emergency retry bitmap if CPU inference also fails.
                     detected=detector.detect(retryFrame,frame.stamp,0);
@@ -313,10 +309,10 @@ final class PassthroughCamera {
                     "%.1f ms mean",delegateWatch.averageMs())+"; switching the landmarker to CPU");
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);
+                    detector=createDetector(false);
                     delegateWatch.reset();
                     preferGpu=false;
-                    PerfLog.delegate("CPU (after a slow GPU)");
+                    PerfLog.delegate("CPU (after a slow GPU) "+engineName());
                     // The new graphs have no region-of-interest history, so the filters start fresh.
                     hands.reset();budget.reset();
                     reportedSkips=detector.recoverySkips();
@@ -335,6 +331,61 @@ final class PassthroughCamera {
             trackFailures.succeeded();
         }catch(Exception e){handleTrackingFailure(e);}
     }
+    /** The engine the settings app selected; short name for the perf log. */
+    private String engineName() { return ENGINE_SIMPLE.equals(engineId)?"simple":"PhoneXR"; }
+
+    /**
+     * Builds the landmarker for the selected engine (see HandEngine). The PhoneXR pipeline keeps a
+     * one/two-slot pair plus YOLO wrist recovery, so its YOLO interval is passed here; the simple
+     * engine is a single two-hand graph and takes neither.
+     */
+    private HandEngine createDetector(boolean gpu) {
+        if(ENGINE_SIMPLE.equals(engineId))return new DirectHands(context,gpu,"hand_landmarker.task");
+        return new FusionHands(context,gpu,"hand_landmarker.task",gpu?500L:750L);
+    }
+
+    /** Creates (or recreates) the detector on the tracking thread and reports the choice. */
+    private void buildDetector() {
+        if(preferGpu) {
+            try { detector=createDetector(true);gpuDetector=true; }
+            catch(RuntimeException gpu) { detector=createDetector(false);gpuDetector=false; }
+        } else {
+            // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
+            // pick it up again on the next creation, or a failed CPU rebuild would loop.
+            detector=createDetector(false);gpuDetector=false;
+        }
+        // The engine travels in the delegate string, so an A/B session shows which one a window of
+        // the log belongs to without a new field (tools/perf/summarize_logcat.py prints the set).
+        PerfLog.delegate((gpuDetector?"GPU":"CPU")+" "+engineName());
+        if(!ENGINE_SIMPLE.equals(engineId) && !detector.getFused())
+            listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
+    }
+
+    /**
+     * A/B switch, called from the WebView (settings → hand tracking) and only then: recreates the
+     * landmarker on the tracking thread with the other engine. The next frame uses it — the web
+     * layer sees the same frames, produced by a different detector.
+     */
+    void setHandEngine(String id) {
+        String wanted=ENGINE_SIMPLE.equals(id)?ENGINE_SIMPLE:ENGINE_PHONEXR;
+        if(wanted.equals(engineId))return;
+        engineId=wanted;
+        android.util.Log.i("NextVR-Hands","hand engine: "+engineName());
+        try {
+            tracking.execute(()->{
+                if(detector!=null){detector.close();detector=null;}
+                // A new engine is a fresh start: no slot decision, filters, delegate verdict or
+                // failure streak from the engine that was just replaced.
+                delegateWatch.reset();budget.reset();hands.reset();
+                preferGpu=true;gpuDetector=false;
+                trackFailures.reset();
+                reportedSkips=0;reportedNarrow=0;reportedWide=0;reportedProbes=0;
+            });
+        } catch(RejectedExecutionException shutdown) {
+            // Tracking was shut down (destroy): the flag is set for a future session; nothing to rebuild.
+        }
+    }
+
     /**
      * The one place a failed tracking frame is judged: a single failure (a bitmap the delegate
      * rejected, a transient allocation failure while a WebView was rasterizing) must not end hand

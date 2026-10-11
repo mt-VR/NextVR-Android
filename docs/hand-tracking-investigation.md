@@ -1145,3 +1145,58 @@ demora.
   `assembleDebug`, a verificação das bibliotecas nativas nos dois ABIs e a publicação do APK. Node:
   48/48 com Chromium. Validação on-device pendente: as 5 falhas seguidas para a queda, as rajadas em
   `camera_retries`/`hand_retries` e a palma colapsada continuam exigindo aparelho real.
+
+# 2026-10-10 (8ª rodada) — A/B de motor de mãos, arco multitarefa centro-primeiro e arrasto sem ir para trás
+
+## O que mudou
+
+- **Motor de mãos selecionável (A/B)**: o pipeline PhoneXR (`FusionHands`: slots de 1/2 mãos +
+  resgate YOLO + orçamento de recuperação) e um segundo motor deliberadamente simples
+  (`DirectHands`: UM grafo VIDEO `numHands=2`, uma inferência por frame, sem slots, sem YOLO, sem
+  resgate, sem trabalho de CPU em segundo plano) agora ficam atrás da mesma interface `HandEngine`.
+  A escolha é em tempo de execução (Configurações → Hand tracking → Motor de mãos, chave
+  `handEngine` em `nextvr.v1`, ponte `NativeXR.handEngine`), o próximo frame já usa o motor novo, e
+  o log de desempenho carrega o motor na string de `delegate` (ex.: `GPU PhoneXR` / `GPU simple`)
+  para separar uma janela A/B sem campo novo. Mesmo modelo, mesmas opções e mesma pós-produção
+  (`PhoneXrHands`): o que muda é só o pipeline em volta, e o web não distingue os dois.
+  - `HandModels` centraliza a construção do grafo; `RetryableInferenceException` virou classe
+    própria para a recuperação GPU→CPU valer nos DOIS motores (antes era aninhada no `FusionHands`).
+  - A troca é feita na thread de tracking, com `close()` do motor antigo ANTES da criação do novo,
+    e zera slot/filtros/veredito do delegate/streak de falhas: nenhum estado do motor anterior
+    sobrevive à troca.
+  - O motor simples não é um "modo de teste" com mãos falsas: é o MediaPipe real, direto — serve
+    para comparar com o PhoneXR no mesmo aparelho (e é a alternativa a ser promovida se o pipeline
+    com resgate não se pagar). Um modo 100% sintético forjaria gestos sem câmera e não mediria nada
+    do aparelho, então foi descartado nesta rodada.
+- **Arco multitarefa centro-primeiro** (`arc.js`): o arco era simétrico — com duas janelas viravam
+  `[-passo/2, +passo/2]`, NENHUMA no centro e as duas deslocadas; com três, `[-passo, 0, +passo]`
+  com o passo antigo de "largura + 8 cm", colado. Agora o primeiro app ocupa o centro (0) e os
+  seguintes alternam em volta (+passo, −passo); como o layout é por índice, fechar um app faz os
+  que sobraram deslizarem para os primeiros slots — o app que estava do lado vai para o centro.
+- **Folga de meia janela** (`arcStep`): o passo angular é `largura angular da maior janela × (1 +
+  folga)` com folga 0,5 (meia janela entre bordas), limitado pelo yaw alcançável do workspace
+  (`maxYaw − 0,06`) para a janela mais externa nunca sair de alcance — com janelas grandes e arco
+  perto a folga é a que couber, e aumentar a "Distância do arco" devolve a folga completa.
+- **Arrasto sem ganhar profundidade** (`clampWindowPosition` com raio fixo): o plano do cursor é
+  perpendicular ao olhar DO MOMENTO DO GRAB, então uma janela fora do eixo era arrastada por um
+  plano inclinado em relação à esfera e GANHAVA distância do olho — ela "ia para trás", longe da
+  dock. Agora o raio do grab é capturado junto com a âncora e o clamp o fixa: mover só gira a janela
+  em volta do usuário (mesma altura, mesma distância, mesmo limite de yaw). Sem o parâmetro, o
+  comportamento antigo (raio do próprio ponto) é preservado para o layout e o redimensionamento.
+
+## Validação
+
+- Node: **50 testes, 42 passam, 0 falham, 8 pulados** (Chromium/Playwright não roda neste ambiente;
+  o CI roda). Novos/atualizados: `arc.test.mjs` (centro-primeiro, alternância, passo = 1,5 janela
+  com folga completa a 2 m e limitado pelo alcance perto, distância maior restaura a folga relativa)
+  e `window-geometry.test.mjs` (raio fixo em todo o arrasto lateral, limites de raio e altura, e o
+  caminho sem parâmetro inalterado).
+- `npm run build:ui` regerado e commitado (`assets/ui/app.js`), como o CI exige.
+- **Não compilado neste ambiente** (sem Android SDK/Gradle): os arquivos nativos novos
+  (`HandEngine`, `HandModels`, `DirectHands`, `RetryableInferenceException`) e as mudanças de
+  `FusionHands`/`PassthroughCamera` passaram por checagem de sintaxe (tree-sitter, 0 erros) e
+  conferência de símbolo (todas as chamadas novas × declarações); o CI confirma com
+  `compileDebugKotlin`/`compileDebugJavaWithJavac`, os testes JVM e o APK.
+- Validação on-device pendente: qual motor se comporta melhor e em que faixa de FPS
+  (`delegate=GPU PhoneXR` vs `GPU simple` no log), a folga do arco na visão real e o arrasto
+  lateral mantendo a janela no lugar.

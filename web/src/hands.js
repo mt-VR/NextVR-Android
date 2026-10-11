@@ -13,7 +13,11 @@ let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = nul
 export const tracking = () => enabled;
 export async function startHands() {
   if (!native) { toast('PhoneXR hands require the Android camera pipeline.'); return false; }
-  enabled = true; window.NativeXR.hands(true); emit('hands', true); return true;
+  enabled = true; window.NativeXR.hands(true); emit('hands', true);
+  // A/B: o motor escolhido nas Configurações sobe junto com o tracking (a troca em runtime é a
+  // mesma chamada, feita pela aba "Hand tracking").
+  window.NativeXR.handEngine?.(S.handEngine === 'simple' ? 'simple' : 'phonexr');
+  return true;
 }
 function emitClickEvents(events) {
   for (const event of events) emit(`pinch${event}`, cursor);

@@ -65,7 +65,13 @@ hand input: gaze dwell, viewer-button activation and touchscreen forwarding are 
 head rotation updates the view only. Recognized pinch/fist/contact transitions are preserved across
 slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
 Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
-resizing. The current `N` mark and component icons are
+resizing. Two hand-tracking engines can be compared on the device from Settings → Hand tracking:
+PhoneXR's pipeline (one/two slots plus YOLO wrist recovery) and a simpler single two-hand graph with
+no rescue, swapped at runtime with the same model and thresholds, and tagged in the perf log. The
+multitask arc keeps the first app centered with the others alternating around it at half a window of
+clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
+distance from the eye, so moving it never sends it backwards.
+The current `N` mark and component icons are
 extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
 ## Controls
@@ -83,6 +89,7 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 | Browser scrolling | Hold a hand pinch on the page and move. |
 | Type | Focus a field with the hand and use the floating keyboard. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
+| Switch hand engine | Settings → Hand tracking → Motor de mãos: PhoneXR (slots + YOLO rescue) or Simples (one two-hand graph); takes effect on the next frame. |
 | Recenter | Crosshair/recenter control on the dock. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |

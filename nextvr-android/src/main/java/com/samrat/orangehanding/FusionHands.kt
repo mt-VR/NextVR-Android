@@ -7,8 +7,6 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.components.containers.Category
 import com.google.mediapipe.tasks.components.containers.Landmark
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
@@ -58,13 +56,9 @@ class FusionHands @JvmOverloads constructor(
     private val yoloEveryMs: Long = 250,
     /** How often a narrow (one-slot) stretch re-checks for a second hand. */
     secondHandProbeMs: Long = HandSlotPolicy.DEFAULT_PROBE_MS,
-) : AutoCloseable {
-    /** A unique input was consumed by a failed delegate; this copy is only made on that rare path. */
-    class RetryableInferenceException(val retryBitmap: Bitmap, cause: RuntimeException) :
-        RuntimeException("Hand inference failed; retry bitmap retained", cause)
-
-    private val wide: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 2)
-    private val narrow: HandLandmarker = landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 1)
+) : HandEngine {
+    private val wide: HandLandmarker = HandModels.landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 2)
+    private val narrow: HandLandmarker = HandModels.landmarker(context, handModel, useGpu, RunningMode.VIDEO, .45f, 1)
     private val slots = HandSlotPolicy(secondHandProbeMs)
     private val appContext = context.applicationContext
     private val model = handModel
@@ -93,35 +87,35 @@ class FusionHands @JvmOverloads constructor(
     @Volatile private var wristsAt = 0L
 
     /** Recovery is enabled (possibly still lazy-loading) unless the model failed. */
-    val fused get() = !yoloFailed
+    override val fused get() = !yoloFailed
 
     /** Slots the primary graph is currently processing (1 or 2), for the perf log. */
-    fun currentSlots() = if (slots.lastWasWide()) 2 else 1
+    override fun currentSlots() = if (slots.lastWasWide()) 2 else 1
 
     /** Frames of each kind, so a device log can attribute the landmark rate. */
-    fun narrowFrames() = slots.narrowFrames()
+    override fun narrowFrames() = slots.narrowFrames()
 
-    fun wideFrames() = slots.wideFrames()
+    override fun wideFrames() = slots.wideFrames()
 
     /** Second-hand re-checks paid for while narrow. */
-    fun probes() = slots.probes()
+    override fun probes() = slots.probes()
 
     /** YOLO rounds shed because the primary inference was already the bottleneck. */
-    fun recoverySkips() = recoveryBudget.suppressedCount()
+    override fun recoverySkips() = recoveryBudget.suppressedCount()
 
     /**
      * Hand tracking is being paused: forget the slot decision. It was made from frames that will be
      * far in the past by the time the next one arrives, and the graphs keep their own
      * region-of-interest history across a pause, so resuming should search both hands again.
      */
-    fun resetSlots() = slots.reset()
+    override fun resetSlots() = slots.reset()
 
     /** Detect without taking ownership; useful to callers that keep/reuse [bitmap]. */
-    fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
+    override fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int): HandLandmarkerResult =
         detectInternal(bitmap, timestampMs, rotationDegrees, takeOwnership = false)
 
     /** Detect a unique per-frame bitmap and transfer it to MediaPipe (no extra pixel copy). */
-    fun detectOwned(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
+    override fun detectOwned(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int): HandLandmarkerResult =
         detectInternal(bitmap, timestampMs, rotationDegrees, takeOwnership = true)
 
     private fun detectInternal(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int,
@@ -251,7 +245,7 @@ class FusionHands @JvmOverloads constructor(
     /** Rescue thread: landmarks on the crop, mapped back to frame coordinates, kept for merging. */
     private fun runRescue(crop: Crops.Crop, width: Int, height: Int, requestedAtMs: Long) {
         try {
-            val detector = rescue ?: landmarker(appContext, model, false, RunningMode.IMAGE, .3f, 1).also { rescue = it }
+            val detector = rescue ?: HandModels.landmarker(appContext, model, false, RunningMode.IMAGE, .3f, 1).also { rescue = it }
             val image = BitmapImageBuilder(crop.bitmap).build()
             val result = try { detector.detect(image) } finally { image.close() } // closing recycles crop.bitmap
             val hand = result.landmarks().firstOrNull()
@@ -306,19 +300,5 @@ class FusionHands @JvmOverloads constructor(
         private const val RESCUE_MIN_INTERVAL_MS = 33L
         /** A rescue is a second CPU inference: skip it while the primary is already this slow. */
         private const val RESCUE_PRESSURE_MS = 45L
-
-        private fun landmarker(context: Context, model: String, gpu: Boolean, mode: RunningMode,
-            confidence: Float, numHands: Int): HandLandmarker {
-            val base = BaseOptions.builder().setModelAssetPath(model).setDelegate(if (gpu) Delegate.GPU else Delegate.CPU).build()
-            val options = HandLandmarker.HandLandmarkerOptions.builder()
-                .setBaseOptions(base)
-                .setRunningMode(mode)
-                .setNumHands(numHands)
-                .setMinHandDetectionConfidence(confidence)
-                .setMinHandPresenceConfidence(confidence)
-                .setMinTrackingConfidence(.35f)
-                .build()
-            return HandLandmarker.createFromOptions(context, options)
-        }
     }
 }

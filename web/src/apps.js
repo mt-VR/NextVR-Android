@@ -401,6 +401,23 @@ function settingsApp() {
       c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
       c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
       c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.30 / 0.48')));
+      // A/B de motores: troca em tempo de execução (o nativo recria o landmarker no próximo frame).
+      // PhoneXR = pipeline completo (slots + resgate YOLO); Simples = um grafo de 2 mãos, sem
+      // resgate — mesma pós-produção, para comparar os dois no mesmo aparelho.
+      const segEngine = el('div', 'seg');
+      for (const [id, name, hint] of [['phonexr', 'PhoneXR', 'slots + resgate YOLO'], ['simple', 'Simples', 'um grafo de 2 mãos']]) {
+        const b = el('button', null, name); b.title = hint;
+        b.setAttribute('aria-pressed', (S.handEngine || 'phonexr') === id);
+        b.onclick = () => {
+          S.handEngine = id; save();
+          window.NativeXR?.handEngine?.(id);
+          toast(`${t('engine')}: ${name}`);
+          [...segEngine.children].forEach(x => x.setAttribute('aria-pressed', 'false'));
+          b.setAttribute('aria-pressed', 'true');
+        };
+        segEngine.appendChild(b);
+      }
+      c.append(row(t('engine'), 'A/B — troca o motor de mãos no aparelho', segEngine));
       page.append(c);
     }],
     [t('windows'), () => {

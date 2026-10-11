@@ -7,8 +7,8 @@ import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
-  stabilizeResize } from './window-geometry.js';
-import { ARC_CAPACITY, arcLayout, pickLru } from './arc.js';
+  stabilizeResize, WINDOW_LIMITS } from './window-geometry.js';
+import { ARC_CAPACITY, arcLayout, arcStep, pickLru } from './arc.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
@@ -142,7 +142,13 @@ function layout() {
   const pin = wins.filter(w => w.pinned && !w.onboarding);
   const n = pin.length; if (!n) return;
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
-  const step = native?Math.min(1.3,2*Math.atan(Math.max(...pin.map(w=>w.w*w.resizeScale))*PX*S.winScale/(2*dist))+.08):Math.min(.78, Math.max(.52,.5+n*.05));
+  // A folga entre janelas vizinhas é de MEIA JANELA (arcStep), não os 8 cm de antes: com duas
+  // janelas o passo antigo ainda era dividido por dois ([-passo/2, +passo/2]) e as duas se
+  // sobrepunham. O passo é limitado pelo yaw alcançável do workspace, então com janelas grandes a
+  // folga é a que couber; o arco do preview (mouse) mantém o passo próprio, menor.
+  const widest = Math.max(...pin.map(w => w.w * w.resizeScale)) * PX * S.winScale;
+  const step = native ? arcStep({ width: widest, dist, gap: .5, outerLimit: WINDOW_LIMITS.maxYaw - .06 })
+    : Math.min(.78, Math.max(.52, .5 + n * .05));
 
   arcLayout(n, { step, dist }).forEach(([x, z], i) => {
     const w = pin[i];
@@ -208,8 +214,8 @@ function setRay(nx, ny, target=ray) {
   return target;
 }
 function halfHeight(w) { return w.h * PX * S.winScale * w.resizeScale / 2; }
-function boundedPosition(w, point) {
-  const p=clampWindowPosition(point,halfHeight(w),EYE);
+function boundedPosition(w, point, radius=null) {
+  const p=clampWindowPosition(point,halfHeight(w),EYE,radius);
   return new THREE.Vector3(p.x,p.y,p.z);
 }
 function startDrag(w, nx, ny, source='handle', hand=null) {
@@ -223,8 +229,15 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   // Âncora estável capturada NO MOMENTO DO GRAB: a janela segue deltas relativos a este ponto
   // fixo — nunca é reavaliada contra a posição defasada da janela nem contra o ponto onde o
   // gesto foi ativado (que já embutiria o salto que disparou o arrasto e o descartaria).
+  //
+  // O RAIO do grab também é capturado aqui: o plano do cursor é perpendicular ao olhar do momento
+  // do grab, então uma janela fora do eixo andava por um plano inclinado em relação à esfera e
+  // GANHAVA distância do olho — ela "ia para trás", longe da dock, enquanto era movida. Preso o
+  // raio, mover só gira a janela em volta do usuário (mesma altura, mesma distância).
+  const local=contentRoot.worldToLocal(center.clone());
+  const radius=Math.hypot(local.x,local.z);
   Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,
-    anchor:{hit:hit.clone(),center:center.clone(),applied:new THREE.Vector3()}});
+    anchor:{hit:hit.clone(),center:center.clone(),radius,applied:new THREE.Vector3()}});
   return true;
 }
 function activateDrag() {
@@ -249,7 +262,8 @@ function dragTo(nx, ny) {
   // estado defasado da janela, então não há retroalimentação (janela puxando de um lado para o
   // outro) nem acúmulo de erro: o mesmo delta devolve sempre a mesma posição.
   const world=a.center.clone().add(a.applied);
-  const limited=boundedPosition(w,contentRoot.worldToLocal(world));
+  // O raio do grab vai junto: mover nunca aproxima nem afasta a janela do olho (sem "ir pra trás").
+  const limited=boundedPosition(w,contentRoot.worldToLocal(world),a.radius);
   w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
   return true;

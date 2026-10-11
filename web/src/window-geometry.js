@@ -19,18 +19,22 @@ const finite = value => Number.isFinite(value) ? value : 0;
 /**
  * Mantém toda a altura da janela na faixa confortável e o centro no arco frontal.
  * O retorno é um objeto novo para que esta função possa ser usada sem THREE nos testes.
+ *
+ * `radius` FIXA a distância ao olho em vez de preservar a do ponto recebido: é o que o arrasto
+ * passa para a janela não ganhar profundidade enquanto é movida. Sem ele o raio do próprio ponto é
+ * preservado (o comportamento de sempre, usado pelo layout e pelo redimensionamento).
  */
-export function clampWindowPosition(point, halfHeight = 0, eye = 1.55) {
+export function clampWindowPosition(point, halfHeight = 0, eye = 1.55, radius = null) {
   let x = finite(point?.x), y = Number.isFinite(point?.y) ? point.y : eye, z = finite(point?.z);
-  let radius = Math.hypot(x, z);
-  if (radius < 1e-5) { radius = WINDOW_LIMITS.minDistance; x = 0; z = -radius; }
+  let r = Number.isFinite(radius) ? radius : Math.hypot(x, z);
+  if (r < 1e-5) { r = WINDOW_LIMITS.minDistance; x = 0; z = -r; }
   const yaw = clamp(Math.atan2(-x, -z), -WINDOW_LIMITS.maxYaw, WINDOW_LIMITS.maxYaw);
-  radius = clamp(radius, WINDOW_LIMITS.minDistance, WINDOW_LIMITS.maxDistance);
+  r = clamp(r, WINDOW_LIMITS.minDistance, WINDOW_LIMITS.maxDistance);
   const safeHalf = Math.max(0, finite(halfHeight));
   const low = eye + WINDOW_LIMITS.lowerEdgeFromEye + safeHalf;
   const high = eye + WINDOW_LIMITS.upperEdgeFromEye - safeHalf;
   y = low <= high ? clamp(y, low, high) : eye;
-  return { x: -Math.sin(yaw) * radius, y, z: -Math.cos(yaw) * radius };
+  return { x: -Math.sin(yaw) * r, y, z: -Math.cos(yaw) * r };
 }
 
 /** Distância do gesto em pixels lógicos do HUD, independente da proporção da tela. */

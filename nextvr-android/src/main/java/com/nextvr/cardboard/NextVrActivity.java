@@ -335,6 +335,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
+        /** A/B hand-tracking engine, chosen in the settings app ("phonexr" or "simple"): the next
+         * frame is produced by the selected detector, and the web layer cannot tell the difference. */
+        @JavascriptInterface public void handEngine(String id) { if(!closed)camera.setHandEngine(id); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
         @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }

@@ -55,6 +55,30 @@ test('anchor deltas ignore resting jitter, follow motion without lag and cap a o
   assert.deepEqual(back,{x:0,y:0,z:0});
 });
 
+test('a dragged window keeps the distance it was grabbed at (never recedes from the eye)',()=>{
+  const eye=1.55,half=.35;
+  // A window grabbed at 0.7 m, well off to the side and high — the worst case for the old code:
+  // the cursor plane is tilted relative to the sphere, so moving sideways used to ADD depth.
+  const grabbed={x:-.62,y:eye+.3,z:-.32};
+  const radius=Math.hypot(grabbed.x,grabbed.z);
+  near(radius,.7,.005);
+  // Every step of a long sideways drag is clamped with the grabbed radius: same distance, new yaw.
+  for (const point of [{x:-.95,y:eye+.35,z:-.25},{x:.3,y:eye+.2,z:-.9},{x:.9,y:eye-.1,z:-.6}]) {
+    const p=clampWindowPosition(point,half,eye,radius);
+    near(Math.hypot(p.x,p.z),radius,1e-6);
+    assert.ok(Math.abs(Math.atan2(-p.x,-p.z))<=WINDOW_LIMITS.maxYaw+1e-8);
+  }
+  // The fixed radius is still bounded by the workspace limits (a grab at 5 m cannot happen, but a
+  // bad value must not escape them) and the height band still applies.
+  const far=clampWindowPosition({x:0,y:eye,z:-1},half,eye,99);
+  near(Math.hypot(far.x,far.z),WINDOW_LIMITS.maxDistance);
+  const low=clampWindowPosition({x:0,y:-99,z:-1},half,eye,radius);
+  near(low.y,eye+WINDOW_LIMITS.lowerEdgeFromEye+half);
+  // Without the parameter the behaviour is the old one: the radius of the point itself survives.
+  const free=clampWindowPosition({x:-.62,y:eye+.3,z:-.32},half,eye);
+  near(Math.hypot(free.x,free.z),radius);
+});
+
 test('resize is proportional, bounded and stops at the vertical edge without moving the center',()=>{
   near(clampResize(.1),WINDOW_LIMITS.minResize);
   near(clampResize(9),WINDOW_LIMITS.maxResize);
