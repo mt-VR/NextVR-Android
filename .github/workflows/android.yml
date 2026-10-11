@@ -84,7 +84,7 @@ jobs:
               unzip -Z1 "$APK" | grep -Fx "lib/$ABI/$LIB"
             done
             unzip -p "$APK" "lib/$ABI/libnextvr_jni.so" > "/tmp/nextvr-$ABI.so"
-            "$NM" -D "/tmp/nextvr-$ABI.so" | grep 'Java_com_nextvr_cardboard_PassthroughCamera_nativeYuvToArgb'
+            "$NM" -D "/tmp/nextvr-$ABI.so" | grep 'Java_com_nextvr_app_PassthroughCamera_nativeYuvToArgb'
           done
           ) 2>&1 | tee -a /tmp/build.log
 

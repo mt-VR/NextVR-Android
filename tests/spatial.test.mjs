@@ -26,13 +26,13 @@ test('Cardboard view inversion has the expected orientation, with no translation
 });
 test('render path removes the room and uses Cardboard stereo with an upright 2D camera pass', async () => {
   const cpp=await readFile('nextvr-android/src/main/jni/nextvr_app.cc','utf8');
-  const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/SpatialRenderer.java','utf8');
+  const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java','utf8');
   assert.ok(cpp.includes('CardboardHeadTracker_getPose'));
   assert.ok(cpp.includes('CardboardDistortionRenderer_renderEyeToDisplay'));
   assert.ok(!cpp.includes('DrawRoom') && !cpp.includes('GetTranslationMatrix(position)'));
   assert.ok(java.includes('samplerExternalOES') && java.includes('GL_ONE_MINUS_SRC_ALPHA'));
   assert.ok(java.includes('uniform sampler2D uCamera'));
-  const camera=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java','utf8');
+  const camera=await readFile('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java','utf8');
   assert.ok(!camera.includes('getTransformMatrix(') && !camera.includes('new SurfaceTexture(') && camera.includes('nativeYuvToArgb'));
   assert.ok(!camera.includes('postRotate('), 'Upright rotation is fused into the native YUV pass (pixel-exact index remap), not a Java bilinear resample');
   assert.ok(/nativeYuvToArgb\(cameraPixels,[\s\S]*?rotation\)/.test(camera), 'The native conversion receives the quarter-turn rotation');
@@ -42,7 +42,7 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
-  const nativeHands=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/PhoneXrHandRenderer.kt','utf8');
+  const nativeHands=await readFile('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt','utf8');
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
   assert.ok(hands.includes('NativeXR.handVisuals?.(visual)'), 'The UI setting controls only the native silhouette visibility');
   assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands)'),
@@ -54,7 +54,7 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(!hands.includes('navigator.mediaDevices.getUserMedia'), 'The renderer must not open a second camera');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
-  const java=await readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8');
+  const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8');
   assert.ok(java.includes("frame-src 'none'"));
   assert.ok(java.includes('if(shell) web.addJavascriptInterface'));
   assert.ok(java.includes('s.setAllowFileAccess(false)'));

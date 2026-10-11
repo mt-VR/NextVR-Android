@@ -28,7 +28,7 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
  *    therefore looked for with a lower bar, and no second inference, no crop and no extra model are
  *    involved.
  *  - **No background work at all.** No YOLO thread, no rescue thread, no merge queue: the tracking
- *    thread runs the frame, and the post-processing ([com.nextvr.cardboard.hands.PhoneXrHands])
+ *    thread runs the frame, and the post-processing ([com.nextvr.app.hands.PhoneXrHands])
  *    is the only thing after it. On a phone that also means no CPU competing with the frame the
  *    user is waiting for.
  *

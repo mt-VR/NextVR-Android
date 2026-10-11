@@ -31,7 +31,7 @@ test('all UI/configuration sources are strict UTF-8 and contain no common mojiba
 
 test('HTML, Android resources and WebView responses declare UTF-8 at every boundary',async()=>{
   const [html,surface,pt,en,gradle]=await Promise.all([
-    readFile('web/index.html','utf8'),readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8'),
+    readFile('web/index.html','utf8'),readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8'),
     readFile('nextvr-android/src/main/res/values-pt/strings.xml','utf8'),
     readFile('nextvr-android/src/main/res/values/strings.xml','utf8'),readFile('nextvr-android/build.gradle','utf8'),
   ]);

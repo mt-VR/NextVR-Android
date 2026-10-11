@@ -5,7 +5,7 @@
 // The upright (optionally quarter-turn rotated) display pixels are produced in one pass;
 // the rotation is fused into the conversion as pure write-index remapping.
 extern "C" JNIEXPORT void JNICALL
-Java_com_nextvr_cardboard_PassthroughCamera_nativeYuvToArgb(
+Java_com_nextvr_app_PassthroughCamera_nativeYuvToArgb(
     JNIEnv* env, jclass, jintArray out, jobject y_buffer, jobject u_buffer, jobject v_buffer,
     jint w, jint h, jint ys, jint us, jint vs, jint yp, jint up, jint vp, jint rotation) {
   auto* y = static_cast<uint8_t*>(env->GetDirectBufferAddress(y_buffer));

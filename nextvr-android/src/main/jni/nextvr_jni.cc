@@ -23,7 +23,7 @@
 
 #define JNI_METHOD(return_type, method_name) \
   JNIEXPORT return_type JNICALL              \
-      Java_com_nextvr_cardboard_NextVrActivity_##method_name
+      Java_com_nextvr_app_NextVrActivity_##method_name
 
 namespace {
 

@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 test('native VR input stays hand-only; hand-visual settings are not an input route',async()=>{
   const [activity,surface,hands,windows,apps,core,bundle,cpp,header,jni]=await Promise.all([
-    readFile('nextvr-android/src/main/java/com/nextvr/cardboard/NextVrActivity.java','utf8'),
-    readFile('nextvr-android/src/main/java/com/nextvr/cardboard/WebSurface.java','utf8'),
+    readFile('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java','utf8'),
+    readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8'),
     readFile('web/src/hands.js','utf8'),readFile('web/src/windows.js','utf8'),
     readFile('web/src/apps.js','utf8'),readFile('web/src/core.js','utf8'),
     readFile('nextvr-android/src/main/assets/ui/app.js','utf8'),
