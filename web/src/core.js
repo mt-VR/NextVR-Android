@@ -101,7 +101,6 @@ const STR = {
  * `table` aparecem na lista (identidade visual da referência) mas ainda não têm tradução.
  */
 export const LANG_ROWS = Object.freeze([
-  { id: 'pt', label: 'Português (Brasil)', table: 'pt' },
   { id: 'en', label: 'English (US)', table: 'en' },
   { id: 'ja', label: '日本語' },
   { id: 'fr', label: 'Français' },
@@ -113,8 +112,16 @@ export const LANG_ROWS = Object.freeze([
   { id: 'nl', label: 'Nederlands' },
   { id: 'ru', label: 'Русский' },
   { id: 'es', label: 'Español (Latinoamérica)', table: 'es' },
+  { id: 'pt', label: 'Português (Brasil)', table: 'pt' },
 ]);
-export const langRow = id => LANG_ROWS.find(r => r.id === id) || LANG_ROWS[0];
+/**
+ * Idioma quando nada foi escolhido ainda: português. NÃO usar `LANG_ROWS[0]` para isso — a ordem da
+ * lista é a do print do Meta Horizon OS (English (USA) em cima), não a ordem de preferência do app:
+ * na primeira execução, antes de o usuário tocar em qualquer linha, as próprias legendas da tela de
+ * escolha têm de sair no idioma padrão.
+ */
+const LANG_FALLBACK = 'pt';
+export const langRow = id => LANG_ROWS.find(r => r.id === id) || LANG_ROWS.find(r => r.id === LANG_FALLBACK);
 export const langLabel = () => langRow(S.lang).label;
 const langTable = () => langRow(S.lang).table || 'pt';
 export const t = k => (STR[langTable()] || STR.pt)[k] || k;
