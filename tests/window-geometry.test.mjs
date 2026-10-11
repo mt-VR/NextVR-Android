@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WINDOW_LIMITS, clampWindowPosition, gestureDistancePx, dragGestureActivated,
   resizeGestureActivated, stepDragDelta, clampResize, maxResizeAtHeight,
-  resizeFromPointer, stabilizeResize } from '../web/src/window-geometry.js';
+  resizeFromPointer, stabilizeResize, CURVE_LIMITS, curveAngle, curveRadius, curveOffset,
+  curveBulge } from '../web/src/window-geometry.js';
 
 const near=(actual,expected,epsilon=1e-6)=>assert.ok(Math.abs(actual-expected)<=epsilon,`${actual} ≉ ${expected}`);
 
@@ -55,6 +56,30 @@ test('anchor deltas ignore resting jitter, follow motion without lag and cap a o
   assert.deepEqual(back,{x:0,y:0,z:0});
 });
 
+test('a dragged window keeps the distance it was grabbed at (never recedes from the eye)',()=>{
+  const eye=1.55,half=.35;
+  // A window grabbed at 0.7 m, well off to the side and high — the worst case for the old code:
+  // the cursor plane is tilted relative to the sphere, so moving sideways used to ADD depth.
+  const grabbed={x:-.62,y:eye+.3,z:-.32};
+  const radius=Math.hypot(grabbed.x,grabbed.z);
+  near(radius,.7,.005);
+  // Every step of a long sideways drag is clamped with the grabbed radius: same distance, new yaw.
+  for (const point of [{x:-.95,y:eye+.35,z:-.25},{x:.3,y:eye+.2,z:-.9},{x:.9,y:eye-.1,z:-.6}]) {
+    const p=clampWindowPosition(point,half,eye,radius);
+    near(Math.hypot(p.x,p.z),radius,1e-6);
+    assert.ok(Math.abs(Math.atan2(-p.x,-p.z))<=WINDOW_LIMITS.maxYaw+1e-8);
+  }
+  // The fixed radius is still bounded by the workspace limits (a grab at 5 m cannot happen, but a
+  // bad value must not escape them) and the height band still applies.
+  const far=clampWindowPosition({x:0,y:eye,z:-1},half,eye,99);
+  near(Math.hypot(far.x,far.z),WINDOW_LIMITS.maxDistance);
+  const low=clampWindowPosition({x:0,y:-99,z:-1},half,eye,radius);
+  near(low.y,eye+WINDOW_LIMITS.lowerEdgeFromEye+half);
+  // Without the parameter the behaviour is the old one: the radius of the point itself survives.
+  const free=clampWindowPosition({x:-.62,y:eye+.3,z:-.32},half,eye);
+  near(Math.hypot(free.x,free.z),radius);
+});
+
 test('resize is proportional, bounded and stops at the vertical edge without moving the center',()=>{
   near(clampResize(.1),WINDOW_LIMITS.minResize);
   near(clampResize(9),WINDOW_LIMITS.maxResize);
@@ -66,4 +91,28 @@ test('resize is proportional, bounded and stops at the vertical edge without mov
   assert.ok(nearBottom>=WINDOW_LIMITS.minResize && nearBottom<WINDOW_LIMITS.maxResize);
   const smooth=stabilizeResize(1,1.4);
   assert.ok(smooth>1 && smooth<=1.07);
+});
+
+test('curvatura 360: a largura não muda, só o meio recua', () => {
+  const angle = .7, width = 1040;
+  const radius = curveRadius(width, angle);
+  assert.equal(curveOffset(0, radius), 0, 'o centro fica exatamente onde a janela plana estava');
+  assert.ok(curveOffset(width / 2, radius) > 0, 'as pontas vêm para perto do usuário');
+  assert.ok(Math.abs(curveOffset(width / 2, radius) - curveBulge(width, angle)) < 1e-6);
+  // O arco tem a mesma corda da janela plana: a ponta continua em x = largura/2.
+  assert.ok(Math.abs(radius * Math.sin(angle) - width / 2) < 1e-9);
+  // Monotônico do centro para a borda, e simétrico.
+  const xs = [0, 100, 260, 400, width / 2];
+  for (let i = 1; i < xs.length; i++) assert.ok(curveOffset(xs[i], radius) > curveOffset(xs[i - 1], radius));
+  assert.equal(curveOffset(-xs[3], radius), curveOffset(xs[3], radius));
+});
+
+test('curvatura 360: desligada (0) é plana e o ângulo é limitado', () => {
+  assert.equal(curveRadius(1040, 0), Infinity);
+  assert.equal(curveOffset(520, curveRadius(1040, 0)), 0);
+  assert.equal(curveBulge(1040, 0), 0);
+  assert.equal(curveAngle(9), CURVE_LIMITS.maxAngle);
+  assert.equal(curveAngle(-1), 0);
+  // Mais curvatura = mais recuo, para a mesma janela.
+  assert.ok(curveBulge(1040, .5) < curveBulge(1040, .9));
 });

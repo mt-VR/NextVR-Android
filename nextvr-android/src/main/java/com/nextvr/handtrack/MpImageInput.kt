@@ -1,4 +1,4 @@
-package com.samrat.orangehanding
+package com.nextvr.handtrack
 
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapImageBuilder

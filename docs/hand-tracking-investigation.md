@@ -642,6 +642,9 @@ As três leituras que importam:
 Um item deixado **de propósito**: `FusionHands.track()` ancora `handsEnabled=false` em qualquer
 exceção, encerrando o tracking da sessão. É frágil, mas muda comportamento de falha e precisa de
 aparelho para validar; não entra em uma rodada de desempenho.
+(Corrigido depois, na rodada de 2026-10-10 no fim deste documento — o sítio é
+`PassthroughCamera.track()`, não `FusionHands`; a queda agora exige 5 falhas consecutivas e a
+validação on-device continua pendente.)
 
 ## Correções desta rodada
 
@@ -1062,3 +1065,306 @@ demora.
 - **Não compilado neste ambiente** (sem JDK/Gradle): `compileDebugKotlin`/`assembleDebug` e os
   testes JVM confirmam no CI do PR. Validação on-device (YouTube: clique vs scrub; arrasto de
   janela; piscar em aparelho lento) continua exigindo telefone real.
+
+# 2026-10-10 — Robustez do tracking: pinça fantasma, mão duplicada e falha isolada que encerrava a sessão
+
+## Causas encontradas (código real)
+
+- **Pinça fantasma numa detecção colapsada (`HandGestures`)**: o gap da pinça é uma RAZÃO pela
+  largura da palma. Numa detecção degenerada (glitch do modelo devolvendo os 21 pontos no mesmo
+  lugar, ou uma mão a meio pixel da câmera) a largura da palma ia a ~0 e `0/0,02 = 0` chegava ao
+  latch como pinça FECHADA — um clique sem mão nenhuma atrás. `MIN_PALM = 0,008` (0,8 % da imagem)
+  separa medida de ruído: abaixo disso o gap é reportado aberto (`1`). Mãos reais medem ≈0,03–0,05
+  de palma mesmo no limite de detecção, então nenhum gesto real é afetado.
+- **Duas mãos com o mesmo rótulo (`PhoneXrHands`)**: quando o MediaPipe rotula as duas mãos como o
+  mesmo lado (mãos cruzadas ou vistas de perfil), as duas publicavam o MESMO `id` e compartilhavam o
+  MESMO estado (filtro One Euro e latch): os samples de uma puxavam o filtro da outra e uma mão
+  aberta podia SOLTAR a pinça que a vizinha segurava; no web, que casa `id` com press/drag, as duas
+  eram indistinguíveis. O segundo rótulo duplicado agora vai para o lado livre, então cada mão
+  mantém `id`, filtro e latch próprios, qualquer que seja a ordem em que o detector as reporte.
+- **Alocação por frame no thread de tracking (`PalmMenuPose`)**: `eligible()` montava uma dúzia de
+  `FloatArray`s (e uma lambda por landmark) por mão por frame — dentro do `Frame.json()`, que o
+  thread de tracking serializa entre duas inferências — para um campo que o web só lê como booleano.
+  Reescrito com escalares, sem boxing; mesmos limiares e mesma regra de sinal (diff conferido contra
+  HEAD), com teste de regressão para o espelhamento por lado.
+- **Qualquer exceção encerrava o tracking da sessão (`PassthroughCamera`)**: o item registrado como
+  deixado de propósito na rodada de desempenho (a âncora `handsEnabled=false` em qualquer exceção,
+  então atribuída a `FusionHands.track()` e que na verdade mora em `PassthroughCamera.track()`). Uma
+  única falha de inferência (bitmap recusado pelo delegate, alocação transitória sob pressão de
+  memória) desligava as mãos até reiniciar o app. Agora um `TrackingFailureGuard` por caminho conta
+  falhas CONSECUTIVAS: uma falha é retentada no frame seguinte (~33 ms, mesma mão) e só a quinta
+  seguida é queda — aí sim `handsEnabled=false`, `listener.error(...)` e `clearHands()` (frame
+  vazio, que cancela press em curso, como antes). `reset()` em `enableHands(true)` e ao reabrir a
+  câmera: reativar começa com a streak limpa.
+- **O mesmo no callback da câmera**: um frame com falha é retentado em vez de derrubar a câmera no
+  primeiro erro; cinco seguidos ainda chamam `fail(...)`.
+- **`Throwable`, não `Exception`, nos dois caminhos**: um `Error` (o caso realista é um
+  `OutOfMemoryError` de bitmap sob pressão de memória — o cenário que `native_mb`/`java_mb`
+  instrumentam) escapava do `catch`, matava a thread do executor/looper e deixava o pipeline parado
+  em SILÊNCIO: `scheduled` ficava preso em `true`, todo frame seguinte era descartado sem erro e sem
+  recuperação. Agora é a mesma falha contada, retentada e, se persistente, reportada.
+- **`PerfLog`**: `camera_retries`/`hand_retries` por janela (uma rajada com as mãos ainda funcionando
+  é evidência de ambiente/delegate instável, não de queda); o sumarizador
+  (`tools/perf/summarize_logcat.py`) ganhou as duas linhas e o `--self-test` verifica que elas são
+  parseadas.
+
+## Investigado e descartado (registrado para não refazer)
+
+- Troca de lado da mão segurando uma pinça (`predicted=false`): NÃO é defeito. Na troca de rótulo o
+  `id` muda e o `HandClickState` já CANCELA em vez de clicar ("losing/changing the hand cancels
+  rather than clicks") — a direção segura. Predições nunca alimentam a máquina de gestos.
+
+## Validação
+
+- JVM (harness local, Kotlin puro sobre stubs — sem Android SDK): **55 testes, 55 passam, 0 falham**.
+  Inclui `TrackingFailureGuardTest` (uma falha tolerada, queda só na N-ésima consecutiva, reset por
+  frame bom e explícito, tolerância inválida rejeitada), as 3 novas de `PhoneXrHandsTest` (ids
+  distintos e filtros independentes com rótulo duplicado; a vizinha não solta a pinça segura em
+  nenhuma ordem; detecção colapsada/meio pixel nunca é pinça e a mão real no limite de detecção
+  ainda mede o próprio gap) e os 2 novos de `PalmMenuPoseTest` (palma ereta de frente para os olhos;
+  o espelhamento por lado julgado pela mesma regra).
+- A primeira execução do harness pegou um teste errado desta rodada
+  (`oneGoodFrameResetsTheTolerance` esperava tolerância infinita após o reset); corrigido, e o
+  contrato ficou explícito: depois de um frame bom, a streak recomeça e são necessárias as N falhas
+  consecutivas de novo.
+- Node: 48 testes (40 passando, 8 do Chromium pulados neste ambiente) — sem mudança de web nesta
+  rodada.
+- `python3 tools/perf/summarize_logcat.py --self-test` passa com as métricas novas.
+- O primeiro CI do PR pegou 9 erros de símbolo em `PassthroughCamera.java`: as DECLARAÇÕES dos dois
+  guards se perderam numa edição concorrente do workspace (os usos ficaram, as declarações não).
+  Corrigido e conferido símbolo a símbolo (toda chamada nova × declaração) antes do reenvio — o
+  harness Kotlin não compila Java, então esse tipo de erro só aparece no CI.
+- O CI também pegou (run seguinte) um override ausente de `handedness()` no helper de duas mãos de
+  `PhoneXrHandsTest`: o stub do harness declarava `handedness()` como opcional, então o erro só
+  existia na API real do MediaPipe. O stub foi endurecido (abstrato, como o real) para o harness
+  acusar isso antes do CI.
+- **Não compilado neste ambiente** (sem Android SDK/Gradle): `PassthroughCamera.java`/`PerfLog.java`
+  passaram por checagem de sintaxe (tree-sitter, 0 erros) e conferência de que os 35 especificadores
+  da linha de resumo batem com os 35 argumentos antes do reenvio; o CI confirmou
+  `compileDebugJavaWithJavac`, os testes JVM/Robolectric (**15 classes, 93 testes, 0 falhas**), o
+  `assembleDebug`, a verificação das bibliotecas nativas nos dois ABIs e a publicação do APK. Node:
+  48/48 com Chromium. Validação on-device pendente: as 5 falhas seguidas para a queda, as rajadas em
+  `camera_retries`/`hand_retries` e a palma colapsada continuam exigindo aparelho real.
+
+# 2026-10-10 (8ª rodada) — A/B de motor de mãos, arco multitarefa centro-primeiro e arrasto sem ir para trás
+
+## O que mudou
+
+- **Motor de mãos selecionável (A/B)**: o pipeline PhoneXR (`FusionHands`: slots de 1/2 mãos +
+  resgate YOLO + orçamento de recuperação) e um segundo motor deliberadamente simples
+  (`DirectHands`: UM grafo VIDEO `numHands=2`, uma inferência por frame, sem slots, sem YOLO, sem
+  resgate, sem trabalho de CPU em segundo plano) agora ficam atrás da mesma interface `HandEngine`.
+  A escolha é em tempo de execução (Configurações → Hand tracking → Motor de mãos, chave
+  `handEngine` em `nextvr.v1`, ponte `NativeXR.handEngine`), o próximo frame já usa o motor novo, e
+  o log de desempenho carrega o motor na string de `delegate` (ex.: `GPU PhoneXR` / `GPU simple`)
+  para separar uma janela A/B sem campo novo. Mesmo modelo, mesmas opções e mesma pós-produção
+  (`PhoneXrHands`): o que muda é só o pipeline em volta, e o web não distingue os dois.
+  - `HandModels` centraliza a construção do grafo; `RetryableInferenceException` virou classe
+    própria para a recuperação GPU→CPU valer nos DOIS motores (antes era aninhada no `FusionHands`).
+  - A troca é feita na thread de tracking, com `close()` do motor antigo ANTES da criação do novo,
+    e zera slot/filtros/veredito do delegate/streak de falhas: nenhum estado do motor anterior
+    sobrevive à troca.
+  - O motor simples não é um "modo de teste" com mãos falsas: é o MediaPipe real, direto — serve
+    para comparar com o PhoneXR no mesmo aparelho (e é a alternativa a ser promovida se o pipeline
+    com resgate não se pagar). Um modo 100% sintético forjaria gestos sem câmera e não mediria nada
+    do aparelho, então foi descartado nesta rodada.
+- **Arco multitarefa centro-primeiro** (`arc.js`): o arco era simétrico — com duas janelas viravam
+  `[-passo/2, +passo/2]`, NENHUMA no centro e as duas deslocadas; com três, `[-passo, 0, +passo]`
+  com o passo antigo de "largura + 8 cm", colado. Agora o primeiro app ocupa o centro (0) e os
+  seguintes alternam em volta (+passo, −passo); como o layout é por índice, fechar um app faz os
+  que sobraram deslizarem para os primeiros slots — o app que estava do lado vai para o centro.
+- **Folga de meia janela** (`arcStep`): o passo angular é `largura angular da maior janela × (1 +
+  folga)` com folga 0,5 (meia janela entre bordas), limitado pelo yaw alcançável do workspace
+  (`maxYaw − 0,06`) para a janela mais externa nunca sair de alcance — com janelas grandes e arco
+  perto a folga é a que couber, e aumentar a "Distância do arco" devolve a folga completa.
+- **Arrasto sem ganhar profundidade** (`clampWindowPosition` com raio fixo): o plano do cursor é
+  perpendicular ao olhar DO MOMENTO DO GRAB, então uma janela fora do eixo era arrastada por um
+  plano inclinado em relação à esfera e GANHAVA distância do olho — ela "ia para trás", longe da
+  dock. Agora o raio do grab é capturado junto com a âncora e o clamp o fixa: mover só gira a janela
+  em volta do usuário (mesma altura, mesma distância, mesmo limite de yaw). Sem o parâmetro, o
+  comportamento antigo (raio do próprio ponto) é preservado para o layout e o redimensionamento.
+
+## Validação
+
+- Node: **50 testes, 42 passam, 0 falham, 8 pulados** (Chromium/Playwright não roda neste ambiente;
+  o CI roda). Novos/atualizados: `arc.test.mjs` (centro-primeiro, alternância, passo = 1,5 janela
+  com folga completa a 2 m e limitado pelo alcance perto, distância maior restaura a folga relativa)
+  e `window-geometry.test.mjs` (raio fixo em todo o arrasto lateral, limites de raio e altura, e o
+  caminho sem parâmetro inalterado).
+- `npm run build:ui` regerado e commitado (`assets/ui/app.js`), como o CI exige.
+- **Não compilado neste ambiente** (sem Android SDK/Gradle): os arquivos nativos novos
+  (`HandEngine`, `HandModels`, `DirectHands`, `RetryableInferenceException`) e as mudanças de
+  `FusionHands`/`PassthroughCamera` passaram por checagem de sintaxe (tree-sitter, 0 erros) e
+  conferência de símbolo (todas as chamadas novas × declarações); o CI confirma com
+  `compileDebugKotlin`/`compileDebugJavaWithJavac`, os testes JVM e o APK.
+- Validação on-device pendente: qual motor se comporta melhor e em que faixa de FPS
+  (`delegate=GPU PhoneXR` vs `GPU simple` no log), a folga do arco na visão real e o arrasto
+  lateral mantendo a janela no lugar.
+
+# 2026-10-11 (9ª rodada) — o detector do PhoneXR foi REMOVIDO e substituído por um motor próprio
+
+## O que saiu (remoção literal)
+
+- **Todo o pacote `com.samrat.orangehanding` foi apagado**: `FusionHands.kt` (os dois grafos de slot
+  + o laço de resgate), `Yolo11Pose.kt`, `Crops.kt`, `HandSlotPolicy.kt`, `RecoveryBudget.kt`,
+  `RescueMerger.kt` e o `OneEuro.kt` do fork (código morto: o filtro usado é o
+  `HandGestures.OneEuro`). Com isso foram embora o thread do YOLO, o thread do resgate, a fila de
+  crops e a política de slots.
+- **O modelo `yolo11n-pose.tflite` (11,7 MB) e o `YOLO-AGPL-3.0.txt`** foram removidos dos assets. O
+  APK deixa de distribuir um modelo Ultralytics AGPL.
+- **A dependência `com.google.ai.edge.litert:litert:1.4.0` FICA.** Ela parecia ser só o interpretador
+  do YOLO, e foi removida junto — o CI reprovou: sem ela o APK perde
+  `libtensorflowlite_jni.so` nas duas ABIs (a verificação de bibliotecas nativas do workflow exige a
+  lib), porque a LiteRT é o runtime TFLite em que o próprio `HandLandmarker` executa. Restaurada com
+  um comentário no `build.gradle` dizendo exatamente isso, para a próxima pessoa não repetir a
+  remoção. Nenhum modelo do Ultralytics volta por causa disso: o runtime é Apache-2.0 e genérico.
+- **A telemetria que só o PhoneXR alimentava** saiu do `PerfLog` e do sumarizador: `slots`, `narrow`,
+  `wide`, `probe`, `rescues`, `rescue_found`, `recovery_skips` (o `PerfLogTest` e o `--self-test` do
+  `summarize_logcat.py` foram ajustados junto).
+- **A UI de A/B e a ponte `NativeXR.handEngine`** foram removidas: com um motor só, não há o que
+  trocar. As Configurações mostram o detector em uso, não um seletor.
+- Os testes do fork (`HandSlotPolicyTest`, `RecoveryBudgetTest`, `RescueMergerTest`) saíram com as
+  classes que testavam; o `MpImageInputTest` foi movido para o pacote novo, com o caso de crop
+  removido e o de retry mantido.
+
+## O que entrou
+
+- **`com.nextvr.handtrack.HandTracker`** (novo, escrito aqui): UM grafo MediaPipe VIDEO
+  `numHands=2` por frame, no thread de tracking, sem trabalho em segundo plano. O frame entrega a
+  segunda mão pela própria inferência que já está rodando — sem o probe de 150 ms que a política de
+  slots fazia nem o caminho barato de uma mão que ela comprava.
+- **Grafo de caça (hunt)**: enquanto NADA está rastreado (6 frames sem mão ≈ 0,2 s), o mesmo modelo é
+  processado com confiança de detecção menor (.25 em vez de .45), num segundo grafo. É o que
+  substitui o resgate por YOLO: nenhum modelo extra, nenhum crop, nenhum thread — e a mão que o grafo
+  estrito não vê (longe, borrada, de perfil na borda do quadro) volta a ser procurada com um crivo
+  mais baixo. Ao primeiro resultado com mão, volta ao grafo estrito, cuja história de ROI mantém o
+  rastreio.
+- **`HandModels`/`MpImageInput`/`RetryableInferenceException`** foram movidos para o pacote novo (o
+  `MpImageInput` e a exceção são genéricos e continuam valendo: bitmap de análise com dono único, e a
+  cópia de retry que permite a volta GPU→CPU do `PassthroughCamera`).
+- `PassthroughCamera` programa contra o tipo concreto: criação/recriação do detector num único
+  `buildDetector()` (GPU → CPU na falha de criação, `DelegateWatch` para GPU medida lenta).
+- Ferramentas de host atualizadas: `hand_host_bench.py` mede agora o grafo estrito E o de caça (em vez
+  de YOLO + resgate) e não depende mais de LiteRT; `hand_input_policy_bench.py` perdeu o caso de
+  contenção (não há mais worker em segundo plano); `pipeline_sim.py` ficou marcado como modelo
+  histórico da era PhoneXR.
+- Docs atualizados: README (motor, tabela de controles, code map, atribuição), `THIRD-PARTY.md`
+  (modelo YOLO/LiteRT registrados como REMOVIDOS; detector do fork fora da lista de código
+  integrado), `REFERENCE-INTEGRATION.md` (diagrama e notas) e `tools/perf/README.md` (campos que
+  deixaram de existir).
+
+## O que ficou igual, de propósito
+
+- A pós-produção (`PhoneXrHands`, `HandGestures`, `HandPresentation`, `PalmMenuPose`) e o renderer GL
+  continuam os mesmos: filtros One Euro, histerese de pinça `.30/.48`, ponte de predição, ponte de
+  toque e desenho das mãos não mudam com o detector. O nome "PhoneXr" nesses arquivos é histórico —
+  o que o usuário chamou de "hand do PhoneXR" (o pipeline de detecção do fork) é o que foi removido.
+- O modelo `hand_landmarker.task` (MediaPipe, Apache-2.0) permanece: escrever um detector de mãos
+  novo do zero, sem GPU de treino e sem dados, produziria um resultado pior com o mesmo esforço. O
+  que foi escrito do zero é o MOTOR em volta dele.
+
+## Validação
+
+- Node: 50 testes (42 passam, 8 pulados: Chromium só no CI). `--self-test` do sumarizador passa com
+  as métricas removidas; `npm run build:ui` regerado.
+- Kotlin: os arquivos novos compilam com stubs de Android/MediaPipe no harness local (kotlinc 2.4.21),
+  e a auditoria símbolo × declaração cobre os pontos de chamada do `PassthroughCamera`.
+- **Risco assumido**: o motor novo nunca rodou em aparelho. O que ele troca está medido e escrito
+  acima (sem slots adaptativos, sem resgate por YOLO); a validação on-device é a mesma checklist de
+  sempre — `track`, `infer_mean`, `loss`/`empty_ms` — e a pergunta é se o grafo de caça compensa a
+  perda do resgate em mãos difíceis.
+
+# 2026-10-11 (10ª rodada) — janela sem voo, ambientes 360°, curvatura, 5 apps e a tela de idioma
+
+Nada aqui mexe no detector (`com.nextvr.handtrack`). O que mudou é o que compete com ele por quadro.
+
+## A janela parou de voar (e por que isso importa para o tracking)
+
+- **A "animação feia" era o `apply()`**: cada mudança de lugar no arco (abrir, fechar, rearranjar,
+  focar) fazia a janela deslizar do dock até o destino em ~meio segundo. Em cada quadro desses a
+  posição mudava, a cena JSON era diferente, a ponte do atlas cruzava para o nativo e o nativo
+  redesenhava — exatamente quando a mão está chegando para escolher alguma coisa, e nos mesmos
+  threads que entregam o rastreamento.
+- **Agora é corte seco**: `apply()` escreve a posição final direto. O arrasto com a mão já escrevia
+  a posição ele mesmo, então não se perdeu nada de suavização onde ela importa.
+- **O brilho de carregamento do YouTube/loja também era uma animação infinita** (`.yt-skel` com
+  `animation:...infinite`): a cena mudava a cada quadro enquanto a rede respondia. O placeholder
+  continua, agora estático.
+
+## Ambientes: três panoramas 360°
+
+- `envList()` deixou de ser só o passthrough: **sunset, night e space**, com os panoramas completos
+  em `nextvr-android/src/main/assets/env/*.jpg` (3072x1536 equiretangular) e as miniaturas de
+  480x240 em `assets/ui/env/*.jpg`, que é o que a lista de ambientes mostra.
+- O desenho é nativo, no `SpatialRenderer`: o WebView do APK não tem WebGL, então o céu não pode vir
+  do web. É uma **esfera de direções em coordenadas de olho** (o panorama fica em volta da cabeça),
+  com a direção do olhar saindo da projeção do olho e voltando ao mundo pelo inverso da view — sem
+  essa volta, o panorama não acompanha a cabeça.
+- **A câmera continua rodando**: é dela que sai o rastreamento das mãos. O que muda é que ela deixa
+  de ser desenhada, e a cópia do bitmap para a textura GL por quadro deixa de acontecer enquanto o
+  céu cobre a tela (`camera.update()` só sobe quando não há panorama). O `spanX/spanY` que o web usa
+  para mapear a mão na tela passou a ser calculado uma vez por quadro para os dois caminhos.
+- Duas correções de campo na decodificação: o caminho nativo abria `ui/env/<id>.jpg` — a MINIATURA
+  de 480x240, 8,5 px por grau esticados por toda a tela. Agora abre o panorama de 3072x1536. E o
+  wrap da textura é `CLAMP_TO_EDGE`: a textura é NPOT e, em GLES2 estrito, NPOT com `REPEAT` fica
+  INCOMPLETA — céu preto. (Sem mipmap também: o panorama amplia no centro, não há minificação a
+  corrigir.)
+
+## Curvatura "Tela 360°"
+
+- Configurações → Janelas → **Curvatura 360°**, e um botão **360°** na barra de cada janela. Ligar já
+  entra no máximo do controle (1,15 rad ≈ 66°), que é a curva da referência; o controle desce a
+  partir daí.
+- É curvatura de verdade nos dois lados, e os dois falam o mesmo número:
+  - **shader** do painel: o quadrilátero virou uma faixa de 48 colunas e o vértice é dobrado pelo
+    arco `z = R - sqrt(R^2 - x^2)`. Essa curva é a MESMA que o web mede: parametrizada pelo ângulo,
+    `x = R sin t`, `z = R(1 - cos t)` — é a mesma circunferência vista por outra variável;
+  - **hit-teste**: a malha invisível que a mão acerta é dobrada pelo mesmo arco (`bendPoint`) e o
+    ponto medido volta para a coluna plana (`unbendX`) antes de virar coordenada de DOM — sem isso a
+    mão acertaria fora do que está desenhado;
+  - `R` sai da LARGURA DE CONTEÚDO nos dois lados (`glass[2]`), então a janela mantém a largura na
+    tela e só o meio recua.
+- Os quadros embutidos (vídeo do YouTube, loja, página) também vivem SOBRE o arco: o atlas os coloca
+  no ponto correspondente, girados tangentes, e o shader dobra a largura de cada um pelo ângulo que
+  lhe cabe. Os puxadores (arrasto e redimensionamento) saem da linha reta pelo mesmo motivo.
+
+## Cinco apps, sem voo e com duas fileiras
+
+- `ARC_CAPACITY` foi de 3 para **5** (o sexto fecha o menos recente). Com cinco janelas de meia
+  janela de folga o arco pediria ~4 rad e o usuário alcança ±1,3 rad: as três primeiras ficam na
+  fileira do meio (centro, direita, esquerda) e as duas últimas vão para uma fileira de cima,
+  centrada e mais larga, com o mesmo tamanho de janela.
+- O passo angular passa a ser limitado pelo slot MAIS EXTERNO da fileira de baixo (2 passos do
+  centro): com 5 janelas grandes e o arco perto, a folga de meia janela cede para caber no alcance —
+  afastar o arco é o que devolve a folga inteira.
+
+## A tela de idioma (e o logo)
+
+- 12 idiomas empilhados na ordem do print (English (USA) em cima), destaque no idioma atual, o
+  desenho da mão segurando o controle à direita e o botão azul. As entradas sem tabela de tradução
+  aparecem apagadas em vez de mostrarem chave crua.
+- O português é a 12ª linha, como no print, e o padrão do app é uma constante separada
+  (`LANG_FALLBACK = 'pt'`): na primeira execução nada foi escolhido, e as próprias legendas da tela
+  têm de sair em português.
+- Os doze têm de aparecer DE UMA VEZ: a pinça não rola lista. A primeira tentativa foi acertar a
+  altura da linha na mão (51,5 px → 38,5 px) e o CI mostrou o que sempre acontece nesse tipo de
+  conta: 18 px de estouro vindos de algum detalhe de métrica. A solução que ficou não depende de
+  conta nenhuma — as linhas DIVIDEM o espaço (`flex:1 1 0` com `min-height:0`), então cada idioma
+  recebe exatamente um doze avos da altura da lista, em qualquer janela, e não existe estouro
+  possível. A altura da janela, essa sim, tem teto: 660 px, porque o slot de textura de uma janela
+  no atlas nativo tem 980 px com 160 px de margem por lado. A variante das Configurações (janela
+  normal, com barra de 62 px) simplesmente divide um espaço menor. O teste de navegador compara
+  `scrollHeight` com `clientHeight` para travar o invariante.
+- O logo do APK e o do app são o "N" cromado da referência (arte gerada neste repositório, com os
+  arquivos de origem em `artwork/`); os ícones saem em mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi.
+
+## Validação
+
+- Node: 52 testes, 44 passam, 8 pulados no sandbox (os pulados precisam de Chromium e rodam no CI).
+  O CI é quem valida os cinco testes de toque/DOM da janela de idioma; as sequências de toque direto
+  passaram a ser offsets medidos a partir da superfície do vidro (as profundidades fixas antigas
+  descreviam o layout anterior da janela).
+- Java: os dois arquivos alterados passam pelo parser do tree-sitter-java sem nó de erro.
+- **Risco assumido**: nenhuma validação visual foi possível neste sandbox (não há navegador headless
+  aqui: falta `libnspr4.so`). A curvatura foi conferida por matemática — as duas implementações
+  caem na mesma circunferência, com o mesmo raio e a mesma corda — e o céu por leitura de shader.

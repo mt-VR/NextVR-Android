@@ -11,8 +11,10 @@ const DEF = {
   lang: null,
   handsOn: true, handDraw: 1,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
+  // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
+  win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
-  env: 'studio', quality: 'auto', showFps: 0,
+  env: 'passthrough', quality: 'auto', showFps: 0,
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
@@ -33,7 +35,13 @@ const STR = {
     pickPhotos:'Escolher fotos', noPhotos:'Nenhuma foto escolhida ainda.',
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
-    arcFull:'Arco cheio (máx. 3 apps) — fechando',
+    arcFull:'Arco cheio (máx. 5 apps) — fechando',
+    envPass:'Camera passthrough', envSunset:'Panorama 360° · pôr do sol',
+    envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
+    win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
+    win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
+    langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
+    langContinue:'Continuar', langPick:'Escolha seu idioma',
     micOff:'Ditado por voz indisponível neste aparelho',
     notif:'Notificações', noNotif:'Sem notificações novas', profile:'Perfil',
     repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
@@ -50,7 +58,13 @@ const STR = {
     pickPhotos:'Pick photos', noPhotos:'No photos picked yet.',
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
-    arcFull:'Arc full (max 3 apps) — closing',
+    arcFull:'Arc full (max 5 apps) — closing',
+    envPass:'Camera passthrough', envSunset:'360° panorama · sunset',
+    envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
+    win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
+    win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
+    langTitle:'Language', langSoon:'More languages are coming in the next versions.',
+    langContinue:'Continue', langPick:'Choose your language',
     micOff:'Voice dictation is unavailable on this device',
     notif:'Notifications', noNotif:'No new notifications', profile:'Profile',
     repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
@@ -67,15 +81,54 @@ const STR = {
     pickPhotos:'Elegir fotos', noPhotos:'Aún no hay fotos elegidas.',
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
-    arcFull:'Arco lleno (máx. 3 apps) — cerrando',
+    arcFull:'Arco lleno (máx. 5 apps) — cerrando',
+    envPass:'Camera passthrough', envSunset:'Panorama 360° · atardecer',
+    envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
+    win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
+    win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
+    langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
+    langContinue:'Continuar', langPick:'Elige tu idioma',
     micOff:'El dictado por voz no está disponible en este dispositivo',
     notif:'Notificaciones', noNotif:'Sin notificaciones nuevas', profile:'Perfil',
     repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
     moveDock:'Mover el dock',
   },
 };
-export const t = k => (STR[S.lang] || STR.pt)[k] || k;
-export const setLang = l => { S.lang = l; save(); emit('lang'); };
+/**
+ * Idiomas do seletor, na ordem da referência (a lista do Quest), com o português na frente porque
+ * é o idioma principal deste app. `table` é a tradução que a linha usa: há duas linhas de inglês e
+ * duas de espanhol (US/UK e Espanha/Latinoamérica) que compartilham a mesma tabela. As linhas sem
+ * `table` aparecem na lista (identidade visual da referência) mas ainda não têm tradução.
+ */
+export const LANG_ROWS = Object.freeze([
+  { id: 'en', label: 'English (US)', table: 'en' },
+  { id: 'ja', label: '日本語' },
+  { id: 'fr', label: 'Français' },
+  { id: 'de', label: 'Deutsch' },
+  { id: 'ko', label: '한국어' },
+  { id: 'es-ES', label: 'Español (España)', table: 'es' },
+  { id: 'it', label: 'Italiano' },
+  { id: 'en-GB', label: 'English (UK)', table: 'en' },
+  { id: 'nl', label: 'Nederlands' },
+  { id: 'ru', label: 'Русский' },
+  { id: 'es', label: 'Español (Latinoamérica)', table: 'es' },
+  { id: 'pt', label: 'Português (Brasil)', table: 'pt' },
+]);
+/**
+ * Idioma quando nada foi escolhido ainda: português. NÃO usar `LANG_ROWS[0]` para isso — a ordem da
+ * lista é a do print do Meta Horizon OS (English (USA) em cima), não a ordem de preferência do app:
+ * na primeira execução, antes de o usuário tocar em qualquer linha, as próprias legendas da tela de
+ * escolha têm de sair no idioma padrão.
+ */
+const LANG_FALLBACK = 'pt';
+export const langRow = id => LANG_ROWS.find(r => r.id === id) || LANG_ROWS.find(r => r.id === LANG_FALLBACK);
+export const langLabel = () => langRow(S.lang).label;
+const langTable = () => langRow(S.lang).table || 'pt';
+export const t = k => (STR[langTable()] || STR.pt)[k] || k;
+export const setLang = l => {
+  if (!LANG_ROWS.some(r => r.id === l && r.table)) return false;
+  S.lang = l; save(); emit('lang'); return true;
+};
 
 /* ============================ eventos ============================ */
 const subs = {};
@@ -139,9 +192,25 @@ resize();
 on('quality', resize);
 
 /* ============================ ambientes ============================ */
-// Passthrough is the only environment. No sky, grid, floor, fog or artificial room is created.
-export const envList = () => [{ id: 'passthrough', name: 'Camera passthrough', top: 0x253244, bot: 0x11151d }];
-export function setEnvironment() { S.env = 'passthrough'; save(); emit('env', S.env); }
+/**
+ * O passthrough da câmera continua sendo o padrão, e agora existem ambientes panorâmicos 360°:
+ * o panorama é desenhado como fundo esférico no GL nativo (gira com a cabeça), com a câmera
+ * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
+ * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
+ */
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space']);
+export const envList = () => [
+  { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
+  { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
+  { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
+];
+export function setEnvironment(id) {
+  S.env = ENV_IDS.includes(id) ? id : 'passthrough';
+  save(); emit('env', S.env);
+  // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
+  window.NativeXR?.env?.(S.env);
+}
 
 /* ============================ giroscópio ============================ */
 /*

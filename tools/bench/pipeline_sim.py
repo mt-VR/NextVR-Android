@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Discrete-event model of camera -> tracking -> WebView, to attribute the hand-tracking rate.
 
+NOTE (historical): this model was built for the PhoneXR pipeline - it represents the adaptive hand
+SLOT policy and the YOLO/rescue workers on their own threads (see the `rescue_*` fields below). That
+pipeline was REMOVED: com.nextvr.handtrack.HandTracker runs one two-hand graph per frame on the
+tracking thread and no background worker. The parts that still exist are modelled here - camera
+admission, the analysis gate, the WebView drain budget - but the slot and recovery terms describe
+code that is no longer in the tree.
+
 admission_sim.py (in this directory) settled one question: admitting the tracker *inside* the Camera2
 callback quantises the landmark rate to 30/15/10 Hz. That was fixed by LatestFrameSlot. This model
 covers the rest of the chain, because "the feed and the dock are instant but the hands are slow" is a

@@ -62,7 +62,9 @@ public class PerfLogTest {
         assertNotNull("a completed window must be summarized, not dropped", line);
         assertTrue(line, line.contains("gap_max=50"));
         assertTrue(line, line.contains("track_jitter=0.0"));
-        assertTrue(line, line.contains("narrow=0 wide=0 probe=0"));
+        // No hand frame was dropped or retried in this window; the summary must still carry both
+        // counters (the detector-specific slot/rescue fields were removed with the PhoneXR pipeline).
+        assertTrue(line, line.contains("dropped=0 skips=0 camera_retries=0 hand_retries=0"));
         assertTrue(line, line.contains("delegate=none"));
         assertTrue("whole-millisecond fields must stay integral: " + line,
                 Pattern.compile("\\bgap_max=\\d+ ").matcher(line).find());

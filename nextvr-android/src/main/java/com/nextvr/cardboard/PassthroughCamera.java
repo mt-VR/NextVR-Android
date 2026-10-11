@@ -12,7 +12,8 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
 import com.nextvr.cardboard.hands.PhoneXrHands;
-import com.samrat.orangehanding.FusionHands;
+import com.nextvr.handtrack.HandTracker;
+import com.nextvr.handtrack.RetryableInferenceException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -64,9 +65,10 @@ final class PassthroughCamera {
     private final AnalysisGate analysisGate=new AnalysisGate(AnalysisGate.DEFAULT_MAX_PENDING_AGE_MS);
     /** Judges the GPU delegate on measured inference cost, not on whether it threw (see DelegateWatch). */
     private final DelegateWatch delegateWatch=new DelegateWatch();
-    /** Recovery rounds already reported for the current detector, so the log gets the delta only. */
-    private int reportedSkips;
-    private long reportedNarrow,reportedWide,reportedProbes;
+    /** Tolerates a failed camera frame instead of tearing the camera down on the first one. */
+    private final TrackingFailureGuard frameFailures=new TrackingFailureGuard();
+    /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
+    private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
     private int[] cameraPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
     private CameraDevice camera;
@@ -76,7 +78,7 @@ final class PassthroughCamera {
     /** Cleared once the GPU delegate has been dropped for measured slowness; never retried. */
     private boolean preferGpu=true;
     private boolean timestampIsRealtime;
-    private FusionHands detector; // Created, used and closed on the SAME thread (GPU delegate).
+    private HandTracker detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
     private int rotation;
     private volatile boolean destroyed;
@@ -90,7 +92,7 @@ final class PassthroughCamera {
     @SuppressLint("MissingPermission")
     private void open(int displayRotation) {
         if(destroyed)return;
-        closeCamera();final int token=++generation;
+        closeCamera();final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
             String id=null;CameraCharacteristics chars=null;
@@ -204,7 +206,19 @@ final class PassthroughCamera {
             long handoffStart=SystemClock.elapsedRealtime();
             listener.frame(upright);upright=null;
             PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
-        }catch(Exception e){fail("Camera frame failed",e);}
+            frameFailures.succeeded();
+        }catch(Throwable e){
+            // A frame that fails once is not an outage: the next camera frame arrives in ~33 ms and
+            // carries the same scene, and the work that can throw here (the native conversion, the
+            // resample's allocation) is exactly the kind that succeeds on a retry. The camera is only
+            // torn down when the failure repeats on consecutive frames. Throwable, not Exception: an
+            // Error here would kill the camera looper and freeze the passthrough with no report.
+            if(frameFailures.failed())fail("Camera frame failed",e);
+            else {
+                PerfLog.cameraRetry();
+                if(frameFailures.consecutive()==1)android.util.Log.w("NextVR-Camera","frame failed; retrying on the next frame",e);
+            }
+        }
         finally{
             if(image!=null)image.close();
             if(upright!=null)upright.recycle();
@@ -231,30 +245,27 @@ final class PassthroughCamera {
                 continue;
             }
             try { track(frame); }
+            catch(Throwable unexpected) {
+                // track() already counts every Exception. An Error takes a different door: it would
+                // escape the executor task, kill the worker and leave `scheduled` stuck at true, so
+                // every later frame would be dropped with no error and no recovery. The realistic
+                // case here is an OutOfMemoryError from a bitmap allocation under memory pressure -
+                // a per-frame failure like any other, which the guard retries and eventually reports.
+                handleTrackingFailure(unexpected);
+            }
             finally { frame.release(); }
         }
     }
     private void track(TrackingFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
-            if(detector==null) {
-                if(preferGpu) {
-                    try { detector=new FusionHands(context,true,"hand_landmarker.task",500L);gpuDetector=true; }
-                    catch(RuntimeException gpu) { detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false; }
-                } else {
-                    // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
-                    // pick it up again on the next creation, or a failed CPU rebuild would loop.
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);gpuDetector=false;
-                }
-                PerfLog.delegate(gpuDetector?"GPU":"CPU");
-                if(!detector.getFused())listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
-            }
+            if(detector==null)buildDetector();
             long inferenceStart=SystemClock.elapsedRealtime();
             com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
             try { detected=detector.detectOwned(frame.bitmap,frame.stamp,0); }
             catch(RuntimeException inferenceFailure) {
-                FusionHands.RetryableInferenceException retryable = inferenceFailure instanceof FusionHands.RetryableInferenceException
-                    ? (FusionHands.RetryableInferenceException)inferenceFailure : null;
+                RetryableInferenceException retryable = inferenceFailure instanceof RetryableInferenceException
+                    ? (RetryableInferenceException)inferenceFailure : null;
                 if(!gpuDetector || retryable==null) {
                     if(retryable!=null && !retryable.getRetryBitmap().isRecycled())retryable.getRetryBitmap().recycle();
                     throw inferenceFailure;
@@ -263,7 +274,7 @@ final class PassthroughCamera {
                 Bitmap retryFrame=retryable.getRetryBitmap();
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);
+                    detector=new HandTracker(context,false,"hand_landmarker.task");
                     PerfLog.delegate("CPU");
                     hands.reset();
                     // Borrowed input preserves the emergency retry bitmap if CPU inference also fails.
@@ -272,15 +283,6 @@ final class PassthroughCamera {
             }
             long inferenceMs=SystemClock.elapsedRealtime()-inferenceStart;
             budget.completed(inferenceMs);
-            // The landmarker counts since its graphs were built, and graphs are rebuilt on a delegate
-            // switch: a counter that went backwards restarted, so its whole value is this window's.
-            long narrow=detector.narrowFrames(),wide=detector.wideFrames(),probes=detector.probes();
-            PerfLog.handSlots(detector.currentSlots(),delta(narrow,reportedNarrow),
-                delta(wide,reportedWide),delta(probes,reportedProbes));
-            reportedNarrow=narrow; reportedWide=wide; reportedProbes=probes;
-            int skipped=detector.recoverySkips();
-            for(int i=reportedSkips;i<skipped;i++)PerfLog.recoverySkipped();
-            reportedSkips=skipped;
             // A GPU delegate that stays slow is not a failure: it is the tracker queueing behind the
             // display path. The measured cost of the inference is the only evidence of that available
             // here, so the delegate is judged on it and abandoned when it stops being the fast path.
@@ -289,13 +291,12 @@ final class PassthroughCamera {
                     "%.1f ms mean",delegateWatch.averageMs())+"; switching the landmarker to CPU");
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=new FusionHands(context,false,"hand_landmarker.task",750L);
+                    detector=new HandTracker(context,false,"hand_landmarker.task");
                     delegateWatch.reset();
                     preferGpu=false;
                     PerfLog.delegate("CPU (after a slow GPU)");
                     // The new graphs have no region-of-interest history, so the filters start fresh.
                     hands.reset();budget.reset();
-                    reportedSkips=detector.recoverySkips();
                 }catch(RuntimeException failure) {
                     android.util.Log.w("NextVR-Hands","CPU fallback after a slow GPU delegate failed",failure);
                     detector=null;   // rebuilt on the next frame; hands stay on the old path till then
@@ -308,31 +309,63 @@ final class PassthroughCamera {
             // or skipping tracker in the perf log (see PerfLog.result).
             PerfLog.result(inferenceMs,frame.captureNs,frame.acquiredNs,completedNs,result.getHands().size());
             if(frame.token==generation && !destroyed && handsEnabled)listener.hands(result);
-        }catch(Exception e){handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+e.getMessage());clearHands();}
+            trackFailures.succeeded();
+        }catch(Exception e){handleTrackingFailure(e);}
     }
-    /** A counter that went backwards means the reported stream restarted (graphs rebuilt, tracking
-     * re-enabled): the new value is then the whole window's count. */
-    private static long delta(long now,long reported) { return now<reported?now:now-reported; }
+    /**
+     * Creates (or recreates) the detector on the tracking thread and reports the delegate in use.
+     * The GPU delegate is tried first; a creation failure or a measured-slow GPU (DelegateWatch)
+     * falls back to CPU and is not retried.
+     */
+    private void buildDetector() {
+        if(preferGpu) {
+            try { detector=new HandTracker(context,true,"hand_landmarker.task");gpuDetector=true; }
+            catch(RuntimeException gpu) { detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false; }
+        } else {
+            // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
+            // pick it up again on the next creation, or a failed CPU rebuild would loop.
+            detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;
+        }
+        PerfLog.delegate(gpuDetector?"GPU":"CPU");
+    }
 
+    /**
+     * The one place a failed tracking frame is judged: a single failure (a bitmap the delegate
+     * rejected, a transient allocation failure while a WebView was rasterizing) must not end hand
+     * tracking for the rest of the session - the next frame arrives in ~33 ms and carries the same
+     * hand. Only a failure that repeats on consecutive frames is an outage, and that still stops the
+     * hands and reports it, instead of retrying forever behind a frozen cursor.
+     */
+    private void handleTrackingFailure(Throwable failure) {
+        if(!trackFailures.failed()) {
+            PerfLog.handRetry();
+            if(trackFailures.consecutive()==1)android.util.Log.w("NextVR-Hands","frame failed; retrying on the next frame",failure);
+            return;
+        }
+        android.util.Log.e("NextVR-Hands","hand tracking stopped after "+trackFailures.consecutive()+" consecutive failures",failure);
+        handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+failure.getMessage());clearHands();
+    }
     /**
      * Runs on the tracking thread, which is also the thread that owns the landmarker. Hands are gone,
      * so the narrow/wide decision made against the frames that just expired is forgotten too: the next
      * session searches both slots again until one hand proves the second slot idle.
      */
     private void clearHands() {
-        if(detector!=null)detector.resetSlots();
         hands.reset();
         listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
     }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;
-        if(!enabled) {
+        // Re-enabling after an outage is a fresh start: the streak that stopped the session must not
+        // count against the new one, or the very first hiccup would stop it again immediately.
+        if(enabled)trackFailures.reset();
+        else {
             TrackingFrame waiting=slot.clear();
             if(waiting!=null)waiting.release();
             tracking.execute(this::clearHands);
         }
     }
-    private void fail(String message,Exception e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
+    private void fail(String message,Throwable e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
     private void closeCamera(){
         ++generation;
         if(session!=null){session.close();session=null;}

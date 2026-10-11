@@ -7,8 +7,9 @@ import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
-  stabilizeResize } from './window-geometry.js';
-import { ARC_CAPACITY, arcLayout, pickLru } from './arc.js';
+  stabilizeResize, WINDOW_LIMITS } from './window-geometry.js';
+import { ARC_CAPACITY, arcSlots, arcStep, pickLru, ARC_TOP_ROW_STEP } from './arc.js';
+import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
@@ -26,6 +27,10 @@ class Win {
     this.target = new THREE.Vector3();
     this.resizeScale = 1;
     this.slot = 0;
+    // Curvatura "360": a janela vira um pedaço de cilindro em volta do usuário (largura igual,
+    // só o meio recua). O padrão vem das Configurações; o botão 360 da barra troca por janela.
+    this.curve = curveAngle(onboarding ? 0 : (S.win360 ? S.win360K : 0));
+    this.curveRadius = curveRadius(w, this.curve);
 
     const shell = document.createElement('div');
     shell.className = 'win-shell';
@@ -38,6 +43,7 @@ class Win {
     el.style.width = w + 'px'; el.style.height = h + 'px';
     el.innerHTML = `<div class="win-bar">
         <div class="win-grip"></div><div class="win-title"></div>
+        <button class="win-btn wide" data-act="curve" aria-label="360°" title="360°" aria-pressed="${this.curve > 0}">360°</button>
         <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
         <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
       </div><div class="win-body"></div>`;
@@ -46,7 +52,9 @@ class Win {
     el.addEventListener('pointerdown', () => focus(this), true);
     el.querySelector('.win-bar').addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
-      if (a.dataset.act === 'close') close(this); else repin(this);
+      if (a.dataset.act === 'close') close(this);
+      else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
+      else repin(this);
     });
 
     const handle = document.createElement('div');
@@ -61,12 +69,18 @@ class Win {
     shell.append(el, handle, resizeHandle);
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
+    shell.dataset.curve = String(this.curve);
+    // A janela de primeiro uso (idioma) é só o cartão: sem barra de título, como na referência.
+    if (onboarding) el.querySelector('.win-bar').hidden = true;
     this.obj = new CSS3DObject(shell);
     this.obj.scale.setScalar(PX * (this.onboarding ? COMFORT.welcomeScale : S.winScale));
     contentRoot.add(this.obj);
 
-    // Planos invisíveis usam exatamente a mesma transformação da superfície visual.
-    this.hit = plane(w * PX, h * PX, this);
+    // Planos invisíveis usam exatamente a mesma transformação da superfície visual; com curvatura
+    // a malha de hit acompanha o cilindro, então o raio da mão acerta a superfície de verdade.
+    this.hitSegments = this.curve > 0 ? 32 : 1;
+    this.hit = plane(w * PX, h * PX, this, this.hitSegments);
+    this.bendHit();
     this.grab = plane(260 * PX, 90 * PX, this);
     this.grab.userData.isHandle = true;
     this.resizeHit = plane(112 * PX, 112 * PX, this);
@@ -93,11 +107,48 @@ class Win {
     }
   }
 
-  apply(dt) {
+  /**
+   * Liga/desliga a curvatura 360 desta janela. A largura e o lugar no arco não mudam: só a
+   * superfície — é por isso que o botão não precisa re-layoutar nada.
+   */
+  setCurve(angle) {
+    this.curve = curveAngle(angle);
+    this.curveRadius = curveRadius(this.w, this.curve);
+    this.shell.dataset.curve = String(this.curve);
+    const button = this.el.querySelector('[data-act="curve"]');
+    if (button) button.setAttribute('aria-pressed', String(this.curve > 0));
+    // A malha de hit só é curvada quando há curvatura: plana continua sendo 1 segmento.
+    const segments = this.curve > 0 ? 32 : 1;
+    if (this.hitSegments !== segments) {
+      this.hit.geometry.dispose();
+      this.hit.geometry = new THREE.PlaneGeometry(this.w * PX, this.h * PX, segments, 1);
+      this.hitSegments = segments;
+    }
+    this.bendHit();
+    this.apply();
+  }
+
+  /** Deslocamento da superfície (metros) no px `x` da janela (0 = centro). */
+  bulge(x) { return curveOffset(x, this.curveRadius) * PX; }
+
+  /** Dobra a malha de hit no cilindro da curvatura (geometria em metros, escala 1). */
+  bendHit() {
+    const position = this.hit.geometry.attributes.position;
+    if (this.curve <= 0) {
+      for (let i = 0; i < position.count; i++) position.setZ(i, 0);
+    } else {
+      for (let i = 0; i < position.count; i++) position.setZ(i, curveOffset(position.getX(i) / PX, this.curveRadius) * PX);
+    }
+    position.needsUpdate = true;
+    this.hit.geometry.computeBoundingSphere();
+  }
+
+  apply() {
     const o = this.obj;
-    // Smooth but bounded: the window does not snap to the dock or rubber-band while moving.
-    const k = 1 - Math.exp(-dt * (this.pinned ? 6 : 10));
-    o.position.lerp(this.target, k);
+    // Sem animação: a janela está onde deve estar já neste frame. O "voo" até o lugar roubava
+    // frames do rastreamento das mãos (a cena inteira precisava ser reenviada enquanto deslizava)
+    // e deixava a interface com cara de protótipo.
+    o.position.copy(this.target);
 
     // rotação sai SÓ da posição da janela — a câmera não entra na conta
     const yaw = Math.atan2(-o.position.x, -o.position.z) * S.winCurve;
@@ -121,36 +172,48 @@ class Win {
     this.resizeHit.rotation.copy(o.rotation);
     this.resizeHit.translateX((this.w / 2 - 48) * PX * scale);
     this.resizeHit.translateY(-(this.h / 2 - 48) * PX * scale);
-    this.resizeHit.translateZ(.003);
+    // A alça de tamanho também sobe para a superfície curvada.
+    this.resizeHit.translateZ(this.bulge(this.w / 2 - 48) + .003);
     this.resizeHit.scale.setScalar(scale);
   }
 }
 
-function plane(w, h, win) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ visible: false }));
+function plane(w, h, win, segments = 1) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h, segments, 1), new THREE.MeshBasicMaterial({ visible: false }));
   m.userData.win = win; contentRoot.add(m); return m;
 }
 
 /* =================== layout — multitarefa em arco =================== */
 /**
- * Multitarefa em arco: as janelas presas formam UMA fileira curva, centrada, com até
- * ARC_CAPACITY (3) apps de vez — o arco é a superfície de multitarefa. Soltas (arrastadas)
- * ficam onde o usuário largou, e não entram no arranjo.
+ * Multitarefa em arco: as janelas presas formam UMA fileira curva centrada, com até
+ * ARC_CAPACITY (5) apps de vez — o arco é a superfície de multitarefa. Com mais de três apps a
+ * quarta e a quinta vão para uma fileira superior centrada (arc.js), porque cinco janelas lado a
+ * lado não cabem no campo de visão. Soltas (arrastadas) ficam onde o usuário largou.
  */
 function layout() {
   for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
   const pin = wins.filter(w => w.pinned && !w.onboarding);
   const n = pin.length; if (!n) return;
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
-  const step = native?Math.min(1.3,2*Math.atan(Math.max(...pin.map(w=>w.w*w.resizeScale))*PX*S.winScale/(2*dist))+.08):Math.min(.78, Math.max(.52,.5+n*.05));
+  // A folga entre janelas vizinhas é de MEIA JANELA (arcStep), não os 8 cm de antes: com duas
+  // janelas o passo antigo ainda era dividido por dois ([-passo/2, +passo/2]) e as duas se
+  // sobrepunham. O passo é limitado pelo yaw alcançável do workspace, então com janelas grandes a
+  // folga é a que couber; o arco do preview (mouse) mantém o passo próprio, menor.
+  const widest = Math.max(...pin.map(w => w.w * w.resizeScale)) * PX * S.winScale;
+  const step = native ? arcStep({ width: widest, dist, gap: .5, outerLimit: WINDOW_LIMITS.maxYaw - .06 })
+    : Math.min(.78, Math.max(.52, .5 + n * .05));
 
-  arcLayout(n, { step, dist }).forEach(([x, z], i) => {
+  arcSlots(n, step).forEach(({ angle, row }, i) => {
     const w = pin[i];
     const hh = w.h * PX * S.winScale * w.resizeScale;
     // Keep the full window visibly above the dock in native Cardboard and desktop preview.
     // The 14 cm breathing gap is added to the dock's top edge before centring the window.
     const lift = dockAt.y + dockAt.h / 2 + .14 + hh / 2;
-    w.target.set(x, lift, z);
+    const x = Math.sin(angle) * dist, z = -Math.cos(angle) * dist;
+    // A fileira de cima sobe uma janela e meia e nunca passa do limite confortável do olhar.
+    const y = row === 0 ? lift
+      : Math.min(lift + hh * 2 * (ARC_TOP_ROW_STEP - 1) + hh, EYE + WINDOW_LIMITS.upperEdgeFromEye - hh);
+    w.target.set(x, y, z);
   });
 }
 on('recenter', layout);
@@ -166,10 +229,10 @@ export function open(spec) {
     if (lru) { toast(`${t('arcFull')}: ${lru.title}`); close(lru); }
   }
   const w = new Win(spec);
-  // aparece já perto do destino, sem voar da origem
-  w.obj.position.set(0, dockAt.y, dockAt.z);
   wins.push(w); layout(); focus(w);
-  if(w.onboarding){w.obj.position.copy(w.target);w.handle.hidden=true;w.resizeHandle.hidden=true;w.apply(0);}
+  w.obj.position.copy(w.target);            // já nasce no lugar: nada de voar da dock
+  if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
+  w.apply();
   emit('wins', wins);
   return w;
 }
@@ -208,8 +271,8 @@ function setRay(nx, ny, target=ray) {
   return target;
 }
 function halfHeight(w) { return w.h * PX * S.winScale * w.resizeScale / 2; }
-function boundedPosition(w, point) {
-  const p=clampWindowPosition(point,halfHeight(w),EYE);
+function boundedPosition(w, point, radius=null) {
+  const p=clampWindowPosition(point,halfHeight(w),EYE,radius);
   return new THREE.Vector3(p.x,p.y,p.z);
 }
 function startDrag(w, nx, ny, source='handle', hand=null) {
@@ -223,8 +286,15 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   // Âncora estável capturada NO MOMENTO DO GRAB: a janela segue deltas relativos a este ponto
   // fixo — nunca é reavaliada contra a posição defasada da janela nem contra o ponto onde o
   // gesto foi ativado (que já embutiria o salto que disparou o arrasto e o descartaria).
+  //
+  // O RAIO do grab também é capturado aqui: o plano do cursor é perpendicular ao olhar do momento
+  // do grab, então uma janela fora do eixo andava por um plano inclinado em relação à esfera e
+  // GANHAVA distância do olho — ela "ia para trás", longe da dock, enquanto era movida. Preso o
+  // raio, mover só gira a janela em volta do usuário (mesma altura, mesma distância).
+  const local=contentRoot.worldToLocal(center.clone());
+  const radius=Math.hypot(local.x,local.z);
   Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,
-    anchor:{hit:hit.clone(),center:center.clone(),applied:new THREE.Vector3()}});
+    anchor:{hit:hit.clone(),center:center.clone(),radius,applied:new THREE.Vector3()}});
   return true;
 }
 function activateDrag() {
@@ -249,7 +319,8 @@ function dragTo(nx, ny) {
   // estado defasado da janela, então não há retroalimentação (janela puxando de um lado para o
   // outro) nem acúmulo de erro: o mesmo delta devolve sempre a mesma posição.
   const world=a.center.clone().add(a.applied);
-  const limited=boundedPosition(w,contentRoot.worldToLocal(world));
+  // O raio do grab vai junto: mover nunca aproxima nem afasta a janela do olho (sem "ir pra trás").
+  const limited=boundedPosition(w,contentRoot.worldToLocal(world),a.radius);
   w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
   return true;
@@ -875,7 +946,7 @@ onFrame((dt, now) => {
   if (dockDrag.start && cursor.active && cursor.down) {
     const p=predictedCursor(now); dockDragTo(p.x,p.y);
   }
-  for (const w of wins) w.apply(dt);
+  for (const w of wins) w.apply();
 });
 
 if (native) {
@@ -906,15 +977,43 @@ function palmScreen(h, packet, filtered=false) {
 }
 function windowPoint(w, point) {
   const local=w.obj.worldToLocal(point.clone()), scale=w.obj.getWorldScale(new THREE.Vector3());
-  return { local, scale, u:local.x/w.w+.5, v:.5-local.y/w.h, d:local.z*scale.z };
+  // Com curvatura 360 a superfície está à frente do plano z=0: `d` continua sendo a distância até
+  // a superfície (é o que o toque direto compara), e u/v saem do x real do ponto.
+  const surface=w.curve>0?curveOffset(local.x,w.curveRadius):0;
+  return { local, scale, u:local.x/w.w+.5, v:.5-local.y/w.h, d:(local.z-surface)*scale.z };
+}
+
+/** Interseção do raio com a casca da janela: o plano z=0, ou o cilindro da curvatura 360. */
+function surfaceHit(w, ray) {
+  const center=w.obj.getWorldPosition(new THREE.Vector3());
+  const normal=new THREE.Vector3(0,0,1).transformDirection(w.obj.matrixWorld);
+  const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,center);
+  if(!(w.curve>0)) return ray.intersectPlane(plane,new THREE.Vector3());
+  // Cilindro no espaço local da janela (px): x² + (z - raio)² = raio². O ramo da frente é o que
+  // existe na tela; fora do arco a superfície segue reta na tangente e aí o plano responde.
+  const inv=w.obj.matrixWorld.clone().invert();
+  const origin=ray.origin.clone().applyMatrix4(inv);
+  const direction=ray.origin.clone().add(ray.direction).applyMatrix4(inv).sub(origin).normalize();
+  const R=w.curveRadius, a=direction.x*direction.x+direction.z*direction.z;
+  if(a<1e-9) return ray.intersectPlane(plane,new THREE.Vector3());
+  const b=2*(origin.x*direction.x+(origin.z-R)*direction.z);
+  const c=origin.x*origin.x+(origin.z-R)*(origin.z-R)-R*R;
+  const disc=b*b-4*a*c; if(disc<0) return ray.intersectPlane(plane,new THREE.Vector3());
+  const root=Math.sqrt(disc);
+  for(const t of [(-b-root)/(2*a),(-b+root)/(2*a)]) {
+    if(!(t>0)) continue;
+    const hit=origin.clone().addScaledVector(direction,t);
+    if(Math.abs(hit.x)>R+1e-6 || hit.z>R) continue;
+    return hit.applyMatrix4(w.obj.matrixWorld);
+  }
+  return ray.intersectPlane(plane,new THREE.Vector3());
 }
 function fistHit(r) {
   let best=null;
   for(const w of wins) {
     if(w.onboarding)continue;
     const center=w.obj.getWorldPosition(new THREE.Vector3());
-    const normal=new THREE.Vector3(0,0,1).transformDirection(w.obj.matrixWorld);
-    const hit=r.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(normal,center),new THREE.Vector3());
+    const hit=surfaceHit(w,r.ray);
     if(!hit)continue;
     const {local,scale}=windowPoint(w,hit);
     if(Math.abs(local.x)*scale.x>w.w*scale.x/2+.08 || Math.abs(local.y)*scale.y>w.h*scale.y/2+.08)continue;

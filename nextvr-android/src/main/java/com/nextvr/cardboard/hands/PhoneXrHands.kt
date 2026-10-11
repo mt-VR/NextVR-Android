@@ -257,8 +257,15 @@ class PhoneXrHands {
         result.landmarks().forEachIndexed { index, raw ->
             if(raw.size != 21) return@forEachIndexed
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
-            val left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
-            detected += left
+            var left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            // Two hands in one image can never be the same physical side, but the classifier does
+            // label both the same when the hands cross or are seen edge-on. That used to give the
+            // second hand the same `id` on the wire AND the same filter/pinch state as the first:
+            // one hand's samples then pulled the other's One Euro filters (a jittery cursor) and
+            // updated its pinch latch (a release on a hand that never moved), and the web layer -
+            // which owns presses and drags per `id` - could not tell the two apart. The duplicate
+            // claim is moved to the free side, so each hand keeps its own state and its own id.
+            if (!detected.add(left)) { left = !left; detected.add(left) }
             val state = states.getOrPut(left) { State() }
             val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
                 state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),

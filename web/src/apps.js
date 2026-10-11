@@ -1,5 +1,6 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d } from './core.js';
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d,
+  LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
@@ -346,8 +347,8 @@ function environments() {
   body.innerHTML = `<h2>${t('env')}</h2><p class="sub">Troque sem fechar nada.</p>`;
   const g = el('div', 'grid3');
   for (const e of envList()) {
-    const b = el('button', 'env');
-    b.style.background = `linear-gradient(160deg,#${e.top.toString(16).padStart(6,'0')},#${e.bot.toString(16).padStart(6,'0')})`;
+    const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+    b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
     b.innerHTML = `<span>${e.name}</span>`;
     b.setAttribute('aria-pressed', S.env === e.id);
     b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); };
@@ -383,13 +384,13 @@ function settingsApp() {
     [t('general'), () => {
       page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Next VR · shell XR para Android</p>`;
       const c = el('div', 'card');
-      const seg = el('div', 'seg');
-      for (const [id, name] of [['pt','🇧🇷 Português'],['en','🇺🇸 English'],['es','🇪🇸 Español']]) {
-        const b = el('button', null, name); b.setAttribute('aria-pressed', S.lang === id);
-        b.onclick = () => { setLang(id); toast(t('langChanged')); rebuild(); };
-        seg.appendChild(b);
-      }
-      c.append(row(t('language'), 'Muda a interface na hora', seg));
+      // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
+      const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
+      pick.onclick = () => {
+        const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
+          node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
+      };
+      c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
       c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
       page.append(c);
       page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
@@ -401,6 +402,7 @@ function settingsApp() {
       c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
       c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
       c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.30 / 0.48')));
+      c.append(row('Detector', 'MediaPipe Tasks Vision, 2 mãos por frame', el('span', 'note', 'NextVR')));
       page.append(c);
     }],
     [t('windows'), () => {
@@ -410,6 +412,8 @@ function settingsApp() {
       c.append(row('Inclinação', 'Ajuste vertical ao subir/descer', slider('winTilt', 0, 1.5, .05)));
       c.append(row(t('scale'), 'Tamanho das janelas', slider('winScale', .6, 1.6, .05)));
       c.append(row(t('dist'), 'Distância do arco', slider('winDist', native?.6:1.5, native?1.8:3.4, .05)));
+      c.append(row(t('win360'), t('win360k'), slider('win360K', .2, 1.15, .05)));
+      c.append(row(t('win360All'), 'O botão 360° na barra da janela troca por janela', toggle('win360')));
       page.append(c);
     }],
     [t('dock'), () => {
@@ -420,10 +424,11 @@ function settingsApp() {
       page.append(c);
     }],
     [t('env'), () => { page.innerHTML = ''; page.append(el('h2', null, t('env')));
+      page.append(el('p', 'sub', 'Passthrough da câmera ou um panorama 360° em volta de você.'));
       const g = el('div', 'grid3');
       for (const e of envList()) {
-        const b = el('button', 'env');
-        b.style.background = `linear-gradient(160deg,#${e.top.toString(16).padStart(6,'0')},#${e.bot.toString(16).padStart(6,'0')})`;
+        const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+        b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
         b.innerHTML = `<span>${e.name}</span>`; b.setAttribute('aria-pressed', S.env === e.id);
         b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
         g.appendChild(b);
@@ -579,7 +584,7 @@ function gameCard(g) {
 function buildStore() {
   const root = el('div', 'st');
   const tabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}">${n}</button>`).join('');
-  let html = `<div class="st-top"><img class="st-logo-img" src="./icons/nextvr-n.svg" alt="NextVR"><div class="st-tabs">${tabs}</div>`
+  let html = `<div class="st-top"><img class="st-logo-img" src="./icons/nextvr-n.png" alt="NextVR"><div class="st-tabs">${tabs}</div>`
     + `<button class="st-ava" data-ava aria-label="Perfil">${icon('user')}</button><button class="st-x" data-x aria-label="Fechar">${icon('x')}</button></div>`;
 
   if (storeTab === 'apps') {
@@ -810,18 +815,44 @@ let langWin = null;
 // A tela preta antiga não aparece mais: idioma é uma janela flutuante 3D única.
 boot.hidden = true;
 
+/**
+ * Escolha de idioma com a cara da referência (a lista do Quest): o idioma atual destacado em cima,
+ * a lista completa (com as linhas de idiomas que ainda não têm tradução apagadas), a ilustração da
+ * mão com o controle à direita e o botão continuar embaixo. Escolher uma linha já aplica e fecha —
+ * um gesto só; o continuar confirma o idioma que já está destacado.
+ */
+function deviceLanguage() {
+  const tag = (navigator.language || 'pt').toLowerCase();
+  if (tag.startsWith('en')) return tag.includes('gb') ? 'en-GB' : 'en';
+  if (tag.startsWith('es')) return tag.includes('-es') ? 'es-ES' : 'es';
+  return 'pt';
+}
+/**
+ * Corpo da escolha de idioma (o mesmo na primeira execução e nas configurações): idioma atual
+ * destacado em cima, a lista completa, a ilustração à direita e o botão continuar embaixo.
+ */
+function languagePicker(pending, onPick, slim = false) {
+  const body = el('div', slim ? 'langwin slim' : 'langwin');
+  const label = id => langRow(id).label;
+  const paint = () => {
+    body.innerHTML = `<div class="lq-head"><span class="lq-pick">${label(pending)}</span><span class="lq-title">${t('langTitle')}</span></div>
+      <div class="lq-main">
+        <div class="lang-options" role="list">${LANG_ROWS.map(r => `<button class="lang-option${r.table ? '' : ' soon'}" data-lang="${r.id}"
+            ${r.table ? '' : 'disabled aria-disabled="true"'}
+            aria-pressed="${r.id === pending}"><span>${r.label}</span>${r.table ? '' : `<i>${t('langSoon')}</i>`}</button>`).join('')}</div>
+        <div class="lq-art"><img src="./hand-controller.png" alt=""></div>
+      </div>
+      <div class="lq-foot"><span class="lang-tracking">Aponte com a mão e faça uma pinça para escolher.</span>
+        <button class="lq-go">${t('langContinue')}</button></div>`;
+    body.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => onPick(b.dataset.lang));
+    body.querySelector('.lq-go').onclick = () => onPick(pending);
+  };
+  paint();
+  return body;
+}
 function languageWindow() {
-  const body = el('div', 'langwin');
-  body.innerHTML = `<div class="lang-brand"><img src="./icons/nextvr-n.svg" alt="NextVR"><h1>Escolha seu idioma</h1></div>
-    <p>Choose your language · Elige tu idioma</p>
-    <div class="lang-options" role="list">
-      <button class="lang-option" data-lang="pt"><b>🇧🇷</b><span>Português</span></button>
-      <button class="lang-option" data-lang="en"><b>🇺🇸</b><span>English</span></button>
-      <button class="lang-option" data-lang="es"><b>🇪🇸</b><span>Español</span></button>
-    </div>
-    <div class="lang-status">Aponte com a mão e faça uma pinça para escolher.<br><span class="lang-tracking">Iniciando o hand tracking…</span></div>`;
-  body.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => finishLanguage(b.dataset.lang));
-  const w = open({ id:'language', title:'Next VR', node:body, w:880, h:600, onboarding:true });
+  const w = open({ id:'language', title:'Next VR', w:880, h:660, onboarding:true,
+    node:languagePicker(S.lang || deviceLanguage(), finishLanguage) });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();
   w.el.querySelector('[data-act="pin"]')?.remove();

@@ -120,12 +120,19 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
     const widthMetres=languageMatrix.elements[0]*language.glass[2];
     assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>65,'Setup has a readable angular size');
-    assert.ok(language.buttonHeight>=180,'Large language hit targets');
+    // O piso é ditado pelo teto de 660 px do slot de textura no atlas nativo, que é o que permite os
+    // doze idiomas aparecerem de uma vez, como no print (~40 px = ~4 cm a 0,42 m ≈ 5,3 graus).
+    assert.ok(language.buttonHeight>=38,'Language rows stay large enough for a hand pinch');
+    assert.equal(await page.locator('.lang-option').count(),12,'the picker lists every language from the reference');
+    // No print todos os idiomas aparecem de uma vez; a lista não pode depender de rolagem (o toque
+    // por pinca não rola). Este número é o mais fácil de quebrar sem querer ao mexer no CSS.
+    const list=await page.evaluate(()=>{const l=document.querySelector('.lang-options');return {scroll:l.scrollHeight,client:l.clientHeight,rows:l.children.length};});
+    assert.ok(list.scroll<=list.client+1,`all twelve languages are visible at once: ${JSON.stringify(list)}`);
     const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
     const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
     await page.waitForTimeout(1400);
-    assert.equal(await page.locator('.lang-option').count(),3,'looking at setup never selects it');
+    assert.equal(await page.locator('.lang-option[aria-pressed="true"]').count(),1,'looking at setup never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
     await feed(hand(.02));
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down),null,{timeout:5000});
@@ -177,7 +184,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       await page.evaluate(()=>window.__settle=null);
       await page.waitForFunction(()=>{
         const prev=window.__settle,seq=window.__frameSeq;
-        if(prev?.seq===seq)return false;
+        // Sem animação de janela a cena fica bit a bit igual e a ponte PARA de enviar: nenhum envio
+        // novo também é a cena assentada (o atlas só cruza quando algo muda). Exigir dois envios
+        // parados seguidos cobriria o caso de um envio ainda em voo logo após o reset.
+        if(prev?.seq===seq){const count=prev.count+1;window.__settle={...prev,count};return count>=2;}
         const values=window.__last.panels.filter(p=>!p.overlay).flatMap(p=>p.matrix);
         const stable=prev?.values.length===values.length && values.every((v,i)=>Math.abs(v-prev.values[i])<.00015);
         const count=stable?prev.count+1:0;window.__settle={seq,values,count};return count>=3;

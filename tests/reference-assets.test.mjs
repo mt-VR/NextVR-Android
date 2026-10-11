@@ -13,9 +13,12 @@ test('latest supplied archive is the provenance for restored vectors',async()=>{
     assert.ok(ICON_PATHS[name],`${name} is bundled`);
     assert.ok(reference.includes(ICON_PATHS[name]),`${name} keeps the original new-reference path`);
   }
-  const logo=await readFile('web/assets/nextvr-n.svg','utf8');
-  const nPath='M283 277 L320 388 L292 474 L213 474 Z M292 253 L370 253 L443 474 L363 474 Z M437 253 L522 253 L452 452 L413 340 Z';
-  assert.ok(reference.includes(nPath) && logo.includes(nPath));
+  // O usuário tirou o ícone "N" da referência e mandou o logo novo: o vetor antigo não é mais
+  // distribuído e o PNG cromado (chrome sobre preto) é a fonte do ícone do APK.
+  const logo=await readFile('web/assets/nextvr-n.png');
+  assert.equal(logo.subarray(1,4).toString('latin1'),'PNG','o logo do app é o PNG fornecido pelo usuário');
+  assert.ok(logo.length>20000,'o logo entregue é a arte grande, não um marcador');
+  await assert.rejects(readFile('web/assets/nextvr-n.svg'),'o vetor "N" antigo saiu de cena');
 });
 
 test('all current floating windows receive move, resize, repin and close controls',async()=>{

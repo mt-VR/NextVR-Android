@@ -20,10 +20,6 @@ import android.util.Log;
  * handoff          : ms the camera thread spent waiting to hand the frame to the renderer
  * track            : EFFECTIVE hand-landmark rate (results completed per second)
  * infer_*          : MediaPipe primary inference time on the tracking thread
- * slots            : hand slots the primary graph processed, mean over the window (1 = one hand
- *                    tracked, the cheap path; 2 = searching, or two hands really up)
- * narrow/wide/probe: frames of each kind since the log started - how much of the window was the
- *                    cheap one-slot path, and how many second-hand re-checks were paid for
  * capture_to_landmark : sensor capture time to landmark result (only when the camera reports
  *                    REALTIME timestamps, so the clocks are comparable); acquire_to_landmark is
  *                    always available
@@ -43,8 +39,12 @@ import android.util.Log;
  *                    hand is back); the cost of a loss to the user, not of the initial palm search
  * gap_max          : longest interval between two results in the window (scheduler stalls, GC)
  * track_jitter     : stddev of the intervals between results - rate stability, independent of rate
- * rescues          : crop rescues finished (found: how many of them produced a hand)
- * recoverySkips    : YOLO rounds shed because the primary inference was already the bottleneck
+ * camera_retries   : camera frames that failed and were retried on the next frame instead of
+ *                    tearing the camera down on the first one; five in a row still do (the guard
+ *                    in TrackingFailureGuard, mirrored by hand_retries on the tracking thread)
+ * hand_retries     : hand-tracking frames that failed and were retried instead of ending the
+ *                    session's hand tracking; five in a row still stop the hands and report it.
+ *                    A burst with the hands still tracked is a flaky delegate, not an outage.
  * cpu_pct          : process CPU time over wall time, all threads
  * native_mb / java_mb : memory, for long-session stability
  *
@@ -55,16 +55,17 @@ public final class PerfLog {
     private static final String TAG = "NextVR-Perf";
     private static final long WINDOW_MS = 3000L;
     private static long windowStartMs = -1, windowStartCpuMs = -1;
-    private static long cameraFrames, renderFrames, results, dropped, rescues, rescuesFound;
-    private static long recoverySkips, replayedFrames, replayedBatches, staleFrames, coalescedFrames;
-    private static long narrowFrames, wideFrames, probeCount, analysisSkips;
-    private static double slotSum;
+    private static long cameraFrames, renderFrames, results, dropped;
+    private static long replayedFrames, replayedBatches, staleFrames, coalescedFrames;
+    private static long analysisSkips;
     private static double inferSum, inferMax, camWorkSum, camWorkMax, handoffSum, handoffMax;
     private static double captureSum, acquireSum, publishSum;
     private static long captureCount, acquireCount, publishCount;
     /** Tracking-loss separation: results that OBSERVED no hand after a result that had one are
      * real losses; a tracker that is merely slow or skipping shows up as gap/jitter instead. */
     private static long losses;
+    /** Per-frame failures retried instead of ending the path on the spot (TrackingFailureGuard). */
+    private static long cameraRetries, handRetries;
     private static int lastHands = -1;
     private static long emptySinceMs = -1;
     private static double emptyMs;
@@ -107,25 +108,16 @@ public final class PerfLog {
      * same waste WITHOUT the gate. */
     public static synchronized void analysisSkipped() { analysisSkips++; }
 
-    /** A crop rescue finished on its worker thread; [found] when it produced a hand. */
-    public static synchronized void rescueDone(boolean found) { rescues++; if (found) rescuesFound++; }
+    /** A camera-callback frame failed and is being retried on the next frame instead of tearing the
+     * camera down on the first one; five consecutive failures still do (TrackingFailureGuard). */
+    public static synchronized void cameraRetry() { cameraRetries++; }
 
-    /** A YOLO recovery round was shed because the primary inference was already slow. */
-    public static synchronized void recoverySkipped() { recoverySkips++; }
+    /** A hand-tracking frame failed and is being retried on the next frame instead of ending the
+     * session's hand tracking; five consecutive failures still stop the hands (TrackingFailureGuard). */
+    public static synchronized void handRetry() { handRetries++; }
 
     /** Which landmarker is doing the primary inference, for A/B runs ("GPU" or "CPU"). */
     public static synchronized void delegate(String name) { delegate = name; }
-
-    /**
-     * Hand slots the primary graph just processed (1 = the cheap single-hand path, 2 = searching or
-     * two hands really tracked), plus how many frames of each kind and how many second-hand rechecks
-     * happened *in this window*. The landmarker counts since its graphs were built, so the caller
-     * passes differences; summing them keeps the printed numbers per window like every other field.
-     */
-    public static synchronized void handSlots(int slots, long narrow, long wide, long probes) {
-        slotSum += slots;
-        narrowFrames += narrow; wideFrames += wide; probeCount += probes;
-    }
 
     /**
      * One WebView drain evaluated [frames] hand frames; [stale] of them had lost native validity and
@@ -205,9 +197,10 @@ public final class PerfLog {
     private static void closeWindow(long now) {
         windowStartMs = now;
         windowStartCpuMs = Process.getElapsedCpuTime();
-        cameraFrames = renderFrames = results = dropped = rescues = rescuesFound = 0;
-        recoverySkips = replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
-        slotSum = 0; narrowFrames = wideFrames = probeCount = 0; analysisSkips = 0;
+        cameraFrames = renderFrames = results = dropped = 0;
+        replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
+        cameraRetries = handRetries = 0;
+        analysisSkips = 0;
         losses = 0; emptyMs = 0; gapMaxMs = 0;
         intervalSum = intervalSqSum = 0; intervalCount = 0;
         inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
@@ -232,9 +225,10 @@ public final class PerfLog {
             : Math.sqrt(Math.max(0.0, intervalSqSum / intervalCount - intervalMean * intervalMean));
         Log.i(TAG, String.format(java.util.Locale.US,
             "window=%.1fs camera=%.1f render=%.1f track=%.1f cam_work=%.1f cam_work_max=%.1f "
-                + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f slots=%.2f narrow=%d wide=%d probe=%d "
+                + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
-                + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d rescues=%d rescue_found=%d recovery_skips=%d "
+                + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d "
+                + "camera_retries=%d hand_retries=%d "
                 + "loss=%d empty_ms=%.0f gap_max=%d track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
@@ -247,14 +241,13 @@ public final class PerfLog {
             cameraFrames == 0 ? -1.0 : handoffMax,
             results == 0 ? -1.0 : inferSum / results,
             results == 0 ? -1.0 : inferMax,
-            results == 0 ? -1.0 : slotSum / results,
-            narrowFrames, wideFrames, probeCount,
             captureCount == 0 ? -1.0 : captureSum / captureCount,
             acquireCount == 0 ? -1.0 : acquireSum / acquireCount,
             publishCount == 0 ? -1.0 : publishSum / publishCount,
             replayedBatches == 0 ? -1.0 : replayedFrames / (double) replayedBatches,
             staleFrames, coalescedFrames,
-            dropped, analysisSkips, rescues, rescuesFound, recoverySkips,
+            dropped, analysisSkips,
+            cameraRetries, handRetries,
             losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
     }

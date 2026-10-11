@@ -34,7 +34,24 @@ android {
             arguments "-DANDROID_STL=c++_shared"
         }
     }
+    // Assinatura de depuração FIXA, no repositório. O Android recusa instalar um APK por cima de
+    // outro com assinatura diferente ("App not installed" / INSTALL_FAILED_UPDATE_INCOMPATIBLE), e a
+    // chave de depuração padrão nasce no HOME de quem compila: sem isto, cada runner do CI (e cada
+    // máquina) produz uma chave nova e nenhuma rodada instala por cima da anterior. Este é o keystore
+    // de depuração padrão do Android — alias androiddebugkey, senha android, CN=Android Debug — que
+    // é público por definição; não é segredo e não serve para publicar, só para depurar.
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('signing/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -43,7 +60,7 @@ android {
     externalNativeBuild.cmake {
         path "CMakeLists.txt"
     }
-    androidResources { noCompress += ['tflite', 'task'] }
+    androidResources { noCompress += ['task'] }
     namespace = 'com.nextvr.cardboard'
 
     compileOptions {
@@ -61,6 +78,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'com.google.mediapipe:tasks-vision:0.10.35'
+    // TFLite runtime MediaPipe's HandLandmarker executes on (libtensorflowlite_jni.so). It is NOT the
+    // YOLO interpreter: it must stay even though the YOLO pose model was removed.
     implementation 'com.google.ai.edge.litert:litert:1.4.0'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'

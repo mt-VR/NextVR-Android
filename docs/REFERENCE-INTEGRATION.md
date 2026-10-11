@@ -3,6 +3,13 @@
 > The current UI/input behavior is documented in
 > [UI interaction revision](UI-INTERACTION-REVISION.md). It supersedes the older gaze/touch,
 > placement and pending-artwork notes in historical documents.
+>
+> **Hand detector note (later change):** the PhoneXR detector pipeline described below
+> (`FusionHands` + YOLO11 wrist rescue + crop detection + hand slots) was removed and replaced by
+> `com.nextvr.handtrack.HandTracker` — one two-hand MediaPipe VIDEO graph per frame, plus a
+> lower-confidence "hunting" graph while nothing is tracked, and no background worker or second
+> model. The landmark post-processing (`HandGestures`, `PhoneXrHands`) still applies. See the last
+> section of [the investigation](hand-tracking-investigation.md).
 
 ## Source of truth
 
@@ -36,9 +43,9 @@ Camera2 rear camera → one YUV_420_888 ImageReader (latest frame, queue depth 2
   → stride-aware native YUV-to-ARGB conversion
   → sensor/display rotation ONCE → upright, unmirrored bitmap
        ├─ GL_TEXTURE_2D → camera + glass backdrop shaders
-       └─ independent 640px bitmap → PhoneXR OrangeHanding FusionHands
-             → MediaPipe VIDEO + YOLO wrist rescue + MediaPipe crop detection
-             → native PhoneXR landmark filters / shapes / latch / shoulder rays
+       └─ independent 640px bitmap → com.nextvr.handtrack.HandTracker
+             → MediaPipe VIDEO, 2 hands/frame (+ lower-confidence hunt graph while nothing tracked)
+             → landmark filters / shapes / latch / shoulder rays (HandGestures, PhoneXrHands)
                   ├─ transparent WebView overlay → cyan contour + pinch cursor for each hand
                   ├─ native GL → shoulder ray / drop / stick / beam / target ring
                   └─ reference surface hit-testing / fist grabbing / NEAR touch
@@ -118,12 +125,14 @@ once and sampled for both eyes; there are no duplicate browser sessions playing 
 The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit above, not
 `references.zip`. Models are bundled; nothing is downloaded at runtime.
 
-- `FusionHands`, `Crops`, `Yolo11Pose` and `HandGestures` are vendored from the fork. VIDEO
-  tracking uses MediaPipe 0.10.35; YOLO11 pose periodically supplies wrist locations to the CPU
-  crop rescuer via LiteRT 1.4.0. See licensing/provenance before redistribution.
+- `HandGestures` is vendored from the fork; the fork's detector (`FusionHands`, `Crops`,
+  `Yolo11Pose`, hand slots, recovery budget, merger) was REMOVED and replaced by
+  `com.nextvr.handtrack`: MediaPipe 0.10.35 VIDEO at two hands per frame, no second model, no
+  background worker. See licensing/provenance before redistribution.
 - Camera and tracking have independent bounded queues. Tracking runs on one dedicated worker;
   GPU construction/inference/destruction stay on that thread, with CPU construction fallback.
-  YOLO has the fork's separate executor. Teardown queues interpreter close after pending work.
+  (The fork's separate YOLO executor is gone with the detector: the tracking thread is the only
+  hand-tracking worker now.) Teardown closes the graphs after the last inference.
 - The fork's 63 native landmark filters, dead zones, physical rear-camera handedness, palm-width
   `.30/.48` pinch hysteresis and fist guard replace all prototype gesture code. There is no
   prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
@@ -158,11 +167,11 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
 - Native ray/target geometry reuses GL-thread scratch buffers across display frames; the previous
   filled hand mesh and stencil pass have been removed.
 - MediaPipe 0.10.35 `MPImage.close()` recycles its backing bitmap. The detector now wraps an
-  independently owned copy, leaving the borrowed frame readable by YOLO, crop rescue, and GPU
+  independently owned copy, leaving the borrowed frame readable by the GPU retry and the frame's own
   failure recovery. An Android bitmap ownership regression test exercises that close/copy path.
-- GPU inference failure (not just delegate creation failure) retries on CPU. YOLO rescue checks
-  run at most every 500 ms on the GPU path / 750 ms on CPU to reduce background contention;
-  the fork's hand detector, gesture thresholds and visualization geometry remain in use.
+- GPU inference failure (not just delegate creation failure) retries on CPU. (The old rescue cadence -
+  500 ms on the GPU path / 750 ms on CPU - went away with the fork's detector. The gesture
+  thresholds and visualization geometry remain in use.)
 - Safety adaptations: disappearance/stale tracking cancels a held gesture rather than clicking;
   held pointer ownership, matching dock/keyboard releases and lifecycle resets are preserved.
 - Upstream `palmButtons()` and `drawPalmButtons()` have definitions but no active call sites at
