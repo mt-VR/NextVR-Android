@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -350,18 +351,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          */
         @JavascriptInterface public void env(String id) {
             if(id==null || !(id.equals("passthrough")||id.equals("sunset")||id.equals("night")||id.equals("space"))) return;
-            final String environment=id;
-            envLoader.execute(()->{
-                Bitmap bitmap=null;
-                try {
-                    if(!environment.equals("passthrough")) {
-                        try(InputStream in=getAssets().open("ui/env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
-                    }
-                } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
-                SpatialRenderer target=renderer;
-                if(target!=null && !closed) target.setEnvironment(environment,bitmap);
-                else if(bitmap!=null) bitmap.recycle();
-            });
+            try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
+        }
+        private void loadEnvironment(String environment) {
+            Bitmap bitmap=null;
+            try {
+                if(!environment.equals("passthrough")) {
+                    try(InputStream in=getAssets().open("ui/env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
+                }
+            } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
+            SpatialRenderer target=renderer;
+            if(target!=null && !closed) target.setEnvironment(environment,bitmap);
+            else if(bitmap!=null) bitmap.recycle();
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
