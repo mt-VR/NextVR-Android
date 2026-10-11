@@ -41,6 +41,12 @@ hand/camera and audio acceptance tests.
 and publishes the `nextvr-debug-apk` artifact. CI also tests the actual HTML UI and verifies that
 bundled assets match source.
 
+Successive CI builds share one debug signature: the workflow copies `signing/debug.keystore` (the
+stock Android debug key, `androiddebugkey`/`android`) to `~/.android/debug.keystore` before building.
+Without it every runner generates a fresh key and installing a new round over the previous install
+fails with *App not installed*. The first install after this change needs the previous build
+uninstalled once, because that one was signed with a generated key.
+
 ## Develop the reference UI
 
 ```bash

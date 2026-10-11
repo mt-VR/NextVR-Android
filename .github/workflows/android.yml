@@ -40,6 +40,19 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      # O Gradle gera uma chave de depuração nova em cada runner, então cada execução assinava o APK
+      # com uma chave diferente e instalar a rodada nova por cima da anterior falhava com "App not
+      # installed" / INSTALL_FAILED_UPDATE_INCOMPATIBLE. O keystore de depuração padrão do Android
+      # (androiddebugkey, senha android — os mesmos valores que o AGP espera) fica no repositório e é
+      # copiado para onde o Gradle procura: assim TODOS os APKs de CI têm a mesma assinatura e as
+      # próximas rodadas instalam por cima sem desinstalar. Um APK já instalado de uma rodada
+      # anterior precisa ser desinstalado UMA vez, porque a chave dele era outra.
+      - name: Use o keystore de depuração do repositório
+        run: |
+          mkdir -p "$HOME/.android"
+          cp signing/debug.keystore "$HOME/.android/debug.keystore"
+          ls -l "$HOME/.android/debug.keystore"
+
       - name: Show runner Android toolchain
         run: |
           set -x
