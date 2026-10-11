@@ -34,7 +34,24 @@ android {
             arguments "-DANDROID_STL=c++_shared"
         }
     }
+    // Assinatura de depuração FIXA, no repositório. O Android recusa instalar um APK por cima de
+    // outro com assinatura diferente ("App not installed" / INSTALL_FAILED_UPDATE_INCOMPATIBLE), e a
+    // chave de depuração padrão nasce no HOME de quem compila: sem isto, cada runner do CI (e cada
+    // máquina) produz uma chave nova e nenhuma rodada instala por cima da anterior. Este é o keystore
+    // de depuração padrão do Android — alias androiddebugkey, senha android, CN=Android Debug — que
+    // é público por definição; não é segredo e não serve para publicar, só para depurar.
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('signing/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

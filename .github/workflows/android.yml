@@ -40,18 +40,6 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      # O Gradle gera uma chave de depuração nova em cada runner, então cada execução assinava o APK
-      # com uma chave diferente e instalar a rodada nova por cima da anterior falhava com "App not
-      # installed" / INSTALL_FAILED_UPDATE_INCOMPATIBLE. O keystore de depuração padrão do Android
-      # (androiddebugkey, senha android — os mesmos valores que o AGP espera) fica no repositório e é
-      # copiado para onde o Gradle procura: assim TODOS os APKs de CI têm a mesma assinatura e as
-      # próximas rodadas instalam por cima sem desinstalar. Um APK já instalado de uma rodada
-      # anterior precisa ser desinstalado UMA vez, porque a chave dele era outra.
-      - name: Use o keystore de depuração do repositório
-        run: |
-          mkdir -p "$HOME/.android"
-          cp signing/debug.keystore "$HOME/.android/debug.keystore"
-          ls -l "$HOME/.android/debug.keystore"
 
       - name: Show runner Android toolchain
         run: |
@@ -100,11 +88,40 @@ jobs:
           done
           ) 2>&1 | tee -a /tmp/build.log
 
+      # A assinatura de depuração vem do repositório (signing/debug.keystore, declarado no
+      # build.gradle do módulo). Sem isso, cada runner gera uma chave nova e a rodada nova NÃO
+      # instala por cima da anterior ("App not installed"). Aqui o APK montado é conferido contra a
+      # impressão digital da chave do repositório: se o Gradle voltar a assinar sozinho, o CI falha
+      # no lugar de entregar um APK que não atualiza.
+      - name: Verify debug signature is the repository key
+        id: sign
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          (set -e
+          FP=94b3534f902bb783d9cd5859978106f2687016e3127c239a397ffc3ea7b2adbf
+          # O relatório do próprio Gradle diz com qual chave a variante debug sai assinada.
+          ./gradlew :nextvr-android:signingReport --no-daemon > /tmp/sign.txt 2>&1 || true
+          cat /tmp/sign.txt
+          tr -d ':' < /tmp/sign.txt | grep -qi "$FP"
+          echo "Variante debug assinada com a chave de depuração do repositório"
+          # Reforço: a assinatura do APK montado, quando o apksigner está disponível.
+          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -qi "$FP"
+            echo "APK conferido pelo apksigner"
+          else
+            echo "apksigner indisponível neste runner; a conferência acima já cobre a assinatura"
+          fi
+          ) 2>&1 | tee -a /tmp/build.log
+
       - name: Publish build diagnostics
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OUTCOME: ${{ steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.verify.outcome == 'success' && 'success' || 'failure' }}
+          OUTCOME: ${{ steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.verify.outcome == 'success' && steps.sign.outcome == 'success' && 'success' || 'failure' }}
         run: |
           if [ ! -f /tmp/build.log ]; then echo "no build log captured" > /tmp/build.log; fi
           python3 -c 'import glob,xml.etree.ElementTree as E; [(print("JVM",p,E.parse(p).getroot().attrib)) for p in glob.glob("nextvr-android/build/test-results/testDebugUnitTest/TEST-*.xml")]' >> /tmp/build.log
@@ -124,7 +141,7 @@ jobs:
           gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json
 
       - name: Fail if any validation failed
-        if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success'
+        if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1
 
       - name: Upload native test reports
