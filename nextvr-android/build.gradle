@@ -8,7 +8,7 @@ android {
         abortOnError = false
     }
     defaultConfig {
-        applicationId "com.nextvr.cardboard"
+        applicationId "com.nextvr.app"
         // #gles3 #vulkan - You can reduce minSdkVersion down to 16 depending
         // on rendering APIs supported:
         //
@@ -61,7 +61,7 @@ android {
         path "CMakeLists.txt"
     }
     androidResources { noCompress += ['task'] }
-    namespace = 'com.nextvr.cardboard'
+    namespace = 'com.nextvr.app'
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

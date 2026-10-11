@@ -725,7 +725,7 @@ validação on-device continua pendente.)
   `assembleDebug`. O CI rodou: **12 classes JVM, 69 testes, 0 falhas, 0 skips** (`HandSlotPolicyTest`
   7, `DelegateWatchTest` 5, `TrackingBudgetTest` 5, `HandFrameMailboxTest` 7, `RecoveryBudgetTest` 3,
   `PhoneXrHandsTest` 19, e as demais intactas), `assembleDebug`, a checagem de que
-  `Java_com_nextvr_cardboard_PassthroughCamera_nativeYuvToArgb` continua presente nos dois ABIs, e o
+  `Java_com_nextvr_app_PassthroughCamera_nativeYuvToArgb` continua presente nos dois ABIs, e o
   APK publicado em `apk-dist`.
 - Um erro dessa rodada que só o CI pegou: adicionar um 5º parâmetro com default no construtor de
   `FusionHands` quebrou as 5 chamadas Java de 4 argumentos (default Kotlin é invisível para Java sem

@@ -129,7 +129,7 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
 | `web/src/core.js` | Reference state, localization, content root and native pose input |
-| `nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
+| `nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
 | `…/SpatialRenderer.java` | 2D camera + OES HTML shaders, glass, alpha and per-eye world composition |
 | `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, PhoneXR contact/media handling |
 | `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, HTML/native bridge and Android audio |

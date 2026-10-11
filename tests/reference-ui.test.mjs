@@ -29,11 +29,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const errors=[]; page.on('pageerror',e=>errors.push(e.message));
     // Validate native GLSL grammar/linking with ANGLE. Only the platform-specific OES sampler is
     // replaced for WebGL; this does not pretend to validate an Android external-texture driver.
-    const nativeSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/cardboard/SpatialRenderer.java',import.meta.url),'utf8');
+    const nativeSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java',import.meta.url),'utf8');
     const pairs=[...nativeSource.matchAll(/(?:program|cameraProgram) = link\(\s*("(?:\\.|[^"\\])*"),\s*("(?:\\.|[^"\\])*")\);/g)]
       .map(m=>[JSON.parse(m[1]),JSON.parse(m[2]).replace(/#extension GL_OES_EGL_image_external : require\n/,'').replaceAll('samplerExternalOES','sampler2D')]);
     assert.equal(pairs.length,2);
-    const handSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/cardboard/PhoneXrHandRenderer.kt',import.meta.url),'utf8');
+    const handSource=await readFile(new URL('../nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt',import.meta.url),'utf8');
     const handShader=handSource.match(/colorProgram=SpatialRenderer.link\(\s*("(?:\\.|[^"\\])*"),\s*("(?:\\.|[^"\\])*")\)/);
     assert.ok(handShader,'PhoneXR native hand shader is included in validation');
     pairs.push([JSON.parse(handShader[1]),JSON.parse(handShader[2])]);
