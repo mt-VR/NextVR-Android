@@ -256,10 +256,12 @@ test('language window: leaving direct-touch range releases and suppresses the he
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '.lq-title');
-    // Encosta e aperta, sai da faixa com a pinça ainda fechada, fica fora, e volta: um contato só.
+    // Encosta e aperta (o toque direto passa a ser dono da mão), e SÓ ENTÃO fecha a pinça: com o
+    // contato já pressionado a pinça não vira um clique do raio distante. Depois sai da faixa ainda
+    // pinçado — é a saída de faixa que solta — e volta pinçado: aquela pinça não pode reiniciar nada.
     const actions = await runSequence(page, aim, glass(
-      [.03, 0, -.18, -.18, .03, .03, .03, .03],
-      [0, 0, 0, 0, 1, 1, 1, 0]), handAtOffset);
+      [.06, 0, -.05, -.18, -.18, .03, .03, .03],
+      [0, 0, 1, 1, 1, 1, 1, 0]), handAtOffset);
     const edges = actions.filter(a => a === ACTION.down || a === ACTION.up || a === ACTION.cancel);
     assert.deepEqual(edges, [ACTION.down, ACTION.up], 'one direct contact ends once and cannot restart as a ray press: ' + JSON.stringify(actions));
     assert.equal(await optionsLeft(page), 12, 'title press leaves the window open');
