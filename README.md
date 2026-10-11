@@ -1,9 +1,9 @@
 # NextVR — Android/Cardboard passthrough workspace
 
 NextVR combines the spatial HTML workspace with the latest visual assets from
-**`new_references.zip`** (the primary visual source), native Camera2 passthrough,
-PhoneXR/OrangeHanding hands, hardware-rendered browser surfaces and the existing
-Google Cardboard SDK (**v1.35.0**).
+**`new_references.zip`** (the primary visual source), native Camera2 passthrough, a hand-tracking
+engine built for this project (`com.nextvr.handtrack`, MediaPipe Tasks Vision), hardware-rendered
+browser surfaces and the existing Google Cardboard SDK (**v1.35.0**).
 
 The old artificial room and collectible objects have been removed. The camera is the background;
 the dock, floating windows and keyboard remain independent spatial surfaces rendered for both
@@ -60,14 +60,17 @@ on minimal development images. The Ubuntu CI runner already supplies them.
 ## Latest UI/input update
 
 See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the
-[hand-input investigation](docs/hand-tracking-investigation.md). The VR UI accepts only PhoneXR
+[hand-input investigation](docs/hand-tracking-investigation.md). The VR UI accepts only tracked
 hand input: gaze dwell, viewer-button activation and touchscreen forwarding are absent end to end;
 head rotation updates the view only. Recognized pinch/fist/contact transitions are preserved across
 slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
 Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
-resizing. Two hand-tracking engines can be compared on the device from Settings → Hand tracking:
-PhoneXR's pipeline (one/two slots plus YOLO wrist recovery) and a simpler single two-hand graph with
-no rescue, swapped at runtime with the same model and thresholds, and tagged in the perf log. The
+resizing. Hand tracking is one MediaPipe pipeline written for this project
+(`com.nextvr.handtrack.HandTracker`): a two-hand VIDEO graph per frame, plus a second graph of the
+same model at a lower detection confidence that runs while nothing is tracked, so a hand the strict
+graph cannot see is still acquired. The PhoneXR fork pipeline (adaptive one/two hand slots, YOLO11
+wrist recovery, CPU crop rescue on background threads) and its 11.7 MB AGPL pose model are gone.
+The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
 distance from the eye, so moving it never sends it backwards.
@@ -89,7 +92,6 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 | Browser scrolling | Hold a hand pinch on the page and move. |
 | Type | Focus a field with the hand and use the floating keyboard. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
-| Switch hand engine | Settings → Hand tracking → Motor de mãos: PhoneXR (slots + YOLO rescue) or Simples (one two-hand graph); takes effect on the next frame. |
 | Recenter | Crosshair/recenter control on the dock. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
@@ -118,7 +120,7 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
 | `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
 | `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
-| `…/com/samrat/orangehanding/` | Fork’s MediaPipe/YOLO FusionHands detector and crop rescue |
+| `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
 | `web/src/core.js` | Reference state, localization, content root and native pose input |
 | `nextvr-android/src/main/java/com/nextvr/cardboard/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
@@ -132,6 +134,6 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 ## Attribution
 
 The Cardboard SDK/sample retains its Apache-2.0 headers and [license](LICENSE-CARDBOARD-SDK).
-See [third-party provenance](docs/THIRD-PARTY.md) for the bundled web libraries/model and the
-technical source integrated, including YOLO model distribution restrictions. No UI theme or positional-tracking system from the linked
+See [third-party provenance](docs/THIRD-PARTY.md) for the bundled web libraries and models. The
+YOLO11 pose model of the earlier PhoneXR integration is no longer distributed. No UI theme or positional-tracking system from the linked
 NextVR repository has been substituted for the supplied prototype.

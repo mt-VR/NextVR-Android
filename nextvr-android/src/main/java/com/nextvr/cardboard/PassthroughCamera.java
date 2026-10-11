@@ -12,10 +12,8 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
 import com.nextvr.cardboard.hands.PhoneXrHands;
-import com.samrat.orangehanding.DirectHands;
-import com.samrat.orangehanding.FusionHands;
-import com.samrat.orangehanding.HandEngine;
-import com.samrat.orangehanding.RetryableInferenceException;
+import com.nextvr.handtrack.HandTracker;
+import com.nextvr.handtrack.RetryableInferenceException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -71,9 +69,6 @@ final class PassthroughCamera {
     private final TrackingFailureGuard frameFailures=new TrackingFailureGuard();
     /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
     private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
-    /** Recovery rounds already reported for the current detector, so the log gets the delta only. */
-    private int reportedSkips;
-    private long reportedNarrow,reportedWide,reportedProbes;
     private int[] cameraPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
     private CameraDevice camera;
@@ -83,11 +78,7 @@ final class PassthroughCamera {
     /** Cleared once the GPU delegate has been dropped for measured slowness; never retried. */
     private boolean preferGpu=true;
     private boolean timestampIsRealtime;
-    /** A/B hand-tracking engine selected at runtime (settings app): PhoneXR's pipeline or the
-     * simple direct path. Read when the landmarker is built, so switching recreates it. */
-    static final String ENGINE_PHONEXR="phonexr",ENGINE_SIMPLE="simple";
-    private volatile String engineId=ENGINE_PHONEXR;
-    private HandEngine detector; // Created, used and closed on the SAME thread (GPU delegate).
+    private HandTracker detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
     private int rotation;
     private volatile boolean destroyed;
@@ -283,8 +274,8 @@ final class PassthroughCamera {
                 Bitmap retryFrame=retryable.getRetryBitmap();
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=createDetector(false);
-                    PerfLog.delegate("CPU "+engineName());
+                    detector=new HandTracker(context,false,"hand_landmarker.task");
+                    PerfLog.delegate("CPU");
                     hands.reset();
                     // Borrowed input preserves the emergency retry bitmap if CPU inference also fails.
                     detected=detector.detect(retryFrame,frame.stamp,0);
@@ -292,15 +283,6 @@ final class PassthroughCamera {
             }
             long inferenceMs=SystemClock.elapsedRealtime()-inferenceStart;
             budget.completed(inferenceMs);
-            // The landmarker counts since its graphs were built, and graphs are rebuilt on a delegate
-            // switch: a counter that went backwards restarted, so its whole value is this window's.
-            long narrow=detector.narrowFrames(),wide=detector.wideFrames(),probes=detector.probes();
-            PerfLog.handSlots(detector.currentSlots(),delta(narrow,reportedNarrow),
-                delta(wide,reportedWide),delta(probes,reportedProbes));
-            reportedNarrow=narrow; reportedWide=wide; reportedProbes=probes;
-            int skipped=detector.recoverySkips();
-            for(int i=reportedSkips;i<skipped;i++)PerfLog.recoverySkipped();
-            reportedSkips=skipped;
             // A GPU delegate that stays slow is not a failure: it is the tracker queueing behind the
             // display path. The measured cost of the inference is the only evidence of that available
             // here, so the delegate is judged on it and abandoned when it stops being the fast path.
@@ -309,13 +291,12 @@ final class PassthroughCamera {
                     "%.1f ms mean",delegateWatch.averageMs())+"; switching the landmarker to CPU");
                 try {
                     detector.close();detector=null;gpuDetector=false;
-                    detector=createDetector(false);
+                    detector=new HandTracker(context,false,"hand_landmarker.task");
                     delegateWatch.reset();
                     preferGpu=false;
-                    PerfLog.delegate("CPU (after a slow GPU) "+engineName());
+                    PerfLog.delegate("CPU (after a slow GPU)");
                     // The new graphs have no region-of-interest history, so the filters start fresh.
                     hands.reset();budget.reset();
-                    reportedSkips=detector.recoverySkips();
                 }catch(RuntimeException failure) {
                     android.util.Log.w("NextVR-Hands","CPU fallback after a slow GPU delegate failed",failure);
                     detector=null;   // rebuilt on the next frame; hands stay on the old path till then
@@ -331,59 +312,21 @@ final class PassthroughCamera {
             trackFailures.succeeded();
         }catch(Exception e){handleTrackingFailure(e);}
     }
-    /** The engine the settings app selected; short name for the perf log. */
-    private String engineName() { return ENGINE_SIMPLE.equals(engineId)?"simple":"PhoneXR"; }
-
     /**
-     * Builds the landmarker for the selected engine (see HandEngine). The PhoneXR pipeline keeps a
-     * one/two-slot pair plus YOLO wrist recovery, so its YOLO interval is passed here; the simple
-     * engine is a single two-hand graph and takes neither.
+     * Creates (or recreates) the detector on the tracking thread and reports the delegate in use.
+     * The GPU delegate is tried first; a creation failure or a measured-slow GPU (DelegateWatch)
+     * falls back to CPU and is not retried.
      */
-    private HandEngine createDetector(boolean gpu) {
-        if(ENGINE_SIMPLE.equals(engineId))return new DirectHands(context,gpu,"hand_landmarker.task");
-        return new FusionHands(context,gpu,"hand_landmarker.task",gpu?500L:750L);
-    }
-
-    /** Creates (or recreates) the detector on the tracking thread and reports the choice. */
     private void buildDetector() {
         if(preferGpu) {
-            try { detector=createDetector(true);gpuDetector=true; }
-            catch(RuntimeException gpu) { detector=createDetector(false);gpuDetector=false; }
+            try { detector=new HandTracker(context,true,"hand_landmarker.task");gpuDetector=true; }
+            catch(RuntimeException gpu) { detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false; }
         } else {
             // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
             // pick it up again on the next creation, or a failed CPU rebuild would loop.
-            detector=createDetector(false);gpuDetector=false;
+            detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;
         }
-        // The engine travels in the delegate string, so an A/B session shows which one a window of
-        // the log belongs to without a new field (tools/perf/summarize_logcat.py prints the set).
-        PerfLog.delegate((gpuDetector?"GPU":"CPU")+" "+engineName());
-        if(!ENGINE_SIMPLE.equals(engineId) && !detector.getFused())
-            listener.error("YOLO wrist recovery unavailable; see PhoneXR logs");
-    }
-
-    /**
-     * A/B switch, called from the WebView (settings → hand tracking) and only then: recreates the
-     * landmarker on the tracking thread with the other engine. The next frame uses it — the web
-     * layer sees the same frames, produced by a different detector.
-     */
-    void setHandEngine(String id) {
-        String wanted=ENGINE_SIMPLE.equals(id)?ENGINE_SIMPLE:ENGINE_PHONEXR;
-        if(wanted.equals(engineId))return;
-        engineId=wanted;
-        android.util.Log.i("NextVR-Hands","hand engine: "+engineName());
-        try {
-            tracking.execute(()->{
-                if(detector!=null){detector.close();detector=null;}
-                // A new engine is a fresh start: no slot decision, filters, delegate verdict or
-                // failure streak from the engine that was just replaced.
-                delegateWatch.reset();budget.reset();hands.reset();
-                preferGpu=true;gpuDetector=false;
-                trackFailures.reset();
-                reportedSkips=0;reportedNarrow=0;reportedWide=0;reportedProbes=0;
-            });
-        } catch(RejectedExecutionException shutdown) {
-            // Tracking was shut down (destroy): the flag is set for a future session; nothing to rebuild.
-        }
+        PerfLog.delegate(gpuDetector?"GPU":"CPU");
     }
 
     /**
@@ -402,17 +345,12 @@ final class PassthroughCamera {
         android.util.Log.e("NextVR-Hands","hand tracking stopped after "+trackFailures.consecutive()+" consecutive failures",failure);
         handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+failure.getMessage());clearHands();
     }
-    /** A counter that went backwards means the reported stream restarted (graphs rebuilt, tracking
-     * re-enabled): the new value is then the whole window's count. */
-    private static long delta(long now,long reported) { return now<reported?now:now-reported; }
-
     /**
      * Runs on the tracking thread, which is also the thread that owns the landmarker. Hands are gone,
      * so the narrow/wide decision made against the frames that just expired is forgotten too: the next
      * session searches both slots again until one hand proves the second slot idle.
      */
     private void clearHands() {
-        if(detector!=null)detector.resetSlots();
         hands.reset();
         listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
     }

@@ -1,8 +1,7 @@
-package com.samrat.orangehanding
+package com.nextvr.handtrack
 
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.RectF
 import com.google.mediapipe.framework.image.BitmapExtractor
 import org.junit.Assert.*
 import org.junit.Test
@@ -36,7 +35,9 @@ class MpImageInputTest {
         assertTrue(frame.isRecycled)
     }
 
-    @Test fun closingMediaPipeInputDoesNotRecycleFrameNeededForRescueOrRetry() {
+    @Test fun closingMediaPipeInputDoesNotRecycleTheBorrowedFrame() {
+        // The borrowed analysis buffer must survive the inference that just read it: on a failed
+        // owned inference the retry bitmap is derived from it, and Camera2 retries the frame on CPU.
         val frame=Bitmap.createBitmap(16,16,Bitmap.Config.ARGB_8888)
         frame.eraseColor(Color.RED)
         try {
@@ -46,11 +47,6 @@ class MpImageInputTest {
             image.close()
             assertTrue(owned.isRecycled) // Test the actual MediaPipe close contract, not a mock.
             assertFalse(frame.isRecycled)
-            // Both downstream consumers used to receive the recycled bitmap.
-            val yolo=Bitmap.createScaledBitmap(frame,8,8,true)
-            assertEquals(Color.RED,yolo.getPixel(4,4));yolo.recycle()
-            val crop=checkNotNull(Crops.square(frame,RectF(0f,0f,16f,16f),8))
-            assertFalse(crop.bitmap.isRecycled);crop.bitmap.recycle()
             val cpuRetry=MpImageInput.copyOf(frame)
             assertEquals(Color.RED,BitmapExtractor.extract(cpuRetry).getPixel(4,4))
             cpuRetry.close();assertFalse(frame.isRecycled)

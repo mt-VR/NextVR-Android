@@ -1,4 +1,4 @@
-package com.samrat.orangehanding
+package com.nextvr.handtrack
 
 import android.content.Context
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -7,9 +7,9 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 
 /**
- * One graph construction for both engines (A/B). The options are the PhoneXR ones, kept in a single
- * place so the comparison is fair: switching engines must not change the model, the running mode or
- * any threshold — only the pipeline around them.
+ * The single place a landmarker graph is built, so the steady and hunting graphs of [HandTracker]
+ * cannot drift apart in anything except the detection confidence that separates them: same model,
+ * same running mode, same tracking confidence.
  */
 internal object HandModels {
     fun landmarker(context: Context, model: String, gpu: Boolean, mode: RunningMode,

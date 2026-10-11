@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Host-side reference benchmark for the NextVR hand-tracking models.
 
-It runs the SAME model files that ship in the APK (hand_landmarker.task, yolo11n-pose.tflite) on
-the developer machine, with MediaPipe Tasks 0.10.35 (the Android AAR version) and LiteRT. It
-answers the cost questions that do not depend on the phone's camera:
+It runs the SAME model file that ships in the APK (hand_landmarker.task) on the developer machine,
+with MediaPipe Tasks 0.10.35 (the Android AAR version). It answers the cost questions that do not
+depend on the phone's camera:
 
   * primary VIDEO-mode detection at the analysis widths used by the app (640/512 px) and at the
     full camera width (1280 px), with hands present (tracked) and absent (palm search every frame);
-  * the CPU rescue landmarker on the 224 px crop that PassthroughCamera/FusionHands runs when YOLO
-    reports a wrist MediaPipe misses;
-  * YOLO11n-pose inference (the wrist finder).
+  * the HUNTING graph of com.nextvr.handtrack.HandTracker: the same model at the lower detection
+    confidence used while nothing is tracked. That is what replaced the fork's YOLO wrist finder and
+    its CPU crop landmarker, both removed with the rest of the PhoneXR pipeline.
 
 These numbers are NOT phone numbers. They are a reproducible baseline on this machine (see
 docs/hand-tracking-investigation.md for the host specification). Device validation remains
 required and is done with `adb logcat -s NextVR-Perf` (see tools/perf/README.md).
 
 Usage:  python3 tools/bench/hand_host_bench.py [--frames N] [--out result.json] [--hands DIR]
-Requires: pip install mediapipe==0.10.35 ai-edge-litert opencv-python-headless numpy
+Requires: pip install mediapipe==0.10.35 opencv-python-headless numpy
 """
 import argparse
 import glob
@@ -36,7 +36,6 @@ from mediapipe.tasks.python import vision
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ASSETS = os.path.join(ROOT, "nextvr-android", "src", "main", "assets")
 HAND_MODEL = os.path.join(ASSETS, "hand_landmarker.task")
-YOLO_MODEL = os.path.join(ASSETS, "yolo11n-pose.tflite")
 CAMERA_W, CAMERA_H = 1280, 720
 
 
@@ -118,11 +117,13 @@ def make_landmarker(mode, min_conf):
     return vision.HandLandmarker.create_from_options(options)
 
 
-def bench_video(frames_by_width, count, hands_present, warmup=10):
-    """Time detect_for_video, the app's primary path, with the hand state held constant."""
+def bench_video(frames_by_width, count, hands_present, conf=0.45, warmup=10):
+    """Time detect_for_video, the app's primary path, with the hand state held constant.
+    [conf] selects the graph: 0.45 is HandTracker.STEADY_CONFIDENCE (a hand is tracked), 0.25 is
+    HandTracker.HUNT_CONFIDENCE (nothing tracked: the lower bar is looking for the hand)."""
     results = {}
     for width, frames in frames_by_width.items():
-        landmarker = make_landmarker(vision.RunningMode.VIDEO, 0.45)
+        landmarker = make_landmarker(vision.RunningMode.VIDEO, conf)
         times = []
         ts = 0
         for i in range(warmup + count):
@@ -138,48 +139,9 @@ def bench_video(frames_by_width, count, hands_present, warmup=10):
         landmarker.close()
         results[str(width)] = {"scenario": "tracked_2_hands" if hands_present >= 2 else
                                ("tracked_1_hand" if hands_present == 1 else "no_hand_palm_search"),
+                               "confidence": conf,
                                "hands_in_last_result": hands_seen, **stats(times)}
     return results
-
-
-def bench_rescue(hands, count, warmup=5):
-    """Time the CPU IMAGE-mode landmarker on a 224 px crop, as FusionHands.rescueAt does."""
-    landmarker = make_landmarker(vision.RunningMode.IMAGE, 0.3)
-    base = camera_frame(hands, 1, 7)
-    rng = np.random.default_rng(3)
-    times, found = [], 0
-    for i in range(warmup + count):
-        cx = int(rng.integers(300, 900))
-        cy = int(rng.integers(150, 500))
-        crop = base[cy:cy + 300, cx:cx + 300]
-        crop = cv2.resize(crop, (224, 224), interpolation=cv2.INTER_AREA)
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(
-            cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)))
-        t0 = time.perf_counter()
-        result = landmarker.detect(image)
-        dt = (time.perf_counter() - t0) * 1000.0
-        if i >= warmup:
-            times.append(dt)
-            found += len(result.hand_landmarks) > 0
-    landmarker.close()
-    return {"crop_px": 224, "mode": "IMAGE", "hands_found_on_random_crops": found, **stats(times)}
-
-
-def bench_yolo(threads, count, warmup=5):
-    from ai_edge_litert.interpreter import Interpreter
-    interpreter = Interpreter(model_path=YOLO_MODEL, num_threads=threads)
-    interpreter.allocate_tensors()
-    shape = interpreter.get_input_details()[0]["shape"]
-    data = np.random.default_rng(5).random(shape).astype(np.float32)
-    times = []
-    for i in range(warmup + count):
-        interpreter.set_tensor(interpreter.get_input_details()[0]["index"], data)
-        t0 = time.perf_counter()
-        interpreter.invoke()
-        dt = (time.perf_counter() - t0) * 1000.0
-        if i >= warmup:
-            times.append(dt)
-    return {"input_shape": [int(s) for s in shape], "threads": threads, **stats(times)}
 
 
 def main():
@@ -199,11 +161,9 @@ def main():
         "host": {"python": sys.version.split()[0], "machine": platform.machine(),
                  "processor": platform.processor() or "unknown", "cpus": os.cpu_count(),
                  "mediapipe": mp.__version__, "opencv": cv2.__version__},
-        "models": {"hand_landmarker.task": os.path.getsize(HAND_MODEL),
-                   "yolo11n-pose.tflite": os.path.getsize(YOLO_MODEL)},
+        "models": {"hand_landmarker.task": os.path.getsize(HAND_MODEL)},
         "primary_video": {},
-        "rescue_crop_image_mode": None,
-        "yolo11n_pose": {},
+        "hunting_graph_video": None,
     }
     for label, frames, count in (("no_hand_palm_search", empty, 0),
                                  ("tracked_1_hand", one_hand, 1),
@@ -211,11 +171,11 @@ def main():
         widths = {w: [to_bitmap_like(f, w) for f in frames] for w in (1280, 640, 512)}
         print(f"[bench] primary VIDEO {label} widths=1280/640/512 n={args.frames}", file=sys.stderr)
         report["primary_video"][label] = bench_video(widths, args.frames, count)
-    print("[bench] rescue IMAGE-mode crop", file=sys.stderr)
-    report["rescue_crop_image_mode"] = bench_rescue(hands, args.frames)
-    for threads in (1, 2):
-        print(f"[bench] YOLO11n-pose threads={threads}", file=sys.stderr)
-        report["yolo11n_pose"][f"threads_{threads}"] = bench_yolo(threads, args.frames)
+    # The hunting graph only runs while nothing is tracked (see HandTracker), so it is timed on the
+    # palm-search frames: same model, lower detection confidence, no second inference and no crop.
+    print("[bench] hunting graph VIDEO (no hand, conf=0.25)", file=sys.stderr)
+    hunt_widths = {w: [to_bitmap_like(f, w) for f in empty] for w in (1280, 640, 512)}
+    report["hunting_graph_video"] = bench_video(hunt_widths, args.frames, 0, conf=0.25)
 
     text = json.dumps(report, indent=2)
     print(text)

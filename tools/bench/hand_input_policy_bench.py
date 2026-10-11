@@ -12,15 +12,15 @@ makes around them, with the real shipped hand_landmarker.task and the app's own 
     life in one of them.
   * Recall per analysis width, at several hand sizes: how much detection is traded away if the
     input gets smaller. A rate win that loses the hand is not a win.
-  * Contension: the primary inference is timed while YOLO and the rescue landmarker run on their own
-    background threads at MIN_PRIORITY, exactly like FusionHands does on a phone. On a 2-core box
-    this reproduces the "phone with an app open" case, where a background worker inflates the
-    critical path even though it is "off" it.
+  * (The contention case went away with the fork: the PhoneXR wrist finder and its CPU crop
+    landmarker were removed, and com.nextvr.handtrack.HandTracker runs NO background worker at all.
+    The primary inference on the tracking thread is now the only hand-tracking work in the process,
+    so this tool measures input size, detection state and recall only.)
 
 These are host numbers on the developer machine, NOT phone numbers. They rank options; the device
 log (adb logcat -s NextVR-Perf, see tools/perf) is what confirms them.
 
-Usage: pip install mediapipe==0.10.35 ai-edge-litert opencv-python-headless numpy
+Usage: pip install mediapipe==0.10.35 opencv-python-headless numpy
          python3 tools/bench/hand_input_policy_bench.py [--frames 60] [--out out.json]
          (on a machine without libGL, stub libs are enough: the CPU delegate never calls GL)
 """
@@ -43,7 +43,6 @@ from mediapipe.tasks.python import vision
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ASSETS = os.path.join(ROOT, "nextvr-android", "src", "main", "assets")
 HAND_MODEL = os.path.join(ASSETS, "hand_landmarker.task")
-YOLO_MODEL = os.path.join(ASSETS, "yolo11n-pose.tflite")
 # The camera profile PassthroughCamera selects: 1280x720 sensor, upright via a 90-degree turn.
 SENSOR_W, SENSOR_H = 1280, 720
 UPRIGHT_W, UPRIGHT_H = SENSOR_H, SENSOR_W
@@ -206,70 +205,6 @@ def bench_num_hands(lands, width, frames):
     return out
 
 
-def low_priority():
-    """Best effort: put this thread at the bottom, like Thread.MIN_PRIORITY does on Android."""
-    try:
-        os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), 19)
-    except Exception:
-        pass
-
-
-def bench_contention(lands, width, frames, rescue_width=224):
-    """Time the primary inference while the recovery workers run concurrently.
-
-    Cases: idle (nothing else running), +YOLO (the wrist finder on 1 thread), +RESCUE (the CPU
-    landmarker on the crop), +BOTH. On a 2-core host this is the closest cheap model of a phone
-    that is also rasterizing two WebViews.
-    """
-    from ai_edge_litert.interpreter import Interpreter
-
-    crop = np.ascontiguousarray(cv2.resize(scene(lands, 1, 91, 0.5, None)[40:340, 200:500],
-                                           (rescue_width, rescue_width), interpolation=cv2.INTER_AREA))
-    yolo_in = np.random.default_rng(5).random((1, 3, 320, 320)).astype(np.float32)
-    interp = Interpreter(model_path=YOLO_MODEL, num_threads=1)
-    interp.allocate_tensors()
-    in_idx = interp.get_input_details()[0]["index"]
-    interp.set_tensor(in_idx, yolo_in)
-
-    def run_yolo(stop):
-        low_priority()
-        while not stop.is_set():
-            interp.invoke()
-
-    def run_rescue(stop):
-        low_priority()
-        lm = landmarker(vision.RunningMode.IMAGE, conf=0.30)
-        inp = as_mp(crop)
-        while not stop.is_set():
-            lm.detect(inp)
-        lm.close()
-
-    results = {}
-    for label, workers in (("idle", []), ("yolo", [run_yolo]), ("rescue", [run_rescue]),
-                          ("yolo+rescue", [run_yolo, run_rescue])):
-        stop = threading.Event()
-        threads = [threading.Thread(target=w, args=(stop,), daemon=True) for w in workers]
-        for th in threads:
-            th.start()
-        time.sleep(0.4)
-        lm = landmarker(vision.RunningMode.VIDEO)
-        times, ts = [], 0
-        frames_w = [scene(lands, 1, 6000 + i, 0.42, width) for i in range(6)]
-        for i in range(frames):
-            inp = as_mp(np.ascontiguousarray(frames_w[i % len(frames_w)]))
-            ts += 33
-            t0 = time.perf_counter()
-            lm.detect_for_video(inp, ts)
-            times.append((time.perf_counter() - t0) * 1000.0)
-        lm.close()
-        stop.set()
-        for th in threads:
-            th.join(timeout=2)
-        results[label] = stats(times)
-    interp.close()
-    return {"primary_width": width, "case": results}
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--frames", type=int, default=60)
@@ -312,13 +247,6 @@ def main():
     print("\n== num_hands 1 vs 2 at 640 px ==")
     for k, v in report["num_hands"].items():
         print(f"  {k:12s} mean {v['mean_ms']:6.2f} p95 {v['p95_ms']:6.2f}")
-
-    report["contention"] = bench_contention(lands, 640, max(30, args.frames // 2))
-    print("\n== primary inference while recovery workers run (640 px, low priority threads) ==")
-    base = report["contention"]["case"]["idle"]["mean_ms"]
-    for k, v in report["contention"]["case"].items():
-        print(f"  {k:12s} mean {v['mean_ms']:6.2f} (+{v['mean_ms'] - base:5.2f})  "
-              f"p95 {v['p95_ms']:6.2f}  max {v['max_ms']:6.2f}")
 
     if args.out:
         with open(args.out, "w") as fh:

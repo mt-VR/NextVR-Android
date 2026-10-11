@@ -1,4 +1,5 @@
-// Android PhoneXR hands adapter. No web detector, landmark filter, skeleton drawing or pinch
+// Android hand-tracking adapter (detector: com.nextvr.handtrack; gesture semantics: PhoneXR-derived
+// post-processing). No web detector, landmark filter, skeleton drawing or pinch
 // thresholds here: OrangeHanding + PhoneXrHands + the fork's native GL renderer own those systems.
 // Dock invocation is NOT via pinch: the palm+pinch dock gesture has been removed. Other PhoneXR
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
@@ -12,12 +13,8 @@ const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
 export const tracking = () => enabled;
 export async function startHands() {
-  if (!native) { toast('PhoneXR hands require the Android camera pipeline.'); return false; }
-  enabled = true; window.NativeXR.hands(true); emit('hands', true);
-  // A/B: o motor escolhido nas Configurações sobe junto com o tracking (a troca em runtime é a
-  // mesma chamada, feita pela aba "Hand tracking").
-  window.NativeXR.handEngine?.(S.handEngine === 'simple' ? 'simple' : 'phonexr');
-  return true;
+  if (!native) { toast('Hand tracking requires the Android camera pipeline.'); return false; }
+  enabled = true; window.NativeXR.hands(true); emit('hands', true); return true;
 }
 function emitClickEvents(events) {
   for (const event of events) emit(`pinch${event}`, cursor);

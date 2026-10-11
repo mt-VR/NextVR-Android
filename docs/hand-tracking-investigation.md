@@ -1200,3 +1200,76 @@ demora.
 - Validação on-device pendente: qual motor se comporta melhor e em que faixa de FPS
   (`delegate=GPU PhoneXR` vs `GPU simple` no log), a folga do arco na visão real e o arrasto
   lateral mantendo a janela no lugar.
+
+# 2026-10-11 (9ª rodada) — o detector do PhoneXR foi REMOVIDO e substituído por um motor próprio
+
+## O que saiu (remoção literal)
+
+- **Todo o pacote `com.samrat.orangehanding` foi apagado**: `FusionHands.kt` (os dois grafos de slot
+  + o laço de resgate), `Yolo11Pose.kt`, `Crops.kt`, `HandSlotPolicy.kt`, `RecoveryBudget.kt`,
+  `RescueMerger.kt` e o `OneEuro.kt` do fork (código morto: o filtro usado é o
+  `HandGestures.OneEuro`). Com isso foram embora o thread do YOLO, o thread do resgate, a fila de
+  crops e a política de slots.
+- **O modelo `yolo11n-pose.tflite` (11,7 MB) e o `YOLO-AGPL-3.0.txt`** foram removidos dos assets. O
+  APK deixa de distribuir um modelo Ultralytics AGPL.
+- **A dependência `com.google.ai.edge.litert:litert:1.4.0` FICA.** Ela parecia ser só o interpretador
+  do YOLO, e foi removida junto — o CI reprovou: sem ela o APK perde
+  `libtensorflowlite_jni.so` nas duas ABIs (a verificação de bibliotecas nativas do workflow exige a
+  lib), porque a LiteRT é o runtime TFLite em que o próprio `HandLandmarker` executa. Restaurada com
+  um comentário no `build.gradle` dizendo exatamente isso, para a próxima pessoa não repetir a
+  remoção. Nenhum modelo do Ultralytics volta por causa disso: o runtime é Apache-2.0 e genérico.
+- **A telemetria que só o PhoneXR alimentava** saiu do `PerfLog` e do sumarizador: `slots`, `narrow`,
+  `wide`, `probe`, `rescues`, `rescue_found`, `recovery_skips` (o `PerfLogTest` e o `--self-test` do
+  `summarize_logcat.py` foram ajustados junto).
+- **A UI de A/B e a ponte `NativeXR.handEngine`** foram removidas: com um motor só, não há o que
+  trocar. As Configurações mostram o detector em uso, não um seletor.
+- Os testes do fork (`HandSlotPolicyTest`, `RecoveryBudgetTest`, `RescueMergerTest`) saíram com as
+  classes que testavam; o `MpImageInputTest` foi movido para o pacote novo, com o caso de crop
+  removido e o de retry mantido.
+
+## O que entrou
+
+- **`com.nextvr.handtrack.HandTracker`** (novo, escrito aqui): UM grafo MediaPipe VIDEO
+  `numHands=2` por frame, no thread de tracking, sem trabalho em segundo plano. O frame entrega a
+  segunda mão pela própria inferência que já está rodando — sem o probe de 150 ms que a política de
+  slots fazia nem o caminho barato de uma mão que ela comprava.
+- **Grafo de caça (hunt)**: enquanto NADA está rastreado (6 frames sem mão ≈ 0,2 s), o mesmo modelo é
+  processado com confiança de detecção menor (.25 em vez de .45), num segundo grafo. É o que
+  substitui o resgate por YOLO: nenhum modelo extra, nenhum crop, nenhum thread — e a mão que o grafo
+  estrito não vê (longe, borrada, de perfil na borda do quadro) volta a ser procurada com um crivo
+  mais baixo. Ao primeiro resultado com mão, volta ao grafo estrito, cuja história de ROI mantém o
+  rastreio.
+- **`HandModels`/`MpImageInput`/`RetryableInferenceException`** foram movidos para o pacote novo (o
+  `MpImageInput` e a exceção são genéricos e continuam valendo: bitmap de análise com dono único, e a
+  cópia de retry que permite a volta GPU→CPU do `PassthroughCamera`).
+- `PassthroughCamera` programa contra o tipo concreto: criação/recriação do detector num único
+  `buildDetector()` (GPU → CPU na falha de criação, `DelegateWatch` para GPU medida lenta).
+- Ferramentas de host atualizadas: `hand_host_bench.py` mede agora o grafo estrito E o de caça (em vez
+  de YOLO + resgate) e não depende mais de LiteRT; `hand_input_policy_bench.py` perdeu o caso de
+  contenção (não há mais worker em segundo plano); `pipeline_sim.py` ficou marcado como modelo
+  histórico da era PhoneXR.
+- Docs atualizados: README (motor, tabela de controles, code map, atribuição), `THIRD-PARTY.md`
+  (modelo YOLO/LiteRT registrados como REMOVIDOS; detector do fork fora da lista de código
+  integrado), `REFERENCE-INTEGRATION.md` (diagrama e notas) e `tools/perf/README.md` (campos que
+  deixaram de existir).
+
+## O que ficou igual, de propósito
+
+- A pós-produção (`PhoneXrHands`, `HandGestures`, `HandPresentation`, `PalmMenuPose`) e o renderer GL
+  continuam os mesmos: filtros One Euro, histerese de pinça `.30/.48`, ponte de predição, ponte de
+  toque e desenho das mãos não mudam com o detector. O nome "PhoneXr" nesses arquivos é histórico —
+  o que o usuário chamou de "hand do PhoneXR" (o pipeline de detecção do fork) é o que foi removido.
+- O modelo `hand_landmarker.task` (MediaPipe, Apache-2.0) permanece: escrever um detector de mãos
+  novo do zero, sem GPU de treino e sem dados, produziria um resultado pior com o mesmo esforço. O
+  que foi escrito do zero é o MOTOR em volta dele.
+
+## Validação
+
+- Node: 50 testes (42 passam, 8 pulados: Chromium só no CI). `--self-test` do sumarizador passa com
+  as métricas removidas; `npm run build:ui` regerado.
+- Kotlin: os arquivos novos compilam com stubs de Android/MediaPipe no harness local (kotlinc 2.4.21),
+  e a auditoria símbolo × declaração cobre os pontos de chamada do `PassthroughCamera`.
+- **Risco assumido**: o motor novo nunca rodou em aparelho. O que ele troca está medido e escrito
+  acima (sem slots adaptativos, sem resgate por YOLO); a validação on-device é a mesma checklist de
+  sempre — `track`, `infer_mean`, `loss`/`empty_ms` — e a pergunta é se o grafo de caça compensa a
+  perda do resgate em mãos difíceis.
