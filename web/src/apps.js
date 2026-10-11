@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setGlassAppearance, envList, startGyro, gyroLive, native, css3d,
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
@@ -31,7 +31,7 @@ function webWindow(id, title, url, note) {
 
   const wrap = el('div'); wrap.style.cssText = 'flex:1;min-height:0;position:relative';
   const frame = el(native ? 'div' : 'iframe');
-  if (native) { frame.dataset.nativeBrowser = id; frame.style.cssText = 'width:100%;height:100%;background:#fff'; }
+  if (native) { frame.dataset.nativeBrowser = id; frame.style.cssText = 'width:100%;height:100%;background:transparent'; }
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
   wrap.appendChild(frame);
@@ -394,6 +394,31 @@ function settingsApp() {
       c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
       page.append(c);
       page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
+    }],
+    [t('appearance'), () => {
+      page.innerHTML = `<h2>${t('appearance')}</h2><p class="sub">${t('glassHelp')}</p>`;
+      const c = el('div', 'card');
+      const choices = el('div', 'seg');
+      const options = [
+        ['liquid', t('liquidGlass')], ['clear', t('clearGlass')], ['outline', t('outlineGlass')],
+      ];
+      for (const [id, label] of options) {
+        const b = el('button', null, label); b.setAttribute('aria-pressed', S.glassStyle === id);
+        b.onclick = () => {
+          setGlassAppearance(id, S.glassOpacity);
+          [...choices.children].forEach(x => x.setAttribute('aria-pressed', 'false'));
+          b.setAttribute('aria-pressed', 'true');
+        };
+        choices.appendChild(b);
+      }
+      c.append(row(t('appearance'), t('glassHelp'), choices));
+      const opacityValue = el('span', 'note', `${Math.round(S.glassOpacity * 100)}%`);
+      const opacityControl = el('div');
+      opacityControl.append(slider('glassOpacity', .15, .78, .03, value => {
+        setGlassAppearance(S.glassStyle, value); opacityValue.textContent = `${Math.round(value * 100)}%`;
+      }), opacityValue);
+      c.append(row(t('glassOpacity'), null, opacityControl));
+      page.append(c);
     }],
     [t('hands'), () => {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;

@@ -1,8 +1,9 @@
 // NextVR — janelas 3D fixas no ambiente, dock horizontal e teclado flutuante.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
+import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, setEnvironment } from './core.js';
 import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
+import { PalmDockGesture } from './palm-dock.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
@@ -17,6 +18,79 @@ let focused = null;
 
 /* onde a dock está agora — a janela nasce ancorada nela */
 const dockAt = { y: EYE - .6, z: -1.7, h: .12 };
+
+/* Palm quick controls: the supporting open palm is consumed while the other hand remains the
+ * normal pinch pointer. The menu is a head-locked transparent DOM surface, positioned from that
+ * palm's camera landmarks and activated by the same real pinch edges as every other control. */
+const palmMenuGesture = new PalmDockGesture();
+const palmMenuEl = document.getElementById('palm-menu');
+const palmMenuButtons = palmMenuEl ? [...palmMenuEl.querySelectorAll('[data-palm-action]')] : [];
+let palmMenuState = { open:false, anchor:null, supportId:null, controlId:null };
+let palmMenuArmed = null;
+function renderPalmMenu(state) {
+  palmMenuState = state;
+  if (!palmMenuEl) return;
+  palmMenuEl.hidden = !state.open;
+  palmMenuEl.classList.toggle('is-open', !!state.open);
+  if (state.open && state.anchor) {
+    const width = viewport.width, height = viewport.height;
+    const half = Math.min(128, width * .44);
+    const left = Math.max(half + 10, Math.min(width - half - 10, state.anchor[0] * width));
+    const top = Math.max(10, Math.min(height - 94, state.anchor[1] * height - 106));
+    palmMenuEl.style.left = `${left}px`;
+    palmMenuEl.style.top = `${top}px`;
+  }
+  if (!state.open && palmMenuArmed) {
+    palmMenuArmed.classList.remove('armed');
+    palmMenuArmed = null;
+  }
+}
+function updatePalmMenu(packet) {
+  const state = palmMenuGesture.update(packet.hands, performance.now(), {
+    width:viewport.width, height:viewport.height,
+    scaleX:packet.scaleX, scaleY:packet.scaleY,
+  });
+  renderPalmMenu(state);
+  if (state.open && state.supportId && packet.hands.some(h => String(h.id) === state.supportId))
+    packet.consumed.add(state.supportId);
+}
+function palmMenuButtonAt(x, y) {
+  if (!palmMenuState.open || !palmMenuEl || palmMenuEl.hidden) return null;
+  const px = x * viewport.width, py = y * viewport.height;
+  return palmMenuButtons.find(button => {
+    const r = button.getBoundingClientRect();
+    return px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
+  }) || null;
+}
+function dismissPalmMenu() {
+  palmMenuGesture.dismiss(performance.now());
+  renderPalmMenu(palmMenuGesture.update([], performance.now(), { width:viewport.width, height:viewport.height }));
+}
+function activatePalmAction(action) {
+  if (action === 'dock') {
+    setDockVisible(true);
+    emit('summon-dock');
+  } else if (action === 'keyboard') {
+    keyboard(!keyboardOpen(), null);
+  } else if (action === 'passthrough') {
+    setEnvironment('passthrough');
+  }
+  dismissPalmMenu();
+}
+for (const button of palmMenuButtons) {
+  button.addEventListener('click', () => activatePalmAction(button.dataset.palmAction));
+}
+function labelPalmMenu() {
+  for (const button of palmMenuButtons) {
+    const label = button.dataset.palmAction === 'dock' ? t('dock')
+      : button.dataset.palmAction === 'keyboard' ? t('keyboard') : 'Passthrough';
+    const text = button.querySelector('.palm-label'); if (text) text.textContent = label;
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  }
+}
+labelPalmMenu();
+on('lang', labelPalmMenu);
 
 /* =================== uma janela =================== */
 class Win {
@@ -477,6 +551,8 @@ function handTouch(hit, action) {
 }
 function cancelPress() {
   if (nativePress) sendPress(nativePress, 3);
+  if (palmMenuArmed) palmMenuArmed.classList.remove('armed');
+  palmMenuArmed = null;
   nativePress = null; pendingPress = null; endDrag(); endResize(); endDockDrag();
 }
 on('pinchcancel', cancelPress);
@@ -513,6 +589,12 @@ function box(el, root) {
 }
 
 on('pinchdown', () => {
+  const palmButton = palmMenuButtonAt(cursor.x, cursor.y);
+  if (palmButton) {
+    palmMenuArmed = palmButton;
+    palmButton.classList.add('armed');
+    return;
+  }
   const h = hitAt(cursor.x, cursor.y);
   const dockGrab = dockGrabTest(cursor.x,cursor.y);
   // The dock is intentionally in front of app windows. Prefer its grab bar only when the
@@ -532,6 +614,13 @@ on('pinchdown', () => {
   dockPinch('down');
 });
 on('pinchup', () => {
+  if (palmMenuArmed) {
+    const armed = palmMenuArmed;
+    palmMenuArmed = null;
+    armed.classList.remove('armed');
+    if (palmMenuState.open && palmMenuButtonAt(cursor.x, cursor.y) === armed) armed.click();
+    return;
+  }
   if (pendingPress && cursor.mode === 'drag') {
     // Classified a drag but the release beat the frame loop: commit the DOWN at the anchor now.
     clickThrough(pendingPress.hit, 'down'); pendingPress = null;
@@ -1036,6 +1125,7 @@ function endNear(cancel=false, packet=lastPhonePacket) {
 }
 on('phonehands', packet => {
   lastPhonePacket=packet;
+  updatePalmMenu(packet);
   const ids=new Set(packet.hands.map(h=>h.id));
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
   for(const id of pinchSuppressed) {

@@ -15,6 +15,7 @@ const DEF = {
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   env: 'passthrough', quality: 'auto', showFps: 0,
+  glassStyle: 'liquid', glassOpacity: .45,
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
@@ -27,6 +28,8 @@ const STR = {
   pt: {
     desktop:'Área de trabalho', browser:'Navegador', youtube:'YouTube', gallery:'Galeria',
     settings:'Configurações', menu:'Menu', store:'Loja', env:'Ambientes', keyboard:'Teclado', center:'Centralizar',
+    appearance:'Vidro', liquidGlass:'Liquid glass', clearGlass:'Cristal transparente', outlineGlass:'Só contorno',
+    glassOpacity:'Transparência do vidro', glassHelp:'Escolha o acabamento das janelas, dock, teclado e biblioteca.',
     search:'Pesquisar na web', searchYt:'Pesquisar vídeos', open:'Abrir', close:'Fechar',
     general:'Geral', hands:'Hand tracking', windows:'Janelas', dock:'Dock', perf:'Desempenho',
     language:'Idioma', on:'Ativado', off:'Desativado', sens:'Sensibilidade', scale:'Escala',
@@ -50,6 +53,8 @@ const STR = {
   en: {
     desktop:'Desktop', browser:'Browser', youtube:'YouTube', gallery:'Gallery',
     settings:'Settings', menu:'Menu', store:'Store', env:'Environments', keyboard:'Keyboard', center:'Recenter',
+    appearance:'Glass', liquidGlass:'Liquid glass', clearGlass:'Clear glass', outlineGlass:'Outline only',
+    glassOpacity:'Glass transparency', glassHelp:'Choose the finish for windows, dock, keyboard and library.',
     search:'Search the web', searchYt:'Search videos', open:'Open', close:'Close',
     general:'General', hands:'Hand tracking', windows:'Windows', dock:'Dock', perf:'Performance',
     language:'Language', on:'On', off:'Off', sens:'Sensitivity', scale:'Scale',
@@ -73,6 +78,8 @@ const STR = {
   es: {
     desktop:'Escritorio', browser:'Navegador', youtube:'YouTube', gallery:'Galería',
     settings:'Ajustes', menu:'Menú', store:'Tienda', env:'Entornos', keyboard:'Teclado', center:'Centrar',
+    appearance:'Cristal', liquidGlass:'Liquid glass', clearGlass:'Cristal transparente', outlineGlass:'Solo contorno',
+    glassOpacity:'Transparencia del cristal', glassHelp:'Elige el acabado de ventanas, dock, teclado y biblioteca.',
     search:'Buscar en la web', searchYt:'Buscar vídeos', open:'Abrir', close:'Cerrar',
     general:'General', hands:'Hand tracking', windows:'Ventanas', dock:'Dock', perf:'Rendimiento',
     language:'Idioma', on:'Activado', off:'Desactivado', sens:'Sensibilidad', scale:'Escala',
@@ -134,6 +141,37 @@ export const setLang = l => {
 const subs = {};
 export const on = (k, f) => ((subs[k] ||= []).push(f), f);
 export const emit = (k, v) => (subs[k] || []).forEach(f => f(v));
+
+const GLASS_PRESETS = Object.freeze({
+  liquid:{ fill:[24,38,60], fillScale:.78, bottom:[7,13,25], bottomScale:.74, top:[230,246,255], topScale:.48, edge:[222,243,255], edgeAlpha:.46, blur:24,
+    shadow:'0 26px 82px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.27),inset 0 -1px 0 rgba(0,0,0,.18)' },
+  clear:{ fill:[28,43,64], fillScale:.48, bottom:[8,15,28], bottomScale:.38, top:[232,247,255], topScale:.31, edge:[226,245,255], edgeAlpha:.54, blur:19,
+    shadow:'0 22px 68px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.24),inset 0 -1px 0 rgba(0,0,0,.12)' },
+  outline:{ fill:[22,34,54], fillScale:.11, bottom:[8,14,26], bottomScale:.08, top:[232,247,255], topScale:.11, edge:[224,245,255], edgeAlpha:.72, blur:8,
+    shadow:'0 18px 54px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)' },
+});
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const rgba = (rgb, alpha) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(alpha,0,1).toFixed(3)})`;
+function paintGlass(style = S.glassStyle, opacity = S.glassOpacity) {
+  const preset = GLASS_PRESETS[style] || GLASS_PRESETS.liquid;
+  const amount = clamp(Number(opacity) || .46, .15, .78);
+  document.documentElement.dataset.glass = GLASS_PRESETS[style] ? style : 'liquid';
+  document.documentElement.style.setProperty('--glass', rgba(preset.fill, amount * preset.fillScale));
+  document.documentElement.style.setProperty('--glass-2', rgba(preset.fill, amount * Math.min(.98, preset.fillScale * 1.18)));
+  document.documentElement.style.setProperty('--glass-bottom', rgba(preset.bottom, amount * preset.bottomScale));
+  document.documentElement.style.setProperty('--glass-top', rgba(preset.top, amount * preset.topScale));
+  document.documentElement.style.setProperty('--glass-line', rgba(preset.edge, preset.edgeAlpha));
+  document.documentElement.style.setProperty('--glass-shadow', preset.shadow);
+  document.documentElement.style.setProperty('--glass-blur', `${preset.blur}px`);
+  return { style:GLASS_PRESETS[style] ? style : 'liquid', opacity:amount };
+}
+export function setGlassAppearance(style = S.glassStyle, opacity = S.glassOpacity) {
+  const painted = paintGlass(style, opacity);
+  S.glassStyle = painted.style; S.glassOpacity = painted.opacity;
+  save(); emit('glass', { style:S.glassStyle, opacity:S.glassOpacity });
+  return painted;
+}
+paintGlass();
 
 export function toast(msg) {
   const el = document.getElementById('toast');

@@ -22,10 +22,13 @@ import kotlin.math.hypot
  */
 class PhoneXrHandRenderer {
     private val colorProgram=SpatialRenderer.link(
-        "attribute vec3 aPosition; uniform mat4 uMatrix; void main(){gl_Position=uMatrix*vec4(aPosition,1.);}",
-        "precision highp float; uniform vec4 uColor; void main(){gl_FragColor=uColor;}")
+        "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vHandPosition; void main(){gl_Position=uMatrix*vec4(aPosition,1.);vHandPosition=aPosition.xy;}",
+        "precision highp float; uniform vec4 uColor; uniform vec4 uFade; uniform float uFadeLength; uniform float uFadeEnabled; varying vec2 vHandPosition; void main(){float along=max(0.,dot(vHandPosition-uFade.xy,uFade.zw));float gradient=smoothstep(0.,max(uFadeLength,.0001),along);float opacity=mix(.08,1.,gradient);opacity=mix(1.,opacity,uFadeEnabled);gl_FragColor=vec4(uColor.rgb,uColor.a*opacity);}")
     private val matrixUniform=GLES20.glGetUniformLocation(colorProgram,"uMatrix")
     private val colorUniform=GLES20.glGetUniformLocation(colorProgram,"uColor")
+    private val fadeUniform=GLES20.glGetUniformLocation(colorProgram,"uFade")
+    private val fadeLengthUniform=GLES20.glGetUniformLocation(colorProgram,"uFadeLength")
+    private val fadeEnabledUniform=GLES20.glGetUniformLocation(colorProgram,"uFadeEnabled")
     private var targetsText:String?=null
     private var targets=JSONArray()
     private var vertexBuffer=ByteBuffer.allocateDirect(65536).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -50,6 +53,9 @@ class PhoneXrHandRenderer {
     private class Mesh(initialCapacity:Int) {
         val vertices=FloatBuilder(initialCapacity)
         val color=FloatArray(4)
+        /** Screen-space wrist and hand axis for a smooth, wrist-to-fingertip alpha falloff. */
+        val fade=FloatArray(4)
+        var fadeLength=1f
     }
     private val meshPool=ArrayList<Mesh>()
     private var meshes=emptyList<Mesh>()
@@ -159,7 +165,7 @@ class PhoneXrHandRenderer {
         GLES20.glDrawArrays(mode,0,count/3)
         GLES20.glDisableVertexAttribArray(position)
     }
-private fun drawHandSkeletons(position: Int, fade: Float) {
+    private fun drawHandSkeletons(position: Int, fade: Float) {
         val color=colorUniform
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
@@ -167,16 +173,20 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
         GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
         for(mesh in meshes) {
             GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
+            GLES20.glUniform4fv(fadeUniform,1,mesh.fade,0)
+            GLES20.glUniform1f(fadeLengthUniform,mesh.fadeLength)
+            GLES20.glUniform1f(fadeEnabledUniform,1f)
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
+        GLES20.glUniform1f(fadeEnabledUniform,0f)
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
     }
 
-    // Same PhoneXR tessellation and colors, refilled in place per detection, not per eye/frame.
+    // Thin, unfilled PhoneXR contours, refilled in place. A fragment alpha ramp follows the
+    // wrist-to-middle-finger axis so the wrist dissolves softly into the passthrough image.
     private fun buildHandMeshes() {
             val hands = handPoints
             val result=ArrayList<Mesh>()
-            val pinching = frame.hands.any { it.pinching }
             var used=0
             fun mesh(): Mesh {
                 val m=if(used<meshPool.size)meshPool[used] else Mesh(8192).also{meshPool.add(it)}
@@ -184,13 +194,17 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 m.vertices.reset()
                 return m
             }
-            for (hand in hands) {
+            for ((handIndex, hand) in hands.withIndex()) {
                 fun x(i: Int) = (hand[i * 3] - .5f) * 2f * viewScaleX
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
-                val palm = hypot(x(9) - x(0), y(9) - y(0))
+                val wristX=x(0);val wristY=y(0)
+                val axisX0=x(9)-wristX;val axisY0=y(9)-wristY
+                val palm=hypot(axisX0,axisY0)
                 if (palm < 1e-4f) continue
-                val r = palm * .12f
-                val edge = if (pinching) maxOf(palm * .035f, .003f) else maxOf(palm * .018f, .0016f)
+                val axisX=axisX0/palm;val axisY=axisY0/palm
+                val pinching=frame.hands.getOrNull(handIndex)?.pinching==true
+                val r = palm * .055f
+                val edge = if (pinching) maxOf(palm * .016f, .0022f) else maxOf(palm * .009f, .0012f)
                 // With a stencil: fill first (it marks its pixels), then the outline only where the
                 // fill is not. Without one: the outline first and the solid fill over it.
                 for (pass in 0..1) {
@@ -198,6 +212,8 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     val grow = if (outline) edge else 0f
                     val m = mesh()
                     val shape = m.vertices
+                    m.fade[0]=wristX;m.fade[1]=wristY;m.fade[2]=axisX;m.fade[3]=axisY
+                    m.fadeLength=palm*1.5f
                     fun disc(i: Int, radius: Float) = handDisc(shape, x(i), y(i), radius + grow)
                     fun bone(i: Int, j: Int, ri: Float, rj: Float) {
                         handBone(shape, x(i), y(i), x(j), y(j), ri + grow, rj + grow)
@@ -230,9 +246,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         }
                     }
                     val rgba=when {
-                        outline && pinching -> floatArrayOf(1f,1f,1f,1f)
-                        outline -> floatArrayOf(.78f,.79f,.84f,.9f)
-                        else -> floatArrayOf(.09f,.09f,.16f,.62f)
+                        outline && pinching -> floatArrayOf(.9f,.98f,1f,.94f)
+                        outline -> floatArrayOf(.66f,.88f,.96f,.72f)
+                        else -> floatArrayOf(.18f,.34f,.42f,.035f)
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     result.add(m)

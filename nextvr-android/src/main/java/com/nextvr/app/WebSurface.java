@@ -53,7 +53,9 @@ final class WebSurface {
         presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         web=new WebView(presentation.getContext());
-        web.setBackgroundColor(shell?Color.TRANSPARENT:Color.WHITE);
+        // Keep untouched page pixels transparent too: the GL compositor places the real passthrough
+        // behind these browser quads, while normal opaque site content remains fully opaque.
+        web.setBackgroundColor(Color.TRANSPARENT);
         web.setInitialScale(100);
         WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(true); // Only SAF-selected photo URIs are granted.

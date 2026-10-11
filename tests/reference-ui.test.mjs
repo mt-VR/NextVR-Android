@@ -328,26 +328,47 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrSuspend();});
 
     await settle();
-    // Palm-pinch dock summon has been removed: dock no longer appears via palm+pinch.
-    // Verify that a hand with menuEligible and pinching does NOT summon the dock and does not
-    // produce a hand-menu-logo, and that windows remain unmoved.
-    const anchored=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
-    const dockBefore=await page.evaluate(()=>window.__last.panels[0].matrix.slice());
-    const summonView=new THREE.Matrix4().makeRotationY(-.7);
-    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},summonView.toArray());
-    const menu=hand(.4);menu.hands[0].menuEligible=true;menu.hands[0].menuPoint=[.5,.5];
-    await feed(menu);
-    await page.waitForTimeout(500);
-    assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0,'Palm menu logo must not appear after pinch dock removal');
-    menu.hands[0].pinching=true;await feed(menu);
-    await page.waitForTimeout(500);
-    const summoned=await page.evaluate(()=>window.__last.panels[0].matrix);
-    assert.ok(Math.abs(summoned[12]-dockBefore[12])<.05 && Math.abs(summoned[14]-dockBefore[14])<.05,'Dock must not summon via palm pinch after removal');
-    const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay).slice(1).map(p=>p.matrix));
-    for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Dock summon removal must not recenter windows/keyboard');
+    // A support palm and a second nearby hand open the floating quick actions. The support hand is
+    // consumed; the control hand remains the ordinary pinch pointer, and its keyboard button must
+    // take the same pinch-down / pinch-up path as the rest of the shell.
+    const anchored=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock'&&p.rect[1]!==3160).map(p=>p.matrix));
+    const dockBefore=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix.slice());
+    const palmHand=(id,palm,aim=[0,0],extra={})=>{
+      const points=Array.from({length:21},()=>({x:palm[0],y:palm[1]}));
+      points[0]={x:palm[0],y:palm[1]+.07};points[9]={x:palm[0],y:palm[1]};points[8]={x:palm[0]+.01,y:palm[1]};
+      return {id,left:id==='left',points:points.flatMap(p=>[p.x,p.y,0]),head:null,base:[0,-.2],aim,
+        palm:[...palm],menuPoint:[...palm],grab:[...palm],palmWidth:.1,pinching:false,fist:false,
+        palmFacesEyes:id==='left',menuEligible:id==='left',confidence:1,...extra};
+    };
+    const menuFrame={hands:[palmHand('left',[.5,.52]),palmHand('right',[.51,.52])]};
+    const menuPose=new THREE.Matrix4().makeRotationY(-.7);
+    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},menuPose.toArray());
+    await feed(menuFrame);
+    await page.waitForFunction(()=>{const e=document.querySelector('.palm-menu');return e&&!e.hidden;},null,{timeout:12000});
+    assert.deepEqual(await page.locator('.palm-action').evaluateAll(nodes=>nodes.map(n=>n.dataset.palmAction)),['dock','keyboard','passthrough']);
+    assert.equal(await page.locator('.palm-menu [data-palm-action="dock"] img').getAttribute('src'),'./icons/nextvr-n.png','Quick actions retain the NextVR mark');
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='left'&&t.hidden),null,{timeout:12000});
+    const keyboardButton=await page.locator('.palm-action[data-palm-action="keyboard"]').boundingBox();
+    const targetX=(keyboardButton.x+keyboardButton.width/2)/1200,targetY=(keyboardButton.y+keyboardButton.height/2)/800;
+    const pointerTanY=Math.tan(36*Math.PI/180),pointerTanX=pointerTanY*1.5;
+    menuFrame.hands[1].aim=[(targetX-.5)*2*pointerTanX,(.5-targetY)*2*pointerTanY];
+    menuFrame.hands[1].pinching=true;
+    await feed(menuFrame);
+    await page.waitForFunction(()=>document.querySelector('.palm-action[data-palm-action="keyboard"]')?.classList.contains('armed'),null,{timeout:12000});
+    menuFrame.hands[1].pinching=false;
+    await feed(menuFrame);
+    await page.waitForFunction(()=>document.querySelector('.palm-menu')?.hidden,null,{timeout:12000});
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
+    const summoned=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(summoned[12]-dockBefore[12])<.001&&Math.abs(summoned[14]-dockBefore[14])<.001,'Quick actions do not unexpectedly move the dock');
+    const kept=await page.evaluate(()=>window.__last.panels.filter(p=>!p.overlay&&p.id!=='dock'&&p.rect[1]!==3160).map(p=>p.matrix));
+    assert.equal(kept.length,anchored.length);
+    for(let i=0;i<kept.length;i++)for(let k=0;k<16;k++)assert.ok(Math.abs(kept[i][k]-anchored[i][k])<.001,'Palm actions leave world-anchored app windows in place');
     // The detached white grab bar under the dock is a real MediaPipe pinch target. A deliberate ray drag
     // moves only the dock, preserves the drag offset, and recenter restores its closer default.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
+    await page.locator('.dock [data-id="kb"]').click();
+    await page.waitForFunction(()=>window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     await page.locator('.dock [data-id="kb"]').click();
     await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
@@ -398,10 +419,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     },null,{timeout:12000});
     const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
-    // Dock summon via palm pinch was removed; the pinch remains a normal hand-ray gesture.
+    // The floating quick menu dismisses cleanly; normal hand-ray pinch interaction remains active.
     await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
-    assert.equal(await page.locator('.hand-menu-logo:not([hidden])').count(),0);
+    await page.waitForFunction(()=>document.querySelector('.palm-menu')?.hidden,null,{timeout:12000});
     assert.deepEqual(errors,[]);
   } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve)); }
 });

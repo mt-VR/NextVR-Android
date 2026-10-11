@@ -1,8 +1,8 @@
 // Android hand-tracking adapter (detector: com.nextvr.handtrack; gesture semantics: PhoneXR-derived
 // post-processing). No web detector, landmark filter, skeleton drawing or pinch
 // thresholds here: OrangeHanding + PhoneXrHands + the fork's native GL renderer own those systems.
-// Dock invocation is NOT via pinch: the palm+pinch dock gesture has been removed. Other PhoneXR
-// gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
+// The two-hand palm menu only consumes its support hand; the other hand uses the same PhoneXR
+// pinch click, fist grab, direct touch, and ray routes as every other interface control.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 import { HandClickState, ClickDragArbiter } from './hand-input.js';
 export const hands = [];
