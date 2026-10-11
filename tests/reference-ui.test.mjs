@@ -120,8 +120,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
     const widthMetres=languageMatrix.elements[0]*language.glass[2];
     assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>65,'Setup has a readable angular size');
-    // 38,5 px = 40 mm a 0,42 m (5,3 graus): o piso é ditado pelo teto de 660 px do slot de textura
-    // no atlas nativo, que é o que permite os doze idiomas aparecerem de uma vez, como no print.
+    // O piso é ditado pelo teto de 660 px do slot de textura no atlas nativo, que é o que permite os
+    // doze idiomas aparecerem de uma vez, como no print (~40 px = ~4 cm a 0,42 m ≈ 5,3 graus).
     assert.ok(language.buttonHeight>=38,'Language rows stay large enough for a hand pinch');
     assert.equal(await page.locator('.lang-option').count(),12,'the picker lists every language from the reference');
     // No print todos os idiomas aparecem de uma vez; a lista não pode depender de rolagem (o toque

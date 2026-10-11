@@ -1346,13 +1346,15 @@ Nada aqui mexe no detector (`com.nextvr.handtrack`). O que mudou é o que compet
 - O português é a 12ª linha, como no print, e o padrão do app é uma constante separada
   (`LANG_FALLBACK = 'pt'`): na primeira execução nada foi escolhido, e as próprias legendas da tela
   têm de sair em português.
-- Os doze têm de aparecer DE UMA VEZ: a pinça não rola lista. As linhas caem de 51,5 px para 38,5 px
-  (38,5 x 12 + 11 vãos = 484 px) e o teto não é escolha — o slot de textura de uma janela no atlas
-  nativo tem 980 px com 160 px de margem por lado, ou seja 660 px de janela, e a lista cabe neles
-  com 18 px de folga. A variante das Configurações (janela normal, com barra de 62 px) usa linhas de
-  34 px pelo mesmo motivo. `line-height` é explícito em cada peça porque o `font:inherit` do botão
-  herda `normal` e a altura passaria a depender da métrica da fonte. O teste de navegador compara
-  `scrollHeight` com `clientHeight` para travar isso.
+- Os doze têm de aparecer DE UMA VEZ: a pinça não rola lista. A primeira tentativa foi acertar a
+  altura da linha na mão (51,5 px → 38,5 px) e o CI mostrou o que sempre acontece nesse tipo de
+  conta: 18 px de estouro vindos de algum detalhe de métrica. A solução que ficou não depende de
+  conta nenhuma — as linhas DIVIDEM o espaço (`flex:1 1 0` com `min-height:0`), então cada idioma
+  recebe exatamente um doze avos da altura da lista, em qualquer janela, e não existe estouro
+  possível. A altura da janela, essa sim, tem teto: 660 px, porque o slot de textura de uma janela
+  no atlas nativo tem 980 px com 160 px de margem por lado. A variante das Configurações (janela
+  normal, com barra de 62 px) simplesmente divide um espaço menor. O teste de navegador compara
+  `scrollHeight` com `clientHeight` para travar o invariante.
 - O logo do APK e o do app são o "N" cromado da referência (arte gerada neste repositório, com os
   arquivos de origem em `artwork/`); os ícones saem em mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi.
 
