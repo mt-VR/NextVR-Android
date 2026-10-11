@@ -387,8 +387,8 @@ function settingsApp() {
       // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
       const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
       pick.onclick = () => {
-        const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:620,
-          node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }) });
+        const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
+          node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
       };
       c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
       c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
@@ -831,8 +831,8 @@ function deviceLanguage() {
  * Corpo da escolha de idioma (o mesmo na primeira execução e nas configurações): idioma atual
  * destacado em cima, a lista completa, a ilustração à direita e o botão continuar embaixo.
  */
-function languagePicker(pending, onPick) {
-  const body = el('div', 'langwin');
+function languagePicker(pending, onPick, slim = false) {
+  const body = el('div', slim ? 'langwin slim' : 'langwin');
   const label = id => langRow(id).label;
   const paint = () => {
     body.innerHTML = `<div class="lq-head"><span class="lq-pick">${label(pending)}</span><span class="lq-title">${t('langTitle')}</span></div>
@@ -851,7 +851,7 @@ function languagePicker(pending, onPick) {
   return body;
 }
 function languageWindow() {
-  const w = open({ id:'language', title:'Next VR', w:880, h:620, onboarding:true,
+  const w = open({ id:'language', title:'Next VR', w:880, h:660, onboarding:true,
     node:languagePicker(S.lang || deviceLanguage(), finishLanguage) });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();

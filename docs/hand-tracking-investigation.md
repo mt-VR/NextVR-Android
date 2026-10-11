@@ -1273,3 +1273,96 @@ demora.
   acima (sem slots adaptativos, sem resgate por YOLO); a validação on-device é a mesma checklist de
   sempre — `track`, `infer_mean`, `loss`/`empty_ms` — e a pergunta é se o grafo de caça compensa a
   perda do resgate em mãos difíceis.
+
+# 2026-10-11 (10ª rodada) — janela sem voo, ambientes 360°, curvatura, 5 apps e a tela de idioma
+
+Nada aqui mexe no detector (`com.nextvr.handtrack`). O que mudou é o que compete com ele por quadro.
+
+## A janela parou de voar (e por que isso importa para o tracking)
+
+- **A "animação feia" era o `apply()`**: cada mudança de lugar no arco (abrir, fechar, rearranjar,
+  focar) fazia a janela deslizar do dock até o destino em ~meio segundo. Em cada quadro desses a
+  posição mudava, a cena JSON era diferente, a ponte do atlas cruzava para o nativo e o nativo
+  redesenhava — exatamente quando a mão está chegando para escolher alguma coisa, e nos mesmos
+  threads que entregam o rastreamento.
+- **Agora é corte seco**: `apply()` escreve a posição final direto. O arrasto com a mão já escrevia
+  a posição ele mesmo, então não se perdeu nada de suavização onde ela importa.
+- **O brilho de carregamento do YouTube/loja também era uma animação infinita** (`.yt-skel` com
+  `animation:...infinite`): a cena mudava a cada quadro enquanto a rede respondia. O placeholder
+  continua, agora estático.
+
+## Ambientes: três panoramas 360°
+
+- `envList()` deixou de ser só o passthrough: **sunset, night e space**, com os panoramas completos
+  em `nextvr-android/src/main/assets/env/*.jpg` (3072x1536 equiretangular) e as miniaturas de
+  480x240 em `assets/ui/env/*.jpg`, que é o que a lista de ambientes mostra.
+- O desenho é nativo, no `SpatialRenderer`: o WebView do APK não tem WebGL, então o céu não pode vir
+  do web. É uma **esfera de direções em coordenadas de olho** (o panorama fica em volta da cabeça),
+  com a direção do olhar saindo da projeção do olho e voltando ao mundo pelo inverso da view — sem
+  essa volta, o panorama não acompanha a cabeça.
+- **A câmera continua rodando**: é dela que sai o rastreamento das mãos. O que muda é que ela deixa
+  de ser desenhada, e a cópia do bitmap para a textura GL por quadro deixa de acontecer enquanto o
+  céu cobre a tela (`camera.update()` só sobe quando não há panorama). O `spanX/spanY` que o web usa
+  para mapear a mão na tela passou a ser calculado uma vez por quadro para os dois caminhos.
+- Duas correções de campo na decodificação: o caminho nativo abria `ui/env/<id>.jpg` — a MINIATURA
+  de 480x240, 8,5 px por grau esticados por toda a tela. Agora abre o panorama de 3072x1536. E o
+  wrap da textura é `CLAMP_TO_EDGE`: a textura é NPOT e, em GLES2 estrito, NPOT com `REPEAT` fica
+  INCOMPLETA — céu preto. (Sem mipmap também: o panorama amplia no centro, não há minificação a
+  corrigir.)
+
+## Curvatura "Tela 360°"
+
+- Configurações → Janelas → **Curvatura 360°**, e um botão **360°** na barra de cada janela. Ligar já
+  entra no máximo do controle (1,15 rad ≈ 66°), que é a curva da referência; o controle desce a
+  partir daí.
+- É curvatura de verdade nos dois lados, e os dois falam o mesmo número:
+  - **shader** do painel: o quadrilátero virou uma faixa de 48 colunas e o vértice é dobrado pelo
+    arco `z = R - sqrt(R^2 - x^2)`. Essa curva é a MESMA que o web mede: parametrizada pelo ângulo,
+    `x = R sin t`, `z = R(1 - cos t)` — é a mesma circunferência vista por outra variável;
+  - **hit-teste**: a malha invisível que a mão acerta é dobrada pelo mesmo arco (`bendPoint`) e o
+    ponto medido volta para a coluna plana (`unbendX`) antes de virar coordenada de DOM — sem isso a
+    mão acertaria fora do que está desenhado;
+  - `R` sai da LARGURA DE CONTEÚDO nos dois lados (`glass[2]`), então a janela mantém a largura na
+    tela e só o meio recua.
+- Os quadros embutidos (vídeo do YouTube, loja, página) também vivem SOBRE o arco: o atlas os coloca
+  no ponto correspondente, girados tangentes, e o shader dobra a largura de cada um pelo ângulo que
+  lhe cabe. Os puxadores (arrasto e redimensionamento) saem da linha reta pelo mesmo motivo.
+
+## Cinco apps, sem voo e com duas fileiras
+
+- `ARC_CAPACITY` foi de 3 para **5** (o sexto fecha o menos recente). Com cinco janelas de meia
+  janela de folga o arco pediria ~4 rad e o usuário alcança ±1,3 rad: as três primeiras ficam na
+  fileira do meio (centro, direita, esquerda) e as duas últimas vão para uma fileira de cima,
+  centrada e mais larga, com o mesmo tamanho de janela.
+- O passo angular passa a ser limitado pelo slot MAIS EXTERNO da fileira de baixo (2 passos do
+  centro): com 5 janelas grandes e o arco perto, a folga de meia janela cede para caber no alcance —
+  afastar o arco é o que devolve a folga inteira.
+
+## A tela de idioma (e o logo)
+
+- 12 idiomas empilhados na ordem do print (English (USA) em cima), destaque no idioma atual, o
+  desenho da mão segurando o controle à direita e o botão azul. As entradas sem tabela de tradução
+  aparecem apagadas em vez de mostrarem chave crua.
+- O português é a 12ª linha, como no print, e o padrão do app é uma constante separada
+  (`LANG_FALLBACK = 'pt'`): na primeira execução nada foi escolhido, e as próprias legendas da tela
+  têm de sair em português.
+- Os doze têm de aparecer DE UMA VEZ: a pinça não rola lista. As linhas caem de 51,5 px para 38,5 px
+  (38,5 x 12 + 11 vãos = 484 px) e o teto não é escolha — o slot de textura de uma janela no atlas
+  nativo tem 980 px com 160 px de margem por lado, ou seja 660 px de janela, e a lista cabe neles
+  com 18 px de folga. A variante das Configurações (janela normal, com barra de 62 px) usa linhas de
+  34 px pelo mesmo motivo. `line-height` é explícito em cada peça porque o `font:inherit` do botão
+  herda `normal` e a altura passaria a depender da métrica da fonte. O teste de navegador compara
+  `scrollHeight` com `clientHeight` para travar isso.
+- O logo do APK e o do app são o "N" cromado da referência (arte gerada neste repositório, com os
+  arquivos de origem em `artwork/`); os ícones saem em mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi.
+
+## Validação
+
+- Node: 52 testes, 44 passam, 8 pulados no sandbox (os pulados precisam de Chromium e rodam no CI).
+  O CI é quem valida os cinco testes de toque/DOM da janela de idioma; as sequências de toque direto
+  passaram a ser offsets medidos a partir da superfície do vidro (as profundidades fixas antigas
+  descreviam o layout anterior da janela).
+- Java: os dois arquivos alterados passam pelo parser do tree-sitter-java sem nó de erro.
+- **Risco assumido**: nenhuma validação visual foi possível neste sandbox (não há navegador headless
+  aqui: falta `libnspr4.so`). A curvatura foi conferida por matemática — as duas implementações
+  caem na mesma circunferência, com o mesmo raio e a mesma corda — e o céu por leitura de shader.

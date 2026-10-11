@@ -12,7 +12,7 @@ const DEF = {
   handsOn: true, handDraw: 1,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
-  win360: 0, win360K: .7,
+  win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   env: 'passthrough', quality: 'auto', showFps: 0,
 };
