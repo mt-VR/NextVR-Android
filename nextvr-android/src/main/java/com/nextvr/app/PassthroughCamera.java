@@ -37,6 +37,13 @@ final class PassthroughCamera {
         void error(String message);
         void stopped();
     }
+    /**
+     * GPU landmarkers this process may build. The first is the initial choice; the second is the
+     * retry a reopened camera arms (see open()), which exists because a GPU abandoned while the boot
+     * page was still being rasterized is not evidence about a steady session. Two is the whole
+     * budget: the retry would otherwise become the loop the latch exists to prevent.
+     */
+    private static final int MAX_GPU_ATTEMPTS=2;
     /** A scaled analysis frame waiting for, or being processed by, hand tracking. */
     private static final class TrackingFrame {
         final Bitmap bitmap;
@@ -75,8 +82,17 @@ final class PassthroughCamera {
     private CameraCaptureSession session;
     private ImageReader reader;
     private boolean gpuDetector;
-    /** Cleared once the GPU delegate has been dropped for measured slowness; never retried. */
-    private boolean preferGpu=true;
+    /**
+     * Whether the next detector should be created on the GPU delegate. Cleared when the GPU is
+     * dropped for measured slowness or for producing no output, and re-armed once by a reopened
+     * camera: a GPU abandoned while the WebView was still rasterizing the boot page is not the same
+     * GPU as the one that runs a steady session, and [MAX_GPU_ATTEMPTS] bounds the re-tries.
+     */
+    private volatile boolean preferGpu=true;
+    /** GPU landmarkers built in this process, so "try the GPU again" can never become a loop. */
+    private int gpuAttempts;
+    /** Landmarker graphs the current detector has built; a change re-arms the delegate's warm-up. */
+    private int seenGraphs;
     private boolean timestampIsRealtime;
     private HandTracker detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
@@ -93,6 +109,12 @@ final class PassthroughCamera {
     private void open(int displayRotation) {
         if(destroyed)return;
         closeCamera();final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
+        // A reopened camera is a new session for the delegate too. The GPU is tried again while an
+        // attempt is left (see MAX_GPU_ATTEMPTS): the previous session may have been the boot page
+        // rasterizing, or a first-run install compiling the WebView's shaders, and the tracker paid
+        // for it on the CPU for the rest of the process. The attempt budget is what keeps this from
+        // becoming a loop on a device whose GPU delegate really is the slow one.
+        if(gpuAttempts<MAX_GPU_ATTEMPTS)preferGpu=true;
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
             String id=null;CameraCharacteristics chars=null;
@@ -259,7 +281,9 @@ final class PassthroughCamera {
     private void track(TrackingFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
-            if(detector==null)buildDetector();
+            // The detector lives on this thread and is (re)built here: on first use, and when a
+            // reopened camera left a GPU attempt unspent (see open() and MAX_GPU_ATTEMPTS).
+            if(detector==null || (preferGpu && !gpuDetector && gpuAttempts<MAX_GPU_ATTEMPTS))buildDetector();
             long inferenceStart=SystemClock.elapsedRealtime();
             com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
             try { detected=detector.detectOwned(frame.bitmap,frame.stamp,0); }
@@ -275,6 +299,11 @@ final class PassthroughCamera {
                 try {
                     detector.close();detector=null;gpuDetector=false;
                     detector=new HandTracker(context,false,"hand_landmarker.task");
+                    seenGraphs=detector.graphGenerations();
+                    // The GPU has failed once in this session: it is not picked up again until a
+                    // reopened camera re-arms it (see preferGpu and MAX_GPU_ATTEMPTS), never on the
+                    // next frame - that would rebuild a GPU graph per frame while failing.
+                    preferGpu=false;
                     PerfLog.delegate("CPU");
                     hands.reset();
                     // Borrowed input preserves the emergency retry bitmap if CPU inference also fails.
@@ -283,18 +312,39 @@ final class PassthroughCamera {
             }
             long inferenceMs=SystemClock.elapsedRealtime()-inferenceStart;
             budget.completed(inferenceMs);
+            // Which graph did the work: the one-slot tracking graph is the cheap path, and a log
+            // that cannot show whether it is being used cannot show whether the engine is paying two
+            // hand slots on every frame.
+            PerfLog.handGraph(detector.narrowFrame());
+            // The one-slot graph is built lazily, mid-session, so a new graph can appear at any
+            // frame: its first results are the delegate compiling shaders (hundreds of milliseconds
+            // for a GPU graph), and letting one into the timing mean makes a healthy delegate look
+            // contended for the next ten results. Every graph build restarts the delegate's window.
+            if(seenGraphs!=detector.graphGenerations()) {
+                seenGraphs=detector.graphGenerations();
+                delegateWatch.rebuilt();
+            }
             // A GPU delegate that stays slow is not a failure: it is the tracker queueing behind the
-            // display path. The measured cost of the inference is the only evidence of that available
-            // here, so the delegate is judged on it and abandoned when it stops being the fast path.
-            if(gpuDetector&&delegateWatch.shouldDrop(inferenceMs)) {
-                android.util.Log.i("NextVR-Perf","GPU delegate held at "+String.format(java.util.Locale.US,
-                    "%.1f ms mean",delegateWatch.averageMs())+"; switching the landmarker to CPU");
+            // display path, and the measured cost of the inference is the only evidence of that
+            // available here. A GPU delegate that answers in a couple of milliseconds and never
+            // produces a hand is not slow at all - it is not running the graph (see DelegateWatch).
+            // Both verdicts come from what was measured, and both end on the CPU.
+            boolean slow=gpuDetector&&delegateWatch.shouldDrop(inferenceMs);
+            boolean silent=gpuDetector&&delegateWatch.noOutput(inferenceMs,detected.landmarks().size());
+            if(slow||silent) {
+                android.util.Log.i("NextVR-Perf",silent
+                    ? "GPU delegate returned "+delegateWatch.emptyRun()+" hands-less results of "+String.format(
+                        java.util.Locale.US,"%.1f ms mean",delegateWatch.emptyMeanMs())
+                        +" without ever producing a hand; switching the landmarker to CPU"
+                    : "GPU delegate held at "+String.format(java.util.Locale.US,"%.1f ms mean",delegateWatch.averageMs())
+                        +"; switching the landmarker to CPU");
                 try {
                     detector.close();detector=null;gpuDetector=false;
                     detector=new HandTracker(context,false,"hand_landmarker.task");
-                    delegateWatch.reset();
+                    seenGraphs=detector.graphGenerations();
+                    delegateWatch.rebuilt();
                     preferGpu=false;
-                    PerfLog.delegate("CPU (after a slow GPU)");
+                    PerfLog.delegate(silent?"CPU (after a silent GPU)":"CPU (after a slow GPU)");
                     // The new graphs have no region-of-interest history, so the filters start fresh.
                     hands.reset();budget.reset();
                 }catch(RuntimeException failure) {
@@ -314,18 +364,29 @@ final class PassthroughCamera {
     }
     /**
      * Creates (or recreates) the detector on the tracking thread and reports the delegate in use.
-     * The GPU delegate is tried first; a creation failure or a measured-slow GPU (DelegateWatch)
-     * falls back to CPU and is not retried.
+     * The GPU delegate is tried first, while an attempt is left in this process ([MAX_GPU_ATTEMPTS]);
+     * a creation failure, a measured-slow GPU or a GPU that produces no output (DelegateWatch)
+     * falls back to CPU. Closes whatever detector it replaces - the caller must not use the old one
+     * afterwards.
      */
     private void buildDetector() {
-        if(preferGpu) {
+        if(detector!=null) { detector.close(); detector=null; }
+        if(preferGpu && gpuAttempts<MAX_GPU_ATTEMPTS) {
+            gpuAttempts++;
             try { detector=new HandTracker(context,true,"hand_landmarker.task");gpuDetector=true; }
-            catch(RuntimeException gpu) { detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false; }
+            catch(RuntimeException gpu) {
+                android.util.Log.w("NextVR-Hands","GPU landmarker could not be created; using CPU",gpu);
+                detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;preferGpu=false;
+            }
         } else {
-            // The GPU delegate was already abandoned for being slow (see DelegateWatch): do not
-            // pick it up again on the next creation, or a failed CPU rebuild would loop.
+            // The GPU delegate was already abandoned, or its attempts are spent (see DelegateWatch):
+            // do not pick it up again on the next creation, or a failed CPU rebuild would loop.
             detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;
         }
+        // The brand-new graphs are about to face the delegate's warm-up, and the previous verdict
+        // about a previous graph does not apply to them (see DelegateWatch.rebuilt).
+        seenGraphs=detector.graphGenerations();
+        delegateWatch.rebuilt();
         PerfLog.delegate(gpuDetector?"GPU":"CPU");
     }
 

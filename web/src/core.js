@@ -295,6 +295,12 @@ export const onFrame = f => frameSubs.push(f);
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
 // Hand tracking runs on its own native cadence; measure its frame arrival separately from render.
 let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
+/* Estado do pipeline nativo, publicado pelo PerfLog a cada ~3 s (delegate, FPS da câmera, custo da
+ * inferência, quantos frames foram de uma ou de duas slots). É o que responde "por que a mão está
+ * lenta" na própria tela: `infer` alto = o modelo/o delegate; `cam` baixo = a câmera não entrega;
+ * `slots 2` com a mão levantada = o grafo de uma slot não está sendo usado. */
+let diag = null;
+
 export const reportHandFrame = () => {
   const now = performance.now();
   if (handLast > 0) { handAcc += (now - handLast) / 1000; handN++; if (handAcc >= 1) { handFps = Math.round(handN / handAcc); handAcc = 0; handN = 0; } }
@@ -324,6 +330,7 @@ function loop(now) {
     const el = document.getElementById('fps');
     el.textContent = S.showFps
       ? Math.round(fpsN / fpsAcc) + ' fps' + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
+        + (native && S.handsOn ? diagText() : '')
       : '';
     fpsAcc = 0; fpsN = 0;
   }
@@ -343,4 +350,24 @@ if (native) {
     if (firstPose) { contentRoot.rotation.y = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; firstPose = false; }
   };
   window.nextvrMessage = toast;
+  // O resumo de desempenho do pipeline nativo (PerfLog -> contador da tela). Chega como objeto.
+  window.nextvrDiag = values => { diag = values; };
+}
+
+/** Uma linha curta com o que o contador precisa: câmera, inferência, delegate e slots. */
+function diagText() {
+  if (!diag) return '';
+  const round = v => (typeof v === 'number' && v >= 0 ? Math.round(v) : null);
+  const parts = [];
+  const camera = round(diag.camera);
+  if (camera !== null) parts.push('cam ' + camera);
+  const infer = round(diag.infer);
+  if (infer !== null) parts.push('infer ' + infer + 'ms');
+  if (diag.delegate) parts.push(String(diag.delegate).split(' ')[0]);
+  // Com uma mão levantada o grafo de uma slot deve dominar: é ele que evita pagar a segunda slot em
+  // todo frame de mão rastreada (2,47x por frame, medido em tools/bench).
+  if (typeof diag.narrow === 'number' && typeof diag.wide === 'number' && diag.narrow + diag.wide > 0)
+    parts.push('slots ' + (diag.narrow >= diag.wide ? 1 : 2));
+  if (round(diag.stale) > 0) parts.push('stale ' + Math.round(diag.stale));
+  return parts.length ? ' · ' + parts.join(' · ') : '';
 }
