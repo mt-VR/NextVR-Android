@@ -10,12 +10,33 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The phone mirror is a MediaProjection capture, and Android 10+ refuses to construct one
+         unless a foreground service of type "mediaProjection" is already running
+         (MediaProjection.start() throws SecurityException otherwise). FOREGROUND_SERVICE is the base
+         permission; the type-specific one is required from Android 14 on. The notification is not
+         optional and is not hidden: it is the system's (and the user's) indication that the screen is
+         being captured. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Only so that the capture notification can be shown on Android 13+; never requested at
+         runtime, and capture works without it (the system hides the notification instead). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Shizuku's permission provider: the app asks Shizuku for the shell user service through it. -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
-    <!-- Package visibility (Android 11+): the app windows feature has to see whether Shizuku is
-         installed to explain what is missing, instead of reporting "not installed" forever. -->
+    <!-- Package visibility (Android 11+). Two different needs, both explicit:
+          * the launcher intent, so that the app library really lists the device's apps. Without this
+            entry queryIntentActivities() silently returns only a handful of system-package
+            exceptions on Android 11+ — a real-device-only failure (the emulator has too few apps to
+            notice). It is the narrowest declaration that works: QUERY_ALL_PACKAGES is a
+            Play-policy-gated permission and is deliberately not used.
+          * the Shizuku packages, so the row can say "install Shizuku" instead of "not installed"
+            forever. -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <package android:name="moe.shizuku.manager" />
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="rikka.shizuku" />
@@ -56,6 +77,14 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/nextvr_accessibility_service" />
         </service>
+
+        <!-- The foreground service Android requires for a MediaProjection (see the permissions
+             above). Not exported, no binder, started only while the mirror window is being opened. -->
+        <service
+            android:name="com.nextvr.app.apps.AppMirrorService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- Shizuku's binder provider. The permission is the one Shizuku itself requires; the
              authority must be the application id plus ".shizuku". -->

@@ -186,8 +186,15 @@ export function openApp(pkg, box) {
   command({ cmd: 'open', pkg, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
 }
 
-export function openPhoneMirror(box) {
-  command({ cmd: 'open', pkg: MIRROR, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
+/**
+ * Opens the phone-screen mirror. With [focus] — an app the user asked for while the shell service is
+ * not available — the native side brings that app to the phone screen first, so the window shows the
+ * app the user wanted. It stays a mirror: mode, badge and the state JSON all say `mirror`.
+ */
+export function openPhoneMirror(focusOrBox, box) {
+  const focus = typeof focusOrBox === 'string' ? focusOrBox : null;
+  const size = (typeof focusOrBox === 'object' && focusOrBox) || box;
+  command({ cmd: 'open', pkg: MIRROR, focus, w: (size && size.w) || DEFAULT_W, h: (size && size.h) || DEFAULT_H });
 }
 
 export function closeApp(pkg) { command({ cmd: 'close', pkg }); }
@@ -361,9 +368,23 @@ function appTile(app) {
   }
   tile.onclick = () => {
     if (session && session.state === 'suspended') return restoreApp(app.pkg);
+    // A failed session is retried from here: the tile is the only place the user can ask again, and
+    // without this a Shizuku that came up after the failure needed a different app to be opened.
+    if (session && session.state === 'failed') return restoreApp(app.pkg);
     if (session) return;                                    // already open: the window is the focus
     openApp(app.pkg);
   };
+  // Without the shell service the app cannot be hosted, but it can still be *seen*: the mirror is the
+  // no-Shizuku path, and it is labelled as a mirror everywhere. Offered right on the tile, because a
+  // user who has no Shizuku should not have to work out that the pill at the top is the way in.
+  if (!state.shizuku.ready) {
+    const mirror = document.createElement('button');
+    mirror.className = 'az-mirror';
+    mirror.textContent = t('appMirrorShort');
+    mirror.title = state.input.singleAppCapture ? t('appMirrorOneApp') : t('appMirrorWhole');
+    mirror.onclick = event => { event.stopPropagation(); openPhoneMirror(app.pkg); };
+    tile.appendChild(mirror);
+  }
   tile.oncontextmenu = event => {
     event.preventDefault();
     hideApp(app.pkg, true);

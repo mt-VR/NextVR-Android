@@ -20,8 +20,11 @@ interface IDisplayService {
 
     // A public, touch-capable virtual display that composites into `surface`. Returns its id, or -1.
     int createDisplay(in Surface surface, int width, int height, int dpi) = 1;
-    // Re-shape a live display when the VR window is resized (no teardown, no relaunch).
-    void resizeDisplay(int displayId, int width, int height, int dpi) = 2;
+    // Re-shape a live display when the VR window is resized (no teardown, no relaunch). Returns the
+    // error text when the display could not take the new size, or null when it did. The app side
+    // needs that answer: if it kept believing the new size while the display kept the old one, the
+    // picture would be cropped and every touch would land somewhere else.
+    String resizeDisplay(int displayId, int width, int height, int dpi) = 2;
     // Detach (null) or re-attach the output surface of an existing display: this is how a minimized
     // window stops producing frames without losing the app or its task.
     void setDisplaySurface(int displayId, in Surface surface) = 3;

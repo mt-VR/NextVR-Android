@@ -1,9 +1,10 @@
 """Cross-reference check for the NextVR Android sources.
 
-There is no JDK in this sandbox, so this script stands in for the compiler for the one class of
-error that is invisible to a syntax check: a method called on a receiver of a *known* type that the
-type does not declare (wrong name or wrong arity). It also checks that every AIDL interface method
-is implemented by the class that extends its Stub.
+There is no JDK in this sandbox, so this script stands in for the compiler for the classes of
+error that are invisible to a syntax check: a method called on a receiver of a *known* type that the
+type does not declare (wrong name or wrong arity); a type of this project used without its import;
+and a generated `R`/`BuildConfig` used from another package without `import <namespace>.R`. It also
+checks that every AIDL interface method is implemented by the class that extends its Stub.
 
 Usage: python3 tools/check-java-refs.py [root]
        python3 tools/check-java-refs.py --self-test
@@ -62,6 +63,8 @@ class Symbols:
         self.vars = {}         # (type, method scope) not needed: we infer from declarations
         self.files = {}
         self.aidl = {}
+        self.top_types = {}    # short name of a top-level type -> set of packages declaring it
+        self.file_package = {} # path -> package declared by that file
 
     def add_class(self, name, methods, supers, fields=()):
         short = name.split('.')[-1]
@@ -155,7 +158,10 @@ def collect(symbols):
                         visit(child, package, outer)
 
         package = tree.package.name if tree.package else ''
+        symbols.file_package[path] = package
         for node in tree.types:
+            if isinstance(node, (javalang.tree.ClassDeclaration, javalang.tree.InterfaceDeclaration)):
+                symbols.top_types.setdefault(node.name, set()).add(package)
             visit(node, package)
 
     aidl_dir = os.path.join(ROOT, 'main', 'aidl')
@@ -457,6 +463,29 @@ def check_fields(symbols):
     return problems
 
 
+# The three import cases. The bug they pin down is the one this rule was written for: a class moved
+# into `com.nextvr.app.apps/` that still uses the app's generated R and the activity of the parent
+# package without importing them compiles only on a machine with a JDK — which this sandbox is not.
+R_WITHOUT_IMPORT = """
+package com.nextvr.app.apps;
+class Mirror {
+    String title(Context context) { return context.getString(R.string.mirror_notification_title); }
+    int id() { return R.drawable.nextvr_ic_launcher; }
+}
+"""
+R_WITH_IMPORT = """
+package com.nextvr.app.apps;
+import com.nextvr.app.R;
+class Mirror {
+    String title(Context context) { return context.getString(R.string.mirror_notification_title); }
+}
+"""
+TYPE_WITHOUT_IMPORT = """
+package com.nextvr.app.apps;
+class Mirror {
+    Class<?> screen() { return NextVrActivity.class; }
+}
+"""
 SHADOWED_IN_NESTED_BLOCK = """
 package com.nextvr.app.apps;
 class Shadowed {
@@ -528,6 +557,70 @@ class Released {
 """
 
 
+# A generated class of the app: it lives in the namespace of the module, not in a package of its
+# own, so every file outside that namespace has to import it. The namespace is read from the module
+# that declares it, so the rule stays honest if the app is ever renamed.
+def app_namespace():
+    try:
+        with open('nextvr-android/build.gradle', encoding='utf-8') as handle:
+            match = re.search(r"namespace\s*=?\s*['\"]([\w.]+)['\"]", handle.read())
+        return match.group(1) if match else None
+    except OSError:
+        return None
+
+
+def strip_comments_and_strings(source):
+    """Turns comments and literals into blanks so a mention inside one is not a use."""
+    def blank(match):
+        return re.sub(r'[^\n]', ' ', match.group(0))
+    source = re.sub(r'/\*.*?\*/', blank, source, flags=re.S)
+    source = re.sub(r'//[^\n]*', blank, source)
+    source = re.sub(r'"(?:\\.|[^"\\])*"', blank, source)
+    return source
+
+
+def check_imports(symbols):
+    """A type of this project, or the generated R/BuildConfig, used without its import.
+
+    javac fails on this and nothing else in this script sees it: the call check resolves receivers by
+    short name against the whole project, so `R.string.x` reached from another package and a
+    `NextVrActivity` whose import was forgotten both look fine here — and both are a broken build. It
+    is the cheapest error to make when a class moves to another package and the most expensive to
+    find without a compiler, so it is checked.
+    """
+    problems = []
+    namespace = app_namespace()
+    for path, source in symbols.files.items():
+        package = symbols.file_package.get(path, '')
+        code = strip_comments_and_strings(source)
+        imports = set(re.findall(r'^\s*import\s+(?:static\s+)?([\w.$*]+)\s*;', source, re.M))
+
+        for generated in ('R', 'BuildConfig') if namespace else ():
+            if package == namespace:
+                continue
+            if not re.search(r'(?<![\w.$])' + generated + r'\.', code):
+                continue
+            if f'{namespace}.{generated}' in imports or f'{namespace}.*' in imports:
+                continue
+            problems.append(f'{path}: uses {generated} without `import {namespace}.{generated};`'
+                            f' (the file declares package {package or "<default>"})')
+
+        for name, packages in symbols.top_types.items():
+            if package in packages or name in imports:
+                continue
+            if any(f'{declared}.{name}' in imports or f'{declared}.*' in imports for declared in packages):
+                continue
+            if not re.search(r'(?<![\w.$])' + re.escape(name) + r'\s*\.', code):
+                continue
+            # A fully qualified use (a.b.Name.method) needs no import.
+            if any(re.search(r'(?<![\w.])' + re.escape(declared) + r'\.' + re.escape(name) + r'\s*\.', code)
+                   for declared in packages):
+                continue
+            declared = '/'.join(sorted(packages)) or '<unknown>'
+            problems.append(f'{path}: uses {name} (declared in {declared}) without an import')
+    return problems
+
+
 def self_test():
     """Synthetic cases for the rules javac enforces and a syntax check cannot see.
 
@@ -536,6 +629,10 @@ def self_test():
     pinned down here: `python3 tools/check-java-refs.py --self-test` fails if a rule stops working.
     """
     cases = [
+        ('R from another package without its import', R_WITHOUT_IMPORT, check_imports, 1),
+        ('R imported from the namespace', R_WITH_IMPORT, check_imports, 0),
+        ('a project type of another package without its import',
+         TYPE_WITHOUT_IMPORT, check_imports, 1),
         ('local shadows an enclosing local', SHADOWED_IN_NESTED_BLOCK, check_shadowed_locals, 1),
         ('sibling blocks may reuse a name', SHADOWED_IN_SIBLING_BLOCKS, check_shadowed_locals, 0),
         ('RemoteException call outside a try, inside a lambda',
@@ -551,6 +648,8 @@ def self_test():
         symbols = Symbols()
         symbols.aidl['IDisplayService'] = {'launch': 2, 'releaseDisplay': 1}
         symbols.files[f'<{name}>'] = source
+        symbols.file_package[f'<{name}>'] = 'com.nextvr.app.apps'
+        symbols.top_types['NextVrActivity'] = {'com.nextvr.app'}
         try:
             found = check(symbols)
         except Exception as error:            # a crashed rule is a broken rule
@@ -570,7 +669,8 @@ def main():
     symbols = Symbols()
     collect(symbols)
     found = (check_aidl(symbols) + check_calls(symbols) + check_fields(symbols)
-             + check_shadowed_locals(symbols) + check_checked_exceptions(symbols))
+             + check_shadowed_locals(symbols) + check_checked_exceptions(symbols)
+             + check_imports(symbols))
     problems = sorted({p for p in found if not any(a in p for a in ALLOWED_MESSAGES)})
     for problem in problems:
         print(problem)

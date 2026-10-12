@@ -67,6 +67,14 @@ public final class AppSession {
     public volatile int displayId = -1;
     public volatile int width, height, density;
     public volatile float boxWidth, boxHeight;
+    /**
+     * Size the display was asked for and has not confirmed yet. The session keeps reporting the size
+     * it really has until this is applied, so the shell's picture and its touch mapping never point at
+     * a display size that does not exist.
+     */
+    public volatile AppDisplaySpec pendingResize;
+    /** The display refused to change shape: the picture scales inside the window from now on. */
+    public volatile boolean resizeRefused;
     /** Rotation reported by the platform (0/90/180/270); used by the input mapping. */
     public volatile int rotation;
     public volatile long frames;

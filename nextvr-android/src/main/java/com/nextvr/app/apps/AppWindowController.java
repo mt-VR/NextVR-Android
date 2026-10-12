@@ -162,7 +162,7 @@ public final class AppWindowController {
     public void open(String packageName, float boxWidth, float boxHeight) {
         if (packageName == null || packageName.isEmpty()) return;
         if (AppDisplayController.MIRROR_PACKAGE.equals(packageName)) {
-            openMirror(boxWidth, boxHeight);
+            openMirror(boxWidth, boxHeight, null);
             return;
         }
         AppEntry app = apps.find(packageName);
@@ -174,11 +174,24 @@ public final class AppWindowController {
         env.pushState();
     }
 
-    /** The phone mirror window: consent is requested by the display controller when needed. */
-    public void openMirror(float boxWidth, float boxHeight) {
+    /**
+     * The phone mirror window: consent is requested by the display controller when needed.
+     *
+     * <p>[focus] is the no-Shizuku path. It is an app the user asked for while the shell service is
+     * not available: the app is brought to the phone screen with public API and the window then shows
+     * the capture of that screen. The window is a mirror and says so — the app is not hosted on a
+     * display of its own, and it never claims to be.
+     */
+    public void openMirror(float boxWidth, float boxHeight, String focus) {
+        String title = null;
+        if (focus != null && !focus.isEmpty()) {
+            AppEntry app = apps.find(focus);
+            title = app == null ? focus : app.label;
+            displays.launchOnPhone(focus);
+        }
         AppSession session = sessions.find(AppDisplayController.MIRROR_PACKAGE);
         if (session == null || !session.alive()) {
-            sessions.open(AppDisplayController.MIRROR_PACKAGE, "Phone screen",
+            sessions.open(AppDisplayController.MIRROR_PACKAGE, title == null ? "Phone screen" : title,
                     AppSession.Mode.SCREEN_MIRROR, boxWidth, boxHeight, density());
         } else {
             sessions.restore(AppDisplayController.MIRROR_PACKAGE);
@@ -284,9 +297,14 @@ public final class AppWindowController {
             String name = command.optString("cmd", "");
             String packageName = command.optString("pkg", null);
             switch (name) {
-                case "open":
-                    open(packageName, (float) command.optDouble("w", 1040), (float) command.optDouble("h", 616));
+                case "open": {
+                    float width = (float) command.optDouble("w", 1040);
+                    float height = (float) command.optDouble("h", 546);
+                    String focus = command.optString("focus", null);
+                    if (AppDisplayController.MIRROR_PACKAGE.equals(packageName)) openMirror(width, height, focus);
+                    else open(packageName, width, height);
                     break;
+                }
                 case "close": close(packageName); break;
                 case "minimize": minimize(packageName); break;
                 case "restore": restore(packageName); break;

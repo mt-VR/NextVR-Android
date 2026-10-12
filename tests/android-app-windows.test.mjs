@@ -25,6 +25,8 @@ const JAVA = {
   aidl: 'nextvr-android/src/main/aidl/com/nextvr/app/apps/IDisplayService.aidl',
   manifest: 'nextvr-android/src/main/AndroidManifest.xml',
   accessibilityXml: 'nextvr-android/src/main/res/xml/nextvr_accessibility_service.xml',
+  mirrorService: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppMirrorService.java',
+  sessionManager: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppSessionManager.java',
 };
 const WEB = {
   androidApps: 'web/src/android-apps.js',
@@ -196,4 +198,146 @@ test('the default app window asks for the body the app picture really occupies',
   assert.equal(surface, outer - 62 - appBar, `the default box is the surface, not the window: ${surface}`);
   assert.match(apps, /openApp\(app\.pkg\)/, 'tapping a tile opens the window at the default size');
   assert.match(apps, /openPhoneMirror\(\)/, 'the mirror button uses the same default box');
+});
+
+/*
+ * The mirror is the path a device without Shizuku has, and it has two hard platform requirements
+ * that are invisible in a unit test and only show up on a phone:
+ *   1. Android 10+ refuses to even construct a MediaProjection unless a foreground service of type
+ *      "mediaProjection" is already running (MediaProjection.start() throws SecurityException for
+ *      every app targeting Q or later). Without it the mirror simply cannot start on any modern
+ *      Android — the failure was found by reading AOSP, not by a test.
+ *   2. A foreground service has to be declared, with its type, in the manifest.
+ */
+test('the screen mirror starts the foreground service Android requires for a MediaProjection', async () => {
+  const manifest = await read(JAVA.manifest);
+  assert.match(manifest, /<uses-permission android:name="android\.permission\.FOREGROUND_SERVICE" \/>/);
+  assert.match(manifest,
+    /<uses-permission android:name="android\.permission\.FOREGROUND_SERVICE_MEDIA_PROJECTION" \/>/,
+    'the type-specific permission is required from Android 14 on');
+  assert.match(manifest,
+    /<service[^>]*android:name="com\.nextvr\.app\.apps\.AppMirrorService"[\s\S]{0,220}?android:foregroundServiceType="mediaProjection"/,
+    'the service declares the mediaProjection type');
+
+  const service = await read(JAVA.mirrorService);
+  assert.match(service, /FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION/);
+  assert.match(service, /startForeground\(/);
+  assert.match(service, /START_NOT_STICKY/, 'the mirror is never restarted behind the user');
+
+  const display = await read(JAVA.display);
+  const request = display.slice(display.indexOf('public void requestMirror()'));
+  assert.ok(request.indexOf('AppMirrorService.start(context)') < request.indexOf('env.requestCaptureConsent()'),
+    'the service runs before the consent dialog: consenting to a capture that cannot start would be a lie');
+  const result = display.slice(display.indexOf('public void onCaptureConsentResult'));
+  assert.ok(result.indexOf('manager.getMediaProjection(') < result.indexOf('projection.registerCallback('),
+    'the callback is registered after the projection exists and before the first display is created');
+  for (const teardown of ['consent_denied', 'projection_failed', 'mirror_failed', 'mirror_refused']) {
+    const at = display.indexOf(teardown);
+    assert.ok(at > 0, `${teardown} is still a reported outcome`);
+  }
+  const mirrorStop = display.slice(display.indexOf('private void stopMirror()'));
+  const serviceStop = mirrorStop.indexOf('AppMirrorService.stop(context)');
+  assert.ok(serviceStop >= 0 && serviceStop < mirrorStop.indexOf('current.stop()'),
+    'closing the window ends the capture and its notification together');
+});
+
+/*
+ * The app library is the one thing that works on every Android version, and it is also the one that
+ * silently broke on Android 11+ on real phones: without the launcher intent in <queries>,
+ * queryIntentActivities() returns a handful of system packages and the grid looks empty.
+ */
+test('the app library declares the launcher query package visibility needs', async () => {
+  const manifest = await read(JAVA.manifest);
+  const queries = manifest.slice(manifest.indexOf('<queries>'), manifest.indexOf('</queries>'));
+  assert.match(queries, /<action android:name="android\.intent\.action\.MAIN" \/>/);
+  assert.match(queries, /<category android:name="android\.intent\.category\.LAUNCHER" \/>/,
+    'Android 11+ filters queryIntentActivities to the declared intents');
+  assert.match(queries, /<package android:name="moe\.shizuku\.manager" \/>/);
+});
+
+/*
+ * Why this is not an app that messes with other apps: it asks for nothing that would let it hook,
+ * overlay or instrument them. These permissions are the ones that would make the feature (and the
+ * app) look like spyware to a store reviewer, to Play Protect or to a game's anti-cheat, and none of
+ * them is needed by either architecture. The check is here so that a future change cannot add one
+ * quietly.
+ */
+test('the app declares no permission that would let it hook or overlay another app', async () => {
+  const manifest = await read(JAVA.manifest);
+  const forbidden = ['QUERY_ALL_PACKAGES', 'SYSTEM_ALERT_WINDOW', 'READ_LOGS', 'PACKAGE_USAGE_STATS',
+    'REQUEST_INSTALL_PACKAGES', 'INJECT_EVENTS', 'DUMP', 'READ_FRAME_BUFFER', 'WRITE_SECURE_SETTINGS',
+    'MANAGE_ACTIVITY_TASKS', 'GET_TASKS', 'REORDER_TASKS'];
+  for (const permission of forbidden) {
+    assert.ok(!manifest.includes(`android.permission.${permission}`),
+      `${permission} is not needed: hosting an app is a display, not an overlay or a hook`);
+  }
+  // What it does ask for, and why each one is unavoidable:
+  assert.match(manifest, /android\.permission\.CAMERA/, 'hand tracking and passthrough');
+  assert.match(manifest, /moe\.shizuku\.manager\.permission\.API_V23/,
+    'the Shizuku permission the user grants explicitly, in Shizuku');
+  assert.match(manifest, /android\.permission\.BIND_ACCESSIBILITY_SERVICE/,
+    'declared as the service permission Android requires; the user enables it in Settings');
+  assert.ok(!/uses-permission[^>]*INTERACT_ACROSS_USERS/.test(manifest),
+    'INTERACT_ACROSS_USERS_FULL is the provider permission Shizuku requires, not an app permission');
+});
+
+/*
+ * Resizing must not break the app. Two rules make that true, and both are about the window never
+ * claiming a size the display does not have.
+ */
+test('a resize is only believed once the display confirms it', async () => {
+  const aidl = await read(JAVA.aidl);
+  assert.match(aidl, /String resizeDisplay\(int displayId, int width, int height, int dpi\) = 2;/,
+    'the service answers the resize instead of returning nothing');
+  assert.match(aidl, /void destroy\(\) = 16777114;/, 'destroy stays first (Shizuku fixes its id)');
+
+  const service = await read(JAVA.service);
+  const resize = service.slice(service.indexOf('public String resizeDisplay'));
+  assert.ok(resize.indexOf('no such display') < resize.indexOf('display.resize('),
+    'a released display is reported instead of throwing inside the platform');
+  assert.match(resize, /return null;/, 'null means the display took the new size');
+
+  const manager = await read(JAVA.sessionManager);
+  const requested = manager.slice(manager.indexOf('public synchronized void windowResized'));
+  const body = requested.slice(0, requested.indexOf('public synchronized void resizeApplied'));
+  assert.ok(!/session\.width = /.test(body),
+    'the session keeps the display\'s real size while the resize is in flight');
+  assert.match(manager, /public synchronized void resizeApplied\(String packageName\)/);
+  assert.match(manager, /public synchronized void resizeFailed\(String packageName\)/);
+  assert.match(body, /session\.resizeRefused/, 'a display that refused is not asked again');
+
+  const session = await read(JAVA.session);
+  assert.match(session, /volatile AppDisplaySpec pendingResize/);
+  assert.match(session, /volatile boolean resizeRefused/);
+});
+
+/*
+ * The no-Shizuku path, end to end: the shell offers the mirror on the tile that cannot be hosted,
+ * the focus package travels in the same JSON, and the native side brings the app to the phone screen
+ * with public API before the capture. It stays a mirror.
+ */
+test('an app the user cannot host is offered as a labelled mirror of that app', async () => {
+  const web = await read(WEB.androidApps);
+  assert.match(web, /export function openPhoneMirror\(focusOrBox, box\)/);
+  assert.match(web, /command\(\{ cmd: 'open', pkg: MIRROR, focus,/, 'the focus package travels with the command');
+  assert.match(web, /if \(!state\.shizuku\.ready\)/, 'the offer only appears when hosting is impossible');
+  assert.match(web, /className = 'az-mirror'/);
+  assert.match(web, /session\.state === 'failed'\) return restoreApp\(app\.pkg\)/,
+    'a failed session can be retried from the tile that opened it');
+  assert.match(web, /mode === 'mirror' \? t\('appMirrorBadge'\)/, 'the badge follows the mode, never the wish');
+
+  const window = await read(JAVA.window);
+  assert.match(window, /command\.optString\("focus", null\)/);
+  assert.match(window, /public void openMirror\(float boxWidth, float boxHeight, String focus\)/);
+  assert.match(window, /displays\.launchOnPhone\(focus\)/);
+
+  const display = await read(JAVA.display);
+  const launch = display.slice(display.indexOf('public boolean launchOnPhone'));
+  assert.match(launch, /getLaunchIntentForPackage/, 'public API: the same call tapping the icon makes');
+  assert.match(launch, /FLAG_ACTIVITY_NEW_TASK/);
+  assert.ok(!/Shizuku|IDisplayService/.test(launch), 'this path needs no privileged service');
+
+  const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
+  assert.ok(bundle.includes('az-mirror'), 'the shell that ships carries the offer');
+  assert.ok((await read('web/index.html')).includes('.az-mirror'), 'and its style');
 });

@@ -51,7 +51,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
      * bind time ({@code UserServiceArgs.version}) and mixing a new app with an old service process
      * is what this constant exists to prevent.
      */
-    public static final int SERVICE_VERSION = 1;
+    public static final int SERVICE_VERSION = 2;
 
     private static final int FLAG_PUBLIC = 1;                    // DisplayManager.VIRTUAL_DISPLAY_FLAG_*
     private static final int FLAG_PRESENTATION = 1 << 1;
@@ -121,10 +121,22 @@ public class NextVrDisplayService extends IDisplayService.Stub {
         try { display.setSurface(surface); } catch (Throwable error) { fail("setDisplaySurface", error); }
     }
 
-    @Override public void resizeDisplay(int displayId, int width, int height, int dpi) {
+    /**
+     * Re-shapes a live display. Returns null when the display took the new size, or the reason it did
+     * not: the app side must never keep believing a size the display refused (see the AIDL comment).
+     */
+    @Override public String resizeDisplay(int displayId, int width, int height, int dpi) {
         VirtualDisplay display = displays.get(displayId);
-        if (display == null || width <= 0 || height <= 0) return;
-        try { display.resize(width, height, Math.max(160, dpi)); } catch (Throwable error) { fail("resizeDisplay", error); }
+        if (display == null) return "no such display: " + displayId;
+        if (width <= 0 || height <= 0) return "invalid size " + width + "x" + height;
+        try {
+            display.resize(width, height, Math.max(160, dpi));
+            lastError = null;
+            return null;
+        } catch (Throwable error) {
+            fail("resizeDisplay", error);
+            return lastError;
+        }
     }
 
     @Override public void releaseDisplay(int displayId) {

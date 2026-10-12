@@ -141,7 +141,33 @@ public class AppSessionManagerTest {
 
         manager.windowResized("com.a", 616, 1040, 240);
         assertTrue(host.calls.contains("resize:com.a"));
+        // Until the display confirms the new shape the session still reports the one it really has:
+        // the picture and the touch mapping are derived from it, and a size the display never took
+        // would put every touch in the wrong place.
+        assertEquals(1040, session.width);
+        assertEquals(616, session.height);
+
+        manager.resizeApplied("com.a");
         assertTrue(session.height > session.width);
+        assertEquals(1040, session.height);
+    }
+
+    @Test public void aRefusedResizeKeepsTheSizeTheDisplayReallyHas() {
+        AppSession session = openRunning("com.a");
+        manager.markDisplayReady("com.a", 5, 1040, 616, 240);
+        manager.windowResized("com.a", 616, 1040, 240);
+        manager.resizeFailed("com.a");
+
+        assertEquals("the window must not claim a size the display refused", 1040, session.width);
+        assertEquals(616, session.height);
+        assertTrue(session.resizeRefused);
+        assertNull("a window that kept its size still works: this is not a failure", session.error);
+        assertEquals(AppSession.State.RUNNING, session.state);
+
+        // It is not asked again: from here the picture scales inside the window.
+        int before = host.calls.size();
+        manager.windowResized("com.a", 500, 1200, 240);
+        assertEquals(before, host.calls.size());
     }
 
     private int countOf(String prefix) {

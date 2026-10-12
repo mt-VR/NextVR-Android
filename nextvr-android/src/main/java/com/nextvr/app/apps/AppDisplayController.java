@@ -199,15 +199,23 @@ public final class AppDisplayController implements AppSessionManager.Host {
     @Override public void resize(AppSession session) {
         if (session.displayId < 0) return;
         final AppDisplaySpec spec = AppDisplaySpec.forBox(session.boxWidth, session.boxHeight, env.densityDpi());
-        specs.put(session.packageName, spec);
-        SurfaceTexture texture = textures.get(session.packageName);
+        final String packageName = session.packageName;
+        SurfaceTexture texture = textures.get(packageName);
         if (texture != null) {
             try { texture.setDefaultBufferSize(spec.width, spec.height); } catch (Throwable ignored) { }
         }
         if (session.mode == AppSession.Mode.SCREEN_MIRROR) {
             VirtualDisplay display = mirrorDisplay;
-            if (display != null && session.width > 0 && session.height > 0) {
-                try { display.resize(session.width, session.height, session.density); } catch (Throwable ignored) { }
+            if (display == null) { sessions.resizeFailed(packageName); return; }
+            try {
+                // The mirror is our own capture: the platform scales the captured content into the new
+                // buffer, so this cannot be refused the way a hosted app's display can.
+                display.resize(spec.width, spec.height, spec.density);
+                specs.put(packageName, spec);
+                sessions.resizeApplied(packageName);
+            } catch (Throwable error) {
+                sessions.resizeFailed(packageName);
+                env.report("The mirror kept its size: " + error.getMessage());
             }
             return;
         }
@@ -215,9 +223,26 @@ public final class AppDisplayController implements AppSessionManager.Host {
         try {
             work.execute(() -> {
                 IDisplayService service = service();
-                if (service == null) return;
-                try { service.resizeDisplay(displayId, spec.width, spec.height, spec.density); }
-                catch (Throwable ignored) { }
+                if (service == null) {
+                    sessions.resizeFailed(packageName);
+                    return;
+                }
+                String error;
+                try {
+                    error = service.resizeDisplay(displayId, spec.width, spec.height, spec.density);
+                } catch (Throwable failure) {
+                    error = failure.getClass().getSimpleName();
+                }
+                if (error == null) {
+                    specs.put(packageName, spec);
+                    sessions.resizeApplied(packageName);
+                } else {
+                    // The display kept its size: the session says so and stops asking. The window keeps
+                    // working — the picture is fitted inside it, the same way a non-resizable app is
+                    // fitted by the platform inside a display.
+                    sessions.resizeFailed(packageName);
+                    env.report("The app window kept its size: " + error);
+                }
             });
         } catch (RejectedExecutionException ignored) { }
     }
@@ -272,8 +297,18 @@ public final class AppDisplayController implements AppSessionManager.Host {
 
     // ------------------------------------------------------------------ phone mirror
 
-    /** Opens the system consent dialog for the phone mirror. */
+    /**
+     * Opens the system consent dialog for the phone mirror.
+     *
+     * <p>The foreground service comes first, and not as a formality: since Android 10 a
+     * {@code MediaProjection} cannot even be constructed without a running foreground service of
+     * type {@code mediaProjection} — {@code MediaProjection.start()} throws
+     * {@code SecurityException("Media projections require a foreground service ...")} for any app
+     * targeting Q or later. Asking for consent first would leave the user having authorized a capture
+     * that then fails. The service is also the honest indicator that a mirror is running.
+     */
     public void requestMirror() {
+        AppMirrorService.start(context);
         env.requestCaptureConsent();
     }
 
@@ -281,6 +316,7 @@ public final class AppDisplayController implements AppSessionManager.Host {
     public void onCaptureConsentResult(int resultCode, Intent data) {
         AppSession session = sessions.find(MIRROR_PACKAGE);
         if (resultCode != Activity.RESULT_OK || data == null) {
+            AppMirrorService.stop(context);
             if (session != null) sessions.settle(MIRROR_PACKAGE, false, "consent_denied");
             env.report("Screen mirroring was not authorized");
             return;
@@ -288,11 +324,14 @@ public final class AppDisplayController implements AppSessionManager.Host {
         try {
             MediaProjectionManager manager = context.getSystemService(MediaProjectionManager.class);
             if (manager == null) throw new IllegalStateException("no MediaProjectionManager");
+            // Requires the foreground service started in requestMirror(): the constructor behind this
+            // call is where the platform enforces it.
             projection = manager.getMediaProjection(resultCode, data);
             if (projection == null) throw new IllegalStateException("null MediaProjection");
             projection.registerCallback(projectionCallback, main);
             if (session != null) startMirror(session);
         } catch (Throwable error) {
+            AppMirrorService.stop(context);
             if (session != null) sessions.settle(MIRROR_PACKAGE, false, "projection_failed");
             env.report("Could not start screen mirroring: " + error.getMessage());
         }
@@ -324,11 +363,13 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     mirrorDisplay = projection.createVirtualDisplay("NextVR screen", width, height, density,
                             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null);
                 } catch (Throwable error) {
+                    AppMirrorService.stop(context);
                     sessions.settle(MIRROR_PACKAGE, false, "mirror_failed");
                     env.report("Screen mirroring failed: " + error.getMessage());
                     return;
                 }
                 if (mirrorDisplay == null) {
+                    AppMirrorService.stop(context);
                     sessions.settle(MIRROR_PACKAGE, false, "mirror_refused");
                     env.report("The system refused the mirror display");
                     return;
@@ -345,6 +386,7 @@ public final class AppDisplayController implements AppSessionManager.Host {
     }
 
     private void stopMirror() {
+        AppMirrorService.stop(context);
         VirtualDisplay display = mirrorDisplay;
         mirrorDisplay = null;
         if (display != null) {
@@ -497,8 +539,9 @@ public final class AppDisplayController implements AppSessionManager.Host {
         }
     }
 
-    /** Releases everything; called when the VR activity is destroyed. */
+    /** Releases every display and surface and ends the mirror notification; called from onDestroy. */
     public void shutdown() {
+        AppMirrorService.stop(context);
         main.removeCallbacks(supervisor);
         supervising = false;
         stopMirror();
@@ -544,6 +587,29 @@ public final class AppDisplayController implements AppSessionManager.Host {
             }
         } catch (Throwable ignored) { }
         return new int[]{1080, 1920};
+    }
+
+    /**
+     * Brings an app to the phone screen before a mirror starts.
+     *
+     * <p>This is public API ({@code getLaunchIntentForPackage} + {@code startActivity}) and it does
+     * not need Shizuku: it is exactly what tapping the app in the phone's launcher does. On Android
+     * 14+ the capture dialog then offers that app as the single app to share; before Android 14 the
+     * mirror is the whole screen, and this call is what puts the app the user asked for on it.
+     * Returns false when the app has no launcher activity.
+     */
+    public boolean launchOnPhone(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return false;
+        try {
+            Intent intent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent == null) return false;
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            context.startActivity(intent);
+            return true;
+        } catch (Throwable error) {
+            env.report("Could not bring the app to the phone screen: " + error.getMessage());
+            return false;
+        }
     }
 
     /** Whether the running Android version can scope a capture to a single app (Android 14+). */
