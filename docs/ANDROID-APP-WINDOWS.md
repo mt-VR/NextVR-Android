@@ -161,7 +161,19 @@ Automatizados (rodam no CI, sem aparelho):
 - `nextvr-android/src/test/java/com/nextvr/app/apps/*Test.java` — `AppLibrary`, `AppSession`,
   `AppSessionManager` (com um `Host` falso), `AppDisplaySpec`, `AppInputGeometry`, `ShizukuStatus`.
 - `tools/check-java-refs.py` — como este ambiente não tem JDK, este script confere chamadas em
-  tipos próprios e a implementação completa do AIDL; roda no CI junto dos testes.
+  tipos próprios, a implementação completa do AIDL, **local sombreando outro local** e **chamada em
+  receptor de AIDL fora de `try`** (o `RemoteException` que o javac exige tratar). Roda no CI junto
+  dos testes, e `--self-test` fixa as duas regras com seis casos sintéticos (`tests/java-refs-tool.test.mjs`
+  roda o mesmo self-test aqui).
+- `tests/reference-ui.test.mjs` — o teste de integração em Chromium termina com o bloco das janelas:
+  biblioteca, ícone, `{cmd:'open'}`, barra do app, recorte do shader igual ao `data-uv`, pinça da mão
+  entregando toques em `app:<pacote>`, minimizar sem fechar, fechar mandando `{cmd:'close'}` e o texto
+  de falha do Shizuku. Este teste **pula** em ambientes sem Chromium e roda no CI.
+
+Estado no CI (verde, `06fdca5`): Node **74/74**, testes JVM **120 em 18 classes, 0 falhas** (47 nas
+seis classes de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai do
+próprio job de build e é publicado no branch `apk-dist` como `dist/app-debug.apk` (~46 MB,
+`versionCode` 4); é essa a build para instalar no aparelho.
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado):
 
