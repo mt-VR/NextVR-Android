@@ -207,7 +207,7 @@ test('the app icons are served by the shell from the same directory that writes 
 test('a batch of finished icons makes the shell read the grid again', async () => {
   const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
   assert.match(manager, /public int iconEpoch\(\)/);
-  assert.match(manager, /private void notifyIcons\(\) \{\s*icons\.incrementAndGet\(\);/,
+  assert.match(manager, /private void notifyIcons\(\) \{\s*iconBatches\.incrementAndGet\(\);/,
     'a batch that landed moves the counter');
   assert.match(manager, /private static final int ICON_PX = 144;/, 'one size covers grid, dock and title');
   assert.match(manager, /public void warmIcons\(\)/,
