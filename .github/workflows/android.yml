@@ -152,7 +152,19 @@ jobs:
                   conclusion: $c,
                   output: {title: "Gradle build log (tail)", summary: "Build output for this commit", text: $t}}' \
             > /tmp/payload.json
-          gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json
+          # The push and the pull_request runs of the same commit post at the same moment, and the
+          # second one used to die on the API's secondary rate limit — turning a fully green build
+          # into a red job with nothing wrong in it. Retry instead of failing the job for that.
+          uploaded=0
+          for attempt in 1 2 3 4; do
+            if gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json; then
+              uploaded=1
+              break
+            fi
+            echo "check-run upload failed (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          [ "$uploaded" = "1" ]
 
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
