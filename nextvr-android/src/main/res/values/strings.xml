@@ -34,6 +34,10 @@
                          Cardboard SDK version.">
             NextVR %1$s\nPowered by the Google Cardboard SDK for Android NDK %2$s.\n\nUse hand tracking to point, pinch, move, and resize spatial windows. Looking at the UI or touching the phone screen does not activate it.</string>
 
+    <!-- Android app windows -->
+    <string name="accessibility_label">NextVR app window input</string>
+    <string name="accessibility_description">Lets NextVR send your hand gestures to the app shown in the phone-mirror window. Enable it only while using NextVR windows without Shizuku.</string>
+
     <!-- Keep in sync with the Cardboard SDK vendored in sdk/ (see README.md). -->
     <string name="cardboard_sdk_version" translatable="false">1.35.0</string>
 </resources>

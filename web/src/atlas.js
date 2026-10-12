@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fitDisplay } from './display-fit.js';
 
 export const ATLAS_SIZE = 4096;
 export const VIEW = { width: 1200, height: 800 };
@@ -69,6 +70,28 @@ export class AtlasRenderer {
         matrix: matrix.toArray(), rect: rects[i], curve,
         glass: [PAD / w, PAD / h, sizes[i].width / w, sizes[i].height / h] });
       const origin = e.getBoundingClientRect();
+      /*
+       * Hosted Android app windows. The window body carries data-native-app and the display's
+       * aspect ratio in data-aspect; the picture is fitted inside the element exactly like
+       * AppInputGeometry.fit does it on the other side, so the shader samples the same rectangle the
+       * touch is normalized against. No entry goes into `browsers[]` here: this surface is created by
+       * the native side (AppSurfaceHost.acquire) because there is no URL to navigate to — the app
+       * itself is what draws. Nothing is drawn while the app's first frame has not arrived.
+       */
+      for (const a of e.querySelectorAll('[data-native-app]')) {
+        const box = a.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        const aspect = +(a.dataset.aspect || 0);
+        const fit = fitDisplay(box.width, box.height, aspect);
+        const m = o.matrixWorld.clone()
+          .multiply(new THREE.Matrix4().makeTranslation(
+            box.left - origin.left + fit.x + fit.w / 2 - sizes[i].width / 2,
+            sizes[i].height / 2 - (box.top - origin.top + fit.y + fit.h / 2), .5))
+          .multiply(new THREE.Matrix4().makeScale(fit.w, fit.h, 1));
+        panels.push({ browser: 'app:' + a.dataset.nativeApp, matrix: m.toArray(),
+          rect: [0, 0, Math.round(box.width), Math.round(box.height)], curve: +(e.dataset.curve || 0),
+          uv: [fit.u0, fit.v0, fit.uw, fit.vh] });
+      }
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();
         if (!box.width || !box.height) continue;

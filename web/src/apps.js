@@ -4,6 +4,7 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
+import { installAndroidApps, androidLibraryPage, runningBadge, openApp } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -719,10 +720,11 @@ function buildLibrary() {
       ${navButton('apps','Aplicativos','device')}
       ${navButton('games','Jogos','controller')}
       ${navButton('recent','Recentes','timer')}
+      ${navButton('android', t('androidApps'), 'device')}
       <span class="lib-rail-spacer"></span>
       <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
     </nav>
-    <section class="lib-main">
+    ${libFilter === 'android' ? '' : `<section class="lib-main">
       <div class="lib-head"><h2 class="lib-title">Apps</h2>
         <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
         <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
@@ -735,17 +737,21 @@ function buildLibrary() {
       }</div>
       ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
-    </section>`;
+    </section>`}
+    `;
+  if (libFilter === 'android') root.appendChild(androidLibraryPage());
 
-  const q = root.querySelector('[data-q]');
-  if (libQuery) q.classList.add('open');
-  q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
-  q.addEventListener('focus', () => keyboard(true, q));
+  const q = root.querySelector('[data-q]:not([data-q="android"])');
+  if (q && libQuery) q.classList.add('open');
+  if (q) {
+    q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]:not([data-q="android"])'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
+    q.addEventListener('focus', () => keyboard(true, q));
+  }
 
   root.addEventListener('click', e => {
     const c = s => e.target.closest(s);
     let m;
-    if (c('[data-s]')) { const i = root.querySelector('[data-q]'); i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
+    if (c('[data-s]')) { const i = root.querySelector('[data-q]:not([data-q="android"])'); if (!i) return; i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
@@ -803,9 +809,39 @@ function makeDock() {
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: youtube },
     // lançador de 9 pontos: sempre o último, abre a biblioteca
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
+    // apps do Android: a mesma biblioteca, na página que lista os apps instalados no aparelho
+    { id: 'android', label: t('androidApps'), icon: './icons/nextvr-n.png', bg: 'linear-gradient(145deg,#57dfa1,#106b4a)', run: androidApps },
   ]);
 }
 on('lang', makeDock);
+
+/** Abre a biblioteca já na página dos apps Android. */
+function androidApps() {
+  libFilter = 'android';
+  libraryApp();
+}
+
+/** Ponto de contagem na dock: quantas janelas de apps Android estão abertas agora. */
+function paintAndroidDock() {
+  const tile = document.querySelector('.dock [data-id="android"], .dock-app[data-id="android"]');
+  if (!tile) return;
+  const count = runningBadge();
+  let badge = tile.querySelector('.dock-badge');
+  if (!count) { badge?.remove(); return; }
+  if (!badge) { badge = el('i', 'dock-badge'); tile.appendChild(badge); }
+  badge.textContent = String(count);
+}
+
+installAndroidApps();
+on('appsState', () => { paintAndroidDock(); paintLibrarySoon(); });
+let libraryPaintTimer = 0;
+function paintLibrarySoon() {
+  if (libraryPaintTimer) return;
+  libraryPaintTimer = setTimeout(() => {
+    libraryPaintTimer = 0;
+    if (winBody('library') && (libFilter === 'android' || focusedWin()?.id === 'library')) paintLibrary();
+  }, 500);
+}
 
 /* ============ primeira execução ============ */
 const boot = document.getElementById('boot');

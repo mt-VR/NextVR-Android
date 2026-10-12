@@ -20,6 +20,8 @@ import android.widget.FrameLayout;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -69,7 +71,13 @@ final class WebSurface {
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
                 Uri u=request.getUrl();
-                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return asset(u);
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) {
+                    // /apps/<file>.png are the real launcher icons the Android app library shows,
+                    // already scaled and written by AndroidAppManager; everything else is the shell.
+                    String path=u.getPath();
+                    if(path!=null && path.startsWith("/apps/")) return icon(path.substring("/apps/".length()));
+                    return asset(u);
+                }
                 return null;
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
@@ -125,6 +133,23 @@ final class WebSurface {
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
+        } catch(Exception e) { return denied(); }
+    }
+    /**
+     * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the
+     * route exists for the library grid and can never read arbitrary memory of the app.
+     */
+    private WebResourceResponse icon(String name) {
+        if(owner==null || name==null || !name.matches("[A-Za-z0-9._-]{1,80}") || name.startsWith(".")) return denied();
+        File directory=com.nextvr.app.apps.AndroidAppManager.iconDirectory(owner);
+        File file=new File(directory,name);
+        try {
+            if(!file.getCanonicalPath().startsWith(directory.getCanonicalPath()+File.separator)) return denied();
+            if(!file.isFile()) return denied();
+            String mime=name.endsWith(".png")?"image/png":name.endsWith(".webp")?"image/webp":"application/octet-stream";
+            Map<String,String> headers=new HashMap<>();
+            headers.put("Cache-Control","max-age=86400");
+            return new WebResourceResponse(mime,null,200,"OK",headers,new FileInputStream(file));
         } catch(Exception e) { return denied(); }
     }
     private static WebResourceResponse denied() { return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",new HashMap<>(),new ByteArrayInputStream(new byte[0])); }

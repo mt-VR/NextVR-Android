@@ -83,6 +83,19 @@ distance from the eye, so moving it never sends it backwards.
 The current `N` mark and component icons are
 extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
+## Android app windows
+
+The dock's app library (`Apps do Android`, the phone icon) lists the launchable apps installed on
+the device with their real icons and opens them in floating windows of the existing arc. The
+window content is the real app: a dedicated virtual display per app, created by a Shizuku user
+service running as the `shell` user (no root), started with `am start --display`, with the hand's
+touch injected into that display. Without Shizuku the library still works and the dock offers the
+phone-screen mirror (`MediaProjection` + the accessibility service for input), which is a mirror
+and is labelled as one — never as an embedded app. Minimize detaches the display surface (the app
+keeps running, frame production stops), restore re-attaches the same surface, and closing releases
+the display and the app's task. Full architecture, API choices, limitations and the on-device
+checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+
 ## Controls
 
 | Action | How |

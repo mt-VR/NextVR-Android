@@ -10,6 +10,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Shizuku's permission provider: the app asks Shizuku for the shell user service through it. -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
+    <!-- Package visibility (Android 11+): the app windows feature has to see whether Shizuku is
+         installed to explain what is missing, instead of reporting "not installed" forever. -->
+    <queries>
+        <package android:name="moe.shizuku.manager" />
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku" />
+    </queries>
 
     <application
         android:allowBackup="false"
@@ -30,5 +40,37 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The no-Shizuku input path: gestures and global actions for the phone-mirror window.
+             Inactive until the user enables it in Android's accessibility settings, and it only
+             ever dispatches what the user did with their hand. -->
+        <service
+            android:name="com.nextvr.app.apps.NextVrAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/nextvr_accessibility_service" />
+        </service>
+
+        <!-- Shizuku's binder provider. The permission is the one Shizuku itself requires; the
+             authority must be the application id plus ".shizuku". -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <!-- Required by Shizuku's provider so apps built against an older Shizuku still hand the
+             binder to the client instead of refusing the call. Without it, pingBinder() stays false
+             even with Shizuku running. -->
+        <meta-data
+            android:name="moe.shizuku.client.V3_SUPPORT"
+            android:value="true" />
     </application>
 </manifest>

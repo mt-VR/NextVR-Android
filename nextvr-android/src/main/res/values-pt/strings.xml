@@ -8,4 +8,7 @@
     <string name="about_nextvr">Sobre o NextVR</string>
     <string name="about_title">Sobre o NextVR</string>
     <string name="about_message">NextVR %1$s\nCriado com o SDK do Google Cardboard para Android NDK %2$s.\n\nUse o hand tracking para apontar, fazer pinça, mover e redimensionar janelas espaciais. Olhar para a UI ou tocar na tela do celular não a ativa.</string>
+    <!-- Janelas de apps Android -->
+    <string name="accessibility_label">Entrada das janelas de apps do NextVR</string>
+    <string name="accessibility_description">Permite que o NextVR envie seus gestos para o app mostrado na janela de espelhamento. Ative só enquanto usar janelas do NextVR sem Shizuku.</string>
 </resources>

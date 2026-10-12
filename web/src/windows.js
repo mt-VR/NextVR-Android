@@ -9,6 +9,7 @@ import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
   stabilizeResize, WINDOW_LIMITS } from './window-geometry.js';
 import { ARC_CAPACITY, arcSlots, arcStep, pickLru, ARC_TOP_ROW_STEP } from './arc.js';
+import { appHostPoint } from './display-fit.js';
 import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
@@ -459,6 +460,30 @@ function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py);
+  /*
+   * A hosted Android app window: the id the native side knows is "app:<package>" and the
+   * coordinates it gets are normalized inside the app's display (the same rectangle the shader
+   * samples). Touch is never synthesized into this DOM — everything here is forwarded to the real
+   * app on the other side. A point on a letterbox bar is dropped instead of being forwarded.
+   */
+  const app = el?.closest('[data-native-app]');
+  if (app) {
+    const ar = app.getBoundingClientRect();
+    const point = appHostPoint(app.offsetWidth, app.offsetHeight,
+      +(app.dataset.aspect || 0), rect.left + px - ar.left, rect.top + py - ar.top);
+    if (action === 2 && !point && !nativePress) return;
+    const id = 'app:' + app.dataset.nativeApp;
+    if (nativePress && nativePress.id !== id) { sendPress(nativePress, 3); nativePress = null; }
+    if (action === 0) { if (!point) return; nativePress = { id, win: hit.win, x: point.u, y: point.v }; }
+    if (nativePress && nativePress.id === id) {
+      if (point || action !== 2) {
+        if (point) { nativePress.x = point.u; nativePress.y = point.v; }
+        sendPress(nativePress, action, nativePress.x, nativePress.y);
+      }
+    }
+    if (action === 1 || action === 3) nativePress = null;
+    return;
+  }
   const browser = el?.closest('[data-native-browser]');
   const br = browser?.getBoundingClientRect();
   const id = browser ? browser.dataset.nativeBrowser : 'shell';

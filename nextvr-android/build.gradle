@@ -21,8 +21,8 @@ android {
         targetSdkVersion = 35
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 4
+        versionName "1.0.3"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is
@@ -63,6 +63,14 @@ android {
     androidResources { noCompress += ['task'] }
     namespace = 'com.nextvr.app'
 
+    // The privileged half of the Android app windows is an AIDL interface implemented by a Shizuku
+    // user service (see src/main/aidl/com/nextvr/app/apps/IDisplayService.aidl and
+    // docs/ANDROID-APP-WINDOWS.md). Without `aidl true` the stub is never generated and the whole
+    // feature fails to compile — this is the one build switch the feature needs.
+    buildFeatures {
+        aidl true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -88,6 +96,12 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.google.protobuf:protobuf-javalite:3.19.4'
     implementation project(":sdk")
+    // Shizuku: the shell user service (privileged display/launch/inject) and its binder provider.
+    // No root is involved: Shizuku is started once by the user over ADB or wireless debugging and
+    // runs the helper with the shell identity (uid 2000), which is what holds CAPTURE_VIDEO_OUTPUT,
+    // ADD_TRUSTED_DISPLAY and INJECT_EVENTS.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
 
 // The dependencies for NDK builds live inside the .aar files so they need to
