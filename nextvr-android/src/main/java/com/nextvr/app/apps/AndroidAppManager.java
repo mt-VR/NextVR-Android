@@ -244,9 +244,9 @@ public final class AndroidAppManager {
             // long form is used where it exists.
             long versionCode = 0;
             try {
-                android.content.pm.PackageInfo info = manager.getPackageInfo(packageName, 0);
+                android.content.pm.PackageInfo packageInfo = manager.getPackageInfo(packageName, 0);
                 versionCode = android.os.Build.VERSION.SDK_INT >= 28
-                        ? info.getLongVersionCode() : info.versionCode;
+                        ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
             } catch (Throwable ignored) { }
             result.add(new AppEntry(packageName, label == null ? packageName : label.toString(),
                     system, component, versionCode));

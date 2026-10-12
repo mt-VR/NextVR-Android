@@ -426,6 +426,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.app-android-page .az-tile').count(),2,'both apps from the bridge are drawn');
     assert.equal(await page.locator('.app-android-page .az-tile[data-pkg="com.android.settings"] .az-sys').count(),1,
       'a system app is marked as one');
+    await page.waitForFunction(()=>{
+      const img=document.querySelector('.az-tile[data-pkg="org.example.notes"] img');
+      return !!img&&img.complete&&img.naturalWidth>0;},null,{timeout:5000});
     const tileIcon=await page.evaluate(()=>{
       const img=document.querySelector('.az-tile[data-pkg="org.example.notes"] img');
       return img?{src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0}:null;});

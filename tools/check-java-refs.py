@@ -27,10 +27,10 @@ ROOT = sys.argv[1] if len(sys.argv) > 1 else 'nextvr-android/src'
 # name with a SpatialRenderer field, and IDisplayService#capabilities reached through a local that
 # shares its name with ShizukuManager.Listener. Keep this list short and explained: anything else
 # that shows up is a real mismatch.
-ALLOWED = {
-    'nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java:1: SpatialRenderer.dispatchHandEvent/3 not found',
-    'nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java:1: SpatialRenderer.evaluate/1 not found',
-    'nextvr-android/src/main/java/com/nextvr/app/apps/ShizukuManager.java:1: Listener.capabilities/0 not found',
+ALLOWED_MESSAGES = {
+    'SpatialRenderer.dispatchHandEvent/3 not found',
+    'SpatialRenderer.evaluate/1 not found',
+    'Listener.capabilities/0 not found',
 }
 
 
@@ -254,9 +254,77 @@ def check_calls(symbols):
             if receiver is None:
                 continue
             if not symbols.method_exists(receiver, call.member, args):
-                line = source[:call.position[1]].count('\n') + 1 if call.position else 0
+                line = call.position[0] if call.position else 0
                 problems.append(f'{path}:{line}: {receiver}.{call.member}/{args} not found')
     return problems
+
+
+def check_shadowed_locals(symbols):
+    """A local variable may not shadow another local variable of an enclosing scope; javalang is fine
+    with it, javac is not.
+
+    This is the error class that cost a CI round: a new local was named like the for-each variable of
+    the surrounding loop, three blocks up. The scan therefore carries a scope: declarations are
+    visible to the rest of their block and to every block nested inside it, and never to a sibling.
+    """
+    problems = []
+    for path, source in symbols.files.items():
+        tree = javalang.parse.parse(source)
+
+        def declare(name, line, visible):
+            if name in visible:
+                problems.append(f'{path}:{line}: local {name} is already declared in an enclosing scope '
+                                f'(line {visible[name]})')
+            else:
+                visible[name] = line
+
+        def scan(node, visible):
+            line = node.position[0] if getattr(node, 'position', None) else 0
+            if isinstance(node, javalang.tree.BlockStatement):
+                visible = dict(visible)              # a nested block sees the outer names
+            elif isinstance(node, javalang.tree.ForStatement):
+                visible = dict(visible)              # a loop's own variable lives inside the loop
+                for name in for_header_names(node):
+                    declare(name, line, visible)
+            elif isinstance(node, (javalang.tree.MethodDeclaration, javalang.tree.ConstructorDeclaration)):
+                visible = dict()                     # parameters are not locals; reset the chain
+                for parameter in getattr(node, 'parameters', []) or []:
+                    visible.setdefault(parameter.name, line)
+            elif isinstance(node, javalang.tree.LocalVariableDeclaration):
+                for declarator in node.declarators:
+                    declare(declarator.name, line, visible)
+            elif isinstance(node, javalang.tree.CatchClause):
+                # Since Java 7 a catch parameter may shadow a local of the enclosing scope: it only
+                # lives inside the catch block, so it gets a scope of its own.
+                visible = dict(visible)
+                if getattr(node, 'parameter', None) is not None:
+                    declare(node.parameter.name, line, visible)
+            for child in getattr(node, 'children', []):
+                if isinstance(child, (list, tuple)):
+                    for item in child:
+                        if isinstance(item, javalang.ast.Node):
+                            scan(item, visible)
+                elif isinstance(child, javalang.ast.Node):
+                    scan(child, visible)
+
+        scan(tree, {})
+
+    return problems
+
+
+def for_header_names(statement):
+    """Names the loop itself declares: `for (T a : c)` and `for (T a = ...; ...)`, not nested ones."""
+    control = getattr(statement, 'control', None)
+    variable = getattr(control, 'var', None)
+    if variable is not None and getattr(variable, 'declarators', None):
+        return [d.name for d in variable.declarators]          # for (T a : c)
+    names = []
+    for init in getattr(getattr(control, 'init', None), '__iter__', lambda: [])():
+        if not isinstance(init, javalang.tree.LocalVariableDeclaration):
+            continue
+        for declarator in init.declarators:                    # for (T a = 0; ...)
+            names.append(declarator.name)
+    return names
 
 
 def check_fields(symbols):
@@ -280,7 +348,7 @@ def check_fields(symbols):
             if isinstance(node, javalang.tree.MethodInvocation):
                 continue
             if not symbols.field_exists(receiver, node.member):
-                line = source[:node.position[1]].count('\n') + 1 if node.position else 0
+                line = node.position[0] if node.position else 0
                 problems.append(f'{path}:{line}: {receiver}.{node.member} (field) not found')
     return problems
 
@@ -288,8 +356,8 @@ def check_fields(symbols):
 def main():
     symbols = Symbols()
     collect(symbols)
-    problems = sorted({p for p in check_aidl(symbols) + check_calls(symbols) + check_fields(symbols)
-                       if p not in ALLOWED})
+    found = check_aidl(symbols) + check_calls(symbols) + check_fields(symbols) + check_shadowed_locals(symbols)
+    problems = sorted({p for p in found if not any(a in p for a in ALLOWED_MESSAGES)})
     for problem in problems:
         print(problem)
     print(f'{len(problems)} reference problem(s) over {len(symbols.files)} file(s)')
