@@ -1368,3 +1368,121 @@ Nada aqui mexe no detector (`com.nextvr.handtrack`). O que mudou é o que compet
 - **Risco assumido**: nenhuma validação visual foi possível neste sandbox (não há navegador headless
   aqui: falta `libnspr4.so`). A curvatura foi conferida por matemática — as duas implementações
   caem na mesma circunferência, com o mesmo raio e a mesma corda — e o céu por leitura de shader.
+
+# 2026-10-12 (11ª rodada) — "a mão está em ~3 fps": delegate, espera e o imposto do segundo slot
+
+A queixa voltou ao detector com três perguntas explícitas: (1) estamos no GPU delegate quando dá?
+(2) o tracking depende de alguma espera no caminho da câmera? (3) por que ~3 fps? As três têm resposta
+no código — e a terceira tem uma medição do próprio repositório apontando o dedo.
+
+## 1. O GPU delegate é tentado primeiro — e agora também é medido
+
+- `PassthroughCamera.buildDetector()` cria `HandTracker(context, true, ...)` (delegate GPU em
+  `HandModels`) e só desce para CPU com **evidência**: falha de criação, custo medido
+  (`DelegateWatch.shouldDrop`: média exponencial acima de 55 ms por 12 resultados seguidos) ou, novo
+  nesta rodada, um delegate que **responde rápido demais sem nunca devolver uma mão**
+  (`DelegateWatch.noOutput`).
+- O modo de falha que faltava é o documentado para o MediaPipe Tasks em Android intermediário: o
+  delegate **constrói limpo, responde em ~1 ms e devolve saída vazia para sempre** (o "GPU que diz sim
+  e não faz nada"). Nenhuma exceção, nenhuma lentidão — o código antigo não tinha como ver isso, e a
+  sessão ficava com "nenhuma mão" (ou mão só predita) sem nunca tentar a CPU.
+  - Regra: 90 resultados vazios consecutivos, média ≤ 3 ms e **nenhuma mão desde a construção do
+    grafo** → troca para CPU. Uma única mão limpa a auditoria para sempre; um delegate que responde
+    devagar e sem mão (40 ms) **não** é tratado como quebrado — sala vazia é o estado normal de uma
+    câmera apontada para o nada.
+- O que também faltava: **aquecimento**. O primeiro resultado depois de construir um grafo GPU paga a
+  compilação de shaders (centenas de ms) e envenenava a média por ~10 resultados — um delegate
+  saudável podia ser abandonado por causa de um único frame de build, e a sessão inteira ia para a
+  CPU. `HandTracker.graphGenerations()` expõe toda construção de grafo (inclusive a do grafo de uma
+  slot, que nasce no meio da sessão), o `PassthroughCamera` chama `DelegateWatch.rebuilt()` quando ela
+  muda, e a troca de começo de sessão fica registrada em `delegate=`.
+
+## 2. Não existe espera no caminho da câmera. A espera está dentro do MediaPipe
+
+- Auditoria do app: nenhum `wait()`, `sleep()`, latch ou `join` no caminho. Os `synchronized` são
+  monitores curtos (troca do ponteiro do bitmap em `CameraTexture`, slot de tamanho 1, mailbox). O que
+  existe é **custo** no thread da câmera — e ele é medido: `cam_work` (o callback inteiro) e `handoff`
+  (o tempo até o renderer aceitar o frame).
+- A espera real é do próprio MediaPipe, e está no código da versão fixada: em `TaskRunner.java` da tag
+  `v0.10.35`, o caminho **síncrono** `process(inputs, timestamp)` — o que o VIDEO mode usa para
+  devolver o resultado — é `synchronized` e, depois de `addPackets`, chama
+  **`graph.waitUntilGraphIdle()`**. Ou seja: cada `detectForVideo` bloqueia o thread de tracking até o
+  grafo inteiro drenar; a latência do grafo **é** o teto da taxa de landmarks. (`send()`, o caminho
+  LIVE_STREAM, não espera — fica registrado como o que medir se um dia essa espera for o gargalo.)
+- Consequência prática para o diagnóstico: com inferência longa, o thread da câmera não fica
+  "esperando" — ele continua entregando frames que o slot substitui (`dropped`) ou que o portão de
+  análise nem produz (`skips`). Taxa baixa **com** `cam_work` baixo não é a câmera: é o modelo ou o
+  delegate.
+
+## 3. A hipótese principal para ~3 fps é o imposto do segundo slot — que a 9ª rodada tinha devolvido
+
+A 9ª rodada removeu a política de slots junto com o fork do PhoneXR: o motor novo (`HandTracker`)
+processa `numHands=2` em **todo** frame. A medição B da 7ª rodada continua valendo e descreve
+exatamente o caso do dia a dia (host, 1 core, 640 px, uma mão na cena):
+
+| configuração | mean | p95 |
+|---|---|---|
+| `numHands=1`, uma mão na cena | 11,8 ms | 14,3 ms |
+| `numHands=2`, uma mão na cena | 29,1 ms | 35,7 ms |
+
+Uma mão levantada — o caso da maior parte do uso — pagava **2,47×** por uma segunda slot vazia em todo
+frame. O simulador da 7ª rodada já tinha quantificado o efeito de tirar isso: **31,7 → 16,1 ms/frame**
+(~2× mais barato, 75% dos frames na slot única) e, com contenção, **17,0 → 25,9 Hz**. Num aparelho
+intermediário, 29 ms no host viram facilmente 150–300 ms → a faixa de 3–6 Hz.
+
+**Correção desta rodada** (sem thread nenhum, dentro do motor de um grafo por frame que a 9ª rodada
+escreveu):
+
+- `wide` (2 slots, confiança .25) é o grafo de **busca**, sempre construído — é ele que acha a
+  primeira mão e a segunda, e o único que já reportou duas mãos.
+- `narrow` (1 slot, confiança .45) é o grafo de **rastreio**, construído na primeira mão encontrada e
+  usado enquanto exatamente uma mão é rastreada — é onde os 2,47× são economizados.
+- A cada `PROBE_MS = 150` de tempo de câmera um frame vem do grafo de busca, então uma segunda mão
+  aparece em no máximo ~150 ms (a cadência da `HandSlotPolicy` antiga). Um miss no frame de rastreio
+  volta direto para a busca: oscilar entre os grafos custaria um frame de detecção por troca e duas
+  slots em metade deles.
+- A telemetria `narrow`/`wide` **volta** à linha de resumo (a 9ª rodada a tinha removido junto com o
+  PhoneXR): com a mão levantada, `narrow` tem de dominar; `wide` dominando significa que os frames são
+  quase todos de busca.
+- O que **não** voltou: `FusionHands`, resgate por YOLO, thread de segundo plano. O que voltou é a
+  escolha de slots, e ela é local ao `HandTracker`.
+
+## O contador na tela (para não precisar de adb a cada rodada)
+
+`PerfLog` publica a cada ~3 s um resumo compacto da janela (câmera, render, track, infer, cam_work,
+dropped, skips, stale, **narrow, wide**, delegate) e o `NextVrActivity` o entrega ao shell
+(`window.nextvrDiag`; o listener é limpo no `onDestroy`). Com o contador ligado (Configurações), a
+linha do FPS passa a mostrar `… · tracking N fps · cam 30 · infer 41ms · CPU · slots 1`. É a mesma
+conta do log, na tela do aparelho.
+
+## Validação
+
+- Node: **52 testes, 44 passam, 0 falham, 8 pulados** (`npm test`). `npm run build:ui` regerado e
+  commitado; a checagem de determinismo foi refeita — sem a mudança do `core.js` o build reproduz o
+  bundle byte a byte, e com ela o único diff é o `nextvrDiag`.
+- `python3 tools/perf/summarize_logcat.py --self-test` passa com as métricas novas; a linha de resumo
+  do `PerfLog` foi conferida campo a campo (**30 especificadores para 30 argumentos** — o erro de
+  formato que já derrubou o app três segundos depois do launch uma vez).
+- Java/Kotlin: todos os arquivos alterados passam pelo **tree-sitter** (Java 0 nó de erro, Kotlin 0 nó
+  de erro) e a conferência de símbolo foi feita à mão; a aritmética do `DelegateWatch` foi reproduzida
+  caso a caso contra os 13 testes de `DelegateWatchTest` (o sandbox não tem JUnit/Robolectric).
+- **Não compilado neste ambiente**: sem Android SDK/Gradle. `HandTracker.kt`, `PassthroughCamera.java`,
+  `PerfLog.java`, `DelegateWatch.java` e os dois testes passaram por sintaxe + símbolo, não por
+  compilação — o CI confirma com `compileDebugKotlin`/`compileDebugJavaWithJavac`, os testes JVM e o
+  APK.
+- **Validação on-device pendente — é ela que fecha a queixa**: `adb logcat -v time -s NextVR-Perf` com
+  uma mão levantada. `track` ≫ 3 é saudável; `infer_mean` alto com `cam_work` baixo acusa o modelo/o
+  delegate; `cam_work` perto de `1000/camera` acusa o thread da câmera; `skips`/`dropped` altos com
+  `infer_mean` baixo acusam a admissão; `narrow`/`wide` dizem se o grafo de uma slot está sendo usado;
+  `delegate=GPU`/`CPU (after a silent GPU)` dizem quem está inferindo.
+
+## Investigado e descartado (registrado para não refazer)
+
+- Reduzir a largura de análise (640→512→448) **não** aumenta a taxa: medição C (recall 1,00 de 1280 a
+  320 px) e medição B (12,28 vs 12,12 ms entre 640 e 320). Continua só como remédio de emergência do
+  `TrackingBudget`.
+- Kernel fundido YUV→análise: segue rejeitado nesta rodada (provável ganho pequeno, JNI novo com
+  contrato de teste). Continua registrado como próximo passo desde a 7ª rodada.
+- LIVE_STREAM (`send()`): é o caminho do MediaPipe que **não** espera o grafo drenar, então é o que
+  medir se o `waitUntilGraphIdle()` por frame for o teto em aparelho — mas troca o contrato do motor
+  inteiro (resultado por callback, não por retorno). Não se faz isso sem medir.

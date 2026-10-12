@@ -39,6 +39,20 @@ Campos que existem para separar as três origens possíveis da lentidão:
 | `empty_ms` | ms da janela em corridas de mão perdida (depois de um `loss`, até a mão voltar); não conta a busca de palma inicial | pequeno; cresce com oclusão/cena difícil |
 | `gap_max` | maior intervalo entre dois resultados na janela: stall de scheduler/GPU/GC — o tracker LENTO, não o detector cego | ≲ 2× o intervalo médio (1000/track) |
 | `track_jitter` | desvio padrão dos intervalos entre resultados: estabilidade da taxa, independente da taxa | ≲ 20 % do intervalo médio |
+| `narrow` / `wide` | frames processados no grafo de UMA slot (mão rastreada) e no grafo de DUAS slots (busca/menu de duas mãos). Uma slot a mais custa 2,47× por frame de mão rastreada (medido: 29,1 vs 11,8 ms, `hand_input_policy_bench.py`) | com uma mão levantada, `narrow` domina e `infer_mean` cai; `wide` dominando = os frames são quase todos de busca |
+
+### "Está lento": qual é o gargalo
+
+`track` baixo tem três origens possíveis, e a própria linha diz qual delas é:
+
+| Sintoma nos campos | Leitura | Onde olhar |
+|---|---|---|
+| `track` baixo, `camera` baixo, `cam_work` alto (≳ 25 ms) | a câmera não consegue entregar frames: o callback dela faz o trabalho de pixel e segura 1 dos 2 buffers | conversão/reamostragem (`PassthroughCamera.onFrame`), orçamento de análise |
+| `track` baixo, `camera` ~30, `infer_mean` alto (> 80 ms) | o tracker está lento por frame: delegate, contenção com o render/WebView ou aparelho saturado | `delegate` (GPU/CPU), `cpu_pct`; ver `narrow`/`wide` para saber quantas slots cada frame paga |
+| `track` baixo, `infer_mean` baixo, `dropped`/`skips` altos | a inferência é rápida mas os frames não chegam ao tracker (slot sempre ocupado, câmera publicando menos que o tracker consome) | `skips` vs `dropped`, `AnalysisGate` |
+| `track` bom, mas a mão parece travada | o transporte até a UI é que perde frames | `replayed`, `stale`, `coalesced` |
+| `delegate=CPU (after a slow GPU)` | o delegate GPU foi medido lento e trocado; procure no logcat `NextVR-Perf` a linha "GPU delegate held at …" | custo medido antes da troca |
+| `delegate=CPU (after a silent GPU)` | o delegate GPU respondia em ~1 ms sem NUNCA devolver uma mão (o "GPU que diz sim e não faz nada"): o grafo não estava rodando | `infer_mean` antes da troca |
 
 Para comparar APKs, o que importa em `track` é o par com `cam_work`: um `track` baixo com `cam_work`
 baixo não é o modelo — é a câmera ou o WebView.

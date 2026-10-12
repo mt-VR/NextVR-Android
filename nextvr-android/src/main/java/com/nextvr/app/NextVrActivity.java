@@ -82,6 +82,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         nativeApp=nativeOnCreate(getAssets());
+        // O estado do pipeline de mãos (delegate, câmera, inferência, slots) vai para o contador da
+        // shell a cada ~3 s: numa sessão em aparelho, "de onde vem a lentidão do tracking" se
+        // responde olhando a tela, sem adb. O PerfLog já monta o resumo da janela; este é o mesmo
+        // número, menor. Limpo no onDestroy para o listener estático não segurar a Activity.
+        PerfLog.setStatusListener(status -> main.post(() -> {
+            WebSurface target=shell;
+            if(target!=null && resumed && !closed)target.evaluate("window.nextvrDiag&&window.nextvrDiag("+status+")");
+        }));
         setContentView(R.layout.activity_vr);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -228,7 +236,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         nativeOnPause(nativeApp); glView.onPause(); super.onPause();
     }
     @Override protected void onDestroy() {
-        closed=true; releaseWeb();
+        closed=true; PerfLog.setStatusListener(null); releaseWeb();
         SpatialRenderer old=renderer; renderer=null;
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
