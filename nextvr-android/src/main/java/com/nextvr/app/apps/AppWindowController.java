@@ -358,6 +358,11 @@ public final class AppWindowController {
                     // for that app needs no privilege at all, and it is offered where the failure is.
                     if (packageName != null) displays.launchOnPhone(packageName);
                     break;
+                case "phone":
+                    // A capture the user refused is not a dead end: the app can still be opened on the
+                    // phone, which needs no permission at all, and that is what the window offers.
+                    displays.launchOnPhone(packageName);
+                    break;
                 case "shizuku": requestShizuku(); break;
                 case "refresh": refreshLibrary(); break;
                 default: break;
