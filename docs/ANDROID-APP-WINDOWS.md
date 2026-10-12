@@ -345,8 +345,8 @@ Automatizados (rodam no CI, sem aparelho):
   entregando toques em `app:<pacote>`, minimizar sem fechar, fechar mandando `{cmd:'close'}` e o texto
   de falha do Shizuku. Este teste **pula** em ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, `06fdca5`/`0be7929`): Node **74/74**, testes JVM **120 em 18 classes, 0 falhas**
-(47 nas seis classes de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai
+Estado no CI (verde, `10c875b`): Node **79/79**, testes JVM **121 em 18 classes, 0 falhas**
+(48 nas seis classes de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai
 do próprio job de build e é publicado no branch `apk-dist` como `dist/app-debug.apk` (~46 MB,
 `versionCode` 4); é essa a build para instalar no aparelho.
 
