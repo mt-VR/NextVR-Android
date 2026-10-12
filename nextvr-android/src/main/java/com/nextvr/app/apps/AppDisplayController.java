@@ -46,8 +46,6 @@ import java.util.concurrent.RejectedExecutionException;
  * frames in either mode.
  */
 public final class AppDisplayController implements AppSessionManager.Host {
-    /** Pseudo package name of the phone-mirror window. */
-    public static final String MIRROR_PACKAGE = "nextvr.screen";
     /** Request code of the MediaProjection consent dialog. */
     public static final int REQUEST_PROJECTION = 4301;
 
@@ -55,6 +53,11 @@ public final class AppDisplayController implements AppSessionManager.Host {
     private static final int MIRROR_MAX = 1600;
     /** How often the shell is asked whether the hosted app is still alive. */
     private static final long SUPERVISE_MS = 2500;
+    /**
+     * A hosted display with no frame after this long is reported instead of staying blank. Long
+     * enough for a heavy app to draw its splash screen, short enough to not look broken.
+     */
+    private static final long EMPTY_DISPLAY_MS = 15_000;
 
     /** What the driver needs from the VR activity; keeps this class out of the GL/UI plumbing. */
     public interface Environment {
@@ -85,6 +88,18 @@ public final class AppDisplayController implements AppSessionManager.Host {
     private final Map<String, AppDisplaySpec> specs = new ConcurrentHashMap<>();
     private MediaProjection projection;
     private VirtualDisplay mirrorDisplay;
+    /**
+     * The session whose capture is running (its package is the app the window is about), or null.
+     *
+     * <p>It used to be a fixed pseudo-package, which meant the capture could only ever be "the phone
+     * screen". The user asks for an app, so the capture belongs to that app's window: the session
+     * carries the app's package — the same field the tile, the dock and the window title use — and
+     * the display controller keeps a reference to the one capture that is allowed to exist, because
+     * Android gives one projection per consent.
+     */
+    private volatile String capturePackage;
+    /** How the last hosted app was started; shown in the self-test row of the library. */
+    private volatile String lastLaunchBackend;
     private boolean supervising;
 
     private final Runnable supervisor = new Runnable() {
@@ -110,6 +125,25 @@ public final class AppDisplayController implements AppSessionManager.Host {
     public static String surfaceId(String packageName) { return "app:" + packageName; }
 
     public AppDisplaySpec spec(String packageName) { return specs.get(packageName); }
+
+    /**
+     * Whether an app can really be embedded right now: the shell user service must be bound.
+     *
+     * <p>The answer decides which of the two mechanisms a tile uses, and it is asked here because
+     * this is the only object that knows the service: the shell cannot guess it, and guessing wrong
+     * is what turned every tap into "Shizuku is not available" instead of opening the app.
+     */
+    public boolean canHost() {
+        ShizukuManager shizuku = env.shizuku();
+        try {
+            return shizuku != null && shizuku.status().ready() && shizuku.service() != null;
+        } catch (Throwable error) {
+            return false;
+        }
+    }
+
+    /** Which mechanism the last hosted app was started with, for the self-test row. */
+    public String launchBackend() { return lastLaunchBackend; }
 
     // ------------------------------------------------------------------ AppSessionManager.Host
 
@@ -179,12 +213,25 @@ public final class AppDisplayController implements AppSessionManager.Host {
                 }
                 String error;
                 try {
+                    // The shell path is tried first because it answers with the platform's own error
+                    // text ("Error: Activity not started, ..."), which the window shows. See
+                    // launchOnDisplay() for the supported-API alternative and why it is second.
                     error = service.launch(component, displayId);
                 } catch (Throwable launchError) {
                     // AIDL methods declare RemoteException; the shell service going away mid-call is
                     // reported to the window instead of escaping the worker thread.
                     error = launchError.getMessage() == null
                             ? launchError.getClass().getSimpleName() : launchError.getMessage();
+                }
+                lastLaunchBackend = error == null ? "am start" : null;
+                if (error != null) {
+                    String publicError = launchOnDisplay(displayId, packageName);
+                    if (publicError == null) {
+                        error = null;
+                        lastLaunchBackend = "ActivityOptions";
+                    } else {
+                        error = error + "; " + publicError;
+                    }
                 }
                 sessions.settle(packageName, error == null, error);
                 input.refreshBackend(sessions.find(packageName));
@@ -298,27 +345,38 @@ public final class AppDisplayController implements AppSessionManager.Host {
     // ------------------------------------------------------------------ phone mirror
 
     /**
-     * Opens the system consent dialog for the phone mirror.
+     * Starts the capture path for [focusPackage]: brings that app to the phone's screen with public
+     * API, starts the projection foreground service and opens the system consent dialog.
      *
-     * <p>The foreground service comes first, and not as a formality: since Android 10 a
-     * {@code MediaProjection} cannot even be constructed without a running foreground service of
-     * type {@code mediaProjection} — {@code MediaProjection.start()} throws
-     * {@code SecurityException("Media projections require a foreground service ...")} for any app
-     * targeting Q or later. Asking for consent first would leave the user having authorized a capture
-     * that then fails. The service is also the honest indicator that a mirror is running.
+     * <p>The order is not cosmetic. The app goes to the screen first, because the capture is of the
+     * phone's screen and the user must be authorizing a capture of the app they asked for, not of
+     * whatever happened to be open. The foreground service comes next, and not as a formality: since
+     * Android 10 a {@code MediaProjection} cannot even be constructed without a running foreground
+     * service of type {@code mediaProjection} — the constructor behind {@code getMediaProjection()}
+     * throws {@code SecurityException("Media projections require a foreground service ...")} for any
+     * app targeting Q or later. Asking for consent first would leave the user having authorized a
+     * capture that then fails. The service is also the honest indicator that a capture is running.
+     *
+     * <p>Android 14 and later record which app was in the foreground when consent was asked and offer
+     * it in the dialog as "share one app"; before Android 14 the same call captures the whole screen,
+     * which is why bringing the app forward matters on every version.
      */
-    public void requestMirror() {
+    public void requestCapture(String focusPackage) {
+        capturePackage = focusPackage;
+        if (focusPackage != null) launchOnPhone(focusPackage);
         AppMirrorService.start(context);
         env.requestCaptureConsent();
     }
 
     /** Result of {@link #REQUEST_PROJECTION}; must be called on the main thread. */
     public void onCaptureConsentResult(int resultCode, Intent data) {
-        AppSession session = sessions.find(MIRROR_PACKAGE);
+        String packageName = capturePackage;
+        AppSession session = packageName == null ? null : sessions.find(packageName);
         if (resultCode != Activity.RESULT_OK || data == null) {
             AppMirrorService.stop(context);
-            if (session != null) sessions.settle(MIRROR_PACKAGE, false, "consent_denied");
-            env.report("Screen mirroring was not authorized");
+            capturePackage = null;
+            if (session != null) sessions.settle(packageName, false, "consent_denied");
+            env.report("Screen capture was not authorized");
             return;
         }
         try {
@@ -332,15 +390,17 @@ public final class AppDisplayController implements AppSessionManager.Host {
             if (session != null) startMirror(session);
         } catch (Throwable error) {
             AppMirrorService.stop(context);
-            if (session != null) sessions.settle(MIRROR_PACKAGE, false, "projection_failed");
-            env.report("Could not start screen mirroring: " + error.getMessage());
+            if (session != null) sessions.settle(packageName, false, "projection_failed");
+            env.report("Could not start screen capture: " + error.getMessage());
         }
     }
 
     private void startMirror(AppSession session) {
+        final String packageName = session.packageName;
+        capturePackage = packageName;
         if (projection == null) {
-            // No consent yet: ask for it and finish when the dialog answers.
-            requestMirror();
+            // No consent yet for this window: this is the first time the app is opened in capture mode.
+            requestCapture(packageName);
             return;
         }
         int[] screen = screenSize();
@@ -353,40 +413,44 @@ public final class AppDisplayController implements AppSessionManager.Host {
         session.height = height;
         session.density = density;
         input.refreshBackend(session);
-        env.surfaces().acquire(surfaceId(MIRROR_PACKAGE), width, height, new AppSurfaceHost.Callback() {
+        env.surfaces().acquire(surfaceId(packageName), width, height, new AppSurfaceHost.Callback() {
             @Override public void ready(SurfaceTexture texture) {
-                textures.put(MIRROR_PACKAGE, texture);
+                textures.put(packageName, texture);
                 Surface surface = new Surface(texture);
-                surfaces.put(MIRROR_PACKAGE, surface);
+                surfaces.put(packageName, surface);
                 try {
                     // Signature order matters: (name, width, height, dpi, flags, surface, callback, handler).
                     mirrorDisplay = projection.createVirtualDisplay("NextVR screen", width, height, density,
                             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null);
                 } catch (Throwable error) {
-                    AppMirrorService.stop(context);
-                    sessions.settle(MIRROR_PACKAGE, false, "mirror_failed");
-                    env.report("Screen mirroring failed: " + error.getMessage());
+                    // The whole projection is torn down, not just the service: a projection left
+                    // holding one consent would make the next attempt skip the dialog and fail again.
+                    stopMirror();
+                    sessions.settle(packageName, false, "mirror_failed");
+                    env.report("Screen capture failed: " + error.getMessage());
                     return;
                 }
                 if (mirrorDisplay == null) {
-                    AppMirrorService.stop(context);
-                    sessions.settle(MIRROR_PACKAGE, false, "mirror_refused");
-                    env.report("The system refused the mirror display");
+                    stopMirror();
+                    sessions.settle(packageName, false, "mirror_refused");
+                    env.report("The system refused the capture display");
                     return;
                 }
-                sessions.markDisplayReady(MIRROR_PACKAGE, mirrorDisplay.getDisplay() == null
+                sessions.markDisplayReady(packageName, mirrorDisplay.getDisplay() == null
                         ? -2 : mirrorDisplay.getDisplay().getDisplayId(), width, height, density);
-                sessions.settle(MIRROR_PACKAGE, true, null);
+                sessions.settle(packageName, true, null);
                 env.sessionsChanged();
             }
             @Override public void failed(String reason) {
-                sessions.settle(MIRROR_PACKAGE, false, "surface_failed:" + reason);
+                stopMirror();
+                sessions.settle(packageName, false, "surface_failed:" + reason);
             }
         });
     }
 
     private void stopMirror() {
         AppMirrorService.stop(context);
+        capturePackage = null;
         VirtualDisplay display = mirrorDisplay;
         mirrorDisplay = null;
         if (display != null) {
@@ -403,12 +467,14 @@ public final class AppDisplayController implements AppSessionManager.Host {
     /** The user stopped sharing from the system UI, or the system revoked the session. */
     private final MediaProjection.Callback projectionCallback = new MediaProjection.Callback() {
         @Override public void onStop() {
-            AppSession session = sessions.find(MIRROR_PACKAGE);
+            String packageName = capturePackage;
+            capturePackage = null;
+            AppSession session = packageName == null ? null : sessions.find(packageName);
             projection = null;
             mirrorDisplay = null;
             if (session != null && session.state != AppSession.State.STOPPED) {
-                sessions.settle(MIRROR_PACKAGE, false, "mirror_stopped");
-                env.report("Screen mirroring ended");
+                sessions.settle(packageName, false, "mirror_stopped");
+                env.report("Screen capture ended");
             }
         }
 
@@ -420,12 +486,13 @@ public final class AppDisplayController implements AppSessionManager.Host {
          * VR window then scales up again, and the touch would be aimed at the wrong pixels.
          */
         @Override public void onCapturedContentResize(int width, int height) {
-            AppSession session = sessions.find(MIRROR_PACKAGE);
+            String packageName = capturePackage;
+            AppSession session = packageName == null ? null : sessions.find(packageName);
             if (session == null || width <= 0 || height <= 0) return;
             if (Math.abs(width - session.width) <= 1 && Math.abs(height - session.height) <= 1) return;
             final int density = session.density <= 0 ? 240 : session.density;
-            Surface previous = surfaces.get(MIRROR_PACKAGE);
-            SurfaceTexture texture = textures.get(MIRROR_PACKAGE);
+            Surface previous = surfaces.get(packageName);
+            SurfaceTexture texture = textures.get(packageName);
             VirtualDisplay display = mirrorDisplay;
             try {
                 if (texture != null) texture.setDefaultBufferSize(width, height);
@@ -433,7 +500,7 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     display.resize(width, height, density);
                     if (texture != null) {
                         Surface surface = new Surface(texture);
-                        surfaces.put(MIRROR_PACKAGE, surface);
+                        surfaces.put(packageName, surface);
                         display.setSurface(surface);
                         if (previous != null) previous.release();
                     }
@@ -442,7 +509,7 @@ public final class AppDisplayController implements AppSessionManager.Host {
                 // An older surface is still attached; the picture keeps working with the old size.
                 env.report("The mirrored picture could not be resized: " + error.getMessage());
             }
-            sessions.markDisplayChanged(MIRROR_PACKAGE, width, height, 0);
+            sessions.markDisplayChanged(packageName, width, height, 0);
             env.sessionsChanged();
         }
     };
@@ -466,8 +533,23 @@ public final class AppDisplayController implements AppSessionManager.Host {
         try {
             work.execute(() -> {
                 IDisplayService service = service();
+                long now = android.os.SystemClock.uptimeMillis();
                 for (AppSession session : sessions.sessions()) {
                     if (!session.alive() || session.mode != AppSession.Mode.VIRTUAL_DISPLAY) continue;
+                    // A display that was accepted but never produced a frame is a window that would
+                    // otherwise stay blank forever: the app refused to run there, or the platform
+                    // started it on the phone's own screen instead of on the display. The texture the
+                    // display composes into is the answer — its timestamp stays 0 until a first frame
+                    // arrives — and it is read from the object this class already owns, so the GL side
+                    // is not involved.
+                    android.graphics.SurfaceTexture frameTexture = textures.get(session.packageName);
+                    long stamp = frameTexture == null ? -1 : frameTexture.getTimestamp();
+                    if (session.state == AppSession.State.RUNNING && stamp == 0
+                            && now - session.openedAtMs > EMPTY_DISPLAY_MS) {
+                        sessions.settle(session.packageName, false, "display_empty");
+                        env.report(session.title + ": the app is not drawing in this window");
+                        continue;
+                    }
                     if (service == null) {
                         sessions.markDied(session.packageName);
                         continue;
@@ -590,14 +672,50 @@ public final class AppDisplayController implements AppSessionManager.Host {
     }
 
     /**
-     * Brings an app to the phone screen before a mirror starts.
+     * Brings an app to the phone screen. This is the mechanism PhoneXR uses for its games and it is
+     * the one part of running another app that needs no privilege at all: {@code
+     * getLaunchIntentForPackage} + {@code startActivity} is exactly what tapping the app's icon in the
+     * phone's launcher does.
      *
-     * <p>This is public API ({@code getLaunchIntentForPackage} + {@code startActivity}) and it does
-     * not need Shizuku: it is exactly what tapping the app in the phone's launcher does. On Android
-     * 14+ the capture dialog then offers that app as the single app to share; before Android 14 the
-     * mirror is the whole screen, and this call is what puts the app the user asked for on it.
-     * Returns false when the app has no launcher activity.
+     * <p>NextVR uses it twice: before a capture starts (the capture is of the phone's screen, so that
+     * screen has to be showing the app the user asked for — and on Android 14+ the system dialog then
+     * lets the user pick that same app), and as the "open on the phone" action of a window whose
+     * capture could not start. Returns false when the app has no launcher activity.
      */
+    /**
+     * Starts the app's launcher activity on [displayId] with the public API
+     * ({@code ActivityOptions#setLaunchDisplayId}), as the fallback for when the shell's
+     * {@code am start --display} fails.
+     *
+     * <p>This is the documented way to launch onto a display, and AOSP allows it here: the display is
+     * public and trusted, and {@code ActivityTaskSupervisor#isCallerAllowedToLaunchOnDisplay} returns
+     * true for a non-private display when the user is visible on it (and for the display's owner). An
+     * app-created, untrusted virtual display would instead require {@code ACTIVITY_EMBEDDING} <em>and</em>
+     * {@code FLAG_ALLOW_EMBEDDED} on the other app's activity — neither of which an ordinary app can
+     * obtain, which is exactly why a trusted display has to be created by the shell.
+     *
+     * <p>It is the fallback and not the first choice because {@code startActivity} can be refused
+     * <em>inside</em> the system process: the caller sees no exception and the activity then opens on
+     * the phone's own screen, which would leave the VR window empty with no explanation. The shell path
+     * reports that failure as text, and the supervisor's no-frames guard catches it either way.
+     *
+     * @return null when the launch was handed to the platform, or why it was not.
+     */
+    private String launchOnDisplay(int displayId, String packageName) {
+        try {
+            Intent intent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent == null) return "no launcher activity";
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            android.os.Bundle options = android.app.ActivityOptions.makeBasic()
+                    .setLaunchDisplayId(displayId).toBundle();
+            context.startActivity(intent, options);
+            return null;
+        } catch (Throwable error) {
+            String detail = error.getMessage();
+            return error.getClass().getSimpleName() + (detail == null ? "" : ": " + detail);
+        }
+    }
+
     public boolean launchOnPhone(String packageName) {
         if (packageName == null || packageName.isEmpty()) return false;
         try {

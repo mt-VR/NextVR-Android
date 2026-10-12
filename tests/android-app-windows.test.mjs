@@ -174,16 +174,54 @@ test('the no-Shizuku input path is an accessibility gesture, declared and gated'
   assert.match(manifest, /android:resource="@xml\/nextvr_accessibility_service"/);
 });
 
+/*
+ * The icons are the part of this feature the user sees first, and they have three ways of going
+ * missing, all of them real: the native side renders them asynchronously (a tile drawn before the
+ * file existed kept its placeholder forever), the WebView can fail to load one, and the URL can be
+ * pointing at the wrong origin. Each one is pinned here.
+ */
 test('the app icons are served by the shell from the same directory that writes them', async () => {
   const window = await read(JAVA.window);
   assert.match(window, /"\/apps\/" \+ icon\.getName\(\)/);
   const surface = await read(JAVA.webSurface);
   assert.match(surface, /\/apps\//, 'the asset host serves app icons and nothing else');
+  assert.match(surface, /ORIGIN="https:\/\/appassets\.androidplatform\.net"/,
+    'the shell origin is https, so serving an icon is never blocked as cleartext');
+  assert.ok(!surface.includes('http://'), 'nothing in the asset host hands out an http URL');
   const apps = await read(WEB.androidApps);
-  assert.match(apps, /img\.src = app\.icon/, 'the tile uses the icon URL the native side handed over');
+  assert.match(apps, /src="\$\{esc\(app\.icon\)\}"/, 'the tile uses the icon URL the native side handed over');
+  assert.match(apps, /class="lib-app-icon"/, 'the icon is drawn at the size the grid allocates for it');
+  assert.match(apps, /onerror="this\.remove\(\);this\.parentNode\.parentNode\.classList\.add\('noicon'\)"/,
+    'an icon that fails to decode falls back to the app initials instead of a broken image');
+  assert.match(apps, /slice\(0, 2\)/, 'that fallback is the app initials');
   const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
   assert.ok(bundle.includes('appsCommand'), 'the shipped bundle carries the app command channel');
   assert.ok(bundle.includes('nextvrApps'), 'the shipped bundle receives the app state');
+});
+
+/*
+ * The icons are rendered after the grid is already on screen, so the shell has to be told. The native
+ * side publishes a revision number; the shell re-reads the library when it moves. Without this the
+ * tiles keep the letter placeholders until the app is restarted — the "icons never appear" report.
+ */
+test('a batch of finished icons makes the shell read the grid again', async () => {
+  const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
+  assert.match(manager, /public int libraryVersion\(\)/);
+  assert.match(manager, /private void notifyIcons\(\) \{\s*version\.incrementAndGet\(\);/,
+    'a batch that landed moves the revision');
+  assert.match(manager, /private static final int ICON_PX = 144;/, 'one size covers grid, dock and title');
+
+  const window = await read(JAVA.window);
+  assert.match(window, /json\.put\("library", apps\.libraryVersion\(\)\)/,
+    'the revision travels in the state the shell already polls');
+
+  const web = await read(WEB.androidApps);
+  assert.match(web, /if \(next\.library && next\.library !== library\.version\)/);
+  assert.match(web, /library\.loaded = false;/);
+  assert.match(web, /state\.launch = next\.launch \|\| null;/);
+
+  const appsJs = await read(WEB.apps);
+  assert.match(appsJs, /loadAndroidLibrary\(false\)/, 'the grid asks for the installed apps when it paints');
 });
 
 test('the default app window asks for the body the app picture really occupies', async () => {
@@ -196,8 +234,10 @@ test('the default app window asks for the body the app picture really occupies',
   const appBar = Number((await read('web/index.html')).match(/\.app-bar\{height:(\d+)px/)[1]);
   const surface = Number(apps.match(/const DEFAULT_H = (\d+);/)[1]);
   assert.equal(surface, outer - 62 - appBar, `the default box is the surface, not the window: ${surface}`);
-  assert.match(apps, /openApp\(app\.pkg\)/, 'tapping a tile opens the window at the default size');
-  assert.match(apps, /openPhoneMirror\(\)/, 'the mirror button uses the same default box');
+  assert.match(apps, /export const ANDROID_BOX = \{ w: DEFAULT_W, h: DEFAULT_H \};/);
+  const appsJs = await read(WEB.apps);
+  assert.match(appsJs, /openApp\(pkg, ANDROID_BOX\)/,
+    'tapping a tile in the Applications menu opens the window at that size, and nothing else');
 });
 
 /*
@@ -225,9 +265,13 @@ test('the screen mirror starts the foreground service Android requires for a Med
   assert.match(service, /START_NOT_STICKY/, 'the mirror is never restarted behind the user');
 
   const display = await read(JAVA.display);
-  const request = display.slice(display.indexOf('public void requestMirror()'));
+  const request = display.slice(display.indexOf('public void requestCapture(String focusPackage)'),
+    display.indexOf('public void onCaptureConsentResult'));
+  assert.ok(request.indexOf('launchOnPhone(focusPackage)') < request.indexOf('AppMirrorService.start(context)'),
+    'the app is brought to the screen before consent: the user authorizes the app they asked for');
   assert.ok(request.indexOf('AppMirrorService.start(context)') < request.indexOf('env.requestCaptureConsent()'),
     'the service runs before the consent dialog: consenting to a capture that cannot start would be a lie');
+  assert.match(display, /requestCapture\(packageName\);/, 'opening a capture window goes through it');
   const result = display.slice(display.indexOf('public void onCaptureConsentResult'));
   assert.ok(result.indexOf('manager.getMediaProjection(') < result.indexOf('projection.registerCallback('),
     'the callback is registered after the projection exists and before the first display is created');
@@ -235,6 +279,9 @@ test('the screen mirror starts the foreground service Android requires for a Med
     const at = display.indexOf(teardown);
     assert.ok(at > 0, `${teardown} is still a reported outcome`);
   }
+  // A projection left holding one consent would make the next attempt skip the dialog and fail again.
+  assert.equal((display.match(/\bstopMirror\(\);/g) || []).length >= 5, true,
+    'every failed capture tears the whole projection down, not just the notification');
   const mirrorStop = display.slice(display.indexOf('private void stopMirror()'));
   const serviceStop = mirrorStop.indexOf('AppMirrorService.stop(context)');
   assert.ok(serviceStop >= 0 && serviceStop < mirrorStop.indexOf('current.stop()'),
@@ -312,32 +359,87 @@ test('a resize is only believed once the display confirms it', async () => {
 });
 
 /*
- * The no-Shizuku path, end to end: the shell offers the mirror on the tile that cannot be hosted,
- * the focus package travels in the same JSON, and the native side brings the app to the phone screen
- * with public API before the capture. It stays a mirror.
+ * The no-Shizuku path, end to end, and the rule that makes it honest: the tile asks for the app, the
+ * native side decides how to show it, and the window says which mechanism it got. The user must never
+ * be told that an app they can open on the phone cannot be opened at all.
  */
-test('an app the user cannot host is offered as a labelled mirror of that app', async () => {
+test('an app that cannot be hosted opens in a window that names its mechanism', async () => {
   const web = await read(WEB.androidApps);
-  assert.match(web, /export function openPhoneMirror\(focusOrBox, box\)/);
-  assert.match(web, /command\(\{ cmd: 'open', pkg: MIRROR, focus,/, 'the focus package travels with the command');
-  assert.match(web, /if \(!state\.shizuku\.ready\)/, 'the offer only appears when hosting is impossible');
-  assert.match(web, /className = 'az-mirror'/);
-  assert.match(web, /session\.state === 'failed'\) return restoreApp\(app\.pkg\)/,
-    'a failed session can be retried from the tile that opened it');
-  assert.match(web, /mode === 'mirror' \? t\('appMirrorBadge'\)/, 'the badge follows the mode, never the wish');
+  assert.match(web, /export function openApp\(pkg, box\)/);
+  assert.match(web, /command\(\{ cmd: 'open', pkg, w: \(box && box\.w\) \|\| DEFAULT_W,/,
+    'the command carries the app, never a pseudo-package and never a chosen mechanism');
+  assert.match(web, /session\.mode === 'mirror' \? t\('appMirrorBadge'\) : t\('appWindowBadge'\)/,
+    'the badge follows the mode, never the wish');
+  assert.match(web, /const RECOVERABLE = new Set\(/);
+  assert.match(web, /t\('appOpenOnPhone'\)/, 'a window that could not be filled offers the one path that needs no privilege');
 
   const window = await read(JAVA.window);
-  assert.match(window, /command\.optString\("focus", null\)/);
-  assert.match(window, /public void openMirror\(float boxWidth, float boxHeight, String focus\)/);
-  assert.match(window, /displays\.launchOnPhone\(focus\)/);
+  assert.match(window, /if \(displays\.canHost\(\)\) openHosted\(packageName, boxWidth, boxHeight\);/,
+    'the native side chooses the mechanism once, before anything is opened');
+  assert.match(window, /else openCaptured\(packageName, boxWidth, boxHeight\);/);
+  assert.match(window, /sessions\.close\(open\.packageName, "capture_replaced"\)/,
+    'Android grants one capture per consent: the replaced window gives its up');
+  assert.ok(!window.includes('MIRROR_PACKAGE') && !window.includes('optString("focus"'),
+    'the pseudo-package and the focus field are gone with the mirror button');
 
   const display = await read(JAVA.display);
-  const launch = display.slice(display.indexOf('public boolean launchOnPhone'));
-  assert.match(launch, /getLaunchIntentForPackage/, 'public API: the same call tapping the icon makes');
-  assert.match(launch, /FLAG_ACTIVITY_NEW_TASK/);
-  assert.ok(!/Shizuku|IDisplayService/.test(launch), 'this path needs no privileged service');
+  const canHost = display.slice(display.indexOf('public boolean canHost()'));
+  assert.match(canHost.slice(0, 600), /ShizukuManager shizuku = env\.shizuku\(\);/,
+    'the answer comes from the object that owns the service, not from the shell guessing');
+  assert.match(display, /sessions\.settle\(session\.packageName, false, "display_empty"\)/,
+    'a hosted window that never draws is reported instead of staying blank');
+  assert.match(display, /frameTexture\.getTimestamp\(\)/, 'and that verdict comes from the real texture');
+
+  const launch = display.slice(display.indexOf('private String launchOnDisplay'));
+  assert.match(launch, /setLaunchDisplayId\(displayId\)/,
+    'the supported second way to reach a display is kept as the fallback for `am start`');
+  assert.match(display, /lastLaunchBackend = "ActivityOptions";/);
+
+  const launchPhone = display.slice(display.indexOf('public boolean launchOnPhone'));
+  assert.match(launchPhone, /getLaunchIntentForPackage/, 'public API: the same call tapping the icon makes');
+  assert.match(launchPhone, /FLAG_ACTIVITY_NEW_TASK/);
+  assert.ok(!/Shizuku|IDisplayService/.test(launchPhone), 'this path needs no privileged service');
 
   const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
-  assert.ok(bundle.includes('az-mirror'), 'the shell that ships carries the offer');
-  assert.ok((await read('web/index.html')).includes('.az-mirror'), 'and its style');
+  assert.ok(bundle.includes('lib-app-icon'), 'the shell that ships draws the real app icons');
+  const html = await read('web/index.html');
+  assert.ok(html.includes('.lib-tile.android'), 'and the tile style is the one the menu uses');
+  for (const gone of ['az-mirror', 'app-android-page']) {
+    assert.ok(!html.includes(gone), `${gone} is gone from the stylesheet`);
+    assert.ok(!bundle.includes(gone), `${gone} is gone from the shell`);
+  }
+});
+
+/*
+ * Round 3 removed the separate Android page: the installed apps live in the Applications menu that
+ * already existed, are listed by the same grid, searched by the same box and opened by the same tap.
+ * This checks the integration points, because that page was reachable from the dock and from a rail
+ * button, and leaving either behind would leave a dead end in the interface.
+ */
+test('the installed apps live inside the existing Applications menu', async () => {
+  const appsJs = await read(WEB.apps);
+  assert.ok(!appsJs.includes('androidLibraryPage'), 'no separate page is mounted');
+  assert.ok(!appsJs.includes('data-nav="android"') && !appsJs.includes("navButton('android'"),
+    'no rail entry leads to it');
+  assert.ok(!appsJs.includes('data-id="android"'), 'no dock tile leads to it');
+  assert.match(appsJs, /const android = androidApps\(\)\.map\(a => \(\{ kind: 'android'/,
+    'the installed apps are one more kind of item in the same list');
+  assert.match(appsJs, /x\.kind === 'android' \? androidTileHtml\(x\.app\) : appTile\(x\)/,
+    'and the same grid draws them');
+  assert.match(appsJs, /c\('\[data-android\]'\)/, 'a tap is handled by the same delegator');
+  assert.match(appsJs, /if \(session\) return;/, 'an app that is already open is focused, not opened twice');
+  assert.match(appsJs, /androidRecent\(x\.pkg\)/, 'the native recent list feeds the Recentes filter');
+  assert.match(appsJs, /const notice = shizukuNotice\(\);/,
+    'the only Android-specific row is the one that explains the current mechanism');
+  assert.match(appsJs, /if \(notice\) root\.querySelector\('\.lib-scroll'\)\?\.prepend\(notice\)/);
+  assert.match(appsJs, /function paintWindowBadge\(\)/);
+  assert.ok(!appsJs.includes('runningBadge'), 'the old badge of the removed page is gone');
+
+  const web = await read(WEB.androidApps);
+  assert.ok(!web.includes('export function openPhoneMirror'), 'the mirror button entry point is gone');
+  assert.ok(!web.includes('export const MIRROR'), 'and so is the pseudo-package');
+  assert.ok(!web.includes('az-tile') && !web.includes('az-mirror'), 'no page-specific markup is left');
+  assert.match(web, /export function androidTileHtml\(app\)/);
+  assert.match(web, /export function shizukuNotice\(\)/);
+  assert.match(web, /if \(sh\.ready\) return null;/, 'with the service ready the row does not exist');
 });

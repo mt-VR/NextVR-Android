@@ -4,7 +4,9 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
-import { installAndroidApps, androidLibraryPage, runningBadge, openApp } from './android-apps.js';
+import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
+  androidRecentIndex, restoreApp, ANDROID_BOX, openWindowCount, stateOf,
+  loadLibrary as loadAndroidLibrary } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -679,20 +681,40 @@ function touchLib(id, silent) {
   libRecent = [id, ...libRecent.filter(x => x !== id)].slice(0, 40);
   persistShop(); if (!silent) paintLibrary();
 }
+/*
+ * The Applications menu, as one list: NextVR's own apps and games plus the apps installed on the
+ * phone. There is deliberately no separate Android page, no filter that hides them and no button
+ * that has to be pressed first — an installed app is one more tile among the others, and the search
+ * box, the sort and the "Recentes" filter treat it exactly like a web app.
+ */
 function libItems() {
+  // The native side is asked for the installed apps here, cheaply and cached: a tile drawn before
+  // its icon existed is drawn again as soon as the native icon revision moves (applyState).
+  loadAndroidLibrary(false);
   const games = GAMES.filter(g => installed.includes(g.id)).map(g => ({ ...g, kind: 'game' }));
   const apps = LIB_APPS.map(a => ({ ...a, kind: 'app' }));
-  let list = [...games, ...apps];
+  const android = androidApps().map(a => ({ kind: 'android', id: 'android:' + a.pkg, name: a.label || a.pkg,
+    label: a.label || a.pkg, pkg: a.pkg, icon: a.icon, system: a.system, app: a }));
+  let list = [...games, ...apps, ...android];
   const ord = id => { const i = LIB_ORDER.indexOf(id); return i < 0 ? 99 : i; };
   list.sort((a, b) => ord(a.id) - ord(b.id));
   if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
-  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app');
-  if (libFilter === 'recent') list = list.filter(x => libRecent.includes(x.id));
+  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app' || x.kind === 'android');
+  if (libFilter === 'recent') list = list.filter(x => x.kind === 'android'
+    ? androidRecent(x.pkg) : libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
   if (q) list = list.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
   if (libSort === 'az') return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  const rank = id => { const i = libRecent.indexOf(id); return i < 0 ? 1e6 : i; };
-  return [...list].sort((a, b) => rank(a.id) - rank(b.id));
+  // The most recently used first. An installed app the native side counts as recent ranks with the
+  // web apps the shell remembers; everything else keeps the menu's own order.
+  const rank = item => {
+    if (item.kind === 'android') {
+      const i = androidRecentIndex(item.pkg);
+      return i < 0 ? 1e6 : i;
+    }
+    const i = libRecent.indexOf(item.id); return i < 0 ? 1e6 : i;
+  };
+  return [...list].sort((a, b) => rank(a) - rank(b));
 }
 function appTile(a) {
   const logo = a.slug
@@ -720,11 +742,10 @@ function buildLibrary() {
       ${navButton('apps','Aplicativos','device')}
       ${navButton('games','Jogos','controller')}
       ${navButton('recent','Recentes','timer')}
-      ${navButton('android', t('androidApps'), 'device')}
       <span class="lib-rail-spacer"></span>
       <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
     </nav>
-    ${libFilter === 'android' ? '' : `<section class="lib-main">
+    <section class="lib-main">
       <div class="lib-head"><h2 class="lib-title">Apps</h2>
         <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
         <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
@@ -733,13 +754,16 @@ function buildLibrary() {
         <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
       </div>
       <div class="lib-scroll"><div class="lib-grid">${
-        list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
+        list.map(x => x.kind === 'game' ? gameTile(x) : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
       }</div>
       ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
-    </section>`}
+    </section>
     `;
-  if (libFilter === 'android') root.appendChild(androidLibraryPage());
+  // The only Android-specific row in the interface, and it exists only while the shell service is
+  // not available: it says which of the two mechanisms a tile will use and how to get the other one.
+  const notice = shizukuNotice();
+  if (notice) root.querySelector('.lib-scroll')?.prepend(notice);
 
   const q = root.querySelector('[data-q]:not([data-q="android"])');
   if (q && libQuery) q.classList.add('open');
@@ -755,6 +779,15 @@ function buildLibrary() {
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
+    if ((m = c('[data-android]'))) {
+      const pkg = m.dataset.android;
+      const session = stateOf(pkg);
+      if (session && session.state === 'suspended') return restoreApp(pkg);
+      if (session && session.state === 'failed') return restoreApp(pkg);
+      if (session) return;                                  // already open: its window is the focus
+      openApp(pkg, ANDROID_BOX);
+      return;
+    }
     if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`Abrindo ${g.name}… (demonstração)`); return; }
     if ((m = c('[data-app]'))) {
       const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;
@@ -807,25 +840,23 @@ function makeDock() {
     // segundo grupo (verde e vermelho do print)
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: youtube },
-    // lançador de 9 pontos: sempre o último, abre a biblioteca
+    // lançador de 9 pontos: sempre o último, abre o menu de aplicações — onde os apps instalados no
+    // aparelho aparecem junto com os apps do NextVR. É a única entrada para os dois: o botão que
+    // abria uma página separada de apps Android, e a página com ele, foram removidos.
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
-    // apps do Android: a mesma biblioteca, na página que lista os apps instalados no aparelho
-    { id: 'android', label: t('androidApps'), svg: DK.device, bg: 'linear-gradient(145deg,#57dfa1,#106b4a)', run: androidApps },
   ]);
 }
 on('lang', makeDock);
 
-/** Abre a biblioteca já na página dos apps Android. */
-function androidApps() {
-  libFilter = 'android';
-  libraryApp();
-}
-
-/** Ponto de contagem na dock: quantas janelas de apps Android estão abertas agora. */
-function paintAndroidDock() {
-  const tile = document.querySelector('.dock [data-id="android"], .dock-app[data-id="android"]');
+/**
+ * Count badge of the dock's applications tile: how many Android app windows are open right now
+ * (hosted or captured). The tile it sits on opens the same menu the windows are listed in, so the
+ * number is where the user would look for them.
+ */
+function paintWindowBadge() {
+  const tile = document.querySelector('.dock [data-id="library"], .dock-app[data-id="library"]');
   if (!tile) return;
-  const count = runningBadge();
+  const count = openWindowCount();
   let badge = tile.querySelector('.dock-badge');
   if (!count) { badge?.remove(); return; }
   if (!badge) { badge = el('i', 'dock-badge'); tile.appendChild(badge); }
@@ -833,13 +864,13 @@ function paintAndroidDock() {
 }
 
 installAndroidApps();
-on('appsState', () => { paintAndroidDock(); paintLibrarySoon(); });
+on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
 let libraryPaintTimer = 0;
 function paintLibrarySoon() {
   if (libraryPaintTimer) return;
   libraryPaintTimer = setTimeout(() => {
     libraryPaintTimer = 0;
-    if (winBody('library') && (libFilter === 'android' || focusedWin()?.id === 'library')) paintLibrary();
+    if (winBody('library') && focusedWin()?.id === 'library') paintLibrary();
   }, 500);
 }
 

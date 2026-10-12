@@ -2,6 +2,8 @@ package com.nextvr.app.apps;
 
 import android.content.Context;
 
+import java.util.ArrayList;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -148,8 +150,11 @@ public final class AppWindowController {
             for (String id : apps.recents()) recents.put(id);
             json.put("recents", recents);
             json.put("capacity", AppSessionManager.DEFAULT_CAPACITY);
-            json.put("mirror", AppDisplayController.MIRROR_PACKAGE);
+            // The shell re-reads the app grid when this moves: that is how icons appear on the tiles
+            // after the native side has rendered them, without polling.
+            json.put("library", apps.libraryVersion());
             json.put("sdk", AndroidAppManager.sdk());
+            json.put("launch", displays.launchBackend() == null ? JSONObject.NULL : displays.launchBackend());
         } catch (Exception error) {
             return "{\"sessions\":[],\"error\":" + quote(error.getMessage()) + "}";
         }
@@ -158,45 +163,76 @@ public final class AppWindowController {
 
     // ------------------------------------------------------------------ commands from the shell
 
-    /** Opens (or focuses) the app; [boxWidth]/[boxHeight] come from the window the shell draws. */
+    /**
+     * Opens (or focuses) one installed app in a floating window; [boxWidth]/[boxHeight] are the body
+     * the shell draws.
+     *
+     * <p>The mechanism is chosen here, once, and the user is never asked to choose it: with the shell
+     * user service available the app is embedded on a display of its own (its real task, its real
+     * lifecycle, no capture), and without it the app is brought to the phone's screen and that screen
+     * is captured into the same window, with the hand's touch forwarded through the accessibility
+     * service. Both are "the app in a window"; only one of them is a mirror, and the window says which
+     * one it is. Previously this method always asked for the hosted path, so a phone without Shizuku
+     * answered every tap with "Shizuku is not available" and nothing ever opened.
+     */
     public void open(String packageName, float boxWidth, float boxHeight) {
         if (packageName == null || packageName.isEmpty()) return;
-        if (AppDisplayController.MIRROR_PACKAGE.equals(packageName)) {
-            openMirror(boxWidth, boxHeight, null);
-            return;
+        if (displays.canHost()) openHosted(packageName, boxWidth, boxHeight);
+        else openCaptured(packageName, boxWidth, boxHeight);
+    }
+
+    /** The hosted path: the app runs on its own display, created by the shell user service. */
+    private void openHosted(String packageName, float boxWidth, float boxHeight) {
+        AppSession existing = sessions.find(packageName);
+        if (existing != null && existing.mode != AppSession.Mode.VIRTUAL_DISPLAY) {
+            // The window was a capture of the phone screen; hosting the app means the capture stops
+            // being about it. Closing first is what makes the window switch mechanism for real.
+            sessions.close(packageName, "mode_changed");
         }
-        AppEntry app = apps.find(packageName);
-        String title = app == null ? packageName : app.label;
-        AppSession session = sessions.open(packageName, title, AppSession.Mode.VIRTUAL_DISPLAY,
-                boxWidth, boxHeight, density());
+        AppSession session = sessions.open(packageName, titleOf(packageName),
+                AppSession.Mode.VIRTUAL_DISPLAY, boxWidth, boxHeight, density());
         input.refreshBackend(session);
         apps.touchRecent(packageName);
         env.pushState();
     }
 
     /**
-     * The phone mirror window: consent is requested by the display controller when needed.
+     * The path that needs no privileged service: the app is brought to the phone's screen with public
+     * API and the capture of that screen is shown in the window. It is the same mechanism PhoneXR uses
+     * to start a game, plus the window and the input forwarding that make it usable without taking the
+     * phone out of the headset.
      *
-     * <p>[focus] is the no-Shizuku path. It is an app the user asked for while the shell service is
-     * not available: the app is brought to the phone screen with public API and the window then shows
-     * the capture of that screen. The window is a mirror and says so — the app is not hosted on a
-     * display of its own, and it never claims to be.
+     * <p>Android grants one capture at a time, so any other capture window is closed first: two tiles
+     * cannot both be a live capture, and pretending otherwise would leave one window frozen on the
+     * first app's last frame.
      */
-    public void openMirror(float boxWidth, float boxHeight, String focus) {
-        String title = null;
-        if (focus != null && !focus.isEmpty()) {
-            AppEntry app = apps.find(focus);
-            title = app == null ? focus : app.label;
-            displays.launchOnPhone(focus);
+    private void openCaptured(String packageName, float boxWidth, float boxHeight) {
+        for (AppSession open : new ArrayList<>(sessions.sessions())) {
+            if (open.packageName.equals(packageName)) {
+                // A session of this app left over from the other mechanism would answer the next open
+                // with the mechanism it was created with. It is closed so the window really switches.
+                if (open.mode != AppSession.Mode.SCREEN_MIRROR) sessions.close(packageName, "mode_changed");
+                continue;
+            }
+            // Android grants one capture per consent. The window that is being replaced gives its up,
+            // instead of staying open and frozen on the previous app's last frame.
+            if (open.mode == AppSession.Mode.SCREEN_MIRROR && open.alive()) {
+                sessions.close(open.packageName, "capture_replaced");
+            }
         }
-        AppSession session = sessions.find(AppDisplayController.MIRROR_PACKAGE);
-        if (session == null || !session.alive()) {
-            sessions.open(AppDisplayController.MIRROR_PACKAGE, title == null ? "Phone screen" : title,
-                    AppSession.Mode.SCREEN_MIRROR, boxWidth, boxHeight, density());
-        } else {
-            sessions.restore(AppDisplayController.MIRROR_PACKAGE);
-        }
+        sessions.forgetStopped();
+        // open() focuses a live window, wakes a minimized one and restarts a failed one — which for
+        // this mode means asking for consent again, because that is what starting a capture needs.
+        sessions.open(packageName, titleOf(packageName), AppSession.Mode.SCREEN_MIRROR,
+                boxWidth, boxHeight, density());
+        apps.touchRecent(packageName);
         env.pushState();
+    }
+
+    /** The label the window title uses; the package name when the app is gone from the list. */
+    private String titleOf(String packageName) {
+        AppEntry app = apps.find(packageName);
+        return app == null ? packageName : app.label;
     }
 
     public void close(String packageName) {
@@ -297,14 +333,10 @@ public final class AppWindowController {
             String name = command.optString("cmd", "");
             String packageName = command.optString("pkg", null);
             switch (name) {
-                case "open": {
-                    float width = (float) command.optDouble("w", 1040);
-                    float height = (float) command.optDouble("h", 546);
-                    String focus = command.optString("focus", null);
-                    if (AppDisplayController.MIRROR_PACKAGE.equals(packageName)) openMirror(width, height, focus);
-                    else open(packageName, width, height);
+                case "open":
+                    open(packageName, (float) command.optDouble("w", 1040),
+                            (float) command.optDouble("h", 546));
                     break;
-                }
                 case "close": close(packageName); break;
                 case "minimize": minimize(packageName); break;
                 case "restore": restore(packageName); break;
@@ -319,6 +351,11 @@ public final class AppWindowController {
                     if (windows != null) syncWindows(windows.toString());
                     break;
                 }
+                case "phone":
+                    // The window could not be filled (capture refused): the one thing that still works
+                    // for that app needs no privilege at all, and it is offered where the failure is.
+                    if (packageName != null) displays.launchOnPhone(packageName);
+                    break;
                 case "shizuku": requestShizuku(); break;
                 case "refresh": refreshLibrary(); break;
                 default: break;

@@ -421,39 +421,60 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        DOM never receives a synthetic event for an app window.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    await page.locator('.dock [data-id="android"]').click();
-    await page.waitForFunction(()=>!!document.querySelector('.app-android-page .lib-grid'));
-    assert.equal(await page.locator('.lib-nav[data-nav="android"][aria-pressed="true"]').count(),1,
-      'the dock entry opens the library on the installed-apps page');
-    assert.equal(await page.locator('.app-android-page .az-tile').count(),2,'both apps from the bridge are drawn');
-    assert.equal(await page.locator('.app-android-page .az-tile[data-pkg="com.android.settings"] .az-sys').count(),1,
+    /* ================================ the installed apps in the Applications menu ==================
+       There is no Android page and no mirror button: the apps installed on the phone are tiles of
+       the Applications menu the shell already had, in the same grid, drawn with the icon the
+       PackageManager returned. The window they open is either the app hosted on its own display or
+       a capture of the phone screen with the app on it, and its badge always says which one it is.
+       ============================================================================================= */
+    await page.locator('.dock [data-id="library"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
+    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,
+      'no rail entry leads to a separate Android page');
+    assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
+    assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
+      'and they sit in the same grid as the web apps, not in a page of their own');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-sys').count(),1,
       'a system app is marked as one');
     await page.waitForFunction(()=>{
-      const img=document.querySelector('.az-tile[data-pkg="org.example.notes"] img');
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
       return !!img&&img.complete&&img.naturalWidth>0;},null,{timeout:5000});
     const tileIcon=await page.evaluate(()=>{
-      const img=document.querySelector('.az-tile[data-pkg="org.example.notes"] img');
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
       return img?{src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0}:null;});
-    assert.equal(tileIcon?.src,'/apps/org.example.notes.png','the app tile uses the icon URL the native side served');
+    assert.equal(tileIcon?.src,'/apps/org.example.notes.png','the tile uses the icon URL the native side served');
     assert.equal(tileIcon?.loaded,true,'the served icon is a real image the tile keeps');
-    assert.ok(await page.locator('.app-android-page .az-row .az-dot').count()>=1,'the Shizuku state is always shown');
-    assert.equal(await page.evaluate(()=>!!document.querySelector('.az-caps')),false,'the self-test block is closed until asked for');
-    await page.locator('.app-android-page .az-btn').first().click();
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] img').count(),0,
+      'an app whose icon could not be read is not left with a broken image');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-cover.noicon .nm').count(),1,
+      'it falls back to its initials instead');
+    // The row that explains the mechanism exists only while the shell service is not ready: the phone
+    // without Shizuku still opens apps, through the capture path.
+    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),1,
+      'without the shell service the menu says how an app will be opened');
+    assert.ok(await page.locator('.lib-note .az-dot').count()>=1,'the Shizuku state is shown there');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.az-caps')),false,
+      'the self-test block stays closed until it is asked for');
+    assert.equal(await page.locator('.lib-tile.android .az-mirror, .lib-tile.android [data-act="mirror"]').count(),0,
+      'no tile carries a mirror button any more');
+    await page.locator('.lib-note .az-btn').first().click();
     let commands=await page.evaluate(()=>window.__appCommands||[]);
     assert.ok(commands.some(c=>c.cmd==='refresh'),'checking Shizuku again refreshes the app list over the bridge');
-    await page.locator('.app-android-page .az-tile[data-pkg="org.example.notes"]').click();
+    await page.locator('.lib-tile.android[data-pkg="org.example.notes"]').click();
     commands=await page.evaluate(()=>window.__appCommands||[]);
     const openCommand=commands.filter(c=>c.cmd==='open').pop();
     assert.equal(openCommand?.pkg,'org.example.notes','tapping a tile opens that app');
     assert.ok(openCommand.w>0&&openCommand.h>0,'the shell tells the native side how big the window body is');
+    assert.equal(openCommand.focus,undefined,'and nothing else: no mechanism and no focus package travel with it');
 
     // The native side answers with a running session; the shell draws the window from it.
-    const appSession=(state,extra={})=>JSON.stringify({
-      sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state,input:'shizuku',alive:state!=='stopped',
+    const appState=extra=>JSON.stringify({
+      sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state:'running',input:'shizuku',alive:true,
         displayId:7,display:{w:1040,h:546,dpi:240,rotation:0,aspect:1040/546},error:null,stopReason:null,frames:42,...extra}],
       shizuku:{state:'ready',detail:'uid=2000 v13',ready:true,ask:false,needsApp:false,caps:null},
       input:{shizuku:true,accessibility:false,singleAppCapture:false},
-      capacity:3,mirror:'nextvr.screen',sdk:34,recents:['org.example.notes']});
+      capacity:3,library:2,launch:'am start',sdk:34,recents:['org.example.notes']});
+    const appSession=(state,extra={})=>appState({state,...extra});
     const windowsBefore=await page.locator('.win-shell').count();
     await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
     await page.waitForFunction(()=>!!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
@@ -470,17 +491,32 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
-    // The library and the dock repaint their badges when the session list changes: wait for the
-    // paint instead of sleeping, which is both faster and stable on a slow renderer.
+    // With the shell service ready the explanatory row is gone: nothing is left in the menu that
+    // belongs only to the Android integration except the tiles themselves.
+    await page.waitForFunction(()=>!document.querySelector('.lib-note'));
+    // The library and the dock repaint their badges when the session list changes.
     await page.waitForFunction(()=>{
-      const open=document.querySelector('.az-tile[data-pkg="org.example.notes"] .az-open');
-      const badge=document.querySelector('.dock [data-id="android"] .dock-badge');
+      const open=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] .lib-open');
+      const badge=document.querySelector('.dock [data-id="library"] .dock-badge');
       return !!open&&badge?.textContent?.trim()==='1';
     },null,{timeout:12000});
-    assert.equal(await page.locator('.az-tile[data-pkg="org.example.notes"] .az-open').count(),1,
-      'the library marks the app that is open in a window');
-    assert.equal(await page.locator('.dock [data-id="android"] .dock-badge').innerText(),'1',
-      'the dock counts the hosted windows');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
+      'the menu marks the app that is open in a window');
+    assert.equal(await page.locator('.dock [data-id="library"] .dock-badge').innerText(),'1',
+      'the dock counts the open app windows');
+    assert.equal(await page.locator('.dock [data-id="android"]').count(),0,'and there is no Android dock tile');
+    // The same session in capture mode is a mirror, and the window says so.
+    await page.evaluate(json=>window.nextvrApps(json),JSON.stringify({
+      sessions:[{pkg:'org.example.notes',title:'Notas',mode:'mirror',state:'running',input:'accessibility',alive:true,
+        displayId:-2,display:{w:1080,h:2340,dpi:320,rotation:0,aspect:1080/2340},error:null,stopReason:null,frames:12}],
+      shizuku:{state:'install',detail:'',ready:false,ask:false,needsApp:true,caps:null},
+      input:{shizuku:false,accessibility:true,singleAppCapture:false},
+      capacity:3,library:2,launch:null,sdk:34,recents:[]}));
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+      && /mirror/i.test(document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+        .closest('.app-window').querySelector('.app-badge').textContent));
+    assert.match(await appWindow.locator('.app-badge').innerText(),/mirror/i,
+      'a capture of the phone screen is labelled as the mirror it is');
 
     // The compositor samples the same rectangle the touch is normalized against.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.browser==='app:org.example.notes'));
@@ -533,11 +569,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const closeCommand=commands.filter(c=>c.cmd==='close').pop();
     assert.equal(closeCommand?.pkg,'org.example.notes','closing the window releases the app display');
 
-    // A failed session explains itself instead of freezing on the last frame.
-    await page.evaluate(json=>window.nextvrApps(json),appSession('failed',{error:'shizuku_unavailable'}));
+    // A failed session explains itself instead of freezing on the last frame. The reason names what
+    // went wrong, and the window offers the one path that still works for that app.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('failed',{error:'display_empty'}));
     await page.waitForFunction(()=>!!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
     const failure=await page.locator('.app-state:not([hidden])').innerText();
-    assert.match(failure,/shizuku/i,`the failure names the missing piece: ${failure}`);
+    assert.match(failure,/n[ãa]o abriu|did not open|not drawing/i,`the failure names what happened: ${failure}`);
+    const phoneButtons=await page.locator('.app-state:not([hidden]) .app-state-btn').count();
+    assert.equal(phoneButtons,1,'the window offers opening the app on the phone, which needs no permission');
+    await page.locator('.app-state:not([hidden]) .app-state-btn').click();
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    assert.equal(commands.filter(c=>c.cmd==='phone').pop()?.pkg,'org.example.notes',
+      'and the button asks the native side for exactly that');
     await page.evaluate(json=>window.nextvrApps(json),appSession('stopped'));
     await page.waitForFunction(()=>!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
     await settle();

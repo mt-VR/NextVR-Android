@@ -430,6 +430,9 @@
     background:rgba(7,9,13,.86);z-index:2}
   .app-state[hidden]{display:none}
   .app-state[data-state="failed"]{color:#ffb4b4}
+  .app-state-btn{margin-top:14px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+    border-radius:999px;padding:9px 16px;color:#fff;font-size:13.5px;font-weight:700}
+  .app-state-btn:active{background:rgba(255,255,255,.26)}
   .win.app-failed .app-bar{background:#ffe7e7}
 
   /* contagem de janelas de apps abertas, na dock */
@@ -437,15 +440,41 @@
     border-radius:999px;background:#57dfa1;color:#052c1a;font-size:10.5px;font-weight:800;
     display:grid;place-items:center;box-shadow:0 2px 7px rgba(0,0,0,.5)}
 
-  /* ---------- página de apps do Android, dentro da biblioteca ---------- */
-  .app-android-page .az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 13px;padding:13px 15px;
+  /* ---------- apps instalados no aparelho, dentro do MENU de aplicações que já existe ----------
+     O tile é o mesmo .lib-tile da referência; o que muda é o conteúdo da capa: o ícone real que o
+     PackageManager devolveu (servido pelo lado nativo em /apps/<arquivo>.png) sobre um fundo neutro.
+     Sem ícone ainda — ou sem ícone legível — a capa mostra as iniciais do app, como os apps da web. */
+  .lib-tile.android .lib-cover{background:rgba(255,255,255,.07)}
+  .lib-app-icon{position:relative;z-index:1;width:56px;height:56px;object-fit:contain;
+    filter:drop-shadow(0 3px 8px rgba(0,0,0,.4))}
+  /* O nome nunca aparece sobre o ícone; as iniciais são o que fica no lugar quando ele não veio. */
+  .lib-tile.android .lib-brand .nm{display:none}
+  .lib-tile.android .lib-cover.noicon .nm{display:inline;position:relative;z-index:1;
+    color:rgba(255,255,255,.72);font-size:25px;font-weight:800;letter-spacing:.05em}
+  .lib-tile.android[data-session="running"] .lib-cover{border-color:rgba(87,223,161,.7);
+    box-shadow:0 9px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12),0 0 0 2px rgba(87,223,161,.26)}
+  .lib-src{position:absolute;left:8px;bottom:8px;z-index:3;width:22px;height:22px;border-radius:7px;
+    display:grid;place-items:center;color:#dfe6f2;background:rgba(12,14,20,.62);border:1px solid rgba(255,255,255,.2)}
+  .lib-src .ui-icon{width:13px;height:13px}
+  /* A system app is marked, the same way the grid marks a VR game: it is not something the user
+     installed, and hiding that would make the menu look like it invented tiles. */
+  .lib-sys{position:absolute;top:8px;left:8px;z-index:3;font-size:10px;font-weight:700;border-radius:6px;
+    padding:3px 7px;background:rgba(20,20,24,.62);border:1px solid rgba(255,255,255,.24);color:#c9d2df}
+  .lib-open{position:absolute;top:8px;right:8px;z-index:3;font-size:10px;font-weight:700;border-radius:6px;
+    padding:3px 7px;background:rgba(87,223,161,.92);color:#052c1a}
+  .lib-tile.android[data-session="suspended"] .lib-open{background:rgba(255,255,255,.84);color:#15181e}
+
+  /* ---------- a única linha específica de Android na interface ----------
+     Existe só enquanto o serviço shell não está pronto, para dizer qual dos dois mecanismos o tile
+     vai usar e como chegar no outro. Com o serviço pronto ela não é criada. */
+  .lib-note,.az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:15px}
   .az-dot{width:11px;height:11px;flex:none;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 4px rgba(139,147,161,.16)}
   .az-dot[data-state="ready"]{background:#57dfa1;box-shadow:0 0 0 4px rgba(87,223,161,.2)}
   .az-dot[data-state="ask"]{background:#ffc857;box-shadow:0 0 0 4px rgba(255,200,87,.18)}
   .az-dot[data-state="install"],.az-dot[data-state="start"],.az-dot[data-state="update"],
   .az-dot[data-state="denied"]{background:#ff7b7b;box-shadow:0 0 0 4px rgba(255,123,123,.18)}
-  .az-text{flex:1;min-width:170px;display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600;color:#e8ebf1}
+  .az-text{flex:1;min-width:170px;display:flex;flex-direction:column;gap:2px;font-size:13.5px;font-weight:600;color:#e8ebf1}
   .az-text small{font-size:12px;font-weight:500;color:rgba(255,255,255,.6);white-space:pre-wrap}
   .az-btn{flex:none;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.17);border-radius:999px;
     padding:9px 15px;font-size:13px;font-weight:700;color:#fff}
@@ -453,29 +482,7 @@
   .az-btn:active{background:rgba(255,255,255,.26)}
   .az-caps{flex-basis:100%;margin:10px 0 0;padding:12px;border-radius:12px;background:#0b0e13;color:#c9d2df;
     font-size:11.5px;line-height:1.45;max-height:230px;overflow:auto;white-space:pre-wrap}
-  .az-running{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 13px}
-  .az-label{font-size:13px;font-weight:700;color:rgba(255,255,255,.72);margin-right:2px}
-  .az-chip{background:rgba(87,223,161,.16);border:1px solid rgba(87,223,161,.4);color:#d9ffec;border-radius:999px;
-    padding:7px 12px;font-size:13px;font-weight:600;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .az-chip[data-state="suspended"]{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#c9d2df}
-  .az-chip.close{background:transparent;border-color:rgba(255,255,255,.22);padding:7px 11px}
-  .az-tile{position:relative}
-  .az-tile .az-cover{aspect-ratio:1/1;min-height:0}
-  .az-cover .az-icon{position:relative;z-index:1;width:56px;height:56px;object-fit:contain;
-    filter:drop-shadow(0 3px 8px rgba(0,0,0,.38))}
-  .az-cover .nm{position:absolute;z-index:0;color:rgba(255,255,255,.5);font-size:25px;font-weight:800;letter-spacing:.05em}
-  .az-tile[data-session="running"] .lib-cover{border-color:rgba(87,223,161,.7);
-    box-shadow:0 9px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12),0 0 0 2px rgba(87,223,161,.26)}
-  .az-sys{position:absolute;top:7px;left:7px;z-index:3;font-size:10px;font-weight:700;border-radius:6px;padding:3px 6px;
-    background:rgba(20,20,24,.6);border:1px solid rgba(255,255,255,.24)}
-  .az-open{position:absolute;top:7px;right:7px;z-index:3;font-size:10px;font-weight:700;border-radius:6px;padding:3px 7px;
-    background:rgba(87,223,161,.92);color:#052c1a}
-  .az-tile[data-session="suspended"] .az-open{background:rgba(255,255,255,.84);color:#15181e}
-  /* O caminho sem Shizuku, oferecido no próprio tile: espelhar (nunca incorporar). */
-  .az-mirror{position:absolute;left:7px;bottom:7px;z-index:3;font-size:10.5px;font-weight:800;letter-spacing:.02em;
-    border-radius:9px;padding:5px 9px;background:rgba(255,217,194,.94);color:#3a1c05;border:0;
-    box-shadow:0 3px 9px rgba(0,0,0,.34)}
-  .app-android-page .lib-scroll{padding-top:16px}
+
 
 </style>
 </head>

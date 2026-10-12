@@ -45,7 +45,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class AndroidAppManager {
     private static final String TAG = "NextVR-Apps";
-    private static final int ICON_PX = 128;
+    /**
+     * 144 px: the grid draws the cover at ~56-72 dp, and the dock badge and the window title can ask
+     * for it larger; a launcher icon is 48 dp at up to 4x, so this covers every density without a
+     * second decode by the WebView.
+     */
+    private static final int ICON_PX = 144;
     private static final int ICON_BATCH = 6;
     private static final long CACHE_MS = 20_000;
     private static final int MAX_RECENTS = 16;
@@ -67,6 +72,16 @@ public final class AndroidAppManager {
     private List<AppEntry> cache = Collections.emptyList();
     private long cachedAt;
     private Runnable onIconsReady;
+    /**
+     * Bumped whenever the answer to "which icons exist" changes (a batch landed, or the list was
+     * invalidated). The shell keeps this number and re-reads the library when it moves.
+     *
+     * <p>Without it the grid was built once, while the icons were still being rendered, and kept the
+     * letter placeholders forever: the icon files existed, the tiles had been drawn with
+     * {@code icon:null}, and nothing asked the native side again.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger version =
+            new java.util.concurrent.atomic.AtomicInteger(1);
 
     public AndroidAppManager(Context context) {
         this.context = context.getApplicationContext();
@@ -89,7 +104,13 @@ public final class AndroidAppManager {
     }
 
     /** Forces the next {@link #apps()} to re-query the package manager. */
-    public synchronized void invalidate() { cachedAt = 0; }
+    public synchronized void invalidate() {
+        cachedAt = 0;
+        version.incrementAndGet();
+    }
+
+    /** The library revision the shell compares against to know when to re-read the grid. */
+    public int libraryVersion() { return version.get(); }
 
     public AppEntry find(String packageName) {
         if (packageName == null) return null;
@@ -185,6 +206,7 @@ public final class AndroidAppManager {
     }
 
     private void notifyIcons() {
+        version.incrementAndGet();
         Runnable listener = onIconsReady;
         if (listener != null) listener.run();
     }

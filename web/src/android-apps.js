@@ -1,18 +1,26 @@
-// Android app windows: the installed apps, their real windows, and the two architectures behind
-// them. This module owns the shell half of the feature; the native half lives in
+// Android apps in NextVR: the installed apps, how they are opened, and their windows. This module
+// owns the shell half of the feature; the native half lives in
 // nextvr-android/src/main/java/com/nextvr/app/apps/ and they talk through one JSON state object.
 //
-// Two content types, never confused:
-//  * an *HTML/web* window is a page rendered by the shell's own WebView (webWindow in apps.js);
-//  * an *Android app* window hosts a real app on a display of its own (or mirrors the phone) and
-//    receives real input events. Its body element carries data-native-app and no DOM inside is
-//    interactive: everything the user does there is forwarded as touches/keys to the app.
+// An Android app appears as a tile in the *same* Applications menu as NextVR's own apps. Tapping it
+// opens a floating window; which mechanism runs behind that window is decided by the native side and
+// reported back in `mode`, and the three mechanisms are never presented as the same thing:
+//  * `display` — the app really runs on a display of its own, created by the shell user service
+//    (Shizuku, no root). Its own task, its own lifecycle, no capture. Badge: "APP DO ANDROID".
+//  * `mirror` — no privileged service is available, so the app is brought to the phone's screen with
+//    public API and that screen is captured with the user's consent. Input goes through the
+//    accessibility service. Badge: "ESPELHO DA TELA".
+//  * an *HTML/web* window is a page rendered by the shell's own WebView (webWindow in apps.js).
+// Only the last two are ever called a mirror, and the window's badge always names what it is.
+//
+// There is no mirror button and no separate Android page: the app library, the dock badge and the
+// window bar are the whole interface, and a failure names its reason instead of leaving a blank
+// window (see sessionError).
 import { t, toast, on, emit, native } from './core.js';
 import { open, close, wins, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
 
-export const MIRROR = 'nextvr.screen';
 const SYNC_MS = 400;
 const CAPACITY = 3;
 // Default window body: windows.js opens every app window at 1040x660. The window's own 62 px bar is
@@ -26,9 +34,11 @@ const state = {
   sessions: [],
   shizuku: { state: 'unknown', detail: '', ready: false, ask: false, needsApp: true, caps: null },
   input: { shizuku: false, accessibility: false, singleAppCapture: false },
-  capacity: CAPACITY, mirror: MIRROR, sdk: 0, recents: [],
+  capacity: CAPACITY, sdk: 0, recents: [], library: 0, launch: null,
 };
-const library = { apps: [], shown: 0, total: 0, query: '', showSystem: false, loaded: false };
+// `version` is the native side's icon revision: when it moves, an icon that was still being rendered
+// has landed and the grid has to be read again, or the tiles keep their letter placeholders.
+const library = { apps: [], shown: 0, total: 0, loaded: false, query: '', showSystem: false, version: 0 };
 const live = new Map();          // package -> { win, surface, status, bar }
 const suppress = new Set();      // windows we closed ourselves: their close is not a user action
 let syncTimer = 0, lastSync = '';
@@ -58,6 +68,13 @@ export function applyState(json) {
   state.capacity = next.capacity || CAPACITY;
   state.recents = Array.isArray(next.recents) ? next.recents : [];
   state.sdk = next.sdk || state.sdk;
+  state.launch = next.launch || null;
+  // The native side bumps `library` when a batch of icons lands (or the app list changed): drop the
+  // cached grid so the next paint asks for it again and the real launcher icons appear.
+  if (next.library && next.library !== library.version) {
+    library.version = next.library;
+    library.loaded = false;
+  }
   reconcile();
   emit('appsState');
 }
@@ -135,10 +152,29 @@ function updateWindow(session) {
   const text = states[session.state] ?? '';
   entry.status.hidden = !text;
   entry.status.dataset.state = session.state;
-  if (text) entry.status.textContent = text;
+  if (text) {
+    entry.status.textContent = text;
+    // A window that could not be filled is not a dead end: the app can still be opened on the phone.
+    // The button exists only where that is the honest next step, and it never hides the reason.
+    if (session.state === 'failed' && RECOVERABLE.has(session.error)) {
+      const toPhone = document.createElement('button');
+      toPhone.className = 'app-state-btn';
+      toPhone.textContent = t('appOpenOnPhone');
+      toPhone.onclick = () => command({ cmd: 'phone', pkg: session.pkg });
+      entry.status.appendChild(toPhone);
+    }
+  }
   entry.win.el.classList.toggle('app-native', true);
   entry.win.el.classList.toggle('app-failed', session.state === 'failed');
 }
+
+/**
+ * The failures that leave the app itself reachable: the window could not be filled, but launching the
+ * app on the phone needs no privilege at all and is exactly what the tile was asking for. Those
+ * windows offer that as the next step instead of ending on an error.
+ */
+const RECOVERABLE = new Set(['consent_denied', 'projection_failed', 'mirror_failed', 'mirror_refused',
+  'display_empty', 'display_refused', 'display_failed', 'shizuku_unavailable']);
 
 function sessionError(session) {
   const known = {
@@ -151,6 +187,7 @@ function sessionError(session) {
     mirror_failed: t('appMirrorFailed'),
     mirror_refused: t('appMirrorFailed'),
     projection_failed: t('appMirrorFailed'),
+    display_empty: t('appDisplayEmpty'),
     app_not_running: t('appStopped'),
   };
   const code = session.error || '';
@@ -181,20 +218,15 @@ on('wins', () => {
 
 // ---------------------------------------------------------------- commands from the shell
 
+/**
+ * Opens an installed app in a floating window. One command, one decision: the native side hosts it
+ * on its own display when the shell user service is available, and captures the phone's screen with
+ * that app on it when it is not. The shell never has to know which one it will get — the state JSON
+ * reports the mode back and the window badge names it.
+ */
 export function openApp(pkg, box) {
   if (!pkg) return;
   command({ cmd: 'open', pkg, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
-}
-
-/**
- * Opens the phone-screen mirror. With [focus] — an app the user asked for while the shell service is
- * not available — the native side brings that app to the phone screen first, so the window shows the
- * app the user wanted. It stays a mirror: mode, badge and the state JSON all say `mirror`.
- */
-export function openPhoneMirror(focusOrBox, box) {
-  const focus = typeof focusOrBox === 'string' ? focusOrBox : null;
-  const size = (typeof focusOrBox === 'object' && focusOrBox) || box;
-  command({ cmd: 'open', pkg: MIRROR, focus, w: (size && size.w) || DEFAULT_W, h: (size && size.h) || DEFAULT_H });
 }
 
 export function closeApp(pkg) { command({ cmd: 'close', pkg }); }
@@ -208,7 +240,14 @@ export function appKey(pkg, name) { command({ cmd: 'key', pkg, key: name }); }
 /** The VR keyboard types into the app: windows.js routes the keys through NativeXR.key. */
 export function focusAppKeyboard(pkg) { keyboard(true, { nativeId: 'app:' + pkg }); }
 
-/** Loads the installed app list from the native side (synchronous bridge call). */
+/**
+ * Loads the installed app list from the native side (synchronous bridge call).
+ *
+ * <p>`library.loaded` is dropped whenever the native icon revision moves or the language changes, so
+ * a tile that was drawn before its icon existed is drawn again with it. The call itself is cheap: the
+ * package query behind it is cached by the native side, and only the file-existence of each icon is
+ * re-checked.
+ */
 export function loadLibrary(force) {
   if (library.loaded && !force) return library;
   library.loaded = true;
@@ -243,7 +282,7 @@ function startSyncLoop() {
 }
 on('wins', () => scheduleSync(true));
 
-// ---------------------------------------------------------------- library page (the dock's grid)
+// ------------------------------------------------------- the Applications menu's Android tiles
 
 const shizukuText = {
   install: () => t('shizukuInstall'),
@@ -256,45 +295,53 @@ const shizukuText = {
   unknown: () => t('shizukuUnknown'),
 };
 
-function shizukuRow() {
+/**
+ * The one status row the app menu shows, and only when the shell service is not ready: a phone
+ * without Shizuku then still opens apps (through the capture path), so the row explains which of the
+ * two mechanisms a tile will use and offers the one action that changes the answer. With the service
+ * ready the row does not exist at all — no state to read, nothing to dismiss.
+ */
+export function shizukuNotice() {
   const sh = state.shizuku || {};
+  if (sh.ready) return null;
   const wrap = document.createElement('div');
-  wrap.className = 'az-row';
+  wrap.className = 'lib-note az-row';
   const dot = document.createElement('span');
   dot.className = 'az-dot';
   dot.dataset.state = sh.state || 'unknown';
   const text = document.createElement('span');
   text.className = 'az-text';
-  (shizukuText[sh.state] || shizukuText.unknown) && (text.textContent = (shizukuText[sh.state] || shizukuText.unknown)());
-  if (sh.detail) {
+  text.textContent = (shizukuText[sh.state] || shizukuText.unknown)();
+  if (!state.input?.accessibility) {
+    const hint = document.createElement('small');
+    hint.textContent = t('appCaptureInput');
+    text.appendChild(hint);
+  } else if (sh.detail) {
     const detail = document.createElement('small');
     detail.textContent = sh.detail;
     text.appendChild(detail);
   }
   wrap.append(dot, text);
+  const button = document.createElement('button');
+  button.className = 'az-btn';
   if (sh.ask) {
-    const ask = document.createElement('button');
-    ask.className = 'az-btn';
-    ask.textContent = t('shizukuGrant');
-    ask.onclick = () => requestShizuku();
-    wrap.appendChild(ask);
+    button.textContent = t('shizukuGrant');
+    button.onclick = () => requestShizuku();
   } else {
-    const check = document.createElement('button');
-    check.className = 'az-btn';
-    check.textContent = t('shizukuRecheck');
-    check.onclick = () => { refreshApps(); requestShizuku(); };
-    wrap.appendChild(check);
+    button.textContent = t('shizukuRecheck');
+    button.onclick = () => { refreshApps(); requestShizuku(); };
   }
+  wrap.appendChild(button);
   if (sh.caps) {
     const more = document.createElement('button');
     more.className = 'az-btn ghost';
     more.textContent = t('appSelfTest');
     more.onclick = () => {
-      const pre = wrap.querySelector('.az-caps');
-      if (pre) { pre.remove(); return; }
+      const open = wrap.querySelector('.az-caps');
+      if (open) { open.remove(); return; }
       const block = document.createElement('pre');
       block.className = 'az-caps';
-      block.textContent = JSON.stringify(sh.caps, null, 2);
+      block.textContent = JSON.stringify({ ...sh.caps, launch: state.launch }, null, 2);
       wrap.appendChild(block);
     };
     wrap.appendChild(more);
@@ -302,156 +349,68 @@ function shizukuRow() {
   return wrap;
 }
 
-function hostingRow() {
-  const hosting = runningApps();
-  const wrap = document.createElement('div');
-  wrap.className = 'az-running';
-  const label = document.createElement('span');
-  label.className = 'az-label';
-  label.textContent = `${t('appHosting')} ${hosting.length}/${state.capacity}`;
-  wrap.appendChild(label);
-  for (const session of hosting) {
-    const item = document.createElement('button');
-    item.className = 'az-chip';
-    item.dataset.state = session.state;
-    item.textContent = session.title;
-    item.title = session.state === 'suspended' ? t('appRestore') : t('appMinimize');
-    item.onclick = () => (session.state === 'suspended' ? restoreApp(session.pkg) : minimizeApp(session.pkg));
-    wrap.appendChild(item);
-    const shut = document.createElement('button');
-    shut.className = 'az-chip close';
-    shut.textContent = '✕';
-    shut.title = t('close');
-    shut.onclick = () => closeApp(session.pkg);
-    wrap.appendChild(shut);
-  }
-  return wrap;
-}
-
-function appTile(app) {
-  const session = sessionOf(app.pkg);
-  const tile = document.createElement('button');
-  tile.className = 'lib-tile az-tile';
-  tile.dataset.pkg = app.pkg;
-  if (session) tile.dataset.session = session.state;
-  const cover = document.createElement('span');
-  cover.className = 'lib-cover az-cover';
-  const mark = document.createElement('span');
-  mark.className = 'nm';
-  mark.textContent = (app.label || app.pkg).slice(0, 2);
-  cover.appendChild(mark);
-  if (app.icon) {
-    const img = document.createElement('img');
-    img.className = 'az-icon';
-    img.src = app.icon;
-    img.alt = '';
-    img.draggable = false;
-    img.onerror = () => img.remove();
-    cover.insertBefore(img, mark);
-  }
-  tile.appendChild(cover);
-  const label = document.createElement('span');
-  label.className = 'lib-label';
-  label.textContent = app.label || app.pkg;
-  tile.appendChild(label);
-  if (app.system) {
-    const sys = document.createElement('span');
-    sys.className = 'az-sys';
-    sys.textContent = t('appSystem');
-    tile.appendChild(sys);
-  }
-  if (session) {
-    const badge = document.createElement('span');
-    badge.className = 'az-open';
-    badge.textContent = session.state === 'suspended' ? t('appMinimized') : t('appOpen');
-    tile.appendChild(badge);
-  }
-  tile.onclick = () => {
-    if (session && session.state === 'suspended') return restoreApp(app.pkg);
-    // A failed session is retried from here: the tile is the only place the user can ask again, and
-    // without this a Shizuku that came up after the failure needed a different app to be opened.
-    if (session && session.state === 'failed') return restoreApp(app.pkg);
-    if (session) return;                                    // already open: the window is the focus
-    openApp(app.pkg);
-  };
-  // Without the shell service the app cannot be hosted, but it can still be *seen*: the mirror is the
-  // no-Shizuku path, and it is labelled as a mirror everywhere. Offered right on the tile, because a
-  // user who has no Shizuku should not have to work out that the pill at the top is the way in.
-  if (!state.shizuku.ready) {
-    const mirror = document.createElement('button');
-    mirror.className = 'az-mirror';
-    mirror.textContent = t('appMirrorShort');
-    mirror.title = state.input.singleAppCapture ? t('appMirrorOneApp') : t('appMirrorWhole');
-    mirror.onclick = event => { event.stopPropagation(); openPhoneMirror(app.pkg); };
-    tile.appendChild(mirror);
-  }
-  tile.oncontextmenu = event => {
-    event.preventDefault();
-    hideApp(app.pkg, true);
-    library.apps = library.apps.filter(a => a.pkg !== app.pkg);
-    emit('appsState');
-  };
-  return tile;
-}
+/** Escapes text that goes into a tile's markup. */
+const esc = value => String(value == null ? '' : value)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * The Android apps page of the library: the same rail/grid the reference uses, filled with the
- * phone's own apps, the Shizuku state and the windows currently hosted.
+ * One installed app as a tile of the *existing* Applications menu: the same `.lib-tile` the
+ * reference grid uses, with the app's own launcher icon (served by the native side from
+ * `PackageManager`) as the cover. A tile whose icon has not landed yet (or whose icon could not be
+ * read at all) falls back to the app's initials, exactly like the web tiles fall back to their
+ * labels — it never shows a broken image.
  */
-export function androidLibraryPage() {
-  loadLibrary(false);
-  const section = document.createElement('section');
-  section.className = 'lib-main';
-
-  const head = document.createElement('div');
-  head.className = 'lib-head';
-  const title = document.createElement('h2');
-  title.className = 'lib-title';
-  title.textContent = t('androidApps');
-  const search = document.createElement('input');
-  search.className = 'lib-search open';
-  search.dataset.q = 'android';
-  search.placeholder = t('searchApps');
-  search.value = library.query;
-  search.addEventListener('input', () => {
-    library.query = search.value;
-    loadLibrary(true);
-    const again = document.querySelector('.app-android-page [data-q="android"]');
-    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-  });
-  search.addEventListener('focus', () => keyboard(true, search));
-  const system = document.createElement('button');
-  system.className = 'lib-pill';
-  system.textContent = `${t('appSystem')} ${library.showSystem ? t('on') : t('off')}`;
-  system.onclick = () => { library.showSystem = !library.showSystem; loadLibrary(true); };
-  const mirror = document.createElement('button');
-  mirror.className = 'lib-pill';
-  mirror.textContent = t('appMirror');
-  mirror.title = state.input.singleAppCapture ? t('appMirrorOneApp') : t('appMirrorWhole');
-  mirror.onclick = () => openPhoneMirror();
-  head.append(title, search, system, mirror);
-
-  const scroll = document.createElement('div');
-  scroll.className = 'lib-scroll';
-  scroll.append(shizukuRow(), hostingRow());
-  const grid = document.createElement('div');
-  grid.className = 'lib-grid';
-  if (!library.apps.length) {
-    const empty = document.createElement('div');
-    empty.className = 'lib-empty';
-    empty.textContent = library.query ? t('appNoResults') : t('appNone');
-    grid.appendChild(empty);
-  }
-  for (const app of library.apps) grid.appendChild(appTile(app));
-  scroll.appendChild(grid);
-
-  section.append(head, scroll);
-  section.classList.add('app-android-page');
-  return section;
+export function androidTileHtml(app) {
+  const session = sessionOf(app.pkg);
+  // The icon is the app's own, served by the native side out of PackageManager; the initials are what
+  // the tile shows while it is still being rendered, or when this app's icon cannot be read at all.
+  const mark = `<span class="nm">${esc((app.label || app.pkg).slice(0, 2))}</span>`;
+  const image = app.icon
+    ? `<img class="lib-app-icon" src="${esc(app.icon)}" alt="" draggable="false" loading="lazy" `
+      + `onerror="this.remove();this.parentNode.parentNode.classList.add('noicon')">`
+    : '';
+  const badge = session
+    ? `<span class="lib-open">${esc(session.state === 'suspended' ? t('appMinimized') : t('appOpen'))}</span>`
+    : '';
+  const system = app.system ? `<span class="lib-sys">${esc(t('appSystem'))}</span>` : '';
+  return `<button class="lib-tile android" data-android="${esc(app.pkg)}" `
+    + `data-session="${session ? esc(session.state) : ''}" data-pkg="${esc(app.pkg)}" `
+    + `data-system="${app.system ? '1' : ''}" aria-label="${esc(app.label || app.pkg)}">`
+    + `<span class="lib-cover${image ? '' : ' noicon'}">`
+    + `<span class="lib-brand">${image}${mark}</span>`
+    + `<span class="lib-src" title="${esc(t('androidApps'))}">${icon('device')}</span>`
+    + system + badge
+    + `</span><span class="lib-label">${esc(app.label || app.pkg)}</span></button>`;
 }
 
-/** Badge with the number of hosted windows, used by the dock launcher tile. */
-export function runningBadge() { return runningApps().length; }
+/** Session state of an app, for the tile badge and for the click decision. */
+export function stateOf(pkg) { return sessionOf(pkg); }
+
+/** How many app windows are open (hosted or captured). Shown on the dock's library tile. */
+export function openWindowCount() { return runningApps().length; }
+
+/** The installed apps currently loaded, for the shared grid. */
+export function androidApps() { return library.apps; }
+
+/**
+ * Whether the user opened this app recently from the menu. The native side owns that list (it also
+ * persists it), so the shell asks instead of keeping a second copy that could disagree with it.
+ */
+export function androidRecent(pkg) { return state.recents.includes(pkg); }
+
+/** Position of the app in that list (0 = most recent), or -1. */
+export function androidRecentIndex(pkg) { return state.recents.indexOf(pkg); }
+
+/**
+ * The window body an Android app is opened at, in atlas pixels. It matches the default window
+ * windows.js draws: 1040x660 with the window's 62 px bar and the app's own 52 px bar, so the surface
+ * the app is drawn into — hosted display or capture — is exactly 546 px high and nothing is
+ * letterboxed on the first frame.
+ */
+export const ANDROID_BOX = { w: DEFAULT_W, h: DEFAULT_H };
+
+/** The apps a search/filter decision must see: the ones the native side returned. */
+export function androidAppsLoaded() { return library.loaded; }
 
 /** Installs the bridge hook. Called once, from the shell boot. */
 export function installAndroidApps() {
