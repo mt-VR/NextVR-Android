@@ -48,20 +48,40 @@ def declared_type(node, unit=None):
 
 class Symbols:
     def __init__(self):
-        self.methods = {}      # type name -> {method: max_arity or -1 for varargs}
+        self.methods = {}      # type name -> {method: set of arities (-1 = varargs)}
+        self.fields = {}       # type name -> set of field names
         self.supers = {}       # type name -> [super/interface names]
         self.static = set()    # fully qualified static method keys
         self.vars = {}         # (type, method scope) not needed: we infer from declarations
         self.files = {}
         self.aidl = {}
 
-    def add_class(self, name, methods, supers):
+    def add_class(self, name, methods, supers, fields=()):
         short = name.split('.')[-1]
         for key in (name, short):
             table = self.methods.setdefault(key, {})
             for method, arities in methods.items():
                 table.setdefault(method, set()).update(arities)
+            self.fields.setdefault(key, set()).update(fields)
             self.supers.setdefault(key, list(supers))
+
+    def field_exists(self, type_name, field, seen=None):
+        seen = seen or set()
+        key = type_name.split('<')[0].strip()
+        if key in seen:
+            return True
+        seen.add(key)
+        table = self.fields.get(key)
+        if table is None:
+            return True
+        if field in table:
+            return True
+        for parent in self.supers.get(key, []):
+            if parent not in self.fields:
+                return True          # platform/JDK parent: it decides
+            if self.field_exists(parent, field, seen):
+                return True
+        return False
 
     def method_exists(self, type_name, method, arity, seen=None):
         seen = seen or set()
@@ -112,12 +132,12 @@ def collect(symbols):
                     supers.append(node.extends.name)
                 for iface in getattr(node, 'implements', None) or []:
                     supers.append(iface.name)
-                symbols.add_class(name, methods, supers)
+                fields = set()
                 for member in node.body:
                     if isinstance(member, javalang.tree.FieldDeclaration):
                         for declarator in member.declarators:
-                            declared = declared_type(member.type, node)
-                            symbols.static.add((name, declarator.name, declared))
+                            fields.add(declarator.name)
+                symbols.add_class(name, methods, supers, fields)
             else:
                 for child in node.children:
                     if isinstance(child, (list, tuple)):
@@ -233,10 +253,37 @@ def check_calls(symbols):
     return problems
 
 
+def check_fields(symbols):
+    problems = []
+    for path, source in symbols.files.items():
+        tree = javalang.parse.parse(source)
+        variables = declared_variables(tree)
+        for node in walk(tree):
+            if not isinstance(node, javalang.tree.MemberReference) or node.qualifier:
+                continue
+            if not node.member or not node.member.startswith('this'):
+                continue
+        for node in walk(tree):
+            if not isinstance(node, (javalang.tree.MemberReference,)):
+                continue
+            if not node.qualifier or '.' in node.qualifier:
+                continue
+            receiver = variables.get(node.qualifier)
+            if receiver is None:
+                continue
+            if isinstance(node, javalang.tree.MethodInvocation):
+                continue
+            if not symbols.field_exists(receiver, node.member):
+                line = source[:node.position[1]].count('\n') + 1 if node.position else 0
+                problems.append(f'{path}:{line}: {receiver}.{node.member} (field) not found')
+    return problems
+
+
 def main():
     symbols = Symbols()
     collect(symbols)
-    problems = sorted({p for p in check_aidl(symbols) + check_calls(symbols) if p not in ALLOWED})
+    problems = sorted({p for p in check_aidl(symbols) + check_calls(symbols) + check_fields(symbols)
+                       if p not in ALLOWED})
     for problem in problems:
         print(problem)
     print(f'{len(problems)} reference problem(s) over {len(symbols.files)} file(s)')
