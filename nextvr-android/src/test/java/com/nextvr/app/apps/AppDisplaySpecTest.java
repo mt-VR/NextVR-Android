@@ -62,7 +62,9 @@ public class AppDisplaySpecTest {
         assertEquals(320, current.density);
         AppDisplaySpec next = current.resized(800, 600);
         assertEquals(320, next.density);
-        assertEquals(800, next.height);
+        assertEquals(800, next.width);
+        assertEquals(600, next.height);
+        assertEquals(800f / 600f, next.aspect(), 1e-4f);
         assertNotSame(current, next);
     }
 }

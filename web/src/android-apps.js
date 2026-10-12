@@ -15,11 +15,12 @@ import { fitDisplay, appHostPoint } from './display-fit.js';
 export const MIRROR = 'nextvr.screen';
 const SYNC_MS = 400;
 const CAPACITY = 3;
-// Default window body: windows.js opens every app window at 1040x660, of which the 62 px title bar
-// is not part of the app's picture. Sending the body size means the display is created at the shape
-// it will actually be shown in, so the first frames are not letterboxed and then resized.
+// Default window body: windows.js opens every app window at 1040x660. The window's own 62 px bar is
+// outside the body, and the app's bar is another 52 px inside it, so the surface the app's display is
+// drawn into measures 1040x546. Sending *that* size means the display is created in exactly the
+// shape it is shown in: the first frames are neither letterboxed nor resized afterwards.
 const DEFAULT_W = 1040;
-const DEFAULT_H = 598;
+const DEFAULT_H = 546;
 
 const state = {
   sessions: [],
@@ -110,7 +111,10 @@ function createWindow(session) {
   const status = document.createElement('div');
   status.className = 'app-state';
 
-  body.append(surface, status);
+  // The state overlay belongs to the picture area: the app's own bar stays readable behind it and
+  // the window's bar (which owns ✕) is never covered.
+  body.append(bar, surface);
+  surface.append(status);
   const win = open({ id: appWindowId(session.pkg), title: session.title, node: body });
   live.set(session.pkg, { win, surface, status, badge });
   updateWindow(session);
@@ -358,7 +362,7 @@ function appTile(app) {
   tile.onclick = () => {
     if (session && session.state === 'suspended') return restoreApp(app.pkg);
     if (session) return;                                    // already open: the window is the focus
-    openApp(app.pkg, { w: 1040, h: 616 });
+    openApp(app.pkg);
   };
   tile.oncontextmenu = event => {
     event.preventDefault();
@@ -403,7 +407,7 @@ export function androidLibraryPage() {
   mirror.className = 'lib-pill';
   mirror.textContent = t('appMirror');
   mirror.title = state.input.singleAppCapture ? t('appMirrorOneApp') : t('appMirrorWhole');
-  mirror.onclick = () => openPhoneMirror({ w: 1040, h: 616 });
+  mirror.onclick = () => openPhoneMirror();
   head.append(title, search, system, mirror);
 
   const scroll = document.createElement('div');

@@ -462,6 +462,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const appWindow=page.locator('.win-shell').filter({has:page.locator('.app-surface[data-native-app="org.example.notes"]')});
     assert.equal(await appWindow.count(),1);
     assert.equal(await appWindow.locator('.app-state:not([hidden])').count(),0,'a running app shows no state overlay');
+    // The window keeps the NextVR chrome *and* carries the app's own bar with its keys.
+    assert.equal(await page.locator('.win-shell .app-window > .app-bar').count(),1,
+      'the app window has its bar inside the window body');
+    const appKeys=await appWindow.locator('.app-bar .app-key').evaluateAll(ee=>ee.map(e=>e.dataset.act||e.getAttribute('aria-label')));
+    assert.equal(appKeys.length,4,`the app bar offers back, home, recents and the keyboard: ${appKeys}`);
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
@@ -488,6 +493,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     for(let i=0;i<4;i++) assert.ok(Math.abs(uv[i]-published[i])<.01,'the shader crop is what the window published');
     assert.ok(uv[2]>0&&uv[2]<=1&&uv[3]>0&&uv[3]<=1,'the crop stays inside the texture');
     assert.ok(Math.abs(uv[0]-((1-uv[2])/2))<.002,'the picture is centred, so the crop and the touch agree');
+    assert.ok(uv[2]>.99&&uv[3]>.99,
+      `the display is created in the shape the window shows it in, so the app fills its window: ${uv}`);
 
     // Aim the hand at the app's picture and pinch: the app window takes the touch, the shell DOM
     // does not (no synthetic DOM event for a hosted app).

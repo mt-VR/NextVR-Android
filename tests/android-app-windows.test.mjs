@@ -126,6 +126,7 @@ test('the display size and its clamp come from one place on each side', async ()
   assert.equal(number('MAX_HEIGHT'), 1080);
   assert.equal(number('DEFAULT_HEIGHT'), 720);
 
+
   const fit = await read(WEB.fit);
   assert.match(fit, /export const MIN_ASPECT = 0\.6;/);
   assert.match(fit, /export const MAX_ASPECT = 2\.34;/);
@@ -181,4 +182,18 @@ test('the app icons are served by the shell from the same directory that writes 
   const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
   assert.ok(bundle.includes('appsCommand'), 'the shipped bundle carries the app command channel');
   assert.ok(bundle.includes('nextvrApps'), 'the shipped bundle receives the app state');
+});
+
+test('the default app window asks for the body the app picture really occupies', async () => {
+  const apps = await read(WEB.androidApps);
+  const window = await read('web/src/windows.js');
+  // windows.js opens every window at 1040x660 with a 62 px bar; the app's own bar takes 52 px of the
+  // body, so the picture is 1040x546. Asking the display for that exact shape is what keeps the app
+  // from being letterboxed inside its own window.
+  const outer = Number(window.match(/constructor\(\{ id, title, node, w = (\d+), h = (\d+)/)[2]);
+  const appBar = Number((await read('web/index.html')).match(/\.app-bar\{height:(\d+)px/)[1]);
+  const surface = Number(apps.match(/const DEFAULT_H = (\d+);/)[1]);
+  assert.equal(surface, outer - 62 - appBar, `the default box is the surface, not the window: ${surface}`);
+  assert.match(apps, /openApp\(app\.pkg\)/, 'tapping a tile opens the window at the default size');
+  assert.match(apps, /openPhoneMirror\(\)/, 'the mirror button uses the same default box');
 });
