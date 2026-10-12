@@ -145,6 +145,10 @@ function updateWindow(session) {
   // inside the window body without stretching it, and the touch is normalized against that same
   // fitted rectangle. The crop it computes is published back on `data-uv` (see atlas.js).
   entry.surface.dataset.aspect = String(display.aspect || 16 / 9);
+  // The badge names the mechanism, and it is re-read on every state: a session that was replaced by
+  // the other mechanism must never keep the old label.
+  entry.badge.textContent = session.mode === 'mirror' ? t('appMirrorBadge') : t('appWindowBadge');
+  entry.badge.classList.toggle('mirror', session.mode === 'mirror');
   const states = {
     requested: t('appStarting'), creating: t('appStarting'), launching: t('appStarting'),
     running: '', failed: session.error ? sessionError(session) : t('appFailed'),
