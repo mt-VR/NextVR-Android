@@ -6,6 +6,7 @@ type does not declare (wrong name or wrong arity). It also checks that every AID
 is implemented by the class that extends its Stub.
 
 Usage: python3 tools/check-java-refs.py [root]
+       python3 tools/check-java-refs.py --self-test
 """
 import os
 import re
@@ -19,7 +20,7 @@ except ImportError:  # pragma: no cover - the CI image may not have it
           'Install it with: python3 -m pip install --break-system-packages javalang')
     sys.exit(0)
 
-ROOT = sys.argv[1] if len(sys.argv) > 1 else 'nextvr-android/src'
+ROOT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else 'nextvr-android/src'
 
 # Known false positives of the receiver inference, all confirmed by hand. Each one is a call whose
 # receiver name was declared with two different types in two different scopes, so the last
@@ -327,6 +328,100 @@ def for_header_names(statement):
     return names
 
 
+def statements_of(node):
+    """Statements of a block. javalang exposes blocks either as a BlockStatement with `statements`
+    or, in several productions (try/catch/finally and lambda bodies), as a plain list."""
+    if node is None:
+        return []
+    if isinstance(node, (list, tuple)):
+        return [item for item in node if isinstance(item, javalang.ast.Node)]
+    inner = getattr(node, 'statements', None)
+    if inner is not None:
+        return list(inner)
+    return [node] if isinstance(node, javalang.ast.Node) else []
+
+
+def check_checked_exceptions(symbols):
+    """Calls on the shell service declare RemoteException: they must be inside a try (or caught).
+
+    javac enforces this; javalang does not. The rule is applied to receivers whose declared type is
+    an AIDL interface of this project, which is how the shell calls are written.
+    """
+    problems = []
+    for path, source in symbols.files.items():
+        tree = javalang.parse.parse(source)
+        variables = declared_variables(tree)
+        throws = {name for name in symbols.aidl}
+
+        def walk_block(node, in_try, method_throws, holders):
+            for statement in statements_of(node):
+                visit(statement, in_try, method_throws, holders)
+
+        def visit(node, in_try, method_throws, holders):
+            if not isinstance(node, javalang.ast.Node):
+                return walk_block(node, in_try, method_throws, holders)
+            line = node.position[0] if getattr(node, 'position', None) else 0
+            if isinstance(node, javalang.tree.TryStatement):
+                # Statements inside `try`, `catch` and `finally` are covered by the catches; the
+                # resource section is too (it may declare AutoCloseable values).
+                walk_block(getattr(node, 'block', None), True, method_throws, holders)
+                # A `finally` block is NOT covered by the catches of its own try: an exception there
+                # propagates, so it keeps whatever coverage the try itself had.
+                walk_block(getattr(node, 'finally_block', None), in_try, method_throws, holders)
+                for catch in getattr(node, 'catches', None) or []:
+                    walk_block(getattr(catch, 'block', None), True, method_throws, holders)
+                walk_block(getattr(node, 'resources', None), True, method_throws, holders)
+                return
+            if isinstance(node, (javalang.tree.MethodDeclaration, javalang.tree.ConstructorDeclaration)):
+                declared = set(getattr(node, 'throws', None) or [])
+                holders = {}
+                for parameter in getattr(node, 'parameters', []) or []:
+                    register_holder(parameter.type, parameter.name, holders, symbols)
+                walk_block(getattr(node, 'body', None), False, declared, holders)
+                return
+            if isinstance(node, javalang.tree.LocalVariableDeclaration) and isinstance(node.type, javalang.tree.ReferenceType):
+                for declarator in node.declarators:
+                    if declarator.initializer is not None:
+                        visit(declarator.initializer, in_try, method_throws, holders)
+                    register_holder(node.type, declarator.name, holders, symbols)
+                return
+            if isinstance(node, javalang.tree.LambdaExpression):
+                # A lambda body is analysed on its own: an enclosing try does not cover it, and the
+                # functional interface (Runnable here) declares nothing it could throw. Locals of the
+                # enclosing method stay visible (captured, and final or effectively final).
+                walk_block(getattr(node, 'body', None), False, set(), dict(holders))
+                return
+            if isinstance(node, javalang.tree.MethodInvocation):
+                receiver = node.qualifier if not node.qualifier or '.' not in node.qualifier else None
+                receiver_type = holders.get(receiver) if receiver else None
+                if receiver_type in throws and 'RemoteException' not in method_throws and not in_try:
+                    problems.append(f'{path}:{line}: {receiver}.{node.member}() throws RemoteException '
+                                    f'and is not inside a try')
+            for child in getattr(node, 'children', []):
+                if isinstance(child, (list, tuple)):
+                    for item in child:
+                        if isinstance(item, javalang.ast.Node):
+                            visit(item, in_try, method_throws, holders)
+                elif isinstance(child, javalang.ast.Node):
+                    visit(child, in_try, method_throws, holders)
+            return
+
+        for node in walk(tree):
+            if isinstance(node, (javalang.tree.MethodDeclaration, javalang.tree.ConstructorDeclaration)):
+                visit(node, False, set(), {})
+        problems = sorted(set(problems))
+    return problems
+
+
+def register_holder(type_node, name, holders, symbols):
+    """Remembers that `name` holds a value of an AIDL interface type, whatever the declared syntax."""
+    declared = declared_type(type_node)
+    if declared.split('<')[0] in symbols.aidl or declared in symbols.aidl:
+        holders[name] = declared.split('<')[0]
+    elif declared.endswith('IDisplayService'):
+        holders[name] = 'IDisplayService'
+
+
 def check_fields(symbols):
     problems = []
     for path, source in symbols.files.items():
@@ -345,6 +440,15 @@ def check_fields(symbols):
             receiver = variables.get(node.qualifier)
             if receiver is None:
                 continue
+            if isinstance(node, javalang.tree.LambdaExpression):
+                # A lambda body is analysed on its own: an enclosing try does not cover it, and the
+                # functional interface (Runnable here) declares nothing it could throw.
+                body = getattr(node, 'body', None)
+                statements = getattr(body, 'statements', None) if body is not None else None
+                for statement in statements if statements is not None else (body or []):
+                    if isinstance(statement, javalang.ast.Node):
+                        visit(statement, False, set(), dict(holders))
+                return
             if isinstance(node, javalang.tree.MethodInvocation):
                 continue
             if not symbols.field_exists(receiver, node.member):
@@ -353,10 +457,120 @@ def check_fields(symbols):
     return problems
 
 
+SHADOWED_IN_NESTED_BLOCK = """
+package com.nextvr.app.apps;
+class Shadowed {
+    void load(String owner) {
+        for (ResolveInfo info : list()) {
+            if (info != null) {
+                PackageInfo info = manage(info);
+                use(info);
+            }
+        }
+    }
+}
+"""
+SHADOWED_IN_SIBLING_BLOCKS = """
+package com.nextvr.app.apps;
+class Siblings {
+    void load(String owner) {
+        { IDisplayService service = a(); use(service); }
+        { IDisplayService service = b(); use(service); }
+    }
+}
+"""
+AIDL_CALL_IN_LAMBDA_WITHOUT_TRY = """
+package com.nextvr.app.apps;
+class Worker {
+    void build(Session session) {
+        try {
+            work.execute(() -> {
+                IDisplayService service = shizukuService();
+                String error = service.launch("component", 3);
+                settle(session, error == null, error);
+            });
+        } catch (RejectedExecutionException stopped) { }
+    }
+}
+"""
+AIDL_CALL_IN_TRY = """
+package com.nextvr.app.apps;
+class Guarded {
+    void build() {
+        IDisplayService service = shizukuService();
+        String error;
+        try {
+            error = service.launch("component", 3);
+        } catch (Throwable launchError) {
+            error = "failed";
+        }
+        settle(error);
+    }
+}
+"""
+AIDL_CALL_IN_METHOD_THAT_DECLARES_THROWS = """
+package com.nextvr.app.apps;
+class Declared {
+    void release() throws RemoteException {
+        IDisplayService service = shizukuService();
+        service.releaseDisplay(3);
+    }
+}
+"""
+AIDL_CALL_IN_FINALLY = """
+package com.nextvr.app.apps;
+class Released {
+    void release() {
+        IDisplayService service = shizukuService();
+        try { work(); } catch (Throwable ignored) { } finally { service.releaseDisplay(3); }
+    }
+}
+"""
+
+
+def self_test():
+    """Synthetic cases for the rules javac enforces and a syntax check cannot see.
+
+    Both of these cost a CI round each (a local shadowing another local; a call on a shell service
+    that declares RemoteException outside a try), so the behaviour of this stand-in for javac is
+    pinned down here: `python3 tools/check-java-refs.py --self-test` fails if a rule stops working.
+    """
+    cases = [
+        ('local shadows an enclosing local', SHADOWED_IN_NESTED_BLOCK, check_shadowed_locals, 1),
+        ('sibling blocks may reuse a name', SHADOWED_IN_SIBLING_BLOCKS, check_shadowed_locals, 0),
+        ('RemoteException call outside a try, inside a lambda',
+         AIDL_CALL_IN_LAMBDA_WITHOUT_TRY, check_checked_exceptions, 1),
+        ('RemoteException call inside a try', AIDL_CALL_IN_TRY, check_checked_exceptions, 0),
+        ('RemoteException call in a method that declares it',
+         AIDL_CALL_IN_METHOD_THAT_DECLARES_THROWS, check_checked_exceptions, 0),
+        ('RemoteException call in a finally without its own catch',
+         AIDL_CALL_IN_FINALLY, check_checked_exceptions, 1),
+    ]
+    failures = []
+    for name, source, check, expected in cases:
+        symbols = Symbols()
+        symbols.aidl['IDisplayService'] = {'launch': 2, 'releaseDisplay': 1}
+        symbols.files[f'<{name}>'] = source
+        try:
+            found = check(symbols)
+        except Exception as error:            # a crashed rule is a broken rule
+            failures.append(f'{name}: raised {error!r}')
+            continue
+        if len(found) != expected:
+            failures.append(f'{name}: expected {expected} problem(s), got {len(found)}: {found}')
+    for failure in failures:
+        print('self-test FAILED: ' + failure)
+    if failures:
+        return 1
+    print(f'self-test ok ({len(cases)} cases)')
+    return 0
+
+
 def main():
     symbols = Symbols()
     collect(symbols)
-    found = check_aidl(symbols) + check_calls(symbols) + check_fields(symbols) + check_shadowed_locals(symbols)
+    found = (check_aidl(symbols) + check_calls(symbols) + check_fields(symbols)
+             + check_shadowed_locals(symbols) + check_checked_exceptions(symbols))
     problems = sorted({p for p in found if not any(a in p for a in ALLOWED_MESSAGES)})
     for problem in problems:
         print(problem)
@@ -365,4 +579,6 @@ def main():
 
 
 if __name__ == '__main__':
+    if '--self-test' in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(0 if main() == 0 else 1)

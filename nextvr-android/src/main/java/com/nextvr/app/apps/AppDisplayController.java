@@ -177,7 +177,15 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     env.report("This app has no launchable activity");
                     return;
                 }
-                String error = service.launch(component, displayId);
+                String error;
+                try {
+                    error = service.launch(component, displayId);
+                } catch (Throwable launchError) {
+                    // AIDL methods declare RemoteException; the shell service going away mid-call is
+                    // reported to the window instead of escaping the worker thread.
+                    error = launchError.getMessage() == null
+                            ? launchError.getClass().getSimpleName() : launchError.getMessage();
+                }
                 sessions.settle(packageName, error == null, error);
                 input.refreshBackend(sessions.find(packageName));
                 env.sessionsChanged();

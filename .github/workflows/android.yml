@@ -37,6 +37,9 @@ jobs:
           # install fails the script says so and skips instead of pretending to have checked.
           python3 -m pip install --quiet --break-system-packages javalang 2>/dev/null || \
             python3 -m pip install --quiet --user javalang 2>/dev/null || true
+          # First the tool's own synthetic cases: a rule that quietly stopped working would report a
+          # clean tree and let the next compile error through.
+          python3 tools/check-java-refs.py --self-test
           python3 tools/check-java-refs.py
           npm test
           npm run build:ui

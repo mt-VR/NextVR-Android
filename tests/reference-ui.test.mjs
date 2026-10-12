@@ -6,7 +6,9 @@ import { chromium } from '@playwright/test';
 import bundledChromium from '@sparticuz/chromium';
 import * as THREE from 'three';
 
-test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:90000}, async (t) => {
+// CI runs this on a software renderer: the whole flow (boot, windows, hand input, keyboard, Android
+// app windows) needs real seconds per step, so the budget is generous on purpose — a hang still fails.
+test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:180000}, async (t) => {
   const base = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
   const server=createServer(async(req,res)=>{
     try {
@@ -463,7 +465,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
-    await page.evaluate(()=>new Promise(r=>setTimeout(r,700)));   // the library repaints its badges
+    // The library and the dock repaint their badges when the session list changes: wait for the
+    // paint instead of sleeping, which is both faster and stable on a slow renderer.
+    await page.waitForFunction(()=>{
+      const open=document.querySelector('.az-tile[data-pkg="org.example.notes"] .az-open');
+      const badge=document.querySelector('.dock [data-id="android"] .dock-badge');
+      return !!open&&badge?.textContent?.trim()==='1';
+    },null,{timeout:12000});
     assert.equal(await page.locator('.az-tile[data-pkg="org.example.notes"] .az-open').count(),1,
       'the library marks the app that is open in a window');
     assert.equal(await page.locator('.dock [data-id="android"] .dock-badge').innerText(),'1',
