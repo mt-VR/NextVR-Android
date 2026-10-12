@@ -14,8 +14,8 @@ git show origin/apk-dist:dist/app-debug.apk > app-debug.apk
 adb install -r app-debug.apk
 ```
 
-Build de depuração, `versionCode` 4 / `versionName` 1.0.3, 48.021.916 bytes,
-`md5 a83c09f86607d006369e8caa2922e240` (`md5sum app-debug.apk` para conferir). É o APK que o próprio
+Build de depuração, `versionCode` 4 / `versionName` 1.0.3, 48.021.996 bytes,
+`md5 2b7832b2730e0c384407929180731a56` (`md5sum app-debug.apk` para conferir). É o APK que o próprio
 CI gerou do commit da rodada 3 deste PR, não uma build local.
 
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/

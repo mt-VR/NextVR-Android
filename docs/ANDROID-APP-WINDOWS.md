@@ -454,11 +454,11 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 3): Node **81/81** (incluindo o teste de integração em Chromium, que
-aqui roda de verdade), testes JVM **121 em 18 classes, 0 falhas** (48 nas seis classes de `apps/`),
-bundle conferido por `git diff --exit-code`. O APK de depuração sai do próprio job de build e é
-publicado no branch `apk-dist` como `dist/app-debug.apk` (48.021.916 bytes,
-`md5 a83c09f86607d006369e8caa2922e240`, `versionCode` 4); é essa a build para instalar no aparelho.
+Estado no CI (verde, rodada 3, `0392fbc`): Node **81/81** (incluindo o teste de integração em
+Chromium, que no CI roda de verdade), testes JVM **121 em 18 classes, 0 falhas** (48 nas seis classes
+de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai do próprio job de
+build e é publicado no branch `apk-dist` como `dist/app-debug.apk` (48.021.996 bytes,
+`md5 2b7832b2730e0c384407929180731a56`, `versionCode` 4); é essa a build para instalar no aparelho.
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
