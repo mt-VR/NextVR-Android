@@ -36,12 +36,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * from inside VR happens, but not twice a second.
  *
  * <h2>Icons</h2>
- * Real icons, not generated placeholders: {@link ResolveInfo#loadIcon} renders each app's own
- * {@link Drawable} (adaptive icons included) into a 128 px PNG in {@code cacheDir/appicons}, served to
- * the shell WebView under {@code /apps/<file>}. Rendering is done a few at a time on one
- * background thread and the shell is told when a batch lands, so opening the library never blocks on
- * two hundred icon decodes — the tiles fill in as they are ready and keep their app's colour until
- * then.
+ * Real icons, not generated placeholders: {@code PackageManager#getActivityIcon} renders each app's own
+ * {@link Drawable} (adaptive icons included) into a 144 px PNG in {@code cacheDir/appicons}, served to
+ * the shell WebView under {@code /apps/<file>}. Rendering is done a few at a time on one background
+ * thread, the whole library is warmed up at boot and {@link #iconEpoch()} moves when a batch lands, so
+ * opening the menu never blocks on two hundred icon decodes and a tile that was drawn before its icon
+ * existed is drawn again instead of keeping the placeholder.
  */
 public final class AndroidAppManager {
     private static final String TAG = "NextVR-Apps";
@@ -80,13 +80,14 @@ public final class AndroidAppManager {
      * letter placeholders forever: the icon files existed, the tiles had been drawn with
      * {@code icon:null}, and nothing asked the native side again.
      */
-    private final java.util.concurrent.atomic.AtomicInteger icons = new java.util.concurrent.atomic.AtomicInteger(1);
+    private final java.util.concurrent.atomic.AtomicInteger iconBatches =
+            new java.util.concurrent.atomic.AtomicInteger(1);
 
     public AndroidAppManager(Context context) {
         this.context = context.getApplicationContext();
     }
 
-    /** Where the icon PNGs live; the shell WebView serves this directory as {@code /icons/app/}. */
+    /** Where the icon PNGs live; the shell WebView serves this directory under {@code /apps/}. */
     public static File iconDirectory(Context context) {
         File directory = new File(context.getCacheDir(), "appicons");
         if (!directory.exists() && !directory.mkdirs()) Log.w(TAG, "could not create " + directory);
@@ -105,11 +106,11 @@ public final class AndroidAppManager {
     /** Forces the next {@link #apps()} to re-query the package manager. */
     public synchronized void invalidate() {
         cachedAt = 0;
-        icons.incrementAndGet();
+        iconBatches.incrementAndGet();
     }
 
-/** How many times the set of rendered icons has changed; the shell re-reads the grid when it moves. */
-    public int iconEpoch() { return icons.get(); }
+    /** How many times the set of rendered icons has changed; the shell re-reads the grid when it moves. */
+    public int iconEpoch() { return iconBatches.get(); }
 
     public AppEntry find(String packageName) {
         if (packageName == null) return null;
@@ -219,7 +220,7 @@ public final class AndroidAppManager {
     }
 
     private void notifyIcons() {
-        icons.incrementAndGet();
+        iconBatches.incrementAndGet();
         Runnable listener = onIconsReady;
         if (listener != null) listener.run();
     }
