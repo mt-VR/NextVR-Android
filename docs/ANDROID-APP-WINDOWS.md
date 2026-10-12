@@ -350,7 +350,9 @@ Estado no CI (verde, `10c875b`): Node **79/79**, testes JVM **121 em 18 classes,
 do próprio job de build e é publicado no branch `apk-dist` como `dist/app-debug.apk` (~46 MB,
 `versionCode` 4); é essa a build para instalar no aparelho.
 
-Só pode ser validado em aparelho (e é o que o PR reporta como não validado):
+Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
+ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
+lista abaixo é o resumo:
 
 1. Abrir um app real e ver a interface dele na janela.
 2. Tocar em um app com a mão e ver a reação dele (não do NextVR).
