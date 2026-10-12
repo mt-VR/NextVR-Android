@@ -17,7 +17,7 @@
 // window bar are the whole interface, and a failure names its reason instead of leaving a blank
 // window (see sessionError).
 import { t, toast, on, emit, native } from './core.js';
-import { open, close, wins, keyboard } from './windows.js';
+import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
 
@@ -38,7 +38,9 @@ const state = {
 };
 // `version` is the native side's icon revision: when it moves, an icon that was still being rendered
 // has landed and the grid has to be read again, or the tiles keep their letter placeholders.
-const library = { apps: [], shown: 0, total: 0, loaded: false, query: '', showSystem: false, version: 0 };
+// `icons` is the native side's icon-batch counter: when it moves, a tile that was drawn before its
+// icon existed has to be drawn again (see applyState).
+const library = { apps: [], shown: 0, total: 0, loaded: false, query: '', showSystem: false, icons: 0 };
 const live = new Map();          // package -> { win, surface, status, bar }
 const suppress = new Set();      // windows we closed ourselves: their close is not a user action
 let syncTimer = 0, lastSync = '';
@@ -71,8 +73,11 @@ export function applyState(json) {
   state.launch = next.launch || null;
   // The native side bumps `library` when a batch of icons lands (or the app list changed): drop the
   // cached grid so the next paint asks for it again and the real launcher icons appear.
-  if (next.library && next.library !== library.version) {
-    library.version = next.library;
+  if (next.icons != null && next.icons !== library.icons) {
+    // A batch of icons landed. The cached list carries the icon URLs of the moment it was read, so it
+    // has to be read again — this is what makes the real launcher icons appear on the tiles without
+    // restarting the app.
+    library.icons = next.icons;
     library.loaded = false;
   }
   reconcile();
@@ -261,6 +266,8 @@ export function loadLibrary(force) {
     library.apps = Array.isArray(data.apps) ? data.apps : [];
     library.shown = data.shown || library.apps.length;
     library.total = data.total || library.apps.length;
+    // The batch this list was read at: a later state with the same number changes nothing.
+    library.icons = data.icons || library.icons;
   } catch (error) {
     library.apps = [];
   }
@@ -388,6 +395,16 @@ export function androidTileHtml(app) {
 }
 
 /** Session state of an app, for the tile badge and for the click decision. */
+/**
+ * Brings an app's window forward on this side. The native side focuses the session itself — one
+ * `open` command does focus, restore, restart or open, whichever that session needs — so this only
+ * moves the shell's window to the front when the window is already in the arc.
+ */
+export function focusAppWindow(pkg) {
+  const entry = live.get(pkg);
+  if (entry) focus(entry.win);
+}
+
 export function stateOf(pkg) { return sessionOf(pkg); }
 
 /** How many app windows are open (hosted or captured). Shown on the dock's library tile. */

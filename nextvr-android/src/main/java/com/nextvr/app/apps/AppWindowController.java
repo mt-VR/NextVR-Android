@@ -97,6 +97,7 @@ public final class AppWindowController {
             json.put("capacity", AppSessionManager.DEFAULT_CAPACITY);
             json.put("query", options.query);
             json.put("showSystem", showSystem);
+            json.put("icons", apps.iconEpoch());
             json.put("singleAppCapture", AppDisplayController.supportsSingleAppCapture());
         } catch (Exception error) {
             return "{\"apps\":[],\"error\":" + quote(error.getMessage()) + "}";
@@ -150,9 +151,10 @@ public final class AppWindowController {
             for (String id : apps.recents()) recents.put(id);
             json.put("recents", recents);
             json.put("capacity", AppSessionManager.DEFAULT_CAPACITY);
-            // The shell re-reads the app grid when this moves: that is how icons appear on the tiles
-            // after the native side has rendered them, without polling.
-            json.put("library", apps.libraryVersion());
+            // How many times the rendered icons changed. The shell re-reads the app grid when this
+            // moves, which is how a tile drawn before its icon existed gets the real one — without
+            // polling and without rebuilding the menu.
+            json.put("icons", apps.iconEpoch());
             json.put("sdk", AndroidAppManager.sdk());
             json.put("launch", displays.launchBackend() == null ? JSONObject.NULL : displays.launchBackend());
         } catch (Exception error) {

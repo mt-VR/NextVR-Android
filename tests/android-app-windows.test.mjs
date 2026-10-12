@@ -206,22 +206,38 @@ test('the app icons are served by the shell from the same directory that writes 
  */
 test('a batch of finished icons makes the shell read the grid again', async () => {
   const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
-  assert.match(manager, /public int libraryVersion\(\)/);
-  assert.match(manager, /private void notifyIcons\(\) \{\s*version\.incrementAndGet\(\);/,
-    'a batch that landed moves the revision');
+  assert.match(manager, /public int iconEpoch\(\)/);
+  assert.match(manager, /private void notifyIcons\(\) \{\s*icons\.incrementAndGet\(\);/,
+    'a batch that landed moves the counter');
   assert.match(manager, /private static final int ICON_PX = 144;/, 'one size covers grid, dock and title');
+  assert.match(manager, /public void warmIcons\(\)/,
+    'the icons are rendered before the menu is opened, not while the user is looking at it');
+  assert.match(manager, /getActivityIcon\(component\)/,
+    'one direct call per app instead of a package query per app');
+  const activity = await read(JAVA.activity);
+  assert.match(activity, /androidApps\.warmIcons\(\)/, 'and the shell starts that at boot');
 
   const window = await read(JAVA.window);
-  assert.match(window, /json\.put\("library", apps\.libraryVersion\(\)\)/,
-    'the revision travels in the state the shell already polls');
+  assert.match(window, /json\.put\("icons", apps\.iconEpoch\(\)\)/,
+    'the counter travels in the state the shell already polls');
+  const library = window.slice(window.indexOf('public String libraryJson'));
+  assert.ok(library.includes('item.put("icon", icon == null ? JSONObject.NULL : "/apps/" + icon.getName())'),
+    'and each entry carries the icon URL, or null while it is still being rendered');
+
+  const surface = await read(JAVA.webSurface);
+  assert.match(surface, /Cache-Control","no-store, must-revalidate"/,
+    'a file that is not there yet is not cached: the next paint has to see it');
 
   const web = await read(WEB.androidApps);
-  assert.match(web, /if \(next\.library && next\.library !== library\.version\)/);
-  assert.match(web, /library\.loaded = false;/);
+  assert.match(web, /if \(next\.icons != null && next\.icons !== library\.icons\)/);
+  assert.match(web, /library\.loaded = false;/, 'the cached grid is dropped, so the icons are re-read');
+  assert.match(web, /library\.icons = data\.icons \|\| library\.icons;/);
   assert.match(web, /state\.launch = next\.launch \|\| null;/);
 
   const appsJs = await read(WEB.apps);
   assert.match(appsJs, /loadAndroidLibrary\(false\)/, 'the grid asks for the installed apps when it paints');
+  assert.match(appsJs, /if \(winBody\('library'\)\) paintLibrary\(\);/,
+    'and it repaints whenever it is open, not only while it has the focus');
 });
 
 test('the default app window asks for the body the app picture really occupies', async () => {
@@ -427,7 +443,10 @@ test('the installed apps live inside the existing Applications menu', async () =
   assert.match(appsJs, /x\.kind === 'android' \? androidTileHtml\(x\.app\) : appTile\(x\)/,
     'and the same grid draws them');
   assert.match(appsJs, /c\('\[data-android\]'\)/, 'a tap is handled by the same delegator');
-  assert.match(appsJs, /if \(session\) return;/, 'an app that is already open is focused, not opened twice');
+  assert.match(appsJs, /openApp\(pkg, ANDROID_BOX\);\s*focusAppWindow\(pkg\);/,
+    'the tap is one action: the native side decides, the shell only brings an open window forward');
+  assert.ok(!/static final String MIRROR_PACKAGE/.test(await read(JAVA.display)),
+    'there is no pseudo-package for the capture any more: it belongs to the app');
   assert.match(appsJs, /androidRecent\(x\.pkg\)/, 'the native recent list feeds the Recentes filter');
   assert.match(appsJs, /const notice = shizukuNotice\(\);/,
     'the only Android-specific row is the one that explains the current mechanism');

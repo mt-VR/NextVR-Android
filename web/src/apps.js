@@ -5,7 +5,7 @@ import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
-  androidRecentIndex, restoreApp, ANDROID_BOX, openWindowCount, stateOf,
+  androidRecentIndex, focusAppWindow, ANDROID_BOX, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -780,12 +780,12 @@ function buildLibrary() {
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
+      // One action, one owner of the decision: the native side focuses a window that is already
+      // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
+      // shell only brings an existing window forward so the tap always ends on the app.
       const pkg = m.dataset.android;
-      const session = stateOf(pkg);
-      if (session && session.state === 'suspended') return restoreApp(pkg);
-      if (session && session.state === 'failed') return restoreApp(pkg);
-      if (session) return;                                  // already open: its window is the focus
       openApp(pkg, ANDROID_BOX);
+      focusAppWindow(pkg);
       return;
     }
     if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`Abrindo ${g.name}… (demonstração)`); return; }

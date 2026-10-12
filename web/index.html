@@ -445,7 +445,9 @@
      PackageManager devolveu (servido pelo lado nativo em /apps/<arquivo>.png) sobre um fundo neutro.
      Sem ícone ainda — ou sem ícone legível — a capa mostra as iniciais do app, como os apps da web. */
   .lib-tile.android .lib-cover{background:rgba(255,255,255,.07)}
-  .lib-app-icon{position:relative;z-index:1;width:56px;height:56px;object-fit:contain;
+  /* 52 px: the same box the web apps' logos use in this grid (see .lib-brand img.logo), so an
+     installed app and a NextVR app are drawn at the same size next to each other. */
+  .lib-app-icon{position:relative;z-index:1;width:52px;height:52px;object-fit:contain;
     filter:drop-shadow(0 3px 8px rgba(0,0,0,.4))}
   /* O nome nunca aparece sobre o ícone; as iniciais são o que fica no lugar quando ele não veio. */
   .lib-tile.android .lib-brand .nm{display:none}

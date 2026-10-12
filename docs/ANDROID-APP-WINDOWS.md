@@ -130,12 +130,18 @@ certo.
 
 * **Ícones reais**: `AndroidAppManager` grava o ícone do `PackageManager` em PNG 144 px
   (`ICON_PX`), com nome derivado de `pacote + versionCode + componente` — atualizar o app gera outro
-  arquivo, então o cache do WebView (`max-age=86400`) nunca serve o ícone velho.
-* **Sempre visíveis**: o lado nativo publica uma revisão da biblioteca (`libraryVersion()`), que sobe
-  quando um lote de ícones termina; o shell reconhece (`library` no JSON de estado) e relê a grade.
-  Antes, a grade era montada uma vez, durante a renderização, e os tiles ficavam com as iniciais para
-  sempre. Se um ícone não puder ser lido, o tile mostra as iniciais do app (`onerror` → `.noicon`) —
-  nunca uma imagem quebrada.
+  arquivo, então o cache do WebView (`max-age=86400`) nunca serve o ícone velho. Cada ícone é uma
+  chamada direta (`getActivityIcon(component)`), não uma consulta de pacote por app, e a biblioteca
+  é aquecida no boot (`warmIcons()`), para o primeiro paint já ter os ícones em vez de preenchê-los
+  enquanto o usuário olha para o menu.
+* **Sempre visíveis**: o lado nativo publica um contador de lotes (`iconEpoch()`), que sobe quando um
+  lote de ícones termina e viaja no JSON de estado (`icons`); quando ele muda, o shell descarta a
+  lista em cache e relê a grade. Antes, a grade era montada uma vez durante a renderização e ficava
+  com as iniciais para sempre — era exatamente o relato "nenhum ícone aparece". O arquivo que ainda
+  não existe responde 404 **sem cache** (`no-store, must-revalidate`), para a próxima leitura
+  encontrá-lo; e se um ícone não puder ser lido, o tile mostra as iniciais do app (`onerror` →
+  `.noicon`) — nunca uma imagem quebrada. O ícone é desenhado em 52 px, a mesma caixa dos logos dos
+  apps da web na grade.
 * **Sem página separada**: os apps instalados são tiles do menu de aplicações que já existia — mesma
   grade, mesma busca, mesma ordenação, mesma `data-*` de clique. A entrada `data-nav="android"` da
   trilha, o tile da dock e o botão *Espelhar* foram removidos, junto com o CSS `.az-*`/`.az-mirror`.

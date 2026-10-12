@@ -124,6 +124,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appWindows=new AppWindowController(this,androidApps,shizuku,appSessions,appDisplays,appInput,shellEnvironment);
         appSessions.setListener(appWindows::onSessionsChanged);
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
+        // The icons are rendered in the background anyway; starting now means the first paint of the
+        // Applications menu already has them instead of filling in after the user is looking at it.
+        androidApps.warmIcons();
         shizuku.start(appWindows::onShizukuChanged);
         camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
             @Override public void frame(android.graphics.Bitmap bitmap) {

@@ -152,7 +152,19 @@ final class WebSurface {
             return new WebResourceResponse(mime,null,200,"OK",headers,new FileInputStream(file));
         } catch(Exception e) { return denied(); }
     }
-    private static WebResourceResponse denied() { return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",new HashMap<>(),new ByteArrayInputStream(new byte[0])); }
+    /**
+     * The answer for a file the shell asked for and the app does not have (yet).
+     *
+     * <p>It is explicitly uncacheable: the icons are rendered in the background and a request can
+     * arrive one frame before the file does. A cached 404 would make that icon stay missing for the
+     * rest of the session, which is exactly the "some tiles have no icon" report.
+     */
+    private static WebResourceResponse denied() {
+        Map<String,String> headers=new HashMap<>();
+        headers.put("Cache-Control","no-store, must-revalidate");
+        headers.put("Pragma","no-cache");
+        return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",headers,new ByteArrayInputStream(new byte[0]));
+    }
     void evaluate(String script) { if(!released) web.evaluateJavascript(script,null); }
     /** Injeta no WebView somente o contato espacial já validado pelo pipeline PhoneXR. */
     void dispatchHandEvent(int action,float x,float y) {

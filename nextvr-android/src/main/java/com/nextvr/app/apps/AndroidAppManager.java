@@ -80,8 +80,7 @@ public final class AndroidAppManager {
      * letter placeholders forever: the icon files existed, the tiles had been drawn with
      * {@code icon:null}, and nothing asked the native side again.
      */
-    private final java.util.concurrent.atomic.AtomicInteger version =
-            new java.util.concurrent.atomic.AtomicInteger(1);
+    private final java.util.concurrent.atomic.AtomicInteger icons = new java.util.concurrent.atomic.AtomicInteger(1);
 
     public AndroidAppManager(Context context) {
         this.context = context.getApplicationContext();
@@ -106,11 +105,11 @@ public final class AndroidAppManager {
     /** Forces the next {@link #apps()} to re-query the package manager. */
     public synchronized void invalidate() {
         cachedAt = 0;
-        version.incrementAndGet();
+        icons.incrementAndGet();
     }
 
-    /** The library revision the shell compares against to know when to re-read the grid. */
-    public int libraryVersion() { return version.get(); }
+/** How many times the set of rendered icons has changed; the shell re-reads the grid when it moves. */
+    public int iconEpoch() { return icons.get(); }
 
     public AppEntry find(String packageName) {
         if (packageName == null) return null;
@@ -167,6 +166,20 @@ public final class AndroidAppManager {
     public void setIconBatchDone(Runnable listener) { this.onIconsReady = listener; }
 
     /**
+     * Renders the whole library's icons before the user opens the menu, off the main thread.
+     *
+     * <p>The query and the decodes used to happen only when the grid asked for the list, so the first
+     * paint always happened while the icons were still being written: the tiles were drawn without
+     * them and the placeholders only disappeared after the batch push and a re-read. Warming up at
+     * startup means the first paint already has them.
+     */
+    public void warmIcons() {
+        try {
+            icons.execute(() -> scheduleIcons(apps()));
+        } catch (RejectedExecutionException stopped) { }
+    }
+
+    /**
      * Renders the icons that are missing yet, a batch at a time, off the main thread. Calling it on
      * every library refresh is fine: the queue is coalesced and finished/failed keys are skipped.
      */
@@ -206,18 +219,28 @@ public final class AndroidAppManager {
     }
 
     private void notifyIcons() {
-        version.incrementAndGet();
+        icons.incrementAndGet();
         Runnable listener = onIconsReady;
         if (listener != null) listener.run();
     }
 
     private boolean render(PackageManager manager, AppEntry app, File target) {
         try {
-            Intent intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                    .setPackage(app.packageName);
-            List<ResolveInfo> resolved = manager.queryIntentActivities(intent, 0);
-            if (resolved == null || resolved.isEmpty()) return false;
-            Drawable drawable = resolved.get(0).loadIcon(manager);
+            Drawable drawable = null;
+            // One direct call per app, not a package query per app: the component is already known,
+            // and a library of two hundred apps is rendered in the time twenty used to take.
+            android.content.ComponentName component = android.content.ComponentName.unflattenFromString(app.component);
+            if (component != null) {
+                try { drawable = manager.getActivityIcon(component); } catch (Throwable ignored) { }
+            }
+            if (drawable == null) {
+                // The component string can be stale (the app was updated while its icon was queued);
+                // resolving the launcher activity again is the fallback that still finds it.
+                Intent intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        .setPackage(app.packageName);
+                List<ResolveInfo> resolved = manager.queryIntentActivities(intent, 0);
+                if (resolved != null && !resolved.isEmpty()) drawable = resolved.get(0).loadIcon(manager);
+            }
             if (drawable == null) return false;
             Bitmap bitmap = Bitmap.createBitmap(ICON_PX, ICON_PX, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
