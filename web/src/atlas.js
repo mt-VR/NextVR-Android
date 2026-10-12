@@ -91,6 +91,10 @@ export class AtlasRenderer {
         panels.push({ browser: 'app:' + a.dataset.nativeApp, matrix: m.toArray(),
           rect: [0, 0, Math.round(box.width), Math.round(box.height)], curve: +(e.dataset.curve || 0),
           uv: [fit.u0, fit.v0, fit.uw, fit.vh] });
+        // Published back so the shell (and the tests) can see the crop the shader was given. Only
+        // written when it changes: this runs inside the frame loop.
+        const crop = [fit.u0, fit.v0, fit.uw, fit.vh].map(n => n.toFixed(5)).join(',');
+        if (a.dataset.uv !== crop) a.dataset.uv = crop;
       }
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();

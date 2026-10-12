@@ -29,7 +29,18 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          (npm ci && python3 tools/check-java-refs.py && npm test && npm run build:ui && git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
+          (set -e
+          npm ci
+          # Reference check of the Android sources (no JDK on this step): it catches renamed methods,
+          # changed arities, accessed fields that do not exist and AIDL transactions without an
+          # implementation. Installed here because the runner image does not carry javalang; if the
+          # install fails the script says so and skips instead of pretending to have checked.
+          python3 -m pip install --quiet --break-system-packages javalang 2>/dev/null || \
+            python3 -m pip install --quiet --user javalang 2>/dev/null || true
+          python3 tools/check-java-refs.py
+          npm test
+          npm run build:ui
+          git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4

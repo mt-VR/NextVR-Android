@@ -101,8 +101,12 @@ test('the app picture is fitted and the touch is normalized against the same rec
   const windows = await read(WEB.windows);
   assert.match(windows, /appHostPoint\(app\.offsetWidth, app\.offsetHeight,/);
   const web = await read(WEB.androidApps);
-  assert.match(web, /entry\.surface\.dataset\.uv = /,
-    'the window publishes the crop the shader must sample');
+  assert.match(web, /entry\.surface\.dataset\.aspect = /,
+    'the shell tells the compositor the shape of the app display');
+  assert.match(atlas, /a\.dataset\.uv = crop/,
+    'the compositor publishes the crop it sampled, so the touch can be checked against it');
+  assert.match(atlas, /if \(a\.dataset\.uv !== crop\)/,
+    'publishing the crop inside the frame loop must not touch the DOM every frame');
   const java = await read(JAVA.input);
   assert.match(java, /AppInputGeometry\.toDisplayX\(/);
   assert.match(java, /AppInputGeometry\.forRotation\(/,

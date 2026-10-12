@@ -8,13 +8,18 @@
 //    receives real input events. Its body element carries data-native-app and no DOM inside is
 //    interactive: everything the user does there is forwarded as touches/keys to the app.
 import { t, toast, on, emit, native } from './core.js';
-import { open, close, wins, focus, keyboard } from './windows.js';
+import { open, close, wins, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
 
 export const MIRROR = 'nextvr.screen';
 const SYNC_MS = 400;
 const CAPACITY = 3;
+// Default window body: windows.js opens every app window at 1040x660, of which the 62 px title bar
+// is not part of the app's picture. Sending the body size means the display is created at the shape
+// it will actually be shown in, so the first frames are not letterboxed and then resized.
+const DEFAULT_W = 1040;
+const DEFAULT_H = 598;
 
 const state = {
   sessions: [],
@@ -115,11 +120,10 @@ function updateWindow(session) {
   const entry = live.get(session.pkg);
   if (!entry) return;
   const display = session.display || {};
+  // The compositor reads this attribute every frame: it sizes the texture slot and fits the picture
+  // inside the window body without stretching it, and the touch is normalized against that same
+  // fitted rectangle. The crop it computes is published back on `data-uv` (see atlas.js).
   entry.surface.dataset.aspect = String(display.aspect || 16 / 9);
-  const fit = fitDisplay(entry.surface.offsetWidth || 1, entry.surface.offsetHeight || 1, display.aspect);
-  // The panel is emitted by atlas.js from these two attributes: the crop keeps the picture
-  // unstretched and the state overlay is only shown over the picture, never over the bars.
-  entry.surface.dataset.uv = [fit.u0, fit.v0, fit.uw, fit.vh].map(n => n.toFixed(5)).join(',');
   const states = {
     requested: t('appStarting'), creating: t('appStarting'), launching: t('appStarting'),
     running: '', failed: session.error ? sessionError(session) : t('appFailed'),
@@ -175,12 +179,11 @@ on('wins', () => {
 
 export function openApp(pkg, box) {
   if (!pkg) return;
-  const w = (box && box.w) || 1040, h = (box && box.h) || 616;
-  command({ cmd: 'open', pkg, w, h });
+  command({ cmd: 'open', pkg, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
 }
 
 export function openPhoneMirror(box) {
-  command({ cmd: 'open', pkg: MIRROR, w: (box && box.w) || 1040, h: (box && box.h) || 616 });
+  command({ cmd: 'open', pkg: MIRROR, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
 }
 
 export function closeApp(pkg) { command({ cmd: 'close', pkg }); }

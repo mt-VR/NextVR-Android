@@ -66,9 +66,11 @@
             android:exported="true"
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-        <!-- Required by Shizuku's provider so apps built against an older Shizuku still hand the
-             binder to the client instead of refusing the call. Without it, pingBinder() stays false
-             even with Shizuku running. -->
+        <!-- The Shizuku provider library declares this meta-data in its own manifest as well; it is
+             repeated here so the requirement stays visible in this repository (it is what makes an
+             app built against an older Shizuku receive the binder instead of a refusal — without it
+             pingBinder() stays false even with Shizuku running). The provider element above, unlike
+             this meta-data, can only come from the app: the authority must be the application id. -->
         <meta-data
             android:name="moe.shizuku.client.V3_SUPPORT"
             android:value="true" />

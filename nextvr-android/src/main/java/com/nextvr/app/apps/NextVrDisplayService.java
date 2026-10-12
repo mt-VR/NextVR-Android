@@ -147,7 +147,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
                     "--activity-clear-task", "-a", "android.intent.action.MAIN", "-c",
                     "android.intent.category.LAUNCHER", "-n", component);
             builder.redirectErrorStream(true);
-            Process process = builder.start();
+            java.lang.Process process = builder.start();
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
@@ -193,7 +193,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
     @Override public boolean processAlive(String packageName) {
         if (packageName == null || packageName.isEmpty()) return false;
         try {
-            Process process = new ProcessBuilder("pidof", packageName).redirectErrorStream(true).start();
+            java.lang.Process process = new ProcessBuilder("pidof", packageName).redirectErrorStream(true).start();
             boolean found = false;
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line = reader.readLine();

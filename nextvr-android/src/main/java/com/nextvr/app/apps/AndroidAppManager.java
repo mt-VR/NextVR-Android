@@ -240,11 +240,14 @@ public final class AndroidAppManager {
                     || (application.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
             String component = new android.content.ComponentName(packageName, info.activityInfo.name)
                     .flattenToShortString();
-            long versionCode = application.versionCode;
-            if (android.os.Build.VERSION.SDK_INT >= 28) {
-                try { versionCode = manager.getPackageInfo(packageName, 0).getLongVersionCode(); }
-                catch (Throwable ignored) { }
-            }
+            // Only used as the icon cache key, so the deprecated int is enough on API 26/27 and the
+            // long form is used where it exists.
+            long versionCode = 0;
+            try {
+                android.content.pm.PackageInfo info = manager.getPackageInfo(packageName, 0);
+                versionCode = android.os.Build.VERSION.SDK_INT >= 28
+                        ? info.getLongVersionCode() : info.versionCode;
+            } catch (Throwable ignored) { }
             result.add(new AppEntry(packageName, label == null ? packageName : label.toString(),
                     system, component, versionCode));
         }

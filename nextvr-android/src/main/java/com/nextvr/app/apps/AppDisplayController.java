@@ -312,8 +312,9 @@ public final class AppDisplayController implements AppSessionManager.Host {
                 Surface surface = new Surface(texture);
                 surfaces.put(MIRROR_PACKAGE, surface);
                 try {
+                    // Signature order matters: (name, width, height, dpi, flags, surface, callback, handler).
                     mirrorDisplay = projection.createVirtualDisplay("NextVR screen", width, height, density,
-                            surface, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, null, null);
+                            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null);
                 } catch (Throwable error) {
                     sessions.settle(MIRROR_PACKAGE, false, "mirror_failed");
                     env.report("Screen mirroring failed: " + error.getMessage());
@@ -362,14 +363,37 @@ public final class AppDisplayController implements AppSessionManager.Host {
         }
 
         /**
-         * Android 14+ reports the size of what is actually being captured. That is what the VR window
-         * fits its picture to, and the reason a "share one app" session is not stretched: the window
-         * letterboxes it exactly like the system does.
+         * Android 14+ reports the size of what is actually being captured ("share one app" reports
+         * that app's window). The platform's own recipe for this callback is applied here: resize the
+         * virtual display, move the buffer to the new size and hand the display a surface built from
+         * the same texture. Without it the framework would letterbox the content inside a picture the
+         * VR window then scales up again, and the touch would be aimed at the wrong pixels.
          */
         @Override public void onCapturedContentResize(int width, int height) {
             AppSession session = sessions.find(MIRROR_PACKAGE);
-            if (session != null && width > 0 && height > 0)
-                sessions.markDisplayChanged(MIRROR_PACKAGE, width, height, 0);
+            if (session == null || width <= 0 || height <= 0) return;
+            if (Math.abs(width - session.width) <= 1 && Math.abs(height - session.height) <= 1) return;
+            final int density = session.density <= 0 ? 240 : session.density;
+            Surface previous = surfaces.get(MIRROR_PACKAGE);
+            SurfaceTexture texture = textures.get(MIRROR_PACKAGE);
+            VirtualDisplay display = mirrorDisplay;
+            try {
+                if (texture != null) texture.setDefaultBufferSize(width, height);
+                if (display != null) {
+                    display.resize(width, height, density);
+                    if (texture != null) {
+                        Surface surface = new Surface(texture);
+                        surfaces.put(MIRROR_PACKAGE, surface);
+                        display.setSurface(surface);
+                        if (previous != null) previous.release();
+                    }
+                }
+            } catch (Throwable error) {
+                // An older surface is still attached; the picture keeps working with the old size.
+                env.report("The mirrored picture could not be resized: " + error.getMessage());
+            }
+            sessions.markDisplayChanged(MIRROR_PACKAGE, width, height, 0);
+            env.sessionsChanged();
         }
     };
 

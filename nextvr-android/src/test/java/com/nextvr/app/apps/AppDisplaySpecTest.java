@@ -58,10 +58,11 @@ public class AppDisplaySpecTest {
     }
 
     @Test public void resizedKeepsTheDensityTheAppAlreadyHad() {
-        AppDisplaySpec current = new AppDisplaySpec(1040, 616, 320);
+        AppDisplaySpec current = AppDisplaySpec.forBox(1040, 616, 320);
+        assertEquals(320, current.density);
         AppDisplaySpec next = current.resized(800, 600);
         assertEquals(320, next.density);
-        assertNotSame(current, next);
         assertEquals(800, next.height);
+        assertNotSame(current, next);
     }
 }

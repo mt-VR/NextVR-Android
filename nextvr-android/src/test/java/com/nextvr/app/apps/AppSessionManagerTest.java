@@ -130,13 +130,24 @@ public class AppSessionManagerTest {
 
     @Test public void aResizeOnlyReachesTheDisplayWhenItMatters() {
         AppSession session = openRunning("com.a");
+        // The display has to exist first: a window whose display is not up yet never resizes.
+        manager.windowResized("com.a", 1046, 616, 240);
+        assertEquals(0, countOf("resize:"));
+
+        manager.markDisplayReady("com.a", 5, 1040, 616, 240);
         int before = host.calls.size();
         manager.windowResized("com.a", 1046, 616, 240);
-        assertEquals(before, host.calls.size());
+        assertEquals("a small reshape must not interrupt the app", before, host.calls.size());
 
         manager.windowResized("com.a", 616, 1040, 240);
         assertTrue(host.calls.contains("resize:com.a"));
         assertTrue(session.height > session.width);
+    }
+
+    private int countOf(String prefix) {
+        int count = 0;
+        for (String call : host.calls) if (call.startsWith(prefix)) count++;
+        return count;
     }
 
     @Test public void aDeadAppBecomesAFailureWithAReason() {

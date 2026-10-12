@@ -786,7 +786,7 @@ function libraryApp() {
 const DK = Object.freeze({
   bell:icon('notification'), kb:icon('keyboard'), center:icon('crosshair'),
   compass:icon('compass'), store:icon('store'), people:icon('people'),
-  camera:icon('camera'), gear:icon('settings'), play:icon('play'),
+  camera:icon('camera'), gear:icon('settings'), play:icon('play'), device:icon('device'),
 });
 
 function makeDock() {
@@ -810,7 +810,7 @@ function makeDock() {
     // lançador de 9 pontos: sempre o último, abre a biblioteca
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
     // apps do Android: a mesma biblioteca, na página que lista os apps instalados no aparelho
-    { id: 'android', label: t('androidApps'), icon: './icons/nextvr-n.png', bg: 'linear-gradient(145deg,#57dfa1,#106b4a)', run: androidApps },
+    { id: 'android', label: t('androidApps'), svg: DK.device, bg: 'linear-gradient(145deg,#57dfa1,#106b4a)', run: androidApps },
   ]);
 }
 on('lang', makeDock);
