@@ -60,15 +60,109 @@ display virtual privado → `SurfaceTexture` → quad no GL). É aí que está a
   `<queries>`; sem isso, no Android 11+ a listagem volta com um punhado de apps de sistema. Este PR
   também declara (era um bug real, que só aparecia em aparelho).
 
+## Rodada 3 — o que mudou depois do teste no aparelho
+
+O relato foi direto: **“espelhamento não suportado”** e nenhum app abrindo numa janela. A causa não
+era uma API faltando, era um caminho único:
+
+1. A decisão de *como* abrir o app estava no shell, e o caminho hospedado era o único que o clique do
+   tile pedia. Sem Shizuku, `start()` respondia `shizuku_unavailable` e a janela ficava vazia.
+2. A única alternativa (a captura) existia escondida numa **página separada** de apps Android,
+   alcançável por um botão *Espelhar* em cada tile, atrás de um *tile* na dock que ninguém sabia que
+   existia. Ou seja: a função existia, o caminho até ela não.
+3. A captura era tratada como um modo especial (“tela do celular”), com um pseudo-pacote
+   `nextvr.screen` — não como *o app que o usuário pediu*, capturado.
+
+Nesta rodada a arquitetura passou a ser: **o usuário pede um app, o lado nativo escolhe o
+mecanismo**. Nada mais é escolha do usuário, e nenhum dos três mecanismos é apresentado como se
+fosse outro:
+
+| Mecanismo | Quando é usado | O que o usuário vê |
+| --- | --- | --- |
+| **Execução nativa da atividade** | sempre que um app precisa rodar em algum lugar: abrir no celular, ou subir o app no display hospedado | o app real, na tela do celular ou no display |
+| **Janela de desktop (display próprio)** | quando o serviço shell está disponível (`canHost()`) | rótulo `APP DO ANDROID`; é a atividade real em um display dedicado |
+| **Captura de tela** | quando não há serviço shell | rótulo `ESPELHO DA TELA`; é o vídeo da tela do celular com o app nela, e o toque vai pela acessibilidade |
+
+### Por que a captura é o caminho sem privilégio (e o AOSP confirma)
+
+O ponto de dúvida era se a atividade de *outro* processo pode ser iniciada em um display criado
+pelo app. A resposta está em `services/core/java/com/android/server/wm/ActivityTaskSupervisor.java`
+(`isCallerAllowedToLaunchOnDisplay`, Android 14.0.0_r1):
+
+* display ausente/removido ou `FLAG_REAR` → recusa;
+* **display não confiável** (criado por um app comum): exige `FLAG_ALLOW_EMBEDDED` na atividade de
+  destino **e** a permissão `ACTIVITY_EMBEDDING` (ou o UID de quem chama já estar lá) — nada disso é
+  obtenível por um app comum para a atividade de terceiros;
+* display **público e confiável** → aceito (para o dono do display, e para qualquer um quando o
+  usuário está visível nele).
+
+Daí a separação exata: um display **confiável** aceita qualquer atividade e só o `shell` pode criá-lo;
+um display criado pelo próprio app **não** hospeda app de terceiros — é um display privado, bom para
+o *próprio* conteúdo (é o que o `WebSurface` já faz com o WebView). A captura é o único mecanismo que
+mostra outro app numa janela sem identidade privilegiada, e é por isso que ela ficou, com o rótulo
+certo.
+
+### O que mudou no código
+
+* `AppWindowController.open()` decide uma vez: `canHost()` → display próprio; senão, captura do app.
+  `MIRROR_PACKAGE` e o campo `focus` **deixaram de existir**; a captura é a sessão do próprio app
+  (o mesmo `pkg` do tile, da barra e da dock), e a superfície continua sendo `app:<pacote>`.
+* Uma captura por vez (`capture_replaced`): o Android dá um consentimento por projeção; a janela que
+  está sendo substituída fecha em vez de ficar congelada no último quadro.
+* Trocar de mecanismo para o mesmo app fecha a sessão antiga (`mode_changed`), senão a sessão
+  existente responderia o próximo toque com o mecanismo com que foi criada.
+* `requestCapture(pkg)` traz o app para a tela do celular **antes** do diálogo de consentimento (o
+  usuário autoriza a captura *daquele* app), e depois sobe o serviço em primeiro plano — a ordem que
+  o Android 10+ exige para o `MediaProjection` existir.
+* `launchOnDisplay()` (`ActivityOptions.setLaunchDisplayId`) ficou como **segunda** tentativa do
+  caminho hospedado: é API pública suportada, mas um `startActivity` recusado dentro do sistema não
+  devolve erro ao chamador — a atividade simplesmente vai para a tela do celular. Por isso o `am
+  start` do serviço shell vem primeiro (ele devolve o texto do erro) e o backend usado é publicado no
+  estado (`launch`).
+* Guarda de display vazio: uma janela hospedada sem nenhum quadro depois de 15 s (o
+  `SurfaceTexture.getTimestamp()` continua 0) vira falha com `display_empty` e texto, em vez de
+  ficar preta para sempre.
+* Todas as falhas da captura liberam a **projeção inteira** (display, callback e serviço), não só a
+  notificação: uma projeção viva com um consentimento já usado faria a próxima tentativa pular o
+  diálogo e falhar de novo.
+
+### Ícones e interface
+
+* **Ícones reais**: `AndroidAppManager` grava o ícone do `PackageManager` em PNG 144 px
+  (`ICON_PX`), com nome derivado de `pacote + versionCode + componente` — atualizar o app gera outro
+  arquivo, então o cache do WebView (`max-age=86400`) nunca serve o ícone velho.
+* **Sempre visíveis**: o lado nativo publica uma revisão da biblioteca (`libraryVersion()`), que sobe
+  quando um lote de ícones termina; o shell reconhece (`library` no JSON de estado) e relê a grade.
+  Antes, a grade era montada uma vez, durante a renderização, e os tiles ficavam com as iniciais para
+  sempre. Se um ícone não puder ser lido, o tile mostra as iniciais do app (`onerror` → `.noicon`) —
+  nunca uma imagem quebrada.
+* **Sem página separada**: os apps instalados são tiles do menu de aplicações que já existia — mesma
+  grade, mesma busca, mesma ordenação, mesma `data-*` de clique. A entrada `data-nav="android"` da
+  trilha, o tile da dock e o botão *Espelhar* foram removidos, junto com o CSS `.az-*`/`.az-mirror`.
+  O que sobrou de específico é uma única linha de estado, e só enquanto o serviço shell não está
+  pronto: ela diz qual mecanismo o toque vai usar e como chegar no outro.
+* **Falha com saída**: quando a janela não pôde ser preenchida (captura recusada, display vazio,
+  serviço caindo entre a checagem e a criação), o aviso da janela oferece “Abrir no celular” — o
+  caminho que não precisa de privilégio nenhum — em vez de terminar num beco sem saída.
+
+### Limites que continuam valendo
+
+* Escolher **um app** na captura só existe do Android 14 em diante; até o 13 a captura é a tela
+  inteira. Por isso o app é trazido para a frente antes do diálogo em todas as versões.
+* No modo captura o toque depende do serviço de acessibilidade habilitado; sem ele a imagem aparece,
+  mas a mão não alcança o app (a linha de estado diz isso com essas palavras).
+* Um app protegido contra captura (`FLAG_SECURE`) aparece preto no modo captura; alguns jogos com
+  anticheat se comportam assim, e é o comportamento correto do Android — nada aqui tenta contornar.
+
 ## As duas arquiteturas, sempre separadas
 
 | | **App hospedado** (`display`) | **Espelho da tela** (`mirror`) |
 | --- | --- | --- |
 | O que a janela mostra | o app executando em um **display virtual próprio**, criado por um serviço privilegiado | o que a **tela do celular** está mostrando, capturado por `MediaProjection` |
 | O app está embutido? | **sim**: é a própria atividade em uma tela dedicada | **não**: é uma cópia do vídeo da tela |
-| Como o app é iniciado | `am start --display <id>` (com `ActivityOptions.setLaunchDisplayId` como equivalente público) | pelo atalho *Espelhar* do tile (API pública: é a mesma coisa que tocar no ícone) ou pelo próprio usuário, no celular |
+| Como o app é iniciado | `am start --display <id>`; se ele falhar, `ActivityOptions.setLaunchDisplayId` (API pública) | automaticamente, ao abrir a janela: API pública (`getLaunchIntentForPackage` + `startActivity`) traz o app para a tela e a captura começa depois do consentimento |
 | Toque | injetado **no display do app** (`InputEvent#setDisplayId` + `InputManager#injectInputEvent`) | gesto encaminhado à tela real (acessibilidade) |
-| Precisa de quê | Shizuku ativo e autorizado | consentimento de captura do Android |
+| Precisa de quê | Shizuku ativo e autorizado | consentimento de captura do Android (e acessibilidade, para o toque) |
 | Vários apps ao mesmo tempo | um display por app (até 3 janelas) | uma captura por vez |
 
 A UI mostra isso na própria janela: o rótulo da barra diz `APP DO ANDROID` na primeira e
@@ -179,19 +273,19 @@ ficarem como janelas pretas.
 
 ## Sem Shizuku: o que ainda funciona
 
-- **Espelho da tela** com consentimento do Android: imagem real, entrada pelo serviço de
-  acessibilidade (que o usuário habilita em Configurações → Acessibilidade).
-- **Espelhar um app específico**: quando o serviço shell não está disponível, cada tile da biblioteca
-  ganha o botão *Espelhar*. Ele traz o app para a tela do celular com API pública
-  (`getLaunchIntentForPackage` + `startActivity`, a mesma coisa que tocar no ícone) e abre a captura
-  — no Android 14+ o diálogo do sistema permite escolher **aquele** app. É o mais próximo de "abrir o
-  app numa janela" que existe sem privilégio, e a janela continua dizendo `ESPELHO DA TELA`, porque
-  é o que é.
-- A biblioteca, os ícones, o estado dos apps e a organização das janelas.
+- **Captura da tela com o app nela**, sem botão nenhum: tocar no tile já faz isso quando
+  `canHost()` é falso. O app é trazido para a tela do celular com API pública
+  (`getLaunchIntentForPackage` + `startActivity`, a mesma coisa que tocar no ícone) e a captura abre
+  depois do consentimento — no Android 14+ o diálogo do sistema permite escolher **aquele** app. É o
+  mais próximo de "abrir o app numa janela" que existe sem privilégio, e a janela diz
+  `ESPELHO DA TELA`, porque é o que é. O toque vai pelo serviço de acessibilidade (que o usuário
+  habilita em Configurações → Acessibilidade); sem ele a imagem aparece e a linha de estado avisa.
+- O menu de aplicações com os ícones reais, o estado dos apps e a organização das janelas.
 - Um app que falhou pode ser tentado de novo direto no tile (antes, um tile com sessão falhada ficava
   inerte e só outro app “destravava” a lista).
-- Abrir um app **hospedado** não funciona: a janela explica o motivo e aponta o passo que falta em
-  vez de falhar em silêncio.
+- Um app **hospedado** não abre sem o serviço: a janela explica o motivo e oferece “Abrir no
+  celular”, em vez de falhar em silêncio. O toque no tile nunca termina em “Shizuku não está
+  disponível” sem uma janela: a decisão do mecanismo acontece antes de a janela ser criada.
 
 ## Compatibilidade real, versão por versão
 
@@ -323,13 +417,16 @@ Automatizados (rodam no CI, sem aparelho):
 
 - `tests/app-window-fit.test.mjs` — o ajuste da imagem dentro da janela e o descarte de toques no
   letterbox (os mesmos números do teste Java correspondente).
-- `tests/android-app-windows.test.mjs` — o contrato entre as duas metades: o vocabulário de
-  comandos, os tokens de estado, o prefixo `app:<pacote>`, a rota `/apps/<ícone>`, o manifesto do
-  Shizuku, a acessibilidade e a origem única dos limites de tamanho. Na rodada 2 ganhou cinco blocos
-  que existem para impedir a volta de bugs que **só aparecem em aparelho**: o serviço em primeiro
-  plano antes do diálogo de consentimento, `registerCallback` antes de `createVirtualDisplay`, a
-  visibilidade de pacotes (`MAIN + LAUNCHER` em `<queries>`), o caminho *Espelhar* ponta a ponta e a
-  lista de permissões proibidas (a mesma que sustenta a seção de anticheat acima).
+- `tests/android-app-windows.test.mjs` (17 casos) — o contrato entre as duas metades: o vocabulário
+  de comandos, os tokens de estado, o prefixo `app:<pacote>`, a rota `/apps/<ícone>`, o manifesto do
+  Shizuku, a acessibilidade e a origem única dos limites de tamanho. Os blocos que existem para
+  impedir a volta de bugs que **só aparecem em aparelho**: o serviço em primeiro plano antes do
+  diálogo de consentimento, `registerCallback` antes de `createVirtualDisplay`, a visibilidade de
+  pacotes (`MAIN + LAUNCHER` em `<queries>`), a lista de permissões proibidas (a mesma que sustenta a
+  seção de anticheat acima) e, na rodada 3, quatro novos: a decisão única de mecanismo no lado
+  nativo (`canHost`), a revisão de ícones que faz a grade se repintar, a ausência de
+  `MIRROR_PACKAGE`/`focus`/botão *Espelhar* e a integração dos apps instalados no menu que já existia
+  (sem trilha, sem tile na dock, sem página).
 - `nextvr-android/src/test/java/…/AppSessionManagerTest.java` — o teste do redimensionamento agora
   prova as duas metades: o tamanho só muda depois de `resizeApplied`, e uma recusa (`resizeFailed`)
   mantém o tamanho real, marca `resizeRefused` e não deixa o app em erro.
@@ -340,10 +437,16 @@ Automatizados (rodam no CI, sem aparelho):
   receptor de AIDL fora de `try`** (o `RemoteException` que o javac exige tratar). Roda no CI junto
   dos testes, e `--self-test` fixa as duas regras com seis casos sintéticos (`tests/java-refs-tool.test.mjs`
   roda o mesmo self-test aqui).
-- `tests/reference-ui.test.mjs` — o teste de integração em Chromium termina com o bloco das janelas:
-  biblioteca, ícone, `{cmd:'open'}`, barra do app, recorte do shader igual ao `data-uv`, pinça da mão
-  entregando toques em `app:<pacote>`, minimizar sem fechar, fechar mandando `{cmd:'close'}` e o texto
-  de falha do Shizuku. Este teste **pula** em ambientes sem Chromium e roda no CI.
+- `tests/reference-ui.test.mjs` — o teste de integração em Chromium termina com o bloco das janelas.
+  Na rodada 3 ele passou a abrir o menu de aplicações pelo lançador da dock e a exigir: nenhuma
+  entrada de trilha para uma página de apps Android, os apps instalados na **mesma** grade dos apps
+  do NextVR, o ícone real carregado de `/apps/<arquivo>.png`, as iniciais como reserva quando o ícone
+  não veio, nenhum botão de espelhar em tile, o selo do sistema, a linha de estado aparecendo sem o
+  serviço e sumindo com ele, `{cmd:'open'}` sem mecanismo escolhido pelo shell, o selo da janela
+  seguindo o modo (`android app` × `screen mirror`), o contador na dock, o botão “Abrir no celular”
+  mandando `{cmd:'phone'}`, o recorte do shader igual ao `data-uv`, a pinça da mão entregando toques
+  em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
+  ambientes sem Chromium e roda no CI.
 
 Estado no CI (verde, `10c875b`): Node **79/79**, testes JVM **121 em 18 classes, 0 falhas**
 (48 nas seis classes de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai
@@ -361,8 +464,9 @@ lista abaixo é o resumo:
    (é o par imagem/toque que o contrato de confirmação acima protege);
 4. Continuar interagindo com a VR (dock, arco, teclado) com um app aberto.
 5. Shizuku ativo, inativo, não autorizado e derrubado no meio do uso.
-6. Espelho com e sem acessibilidade ativa, e o atalho *Espelhar* de um tile com o Shizuku parado
-   (o caminho sem privilégio, que é o que roda no Android 14 sem Shizuku).
+6. Captura com e sem acessibilidade ativa, e a captura automática de um tile com o Shizuku parado
+   (o caminho sem privilégio, que é o que roda no Android 14 sem Shizuku), incluindo negar o diálogo
+   e usar o botão “Abrir no celular”.
 7. Rotação: app retrato e app paisagem, toque em cada canto.
 8. Medir latência captura → quadro na janela e gesto → reação no app.
 

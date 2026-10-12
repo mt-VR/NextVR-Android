@@ -866,11 +866,19 @@ function paintWindowBadge() {
 installAndroidApps();
 on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
 let libraryPaintTimer = 0;
+/**
+ * Repaints the Applications menu a moment after the app state changed, if it is open at all.
+ *
+ * <p>It used to repaint only when the menu had the focus, which was wrong in exactly the case that
+ * matters: opening an app gives the focus to the app's window, and the menu behind it then kept
+ * showing the tile as closed — and, right after the icons were rendered, kept its placeholders. The
+ * repaint restores the scroll position and never touches the focus (see paintLibrary).
+ */
 function paintLibrarySoon() {
   if (libraryPaintTimer) return;
   libraryPaintTimer = setTimeout(() => {
     libraryPaintTimer = 0;
-    if (winBody('library') && focusedWin()?.id === 'library') paintLibrary();
+    if (winBody('library')) paintLibrary();
   }, 500);
 }
 

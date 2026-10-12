@@ -21,33 +21,45 @@ CI gerou do commit deste PR, não uma build local.
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/
 autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo sintoma depende disso.
 
-## A. Sem Shizuku nenhum (o caminho novo desta rodada)
+## A. Sem Shizuku nenhum (o caminho principal desta rodada)
 
-1. Shizuku parado (ou nem instalado). Abra a VR e toque no ícone de celular na dock (**Apps do
-   Android**).
-   → esperado: a linha do Shizuku explica o que falta, e **cada tile tem o botão “Espelhar”**.
-2. Toque em **Espelhar** num app simples (calculadora, relógio, notas — evite banco e DRM por
-   enquanto).
+1. Shizuku parado (ou nem instalado). Abra a VR, toque no **lançador de 9 pontos** na dock (abre o
+   menu de aplicações) e procure um app seu na grade, entre os apps do NextVR.
+   → esperado: os apps instalados estão **na mesma grade**, com o ícone real de cada um, cada um com
+   o selo de aparelho no canto; **não existe** menu “Apps do Android” separado, nem botão “Espelhar”
+   em tile nenhum. No alto da grade aparece **uma** linha: “Shizuku não está disponível agora…” (é
+   a única coisa que muda sem o serviço, além do mecanismo da janela).
+   **Anota isso:** se algum tile estiver sem ícone (mostrando as iniciais) e se a grade ficou sem a
+   linha de estado.
+2. Toque no tile de um app simples (calculadora, relógio, notas — evite banco e DRM por enquanto).
    → esperado, nesta ordem: o app **abre na tela do celular**; o diálogo de captura do Android
    aparece; no Android 14+ ele oferece para escolher **aquele** app; a janela abre com o **nome do
    app** na barra e o selo **ESPELHO DA TELA**; a imagem está viva (relógio andando, se for o
-   relógio).
+   relógio). Nada foi perguntado a você sobre “como abrir”: a decisão é do app.
    **Anota isso:** o que apareceu de diferente nessa ordem, e a mensagem exata se o diálogo não veio.
 3. Com a mão, toque no botão do app dentro da janela.
    → esperado: o app do celular reage (o toque é encaminhado pela acessibilidade).
    Se nada acontecer, confira se a acessibilidade está ligada (Configurações → Acessibilidade →
    NextVR). **Anota isso:** se a imagem veio e o toque não, é exatamente esse o sintoma.
 4. Feche a janela pelo ✕.
-   → esperado: a **notificação “O NextVR está espelhando a tela do celular” sai da barra** junto.
+   → esperado: a **notificação “O NextVR está capturando a tela do celular” sai da barra** junto.
    Se ela ficar, é bug: **anota isso**.
-5. De novo no mesmo tile, com o app que você quer **já aberto no celular**: use “Espelhar” e confirme
+5. De novo no mesmo tile, com o app que você quer **já aberto no celular**: toque no tile e confirme
    que a janela mostra o que está na tela.
+6. Toque no tile de **outro** app sem fechar a primeira janela.
+   → esperado: a primeira janela de captura fecha e a nova abre com o outro app. Duas capturas ao
+   mesmo tempo é o que o Android não permite, então o app fecha a antiga em vez de congelar a
+   imagem dela.
+7. Negue o diálogo de captura de propósito.
+   → esperado: a janela diz que a captura não foi autorizada e oferece **“Abrir no celular”**. Toque
+   nesse botão: o app abre no celular. Nada de janela preta sem explicação.
 
 ## B. Com Shizuku (o caminho hospedado)
 
 1. Inicie o Shizuku (`adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh`) e
    autorize o NextVR no app do Shizuku. Volte para a VR.
-   → esperado: a linha do Shizuku fica verde e os tiles perdem o botão “Espelhar”.
+   → esperado: a linha de estado **desaparece da grade** (nada mais a explicar) e tocar num tile
+   abre o app **hospedado**, sem diálogo de captura nenhum. Se ainda vier o diálogo, anota: é bug.
 2. Abra um app pelo tile.
    → esperado: janela com selo **APP DO ANDROID**, a interface dele desenhada na janela
    (não é captura de tela: é o app rodando num display próprio), e o app **não** aparece na tela do
@@ -87,10 +99,11 @@ autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo
 
 1. Com janelas de app abertas, pare o Shizuku (reinicie o celular, ou pare pelo próprio app).
 2. Volte para a VR.
-   → esperado: uma mensagem explica e as janelas **não ficam pretas**; a linha do Shizuku volta para
+   → esperado: uma mensagem explica e as janelas **não ficam pretas**; a linha de estado volta para
    “está parado” e aponta o passo que falta.
 3. Toque de novo num tile: a lista continua utilizável, o tile que falhou **reabre** pelo próprio
-   tile (não fica inerte) e, sem Shizuku, o caminho oferecido é o “Espelhar”.
+   tile (não fica inerte) e, agora que não há serviço, o mesmo toque abre pelo caminho de captura —
+   com o selo **ESPELHO DA TELA** no lugar de **APP DO ANDROID**.
 
 ## F. Um app que falhou não trava a lista
 
@@ -101,7 +114,8 @@ autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo
 
 ## G. Anti-captura e anticheat (o teste da sua preocupação)
 
-1. Abra um app com `FLAG_SECURE` (banco, streaming com DRM) numa janela de **espelho**.
+1. Abra um app com `FLAG_SECURE` (banco, streaming com DRM) numa janela de **captura** (sem
+   Shizuku, para forçar esse caminho).
    → esperado: a área aparece **preta**. Isso é a proteção do sistema funcionando e é respeitado —
    não é bug e não deve ser contornado.
 2. Se você quiser, abra um jogo com anticheat **numa janela hospedada** (com Shizuku) e jogue alguns
@@ -113,12 +127,16 @@ autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo
 
 ## H. Android antigo (se você tiver um aparelho com Android 8, 9 ou 10)
 
-1. Instale e abra a biblioteca.
-   → esperado: em Android 8/9/10 o **espelho funciona** e o app hospedado **não** — a linha do
-   Shizuku deve explicar que a versão do Android é antiga para o serviço (o Shizuku só tem *user
-   service* a partir do Android 11), em vez de ficar tentando para sempre.
+1. Instale e abra o menu de aplicações.
+   → esperado: em Android 8/9/10 a **captura (ESPELHO DA TELA) funciona** e o app hospedado
+   **não** — a linha de estado deve explicar que a versão do Android é antiga para o serviço shell (o
+   Shizuku só tem *user service* a partir do Android 11), em vez de ficar tentando para sempre. Note
+   que antes do Android 14 a captura é a **tela inteira**: o app é trazido para a frente antes do
+   diálogo, mas o que a janela mostra é a tela do celular, não só o app.
 2. Faça o teste A (sem Shizuku) nesse aparelho: é o caso de uso “celular novo sem Shizuku” da sua
    pergunta original, um Android por vez.
+3. Se o aparelho não tiver a chave de “um app só” no diálogo de captura, é esperado — ela é do
+   Android 14 em diante. **Anota a versão** para eu deixar isso escrito nas limitações.
 
 ## Quando algo falhar, me manda
 
@@ -136,5 +154,7 @@ autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo
 | Toque acertando ao lado depois de redimensionar | é o bug desta rodada — me mande o caso, é o item C2 |
 | Janela vazia, “abriu” sem interface | app recusou o display virtual (ele devolve o motivo na janela) |
 | Biblioteca com poucos apps | visibilidade de pacotes: **este APK já corrige**; se persistir, é outro caso, me diga quais apps faltam |
-| Espelho não abre no Android 14 | notificação de captura bloqueada/negada nas configurações do app |
+| Captura não abre (Android 14) | notificação de captura bloqueada/negada nas configurações do app, ou o diálogo foi negado (a janela oferece “Abrir no celular”) |
+| Imagem aparece, toque não chega | serviço de acessibilidade do NextVR desligado (também aparece escrito na linha de estado da grade) |
+| Tile sem ícone (só as iniciais) | ícone do app não pôde ser lido pelo PackageManager; o tile mostra as iniciais de propósito — anota o nome do app |
 | Tudo preto e nada responde depois de reiniciar o celular | Shizuku parado (comportamento dele): reabrir o passo indicado na biblioteca |

@@ -163,22 +163,25 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with every previous function, in the selected language.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library','android']);
+    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library'],
+      'the dock has no Android tile: the installed apps live in the Applications menu the launcher opens');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),17,'Quest-style library includes the web apps and built-in NextVR tools');
+    assert.equal(await page.locator('.lib-tile').count(),19,
+      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone');
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
-    assert.equal(await page.locator('.lib-nav[data-nav]').count(),5,'Library rail provides all, apps, games, recent and the installed Android apps');
+    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
+    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
     await page.locator('.lib-nav[data-nav="games"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
     await page.locator('.lib-nav[data-nav="recent"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('.lib-nav[data-nav="all"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete library');
+    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the complete library, installed apps included');
     await page.locator('.dock [data-id="store"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
     await page.locator('.dock [data-id="browser"]').click();
@@ -517,6 +520,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         .closest('.app-window').querySelector('.app-badge').textContent));
     assert.match(await appWindow.locator('.app-badge').innerText(),/mirror/i,
       'a capture of the phone screen is labelled as the mirror it is');
+    // Back to the hosted session: the rest of this test works on the hosted picture.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>/android app/i.test(document.querySelector('.app-badge').textContent));
 
     // The compositor samples the same rectangle the touch is normalized against.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.browser==='app:org.example.notes'));
