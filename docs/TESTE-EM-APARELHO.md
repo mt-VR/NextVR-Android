@@ -14,9 +14,9 @@ git show origin/apk-dist:dist/app-debug.apk > app-debug.apk
 adb install -r app-debug.apk
 ```
 
-Build de depuração, `versionCode` 4 / `versionName` 1.0.3, 48.021.716 bytes,
-`md5 7671965e1a26406787d671858148fbad` (`md5sum app-debug.apk` para conferir). É o APK que o próprio
-CI gerou do commit deste PR, não uma build local.
+Build de depuração, `versionCode` 4 / `versionName` 1.0.3, 48.021.916 bytes,
+`md5 a83c09f86607d006369e8caa2922e240` (`md5sum app-debug.apk` para conferir). É o APK que o próprio
+CI gerou do commit da rodada 3 deste PR, não uma build local.
 
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/
 autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo sintoma depende disso.
