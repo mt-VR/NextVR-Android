@@ -354,14 +354,10 @@ public final class AppWindowController {
                     break;
                 }
                 case "phone":
-                    // The window could not be filled (capture refused): the one thing that still works
-                    // for that app needs no privilege at all, and it is offered where the failure is.
+                    // A window that could not be filled is not a dead end: the app can still be opened
+                    // on the phone, which needs no permission at all, and that is what the window
+                    // offers when the capture was refused or the app did not draw.
                     if (packageName != null) displays.launchOnPhone(packageName);
-                    break;
-                case "phone":
-                    // A capture the user refused is not a dead end: the app can still be opened on the
-                    // phone, which needs no permission at all, and that is what the window offers.
-                    displays.launchOnPhone(packageName);
                     break;
                 case "shizuku": requestShizuku(); break;
                 case "refresh": refreshLibrary(); break;

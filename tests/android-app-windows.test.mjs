@@ -58,8 +58,13 @@ test('the shell bridge exposes the app library and the app command channel', asy
 test('the web sends exactly the commands the native side implements', async () => {
   const java = await read(JAVA.window);
   const switchBody = java.slice(java.indexOf('public void command(String json)'));
-  const implemented = new Set([...switchBody.matchAll(/case "([a-z]+)":/g)].map(m => m[1]));
+  const labels = [...switchBody.matchAll(/case "([a-z]+)":/g)].map(m => m[1]);
+  const implemented = new Set(labels);
   assert.ok(implemented.size >= 8, `expected the full command list, got ${[...implemented]}`);
+  // javac stops on a duplicate case label, and this environment has no javac: the list is checked
+  // here so a copy-paste of a case cannot cost a CI round trip again.
+  assert.equal(labels.length, implemented.size,
+    `a case label is repeated: ${labels.filter((c, i) => labels.indexOf(c) !== i)}`);
 
   const web = await read(WEB.androidApps);
   const sent = new Set([...web.matchAll(/cmd: '([a-z]+)'/g)].map(m => m[1]));
