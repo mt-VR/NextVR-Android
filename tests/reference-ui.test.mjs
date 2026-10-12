@@ -450,7 +450,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // The native side answers with a running session; the shell draws the window from it.
     const appSession=(state,extra={})=>JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state,input:'shizuku',alive:state!=='stopped',
-        displayId:7,display:{w:1040,h:616,dpi:240,rotation:0,aspect:1040/616},error:null,stopReason:null,frames:42,...extra}],
+        displayId:7,display:{w:1040,h:546,dpi:240,rotation:0,aspect:1040/546},error:null,stopReason:null,frames:42,...extra}],
       shizuku:{state:'ready',detail:'uid=2000 v13',ready:true,ask:false,needsApp:false,caps:null},
       input:{shizuku:true,accessibility:false,singleAppCapture:false},
       capacity:3,mirror:'nextvr.screen',sdk:34,recents:['org.example.notes']});
@@ -501,9 +501,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const appCentre=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(appPanel.matrix));
     const appView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),appCentre,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},appView.toArray());
+    // A still pinched hold is a click candidate: nothing may reach the app before the release, and
+    // the release commits the tap as DOWN+UP (the same arbitration the browser texture gets).
     await feed(hand(.04));
-    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='app:org.example.notes'&&t.action===0),null,{timeout:12000});
+    await page.evaluate(()=>new Promise(r=>setTimeout(r,350)));
+    assert.deepEqual(await page.evaluate(()=>window.__touches.filter(t=>t.id.startsWith('app:'))),[],
+      'a still pinched hold streams nothing into the app');
     await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='app:org.example.notes'&&t.action===0),null,{timeout:12000});
     await page.waitForFunction(()=>window.__touches.some(t=>t.id==='app:org.example.notes'&&t.action===1),null,{timeout:12000});
     await page.evaluate(()=>clearInterval(window.__feed));
     const appTouches=await page.evaluate(()=>window.__touches.filter(t=>t.id==='app:org.example.notes'));
