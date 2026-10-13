@@ -324,23 +324,37 @@ public final class AndroidAppManager {
             // The public contract: on API 30+ an app that does not say resizeableActivity="true" is
             // simply not resizable, and the platform letterboxes it inside whatever shape it gets.
             // The library reports that, so a window that shows the app with bars can say why.
-            boolean fixed = false;
-            try {
-                boolean resizable;
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    resizable = info.activityInfo.resizeableActivity;
-                } else {
-                    resizable = (info.activityInfo.flags
-                            & android.content.pm.ActivityInfo.FLAG_RESIZEABLE_FOR_SCREENS) != 0;
-                }
-                fixed = !resizable;
-            } catch (Throwable ignored) { }
+            boolean fixed = !resizeable(info.activityInfo);
             result.add(new AppEntry(packageName, label == null ? packageName : label.toString(),
                     system, component, versionCode,
                     AppWindowShape.fromOrientation(info.activityInfo.screenOrientation), fixed));
         }
         Collections.sort(result, (a, b) -> a.label.compareToIgnoreCase(b.label));
         return result;
+    }
+
+    /**
+     * Whether the platform would let this activity resize. Anything it cannot find out is reported as
+     * resizeable: the note is only ever a *claim*, and an unknown must never become one.
+     *
+     * <p>{@code resizeableActivity} reaches an app as {@code ActivityInfo.resizeMode}, and the SDK
+     * keeps every bit of that hidden — the field is {@code @hide} + {@code @UnsupportedAppUsage} and
+     * the {@code RESIZE_MODE_*} constants are hidden too (checked against AOSP 14), so there is no
+     * public accessor to compile against. The field is read reflectively, exactly like the display and
+     * input APIs the shell user service uses, and the deprecated
+     * {@code FLAG_RESIZEABLE_FOR_SCREENS} bit is the fallback for the platforms that predate it.
+     */
+    private static boolean resizeable(android.content.pm.ActivityInfo info) {
+        try {
+            Object mode = android.content.pm.ActivityInfo.class.getField("resizeMode").get(info);
+            if (mode instanceof Integer) return (Integer) mode != 0;   // RESIZE_MODE_UNRESIZEABLE
+        } catch (Throwable ignored) { }
+        try {
+            int flag = android.content.pm.ActivityInfo.class
+                    .getField("FLAG_RESIZEABLE_FOR_SCREENS").getInt(null);
+            return (info.flags & flag) != 0;
+        } catch (Throwable ignored) { }
+        return true;
     }
 
     private SharedPreferences prefs() {

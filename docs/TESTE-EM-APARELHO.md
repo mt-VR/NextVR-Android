@@ -106,6 +106,30 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 6. Se a captura falhar por causa do serviço em primeiro plano, a janela diz **por que** ele não subiu
    (`capture service:` no Diagnóstico) em vez de mostrar o texto do `MediaProjection` cortado.
 
+## B2. Formato da janela e girar (rodada 5)
+
+1. Na grade, abra um app que você sabe ser **retrato** (Instagram, banco, app de notas).
+   → esperado: a janela nasce **mais alta que larga** (retrato, 9:16) e o app **preenche** a janela —
+   sem a faixa preta no meio que aparecia quando toda janela nascia larga (1040x546, aspecto 1,9).
+   **Anota isso:** o nome do app e se ele aparece com barras.
+2. Abra um app **paisagem** (um jogo, o emulador de PS3).
+   → esperado: janela 16:9 (1040x585). Se o app desenhar um quadro de outra proporção, **as barras são
+   decisão dele** (o Android faz o compat scaling) e o `fixed` do Diagnóstico diz se ele declarou que
+   não redimensiona. **Anota isso:** o app e o que sobrou de espaço.
+3. Com a mão, toque em **girar** (ícone circular, na barra do app, à direita do teclado).
+   → esperado: a janela e a superfície do app trocam de formato **juntas** (retrato ⇄ paisagem), a
+   imagem volta a preencher depois que o display é redimensionado, e nada é esticado.
+4. Feche a janela e abra o **mesmo** app de novo.
+   → esperado: abre **girado**, como você deixou (a escolha é guardada por app).
+5. Depois de girar, toque com a mão num botão do app.
+   → esperado: o toque cai exatamente onde você mirou — o encaixe da imagem, o recorte do shader e o
+   toque saem todos do mesmo retângulo.
+6. Abra um vídeo e ponha em **tela cheia** (o app pede outra orientação sozinho).
+   → esperado: ou o display gira (a imagem acompanha de pé e a janela continua certa) ou o app é
+   letterboxado pelo sistema — as duas são respostas do Android. Abra o **Diagnóstico** e **anota o
+   campo `display state:`** (é o JSON com tamanho natural, tamanho que os apps veem e rotação): é ele
+   que diz qual das duas aconteceu no seu aparelho, versão por versão.
+
 ## C. Redimensionar (o que mais quebrava)
 
 1. Com um app hospedado aberto, arraste a alça da janela para deixá-la bem mais larga e depois bem
@@ -198,6 +222,9 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 | Imagem viva e toque sem efeito | serviço de acessibilidade desligado (só no caminho de captura) |
 | Toque acertando ao lado depois de redimensionar | me mande o caso, é o item C2 |
 | Janela vazia, “abriu” sem interface | `display report:` no Diagnóstico diz em qual display o shell viu o app |
+| App retrato aparecendo numa faixa no meio da janela | era o formato errado da janela (rodada 5); se ainda acontecer, mande o passo, o app e o `display state:` |
+| Depois de girar, a imagem não preenche | o display não foi redimensionado: mande o `display state:` (ele mostra o tamanho que os apps veem) junto do passo |
+| Toque deslocado **depois de girar** | é o par imagem/toque do item B2.5 — diga qual canto errou |
 | Biblioteca com poucos apps | visibilidade de pacotes: **este APK já corrige**; se persistir, me diga quais apps faltam |
 | Captura não abre (Android 14) | notificação de captura bloqueada/negada, ou o diálogo foi negado (a janela oferece “Abrir no celular”); `capture service:` no Diagnóstico diz se o serviço em primeiro plano subiu |
 | Tile sem ícone (só as iniciais) | ícone não pôde ser lido pelo PackageManager; o tile mostra as iniciais de propósito — anota o nome do app |

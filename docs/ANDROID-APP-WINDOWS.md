@@ -253,6 +253,111 @@ exatamente o que o `NextVrDisplayService` faz aqui, e é por isso que a correç�
 ciclo de vida, não de mecanismo. As flags, o `ContextWrapper` de identidade `shell`, o
 `am start --display` e o `InputEvent#setDisplayId` por reflexão deste PR vieram dessa leitura.
 
+## Rodada 5 — o formato da janela, e o que o Android faz (e não faz) quando o app quer girar
+
+O relato, palavra por palavra: *"as janelas eram do tamanho de uma janela normal e alguns apps se
+ajustaram na metade esquerda dela, redimensionando a altura, e um emulador de PS3 cortou a metade de
+baixo e ainda não usou todo o espaço do display virtual"*. A causa é simples e não era de encaixe:
+**a janela não tinha o formato do app**.
+
+Toda janela de app nascia com a mesma superfície, `1040x546` — aspecto **1,9**, mais larga do que
+qualquer celular em paisagem (≈2,1) e muito mais larga do que um celular em retrato (≈0,45). O Android
+faz, então, o que foi desenhado para fazer: um app que se declara **retrato** é *letterboxed* pelo
+sistema dentro dessa tela larga (o app ocupa uma faixa no meio), e um app que desenha um quadro
+**16:9** fixo (o emulador) deixa barras. Nada estava esticado — tudo estava encaixado —, mas o espaço
+que o app não podia usar era o espaço da janela errada.
+
+### 1. A resposta ao estudo: quem gira o quê
+
+A pergunta era: *ao mandar o app girar, o Android já troca o aspecto sozinho (e não temos nada a
+fazer), ou precisamos pegar o novo aspecto, ou a imagem também vem girada?* As três coisas podem
+acontecer, e a resposta depende de **quem** pediu a rotação:
+
+| Situação | Quem reage | O que o NextVR precisa fazer |
+| --- | --- | --- |
+| **O app pede outra orientação** (`android:screenOrientation`, ou em tempo de execução, como um vídeo que vira tela cheia) | o **WindowManager**, que decide entre duas respostas: (a) **girar o display** — o tamanho lógico passa a ser o natural girado e o compositor gira o conteúdo para o buffer, com a *transform* do buffer dizendo ao consumidor como ler; ou (b) **letterboxar o app** dentro do display que ficou (é o caso de display de carro/TV/desktop, e é configurável por aparelho) | **ler o que o display realmente é** e seguir: tamanho natural, tamanho que os apps veem, rotação e estado. É o que o `displayState` (AIDL 12) faz, e `AppDisplayGeometry` decide qual dos dois casos aconteceu |
+| **O usuário gira a janela** (botão de girar) | **nós**: o Android *não* gira a nossa janela nem o nosso display | trocar o formato da janela e da superfície juntos, mandar os novos pixels do display no `sync` (o display é redimensionado por isso) e guardar a escolha **por app** |
+| **O app não preenche o display** (ele não redimensiona, ou desenha um quadro de proporção fixa) | o **próprio Android**, com o compat scaling dele | nada: é decisão do app, mostrada como é. O `fixed` (de `resizeableActivity`) vai no JSON da biblioteca e na janela, para o usuário saber por que há barras |
+
+Sobre a **imagem girada**: o `SurfaceTexture` recebe a *transform* que o compositor manda e o shader
+já a aplica (isso é o que mantém a imagem de pé quando o display gira) — a parte que **não** vem de
+graça é a geometria: em que retângulo do buffer a imagem vive e, portanto, qual aspecto a janela deve
+encaixar e como o toque tem de voltar. Era exatamente aí que a conta estava errada: o código assumia
+que o display nunca mudava de tamanho nem de rotação. Regra implementada (e testada como classe pura
+`AppDisplayGeometry`):
+
+> **o tamanho lógico é a verdade sobre a imagem**; a rotação só é levada em conta quando o tamanho
+> lógico é o natural **girado** (`logical == (natural.h, natural.w)` com rotação 90/270 — é o
+> platform dizendo "o conteúdo girou"). Quando o tamanho lógico é igual ao natural, o que aconteceu
+> foi *letterbox* — o app foi desenhado de pé dentro do display que ficou — e aí a imagem **não**
+> está girada: acreditar na rotação nesse caso encaixaria a imagem com um aspecto que ela não tem, que
+> é a receita para a imagem aparecer na metade esquerda ou perder a metade de baixo.
+
+### 2. O que mudou no código
+
+* **`AppWindowShape`** (novo, Java puro e testado): o formato da janela de um app — retrato
+  `585x1040` (9:16) para quem se declara retrato, paisagem `1040x585` (16:9, o que quase todo jogo e
+  emulador desenha) para quem se declara paisagem, e paisagem como neutro para quem se declara
+  adaptável (`unspecified`, `sensor`, `fullSensor` — esses se arranjam em qualquer formato, e impor um
+  palpite seria pior do que deixar o usuário girar). Os dois formatos são **os mesmos dois números
+  trocados**, então girar é uma troca e nada mais.
+* **`AndroidAppManager`**: lê a orientação declarada da activity lançável e o que o app diz sobre
+  redimensionamento (as duas informações já vinham na consulta da biblioteca — nenhuma consulta a
+  mais), guarda a escolha do usuário por app (`shape.<pacote>` nas preferências) e expõe
+  `windowShape`/`windowBox`. Um app que declara que **não** redimensiona é reportado (`fixed`), nunca
+  combatido. O sinal de "não redimensiona" é lido **por reflexão**, porque o SDK esconde todos os
+  `ActivityInfo.RESIZE_MODE_*` e o antigo bit `FLAG_RESIZEABLE_FOR_SCREENS` (conferido no AOSP 14): um
+  campo que não se consegue ler é reportado como redimensionável — a nota nunca vira afirmação falsa.
+* **Shell**: a janela nasce com a superfície do app **mais** as duas barras e a borda
+  (`62 + 52 + 2`), sem os 2 px de borda que antes faziam todo app começar uma fração letterboxado; a
+  biblioteca publica `shape`, `orient`, `fixed` e `box` por app, e o botão **girar** (ícone que já
+  existia na referência) troca o formato da janela e da superfície juntos, manda `{cmd:'shape'}` e é
+  lembrado: girar uma vez resolve aquele app para sempre.
+* **Os dois tamanhos de pixels** (e isto é a correção de um erro da primeira versão da rodada): o
+  *display* tem os pixels do app (`1040x585` / `585x1040`, 16:9 e 9:16 exatos) e é isso que o shell
+  manda no `open` e no `sync`; a **janela** tem pixels próprios, o maior retângulo de mesmo aspecto
+  que o atlas de composição consegue empacotar — `960x540` (paisagem) e `306x544` (retrato), que com as
+  duas barras dão `962x656` e `308x660`. Os slots do atlas são `1360x980` com 160 px de sangria
+  (`atlas.js:pack`), ou seja uma janela pode ter no máximo `1040x660`: uma janela de `1042x701` (ou
+  `587x1156`) **não** degrada, ela faz o `pack` recusar o lote inteiro e a cena toda parar de
+  atualizar — a janela simplesmente nunca aparece. Como os dois retângulos têm o mesmo aspecto, o
+  recorte do shader, o encaixe e o toque continuam exatos, e a imagem do app continua vindo da textura
+  do display (resolução cheia), só colocada: nada é esticado nem perdido. O teste
+  `reference-ui` cobre as duas contagens, e o `android-app-windows` passa os dois tamanhos pelo `pack`
+  de verdade.
+* **`displayState` (AIDL 12) + `reconcileDisplay`**: o serviço shell responde o que o display é
+  (natural, lógico, rotação, estado, modo, densidade) e o supervisor de cada janela (a cada 2,5 s, no
+  thread de trabalho) adota o que o display virou — inclusive o hint de buffer
+  (`SurfaceTexture.setDefaultBufferSize`) e o `markDisplayChanged`, que é o que o encaixe e o toque
+  usam. O estado bruto vai para o Diagnóstico.
+* **`MIN_ASPECT` 0,6 → 0,45** nos dois lados: 9:16 (0,5625) e um celular alto 9:20 (0,45) passam a
+  caber; com o limite antigo a janela retrato seria letterboxada dentro do próprio display (6% de
+  faixa dos dois lados).
+* **`setSize` na janela** (`windows.js`): trocar o formato reconstrói a geometria da superfície
+  invisível que o toque da mão usa (ela é criada em metros a partir do tamanho) e re-layouta o arco,
+  sem tocar no objeto 3D — a janela não anda nem escala ao girar.
+
+### 3. Como verificar no aparelho
+
+1. Abra na grade um app que você sabe ser **retrato** (Instagram, um banco, um app de notas).
+   → esperado: a janela nasce **retrato** (mais alta que larga), com as proporções do app, e o app
+   **preenche** a janela; nada de faixa preta no meio.
+2. Abra um app **paisagem** (um jogo, o emulador).
+   → esperado: janela 16:9 e o app preenchendo; se ele desenhar um quadro de outra proporção, as
+   barras são decisão dele — e o **Diagnóstico** mostra `display state:` com o tamanho que os apps
+   veem.
+3. Toque em **girar** na barra do app, com a mão.
+   → esperado: a janela e a superfície trocam de formato **juntas**, a imagem continua preenchendo
+   (depois de o display ser redimensionado) e a escolha **fica**: feche, abra de novo pelo tile — abre
+   girada.
+4. Depois de girar, toque com a mão num botão do app.
+   → esperado: o toque cai no mesmo lugar que você mirou (o encaixe, o crop do shader e o toque saem
+   todos do mesmo retângulo).
+5. Abra um vídeo e ponha em tela cheia (o app pede outra orientação sozinho).
+   → esperado: ou o display gira (a imagem acompanha de pé, a janela continua correta) ou o app é
+   letterboxado pelo sistema — os dois são respostas do Android, e o `display state:` do Diagnóstico
+   diz qual foi. **Anota isso:** o JSON exato desse momento.
+
 ## As duas arquiteturas, sempre separadas
 
 | | **App hospedado** (`display`) | **Espelho da tela** (`mirror`) |
@@ -261,6 +366,7 @@ ciclo de vida, não de mecanismo. As flags, o `ContextWrapper` de identidade `sh
 | O app está embutido? | **sim**: é a própria atividade em uma tela dedicada | **não**: é uma cópia do vídeo da tela |
 | Como o app é iniciado | `am start --display <id>` (com 3 tentativas e o erro verbatim guardado; `startActivity` do próprio app **não** é usado, porque uma recusa dentro do sistema não devolve erro e a atividade iria para a tela do celular em silêncio) | automaticamente, ao abrir a janela: API pública (`getLaunchIntentForPackage` + `startActivity`) traz o app para a tela e a captura começa depois do consentimento |
 | Toque | injetado **no display do app** (`InputEvent#setDisplayId` + `InputManager#injectInputEvent`) | gesto encaminhado à tela real (acessibilidade) |
+| Formato da janela | o que o app declara (retrato 9:16 ou paisagem 16:9), girável pelo botão da barra e lembrado por app | a proporção do que está sendo capturado |
 | Precisa de quê | Shizuku ativo e autorizado | consentimento de captura do Android (e acessibilidade, para o toque) |
 | Vários apps ao mesmo tempo | um display por app (até 3 janelas) | uma captura por vez |
 
@@ -282,6 +388,8 @@ Tudo o que é específico desta funcionalidade está em
 | `AppSurfaceHost` | o lado GL: recebe um `SurfaceTexture` que o `SpatialRenderer` já amostra como qualquer browser |
 | `AppInputController` | toque/tecla/texto: Shizuku (display virtual) ou acessibilidade (espelho) |
 | `AppWindowController` | a ponte com o shell: `appsLibrary`, `appsCommand`, o JSON de estado |
+| `AppWindowShape` | o formato da janela de cada app (retrato/paisagem), do que o app declara ou do que o usuário escolheu — Java puro, testado |
+| `AppDisplayGeometry` | o que a imagem realmente é a partir do que o display reporta (tamanho natural, tamanho lógico, rotação): distingue "o display girou" de "o app foi letterboxado" |
 | `AppHostPolicy` | a decisão única de rota (`hosted` / `permission` / `capture`) a partir do estado do Shizuku — o lugar onde "ainda não ligado" deixou de significar "não disponível" |
 | `ShizukuManager` | `pingBinder`/`checkSelfPermission`/`requestPermission`, o *user service*, `awaitService`/`rebind` e o self-test do aparelho |
 | `NextVrDisplayService` | a metade privilegiada (AIDL `IDisplayService`), roda como usuário `shell` |

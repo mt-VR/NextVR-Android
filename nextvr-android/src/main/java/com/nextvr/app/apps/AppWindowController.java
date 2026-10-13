@@ -159,7 +159,7 @@ public final class AppWindowController {
                 display.put("aspect", session.visibleAspect());
                 display.put("rotated", session.rotation == 90 || session.rotation == 270);
                 item.put("display", display);
-                item.put("shape", apps.windowShape(packageName));
+                item.put("shape", apps.windowShape(session.packageName));
                 item.put("error", session.error == null ? JSONObject.NULL : session.error);
                 item.put("stopReason", session.stopReason == null ? JSONObject.NULL : session.stopReason);
                 item.put("frames", session.frames);
@@ -239,6 +239,14 @@ public final class AppWindowController {
      */
     public void open(String packageName, float boxWidth, float boxHeight) {
         if (packageName == null || packageName.isEmpty()) return;
+        if (!(boxWidth > 0) || !(boxHeight > 0)) {
+            // No box from the shell (an older one, or a command that carried none): the app's own shape
+            // decides, the same rule the window uses. The display is what the app draws into, so a
+            // default of its own shape beats a size that belongs to no app.
+            int[] box = AppWindowShape.box(apps.windowShape(packageName));
+            boxWidth = box[0];
+            boxHeight = box[1];
+        }
         AppHostPolicy.Route route = displays.route();
         if (route == AppHostPolicy.Route.NEEDS_PERMISSION) {
             // Granting it inside the dialog is enough: the hosted session below waits for the service.
@@ -437,8 +445,11 @@ public final class AppWindowController {
             String packageName = command.optString("pkg", null);
             switch (name) {
                 case "open":
-                    open(packageName, (float) command.optDouble("w", 1040),
-                            (float) command.optDouble("h", 546));
+                    // The box is the app *display's* size, and the shell sends it (it is the only side
+                    // that knows the window's shape). Zero means the shell did not: the app's shape
+                    // decides inside open() rather than a stale default that fits no app.
+                    open(packageName, (float) command.optDouble("w", 0),
+                            (float) command.optDouble("h", 0));
                     break;
                 case "close": close(packageName); break;
                 case "minimize": minimize(packageName); break;

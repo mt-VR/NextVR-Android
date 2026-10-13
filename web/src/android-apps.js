@@ -23,32 +23,49 @@ import { fitDisplay, appHostPoint } from './display-fit.js';
 
 const SYNC_MS = 400;
 const CAPACITY = 3;
-// The app surface is what the app's display is created with, and the window adds its own chrome on
-// top: the NextVR bar (62 px) and the app's own bar (52 px). Sending the *surface* size means the
-// display is created in exactly the shape it is shown in — the first frames are neither letterboxed
-// nor resized afterwards.
-//
 // The shape is per app (AppWindowShape.java on the native side, same numbers here):
 //   landscape 1040x585 — 16:9, what an app that declares landscape (a game, an emulator) draws for;
 //   portrait   585x1040 — 9:16, the shape of a phone in portrait.
 // A window used to be 1040x546 for every app (aspect 1.9, wider than any phone): an app locked to
 // portrait was letterboxed by Android in the middle of it, and an app drawing a 16:9 frame left bars.
+//
+// Two different pixel counts come out of that shape, and keeping them apart is what makes the window
+// both *the app's shape* and *small enough to be composited*:
+//
+//  * SHAPES — the app's own pixels. This is what the native side creates the display with (`open`
+//    and `sync`) and what the app itself draws into. Landscape 1040x585 and portrait 585x1040 are
+//    exactly 16:9 and 9:16, so the app gets a real phone/landscape canvas (390x693 dp in portrait at
+//    the phone's own density) and nothing about its layout is squeezed.
+//  * DOM_SHAPES — the window's own pixels, laid out in the shell's DOM. Every window is rasterized
+//    into one 4096x4096 hardware atlas whose slots are 1360x980 including a 160 px bleed
+//    (atlas.js:pack), so a window element can be at most 1040x660. A 1042x701 landscape window — let
+//    alone a 587x1156 portrait one — overflows its slot, and the atlas then refuses to pack *any*
+//    window: the whole scene stops updating (the first symptom is a window that never appears).
+//    The window is therefore laid out at the largest box of the same aspect that fits the slot, and
+//    the display keeps the app's pixels. Aspect is what the fit, the crop and the touch come from;
+//    the picture itself is sampled from the display texture, so it is never stretched, only placed.
 const WIN_BAR = 62;          // .win-bar
 const APP_BAR = 52;          // .app-bar
 const WIN_BORDER = 2;        // .win's 1 px border on each side (box-sizing: border-box)
 const WIN_CHROME = WIN_BAR + APP_BAR + WIN_BORDER;
+/** The app's pixels: 16:9 and 9:16 exactly — what the display is created with. */
 const SHAPES = { landscape: { w: 1040, h: 585 }, portrait: { w: 585, h: 1040 } };
+/** The window's pixels: the same two aspects, inside the atlas slot (1040x660 minus the chrome). */
+const DOM_SHAPES = { landscape: { w: 960, h: 540 }, portrait: { w: 306, h: 544 } };
 const DEFAULT_W = SHAPES.landscape.w;
 const DEFAULT_H = SHAPES.landscape.h;
 
-/** App-surface pixels for a shape name; anything unknown is landscape, like the native side. */
+/** App pixels for a shape name; anything unknown is landscape, like the native side. */
 export function surfaceBox(shape) { return SHAPES[shape] || SHAPES.landscape; }
+
+/** Window pixels for a shape name: the same aspect, in the largest size the atlas packs. */
+export function domBox(shape) { return DOM_SHAPES[shape] || DOM_SHAPES.landscape; }
 
 /** Window size that leaves `shape` of app surface once the two bars are taken out. */
 function windowBox(shape) {
-  const box = surfaceBox(shape);
+  const box = domBox(shape);
   // The border is part of the window's CSS box (box-sizing: border-box), so it is added here: the
-  // measured app surface then equals the app-surface pixels, exactly what the display is created with.
+  // measured app surface then equals the window pixels of that shape.
   return { w: box.w + WIN_BORDER, h: box.h + WIN_CHROME };
 }
 
@@ -367,8 +384,11 @@ export function loadLibrary(force) {
 function scheduleSync(force) {
   const payload = [];
   for (const [pkg, entry] of live) {
-    // The window body in atlas pixels; the native side turns it into a display size.
-    payload.push({ pkg, w: Math.round(entry.surface.offsetWidth), h: Math.round(entry.surface.offsetHeight), visible: true });
+    // The app's own pixels for this window's shape — not the window element's size: the window is
+    // laid out at a scale that fits the shell's texture atlas (DOM_SHAPES), while the display is
+    // created in the shape's full size, which is what the app draws and what the panel samples.
+    const display = surfaceBox(entry.surface.dataset.shape);
+    payload.push({ pkg, w: display.w, h: display.h, visible: true });
   }
   const json = JSON.stringify(payload);
   if (!force && json === lastSync) return;

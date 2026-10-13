@@ -510,11 +510,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const shaped=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
       surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
         shape:e.querySelector('.app-surface').dataset.shape}}));
-    assert.deepEqual(shaped.surface,{w:1040,h:585,shape:'landscape'},
-      `the app surface is the display's shape and the window carries it: ${JSON.stringify(shaped)}`);
-    assert.equal(shaped.win.w,1040+2);
-    assert.equal(shaped.win.h,585+62+52+2,
+    // Two pixel counts, on purpose: the *window* is laid out in the largest box of the shape's
+    // aspect that the shell's 4096x4096 atlas can pack (a taller window overflows its slot and the
+    // whole atlas stops updating), while the *display* is created in the app's own pixels.
+    assert.deepEqual(shaped.surface,{w:960,h:540,shape:'landscape'},
+      `the app surface has the display's shape and the window carries it: ${JSON.stringify(shaped)}`);
+    assert.equal(shaped.win.w,960+2);
+    assert.equal(shaped.win.h,540+62+52+2,
       `the two bars and the window border are the only chrome: ${shaped.win.h}`);
+    const appBoxes=await page.evaluate(()=>window.__appCommands||[]);
+    const synced=appBoxes.filter(c=>c.cmd==='sync').pop()?.windows?.find(w=>w.pkg==='org.example.notes');
+    assert.deepEqual({w:synced?.w,h:synced?.h},{w:1040,h:585},
+      `the display is asked for in the app's own pixels, not the window's: ${JSON.stringify(synced)}`);
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
@@ -592,14 +599,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // canvas and the platform's own compatibility scaling handles an app that cannot follow.
     await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
     await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
-      .offsetWidth===585);
+      .offsetWidth===306);
     const rotated=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
       surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
         shape:e.querySelector('.app-surface').dataset.shape}}));
-    assert.deepEqual(rotated.surface,{w:585,h:1040,shape:'portrait'},
+    assert.deepEqual(rotated.surface,{w:306,h:544,shape:'portrait'},
       `the window and the app surface rotated together: ${JSON.stringify(rotated)}`);
-    assert.equal(rotated.win.w,585+2);
-    assert.equal(rotated.win.h,1040+62+52+2);
+    assert.equal(rotated.win.w,306+2);
+    assert.equal(rotated.win.h,544+62+52+2);
     commands=await page.evaluate(()=>window.__appCommands||[]);
     const shapeCommand=commands.filter(c=>c.cmd==='shape').pop();
     assert.deepEqual({pkg:shapeCommand?.pkg,shape:shapeCommand?.shape},
@@ -607,15 +614,17 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // What the native side does with that: sync the new box, resize the display, report it back.
     await page.evaluate(json=>window.nextvrApps(json),appSession('running',{shape:'portrait',
       display:{w:585,h:1040,dpi:240,rotation:0,rotated:false,aspect:585/1040}}));
+    // The crop is [u0, v0, uw, vh]: the origin is 0 by construction, so what has to settle is the two
+    // fractions — they are 1 only once the window's aspect and the display's aspect agree again.
     await page.waitForFunction(()=>{const uv=document.querySelector('.app-surface[data-native-app="org.example.notes"]')?.dataset.uv;
-      return uv && Number(uv.split(',')[2])>.99;});
+      return uv && uv.split(',').slice(2).every(n=>Number(n)>.99);});
     const rotatedCrop=await page.evaluate(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').dataset.uv);
     assert.ok(rotatedCrop.split(',').slice(2).every(n=>Number(n)>.99),
       `a portrait display fills a portrait window, with no letterbox: ${rotatedCrop}`);
     // Back to landscape, so the rest of the test works on the shape it started with.
     await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
     await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
-    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===1040);
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===960);
 
     // Minimizing detaches the surface: the window leaves the arc, the session and its task stay.
     await page.evaluate(json=>window.nextvrApps(json),appSession('suspended'));
