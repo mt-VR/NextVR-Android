@@ -63,6 +63,11 @@ public final class AppDisplayController implements AppSessionManager.Host {
      * before giving up. The shell process has to be forked and this APK loaded into it, and on a cold
      * Shizuku that is the difference between "the app opens" and "the app opened on the phone".
      */
+    /**
+     * How long a window waits for the shell service while the Shizuku permission dialog is up. The
+     * user has to read it in the headset and answer: this is not a slow service, it is a person.
+     */
+    private static final long PERMISSION_WAIT_MS = 60_000;
     private static final long SERVICE_WAIT_MS = 20_000;
     /** The display needs a moment before an activity can be started on it; the launch is retried. */
     private static final long LAUNCH_RETRY_MS = 400;
@@ -224,18 +229,26 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     // "Shizuku is not available" and sent the app to the phone's screen instead.
                     waitingForService = true;
                     env.sessionsChanged();
-                    service = shizuku.awaitService(SERVICE_WAIT_MS);
+                    // While the permission dialog is up, the wait is the user's; once it is granted
+                    // (or when it was already granted), it is only the shell process being forked.
+                    long wait = shizuku.waitsForPermission() ? PERMISSION_WAIT_MS : SERVICE_WAIT_MS;
+                    service = shizuku.awaitService(wait);
                     waitingForService = false;
                 }
                 if (service == null) {
                     String reason = shizuku == null ? "no Shizuku manager" : shizuku.unavailableReason();
-                    // "Allow NextVR in Shizuku" and "install Shizuku" are different instructions, so
-                    // they are different codes and the window words them differently.
-                    boolean asked = shizuku != null && shizuku.needsPermission();
-                    sessions.settle(packageName, false, asked ? "shizuku_denied" : "shizuku_unavailable");
+                    // "Answer the dialog", "flip the switch in Shizuku's own app" and "install
+                    // Shizuku" are three different instructions: three different codes, three
+                    // different sentences in the window, all derived from the same status.
+                    boolean asked = shizuku != null && shizuku.waitsForPermission();
+                    boolean blocked = shizuku != null && shizuku.needsPermission() && !asked;
+                    String code = asked ? "shizuku_denied" : (blocked ? "shizuku_blocked" : "shizuku_unavailable");
+                    sessions.settle(packageName, false, code);
                     env.report(asked
                             ? "Allow NextVR inside Shizuku and tap the app again"
-                            : "Android app windows need the shell service: " + reason);
+                            : (blocked
+                                    ? "Open the Shizuku app and allow NextVR in its list of apps"
+                                    : "Android app windows need the shell service: " + reason));
                     env.sessionsChanged();
                     return;
                 }

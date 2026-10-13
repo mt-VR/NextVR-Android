@@ -405,7 +405,7 @@ test('tapping an app hosts it instead of redirecting to the phone when Shizuku i
   assert.match(display, /public AppHostPolicy\.Route route\(\)/);
   assert.ok(!display.includes('public boolean canHost()'),
     'the transient "is it bound right now?" question is gone');
-  assert.match(display, /service = shizuku\.awaitService\(SERVICE_WAIT_MS\)/,
+  assert.match(display, /service = shizuku\.awaitService\(wait\)/,
     'the window waits for the shell service instead of falling back to the capture');
   assert.ok(!display.includes('setLaunchDisplayId'),
     'startActivity could land the app on the phone without telling anyone: it is not a fallback');
@@ -518,8 +518,14 @@ test('the whole privileged path can be verified on the device itself', async () 
   assert.match(web, /t\('appSelfTest'\)/, 'the menu offers the button');
   assert.match(web, /shizuku_denied: t\('appShizukuDenied'\)/,
     'refusing the dialog has its own instruction, not "Shizuku is not installed"');
-  assert.match(await read(JAVA.display), /asked \? "shizuku_denied" : "shizuku_unavailable"/);
+  assert.match(await read(JAVA.display),
+    /asked \? "shizuku_denied" : \(blocked \? "shizuku_blocked" : "shizuku_unavailable"\)/);
   assert.match(await read(JAVA.shizuku), /public boolean needsPermission\(\)/);
+  const display = await read(JAVA.display);
+  assert.match(display, /long wait = shizuku\.waitsForPermission\(\) \? PERMISSION_WAIT_MS : SERVICE_WAIT_MS;/,
+    'while the dialog is up the wait is the user\'s, not the service\'s');
+  assert.match(display, /PERMISSION_WAIT_MS = 60_000;/);
+  assert.match(await read(JAVA.shizuku), /public boolean waitsForPermission\(\)/);
   assert.match(web, /cmd: 'selftest'/);
   const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
   assert.ok(bundle.includes('device self-test:'), 'and the report can be copied out');

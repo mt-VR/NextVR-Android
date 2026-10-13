@@ -193,7 +193,7 @@ como os três discordarem:
 | --- | --- | --- |
 | `READY` (autorizado e ligado) | `hosted` | display próprio criado pelo serviço shell; **sem diálogo, sem app no celular, sem captura** |
 | `SERVICE_DOWN` (autorizado, serviço ainda não subiu) | `hosted` | idem: o bind é (re)feito e a janela espera o serviço, com "conectando ao serviço shell" no lugar do spinner mudo |
-| `NEEDS_PERMISSION` | `permission` | abre **um** diálogo (o do Shizuku); concedido, a mesma sessão hospedada segue e o app abre na janela; recusado, a janela diz "autorize o NextVR dentro do Shizuku" |
+| `NEEDS_PERMISSION` | `permission` | abre **um** diálogo (o do Shizuku) e mantém a sessão hospedada esperando **até 60 s** — a espera é do usuário lendo o diálogo, não do serviço; concedido, o app abre na janela; recusado, a janela diz "autorize o NextVR dentro do Shizuku" (e, se o Shizuku não mostrar mais o diálogo, diz para abrir o app dele e permitir na lista) |
 | `NOT_INSTALLED`, `NOT_RUNNING`, `OLD_VERSION`, `DENIED`, `UNKNOWN` | `capture` | o único caminho que resta: o app vai para a tela do celular porque *é ela* que a janela captura, com o consentimento que o Android exige para capturar |
 
 ### O que mudou no código (rodada 4)

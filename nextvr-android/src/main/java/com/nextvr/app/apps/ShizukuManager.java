@@ -235,6 +235,16 @@ public final class ShizukuManager {
         return state == ShizukuStatus.State.NEEDS_PERMISSION || state == ShizukuStatus.State.DENIED;
     }
 
+    /**
+     * Whether the Shizuku permission dialog can still be shown (the user never answered, or refused
+     * without "don't ask again"). When it is true, a hosted session is worth waiting for as long as
+     * the user takes to read the dialog; when it is false, waiting longer only delays the sentence
+     * that says what to do in Shizuku's own app.
+     */
+    public boolean waitsForPermission() {
+        return status().permissionRequestable();
+    }
+
     /** The user service, or null; every method call is wrapped by the caller in try/catch. */
     public IDisplayService service() { return service; }
 

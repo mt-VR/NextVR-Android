@@ -200,12 +200,14 @@ function updateWindow(session) {
  * windows offer that as the next step instead of ending on an error.
  */
 const RECOVERABLE = new Set(['consent_denied', 'projection_failed', 'mirror_failed', 'mirror_refused',
-  'display_empty', 'display_refused', 'display_failed', 'shizuku_unavailable', 'shizuku_denied']);
+  'display_empty', 'display_refused', 'display_failed', 'shizuku_unavailable', 'shizuku_denied',
+  'shizuku_blocked']);
 
 function sessionError(session) {
   const known = {
     shizuku_unavailable: t('appNeedShizuku'),
     shizuku_denied: t('appShizukuDenied'),
+    shizuku_blocked: t('appShizukuBlocked'),
     display_refused: t('appDisplayRefused'),
     display_failed: t('appDisplayFailed'),
     no_launcher_activity: t('appNoLauncher'),
