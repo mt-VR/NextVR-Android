@@ -2,7 +2,9 @@
 // back to the display. This is the JS half of AppInputGeometry.java: the shader is fed the fitted
 // rectangle, the touch is fed the same rectangle's normalized point, and both sides are tested.
 
-export const MIN_ASPECT = 0.6;
+// Mirrors AppDisplaySpec: the narrow end has to accept a phone in portrait (9:16 = 0.5625, a tall
+// phone 9:20 = 0.45), or a portrait app window would be letterboxed inside its own display.
+export const MIN_ASPECT = 0.45;
 export const MAX_ASPECT = 2.34;
 
 /** The window body's own aspect, with the same fallback the native side uses for an unmeasured box. */

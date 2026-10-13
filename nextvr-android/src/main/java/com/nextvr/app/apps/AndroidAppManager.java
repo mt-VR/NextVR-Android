@@ -57,6 +57,8 @@ public final class AndroidAppManager {
     private static final String PREFS = "nextvr.android.apps";
     private static final String KEY_RECENTS = "recents";
     private static final String KEY_HIDDEN = "hidden";
+    /** Prefix of the per-app window shape the user chose (see {@link #setWindowShape}). */
+    private static final String KEY_SHAPE = "shape.";
 
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -132,6 +134,31 @@ public final class AndroidAppManager {
             Log.w(TAG, "no launcher for " + packageName, error);
             return null;
         }
+    }
+
+    /**
+     * The window shape an app opens with: what the user chose for it (a rotation is remembered, so a
+     * stubborn app is fixed once) or what the app declares, and landscape as the neutral default.
+     */
+    public String windowShape(String packageName) {
+        AppEntry app = find(packageName);
+        String remembered = prefs().getString(KEY_SHAPE + packageName, "");
+        return AppWindowShape.of(remembered, app == null ? "" : app.orientation);
+    }
+
+    /** The app-surface pixels for the app's current shape: {@code {width, height}}. */
+    public int[] windowBox(String packageName) {
+        return AppWindowShape.box(windowShape(packageName));
+    }
+
+    /**
+     * Remembers the shape the user rotated an app's window to. It is a preference, not a session
+     * setting: the next time the app opens it takes the shape the user chose, which is the difference
+     * between "I rotated it" and "I have to rotate it every time".
+     */
+    public void setWindowShape(String packageName, String shape) {
+        if (packageName == null || packageName.isEmpty() || !AppWindowShape.isShape(shape)) return;
+        prefs().edit().putString(KEY_SHAPE + packageName, shape).apply();
     }
 
     public List<String> recents() {
@@ -294,8 +321,23 @@ public final class AndroidAppManager {
                 versionCode = android.os.Build.VERSION.SDK_INT >= 28
                         ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
             } catch (Throwable ignored) { }
+            // The public contract: on API 30+ an app that does not say resizeableActivity="true" is
+            // simply not resizable, and the platform letterboxes it inside whatever shape it gets.
+            // The library reports that, so a window that shows the app with bars can say why.
+            boolean fixed = false;
+            try {
+                boolean resizable;
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    resizable = info.activityInfo.resizeableActivity;
+                } else {
+                    resizable = (info.activityInfo.flags
+                            & android.content.pm.ActivityInfo.FLAG_RESIZEABLE_FOR_SCREENS) != 0;
+                }
+                fixed = !resizable;
+            } catch (Throwable ignored) { }
             result.add(new AppEntry(packageName, label == null ? packageName : label.toString(),
-                    system, component, versionCode));
+                    system, component, versionCode,
+                    AppWindowShape.fromOrientation(info.activityInfo.screenOrientation), fixed));
         }
         Collections.sort(result, (a, b) -> a.label.compareToIgnoreCase(b.label));
         return result;

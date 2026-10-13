@@ -127,7 +127,7 @@ test('the display size and its clamp come from one place on each side', async ()
     assert.ok(match, `${name} is declared`);
     return Number(match[1]);
   };
-  assert.equal(number('MIN_ASPECT'), 0.6);
+  assert.equal(number('MIN_ASPECT'), 0.45);
   assert.equal(number('MAX_ASPECT'), 2.34);
   assert.equal(number('MIN_HEIGHT'), 480);
   assert.equal(number('MAX_HEIGHT'), 1080);
@@ -135,7 +135,7 @@ test('the display size and its clamp come from one place on each side', async ()
 
 
   const fit = await read(WEB.fit);
-  assert.match(fit, /export const MIN_ASPECT = 0\.6;/);
+  assert.match(fit, /export const MIN_ASPECT = 0\.45;/);
   assert.match(fit, /export const MAX_ASPECT = 2\.34;/);
 });
 
@@ -249,14 +249,25 @@ test('a batch of finished icons makes the shell read the grid again', async () =
 
 test('the default app window asks for the body the app picture really occupies', async () => {
   const apps = await read(WEB.androidApps);
-  const window = await read('web/src/windows.js');
-  // windows.js opens every window at 1040x660 with a 62 px bar; the app's own bar takes 52 px of the
-  // body, so the picture is 1040x546. Asking the display for that exact shape is what keeps the app
-  // from being letterboxed inside its own window.
-  const outer = Number(window.match(/constructor\(\{ id, title, node, w = (\d+), h = (\d+)/)[2]);
-  const appBar = Number((await read('web/index.html')).match(/\.app-bar\{height:(\d+)px/)[1]);
-  const surface = Number(apps.match(/const DEFAULT_H = (\d+);/)[1]);
-  assert.equal(surface, outer - 62 - appBar, `the default box is the surface, not the window: ${surface}`);
+  // The window size is a function of the shape: the two bars are chrome, the rest is the app surface,
+  // and the display is created for that exact surface. The bar heights are read from the stylesheet so
+  // this cannot drift: a window sized with a stale bar height would letterbox every app.
+  const html = await read('web/index.html');
+  const winBar = Number(html.match(/\.win-bar\{height:(\d+)px/)[1]);
+  const appBar = Number(html.match(/\.app-bar\{height:(\d+)px/)[1]);
+  assert.match(apps, new RegExp(`const WIN_BAR = ${winBar};`));
+  assert.match(apps, new RegExp(`const APP_BAR = ${appBar};`));
+  // .win's own 1 px border: the surface must measure exactly the display's pixels, or every app
+  // would start a fraction letterboxed.
+  assert.match(apps, /const WIN_BORDER = 2;/);
+  assert.match(apps, /return \{ w: box\.w \+ WIN_BORDER, h: box\.h \+ WIN_CHROME \};/,
+    'width and height carry the chrome, so the measured surface is exactly the display');
+  const shape = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowShape.java');
+  const landscape = shape.match(/LANDSCAPE_W = (\d+), LANDSCAPE_H = (\d+);/);
+  const portrait = shape.match(/PORTRAIT_W = (\d+), PORTRAIT_H = (\d+);/);
+  assert.match(apps, new RegExp('const SHAPES = \\{ landscape: \\{ w: ' + landscape[1] + ', h: '
+    + landscape[2] + ' \\}, portrait: \\{ w: ' + portrait[1] + ', h: ' + portrait[2] + ' \\} \\};'),
+    'both shapes are the same numbers on both sides of the bridge');
   assert.match(apps, /export const ANDROID_BOX = \{ w: DEFAULT_W, h: DEFAULT_H \};/);
   const appsJs = await read(WEB.apps);
   assert.match(appsJs, /openApp\(pkg, ANDROID_BOX\)/,
@@ -446,7 +457,8 @@ test('tapping an app hosts it instead of redirecting to the phone when Shizuku i
 test('an app that cannot be hosted opens in a window that names its mechanism', async () => {
   const web = await read(WEB.androidApps);
   assert.match(web, /export function openApp\(pkg, box\)/);
-  assert.match(web, /command\(\{ cmd: 'open', pkg, w: \(box && box\.w\) \|\| DEFAULT_W,/,
+  assert.match(web, /const target = box \|\| surfaceBox\(shape\);/);
+  assert.match(web, /command\(\{ cmd: 'open', pkg, w: target\.w, h: target\.h \}\);/,
     'the command carries the app, never a pseudo-package and never a chosen mechanism');
   assert.match(web, /session\.mode === 'mirror' \? t\('appMirrorBadge'\) : t\('appWindowBadge'\)/,
     'the badge follows the mode, never the wish');
@@ -531,6 +543,121 @@ test('the whole privileged path can be verified on the device itself', async () 
   assert.ok(bundle.includes('device self-test:'), 'and the report can be copied out');
 });
 
+/*
+ * The window takes the app's own shape, and the display follows it.
+ *
+ * The user's report: "some apps adjusted to the left half of it resizing their height, and a PS3
+ * emulator just cut its lower half and still didn't use all the space". Every window used to be
+ * 1040x546 (aspect 1.9 — wider than any phone), so Android letterboxed a portrait app in the middle of
+ * it and a 16:9 frame sat inside it with bars. Nothing was ever stretched: the *window* was not the
+ * app's shape.
+ */
+test('an app window takes the shape the app asks for', async () => {
+  const shape = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowShape.java');
+  assert.match(shape, /public static final int LANDSCAPE_W = 1040, LANDSCAPE_H = 585;/);
+  assert.match(shape, /public static final int PORTRAIT_W = 585, PORTRAIT_H = 1040;/);
+  assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
+  assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
+
+  const web = await read(WEB.androidApps);
+  assert.match(web, /const SHAPES = \{ landscape: \{ w: 1040, h: 585 \}, portrait: \{ w: 585, h: 1040 \} \};/,
+    'the same two shapes on the shell side');
+  assert.match(web, /const WIN_BAR = 62;/);
+  assert.match(web, /const APP_BAR = 52;/);
+  assert.match(web, /const box = windowBox\(surface\.dataset\.shape\);\s*\n\s*const win = open\(\{ id: appWindowId\(session\.pkg\), title: session\.title, node: body,\s*\n\s*w: box\.w, h: box\.h \}\);/,
+    'the window is created in the app surface shape plus the two bars');
+  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
+    'what the user chose beats what the app declares, and landscape is the neutral default');
+
+  // The declared shape is read from the launcher activity and reported per app, so the shell can open
+  // the window before anything native has been created.
+  const window = await read(JAVA.window);
+  assert.match(window, /item\.put\("shape", shape\);/);
+  assert.match(window, /item\.put\("orient", app\.orientation\);/);
+  assert.match(window, /item\.put\("box", size\);/);
+  const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
+  assert.match(manager, /AppWindowShape\.fromOrientation\(info\.activityInfo\.screenOrientation\)/);
+  assert.match(manager, /info\.activityInfo\.resizeableActivity/,
+    'an app that declares it does not resize is reported, not fought');
+});
+
+test('the app window can be rotated and the choice is remembered', async () => {
+  const web = await read(WEB.androidApps);
+  assert.match(web, /export function rotateWindow\(pkg\) \{/);
+  assert.match(web, /command\(\{ cmd: 'shape', pkg, shape: next \}\);/);
+  assert.match(web, /entry\.win\.setSize\(box\.w, box\.h\);/,
+    'the window changes shape together with the app surface');
+  assert.match(web, /rotate\.dataset\.act = 'rotate';/);
+  assert.match(web, /rotate\.innerHTML = icon\('rotate'\)/);
+
+  const win = await read('web/src/windows.js');
+  assert.match(win, /setSize\(w, h\) \{/);
+  assert.match(win, /this\.hit\.geometry = new THREE\.PlaneGeometry\(this\.w \* PX, this\.h \* PX, segments, 1\);/,
+    'the hand still aims at the frame after the shape changed');
+  assert.match(win, /this\.curveRadius = curveRadius\(this\.w, this\.curve\);/);
+
+  const window = await read(JAVA.window);
+  assert.match(window, /case "shape": setShape\(packageName, command\.optString\("shape", ""\)\); break;/);
+  assert.match(window, /apps\.setWindowShape\(packageName, shape\);/);
+  assert.match(await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java'),
+    /prefs\(\)\.edit\(\)\.putString\(KEY_SHAPE \+ packageName, shape\)\.apply\(\);/,
+    'the rotation is a preference, so the app opens rotated next time');
+});
+
+test('the app surface of a portrait window is never letterboxed inside its own display', async () => {
+  // The fit is what the user sees: a portrait window must be filled by a portrait display.
+  const { fitDisplay } = await import('../web/src/display-fit.js');
+  const portrait = fitDisplay(585, 1040, 585 / 1040);
+  assert.equal(portrait.x, 0);
+  assert.equal(portrait.y, 0);
+  assert.ok(portrait.w > 0 && portrait.h > 0);
+  // 9:16 (0.5625) has to survive the aspect clamp, or the display would be 0.6 and the picture
+  // pillarboxed inside its own window.
+  const fit = await read('web/src/display-fit.js');
+  assert.match(fit, /export const MIN_ASPECT = 0\.45;/);
+  assert.match(await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplaySpec.java'),
+    /public static final float MIN_ASPECT = 0\.45f;/);
+});
+
+/*
+ * The orientation study, as a contract.
+ *
+ * An app may ask Android for another orientation at any moment. The platform either rotates the
+ * display (logical size = the natural size turned, content rotated in the buffer) or letterboxes the
+ * app inside the display it kept (logical size = natural size). The two produce different pictures,
+ * and the shell service now reports both sizes and the rotation for every window, so the fit and the
+ * touch follow what the display really is instead of what we assumed.
+ */
+test('a display that changed shape or turned is followed, not assumed', async () => {
+  const aidl = await read(JAVA.aidl);
+  assert.match(aidl, /String displayState\(int displayId\) = 12;/);
+  const service = await read(JAVA.service);
+  assert.match(service, /@Override public String displayState\(int displayId\) \{/);
+  assert.match(service, /json\.put\("logicalW", logicalWidth\);/,
+    'the size the apps see is reported next to the natural one');
+  assert.match(service, /json\.put\("rotation", display\.getRotation\(\)\);/);
+  assert.match(service, /display\.getRealSize\(size\);/);
+  assert.match(service, /public static final int SERVICE_VERSION = 4;/, 'the user service changed');
+
+  const geometry = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplayGeometry.java');
+  assert.match(geometry, /boolean turned = quarterTurn && logicalWidth == naturalHeight && logicalHeight == naturalWidth;/,
+    'the rotation is believed only when the logical size is the natural size turned');
+
+  const display = await read(JAVA.display);
+  assert.match(display, /reconcileDisplay\(session, service\);/);
+  assert.match(display, /service\.displayState\(session\.displayId\)/);
+  assert.match(display, /texture\.setDefaultBufferSize\(visible\.width, visible\.height\)/,
+    'the buffer hint follows the display, so nothing is clipped or squeezed');
+  assert.match(display, /sessions\.markDisplayChanged\(session\.packageName, visible\.width, visible\.height,\s*\n\s*visible\.rotation\);/,
+    'the session reports what the picture really is, which is what the fit and the touch use');
+
+  const window = await read(JAVA.window);
+  assert.match(window, /diagnostics\.put\("displayState"/);
+  assert.match(window, /display\.put\("rotated", session\.rotation == 90 \|\| session\.rotation == 270\);/);
+  const web = await read(WEB.androidApps);
+  assert.match(web, /\`display state: \$\{d\.displayState \|\| '-'\}\`/);
+});
+
 test('a mirror window says it is the phone screen and needs consent', async () => {
   const web = await read(WEB.androidApps);
   assert.match(web, /if \(session\.mode === 'mirror' && session\.state !== 'running'/);
@@ -543,7 +670,8 @@ test('a mirror window says it is the phone screen and needs consent', async () =
 test('the diagnostics panel carries the answers a bug report needs', async () => {
   const window = await read(JAVA.window);
   assert.match(window, /json\.put\("diagnostics", diagnostics\)/);
-  for (const field of ['launchError', 'displayReport', 'serviceReason', 'bindError', 'captureService']) {
+  for (const field of ['launchError', 'displayReport', 'displayState', 'serviceReason', 'bindError',
+    'captureService']) {
     assert.ok(window.includes(`diagnostics.put("${field}"`), `${field} is in the diagnostics block`);
   }
   const web = await read(WEB.androidApps);

@@ -23,12 +23,41 @@ import { fitDisplay, appHostPoint } from './display-fit.js';
 
 const SYNC_MS = 400;
 const CAPACITY = 3;
-// Default window body: windows.js opens every app window at 1040x660. The window's own 62 px bar is
-// outside the body, and the app's bar is another 52 px inside it, so the surface the app's display is
-// drawn into measures 1040x546. Sending *that* size means the display is created in exactly the
-// shape it is shown in: the first frames are neither letterboxed nor resized afterwards.
-const DEFAULT_W = 1040;
-const DEFAULT_H = 546;
+// The app surface is what the app's display is created with, and the window adds its own chrome on
+// top: the NextVR bar (62 px) and the app's own bar (52 px). Sending the *surface* size means the
+// display is created in exactly the shape it is shown in — the first frames are neither letterboxed
+// nor resized afterwards.
+//
+// The shape is per app (AppWindowShape.java on the native side, same numbers here):
+//   landscape 1040x585 — 16:9, what an app that declares landscape (a game, an emulator) draws for;
+//   portrait   585x1040 — 9:16, the shape of a phone in portrait.
+// A window used to be 1040x546 for every app (aspect 1.9, wider than any phone): an app locked to
+// portrait was letterboxed by Android in the middle of it, and an app drawing a 16:9 frame left bars.
+const WIN_BAR = 62;          // .win-bar
+const APP_BAR = 52;          // .app-bar
+const WIN_BORDER = 2;        // .win's 1 px border on each side (box-sizing: border-box)
+const WIN_CHROME = WIN_BAR + APP_BAR + WIN_BORDER;
+const SHAPES = { landscape: { w: 1040, h: 585 }, portrait: { w: 585, h: 1040 } };
+const DEFAULT_W = SHAPES.landscape.w;
+const DEFAULT_H = SHAPES.landscape.h;
+
+/** App-surface pixels for a shape name; anything unknown is landscape, like the native side. */
+export function surfaceBox(shape) { return SHAPES[shape] || SHAPES.landscape; }
+
+/** Window size that leaves `shape` of app surface once the two bars are taken out. */
+function windowBox(shape) {
+  const box = surfaceBox(shape);
+  // The border is part of the window's CSS box (box-sizing: border-box), so it is added here: the
+  // measured app surface then equals the app-surface pixels, exactly what the display is created with.
+  return { w: box.w + WIN_BORDER, h: box.h + WIN_CHROME };
+}
+
+/** The shape this session's window should have: what the app asks for, or what the user chose. */
+function shapeOf(pkg, session) {
+  if (session?.shape) return session.shape;
+  const app = library.apps.find(a => a.pkg === pkg);
+  return app?.shape || app?.orient || 'landscape';
+}
 
 const state = {
   sessions: [],
@@ -123,13 +152,25 @@ function createWindow(session) {
   kb.title = t('appKeyboard'); kb.dataset.act = 'keys';
   kb.innerHTML = icon('keyboard');
   kb.onclick = () => focusAppKeyboard(session.pkg);
+  // Rotate: swaps the window's shape and the display's shape together, and remembers the choice for
+  // this app — Android never rotates our window for us, and for an app that adapts to any shape the
+  // user's preference is the only sensible default.
+  const rotate = document.createElement('button');
+  rotate.className = 'app-key';
+  rotate.dataset.act = 'rotate';
+  rotate.title = t('appRotate'); rotate.setAttribute('aria-label', t('appRotate'));
+  rotate.innerHTML = icon('rotate');
+  rotate.onclick = () => rotateWindow(session.pkg);
   bar.append(badge, spacer, key('back', t('appBack'), 'back'), key('home', t('appHome'), 'top'),
-    key('recents', t('appRecents'), 'appGrid'), kb);
+    key('recents', t('appRecents'), 'appGrid'), kb, rotate);
 
   const surface = document.createElement('div');
   surface.className = 'app-surface';
   surface.dataset.nativeApp = session.pkg;
   surface.dataset.aspect = String((session.display && session.display.aspect) || 16 / 9);
+  // The shape the window was created with, so the tests (and the diagnostics panel) can tell the
+  // app's requested shape from the one it ended up with.
+  surface.dataset.shape = shapeOf(session.pkg, session);
 
   const status = document.createElement('div');
   status.className = 'app-state';
@@ -138,7 +179,9 @@ function createWindow(session) {
   // the window's bar (which owns ✕) is never covered.
   body.append(bar, surface);
   surface.append(status);
-  const win = open({ id: appWindowId(session.pkg), title: session.title, node: body });
+  const box = windowBox(surface.dataset.shape);
+  const win = open({ id: appWindowId(session.pkg), title: session.title, node: body,
+    w: box.w, h: box.h });
   live.set(session.pkg, { win, surface, status, badge });
   updateWindow(session);
 }
@@ -151,6 +194,7 @@ function updateWindow(session) {
   // inside the window body without stretching it, and the touch is normalized against that same
   // fitted rectangle. The crop it computes is published back on `data-uv` (see atlas.js).
   entry.surface.dataset.aspect = String(display.aspect || 16 / 9);
+  if (session.shape) entry.surface.dataset.shape = session.shape;
   // The badge names the mechanism, and it is re-read on every state: a session that was replaced by
   // the other mechanism must never keep the old label.
   entry.badge.textContent = session.mode === 'mirror' ? t('appMirrorBadge') : t('appWindowBadge');
@@ -255,7 +299,32 @@ on('wins', () => {
  */
 export function openApp(pkg, box) {
   if (!pkg) return;
-  command({ cmd: 'open', pkg, w: (box && box.w) || DEFAULT_W, h: (box && box.h) || DEFAULT_H });
+  const shape = shapeOf(pkg, sessionOf(pkg));
+  const target = box || surfaceBox(shape);
+  command({ cmd: 'open', pkg, w: target.w, h: target.h });
+}
+
+/**
+ * Rotates an app's window: the shape becomes the other one, the window and the app's own surface
+ * change together (the native side resizes the display from the synced box), and the choice is
+ * remembered per app — so an app that Android letterboxes in one shape can be put in the other once.
+ *
+ * If the app declares an orientation, the platform is the one that decides how it lays out inside
+ * the new shape: a locked app is letterboxed by Android (its own rule, shown as it is, never fought).
+ */
+export function rotateWindow(pkg) {
+  const entry = live.get(pkg);
+  const session = sessionOf(pkg);
+  const current = entry?.surface.dataset.shape || shapeOf(pkg, session);
+  const next = current === 'portrait' ? 'landscape' : 'portrait';
+  const box = windowBox(next);
+  if (entry) {
+    entry.surface.dataset.shape = next;
+    entry.win.setSize(box.w, box.h);
+  }
+  if (session) session.shape = next;   // local: the native state may take a moment to arrive
+  command({ cmd: 'shape', pkg, shape: next });
+  scheduleSync(true);
 }
 
 export function closeApp(pkg) { command({ cmd: 'close', pkg }); }
@@ -439,6 +508,10 @@ export function diagnosticsText() {
     `launch backend: ${d.launchBackend || state.launch || '-'}`,
     `launch error: ${d.launchError || '-'}`,
     `display report: ${d.displayReport || '-'}`,
+    // What the display really is (natural size, the size apps see, rotation): the answer to "the app
+    // went to the left half / lost its lower half" — the platform rotated the display or letterboxed
+    // the app, and this says which one it did.
+    `display state: ${d.displayState || '-'}`,
     `capture service: ${d.captureService || '-'}`,
     `accessibility: ${state.input?.accessibility ? 'on' : 'off'}`,
     `sdk: ${d.sdk || state.sdk || '-'}`,
@@ -535,6 +608,7 @@ export function androidRecentIndex(pkg) { return state.recents.indexOf(pkg); }
  * letterboxed on the first frame.
  */
 export const ANDROID_BOX = { w: DEFAULT_W, h: DEFAULT_H };
+export { windowBox };
 
 /** The apps a search/filter decision must see: the ones the native side returned. */
 export function androidAppsLoaded() { return library.loaded; }

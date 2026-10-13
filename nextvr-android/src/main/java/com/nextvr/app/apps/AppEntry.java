@@ -15,13 +15,33 @@ public final class AppEntry {
     public final String component;
     /** Version code of the installed package: part of the icon key, so updates refresh the cache. */
     public final long versionCode;
+    /**
+     * The shape the app's own launcher activity declares ({@code portrait} / {@code landscape}), or
+     * {@code ""} when it adapts to any shape. This is what makes a portrait app open in a portrait
+     * window instead of being letterboxed inside a wide one.
+     */
+    public final String orientation;
+    /**
+     * True when the activity opts out of being resized ({@code resizeableActivity="false"} on API 30+
+     * or the old {@code FLAG_RESIZEABLE_FOR_SCREENS} bit), i.e. when the platform will letterbox the
+     * app inside whatever shape it is given. Reported to the user, never fought: it is the app's own
+     * declaration.
+     */
+    public final boolean fixedShape;
 
     public AppEntry(String packageName, String label, boolean system, String component, long versionCode) {
+        this(packageName, label, system, component, versionCode, "", false);
+    }
+
+    public AppEntry(String packageName, String label, boolean system, String component, long versionCode,
+                    String orientation, boolean fixedShape) {
         this.packageName = packageName;
         this.label = label == null || label.trim().isEmpty() ? packageName : label.trim();
         this.system = system;
         this.component = component;
         this.versionCode = versionCode;
+        this.orientation = orientation == null ? "" : orientation;
+        this.fixedShape = fixedShape;
     }
 
     /**

@@ -51,7 +51,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
      * bind time ({@code UserServiceArgs.version}) and mixing a new app with an old service process
      * is what this constant exists to prevent.
      */
-    public static final int SERVICE_VERSION = 3;
+    public static final int SERVICE_VERSION = 4;
 
     private static final int FLAG_PUBLIC = 1;                    // DisplayManager.VIRTUAL_DISPLAY_FLAG_*
     private static final int FLAG_PRESENTATION = 1 << 1;
@@ -261,6 +261,71 @@ public class NextVrDisplayService extends IDisplayService.Stub {
         } catch (Throwable error) {
             return "report unavailable: " + error.getClass().getSimpleName();
         }
+    }
+
+    /**
+     * What the display really is: the natural size (what it was created or resized with), the size
+     * apps see, the rotation the platform reports and its state.
+     *
+     * <p>An app is free to ask Android for another orientation at any time — a video that goes
+     * fullscreen, a game that flips, an app that is portrait-only — and the platform answers that
+     * request in one of two ways: it rotates the display (the logical size becomes the swapped one)
+     * or it letterboxes the app inside the display it kept. The two look completely different in the
+     * window, and {@link AppDisplayGeometry} is what tells them apart from these numbers. Guessing is
+     * what makes a picture land in the left half of a window.
+     */
+    @Override public String displayState(int displayId) {
+        JSONObject json = new JSONObject();
+        try {
+            DisplayManager manager = newDisplayManager();
+            android.view.Display display = manager.getDisplay(displayId);
+            if (display == null) {
+                json.put("ok", false);
+                json.put("error", "no such display: " + displayId);
+                return json.toString();
+            }
+            int width = 0, height = 0;
+            try {
+                android.graphics.Point size = new android.graphics.Point();
+                display.getRealSize(size);
+                width = size.x;
+                height = size.y;
+            } catch (Throwable error) {
+                json.put("realError", error.getClass().getSimpleName());
+            }
+            int logicalWidth = width, logicalHeight = height;
+            int density = 0;
+            try {
+                android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+                display.getMetrics(metrics);
+                if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                    logicalWidth = metrics.widthPixels;
+                    logicalHeight = metrics.heightPixels;
+                }
+                density = metrics.densityDpi;
+            } catch (Throwable error) {
+                json.put("metricsError", error.getClass().getSimpleName());
+            }
+            json.put("ok", true);
+            json.put("w", width);
+            json.put("h", height);
+            json.put("logicalW", logicalWidth);
+            json.put("logicalH", logicalHeight);
+            json.put("rotation", display.getRotation());
+            json.put("state", display.getState());
+            if (density > 0) json.put("dpi", density);
+            try {
+                android.view.Display.Mode mode = display.getMode();
+                if (mode != null) json.put("mode", mode.getPhysicalWidth() + "x" + mode.getPhysicalHeight());
+            } catch (Throwable ignored) { }
+        } catch (Throwable error) {
+            try {
+                json.put("ok", false);
+                json.put("error", error.getClass().getSimpleName()
+                        + (error.getMessage() == null ? "" : ": " + error.getMessage()));
+            } catch (Throwable ignored) { }
+        }
+        return json.toString();
     }
 
     /**

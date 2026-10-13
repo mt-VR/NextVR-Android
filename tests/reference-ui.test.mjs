@@ -84,10 +84,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         appsLibrary(query,showSystem){
           window.__appQueries=[...(window.__appQueries||[]),{query,showSystem}];
           return JSON.stringify({apps:[
+            // Notes adapts to any shape (orient:''): it starts landscape, and the user's rotation is
+            // remembered. Settings declares landscape, like most system pages.
             {pkg:'org.example.notes',label:'Notas',system:false,component:'org.example.notes/.Main',
-             icon:'/apps/org.example.notes.png',recent:false,state:null,mode:null,input:null},
+             icon:'/apps/org.example.notes.png',recent:false,state:null,mode:null,input:null,
+             shape:'landscape',orient:'',fixed:false,box:{w:1040,h:585}},
             {pkg:'com.android.settings',label:'Configurações',system:true,component:'com.android.settings/.Settings',
-             icon:null,recent:false,state:null,mode:null,input:null}],
+             icon:null,recent:false,state:null,mode:null,input:null,
+             shape:'portrait',orient:'portrait',fixed:false,box:{w:585,h:1040}}],
             total:2,shown:2,hosting:0,capacity:3,query,showSystem,singleAppCapture:false});
         },
         appsCommand(json){window.__appCommands=[...(window.__appCommands||[]),JSON.parse(json)];},
@@ -473,13 +477,16 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // The native side answers with a running session; the shell draws the window from it.
     const appState=extra=>JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state:'running',input:'shizuku',alive:true,
-        displayId:7,display:{w:1040,h:546,dpi:240,rotation:0,aspect:1040/546},error:null,stopReason:null,frames:42,...extra}],
+        shape:'landscape',
+        displayId:7,display:{w:1040,h:585,dpi:240,rotation:0,rotated:false,aspect:1040/585},error:null,
+        stopReason:null,frames:42,...extra}],
       shizuku:{state:'ready',detail:'uid=2000 v13 bound',ready:true,ask:false,needsApp:false,
         caps:null,route:'hosted',bound:true,binding:false},
       input:{shizuku:true,accessibility:false,singleAppCapture:false},
       capacity:3,library:2,launch:'am start --display',sdk:34,recents:['org.example.notes'],
       diagnostics:{route:'hosted',launchBackend:'am start --display',launchError:null,
-        displayReport:null,serviceReason:'the shell user service is bound',bindError:null,
+        displayReport:null,displayState:'{"ok":true,"w":1040,"h":585,"logicalW":1040,"logicalH":585,"rotation":0}',
+        serviceReason:'the shell user service is bound',bindError:null,
         captureService:'not running',sdk:34}});
     const appSession=(state,extra={})=>appState({state,...extra});
     const windowsBefore=await page.locator('.win-shell').count();
@@ -494,7 +501,20 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell .app-window > .app-bar').count(),1,
       'the app window has its bar inside the window body');
     const appKeys=await appWindow.locator('.app-bar .app-key').evaluateAll(ee=>ee.map(e=>e.dataset.act||e.getAttribute('aria-label')));
-    assert.equal(appKeys.length,4,`the app bar offers back, home, recents and the keyboard: ${appKeys}`);
+    assert.equal(appKeys.length,5,
+      `the app bar offers back, home, recents, the keyboard and rotate: ${appKeys}`);
+    assert.equal((await appWindow.locator('.app-bar .app-key[data-act="rotate"]').count()),1,
+      'the app window can be rotated');
+    // The window takes the shape the app asks for (AppWindowShape): the app surface measures exactly
+    // the pixels the display is created with, so the first frame is neither letterboxed nor scaled.
+    const shaped=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
+      surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
+        shape:e.querySelector('.app-surface').dataset.shape}}));
+    assert.deepEqual(shaped.surface,{w:1040,h:585,shape:'landscape'},
+      `the app surface is the display's shape and the window carries it: ${JSON.stringify(shaped)}`);
+    assert.equal(shaped.win.w,1040+2);
+    assert.equal(shaped.win.h,585+62+52+2,
+      `the two bars and the window border are the only chrome: ${shaped.win.h}`);
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
@@ -564,6 +584,38 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(appTouches.length>=2,'the app window receives its own touch stream');
     for(const touch of appTouches) assert.ok(touch.x>=0&&touch.x<=1&&touch.y>=0&&touch.y<=1,
       'the app is addressed in normalized display coordinates, not window pixels');
+
+    // Rotating the app window: the shape becomes the other one, the app surface and the window change
+    // together, the choice is sent to the native side (which remembers it per app) and — after the
+    // native side resizes the display, which is what the synced box asks it to do — the picture fills
+    // the new window again. Nothing here rotates the *picture*: Android lays the app out for the new
+    // canvas and the platform's own compatibility scaling handles an app that cannot follow.
+    await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+      .offsetWidth===585);
+    const rotated=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
+      surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
+        shape:e.querySelector('.app-surface').dataset.shape}}));
+    assert.deepEqual(rotated.surface,{w:585,h:1040,shape:'portrait'},
+      `the window and the app surface rotated together: ${JSON.stringify(rotated)}`);
+    assert.equal(rotated.win.w,585+2);
+    assert.equal(rotated.win.h,1040+62+52+2);
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    const shapeCommand=commands.filter(c=>c.cmd==='shape').pop();
+    assert.deepEqual({pkg:shapeCommand?.pkg,shape:shapeCommand?.shape},
+      {pkg:'org.example.notes',shape:'portrait'},'the rotation is remembered per app');
+    // What the native side does with that: sync the new box, resize the display, report it back.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running',{shape:'portrait',
+      display:{w:585,h:1040,dpi:240,rotation:0,rotated:false,aspect:585/1040}}));
+    await page.waitForFunction(()=>{const uv=document.querySelector('.app-surface[data-native-app="org.example.notes"]')?.dataset.uv;
+      return uv && Number(uv.split(',')[2])>.99;});
+    const rotatedCrop=await page.evaluate(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').dataset.uv);
+    assert.ok(rotatedCrop.split(',').slice(2).every(n=>Number(n)>.99),
+      `a portrait display fills a portrait window, with no letterbox: ${rotatedCrop}`);
+    // Back to landscape, so the rest of the test works on the shape it started with.
+    await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===1040);
 
     // Minimizing detaches the surface: the window leaves the arc, the session and its task stay.
     await page.evaluate(json=>window.nextvrApps(json),appSession('suspended'));

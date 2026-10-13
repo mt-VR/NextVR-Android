@@ -85,6 +85,18 @@ public final class AppWindowController {
                 item.put("component", app.component);
                 item.put("icon", icon == null ? JSONObject.NULL : "/apps/" + icon.getName());
                 item.put("recent", options.recents.contains(app.packageName));
+                // The shape the window must take, and the app-surface pixels that go with it. The
+                // shell opens the window with these, which is what makes a portrait app open in a
+                // portrait window instead of being letterboxed inside a wide one.
+                String shape = apps.windowShape(app.packageName);
+                int[] box = AppWindowShape.box(shape);
+                item.put("shape", shape);
+                item.put("orient", app.orientation);
+                item.put("fixed", app.fixedShape);
+                JSONObject size = new JSONObject();
+                size.put("w", box[0]);
+                size.put("h", box[1]);
+                item.put("box", size);
                 item.put("state", session == null ? JSONObject.NULL : session.state.id);
                 item.put("mode", session == null ? JSONObject.NULL : session.mode.id);
                 item.put("input", session == null ? JSONObject.NULL : session.input.id);
@@ -145,7 +157,9 @@ public final class AppWindowController {
                 display.put("dpi", session.density);
                 display.put("rotation", session.rotation);
                 display.put("aspect", session.visibleAspect());
+                display.put("rotated", session.rotation == 90 || session.rotation == 270);
                 item.put("display", display);
+                item.put("shape", apps.windowShape(packageName));
                 item.put("error", session.error == null ? JSONObject.NULL : session.error);
                 item.put("stopReason", session.stopReason == null ? JSONObject.NULL : session.stopReason);
                 item.put("frames", session.frames);
@@ -177,6 +191,11 @@ public final class AppWindowController {
                     ? JSONObject.NULL : displays.lastLaunchError());
             diagnostics.put("displayReport", displays.lastDisplayReport() == null
                     ? JSONObject.NULL : displays.lastDisplayReport());
+            // What the display really is right now: natural size, the size the apps see, rotation and
+            // state. It is the answer to "the app went to the left half / lost its lower half" — the
+            // platform rotated the display or letterboxed the app, and this says which.
+            diagnostics.put("displayState", displays.lastDisplayState() == null
+                    ? JSONObject.NULL : displays.lastDisplayState());
             diagnostics.put("serviceReason", shizuku.unavailableReason());
             diagnostics.put("bindError", shizuku.bindError() == null
                     ? JSONObject.NULL : shizuku.bindError());
@@ -385,6 +404,19 @@ public final class AppWindowController {
         env.pushState();
     }
 
+    /**
+     * Remembers the shape the user rotated an app's window to. It is stored per app, so an app that
+     * Android letterboxes in one shape is fixed once instead of at every open; the shell takes the
+     * new size from the library entry it already has (`box`) on the next open, and from the synced
+     * app surface right now.
+     */
+    public void setShape(String packageName, String shape) {
+        if (packageName == null || packageName.isEmpty()
+                || !AppWindowShape.isShape(shape)) return;
+        apps.setWindowShape(packageName, shape);
+        env.pushState();
+    }
+
     /** Hides or shows an app in the library (system apps the user never wants in VR). */
     public void hide(String packageName, boolean hide) {
         if (packageName == null || packageName.isEmpty()) return;
@@ -429,6 +461,9 @@ public final class AppWindowController {
                     if (packageName != null) displays.launchOnPhone(packageName);
                     break;
                 case "shizuku": requestShizuku(); break;
+                // The window's rotate button: remember the shape for this app and say so in the state.
+                // The display follows the app surface the shell syncs, so the two never disagree.
+                case "shape": setShape(packageName, command.optString("shape", "")); break;
                 // Verifies the privileged path on this device, from inside the headset. It creates
                 // and releases a 64x64 private display and resolves the injector — nothing on screen
                 // changes — and the report is rendered by the menu.

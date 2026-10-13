@@ -51,4 +51,9 @@ interface IDisplayService {
     // This is the on-device verification of the ADB/Shizuku path, runnable from the headset without
     // a computer, and a failure names the step and the exception that failed.
     String selfTest() = 11;
+    // What the display really is right now, as JSON: natural size (what it was created or resized
+    // with), the size the apps see (rotation applied by the platform), the rotation and the state.
+    // The window needs this because an app may ask Android for another orientation at any moment and
+    // the platform's answer to that request decides what the picture looks like.
+    String displayState(int displayId) = 12;
 }

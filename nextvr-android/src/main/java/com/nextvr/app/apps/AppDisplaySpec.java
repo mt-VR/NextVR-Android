@@ -5,8 +5,15 @@ public final class AppDisplaySpec {
     public static final int MIN_HEIGHT = 480;
     public static final int MAX_HEIGHT = 1080;
     public static final int DEFAULT_HEIGHT = 720;
-    /** Aspect ratio bounds: outside these a phone app is letterboxed anyway, so we clamp. */
-    public static final float MIN_ASPECT = 0.6f;
+    /**
+     * Aspect ratio bounds: outside these a phone app is letterboxed anyway, so we clamp.
+     *
+     * <p>The narrow end is {@value #MIN_ASPECT} because app windows are not always wide: a window can
+     * be a phone in portrait (9:16 = 0.5625, and a tall phone is 9:20 = 0.45), and clamping those to
+     * something wider would letterbox the very shape the app asked for. The wide end stays at
+     * {@value #MAX_ASPECT}, the platform's own limit for a resizable activity.
+     */
+    public static final float MIN_ASPECT = 0.45f;
     public static final float MAX_ASPECT = 2.34f;
     /** A window that changed shape by more than this asks the platform for a new display size. */
     public static final float RESIZE_THRESHOLD = 0.12f;

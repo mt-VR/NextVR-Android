@@ -109,6 +109,34 @@ class Win {
   }
 
   /**
+   * Changes the window's body size (used when an app window is rotated: the app surface and the
+   * display change shape together).
+   *
+   * <p>The chrome is CSS — the bars keep their own heights and the body takes what is left — so this
+   * only touches the two sizes the shell owns, plus the invisible planes that carry the hand's
+   * drag/resize/touch: those were built in metres from the old size and are scaled by the ratio. The
+   * 3D object itself is not touched, so the window does not move and does not scale.
+   */
+  setSize(w, h) {
+    if (!(w > 0) || !(h > 0)) return;
+    this.w = w; this.h = h;
+    this.shell.style.width = w + 'px';
+    this.el.style.width = w + 'px'; this.el.style.height = h + 'px';
+    // The hit surface carries the hand's touch and drag: its geometry is in metres, built from the
+    // window's size, so it is rebuilt (with the same curvature segments) instead of scaled — the
+    // grab/resize handles are positioned from w/h by apply() and keep their own sizes.
+    const segments = this.curve > 0 ? 32 : 1;
+    this.hit.geometry.dispose();
+    this.hit.geometry = new THREE.PlaneGeometry(this.w * PX, this.h * PX, segments, 1);
+    this.hitSegments = segments;
+    this.curveRadius = curveRadius(this.w, this.curve);
+    this.bendHit();
+    this.apply();
+    layout();
+    emit('wins', wins);
+  }
+
+  /**
    * Liga/desliga a curvatura 360 desta janela. A largura e o lugar no arco não mudam: só a
    * superfície — é por isso que o botão não precisa re-layoutar nada.
    */

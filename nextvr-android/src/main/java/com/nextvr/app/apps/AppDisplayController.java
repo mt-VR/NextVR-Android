@@ -17,6 +17,8 @@ import android.os.Looper;
 import android.view.Display;
 import android.view.Surface;
 
+import org.json.JSONObject;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -118,6 +120,8 @@ public final class AppDisplayController implements AppSessionManager.Host {
     private volatile String lastLaunchError;
     /** Which display the last failed app was actually found on, as the shell sees it. */
     private volatile String lastDisplayReport;
+    /** The last display state read from the shell service, as JSON, for the diagnostics panel. */
+    private volatile String lastDisplayState;
     /** True while a hosted window is waiting for the user service, so the UI can say so. */
     private volatile boolean waitingForService;
     private boolean supervising;
@@ -179,6 +183,9 @@ public final class AppDisplayController implements AppSessionManager.Host {
 
     /** Where the shell last saw a hosted app that never drew, or null. */
     public String lastDisplayReport() { return lastDisplayReport; }
+
+    /** The last state the shell reported for a window's display (size, rotation, state), or null. */
+    public String lastDisplayState() { return lastDisplayState; }
 
     /** Which mechanism the last hosted app was started with, for the self-test row. */
     public String launchBackend() { return lastLaunchBackend; }
@@ -591,6 +598,55 @@ public final class AppDisplayController implements AppSessionManager.Host {
 
     // ------------------------------------------------------------------ supervision
 
+    /**
+     * Follows what the display really is, instead of assuming it kept the size we asked for.
+     *
+     * <p>An app may ask Android for another orientation at any moment (a video going fullscreen, a
+     * game flipping, a portrait-only app that was launched anyway). The platform answers that request
+     * either by rotating the display — the logical size becomes the swapped one — or by letterboxing
+     * the app inside the display it kept. Those two look completely different in the window, and the
+     * display's own numbers say which one happened ({@link AppDisplayGeometry}).
+     *
+     * <p>Getting this wrong is what puts a picture in the left half of a window or cuts off its lower
+     * part: the window would be fitting an aspect the content does not have. Nothing here re-shapes
+     * the display (that is the user's rotate button and the shell's window size); this only keeps the
+     * picture, the fit and the touch honest about the display that exists.
+     */
+    private void reconcileDisplay(AppSession session, IDisplayService service) {
+        if (service == null || session.displayId < 0) return;
+        String raw;
+        try {
+            raw = service.displayState(session.displayId);
+        } catch (Throwable error) {
+            return;   // the service is going away: the supervisor already reports that case
+        }
+        if (raw == null || raw.isEmpty()) return;
+        lastDisplayState = raw;
+        try {
+            JSONObject state = new JSONObject(raw);
+            if (!state.optBoolean("ok", false)) return;
+            AppDisplayGeometry.Visible visible = AppDisplayGeometry.visible(
+                    state.optInt("w", 0), state.optInt("h", 0),
+                    state.optInt("logicalW", 0), state.optInt("logicalH", 0),
+                    state.optInt("rotation", 0));
+            if (visible.width <= 0 || visible.height <= 0) return;
+            if (visible.width == session.width && visible.height == session.height
+                    && visible.rotation == session.rotation) return;
+            // The display changed shape (or turned) without the window asking: the buffer hint, the
+            // session and the shell all move to what the display now is.
+            SurfaceTexture texture = textures.get(session.packageName);
+            if (texture != null) {
+                try { texture.setDefaultBufferSize(visible.width, visible.height); } catch (Throwable ignored) { }
+            }
+            sessions.markDisplayChanged(session.packageName, visible.width, visible.height,
+                    visible.rotation);
+            env.sessionsChanged();
+        } catch (Throwable error) {
+            // A malformed answer must not stop the aliveness check that follows in the same pass; the
+            // raw text is already published for the diagnostics panel.
+        }
+    }
+
     /** Schedules the periodic "is the hosted app still alive?" check. */
     public void scheduleSupervisor() {
         if (supervising) return;
@@ -611,6 +667,7 @@ public final class AppDisplayController implements AppSessionManager.Host {
                 long now = android.os.SystemClock.uptimeMillis();
                 for (AppSession session : sessions.sessions()) {
                     if (!session.alive() || session.mode != AppSession.Mode.VIRTUAL_DISPLAY) continue;
+                    reconcileDisplay(session, service);
                     // A display that was accepted but never produced a frame is a window that would
                     // otherwise stay blank forever: the app refused to run there, or the platform
                     // started it on the phone's own screen instead of on the display. The texture the
