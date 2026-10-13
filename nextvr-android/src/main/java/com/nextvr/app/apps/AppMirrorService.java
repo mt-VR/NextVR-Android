@@ -33,22 +33,43 @@ public class AppMirrorService extends Service {
     private static final String CHANNEL_ID = "nextvr.mirror";
     private static final int NOTIFICATION_ID = 7411;
 
+    /**
+     * Whether the service is running right now, and why it is not when it failed.
+     *
+     * <p>A {@code MediaProjection} cannot even be constructed without this service already running,
+     * and the platform's refusal arrives as a long {@code SecurityException}. Knowing the service
+     * state lets the app say "the capture service did not start: <reason>" instead of forwarding a
+     * message that begins with "Media projections require a foreground service of type ... (full
+     * message follows)" and gets cut off in the UI.
+     */
+    private static volatile boolean running;
+    private static volatile String failure;
+
+    public static boolean isRunning() { return running; }
+
+    /** The reason the service could not start, or null. */
+    public static String failure() { return failure; }
+
     /** Starts (or keeps) the service. Called before the capture consent dialog is shown. */
     public static void start(Context context) {
         if (context == null) return;
+        failure = null;
         Intent intent = new Intent(context, AppMirrorService.class);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent);
             else context.startService(intent);
-        } catch (Throwable ignored) {
+        } catch (Throwable error) {
             // Android 12+ refuses a foreground service started from the background; the caller is a
             // visible activity, so this only happens when the process is already going away.
+            failure = error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
         }
     }
 
     /** Stops the service and its notification: no consent, no mirror, no indicator. */
     public static void stop(Context context) {
         if (context == null) return;
+        running = false;
         try {
             context.stopService(new Intent(context, AppMirrorService.class));
         } catch (Throwable ignored) { }
@@ -63,12 +84,22 @@ public class AppMirrorService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
+            running = true;
+            failure = null;
         } catch (Throwable error) {
             // Without the foreground service the projection cannot start at all: report instead of
             // leaving a silent failure behind.
+            running = false;
+            failure = error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
             stopSelf();
         }
         return START_NOT_STICKY;
+    }
+
+    @Override public void onDestroy() {
+        running = false;
+        super.onDestroy();
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }

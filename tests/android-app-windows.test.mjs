@@ -157,6 +157,8 @@ test('the Shizuku path is bound as a user service and documented as optional', a
   const aidl = await read(JAVA.aidl);
   assert.match(aidl, /void destroy\(\) = 16777114;/);
   assert.match(aidl, /boolean processAlive\(String packageName\) = 8;/);
+  assert.match(aidl, /String displayReport\(String packageName\) = 10;/,
+    'the shell is asked where it last saw an app that did not draw');
   assert.ok(!/^\s*boolean alive\(/m.test(aidl));
 
   const manifest = await read(JAVA.manifest);
@@ -293,6 +295,9 @@ test('the screen mirror starts the foreground service Android requires for a Med
   assert.ok(request.indexOf('AppMirrorService.start(context)') < request.indexOf('env.requestCaptureConsent()'),
     'the service runs before the consent dialog: consenting to a capture that cannot start would be a lie');
   assert.match(display, /requestCapture\(packageName\);/, 'opening a capture window goes through it');
+  assert.match(display, /if \(!AppMirrorService\.isRunning\(\)\) \{/,
+    'the capture service state is checked before getMediaProjection, so the user gets a sentence '
+    + 'instead of the platform SecurityException text');
   const result = display.slice(display.indexOf('public void onCaptureConsentResult'));
   assert.ok(result.indexOf('manager.getMediaProjection(') < result.indexOf('projection.registerCallback('),
     'the callback is registered after the projection exists and before the first display is created');
@@ -384,6 +389,60 @@ test('a resize is only believed once the display confirms it', async () => {
  * native side decides how to show it, and the window says which mechanism it got. The user must never
  * be told that an app they can open on the phone cannot be opened at all.
  */
+/*
+ * The reported bug, as a contract: tapping an installed app on a device where Shizuku is authorized
+ * must open a hosted window and never boot the app on the phone's screen or ask for a capture. The
+ * decision is AppHostPolicy's, and it is taken from the permission state — not from whether a bind
+ * has finished, which is what used to send the user to the phone.
+ */
+test('tapping an app hosts it instead of redirecting to the phone when Shizuku is authorized', async () => {
+  const policy = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppHostPolicy.java');
+  assert.match(policy, /case READY:\s*\n\s*case SERVICE_DOWN:/,
+    'both "bound" and "about to be bound" host');
+  assert.match(policy, /return Route\.NEEDS_PERMISSION;/);
+
+  const display = await read(JAVA.display);
+  assert.match(display, /public AppHostPolicy\.Route route\(\)/);
+  assert.ok(!display.includes('public boolean canHost()'),
+    'the transient "is it bound right now?" question is gone');
+  assert.match(display, /service = shizuku\.awaitService\(SERVICE_WAIT_MS\)/,
+    'the window waits for the shell service instead of falling back to the capture');
+  assert.ok(!display.includes('setLaunchDisplayId'),
+    'startActivity could land the app on the phone without telling anyone: it is not a fallback');
+  assert.match(display, /for \(int attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt\+\+\)/,
+    'a fresh display can refuse the first start; the launch is retried and the error kept');
+  assert.match(display, /lastLaunchError = error;/,
+    'the verbatim `am start` output is kept for the diagnostics panel');
+  assert.match(display, /service\.displayReport\(session\.packageName\)/,
+    'a blank hosted window asks the shell where the app actually went');
+
+  const manager = await read(JAVA.shizuku);
+  assert.match(manager, /public IDisplayService awaitService\(long timeoutMs\)/);
+  assert.match(manager, /if \(Looper\.myLooper\(\) == Looper\.getMainLooper\(\)\) doBind\(\);/,
+    'the bind can be requested from the display worker thread');
+  assert.match(manager, /onNullBinding\(ComponentName name\)/,
+    'a service that could not be created is a reported failure, not an endless spinner');
+  assert.match(manager, /state == ShizukuStatus\.State\.READY && service == null && !binding/,
+    'only a bind that is NOT in flight can be reported as a broken service');
+  assert.match(manager, /installed \|\| alive/,
+    'a live binder is an installation even when the manager package is unknown (Sui)');
+  assert.match(manager, /public String unavailableReason\(\)/);
+
+  const window = await read(JAVA.window);
+  assert.match(window, /AppHostPolicy\.Route route = displays\.route\(\);/);
+  assert.match(window, /shizuku\.requestPermission\(\);/,
+    'asking for the Shizuku permission is the only dialog this route opens');
+  assert.match(window, /if \(AppHostPolicy\.hosted\(status\.state\)\) \{\s*\n\s*shizuku\.bind\(\);/,
+    'a state change must not cancel the bind that is restoring the service');
+  assert.ok(!window.includes('shizuku.unbind();'),
+    'unbinding on a transient state was what cancelled the bind and forced the capture route');
+
+  const web = await read(WEB.androidApps);
+  assert.match(web, /routeHosted|routeOf/, 'the menu says which route a tap will take');
+  assert.match(web, /if \(route === 'hosted' && \(sh\.ready \|\| sh\.binding\)\) return null;/,
+    'the healthy hosted route has no warning row at all');
+});
+
 test('an app that cannot be hosted opens in a window that names its mechanism', async () => {
   const web = await read(WEB.androidApps);
   assert.match(web, /export function openApp\(pkg, box\)/);
@@ -395,26 +454,24 @@ test('an app that cannot be hosted opens in a window that names its mechanism', 
   assert.match(web, /t\('appOpenOnPhone'\)/, 'a window that could not be filled offers the one path that needs no privilege');
 
   const window = await read(JAVA.window);
-  assert.match(window, /if \(displays\.canHost\(\)\) openHosted\(packageName, boxWidth, boxHeight\);/,
+  assert.match(window, /if \(route == AppHostPolicy\.Route\.HOSTED\) \{/,
     'the native side chooses the mechanism once, before anything is opened');
-  assert.match(window, /else openCaptured\(packageName, boxWidth, boxHeight\);/);
+  assert.match(window, /openCaptured\(packageName, boxWidth, boxHeight\);/);
   assert.match(window, /sessions\.close\(open\.packageName, "capture_replaced"\)/,
     'Android grants one capture per consent: the replaced window gives its up');
   assert.ok(!window.includes('MIRROR_PACKAGE') && !window.includes('optString("focus"'),
     'the pseudo-package and the focus field are gone with the mirror button');
 
   const display = await read(JAVA.display);
-  const canHost = display.slice(display.indexOf('public boolean canHost()'));
-  assert.match(canHost.slice(0, 600), /ShizukuManager shizuku = env\.shizuku\(\);/,
+  const routing = display.slice(display.indexOf('public AppHostPolicy.Route route()'));
+  assert.match(routing.slice(0, 600), /ShizukuManager shizuku = env\.shizuku\(\);/,
     'the answer comes from the object that owns the service, not from the shell guessing');
   assert.match(display, /sessions\.settle\(session\.packageName, false, "display_empty"\)/,
     'a hosted window that never draws is reported instead of staying blank');
   assert.match(display, /frameTexture\.getTimestamp\(\)/, 'and that verdict comes from the real texture');
 
-  const launch = display.slice(display.indexOf('private String launchOnDisplay'));
-  assert.match(launch, /setLaunchDisplayId\(displayId\)/,
-    'the supported second way to reach a display is kept as the fallback for `am start`');
-  assert.match(display, /lastLaunchBackend = "ActivityOptions";/);
+  assert.match(display, /lastLaunchBackend = error == null \? "am start --display" : null;/,
+    'the backend used is recorded for the diagnostics panel');
 
   const launchPhone = display.slice(display.indexOf('public boolean launchOnPhone'));
   assert.match(launchPhone, /getLaunchIntentForPackage/, 'public API: the same call tapping the icon makes');
@@ -437,6 +494,60 @@ test('an app that cannot be hosted opens in a window that names its mechanism', 
  * This checks the integration points, because that page was reachable from the dock and from a rail
  * button, and leaving either behind would leave a dead end in the interface.
  */
+test('the whole privileged path can be verified on the device itself', async () => {
+  const aidl = await read(JAVA.aidl);
+  assert.match(aidl, /String selfTest\(\) = 11;/, 'the shell service exposes the on-device test');
+  const service = await read(JAVA.service);
+  assert.match(service, /@Override public String selfTest\(\) \{/);
+  assert.match(service, /createVirtualDisplay\("NextVR self-test", 64, 64, 160, null, 0\)/,
+    'the test creates a real display and releases it');
+  assert.match(service, /probe\.release\(\)/, 'and gives it back');
+  assert.match(service, /report\.put\("identity", runForOutput\("id"\)\)/,
+    'the shell identity is read the way `adb shell id` reads it');
+  assert.match(service, /report\.put\("setDisplayId", setDisplayId != null\)/);
+
+  const manager = await read(JAVA.shizuku);
+  assert.match(manager, /public String selfTest\(\) \{/);
+  assert.match(manager, /awaitService\(SELFTEST_WAIT_MS\)/);
+
+  const window = await read(JAVA.window);
+  assert.match(window, /case "selftest": selfTest\(\); break;/);
+  assert.match(window, /shizuku\.selfTest\(\)/);
+
+  const web = await read(WEB.androidApps);
+  assert.match(web, /t\('appSelfTest'\)/, 'the menu offers the button');
+  assert.match(web, /shizuku_denied: t\('appShizukuDenied'\)/,
+    'refusing the dialog has its own instruction, not "Shizuku is not installed"');
+  assert.match(await read(JAVA.display), /asked \? "shizuku_denied" : "shizuku_unavailable"/);
+  assert.match(await read(JAVA.shizuku), /public boolean needsPermission\(\)/);
+  assert.match(web, /cmd: 'selftest'/);
+  const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
+  assert.ok(bundle.includes('device self-test:'), 'and the report can be copied out');
+});
+
+test('a mirror window says it is the phone screen and needs consent', async () => {
+  const web = await read(WEB.androidApps);
+  assert.match(web, /if \(session\.mode === 'mirror' && session\.state !== 'running'/);
+  const core = await read('web/src/core.js');
+  // The wording exists in each of the three languages, so no window is ever left unexplained.
+  assert.equal((core.match(/appMirrorStarting:/g) || []).length, 3,
+    'appMirrorStarting is translated in pt, en and es');
+});
+
+test('the diagnostics panel carries the answers a bug report needs', async () => {
+  const window = await read(JAVA.window);
+  assert.match(window, /json\.put\("diagnostics", diagnostics\)/);
+  for (const field of ['launchError', 'displayReport', 'serviceReason', 'bindError', 'captureService']) {
+    assert.ok(window.includes(`diagnostics.put("${field}"`), `${field} is in the diagnostics block`);
+  }
+  const web = await read(WEB.androidApps);
+  assert.match(web, /export function diagnosticsText\(\)/);
+  assert.match(web, /shizuku reason:/);
+  const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
+  assert.ok(bundle.includes('launch backend:'), 'the shell that ships can produce it');
+  assert.ok(bundle.includes('shizuku reason:'), 'and the Shizuku reason with it');
+});
+
 test('the installed apps live inside the existing Applications menu', async () => {
   const appsJs = await read(WEB.apps);
   assert.ok(!appsJs.includes('androidLibraryPage'), 'no separate page is mounted');
@@ -465,5 +576,6 @@ test('the installed apps live inside the existing Applications menu', async () =
   assert.ok(!web.includes('az-tile') && !web.includes('az-mirror'), 'no page-specific markup is left');
   assert.match(web, /export function androidTileHtml\(app\)/);
   assert.match(web, /export function shizukuNotice\(\)/);
-  assert.match(web, /if \(sh\.ready\) return null;/, 'with the service ready the row does not exist');
+  assert.match(web, /if \(route === 'hosted' && \(sh\.ready \|\| sh\.binding\)\) return null;/,
+    'going to work: no row, no warning, nothing to dismiss');
 });

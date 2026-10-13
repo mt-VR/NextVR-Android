@@ -474,9 +474,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const appState=extra=>JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state:'running',input:'shizuku',alive:true,
         displayId:7,display:{w:1040,h:546,dpi:240,rotation:0,aspect:1040/546},error:null,stopReason:null,frames:42,...extra}],
-      shizuku:{state:'ready',detail:'uid=2000 v13',ready:true,ask:false,needsApp:false,caps:null},
+      shizuku:{state:'ready',detail:'uid=2000 v13 bound',ready:true,ask:false,needsApp:false,
+        caps:null,route:'hosted',bound:true,binding:false},
       input:{shizuku:true,accessibility:false,singleAppCapture:false},
-      capacity:3,library:2,launch:'am start',sdk:34,recents:['org.example.notes']});
+      capacity:3,library:2,launch:'am start --display',sdk:34,recents:['org.example.notes'],
+      diagnostics:{route:'hosted',launchBackend:'am start --display',launchError:null,
+        displayReport:null,serviceReason:'the shell user service is bound',bindError:null,
+        captureService:'not running',sdk:34}});
     const appSession=(state,extra={})=>appState({state,...extra});
     const windowsBefore=await page.locator('.win-shell').count();
     await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
@@ -512,9 +516,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(json=>window.nextvrApps(json),JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'mirror',state:'running',input:'accessibility',alive:true,
         displayId:-2,display:{w:1080,h:2340,dpi:320,rotation:0,aspect:1080/2340},error:null,stopReason:null,frames:12}],
-      shizuku:{state:'install',detail:'',ready:false,ask:false,needsApp:true,caps:null},
+      shizuku:{state:'install',detail:'install',ready:false,ask:false,needsApp:true,caps:null,
+        route:'capture',bound:false,binding:false,reason:'Shizuku is not running'},
       input:{shizuku:false,accessibility:true,singleAppCapture:false},
-      capacity:3,library:2,launch:null,sdk:34,recents:[]}));
+      capacity:3,library:2,launch:null,sdk:34,recents:[],
+      diagnostics:{route:'capture',launchBackend:null,launchError:null,displayReport:null,
+        serviceReason:'Shizuku is not running',bindError:null,captureService:'not running',sdk:34}}));
     await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
       && /mirror/i.test(document.querySelector('.app-surface[data-native-app="org.example.notes"]')
         .closest('.app-window').querySelector('.app-badge').textContent));

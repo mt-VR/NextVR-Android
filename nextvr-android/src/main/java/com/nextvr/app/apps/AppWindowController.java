@@ -115,6 +115,12 @@ public final class AppWindowController {
             JSONObject shizukuJson = status.toJson();
             String caps = shizuku.capabilities();
             shizukuJson.put("caps", caps == null ? JSONObject.NULL : new JSONObject(caps));
+            shizukuJson.put("bound", shizuku.service() != null);
+            shizukuJson.put("binding", shizuku.binding());
+            // Which route a tap takes right now, from the same policy the tap itself uses: the menu
+            // can then say "opens on its own display" or "will ask to capture the screen" before the
+            // user taps, instead of surprising them.
+            shizukuJson.put("route", AppHostPolicy.route(status.state).id);
             json.put("shizuku", shizukuJson);
 
             JSONObject inputJson = new JSONObject();
@@ -157,6 +163,34 @@ public final class AppWindowController {
             json.put("icons", apps.iconEpoch());
             json.put("sdk", AndroidAppManager.sdk());
             json.put("launch", displays.launchBackend() == null ? JSONObject.NULL : displays.launchBackend());
+
+            // Everything needed to explain a failure without a computer: which route was taken, how
+            // the shell service is doing, what `am start` answered and where the shell last saw an
+            // app that never drew. The menu shows this block, copyable, when the user asks for it.
+            JSONObject diagnostics = new JSONObject();
+            diagnostics.put("route", displays.route().id);
+            diagnostics.put("waitingForService", displays.waitingForService());
+            diagnostics.put("hostedSessions", sessions.runningCount());
+            diagnostics.put("launchBackend", displays.launchBackend() == null
+                    ? JSONObject.NULL : displays.launchBackend());
+            diagnostics.put("launchError", displays.lastLaunchError() == null
+                    ? JSONObject.NULL : displays.lastLaunchError());
+            diagnostics.put("displayReport", displays.lastDisplayReport() == null
+                    ? JSONObject.NULL : displays.lastDisplayReport());
+            diagnostics.put("serviceReason", shizuku.unavailableReason());
+            diagnostics.put("bindError", shizuku.bindError() == null
+                    ? JSONObject.NULL : shizuku.bindError());
+            diagnostics.put("captureService", AppMirrorService.isRunning() ? "running"
+                    : (AppMirrorService.failure() == null ? "not running" : AppMirrorService.failure()));
+            diagnostics.put("sdk", AndroidAppManager.sdk());
+            if (selfTestReport != null) {
+                try {
+                    diagnostics.put("selfTest", new JSONObject(selfTestReport));
+                } catch (Exception error) {
+                    diagnostics.put("selfTest", selfTestReport);
+                }
+            }
+            json.put("diagnostics", diagnostics);
         } catch (Exception error) {
             return "{\"sessions\":[],\"error\":" + quote(error.getMessage()) + "}";
         }
@@ -169,18 +203,35 @@ public final class AppWindowController {
      * Opens (or focuses) one installed app in a floating window; [boxWidth]/[boxHeight] are the body
      * the shell draws.
      *
-     * <p>The mechanism is chosen here, once, and the user is never asked to choose it: with the shell
-     * user service available the app is embedded on a display of its own (its real task, its real
-     * lifecycle, no capture), and without it the app is brought to the phone's screen and that screen
-     * is captured into the same window, with the hand's touch forwarded through the accessibility
-     * service. Both are "the app in a window"; only one of them is a mirror, and the window says which
-     * one it is. Previously this method always asked for the hosted path, so a phone without Shizuku
-     * answered every tap with "Shizuku is not available" and nothing ever opened.
+     * <p>One decision, taken from Shizuku's permission state and not from whether a bind happens to
+     * have completed (see {@link AppHostPolicy}) — this is what makes tapping a tile reproduce
+     * PhoneXR's behaviour instead of redirecting the user to the phone:
+     *
+     * <ul>
+     *   <li>Shizuku authorized (even if the user service is still starting): the app is hosted on a
+     *       display of its own. No consent dialog, no app on the phone's screen, no capture.</li>
+     *   <li>Shizuku alive but NextVR not authorized: the permission dialog is opened and the same
+     *       hosted session waits for the service, so granting it opens the window the user asked for.
+     *       If the user refuses, the window says so.</li>
+     *   <li>Shizuku not reachable at all: the capture path, which is the only one left — it boots the
+     *       app on the phone's screen (that is what it captures) and asks for the Android consent the
+     *       platform requires for a capture. The window is labelled as a mirror.</li>
+     * </ul>
      */
     public void open(String packageName, float boxWidth, float boxHeight) {
         if (packageName == null || packageName.isEmpty()) return;
-        if (displays.canHost()) openHosted(packageName, boxWidth, boxHeight);
-        else openCaptured(packageName, boxWidth, boxHeight);
+        AppHostPolicy.Route route = displays.route();
+        if (route == AppHostPolicy.Route.NEEDS_PERMISSION) {
+            // Granting it inside the dialog is enough: the hosted session below waits for the service.
+            shizuku.requestPermission();
+            openHosted(packageName, boxWidth, boxHeight);
+            return;
+        }
+        if (route == AppHostPolicy.Route.HOSTED) {
+            openHosted(packageName, boxWidth, boxHeight);
+            return;
+        }
+        openCaptured(packageName, boxWidth, boxHeight);
     }
 
     /** The hosted path: the app runs on its own display, created by the shell user service. */
@@ -316,6 +367,24 @@ public final class AppWindowController {
         env.pushState();
     }
 
+    /**
+     * Runs the privileged path on the device and pushes the result to the shell. If there is no
+     * service to run it in, the report says that instead of failing silently, because "Shizuku is
+     * not bound" and "Shizuku is bound but the display was refused" are different problems with
+     * different fixes.
+     */
+    public void selfTest() {
+        String report = shizuku.selfTest();
+        if (report == null) {
+            report = "{\"ok\":false,\"error\":\"" + AppHostPolicy.route(shizuku.status().state).id
+                    + ": no shell user service ("
+                    + (shizuku.unavailableReason() == null ? "not bound" : shizuku.unavailableReason())
+                    + ")\"}";
+        }
+        selfTestReport = report;
+        env.pushState();
+    }
+
     /** Hides or shows an app in the library (system apps the user never wants in VR). */
     public void hide(String packageName, boolean hide) {
         if (packageName == null || packageName.isEmpty()) return;
@@ -360,6 +429,10 @@ public final class AppWindowController {
                     if (packageName != null) displays.launchOnPhone(packageName);
                     break;
                 case "shizuku": requestShizuku(); break;
+                // Verifies the privileged path on this device, from inside the headset. It creates
+                // and releases a 64x64 private display and resolves the injector — nothing on screen
+                // changes — and the report is rendered by the menu.
+                case "selftest": selfTest(); break;
                 case "refresh": refreshLibrary(); break;
                 default: break;
             }
@@ -374,15 +447,20 @@ public final class AppWindowController {
         env.pushState();
     }
 
+    /** The last on-device self-test, or null. Converted for the state JSON without throwing. */
+    private String selfTestReport;
+
     /** Called by the activity when Shizuku's binder or permission state changed. */
     public void onShizukuChanged() {
         ShizukuStatus status = shizuku.status();
-        if (status.ready()) shizuku.bind();
-        else {
+        // "Binding" is not "gone": cancelling the bind here was the bug that made every tap fall back
+        // to the capture path. Only a Shizuku that cannot host at all tears the sessions down.
+        if (AppHostPolicy.hosted(status.state)) {
+            shizuku.bind();
+        } else {
             // Without the shell process the hosted displays are gone: the windows say so instead of
             // showing a frozen last frame.
             displays.onShizukuLost();
-            shizuku.unbind();
         }
         for (AppSession session : sessions.sessions()) input.refreshBackend(session);
         env.pushState();
@@ -396,7 +474,7 @@ public final class AppWindowController {
 
     /** Called when the shell resumed: the bound service may have died while suspended. */
     public void onShellResumed() {
-        if (shizuku.status().ready()) shizuku.bind();
+        if (AppHostPolicy.hosted(shizuku.status().state)) shizuku.bind();
         env.pushState();
     }
 

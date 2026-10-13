@@ -53,6 +53,9 @@ public final class ShizukuManager {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
             service = IDisplayService.Stub.asInterface(binder);
             binding = false;
+            bindStartedAt = 0;
+            bindError = null;
+            serviceReadyAt = android.os.SystemClock.uptimeMillis();
             Log.i(TAG, "shell user service bound");
             notifyChanged();
         }
@@ -60,6 +63,32 @@ public final class ShizukuManager {
         @Override public void onServiceDisconnected(ComponentName name) {
             service = null;
             binding = false;
+            serviceReadyAt = 0;
+            Log.i(TAG, "shell user service disconnected");
+            notifyChanged();
+        }
+
+        /**
+         * The binder exists but the service could not be started: Shizuku refused, the APK's service
+         * class could not be loaded, or the user service died while starting. Without these two
+         * callbacks this case looks exactly like "still binding" and the window stays on its spinner,
+         * so the reason is recorded and shown.
+         */
+        @Override public void onBindingDied(ComponentName name) {
+            service = null;
+            binding = false;
+            serviceReadyAt = 0;
+            bindError = "the shell user service died while binding";
+            Log.w(TAG, bindError);
+            notifyChanged();
+        }
+
+        @Override public void onNullBinding(ComponentName name) {
+            service = null;
+            binding = false;
+            serviceReadyAt = 0;
+            bindError = "the shell user service could not be created";
+            Log.w(TAG, bindError);
             notifyChanged();
         }
     };
@@ -87,9 +116,29 @@ public final class ShizukuManager {
         }
     };
 
+    /**
+     * How long a bind may be in flight before it is reported as a broken service instead of "on its
+     * way". Forking the shell process and loading this APK into it takes a moment; treating that
+     * moment as a failure is what silently cancelled every bind (see {@link #status()}).
+     */
+    private static final long BIND_STUCK_MS = 25_000;
+    /** How often {@link #awaitService} looks at the binding while it waits. */
+    private static final long WAIT_STEP_MS = 80;
+    /** A self-test creates a real display, so it waits a little longer than a normal call. */
+    private static final long SELFTEST_WAIT_MS = 6_000;
+    /** {@link #capabilities()} is read by the UI: its answer is cached for this long. */
+    private static final long CAPABILITIES_MS = 2000;
+
     private volatile IDisplayService service;
     private volatile boolean binding;
+    /** When the current bind attempt started, or 0. */
+    private volatile long bindStartedAt;
+    /** Why the last bind attempt failed, verbatim; null when none did. */
+    private volatile String bindError;
+    /** When the service answered a call for the last time. */
+    private volatile long serviceReadyAt;
     private volatile String capabilities;
+    private volatile long capabilitiesAt;
     private volatile boolean started;
     private Listener listener;
 
@@ -139,6 +188,10 @@ public final class ShizukuManager {
 
     /** The current state, resolved from the platform instead of remembered from the last call. */
     public ShizukuStatus status() {
+        // A live Shizuku binder *is* an installation, even when the manager package is not one this
+        // app knows by name (Sui on a rooted device, a renamed manager). Without this the state came
+        // back UNKNOWN on those devices and the tile fell back to the capture path although the full
+        // privileges were right there.
         boolean installed = installed();
         boolean alive = false, preV11 = false;
         int permission = -1;
@@ -155,15 +208,32 @@ public final class ShizukuManager {
         }
         boolean deniedForever = alive && !preV11 && permission != ShizukuStatus.PERMISSION_GRANTED
                 && permission != -1 && !rationale;
-        ShizukuStatus.State state = ShizukuStatus.resolve(installed, alive, preV11, permission, deniedForever);
-        // Authorized but the shell service is gone: Shizuku was restarted (or stopped) after we bound.
-        if (state == ShizukuStatus.State.READY && binding && service == null)
+        ShizukuStatus.State state = ShizukuStatus.resolve(installed || alive, alive, preV11,
+                permission, deniedForever);
+        // Authorized, but the shell service is neither bound nor on its way: Shizuku was restarted
+        // after we bound, or a previous bind attempt failed. Only *that* is SERVICE_DOWN. A bind that
+        // is still in flight is not a failure — it used to be reported as one, which made the caller
+        // unbind the service it had just asked for, and every app window then fell back to the
+        // screen-capture route (the app appearing on the phone's screen).
+        if (state == ShizukuStatus.State.READY && service == null && !binding
+                && (bindError != null || serviceReadyAt != 0)) {
             state = ShizukuStatus.State.SERVICE_DOWN;
+        }
         return new ShizukuStatus(state, describe(state));
     }
 
     /** Whether a shell user service is bound and answering right now. */
     public boolean ready() { return service != null; }
+
+    /**
+     * Whether Shizuku is alive but NextVR is not allowed to use it (never asked, or refused). The
+     * difference matters to the user: this state is fixed by one tap in the dialog, while "not
+     * installed" is fixed by installing something.
+     */
+    public boolean needsPermission() {
+        ShizukuStatus.State state = status().state;
+        return state == ShizukuStatus.State.NEEDS_PERMISSION || state == ShizukuStatus.State.DENIED;
+    }
 
     /** The user service, or null; every method call is wrapped by the caller in try/catch. */
     public IDisplayService service() { return service; }
@@ -200,18 +270,119 @@ public final class ShizukuManager {
         }
     }
 
-    /** Binds the shell user service if it is not bound yet; harmless to call repeatedly. */
+    /**
+     * Binds the shell user service if it is not bound yet; harmless to call repeatedly, from any
+     * thread. The actual {@code Shizuku.bindUserService} call is posted to the main thread (that is
+     * where Shizuku delivers the connection callbacks), but the caller does not have to be there.
+     */
     public void bind() {
+        if (service != null || binding) return;
+        if (Looper.myLooper() == Looper.getMainLooper()) doBind();
+        else main.post(this::doBind);
+    }
+
+    private void doBind() {
         if (service != null || binding) return;
         try {
             if (!Shizuku.pingBinder() || Shizuku.isPreV11()) return;
             if (Shizuku.checkSelfPermission() != ShizukuStatus.PERMISSION_GRANTED) return;
+            // A new attempt invalidates the reason the previous one failed: the user may have just
+            // granted the permission or restarted Shizuku.
+            bindError = null;
             binding = true;
+            bindStartedAt = android.os.SystemClock.uptimeMillis();
             Shizuku.bindUserService(args, connection);
+            Log.i(TAG, "binding the shell user service");
         } catch (Throwable error) {
             binding = false;
+            bindStartedAt = 0;
+            bindError = error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
             Log.w(TAG, "bindUserService failed", error);
+            notifyChanged();
         }
+    }
+
+    /**
+     * The user service, binding it and waiting for it if that is what it takes.
+     *
+     * <p>This is the method that replaced "is it bound?" at the moment of the tap. Spawning the shell
+     * process takes a moment, and the answer to "can this app be hosted?" must not depend on whether
+     * that moment has already passed: the wait is short, it happens on the caller's own worker thread
+     * (never the UI thread) and the window shows "opening" while it lasts.
+     *
+     * @return the bound service, or null when it did not arrive within [timeoutMs].
+     */
+    public IDisplayService awaitService(long timeoutMs) {
+        IDisplayService current = service;
+        long deadline = System.currentTimeMillis() + Math.max(0, timeoutMs);
+        while (current == null && System.currentTimeMillis() < deadline) {
+            ensureBound();
+            try {
+                Thread.sleep(WAIT_STEP_MS);
+            } catch (InterruptedException stop) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = service;
+        }
+        return current;
+    }
+
+    /** Binds when it is sensible to; true when the service is bound right now. */
+    public boolean ensureBound() {
+        if (service != null) return true;
+        if (!binding) bind();
+        return service != null;
+    }
+
+    /** Drops a service that stopped answering and asks for a new one (a stale Shizuku process). */
+    public void rebind() {
+        IDisplayService stale = service;
+        if (stale != null) {
+            try { stale.destroy(); } catch (Throwable ignored) { }
+        }
+        service = null;
+        binding = false;
+        bindStartedAt = 0;
+        serviceReadyAt = 0;
+        unbind();
+        bind();
+    }
+
+    /** The verbatim reason the last bind attempt failed, or null. */
+    public String bindError() { return bindError; }
+
+    /** Whether a bind attempt is in flight right now. */
+    public boolean binding() { return binding; }
+
+    /**
+     * A short, honest sentence about why the shell service is not there. Used by the window when a
+     * hosted app cannot start: "binding" and "refused with this error" are different problems and the
+     * user (and the bug report) need to tell them apart.
+     */
+    public String unavailableReason() {
+        if (service != null) return "the shell user service is bound";
+        if (binding) {
+            return "the shell user service is still starting"
+                    + (bindStartedAt == 0 ? "" : " (" + (android.os.SystemClock.uptimeMillis() - bindStartedAt) + " ms)");
+        }
+        if (bindError != null) return "the shell user service did not start: " + bindError;
+        try {
+            if (!Shizuku.pingBinder()) return "Shizuku is not running";
+            if (Shizuku.isPreV11()) return "the Shizuku version is too old for a user service";
+            if (Shizuku.checkSelfPermission() != ShizukuStatus.PERMISSION_GRANTED)
+                return "NextVR is not authorized in Shizuku";
+        } catch (Throwable error) {
+            return "Shizuku could not be queried: " + error.getClass().getSimpleName();
+        }
+        return "no shell user service";
+    }
+
+    /** Milliseconds the current bind attempt has been in flight, or 0. */
+    public long bindAgeMs() {
+        long started = bindStartedAt;
+        return started == 0 ? 0 : android.os.SystemClock.uptimeMillis() - started;
     }
 
     /** Releases the binding without killing the service process: the next window reuses it. */
@@ -234,12 +405,41 @@ public final class ShizukuManager {
     public String capabilities() {
         IDisplayService current = service;
         if (current == null) return capabilities;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (capabilities != null && now - capabilitiesAt < CAPABILITIES_MS) return capabilities;
+        capabilitiesAt = now;
         try {
             capabilities = current.capabilities();
         } catch (Throwable error) {
+            // The binder died between the check and the call: report the failure instead of an old
+            // self-test that would say everything is fine.
             Log.w(TAG, "capabilities failed", error);
+            capabilities = "{\"error\":\"" + error.getClass().getSimpleName() + "\"}";
+            service = null;
+            binding = false;
+            bindError = "the user service stopped answering (" + error.getClass().getSimpleName() + ")";
+            notifyChanged();
         }
         return capabilities;
+    }
+
+    /**
+     * Runs the privileged chain on the device, through the user service, and returns its step-by-step
+     * report as JSON (or null when there is no service to run it in). This is what the menu's
+     * "self-test" button shows: the same {@code id}, {@code createVirtualDisplay}, {@code am} and
+     * injector checks an ADB session would do, executed from inside NextVR.
+     */
+    public String selfTest() {
+        IDisplayService display = awaitService(SELFTEST_WAIT_MS);
+        if (display == null) return null;
+        try {
+            return display.selfTest();
+        } catch (Throwable error) {
+            Log.w(TAG, "self test failed", error);
+            return "{\"ok\":false,\"error\":\"" + error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage().replace('"', '\''))
+                    + "\"}";
+        }
     }
 
     /** State pushed to the shell as JSON: the dock and the app library render exactly this. */
@@ -248,6 +448,9 @@ public final class ShizukuManager {
         try {
             json.put("bound", service != null);
             json.put("binding", binding);
+            json.put("bindAgeMs", bindAgeMs());
+            json.put("bindError", bindError == null ? JSONObject.NULL : bindError);
+            json.put("reason", unavailableReason());
         } catch (Throwable ignored) { }
         return json;
     }
@@ -286,8 +489,11 @@ public final class ShizukuManager {
             case OLD_VERSION: detail.append("update"); break;
             case NEEDS_PERMISSION: detail.append("request"); break;
             case DENIED: detail.append("denied"); break;
-            case SERVICE_DOWN: detail.append("rebind"); break;
-            case READY: detail.append(service == null ? "binding" : "bound"); break;
+            case SERVICE_DOWN: detail.append("rebind").append(bindError == null ? "" : " " + bindError); break;
+            case READY:
+                detail.append(service == null ? "binding" : "bound");
+                if (bindError != null) detail.append(' ').append(bindError);
+                break;
             default: detail.append("unknown"); break;
         }
         return detail.toString();

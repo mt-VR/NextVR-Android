@@ -71,6 +71,7 @@ export function applyState(json) {
   state.recents = Array.isArray(next.recents) ? next.recents : [];
   state.sdk = next.sdk || state.sdk;
   state.launch = next.launch || null;
+  state.diagnostics = next.diagnostics || state.diagnostics;
   // The native side bumps `library` when a batch of icons lands (or the app list changed): drop the
   // cached grid so the next paint asks for it again and the real launcher icons appear.
   if (next.icons != null && next.icons !== library.icons) {
@@ -158,6 +159,22 @@ function updateWindow(session) {
     requested: t('appStarting'), creating: t('appStarting'), launching: t('appStarting'),
     running: '', failed: session.error ? sessionError(session) : t('appFailed'),
   };
+  // A hosted session that is "creating" while the shell service is still binding is not stuck: it is
+  // the shell process being forked. Saying so is the difference between a spinner and a diagnosis.
+  if (session.mode === 'display' && (state.shizuku?.binding || !state.shizuku?.ready)
+      && (session.state === 'requested' || session.state === 'creating')) {
+    states.requested = t('appWaitingService');
+    states.creating = t('appWaitingService');
+  }
+  // A mirror window is not the app in VR: the app is opening on the phone's screen and this window
+  // is showing that screen with the user's capture consent. The window says so while it does it,
+  // instead of looking like the hosted case and surprising the user with a dialog.
+  if (session.mode === 'mirror' && session.state !== 'running'
+      && session.state !== 'failed') {
+    states.requested = t('appMirrorStarting');
+    states.creating = t('appMirrorStarting');
+    states.launching = t('appMirrorStarting');
+  }
   const text = states[session.state] ?? '';
   entry.status.hidden = !text;
   entry.status.dataset.state = session.state;
@@ -183,11 +200,12 @@ function updateWindow(session) {
  * windows offer that as the next step instead of ending on an error.
  */
 const RECOVERABLE = new Set(['consent_denied', 'projection_failed', 'mirror_failed', 'mirror_refused',
-  'display_empty', 'display_refused', 'display_failed', 'shizuku_unavailable']);
+  'display_empty', 'display_refused', 'display_failed', 'shizuku_unavailable', 'shizuku_denied']);
 
 function sessionError(session) {
   const known = {
     shizuku_unavailable: t('appNeedShizuku'),
+    shizuku_denied: t('appShizukuDenied'),
     display_refused: t('appDisplayRefused'),
     display_failed: t('appDisplayFailed'),
     no_launcher_activity: t('appNoLauncher'),
@@ -306,6 +324,23 @@ const shizukuText = {
   unknown: () => t('shizukuUnknown'),
 };
 
+const ROUTES = new Set(['hosted', 'permission', 'capture']);
+
+/**
+ * The route a tap will take, so the menu never surprises the user with a consent dialog.
+ *
+ * <p>The native side publishes it (`shizuku.route`), computed by the same policy the tap uses. The
+ * fallback for a shell talking to an older native side derives it from the state instead of guessing
+ * "capture", which would show the capture warning about a device that is about to host perfectly.
+ */
+export function routeOf() {
+  const sh = state.shizuku || {};
+  if (ROUTES.has(sh.route)) return sh.route;
+  if (sh.ready || sh.state === 'ready' || sh.state === 'rebind') return 'hosted';
+  if (sh.state === 'ask') return 'permission';
+  return 'capture';
+}
+
 /**
  * The one status row the app menu shows, and only when the shell service is not ready: a phone
  * without Shizuku then still opens apps (through the capture path), so the row explains which of the
@@ -314,7 +349,9 @@ const shizukuText = {
  */
 export function shizukuNotice() {
   const sh = state.shizuku || {};
-  if (sh.ready) return null;
+  const route = routeOf();
+  // Nothing to explain when the hosted route is going to work: that is the normal, silent case.
+  if (route === 'hosted' && (sh.ready || sh.binding)) return null;
   const wrap = document.createElement('div');
   wrap.className = 'lib-note az-row';
   const dot = document.createElement('span');
@@ -322,8 +359,17 @@ export function shizukuNotice() {
   dot.dataset.state = sh.state || 'unknown';
   const text = document.createElement('span');
   text.className = 'az-text';
-  text.textContent = (shizukuText[sh.state] || shizukuText.unknown)();
-  if (!state.input?.accessibility) {
+  // The first line says what a tap will actually do right now; the second says why.
+  const routing = {
+    hosted: () => t('routeHosted'),
+    permission: () => t('routePermission'),
+    capture: () => t('routeCapture'),
+  };
+  text.textContent = (routing[route] || routing.capture)();
+  const why = document.createElement('small');
+  why.textContent = (shizukuText[sh.state] || shizukuText.unknown)();
+  text.appendChild(why);
+  if (route === 'capture' && !state.input?.accessibility) {
     const hint = document.createElement('small');
     hint.textContent = t('appCaptureInput');
     text.appendChild(hint);
@@ -343,21 +389,79 @@ export function shizukuNotice() {
     button.onclick = () => { refreshApps(); requestShizuku(); };
   }
   wrap.appendChild(button);
-  if (sh.caps) {
-    const more = document.createElement('button');
-    more.className = 'az-btn ghost';
-    more.textContent = t('appSelfTest');
-    more.onclick = () => {
-      const open = wrap.querySelector('.az-caps');
-      if (open) { open.remove(); return; }
-      const block = document.createElement('pre');
-      block.className = 'az-caps';
-      block.textContent = JSON.stringify({ ...sh.caps, launch: state.launch }, null, 2);
-      wrap.appendChild(block);
-    };
-    wrap.appendChild(more);
-  }
+  const test = document.createElement('button');
+  test.className = 'az-btn ghost';
+  test.textContent = t('appSelfTest');
+  test.onclick = async () => {
+    test.disabled = true;
+    try {
+      await command({ cmd: 'selftest' });
+      const report = state.diagnostics?.selfTest;
+      if (report) toast(report.ok ? t('appSelfTestOk') : t('appSelfTestFailed'));
+    } catch (error) { toast(t('appCommandFailed')); }
+    finally { test.disabled = false; }
+  };
+  wrap.appendChild(test);
+
+  const more = document.createElement('button');
+  more.className = 'az-btn ghost';
+  more.textContent = t('appDiagnostics');
+  more.onclick = () => {
+    const open = wrap.querySelector('.az-caps');
+    if (open) { open.remove(); return; }
+    const block = document.createElement('pre');
+    block.className = 'az-caps';
+    block.textContent = diagnosticsText();
+    block.onclick = () => copyDiagnostics(block.textContent);
+    wrap.appendChild(block);
+  };
+  wrap.appendChild(more);
   return wrap;
+}
+
+/**
+ * Everything needed to explain a failure without a computer: the route the tap takes, the Shizuku
+ * state and reply, the `am start` output, and where the shell last saw an app that never drew. It is
+ * written as plain text because that is what gets pasted into a bug report.
+ */
+export function diagnosticsText() {
+  const sh = state.shizuku || {};
+  const d = state.diagnostics || {};
+  const lines = [
+    'NextVR app windows',
+    `route: ${sh.route || d.route || 'unknown'}`,
+    `shizuku: ${sh.state || 'unknown'}${sh.detail ? ' (' + sh.detail + ')' : ''}`,
+    `shizuku bound: ${sh.bound ? 'yes' : 'no'}${sh.binding ? ' (binding)' : ''}`,
+    `shizuku reason: ${sh.reason || d.serviceReason || '-'}`,
+    `bind error: ${sh.bindError || d.bindError || '-'}`,
+    `launch backend: ${d.launchBackend || state.launch || '-'}`,
+    `launch error: ${d.launchError || '-'}`,
+    `display report: ${d.displayReport || '-'}`,
+    `capture service: ${d.captureService || '-'}`,
+    `accessibility: ${state.input?.accessibility ? 'on' : 'off'}`,
+    `sdk: ${d.sdk || state.sdk || '-'}`,
+    ...(d.selfTest ? ['device self-test: ' + JSON.stringify(d.selfTest)] : []),
+    ...(sh.caps ? ['service capabilities: ' + JSON.stringify(sh.caps)] : []),
+  ];
+  return lines.join('\n');
+}
+
+/** Copies the diagnostics to the phone's clipboard, falling back to a selection the user can tap. */
+function copyDiagnostics(text) {
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand?.('copy');
+    area.remove();
+    if (copied) toast(t('appDiagnosticsCopied'));
+    return;
+  } catch (error) {
+    /* the block stays on screen, selectable by hand */
+  }
 }
 
 /** Escapes text that goes into a tile's markup. */

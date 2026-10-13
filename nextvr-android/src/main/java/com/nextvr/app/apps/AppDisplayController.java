@@ -58,6 +58,15 @@ public final class AppDisplayController implements AppSessionManager.Host {
      * enough for a heavy app to draw its splash screen, short enough to not look broken.
      */
     private static final long EMPTY_DISPLAY_MS = 15_000;
+    /**
+     * How long a hosted window waits for the shell user service (binding it if that is what it takes)
+     * before giving up. The shell process has to be forked and this APK loaded into it, and on a cold
+     * Shizuku that is the difference between "the app opens" and "the app opened on the phone".
+     */
+    private static final long SERVICE_WAIT_MS = 20_000;
+    /** The display needs a moment before an activity can be started on it; the launch is retried. */
+    private static final long LAUNCH_RETRY_MS = 400;
+    private static final int LAUNCH_ATTEMPTS = 3;
 
     /** What the driver needs from the VR activity; keeps this class out of the GL/UI plumbing. */
     public interface Environment {
@@ -100,6 +109,12 @@ public final class AppDisplayController implements AppSessionManager.Host {
     private volatile String capturePackage;
     /** How the last hosted app was started; shown in the self-test row of the library. */
     private volatile String lastLaunchBackend;
+    /** The verbatim output of the last failed `am start`, or null. Shown in the diagnostics panel. */
+    private volatile String lastLaunchError;
+    /** Which display the last failed app was actually found on, as the shell sees it. */
+    private volatile String lastDisplayReport;
+    /** True while a hosted window is waiting for the user service, so the UI can say so. */
+    private volatile boolean waitingForService;
     private boolean supervising;
 
     private final Runnable supervisor = new Runnable() {
@@ -127,20 +142,38 @@ public final class AppDisplayController implements AppSessionManager.Host {
     public AppDisplaySpec spec(String packageName) { return specs.get(packageName); }
 
     /**
-     * Whether an app can really be embedded right now: the shell user service must be bound.
+     * Whether an app can be hosted on a display of its own, i.e. whether the Shizuku route applies.
      *
-     * <p>The answer decides which of the two mechanisms a tile uses, and it is asked here because
-     * this is the only object that knows the service: the shell cannot guess it, and guessing wrong
-     * is what turned every tap into "Shizuku is not available" instead of opening the app.
+     * <p>This asks {@link AppHostPolicy} about the Shizuku *state* — permission granted, even if the
+     * user service has not finished binding — and not about the binder of the moment. The old
+     * "is the service bound right now?" test was the bug: it answered false during the (normal)
+     * binding window, which routed the tap to the screen-capture path and put the app on the phone.
+     * The service itself is awaited further down, inside the window's own worker thread.
      */
-    public boolean canHost() {
+    public AppHostPolicy.Route route() {
         ShizukuManager shizuku = env.shizuku();
         try {
-            return shizuku != null && shizuku.status().ready() && shizuku.service() != null;
+            return AppHostPolicy.route(shizuku == null ? null : shizuku.status().state);
         } catch (Throwable error) {
-            return false;
+            return AppHostPolicy.Route.CAPTURE;
         }
     }
+
+    /** True while a hosted window is waiting for the shell user service to answer. */
+    public boolean waitingForService() { return waitingForService; }
+
+    /** The verbatim output of the last failed `am start`, or null. */
+    public String lastLaunchError() { return lastLaunchError; }
+
+    /** Type and message, never truncated: the platform's own text is the diagnostic. */
+    private static String describe(Throwable error) {
+        if (error == null) return "unknown error";
+        String detail = error.getMessage();
+        return error.getClass().getSimpleName() + (detail == null || detail.isEmpty() ? "" : ": " + detail);
+    }
+
+    /** Where the shell last saw a hosted app that never drew, or null. */
+    public String lastDisplayReport() { return lastDisplayReport; }
 
     /** Which mechanism the last hosted app was started with, for the self-test row. */
     public String launchBackend() { return lastLaunchBackend; }
@@ -186,9 +219,24 @@ public final class AppDisplayController implements AppSessionManager.Host {
             work.execute(() -> {
                 ShizukuManager shizuku = env.shizuku();
                 IDisplayService service = shizuku == null ? null : shizuku.service();
+                if (service == null && shizuku != null) {
+                    // Bind (or re-bind) and wait. This is the window that used to be mistaken for
+                    // "Shizuku is not available" and sent the app to the phone's screen instead.
+                    waitingForService = true;
+                    env.sessionsChanged();
+                    service = shizuku.awaitService(SERVICE_WAIT_MS);
+                    waitingForService = false;
+                }
                 if (service == null) {
-                    sessions.settle(packageName, false, "shizuku_unavailable");
-                    env.report("Android app windows need Shizuku: " + describeShizuku());
+                    String reason = shizuku == null ? "no Shizuku manager" : shizuku.unavailableReason();
+                    // "Allow NextVR in Shizuku" and "install Shizuku" are different instructions, so
+                    // they are different codes and the window words them differently.
+                    boolean asked = shizuku != null && shizuku.needsPermission();
+                    sessions.settle(packageName, false, asked ? "shizuku_denied" : "shizuku_unavailable");
+                    env.report(asked
+                            ? "Allow NextVR inside Shizuku and tap the app again"
+                            : "Android app windows need the shell service: " + reason);
+                    env.sessionsChanged();
                     return;
                 }
                 int displayId;
@@ -211,28 +259,32 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     env.report("This app has no launchable activity");
                     return;
                 }
-                String error;
-                try {
-                    // The shell path is tried first because it answers with the platform's own error
-                    // text ("Error: Activity not started, ..."), which the window shows. See
-                    // launchOnDisplay() for the supported-API alternative and why it is second.
-                    error = service.launch(component, displayId);
-                } catch (Throwable launchError) {
-                    // AIDL methods declare RemoteException; the shell service going away mid-call is
-                    // reported to the window instead of escaping the worker thread.
-                    error = launchError.getMessage() == null
-                            ? launchError.getClass().getSimpleName() : launchError.getMessage();
-                }
-                lastLaunchBackend = error == null ? "am start" : null;
-                if (error != null) {
-                    String publicError = launchOnDisplay(displayId, packageName);
-                    if (publicError == null) {
-                        error = null;
-                        lastLaunchBackend = "ActivityOptions";
-                    } else {
-                        error = error + "; " + publicError;
+                String error = null;
+                for (int attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt++) {
+                    try {
+                        // `am start --display` is the same call `adb shell am start --display` makes,
+                        // and — unlike startActivity from this process — it *reports* what happened:
+                        // a refusal comes back as text ("Error: Activity not started ...") instead of
+                        // silently landing the activity on the phone's own screen.
+                        error = service.launch(component, displayId);
+                    } catch (Throwable launchError) {
+                        // AIDL methods declare RemoteException; the shell service going away mid-call
+                        // is reported to the window instead of escaping the worker thread.
+                        error = launchError.getMessage() == null
+                                ? launchError.getClass().getSimpleName() : launchError.getMessage();
+                    }
+                    if (error == null) break;
+                    // A display created a moment ago can refuse the activity; a short retry catches
+                    // that without turning a real error into a spinner.
+                    if (attempt < LAUNCH_ATTEMPTS) {
+                        try { Thread.sleep(LAUNCH_RETRY_MS); } catch (InterruptedException stop) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
                     }
                 }
+                lastLaunchBackend = error == null ? "am start --display" : null;
+                lastLaunchError = error;
                 sessions.settle(packageName, error == null, error);
                 input.refreshBackend(sessions.find(packageName));
                 env.sessionsChanged();
@@ -380,6 +432,15 @@ public final class AppDisplayController implements AppSessionManager.Host {
             return;
         }
         try {
+            // Android 10+ refuses to construct a MediaProjection unless the foreground service of
+            // type "mediaProjection" is already running; when it is not, the platform's own message
+            // ("Media projections require a foreground service of type ...") is what the user sees.
+            // Asking the service for its state first turns that into a sentence about what failed.
+            if (!AppMirrorService.isRunning()) {
+                throw new IllegalStateException(AppMirrorService.failure()
+                        == null ? "the screen-capture foreground service is not running"
+                                : AppMirrorService.failure());
+            }
             MediaProjectionManager manager = context.getSystemService(MediaProjectionManager.class);
             if (manager == null) throw new IllegalStateException("no MediaProjectionManager");
             // Requires the foreground service started in requestMirror(): the constructor behind this
@@ -391,7 +452,8 @@ public final class AppDisplayController implements AppSessionManager.Host {
         } catch (Throwable error) {
             AppMirrorService.stop(context);
             if (session != null) sessions.settle(packageName, false, "projection_failed");
-            env.report("Could not start screen capture: " + error.getMessage());
+            // The whole message, never a truncated one: the platform's own text is the diagnostic.
+            env.report("Could not start screen capture: " + describe(error));
         }
     }
 
@@ -546,8 +608,23 @@ public final class AppDisplayController implements AppSessionManager.Host {
                     long stamp = frameTexture == null ? -1 : frameTexture.getTimestamp();
                     if (session.state == AppSession.State.RUNNING && stamp == 0
                             && now - session.openedAtMs > EMPTY_DISPLAY_MS) {
+                        // Before calling it a failure, ask the shell where this app actually is: the
+                        // one outcome this must never produce is a silent, unexplained blank window.
+                        String where = null;
+                        if (service != null) {
+                            try { where = service.displayReport(session.packageName); }
+                            catch (Throwable ignored) { }
+                        }
+                        lastDisplayReport = where;
+                        boolean alive = false;
+                        if (service != null) {
+                            try { alive = service.processAlive(session.packageName); } catch (Throwable ignored) { }
+                        }
                         sessions.settle(session.packageName, false, "display_empty");
-                        env.report(session.title + ": the app is not drawing in this window");
+                        env.report(session.title + (alive
+                                ? ": the app is running but not drawing on this display"
+                                : ": the app did not start on this display")
+                                + (where == null || where.isEmpty() ? "" : " (" + where + ")"));
                         continue;
                     }
                     if (service == null) {
@@ -682,40 +759,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
      * lets the user pick that same app), and as the "open on the phone" action of a window whose
      * capture could not start. Returns false when the app has no launcher activity.
      */
-    /**
-     * Starts the app's launcher activity on [displayId] with the public API
-     * ({@code ActivityOptions#setLaunchDisplayId}), as the fallback for when the shell's
-     * {@code am start --display} fails.
-     *
-     * <p>This is the documented way to launch onto a display, and AOSP allows it here: the display is
-     * public and trusted, and {@code ActivityTaskSupervisor#isCallerAllowedToLaunchOnDisplay} returns
-     * true for a non-private display when the user is visible on it (and for the display's owner). An
-     * app-created, untrusted virtual display would instead require {@code ACTIVITY_EMBEDDING} <em>and</em>
-     * {@code FLAG_ALLOW_EMBEDDED} on the other app's activity — neither of which an ordinary app can
-     * obtain, which is exactly why a trusted display has to be created by the shell.
-     *
-     * <p>It is the fallback and not the first choice because {@code startActivity} can be refused
-     * <em>inside</em> the system process: the caller sees no exception and the activity then opens on
-     * the phone's own screen, which would leave the VR window empty with no explanation. The shell path
-     * reports that failure as text, and the supervisor's no-frames guard catches it either way.
-     *
-     * @return null when the launch was handed to the platform, or why it was not.
-     */
-    private String launchOnDisplay(int displayId, String packageName) {
-        try {
-            Intent intent = context.getPackageManager().getLaunchIntentForPackage(packageName);
-            if (intent == null) return "no launcher activity";
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            android.os.Bundle options = android.app.ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(displayId).toBundle();
-            context.startActivity(intent, options);
-            return null;
-        } catch (Throwable error) {
-            String detail = error.getMessage();
-            return error.getClass().getSimpleName() + (detail == null ? "" : ": " + detail);
-        }
-    }
-
     public boolean launchOnPhone(String packageName) {
         if (packageName == null || packageName.isEmpty()) return false;
         try {

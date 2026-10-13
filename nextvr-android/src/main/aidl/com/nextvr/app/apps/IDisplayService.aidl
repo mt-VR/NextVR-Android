@@ -41,4 +41,14 @@ interface IDisplayService {
     // Self-test of this shell process, as JSON: uid, sdk, display count, which injector was found,
     // whether `am`/`pidof` exist, and the last error. The UI shows this instead of guessing.
     String capabilities() = 9;
+    // Where the shell currently sees `packageName`: the displays/tasks it is running on, as printed
+    // by `dumpsys activity activities` (or empty when it is not running). This is the answer to "the
+    // window is blank — did the app refuse the display and open on the phone instead?", which the app
+    // process cannot find out by itself.
+    String displayReport(String packageName) = 10;
+    // Runs the whole privileged chain for real, on this device, and reports each step: shell
+    // identity, binaries, display creation (with release), input injector and the launcher query.
+    // This is the on-device verification of the ADB/Shizuku path, runnable from the headset without
+    // a computer, and a failure names the step and the exception that failed.
+    String selfTest() = 11;
 }

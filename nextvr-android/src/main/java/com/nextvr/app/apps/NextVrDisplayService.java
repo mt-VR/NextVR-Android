@@ -51,7 +51,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
      * bind time ({@code UserServiceArgs.version}) and mixing a new app with an old service process
      * is what this constant exists to prevent.
      */
-    public static final int SERVICE_VERSION = 2;
+    public static final int SERVICE_VERSION = 3;
 
     private static final int FLAG_PUBLIC = 1;                    // DisplayManager.VIRTUAL_DISPLAY_FLAG_*
     private static final int FLAG_PRESENTATION = 1 << 1;
@@ -220,6 +220,141 @@ public class NextVrDisplayService extends IDisplayService.Stub {
                 if (display != null && display.getDisplay() != null) return true;
             return false;
         }
+    }
+
+    /**
+     * Where the shell sees {@code packageName} right now: the display and task lines of
+     * {@code dumpsys activity activities}, or a short "not running". The app process cannot answer
+     * this (a normal app may not read other apps' tasks), and it is exactly what is needed to explain
+     * a blank window: "the activity went to display 0 (the phone) instead of the window's display".
+     */
+    @Override public String displayReport(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return "";
+        try {
+            // One grep, two patterns: the display headers ("Display #0" is the phone, "Display #N" is
+            // a window's display) and every line that names the package. Reading them in order shows
+            // which display the app's task and activity ended up on — the whole question.
+            java.lang.Process process = new ProcessBuilder("sh", "-c",
+                    "dumpsys activity activities 2>/dev/null | grep -F -e 'Display #' -e "
+                            + quote(packageName)).redirectErrorStream(true).start();
+            StringBuilder output = new StringBuilder();
+            boolean seenPackage = false;
+            int lines = 0;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null && lines++ < 4000 && output.length() < 400) {
+                    String trimmed = line.trim();
+                    if (trimmed.isEmpty()) continue;
+                    if (trimmed.contains(packageName)) seenPackage = true;
+                    if (output.length() > 0) output.append(" | ");
+                    output.append(trimmed.length() > 130 ? trimmed.substring(0, 130) : trimmed);
+                }
+            }
+            process.waitFor();
+            if (!seenPackage) {
+                boolean alive;
+                try { alive = processAlive(packageName); } catch (Throwable ignored) { alive = false; }
+                return alive ? "running, but no activity and no task on any display"
+                        : "not running";
+            }
+            return output.toString();
+        } catch (Throwable error) {
+            return "report unavailable: " + error.getClass().getSimpleName();
+        }
+    }
+
+    /**
+     * The whole privileged chain, executed for real: shell identity, the binaries the route uses,
+     * display creation and release, the input injector and the launcher query. Everything the hosted
+     * route needs is exercised here, on this device, in one call — the on-device answer to "is
+     * Shizuku actually working?", with no computer and no log to read.
+     *
+     * <p>The probe display is 64x64 and private (flags 0: no PUBLIC, no TRUSTED), so it cannot take
+     * focus and cannot disturb anything on screen; it exists for a few milliseconds and is released
+     * before returning. Nothing is injected into any app: the injector is only resolved and asked
+     * whether it is present.
+     */
+    @Override public String selfTest() {
+        JSONObject report = new JSONObject();
+        boolean ok = true;
+        try {
+            report.put("uid", Process.myUid());
+            report.put("sdk", Build.VERSION.SDK_INT);
+            report.put("shellContext", SHELL.equals(shellContext.getPackageName()));
+            report.put("identity", runForOutput("id"));
+            report.put("am", new java.io.File("/system/bin/am").exists()
+                    || new java.io.File("/system/bin/cmd").exists());
+            report.put("dumpsys", new java.io.File("/system/bin/dumpsys").exists());
+
+            // The gate that makes an app window possible; any refusal is reported verbatim.
+            String displayError = null;
+            long started = android.os.SystemClock.uptimeMillis();
+            try {
+                DisplayManager manager = newDisplayManager();
+                VirtualDisplay probe = manager.createVirtualDisplay("NextVR self-test", 64, 64, 160, null, 0);
+                if (probe == null || probe.getDisplay() == null) {
+                    displayError = "createVirtualDisplay returned null";
+                } else {
+                    report.put("probeDisplayId", probe.getDisplay().getDisplayId());
+                    probe.release();
+                }
+            } catch (Throwable error) {
+                displayError = error.getClass().getSimpleName() + ": " + error.getMessage();
+            }
+            report.put("display", displayError == null ? "created and released" : displayError);
+            report.put("displayMs", android.os.SystemClock.uptimeMillis() - started);
+            if (displayError != null) ok = false;
+
+            report.put("injector", injectorName);
+            report.put("setDisplayId", setDisplayId != null);
+            report.put("injectInputEvent", injectInputEvent != null);
+            if (injectInputEvent == null || setDisplayId == null) ok = false;
+
+            // The same query a window uses to find an app's launcher activity.
+            String launcher;
+            try {
+                android.content.pm.PackageManager packages = shellContext.getPackageManager();
+                android.content.Intent intent = packages.getLaunchIntentForPackage("com.android.settings");
+                launcher = intent == null || intent.getComponent() == null ? "not found"
+                        : intent.getComponent().flattenToShortString();
+            } catch (Throwable error) {
+                launcher = error.getClass().getSimpleName();
+            }
+            report.put("launcherQuery", launcher);
+
+            report.put("ok", ok);
+            report.put("lastError", lastError == null ? JSONObject.NULL : lastError);
+        } catch (Throwable error) {
+            try {
+                report.put("ok", false);
+                report.put("fatal", error.getClass().getSimpleName() + ": " + error.getMessage());
+            } catch (Throwable ignored) { }
+        }
+        return report.toString();
+    }
+
+    /** Runs a shell command and returns its first output line, or the failure in one short line. */
+    private String runForOutput(String... command) {
+        try {
+            java.lang.Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            StringBuilder text = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null && text.length() < 200) {
+                    if (text.length() > 0) text.append(' ');
+                    text.append(line.trim());
+                }
+            }
+            process.waitFor();
+            return text.length() == 0 ? "(no output)" : text.toString();
+        } catch (Throwable error) {
+            return error.getClass().getSimpleName() + ": " + error.getMessage();
+        }
+    }
+
+    /** Single-quotes a shell argument; the package name is validated by the caller's own rules. */
+    private static String quote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     /**
