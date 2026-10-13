@@ -662,14 +662,17 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 4): Node **85/85** (incluindo o teste de integração em
-Chromium, que no CI roda de verdade) e testes JVM **127 em 19 classes, 0 falhas** — 54 deles nas sete
-classes de `apps/`, entre elas a nova `AppHostPolicyTest` (6 casos), que fixa a regra de roteamento que
-era o bug: `SERVICE_DOWN` hospeda, `NEEDS_PERMISSION` pergunta e hospeda, e só "não existe Shizuku
-utilizável" captura. O APK de depuração sai do próprio job de build e é publicado no branch
-`apk-dist` como `dist/app-debug.apk`, agora acompanhado de `dist/build.txt` — que diz de que run e de
-que commit ele veio, com **tamanho e md5** —, então a build instalada se identifica sozinha: nesta
-rodada ela é `versionCode` **5** / `versionName` **1.0.4** (a rodada 3 era `4` / `1.0.3`).
+Estado no CI (verde, rodada 5, run `38420799703`): Node **90/90** (incluindo o teste de integração em
+Chromium, que no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e testes JVM **140 em
+21 classes, 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as duas novas da rodada 5
+(`AppWindowShapeTest`, 6 casos, e `AppDisplayGeometryTest`, 7 casos). O teste `reference-ui` é o que
+guarda a geometria da janela: ele mede a superfície do app (960x540 em paisagem, 306x544 em retrato,
+com as duas barras dando 962x656 e 308x660), confere que o `sync` manda os pixels do **display**
+(1040x585) e faz o giro completo conferindo o recorte do shader nas duas frações. O APK de depuração sai
+do próprio job de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanhado de
+`dist/build.txt` — que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build
+instalada se identifica sozinha: nesta rodada ela é `versionCode` **6** / `versionName` **1.0.5** (a
+rodada 4 era `5` / `1.0.4`).
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a

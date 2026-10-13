@@ -1,4 +1,4 @@
-# Teste no aparelho — roteiro curto (rodada 4)
+# Teste no aparelho — roteiro curto (rodada 5)
 
 Nada desta funcionalidade foi executado em aparelho real: não há JDK, SDK, `adb` nem aparelho no
 ambiente onde o código foi escrito. O que existe é isto — um roteiro para rodar no celular e no
@@ -22,9 +22,10 @@ md5sum app-debug.apk                           # tem de bater com o md5 do build
 adb install -r app-debug.apk
 ```
 
-Build de depuração **`versionCode` 5 / `versionName` 1.0.4** (a rodada 3 era `4` / `1.0.3` — se o
-aparelho mostrar 1.0.3 em *Configurações → Apps → NextVR*, o APK instalado é o antigo, o que ainda
-mandava o app para a tela do celular). É o APK que o próprio CI gerou, não uma build local.
+Build de depuração **`versionCode` 6 / `versionName` 1.0.5** (a rodada 4 era `5` / `1.0.4`, a 3 era
+`4` / `1.0.3` — se o aparelho mostrar 1.0.4 ou menos em *Configurações → Apps → NextVR*, o APK
+instalado é o antigo, sem o formato da janela por app nem o botão de girar). É o APK que o próprio CI
+gerou, não uma build local.
 
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/
 autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo sintoma depende disso.
