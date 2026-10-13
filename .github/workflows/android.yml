@@ -216,7 +216,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           cp "$APK" dist/app-debug.apk
-          printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
+          # O APK se identifica: o arquivo ao lado dele diz de que run e de que commit ele veio, com
+          # tamanho e md5, para conferir o download sem depender de um número escrito na mão em lugar
+          # nenhum (a documentação aponta para este arquivo).
+          SIZE=$(stat -c %s "$APK")
+          MD5=$(md5sum "$APK" | cut -d' ' -f1)
+          printf 'Debug APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
+          cat dist/build.txt
           git add dist
           git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

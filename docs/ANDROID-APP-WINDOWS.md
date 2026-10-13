@@ -80,7 +80,7 @@ fosse outro:
 | Mecanismo | Quando é usado | O que o usuário vê |
 | --- | --- | --- |
 | **Execução nativa da atividade** | sempre que um app precisa rodar em algum lugar: abrir no celular, ou subir o app no display hospedado | o app real, na tela do celular ou no display |
-| **Janela de desktop (display próprio)** | quando o serviço shell está disponível (`canHost()`) | rótulo `APP DO ANDROID`; é a atividade real em um display dedicado |
+| **Janela de desktop (display próprio)** | quando o Shizuku está autorizado (`AppHostPolicy` = `hosted`) | rótulo `APP DO ANDROID`; é a atividade real em um display dedicado |
 | **Captura de tela** | quando não há serviço shell | rótulo `ESPELHO DA TELA`; é o vídeo da tela do celular com o app nela, e o toque vai pela acessibilidade |
 
 ### Por que a captura é o caminho sem privilégio (e o AOSP confirma)
@@ -114,11 +114,12 @@ certo.
 * `requestCapture(pkg)` traz o app para a tela do celular **antes** do diálogo de consentimento (o
   usuário autoriza a captura *daquele* app), e depois sobe o serviço em primeiro plano — a ordem que
   o Android 10+ exige para o `MediaProjection` existir.
-* `launchOnDisplay()` (`ActivityOptions.setLaunchDisplayId`) ficou como **segunda** tentativa do
-  caminho hospedado: é API pública suportada, mas um `startActivity` recusado dentro do sistema não
-  devolve erro ao chamador — a atividade simplesmente vai para a tela do celular. Por isso o `am
-  start` do serviço shell vem primeiro (ele devolve o texto do erro) e o backend usado é publicado no
-  estado (`launch`).
+* `launchOnDisplay()` (`ActivityOptions.setLaunchDisplayId`) existiu como **segunda** tentativa do
+  caminho hospedado e foi **removida na rodada 4**: um `startActivity` recusado dentro do sistema não
+  devolve erro ao chamador — a atividade simplesmente vai para a tela do celular —, então o
+  "fallback" produzia exatamente o bug relatado (o app abrindo no celular) sem dizer nada. Só o
+  `am start --display` do serviço shell fica, porque ele devolve o texto do erro, e o backend usado é
+  publicado no estado (`launch`).
 * Guarda de display vazio: uma janela hospedada sem nenhum quadro depois de 15 s (o
   `SurfaceTexture.getTimestamp()` continua 0) vira falha com `display_empty` e texto, em vez de
   ficar preta para sempre.
@@ -160,13 +161,105 @@ certo.
 * Um app protegido contra captura (`FLAG_SECURE`) aparece preto no modo captura; alguns jogos com
   anticheat se comportam assim, e é o comportamento correto do Android — nada aqui tenta contornar.
 
+## Rodada 4 — por que o app ia para a tela do celular (causa raiz, não sintoma)
+
+O relato foi: tocar num app leva o app para a tela do celular e pede captura de tela, e "não deveria
+nem precisar pedir para compartilhar a tela". Estava certo em cada palavra, e a causa não era
+permissão faltando nem limite do Android: era **uma pergunta feita na hora errada**, em três lugares.
+
+1. `ShizukuManager.status()` respondia `SERVICE_DOWN` enquanto um bind estava em curso (`binding ==
+   true` e `service == null`). O bind do Shizuku é assíncrono: o processo `shell` é criado e o APK é
+   carregado nele, o que leva um instante — e é exatamente nesse instante que o estado era lido.
+2. `AppWindowController.onShizukuChanged()` reagia a `SERVICE_DOWN` com `shizuku.unbind()`. Ligando
+   os dois: a resposta a "acabei de pedir o serviço" era **desfazer o pedido**. Pior: `SERVICE_DOWN`
+   também é o estado de um Shizuku recém-iniciado (serviço ainda não pedido), então o cancelamento
+   acontecia também no primeiro toque. Na prática o serviço shell quase nunca subia.
+3. `AppDisplayController.canHost()` perguntava `shizuku.service() != null` no momento do toque — o
+   mesmo instante transitório —, então o toque era encaminhado para a captura. E a captura **por
+   definição** traz o app para a tela do celular e **por exigência do Android** pede consentimento
+   (e, no Android 10+, precisa do serviço em primeiro plano antes do `getMediaProjection` — sem ele o
+   usuário vê a `SecurityException` do `MediaProjectionManagerService`).
+
+O agravante era o "fallback": `launchOnDisplay()` mandava a atividade para a tela do celular sem
+devolver erro nenhum — o usuário via o app abrir no telefone e nenhuma explicação na janela.
+
+### A pergunta certa, e onde ela mora agora
+
+A decisão agora é **do estado da autorização**, nunca de "está ligado neste instante", e mora numa
+classe só (`AppHostPolicy`), usada pelo toque, pelo comando da shell e pela mensagem da tela — não há
+como os três discordarem:
+
+| `ShizukuStatus.State` | Rota | O que acontece ao tocar no app |
+| --- | --- | --- |
+| `READY` (autorizado e ligado) | `hosted` | display próprio criado pelo serviço shell; **sem diálogo, sem app no celular, sem captura** |
+| `SERVICE_DOWN` (autorizado, serviço ainda não subiu) | `hosted` | idem: o bind é (re)feito e a janela espera o serviço, com "conectando ao serviço shell" no lugar do spinner mudo |
+| `NEEDS_PERMISSION` | `permission` | abre **um** diálogo (o do Shizuku); concedido, a mesma sessão hospedada segue e o app abre na janela; recusado, a janela diz "autorize o NextVR dentro do Shizuku" |
+| `NOT_INSTALLED`, `NOT_RUNNING`, `OLD_VERSION`, `DENIED`, `UNKNOWN` | `capture` | o único caminho que resta: o app vai para a tela do celular porque *é ela* que a janela captura, com o consentimento que o Android exige para capturar |
+
+### O que mudou no código (rodada 4)
+
+* **`ShizukuManager`**: `bind()` pode ser chamado de qualquer thread (o `bindUserService` é postado na
+  main, onde o Shizuku entrega os callbacks); `awaitService(20 s)` substitui a pergunta "está ligado
+  agora?" por "espera até 20 s, no thread de trabalho da janela"; `rebind()` derruba um serviço que
+  parou de responder; `onBindingDied`/`onNullBinding` transformam "o serviço não subiu" em
+  `bindError` legível em vez de spinner infinito; `capabilities()` é cacheado por 2 s e limpa o
+  serviço quando a chamada falha; `status()` só reporta `SERVICE_DOWN` quando **não há bind em
+  curso** e o serviço já existiu (ou falhou); `installed || alive` resolve o caso do Sui/root, onde o
+  pacote do gerenciador não tem o nome que o NextVR conhece.
+* **`AppDisplayController`**: `canHost()` → `route()`; a criação do display espera o serviço
+  (`SERVICE_WAIT_MS = 20 s`) em vez de desistir; o `am start --display` é tentado **3 vezes** com
+  400 ms entre elas e o erro verbatim fica em `lastLaunchError`; a janela vazia deixa de ser um preto
+  mudo: o serviço shell é perguntado onde o app foi parar (`displayReport`) e a resposta distingue
+  "rodando mas não desenhando" de "não subiu"; a captura confere `AppMirrorService.isRunning()` antes
+  de pedir consentimento, e as mensagens carregam o texto integral da exceção.
+* **`IDisplayService`** ganhou dois métodos (10 e 11): `displayReport(pkg)` — onde o `shell` vê o app
+  (display e task, lido de `dumpsys activity activities`) — e `selfTest()` — a verificação de todo o
+  caminho privilegiado **no aparelho**, descrita abaixo.
+* **`AppMirrorService`** informa se está rodando e por que não está (`isRunning()`/`failure()`), o que
+  troca a `SecurityException` crua do `MediaProjection` por uma frase do próprio app.
+* **Shell**: a linha de estado passa a dizer qual rota o toque vai seguir (`routeHosted`,
+  `routePermission`, `routeCapture`) e não aparece quando a rota hospedada vai funcionar; a janela
+  hospedada mostra "conectando ao serviço shell" enquanto o bind acontece; a janela de espelho diz,
+  enquanto abre, que **é a tela do celular** e que precisa de autorização de captura; e o botão
+  **Diagnóstico** (copiável) reúne rota, estado e motivo do Shizuku, `bindError`, backend e erro do
+  `am start`, onde o shell viu o app, o estado do serviço de captura e o self-test do aparelho.
+
+### Verificação no aparelho, sem computador e sem log
+
+O menu de aplicações tem o botão **Testar Shizuku agora**. Ele executa, dentro do serviço shell, o
+mesmo caminho privilegiado que abre uma janela — nada em HTML, nada simulado:
+
+| Passo do self-test | O que ele prova |
+| --- | --- |
+| `uid` + `id` (executado no serviço) | o processo realmente roda como usuário `shell` |
+| `shellContext` | o `ContextWrapper` se identifica como `com.android.shell` (o `DisplayManagerService` rejeita outro nome) |
+| `am`, `dumpsys` | os binários que a rota usa existem neste aparelho |
+| `createVirtualDisplay("NextVR self-test", 64, 64, 160, null, 0)` + `release()` | o serviço **pode** criar o display de uma janela — é o portão da funcionalidade, e uma recusa vem com o texto exato da exceção. O display de teste é 64×64 e privado (flags 0): não pega foco e não aparece na tela |
+| `injector`, `setDisplayId`, `injectInputEvent` | o injetor de entrada foi resolvido (o mesmo `InputManagerGlobal`/`InputManager` da rota real) |
+| `launcherQuery` | a consulta de atividade lançável que a janela usa responde neste aparelho |
+
+O resultado aparece no Diagnóstico como `device self-test: {...}` com `"ok": true/false`. É a
+resposta honesta à pergunta "o ADB e o Shizuku estão funcionando neste aparelho?" sem precisar de
+nem um `adb shell` do lado de fora.
+
+### O que a PhoneXR confirma (e o que ela custa)
+
+Reler a PhoneXR para esta rodada confirmou o desenho: `DisplayUserService.kt` cria o display como
+`com.android.shell` com as flags `TRUSTED`/`PUBLIC` e **sem `MediaProjection`** — `grep
+MediaProjection` no repositório inteiro continua dando **zero**. Não existe diálogo de captura em
+nenhum momento do caminho dela, porque não há captura: o app roda de verdade num display que só o
+`shell` pode criar, e a imagem chega à VR por um `SurfaceTexture` que ela mesma compõe. É
+exatamente o que o `NextVrDisplayService` faz aqui, e é por isso que a correção foi de roteamento e
+ciclo de vida, não de mecanismo. As flags, o `ContextWrapper` de identidade `shell`, o
+`am start --display` e o `InputEvent#setDisplayId` por reflexão deste PR vieram dessa leitura.
+
 ## As duas arquiteturas, sempre separadas
 
 | | **App hospedado** (`display`) | **Espelho da tela** (`mirror`) |
 | --- | --- | --- |
 | O que a janela mostra | o app executando em um **display virtual próprio**, criado por um serviço privilegiado | o que a **tela do celular** está mostrando, capturado por `MediaProjection` |
 | O app está embutido? | **sim**: é a própria atividade em uma tela dedicada | **não**: é uma cópia do vídeo da tela |
-| Como o app é iniciado | `am start --display <id>`; se ele falhar, `ActivityOptions.setLaunchDisplayId` (API pública) | automaticamente, ao abrir a janela: API pública (`getLaunchIntentForPackage` + `startActivity`) traz o app para a tela e a captura começa depois do consentimento |
+| Como o app é iniciado | `am start --display <id>` (com 3 tentativas e o erro verbatim guardado; `startActivity` do próprio app **não** é usado, porque uma recusa dentro do sistema não devolve erro e a atividade iria para a tela do celular em silêncio) | automaticamente, ao abrir a janela: API pública (`getLaunchIntentForPackage` + `startActivity`) traz o app para a tela e a captura começa depois do consentimento |
 | Toque | injetado **no display do app** (`InputEvent#setDisplayId` + `InputManager#injectInputEvent`) | gesto encaminhado à tela real (acessibilidade) |
 | Precisa de quê | Shizuku ativo e autorizado | consentimento de captura do Android (e acessibilidade, para o toque) |
 | Vários apps ao mesmo tempo | um display por app (até 3 janelas) | uma captura por vez |
@@ -189,7 +282,8 @@ Tudo o que é específico desta funcionalidade está em
 | `AppSurfaceHost` | o lado GL: recebe um `SurfaceTexture` que o `SpatialRenderer` já amostra como qualquer browser |
 | `AppInputController` | toque/tecla/texto: Shizuku (display virtual) ou acessibilidade (espelho) |
 | `AppWindowController` | a ponte com o shell: `appsLibrary`, `appsCommand`, o JSON de estado |
-| `ShizukuManager` | `pingBinder`/`checkSelfPermission`/`requestPermission` e o *user service* |
+| `AppHostPolicy` | a decisão única de rota (`hosted` / `permission` / `capture`) a partir do estado do Shizuku — o lugar onde "ainda não ligado" deixou de significar "não disponível" |
+| `ShizukuManager` | `pingBinder`/`checkSelfPermission`/`requestPermission`, o *user service*, `awaitService`/`rebind` e o self-test do aparelho |
 | `NextVrDisplayService` | a metade privilegiada (AIDL `IDisplayService`), roda como usuário `shell` |
 | `NextVrAccessibilityService` | o caminho sem Shizuku: `dispatchGesture` e ações globais |
 | `AppMirrorService` | o serviço em primeiro plano, tipo `mediaProjection`, que o Android exige para a captura existir (e a notificação que avisa que a tela está sendo capturada) |
@@ -372,8 +466,8 @@ A preocupação é legítima e a resposta está na arquitetura, não em promessa
 
 - **Sem Shizuku não há app hospedado.** Não existe API pública que crie um display utilizável por
   outro app e injete eventos nele sem privilégio (o próprio comentário de classe da PhoneXR diz
-  isso). O espelho — agora com o atalho *Espelhar* em cada tile — é o substituto honesto, e é
-  apresentado como espelho.
+  isso). O espelho é o substituto honesto: ele abre o app na tela do celular (é o que ele captura) e
+  diz isso na própria janela, sem pedir consentimento quando o caminho hospedado está disponível.
 - **Espelho é espelho do que está na tela do celular, não do app.** Quem espelha vive de "traga o app
   para frente e olhe": trocar de app no celular muda o que a janela mostra. No Android 14+ dá para
   escolher um app só no diálogo do sistema; abaixo disso, não — é limite do Android.
@@ -423,16 +517,22 @@ Automatizados (rodam no CI, sem aparelho):
 
 - `tests/app-window-fit.test.mjs` — o ajuste da imagem dentro da janela e o descarte de toques no
   letterbox (os mesmos números do teste Java correspondente).
-- `tests/android-app-windows.test.mjs` (17 casos) — o contrato entre as duas metades: o vocabulário
+- `tests/android-app-windows.test.mjs` (19 casos) — o contrato entre as duas metades: o vocabulário
   de comandos, os tokens de estado, o prefixo `app:<pacote>`, a rota `/apps/<ícone>`, o manifesto do
   Shizuku, a acessibilidade e a origem única dos limites de tamanho. Os blocos que existem para
   impedir a volta de bugs que **só aparecem em aparelho**: o serviço em primeiro plano antes do
   diálogo de consentimento, `registerCallback` antes de `createVirtualDisplay`, a visibilidade de
   pacotes (`MAIN + LAUNCHER` em `<queries>`), a lista de permissões proibidas (a mesma que sustenta a
   seção de anticheat acima) e, na rodada 3, quatro novos: a decisão única de mecanismo no lado
-  nativo (`canHost`), a revisão de ícones que faz a grade se repintar, a ausência de
-  `MIRROR_PACKAGE`/`focus`/botão *Espelhar* e a integração dos apps instalados no menu que já existia
-  (sem trilha, sem tile na dock, sem página).
+  nativo (`route`, no lugar de `canHost`), a revisão de ícones que faz a grade se repintar, a ausência
+  de `MIRROR_PACKAGE`/`focus`/botão *Espelhar* e a integração dos apps instalados no menu que já
+  existia (sem trilha, sem tile na dock, sem página). A rodada 4 acrescentou quatro blocos que
+  descrevem o bug relatado por escrito: tocar num app **hospeda** (e o teste quebra se alguém voltar a
+  decidir a rota pelo instante do bind, a reintroduzir `setLaunchDisplayId` ou a chamar `unbind` na
+  mudança de estado), o caminho privilegiado **verificável no aparelho** (`selfTest`, com display de
+  teste criado e liberado), a janela de espelho dizendo que é a tela do celular **e** que precisa de
+  autorização de captura, e o Diagnóstico carregando `launchError`/`displayReport`/`bindError`/
+  `captureService` — com o texto do diagnóstico vindo do bundle que o app realmente carrega.
 - `nextvr-android/src/test/java/…/AppSessionManagerTest.java` — o teste do redimensionamento agora
   prova as duas metades: o tamanho só muda depois de `resizeApplied`, e uma recusa (`resizeFailed`)
   mantém o tamanho real, marca `resizeRefused` e não deixa o app em erro.
@@ -454,17 +554,25 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 3, `0392fbc`): Node **81/81** (incluindo o teste de integração em
-Chromium, que no CI roda de verdade), testes JVM **121 em 18 classes, 0 falhas** (48 nas seis classes
-de `apps/`), bundle conferido por `git diff --exit-code`. O APK de depuração sai do próprio job de
-build e é publicado no branch `apk-dist` como `dist/app-debug.apk` (48.021.996 bytes,
-`md5 2b7832b2730e0c384407929180731a56`, `versionCode` 4); é essa a build para instalar no aparelho.
+Estado no CI (verde, rodada 4): Node **85/85** (incluindo o teste de integração em
+Chromium, que no CI roda de verdade) e testes JVM **127 em 19 classes, 0 falhas** — 54 deles nas sete
+classes de `apps/`, entre elas a nova `AppHostPolicyTest` (6 casos), que fixa a regra de roteamento que
+era o bug: `SERVICE_DOWN` hospeda, `NEEDS_PERMISSION` pergunta e hospeda, e só "não existe Shizuku
+utilizável" captura. O APK de depuração sai do próprio job de build e é publicado no branch
+`apk-dist` como `dist/app-debug.apk`, agora acompanhado de `dist/build.txt` — que diz de que run e de
+que commit ele veio, com **tamanho e md5** —, então a build instalada se identifica sozinha: nesta
+rodada ela é `versionCode` **5** / `versionName` **1.0.4** (a rodada 3 era `4` / `1.0.3`).
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
 lista abaixo é o resumo:
 
-1. Abrir um app real e ver a interface dele na janela.
+0. **ADB e Shizuku antes de tudo**: `adb shell id` (uid 2000 = shell) e o botão *Testar Shizuku
+   agora* do menu de aplicações — ele executa o caminho privilegiado no aparelho e devolve `ok: true`
+   com identidade, display de teste, injetor e consulta de launcher (seção 0 de
+   `docs/TESTE-EM-APARELHO.md`).
+1. Abrir um app real e ver a interface dele na janela — com Shizuku autorizado, **sem diálogo de
+   captura nenhum** e sem o app aparecer na tela do celular (é o item que estava quebrado).
 2. Tocar em um app com a mão e ver a reação dele (não do NextVR).
 3. Minimizar/restaurar/redimensionar/fechar com o app rodando — e, no redimensionamento, conferir se
    a imagem continua preenchendo a janela e se o toque acerta o mesmo botão depois de redimensionar
