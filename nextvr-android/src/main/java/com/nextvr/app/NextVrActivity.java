@@ -20,6 +20,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -60,6 +61,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private final Map<String,WebSurface> browsers=new HashMap<>();
     private final Map<String,String> browserUrls=new HashMap<>();
     private final Set<String> pendingBrowsers=new HashSet<>();
+    private static final class AndroidSurfaceRef {
+        final SpatialRenderer renderer;
+        final SpatialRenderer.Texture texture;
+        AndroidSurfaceRef(SpatialRenderer renderer,SpatialRenderer.Texture texture) { this.renderer=renderer;this.texture=texture; }
+    }
+    /** App virtual displays render directly into these OES surfaces; never via MediaProjection. */
+    private final Map<String,AndroidSurfaceRef> androidAppSurfaces=new HashMap<>();
+    private final Set<String> pendingAndroidApps=new HashSet<>();
+    private AndroidAppManager androidAppManager;
     private volatile boolean resumed,closed;
     private boolean ready;
     /** Preserves gesture/contact edges while coalescing only safe pose-only hand frames. */
@@ -91,6 +101,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(target!=null && resumed && !closed)target.evaluate("window.nextvrDiag&&window.nextvrDiag("+status+")");
         }));
         setContentView(R.layout.activity_vr);
+        androidAppManager=new AndroidAppManager(this);
+        androidAppManager.registerListeners();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         audio=getSystemService(AudioManager.class);
@@ -132,7 +144,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     camera.stop(); releaseWeb();
                     if(previous!=null) {
                         previous.camera.release(); previous.atlas.surface.release(); previous.environment.release();
-                        for(SpatialRenderer.Texture t:previous.browsers.values()) t.surface.release();
+                        for(SpatialRenderer.Texture t:previous.externalSurfaces.values()) t.surface.release();
                     }
                     ready=false;
                     shell=new WebSurface(NextVrActivity.this,fresh.atlas.surface,SpatialRenderer.ATLAS,SpatialRenderer.ATLAS,true,new Bridge(),WebSurface.HOME);
@@ -189,8 +201,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(handTouchEvents.isEmpty() || !handTouchPending.compareAndSet(false,true))return;
                 continue;
             }
+            if(!resumed || closed) continue;
+            if(event.id.startsWith("android_") && androidAppManager!=null) {
+                androidAppManager.injectMotion(event.id,event.action,event.x,event.y);
+                continue;
+            }
             WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
-            if(target==null || !resumed || closed)continue;
+            if(target==null)continue;
             target.dispatchHandEvent(event.action,event.x,event.y);
             if(event.action==MotionEvent.ACTION_UP && target!=shell)target.web.evaluateJavascript(
                 "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
@@ -226,7 +243,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override protected void onResume() {
         super.onResume(); resumed=true; glView.onResume(); nativeOnResume(nativeApp);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
-        for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
+        for(WebSurface b:browsers.values()) b.resume();
+        if(androidAppManager!=null) androidAppManager.refreshStatus();
+        startCamera(); immersive();
     }
     @Override protected void onPause() {
         resumed=false; camera.stop();
@@ -237,17 +256,46 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onDestroy() {
         closed=true; PerfLog.setStatusListener(null); releaseWeb();
+        if(androidAppManager!=null) androidAppManager.shutdown();
         SpatialRenderer old=renderer; renderer=null;
-        camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
+        camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.externalSurfaces.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
     private void releaseWeb() {
         ready=false;
+        releaseAndroidAppSurfaces();
         for(WebSurface b:new ArrayList<>(browsers.values())) b.release();
         browsers.clear(); browserUrls.clear(); pendingBrowsers.clear();
         if(shell!=null) { shell.release(); shell=null; }
+    }
+    private void releaseTexture(SpatialRenderer textureOwner,SpatialRenderer.Texture texture) {
+        try {
+            glView.queueEvent(()->{
+                // A recreated EGL context owns different GL names. Only delete the GL texture in
+                // the renderer that created it; SurfaceTexture.release() is safe across contexts.
+                if(renderer==textureOwner) texture.release();
+                else texture.surface.release();
+            });
+        } catch(Exception error) { texture.surface.release(); }
+    }
+    private void releaseAndroidAppSurfaces() {
+        pendingAndroidApps.clear();
+        for(Map.Entry<String,AndroidSurfaceRef> entry:new ArrayList<>(androidAppSurfaces.entrySet())) {
+            String id=entry.getKey(); AndroidSurfaceRef ref=entry.getValue();
+            androidAppSurfaces.remove(id);
+            ref.renderer.externalSurfaces.remove(id);
+            Runnable release=()->releaseTexture(ref.renderer,ref.texture);
+            if(androidAppManager!=null) androidAppManager.close(id,release);
+            else release.run();
+        }
+    }
+    void shizukuStatusChanged(String statusJson) {
+        main.post(()->{
+            if(shell!=null && ready && resumed && !closed)
+                shell.evaluate("window.nextvrShizukuStatus&&window.nextvrShizukuStatus("+statusJson+")");
+        });
     }
     void onWebRendererGone() { main.post(()->{ releaseWeb(); finish(); }); }
     boolean isAudioFocused() { return audioFocused; }
@@ -307,9 +355,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             int width=Math.max(100,Math.min(1600,spec.getInt("width"))), height=Math.max(100,Math.min(1200,spec.getInt("height")));
             glView.queueEvent(()->{
                 if(renderer!=target) return;
-                SpatialRenderer.Texture texture=new SpatialRenderer.Texture(); target.browsers.put(id,texture);
+                SpatialRenderer.Texture texture=new SpatialRenderer.Texture(); target.externalSurfaces.put(id,texture);
                 main.post(()->{
-                    if(closed || renderer!=target || !pendingBrowsers.remove(id)) return;
+                    if(closed || renderer!=target || !pendingBrowsers.remove(id)) {
+                        target.externalSurfaces.remove(id);
+                        releaseTexture(target,texture);
+                        return;
+                    }
                     WebSurface browser=new WebSurface(this,texture.surface,width,height,false,null,browserUrls.get(id));
                     browsers.put(id,browser); browser.audio(audioFocused); if(!resumed) browser.pause();
                 });
@@ -319,35 +371,103 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         for(String id:all) if(!live.contains(id)) {
             pendingBrowsers.remove(id); browserUrls.remove(id);
             WebSurface old=browsers.remove(id); if(old!=null) old.release();
-            glView.queueEvent(()->{ SpatialRenderer.Texture t=target.browsers.remove(id); if(t!=null) t.release(); });
+            SpatialRenderer.Texture texture=target.externalSurfaces.remove(id);
+            if(texture!=null) releaseTexture(target,texture);
         }
+    }
+    private void syncAndroidApps(JSONArray specs,SpatialRenderer target) throws Exception {
+        if(renderer!=target || shell==null || closed || androidAppManager==null) return;
+        Set<String> live=new HashSet<>();
+        for(int i=0;i<specs.length();i++) {
+            JSONObject spec=specs.getJSONObject(i);
+            String packageName=spec.optString("packageName","");
+            String id=spec.optString("id","");
+            if(!AndroidAppManager.isValidPackage(packageName) || !AndroidAppManager.surfaceId(packageName).equals(id)) continue;
+            int width=spec.optInt("width",0),height=spec.optInt("height",0);
+            int viewWidth=spec.optInt("viewWidth",0),viewHeight=spec.optInt("viewHeight",0);
+            if(width<320||height<320||width>4096||height>4096||viewWidth<1||viewHeight<1) continue;
+            live.add(id);
+            if(androidAppSurfaces.containsKey(id)||!pendingAndroidApps.add(id)) continue;
+            glView.queueEvent(()->{
+                if(renderer!=target || closed) { main.post(()->pendingAndroidApps.remove(id)); return; }
+                SpatialRenderer.Texture texture=null;
+                try {
+                    texture=new SpatialRenderer.Texture();
+                    texture.surface.setDefaultBufferSize(width,height);
+                    target.externalSurfaces.put(id,texture);
+                    SpatialRenderer.Texture appTexture=texture;
+                    main.post(()->{
+                        if(closed || renderer!=target || !pendingAndroidApps.remove(id)) {
+                            target.externalSurfaces.remove(id);
+                            releaseTexture(target,appTexture);
+                            return;
+                        }
+                        AndroidSurfaceRef ref=new AndroidSurfaceRef(target,appTexture);
+                        androidAppSurfaces.put(id,ref);
+                        Surface appSurface=new Surface(appTexture.surface);
+                        try {
+                            androidAppManager.open(id,packageName,width,height,viewWidth,viewHeight,appSurface,this::report);
+                        } catch(Throwable error) {
+                            appSurface.release();
+                            report("Could not start the Android app display: "+error.getMessage());
+                        }
+                        main.postDelayed(()->{
+                            AndroidSurfaceRef current=androidAppSurfaces.get(id);
+                            if(current==ref && !ref.texture.ready && resumed && !closed)
+                                report("Android launched "+packageName+" but no frames reached its VR window. This app may reject virtual displays or use protected/DRM output.");
+                        },15000);
+                    });
+                } catch(Throwable error) {
+                    if(texture!=null) texture.release();
+                    main.post(()->{ pendingAndroidApps.remove(id); report("Android app surface creation failed: "+error.getMessage()); });
+                }
+            });
+        }
+        for(String id:new HashSet<>(androidAppSurfaces.keySet())) if(!live.contains(id)) {
+            AndroidSurfaceRef ref=androidAppSurfaces.remove(id);
+            if(ref==null) continue;
+            ref.renderer.externalSurfaces.remove(id);
+            Runnable release=()->releaseTexture(ref.renderer,ref.texture);
+            androidAppManager.close(id,release);
+        }
+        pendingAndroidApps.removeIf(id->!live.contains(id));
     }
     private final class Bridge {
         // frame() runs on the WebView bridge thread. A recreated renderer needs a full scene and
-        // browser sync, even if the WebView sends exactly the same JSON as before.
+        // browser/app surface sync, even if the WebView sends exactly the same JSON as before.
         private SpatialRenderer cachedTarget;
-        private String cachedScene, cachedSpecs;
-        @JavascriptInterface public void frame(String scene,String browserSpecs) {
-            if(scene.length()>100000 || browserSpecs.length()>20000) return;
+        private String cachedScene, cachedSpecs, cachedAndroidSpecs;
+        @JavascriptInterface public void frame(String scene,String browserSpecs,String androidSpecs) {
+            if(scene==null || browserSpecs==null || androidSpecs==null || scene.length()>100000
+                    || browserSpecs.length()>20000 || androidSpecs.length()>30000) return;
             try {
                 SpatialRenderer target=renderer; if(target==null) return;
-                boolean specsChanged;
+                boolean browserChanged,androidChanged;
                 synchronized(this) {
-                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
-                    specsChanged=!browserSpecs.equals(cachedSpecs);
+                    if(target!=cachedTarget) {
+                        cachedTarget=target;cachedScene=null;cachedSpecs=null;cachedAndroidSpecs=null;
+                    }
+                    browserChanged=!browserSpecs.equals(cachedSpecs);
+                    androidChanged=!androidSpecs.equals(cachedAndroidSpecs);
                 }
                 if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
-                if(specsChanged) {
-                    JSONArray specs=new JSONArray(browserSpecs);
-                    synchronized(this) { cachedSpecs=browserSpecs; }
-                    // Do not queue a no-op sync every frame: it competes with hand input on main.
-                    main.post(()->{ try { syncBrowsers(specs,target); }
-                        catch(Exception e) {
+                if(browserChanged || androidChanged) {
+                    JSONArray browserArray=new JSONArray(browserSpecs);
+                    JSONArray appArray=new JSONArray(androidSpecs);
+                    synchronized(this) { cachedSpecs=browserSpecs;cachedAndroidSpecs=androidSpecs; }
+                    // Surface synchronization is event-driven; do not queue no-op work alongside hand input.
+                    main.post(()->{
+                        try {
+                            if(browserChanged) syncBrowsers(browserArray,target);
+                            if(androidChanged) syncAndroidApps(appArray,target);
+                        } catch(Exception e) {
                             synchronized(Bridge.this) {
                                 if(target==cachedTarget && browserSpecs.equals(cachedSpecs))cachedSpecs=null;
+                                if(target==cachedTarget && androidSpecs.equals(cachedAndroidSpecs))cachedAndroidSpecs=null;
                             }
-                            report("Browser surface failed: "+e.getMessage());
-                        } });
+                            report("App surface synchronization failed: "+e.getMessage());
+                        }
+                    });
                 }
             } catch(Exception e) { android.util.Log.w("NextVR","Invalid spatial frame",e); }
         }
@@ -374,6 +494,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(target!=null && !closed) target.setEnvironment(environment,bitmap);
             else if(bitmap!=null) bitmap.recycle();
         }
+        @JavascriptInterface public String androidApps() {
+            AndroidAppManager manager=androidAppManager;
+            return manager==null ? "[]" : manager.appsJson();
+        }
+        @JavascriptInterface public String shizukuStatus() {
+            AndroidAppManager manager=androidAppManager;
+            return manager==null ? "{\"state\":\"not_running\",\"label\":\"Unavailable\"}" : manager.statusJson();
+        }
+        @JavascriptInterface public void requestShizukuPermission() {
+            AndroidAppManager manager=androidAppManager;
+            if(manager!=null) manager.requestPermission();
+        }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
@@ -381,12 +513,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
         @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
-            if(id==null || (!id.equals("shell") && !id.matches("[a-zA-Z0-9_-]{1,64}")) || !Float.isFinite(x)||!Float.isFinite(y)) return;
+            boolean surfaceId=id!=null && (id.equals("shell") || id.matches("[a-zA-Z0-9_-]{1,64}")
+                    || (id.startsWith("android_") && AndroidAppManager.isValidPackage(id.substring(8))));
+            if(!surfaceId || !Float.isFinite(x)||!Float.isFinite(y)) return;
             handTouchEvents.offer(id,action,x,y);
             scheduleHandTouchDrain();
         }
         @JavascriptInterface public void key(String id,String key) {
-            if(key.length()>16) return;
+            if(id==null || key==null || key.length()>16) return;
+            if(id.startsWith("android_") && AndroidAppManager.isValidPackage(id.substring(8))) {
+                AndroidAppManager manager=androidAppManager;
+                if(manager!=null) manager.injectKey(id,key);
+                return;
+            }
+            if(!id.matches("[a-zA-Z0-9_-]{1,64}")) return;
             main.post(()->{
                 WebSurface b=browsers.get(id); if(b==null) return;
                 android.view.inputmethod.InputConnection input=b.web.onCreateInputConnection(new android.view.inputmethod.EditorInfo());

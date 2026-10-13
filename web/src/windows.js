@@ -14,6 +14,7 @@ import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
 let focused = null;
+const nativeAppIdForWindow = w => w?.id?.startsWith('android:') ? `android_${w.id.slice(8)}` : null;
 
 /* onde a dock está agora — a janela nasce ancorada nela */
 const dockAt = { y: EYE - .6, z: -1.7, h: .12 };
@@ -43,6 +44,7 @@ class Win {
     el.style.width = w + 'px'; el.style.height = h + 'px';
     el.innerHTML = `<div class="win-bar">
         <div class="win-grip"></div><div class="win-title"></div>
+        ${nativeAppIdForWindow(this) ? `<button class="win-btn" data-act="android-back" aria-label="${t('androidBack')}" title="${t('androidBack')}">${icon('back')}</button>` : ''}
         <button class="win-btn wide" data-act="curve" aria-label="360°" title="360°" aria-pressed="${this.curve > 0}">360°</button>
         <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
         <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
@@ -54,6 +56,7 @@ class Win {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
+      else if (a.dataset.act === 'android-back') { const id=nativeAppIdForWindow(this); if (id) window.NativeXR?.key(id,'BACK'); }
       else repin(this);
     });
 
@@ -245,11 +248,19 @@ export function close(w) {
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
+  const closedAndroidId=nativeAppIdForWindow(w);
+  if (closedAndroidId && kbTarget?.nativeId===closedAndroidId) {
+    const nextAndroidId=nativeAppIdForWindow(focused);
+    kbTarget=nextAndroidId?{nativeId:nextAndroidId}:null;
+    if (!kbTarget && kbObj) keyboard(false);
+  }
   layout(); emit('wins', wins);
 }
 export function focus(w) {
   if (focused === w) return;
   focused = w;
+  const nativeId=nativeAppIdForWindow(w);
+  if (nativeId) kbTarget={nativeId};
   w.lastFocus = performance.now();          // ordem de foco = ordem de uso no arco (LRU)
   wins.forEach(x => x.el.classList.toggle('focus', x === focused));
 }
@@ -459,9 +470,11 @@ function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py);
+  const androidApp = el?.closest('[data-native-app]');
   const browser = el?.closest('[data-native-browser]');
-  const br = browser?.getBoundingClientRect();
-  const id = browser ? browser.dataset.nativeBrowser : 'shell';
+  const surface = androidApp || browser;
+  const br = surface?.getBoundingClientRect();
+  const id = androidApp ? androidApp.dataset.nativeId : browser ? browser.dataset.nativeBrowser : 'shell';
   const x = rect.left + px - (br?.left || 0), y = rect.top + py - (br?.top || 0);
   if (nativePress && nativePress.id !== id) {
     sendPress(nativePress, 3);
@@ -813,7 +826,8 @@ export function keyboard(on_, field) {
     kbTarget = null; kbShift = kbShiftLock = false;
     return;
   }
-  kbTarget = field;
+  const nativeId=nativeAppIdForWindow(focused);
+  kbTarget=field || (nativeId?{nativeId}:null);
   if (kbObj) return;
 
   const el = document.createElement('div');

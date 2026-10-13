@@ -23,7 +23,7 @@ final class SpatialRenderer {
         final SurfaceTexture surface;
         final AtomicBoolean pending = new AtomicBoolean();
         final float[] transform = new float[16];
-        boolean ready;
+        volatile boolean ready;
         Texture() {
             int[] ids = new int[1]; GLES20.glGenTextures(1, ids, 0); id = ids[0];
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, id);
@@ -144,7 +144,8 @@ final class SpatialRenderer {
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
-    final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();
+    /** OES textures for independent WebViews and Shizuku-launched Android app displays. */
+    final Map<String, Texture> externalSurfaces = new java.util.concurrent.ConcurrentHashMap<>();
     volatile List<Panel> panels = new ArrayList<>();
     // Shared optical mapping for camera, landmark overlay and interaction rays.
     volatile float cameraAspect = 4f / 3f;
@@ -239,7 +240,7 @@ final class SpatialRenderer {
         if(bitmap==null || "passthrough".equals(id)) { environmentId="passthrough"; environment.clear(); return; }
         environmentId=id; environment.offer(bitmap);
     }
-    void update() { camera.update(); environment.update(); atlas.update(); for(Texture t:browsers.values()) t.update(); }
+    void update() { camera.update(); environment.update(); atlas.update(); for(Texture t:externalSurfaces.values()) t.update(); }
     void draw(float[] view, float[] projection) {
         eyeProjection=projection; GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,viewport,0);
         Matrix.invertM(viewInv,0,view,0);
@@ -272,7 +273,7 @@ final class SpatialRenderer {
         GLES20.glDisable(GLES20.GL_BLEND);
     }
     private void drawPanel(Panel p) {
-        Texture tex=p.browser.isEmpty()?atlas:browsers.get(p.browser);
+        Texture tex=p.browser.isEmpty()?atlas:externalSurfaces.get(p.browser);
         if(tex==null || !tex.ready) return;
         // A matriz combinada saiu de cena: o shader aplica uViewProj*uFlat e dobra a superficie.
         drawTexture(tex,p);

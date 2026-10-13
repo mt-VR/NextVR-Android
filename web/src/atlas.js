@@ -29,8 +29,9 @@ export class AtlasRenderer {
     this.domElement = document.createElement('div');
     this.domElement.id = 'atlas';
     this.last = 0;
-  this.sent = null;
-  this.sentSpecs = null;
+    this.sent = null;
+    this.sentSpecs = null;
+    this.sentAndroidSpecs = null;
     this.lastError = '';
     this.slots = new Map();
   }
@@ -57,7 +58,7 @@ export class AtlasRenderer {
       if (this.lastError !== e.message) { this.lastError = e.message; window.nextvrMessage?.(e.message); }
       return;
     }
-    const panels = [], browsers = [];
+    const panels = [], browsers = [], androidApps = [];
     objects.forEach((o, i) => {
       const e = o.element, [x, y, w, h] = rects[i];
       e.style.left = `${x + PAD}px`; e.style.top = `${y + PAD}px`;
@@ -96,6 +97,23 @@ export class AtlasRenderer {
         panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height], curve: +(e.dataset.curve || 0),
           uv: [(clip.left - box.left) / width, (box.bottom - clip.bottom) / height, cw / width, ch / height] });
       }
+      for (const app of e.querySelectorAll('[data-native-app]')) {
+        const box = app.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        const packageName = app.dataset.nativeApp, id = app.dataset.nativeId;
+        if (!packageName || !id) continue;
+        const portrait = app.dataset.orientation === 'portrait';
+        const width = portrait ? 1080 : 1920, height = portrait ? 1920 : 1080;
+        const viewWidth = Math.max(1, Math.round(box.width)), viewHeight = Math.max(1, Math.round(box.height));
+        androidApps.push({ id, packageName, width, height, viewWidth, viewHeight });
+        const m = o.matrixWorld.clone()
+          .multiply(new THREE.Matrix4().makeTranslation(
+            box.left - origin.left + box.width / 2 - sizes[i].width / 2,
+            sizes[i].height / 2 - (box.top - origin.top + box.height / 2), .5))
+          .multiply(new THREE.Matrix4().makeScale(box.width, box.height, 1));
+        panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height], curve: +(e.dataset.curve || 0),
+          uv: [0, 0, 1, 1] });
+      }
     });
     const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
     const hud = new THREE.Matrix4().makeTranslation(0, 0, -1)
@@ -105,17 +123,17 @@ export class AtlasRenderer {
     const now = performance.now();
     if (now - this.last >= ({ low: 66, auto: 30, high: 16 }[document.documentElement.dataset.quality] || 30)) {
       this.last = now;
-      const scene = JSON.stringify(panels), specs = JSON.stringify(browsers);
+      const scene = JSON.stringify(panels), specs = JSON.stringify(browsers), appSpecs = JSON.stringify(androidApps);
       // A settled scene is bit-identical frame to frame, so do not cross the bridge for it: the
       // 30 Hz payload handoff and the native decode it triggers run on the same threads that
       // deliver hand tracking, and dropping them is what keeps the pointer smooth with apps open.
       // invalidate() forces the next full send after a shell resume or recreate.
-      if (scene !== this.sent || specs !== this.sentSpecs) {
-        this.sent = scene; this.sentSpecs = specs;
-        window.NativeXR.frame(scene, specs);
+      if (scene !== this.sent || specs !== this.sentSpecs || appSpecs !== this.sentAndroidSpecs) {
+        this.sent = scene; this.sentSpecs = specs; this.sentAndroidSpecs = appSpecs;
+        window.NativeXR.frame(scene, specs, appSpecs);
       }
     }
   }
   /** Forget the cached payload so the next frame re-sends the whole scene to the native side. */
-  invalidate() { this.sent = this.sentSpecs = null; }
+  invalidate() { this.sent = this.sentSpecs = this.sentAndroidSpecs = null; }
 }

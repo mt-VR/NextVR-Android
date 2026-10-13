@@ -4,6 +4,7 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
+import { androidSurfaceId, parseInstalledAndroidApps, mapLibraryApps } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -374,6 +375,40 @@ function slider(key, min, max, step, after) {
   i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
   return i;
 }
+function readShizukuStatus() {
+  if (!native || !window.NativeXR?.shizukuStatus) return { state: native ? 'not_running' : 'web' };
+  try {
+    const value = JSON.parse(window.NativeXR.shizukuStatus());
+    return value && typeof value === 'object' ? value : { state:'not_running' };
+  } catch { return { state:'not_running' }; }
+}
+function shizukuStateLabel(status) {
+  if (status?.state === 'ready') return status.backend && status.backend !== 'unknown'
+    ? `${t('shizukuReady')} · ${status.backend.toUpperCase()}` : t('shizukuReady');
+  if (status?.state === 'needs_permission') return t('shizukuNeedsPermission');
+  if (status?.state === 'unsupported') return t('shizukuUnsupported');
+  if (status?.state === 'web') return 'Android app required';
+  return t('shizukuNotRunning');
+}
+function paintShizukuStatus(status = readShizukuStatus()) {
+  document.querySelectorAll('[data-shizuku-status]').forEach(node => {
+    node.textContent = shizukuStateLabel(status);
+    node.dataset.state = status?.state || 'not_running';
+  });
+  document.querySelectorAll('[data-shizuku-connect]').forEach(button => {
+    button.textContent = status?.state === 'ready' ? t('shizukuReady')
+      : status?.state === 'unsupported' ? t('shizukuUnsupported') : t('shizukuConnect');
+    button.disabled = status?.state === 'ready' || status?.state === 'web';
+  });
+}
+function requestShizukuAccess() {
+  if (!native) { toast('Open NextVR on Android to use installed apps.'); return; }
+  const status = readShizukuStatus();
+  if (status.state === 'needs_permission') window.NativeXR.requestShizukuPermission?.();
+  else if (status.state === 'ready') toast(t('shizukuReady'));
+  else if (status.state === 'unsupported') toast(t('shizukuUnsupported'));
+  else toast(t('shizukuHelp'));
+}
 function settingsApp() {
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
   const tabs = el('div', 'tabs'); tabs.style.padding = '18px 24px 0';
@@ -392,8 +427,13 @@ function settingsApp() {
       };
       c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
       c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
+      const access = el('span', 'note'); access.dataset.shizukuStatus = '';
+      const accessButton = el('button', 'seg-btn', t('shizukuConnect')); accessButton.dataset.shizukuConnect = '';
+      accessButton.onclick = requestShizukuAccess;
+      c.append(row(t('shizuku'), t('androidApps'), access));
+      c.append(row(t('androidApps'), t('shizukuHelp'), accessButton));
       page.append(c);
-      page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
+      paintShizukuStatus();
     }],
     [t('hands'), () => {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
@@ -516,6 +556,13 @@ const LIB_APPS = [
 ];
 /* Ordem previsível; os jogos instalados surgem na posição habitual entre os apps. */
 const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
+const androidAppsAvailable = native && typeof window.NativeXR?.androidApps === 'function';
+function installedAndroidApps() {
+  if (!androidAppsAvailable) return [];
+  try { return parseInstalledAndroidApps(window.NativeXR.androidApps()); }
+  catch { return []; }
+}
+function libraryApps() { return mapLibraryApps(LIB_APPS,installedAndroidApps()); }
 
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
@@ -672,36 +719,71 @@ function removeGame(id) {
 
 /* ---------- biblioteca ---------- */
 let libSort = 'recent', libFilter = 'all', libQuery = '';
-const LIB_FILTERS = ['all', 'games', 'apps', 'recent'];
-const LIB_FILTER_LABELS = { all:'Todas', games:'Jogos', apps:'Apps', recent:'Recentes' };
+const LIB_FILTERS = androidAppsAvailable ? ['all', 'games', 'apps', 'android', 'recent'] : ['all', 'games', 'apps', 'recent'];
+const LIB_FILTER_LABELS = { all:'Todas', games:'Jogos', apps:'Apps', android:t('androidApps'), recent:t('recents') };
 function touchLib(id, silent) {
   libRecent = [id, ...libRecent.filter(x => x !== id)].slice(0, 40);
   persistShop(); if (!silent) paintLibrary();
 }
 function libItems() {
   const games = GAMES.filter(g => installed.includes(g.id)).map(g => ({ ...g, kind: 'game' }));
-  const apps = LIB_APPS.map(a => ({ ...a, kind: 'app' }));
+  const apps = libraryApps();
   let list = [...games, ...apps];
-  const ord = id => { const i = LIB_ORDER.indexOf(id); return i < 0 ? 99 : i; };
-  list.sort((a, b) => ord(a.id) - ord(b.id));
+  const ord = item => { const i = LIB_ORDER.indexOf(item.sourceId || item.id); return i < 0 ? 99 : i; };
+  list.sort((a, b) => ord(a) - ord(b) || a.name.localeCompare(b.name, 'pt-BR'));
   if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
-  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app');
+  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app' || x.kind === 'android');
+  if (libFilter === 'android') list = list.filter(x => x.kind === 'android');
   if (libFilter === 'recent') list = list.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
-  if (q) list = list.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
+  if (q) list = list.filter(x => (x.name + ' ' + (x.label || '') + ' ' + (x.packageName || '')).toLowerCase().includes(q));
   if (libSort === 'az') return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   const rank = id => { const i = libRecent.indexOf(id); return i < 0 ? 1e6 : i; };
   return [...list].sort((a, b) => rank(a.id) - rank(b.id));
 }
+function openAndroidApp(app) {
+  if (!native || !app?.packageName) return;
+  const status=readShizukuStatus();
+  if (status.state !== 'ready') {
+    if (status.state === 'needs_permission') {
+      toast(t('shizukuNeedsPermission'));
+      requestShizukuAccess();
+    } else if (status.state === 'unsupported') toast(t('shizukuUnsupported'));
+    else toast(t('shizukuNotRunning'));
+    return;
+  }
+  const windowId=`android:${app.packageName}`;
+  const existing=wins.find(w=>w.id===windowId);
+  if (existing) { focus(existing); return existing; }
+  const host=el('div','android-app-host');
+  host.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;background:#05070b';
+  const screen=el('div','android-app-surface');
+  screen.dataset.nativeApp=app.packageName;
+  screen.dataset.nativeId=androidSurfaceId(app.packageName);
+  screen.dataset.orientation=app.portrait?'portrait':'landscape';
+  screen.setAttribute('role','img');
+  screen.setAttribute('aria-label',app.name);
+  const portrait=!!app.portrait, aspect=portrait?9/16:16/9;
+  const maxWidth=1036,maxHeight=594;
+  let width=maxWidth,height=width/aspect;
+  if(height>maxHeight){height=maxHeight;width=height*aspect;}
+  screen.style.cssText=`position:absolute;left:50%;top:50%;width:${Math.floor(width)}px;height:${Math.floor(height)}px;transform:translate(-50%,-50%);overflow:hidden;background:#000;`;
+  host.appendChild(screen);
+  return open({id:windowId,title:app.name,node:host});
+}
 function appTile(a) {
+  const displayName=escH(a.label||a.name);
   const logo = a.slug
     ? `<img class="logo" src="./icons/${a.slug}.svg" alt="" draggable="false" referrerpolicy="no-referrer" onerror="this.closest('button').classList.add('nologo');this.remove()">`
     : a.icon ? `<span class="lib-icon">${icon(a.icon)}</span>` : '';
-  const mark = a.html ? a.html : logo ? logo : `<span class="nm">${a.label || a.name}</span>`;
-  const cover = a.slug ? `${logo}<span class="nm fb">${a.label || a.name}</span>` : mark;
-  return `<button class="lib-tile" data-app="${a.id}" aria-label="Abrir ${a.name}">`
+  const mark = a.html ? a.html : logo ? logo : a.kind==='android'
+    ? `<span class="android-app-initial">${escH((a.name||'?').trim().slice(0,1).toUpperCase())}</span>`
+    : `<span class="nm">${displayName}</span>`;
+  const cover = a.slug ? `${logo}<span class="nm fb">${displayName}</span>` : mark;
+  const clickTarget=a.kind==='android' ? `data-android-app="${escH(a.packageName)}"` : `data-app="${escH(a.id)}"`;
+  return `<button class="lib-tile${a.kind==='android'?' android-app':''}" ${clickTarget} aria-label="Abrir ${displayName}">`
     + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand">${cover}</span></span>`
-    + `<span class="lib-label">${a.label || a.name}</span></button>`;
+    + `<span class="lib-label">${displayName}</span></button>`;
 }
 function gameTile(g) {
   const image = g.img ? `<img class="lib-game-cover" src="${g.img}" alt="" loading="lazy" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '';
@@ -716,14 +798,15 @@ function buildLibrary() {
   const navButton = (id, label, glyph) => `<button class="lib-nav" data-nav="${id}" title="${label}" aria-label="${label}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
   root.innerHTML = `<nav class="lib-rail" aria-label="Navegação da biblioteca">
       ${navButton('all','Todas as aplicações','appGrid')}
-      ${navButton('apps','Aplicativos','device')}
+      ${navButton('apps',t('apps'),'device')}
+      ${androidAppsAvailable ? navButton('android',t('androidApps'),'device') : ''}
       ${navButton('games','Jogos','controller')}
-      ${navButton('recent','Recentes','timer')}
+      ${navButton('recent',t('recents'),'timer')}
       <span class="lib-rail-spacer"></span>
       <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
     </nav>
     <section class="lib-main">
-      <div class="lib-head"><h2 class="lib-title">Apps</h2>
+      <div class="lib-head"><h2 class="lib-title">${escH(fLabel)}</h2>
         <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
         <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
         <span class="lib-head-spacer"></span>
@@ -733,7 +816,7 @@ function buildLibrary() {
       <div class="lib-scroll"><div class="lib-grid">${
         list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
       }</div>
-      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
+      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'android' ? t('androidNoApps') : libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
     </section>`;
 
@@ -750,6 +833,13 @@ function buildLibrary() {
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`Abrindo ${g.name}… (demonstração)`); return; }
+    if ((m = c('[data-android-app]'))) {
+      const app=libraryApps().find(x=>x.kind==='android' && x.packageName===m.dataset.androidApp);
+      if (!app) { toast(t('androidNoApps')); return; }
+      touchLib(app.id);
+      openAndroidApp(app);
+      return;
+    }
     if ((m = c('[data-app]'))) {
       const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;
       touchLib(a.id);
@@ -911,7 +1001,8 @@ if (native) {
   document.getElementById('perm').hidden = true;
   // A resumed or recreated shell must receive the whole scene again even if nothing moved: the
   // atlas bridge skips payloads that are bit-identical to the one already sent.
-  window.nextvrResume = () => { css3d.invalidate?.(); startGyro(); if (S.handsOn) startHands(); };
+  window.nextvrResume = () => { css3d.invalidate?.(); startGyro(); if (S.handsOn) startHands(); paintShizukuStatus(); if (wins.some(w=>w.id==='library')) paintLibrary(); };
   window.nextvrSuspend = () => { stopHands(); };
+  window.nextvrShizukuStatus = status => paintShizukuStatus(status);
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }

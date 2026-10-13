@@ -63,6 +63,13 @@ to the Cardboard compositor. Browser contents run in isolated WebViews in the sa
 The headless Chromium test dependency needs standard Linux browser libraries (`libnss3`, `libnspr4`)
 on minimal development images. The Ubuntu CI runner already supplies them.
 
+## Installed Android apps
+
+The Library can list launchable Android apps and open them in NextVR windows using Shizuku-backed
+virtual displays (no MediaProjection or phone-screen capture). Setup steps, Android-version
+requirements, implementation boundaries and verification status are in
+[`docs/ANDROID-APP-INTEGRATION.md`](docs/ANDROID-APP-INTEGRATION.md).
+
 ## Latest UI/input update
 
 See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the
@@ -130,9 +137,10 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
 | `web/src/core.js` | Reference state, localization, content root and native pose input |
 | `nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
-| `…/SpatialRenderer.java` | 2D camera + OES HTML shaders, glass, alpha and per-eye world composition |
+| `…/SpatialRenderer.java` | 2D camera + shared OES WebView/Android-app surfaces, glass, alpha and per-eye world composition |
 | `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, PhoneXR contact/media handling |
-| `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, HTML/native bridge and Android audio |
+| `…/AndroidAppManager.java`, `…/DisplayUserService.java`, `…/IDisplayService.aidl` | Shizuku status/permission, app sessions, shell virtual displays, targeted launch and input |
+| `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, browser/app surfaces, HTML/native bridge and Android audio |
 | `nextvr-android/src/main/jni/nextvr_app.cc` | Existing Cardboard orientation, stereo framebuffer and distortion infrastructure |
 | `sdk/`, `java_api/`, `proto/`, `third_party/` | Vendored official Cardboard SDK |
 | `tests/` | Reference UI browser tests and spatial/security invariants |
