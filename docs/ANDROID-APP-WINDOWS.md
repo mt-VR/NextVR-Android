@@ -778,22 +778,27 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 6, run `38498910196`, commit `16d6847`): Node **96/96** (incluindo o teste
-de integração em Chromium, que no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e
-testes JVM **140 em 21 classes, 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as três
-que a rodada 6 reescreveu (`AppWindowShapeTest`, 8 casos, `AppDisplaySpecTest`, 6, e
-`AppSessionManagerTest`, 11). O teste `reference-ui` é o que guarda a geometria da janela: ele mede a
+Estado no CI (verde, rodada 6 já com o `main` mesclado, runs `38653780575` (push) e `38653786814`
+(pull request), commit `1efd1c9`): Node **116/116** (incluindo o teste de integração em Chromium, que
+no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e testes JVM **150 em 21 classes,
+0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as três que a rodada 6 reescreveu
+(`AppWindowShapeTest`, 8 casos, `AppDisplaySpecTest`, 6, e `AppSessionManagerTest`, 11). O verificador
+de referências Java continua rodando no CI no mesmo passo do bundle: **0 problems em 47 arquivos**. O teste `reference-ui` é o que guarda a geometria da janela: ele mede a
 superfície do app no formato da tela do aparelho que o estado falso reporta (2400x1080 em paisagem →
 **1038x467**, 1080x2400 em retrato → **245x544**, com as duas barras dando 1040x583 e 247x660), confere
 que o `sync` manda **só visibilidade** — nunca um tamanho de janela como se fosse a tela do app — e faz
 o giro completo conferindo o recorte do shader nas duas frações. O APK de depuração sai do próprio job
 de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanhado de `dist/build.txt` —
 que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build instalada se
-identifica sozinha: nesta rodada ela é `versionCode` **7** / `versionName` **1.0.6** (48 040 916 bytes,
-md5 `ba276a50be472b88de5822cdb4e89b68` — o mesmo tamanho do build anterior por coincidência, o que
-distingue os dois é o md5; a rodada 5 era `6` / `1.0.5`, com 48 040 700 bytes). O merge com a
-plataforma de jogos sobe o número para `8` / `1.0.7`: é o mesmo código de janelas e o mundo 3D
-junto, e o APK do `apk-dist` diz de que run e de que commit ele veio em `dist/build.txt`.
+identifica sozinha: nesta rodada ela é `versionCode` **8** / `versionName` **1.0.7**, o merge das
+janelas de app com a plataforma de jogos (a rodada 6 era `7` / `1.0.6`, 48 040 916 bytes, e a rodada 5
+era `6` / `1.0.5`, 48 040 700 bytes).
+
+> **A `apk-dist` é compartilhada por todas as linhas de trabalho do repositório**: cada run verde
+> regrava a branch (é um `push --force` de um único arquivo). O `dist/build.txt` publicado ao lado do
+> APK diz **de que run e de que commit** o arquivo veio, com tamanho e md5 — é por isso que ele existe.
+> Na hora de instalar, confira que o `build.txt` aponta o commit deste merge; se apontar outro, o
+> arquivo foi trocado por um run de outra linha depois deste.
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
