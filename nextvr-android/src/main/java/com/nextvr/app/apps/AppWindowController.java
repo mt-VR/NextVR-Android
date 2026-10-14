@@ -90,7 +90,7 @@ public final class AppWindowController {
                 // these, which is what makes a portrait app open in a portrait window instead of being
                 // letterboxed inside a wide one.
                 String shape = apps.windowShape(app.packageName);
-                int[] canvas = canvasFor(app.packageName, shape);
+                int[] canvas = canvasPixels(app.packageName, shape);
                 item.put("shape", shape);
                 item.put("orient", app.orientation);
                 item.put("game", app.game);

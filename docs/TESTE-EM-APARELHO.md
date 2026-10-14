@@ -1,4 +1,4 @@
-# Teste no aparelho — roteiro curto (rodada 5)
+# Teste no aparelho — roteiro curto (rodada 6)
 
 Nada desta funcionalidade foi executado em aparelho real: não há JDK, SDK, `adb` nem aparelho no
 ambiente onde o código foi escrito. O que existe é isto — um roteiro para rodar no celular e no
@@ -6,10 +6,12 @@ visor, na ordem, com o resultado esperado em cada passo. Onde está **anota isso
 saber se der errado. O log de tudo sai com `adb logcat -s NextVR:W` (abra um terminal com isso rodando
 antes de começar).
 
-A rodada 4 corrige a causa do sintoma que você relatou ("o app vai para o celular e pede captura de
-tela"): a rota era decidida por "o serviço shell está ligado **neste instante**?" em vez de "o NextVR
-tem autorização no Shizuku?", e um bind em curso era lido como serviço quebrado — o mesmo código
-**desfazia** o bind que tinha acabado de pedir. O que mudou, onde olhar e o que deve acontecer está
+A rodada 6 corrige o sintoma que você relatou agora ("a maioria dos apps continua abrindo com a parte
+de baixo cortada"): o **formato** da janela já era o do app, mas a **tela em que o app roda** era
+dimensionada a partir da janela (585x1040 / 1040x585 com densidade 320 = uma tela de **292x520 dp**,
+contra os 411x914 dp deste tipo de celular). O app era desenhado numa tela 350 dp mais baixa do que
+aquela para a qual foi feito, e tudo que ele fixa no rodapé ficava fora. Agora o app roda numa tela do
+tamanho do aparelho, no formato pedido, e a janela é essa tela flutuando. O que mudou, onde olhar e o que deve acontecer está
 em `docs/ANDROID-APP-WINDOWS.md` (seção "Rodada 4"); aqui está só o que fazer com o aparelho na mão.
 
 ## O que instalar
@@ -22,10 +24,10 @@ md5sum app-debug.apk                           # tem de bater com o md5 do build
 adb install -r app-debug.apk
 ```
 
-Build de depuração **`versionCode` 6 / `versionName` 1.0.5** (a rodada 4 era `5` / `1.0.4`, a 3 era
-`4` / `1.0.3` — se o aparelho mostrar 1.0.4 ou menos em *Configurações → Apps → NextVR*, o APK
-instalado é o antigo, sem o formato da janela por app nem o botão de girar). É o APK que o próprio CI
-gerou, não uma build local.
+Build de depuração **`versionCode` 7 / `versionName` 1.0.6** (a rodada 5 era `6` / `1.0.5`, a 4 era
+`5` / `1.0.4` — se o aparelho mostrar 1.0.5 ou menos em *Configurações → Apps → NextVR*, o APK
+instalado é o antigo, com a tela do app do tamanho da janela, que é o que cortava o rodapé). É o APK
+que o próprio CI gerou, não uma build local.
 
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/
 autorizado, e se o serviço de acessibilidade do NextVR está ligado. Quase todo sintoma depende disso.
@@ -107,44 +109,59 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 6. Se a captura falhar por causa do serviço em primeiro plano, a janela diz **por que** ele não subiu
    (`capture service:` no Diagnóstico) em vez de mostrar o texto do `MediaProjection` cortado.
 
-## B2. Formato da janela e girar (rodada 5)
+## B2. O rodapé não é mais cortado (rodada 6 — o item que importa)
 
-1. Na grade, abra um app que você sabe ser **retrato** (Instagram, banco, app de notas).
-   → esperado: a janela nasce **mais alta que larga** (retrato, 9:16) e o app **preenche** a janela —
-   sem a faixa preta no meio que aparecia quando toda janela nascia larga (1040x546, aspecto 1,9).
-   **Anota isso:** o nome do app e se ele aparece com barras.
-2. Abra um app **paisagem** (um jogo, o emulador de PS3).
-   → esperado: janela 16:9 (1040x585). Se o app desenhar um quadro de outra proporção, **as barras são
-   decisão dele** (o Android faz o compat scaling) e o `fixed` do Diagnóstico diz se ele declarou que
-   não redimensiona. **Anota isso:** o app e o que sobrou de espaço.
-3. Com a mão, toque em **girar** (ícone circular, na barra do app, à direita do teclado).
-   → esperado: a janela e a superfície do app trocam de formato **juntas** (retrato ⇄ paisagem), a
-   imagem volta a preencher depois que o display é redimensionado, e nada é esticado.
-4. Feche a janela e abra o **mesmo** app de novo.
+1. Antes de qualquer app, abra o **Diagnóstico** (menu de aplicações → botão *Diagnóstico*).
+   → esperado: em cada sessão aberta, uma linha `app <pacote>: shape=... canvas=1080x2400@<dpi>
+   (<largura>dp x <altura>dp, running)`. Os **dp** têm de ser iguais (ou quase) aos que o aparelho usa
+   na tela do celular: em um 1080x2400 @ 420, **411x914 dp**. Se aparecer algo como *292x520dp*, o APK
+   instalado é o antigo. **Anota a linha.**
+2. Abra um app que você sabe que **fixa o rodapé** — Instagram, um banco, WhatsApp, YouTube (qualquer
+   um com barra de abas embaixo) e, de preferência, **o mesmo emulador de PS3 que cortava a metade de
+   baixo**.
+   → esperado: a janela nasce **retrato** (mais alta que larga) e o app aparece **inteiro**, com a
+   barra de baixo visível, sem a faixa preta no meio e **sem a metade inferior faltando**. O app é
+   desenhado na mesma caixa em dp que ele tem no celular; nada do layout dele fica fora.
+   **Anota isso:** o nome do app e o que apareceu no lugar do rodapé cortado.
+3. Toque com a mão no botão do **rodapé** do app (a aba de baixo, o botão central, o que houver).
+   → esperado: o app reage e navega. É o teste que prova que o que está na tela é o app inteiro, e não
+   só a parte de cima.
+4. Abra um app **paisagem** (um jogo, o emulador) e, se ele tiver menu no rodapé ou no canto inferior,
+   confira.
+   → esperado: janela larga (2400x1080 neste aparelho) e o app inteiro; se ele desenhar um quadro de
+   outra proporção, **as barras são decisão dele** (compat scaling do Android) e o `fixed` do
+   Diagnóstico diz se ele declarou que não redimensiona.
+5. Com a mão, toque em **girar** (ícone circular, na barra do app, à direita do teclado).
+   → esperado: a janela troca de formato **na hora** (ela é a mesma tela girada), o app é reiniciado no
+   novo formato em ~1 s e volta a **preencher** a janela — agora com o layout de paisagem do próprio
+   app, que é o que aconteceria se você girasse o celular.
+6. Feche a janela e abra o **mesmo** app de novo.
    → esperado: abre **girado**, como você deixou (a escolha é guardada por app).
-5. Depois de girar, toque com a mão num botão do app.
+7. Depois de girar, toque com a mão num botão do app (um do rodapé, se houver).
    → esperado: o toque cai exatamente onde você mirou — o encaixe da imagem, o recorte do shader e o
    toque saem todos do mesmo retângulo.
-6. Abra um vídeo e ponha em **tela cheia** (o app pede outra orientação sozinho).
+8. Abra um vídeo em **tela cheia** (o app pede outra orientação sozinho).
    → esperado: ou o display gira (a imagem acompanha de pé e a janela continua certa) ou o app é
-   letterboxado pelo sistema — as duas são respostas do Android. Abra o **Diagnóstico** e **anota o
-   campo `display state:`** (é o JSON com tamanho natural, tamanho que os apps veem e rotação): é ele
-   que diz qual das duas aconteceu no seu aparelho, versão por versão.
+   letterboxado pelo sistema — as duas são respostas do Android. **Anota o campo `display state:`** do
+   Diagnóstico: é ele que diz qual das duas aconteceu, aparelho por aparelho.
 
-## C. Redimensionar (o que mais quebrava)
+## C. Arrastar e redimensionar a janela (o que mais quebrava)
+
+> Mudou na rodada 6: arrastar a janela **não** redimensiona mais a tela do app — só a janela. A tela
+> do app tem o tamanho do aparelho para sempre, do jeito que a PhoneXR faz; mudar a tela de um app em
+> execução é a mesma coisa que girar o celular com o app aberto, e ele não deve ser obrigado a isso
+> por causa de um gesto nosso.
 
 1. Com um app hospedado aberto, arraste a alça da janela para deixá-la bem mais larga e depois bem
-   mais alta (é preciso passar de ~12% para o display ser realmente redimensionado).
-   → esperado: a **imagem continua preenchendo a janela** (sem tarja preta e sem corte) e o app
-   **não reinicia**.
-2. **O teste que importa:** depois de redimensionar, toque com a mão no **mesmo botão** que você
-   tocou antes.
-   → esperado: o toque acerta o mesmo botão. Se acertar “deslocado”, a imagem e o toque discordaram do
-   tamanho do display — **anota isso**.
-3. Se um app recusar o novo tamanho (jogo, câmera, app que fixa orientação), a janela deve avisar que
-   **manteve o tamanho** e continuar funcionando com a imagem encaixada, e o toque deve continuar
-   certo.
-4. Minimize, restaure e redimensione de novo: continua funcionando.
+   mais alta.
+   → esperado: a **imagem continua inteira** (sem corte) e o app **não reinicia**. Como a janela deixa
+   de ter o formato da tela do app, aparecem tarjas **centradas** — a imagem é encaixada, nunca
+   esticada, e o app continua desenhado na tela dele.
+2. **O teste que importa:** depois de redimensionar, toque com a mão no **mesmo botão** que você tocou
+   antes.
+   → esperado: o toque acerta o mesmo botão. Um toque na **tarja** (fora da imagem) não deve fazer nada
+   — ele é descartado de propósito e nunca chega ao app.
+3. Minimize, restaure e redimensione de novo: continua funcionando.
 
 ## D. Rotação
 
@@ -224,7 +241,8 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 | Toque acertando ao lado depois de redimensionar | me mande o caso, é o item C2 |
 | Janela vazia, “abriu” sem interface | `display report:` no Diagnóstico diz em qual display o shell viu o app |
 | App retrato aparecendo numa faixa no meio da janela | era o formato errado da janela (rodada 5); se ainda acontecer, mande o passo, o app e o `display state:` |
-| Depois de girar, a imagem não preenche | o display não foi redimensionado: mande o `display state:` (ele mostra o tamanho que os apps veem) junto do passo |
+| App com o **rodapé cortado** (barra de baixo fora, diálogo cortado, teclado empurrando tudo) | era a tela do app do tamanho da janela (rodada 6). Mande a linha `app <pacote>: ... canvas=...dp` do Diagnóstico: se os dp forem menores que os do aparelho, o APK é antigo; se forem iguais, mande o app e a captura |
+| Depois de girar, a imagem não preenche | a tela do app e o formato da janela discordaram: mande o `display state:` e a linha `canvas=` do Diagnóstico junto do passo |
 | Toque deslocado **depois de girar** | é o par imagem/toque do item B2.5 — diga qual canto errou |
 | Biblioteca com poucos apps | visibilidade de pacotes: **este APK já corrige**; se persistir, me diga quais apps faltam |
 | Captura não abre (Android 14) | notificação de captura bloqueada/negada, ou o diálogo foi negado (a janela oferece “Abrir no celular”); `capture service:` no Diagnóstico diz se o serviço em primeiro plano subiu |

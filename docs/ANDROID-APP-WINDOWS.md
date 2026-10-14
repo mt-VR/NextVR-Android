@@ -339,6 +339,11 @@ que o display nunca mudava de tamanho nem de rotação. Regra implementada (e te
 
 ### 3. Como verificar no aparelho
 
+> **Corrigido na rodada 6:** o *formato* da janela estava certo, mas a **tela do app** ainda era
+> dimensionada a partir da janela — e é isso que cortava o rodapé da maioria dos apps. A seção
+> abaixo continua valendo como roteiro; a explicação e os números estão em
+> **“Rodada 6 — o rodapé cortado”**.
+
 1. Abra na grade um app que você sabe ser **retrato** (Instagram, um banco, um app de notas).
    → esperado: a janela nasce **retrato** (mais alta que larga), com as proporções do app, e o app
    **preenche** a janela; nada de faixa preta no meio.
@@ -357,6 +362,98 @@ que o display nunca mudava de tamanho nem de rotação. Regra implementada (e te
    → esperado: ou o display gira (a imagem acompanha de pé, a janela continua correta) ou o app é
    letterboxado pelo sistema — os dois são respostas do Android, e o `display state:` do Diagnóstico
    diz qual foi. **Anota isso:** o JSON exato desse momento.
+
+## Rodada 6 — o rodapé cortado: a tela do app era a janela
+
+O relato, palavra por palavra: *“a maioria dos apps continua abrindo com a parte de baixo cortada”*
+— e a instrução: *“olhe como a PhoneXR faz originalmente e tente entender o nosso erro”*. A PhoneXR
+foi lida de novo no original antes de mexer em qualquer linha, e o erro está **um nível abaixo** do
+que a rodada 5 corrigiu: o *formato* da janela passou a ser o do app, mas a **tela em que o app
+roda** continuava sendo dimensionada **a partir da janela**.
+
+### O erro, em números
+
+| | Retrato | Paisagem | O que o app vê |
+| --- | --- | --- | --- |
+| Canvas da rodada 5 (`AppDisplaySpec.forBox`, densidade limitada a 320) | 585x1040 | 1040x585 | **292x520 dp** |
+| Este aparelho (1080x2400 @ 420) | 1080x2400 | 2400x1080 | **411x914 dp** |
+
+Um app de celular é desenhado para a caixa em dp do **aparelho** — 411x914 dp aqui — e recebia uma
+tela 350 dp mais baixa que isso. Aplicativo que fixa qualquer coisa no rodapé (barra de abas,
+`BottomNavigationView`, diálogo em tela cheia, barra de ações, teclado, FAB, um formulário de altura
+fixa) abre exatamente com essa parte **fora** da tela que lhe foi dada: não havia espaço, e o app não
+tem como saber que a tela é nossa. É o mesmo erro de classe que o relato anterior (“o app se ajustou
+na metade esquerda e redimensionou a altura”), só que na outra direção.
+
+### O que a PhoneXR realmente faz (no original)
+
+Ela **não tem esse bug** porque tem *um único par de números por conteúdo*:
+
+* `VrWindows.kt` (`ShizukuAppContent`): `pixelWidth`/`pixelHeight` = **1080x1920** em retrato e
+  **1920x1080** em paisagem, e esse par é usado **três vezes com o mesmo valor** —
+  `SurfaceTexture#setDefaultBufferSize`, `createDisplay(surface, pixelWidth, pixelHeight, 320)` e
+  `TouchEvents(pixelWidth, pixelHeight)`;
+* a janela dela **deriva o formato desse par**: `VrWindows.kt:68`,
+  `heightM = WIDTH_M * content.pixelHeight / content.pixelWidth * heightScale` — a janela é o mesmo
+  retângulo do display, então não existe recorte, letterbox nem espaço sobrando;
+* `requestedPortrait()` = a `screenOrientation` da atividade de lançador; se ela não diz nada, o
+  padrão é **retrato**, a menos que o pacote se declare `CATEGORY_GAME` (jogo é a única categoria
+  que significa “paisagem” num celular).
+
+Ou seja: o display dela é uma **tela de celular**, não o tamanho da janela. Era isso que faltava.
+
+### O que o NextVR faz agora
+
+O canvas do app é **este celular**: a tela do próprio aparelho, no formato que o app pediu, na
+densidade do aparelho — e com o par 1080x1920/1920x1080 da PhoneXR como **piso**, para um aparelho
+menor hospedar o app numa tela de celular em vez de numa tela de 720p.
+
+| Espaço | Quem decide | Valor atual (1080x2400 @ 420) |
+| --- | --- | --- |
+| **Canvas** — o display em que o app roda, o buffer da textura e o espaço do toque | o lado nativo, uma vez, na abertura: `AppWindowShape.canvas(forma, tela do aparelho)` + `AppDisplaySpec.forCanvas` | retrato **1080x2400**, paisagem **2400x1080** = **411x914 dp**: a mesma caixa em dp que o app tem no celular |
+| **Elemento da janela** — o tamanho da janela no DOM/shell | o shell, pelo formato do canvas, no **maior** tamanho que o atlas empacota (célula de 1360x980 menos o bleed) | retrato **245x544**, paisagem **1038x467** (as duas barras dão 247x660 e 1040x583) |
+
+O app é desenhado no primeiro e a imagem é **amostrada** do primeiro para o segundo: encolher o
+elemento muda o tamanho da janela na frente do usuário, nunca o que o app desenha. A regra que
+impede a volta do bug, e que está escrita no código dos dois lados: **o tamanho da janela nunca é o
+tamanho da tela do app.**
+
+### O que mudou no código (rodada 6)
+
+* **`AppWindowShape.canvas(forma, largura, altura)`** (novo, Java puro e testado): a tela do aparelho
+  girada para a forma pedida, com lados pares e o piso 1920/1080.
+* **`AppDisplaySpec.forCanvas(w, h, densidade)`** substitui o `forBox`: o tamanho é tomado como veio,
+  a densidade é a do aparelho (com limites de sanidade) e **não existe mais clamp de tamanho nem de
+  aspecto**. `widthDp()/heightDp()` dizem em uma linha a caixa que o app vê.
+* **A regra do formato mudou** para a da PhoneXR: quem não declara orientação recebe o formato que o
+  **celular** daria a ele — retrato —, exceto se o pacote se declarar `CATEGORY_GAME` (paisagem). O
+  `game` vai no JSON da biblioteca, junto de `orient` e `fixed`.
+* **O comando `open` carrega a *forma*, nunca um tamanho**; o `sync` carrega **só visibilidade**; a
+  biblioteca reporta `canvas{w,h,dpW,dpH}` no lugar do antigo `box`, e a sessão reporta
+  `display.dpW/dpH` — o número que responde “o app está sendo cortado?” é o dp, e agora ele aparece no
+  Diagnóstico.
+* **Nada mais redimensiona o display do app**: saíram `windowResized`, `resizeApplied`, `resizeFailed`,
+  `AppSession.pendingResize`, `resizeRefused`, `boxWidth/boxHeight` e o `resize` do host. Arrastar a
+  janela muda a janela; a imagem é encaixada dentro dela pelo shader (e o toque é descartado nas
+  tarjas, como sempre foi).
+* **Girar continua sendo um toque**: troca a forma, guarda a escolha por app e **reinicia** o app num
+  canvas do novo formato (o mesmo caminho do `open`). Como o canvas do outro formato é a **mesma tela
+  girada**, o shell troca o formato da janela no mesmo quadro do toque e o app é relançado em seguida.
+* No shell, **`web/src/app-window-box.js`** (novo, puro, sem DOM) define o par de tamanhos e é
+  testado: canvas = tela do aparelho, elemento = formato do canvas no maior tamanho que o atlas
+  empacota. `display-fit.js` perdeu o clamp de aspecto — sem tela menor que o aparelho não há mais
+  nada a clampar no encaixe.
+
+### Como saber, no Diagnóstico, que a correção está valendo
+
+Cada sessão aparece com o canvas e a caixa em dp:
+
+```
+app com.instagram.android: shape=portrait canvas=1080x2400@420 (411x914dp, running)
+```
+
+Um app que deve ocupar a tela toda mostrando um canvas **menor em dp** do que o celular é o sintoma
+exato deste bug; a linha acima é o que se lê quando ele está corrigido.
 
 ## As duas arquiteturas, sempre separadas
 
@@ -396,8 +493,9 @@ Tudo o que é específico desta funcionalidade está em
 | `NextVrAccessibilityService` | o caminho sem Shizuku: `dispatchGesture` e ações globais |
 | `AppMirrorService` | o serviço em primeiro plano, tipo `mediaProjection`, que o Android exige para a captura existir (e a notificação que avisa que a tela está sendo capturada) |
 
-No shell (`web/src/`): `android-apps.js` (estado, janelas, biblioteca, dock) e `display-fit.js`
-(onde a imagem da tela do app fica dentro da janela e como o toque volta normalizado).
+No shell (`web/src/`): `android-apps.js` (estado, janelas, biblioteca, dock), `app-window-box.js`
+(os dois tamanhos — canvas e elemento da janela —, puros e testados) e `display-fit.js` (onde a
+imagem da tela do app fica dentro da janela e como o toque volta normalizado).
 
 ## Como a imagem aparece na janela
 
@@ -411,6 +509,12 @@ No shell (`web/src/`): `android-apps.js` (estado, janelas, biblioteca, dock) e `
    (`fitDisplay`) e envia `browser: "app:<pacote>"` + `uv` recortado ao `SpatialRenderer`.
 4. Enquanto o app não produziu o primeiro quadro, nada é desenhado e a janela mostra
    “Abrindo o app na janela…”.
+
+São **dois** contadores de pixel, e trocá-los é o bug desta rodada: a **tela do app** (o canvas,
+ 1080x2400 neste aparelho) e o **elemento da janela** (245x544 em retrato, 1038x467 em paisagem — o
+maior retângulo do formato do canvas que o atlas empacota). O app desenha no primeiro; o shader
+amostra o primeiro para o segundo. O tamanho da janela nunca é enviado ao lado nativo como se fosse a
+tela do app: `open` carrega a forma, `sync` carrega visibilidade.
 
 Nada disso depende de um tipo novo de textura: o compositor, o vidro, a curvatura 360, o
 atlas e as duas passadas de desenho continuam iguais.
@@ -431,30 +535,36 @@ atlas e as duas passadas de desenho continuam iguais.
 5. Um ponto que cai nas faixas de letterbox é descartado: nunca é encaminhado um toque para
    fora da área visível do app (alguns apps tratam isso como gesto de sistema).
 
-## Redimensionar sem quebrar o app
+## Redimensionar: a janela é do usuário, a tela é do app
 
-A regra é simples de enunciar e foi a que exigiu mais cuidado: **a sessão nunca declara um tamanho que
-o display não tenha**. A imagem e o mapeamento do toque saem do tamanho declarado; um número
-inventado significa imagem cortada e toque no lugar errado — exatamente o "quebrou quando
-redimensionei".
+A pergunta que separa as duas coisas: **quem está redimensionando o quê?**
 
-O contrato, agora explícito entre as duas metades:
+* **A janela** é do usuário. A alça, a mão e a curvatura mudam o *elemento* da janela a qualquer
+  momento; a imagem é encaixada dentro dele pelo shader (`fitDisplay`), centrada e sem esticar, e um
+  toque que cai nas tarjas é **descartado** — nunca é encaminhado para fora da área visível do app.
+* **A tela do app** é do app. O canvas é criado **uma vez**, na abertura, com o tamanho do aparelho no
+  formato pedido, e não muda enquanto o app roda. Redimensionar o canvas de um app em execução é,
+  para o Android, exatamente o que uma rotação de aparelho é: uma mudança de configuração — e para
+  quem não opta por `resizeableActivity`, um reinício de atividade. A PhoneXR nunca faz isso (o AIDL
+  dela nem tem `resizeDisplay`), e o NextVR também não: arrastar a janela muda o tamanho da janela,
+  e o app continua desenhando na mesma tela, no mesmo estado.
 
-* `resizeDisplay` **devolve a resposta** (`String`: `null` = aplicado). Antes era `void`: uma recusa
-  ficava invisível e a sessão continuava acreditando no tamanho novo.
-* `AppSessionManager.windowResized` apenas *pede*: guarda o tamanho desejado em
-  `AppSession.pendingResize` e chama o host. `session.width/height/density` só mudam em
-  `resizeApplied`, quando o display confirma.
-* `resizeFailed` mantém o tamanho real e marca `resizeRefused`: o app não é mais interrompido e a
-  imagem passa a ser encaixada dentro da janela (o mesmo caminho de letterbox que já existia, com o
-  toque descartado nas tarjas). A janela continua funcionando — não vira erro.
-* Troca de forma só chega ao display acima de **12%** de diferença (`RESIZE_THRESHOLD`): arrastar a
-  alça não dispara uma avalanche de `onConfigurationChanged`.
-* Redimensionar **nunca** reinicia a atividade: o caminho é `VirtualDisplay.resize()` no serviço
-  shell (e `resize` do display de captura no espelho), com `SurfaceTexture#setDefaultBufferSize`
-  junto, mais a densidade preservada — o app reflui, não recomeça.
-* App que não aceita ser redimensionado continua rodando: o framework o letterboxa **dentro** do
-  display e a escala/tradução do toque é feita pela plataforma; a janela só mostra a imagem encaixada.
+Por isso a rodada 6 **removeu** a maquinaria de redimensionamento de display (`windowResized`,
+`resizeApplied`, `resizeFailed`, `pendingResize`, `resizeRefused`, `boxWidth/boxHeight` e o `resize`
+do host): ela existia para manter o display casado com a janela, e era justamente esse casamento —
+tela do app = tamanho da janela — que cortava o rodapé dos apps.
+
+O que continua valendo do que a rodada 5 construiu:
+
+* `resizeDisplay` no AIDL **devolve a resposta** (`String`, `null` = aplicado) e o serviço reporta um
+  display liberado em vez de deixar a plataforma lançar; o método segue no contrato do serviço (o
+  `SERVICE_VERSION` continua 4), sem chamador do lado do shell — um display que mudou de tamanho
+  debaixo de um app em execução é o caso que precisa de um dono explícito, e o dono é o app.
+* **Girar** é o único caso em que o canvas muda de formato, e ele muda por **recriação**: a sessão é
+  fechada, o display é liberado e o app é iniciado de novo num canvas do novo formato — o mesmo
+  caminho do `open`, inclusive no toque e no registro do backend.
+* `AppDisplayGeometry` continua sendo quem lê o que o display **realmente é** (tamanho natural,
+  tamanho que os apps veem, rotação) para a imagem e o toque saírem do mesmo retângulo.
 
 ## Shizuku: por que é necessário e como fica claro na UI
 
@@ -605,14 +715,17 @@ A preocupação é legítima e a resposta está na arquitetura, não em promessa
 
 ## Desempenho e recursos
 
-- Cada app hospedado tem sua própria tela; o tamanho é derivado da caixa da janela
-  (`AppDisplaySpec`: 480–1080 px de altura, densidade 160–320) e o `SurfaceTexture` tem
-  `setDefaultBufferSize` do tamanho real, então nada é escalado na CPU.
+- Cada app hospedado tem sua própria tela; o tamanho é o do aparelho no formato pedido
+  (`AppDisplaySpec.forCanvas`: a tela do próprio celular, com piso de 1080x1920 e densidade
+  160–640) e o `SurfaceTexture` tem `setDefaultBufferSize` do tamanho real, então nada é escalado na
+  CPU. A imagem aparece na janela amostrada do display pelo shader — encolher a janela não muda o que
+  o app desenha.
 - Minimizar destaca a `Surface` do display (`setDisplaySurface(displayId, null)`): o app continua
   vivo, mas **para de produzir quadros**. Restaurar religa a mesma superfície — nenhum app é
   reiniciado, nenhuma textura é recriada.
-- Redimensionar só chega ao display quando a mudança passa de 12% (`AppDisplaySpec.RESIZE_THRESHOLD`),
-  para não provocar `configuration change` a cada tremida da mão.
+- A tela do app **não** é redimensionada enquanto ele roda (ver "Redimensionar: a janela é do
+  usuário, a tela é do app"): arrastar a janela custa um encaixe no shader, e nenhum
+  `configuration change` chega ao app.
 - Fechar libera: display, `Surface`, entrada do atlas, tarefa do app (o display é criado com
   `DESTROY_CONTENT_ON_REMOVAL`) e a entrada no histórico de recentes do sistema.
 - O espelho tem o lado maior limitado a 1600 px e a densidade limitada a 320.
@@ -625,7 +738,7 @@ Automatizados (rodam no CI, sem aparelho):
 
 - `tests/app-window-fit.test.mjs` — o ajuste da imagem dentro da janela e o descarte de toques no
   letterbox (os mesmos números do teste Java correspondente).
-- `tests/android-app-windows.test.mjs` (19 casos) — o contrato entre as duas metades: o vocabulário
+- `tests/android-app-windows.test.mjs` (26 casos) — o contrato entre as duas metades: o vocabulário
   de comandos, os tokens de estado, o prefixo `app:<pacote>`, a rota `/apps/<ícone>`, o manifesto do
   Shizuku, a acessibilidade e a origem única dos limites de tamanho. Os blocos que existem para
   impedir a volta de bugs que **só aparecem em aparelho**: o serviço em primeiro plano antes do
@@ -641,9 +754,12 @@ Automatizados (rodam no CI, sem aparelho):
   teste criado e liberado), a janela de espelho dizendo que é a tela do celular **e** que precisa de
   autorização de captura, e o Diagnóstico carregando `launchError`/`displayReport`/`bindError`/
   `captureService` — com o texto do diagnóstico vindo do bundle que o app realmente carrega.
-- `nextvr-android/src/test/java/…/AppSessionManagerTest.java` — o teste do redimensionamento agora
-  prova as duas metades: o tamanho só muda depois de `resizeApplied`, e uma recusa (`resizeFailed`)
-  mantém o tamanho real, marca `resizeRefused` e não deixa o app em erro.
+- `nextvr-android/src/test/java/…/AppSessionManagerTest.java` — o teste do ciclo de vida prova que a
+  tela de um app **não** muda enquanto ele roda (nenhum `windowResized` existe mais) e que o shape viaja
+  na criação da sessão.
+- `tests/app-window-box.test.mjs` (rodada 6) — os dois tamanhos como números: o canvas é a tela do
+  aparelho, o elemento da janela é o formato do canvas no maior retângulo que o atlas empacota, e o
+  giro é a mesma tela virada.
 - `nextvr-android/src/test/java/com/nextvr/app/apps/*Test.java` — `AppLibrary`, `AppSession`,
   `AppSessionManager` (com um `Host` falso), `AppDisplaySpec`, `AppInputGeometry`, `ShizukuStatus`.
 - `tools/check-java-refs.py` — como este ambiente não tem JDK, este script confere chamadas em

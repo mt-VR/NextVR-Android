@@ -661,6 +661,8 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(window, /item\.put\("orient", app\.orientation\);/);
   assert.match(window, /item\.put\("game", app\.game\);/);
   assert.match(window, /item\.put\("canvas", size\);/);
+  assert.match(window, /int\[\] canvas = canvasPixels\(app\.packageName, shape\);/,
+    'the library publishes the canvas in pixels — canvasFor() returns a display spec, not a box');
   assert.match(window, /size\.put\("dpW", Math\.round\(canvas\[0\] \* 160f \/ density\(\)\)\);/,
     'the dp box the app sees travels with the canvas: it is what "cut off" is about');
   assert.ok(!/item\.put\("box", size\)/.test(window),
