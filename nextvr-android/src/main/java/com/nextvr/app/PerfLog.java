@@ -20,6 +20,11 @@ import android.util.Log;
  * handoff          : ms the camera thread spent waiting to hand the frame to the renderer
  * track            : EFFECTIVE hand-landmark rate (results completed per second)
  * infer_*          : MediaPipe primary inference time on the tracking thread
+ * narrow / wide    : frames the tracker processed on the one-slot tracking graph and on the
+ *                    two-slot search graph. A two-slot graph costs 2.47x more for ONE tracked
+ *                    hand, so `narrow` dominating while a hand is up is what says the engine is not
+ *                    paying that tax; `wide` dominating says the frame that found nothing is what
+ *                    the rate is made of
  * capture_to_landmark : sensor capture time to landmark result (only when the camera reports
  *                    REALTIME timestamps, so the clocks are comparable); acquire_to_landmark is
  *                    always available
@@ -58,6 +63,14 @@ public final class PerfLog {
     private static long cameraFrames, renderFrames, results, dropped;
     private static long replayedFrames, replayedBatches, staleFrames, coalescedFrames;
     private static long analysisSkips;
+    /** Frames the tracker ran on the one-slot tracking graph and on the two-slot search graph. */
+    private static long narrowFrames, wideFrames;
+    /**
+     * Where the compact status of each window goes, when someone wants it: the spatial shell shows
+     * it in its counter (`window.nextvrDiag`), so a device run can be read off the screen instead of
+     * off adb. Set on the main thread, called on the GL thread, so it must be a simple hand-off.
+     */
+    private static volatile java.util.function.Consumer<String> statusListener;
     private static double inferSum, inferMax, camWorkSum, camWorkMax, handoffSum, handoffMax;
     private static double captureSum, acquireSum, publishSum;
     private static long captureCount, acquireCount, publishCount;
@@ -118,6 +131,20 @@ public final class PerfLog {
 
     /** Which landmarker is doing the primary inference, for A/B runs ("GPU" or "CPU"). */
     public static synchronized void delegate(String name) { delegate = name; }
+
+    /** Which graph processed a frame: the one-slot tracking graph, or the two-slot search graph. */
+    public static synchronized void handGraph(boolean narrow) {
+        if (narrow) narrowFrames++; else wideFrames++;
+    }
+
+    /**
+     * Sets (or clears, with null) where each closed window's compact status goes. The summary line
+     * is for adb; this is for the shell's counter, so the numbers that say whether the tracker is
+     * the bottleneck are visible on the phone without a cable.
+     */
+    public static void setStatusListener(java.util.function.Consumer<String> listener) {
+        statusListener = listener;
+    }
 
     /**
      * One WebView drain evaluated [frames] hand frames; [stale] of them had lost native validity and
@@ -189,8 +216,43 @@ public final class PerfLog {
         } catch (RuntimeException e) {
             Log.w(TAG, "perf summary dropped: " + e);
         } finally {
+            // The on-screen readout is diagnostics like the line above: it runs on the GL thread's
+            // render callback, so it must never be able to end the session, and it must be published
+            // before the counters it describes are reset.
+            try { publishStatus(now); } catch (RuntimeException ignored) { }
             closeWindow(now);
         }
+    }
+
+    /** The compact status the shell's counter shows, as the JSON object of a nextvrDiag() call. */
+    private static void publishStatus(long now) {
+        java.util.function.Consumer<String> listener = statusListener;
+        if (listener == null) return;
+        double seconds = Math.max(.001, (now - windowStartMs) / 1000.0);
+        listener.accept(String.format(java.util.Locale.US,
+            "{\"camera\":%.1f,\"render\":%.1f,\"track\":%.1f,\"infer\":%.1f,\"camWork\":%.1f,"
+                + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"narrow\":%d,\"wide\":%d,\"delegate\":\"%s\"}",
+            cameraFrames / seconds, renderFrames / seconds, results / seconds,
+            results == 0 ? -1.0 : inferSum / results,
+            cameraFrames == 0 ? -1.0 : camWorkSum / cameraFrames,
+            dropped, analysisSkips, staleFrames, narrowFrames, wideFrames, quote(delegate)));
+    }
+
+    /**
+     * Keeps the status a valid JSON string - and valid JavaScript, since the shell receives it as
+     * the argument of a nextvrDiag() call - whatever a caller put in the delegate name. A raw quote,
+     * backslash or newline in a name would end the literal the status is spliced into.
+     */
+    private static String quote(String value) {
+        if (value == null) return "none";
+        StringBuilder out = new StringBuilder(value.length() + 2);
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '"' || c == '\\') out.append('\\').append(c);
+            else if (c < ' ') out.append(' ');
+            else out.append(c);
+        }
+        return out.toString();
     }
 
     /** Starts the next window and forgets every count the next summary reports on. */
@@ -201,6 +263,7 @@ public final class PerfLog {
         replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
         cameraRetries = handRetries = 0;
         analysisSkips = 0;
+        narrowFrames = wideFrames = 0;
         losses = 0; emptyMs = 0; gapMaxMs = 0;
         intervalSum = intervalSqSum = 0; intervalCount = 0;
         inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
@@ -228,7 +291,7 @@ public final class PerfLog {
                 + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
                 + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d "
-                + "camera_retries=%d hand_retries=%d "
+                + "camera_retries=%d hand_retries=%d narrow=%d wide=%d "
                 + "loss=%d empty_ms=%.0f gap_max=%d track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
@@ -248,6 +311,7 @@ public final class PerfLog {
             staleFrames, coalescedFrames,
             dropped, analysisSkips,
             cameraRetries, handRetries,
+            narrowFrames, wideFrames,
             losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
     }

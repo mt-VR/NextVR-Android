@@ -7,9 +7,11 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 
 /**
- * The single place a landmarker graph is built, so the steady and hunting graphs of [HandTracker]
- * cannot drift apart in anything except the detection confidence that separates them: same model,
- * same running mode, same tracking confidence.
+ * The single place a landmarker graph is built, so the search and tracking graphs of [HandTracker]
+ * cannot drift apart in anything except the two options that separate them: the number of hand
+ * slots and the detection/presence confidence. Same model, same running mode, same tracking
+ * confidence - and the same delegate, since both graphs are created for the delegate the camera
+ * chose (see DelegateWatch).
  */
 internal object HandModels {
     fun landmarker(context: Context, model: String, gpu: Boolean, mode: RunningMode,

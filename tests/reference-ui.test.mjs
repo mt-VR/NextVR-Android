@@ -177,6 +177,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-tile').count(),19,
       'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone');
+    // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
+    // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
+    // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
+    await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
     assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
     assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');

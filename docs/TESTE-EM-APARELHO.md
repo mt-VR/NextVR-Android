@@ -24,9 +24,10 @@ md5sum app-debug.apk                           # tem de bater com o md5 do build
 adb install -r app-debug.apk
 ```
 
-Build de depuração **`versionCode` 7 / `versionName` 1.0.6** (a rodada 5 era `6` / `1.0.5`, a 4 era
-`5` / `1.0.4` — se o aparelho mostrar 1.0.5 ou menos em *Configurações → Apps → NextVR*, o APK
-instalado é o antigo, com a tela do app do tamanho da janela, que é o que cortava o rodapé). É o APK
+Build de depuração **`versionCode` 8 / `versionName` 1.0.7** (a rodada 6 era `7` / `1.0.6`, a 5 era `6` / `1.0.5`, a 4 era
+`5` / `1.0.4` — se o aparelho mostrar 1.0.6 ou menos em *Configurações → Apps → NextVR*, o APK
+instalado é o da rodada 6, que tem a correção do rodapé mas não o mundo 3D; 1.0.5 ou menos ainda tem a
+tela do app do tamanho da janela, que é o que cortava o rodapé). É o APK
 que o próprio CI gerou, não uma build local.
 
 **Anote antes de começar:** modelo do celular, versão do Android, se o Shizuku está instalado/parado/

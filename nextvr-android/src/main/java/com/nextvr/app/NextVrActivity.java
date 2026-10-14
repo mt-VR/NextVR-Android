@@ -105,6 +105,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         nativeApp=nativeOnCreate(getAssets());
+        // O estado do pipeline de mãos (delegate, câmera, inferência, slots) vai para o contador da
+        // shell a cada ~3 s: numa sessão em aparelho, "de onde vem a lentidão do tracking" se
+        // responde olhando a tela, sem adb. O PerfLog já monta o resumo da janela; este é o mesmo
+        // número, menor. Limpo no onDestroy para o listener estático não segurar a Activity.
+        PerfLog.setStatusListener(status -> main.post(() -> {
+            WebSurface target=shell;
+            if(target!=null && resumed && !closed)target.evaluate("window.nextvrDiag&&window.nextvrDiag("+status+")");
+        }));
         setContentView(R.layout.activity_vr);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -349,7 +357,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         nativeOnPause(nativeApp); glView.onPause(); super.onPause();
     }
     @Override protected void onDestroy() {
-        closed=true; releaseWeb();
+        closed=true; PerfLog.setStatusListener(null); releaseWeb();
         SpatialRenderer old=renderer; renderer=null;
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
@@ -452,7 +460,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 SpatialRenderer target=renderer; if(target==null) return;
                 boolean specsChanged;
                 synchronized(this) {
-                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
+                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null;pushGame(target); }
                     specsChanged=!browserSpecs.equals(cachedSpecs);
                 }
                 if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
@@ -492,6 +500,32 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null && !closed) target.setEnvironment(environment,bitmap);
             else if(bitmap!=null) bitmap.recycle();
+        }
+        /**
+         * Mundo 3D jogavel: a casca manda a geometria de cada tipo UMA vez (base64 de Float32Array
+         * little-endian) e a cena a cada mudanca. Um renderer recriado recebe tudo de novo, do
+         * mesmo jeito que a cena de paineis e as superficies de navegador.
+         */
+        private final Map<String,String[]> gameMeshes=new HashMap<>();
+        private String cachedGame;
+        private void pushGame(SpatialRenderer target) {
+            Map<String,String[]> copy; String json;
+            synchronized(this) { copy=new HashMap<>(gameMeshes); json=cachedGame; }
+            for(Map.Entry<String,String[]> e:copy.entrySet())
+                target.game.offerMesh(e.getKey(),e.getValue()[0],e.getValue()[1],e.getValue()[2]);
+            if(json!=null) target.game.offerObjects(json);
+        }
+        @JavascriptInterface public void gameMesh(String kind,String positions,String normals,String indices) {
+            if(kind==null || !kind.matches("[a-z]{1,16}")) return;
+            if(positions==null || normals==null || indices==null) return;
+            if(positions.length()>4000000 || normals.length()>4000000 || indices.length()>1000000) return;
+            synchronized(this) { gameMeshes.put(kind,new String[]{positions,normals,indices}); }
+            SpatialRenderer target=renderer; if(target!=null) target.game.offerMesh(kind,positions,normals,indices);
+        }
+        @JavascriptInterface public void gameFrame(String json) {
+            if(json==null || json.length()>200000) return;
+            synchronized(this) { cachedGame=json; }
+            SpatialRenderer target=renderer; if(target!=null) target.game.offerObjects(json);
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }

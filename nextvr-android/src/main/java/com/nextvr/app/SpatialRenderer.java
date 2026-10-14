@@ -141,6 +141,8 @@ final class SpatialRenderer {
     volatile String environmentId = "passthrough";
     final Texture atlas = new Texture();
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
+    /** Objetos do mundo 3D jogável: mesma passada GLES2, profundidade real contra as janelas. */
+    final GameSceneRenderer game = new GameSceneRenderer();
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
@@ -261,6 +263,9 @@ final class SpatialRenderer {
         for(renderPass=0;renderPass<2;renderPass++) {
             GLES20.glDepthMask(renderPass==0);
             for(Panel p:sorted) if(!p.overlay) drawPanel(p);
+            // Mundo 3D do jogo entra entre o passe opaco e o translucido: as janelas solidas o
+            // ocluem de verdade e o vidro das janelas continua na frente dos objetos.
+            if(renderPass==0) game.draw(view,projection);
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
         com.nextvr.app.hands.PhoneXrHands.Frame handFrame=hands;

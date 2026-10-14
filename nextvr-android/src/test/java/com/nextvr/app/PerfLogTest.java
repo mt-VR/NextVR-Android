@@ -38,6 +38,9 @@ public class PerfLogTest {
             f.setAccessible(true);
             Class<?> t = f.getType();
             if (t == String.class) { f.set(null, "none"); continue; }
+            // The shell's status sink is a field like any other: a listener left behind by one test
+            // must not be called by the next one.
+            if (t == java.util.function.Consumer.class) { f.set(null, null); continue; }
             if (t == int.class) f.setInt(null, SENTINELS.contains(f.getName()) ? -1 : 0);
             else if (t == long.class) f.setLong(null, SENTINELS.contains(f.getName()) ? -1L : 0L);
             else if (t == double.class) f.setDouble(null, 0.0);
@@ -101,6 +104,37 @@ public class PerfLogTest {
         int lines = 0;
         for (LogItem item : ShadowLog.getLogsForTag(TAG)) if (item.type == Log.INFO) lines++;
         assertEquals("one summary per closed window", 3, lines);
+    }
+
+    @Test public void eachWindowPublishesAStatusForTheShellCounter() {
+        java.util.concurrent.atomic.AtomicReference<String> status = new java.util.concurrent.atomic.AtomicReference<>();
+        PerfLog.setStatusListener(status::set);
+        try {
+            PerfLog.result(40L, -1L, 0L, 0L, 1);
+            PerfLog.handGraph(true);
+            PerfLog.handGraph(false);
+            PerfLog.renderFrame();
+            ShadowSystemClock.advanceBy(Duration.ofMillis(3100));
+            PerfLog.renderFrame();
+
+            assertNotNull("a closed window must publish its status", status.get());
+            assertTrue(status.get(), status.get().contains("\"track\":0.3"));
+            assertTrue(status.get(), status.get().contains("\"infer\":40.0"));
+            assertTrue("the graph split must reach the screen: " + status.get(),
+                    status.get().contains("\"narrow\":1") && status.get().contains("\"wide\":1"));
+            assertTrue(status.get(), status.get().contains("\"delegate\":\"none\""));
+        } finally { PerfLog.setStatusListener(null); }
+    }
+
+    @Test public void aBrokenStatusListenerCannotDropTheWindow() {
+        PerfLog.setStatusListener(s -> { throw new IllegalStateException("no shell"); });
+        try {
+            PerfLog.renderFrame();
+            ShadowSystemClock.advanceBy(Duration.ofMillis(3100));
+            PerfLog.renderFrame();
+
+            assertNotNull("the summary line must still be logged", summary());
+        } finally { PerfLog.setStatusListener(null); }
     }
 
     /** The last INFO line: the summary, never the WARN that reports a dropped one. */

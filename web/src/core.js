@@ -77,6 +77,18 @@ const STR = {
     shizukuDenied:'O acesso ao Shizuku foi negado', shizukuRebind:'Reconectando ao Shizuku',
     shizukuReady:'Shizuku pronto: apps abrem em janelas próprias',
     shizukuUnknown:'Verificando o Shizuku', shizukuGrant:'Permitir', shizukuRecheck:'Verificar de novo',
+    /* Mundo 3D jogável: a plataforma de jogos nativa (colocar, mover, girar, escalar, remover). */
+    'game.tools':'Mundo 3D', 'game.place':'Colocar objeto', 'game.edit':'Editar objeto',
+    'game.duplicate':'Duplicar', 'game.remove':'Remover', 'game.removed':'removido',
+    'game.reset':'Recomeçar cena', 'game.exit':'Sair do jogo', 'game.none':'Nenhum objeto selecionado',
+    'game.hint':'Pinça num objeto para mover · duas mãos para girar e escalar',
+    'game.floor':'Chão', 'game.menu':'Menu do jogo', 'game.menuTitle':'Jogo em andamento',
+    'game.continue':'Continuar', 'game.settings':'Configurações',
+    'game.launching':'Abrindo o mundo 3D…',
+    'game.chord':'Segure a pinça com as duas mãos para abrir o menu',
+    'tool.move':'Mover', 'tool.rotate':'Girar', 'tool.scale':'Tamanho', 'tool.place':'Colocar',
+    'kind.box':'Cubo', 'kind.sphere':'Esfera', 'kind.cylinder':'Cilindro',
+    'kind.cone':'Cone', 'kind.plate':'Placa',
   },
   en: {
     desktop:'Desktop', browser:'Browser', youtube:'YouTube', gallery:'Gallery',
@@ -131,6 +143,18 @@ const STR = {
     shizukuDenied:'Shizuku access was denied', shizukuRebind:'Reconnecting to Shizuku',
     shizukuReady:'Shizuku ready: apps open in their own windows',
     shizukuUnknown:'Checking Shizuku', shizukuGrant:'Allow', shizukuRecheck:'Check again',
+    /* Playable 3D world: the native game platform (place, move, rotate, scale, remove). */
+    'game.tools':'3D world', 'game.place':'Place object', 'game.edit':'Edit object',
+    'game.duplicate':'Duplicate', 'game.remove':'Remove', 'game.removed':'removed',
+    'game.reset':'Restart scene', 'game.exit':'Exit game', 'game.none':'No object selected',
+    'game.hint':'Pinch an object to move · two hands to rotate and scale',
+    'game.floor':'Floor', 'game.menu':'Game menu', 'game.menuTitle':'Game running',
+    'game.continue':'Continue', 'game.settings':'Settings',
+    'game.launching':'Opening the 3D world…',
+    'game.chord':'Hold the pinch with both hands to open the menu',
+    'tool.move':'Move', 'tool.rotate':'Rotate', 'tool.scale':'Scale', 'tool.place':'Place',
+    'kind.box':'Cube', 'kind.sphere':'Sphere', 'kind.cylinder':'Cylinder',
+    'kind.cone':'Cone', 'kind.plate':'Plate',
   },
   es: {
     desktop:'Escritorio', browser:'Navegador', youtube:'YouTube', gallery:'Galería',
@@ -185,6 +209,18 @@ const STR = {
     shizukuDenied:'Se denegó el acceso a Shizuku', shizukuRebind:'Reconectando con Shizuku',
     shizukuReady:'Shizuku listo: las apps abren en sus propias ventanas',
     shizukuUnknown:'Comprobando Shizuku', shizukuGrant:'Permitir', shizukuRecheck:'Comprobar de nuevo',
+    /* Mundo 3D jugable: la plataforma de juegos nativa (colocar, mover, girar, escalar, quitar). */
+    'game.tools':'Mundo 3D', 'game.place':'Colocar objeto', 'game.edit':'Editar objeto',
+    'game.duplicate':'Duplicar', 'game.remove':'Quitar', 'game.removed':'quitado',
+    'game.reset':'Reiniciar escena', 'game.exit':'Salir del juego', 'game.none':'Ningún objeto seleccionado',
+    'game.hint':'Pellizca un objeto para moverlo · dos manos para girar y escalar',
+    'game.floor':'Suelo', 'game.menu':'Menú del juego', 'game.menuTitle':'Juego en curso',
+    'game.continue':'Continuar', 'game.settings':'Ajustes',
+    'game.launching':'Abriendo el mundo 3D…',
+    'game.chord':'Mantén el pellizco con las dos manos para abrir el menú',
+    'tool.move':'Mover', 'tool.rotate':'Girar', 'tool.scale':'Tamaño', 'tool.place':'Colocar',
+    'kind.box':'Cubo', 'kind.sphere':'Esfera', 'kind.cylinder':'Cilindro',
+    'kind.cone':'Cono', 'kind.plate':'Placa',
   },
 };
 /**
@@ -388,6 +424,12 @@ export const onFrame = f => frameSubs.push(f);
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
 // Hand tracking runs on its own native cadence; measure its frame arrival separately from render.
 let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
+/* Estado do pipeline nativo, publicado pelo PerfLog a cada ~3 s (delegate, FPS da câmera, custo da
+ * inferência, quantos frames foram de uma ou de duas slots). É o que responde "por que a mão está
+ * lenta" na própria tela: `infer` alto = o modelo/o delegate; `cam` baixo = a câmera não entrega;
+ * `slots 2` com a mão levantada = o grafo de uma slot não está sendo usado. */
+let diag = null;
+
 export const reportHandFrame = () => {
   const now = performance.now();
   if (handLast > 0) { handAcc += (now - handLast) / 1000; handN++; if (handAcc >= 1) { handFps = Math.round(handN / handAcc); handAcc = 0; handN = 0; } }
@@ -417,6 +459,7 @@ function loop(now) {
     const el = document.getElementById('fps');
     el.textContent = S.showFps
       ? Math.round(fpsN / fpsAcc) + ' fps' + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
+        + (native && S.handsOn ? diagText() : '')
       : '';
     fpsAcc = 0; fpsN = 0;
   }
@@ -436,4 +479,24 @@ if (native) {
     if (firstPose) { contentRoot.rotation.y = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; firstPose = false; }
   };
   window.nextvrMessage = toast;
+  // O resumo de desempenho do pipeline nativo (PerfLog -> contador da tela). Chega como objeto.
+  window.nextvrDiag = values => { diag = values; };
+}
+
+/** Uma linha curta com o que o contador precisa: câmera, inferência, delegate e slots. */
+function diagText() {
+  if (!diag) return '';
+  const round = v => (typeof v === 'number' && v >= 0 ? Math.round(v) : null);
+  const parts = [];
+  const camera = round(diag.camera);
+  if (camera !== null) parts.push('cam ' + camera);
+  const infer = round(diag.infer);
+  if (infer !== null) parts.push('infer ' + infer + 'ms');
+  if (diag.delegate) parts.push(String(diag.delegate).split(' ')[0]);
+  // Com uma mão levantada o grafo de uma slot deve dominar: é ele que evita pagar a segunda slot em
+  // todo frame de mão rastreada (2,47x por frame, medido em tools/bench).
+  if (typeof diag.narrow === 'number' && typeof diag.wide === 'number' && diag.narrow + diag.wide > 0)
+    parts.push('slots ' + (diag.narrow >= diag.wide ? 1 : 2));
+  if (round(diag.stale) > 0) parts.push('stale ' + Math.round(diag.stale));
+  return parts.length ? ' · ' + parts.join(' · ') : '';
 }

@@ -791,7 +791,9 @@ de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanh
 que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build instalada se
 identifica sozinha: nesta rodada ela é `versionCode` **7** / `versionName` **1.0.6** (48 040 916 bytes,
 md5 `ba276a50be472b88de5822cdb4e89b68` — o mesmo tamanho do build anterior por coincidência, o que
-distingue os dois é o md5; a rodada 5 era `6` / `1.0.5`, com 48 040 700 bytes).
+distingue os dois é o md5; a rodada 5 era `6` / `1.0.5`, com 48 040 700 bytes). O merge com a
+plataforma de jogos sobe o número para `8` / `1.0.7`: é o mesmo código de janelas e o mundo 3D
+junto, e o APK do `apk-dist` diz de que run e de que commit ele veio em `dist/build.txt`.
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a

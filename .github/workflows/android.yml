@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "main" ]
+    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -14,12 +14,39 @@ jobs:
   build:
     name: Build NextVR debug APK
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Declarar `permissions` substitui o conjunto default inteiro: sem `checks: write`
+    # o passo "Publish build diagnostics" tomava 403 ao criar o check-run e o run
+    # falhava com exit 1 mesmo com o build verde.
+    permissions:
+      contents: write     # publicar o APK na branch apk-dist
+      actions: write      # apagar artefatos antigos (cota de storage)
+      checks: write       # criar/atualizar o check-run gradle-diagnostics
+      pull-requests: write
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Prune old CI artifacts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # O free tier guarda 500 MB de artefatos. Cada build subia ~40 MB com
+          # retencao de 30 dias; a cota estourou, o upload falhou e derrubou o run.
+          # Apaga os antigos antes de subir os novos.
+          set -x
+          keep=2
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name=="nextvr-debug-apk" or .name=="native-test-reports") | "\(.created_at) \(.id)"' \
+            | sort -r | tail -n +$((keep + 1)) | awk '{print $2}' > /tmp/old-artifacts.txt || true
+          echo "artifacts to delete: $(wc -l < /tmp/old-artifacts.txt)"
+          xargs -r -P 8 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts | length' || true
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -46,33 +73,57 @@ jobs:
           git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
 
       - name: Show runner Android toolchain
         run: |
           set -x
-          java -version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls "$ANDROID_HOME" || true
-          ls "$ANDROID_HOME/ndk" 2>/dev/null || echo "no ndk preinstalled"
-          ls "$ANDROID_HOME/cmake" 2>/dev/null || echo "no cmake preinstalled"
-          which sdkmanager || true
+          # `bash -e` derruba o passo no primeiro comando que falhar: tudo aqui e diagnostico,
+          # entao nada pode sair diferente de zero (era daqui que vinha um exit 127).
+          java -version || echo "java not on PATH"
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$SDK" 2>/dev/null || echo "no Android SDK directory"
+          ls "$SDK/ndk" 2>/dev/null || echo "no ndk preinstalled"
+          ls "$SDK/cmake" 2>/dev/null || echo "no cmake preinstalled"
+          command -v sdkmanager || ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null \
+            || echo "no sdkmanager on this runner"
         continue-on-error: true
 
+      # O runner nao tem o `sdkmanager` no PATH (ele mora em cmdline-tools/*/bin). Os passos `run:`
+      # rodam com `bash -e`, entao `sdkmanager ... || sdkmanager ...` abortava o passo com exit 127
+      # ANTES da linha com `|| true`, e o Actions publicava a anotacao vermelha "Process completed
+      # with exit code 127" em toda rodada -- mesmo com o NDK e o CMake ja instalados na imagem.
+      # Agora o binario e localizado de verdade, a instalacao so roda quando falta algo, e nenhuma
+      # falha derruba o passo: quem garante o toolchain e o build Gradle logo abaixo.
       - name: Install NDK and CMake
         run: |
           set -x
-          sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" || \
-            sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" --channel=0
-          sdkmanager --list_installed || true
+          NDK_VERSION=29.0.14206865
+          CMAKE_VERSION=3.22.1
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "$SDK" ]; then
+            SDKMANAGER="$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1 || true)"
+          fi
+          echo "sdkmanager=${SDKMANAGER:-<none>}"
+          if [ -d "$SDK/ndk/$NDK_VERSION" ] && [ -d "$SDK/cmake/$CMAKE_VERSION" ]; then
+            echo "NDK $NDK_VERSION and CMake $CMAKE_VERSION are already installed"
+          elif [ -z "$SDKMANAGER" ]; then
+            echo "no sdkmanager: relying on the preinstalled toolchain"
+          else
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" \
+              || echo "sdkmanager install failed; continuing with the preinstalled toolchain"
+          fi
+          ls "$SDK/ndk" "$SDK/cmake" 2>/dev/null || true
         continue-on-error: true
 
       - name: Build Cardboard SDK and NextVR
@@ -170,46 +221,16 @@ jobs:
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1
 
-      - name: Upload native test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-test-reports
-          path: nextvr-android/build/test-results/testDebugUnitTest/
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nextvr-debug-apk
-          path: nextvr-android/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-  # Publishes the built debug APK to the disposable `apk-dist` branch so the file can be
-  # fetched with plain git (the Actions artifact download redirects to a blob host that
-  # some restricted environments cannot reach). The branch carries only dist/app-debug.apk.
-  publish-apk:
-    name: Publish debug APK to apk-dist branch
-    needs: build
-    if: needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: nextvr-debug-apk
-          path: apk
-
-      - name: Push APK to apk-dist branch
+      - name: Publish debug APK to apk-dist branch
+        # Direto do workspace: nao depende do storage de artefatos, que esta com a
+        # cota da conta estourada e fazia o publish falhar.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          APK=$(find "$GITHUB_WORKSPACE/apk" -name '*.apk' -print -quit)
+          # Caminho absoluto de proposito: o passo faz `cd /tmp/apk-dist` antes do cp.
+          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
           test -n "$APK"
           rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
           git init -q -b apk-dist
@@ -229,3 +250,27 @@ jobs:
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin apk-dist
           echo "APK published: branch apk-dist, path dist/app-debug.apk"
+
+
+      - name: Upload native test reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-test-reports
+          path: nextvr-android/build/test-results/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload APK
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: nextvr-debug-apk
+          # O build nao configura ABI splits, entao sai um unico
+          # nextvr-android-debug.apk. O padrao anterior (*-universal-debug.apk)
+          # nao casava com nada e o upload era pulado.
+          path: nextvr-android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 3
+
