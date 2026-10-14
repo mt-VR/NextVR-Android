@@ -98,7 +98,8 @@ final class PassthroughCamera {
     private volatile int generation;
     private int rotation;
     private volatile boolean destroyed;
-    volatile boolean handsEnabled=true;
+    /** Hand tracking nativo desativado: o MediaPipe Hands roda no WebView (NovaMR). */
+    volatile boolean handsEnabled=false;
     volatile float scaleX=1.1f,scaleY=.73f;
 
     PassthroughCamera(Context context,Listener listener) {

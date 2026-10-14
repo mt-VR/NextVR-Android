@@ -375,7 +375,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             else if(bitmap!=null) bitmap.recycle();
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
-        @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
+        @JavascriptInterface public void handVisuals(boolean enabled) { /* NovaMR: o desenho das mãos é feito no WebView; GL não desenha mais nada. */ }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
         @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */

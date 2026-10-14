@@ -121,7 +121,7 @@ final class WebSurface {
             String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src https: blob:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob: mediastream:; font-src 'self'; connect-src https: blob:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));

@@ -529,7 +529,7 @@ on('pinchdown', () => {
     return;
   }
   if (kbPinch('down')) return;
-  // dockPinch('down') REMOVIDO: apps da dock abrem SÓ com pinça direto em cima (toque NEAR), não de longe por raio.
+  dockPinch('down');
 });
 on('pinchup', () => {
   if (pendingPress && cursor.mode === 'drag') {
@@ -564,7 +564,7 @@ on('pinchup', () => {
   const h = hitAt(cursor.x, cursor.y);
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
   if (kbPinch('up')) return;
-  // dockPinch('up') REMOVIDO: abertura de apps da dock é exclusiva por toque direto em cima do ícone.
+  dockPinch('up');
 });
 
 /* =================== dock =================== */
@@ -1226,9 +1226,9 @@ onFrame((dt,now)=>{
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    // Dock NÃO é mais alvo do raio de longe: o app só abre com pinça direto em cima do ícone.
-    // Mantém dockMoveHit para permitir arrastar a dock pelo pegador com o raio.
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit);if(kbHit && kbObj)list.push(kbHit);
+    // Com NovaMR MediaPipe JS (sem pontos 3D métricos), a dock volta a ser alvo do raio:
+    // a pinça de longe abre o app; o pegador abaixo continua arrastável.
+    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }
