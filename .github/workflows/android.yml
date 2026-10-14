@@ -14,9 +14,31 @@ jobs:
   build:
     name: Build NextVR debug APK
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: write      # necessario para apagar artefatos antigos (cota de storage)
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Prune old CI artifacts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # O free tier guarda 500 MB de artefatos. Cada build subia ~40 MB com
+          # retencao de 30 dias; a cota estourou, o upload falhou e derrubou o run.
+          # Apaga os antigos antes de subir os novos.
+          set -x
+          keep=2
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name=="nextvr-debug-apk" or .name=="native-test-reports") | "\(.created_at) \(.id)"' \
+            | sort -r | tail -n +$((keep + 1)) | awk '{print $2}' > /tmp/old-artifacts.txt || true
+          echo "artifacts to delete: $(wc -l < /tmp/old-artifacts.txt)"
+          xargs -r -P 8 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts | length' || true
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -170,20 +192,24 @@ jobs:
 
       - name: Upload native test reports
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: native-test-reports
           path: nextvr-android/build/test-results/testDebugUnitTest/
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 3
 
       - name: Upload APK
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: nextvr-debug-apk
-          path: nextvr-android/build/outputs/apk/debug/*.apk
+          # So o universal (os splits ficam na branch apk-dist, que nao conta
+          # contra a cota de artefatos) e com retencao curta.
+          path: nextvr-android/build/outputs/apk/debug/nextvr-android-*-universal-debug.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 3
 
   # Publishes the built debug APK to the disposable `apk-dist` branch so the file can be
   # fetched with plain git (the Actions artifact download redirects to a blob host that
