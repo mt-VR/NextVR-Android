@@ -20,7 +20,47 @@ cursor1.className = 'novamr-cursor';
 const cursor2 = document.createElement('div');
 cursor2.className = 'novamr-cursor';
 
+const holdRing = document.createElementNS('http://www.w3.org/2000/svg','svg');
+holdRing.setAttribute('viewBox','0 0 80 80');
+holdRing.style.cssText = 'position:absolute;width:80px;height:80px;z-index:4;pointer-events:none;transform:translate(-50%,-50%);opacity:0;transition:opacity .15s';
+const holdRingBg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+holdRingBg.setAttribute('cx','40');holdRingBg.setAttribute('cy','40');holdRingBg.setAttribute('r','34');
+holdRingBg.setAttribute('fill','none');holdRingBg.setAttribute('stroke','rgba(255,255,255,.25)');holdRingBg.setAttribute('stroke-width','4');
+const holdRingFg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+holdRingFg.setAttribute('cx','40');holdRingFg.setAttribute('cy','40');holdRingFg.setAttribute('r','34');
+holdRingFg.setAttribute('fill','none');holdRingFg.setAttribute('stroke','#27e8ff');holdRingFg.setAttribute('stroke-width','4');
+holdRingFg.setAttribute('stroke-linecap','round');
+const CIRC=2*Math.PI*34;
+holdRingFg.setAttribute('stroke-dasharray',CIRC);
+holdRingFg.setAttribute('stroke-dashoffset',CIRC);
+holdRingFg.setAttribute('transform','rotate(-90 40 40)');
+holdRing.appendChild(holdRingBg); holdRing.appendChild(holdRingFg);
+
+let activeCursor = cursor1;
+
+export function setRecenterProgress(x, y, p) {
+  if (p<=0) { holdRing.style.opacity='0'; return; }
+  holdRing.style.left = x+'px'; holdRing.style.top = y+'px';
+  holdRing.style.opacity = '1';
+  holdRingFg.setAttribute('stroke-dashoffset', String(CIRC*(1-p)));
+}
+
 let installed = false, rafId = 0, processing = false, mpHands = null, started = false;
+let handsSeen = false, lastSeenAt = 0, emittedSeen = null;
+function updateTrackingStatus(hasHandsNow) {
+  const now = performance.now();
+  if (hasHandsNow) {
+    handsSeen = true;
+    lastSeenAt = now;
+  }
+  // Vira verde quando detectou pelo menos uma mão nos últimos 500ms;
+  // vermelho se mais de 3 se sem mão nenhuma depois de ter visto antes.
+  const state = handsSeen && (now - lastSeenAt) < 3000;
+  if (state !== emittedSeen) {
+    emittedSeen = state;
+    emit('hands', state);
+  }
+}
 
 function ensureDom() {
   if (installed) return;
@@ -29,7 +69,7 @@ function ensureDom() {
   // Vídeo é o passthrough da câmera traseira (fundo). Canvas em cima só pra silhueta
   // das mãos e cursores. Ligando direto como background, evitamos a disputa de câmera
   // com o passthrough nativo GL (que é parado via NativeXR.nativeCamera(false)).
-  [video, canvas, cursor1, cursor2].forEach(el => host.appendChild(el));
+  [video, canvas, cursor1, cursor2, holdRing].forEach(el => host.appendChild(el));
   video.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:1;pointer-events:none';
   // O canvas fica transparente — só desenha os contornos ciano e cursores em cima do vídeo.
   canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:none';
@@ -179,7 +219,9 @@ function onResults(results) {
   // permanecem, suficiente para abrir apps e interagir com a dock redesenhada.
   const packet = { hands:[], consumed:new Set(), scaleX:1, scaleY:1 };
 
-  if(results.multiHandLandmarks && results.multiHandLandmarks.length) {
+  const hasHandsNow = !!(results.multiHandLandmarks && results.multiHandLandmarks.length);
+  updateTrackingStatus(hasHandsNow);
+  if(hasHandsNow) {
     for(let i=0;i<results.multiHandLandmarks.length;i++){
       const raw = results.multiHandLandmarks[i];
       const handed = results.multiHandedness?.[i];
@@ -192,6 +234,7 @@ function onResults(results) {
       const points = drawHand(raw);
       const cur = i===0 ? cursor1 : cursor2;
       updatePinch(points, cur);
+      if (cur === cursor1) activeCursor = cursor1; else activeCursor = cursor2;
 
       // Aim é a ponta do indicador (landmark 8), normalizado como tangente FOV.
       const idx = raw[8];
@@ -224,6 +267,10 @@ async function processFrame() {
     processing = true;
     try { await mpHands.send({image:video}); } catch(e){ console.error('novamr hands', e); }
     processing = false;
+  } else if(started) {
+    // Sem frame novo neste tick: atualiza o estado do ponto de tracking
+    // (fica vermelho se ficar mais de 3s sem ver uma mão).
+    updateTrackingStatus(false);
   }
   rafId = requestAnimationFrame(processFrame);
 }
@@ -273,6 +320,8 @@ function stopCamera() {
   }
   ctx.clearRect(0,0,canvas.width,canvas.height);
   cursor1.classList.remove('active'); cursor2.classList.remove('active');
+  setRecenterProgress(0,0,0);
+  updateTrackingStatus(false);
   emit('phonehands',{hands:[], consumed:new Set(), scaleX:1, scaleY:1});
 }
 

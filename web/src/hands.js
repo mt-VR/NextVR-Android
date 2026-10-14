@@ -7,9 +7,9 @@
 // abre uma segunda sessão de câmera (a maioria dos Android modernos permite); se o
 // aparelho não permitir, ele cai para o modo sem mãos (nenhuma infraestrutura antiga
 // de detector Java/GPU volta a ser ligada).
-import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
+import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame, recenter } from './core.js';
 import { HandClickState, ClickDragArbiter } from './hand-input.js';
-import { startNovaHands, stopNovaHands, novamrTracking } from './novamr-hands.js';
+import { startNovaHands, stopNovaHands, novamrTracking, setRecenterProgress } from './novamr-hands.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
@@ -20,7 +20,9 @@ export const tracking = () => enabled && novamrTracking();
 export async function startHands() {
   if (!native) { toast('Hand tracking requer o app Android.'); return false; }
   const ok = await startNovaHands();
-  if (ok) { enabled = true; emit('hands', true); return true; }
+  if (ok) { enabled = true; return true; }
+  enabled = false;
+  emit('hands', false);
   toast('Não foi possível abrir a câmera para o tracking das mãos.');
   return false;
 }
@@ -91,13 +93,45 @@ on('phonehands', packet => {
   emitClickEvents(clickEvents);
 });
 
+/* ---------- recentramento por pinça longa (3s) no ar ---------- */
+const HOLD_MS = 3000;
+let holdStart = 0, holdHandId = null, holdProgress = 0, holdTimer = 0;
+
+function cancelHold() {
+  holdStart = 0; holdHandId = null; holdProgress = 0;
+  setRecenterProgress(0,0,0);
+}
+onFrame(() => {
+  if (!native) return;
+  const now = performance.now();
+  // A pinça longa só dispara quando NÃO está em cima de nenhuma UI (hover/shell/dock/janela),
+  // senão cada arrastar/drag de janela acabava recentrando depois de 3s.
+  const overUi = cursor.mode !== 'idle' || cursor.phase !== 'hovering';
+  if (!overUi && clickState.down && cursor.active && cursor.hand) {
+    if (holdHandId !== clickState.handId || holdStart === 0) {
+      holdHandId = clickState.handId; holdStart = now; holdProgress = 0;
+    }
+    holdProgress = Math.min(1, (now - holdStart) / HOLD_MS);
+    // Anel de progresso segue o cursor da mão que está segurando a pinça.
+    setRecenterProgress(cursor.x * viewport.width, cursor.y * viewport.height, holdProgress);
+    if (holdProgress >= 1) {
+      setRecenterProgress(0,0,0);
+      cancelHold();
+      recenter();
+      return;
+    }
+  } else {
+    if (holdProgress > 0) cancelHold();
+  }
+});
+
 const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 onFrame(()=>{
   // Desenho das mãos agora é DOM (canvas #novamr-canvas + cursores) — nada no overlay antigo.
   if(!native && visual!==!!S.handDraw){visual=!!S.handDraw;}
   if(hands.length && performance.now()-lastFrame>validForMs){
-    hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
+    hands.length=0;cancel();cancelHold();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }
 });
 
