@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "main" ]
+    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -32,33 +32,57 @@ jobs:
           (npm ci && npm test && npm run build:ui && git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
 
       - name: Show runner Android toolchain
         run: |
           set -x
-          java -version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls "$ANDROID_HOME" || true
-          ls "$ANDROID_HOME/ndk" 2>/dev/null || echo "no ndk preinstalled"
-          ls "$ANDROID_HOME/cmake" 2>/dev/null || echo "no cmake preinstalled"
-          which sdkmanager || true
+          # `bash -e` derruba o passo no primeiro comando que falhar: tudo aqui e diagnostico,
+          # entao nada pode sair diferente de zero (era daqui que vinha um exit 127).
+          java -version || echo "java not on PATH"
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$SDK" 2>/dev/null || echo "no Android SDK directory"
+          ls "$SDK/ndk" 2>/dev/null || echo "no ndk preinstalled"
+          ls "$SDK/cmake" 2>/dev/null || echo "no cmake preinstalled"
+          command -v sdkmanager || ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null \
+            || echo "no sdkmanager on this runner"
         continue-on-error: true
 
+      # O runner nao tem o `sdkmanager` no PATH (ele mora em cmdline-tools/*/bin). Os passos `run:`
+      # rodam com `bash -e`, entao `sdkmanager ... || sdkmanager ...` abortava o passo com exit 127
+      # ANTES da linha com `|| true`, e o Actions publicava a anotacao vermelha "Process completed
+      # with exit code 127" em toda rodada -- mesmo com o NDK e o CMake ja instalados na imagem.
+      # Agora o binario e localizado de verdade, a instalacao so roda quando falta algo, e nenhuma
+      # falha derruba o passo: quem garante o toolchain e o build Gradle logo abaixo.
       - name: Install NDK and CMake
         run: |
           set -x
-          sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" || \
-            sdkmanager --install "ndk;29.0.14206865" "cmake;3.22.1" --channel=0
-          sdkmanager --list_installed || true
+          NDK_VERSION=29.0.14206865
+          CMAKE_VERSION=3.22.1
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "$SDK" ]; then
+            SDKMANAGER="$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1 || true)"
+          fi
+          echo "sdkmanager=${SDKMANAGER:-<none>}"
+          if [ -d "$SDK/ndk/$NDK_VERSION" ] && [ -d "$SDK/cmake/$CMAKE_VERSION" ]; then
+            echo "NDK $NDK_VERSION and CMake $CMAKE_VERSION are already installed"
+          elif [ -z "$SDKMANAGER" ]; then
+            echo "no sdkmanager: relying on the preinstalled toolchain"
+          else
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" \
+              || echo "sdkmanager install failed; continuing with the preinstalled toolchain"
+          fi
+          ls "$SDK/ndk" "$SDK/cmake" 2>/dev/null || true
         continue-on-error: true
 
       - name: Build Cardboard SDK and NextVR
@@ -146,7 +170,7 @@ jobs:
 
       - name: Upload native test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-test-reports
           path: nextvr-android/build/test-results/testDebugUnitTest/
@@ -154,7 +178,7 @@ jobs:
           retention-days: 30
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nextvr-debug-apk
           path: nextvr-android/build/outputs/apk/debug/*.apk
@@ -173,7 +197,7 @@ jobs:
       contents: write
     steps:
       - name: Download APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nextvr-debug-apk
           path: apk
