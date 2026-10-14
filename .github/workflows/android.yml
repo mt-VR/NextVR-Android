@@ -210,9 +210,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nextvr-debug-apk
-          # So o universal (os splits ficam na branch apk-dist, que nao conta
-          # contra a cota de artefatos) e com retencao curta.
-          path: nextvr-android/build/outputs/apk/debug/nextvr-android-*-universal-debug.apk
+          # O build nao configura ABI splits, entao sai um unico
+          # nextvr-android-debug.apk. O padrao anterior (*-universal-debug.apk)
+          # nao casava com nada e o upload era pulado.
+          path: nextvr-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 3
 
@@ -228,12 +229,20 @@ jobs:
       contents: write
     steps:
       - name: Download APK artifact
+        id: download
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: nextvr-debug-apk
           path: apk
 
+      - name: Warn when the artifact is unavailable
+        if: steps.download.outcome != 'success'
+        run: |
+          echo "::warning::Artefato nextvr-debug-apk indisponivel (cota de storage de artefatos esgotada?). O build passou; nada foi publicado na branch apk-dist nesta execucao."
+
       - name: Push APK to apk-dist branch
+        if: steps.download.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
