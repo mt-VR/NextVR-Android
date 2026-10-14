@@ -154,7 +154,7 @@ public class AppSessionManagerTest {
         assertEquals(AppSession.State.SUSPENDED, session.state);
         assertTrue(manager.restore("com.a"));
         assertEquals(AppSession.State.RUNNING, session.state);
-        assertEquals(3, host.calls.size(), "start, setVisible(false), setVisible(true): " + host.calls);
+        assertEquals("start, setVisible(false), setVisible(true)", 3, host.calls.size());
         assertEquals(1080, session.width);
         assertEquals(2400, session.height);
         assertEquals(420, session.density);
@@ -165,7 +165,7 @@ public class AppSessionManagerTest {
         assertEquals(2400, landscape.width);
         assertEquals(1080, landscape.height);
         assertEquals(AppWindowShape.LANDSCAPE, landscape.shape);
-        assertEquals(1080, session.width, "opening another window does not touch this one");
+        assertEquals("opening another window does not touch this one", 1080, session.width);
     }
 
     @Test public void aDeadAppBecomesAFailureWithAReason() {

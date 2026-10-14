@@ -112,12 +112,12 @@ public class AppWindowShapeTest {
             AppDisplaySpec spec = AppDisplaySpec.forCanvas(canvas[0], canvas[1], 420);
             float aspect = spec.aspect();
             float[] fit = AppInputGeometry.fit(aspect, 1000f, 1000f / aspect);
-            // The fit rounds to whole pixels, so a delta of half a pixel is exactly "landed on 0 (or
+            // The fit rounds to whole pixels, so half a pixel of tolerance is exactly "landed on 0 (or
             // on the full width)": anything else would be a bar on screen.
-            assertEquals(shape + " must fill its window", 0f, fit[0], 0.5f);
-            assertEquals(shape + " must fill its window", 0f, fit[1], 0.5f);
-            assertEquals(shape + " must fill its window", 1000f, fit[2], 0.5f);
-            assertEquals(shape + " must fill its window", 1000f / aspect, fit[3], 0.5f);
+            assertTrue(shape + " must fill its window", Math.abs(fit[0]) <= 0.5f);
+            assertTrue(shape + " must fill its window", Math.abs(fit[1]) <= 0.5f);
+            assertTrue(shape + " must fill its window", Math.abs(fit[2] - 1000f) <= 0.5f);
+            assertTrue(shape + " must fill its window", Math.abs(fit[3] - 1000f / aspect) <= 0.5f);
         }
     }
 }
