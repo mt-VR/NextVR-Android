@@ -326,13 +326,13 @@
   .key[data-state="once"]{background:#4a5160;color:#fff}
   .key[data-state="lock"]{background:#7a8497;color:#fff}
 
-  /* ---------- dock: barra menor, quadradinha com bordas arredondadas (estilo Quest) ---------- */
+  /* ---------- dock: barra cinza-azulado estilo Meta Horizon (sem separadores) ---------- */
   .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
     align-items:center;gap:6px;width:max-content;padding:8px 10px 10px 8px;border-radius:22px;
-    background:linear-gradient(180deg,rgba(36,40,48,.92),rgba(18,20,26,.96));
-    border:1px solid rgba(255,255,255,.10);
-    backdrop-filter:blur(26px) saturate(1.4);-webkit-backdrop-filter:blur(26px) saturate(1.4);
-    box-shadow:0 20px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.35);
+    background:linear-gradient(180deg,rgba(56,66,82,.88),rgba(38,46,60,.94));
+    border:1px solid rgba(255,255,255,.12);
+    backdrop-filter:blur(26px) saturate(1.5);-webkit-backdrop-filter:blur(26px) saturate(1.5);
+    box-shadow:0 20px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.30);
     pointer-events:auto}
   .dock button{color:#e9edf4}
   /* Quest-style grabber: the hit area floats below the dock; only a short white pill is drawn.
@@ -353,14 +353,14 @@
     box-shadow:0 2px 8px rgba(0,0,0,.4);transition:filter .15s,transform .15s}
   .dock-av svg{width:20px;height:20px}
   .dock-status{display:flex;align-items:center;gap:8px;flex:none;height:38px;padding:0 12px;border-radius:12px;
-    background:rgba(255,255,255,.07);font-size:15px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;
+    background:rgba(255,255,255,.09);font-size:15px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;
     font-variant-numeric:tabular-nums;transition:background .15s}
   .dk-time{font-size:15px}
-  .dk-wifi svg,.dk-bat svg{display:block;width:19px;height:19px;color:#cfd6e2}
+  .dk-wifi svg,.dk-bat svg{display:block;width:19px;height:19px;color:#c7d0de}
   .dock-tool{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
-    background:rgba(255,255,255,.07);color:#d3d9e5;transition:background .15s,transform .15s}
+    background:rgba(255,255,255,.09);color:#cdd5e3;transition:background .15s,transform .15s}
   .dock-tool svg{width:20px;height:20px}
-  .dock-status:hover,.dock-tool:hover{background:rgba(255,255,255,.15)}
+  .dock-status:hover,.dock-tool:hover{background:rgba(120,160,220,.22)}
   .dock-av:hover{filter:brightness(1.12)}
   .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.92)}
   .dock-sep{width:1.5px;height:24px;border-radius:2px;background:rgba(255,255,255,.16);flex:none;margin:0 2px}

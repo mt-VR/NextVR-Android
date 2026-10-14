@@ -376,6 +376,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { /* NovaMR: o desenho das mãos é feito no WebView; GL não desenha mais nada. */ }
+        /**
+         * NovaMR MediaPipe JS precisa da câmera traseira exclusiva pro getUserMedia.
+         * Quando webPassthrough=true, paramos a câmera nativa e liberamos o hardware.
+         * Quando false (ambiente virtual ou fallback), reabrimos a câmera nativa.
+         */
+        @JavascriptInterface public void nativeCamera(boolean enabled) {
+            main.post(() -> {
+                if(closed) return;
+                if(enabled) { if(!camera.isRunning()) camera.start(getWindowManager().getDefaultDisplay().getRotation()); }
+                else { camera.stop(); }
+            });
+        }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
         @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */

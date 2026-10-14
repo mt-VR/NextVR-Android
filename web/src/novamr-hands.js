@@ -25,13 +25,15 @@ let installed = false, rafId = 0, processing = false, mpHands = null, started = 
 function ensureDom() {
   if (installed) return;
   installed = true;
-  // No modo nativo (Cardboard VR), a head-overlay é uma camada fixa de 1200x800 na frente
-  // dos dois olhos; é o lugar certo para o canvas e cursores (não fica no atlas 3D).
   const host = document.getElementById('head-overlay') || document.body;
+  // Vídeo é o passthrough da câmera traseira (fundo). Canvas em cima só pra silhueta
+  // das mãos e cursores. Ligando direto como background, evitamos a disputa de câmera
+  // com o passthrough nativo GL (que é parado via NativeXR.nativeCamera(false)).
   [video, canvas, cursor1, cursor2].forEach(el => host.appendChild(el));
-  // O vídeo nunca aparece visualmente (é só fonte de frames pro MediaPipe). O canvas
-  // desenha a silhueta e os cursores flutuam por cima.
-  video.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+  video.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:1;pointer-events:none';
+  // O canvas fica transparente — só desenha os contornos ciano e cursores em cima do vídeo.
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:none';
+  cursor1.style.cssText = cursor2.style.cssText = 'position:absolute;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,#27e8ff 0%,#00bfff 45%,rgba(0,191,255,0) 70%);box-shadow:0 0 18px #00dfff,0 0 36px #00bfff;transform:translate(-50%,-50%) scale(0);z-index:3;pointer-events:none;transition:transform .1s ease-out';
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 }
@@ -122,10 +124,14 @@ function updatePinch(p, cursorEl) {
   const thumb=p[4], index=p[8];
   const d=dist(thumb,index);
   if(d<45){
-    cursorEl.style.left=((thumb.x+index.x)/2)+'px';
-    cursorEl.style.top=((thumb.y+index.y)/2)+'px';
+    const cx=(thumb.x+index.x)/2, cy=(thumb.y+index.y)/2;
+    const scale=Math.max(.15, Math.min(1, (45-d)/45));
+    cursorEl.style.left=cx+'px';
+    cursorEl.style.top=cy+'px';
+    cursorEl.style.transform='translate(-50%,-50%) scale('+scale+')';
     cursorEl.classList.add('active');
   } else {
+    cursorEl.style.transform='translate(-50%,-50%) scale(0)';
     cursorEl.classList.remove('active');
   }
 }
@@ -273,33 +279,36 @@ function stopCamera() {
 // Substitui as funções de start/stop do hands.js nativo.
 export async function startNovaHands() {
   if (started) return true;
-  // Desliga o hand tracking nativo (a câmera passthrough continua rodando).
-  // Chaves: NativeXR.hands(false) evita que o Java ligue o HandTracker/detector,
-  // mas PassthroughCamera continua abrindo a câmera pro GL passthrough.
+  // Desliga TODO o acesso nativo à câmera (hand tracking E passthrough GL) pra
+  // liberar o hardware pro getUserMedia do MediaPipe. O próprio <video> do
+  // NovaMR agora é o passthrough mono desenhado no fundo da head-overlay.
   if (native && window.NativeXR?.hands) window.NativeXR.hands(false);
+  if (native && window.NativeXR?.nativeCamera) {
+    try { window.NativeXR.nativeCamera(false); } catch(e) { console.warn('nativeCamera', e); }
+    // Dá um tempo pra câmera nativa fechar de verdade antes de pedir getUserMedia.
+    await new Promise(r => setTimeout(r, 450));
+  }
   const ok = await startCamera();
   emit('hands', ok);
   return ok;
 }
 export function stopNovaHands() {
   stopCamera();
+  // Restaura a câmera nativa se o NovaMR parar (ex.: ambiente virtual).
+  if (native && window.NativeXR?.nativeCamera) {
+    try { window.NativeXR.nativeCamera(true); } catch(e) {}
+  }
   emit('hands', false);
 }
 export const novamrTracking = () => started;
 
-// Injeta CSS necessário para os cursores e canvas, exatamente com as cores do HTML.
+// Injeta CSS necessário para os cursores e canvas.
 (function injectCss(){
   const css = `
-    #novamr-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
-    .novamr-cursor{position:fixed;width:17px;height:17px;border-radius:50%;background:#27e8ff;
-      box-shadow:0 0 7px #27e8ff,0 0 16px #00dfff,0 0 30px #00bfff;
-      transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;z-index:20;
-      transition:opacity .06s linear, transform .06s linear}
-    .novamr-cursor.active{opacity:1;transform:translate(-50%,-50%) scale(1)}
-    /* No modo nativo, a head-overlay é 1200x800; canvas+cursores usam esse sistema. */
+    html.native #head-overlay{background:#000}
     html.native #novamr-canvas{position:absolute;left:0;top:0;width:1200px;height:800px}
     html.native .novamr-cursor{position:absolute}
-    html.native #novamr-camera{display:none!important}`;
+    html.native #novamr-camera{position:absolute!important;left:0!important;top:0!important;width:1200px!important;height:800px!important;object-fit:cover!important;opacity:1!important}`;
   const tag = document.createElement('style');
   tag.textContent = css;
   document.head.appendChild(tag);

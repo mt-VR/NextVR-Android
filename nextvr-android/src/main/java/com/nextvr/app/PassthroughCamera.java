@@ -81,6 +81,7 @@ final class PassthroughCamera {
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader reader;
+    private volatile boolean cameraOpen=false;
     private boolean gpuDetector;
     /**
      * Whether the next detector should be created on the GPU delegate. Cleared when the GPU is
@@ -150,7 +151,7 @@ final class PassthroughCamera {
                     try {
                         device.createCaptureSession(Collections.singletonList(reader.getSurface()),new CameraCaptureSession.StateCallback(){
                             @Override public void onConfigured(CameraCaptureSession configured) {
-                                if(token!=generation){configured.close();return;}session=configured;
+                                if(token!=generation){configured.close();return;}session=configured;cameraOpen=true;
                                 try {
                                     CaptureRequest.Builder request=device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
                                     request.addTarget(reader.getSurface());
@@ -429,12 +430,13 @@ final class PassthroughCamera {
     }
     private void fail(String message,Throwable e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
     private void closeCamera(){
-        ++generation;
+        ++generation; cameraOpen=false;
         if(session!=null){session.close();session=null;}
         if(camera!=null){camera.close();camera=null;}
         if(reader!=null){reader.close();reader=null;}
         listener.stopped();
     }
+    boolean isRunning(){return cameraOpen;}
     void stop(){handler.post(()->{closeCamera();discardWaitingFrame();tracking.execute(this::clearHands);});}
     private void discardWaitingFrame() {
         TrackingFrame waiting=slot.clear();
