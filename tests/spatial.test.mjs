@@ -38,20 +38,22 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(/nativeYuvToArgb\(cameraPixels,[\s\S]*?rotation\)/.test(camera), 'The native conversion receives the quarter-turn rotation');
   const pixels=await readFile('nextvr-android/src/main/jni/camera_pixels.h','utf8');
   assert.ok(pixels.includes('ConvertYuvArgbRot<90>') && pixels.includes('ConvertYuvArgbRot<270>'), 'Quarter turns are fused write-index remaps in the converter');
-  assert.ok(camera.includes('detectOwned(frame.bitmap,frame.stamp,0)'), 'The already-upright, owned analysis frame is not rotated twice');
-  assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
+  // Native hand detection is disabled (handsEnabled=false); passthrough camera frames are NOT
+  // sent to the detector anymore. NovaMR JS MediaPipe hands runs on the WebView side.
+  assert.ok(camera.includes('volatile boolean handsEnabled=false;'), 'Native hand tracking is disabled by default in favor of NovaMR JS');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
+  const novamr=await readFile('web/src/novamr-hands.js','utf8');
   const nativeHands=await readFile('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt','utf8');
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
-  assert.ok(hands.includes('NativeXR.handVisuals?.(visual)'), 'The UI setting controls only the native silhouette visibility');
+  assert.ok(hands.includes('startNovaHands') || novamr.includes('startNovaHands'), 'NovaMR MediaPipe Hands JS is the active tracker');
   assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands)'),
-    'The native pass owns hand contours and rays');
+    'The native pass still has a renderer entry point (defaulted off)');
   assert.ok(nativeHands.includes('meshes=meshesFor(visible.predicted(now),sx,sy,now)')
-    && nativeHands.includes('drawHandSkeletons(position,fade)'), 'The hand contour follows the predicted pose in the native render pass');
+    && nativeHands.includes('drawHandSkeletons(position,fade)'), 'Native silhouette code remains available (re-enableable)');
   assert.ok(nativeHands.includes('MESH_REBUILD_EPSILON') && nativeHands.includes('MESH_REBUILD_MAX_NS'),
     'The native contour caches resting meshes and refreshes moving poses at display rate');
-  assert.ok(!hands.includes('navigator.mediaDevices.getUserMedia'), 'The renderer must not open a second camera');
+  assert.ok(novamr.includes('getUserMedia'), 'NovaMR opens a JS camera session for in-browser MediaPipe Hands');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8');

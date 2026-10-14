@@ -17,9 +17,9 @@ test('native VR input stays hand-only; hand-visual settings are not an input rou
   assert.match(surface,/properties\.toolType=MotionEvent\.TOOL_TYPE_FINGER[\s\S]*InputDevice\.SOURCE_TOUCHSCREEN/,
     'WebView must receive a correctly typed synthetic pointer stream from the hand-only bridge');
   assert.match(activity,/@JavascriptInterface public void handTouch\(/);
-  assert.match(activity,/@JavascriptInterface public void handVisuals\(/,'the native contour visibility preference is not an input bridge');
-  assert.match(hands,/NativeXR\.handVisuals\?\.\(visual\)/);
-  assert.match(bundle,/handVisuals/,'the APK bundle can toggle native hand visuals without adding a selection route');
+  assert.match(activity,/@JavascriptInterface public void handVisuals\(/,'the handVisuals bridge exists (a no-op since NovaMR draws on the web)');
+  assert.match(hands,/startNovaHands|novamr-hands/,'NovaMR JS MediaPipe hands replaces the native contour');
+  assert.match(bundle,/novamr|#27e8ff/,'APK bundle ships the NovaMR canvas + cyan silhouette');
   assert.match(surface,/void dispatchHandEvent\(/);
   assert.ok(windows.includes('window.NativeXR.handTouch'));
   assert.ok(!windows.includes('window.NativeXR.touch('));
