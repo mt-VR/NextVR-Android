@@ -37,5 +37,5 @@ test('existing installations get the close layout and compact default size once,
   assert.equal(migrateComfort({comfortVersion:6,winScale:.9}).winScale,.9,'customized sizes are preserved');
   moved.winDist=1.2;assert.equal(migrateComfort(moved).winDist,1.2);
   assert.equal(COMFORT.welcomeDistance,.42);
-  assert.equal(COMFORT.dockDistance,.50,'default dock placement centered in the VR lens');
+  assert.equal(COMFORT.dockDistance,.55,'default dock placement is slightly farther from the viewer');
 });
