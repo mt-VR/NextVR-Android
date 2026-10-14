@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   checks: write
 
 jobs:
@@ -88,11 +88,6 @@ jobs:
           done
           ) 2>&1 | tee -a /tmp/build.log
 
-      # A assinatura de depuração vem do repositório (signing/debug.keystore, declarado no
-      # build.gradle do módulo). Sem isso, cada runner gera uma chave nova e a rodada nova NÃO
-      # instala por cima da anterior ("App not installed"). Aqui o APK montado é conferido contra a
-      # impressão digital da chave do repositório: se o Gradle voltar a assinar sozinho, o CI falha
-      # no lugar de entregar um APK que não atualiza.
       - name: Verify debug signature is the repository key
         id: sign
         if: steps.build.outcome == 'success'
@@ -101,12 +96,10 @@ jobs:
           set -o pipefail
           (set -e
           FP=94b3534f902bb783d9cd5859978106f2687016e3127c239a397ffc3ea7b2adbf
-          # O relatório do próprio Gradle diz com qual chave a variante debug sai assinada.
           ./gradlew :nextvr-android:signingReport --no-daemon > /tmp/sign.txt 2>&1 || true
           cat /tmp/sign.txt
           tr -d ':' < /tmp/sign.txt | grep -qi "$FP"
           echo "Variante debug assinada com a chave de depuração do repositório"
-          # Reforço: a assinatura do APK montado, quando o apksigner está disponível.
           APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
           if [ -n "$APKSIGNER" ]; then
@@ -125,7 +118,6 @@ jobs:
         run: |
           if [ ! -f /tmp/build.log ]; then echo "no build log captured" > /tmp/build.log; fi
           python3 -c 'import glob,xml.etree.ElementTree as E; [(print("JVM",p,E.parse(p).getroot().attrib)) for p in glob.glob("nextvr-android/build/test-results/testDebugUnitTest/TEST-*.xml")]' >> /tmp/build.log
-          # Strip ANSI colour codes, keep the last 60k characters (check-run limit).
           tail -c 60000 /tmp/build.log | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/build-tail.txt
           case "$OUTCOME" in
             success) CONCLUSION=success ;;
@@ -144,52 +136,24 @@ jobs:
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1
 
-      - name: Upload native test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-test-reports
-          path: nextvr-android/build/test-results/testDebugUnitTest/
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nextvr-debug-apk
-          path: nextvr-android/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-  # Publishes the built debug APK to the disposable `apk-dist` branch so the file can be
-  # fetched with plain git (the Actions artifact download redirects to a blob host that
-  # some restricted environments cannot reach). The branch carries only dist/app-debug.apk.
-  publish-apk:
-    name: Publish debug APK to apk-dist branch
-    needs: build
-    if: needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: nextvr-debug-apk
-          path: apk
-
-      - name: Push APK to apk-dist branch
+      # Publica o APK direto no branch apk-dist no mesmo job, sem upload-artifact
+      # (evita bater cota de storage de artifacts do GitHub). O branch apk-dist contém
+      # apenas dist/app-debug.apk e pode ser baixado com git fetch.
+      - name: Publish APK to apk-dist branch
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          APK=$(find "$GITHUB_WORKSPACE/apk" -name '*.apk' -print -quit)
+          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
           test -n "$APK"
-          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
+          echo "APK built at: $APK ($(stat -c%s "$APK") bytes)"
+          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist
+          cp "$APK" /tmp/apk-dist/dist/app-debug.apk
+          cd /tmp/apk-dist
           git init -q -b apk-dist
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp "$APK" dist/app-debug.apk
           printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
           git add dist
           git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
