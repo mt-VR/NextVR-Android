@@ -12,9 +12,10 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * The window list: what happens when the user opens a fourth app, minimizes, restores, resizes and
+ * The window list: what happens when the user opens a fourth app, minimizes, restores, rotates and
  * closes — all without touching a display, which is why this is unit-tested and the display code is
- * not.
+ * not. What a window's screen is (this phone's, in the app's shape) is decided before the session
+ * exists and never changes afterwards: the last test in this file is the one that pins that.
  */
 public class AppSessionManagerTest {
     /** Host that records the calls the manager makes instead of creating displays. */
@@ -137,16 +138,34 @@ public class AppSessionManagerTest {
         AppSession session = openRunning("com.a");
         manager.markDisplayReady("com.a", 5, 1080, 2400, 420);
 
-        // The window can be dragged and resized by the hand all it likes: the app's screen does not
-        // change under it. A canvas that moved would re-lay-out (or re-create) the app on every gesture,
-        // and the canvas is what the app was designed for — not the window's size.
-        int before = host.calls.size();
+        // The canvas is what the session was created with — this phone's screen in the shape the app
+        // asked for — and nothing else in the session's life changes it: the manager exposes no resize,
+        // the host has no resize to call, and there is no half-applied state left to get wrong. That is
+        // the whole of the round-6 fix, from this side of the bridge.
         assertEquals(1080, session.width);
         assertEquals(2400, session.height);
-        assertEquals(before, host.calls.size());
-        // There is no resize entry point left on the manager at all: the only things the shell can do to
-        // a running session are minimize, restore, focus, rotate and close.
+        assertEquals(420, session.density);
         assertEquals(AppWindowShape.PORTRAIT, session.shape);
+
+        // Everything the shell can do to a running session, and the canvas after each one: minimize and
+        // restore only detach and re-attach the output surface — the app keeps running on the same
+        // screen, and nothing in the session's own state changes shape.
+        assertTrue(manager.minimize("com.a"));
+        assertEquals(AppSession.State.SUSPENDED, session.state);
+        assertTrue(manager.restore("com.a"));
+        assertEquals(AppSession.State.RUNNING, session.state);
+        assertEquals(3, host.calls.size(), "start, setVisible(false), setVisible(true): " + host.calls);
+        assertEquals(1080, session.width);
+        assertEquals(2400, session.height);
+        assertEquals(420, session.density);
+
+        // A session of the other shape is a different canvas, and it is decided at open, not later.
+        AppSession landscape = manager.open("com.b", "B", AppSession.Mode.VIRTUAL_DISPLAY,
+                AppWindowShape.LANDSCAPE, AppDisplaySpec.forCanvas(2400, 1080, 420));
+        assertEquals(2400, landscape.width);
+        assertEquals(1080, landscape.height);
+        assertEquals(AppWindowShape.LANDSCAPE, landscape.shape);
+        assertEquals(1080, session.width, "opening another window does not touch this one");
     }
 
     @Test public void aDeadAppBecomesAFailureWithAReason() {

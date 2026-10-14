@@ -73,7 +73,9 @@ public class AppWindowShapeTest {
     @Test public void rotatingIsASwapOfTheSameScreen() {
         assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.other(AppWindowShape.PORTRAIT));
         assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.other(AppWindowShape.LANDSCAPE));
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.other("nonsense"));
+        // A shape that is not a shape is treated as "not portrait", which is the same rule the shell
+        // uses (android-apps.js: current === 'portrait' ? 'landscape' : 'portrait').
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.other("nonsense"));
         assertTrue(AppWindowShape.isShape(AppWindowShape.PORTRAIT));
         assertFalse(AppWindowShape.isShape(""));
         // The canvas of the two shapes is the same screen: the same number of pixels, turned.
@@ -110,9 +112,12 @@ public class AppWindowShapeTest {
             AppDisplaySpec spec = AppDisplaySpec.forCanvas(canvas[0], canvas[1], 420);
             float aspect = spec.aspect();
             float[] fit = AppInputGeometry.fit(aspect, 1000f, 1000f / aspect);
-            assertEquals(shape + " must fill its window", 0f, fit[0], 0f);
-            assertEquals(shape + " must fill its window", 0f, fit[1], 0f);
-            assertEquals(shape + " must fill its window", 1000f, fit[2], 0f);
+            // The fit rounds to whole pixels, so a delta of half a pixel is exactly "landed on 0 (or
+            // on the full width)": anything else would be a bar on screen.
+            assertEquals(shape + " must fill its window", 0f, fit[0], 0.5f);
+            assertEquals(shape + " must fill its window", 0f, fit[1], 0.5f);
+            assertEquals(shape + " must fill its window", 1000f, fit[2], 0.5f);
+            assertEquals(shape + " must fill its window", 1000f / aspect, fit[3], 0.5f);
         }
     }
 }

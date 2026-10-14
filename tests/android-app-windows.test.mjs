@@ -713,7 +713,6 @@ test('the canvas of a portrait window is a phone screen, so the app is not cropp
   // The two halves of the fix, as arithmetic: the canvas is a phone screen (1080x2400 here), the window
   // is its shape, and the fit fills the window — which is what makes the app look the way it does on
   // the phone instead of being cut. Both use the same 411x914 dp box the app expects.
-  const { AppDisplaySpec_placeholder } = { };
   const spec = await read(JAVA.spec);
   assert.match(spec, /public static AppDisplaySpec forCanvas\(int canvasWidth, int canvasHeight, int deviceDensity\)/);
   assert.match(spec, /public int heightDp\(\)/);
