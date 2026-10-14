@@ -46,10 +46,6 @@ public final class AppWindowShape {
     public static final int MIN_LONG_SIDE = 1920;
     public static final int MIN_SHORT_SIDE = 1080;
 
-    /** Aspect below/above which a canvas is not a phone screen any more, for the fit to stay sane. */
-    public static final float MIN_ASPECT = 0.4f;
-    public static final float MAX_ASPECT = 2.5f;
-
     private AppWindowShape() {}
 
     /**

@@ -778,17 +778,19 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 5, run `38420799703`): Node **90/90** (incluindo o teste de integração em
-Chromium, que no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e testes JVM **140 em
-21 classes, 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as duas novas da rodada 5
-(`AppWindowShapeTest`, 6 casos, e `AppDisplayGeometryTest`, 7 casos). O teste `reference-ui` é o que
-guarda a geometria da janela: ele mede a superfície do app (960x540 em paisagem, 306x544 em retrato,
-com as duas barras dando 962x656 e 308x660), confere que o `sync` manda os pixels do **display**
-(1040x585) e faz o giro completo conferindo o recorte do shader nas duas frações. O APK de depuração sai
-do próprio job de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanhado de
-`dist/build.txt` — que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build
-instalada se identifica sozinha: nesta rodada ela é `versionCode` **6** / `versionName` **1.0.5** (a
-rodada 4 era `5` / `1.0.4`).
+Estado no CI (verde, rodada 6, run `38497976814`, commit `0972b30`): Node **96/96** (incluindo o teste
+de integração em Chromium, que no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e
+testes JVM **140 em 21 classes, 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as três
+que a rodada 6 reescreveu (`AppWindowShapeTest`, 8 casos, `AppDisplaySpecTest`, 6, e
+`AppSessionManagerTest`, 11). O teste `reference-ui` é o que guarda a geometria da janela: ele mede a
+superfície do app no formato da tela do aparelho que o estado falso reporta (2400x1080 em paisagem →
+**1038x467**, 1080x2400 em retrato → **245x544**, com as duas barras dando 1040x583 e 247x660), confere
+que o `sync` manda **só visibilidade** — nunca um tamanho de janela como se fosse a tela do app — e faz
+o giro completo conferindo o recorte do shader nas duas frações. O APK de depuração sai do próprio job
+de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanhado de `dist/build.txt` —
+que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build instalada se
+identifica sozinha: nesta rodada ela é `versionCode` **7** / `versionName` **1.0.6** (48 040 916 bytes,
+md5 `151e4eb1e0e695eb0821243e13cb93f5`; a rodada 5 era `6` / `1.0.5`).
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
@@ -801,15 +803,16 @@ lista abaixo é o resumo:
 1. Abrir um app real e ver a interface dele na janela — com Shizuku autorizado, **sem diálogo de
    captura nenhum** e sem o app aparecer na tela do celular (é o item que estava quebrado).
 2. Tocar em um app com a mão e ver a reação dele (não do NextVR).
-3. Minimizar/restaurar/redimensionar/fechar com o app rodando — e, no redimensionamento, conferir se
-   a imagem continua preenchendo a janela e se o toque acerta o mesmo botão depois de redimensionar
-   (é o par imagem/toque que o contrato de confirmação acima protege);
+3. Minimizar/restaurar/arrastar/fechar com o app rodando — e, ao arrastar a alça, conferir se a
+   imagem continua inteira e se o toque acerta o mesmo botão depois (a tela do app **não** muda de
+   tamanho: a imagem é encaixada dentro da janela e o toque sai do mesmo retângulo);
 4. Continuar interagindo com a VR (dock, arco, teclado) com um app aberto.
 5. Shizuku ativo, inativo, não autorizado e derrubado no meio do uso.
 6. Captura com e sem acessibilidade ativa, e a captura automática de um tile com o Shizuku parado
    (o caminho sem privilégio, que é o que roda no Android 14 sem Shizuku), incluindo negar o diálogo
    e usar o botão “Abrir no celular”.
-7. Rotação: app retrato e app paisagem, toque em cada canto.
+7. Rotação: app retrato e app paisagem, toque em cada canto — e o rodapé de cada um visível, que é o
+   item que a rodada 6 corrige (roteiro em `docs/TESTE-EM-APARELHO.md`, seção B2).
 8. Medir latência captura → quadro na janela e gesto → reação no app.
 
 ## Arquivos principais

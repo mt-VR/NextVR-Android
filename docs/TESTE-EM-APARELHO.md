@@ -113,7 +113,7 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 
 1. Antes de qualquer app, abra o **Diagnóstico** (menu de aplicações → botão *Diagnóstico*).
    → esperado: em cada sessão aberta, uma linha `app <pacote>: shape=... canvas=1080x2400@<dpi>
-   (<largura>dp x <altura>dp, running)`. Os **dp** têm de ser iguais (ou quase) aos que o aparelho usa
+   (<largura>x<altura>dp, running)`. Os **dp** têm de ser iguais (ou quase) aos que o aparelho usa
    na tela do celular: em um 1080x2400 @ 420, **411x914 dp**. Se aparecer algo como *292x520dp*, o APK
    instalado é o antigo. **Anota a linha.**
 2. Abra um app que você sabe que **fixa o rodapé** — Instagram, um banco, WhatsApp, YouTube (qualquer

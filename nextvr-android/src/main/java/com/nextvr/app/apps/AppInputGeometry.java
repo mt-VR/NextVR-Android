@@ -44,8 +44,10 @@ public final class AppInputGeometry {
      * {@code web/src/display-fit.js} ({@code fitDisplay}) and covered by tests on both sides.
      */
     public static float[] fit(float displayAspect, float boxWidth, float boxHeight) {
-        // The body's *own* aspect, not the clamped one the display was sized with: a window taller
-        // than 3:5 gets a display that is wider than the window, which has to be pillarboxed here.
+        // The body's own aspect and the display's own aspect, with nothing clamped in between: the
+        // canvas is the phone's screen and the window takes its shape, so the two agree and the
+        // picture fills the window. A window the user resized by hand is a different shape, and then
+        // the picture is centred in it — never stretched, never cropped.
         float bodyAspect = boxWidth > 0 && boxHeight > 0 ? boxWidth / boxHeight : 16f / 9f;
         float aspect = displayAspect > 0 ? displayAspect : bodyAspect;
         float width, height;
