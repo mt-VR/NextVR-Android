@@ -326,61 +326,65 @@
   .key[data-state="once"]{background:#4a5160;color:#fff}
   .key[data-state="lock"]{background:#7a8497;color:#fff}
 
-  /* ---------- dock: cápsula horizontal (igual ao print) ---------- */
+  /* ---------- dock: barra menor, quadradinha com bordas arredondadas (estilo Quest) ---------- */
   .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
-    align-items:center;gap:10px;width:max-content;padding:11px 16px 16px 12px;border-radius:999px;
-    background:linear-gradient(180deg,rgba(46,50,60,.94),rgba(21,24,30,.97));
-    border:1px solid rgba(255,255,255,.11);
+    align-items:center;gap:6px;width:max-content;padding:8px 10px 10px 8px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(36,40,48,.92),rgba(18,20,26,.96));
+    border:1px solid rgba(255,255,255,.10);
     backdrop-filter:blur(26px) saturate(1.4);-webkit-backdrop-filter:blur(26px) saturate(1.4);
-    box-shadow:0 24px 64px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.15),inset 0 -1px 0 rgba(0,0,0,.35);
+    box-shadow:0 20px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.35);
     pointer-events:auto}
   .dock button{color:#e9edf4}
   /* Quest-style grabber: the hit area floats below the dock; only a short white pill is drawn.
      Atlas padding keeps this detached control visible without adding a second dock panel. */
-  .dock-grab{position:absolute;left:50%;top:calc(100% + 14px);bottom:auto;transform:translateX(-50%);z-index:5;
-    width:164px;height:18px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 4px;
+  .dock-grab{position:absolute;left:50%;top:calc(100% + 12px);bottom:auto;transform:translateX(-50%);z-index:5;
+    width:140px;height:16px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 4px;
     border:0;border-radius:0;background:transparent;color:#fff;cursor:grab;touch-action:none;pointer-events:auto}
-  .dock-grab::after{content:"";display:block;width:68px;height:4px;border-radius:99px;
-    background:rgba(255,255,255,.9);box-shadow:0 1px 8px rgba(255,255,255,.32),0 2px 8px rgba(0,0,0,.38);
+  .dock-grab::after{content:"";display:block;width:56px;height:4px;border-radius:99px;
+    background:rgba(255,255,255,.88);box-shadow:0 1px 7px rgba(255,255,255,.28),0 2px 7px rgba(0,0,0,.38);
     transition:width .16s,height .16s,background .16s,box-shadow .16s}
-  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:82px;height:5px;background:#fff;
-    box-shadow:0 0 12px rgba(255,255,255,.55),0 2px 8px rgba(0,0,0,.42)}
+  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:68px;height:5px;background:#fff;
+    box-shadow:0 0 10px rgba(255,255,255,.5),0 2px 8px rgba(0,0,0,.4)}
   .dock.moving .dock-grab{cursor:grabbing}
 
   /* perfil + status (hora, wifi, bateria) */
-  .dock-av{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;
-    background:linear-gradient(145deg,#c9b6fb,#6a63bf);border:2px solid rgba(255,255,255,.28);
-    box-shadow:0 3px 10px rgba(0,0,0,.4);transition:filter .15s,transform .15s}
-  .dock-av svg{width:25px;height:25px}
-  .dock-status{display:flex;align-items:center;gap:11px;flex:none;height:46px;padding:0 17px;border-radius:999px;
-    background:rgba(255,255,255,.08);font-size:19px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;
+  .dock-av{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(145deg,#c9b6fb,#6a63bf);border:2px solid rgba(255,255,255,.26);
+    box-shadow:0 2px 8px rgba(0,0,0,.4);transition:filter .15s,transform .15s}
+  .dock-av svg{width:20px;height:20px}
+  .dock-status{display:flex;align-items:center;gap:8px;flex:none;height:38px;padding:0 12px;border-radius:12px;
+    background:rgba(255,255,255,.07);font-size:15px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;
     font-variant-numeric:tabular-nums;transition:background .15s}
-  .dk-wifi svg,.dk-bat svg{display:block;width:24px;height:24px;color:#cfd6e2}
-  .dock-tool{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;
+  .dk-time{font-size:15px}
+  .dk-wifi svg,.dk-bat svg{display:block;width:19px;height:19px;color:#cfd6e2}
+  .dock-tool{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
     background:rgba(255,255,255,.07);color:#d3d9e5;transition:background .15s,transform .15s}
-  .dock-tool svg{width:25px;height:25px}
-  .dock-status:hover,.dock-tool:hover{background:rgba(255,255,255,.17)}
-  .dock-av:hover{filter:brightness(1.15)}
-  .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.93)}
-  .dock-sep{width:2px;height:32px;border-radius:2px;background:rgba(255,255,255,.18);flex:none;margin:0 3px}
+  .dock-tool svg{width:20px;height:20px}
+  .dock-status:hover,.dock-tool:hover{background:rgba(255,255,255,.15)}
+  .dock-av:hover{filter:brightness(1.12)}
+  .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.92)}
+  .dock-sep{width:1.5px;height:24px;border-radius:2px;background:rgba(255,255,255,.16);flex:none;margin:0 2px}
 
-  /* apps */
-  .dock-app{position:relative;width:50px;height:50px;border-radius:15px;flex:none;display:grid;place-items:center;
-    color:#fff;border:1px solid rgba(255,255,255,.22);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 5px 12px rgba(0,0,0,.42);
+  /* apps — ícones quadrados com bordas arredondadas (squircle estilo Quest) */
+  .dock-app{position:relative;width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;
+    color:#fff;border:1px solid rgba(255,255,255,.2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 10px rgba(0,0,0,.4);
     transition:transform .16s,filter .16s}
-  .dock-app svg{width:28px;height:28px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-  .dock-app img{width:30px;height:30px;object-fit:contain}
-  .dock-app:hover{transform:translateY(-3px) scale(1.07);filter:brightness(1.12)}
-  .dock-app:active{transform:scale(.92)}
-  .dock-dot{position:absolute;left:50%;bottom:-9px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;
+  .dock-app svg{width:23px;height:23px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+  .dock-app img{width:24px;height:24px;object-fit:contain}
+  .dock-app:hover{transform:translateY(-2px) scale(1.05);filter:brightness(1.1)}
+  .dock-app:active{transform:scale(.9)}
+  .dock button.near-press{transform:scale(.88)!important;filter:brightness(1.3)!important}
+  .dock-tool.near-press,.dock-av.near-press,.dock-status.near-press{transform:scale(.92)!important}
+  .dock-app.near-press{box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(255,255,255,.4),0 2px 8px rgba(0,0,0,.3)!important}
+  .dock-dot{position:absolute;left:50%;bottom:-7px;width:4px;height:4px;margin-left:-2px;border-radius:50%;
     background:#fff;opacity:0;transform:scale(.4);transition:opacity .16s,transform .16s;pointer-events:none}
   .dock-dot.on{opacity:.95;transform:scale(1)}
 
-  /* lançador de 9 pontos (último item) */
-  .dock-launcher{background:rgba(255,255,255,.14)!important;box-shadow:none;border-color:rgba(255,255,255,.1)}
-  .dk-grid{display:grid;grid-template-columns:repeat(3,6px);gap:4px}
-  .dk-grid i{display:block;width:6px;height:6px;border-radius:50%;background:#eef1f7}
+  /* lançador de 9 pontos (último item) — também quadrado arredondado */
+  .dock-launcher{background:rgba(255,255,255,.12)!important;box-shadow:none;border-color:rgba(255,255,255,.1)}
+  .dk-grid{display:grid;grid-template-columns:repeat(3,5px);gap:3px}
+  .dk-grid i{display:block;width:5px;height:5px;border-radius:1.5px;background:#eef1f7}
 
   /* ---------- HUD ---------- */
   #boot{position:fixed;inset:0;z-index:9;display:grid;place-items:center;background:#05070c;padding:28px}

@@ -143,7 +143,7 @@ final class SpatialRenderer {
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
-    volatile boolean showHands = true;
+    volatile boolean showHands = false;
     final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();
     volatile List<Panel> panels = new ArrayList<>();
     // Shared optical mapping for camera, landmark overlay and interaction rays.

@@ -529,7 +529,7 @@ on('pinchdown', () => {
     return;
   }
   if (kbPinch('down')) return;
-  dockPinch('down');
+  // dockPinch('down') REMOVIDO: apps da dock abrem SÓ com pinça direto em cima (toque NEAR), não de longe por raio.
 });
 on('pinchup', () => {
   if (pendingPress && cursor.mode === 'drag') {
@@ -564,7 +564,7 @@ on('pinchup', () => {
   const h = hitAt(cursor.x, cursor.y);
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
   if (kbPinch('up')) return;
-  dockPinch('up');
+  // dockPinch('up') REMOVIDO: abertura de apps da dock é exclusiva por toque direto em cima do ícone.
 });
 
 /* =================== dock =================== */
@@ -960,6 +960,7 @@ if (native) {
  * edge highlights and FAR targets. Uses the existing Cardboard camera and reference window meshes;
  * none of these operations introduce head-position tracking. */
 let nearContact = null;
+let nearDockContact = null;
 const fistBefore = new Map();
 /** Hands whose direct touch just ended while still pinched: the ray ignores them until the pinch opens. */
 const pinchSuppressed = new Set();
@@ -983,6 +984,11 @@ function windowPoint(w, point) {
   return { local, scale, u:local.x/w.w+.5, v:.5-local.y/w.h, d:(local.z-surface)*scale.z };
 }
 
+/** Ponto na superfície plana da dock (mesma lógica de windowPoint para uma face reta). */
+function dockPoint(point) {
+  const local=dockObj.worldToLocal(point.clone()), scale=dockObj.getWorldScale(new THREE.Vector3());
+  return { local, scale, u:local.x/dockEl.offsetWidth+.5, v:.5-local.y/dockEl.offsetHeight, d:local.z*scale.z };
+}
 /** Interseção do raio com a casca da janela: o plano z=0, ou o cilindro da curvatura 360. */
 function surfaceHit(w, ray) {
   const center=w.obj.getWorldPosition(new THREE.Vector3());
@@ -1034,6 +1040,19 @@ function endNear(cancel=false, packet=lastPhonePacket) {
   }
   nearContact=null;
 }
+function endNearDock(cancel=false, packet=lastPhonePacket) {
+  const ended=nearDockContact;
+  if(ended?.down) {
+    const btn=ended.btn;
+    if(btn) btn.classList.remove('near-press');
+    // Finaliza o toque direto na dock: se ainda está em cima do mesmo botão, clica.
+    if(btn && !cancel) { btn.style.transform='scale(.88)'; setTimeout(()=>btn.style.transform='',150); btn.click(); }
+    if(!cancel && packet.hands.some(h=>h.id===ended.id&&h.pinching)) {
+      pinchSuppressed.add(ended.id);packet.consumed.add(ended.id);
+    }
+  }
+  nearDockContact=null;
+}
 on('phonehands', packet => {
   lastPhonePacket=packet;
   const ids=new Set(packet.hands.map(h=>h.id));
@@ -1080,53 +1099,108 @@ on('phonehands', packet => {
   // The near-touch zone has wide hysteresis and a short hold: a resting hand in front of an open
   // window jitters across a naive depth threshold and used to blink the pointer between the FAR
   // ray and direct touch. Enter only when clearly close; stay until clearly away.
-  let best=null;
+  // Dock is added here too: pinch "encima" (em cima) do ícone = toque direto, não raio de longe.
+  let best=null, bestDock=null;
   for(const h of packet.hands) {
     if(packet.consumed.has(h.id) || !h.head || h.head.length!==63)continue;
     const tip=new THREE.Vector3().fromArray(h.head,24);
     if(tip.length()>.7)continue;
     tip.applyMatrix4(camera.matrixWorld);
+    // Janelas
     for(const w of wins) {
       const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
-      // Hysteresis: a contact already engaged stays until clearly away (0.26 m / 8 cm margin).
       const margin=current?.08:.02;
       const dMax=current?.26:.11;
       if(p.d>dMax || p.d<-.12 || Math.abs(p.local.x)*p.scale.x>w.w*p.scale.x/2+margin || Math.abs(p.local.y)*p.scale.y>w.h*p.scale.y/2+margin)continue;
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
+    // Dock — toque direto em cima do ícone (pinça "em cima" abre o app)
+    if(dockVisible && dockObj.visible) {
+      const dp=dockPoint(tip), curDock=nearDockContact?.id===h.id;
+      const dw=dockEl.offsetWidth*dp.scale.x, dh=dockEl.offsetHeight*dp.scale.y;
+      const dM=curDock?.08:.02;
+      const dMaxD=curDock?.26:.11;
+      // A dock fica sempre "abaixo" do centro; considera contato só quando a ponta está claramente em cima dela.
+      if(dp.d<=dMaxD && dp.d>=-.12 && Math.abs(dp.local.x)*dp.scale.x<dw/2+dM && Math.abs(dp.local.y)*dp.scale.y<dh/2+dM){
+        // Acha qual botão da dock está embaixo da ponta
+        const px=(dp.u)*dockEl.offsetWidth, py=(dp.v)*dockEl.offsetHeight;
+        let btn=null;
+        for(const b of dockBtns) {
+          if(px>=b.offsetLeft && px<=b.offsetLeft+b.offsetWidth
+              && py>=b.offsetTop && py<=b.offsetTop+b.offsetHeight) { btn=b; break; }
+        }
+        if(!bestDock || curDock || (!bestDock.current && Math.abs(dp.d)<Math.abs(bestDock.d)))
+          bestDock={...dp,id:h.id,btn,point:tip,current:curDock};
+      }
+    }
   }
-  // Brief near-band jitter keeps an existing contact, but never keeps a press after tracking loss.
-  if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
-      && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
-    best={...nearContact,current:true,held:true};
-  }
-  if(!best) { endNear(!ids.has(nearContact?.id),packet);return; }
-  if(!best.current) {
-    endNear(false,packet);
-    // A fingertip already behind the glass cannot press merely by entering the near zone.
-    nearContact={...best,down:false,previousD:best.d,lastSeen:nowMs};
+  // Decide quem ganha: dock tem prioridade quando a mão está mais perto dela do que das janelas
+  // (o usuário tocou o ícone diretamente). Se não, segue a lógica de janela normal.
+  const dockWins=!!bestDock && (!best || Math.abs(bestDock.d) < Math.abs(best.d) - .01 || bestDock.current);
+  // Brief near-band jitter keeps an existing contact.
+  if(dockWins) {
+    endNear(ids.has(nearContact?.id)?false:true,packet);
+    if(!bestDock && nearDockContact && ids.has(nearDockContact.id) && nowMs-nearDockContact.lastSeen<=NEAR_HOLD_MS){
+      bestDock={...nearDockContact,current:true,held:true};
+    }
+    if(!bestDock){endNearDock(!ids.has(nearDockContact?.id),packet);}
+    else if(!bestDock.current){
+      endNearDock(false,packet);
+      nearDockContact={...bestDock,down:false,previousD:bestDock.d,lastSeen:nowMs};
+    } else {
+      nearDockContact.d+=(bestDock.d-nearDockContact.d)*.45;
+      nearDockContact.u+=(bestDock.u-nearDockContact.u)*.45;nearDockContact.v+=(bestDock.v-nearDockContact.v)*.45;
+      nearDockContact.btn=bestDock.btn;
+      if(!bestDock.held)nearDockContact.lastSeen=nowMs;
+    }
+    if(nearDockContact){
+      const n=nearDockContact, insideBtn=!!n.btn;
+      if(!n.down && insideBtn && n.d<=.012 && n.previousD>.012){
+        if(cursor.down)cancelHandInput();
+        n.down=true;
+        if(n.btn) n.btn.classList.add('near-press');
+      } else if(n.down && (n.d>=.035 || !insideBtn)){
+        if(n.btn) n.btn.classList.remove('near-press');
+        // Solta o clique: clica no botão que estava embaixo (se o mesmo).
+        const ended=n.btn;
+        n.down=false;
+        if(ended) { ended.style.transform='scale(.88)'; setTimeout(()=>ended.style.transform='',150); ended.click(); }
+        if(packet.hands.some(h=>h.id===n.id&&h.pinching)){pinchSuppressed.add(n.id);packet.consumed.add(n.id);}
+      }
+      n.previousD=n.d;
+      if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
+    }
   } else {
-    nearContact.d+=(best.d-nearContact.d)*.45;
-    nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
-    if(!best.held)nearContact.lastSeen=nowMs;
+    endNearDock(ids.has(nearDockContact?.id)?false:true,packet);
+    if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
+        && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
+      best={...nearContact,current:true,held:true};
+    }
+    if(!best) { endNear(!ids.has(nearContact?.id),packet); }
+    else if(!best.current) {
+      endNear(false,packet);
+      nearContact={...best,down:false,previousD:best.d,lastSeen:nowMs};
+    } else {
+      nearContact.d+=(best.d-nearContact.d)*.45;
+      nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
+      if(!best.held)nearContact.lastSeen=nowMs;
+    }
+    if(nearContact){
+      const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
+      const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
+      if(!n.down && inside && n.d<=.012 && n.previousD>.012){
+        if(cursor.down)cancelHandInput();
+        focus(n.win);handTouch(hit,0);n.down=true;
+      }
+      else if(n.down && (n.d>=.035 || !inside)){
+        handTouch(hit,1);n.down=false;
+        if(packet.hands.some(h=>h.id===n.id&&h.pinching)){pinchSuppressed.add(n.id);packet.consumed.add(n.id);}
+      }
+      else if(n.down)handTouch(hit,2);
+      n.previousD=n.d;
+      if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
+    }
   }
-  const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
-  const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
-  if(!n.down && inside && n.d<=.012 && n.previousD>.012){
-    // A real push through the glass takes over from a FAR ray press already in progress.
-    if(cursor.down)cancelHandInput();
-    focus(n.win);handTouch(hit,0);n.down=true;
-  }
-  else if(n.down && (n.d>=.035 || !inside)){
-    handTouch(hit,1);n.down=false;
-    // Still pinched while pulling back: that pinch must not restart as a ray press on the same spot.
-    if(packet.hands.some(h=>h.id===n.id&&h.pinching)){pinchSuppressed.add(n.id);packet.consumed.add(n.id);}
-  }
-  else if(n.down)handTouch(hit,2);
-  n.previousD=n.d;
-  // Only an actual press owns the hand. Hovering within reach leaves the FAR ray pinch working,
-  // which is how the welcome window's language options (about 0.42 m away) are chosen.
-  if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
 });
 let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
@@ -1134,6 +1208,15 @@ onFrame((dt,now)=>{
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
+    if(nearDockContact?.id===h.id) {
+      const n=nearDockContact;
+      // Ponto de contato direto na dock (anexo ao botão embaixo do dedo)
+      const btn=n.btn;
+      let px=0,py=0;
+      if(btn){ px=btn.offsetLeft+btn.offsetWidth/2-dockEl.offsetWidth/2; py=dockEl.offsetHeight/2-(btn.offsetTop+btn.offsetHeight/2); }
+      const point=new THREE.Vector3(px,py,0).applyMatrix4(dockObj.matrixWorld);
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
+    }
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
@@ -1143,7 +1226,9 @@ onFrame((dt,now)=>{
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
+    // Dock NÃO é mais alvo do raio de longe: o app só abre com pinça direto em cima do ícone.
+    // Mantém dockMoveHit para permitir arrastar a dock pelo pegador com o raio.
+    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }
