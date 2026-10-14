@@ -19,7 +19,7 @@ jobs:
     # o passo "Publish build diagnostics" tomava 403 ao criar o check-run e o run
     # falhava com exit 1 mesmo com o build verde.
     permissions:
-      contents: read
+      contents: write     # publicar o APK na branch apk-dist
       actions: write      # apagar artefatos antigos (cota de storage)
       checks: write       # criar/atualizar o check-run gradle-diagnostics
       pull-requests: write
@@ -195,6 +195,29 @@ jobs:
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1
 
+      - name: Publish debug APK to apk-dist branch
+        # Direto do workspace: nao depende do storage de artefatos, que esta com a
+        # cota da conta estourada e fazia o publish falhar.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
+          test -n "$APK"
+          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
+          git init -q -b apk-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$APK" dist/app-debug.apk
+          printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
+          git add dist
+          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin apk-dist
+          echo "APK published: branch apk-dist, path dist/app-debug.apk"
+
+
       - name: Upload native test reports
         if: always()
         continue-on-error: true
@@ -217,46 +240,3 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  # Publishes the built debug APK to the disposable `apk-dist` branch so the file can be
-  # fetched with plain git (the Actions artifact download redirects to a blob host that
-  # some restricted environments cannot reach). The branch carries only dist/app-debug.apk.
-  publish-apk:
-    name: Publish debug APK to apk-dist branch
-    needs: build
-    if: needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download APK artifact
-        id: download
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          name: nextvr-debug-apk
-          path: apk
-
-      - name: Warn when the artifact is unavailable
-        if: steps.download.outcome != 'success'
-        run: |
-          echo "::warning::Artefato nextvr-debug-apk indisponivel (cota de storage de artefatos esgotada?). O build passou; nada foi publicado na branch apk-dist nesta execucao."
-
-      - name: Push APK to apk-dist branch
-        if: steps.download.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          APK=$(find "$GITHUB_WORKSPACE/apk" -name '*.apk' -print -quit)
-          test -n "$APK"
-          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
-          git init -q -b apk-dist
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp "$APK" dist/app-debug.apk
-          printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
-          git add dist
-          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin apk-dist
-          echo "APK published: branch apk-dist, path dist/app-debug.apk"
