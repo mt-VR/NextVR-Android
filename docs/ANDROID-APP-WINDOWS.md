@@ -778,7 +778,7 @@ Automatizados (rodam no CI, sem aparelho):
   em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
   ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 6, run `38497976814`, commit `0972b30`): Node **96/96** (incluindo o teste
+Estado no CI (verde, rodada 6, run `38498910196`, commit `16d6847`): Node **96/96** (incluindo o teste
 de integração em Chromium, que no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e
 testes JVM **140 em 21 classes, 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as três
 que a rodada 6 reescreveu (`AppWindowShapeTest`, 8 casos, `AppDisplaySpecTest`, 6, e
@@ -790,7 +790,8 @@ o giro completo conferindo o recorte do shader nas duas frações. O APK de depu
 de build e é publicado no branch `apk-dist` como `dist/app-debug.apk`, acompanhado de `dist/build.txt` —
 que diz de que run e de que commit ele veio, com **tamanho e md5** —, então a build instalada se
 identifica sozinha: nesta rodada ela é `versionCode` **7** / `versionName` **1.0.6** (48 040 916 bytes,
-md5 `151e4eb1e0e695eb0821243e13cb93f5`; a rodada 5 era `6` / `1.0.5`).
+md5 `ba276a50be472b88de5822cdb4e89b68` — o mesmo tamanho do build anterior por coincidência, o que
+distingue os dois é o md5; a rodada 5 era `6` / `1.0.5`, com 48 040 700 bytes).
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a
@@ -821,5 +822,6 @@ lista abaixo é o resumo:
 - `nextvr-android/src/main/java/com/nextvr/app/apps/` (as classes da tabela acima)
 - `nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java` (ponte `appsLibrary`/`appsCommand`,
   `AppSurfaceHost`, consentimento de captura)
-- `web/src/android-apps.js`, `web/src/display-fit.js`, `web/src/atlas.js`, `web/src/windows.js`
+- `web/src/android-apps.js`, `web/src/app-window-box.js` (os dois tamanhos: canvas do app e elemento da
+  janela), `web/src/display-fit.js`, `web/src/atlas.js`, `web/src/windows.js`
 - `nextvr-android/src/main/res/xml/nextvr_accessibility_service.xml`
