@@ -85,18 +85,22 @@ public final class AppWindowController {
                 item.put("component", app.component);
                 item.put("icon", icon == null ? JSONObject.NULL : "/apps/" + icon.getName());
                 item.put("recent", options.recents.contains(app.packageName));
-                // The shape the window must take, and the app-surface pixels that go with it. The
-                // shell opens the window with these, which is what makes a portrait app open in a
-                // portrait window instead of being letterboxed inside a wide one.
+                // The shape the window must take, and the canvas the app will be hosted on in that
+                // shape (this phone's screen, in pixels and in dp). The shell lays the window out from
+                // these, which is what makes a portrait app open in a portrait window instead of being
+                // letterboxed inside a wide one.
                 String shape = apps.windowShape(app.packageName);
-                int[] box = AppWindowShape.box(shape);
+                int[] canvas = canvasFor(app.packageName, shape);
                 item.put("shape", shape);
                 item.put("orient", app.orientation);
+                item.put("game", app.game);
                 item.put("fixed", app.fixedShape);
                 JSONObject size = new JSONObject();
-                size.put("w", box[0]);
-                size.put("h", box[1]);
-                item.put("box", size);
+                size.put("w", canvas[0]);
+                size.put("h", canvas[1]);
+                size.put("dpW", Math.round(canvas[0] * 160f / density()));
+                size.put("dpH", Math.round(canvas[1] * 160f / density()));
+                item.put("canvas", size);
                 item.put("state", session == null ? JSONObject.NULL : session.state.id);
                 item.put("mode", session == null ? JSONObject.NULL : session.mode.id);
                 item.put("input", session == null ? JSONObject.NULL : session.input.id);
@@ -155,6 +159,11 @@ public final class AppWindowController {
                 display.put("w", session.width);
                 display.put("h", session.height);
                 display.put("dpi", session.density);
+                // The dp box the app lays out in. It is the number to look at when an app's own layout
+                // looks wrong: a canvas smaller (in dp) than the phone's screen is a canvas the app
+                // was not designed for.
+                display.put("dpW", session.width * 160 / Math.max(1, session.density));
+                display.put("dpH", session.height * 160 / Math.max(1, session.density));
                 display.put("rotation", session.rotation);
                 display.put("aspect", session.visibleAspect());
                 display.put("rotated", session.rotation == 90 || session.rotation == 270);
@@ -219,8 +228,8 @@ public final class AppWindowController {
     // ------------------------------------------------------------------ commands from the shell
 
     /**
-     * Opens (or focuses) one installed app in a floating window; [boxWidth]/[boxHeight] are the body
-     * the shell draws.
+     * Opens (or focuses) one installed app in a floating window; [shape] is the window shape the shell
+     * is using, or empty to let the app's own rule decide.
      *
      * <p>One decision, taken from Shizuku's permission state and not from whether a bind happens to
      * have completed (see {@link AppHostPolicy}) — this is what makes tapping a tile reproduce
@@ -237,43 +246,62 @@ public final class AppWindowController {
      *       platform requires for a capture. The window is labelled as a mirror.</li>
      * </ul>
      */
-    public void open(String packageName, float boxWidth, float boxHeight) {
+    public void open(String packageName, String shape) {
         if (packageName == null || packageName.isEmpty()) return;
-        if (!(boxWidth > 0) || !(boxHeight > 0)) {
-            // No box from the shell (an older one, or a command that carried none): the app's own shape
-            // decides, the same rule the window uses. The display is what the app draws into, so a
-            // default of its own shape beats a size that belongs to no app.
-            int[] box = AppWindowShape.box(apps.windowShape(packageName));
-            boxWidth = box[0];
-            boxHeight = box[1];
-        }
         AppHostPolicy.Route route = displays.route();
         if (route == AppHostPolicy.Route.NEEDS_PERMISSION) {
             // Granting it inside the dialog is enough: the hosted session below waits for the service.
             shizuku.requestPermission();
-            openHosted(packageName, boxWidth, boxHeight);
+            openHosted(packageName, shape);
             return;
         }
         if (route == AppHostPolicy.Route.HOSTED) {
-            openHosted(packageName, boxWidth, boxHeight);
+            openHosted(packageName, shape);
             return;
         }
-        openCaptured(packageName, boxWidth, boxHeight);
+        openCaptured(packageName, shape);
     }
 
     /** The hosted path: the app runs on its own display, created by the shell user service. */
-    private void openHosted(String packageName, float boxWidth, float boxHeight) {
+    private void openHosted(String packageName, String shape) {
         AppSession existing = sessions.find(packageName);
         if (existing != null && existing.mode != AppSession.Mode.VIRTUAL_DISPLAY) {
             // The window was a capture of the phone screen; hosting the app means the capture stops
             // being about it. Closing first is what makes the window switch mechanism for real.
             sessions.close(packageName, "mode_changed");
         }
+        sessions.forgetStopped();
         AppSession session = sessions.open(packageName, titleOf(packageName),
-                AppSession.Mode.VIRTUAL_DISPLAY, boxWidth, boxHeight, density());
+                AppSession.Mode.VIRTUAL_DISPLAY, shapeFor(packageName, shape), canvasFor(packageName, shape));
         input.refreshBackend(session);
         apps.touchRecent(packageName);
         env.pushState();
+    }
+
+    /**
+     * The shape this open uses: what the shell asked for when it is a shape, and otherwise the app's
+     * own (remembered rotation, then what the app declares, then what the phone would give it).
+     */
+    private String shapeFor(String packageName, String shape) {
+        return AppWindowShape.isShape(shape) ? shape : apps.windowShape(packageName);
+    }
+
+    /**
+     * The canvas the app is hosted on: this phone's own screen in that shape, at this phone's density.
+     *
+     * <p>That is the whole correction of the "bottom cut" report: the app is laid out in the dp box it
+     * was designed for (a phone screen), not in the size of a window. PhoneXR does the same thing with
+     * a fixed 1080x1920, which is the floor here for phones smaller than that.
+     */
+    private AppDisplaySpec canvasFor(String packageName, String shape) {
+        int[] canvas = canvasPixels(packageName, shape);
+        return AppDisplaySpec.forCanvas(canvas[0], canvas[1], density());
+    }
+
+    /** The canvas in pixels for a shape: this phone's screen, turned the way that shape asks. */
+    private int[] canvasPixels(String packageName, String shape) {
+        int[] screen = displays.screenSize();
+        return AppWindowShape.canvas(shapeFor(packageName, shape), screen[0], screen[1]);
     }
 
     /**
@@ -286,7 +314,7 @@ public final class AppWindowController {
      * cannot both be a live capture, and pretending otherwise would leave one window frozen on the
      * first app's last frame.
      */
-    private void openCaptured(String packageName, float boxWidth, float boxHeight) {
+    private void openCaptured(String packageName, String shape) {
         for (AppSession open : new ArrayList<>(sessions.sessions())) {
             if (open.packageName.equals(packageName)) {
                 // A session of this app left over from the other mechanism would answer the next open
@@ -303,8 +331,11 @@ public final class AppWindowController {
         sessions.forgetStopped();
         // open() focuses a live window, wakes a minimized one and restarts a failed one — which for
         // this mode means asking for consent again, because that is what starting a capture needs.
+        // The mirror is the phone's screen, so its canvas is the screen: the window takes that shape
+        // and there is nothing to choose (the shape is only used when a host has to create a canvas).
+        int[] screen = displays.screenSize();
         sessions.open(packageName, titleOf(packageName), AppSession.Mode.SCREEN_MIRROR,
-                boxWidth, boxHeight, density());
+                shape, AppDisplaySpec.forCanvas(screen[0], screen[1], density()));
         apps.touchRecent(packageName);
         env.pushState();
     }
@@ -337,9 +368,14 @@ public final class AppWindowController {
     }
 
     /**
-     * Window geometry from the shell: {@code [{pkg, w, h, visible}]}. Missing windows are ignored —
-     * the shell opens a window when it sees a running session, so "no window yet" must never close
+     * Which windows the shell is showing: {@code [{pkg, visible}]}. Missing windows are ignored — the
+     * shell opens a window when it sees a running session, so "no window yet" must never close
      * anything. Closing is always explicit.
+     *
+     * <p>Sizes are deliberately <em>not</em> part of this: the shell owns where a window is and how big
+     * it looks, and the canvas an app is hosted on is this phone's screen. Handing the canvas to the
+     * window's pixel size is what made apps lay out for a screen smaller than the one they were
+     * designed for.
      */
     public void syncWindows(String json) {
         if (json == null || json.isEmpty()) return;
@@ -351,9 +387,6 @@ public final class AppWindowController {
                 if (packageName == null || packageName.isEmpty()) continue;
                 AppSession session = sessions.find(packageName);
                 if (session == null) continue;
-                float width = (float) item.optDouble("w", 0);
-                float height = (float) item.optDouble("h", 0);
-                if (width > 0 && height > 0) sessions.windowResized(packageName, width, height, density());
                 boolean visible = item.optBoolean("visible", true);
                 if (!visible && session.state == AppSession.State.RUNNING) {
                     sessions.minimize(packageName);
@@ -413,15 +446,26 @@ public final class AppWindowController {
     }
 
     /**
-     * Remembers the shape the user rotated an app's window to. It is stored per app, so an app that
-     * Android letterboxes in one shape is fixed once instead of at every open; the shell takes the
-     * new size from the library entry it already has (`box`) on the next open, and from the synced
-     * app surface right now.
+     * The window's rotate button: the shape is remembered for this app (so it opens that way from now
+     * on) and, when a session is running, its app is restarted on a canvas of the new shape.
+     *
+     * <p>The restart is not laziness — Android lays an activity out for the display it is on, and a
+     * display's size cannot be changed under a running app without doing to it exactly what a device
+     * rotation does (a configuration change, which for an app that does not opt in is a re-create
+     * anyway). Releasing the display and starting the app again is the same path as opening it, so it
+     * is also the path that is already tested.
      */
     public void setShape(String packageName, String shape) {
         if (packageName == null || packageName.isEmpty()
                 || !AppWindowShape.isShape(shape)) return;
         apps.setWindowShape(packageName, shape);
+        AppSession session = sessions.find(packageName);
+        if (session != null && session.alive()) {
+            sessions.close(packageName, "shape");
+            sessions.forgetStopped();
+            if (session.mode == AppSession.Mode.VIRTUAL_DISPLAY) openHosted(packageName, shape);
+            else openCaptured(packageName, shape);
+        }
         env.pushState();
     }
 
@@ -445,11 +489,10 @@ public final class AppWindowController {
             String packageName = command.optString("pkg", null);
             switch (name) {
                 case "open":
-                    // The box is the app *display's* size, and the shell sends it (it is the only side
-                    // that knows the window's shape). Zero means the shell did not: the app's shape
-                    // decides inside open() rather than a stale default that fits no app.
-                    open(packageName, (float) command.optDouble("w", 0),
-                            (float) command.optDouble("h", 0));
+                    // The shape is the shell's (its window is already that shape, or the app's rule
+                    // decided it). The *canvas* is not a command parameter at all: it is this phone's
+                    // screen, and only the native side knows it.
+                    open(packageName, command.optString("shape", ""));
                     break;
                 case "close": close(packageName); break;
                 case "minimize": minimize(packageName); break;

@@ -65,16 +65,16 @@ public final class AppSession {
     public volatile String stopReason;
     /** Display id owned by the shell user service, -1 until it exists. */
     public volatile int displayId = -1;
-    public volatile int width, height, density;
-    public volatile float boxWidth, boxHeight;
     /**
-     * Size the display was asked for and has not confirmed yet. The session keeps reporting the size
-     * it really has until this is applied, so the shell's picture and its touch mapping never point at
-     * a display size that does not exist.
+     * The canvas the app is hosted on: the app's own display, in pixels, and the density that turns it
+     * into the dp box the app lays out in. It is decided when the session is created (this phone's
+     * screen, in the shape the app asked for) and never changes while the app runs — a display that
+     * changed size under a running app would be the same class of surprise as resizing a user's screen.
+     * The window is independent of it: the shell scales the picture into whatever the user made.
      */
-    public volatile AppDisplaySpec pendingResize;
-    /** The display refused to change shape: the picture scales inside the window from now on. */
-    public volatile boolean resizeRefused;
+    public volatile int width, height, density;
+    /** The shape the window is in ({@code "portrait"} / {@code "landscape"}); decides the canvas. */
+    public volatile String shape = AppWindowShape.LANDSCAPE;
     /** Rotation reported by the platform (0/90/180/270); used by the input mapping. */
     public volatile int rotation;
     public volatile long frames;

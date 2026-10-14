@@ -1,17 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fitDisplay, specAspect, appHostPoint, MIN_ASPECT, MAX_ASPECT } from '../web/src/display-fit.js';
+import { fitDisplay, appHostPoint, boxAspect } from '../web/src/display-fit.js';
 
 // The same numbers are asserted by nextvr-android/src/test/java/com/nextvr/app/apps/
 // AppInputGeometryTest.java. The shader samples the fitted rectangle and the touch is normalized
 // against it: if these two implementations ever disagree, the picture and the finger disagree too.
 
-test('the window aspect is clamped to what a phone app can use', () => {
-  assert.equal(specAspect(1040, 616), 1040 / 616);
-  assert.equal(specAspect(200, 2000), MIN_ASPECT);
-  assert.equal(specAspect(4000, 600), MAX_ASPECT);
-  assert.equal(specAspect(0, 0), 16 / 9);
-  assert.equal(specAspect(NaN, 100), 16 / 9);
+test('there is no clamped aspect any more: the canvas is the app\'s own screen', () => {
+  // It used to be clamped to 3:5..2.34 so that a window-shaped canvas stayed "renderable", which is
+  // how a tall phone app ended up on a screen shorter than the one it was designed for. The canvas is
+  // now this phone's screen and the window takes its shape, so nothing is clamped anywhere.
+  assert.equal(boxAspect(1080, 2400), 1080 / 2400);
+  assert.equal(boxAspect(2400, 1080), 2400 / 1080);
+  assert.equal(boxAspect(0, 0), 16 / 9);
+  assert.equal(boxAspect(NaN, 100), 16 / 9);
 });
 
 test('a display with the window shape fills the window', () => {
@@ -35,12 +37,14 @@ test('a tall display pillarboxes inside a wide window', () => {
   assert.ok(fit.uw < 1);
 });
 
-test('a window taller than a phone display pillarboxes the over-wide display', () => {
-  // Same case as AppInputGeometryTest: the display is clamped to 3:5 (624x1040) while the body is
-  // 616x1040, so the picture must fit the body's real shape and stay inside it.
-  const fit = fitDisplay(616, 1040, 0.6);
-  assert.deepEqual([fit.x, fit.y, fit.w, fit.h], [0, 7, 616, 1027]);
-  assert.equal(fit.y + fit.h <= 1040, true);
+test('a tall phone canvas fills a window of its own shape', () => {
+  // A 20:9 phone canvas (0.45) in the window element its own shape produces (the shell scales the
+  // canvas down to the largest box the atlas packs, aspect included): the whole picture, no bars.
+  const canvas = { w: 1080, h: 2400 };
+  const width = Math.round(544 * canvas.w / canvas.h);   // 544 = the tallest element the atlas holds
+  const fit = fitDisplay(width, 544, canvas.w / canvas.h);
+  assert.deepEqual([fit.x, fit.y, fit.w, fit.h], [0, 0, width, 544]);
+  assert.deepEqual([fit.u0, fit.v0, fit.uw, fit.vh], [0, 0, 1, 1]);
 });
 
 test('a missing aspect falls back to the window shape instead of stretching', () => {

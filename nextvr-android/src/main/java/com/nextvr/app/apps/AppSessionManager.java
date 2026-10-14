@@ -23,8 +23,6 @@ public final class AppSessionManager {
     public interface Host {
         /** Create the display, the surface and start the app on it (asynchronous). */
         void start(AppSession session);
-        /** The window changed shape; the display should follow. */
-        void resize(AppSession session);
         /** Detach (false) or re-attach (true) the output surface. */
         void setVisible(AppSession session, boolean visible);
         /** Release display, surface and task. */
@@ -69,13 +67,10 @@ public final class AppSessionManager {
      * pinch on the same tile all end up here.
      */
     public synchronized AppSession open(String packageName, String title, AppSession.Mode mode,
-                                        float boxWidth, float boxHeight, int deviceDensity) {
-        AppDisplaySpec spec = AppDisplaySpec.forBox(boxWidth, boxHeight, deviceDensity);
+                                        String shape, AppDisplaySpec spec) {
         AppSession existing = find(packageName);
         if (existing != null) {
             existing.touchFocus();
-            existing.boxWidth = boxWidth;
-            existing.boxHeight = boxHeight;
             switch (existing.state) {
                 case SUSPENDED:
                     existing.moveTo(AppSession.State.RUNNING);
@@ -96,8 +91,7 @@ public final class AppSessionManager {
         }
         evictForCapacity();
         AppSession session = new AppSession(packageName, title, mode);
-        session.boxWidth = boxWidth;
-        session.boxHeight = boxHeight;
+        session.shape = AppWindowShape.isShape(shape) ? shape : AppWindowShape.LANDSCAPE;
         session.width = spec.width;
         session.height = spec.height;
         session.density = spec.density;
@@ -220,54 +214,6 @@ public final class AppSessionManager {
     public synchronized void forgetStopped() {
         for (int i = sessions.size() - 1; i >= 0; i--)
             if (sessions.get(i).state == AppSession.State.STOPPED) sessions.remove(i);
-    }
-
-    /**
-     * The window body was resized by the hand: re-shape the display when it is worth it.
-     *
-     * <p>The session's own size is not changed here. It changes in {@link #resizeApplied} once the
-     * display confirms it — a resize that is refused or that arrives too late would otherwise leave
-     * the shell believing a size the display never had, and the picture (and every touch) would be
-     * off by the difference. While a resize is in flight the old size stays valid; the shell fits the
-     * picture into the new window shape either way.
-     */
-    public synchronized void windowResized(String packageName, float boxWidth, float boxHeight, int deviceDensity) {
-        AppSession session = find(packageName);
-        if (session == null) return;
-        session.boxWidth = boxWidth;
-        session.boxHeight = boxHeight;
-        if (!session.hasDisplay() || session.resizeRefused) return;
-        AppDisplaySpec wanted = AppDisplaySpec.forBox(boxWidth, boxHeight, deviceDensity);
-        AppDisplaySpec current = AppDisplaySpec.forBox(session.width, session.height, session.density);
-        if (!current.needsResize(wanted)) return;
-        session.pendingResize = wanted;
-        host.resize(session);
-    }
-
-    /** The display took the size it was asked for: the session can start reporting it. */
-    public synchronized void resizeApplied(String packageName) {
-        AppSession session = find(packageName);
-        if (session == null) return;
-        AppDisplaySpec applied = session.pendingResize;
-        session.pendingResize = null;
-        if (applied == null) return;
-        session.width = applied.width;
-        session.height = applied.height;
-        session.density = applied.density;
-        notifyChanged();
-    }
-
-    /**
-     * The display could not change shape (the shell service is gone, the display was released, the
-     * platform refused). The size the session reports stays the one the display really has, and no
-     * further attempt is made: the picture scales inside the window instead of the window failing.
-     */
-    public synchronized void resizeFailed(String packageName) {
-        AppSession session = find(packageName);
-        if (session == null) return;
-        session.pendingResize = null;
-        session.resizeRefused = true;
-        notifyChanged();
     }
 
     /** All sessions closed: used when the VR activity is destroyed. */

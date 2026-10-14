@@ -101,7 +101,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<String, Surface> surfaces = new ConcurrentHashMap<>();
     private final Map<String, SurfaceTexture> textures = new ConcurrentHashMap<>();
-    private final Map<String, AppDisplaySpec> specs = new ConcurrentHashMap<>();
     private MediaProjection projection;
     private VirtualDisplay mirrorDisplay;
     /**
@@ -147,8 +146,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
 
     /** Texture slot id of a session's window; the atlas emits a panel that samples exactly this. */
     public static String surfaceId(String packageName) { return "app:" + packageName; }
-
-    public AppDisplaySpec spec(String packageName) { return specs.get(packageName); }
 
     /**
      * Whether an app can be hosted on a display of its own, i.e. whether the Shizuku route applies.
@@ -198,11 +195,10 @@ public final class AppDisplayController implements AppSessionManager.Host {
             startMirror(session);
             return;
         }
-        AppDisplaySpec spec = specs.get(session.packageName);
-        if (spec == null) {
-            spec = AppDisplaySpec.forBox(session.boxWidth, session.boxHeight, env.densityDpi());
-            specs.put(session.packageName, spec);
-        }
+        // The canvas was decided with the session (AppWindowController: this phone's screen, in the
+        // shape the app asked for) and is not re-derived here: the app is hosted on one display for
+        // as long as it runs, and a display that changed under it is exactly the surprise this avoids.
+        AppDisplaySpec spec = AppDisplaySpec.forCanvas(session.width, session.height, session.density);
         session.width = spec.width;
         session.height = spec.height;
         session.density = spec.density;
@@ -315,57 +311,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
         }
     }
 
-    @Override public void resize(AppSession session) {
-        if (session.displayId < 0) return;
-        final AppDisplaySpec spec = AppDisplaySpec.forBox(session.boxWidth, session.boxHeight, env.densityDpi());
-        final String packageName = session.packageName;
-        SurfaceTexture texture = textures.get(packageName);
-        if (texture != null) {
-            try { texture.setDefaultBufferSize(spec.width, spec.height); } catch (Throwable ignored) { }
-        }
-        if (session.mode == AppSession.Mode.SCREEN_MIRROR) {
-            VirtualDisplay display = mirrorDisplay;
-            if (display == null) { sessions.resizeFailed(packageName); return; }
-            try {
-                // The mirror is our own capture: the platform scales the captured content into the new
-                // buffer, so this cannot be refused the way a hosted app's display can.
-                display.resize(spec.width, spec.height, spec.density);
-                specs.put(packageName, spec);
-                sessions.resizeApplied(packageName);
-            } catch (Throwable error) {
-                sessions.resizeFailed(packageName);
-                env.report("The mirror kept its size: " + error.getMessage());
-            }
-            return;
-        }
-        final int displayId = session.displayId;
-        try {
-            work.execute(() -> {
-                IDisplayService service = service();
-                if (service == null) {
-                    sessions.resizeFailed(packageName);
-                    return;
-                }
-                String error;
-                try {
-                    error = service.resizeDisplay(displayId, spec.width, spec.height, spec.density);
-                } catch (Throwable failure) {
-                    error = failure.getClass().getSimpleName();
-                }
-                if (error == null) {
-                    specs.put(packageName, spec);
-                    sessions.resizeApplied(packageName);
-                } else {
-                    // The display kept its size: the session says so and stops asking. The window keeps
-                    // working — the picture is fitted inside it, the same way a non-resizable app is
-                    // fitted by the platform inside a display.
-                    sessions.resizeFailed(packageName);
-                    env.report("The app window kept its size: " + error);
-                }
-            });
-        } catch (RejectedExecutionException ignored) { }
-    }
-
     @Override public void setVisible(AppSession session, boolean visible) {
         Surface surface = surfaces.get(session.packageName);
         if (session.mode == AppSession.Mode.SCREEN_MIRROR) {
@@ -409,7 +354,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
         Surface surface = surfaces.remove(session.packageName);
         if (surface != null) surface.release();
         textures.remove(session.packageName);
-        specs.remove(session.packageName);
         env.surfaces().release(surfaceId(session.packageName));
         env.sessionsChanged();
     }
@@ -734,8 +678,8 @@ public final class AppDisplayController implements AppSessionManager.Host {
             if (!session.alive()) continue;
             final String packageName = session.packageName;
             final int displayId = session.displayId;
-            AppDisplaySpec spec = specs.get(packageName);
-            if (spec == null) spec = AppDisplaySpec.forBox(session.width, session.height, env.densityDpi());
+            // The canvas of a live session, as it was created: nothing re-sizes a hosted display.
+            final AppDisplaySpec spec = AppDisplaySpec.forCanvas(session.width, session.height, session.density);
             Surface previous = surfaces.remove(packageName);
             if (previous != null) previous.release();
             final boolean mirror = session.mode == AppSession.Mode.SCREEN_MIRROR;
@@ -778,7 +722,6 @@ public final class AppDisplayController implements AppSessionManager.Host {
             Surface surface = surfaces.remove(session.packageName);
             if (surface != null) surface.release();
             textures.remove(session.packageName);
-            specs.remove(session.packageName);
             env.surfaces().release(surfaceId(session.packageName));
         }
         work.shutdownNow();
@@ -804,8 +747,12 @@ public final class AppDisplayController implements AppSessionManager.Host {
         }
     }
 
+    /**
+     * This phone's own screen, in pixels, orientation included. It is the canvas hosted apps are given
+     * (AppWindowShape.canvas), which is what keeps an app's layout the same as it is on the phone.
+     */
     @SuppressLint("Deprecation")
-    private int[] screenSize() {
+    public int[] screenSize() {
         try {
             DisplayManager manager = context.getSystemService(DisplayManager.class);
             Display display = manager == null ? null : manager.getDisplay(Display.DEFAULT_DISPLAY);

@@ -22,7 +22,6 @@ public class AppSessionManagerTest {
         final List<String> calls = new ArrayList<>();
 
         @Override public void start(AppSession session) { calls.add("start:" + session.packageName); }
-        @Override public void resize(AppSession session) { calls.add("resize:" + session.packageName); }
         @Override public void setVisible(AppSession session, boolean visible) {
             calls.add("visible:" + session.packageName + ":" + visible);
         }
@@ -32,19 +31,25 @@ public class AppSessionManagerTest {
     private final FakeHost host = new FakeHost();
     private final AppSessionManager manager = new AppSessionManager(host, 2);
 
+    /** The canvas the tests host on: a phone screen, the size and density AppWindowShape produces. */
+    private static final AppDisplaySpec CANVAS = AppDisplaySpec.forCanvas(1080, 2400, 420);
+
     private AppSession openRunning(String pkg) {
-        AppSession session = manager.open(pkg, pkg, AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
+        AppSession session = manager.open(pkg, pkg, AppSession.Mode.VIRTUAL_DISPLAY,
+                AppWindowShape.PORTRAIT, CANVAS);
         manager.settle(pkg, true, null);
         return session;
     }
 
     @Test public void aNewWindowStartsTheHostAndShowsUpAsRequested() {
         manager.setListener(() -> { });
-        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
+        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, AppWindowShape.PORTRAIT, CANVAS);
         assertEquals(AppSession.State.CREATING_DISPLAY, session.state);
-        assertEquals(1040, session.width);
-        assertEquals(616, session.height);
-        assertEquals(240, session.density);
+        // The canvas, not a window size: the app is hosted on a phone screen.
+        assertEquals(1080, session.width);
+        assertEquals(2400, session.height);
+        assertEquals(420, session.density);
+        assertEquals(AppWindowShape.PORTRAIT, session.shape);
         assertEquals(1, manager.sessions().size());
         assertEquals(0, manager.runningCount());          // not running until the display is ready
         assertEquals(1, host.calls.size());
@@ -52,26 +57,26 @@ public class AppSessionManagerTest {
     }
 
     @Test public void markingTheDisplayReadyAndSettlingMovestheSessionForward() {
-        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
-        manager.markDisplayReady("com.a", 7, 1040, 616, 320);
+        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, AppWindowShape.PORTRAIT, CANVAS);
+        manager.markDisplayReady("com.a", 7, 1080, 2400, 420);
         assertEquals(AppSession.State.LAUNCHING, session.state);
         manager.markLaunching("com.a");            // idempotent while launching
         assertEquals(AppSession.State.LAUNCHING, session.state);
         manager.settle("com.a", true, null);
         assertEquals(AppSession.State.RUNNING, session.state);
         assertEquals(7, session.displayId);
-        assertEquals(320, session.density);
+        assertEquals(420, session.density);
         assertEquals(1, manager.runningCount());
     }
 
     @Test public void aFailureIsVisibleAndRetriedByReopening() {
-        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
+        AppSession session = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, AppWindowShape.PORTRAIT, CANVAS);
         manager.settle("com.a", false, "display_refused");
         assertEquals(AppSession.State.FAILED, session.state);
         assertEquals("display_refused", session.error);
         assertEquals(0, manager.runningCount());
 
-        manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
+        manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, AppWindowShape.PORTRAIT, CANVAS);
         assertEquals(AppSession.State.CREATING_DISPLAY, session.state);
         assertNull(session.error);
         assertEquals(2, host.calls.size());
@@ -95,7 +100,7 @@ public class AppSessionManagerTest {
     @Test public void openingAMinimizedAppRestoresItInsteadOfCreatingASecondWindow() {
         openRunning("com.a");
         manager.minimize("com.a");
-        AppSession same = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, 1040, 616, 240);
+        AppSession same = manager.open("com.a", "A", AppSession.Mode.VIRTUAL_DISPLAY, AppWindowShape.PORTRAIT, CANVAS);
         assertEquals(AppSession.State.RUNNING, same.state);
         assertEquals(1, manager.sessions().size());
     }
@@ -128,52 +133,20 @@ public class AppSessionManagerTest {
         assertFalse(manager.close("com.zzz", "window_closed"));
     }
 
-    @Test public void aResizeOnlyReachesTheDisplayWhenItMatters() {
+    @Test public void aHostedCanvasIsNeverReshapedWhileTheAppRuns() {
         AppSession session = openRunning("com.a");
-        // The display has to exist first: a window whose display is not up yet never resizes.
-        manager.windowResized("com.a", 1046, 616, 240);
-        assertEquals(0, countOf("resize:"));
+        manager.markDisplayReady("com.a", 5, 1080, 2400, 420);
 
-        manager.markDisplayReady("com.a", 5, 1040, 616, 240);
+        // The window can be dragged and resized by the hand all it likes: the app's screen does not
+        // change under it. A canvas that moved would re-lay-out (or re-create) the app on every gesture,
+        // and the canvas is what the app was designed for — not the window's size.
         int before = host.calls.size();
-        manager.windowResized("com.a", 1046, 616, 240);
-        assertEquals("a small reshape must not interrupt the app", before, host.calls.size());
-
-        manager.windowResized("com.a", 616, 1040, 240);
-        assertTrue(host.calls.contains("resize:com.a"));
-        // Until the display confirms the new shape the session still reports the one it really has:
-        // the picture and the touch mapping are derived from it, and a size the display never took
-        // would put every touch in the wrong place.
-        assertEquals(1040, session.width);
-        assertEquals(616, session.height);
-
-        manager.resizeApplied("com.a");
-        assertTrue(session.height > session.width);
-        assertEquals(1040, session.height);
-    }
-
-    @Test public void aRefusedResizeKeepsTheSizeTheDisplayReallyHas() {
-        AppSession session = openRunning("com.a");
-        manager.markDisplayReady("com.a", 5, 1040, 616, 240);
-        manager.windowResized("com.a", 616, 1040, 240);
-        manager.resizeFailed("com.a");
-
-        assertEquals("the window must not claim a size the display refused", 1040, session.width);
-        assertEquals(616, session.height);
-        assertTrue(session.resizeRefused);
-        assertNull("a window that kept its size still works: this is not a failure", session.error);
-        assertEquals(AppSession.State.RUNNING, session.state);
-
-        // It is not asked again: from here the picture scales inside the window.
-        int before = host.calls.size();
-        manager.windowResized("com.a", 500, 1200, 240);
+        assertEquals(1080, session.width);
+        assertEquals(2400, session.height);
         assertEquals(before, host.calls.size());
-    }
-
-    private int countOf(String prefix) {
-        int count = 0;
-        for (String call : host.calls) if (call.startsWith(prefix)) count++;
-        return count;
+        // There is no resize entry point left on the manager at all: the only things the shell can do to
+        // a running session are minimize, restore, focus, rotate and close.
+        assertEquals(AppWindowShape.PORTRAIT, session.shape);
     }
 
     @Test public void aDeadAppBecomesAFailureWithAReason() {

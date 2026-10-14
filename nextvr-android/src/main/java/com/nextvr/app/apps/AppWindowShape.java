@@ -1,56 +1,76 @@
 package com.nextvr.app.apps;
 
 /**
- * The shape an app window takes, and the display behind it.
+ * The shape of an app window, and the canvas (the app's own display) that goes with it.
  *
- * <h2>Why the window has a shape per app</h2>
- * An app window used to be created at one fixed size for every app ({@code 1040x546} of app surface,
- * aspect 1.9). Android then did what it is designed to do with a canvas that shape: an app that
- * declares it is portrait-only was letterboxed by the platform inside it (the app in the middle of a
- * wide window, using a third of the width), and an app that renders a fixed 16:9 frame (an emulator,
- * a game) drew it inside a canvas that is neither 16:9 nor its own shape. Nothing was stretched —
- * every picture was fitted — but the *window* was not the app's shape, so the app had space it could
- * not use and the user saw a window that did not look like the app.
+ * <h2>The mistake this class exists to not repeat</h2>
+ * An app window used to be created at one fixed size for every app ({@code 1040x546}, aspect 1.9),
+ * and the first fix for that (the window taking the app's declared orientation) still sized the
+ * <em>canvas</em> from the window: {@code 585x1040} in portrait, {@code 1040x585} in landscape, at a
+ * density clamped to 320.
  *
- * <p>The fix is to let the window take the shape the app itself asks for:
+ * <p>That is a small screen. A phone like this one is 1080x2400 at 440 dpi — <b>393x873 dp</b> — and
+ * the app was being drawn on a <b>292x520 dp</b> canvas: narrower and, above all, <b>350 dp shorter</b>
+ * than the screen the app was designed for. An app that pins something to the bottom of the screen (a
+ * tab bar, a toolbar, a keyboard, a fullscreen dialog, a fixed-height form) therefore started with
+ * that bottom part cut off — which is exactly what the user reported, and why almost every app did it:
+ * the canvas was not the app's fault, it was ours.
  *
- * <ul>
- *   <li>an app that declares {@code portrait} gets a portrait window ({@value #PORTRAIT_W}x{@value
- *       #PORTRAIT_H}, 9:16 — the shape of a phone in portrait);</li>
- *   <li>an app that declares {@code landscape} gets a landscape window ({@value #LANDSCAPE_W}x{@value
- *       #LANDSCAPE_H}, 16:9 — what almost every landscape app and game is drawn for);</li>
- *   <li>anything else ({@code unspecified}, {@code sensor}, {@code fullSensor}) adapts to any shape,
- *       so it starts landscape and the user's rotation of the window is remembered per app.</li>
- * </ul>
+ * <h2>What PhoneXR does, and what this does</h2>
+ * PhoneXR gives the hosted app a display the size of a phone screen ({@code 1080x1920} in portrait,
+ * {@code 1920x1080} in landscape) rather than the window's shape, and takes the window's own shape from
+ * that canvas. The app is then laid out for a normal phone screen and nothing about it is cut; the
+ * window is the canvas' shape, so the picture fills it.
  *
- * <p>Both shapes are the same two numbers swapped, so a rotation is a swap and nothing else: the
- * window, the display and the touch all change together.
+ * <p>NextVR runs on the phone itself, so it can do the same thing with better numbers: the canvas is
+ * <em>this phone's own screen</em>, in the orientation the app asked for. The app then runs in the
+ * exact dp box it was designed for — the same dp width, height and smallest-width it would have on the
+ * phone's screen — and a window is just that screen, floating. For a screen smaller than 1080x1920
+ * the canvas is raised to it (PhoneXR's numbers), so an old phone still hosts an app in a phone-sized
+ * canvas instead of a 720p one.
  *
- * <p>The values here are the <em>app surface</em> (the pixels the app draws into). The shell adds its
- * own window chrome on top of them; the native side never sees that arithmetic.
- *
- * <p>Pure Java on purpose: the shape rules are unit-tested, and the same numbers are asserted on the
- * shell side.
+ * <p>Pure Java on purpose: the shape and canvas rules are unit-tested, and the same numbers are
+ * asserted on the shell side.
  */
 public final class AppWindowShape {
-    /** Portrait: a phone in portrait (9:16). */
+    /** Portrait: a phone in portrait (the screen's short side across). */
     public static final String PORTRAIT = "portrait";
-    /** Landscape: what a game or an emulator draws for (16:9). */
+    /** Landscape: the same screen turned (the short side up). */
     public static final String LANDSCAPE = "landscape";
 
-    public static final int LANDSCAPE_W = 1040, LANDSCAPE_H = 585;
-    public static final int PORTRAIT_W = 585, PORTRAIT_H = 1040;
+    /**
+     * Floor of the canvas, from PhoneXR: a phone screen at least this big. A 720p phone then hosts an
+     * app in a 1080p canvas — the app's layout is what the app expects, and the canvas is cheaper to
+     * render than the window is to display.
+     */
+    public static final int MIN_LONG_SIDE = 1920;
+    public static final int MIN_SHORT_SIDE = 1080;
+
+    /** Aspect below/above which a canvas is not a phone screen any more, for the fit to stay sane. */
+    public static final float MIN_ASPECT = 0.4f;
+    public static final float MAX_ASPECT = 2.5f;
 
     private AppWindowShape() {}
 
     /**
      * The shape an app's window opens with: what the user chose for this app (a rotation is
-     * remembered) over what the app itself declares, and landscape as the neutral default.
+     * remembered), then what the app itself declares, and then — for an app that declares nothing —
+     * the shape the phone would give it: portrait, unless the app says it is a game, which is the one
+     * category that means "landscape" on a phone.
+     *
+     * <p>Declaring nothing is the common case (it is what most phone apps do, they just follow the
+     * screen), and it is the case that must default to portrait: a phone app that declares nothing is
+     * drawn in portrait on the phone.
      */
-    public static String of(String remembered, String declared) {
+    public static String of(String remembered, String declared, boolean game) {
         if (isShape(remembered)) return remembered;
         if (isShape(declared)) return declared;
-        return LANDSCAPE;
+        return game ? LANDSCAPE : PORTRAIT;
+    }
+
+    /** Same rule without the game hint: portrait, which is what a phone would give the app. */
+    public static String of(String remembered, String declared) {
+        return of(remembered, declared, false);
     }
 
     /** The other shape — what the window's rotate button switches to. */
@@ -62,11 +82,31 @@ public final class AppWindowShape {
         return PORTRAIT.equals(shape) || LANDSCAPE.equals(shape);
     }
 
-    /** App-surface pixels for a shape: {@code {width, height}}; landscape when unknown. */
-    public static int[] box(String shape) {
-        return PORTRAIT.equals(shape)
-                ? new int[]{PORTRAIT_W, PORTRAIT_H}
-                : new int[]{LANDSCAPE_W, LANDSCAPE_H};
+    /**
+     * The canvas of a shape on a screen of [screenWidth]x[screenHeight]: {@code {width, height}} in
+     * pixels, the short side of the screen across in portrait and up in landscape.
+     *
+     * <p>Both sides are rounded to even numbers (video paths and buffer strides are happier) and the
+     * floor above is applied, so every shape has a canvas a phone app can live in.
+     */
+    public static int[] canvas(String shape, int screenWidth, int screenHeight) {
+        int longSide = Math.max(Math.max(screenWidth, screenHeight), MIN_LONG_SIDE);
+        int shortSide = Math.max(Math.min(screenWidth, screenHeight), MIN_SHORT_SIDE);
+        if (shortSide > longSide) shortSide = longSide;
+        longSide = even(longSide);
+        shortSide = even(shortSide);
+        return PORTRAIT.equals(shape) ? new int[]{shortSide, longSide} : new int[]{longSide, shortSide};
+    }
+
+    /** Aspect of the canvas of a shape on this screen. */
+    public static float aspect(String shape, int screenWidth, int screenHeight) {
+        int[] canvas = canvas(shape, screenWidth, screenHeight);
+        return canvas[1] == 0 ? 1f : (float) canvas[0] / canvas[1];
+    }
+
+    private static int even(int value) {
+        int rounded = Math.max(2, value);
+        return rounded % 2 == 0 ? rounded : rounded + 1;
     }
 
     /**
@@ -83,8 +123,8 @@ public final class AppWindowShape {
      *       {@code sensorLandscape}(6), {@code userLandscape}(11);</li>
      *   <li>everything else ({@code unspecified}(-1), {@code user}(2), {@code behind}(3),
      *       {@code sensor}(4), {@code nosensor}(5), {@code fullSensor}(10), {@code locked}(14))
-     *       adapts to whatever shape it is given: those apps lay out for the canvas they get, and
-     *       guessing an orientation for them would be worse than letting the user rotate.</li>
+     *       adapts to whatever shape it is given: those apps lay out for the canvas they get, which on
+     *       a phone means the screen's shape.</li>
      * </ul>
      */
     public static String fromOrientation(int screenOrientation) {

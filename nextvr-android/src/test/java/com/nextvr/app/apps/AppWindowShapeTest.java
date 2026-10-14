@@ -1,5 +1,6 @@
 package com.nextvr.app.apps;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -7,79 +8,111 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * The shape of an app's window, and the two things it must never do: put a portrait app in a wide
- * window (Android letterboxes it in the middle, which is the "app adjusted to the left half" the user
- * reported) or lose what the user chose for an app between two opens.
+ * The shape of an app's window and the canvas that goes with it.
+ *
+ * <p>This is where the "bottom cut" bug lived, so the numbers below are the contract: an app must be
+ * hosted on a canvas at least as big as a phone screen, in the orientation it asked for, and the window
+ * must take that canvas' shape.
  */
 public class AppWindowShapeTest {
-    @Test public void aPortraitAppGetsAPortraitWindowAndALandscapeAppALandscapeOne() {
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("", "portrait"));
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", "landscape"));
+    /** This phone: 1080x2400 at 420 dpi, i.e. 411x914 dp — the box the app is laid out in. */
+    private static final int SCREEN_W = 1080, SCREEN_H = 2400;
 
-        int[] portrait = AppWindowShape.box(AppWindowShape.PORTRAIT);
-        assertEquals(585, portrait[0]);
-        assertEquals(1040, portrait[1]);
-        assertTrue("portrait is taller than it is wide", portrait[1] > portrait[0]);
-
-        int[] landscape = AppWindowShape.box(AppWindowShape.LANDSCAPE);
-        assertEquals(1040, landscape[0]);
-        assertEquals(585, landscape[1]);
-        assertEquals("landscape is exactly 16:9", 16f / 9f, (float) landscape[0] / landscape[1], 1e-4f);
-        assertEquals("portrait is exactly 9:16", 9f / 16f, (float) portrait[0] / portrait[1], 1e-4f);
+    @Test public void aPortraitAppGetsAPortraitCanvasAtThePhonesOwnSize() {
+        int[] portrait = AppWindowShape.canvas(AppWindowShape.PORTRAIT, SCREEN_W, SCREEN_H);
+        assertArrayEquals(new int[]{1080, 2400}, portrait);
+        AppDisplaySpec spec = AppDisplaySpec.forCanvas(portrait[0], portrait[1], 420);
+        // The dp box is the phone's own: an app that pins something to the bottom of the screen has
+        // the room it has on the phone.
+        assertEquals(411, spec.widthDp());
+        assertEquals(914, spec.heightDp());
     }
 
-    @Test public void bothShapesAreTheSameNumbersSwappedSoARotationIsASwap() {
-        int[] portrait = AppWindowShape.box(AppWindowShape.PORTRAIT);
-        int[] landscape = AppWindowShape.box(AppWindowShape.LANDSCAPE);
-        assertEquals(portrait[0], landscape[1]);
-        assertEquals(portrait[1], landscape[0]);
+    @Test public void aLandscapeAppGetsTheSameScreenTurned() {
+        int[] landscape = AppWindowShape.canvas(AppWindowShape.LANDSCAPE, SCREEN_W, SCREEN_H);
+        assertArrayEquals(new int[]{2400, 1080}, landscape);
+        AppDisplaySpec spec = AppDisplaySpec.forCanvas(landscape[0], landscape[1], 420);
+        assertEquals(914, spec.widthDp());
+        assertEquals(411, spec.heightDp());
+    }
+
+    @Test public void aScreenSmallerThan1080pIsRaisedToIt() {
+        // PhoneXR's numbers are the floor: a 720x1280 phone hosts an app in a 1080x1920 canvas instead
+        // of a 720p one, and the app is laid out for a phone screen either way.
+        assertArrayEquals(new int[]{1080, 1920}, AppWindowShape.canvas(AppWindowShape.PORTRAIT, 720, 1280));
+        assertArrayEquals(new int[]{1920, 1080}, AppWindowShape.canvas(AppWindowShape.LANDSCAPE, 720, 1280));
+        // A screen reported in landscape (the phone is held sideways when the app opens) is the same
+        // screen: the short side still goes across in portrait.
+        assertArrayEquals(new int[]{1080, 2400}, AppWindowShape.canvas(AppWindowShape.PORTRAIT, 2400, 1080));
+    }
+
+    @Test public void theCanvasIsEvenAndNeverDegenerate() {
+        int[] odd = AppWindowShape.canvas(AppWindowShape.PORTRAIT, 1443, 3121);
+        assertEquals(0, odd[0] % 2);
+        assertEquals(0, odd[1] % 2);
+        assertTrue(odd[1] > odd[0]);
+        int[] nothing = AppWindowShape.canvas(AppWindowShape.LANDSCAPE, 0, 0);
+        assertArrayEquals(new int[]{1920, 1080}, nothing);
+    }
+
+    @Test public void anUndeclaredAppGetsWhatThePhoneWouldGiveIt() {
+        // Nothing declared is the common case, and on a phone it means portrait.
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("", ""));
+        // Declared wins over the default...
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", "landscape"));
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("", "portrait"));
+        // ...the game category is the one thing that turns "declares nothing" into landscape...
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", "", true));
+        // ...and what the user chose beats everything, which is the point of remembering it.
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("landscape", "portrait", false));
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("portrait", "landscape", true));
+        // An unknown shape string is not a choice: it is ignored, not obeyed.
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("sideways", "portrait", true));
+    }
+
+    @Test public void rotatingIsASwapOfTheSameScreen() {
         assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.other(AppWindowShape.PORTRAIT));
         assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.other(AppWindowShape.LANDSCAPE));
-    }
-
-    @Test public void whatTheUserChoseBeatsWhatTheAppDeclares() {
-        // An app that adapts to any shape: the user's rotation is the only preference there is.
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("portrait", ""));
-        // And when the user rotated an app that declares an orientation, the choice still wins: the
-        // platform letterboxes the app inside the new shape, which is a readable outcome the user
-        // asked for, instead of us ignoring the tap.
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("landscape", "portrait"));
-    }
-
-    @Test public void anythingUnknownStartsLandscape() {
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", ""));
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of(null, null));
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("sideways", "diagonal"));
-        assertFalse(AppWindowShape.isShape(""));
-        assertFalse(AppWindowShape.isShape(null));
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.other("nonsense"));
         assertTrue(AppWindowShape.isShape(AppWindowShape.PORTRAIT));
+        assertFalse(AppWindowShape.isShape(""));
+        // The canvas of the two shapes is the same screen: the same number of pixels, turned.
+        int[] portrait = AppWindowShape.canvas(AppWindowShape.PORTRAIT, SCREEN_W, SCREEN_H);
+        int[] landscape = AppWindowShape.canvas(AppWindowShape.LANDSCAPE, SCREEN_W, SCREEN_H);
+        assertEquals(portrait[0], landscape[1]);
+        assertEquals(portrait[1], landscape[0]);
+        assertEquals(AppWindowShape.aspect(AppWindowShape.LANDSCAPE, SCREEN_W, SCREEN_H),
+                1f / AppWindowShape.aspect(AppWindowShape.PORTRAIT, SCREEN_W, SCREEN_H), 1e-6f);
     }
 
-    @Test public void theDeclaredOrientationGroupsAreReadFromAndroidConstants() {
-        // ActivityInfo.SCREEN_ORIENTATION_* (repeated in AppWindowShape so it stays Android-free).
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(1));    // portrait
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(9));    // reversePortrait
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(7));    // sensorPortrait
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(12));   // userPortrait
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(0));   // landscape
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(8));   // reverseLandscape
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(6));   // sensorLandscape
-        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(11));  // userLandscape
-        // Apps that adapt to whatever shape they are given: no shape is imposed on them.
-        assertEquals("", AppWindowShape.fromOrientation(4));    // sensor
-        assertEquals("", AppWindowShape.fromOrientation(10));   // fullSensor
-        assertEquals("", AppWindowShape.fromOrientation(-1));   // unspecified
-        assertEquals("", AppWindowShape.fromOrientation(2));    // user
-        assertEquals("", AppWindowShape.fromOrientation(5));    // nosensor
+    @Test public void theDeclaredOrientationIsReadFromTheActivity() {
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(1));   // portrait
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(9));   // reversePortrait
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(7));   // sensorPortrait
+        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.fromOrientation(12));  // userPortrait
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(0));  // landscape
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(8));  // reverseLandscape
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(6));  // sensorLandscape
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.fromOrientation(11)); // userLandscape
+        // unspecified, sensor, fullSensor, user, nosensor, locked: the app adapts, so it gets the
+        // shape the phone would give it rather than a guess.
+        assertEquals("", AppWindowShape.fromOrientation(-1));
+        assertEquals("", AppWindowShape.fromOrientation(4));
+        assertEquals("", AppWindowShape.fromOrientation(10));
     }
 
-    @Test public void thePortraitShapeFitsInsideTheDisplayLimits() {
-        int[] box = AppWindowShape.box(AppWindowShape.PORTRAIT);
-        AppDisplaySpec spec = AppDisplaySpec.forBox(box[0], box[1], 240);
-        // The display really is the portrait window's shape: no clamping, no letterbox of the app
-        // inside its own display.
-        assertEquals((float) box[0] / box[1], spec.aspect(), 0.01f);
-        assertTrue(spec.height <= AppDisplaySpec.MAX_HEIGHT);
-        assertTrue(spec.height >= AppDisplaySpec.MIN_HEIGHT);
+    @Test public void aCanvasAtThePhonesSizeIsNeverLetterboxedInItsOwnWindow() {
+        // The window body is the canvas' shape (the shell scales it down to what it can composite), so
+        // the fit inside a body of that aspect is the whole body: no bars, no crop, nothing cut. This
+        // is the arithmetic behind both reported symptoms.
+        for (String shape : new String[]{AppWindowShape.PORTRAIT, AppWindowShape.LANDSCAPE}) {
+            int[] canvas = AppWindowShape.canvas(shape, SCREEN_W, SCREEN_H);
+            AppDisplaySpec spec = AppDisplaySpec.forCanvas(canvas[0], canvas[1], 420);
+            float aspect = spec.aspect();
+            float[] fit = AppInputGeometry.fit(aspect, 1000f, 1000f / aspect);
+            assertEquals(shape + " must fill its window", 0f, fit[0], 0f);
+            assertEquals(shape + " must fill its window", 0f, fit[1], 0f);
+            assertEquals(shape + " must fill its window", 1000f, fit[2], 0f);
+        }
     }
 }

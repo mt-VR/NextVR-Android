@@ -138,17 +138,14 @@ public final class AndroidAppManager {
 
     /**
      * The window shape an app opens with: what the user chose for it (a rotation is remembered, so a
-     * stubborn app is fixed once) or what the app declares, and landscape as the neutral default.
+     * stubborn app is fixed once), what the app declares, and — for an app that declares nothing — the
+     * shape the phone itself would give it (AppWindowShape.of).
      */
     public String windowShape(String packageName) {
         AppEntry app = find(packageName);
         String remembered = prefs().getString(KEY_SHAPE + packageName, "");
-        return AppWindowShape.of(remembered, app == null ? "" : app.orientation);
-    }
-
-    /** The app-surface pixels for the app's current shape: {@code {width, height}}. */
-    public int[] windowBox(String packageName) {
-        return AppWindowShape.box(windowShape(packageName));
+        return AppWindowShape.of(remembered, app == null ? "" : app.orientation,
+                app != null && app.game);
     }
 
     /**
@@ -325,9 +322,17 @@ public final class AndroidAppManager {
             // simply not resizable, and the platform letterboxes it inside whatever shape it gets.
             // The library reports that, so a window that shows the app with bars can say why.
             boolean fixed = !resizeable(info.activityInfo);
+            // The category is what tells a game apart from an ordinary phone app when the app declares
+            // no orientation at all: a phone draws the first in landscape and everything else in
+            // portrait, and that is exactly how the canvas is chosen (AppWindowShape.of).
+            boolean game = false;
+            try {
+                game = info.activityInfo.applicationInfo.category
+                        == android.content.pm.ApplicationInfo.CATEGORY_GAME;
+            } catch (Throwable ignored) { }
             result.add(new AppEntry(packageName, label == null ? packageName : label.toString(),
                     system, component, versionCode,
-                    AppWindowShape.fromOrientation(info.activityInfo.screenOrientation), fixed));
+                    AppWindowShape.fromOrientation(info.activityInfo.screenOrientation), fixed, game));
         }
         Collections.sort(result, (a, b) -> a.label.compareToIgnoreCase(b.label));
         return result;

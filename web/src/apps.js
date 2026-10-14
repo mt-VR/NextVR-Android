@@ -5,7 +5,7 @@ import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
-  androidRecentIndex, focusAppWindow, ANDROID_BOX, openWindowCount,
+  androidRecentIndex, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -784,7 +784,9 @@ function buildLibrary() {
       // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
       // shell only brings an existing window forward so the tap always ends on the app.
       const pkg = m.dataset.android;
-      openApp(pkg, ANDROID_BOX);
+      // The shape travels, not a size: the app is hosted on this phone's own screen, and the window
+      // takes that canvas' shape (see openApp).
+      openApp(pkg);
       focusAppWindow(pkg);
       return;
     }

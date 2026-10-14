@@ -471,21 +471,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     commands=await page.evaluate(()=>window.__appCommands||[]);
     const openCommand=commands.filter(c=>c.cmd==='open').pop();
     assert.equal(openCommand?.pkg,'org.example.notes','tapping a tile opens that app');
-    assert.ok(openCommand.w>0&&openCommand.h>0,'the shell tells the native side how big the window body is');
+    // The shape travels; a *size* must not, because the app is hosted on this phone's own screen (the
+    // native side creates the display from its own screen size and density). Sending a window size as
+    // the app's screen size is the bug that had most apps opening with their bottom cut off.
+    assert.equal(openCommand.shape,'landscape','the shell tells the native side which shape the window is');
+    assert.equal(openCommand.w,undefined,'no window size travels as the app\'s screen size');
+    assert.equal(openCommand.h,undefined,'no window size travels as the app\'s screen size');
     assert.equal(openCommand.focus,undefined,'and nothing else: no mechanism and no focus package travel with it');
 
     // The native side answers with a running session; the shell draws the window from it.
     const appState=extra=>JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state:'running',input:'shizuku',alive:true,
         shape:'landscape',
-        displayId:7,display:{w:1040,h:585,dpi:240,rotation:0,rotated:false,aspect:1040/585},error:null,
-        stopReason:null,frames:42,...extra}],
+        // The canvas is this phone's screen (a 1080x2400 phone), turned for the window's shape: that is
+        // the dp box the app lays out in, and the window takes its proportions.
+        displayId:7,display:{w:2400,h:1080,dpi:420,dpW:914,dpH:411,rotation:0,rotated:false,aspect:2400/1080},
+        error:null,stopReason:null,frames:42,...extra}],
       shizuku:{state:'ready',detail:'uid=2000 v13 bound',ready:true,ask:false,needsApp:false,
         caps:null,route:'hosted',bound:true,binding:false},
       input:{shizuku:true,accessibility:false,singleAppCapture:false},
       capacity:3,library:2,launch:'am start --display',sdk:34,recents:['org.example.notes'],
       diagnostics:{route:'hosted',launchBackend:'am start --display',launchError:null,
-        displayReport:null,displayState:'{"ok":true,"w":1040,"h":585,"logicalW":1040,"logicalH":585,"rotation":0}',
+        displayReport:null,displayState:'{"ok":true,"w":2400,"h":1080,"logicalW":2400,"logicalH":1080,"rotation":0}',
         serviceReason:'the shell user service is bound',bindError:null,
         captureService:'not running',sdk:34}});
     const appSession=(state,extra={})=>appState({state,...extra});
@@ -510,18 +517,20 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const shaped=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
       surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
         shape:e.querySelector('.app-surface').dataset.shape}}));
-    // Two pixel counts, on purpose: the *window* is laid out in the largest box of the shape's
-    // aspect that the shell's 4096x4096 atlas can pack (a taller window overflows its slot and the
-    // whole atlas stops updating), while the *display* is created in the app's own pixels.
-    assert.deepEqual(shaped.surface,{w:960,h:540,shape:'landscape'},
-      `the app surface has the display's shape and the window carries it: ${JSON.stringify(shaped)}`);
-    assert.equal(shaped.win.w,960+2);
-    assert.equal(shaped.win.h,540+62+52+2,
+    // Two pixel counts, on purpose: the *window element* is the canvas' shape scaled down to the
+    // largest box the shell's 4096x4096 atlas can pack (a taller window overflows its cell and the
+    // whole atlas stops updating), while the *canvas* is the phone's screen — 2400x1080 here.
+    assert.deepEqual(shaped.surface,{w:1038,h:467,shape:'landscape'},
+      `the app surface has the canvas' shape and the window carries it: ${JSON.stringify(shaped)}`);
+    assert.equal(shaped.win.w,1038+2);
+    assert.equal(shaped.win.h,467+62+52+2,
       `the two bars and the window border are the only chrome: ${shaped.win.h}`);
+    assert.ok(Math.abs(shaped.surface.w/shaped.surface.h-2400/1080)<.01,
+      'the window body has the canvas\' proportions, so the whole picture is shown');
     const appBoxes=await page.evaluate(()=>window.__appCommands||[]);
-    const synced=appBoxes.filter(c=>c.cmd==='sync').pop()?.windows?.find(w=>w.pkg==='org.example.notes');
-    assert.deepEqual({w:synced?.w,h:synced?.h},{w:1040,h:585},
-      `the display is asked for in the app's own pixels, not the window's: ${JSON.stringify(synced)}`);
+    const synced=appBoxes.filter(c=>c.cmd==='sync').pop();
+    assert.deepEqual(synced?.windows,[{pkg:'org.example.notes',visible:true}],
+      `the sync carries visibility only, never a window size as the app's screen: ${JSON.stringify(synced)}`);
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
@@ -599,13 +608,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // canvas and the platform's own compatibility scaling handles an app that cannot follow.
     await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
     await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
-      .offsetWidth===306);
+      .offsetWidth===Math.round(544*1080/2400));
     const rotated=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
       surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
         shape:e.querySelector('.app-surface').dataset.shape}}));
-    assert.deepEqual(rotated.surface,{w:306,h:544,shape:'portrait'},
+    assert.deepEqual(rotated.surface,{w:Math.round(544*1080/2400),h:544,shape:'portrait'},
       `the window and the app surface rotated together: ${JSON.stringify(rotated)}`);
-    assert.equal(rotated.win.w,306+2);
+    assert.equal(rotated.win.w,Math.round(544*1080/2400)+2);
     assert.equal(rotated.win.h,544+62+52+2);
     commands=await page.evaluate(()=>window.__appCommands||[]);
     const shapeCommand=commands.filter(c=>c.cmd==='shape').pop();
@@ -613,7 +622,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       {pkg:'org.example.notes',shape:'portrait'},'the rotation is remembered per app');
     // What the native side does with that: sync the new box, resize the display, report it back.
     await page.evaluate(json=>window.nextvrApps(json),appSession('running',{shape:'portrait',
-      display:{w:585,h:1040,dpi:240,rotation:0,rotated:false,aspect:585/1040}}));
+      display:{w:1080,h:2400,dpi:420,dpW:411,dpH:914,rotation:0,rotated:false,aspect:1080/2400}}));
     // The crop is [u0, v0, uw, vh]: the origin is 0 by construction, so what has to settle is the two
     // fractions — they are 1 only once the window's aspect and the display's aspect agree again.
     await page.waitForFunction(()=>{const uv=document.querySelector('.app-surface[data-native-app="org.example.notes"]')?.dataset.uv;
@@ -624,7 +633,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // Back to landscape, so the rest of the test works on the shape it started with.
     await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
     await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
-    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===960);
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===1038);
 
     // Minimizing detaches the surface: the window leaves the arc, the session and its task stay.
     await page.evaluate(json=>window.nextvrApps(json),appSession('suspended'));

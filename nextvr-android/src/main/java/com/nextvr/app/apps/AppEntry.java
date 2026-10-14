@@ -28,13 +28,24 @@ public final class AppEntry {
      * declaration.
      */
     public final boolean fixedShape;
+    /**
+     * True when the package declares itself a game ({@code ApplicationInfo.CATEGORY_GAME}). It is the
+     * one hint that means "landscape" for an app that declares no orientation at all: a phone draws
+     * every other app in portrait, so that is what an undeclared app gets.
+     */
+    public final boolean game;
 
     public AppEntry(String packageName, String label, boolean system, String component, long versionCode) {
-        this(packageName, label, system, component, versionCode, "", false);
+        this(packageName, label, system, component, versionCode, "", false, false);
     }
 
     public AppEntry(String packageName, String label, boolean system, String component, long versionCode,
                     String orientation, boolean fixedShape) {
+        this(packageName, label, system, component, versionCode, orientation, fixedShape, false);
+    }
+
+    public AppEntry(String packageName, String label, boolean system, String component, long versionCode,
+                    String orientation, boolean fixedShape, boolean game) {
         this.packageName = packageName;
         this.label = label == null || label.trim().isEmpty() ? packageName : label.trim();
         this.system = system;
@@ -42,6 +53,7 @@ public final class AppEntry {
         this.versionCode = versionCode;
         this.orientation = orientation == null ? "" : orientation;
         this.fixedShape = fixedShape;
+        this.game = game;
     }
 
     /**

@@ -1,22 +1,23 @@
 package com.nextvr.app.apps;
 
-/** Display/graphics dimensions the app windows and the phone mirror ask for. Pure math, testable. */
+/**
+ * The display an app window is hosted on: the canvas the app draws into, in pixels, and the density
+ * that turns those pixels into the dp box the app lays out in.
+ *
+ * <p>Both are the app's own business, not the window's: the window can be any size the user puts it
+ * (and the shell scales the picture into it), while the canvas decides what the app thinks the screen
+ * is. Giving the app this phone's own screen — the same pixel size and the same density — is what keeps
+ * its layout exactly the one it has on the phone, with nothing pinned to the bottom cut off.
+ *
+ * <p>Pure math, unit-tested: the numbers here are the difference between an app that fits and an app
+ * that is cropped.
+ */
 public final class AppDisplaySpec {
-    public static final int MIN_HEIGHT = 480;
-    public static final int MAX_HEIGHT = 1080;
-    public static final int DEFAULT_HEIGHT = 720;
-    /**
-     * Aspect ratio bounds: outside these a phone app is letterboxed anyway, so we clamp.
-     *
-     * <p>The narrow end is {@value #MIN_ASPECT} because app windows are not always wide: a window can
-     * be a phone in portrait (9:16 = 0.5625, and a tall phone is 9:20 = 0.45), and clamping those to
-     * something wider would letterbox the very shape the app asked for. The wide end stays at
-     * {@value #MAX_ASPECT}, the platform's own limit for a resizable activity.
-     */
-    public static final float MIN_ASPECT = 0.45f;
-    public static final float MAX_ASPECT = 2.34f;
-    /** A window that changed shape by more than this asks the platform for a new display size. */
-    public static final float RESIZE_THRESHOLD = 0.12f;
+    /** Density bounds: below 160 dpi every app draws as if on a tablet, above 640 as if on a watch. */
+    public static final int MIN_DENSITY = 160;
+    public static final int MAX_DENSITY = 640;
+    /** Used when the platform refuses to answer: a normal modern phone screen's density. */
+    public static final int DEFAULT_DENSITY = 420;
 
     public final int width, height, density;
 
@@ -26,50 +27,41 @@ public final class AppDisplaySpec {
         this.density = density;
     }
 
-    public float aspect() { return height == 0 ? 1f : (float) width / height; }
-
-    /** Aspect of a window body measured in atlas pixels, clamped to what a phone app can use. */
-    public static float aspect(float boxWidth, float boxHeight) {
-        if (!(boxWidth > 0) || !(boxHeight > 0)) return 16f / 9f;
-        float aspect = boxWidth / boxHeight;
-        if (aspect < MIN_ASPECT) return MIN_ASPECT;
-        if (aspect > MAX_ASPECT) return MAX_ASPECT;
-        return aspect;
-    }
-
     /**
-     * Display size for a window body of [boxWidth]x[boxHeight] atlas pixels.
+     * The display for a canvas of [canvasWidth]x[canvasHeight] pixels.
      *
-     * <p>The display takes the window's aspect, so what the shader samples is exactly what the user
-     * aimed at: no pillarbox math is needed between the VR window and the app's own coordinates.
-     * A non-resizable app is then letterboxed *inside* the display by Android's compat scaling, and
-     * injected display coordinates are scaled by the framework for that window — the touch lands
-     * where the user aimed either way.
+     * <p>The size is taken as given (rounded to even dimensions, which buffer strides prefer); the only
+     * protection is against nonsense. The density is the device's own, so the canvas is the same dp box
+     * here as it is on the phone's screen — that equivalence is the whole point.
      */
-    public static AppDisplaySpec forBox(float boxWidth, float boxHeight, int deviceDensity) {
-        int height = DEFAULT_HEIGHT;
-        if (boxHeight > 0) height = Math.round(boxHeight);
-        height = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, height));
-        int width = Math.round(height * aspect(boxWidth, boxHeight));
-        // Even dimensions: video paths and buffer strides are happier, and the seam is invisible.
-        if (width % 2 != 0) width++;
-        int density = deviceDensity <= 0 ? 240 : Math.max(160, Math.min(320, deviceDensity));
+    public static AppDisplaySpec forCanvas(int canvasWidth, int canvasHeight, int deviceDensity) {
+        int width = even(Math.max(2, canvasWidth));
+        int height = even(Math.max(2, canvasHeight));
+        int density = deviceDensity <= 0 ? DEFAULT_DENSITY
+                : Math.max(MIN_DENSITY, Math.min(MAX_DENSITY, deviceDensity));
         return new AppDisplaySpec(width, height, density);
     }
 
-    /** Same shape, new size — used when the app window is resized by the hand. */
-    public AppDisplaySpec resized(float boxWidth, float boxHeight) {
-        AppDisplaySpec next = forBox(boxWidth, boxHeight, density);
-        return next;
+    public float aspect() { return height == 0 ? 1f : (float) width / height; }
+
+    /** Width the app sees, in dp — the number that tells it which layout to use. */
+    public int widthDp() { return Math.round(width * 160f / density); }
+
+    /** Height the app sees, in dp. */
+    public int heightDp() { return Math.round(height * 160f / density); }
+
+    /** Whether two specs describe the same canvas (the same dp box and the same dp density). */
+    public boolean sameCanvas(AppDisplaySpec other) {
+        return other != null && other.width == width && other.height == height
+                && other.density == density;
     }
 
-    /** Whether [next] differs enough from this spec to justify resizing the live display. */
-    public boolean needsResize(AppDisplaySpec next) {
-        if (next == null) return false;
-        float current = aspect(), wanted = next.aspect();
-        if (Math.abs(current - wanted) / Math.max(.01f, current) > RESIZE_THRESHOLD) return true;
-        return Math.abs(next.height - height) > Math.max(48, height * RESIZE_THRESHOLD);
+    private static int even(int value) {
+        return value % 2 == 0 ? value : value + 1;
     }
 
-    @Override public String toString() { return width + "x" + height + "@" + density; }
+    /** {@code 1080x2400@420 411x914dp} — one line that says what the app sees. */
+    @Override public String toString() {
+        return width + "x" + height + "@" + density + " " + widthDp() + "x" + heightDp() + "dp";
+    }
 }

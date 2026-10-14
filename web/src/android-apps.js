@@ -20,60 +20,40 @@ import { t, toast, on, emit, native } from './core.js';
 import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
+import { canvasBox, surfaceBox, windowBox } from './app-window-box.js';
 
 const SYNC_MS = 400;
 const CAPACITY = 3;
-// The shape is per app (AppWindowShape.java on the native side, same numbers here):
-//   landscape 1040x585 — 16:9, what an app that declares landscape (a game, an emulator) draws for;
-//   portrait   585x1040 — 9:16, the shape of a phone in portrait.
-// A window used to be 1040x546 for every app (aspect 1.9, wider than any phone): an app locked to
-// portrait was letterboxed by Android in the middle of it, and an app drawing a 16:9 frame left bars.
+// The shape is per app (AppWindowShape.java on the native side, same rule here): an app that declares
+// portrait gets a portrait window, one that declares landscape gets a landscape window, and one that
+// declares nothing gets what the phone itself would give it — portrait, unless it is a game.
 //
-// Two different pixel counts come out of that shape, and keeping them apart is what makes the window
-// both *the app's shape* and *small enough to be composited*:
+// The *canvas* — the display the app is hosted on — is not a window size at all: it is this phone's
+// own screen, in that shape, decided by the native side and reported per session in `display.w/h`.
+// That is what the app lays out for (its layout is the same dp box it has on the phone, so nothing
+// pinned to the bottom of the screen ends up cut), and it is what the fit, the crop and the touch are
+// computed from.
 //
-//  * SHAPES — the app's own pixels. This is what the native side creates the display with (`open`
-//    and `sync`) and what the app itself draws into. Landscape 1040x585 and portrait 585x1040 are
-//    exactly 16:9 and 9:16, so the app gets a real phone/landscape canvas (390x693 dp in portrait at
-//    the phone's own density) and nothing about its layout is squeezed.
-//  * DOM_SHAPES — the window's own pixels, laid out in the shell's DOM. Every window is rasterized
-//    into one 4096x4096 hardware atlas whose slots are 1360x980 including a 160 px bleed
-//    (atlas.js:pack), so a window element can be at most 1040x660. A 1042x701 landscape window — let
-//    alone a 587x1156 portrait one — overflows its slot, and the atlas then refuses to pack *any*
-//    window: the whole scene stops updating (the first symptom is a window that never appears).
-//    The window is therefore laid out at the largest box of the same aspect that fits the slot, and
-//    the display keeps the app's pixels. Aspect is what the fit, the crop and the touch come from;
-//    the picture itself is sampled from the display texture, so it is never stretched, only placed.
-const WIN_BAR = 62;          // .win-bar
-const APP_BAR = 52;          // .app-bar
-const WIN_BORDER = 2;        // .win's 1 px border on each side (box-sizing: border-box)
-const WIN_CHROME = WIN_BAR + APP_BAR + WIN_BORDER;
-/** The app's pixels: 16:9 and 9:16 exactly — what the display is created with. */
-const SHAPES = { landscape: { w: 1040, h: 585 }, portrait: { w: 585, h: 1040 } };
-/** The window's pixels: the same two aspects, inside the atlas slot (1040x660 minus the chrome). */
-const DOM_SHAPES = { landscape: { w: 960, h: 540 }, portrait: { w: 306, h: 544 } };
-const DEFAULT_W = SHAPES.landscape.w;
-const DEFAULT_H = SHAPES.landscape.h;
-
-/** App pixels for a shape name; anything unknown is landscape, like the native side. */
-export function surfaceBox(shape) { return SHAPES[shape] || SHAPES.landscape; }
-
-/** Window pixels for a shape name: the same aspect, in the largest size the atlas packs. */
-export function domBox(shape) { return DOM_SHAPES[shape] || DOM_SHAPES.landscape; }
-
-/** Window size that leaves `shape` of app surface once the two bars are taken out. */
-function windowBox(shape) {
-  const box = domBox(shape);
-  // The border is part of the window's CSS box (box-sizing: border-box), so it is added here: the
-  // measured app surface then equals the window pixels of that shape.
-  return { w: box.w + WIN_BORDER, h: box.h + WIN_CHROME };
-}
-
-/** The shape this session's window should have: what the app asks for, or what the user chose. */
+// Two pixel counts, therefore, and only one of them is the app's:
+//
+//  * the canvas — the phone's screen (1080x2400, 2400x1080, ... at the phone's own density). The app
+//    draws here and the shader samples the whole thing.
+//  * the window element — the canvas' shape, scaled down to whatever the shell can composite. Every
+//    window is rasterized into one 4096x4096 hardware atlas whose cells are 1360x980 including a
+//    160 px bleed (atlas.js:pack), so a window element can be at most 1040x660: a few pixels more and
+//    pack() refuses the whole batch, the scene stops updating and the window never appears. The
+//    element is therefore the largest box of the canvas' aspect that fits a cell, which is also why
+//    the window ends up a comfortable size in front of the user.
+/**
+ * The shape this session's window should have: what the session itself reports (the native side owns
+ * the rule and remembers the user's rotation), then what the library entry says, and then the same
+ * fallback the native side uses — portrait, unless the app is a game. A phone gives an app that
+ * declares nothing the portrait shape, so that is what the shell assumes before it is told otherwise.
+ */
 function shapeOf(pkg, session) {
   if (session?.shape) return session.shape;
   const app = library.apps.find(a => a.pkg === pkg);
-  return app?.shape || app?.orient || 'landscape';
+  return app?.shape || app?.orient || (app?.game ? 'landscape' : 'portrait');
 }
 
 const state = {
@@ -196,10 +176,12 @@ function createWindow(session) {
   // the window's bar (which owns ✕) is never covered.
   body.append(bar, surface);
   surface.append(status);
-  const box = windowBox(surface.dataset.shape);
+  const box = windowBox(session);
   const win = open({ id: appWindowId(session.pkg), title: session.title, node: body,
     w: box.w, h: box.h });
-  live.set(session.pkg, { win, surface, status, badge });
+  // The session is kept with the window: a rotation or a re-open needs the canvas it was created with
+  // (the phone's own screen), and the shell must never fall back to guessing a size.
+  live.set(session.pkg, { win, surface, status, badge, session });
   updateWindow(session);
 }
 
@@ -214,6 +196,12 @@ function updateWindow(session) {
   if (session.shape) entry.surface.dataset.shape = session.shape;
   // The badge names the mechanism, and it is re-read on every state: a session that was replaced by
   // the other mechanism must never keep the old label.
+  entry.session = session;
+  // A rotation is applied locally the moment it is asked for (the window changes shape in the same
+  // frame as the tap). A state that was already in flight before the native side restarted the app
+  // still carries the old shape, and letting it win would flip the window back for a moment.
+  if (entry.pendingShape && session.shape !== entry.pendingShape) session = { ...session, shape: entry.pendingShape };
+  if (session.shape === entry.pendingShape) entry.pendingShape = null;
   entry.badge.textContent = session.mode === 'mirror' ? t('appMirrorBadge') : t('appWindowBadge');
   entry.badge.classList.toggle('mirror', session.mode === 'mirror');
   const states = {
@@ -314,11 +302,12 @@ on('wins', () => {
  * that app on it when it is not. The shell never has to know which one it will get — the state JSON
  * reports the mode back and the window badge names it.
  */
-export function openApp(pkg, box) {
+export function openApp(pkg) {
   if (!pkg) return;
-  const shape = shapeOf(pkg, sessionOf(pkg));
-  const target = box || surfaceBox(shape);
-  command({ cmd: 'open', pkg, w: target.w, h: target.h });
+  // The shape travels; the size does not. The canvas is this phone's screen, and only the native side
+  // knows it — sending a window size as the app's screen size is what cut the bottom off almost every
+  // app that pins something to the bottom of its layout.
+  command({ cmd: 'open', pkg, shape: shapeOf(pkg, sessionOf(pkg)) });
 }
 
 /**
@@ -334,9 +323,12 @@ export function rotateWindow(pkg) {
   const session = sessionOf(pkg);
   const current = entry?.surface.dataset.shape || shapeOf(pkg, session);
   const next = current === 'portrait' ? 'landscape' : 'portrait';
-  const box = windowBox(next);
+  // The new canvas is the same phone screen turned, so the window's shape follows immediately and the
+  // picture is fitted into it while the native side restarts the app on a canvas of the new shape.
+  const box = windowBox({ shape: next, display: session?.display || entry?.session?.display });
   if (entry) {
     entry.surface.dataset.shape = next;
+    entry.pendingShape = next;   // until the native side reports the new shape back
     entry.win.setSize(box.w, box.h);
   }
   if (session) session.shape = next;   // local: the native state may take a moment to arrive
@@ -384,11 +376,10 @@ export function loadLibrary(force) {
 function scheduleSync(force) {
   const payload = [];
   for (const [pkg, entry] of live) {
-    // The app's own pixels for this window's shape — not the window element's size: the window is
-    // laid out at a scale that fits the shell's texture atlas (DOM_SHAPES), while the display is
-    // created in the shape's full size, which is what the app draws and what the panel samples.
-    const display = surfaceBox(entry.surface.dataset.shape);
-    payload.push({ pkg, w: display.w, h: display.h, visible: true });
+    // Visibility only. The *canvas* is this phone's screen and it is decided on the native side; the
+    // window's own size is the shell's business and must never travel as the app's screen size — that
+    // is exactly the mistake that had apps laying out for a screen smaller than their own.
+    payload.push({ pkg, visible: true });
   }
   const json = JSON.stringify(payload);
   if (!force && json === lastSync) return;
@@ -532,6 +523,13 @@ export function diagnosticsText() {
     // went to the left half / lost its lower half" — the platform rotated the display or letterboxed
     // the app, and this says which one it did.
     `display state: ${d.displayState || '-'}`,
+    // The canvas of each open window: the dp box the app lays out in. When an app's own layout looks
+    // wrong, this is the number that says whether it was given the screen it was designed for.
+    ...state.sessions.map(session => 'app ' + session.pkg + ': shape=' + (session.shape || '-')
+      + ' canvas=' + ((session.display && session.display.w) || 0) + 'x'
+      + ((session.display && session.display.h) || 0) + '@' + ((session.display && session.display.dpi) || 0)
+      + ' (' + ((session.display && session.display.dpW) || 0) + 'x'
+      + ((session.display && session.display.dpH) || 0) + 'dp, ' + session.state + ')'),
     `capture service: ${d.captureService || '-'}`,
     `accessibility: ${state.input?.accessibility ? 'on' : 'off'}`,
     `sdk: ${d.sdk || state.sdk || '-'}`,
@@ -627,8 +625,9 @@ export function androidRecentIndex(pkg) { return state.recents.indexOf(pkg); }
  * the app is drawn into — hosted display or capture — is exactly 546 px high and nothing is
  * letterboxed on the first frame.
  */
-export const ANDROID_BOX = { w: DEFAULT_W, h: DEFAULT_H };
-export { windowBox };
+// Re-exported for the shell's own callers and for the tests that pin the window's geometry to the
+// canvas' shape (web/src/app-window-box.js is the single definition).
+export { canvasBox, surfaceBox, windowBox };
 
 /** The apps a search/filter decision must see: the ones the native side returned. */
 export function androidAppsLoaded() { return library.loaded; }

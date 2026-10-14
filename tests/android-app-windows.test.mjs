@@ -19,6 +19,7 @@ const JAVA = {
   input: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppInputController.java',
   session: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppSession.java',
   spec: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplaySpec.java',
+  shape: 'nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowShape.java',
   shizuku: 'nextvr-android/src/main/java/com/nextvr/app/apps/ShizukuManager.java',
   service: 'nextvr-android/src/main/java/com/nextvr/app/apps/NextVrDisplayService.java',
   accessibility: 'nextvr-android/src/main/java/com/nextvr/app/apps/NextVrAccessibilityService.java',
@@ -30,6 +31,7 @@ const JAVA = {
 };
 const WEB = {
   androidApps: 'web/src/android-apps.js',
+  boxes: 'web/src/app-window-box.js',
   atlas: 'web/src/atlas.js',
   windows: 'web/src/windows.js',
   fit: 'web/src/display-fit.js',
@@ -120,23 +122,32 @@ test('the app picture is fitted and the touch is normalized against the same rec
     'a rotated app display needs the point mapped back through the same rotation');
 });
 
-test('the display size and its clamp come from one place on each side', async () => {
+test('the canvas is this phone\'s screen, and the window takes its shape', async () => {
   const spec = await read(JAVA.spec);
-  const number = (name) => {
-    const match = spec.match(new RegExp(`${name} = ([0-9.]+)f?;`));
-    assert.ok(match, `${name} is declared`);
-    return Number(match[1]);
-  };
-  assert.equal(number('MIN_ASPECT'), 0.45);
-  assert.equal(number('MAX_ASPECT'), 2.34);
-  assert.equal(number('MIN_HEIGHT'), 480);
-  assert.equal(number('MAX_HEIGHT'), 1080);
-  assert.equal(number('DEFAULT_HEIGHT'), 720);
-
-
+  // The display is the *canvas*: taken as given (the phone's screen), with the density that makes it
+  // the same dp box the app has on the phone. No clamping to a window shape — that clamp is what put
+  // apps on a screen 350 dp shorter than the one they were designed for.
+  assert.match(spec, /public static AppDisplaySpec forCanvas\(int canvasWidth, int canvasHeight, int deviceDensity\)/);
+  assert.ok(!/MIN_ASPECT|MAX_ASPECT/.test(spec), 'nothing clamps the canvas any more');
+  assert.ok(!/forBox/.test(spec), 'the display is not sized from a window box any more');
+  assert.match(spec, /public int widthDp\(\)/,
+    'the dp box the app lays out in is reportable, because it is what an app being cut is about');
   const fit = await read(WEB.fit);
-  assert.match(fit, /export const MIN_ASPECT = 0\.45;/);
-  assert.match(fit, /export const MAX_ASPECT = 2\.34;/);
+  assert.ok(!/specAspect|MIN_ASPECT|MAX_ASPECT/.test(fit),
+    'the shell does not clamp the aspect either: the canvas is the screen');
+
+  // The canvas comes from the phone's screen, in the shape the app asked for: AppWindowShape.canvas.
+  const shape = await read(JAVA.shape);
+  assert.match(shape, /public static int\[\] canvas\(String shape, int screenWidth, int screenHeight\)/);
+  assert.match(shape, /MIN_LONG_SIDE = 1920/);
+  assert.match(shape, /MIN_SHORT_SIDE = 1080/);
+  const window = await read(JAVA.window);
+  assert.match(window, /return AppWindowShape\.canvas\(shapeFor\(packageName, shape\), screen\[0\], screen\[1\]\);/,
+    'the canvas is this phone\'s screen, turned the way the shape asks');
+  assert.match(window, /private AppDisplaySpec canvasFor\(String packageName, String shape\)/);
+  assert.match(window, /int\[\] screen = displays\.screenSize\(\);/);
+  assert.match(await read(JAVA.display), /public int\[\] screenSize\(\)/,
+    'the phone\'s own screen is the canvas, and the display controller is where it is read from');
 });
 
 test('the Shizuku path is bound as a user service and documented as optional', async () => {
@@ -247,76 +258,85 @@ test('a batch of finished icons makes the shell read the grid again', async () =
     'and it repaints whenever it is open, not only while it has the focus');
 });
 
-test('the default app window asks for the body the app picture really occupies', async () => {
+test('the window is the canvas\' shape, and the canvas is the phone screen', async () => {
   const apps = await read(WEB.androidApps);
-  // The window size is a function of the shape: the two bars are chrome, the rest is the app surface.
-  // The bar heights are read from the stylesheet so this cannot drift: a window sized with a stale bar
-  // height would letterbox every app.
+  // The window size is a function of the canvas: the two bars are chrome, the rest is the app surface,
+  // and the surface has the canvas' aspect. The bar heights are read from the stylesheet so this cannot
+  // drift: a window sized with a stale bar height would letterbox every app.
+  const boxes = await read(WEB.boxes);
   const html = await read('web/index.html');
   const winBar = Number(html.match(/\.win-bar\{height:(\d+)px/)[1]);
   const appBar = Number(html.match(/\.app-bar\{height:(\d+)px/)[1]);
-  assert.match(apps, new RegExp(`const WIN_BAR = ${winBar};`));
-  assert.match(apps, new RegExp(`const APP_BAR = ${appBar};`));
+  assert.match(boxes, new RegExp(`const WIN_BAR = ${winBar};`));
+  assert.match(boxes, new RegExp(`const APP_BAR = ${appBar};`));
   // .win's own 1 px border: the surface then measures exactly the window pixels, or every app would
   // start a fraction letterboxed.
-  assert.match(apps, /const WIN_BORDER = 2;/);
-  assert.match(apps, /return \{ w: box\.w \+ WIN_BORDER, h: box\.h \+ WIN_CHROME \};/,
+  assert.match(boxes, /const WIN_BORDER = 2;/);
+  assert.match(boxes, /return \{ w: surface\.w \+ WIN_BORDER, h: surface\.h \+ WIN_CHROME \};/,
     'width and height carry the chrome, so the measured surface is exactly the window pixels');
-  const shape = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowShape.java');
-  const landscape = shape.match(/LANDSCAPE_W = (\d+), LANDSCAPE_H = (\d+);/);
-  const portrait = shape.match(/PORTRAIT_W = (\d+), PORTRAIT_H = (\d+);/);
-  assert.match(apps, new RegExp('const SHAPES = \\{ landscape: \\{ w: ' + landscape[1] + ', h: '
-    + landscape[2] + ' \\}, portrait: \\{ w: ' + portrait[1] + ', h: ' + portrait[2] + ' \\} \\};'),
-    'both shapes are the same numbers on both sides of the bridge');
-  assert.match(apps, /export const ANDROID_BOX = \{ w: DEFAULT_W, h: DEFAULT_H \};/);
+  // The canvas is the session's display (this phone's screen), never a size in the shell.
+  assert.match(boxes, /export function surfaceBox\(session\) \{/);
+  assert.match(boxes, /const display = session\?\.display;/);
+  assert.match(apps, /const box = windowBox\(session\);/,
+    'opening a window sizes it from the session\'s own canvas');
+  // And the command that opens the app carries the shape, not a size: a window size sent as the app's
+  // screen size is exactly what cut the bottom off almost every app.
   const appsJs = await read(WEB.apps);
-  assert.match(appsJs, /openApp\(pkg, ANDROID_BOX\)/,
-    'tapping a tile in the Applications menu opens the window at that size, and nothing else');
+  assert.match(appsJs, /openApp\(pkg\);\s*focusAppWindow\(pkg\);/,
+    'tapping a tile in the Applications menu opens the window by shape, and nothing else');
+  assert.match(apps, /command\(\{ cmd: 'open', pkg, shape: shapeOf\(pkg, sessionOf\(pkg\)\) \}\);/,
+    'the open command carries the shape');
+  assert.match(apps, /const payload = \[\];[\s\S]*?payload\.push\(\{ pkg, visible: true \}\);/,
+    'the sync carries visibility only');
 });
 
 /*
- * Two pixel counts, and the window has to fit in the one the compositor has: the display is created in
- * the app's own pixels while the window element is laid out in the shell's DOM, and the shell
- * rasterizes every window into one 4096x4096 atlas whose slots are 1360x980 including a 160 px bleed
- * (atlas.js:pack). A window a few pixels over its slot does not degrade gracefully — pack() refuses
- * the whole batch, so the scene stops updating and the window never appears at all. That is exactly
- * what a 1042x701 landscape app window (and a 587x1156 portrait one) did before the pair of sizes
- * below existed, and it is invisible in a unit test that only reads the DOM.
+ * Two pixel counts, and neither may be mistaken for the other:
+ *   * the canvas — this phone's screen, decided natively. It is what the app lays out for, and it must
+ *     stay a phone screen;
+ *   * the window element — the canvas' shape scaled down to what the compositor can rasterize. Every
+ *     window goes into one 4096x4096 atlas whose cells are 1360x980 including a 160 px bleed
+ *     (atlas.js:pack), i.e. an element of at most 1040x660. A few pixels more does not degrade
+ *     gracefully: pack() refuses the whole batch, the scene stops updating and the window never appears
+ *     (that is what a 1042x701 window did in the first attempt at this round).
+ *
+ * The bug this test now also guards against is the one that cut the bottom off most apps: an element
+ * size (or a window size) used as the app's screen.
  */
-test('the app window is laid out in a size the texture atlas can actually pack', async () => {
+test('the window element fits the atlas while the app\'s canvas stays a phone screen', async () => {
   const { pack } = await import('../web/src/atlas.js');
-  const apps = await read(WEB.androidApps);
-  const display = apps.match(/const SHAPES = \{ landscape: \{ w: (\d+), h: (\d+) \}, portrait: \{ w: (\d+), h: (\d+) \} \};/);
-  assert.ok(display, 'the app display keeps the app\'s own pixels');
-  const dom = apps.match(/const DOM_SHAPES = \{ landscape: \{ w: (\d+), h: (\d+) \}, portrait: \{ w: (\d+), h: (\d+) \} \};/);
-  assert.ok(dom, 'the window is laid out in pixels of its own');
-  const [landscapeW, landscapeH, portraitW, portraitH] = display.slice(1).map(Number);
-  const [domLandscapeW, domLandscapeH, domPortraitW, domPortraitH] = dom.slice(1).map(Number);
-  // Same aspect on both sides of the pair: that is what makes the crop, the fit and the touch exact,
-  // so a window can be laid out smaller without the app's own proportions changing at all.
-  const aspects = [[domLandscapeW, domLandscapeH, landscapeW, landscapeH, 'landscape'],
-    [domPortraitW, domPortraitH, portraitW, portraitH, 'portrait']];
-  for (const [w, h, dw, dh, name] of aspects) {
-    assert.ok(Math.abs(w / h - dw / dh) < 1e-9,
-      `the ${name} window has the display's aspect (${w}/${h} vs ${dw}/${dh})`);
-  }
-  // The display itself stays a real canvas for a phone app: 9:16 and 16:9, and big enough to be one.
-  assert.ok(Math.min(landscapeH, portraitH) >= 480,
-    'the app draws into a display of a phone\'s resolution, not into the window element');
+  const boxes = await read(WEB.boxes);
+  const atlas = boxes.match(/const ATLAS_WINDOW_W = (\d+), ATLAS_WINDOW_H = (\d+);/);
+  assert.ok(atlas, 'the element is bounded by what the compositor can pack');
+  const [maxWindowW, maxWindowH] = atlas.slice(1).map(Number);
   const chrome = 62 + 52 + 2;
-  for (const [w, h] of [[domLandscapeW, domLandscapeH], [domPortraitW, domPortraitH]]) {
-    const rects = pack([{ width: w + 2, height: h + chrome, kind: 'window', slot: 0 }]);
-    assert.equal(rects.length, 1, `a ${w}x${h} app window is packed by the atlas`);
+  // The bound is the atlas', not a guess: one pixel more is refused, the exact bound is packed.
+  assert.equal(pack([{ width: maxWindowW, height: maxWindowH, kind: 'window', slot: 0 }]).length, 1);
+  assert.throws(() => pack([{ width: maxWindowW + 1, height: maxWindowH, kind: 'window', slot: 0 }]),
+    /full/, 'one pixel wider than the cell is refused rather than silently packed');
+
+  // Every canvas a phone can have is turned into an element of that canvas' aspect, inside the bound.
+  const { windowBox, surfaceBox } = await import('../web/src/app-window-box.js');
+  const canvases = [{ w: 1080, h: 2400 }, { w: 2400, h: 1080 }, { w: 1440, h: 3200 }, { w: 1080, h: 1920 }];
+  for (const canvas of canvases) {
+    const box = windowBox({ shape: canvas.h > canvas.w ? 'portrait' : 'landscape', display: canvas });
+    assert.ok(box.w <= maxWindowW && box.h <= maxWindowH,
+      `a ${canvas.w}x${canvas.h} canvas must fit the atlas cell: ${JSON.stringify(box)}`);
+    const surface = { w: box.w - 2, h: box.h - chrome };
+    assert.ok(Math.abs(surface.w / surface.h - canvas.w / canvas.h) < 0.01,
+      `the window keeps the canvas' proportions (${canvas.w}x${canvas.h} -> ${surface.w}x${surface.h})`);
   }
-  // The portrait window is the one that decides the size: it is at the slot's limit on purpose, and a
-  // single pixel more is refused. If the chrome or the shapes change, this is the test that says so.
-  assert.throws(() => pack([{ width: domPortraitW + 2, height: domPortraitH + chrome + 1, kind: 'window', slot: 0 }]),
-    /full/, 'one pixel taller than the slot is refused rather than silently packed');
-  const sync = apps.match(/function scheduleSync\(force\) \{[\s\S]*?\n\}/)[0];
-  assert.match(sync, /const display = surfaceBox\(entry\.surface\.dataset\.shape\);/,
-    'the native side is asked for the app\'s display, not for the window element');
-  assert.ok(!/offsetWidth/.test(sync),
-    'the synced size never comes from the DOM: that would resize the app to the window\'s raster size');
+  // …and nothing reads the element's own pixel size back as the app's screen: the canvas comes from the
+  // session's display, exactly as it came from the native side.
+  assert.deepEqual(surfaceBox({ shape: 'landscape', display: { w: 2400, h: 1080 } }), { w: 2400, h: 1080 });
+  assert.deepEqual(surfaceBox({ shape: 'portrait', display: { w: 1080, h: 2400 } }), { w: 1080, h: 2400 });
+  // A rotation that the native side has not caught up with yet is the same screen turned: the window
+  // changes shape in the same frame as the tap, and the picture is fitted into it meanwhile.
+  assert.deepEqual(surfaceBox({ shape: 'portrait', display: { w: 2400, h: 1080 } }), { w: 1080, h: 2400 });
+  assert.deepEqual(surfaceBox({ shape: 'landscape', display: { w: 1080, h: 2400 } }), { w: 2400, h: 1080 });
+  // The fallback canvas (before the native side has answered) is a phone screen, not a window.
+  assert.deepEqual(surfaceBox({ shape: 'portrait' }), { w: 1080, h: 1920 });
+  assert.deepEqual(surfaceBox({ shape: 'landscape' }), { w: 1920, h: 1080 });
 });
 
 /*
@@ -414,30 +434,42 @@ test('the app declares no permission that would let it hook or overlay another a
  * Resizing must not break the app. Two rules make that true, and both are about the window never
  * claiming a size the display does not have.
  */
-test('a resize is only believed once the display confirms it', async () => {
-  const aidl = await read(JAVA.aidl);
-  assert.match(aidl, /String resizeDisplay\(int displayId, int width, int height, int dpi\) = 2;/,
-    'the service answers the resize instead of returning nothing');
-  assert.match(aidl, /void destroy\(\) = 16777114;/, 'destroy stays first (Shizuku fixes its id)');
-
-  const service = await read(JAVA.service);
-  const resize = service.slice(service.indexOf('public String resizeDisplay'));
-  assert.ok(resize.indexOf('no such display') < resize.indexOf('display.resize('),
-    'a released display is reported instead of throwing inside the platform');
-  assert.match(resize, /return null;/, 'null means the display took the new size');
-
+/*
+ * Nothing resizes a hosted app's display any more, and this is the contract that keeps it that way.
+ *
+ * The canvas is the phone's screen, sized once when the session is created (AppWindowShape.canvas +
+ * AppDisplaySpec.forCanvas). That is what makes an app's layout identical to the one it has on the
+ * phone — nothing pinned to the bottom of its layout ends up cut — and it is why the window's size
+ * must never reach the display: this whole class of bug came from a window size being used as a
+ * screen size.
+ */
+test('a hosted app\'s canvas is created once and never reshaped under the app', async () => {
   const manager = await read(JAVA.sessionManager);
-  const requested = manager.slice(manager.indexOf('public synchronized void windowResized'));
-  const body = requested.slice(0, requested.indexOf('public synchronized void resizeApplied'));
-  assert.ok(!/session\.width = /.test(body),
-    'the session keeps the display\'s real size while the resize is in flight');
-  assert.match(manager, /public synchronized void resizeApplied\(String packageName\)/);
-  assert.match(manager, /public synchronized void resizeFailed\(String packageName\)/);
-  assert.match(body, /session\.resizeRefused/, 'a display that refused is not asked again');
+  assert.ok(!/windowResized|resizeApplied|resizeFailed/.test(manager),
+    'the manager has no resize entry point left');
+  const host = manager.slice(manager.indexOf('public interface Host'));
+  assert.ok(!/void resize\(/.test(host.slice(0, host.indexOf('}'))),
+    'and the host it drives cannot be asked to resize a display either');
 
+  // The canvas is created from the shape and this phone's screen, at open time.
+  const window = await read(JAVA.window);
+  assert.match(window, /sessions\.open\(packageName, titleOf\(packageName\),\s*\n\s*AppSession\.Mode\.VIRTUAL_DISPLAY, shapeFor\(packageName, shape\), canvasFor\(packageName, shape\)\);/,
+    'the session is created with the shape and the canvas that goes with it');
+  const display = await read(JAVA.display);
+  assert.match(display, /AppDisplaySpec spec = AppDisplaySpec\.forCanvas\(session\.width, session\.height, session\.density\);/,
+    'the controller uses the canvas the session was created with, and derives nothing from the window');
+  assert.ok(!/forBox/.test(display), 'the window box is not a display size anywhere');
+
+  // What the shell may do to a running session is what is left: visibility, focus, rotate, close.
   const session = await read(JAVA.session);
-  assert.match(session, /volatile AppDisplaySpec pendingResize/);
-  assert.match(session, /volatile boolean resizeRefused/);
+  assert.ok(!/pendingResize|resizeRefused|boxWidth/.test(session),
+    'the session carries no half-applied resize state any more');
+  assert.match(session, /public volatile String shape = AppWindowShape\.LANDSCAPE;/);
+
+  // Rotating is the one thing that changes the canvas, and it does it by starting the app again on a
+  // display of the new shape — never by resizing a display under a running app.
+  assert.match(window, /sessions\.close\(packageName, "shape"\);\s*\n\s*sessions\.forgetStopped\(\);/);
+  assert.match(window, /if \(session\.mode == AppSession\.Mode\.VIRTUAL_DISPLAY\) openHosted\(packageName, shape\);/);
 });
 
 /*
@@ -501,10 +533,9 @@ test('tapping an app hosts it instead of redirecting to the phone when Shizuku i
 
 test('an app that cannot be hosted opens in a window that names its mechanism', async () => {
   const web = await read(WEB.androidApps);
-  assert.match(web, /export function openApp\(pkg, box\)/);
-  assert.match(web, /const target = box \|\| surfaceBox\(shape\);/);
-  assert.match(web, /command\(\{ cmd: 'open', pkg, w: target\.w, h: target\.h \}\);/,
-    'the command carries the app, never a pseudo-package and never a chosen mechanism');
+  assert.match(web, /export function openApp\(pkg\) \{/);
+  assert.match(web, /command\(\{ cmd: 'open', pkg, shape: shapeOf\(pkg, sessionOf\(pkg\)\) \}\);/,
+    'the command carries the app and its shape, never a pseudo-package, a mechanism or a size');
   assert.match(web, /session\.mode === 'mirror' \? t\('appMirrorBadge'\) : t\('appWindowBadge'\)/,
     'the badge follows the mode, never the wish');
   assert.match(web, /const RECOVERABLE = new Set\(/);
@@ -513,7 +544,7 @@ test('an app that cannot be hosted opens in a window that names its mechanism', 
   const window = await read(JAVA.window);
   assert.match(window, /if \(route == AppHostPolicy\.Route\.HOSTED\) \{/,
     'the native side chooses the mechanism once, before anything is opened');
-  assert.match(window, /openCaptured\(packageName, boxWidth, boxHeight\);/);
+  assert.match(window, /openCaptured\(packageName, shape\);/);
   assert.match(window, /sessions\.close\(open\.packageName, "capture_replaced"\)/,
     'Android grants one capture per consent: the replaced window gives its up');
   assert.ok(!window.includes('MIRROR_PACKAGE') && !window.includes('optString("focus"'),
@@ -589,44 +620,56 @@ test('the whole privileged path can be verified on the device itself', async () 
 });
 
 /*
- * The window takes the app's own shape, and the display follows it.
+ * The shape of the window and the canvas that goes with it.
  *
- * The user's report: "some apps adjusted to the left half of it resizing their height, and a PS3
- * emulator just cut its lower half and still didn't use all the space". Every window used to be
- * 1040x546 (aspect 1.9 — wider than any phone), so Android letterboxed a portrait app in the middle of
- * it and a 16:9 frame sat inside it with bars. Nothing was ever stretched: the *window* was not the
- * app's shape.
+ * Two reports, one root cause: "some apps adjusted to the left half of it resizing their height, and a
+ * PS3 emulator just cut its lower half" (every window was 1040x546, aspect 1.9, so Android letterboxed
+ * a portrait app in the middle of a wide one), and then "most apps are still opening with its bottom
+ * cut" — because the canvas was then sized from the *window* (585x1040 / 1040x585 at density 320,
+ * i.e. 292x520 dp) instead of from the phone's screen. PhoneXR gets this right by hosting the app on a
+ * phone-sized display; NextVR hosts it on *this* phone's screen.
  */
-test('an app window takes the shape the app asks for', async () => {
-  const shape = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowShape.java');
-  assert.match(shape, /public static final int LANDSCAPE_W = 1040, LANDSCAPE_H = 585;/);
-  assert.match(shape, /public static final int PORTRAIT_W = 585, PORTRAIT_H = 1040;/);
+test('an app window takes the shape the app asks for, on this phone\'s screen', async () => {
+  const shape = await read(JAVA.shape);
+  // The canvas: this phone's screen, turned the way the shape asks, with PhoneXR's 1080x1920 as the
+  // floor for a smaller phone.
+  assert.match(shape, /public static int\[\] canvas\(String shape, int screenWidth, int screenHeight\)/);
+  assert.match(shape, /MIN_LONG_SIDE = 1920/);
+  assert.match(shape, /MIN_SHORT_SIDE = 1080/);
   assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
   assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
+  // An app that declares nothing gets what the phone would give it — portrait — and a game gets
+  // landscape, which is the one category that means it.
+  assert.match(shape, /if \(isShape\(remembered\)\) return remembered;/);
+  assert.match(shape, /if \(isShape\(declared\)\) return declared;/);
+  assert.match(shape, /return game \? LANDSCAPE : PORTRAIT;/);
 
   const web = await read(WEB.androidApps);
-  assert.match(web, /const SHAPES = \{ landscape: \{ w: 1040, h: 585 \}, portrait: \{ w: 585, h: 1040 \} \};/,
-    'the same two shapes on the shell side');
-  assert.match(web, /const WIN_BAR = 62;/);
-  assert.match(web, /const APP_BAR = 52;/);
-  assert.match(web, /const box = windowBox\(surface\.dataset\.shape\);\s*\n\s*const win = open\(\{ id: appWindowId\(session\.pkg\), title: session\.title, node: body,\s*\n\s*w: box\.w, h: box\.h \}\);/,
-    'the window is created in the app surface shape plus the two bars');
-  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
-    'what the user chose beats what the app declares, and landscape is the neutral default');
+  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| \(app\?\.game \? 'landscape' : 'portrait'\);/,
+    'the shell resolves the shape the same way, game category included');
+  // The window is built from the session's canvas: bars and border on top of its shape, and the element
+  // inside what the atlas packs.
+  const boxes = await read(WEB.boxes);
+  assert.match(boxes, /export function windowBox\(session\) \{/);
+  assert.match(boxes, /export function windowSurface\(canvas\) \{/);
+  assert.match(web, /const box = windowBox\(session\);/,
+    'the window is created from the session\'s own canvas');
 
-  // The declared shape is read from the launcher activity and reported per app, so the shell can open
-  // the window before anything native has been created.
+  // The canvas is reported per app so the shell can lay the window out before anything exists.
   const window = await read(JAVA.window);
   assert.match(window, /item\.put\("shape", shape\);/);
   assert.match(window, /item\.put\("orient", app\.orientation\);/);
-  assert.match(window, /item\.put\("box", size\);/);
-  // The open command's box is the app display's size; a command that carries none falls back to the
-  // app's shape instead of the size the feature used to have for every app (1040x546).
-  assert.match(window, /float boxWidth, float boxHeight\) \{\n        if \(packageName == null \|\| packageName\.isEmpty\(\)\) return;\n        if \(!\(boxWidth > 0\) \|\| !\(boxHeight > 0\)\) \{[\s\S]*?int\[\] box = AppWindowShape\.box\(apps\.windowShape\(packageName\)\);/,
-    'a box that was not sent resolves to the app\'s own shape, never to a stale default');
-  assert.ok(!window.includes('optDouble("h", 546)'), 'the old one-size-fits-every-app default is gone');
+  assert.match(window, /item\.put\("game", app\.game\);/);
+  assert.match(window, /item\.put\("canvas", size\);/);
+  assert.match(window, /size\.put\("dpW", Math\.round\(canvas\[0\] \* 160f \/ density\(\)\)\);/,
+    'the dp box the app sees travels with the canvas: it is what "cut off" is about');
+  assert.ok(!/item\.put\("box", size\)/.test(window),
+    'the old window-box field is gone: the shell does not size the app\'s screen');
+
   const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
   assert.match(manager, /AppWindowShape\.fromOrientation\(info\.activityInfo\.screenOrientation\)/);
+  assert.match(manager, /android\.content\.pm\.ApplicationInfo\.CATEGORY_GAME/,
+    'the game category is what turns "declares nothing" into landscape, as it does on a phone');
   // The resizability note is read reflectively: ActivityInfo.resizeMode is @hide (and so are every
   // RESIZE_MODE_* constant and the deprecated FLAG_RESIZEABLE_FOR_SCREENS bit — checked against AOSP
   // 14), so compiling against it is what broke the build. Unknown must stay "resizeable": the note is
@@ -664,30 +707,26 @@ test('the app window can be rotated and the choice is remembered', async () => {
     'the rotation is a preference, so the app opens rotated next time');
 });
 
-test('the app surface of a portrait window is never letterboxed inside its own display', async () => {
-  // The fit is what the user sees: a portrait window must be filled by a portrait display.
+test('the canvas of a portrait window is a phone screen, so the app is not cropped', async () => {
+  // The two halves of the fix, as arithmetic: the canvas is a phone screen (1080x2400 here), the window
+  // is its shape, and the fit fills the window — which is what makes the app look the way it does on
+  // the phone instead of being cut. Both use the same 411x914 dp box the app expects.
+  const { AppDisplaySpec_placeholder } = { };
+  const spec = await read(JAVA.spec);
+  assert.match(spec, /public static AppDisplaySpec forCanvas\(int canvasWidth, int canvasHeight, int deviceDensity\)/);
+  assert.match(spec, /public int heightDp\(\)/);
   const { fitDisplay } = await import('../web/src/display-fit.js');
-  const portrait = fitDisplay(585, 1040, 585 / 1040);
-  assert.equal(portrait.x, 0);
-  assert.equal(portrait.y, 0);
-  assert.ok(portrait.w > 0 && portrait.h > 0);
-  // 9:16 (0.5625) has to survive the aspect clamp, or the display would be 0.6 and the picture
-  // pillarboxed inside its own window.
-  const fit = await read('web/src/display-fit.js');
-  assert.match(fit, /export const MIN_ASPECT = 0\.45;/);
-  assert.match(await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplaySpec.java'),
-    /public static final float MIN_ASPECT = 0\.45f;/);
+  const canvas = { w: 1080, h: 2400 };
+  const windowSurface = { w: Math.round(544 * canvas.w / canvas.h), h: 544 };
+  const fit = fitDisplay(windowSurface.w, windowSurface.h, canvas.w / canvas.h);
+  assert.deepEqual([fit.x, fit.y, fit.w, fit.h], [0, 0, windowSurface.w, windowSurface.h],
+    'a canvas fills a window of its own shape: no bars, nothing cropped');
+  assert.deepEqual([fit.u0, fit.v0, fit.uw, fit.vh], [0, 0, 1, 1]);
+  // And the portrait canvas is a phone's, not a window's: taller than any window element can be.
+  assert.ok(canvas.h > 1040 && canvas.w >= 1080);
+  assert.ok(windowSurface.h <= 660);
 });
 
-/*
- * The orientation study, as a contract.
- *
- * An app may ask Android for another orientation at any moment. The platform either rotates the
- * display (logical size = the natural size turned, content rotated in the buffer) or letterboxes the
- * app inside the display it kept (logical size = natural size). The two produce different pictures,
- * and the shell service now reports both sizes and the rotation for every window, so the fit and the
- * touch follow what the display really is instead of what we assumed.
- */
 test('a display that changed shape or turned is followed, not assumed', async () => {
   const aidl = await read(JAVA.aidl);
   assert.match(aidl, /String displayState\(int displayId\) = 12;/);
@@ -753,7 +792,7 @@ test('the installed apps live inside the existing Applications menu', async () =
   assert.match(appsJs, /x\.kind === 'android' \? androidTileHtml\(x\.app\) : appTile\(x\)/,
     'and the same grid draws them');
   assert.match(appsJs, /c\('\[data-android\]'\)/, 'a tap is handled by the same delegator');
-  assert.match(appsJs, /openApp\(pkg, ANDROID_BOX\);\s*focusAppWindow\(pkg\);/,
+  assert.match(appsJs, /openApp\(pkg\);\s*focusAppWindow\(pkg\);/,
     'the tap is one action: the native side decides, the shell only brings an open window forward');
   assert.ok(!/static final String MIRROR_PACKAGE/.test(await read(JAVA.display)),
     'there is no pseudo-package for the capture any more: it belongs to the app');
