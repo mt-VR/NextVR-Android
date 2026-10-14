@@ -1,15 +1,16 @@
 // NextVR — janelas 3D fixas no ambiente, dock horizontal e teclado flutuante.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport } from './core.js';
+import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d } from './core.js';
 import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
   stabilizeResize, WINDOW_LIMITS } from './window-geometry.js';
-import { ARC_CAPACITY, arcSlots, arcStep, pickLru, ARC_TOP_ROW_STEP } from './arc.js';
+import { ARC_CAPACITY, arcSlots, arcStep, pickLru, windowAngle, ARC_TOP_ROW_STEP } from './arc.js';
 import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
+import { boxFromMesh, boxOfWindow, chooseSpawn, resolveSlot } from './spawn.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
@@ -17,6 +18,23 @@ let focused = null;
 
 /* onde a dock está agora — a janela nasce ancorada nela */
 const dockAt = { y: EYE - .6, z: -1.7, h: .12 };
+
+/**
+ * O que ocupa espaço físico no mundo agora: janelas visíveis, a dock e o teclado. Usado só para
+ * ESCOLHER lugares (nascimento de janela e ajuste de slot do arco) — nunca para empurrar uma
+ * janela que o usuário posicionou à mão.
+ */
+function occupiedBoxes(except = null) {
+  const boxes = [];
+  for (const w of wins) {
+    if (w === except || w.hidden || w.onboarding) continue;
+    boxes.push(boxOfWindow(w));
+  }
+  // A malha de hit nasce 1x1 m: só entra na conta quando a dock/teclado já têm tamanho medido.
+  if (dockVisible && dockEl.offsetWidth > 0) { const b = boxFromMesh(dockHit); if (b) boxes.push(b); }
+  if (kbObj && kbHit && kbObj.element.offsetWidth > 0) { const b = boxFromMesh(kbHit); if (b) boxes.push(b); }
+  return boxes;
+}
 
 /* =================== uma janela =================== */
 class Win {
@@ -27,6 +45,10 @@ class Win {
     this.target = new THREE.Vector3();
     this.resizeScale = 1;
     this.slot = 0;
+    // Escondida = fora do atlas, fora do CSS3D e fora do hit-test, mas com TODO o estado guardado
+    // (posição, tamanho, curvatura, conteúdo, foco). É o que o jogo faz com o workspace: some com
+    // as janelas e devolve exatamente as mesmas.
+    this.hidden = false;
     // Curvatura "360": a janela vira um pedaço de cilindro em volta do usuário (largura igual,
     // só o meio recua). O padrão vem das Configurações; o botão 360 da barra troca por janela.
     this.curve = curveAngle(onboarding ? 0 : (S.win360 ? S.win360K : 0));
@@ -176,6 +198,26 @@ class Win {
     this.resizeHit.translateZ(this.bulge(this.w / 2 - 48) + .003);
     this.resizeHit.scale.setScalar(scale);
   }
+
+  /**
+   * Some/aparece a janela sem tocar em NADA do estado dela. Esconder tira a superfície do atlas (a
+   * casca sai do fluxo e `obj.visible=false` faz o renderer nem criar painel) e do CSS3D. O
+   * Raycaster do three NÃO olha `visible`, então o hit-test é cortado pelos filtros `w.hidden` em
+   * hitAt/fistHit/toque próximo — nenhuma mão atravessa uma janela escondida.
+   */
+  setHidden(hidden) {
+    const value = !!hidden;
+    if (this.hidden === value) return;
+    this.hidden = value;
+    this.shell.hidden = value;              // sem pixels: nem no atlas, nem no CSS3D
+    this.obj.visible = !value;              // o renderer nem cria painel para ela
+    this.hit.visible = !value;
+    this.grab.visible = !value && !this.onboarding;
+    this.resizeHit.visible = !value && !this.onboarding;
+    if (value && drag.win === this) endDrag();
+    if (value && resizing.win === this) endResize();
+    css3d.invalidate?.();                   // a cena mudou: reenvia o atlas neste frame
+  }
 }
 
 function plane(w, h, win, segments = 1) {
@@ -192,7 +234,9 @@ function plane(w, h, win, segments = 1) {
  */
 function layout() {
   for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
-  const pin = wins.filter(w => w.pinned && !w.onboarding);
+  // Janela escondida (jogo em andamento) não entra no arco: ela volta exatamente para o lugar, o
+  // tamanho e a curvatura que tinha quando o jogo começou.
+  const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden);
   const n = pin.length; if (!n) return;
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
   // A folga entre janelas vizinhas é de MEIA JANELA (arcStep), não os 8 cm de antes: com duas
@@ -215,6 +259,24 @@ function layout() {
       : Math.min(lift + hh * 2 * (ARC_TOP_ROW_STEP - 1) + hh, EYE + WINDOW_LIMITS.upperEdgeFromEye - hh);
     w.target.set(x, y, z);
   });
+
+  if (!native) return;
+  // Espaço livre: quando alguma coisa (uma janela solta que o usuário colocou ali, a dock, o
+  // teclado) COBRE o lugar do arco, a janela presa desliza pelo mesmo arco até o lugar equivalente
+  // mais próximo que esteja livre. Sem sobreposição o lugar do arco é devolvido intacto — o layout
+  // de sempre não muda. Janelas soltas nunca são empurradas: quem escolheu aquele lugar foi o
+  // usuário, e sobrepor de propósito continua sendo possível.
+  const resolveStep = Math.min(step, windowAngle(widest, dist) * .6);
+  for (const w of pin) {
+    const halfW = w.w * PX * S.winScale * w.resizeScale / 2;
+    const halfH = w.h * PX * S.winScale * w.resizeScale / 2;
+    const spot = resolveSlot({
+      desired: { x: w.target.x, y: w.target.y, z: w.target.z },
+      occupied: occupiedBoxes(w), eye: EYE, step: resolveStep, distance: dist,
+      halfWidth: halfW, halfHeight: halfH, outerLimit: WINDOW_LIMITS.maxYaw - .06, maxShift: 4,
+    });
+    w.target.set(spot.x, spot.y, spot.z);
+  }
 }
 on('recenter', layout);
 on('resize', layout);
@@ -222,7 +284,9 @@ on('resize', layout);
 export function open(spec) {
   const same = wins.find(w => w.id === spec.id);
   if (same) { focus(same); return same; }
-  const apps = wins.filter(w => !w.onboarding);
+  // Janelas escondidas pelo jogo não ocupam slot do arco e NUNCA são descartadas para dar lugar a
+  // outra: posição, tamanho, curvatura e conteúdo delas têm que voltar exatamente iguais na saída.
+  const apps = wins.filter(w => !w.onboarding && !w.hidden);
   if (apps.length >= ARC_CAPACITY) {
     // Multitarefa em arco: até 3 apps de vez. Com o arco cheio, o menos recente sai para o novo entrar.
     const lru = pickLru(apps);
@@ -231,11 +295,37 @@ export function open(spec) {
   const w = new Win(spec);
   wins.push(w); layout(); focus(w);
   w.obj.position.copy(w.target);            // já nasce no lugar: nada de voar da dock
+  // Janela fora do arco (`free`): nasce onde há espaço livre, para não cobrir a dock, o teclado ou
+  // o que já está no mundo. É assim que o jogo posiciona o painel de ferramentas e o menu.
+  if (spec.free) placeFree(w, spec.at);
   if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
   w.apply();
   emit('wins', wins);
   return w;
 }
+
+/**
+ * Lugar livre para uma janela fora do arco: avalia o que já ocupa o mundo (dock, teclado e o que
+ * estiver visível) e escolhe o melhor lugar entre os candidatos do arco/anéis. Determinístico e
+ * sem separação mínima forçada — só evita sobreposição e prefere o centro.
+ */
+function placeFree(w, at = null) {
+  w.pinned = false;
+  const halfW = w.w * PX * S.winScale * w.resizeScale / 2;
+  const halfH = w.h * PX * S.winScale * w.resizeScale / 2;
+  const lift = Number.isFinite(at?.y) ? at.y : dockAt.y + dockAt.h / 2 + .14 + halfH;
+  const distance = Math.hypot(at?.x || 0, at?.z || -S.winDist) || S.winDist;
+  const spot = chooseSpawn({
+    occupied: occupiedBoxes(w), desired: { x: at?.x || 0, y: lift, z: at?.z ?? -S.winDist },
+    eye: EYE, step: .8, distance, halfWidth: halfW, halfHeight: halfH,
+    outerLimit: WINDOW_LIMITS.maxYaw - .06, lift, rings: 3, rows: 1,
+  });
+  if (spot) w.target.set(spot.x, spot.y, spot.z);
+}
+
+/** A mão está sobre alguma janela (superfície, alça de mover ou de tamanho) neste instante? */
+export const windowUnder = (x, y) => hitAt(x, y) !== null;
+
 export function close(w) {
   if (!w) return;
   const i = wins.indexOf(w); if (i < 0) return;
@@ -414,7 +504,8 @@ function hitAt(x, y) {
   setRay(x,y);
   const list = [];
   // Resize/drag ficam antes da superfície e alguns milímetros à frente para não disputar o canto.
-  for (const w of wins) { if(!w.onboarding)list.push(w.resizeHit,w.grab);list.push(w.hit); }
+  // Janela escondida não existe para a mão: os planos ficam invisíveis e nem entram na lista.
+  for (const w of wins) { if(w.hidden)continue; if(!w.onboarding)list.push(w.resizeHit,w.grab);list.push(w.hit); }
   const h = ray.intersectObjects(list, false)[0];
   if (!h) return null;
   const w = h.object.userData.win;
@@ -602,12 +693,27 @@ if (!native) {
  * handTargets tira ela do hit-test da mão — a janela de idioma é a única superfície interativa.
  * Depois da escolha, a dock volta inteira com todas as funcionalidades e o idioma selecionado. */
 let dockVisible = true;
+let dockHidden = false;
 export function setDockVisible(visible) {
   dockVisible = !!visible;
   dockObj.visible = dockVisible;
   if (!dockVisible) { dockArmed = -1; endDockDrag(); }
 }
 export const dockShown = () => dockVisible;
+
+/* Esconder para o jogo: a dock sai do atlas E do CSS3D sem perder o lugar onde estava. O elemento
+ * tem `display:flex!important` na folha de estilo, então o inline precisa de !important também. */
+export function setDockHidden(hidden) {
+  const value = !!hidden;
+  if (dockHidden === value) return dockHidden;
+  dockHidden = value;
+  dockEl.style.setProperty('display', value ? 'none' : '', 'important');
+  dockHit.visible = dockMoveHit.visible = !value;
+  setDockVisible(!value);
+  css3d.invalidate?.();
+  return dockHidden;
+}
+export const dockHiddenNow = () => dockHidden;
 
 let dockItems = [], dockBtns = [];
 const dockWins = [];                       // { b, win } → ponto branco quando a janela está aberta
@@ -806,6 +912,24 @@ const ROWS = [
 const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
 let emojiIndex = 0;
 let kbObj = null, kbHit = null, kbTarget = null, kbShift = false, kbShiftLock = false;
+let kbHidden = false;
+
+/**
+ * Esconde/devolve o teclado flutuante sem destruir nada: o jogo some com ele junto com as janelas
+ * e o devolve exatamente onde estava (posição, yaw, estado do shift).
+ */
+export function setKeyboardHidden(hidden) {
+  kbHidden = !!hidden;
+  if (!kbObj) return false;
+  const value = !!hidden;
+  kbObj.visible = !value;
+  kbObj.element.style.setProperty('display', value ? 'none' : '', 'important');
+  if (kbHit) kbHit.visible = !value;
+  if (value) kbArmed = null;
+  css3d.invalidate?.();
+  return true;
+}
+export const keyboardShown = () => !!kbObj && kbObj.visible !== false;
 
 export function keyboard(on_, field) {
   if (!on_) {
@@ -903,7 +1027,8 @@ function placeKb() {
 let kbArmed = null;
 on('pinchcancel', () => { kbArmed = null; });
 function kbPinch(type) {
-  if (!kbObj) return false;
+  // O Raycaster do three não liga para `visible`: o portão do teclado escondido é explícito.
+  if (!kbObj || kbHidden) return false;
   ndc.set(cursor.x * 2 - 1, -(cursor.y * 2 - 1));
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObject(kbHit, false)[0]; if (!hit) return false;
@@ -946,7 +1071,7 @@ onFrame((dt, now) => {
   if (dockDrag.start && cursor.active && cursor.down) {
     const p=predictedCursor(now); dockDragTo(p.x,p.y);
   }
-  for (const w of wins) w.apply();
+  for (const w of wins) if(!w.hidden) w.apply();
 });
 
 if (native) {
@@ -1011,7 +1136,7 @@ function surfaceHit(w, ray) {
 function fistHit(r) {
   let best=null;
   for(const w of wins) {
-    if(w.onboarding)continue;
+    if(w.onboarding || w.hidden)continue;
     const center=w.obj.getWorldPosition(new THREE.Vector3());
     const hit=surfaceHit(w,r.ray);
     if(!hit)continue;
@@ -1046,7 +1171,7 @@ on('phonehands', packet => {
   // Punho é um gesto válido de grab, mas só descola a janela depois do limiar de movimento.
   if(drag.win && drag.source==='fist') {
     const h=packet.hands.find(h=>h.id===drag.hand);
-    if(!h || !h.fist || !wins.includes(drag.win))endDrag();
+    if(!h || !h.fist || !wins.includes(drag.win) || drag.win?.hidden)endDrag();
     else { packet.consumed.add(h.id);const p=palmScreen(h,packet,true);dragTo(p.x,p.y); }
   }
   // The grab outline is sticky for a moment: palm noise must not flash the window border.
@@ -1087,6 +1212,7 @@ on('phonehands', packet => {
     if(tip.length()>.7)continue;
     tip.applyMatrix4(camera.matrixWorld);
     for(const w of wins) {
+      if(w.hidden)continue;
       const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
       // Hysteresis: a contact already engaged stays until clearly away (0.26 m / 8 cm margin).
       const margin=current?.08:.02;
@@ -1097,7 +1223,7 @@ on('phonehands', packet => {
   }
   // Brief near-band jitter keeps an existing contact, but never keeps a press after tracking loss.
   if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
-      && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
+      && !nearContact.win.hidden && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
     best={...nearContact,current:true,held:true};
   }
   if(!best) { endNear(!ids.has(nearContact?.id),packet);return; }
@@ -1143,7 +1269,7 @@ onFrame((dt,now)=>{
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    const list=wins.flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
+    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }

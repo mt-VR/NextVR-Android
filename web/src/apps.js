@@ -3,6 +3,7 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
+import { startGame, refreshGame } from './game.js';
 import { icon } from './reference-icons.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -749,7 +750,14 @@ function buildLibrary() {
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
-    if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`Abrindo ${g.name}… (demonstração)`); return; }
+    if ((m = c('[data-game]'))) {
+      const g = gameById(m.dataset.game); touchLib(g.id);
+      // O jogo abre o mundo 3D nativo com a cena salva dele: geometria e transforms vão para o
+      // renderer GLES2 do Cardboard (não é WebXR), e o workspace some com o estado preservado.
+      toast(`${g.name}: ${t('game.launching')}`);
+      startGame(g.id);
+      return;
+    }
     if ((m = c('[data-app]'))) {
       const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;
       touchLib(a.id);
@@ -911,7 +919,10 @@ if (native) {
   document.getElementById('perm').hidden = true;
   // A resumed or recreated shell must receive the whole scene again even if nothing moved: the
   // atlas bridge skips payloads that are bit-identical to the one already sent.
-  window.nextvrResume = () => { css3d.invalidate?.(); startGyro(); if (S.handsOn) startHands(); };
+  window.nextvrResume = () => { css3d.invalidate?.(); refreshGame(); startGyro(); if (S.handsOn) startHands(); };
   window.nextvrSuspend = () => { stopHands(); };
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }
+
+/* O menu do jogo pede as configurações: a janela abre por cima do mundo, sem sair dele. */
+on('game:settings', () => settingsApp());

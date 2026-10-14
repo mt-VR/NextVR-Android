@@ -382,6 +382,33 @@
   .dk-grid{display:grid;grid-template-columns:repeat(3,6px);gap:4px}
   .dk-grid i{display:block;width:6px;height:6px;border-radius:50%;background:#eef1f7}
 
+  /* ============ mundo 3D jogável (plataforma de jogos nativa) ============ */
+  .game-tools{height:100%;padding:20px 22px;display:flex;flex-direction:column;gap:13px;overflow:auto}
+  .gt-sec{font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .gt-row{display:flex;gap:10px;flex-wrap:wrap}
+  .gt-btn{min-height:58px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.08);
+    border:1px solid var(--line);font-size:19px;font-weight:600;display:flex;align-items:center;gap:10px}
+  .gt-btn[aria-pressed="true"]{background:var(--accent);color:#10182b;border-color:transparent}
+  .gt-btn.danger{background:rgba(255,107,107,.16);border-color:rgba(255,107,107,.4);color:#ffb3b3}
+  .gt-btn.primary{flex:1;justify-content:center;background:var(--accent-2);color:#fff;border-color:transparent}
+  .gt-colors{gap:12px}
+  .gt-color{width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.22)}
+  .gt-color[aria-pressed="true"]{outline:3px solid #fff;outline-offset:2px}
+  .gt-status{font-size:17px;color:var(--soft);line-height:1.5}
+  /* Menu do jogo: painel PLANO na frente do usuário (estilo SteamVR), nunca curvo. */
+  .game-menu{height:100%;padding:26px;display:flex;flex-direction:column;gap:14px}
+  .gm-t{font-size:24px;font-weight:700;margin-bottom:4px}
+  .gm-btn{min-height:88px;border-radius:20px;background:rgba(255,255,255,.09);border:1px solid var(--line-2);
+    font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px}
+  .gm-btn.danger{background:rgba(255,107,107,.18);border-color:rgba(255,107,107,.45);color:#ffc9c9}
+  .gm-btn .ui-icon{width:28px;height:28px}
+  /* Anel de espera do acorde de duas mãos, preso na cabeça junto com o HUD. */
+  #gameRing{position:absolute;left:50%;top:50%;width:96px;height:96px;margin:-48px 0 0 -48px;
+    border-radius:50%;display:grid;place-items:center}
+  #gameRing span{width:70px;height:70px;border-radius:50%;background:rgba(10,12,18,.72);
+    border:1px solid rgba(255,255,255,.2)}
+  /* Jogo em andamento: some o chrome (status/permissões), ficam o mundo, o painel e o anel. */
+  .game-on #hud>*:not(#gameRing){display:none}
   /* ---------- HUD ---------- */
   #boot{position:fixed;inset:0;z-index:9;display:grid;place-items:center;background:#05070c;padding:28px}
   .boot-c{width:min(560px,100%);text-align:center}
