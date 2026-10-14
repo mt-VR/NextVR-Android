@@ -15,9 +15,14 @@ jobs:
     name: Build NextVR debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Declarar `permissions` substitui o conjunto default inteiro: sem `checks: write`
+    # o passo "Publish build diagnostics" tomava 403 ao criar o check-run e o run
+    # falhava com exit 1 mesmo com o build verde.
     permissions:
       contents: read
-      actions: write      # necessario para apagar artefatos antigos (cota de storage)
+      actions: write      # apagar artefatos antigos (cota de storage)
+      checks: write       # criar/atualizar o check-run gradle-diagnostics
+      pull-requests: write
 
     steps:
       - name: Checkout
