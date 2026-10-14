@@ -83,6 +83,26 @@ distance from the eye, so moving it never sends it backwards.
 The current `N` mark and component icons are
 extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
+## 3D game platform
+
+Installing a title from the store and opening it in the library now enters a **playable 3D world**
+drawn by the same GLES2 Cardboard pass as the windows, camera and hands — not WebXR. The shell owns
+the scene (three.js geometry uploaded once per type, plus a matrix and colour per object) and the
+native side only rasterizes it with real depth against the windows
+([`docs/GAME-PLATFORM.md`](docs/GAME-PLATFORM.md)).
+
+Entering a game hides every open window, the dock and the keyboard **without touching their state**
+(position, size, 360° curvature, contents, focus and arc order all survive); exiting restores each
+one exactly. In the world a pinch selects and moves an object, the tools panel places, recolours,
+duplicates, rotates, scales and removes them, and both hands pinching the same object rotate and
+scale it. Holding a pinch with **both** hands for ~2 s opens the flat, SteamVR-style game menu
+(Continue / Settings / Exit Game).
+
+Window placement is now free-space aware: `web/src/spawn.js` measures each surface by the angular
+rectangle it occupies in the user's view, so a new window is born where nothing is covered and a
+pinned arc slot slides aside when the user has parked a detached window in front of it. No minimum
+spacing is forced — two windows can still be placed edge to edge, or deliberately overlapping.
+
 ## Controls
 
 | Action | How |
@@ -99,6 +119,10 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 | Type | Focus a field with the hand and use the floating keyboard. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Crosshair/recenter control on the dock. |
+| Play a game | Store → install a title → Library → its tile. The workspace hides and the 3D world opens. |
+| Manipulate an object | Pinch it to select and drag to move; use the tools panel to place, recolour, duplicate, rotate, scale or remove. |
+| Rotate/scale with both hands | Pinch the same object with both hands: the distance scales it, the angle between them rotates it. |
+| Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
 | Exit | Native close control or Android back. |
@@ -125,6 +149,8 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
 | `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
+| `web/src/game.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | Playable 3D world (scene, tools, both-hands menu chord) and free-space-aware window placement |
+| `…/GameSceneRenderer.kt` | Native GL rendering of game objects: base64 meshes from the shell, one draw call per object, depth-tested against windows |
 | `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
 | `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
