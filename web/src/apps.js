@@ -830,77 +830,57 @@ function gameTile(g) {
 function buildLibrary() {
   const list = libItems();
   const root = el('div', 'lib');
-  const fLabel = LIB_FILTER_LABELS[libFilter] || LIB_FILTER_LABELS.all;
-  const navButton = (id, label, glyph) => `<button class="lib-nav" data-nav="${id}" title="${label}" aria-label="${label}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
+  const railCats = [
+    {id:'all',    label:'Apps',    glyph:'appGrid'},
+    {id:'apps',   label:'Aplic.',  glyph:'device'},
+    {id:'games',  label:'Jogos',   glyph:'controller'},
+    {id:'recent', label:'Recentes',glyph:'timer'},
+  ];
+  const navButton = c => `<button class="lib-nav" data-nav="${c.id}" title="${c.label}" aria-label="${c.label}" aria-pressed="${libFilter === c.id}">${icon(c.glyph)}<span>${c.label}</span></button>`;
   root.innerHTML = `<nav class="lib-rail" aria-label="Navegação da biblioteca">
-      ${navButton('all','Todas as aplicações','appGrid')}
-      ${navButton('apps','Aplicativos','device')}
-      ${navButton('games','Jogos','controller')}
-      ${navButton('recent','Recentes','timer')}
+      ${railCats.map(navButton).join('')}
       <span class="lib-rail-spacer"></span>
-      <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
+      <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}<span>Loja</span></button>
     </nav>
     <section class="lib-main">
-      <div class="lib-head"><h2 class="lib-title">Apps</h2>
-        <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
-        <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
+      <div class="lib-head">
+        <h2 class="lib-title">Aplicativos</h2>
         <span class="lib-head-spacer"></span>
+        <span style="position:relative;display:flex;flex:1;max-width:520px;align-items:center">
+          <span style="position:absolute;left:14px;display:grid;place-items:center;color:#6f788b;pointer-events:none">${icon('search')}</span>
+          <input class="lib-search" data-q placeholder="Buscar aplicativos" value="${escH(libQuery)}" style="padding-left:42px">
+        </span>
         <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ${icon('chevronDown')}</button>
-        <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
+        <button class="lib-pill" data-filter>Filtro ${icon('chevronDown')}</button>
       </div>
       <div class="lib-scroll"><div class="lib-grid">${
         list.map(x => x.kind === 'game' ? gameTile(x) : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
-      }</div>
-      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
+      }${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}</div>
       </div>
-    </section>
-    `;
-  // The only Android-specific row in the interface, and it exists only while the shell service is
-  // not available: it says which of the two mechanisms a tile will use and how to get the other one.
+    </section>`;
   const notice = shizukuNotice();
   if (notice) root.querySelector('.lib-scroll')?.prepend(notice);
 
-  const q = root.querySelector('[data-q]:not([data-q="android"])');
-  if (q && libQuery) q.classList.add('open');
+  const q = root.querySelector('[data-q]');
   if (q) {
-    q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]:not([data-q="android"])'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
+    q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
     q.addEventListener('focus', () => keyboard(true, q));
   }
 
   root.addEventListener('click', e => {
     const c = s => e.target.closest(s);
     let m;
-    if (c('[data-s]')) { const i = root.querySelector('[data-q]:not([data-q="android"])'); if (!i) return; i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
-      // One action, one owner of the decision: the native side focuses a window that is already
-      // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
-      // shell only brings an existing window forward so the tap always ends on the app.
       const pkg = m.dataset.android;
-      // The shape travels, not a size: the app is hosted on this phone's own screen, and the window
-      // takes that canvas' shape (see openApp).
       openApp(pkg);
       focusAppWindow(pkg);
       return;
     }
-    if ((m = c('[data-game]'))) {
-      const g = gameById(m.dataset.game); touchLib(g.id);
-      // O jogo abre o mundo 3D nativo com a cena salva dele: geometria e transforms vão para o
-      // renderer GLES2 do Cardboard (não é WebXR), e o workspace some com o estado preservado.
-      toast(`${g.name}: ${t('game.launching')}`);
-      startGame(g.id);
-      return;
-    }
-    if ((m = c('[data-app]'))) {
-      const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;
-      touchLib(a.id);
-      const run = LIB_ACTIONS[a.id];
-      if (run) run();
-      else toast(a.name + ': sem endereço cadastrado');
-      return;
-    }
+    if ((m = c('[data-game]'))) { const g = gameById(m.dataset.game); touchLib(g.id); toast(`${g.name}: ${t('game.launching')}`); startGame(g.id); return; }
+    if ((m = c('[data-app]'))) { const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return; touchLib(a.id); const run = LIB_ACTIONS[a.id]; if (run) run(); else toast(a.name + ': sem endereço cadastrado'); return; }
   });
   return root;
 }
@@ -919,9 +899,8 @@ function libraryApp() {
   return win;
 }
 
-/* ============ dock (mesma ordem do print) ============ */
+/* ============ dock ============ */
 const DK = Object.freeze({
-  bell:icon('notification'), kb:icon('keyboard'), center:icon('crosshair'),
   compass:icon('compass'), store:icon('store'), people:icon('people'),
   camera:icon('camera'), gear:icon('settings'), play:icon('play'), device:icon('device'),
 });
