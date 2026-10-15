@@ -61,7 +61,9 @@ public final class AppWindowShape {
     public static String of(String remembered, String declared, boolean game) {
         if (isShape(remembered)) return remembered;
         if (isShape(declared)) return declared;
-        return game ? LANDSCAPE : PORTRAIT;
+        // Hosted windows are used in the headset's landscape frame; default to landscape even when
+        // the app declares nothing, so a portrait-by-default app no longer opens sideways/pinned.
+        return LANDSCAPE;
     }
 
     /** Same rule without the game hint: portrait, which is what a phone would give the app. */
