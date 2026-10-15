@@ -40,7 +40,7 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(pixels.includes('ConvertYuvArgbRot<90>') && pixels.includes('ConvertYuvArgbRot<270>'), 'Quarter turns are fused write-index remaps in the converter');
   // Native hand detection is disabled (handsEnabled=false); passthrough camera frames are NOT
   // sent to the detector anymore. NovaMR JS MediaPipe hands runs on the WebView side.
-  assert.ok(camera.includes('volatile boolean handsEnabled=false;'), 'Native hand tracking is disabled by default in favor of NovaMR JS');
+  assert.ok(camera.includes('volatile boolean handsEnabled=true;'), 'Native hand tracker is ON and shares camera frames with the passthrough');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');
   const novamr=await readFile('web/src/novamr-hands.js','utf8');
@@ -53,7 +53,8 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
     && nativeHands.includes('drawHandSkeletons(position,fade)'), 'Native silhouette code remains available (re-enableable)');
   assert.ok(nativeHands.includes('MESH_REBUILD_EPSILON') && nativeHands.includes('MESH_REBUILD_MAX_NS'),
     'The native contour caches resting meshes and refreshes moving poses at display rate');
-  assert.ok(novamr.includes('getUserMedia'), 'NovaMR opens a JS camera session for in-browser MediaPipe Hands');
+  assert.ok(novamr.includes('nativePointsToPixelPts'), 'NovaMR draws the cyan silhouette using native MediaPipe landmarks (no second camera session)');
+  assert.ok(!novamr.includes("facingMode:") && !novamr.includes("getUserMedia"), 'NovaMR does not open a second getUserMedia (camera stays exclusively with passthrough GL)');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8');
