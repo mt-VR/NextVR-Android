@@ -759,7 +759,14 @@ public final class AppDisplayController implements AppSessionManager.Host {
             if (display != null) {
                 Point size = new Point();
                 display.getRealSize(size);
-                if (size.x > 0 && size.y > 0) return new int[]{size.x, size.y};
+                if (size.x > 0 && size.y > 0) {
+                    // Prioritise landscape: a VR hosted app is used in the headset's landscape frame,
+                    // so the canvas must be wider than it is tall even when the phone itself is in
+                    // portrait. Otherwise apps open in a portrait canvas inside a landscape window.
+                    int w = Math.max(size.x, size.y);
+                    int h = Math.min(size.x, size.y);
+                    return new int[]{w, h};
+                }
             }
         } catch (Throwable ignored) { }
         return new int[]{1080, 1920};

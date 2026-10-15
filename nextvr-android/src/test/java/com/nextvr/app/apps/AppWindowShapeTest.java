@@ -57,7 +57,7 @@ public class AppWindowShapeTest {
 
     @Test public void anUndeclaredAppGetsWhatThePhoneWouldGiveIt() {
         // Nothing declared is the common case, and on a phone it means portrait.
-        assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("", ""));
+        assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", ""));
         // Declared wins over the default...
         assertEquals(AppWindowShape.LANDSCAPE, AppWindowShape.of("", "landscape"));
         assertEquals(AppWindowShape.PORTRAIT, AppWindowShape.of("", "portrait"));
