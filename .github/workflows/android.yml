@@ -33,6 +33,9 @@ jobs:
         run: |
           # Runner às vezes enche com ferramentas pré-instaladas que não usamos.
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/local/.ghcup 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache 2>/dev/null || true
+          sudo swapoff -a 2>/dev/null || true
+          sudo rm -f /mnt/swapfile /swapfile 2>/dev/null || true
           sudo apt-get clean || true
           docker system prune -af 2>/dev/null || true
           df -h /
