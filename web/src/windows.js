@@ -66,7 +66,11 @@ class Win {
     el.className = 'win' + (immersive ? ' immersive' : '');
     el.style.width = w + 'px'; el.style.height = h + 'px';
     if (immersive) {
-      el.innerHTML = `<button class="win-mountain" data-act="dock" aria-label="Mostrar menu" title="Mostrar menu">▲</button><div class="win-body"></div>`;
+      el.innerHTML = `<div class="immersive-toolbar">
+        <button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>
+        <button class="it-btn" data-act="dock" aria-label="Mostrar dock" title="Mostrar dock">${icon('chevronDown')}</button>
+        <button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>
+      </div><div class="win-body"></div>`;
       el.style.background = '#fff';
     } else {
       el.innerHTML = `<div class="win-bar">
@@ -79,11 +83,17 @@ class Win {
     }
     el.querySelector('.win-body').appendChild(node);
     el.addEventListener('pointerdown', () => focus(this), true);
-    const bar = el.querySelector('.win-bar, .win-mountain');
+    const bar = el.querySelector('.win-bar, .immersive-toolbar');
     if (bar) bar.addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
       else if (a.dataset.act === 'dock') { setDockHidden(false); el.classList.remove('dockoff'); }
+      else if (a.dataset.act === 'theme') {
+        const dark = !el.classList.toggle('dark');
+        el.classList.toggle('dark', !dark);
+        a.title = dark ? 'Tema escuro' : 'Tema claro';
+        a.setAttribute('aria-pressed', String(!dark));
+      }
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
       else repin(this);
     });

@@ -553,15 +553,12 @@ function updateHands(packet, now) {
     for (const h of hands) pinchState.set(h.id, !!h.pinching);
   }
 
-  // Acorde de pinça dupla funciona em QUALQUER tela — menu do jogo ou menu rápido.
+  // Acorde de pinça dupla: só abre menu DENTRO do jogo (o modo livre não abre menu flutuante).
   const both = !transforming && twoHandsPinching(pinched);
-  const state = chord.update(now, { left: both, right: both });
+  const state = chord.update(now, { left: both && active, right: both && active });
   paintRing(state.progress);
-  if (state.opened) {
-    if (active) openMenu();
-    else toggleQuickMenu();
-  }
-  if (state.closed && !menuOpen() && !quickMenuOpen()) paintRing(0);
+  if (state.opened && active) openMenu();
+  if (state.closed && !menuOpen()) paintRing(0);
 }
 
 /** Coloca o objeto armado onde o raio encontra o chão (ou a 1,2 m, se o raio não desce até ele). */

@@ -70,13 +70,13 @@ test('o menu do jogo é plano, de duas mãos e com as três ações do SteamVR',
   assert.match(game, /const chord = new TwoHandMenuChord\(\);/);
   assert.match(chord, /armMs: 2000/, 'segurar ~2 s');
   assert.match(game, /export function twoHandsPinching\(pinched\) \{[\s\S]*?pinched\.some\(h => h\.left === true\)[\s\S]*?pinched\.some\(h => h\.left === false\)/);
-  assert.match(game, /const state = chord\.update\(now, \{ left: both, right: both \}\);/);
-  assert.match(game, /if \(state\.opened\) \{[\s\S]*?if \(active\) openMenu\(\);[\s\S]*?else toggleQuickMenu\(\);[\s\S]*?\}/);
-  // Fora do jogo o acorde abre o menu rápido (Ocultar UI / Ambientes / Recentrar / Teclado).
-  assert.match(game, /import[\s\S]*toggleQuickMenu[\s\S]*from '\.\/windows\.js'/);
+  assert.match(game, /const state = chord\.update\(now, \{ left: both && active, right: both && active \}\);/);
+  assert.match(game, /if \(state\.opened && active\) openMenu\(\);/);
+  // Fora do jogo não abre menu nenhum (sem menu rápido).
+  assert.doesNotMatch(game, /toggleQuickMenu\(\)/);
   assert.match(game, /on\('phonehands', packet => \{ updateHands\(packet, performance\.now\(\)\); \}\);/);
-  // O anel continua mostrando o progresso do acorde e some quando fecha, mesmo fora do jogo.
-  assert.match(game, /if \(state\.closed && !menuOpen\(\) && !quickMenuOpen\(\)\) paintRing\(0\);/);
+  // O anel continua mostrando o progresso do acorde, só dentro do jogo.
+  assert.match(game, /if \(state\.closed && !menuOpen\(\)\) paintRing\(0\);/);
   // Plano: o menu nasce com curvatura zero e a casca nunca curva essa janela.
   const menu = game.match(/function openMenu\(\) \{[\s\S]*?\n\}/)[0];
   assert.match(menu, /win\?\.setCurve\(0\);/, 'o menu é plano, nunca curvo');

@@ -47,14 +47,18 @@
   .win-resize .ui-icon{display:none}
   .win-shell.resizing .win-resize{border-color:#fff;transform:scale(1.08)}
   .win-shell.resizing .win{border-color:rgba(167,139,250,.8);box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 3px rgba(167,139,250,.28)}
-  .win.immersive{border:0;background:#fff;box-shadow:0 50px 160px rgba(0,0,0,.35)}
-  .win-mountain{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:5;
-    width:40px;height:28px;border:0;background:transparent;color:rgba(0,0,0,.35);
-    font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;
-    text-shadow:0 1px 0 rgba(255,255,255,.8);transition:color .15s,transform .15s;
-    pointer-events:auto;padding:0;border-radius:8px}
-  .win-mountain:hover{color:#a78bff;transform:translateX(-50%) translateY(-2px) scale(1.08)}
-  .win-mountain:active{transform:translateX(-50%) scale(.92)}
+  .win.immersive{border:0;background:#fff;box-shadow:0 50px 160px rgba(0,0,0,.35);padding-top:0}
+  .immersive-toolbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 14px;z-index:5;
+    background:linear-gradient(180deg,rgba(0,0,0,.28),transparent);pointer-events:none}
+  .immersive-toolbar .it-btn{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;
+    background:rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(8px);display:grid;place-items:center;
+    transition:background .15s,transform .15s;padding:0}
+  .immersive-toolbar .it-btn:hover{background:rgba(255,255,255,.32);transform:scale(1.06)}
+  .immersive-toolbar .it-btn:active{transform:scale(.92)}
+  .immersive-toolbar .it-btn svg{width:20px;height:20px;display:block}
+  .win.immersive.dark{background:#0f0f12}
+  .win.immersive.dark .immersive-toolbar{background:linear-gradient(180deg,rgba(0,0,0,.55),transparent)}
+  .win.immersive.dark .immersive-toolbar .it-btn{background:rgba(0,0,0,.4);color:#dfe3ec}
   .win{width:1280px;height:820px;background:var(--glass);border:1px solid var(--line);
     border-radius:0;overflow:hidden;display:flex;flex-direction:column;
     backdrop-filter:blur(18px);box-shadow:0 40px 120px rgba(0,0,0,.55);pointer-events:auto;

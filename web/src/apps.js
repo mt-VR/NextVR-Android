@@ -113,17 +113,19 @@ function questBrowser() {
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
 
-/* Janela imersiva estilo Netflix/YouTube: fundo branco, sem barra nem borda, tela cheia,
-   com um botão "montanha" (▲) no topo que traz a dock de volta. */
+/* Janela imersiva estilo Netflix/YouTube: fundo branco por padrão, sem barra nem borda,
+   centralizada, tela cheia. Fecha outras janelas ao abrir. A dock volta pelo botão no topo. */
 function immersiveWebWindow(id, title, url) {
-  const body = el('div'); body.style.cssText='width:100%;height:100%;background:#fff';
+  // Fecha todas as outras janelas abertas (fica só o YouTube/Netflix/etc. no centro).
+  for (const w of [...wins]) if (w.id !== id) close(w);
+  const body = el('div'); body.style.cssText='width:100%;height:100%;background:transparent';
   const frame = el(native ? 'div' : 'iframe');
   if (native) { frame.dataset.nativeBrowser = id; frame.style.cssText='width:100%;height:100%;background:#fff'; frame.dataset.url = url; }
   else { frame.style.cssText='width:100%;height:100%;border:0;background:#fff'; frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
   body.appendChild(frame);
-  // Esconde a dock ao abrir; o botão ▲ devolve.
   setDockHidden(true);
-  return open({ id, title, node: body, w: 1400, h: 820, immersive: true });
+  // Mais larga e mais alta, centralizada — sensação de tela de cinema.
+  return open({ id, title, node: body, w: 1500, h: 860, immersive: true });
 }
 
 function webWindow(id, title, url, note) {
