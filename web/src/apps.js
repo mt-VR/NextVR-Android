@@ -746,7 +746,7 @@ const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.q
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
-  youtube:  () => immersiveWebWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
+  youtube:  () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
@@ -812,10 +812,9 @@ function buildStore() {
     + `<button class="st-ava" data-ava aria-label="Perfil">${icon('user')}</button><button class="st-x" data-x aria-label="Fechar">${icon('x')}</button></div>`;
 
   if (storeTab === 'apps') {
-    html += `<p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.</p>
-      <div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
+    html += `<div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
   } else if (storeTab === 'horizon') {
-    html += `<p class="st-note">Esta loja não inclui uma assinatura Horizon+.</p>`;
+    // Aba Horizon+ sem texto explicativo.
   } else if (storeTab === 'wish') {
     const list = GAMES.filter(g => favs.includes(g.id));
     html += list.length
@@ -1020,7 +1019,7 @@ function libraryApp() {
   const w = wins.find(x => x.id === 'library');
   if (w) { paintLibrary(); focus(w); return w; }
   const body = el('div'); body.style.cssText = 'height:100%';
-  const win = open({ id: 'library', title: t('apps'), node: body });
+  const win = open({ id: 'library', title: t('apps'), node: body, w: 900, h: 580 });
   paintLibrary();
   return win;
 }
@@ -1043,7 +1042,7 @@ function makeDock() {
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
     { kind: 'sep' },
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => immersiveWebWindow('youtube','YouTube','https://m.youtube.com/') },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube','YouTube','https://m.youtube.com/') },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }

@@ -77,7 +77,7 @@ class PhoneXrHandRenderer {
     private val quad=FloatArray(18)
     private val beamShape=FloatBuilder(96*3)
 
-    fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
+    fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,mvp:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
         val visible=presentation.silhouette(frame,now)
         // Live tracking drives presses; a retained or motion-model-predicted pose is visual only.
@@ -88,7 +88,7 @@ class PhoneXrHandRenderer {
         val fade=if(visible==null)0f else minOf(presentation.fade(visible,now),visible.hands.minOf{it.confidence})
         viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
-        GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
+        GLES20.glUniformMatrix4fv(matrixUniform,1,false,mvp,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
