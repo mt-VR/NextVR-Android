@@ -431,7 +431,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(existing!=null) { if(!url.equals(browserUrls.get(id))) { browserUrls.put(id,url); existing.web.loadUrl(url); } continue; }
             if(!pendingBrowsers.add(id)) continue;
             browserUrls.put(id,url);
-            int width=Math.max(100,Math.min(1600,spec.getInt("width"))), height=Math.max(100,Math.min(1200,spec.getInt("height")));
+            int width=Math.max(100,Math.min(2400,spec.getInt("width"))), height=Math.max(100,Math.min(1600,spec.getInt("height")));
             glView.queueEvent(()->{
                 if(renderer!=target) return;
                 SpatialRenderer.Texture texture=new SpatialRenderer.Texture(); target.browsers.put(id,texture);

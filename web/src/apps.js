@@ -124,51 +124,67 @@ function immersiveWebWindow(id, title, url) {
   if (_preImmersiveEnv === null) { _preImmersiveEnv = S.env || 'passthrough'; setEnvironment('cinema'); }
   // Esconde todas as outras janelas abertas (não fecha, pra não perder estado delas).
   for (const w of wins) if (w.id !== browserId) { w.hidden = true; w.obj.visible = false; }
-  // Se já existe um browser imersivo (YouTube/Netflix já aberto), só navega pro URL novo.
-  // Se existe um browser NÃO-imersivo (DuckDuckGo da dock), navega ele pro URL do vídeo em vez de
-  // fechar e reabrir: fechar destruiria a WebSurface nativa 'browser' e o YouTube não carregava
-  // ("não abriu nada"). Mas a estrutura da janela (barra normal, tamanho pequeno) é diferente —
-  // transformamos a janela em modo imersivo na hora: troca classe, remove barra antiga, coloca a
-  // toolbar de cinema e aumenta o tamanho.
+  // Se já existe um browser não-imersivo (ex: DuckDuckGo da dock), a forma mais confiável de
+  // entrar no cinema é trocar o CONTEÚDO da janela (win-body) por um frame limpo do browser
+  // e mudar o chrome — sem mexer na WebSurface nativa (fechá-la matava o WebView; tentar
+  // reaproveitar o frame antigo com a barra de URL em cima deixava a UI bagunçada).
   const existing = wins.find(w => w.id === browserId);
-  if (existing) {
-    if (!existing.immersive) {
-      existing.immersive = true;
-      existing.w = 1600; existing.h = 900; existing.resizeScale = 1;
-      existing.el.classList.add('immersive');
-      existing.el.style.width = '1600px'; existing.el.style.height = '900px';
-      existing.el.style.background = '#000';
-      // Troca a barra normal (win-bar) pela toolbar imersiva.
-      const oldBar = existing.el.querySelector('.win-bar');
-      if (oldBar) oldBar.remove();
-      if (!existing.el.querySelector('.immersive-toolbar')) {
-        const tb = document.createElement('div');
-        tb.className = 'immersive-toolbar';
-        tb.innerHTML = `<button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>`
-          + `<button class="it-btn" data-act="dock" aria-label="Mostrar dock" title="Mostrar dock">${icon('chevronDown')}</button>`
-          + `<button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>`;
-        existing.el.insertBefore(tb, existing.el.firstChild);
-        tb.addEventListener('click', e => {
-          const a = e.target.closest('[data-act]'); if (!a) return;
-          if (a.dataset.act === 'close') close(existing);
-          else if (a.dataset.act === 'dock') {
-            for (const o of wins) if (o.hidden && o !== existing) { o.hidden = false; o.obj.visible = true; }
-            setDockHidden(false); layout(); emit('immersiveOff');
-          }
-          else if (a.dataset.act === 'theme') {
-            const light = existing.el.classList.toggle('light');
-            a.title = light ? 'Tema claro' : 'Tema escuro';
-            existing.el.style.background = light ? '#fff' : '#0a0a0c';
-          }
-        });
-      }
-      existing.setSize(1600, 900);
-    }
+  if (existing && existing.immersive) {
+    // Já está em modo cinema: só navega pro URL novo.
     const f = existing.node.querySelector('[data-native-browser]') || existing.node.querySelector('iframe');
     if (f) {
       if (native) { f.dataset.url = url; window.NativeXR?.browserCmd?.(browserId,'go',url); }
       else f.src = url;
     }
+    setDockHidden(true);
+    focus(existing);
+    return existing;
+  }
+  if (existing) {
+    existing.immersive = true;
+    existing.w = 1600; existing.h = 900; existing.resizeScale = 1;
+    existing.el.classList.add('immersive');
+    existing.el.classList.remove('light');
+    existing.el.style.width = '1600px'; existing.el.style.height = '900px';
+    existing.el.style.background = '#0a0a0c';
+    // Substitui o win-body inteiro: remove a barra URL antiga e coloca um frame limpo do YouTube.
+    const oldBody = existing.el.querySelector('.win-body');
+    if (oldBody) oldBody.remove();
+    const oldBar = existing.el.querySelector('.win-bar');
+    if (oldBar) oldBar.remove();
+    // Insere a toolbar de cinema (se ainda não existir).
+    if (!existing.el.querySelector('.immersive-toolbar')) {
+      const tb = document.createElement('div');
+      tb.className = 'immersive-toolbar';
+      tb.innerHTML = `<button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>`
+        + `<button class="it-btn" data-act="dock" aria-label="Voltar ao MR" title="Voltar ao MR">${icon('chevronDown')}</button>`
+        + `<button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>`;
+      existing.el.appendChild(tb);
+      tb.addEventListener('click', e => {
+        const a = e.target.closest('[data-act]'); if (!a) return;
+        if (a.dataset.act === 'close') close(existing);
+        else if (a.dataset.act === 'dock') {
+          for (const o of wins) if (o.hidden && o !== existing) { o.hidden = false; o.obj.visible = true; }
+          setDockHidden(false); layout(); emit('immersiveOff');
+        }
+        else if (a.dataset.act === 'theme') {
+          const light = existing.el.classList.toggle('light');
+          a.title = light ? 'Tema claro' : 'Tema escuro';
+          existing.el.style.background = light ? '#fff' : '#0a0a0c';
+        }
+      });
+    }
+    // Novo corpo + frame nativo com a URL do YouTube.
+    const body = el('div'); body.className = 'win-body';
+    body.style.cssText='flex:1;min-height:0;position:relative;background:#0a0a0c';
+    const frame = el(native ? 'div' : 'iframe');
+    if (native) { frame.dataset.nativeBrowser = browserId; frame.style.cssText='width:100%;height:100%;background:#0a0a0c'; frame.dataset.url = url; }
+    else { frame.style.cssText='width:100%;height:100%;border:0;background:#0a0a0c'; frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
+    body.appendChild(frame);
+    existing.el.appendChild(body);
+    existing.node = body;   // pro layout/sync saber onde procurar o [data-native-browser]
+    existing.setSize(1600, 900);
+    css3d.invalidate?.();
     setDockHidden(true);
     focus(existing); layout();
     return existing;

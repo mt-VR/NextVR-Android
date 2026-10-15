@@ -68,10 +68,10 @@ class Win {
     if (immersive) {
       el.innerHTML = `<div class="immersive-toolbar">
         <button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>
-        <button class="it-btn" data-act="dock" aria-label="Mostrar dock" title="Mostrar dock">${icon('chevronDown')}</button>
+        <button class="it-btn" data-act="dock" aria-label="Voltar ao MR" title="Voltar ao MR">${icon('chevronDown')}</button>
         <button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>
       </div><div class="win-body"></div>`;
-      el.style.background = '#fff';
+      el.style.background = '#0a0a0c';
     } else {
       el.innerHTML = `<div class="win-bar">
         <div class="win-grip"></div><div class="win-title"></div>
