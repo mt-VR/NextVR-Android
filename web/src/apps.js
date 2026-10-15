@@ -641,7 +641,7 @@ function settingsApp() {
   scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
 
   let picker = null;
-  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
+  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:640, h:520,
     node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
 
   // Geral
