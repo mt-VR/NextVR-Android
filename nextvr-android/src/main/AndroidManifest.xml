@@ -10,6 +10,37 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The phone mirror is a MediaProjection capture, and Android 10+ refuses to construct one
+         unless a foreground service of type "mediaProjection" is already running
+         (MediaProjection.start() throws SecurityException otherwise). FOREGROUND_SERVICE is the base
+         permission; the type-specific one is required from Android 14 on. The notification is not
+         optional and is not hidden: it is the system's (and the user's) indication that the screen is
+         being captured. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Only so that the capture notification can be shown on Android 13+; never requested at
+         runtime, and capture works without it (the system hides the notification instead). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Shizuku's permission provider: the app asks Shizuku for the shell user service through it. -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
+    <!-- Package visibility (Android 11+). Two different needs, both explicit:
+          * the launcher intent, so that the app library really lists the device's apps. Without this
+            entry queryIntentActivities() silently returns only a handful of system-package
+            exceptions on Android 11+ — a real-device-only failure (the emulator has too few apps to
+            notice). It is the narrowest declaration that works: QUERY_ALL_PACKAGES is a
+            Play-policy-gated permission and is deliberately not used.
+          * the Shizuku packages, so the row can say "install Shizuku" instead of "not installed"
+            forever. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <package android:name="moe.shizuku.manager" />
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku" />
+    </queries>
 
     <application
         android:allowBackup="false"
@@ -30,5 +61,47 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The no-Shizuku input path: gestures and global actions for the phone-mirror window.
+             Inactive until the user enables it in Android's accessibility settings, and it only
+             ever dispatches what the user did with their hand. -->
+        <service
+            android:name="com.nextvr.app.apps.NextVrAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/nextvr_accessibility_service" />
+        </service>
+
+        <!-- The foreground service Android requires for a MediaProjection (see the permissions
+             above). Not exported, no binder, started only while the mirror window is being opened. -->
+        <service
+            android:name="com.nextvr.app.apps.AppMirrorService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- Shizuku's binder provider. The permission is the one Shizuku itself requires; the
+             authority must be the application id plus ".shizuku". -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <!-- The Shizuku provider library declares this meta-data in its own manifest as well; it is
+             repeated here so the requirement stays visible in this repository (it is what makes an
+             app built against an older Shizuku receive the binder instead of a refusal — without it
+             pingBinder() stays false even with Shizuku running). The provider element above, unlike
+             this meta-data, can only come from the app: the authority must be the application id. -->
+        <meta-data
+            android:name="moe.shizuku.client.V3_SUPPORT"
+            android:value="true" />
     </application>
 </manifest>

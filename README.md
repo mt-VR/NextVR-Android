@@ -83,6 +83,23 @@ distance from the eye, so moving it never sends it backwards.
 The current `N` mark and component icons are
 extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
+## Android app windows
+
+The dock's app library (`Apps do Android`, the phone icon) lists the launchable apps installed on
+the device with their real icons and opens them in floating windows of the existing arc. The
+window content is the real app: a dedicated virtual display per app, created by a Shizuku user
+service running as the `shell` user (no root), started with `am start --display`, with the hand's
+touch injected into that display. Without Shizuku the library still works and the dock offers the
+phone-screen mirror (`MediaProjection`, behind the foreground service Android requires for a
+capture, plus the accessibility service for input), which is a mirror and is labelled as one —
+never as an embedded app. Every tile then carries a *Espelhar* shortcut that brings that app to the
+phone screen with public API before the capture starts (Android 14+ lets the user pick it in the
+system dialog), and resizing a window never leaves the session claiming a size the display refused:
+the session only adopts a new size after the display confirms it. Minimize detaches the display surface (the app
+keeps running, frame production stops), restore re-attaches the same surface, and closing releases
+the display and the app's task. Full architecture, API choices, limitations and the on-device
+checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+
 ## 3D game platform
 
 Installing a title from the store and opening it in the library now enters a **playable 3D world**

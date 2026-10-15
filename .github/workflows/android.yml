@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
+    branches: [ "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -56,7 +56,21 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          (npm ci && npm test && npm run build:ui && git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
+          (set -e
+          npm ci
+          # Reference check of the Android sources (no JDK on this step): it catches renamed methods,
+          # changed arities, accessed fields that do not exist and AIDL transactions without an
+          # implementation. Installed here because the runner image does not carry javalang; if the
+          # install fails the script says so and skips instead of pretending to have checked.
+          python3 -m pip install --quiet --break-system-packages javalang 2>/dev/null || \
+            python3 -m pip install --quiet --user javalang 2>/dev/null || true
+          # First the tool's own synthetic cases: a rule that quietly stopped working would report a
+          # clean tree and let the next compile error through.
+          python3 tools/check-java-refs.py --self-test
+          python3 tools/check-java-refs.py
+          npm test
+          npm run build:ui
+          git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -189,7 +203,19 @@ jobs:
                   conclusion: $c,
                   output: {title: "Gradle build log (tail)", summary: "Build output for this commit", text: $t}}' \
             > /tmp/payload.json
-          gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json
+          # The push and the pull_request runs of the same commit post at the same moment, and the
+          # second one used to die on the API's secondary rate limit — turning a fully green build
+          # into a red job with nothing wrong in it. Retry instead of failing the job for that.
+          uploaded=0
+          for attempt in 1 2 3 4; do
+            if gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json; then
+              uploaded=1
+              break
+            fi
+            echo "check-run upload failed (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          [ "$uploaded" = "1" ]
 
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
@@ -211,7 +237,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           cp "$APK" dist/app-debug.apk
-          printf 'Debug APK built by Android CI run %s from commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > dist/build.txt
+          # O APK se identifica: o arquivo ao lado dele diz de que run e de que commit ele veio, com
+          # tamanho e md5, para conferir o download sem depender de um número escrito na mão em lugar
+          # nenhum (a documentação aponta para este arquivo).
+          SIZE=$(stat -c %s "$APK")
+          MD5=$(md5sum "$APK" | cut -d' ' -f1)
+          printf 'Debug APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
+          cat dist/build.txt
           git add dist
           git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

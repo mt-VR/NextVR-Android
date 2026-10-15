@@ -7,10 +7,12 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.SurfaceTexture;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.SoundPool;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
@@ -33,6 +35,14 @@ import android.widget.Toast;
 import androidx.annotation.Keep;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import com.nextvr.app.apps.AndroidAppManager;
+import com.nextvr.app.apps.AppDisplayController;
+import com.nextvr.app.apps.AppInputController;
+import com.nextvr.app.apps.AppSession;
+import com.nextvr.app.apps.AppSessionManager;
+import com.nextvr.app.apps.AppSurfaceHost;
+import com.nextvr.app.apps.AppWindowController;
+import com.nextvr.app.apps.ShizukuManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -49,7 +59,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 /** Cardboard orientation + Camera2 passthrough + the reference's HTML spatial workspace. */
-public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
+public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener, AppSurfaceHost {
     static { System.loadLibrary("nextvr_jni"); }
     private long nativeApp;
     private GLSurfaceView glView;
@@ -72,6 +82,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private final AtomicBoolean handTouchPending=new AtomicBoolean();
     private final AtomicBoolean posePending=new AtomicBoolean();
     private long lastPose;
+    /**
+     * Android app windows: discovery, sessions, displays, input and the shell bridge. The subsystem
+     * lives in {@code com.nextvr.app.apps} and only asks this activity for two things — a texture slot
+     * on the GL thread, and a window to show the screen-capture consent dialog.
+     */
+    private AndroidAppManager androidApps;
+    private ShizukuManager shizuku;
+    private AppSessionManager appSessions;
+    private AppInputController appInput;
+    private AppDisplayController appDisplays;
+    private AppWindowController appWindows;
+    /** Sessions this activity suspended because the whole VR activity was paused (not by the user). */
+    private final Set<String> pausedSessions=new HashSet<>();
     private ValueCallback<Uri[]> fileCallback;
     private AudioManager audio;
     private AudioFocusRequest focus;
@@ -100,6 +123,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         sounds=new SoundPool.Builder().setMaxStreams(4).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build();
         sounds.setOnLoadCompleteListener((pool,id,status)->soundReady=status==0);
         try(var asset=getAssets().openFd("ui/click.wav")) { clickSound=sounds.load(asset,1); } catch(Exception e) { report("UI sound could not load: "+e.getMessage()); }
+        androidApps=new AndroidAppManager(this);
+        shizuku=new ShizukuManager(this);
+        appInput=new AppInputController(this,shizuku);
+        appDisplays=new AppDisplayController(this,displayEnvironment,appInput);
+        appSessions=new AppSessionManager(appDisplays);
+        appDisplays.setSessions(appSessions);
+        appWindows=new AppWindowController(this,androidApps,shizuku,appSessions,appDisplays,appInput,shellEnvironment);
+        appSessions.setListener(appWindows::onSessionsChanged);
+        androidApps.setIconBatchDone(appWindows::onIconBatchReady);
+        // The icons are rendered in the background anyway; starting now means the first paint of the
+        // Applications menu already has them instead of filling in after the user is looking at it.
+        androidApps.warmIcons();
+        shizuku.start(appWindows::onShizukuChanged);
         camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
             @Override public void frame(android.graphics.Bitmap bitmap) {
                 SpatialRenderer r=renderer;
@@ -136,6 +172,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     }
                     ready=false;
                     shell=new WebSurface(NextVrActivity.this,fresh.atlas.surface,SpatialRenderer.ATLAS,SpatialRenderer.ATLAS,true,new Bridge(),WebSurface.HOME);
+                    // The previous GL context took every texture slot with it: the hosted apps keep
+                    // running, their displays are simply re-pointed at the new surfaces.
+                    if(appWindows!=null) appWindows.displays().rebindSurfaces();
                     startCamera();
                 });
             }
@@ -148,6 +187,70 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},10);
     }
+    /** What the app-display driver may use from the activity. Never touches the GL thread directly. */
+    private final AppDisplayController.Environment displayEnvironment=new AppDisplayController.Environment() {
+        @Override public com.nextvr.app.apps.AppSurfaceHost surfaces(){ return NextVrActivity.this; }
+        @Override public com.nextvr.app.apps.ShizukuManager shizuku(){ return shizuku; }
+        @Override public com.nextvr.app.apps.AndroidAppManager apps(){ return androidApps; }
+        @Override public int densityDpi(){ return getResources().getDisplayMetrics().densityDpi; }
+        @Override public void report(String message){ NextVrActivity.this.report(message); }
+        @Override public void sessionsChanged(){ pushAppState(); }
+        @Override public void requestCaptureConsent(){ NextVrActivity.this.requestCaptureConsent(); }
+    };
+    private final AppWindowController.Environment shellEnvironment=new AppWindowController.Environment() {
+        @Override public void pushState(){ pushAppState(); }
+        @Override public void report(String message){ NextVrActivity.this.report(message); }
+    };
+
+    /**
+     * Texture slots for app displays, created on the GL thread exactly like the browser surfaces.
+     * The compositor needed no new texture type: an app display writes into the same
+     * {@code SpatialRenderer.Texture} an HTML browser surface uses.
+     */
+    @Override public void acquire(String id,int width,int height,AppSurfaceHost.Callback callback) {
+        final SpatialRenderer target=renderer;
+        if(target==null || glView==null) { callback.failed("no renderer"); return; }
+        final int bufferWidth=Math.max(2,width), bufferHeight=Math.max(2,height);
+        glView.queueEvent(()->{
+            if(renderer!=target) { main.post(()->callback.failed("renderer_restarted")); return; }
+            SpatialRenderer.Texture texture=target.browsers.get(id);
+            if(texture==null) { texture=new SpatialRenderer.Texture(); target.browsers.put(id,texture); }
+            final SpatialRenderer.Texture slot=texture;
+            try { slot.surface.setDefaultBufferSize(bufferWidth,bufferHeight); } catch(Throwable ignored) { }
+            main.post(()->{ if(closed) return; callback.ready(slot.surface); });
+        });
+    }
+    @Override public void release(String id) {
+        final SpatialRenderer target=renderer;
+        if(target==null || glView==null) return;
+        glView.queueEvent(()->{
+            SpatialRenderer.Texture texture=target.browsers.remove(id);
+            if(texture!=null) texture.release();
+        });
+    }
+
+    /** Sends the whole app-window state to the shell; safe from any thread. */
+    void pushAppState() {
+        main.post(()->{
+            if(closed || appWindows==null) return;
+            WebSurface target=shell;
+            if(target==null || !ready || !resumed) return;
+            target.evaluate("window.nextvrApps&&window.nextvrApps("+JSONObject.quote(appWindows.stateJson())+")");
+        });
+    }
+
+    /** Opens the system screen-capture dialog for the phone-mirror window. */
+    void requestCaptureConsent() {
+        main.post(()->{
+            if(closed) return;
+            try {
+                MediaProjectionManager manager=getSystemService(MediaProjectionManager.class);
+                if(manager==null) { report("Screen capture is unavailable on this device"); return; }
+                startActivityForResult(AppDisplayController.captureIntent(manager),AppDisplayController.REQUEST_PROJECTION);
+            } catch(Throwable error) { report("Screen capture could not start: "+error.getMessage()); }
+        });
+    }
+
     private void scheduleHandFrameDrain() {
         if(handsPending.compareAndSet(false,true))main.post(this::drainHandFrames);
     }
@@ -189,6 +292,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(handTouchEvents.isEmpty() || !handTouchPending.compareAndSet(false,true))return;
                 continue;
             }
+            if(event.id.startsWith("app:")) {
+                // Hosted Android app window: the same 60 Hz queue, routed to the input controller
+                // instead of a WebView. Coordinates are normalized inside the app's display.
+                if(appWindows!=null && resumed && !closed) appWindows.touch(event.id.substring(4),event.action,event.x,event.y);
+                continue;
+            }
             WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
             if(target==null || !resumed || closed)continue;
             target.dispatchHandEvent(event.action,event.x,event.y);
@@ -208,6 +317,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     void shellReady() {
         ready=true;
         if(shell!=null) { shell.evaluate("window.nextvrResume&&window.nextvrResume()"); shell.audio(audioFocused); }
+        pushAppState();
     }
     private void startCamera() {
         if(!resumed || renderer==null || checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) return;
@@ -227,9 +337,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         super.onResume(); resumed=true; glView.onResume(); nativeOnResume(nativeApp);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
         for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
+        if(appWindows!=null) appWindows.onShellResumed();
+        // Only the windows *this activity* suspended come back: a window the user minimized from the
+        // dock stays minimized across a pause.
+        for(String packageName:new ArrayList<>(pausedSessions)) appSessions.restore(packageName);
+        pausedSessions.clear();
+        pushAppState();
     }
     @Override protected void onPause() {
         resumed=false; camera.stop();
+        // The windows are not being composited while the VR activity is paused: detaching the
+        // displays' output surfaces stops the frame traffic without killing the app or its task.
+        if(appSessions!=null) for(AppSession session:appSessions.sessions())
+            if(session.state==AppSession.State.RUNNING && appSessions.minimize(session.packageName))
+                pausedSessions.add(session.packageName);
         if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
         for(WebSurface b:browsers.values()) b.pause();
         setAudioEnabled(false); audio.abandonAudioFocusRequest(focus);
@@ -240,6 +361,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         SpatialRenderer old=renderer; renderer=null;
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
+        if(appWindows!=null) appWindows.shutdown();
+        if(shizuku!=null) shizuku.stop();
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
     }
@@ -270,6 +393,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(request==AppDisplayController.REQUEST_PROJECTION && appDisplays!=null) {
+            appDisplays.onCaptureConsentResult(result,data);
+            pushAppState();
+        }
         if(request==20 && fileCallback!=null) {
             ArrayList<Uri> values=new ArrayList<>();
             if(result==RESULT_OK && data!=null) {
@@ -328,7 +455,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         private SpatialRenderer cachedTarget;
         private String cachedScene, cachedSpecs;
         @JavascriptInterface public void frame(String scene,String browserSpecs) {
-            if(scene.length()>100000 || browserSpecs.length()>20000) return;
+            if(scene.length()>180000 || browserSpecs.length()>20000) return;
             try {
                 SpatialRenderer target=renderer; if(target==null) return;
                 boolean specsChanged;
@@ -407,12 +534,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
         @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
-            if(id==null || (!id.equals("shell") && !id.matches("[a-zA-Z0-9_-]{1,64}")) || !Float.isFinite(x)||!Float.isFinite(y)) return;
+            // "app:<package>" is a hosted Android app window: x/y are normalized (0..1) inside the
+            // app's display. A browser/native HTML surface keeps its pixel coordinates.
+            boolean app=id!=null && id.startsWith("app:") && id.length()<=100 && id.substring(4).matches("[A-Za-z0-9._]{1,80}");
+            if(id==null || (!app && !id.equals("shell") && !id.matches("[a-zA-Z0-9_-]{1,64}")) || !Float.isFinite(x)||!Float.isFinite(y)) return;
             handTouchEvents.offer(id,action,x,y);
             scheduleHandTouchDrain();
         }
         @JavascriptInterface public void key(String id,String key) {
             if(key.length()>16) return;
+            if(id!=null && id.startsWith("app:")) {
+                final String packageName=id.substring(4);
+                final String typed=key;
+                main.post(()->{ if(appWindows!=null && !closed) appWindows.text(packageName,typed); });
+                return;
+            }
             main.post(()->{
                 WebSurface b=browsers.get(id); if(b==null) return;
                 android.view.inputmethod.InputConnection input=b.web.onCreateInputConnection(new android.view.inputmethod.EditorInfo());
@@ -421,6 +557,22 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 else if(key.equals("⏎")) { input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,android.view.KeyEvent.KEYCODE_ENTER)); input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,android.view.KeyEvent.KEYCODE_ENTER)); }
                 else input.commitText(key,1);
             });
+        }
+        /** Installed Android apps for the library grid, filtered and ranked, as JSON. */
+        @JavascriptInterface public String appsLibrary(String query,boolean showSystem) {
+            if(appWindows==null) return "{\"apps\":[]}";
+            try { return appWindows.libraryJson(query,showSystem); }
+            catch(Throwable error) { return "{\"apps\":[]}"; }
+        }
+        /**
+         * One command from the shell: open/close/minimize/restore/focus an app window, sync the
+         * window geometry back, request the Shizuku permission or refresh the app list. It runs on
+         * the main thread because it creates windows, sessions and (for the phone mirror) an
+         * Activity result.
+         */
+        @JavascriptInterface public void appsCommand(String json) {
+            if(json==null || json.length()>8000) return;
+            main.post(()->{ if(appWindows!=null && !closed) appWindows.command(json); });
         }
         @JavascriptInterface public String battery() {
             Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));

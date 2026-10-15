@@ -9,6 +9,7 @@ import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
   stabilizeResize, WINDOW_LIMITS } from './window-geometry.js';
 import { ARC_CAPACITY, arcSlots, arcStep, pickLru, windowAngle, ARC_TOP_ROW_STEP } from './arc.js';
+import { appHostPoint } from './display-fit.js';
 import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 import { boxFromMesh, boxOfWindow, chooseSpawn, resolveSlot } from './spawn.js';
 
@@ -127,6 +128,34 @@ class Win {
       resizeHandle.addEventListener('pointerup', endResize);
       resizeHandle.addEventListener('pointercancel', endResize);
     }
+  }
+
+  /**
+   * Changes the window's body size (used when an app window is rotated: the app surface and the
+   * display change shape together).
+   *
+   * <p>The chrome is CSS — the bars keep their own heights and the body takes what is left — so this
+   * only touches the two sizes the shell owns, plus the invisible planes that carry the hand's
+   * drag/resize/touch: those were built in metres from the old size and are scaled by the ratio. The
+   * 3D object itself is not touched, so the window does not move and does not scale.
+   */
+  setSize(w, h) {
+    if (!(w > 0) || !(h > 0)) return;
+    this.w = w; this.h = h;
+    this.shell.style.width = w + 'px';
+    this.el.style.width = w + 'px'; this.el.style.height = h + 'px';
+    // The hit surface carries the hand's touch and drag: its geometry is in metres, built from the
+    // window's size, so it is rebuilt (with the same curvature segments) instead of scaled — the
+    // grab/resize handles are positioned from w/h by apply() and keep their own sizes.
+    const segments = this.curve > 0 ? 32 : 1;
+    this.hit.geometry.dispose();
+    this.hit.geometry = new THREE.PlaneGeometry(this.w * PX, this.h * PX, segments, 1);
+    this.hitSegments = segments;
+    this.curveRadius = curveRadius(this.w, this.curve);
+    this.bendHit();
+    this.apply();
+    layout();
+    emit('wins', wins);
   }
 
   /**
@@ -550,6 +579,30 @@ function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py);
+  /*
+   * A hosted Android app window: the id the native side knows is "app:<package>" and the
+   * coordinates it gets are normalized inside the app's display (the same rectangle the shader
+   * samples). Touch is never synthesized into this DOM — everything here is forwarded to the real
+   * app on the other side. A point on a letterbox bar is dropped instead of being forwarded.
+   */
+  const app = el?.closest('[data-native-app]');
+  if (app) {
+    const ar = app.getBoundingClientRect();
+    const point = appHostPoint(app.offsetWidth, app.offsetHeight,
+      +(app.dataset.aspect || 0), rect.left + px - ar.left, rect.top + py - ar.top);
+    if (action === 2 && !point && !nativePress) return;
+    const id = 'app:' + app.dataset.nativeApp;
+    if (nativePress && nativePress.id !== id) { sendPress(nativePress, 3); nativePress = null; }
+    if (action === 0) { if (!point) return; nativePress = { id, win: hit.win, x: point.u, y: point.v }; }
+    if (nativePress && nativePress.id === id) {
+      if (point || action !== 2) {
+        if (point) { nativePress.x = point.u; nativePress.y = point.v; }
+        sendPress(nativePress, action, nativePress.x, nativePress.y);
+      }
+    }
+    if (action === 1 || action === 3) nativePress = null;
+    return;
+  }
   const browser = el?.closest('[data-native-browser]');
   const br = browser?.getBoundingClientRect();
   const id = browser ? browser.dataset.nativeBrowser : 'shell';

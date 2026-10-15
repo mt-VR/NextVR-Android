@@ -6,13 +6,18 @@ import { chromium } from '@playwright/test';
 import bundledChromium from '@sparticuz/chromium';
 import * as THREE from 'three';
 
-test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:90000}, async (t) => {
+// CI runs this on a software renderer: the whole flow (boot, windows, hand input, keyboard, Android
+// app windows) needs real seconds per step, so the budget is generous on purpose — a hang still fails.
+test('reference HTML boots, retains dock layout, spatial windows, native browsers and head-independent placement', {timeout:180000}, async (t) => {
   const base = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
   const server=createServer(async(req,res)=>{
     try {
       const path=(req.url==='/'?'index.html':req.url.slice(1)).split('?')[0];
       if(path.includes('..')) throw Error();
-      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':'application/octet-stream');
+      // The shell's asset host serves the Android app icons from /apps/<file> (WebSurface); the test
+      // server answers the same way with a real PNG, so a tile that loses its icon is a real failure.
+      if(path.startsWith('apps/')) { res.setHeader('Content-Type','image/png'); res.end(await readFile(new URL('icons/nextvr-n.png',base))); return; }
+      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':path.endsWith('.png')?'image/png':'application/octet-stream');
       res.end(await readFile(new URL(path,base)));
     } catch { res.writeHead(404); res.end(); }
   });
@@ -74,6 +79,22 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       window.NativeXR={
         frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
+        // The installed-app list and the command channel are the native bridges; the stub answers
+        // like the Java side does (same JSON shape, icon URLs served from /apps/).
+        appsLibrary(query,showSystem){
+          window.__appQueries=[...(window.__appQueries||[]),{query,showSystem}];
+          return JSON.stringify({apps:[
+            // Notes adapts to any shape (orient:''): it starts landscape, and the user's rotation is
+            // remembered. Settings declares landscape, like most system pages.
+            {pkg:'org.example.notes',label:'Notas',system:false,component:'org.example.notes/.Main',
+             icon:'/apps/org.example.notes.png',recent:false,state:null,mode:null,input:null,
+             shape:'landscape',orient:'',fixed:false,box:{w:1040,h:585}},
+            {pkg:'com.android.settings',label:'Configurações',system:true,component:'com.android.settings/.Settings',
+             icon:null,recent:false,state:null,mode:null,input:null,
+             shape:'portrait',orient:'portrait',fixed:false,box:{w:585,h:1040}}],
+            total:2,shown:2,hosting:0,capacity:3,query,showSystem,singleAppCapture:false});
+        },
+        appsCommand(json){window.__appCommands=[...(window.__appCommands||[]),JSON.parse(json)];},
         handTargets(json){window.__handTargets=JSON.parse(json);},
         handTouch(id,action,x,y){
           window.__touches.push({id,action,x,y});
@@ -146,22 +167,29 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with every previous function, in the selected language.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library']);
+    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library'],
+      'the dock has no Android tile: the installed apps live in the Applications menu the launcher opens');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),17,'Quest-style library includes the web apps and built-in NextVR tools');
+    assert.equal(await page.locator('.lib-tile').count(),19,
+      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone');
+    // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
+    // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
+    // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
+    await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
-    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent filters');
+    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
+    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
     await page.locator('.lib-nav[data-nav="games"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
     await page.locator('.lib-nav[data-nav="recent"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('.lib-nav[data-nav="all"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete library');
+    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the complete library, installed apps included');
     await page.locator('.dock [data-id="store"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
     await page.locator('.dock [data-id="browser"]').click();
@@ -398,6 +426,252 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     },null,{timeout:12000});
     const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
+    /* ================================ Android apps in floating windows ============================
+       The dock's Android page lists the device's own apps and each open app becomes a window whose
+       body is the app's real display. Everything the user does there must reach the app: the shell
+       DOM never receives a synthetic event for an app window.
+       ============================================================================================= */
+    await page.evaluate(()=>window.nextvrResume());
+    /* ================================ the installed apps in the Applications menu ==================
+       There is no Android page and no mirror button: the apps installed on the phone are tiles of
+       the Applications menu the shell already had, in the same grid, drawn with the icon the
+       PackageManager returned. The window they open is either the app hosted on its own display or
+       a capture of the phone screen with the app on it, and its badge always says which one it is.
+       ============================================================================================= */
+    await page.locator('.dock [data-id="library"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
+    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,
+      'no rail entry leads to a separate Android page');
+    assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
+    assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
+      'and they sit in the same grid as the web apps, not in a page of their own');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-sys').count(),1,
+      'a system app is marked as one');
+    await page.waitForFunction(()=>{
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
+      return !!img&&img.complete&&img.naturalWidth>0;},null,{timeout:5000});
+    const tileIcon=await page.evaluate(()=>{
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
+      return img?{src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0}:null;});
+    assert.equal(tileIcon?.src,'/apps/org.example.notes.png','the tile uses the icon URL the native side served');
+    assert.equal(tileIcon?.loaded,true,'the served icon is a real image the tile keeps');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] img').count(),0,
+      'an app whose icon could not be read is not left with a broken image');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-cover.noicon .nm').count(),1,
+      'it falls back to its initials instead');
+    // The row that explains the mechanism exists only while the shell service is not ready: the phone
+    // without Shizuku still opens apps, through the capture path.
+    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),1,
+      'without the shell service the menu says how an app will be opened');
+    assert.ok(await page.locator('.lib-note .az-dot').count()>=1,'the Shizuku state is shown there');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.az-caps')),false,
+      'the self-test block stays closed until it is asked for');
+    assert.equal(await page.locator('.lib-tile.android .az-mirror, .lib-tile.android [data-act="mirror"]').count(),0,
+      'no tile carries a mirror button any more');
+    await page.locator('.lib-note .az-btn').first().click();
+    let commands=await page.evaluate(()=>window.__appCommands||[]);
+    assert.ok(commands.some(c=>c.cmd==='refresh'),'checking Shizuku again refreshes the app list over the bridge');
+    await page.locator('.lib-tile.android[data-pkg="org.example.notes"]').click();
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    const openCommand=commands.filter(c=>c.cmd==='open').pop();
+    assert.equal(openCommand?.pkg,'org.example.notes','tapping a tile opens that app');
+    // The shape travels; a *size* must not, because the app is hosted on this phone's own screen (the
+    // native side creates the display from its own screen size and density). Sending a window size as
+    // the app's screen size is the bug that had most apps opening with their bottom cut off.
+    assert.equal(openCommand.shape,'landscape','the shell tells the native side which shape the window is');
+    assert.equal(openCommand.w,undefined,'no window size travels as the app\'s screen size');
+    assert.equal(openCommand.h,undefined,'no window size travels as the app\'s screen size');
+    assert.equal(openCommand.focus,undefined,'and nothing else: no mechanism and no focus package travel with it');
+
+    // The native side answers with a running session; the shell draws the window from it.
+    const appState=extra=>JSON.stringify({
+      sessions:[{pkg:'org.example.notes',title:'Notas',mode:'display',state:'running',input:'shizuku',alive:true,
+        shape:'landscape',
+        // The canvas is this phone's screen (a 1080x2400 phone), turned for the window's shape: that is
+        // the dp box the app lays out in, and the window takes its proportions.
+        displayId:7,display:{w:2400,h:1080,dpi:420,dpW:914,dpH:411,rotation:0,rotated:false,aspect:2400/1080},
+        error:null,stopReason:null,frames:42,...extra}],
+      shizuku:{state:'ready',detail:'uid=2000 v13 bound',ready:true,ask:false,needsApp:false,
+        caps:null,route:'hosted',bound:true,binding:false},
+      input:{shizuku:true,accessibility:false,singleAppCapture:false},
+      capacity:3,library:2,launch:'am start --display',sdk:34,recents:['org.example.notes'],
+      diagnostics:{route:'hosted',launchBackend:'am start --display',launchError:null,
+        displayReport:null,displayState:'{"ok":true,"w":2400,"h":1080,"logicalW":2400,"logicalH":1080,"rotation":0}',
+        serviceReason:'the shell user service is bound',bindError:null,
+        captureService:'not running',sdk:34}});
+    const appSession=(state,extra={})=>appState({state,...extra});
+    const windowsBefore=await page.locator('.win-shell').count();
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>!!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    assert.equal(await page.locator('.win-shell').count(),windowsBefore+1,'a running session owns one window');
+    assert.equal(await page.locator('.win-shell .win-title',{hasText:'Notas'}).count(),1,'the window carries the app name');
+    const appWindow=page.locator('.win-shell').filter({has:page.locator('.app-surface[data-native-app="org.example.notes"]')});
+    assert.equal(await appWindow.count(),1);
+    assert.equal(await appWindow.locator('.app-state:not([hidden])').count(),0,'a running app shows no state overlay');
+    // The window keeps the NextVR chrome *and* carries the app's own bar with its keys.
+    assert.equal(await page.locator('.win-shell .app-window > .app-bar').count(),1,
+      'the app window has its bar inside the window body');
+    const appKeys=await appWindow.locator('.app-bar .app-key').evaluateAll(ee=>ee.map(e=>e.dataset.act||e.getAttribute('aria-label')));
+    assert.equal(appKeys.length,5,
+      `the app bar offers back, home, recents, the keyboard and rotate: ${appKeys}`);
+    assert.equal((await appWindow.locator('.app-bar .app-key[data-act="rotate"]').count()),1,
+      'the app window can be rotated');
+    // The window takes the shape the app asks for (AppWindowShape): the app surface measures exactly
+    // the pixels the display is created with, so the first frame is neither letterboxed nor scaled.
+    const shaped=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
+      surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
+        shape:e.querySelector('.app-surface').dataset.shape}}));
+    // Two pixel counts, on purpose: the *window element* is the canvas' shape scaled down to the
+    // largest box the shell's 4096x4096 atlas can pack (a taller window overflows its cell and the
+    // whole atlas stops updating), while the *canvas* is the phone's screen — 2400x1080 here.
+    assert.deepEqual(shaped.surface,{w:1038,h:467,shape:'landscape'},
+      `the app surface has the canvas' shape and the window carries it: ${JSON.stringify(shaped)}`);
+    assert.equal(shaped.win.w,1038+2);
+    assert.equal(shaped.win.h,467+62+52+2,
+      `the two bars and the window border are the only chrome: ${shaped.win.h}`);
+    assert.ok(Math.abs(shaped.surface.w/shaped.surface.h-2400/1080)<.01,
+      'the window body has the canvas\' proportions, so the whole picture is shown');
+    const appBoxes=await page.evaluate(()=>window.__appCommands||[]);
+    const synced=appBoxes.filter(c=>c.cmd==='sync').pop();
+    assert.deepEqual(synced?.windows,[{pkg:'org.example.notes',visible:true}],
+      `the sync carries visibility only, never a window size as the app's screen: ${JSON.stringify(synced)}`);
+    const badge=await appWindow.locator('.app-badge').innerText();
+    assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
+    assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
+    // With the shell service ready the explanatory row is gone: nothing is left in the menu that
+    // belongs only to the Android integration except the tiles themselves.
+    await page.waitForFunction(()=>!document.querySelector('.lib-note'));
+    // The library and the dock repaint their badges when the session list changes.
+    await page.waitForFunction(()=>{
+      const open=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] .lib-open');
+      const badge=document.querySelector('.dock [data-id="library"] .dock-badge');
+      return !!open&&badge?.textContent?.trim()==='1';
+    },null,{timeout:12000});
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
+      'the menu marks the app that is open in a window');
+    assert.equal(await page.locator('.dock [data-id="library"] .dock-badge').innerText(),'1',
+      'the dock counts the open app windows');
+    assert.equal(await page.locator('.dock [data-id="android"]').count(),0,'and there is no Android dock tile');
+    // The same session in capture mode is a mirror, and the window says so.
+    await page.evaluate(json=>window.nextvrApps(json),JSON.stringify({
+      sessions:[{pkg:'org.example.notes',title:'Notas',mode:'mirror',state:'running',input:'accessibility',alive:true,
+        displayId:-2,display:{w:1080,h:2340,dpi:320,rotation:0,aspect:1080/2340},error:null,stopReason:null,frames:12}],
+      shizuku:{state:'install',detail:'install',ready:false,ask:false,needsApp:true,caps:null,
+        route:'capture',bound:false,binding:false,reason:'Shizuku is not running'},
+      input:{shizuku:false,accessibility:true,singleAppCapture:false},
+      capacity:3,library:2,launch:null,sdk:34,recents:[],
+      diagnostics:{route:'capture',launchBackend:null,launchError:null,displayReport:null,
+        serviceReason:'Shizuku is not running',bindError:null,captureService:'not running',sdk:34}}));
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+      && /mirror/i.test(document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+        .closest('.app-window').querySelector('.app-badge').textContent));
+    assert.match(await appWindow.locator('.app-badge').innerText(),/mirror/i,
+      'a capture of the phone screen is labelled as the mirror it is');
+    // Back to the hosted session: the rest of this test works on the hosted picture.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>/android app/i.test(document.querySelector('.app-badge').textContent));
+
+    // The compositor samples the same rectangle the touch is normalized against.
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.browser==='app:org.example.notes'));
+    const appPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='app:org.example.notes'));
+    const surfaceBox=await appWindow.locator('.app-surface').evaluate(e=>({w:e.offsetWidth,h:e.offsetHeight,uv:e.dataset.uv,aspect:e.dataset.aspect}));
+    assert.ok(Math.abs(appPanel.rect[2]/appPanel.rect[3]-surfaceBox.w/surfaceBox.h)<.01,
+      'the panel is the window body, in the same proportions');
+    const uv=appPanel.uv.map(Number);
+    const published=surfaceBox.uv.split(',').map(Number);
+    for(let i=0;i<4;i++) assert.ok(Math.abs(uv[i]-published[i])<.01,'the shader crop is what the window published');
+    assert.ok(uv[2]>0&&uv[2]<=1&&uv[3]>0&&uv[3]<=1,'the crop stays inside the texture');
+    assert.ok(Math.abs(uv[0]-((1-uv[2])/2))<.002,'the picture is centred, so the crop and the touch agree');
+    assert.ok(uv[2]>.99&&uv[3]>.99,
+      `the display is created in the shape the window shows it in, so the app fills its window: ${uv}`);
+
+    // Aim the hand at the app's picture and pinch: the app window takes the touch, the shell DOM
+    // does not (no synthetic DOM event for a hosted app).
+    const appCentre=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(appPanel.matrix));
+    const appView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),appCentre,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>{window.nextvrResume();window.nextvrPose(p);window.__touches=[];},appView.toArray());
+    // A still pinched hold is a click candidate: nothing may reach the app before the release, and
+    // the release commits the tap as DOWN+UP (the same arbitration the browser texture gets).
+    await feed(hand(.04));
+    await page.evaluate(()=>new Promise(r=>setTimeout(r,350)));
+    assert.deepEqual(await page.evaluate(()=>window.__touches.filter(t=>t.id.startsWith('app:'))),[],
+      'a still pinched hold streams nothing into the app');
+    await feed(hand(.4));
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='app:org.example.notes'&&t.action===0),null,{timeout:12000});
+    await page.waitForFunction(()=>window.__touches.some(t=>t.id==='app:org.example.notes'&&t.action===1),null,{timeout:12000});
+    await page.evaluate(()=>clearInterval(window.__feed));
+    const appTouches=await page.evaluate(()=>window.__touches.filter(t=>t.id==='app:org.example.notes'));
+    assert.ok(appTouches.length>=2,'the app window receives its own touch stream');
+    for(const touch of appTouches) assert.ok(touch.x>=0&&touch.x<=1&&touch.y>=0&&touch.y<=1,
+      'the app is addressed in normalized display coordinates, not window pixels');
+
+    // Rotating the app window: the shape becomes the other one, the app surface and the window change
+    // together, the choice is sent to the native side (which remembers it per app) and — after the
+    // native side resizes the display, which is what the synced box asks it to do — the picture fills
+    // the new window again. Nothing here rotates the *picture*: Android lays the app out for the new
+    // canvas and the platform's own compatibility scaling handles an app that cannot follow.
+    await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]')
+      .offsetWidth===Math.round(544*1080/2400));
+    const rotated=await appWindow.evaluate(e=>({win:{w:e.querySelector('.win').offsetWidth,h:e.querySelector('.win').offsetHeight},
+      surface:{w:e.querySelector('.app-surface').offsetWidth,h:e.querySelector('.app-surface').offsetHeight,
+        shape:e.querySelector('.app-surface').dataset.shape}}));
+    assert.deepEqual(rotated.surface,{w:Math.round(544*1080/2400),h:544,shape:'portrait'},
+      `the window and the app surface rotated together: ${JSON.stringify(rotated)}`);
+    assert.equal(rotated.win.w,Math.round(544*1080/2400)+2);
+    assert.equal(rotated.win.h,544+62+52+2);
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    const shapeCommand=commands.filter(c=>c.cmd==='shape').pop();
+    assert.deepEqual({pkg:shapeCommand?.pkg,shape:shapeCommand?.shape},
+      {pkg:'org.example.notes',shape:'portrait'},'the rotation is remembered per app');
+    // What the native side does with that: sync the new box, resize the display, report it back.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running',{shape:'portrait',
+      display:{w:1080,h:2400,dpi:420,dpW:411,dpH:914,rotation:0,rotated:false,aspect:1080/2400}}));
+    // The crop is [u0, v0, uw, vh]: the origin is 0 by construction, so what has to settle is the two
+    // fractions — they are 1 only once the window's aspect and the display's aspect agree again.
+    await page.waitForFunction(()=>{const uv=document.querySelector('.app-surface[data-native-app="org.example.notes"]')?.dataset.uv;
+      return uv && uv.split(',').slice(2).every(n=>Number(n)>.99);});
+    const rotatedCrop=await page.evaluate(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').dataset.uv);
+    assert.ok(rotatedCrop.split(',').slice(2).every(n=>Number(n)>.99),
+      `a portrait display fills a portrait window, with no letterbox: ${rotatedCrop}`);
+    // Back to landscape, so the rest of the test works on the shape it started with.
+    await appWindow.locator('.app-bar .app-key[data-act="rotate"]').click();
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>document.querySelector('.app-surface[data-native-app="org.example.notes"]').offsetWidth===1038);
+
+    // Minimizing detaches the surface: the window leaves the arc, the session and its task stay.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('suspended'));
+    await page.waitForFunction(()=>!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    assert.equal(commands.filter(c=>c.cmd==='close'&&c.pkg==='org.example.notes').length,0,
+      'a minimized window is not closed on the native side');
+    assert.equal(await page.locator('.win-shell').count(),windowsBefore,'the arc goes back to what it was');
+
+    // Closing the window from its own bar is what tells the native side to release the display.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('running'));
+    await page.waitForFunction(()=>!!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    await appWindow.locator('[data-act="close"]').click();
+    await page.waitForFunction(()=>!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    const closeCommand=commands.filter(c=>c.cmd==='close').pop();
+    assert.equal(closeCommand?.pkg,'org.example.notes','closing the window releases the app display');
+
+    // A failed session explains itself instead of freezing on the last frame. The reason names what
+    // went wrong, and the window offers the one path that still works for that app.
+    await page.evaluate(json=>window.nextvrApps(json),appSession('failed',{error:'display_empty'}));
+    await page.waitForFunction(()=>!!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    const failure=await page.locator('.app-state:not([hidden])').innerText();
+    assert.match(failure,/n[ãa]o abriu|did not open|not drawing/i,`the failure names what happened: ${failure}`);
+    const phoneButtons=await page.locator('.app-state:not([hidden]) .app-state-btn').count();
+    assert.equal(phoneButtons,1,'the window offers opening the app on the phone, which needs no permission');
+    await page.locator('.app-state:not([hidden]) .app-state-btn').click();
+    commands=await page.evaluate(()=>window.__appCommands||[]);
+    assert.equal(commands.filter(c=>c.cmd==='phone').pop()?.pkg,'org.example.notes',
+      'and the button asks the native side for exactly that');
+    await page.evaluate(json=>window.nextvrApps(json),appSession('stopped'));
+    await page.waitForFunction(()=>!document.querySelector('.app-surface[data-native-app="org.example.notes"]'));
+    await settle();
+
     // Dock summon via palm pinch was removed; the pinch remains a normal hand-ray gesture.
     await page.evaluate(()=>{window.__touches=[];});
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
