@@ -113,16 +113,21 @@ function questBrowser() {
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
 
-/* Janela imersiva estilo Netflix/YouTube: fundo branco, sem barra nem borda, centralizada.
-   As outras janelas ficam escondidas (não fechadas, pra preservar estado). A dock volta pelo botão no topo. */
+/* Janela imersiva tipo Netflix/YouTube: entra em uma "sala de cinema" só com a tela do vídeo,
+   as outras janelas somem, o ambiente escurece pra noite, a dock some e a toolbar flutua em cima.
+   Fechar ou apertar o botão da dock devolve tudo ao estado anterior. */
+let _preImmersiveEnv = null;
 function immersiveWebWindow(id, title, url) {
   // Reaproveita o WebView 'browser' (YouTube/netflix/etc são todos sites carregados no browser nativo).
   const browserId = 'browser';
-  // Esconde todas as outras janelas abertas (não fecha, pra não resetar estado).
+  // Entra no ambiente "noite" (tipo cinema). Salva o ambiente atual pra restaurar na saída.
+  if (_preImmersiveEnv === null) { _preImmersiveEnv = S.env || 'passthrough'; setEnvironment('night'); }
+  // Esconde todas as outras janelas abertas (não fecha, pra não perder o estado delas).
   for (const w of wins) if (w.id !== browserId) { w.hidden = true; w.obj.visible = false; }
-  // Se já tem um browser aberto, navega pro URL novo.
+  // Se já tem um browser aberto, reaproveita: navega pro novo URL.
   const existing = wins.find(w => w.id === browserId);
   if (existing) {
+    existing.immersive = true;
     existing.node.classList.add('immersive');
     const f = existing.node.querySelector('[data-native-browser]') || existing.node.querySelector('iframe');
     if (f) { if (native) { f.dataset.url = url; window.NativeXR?.browserCmd?.(browserId,'go',url); } else f.src = url; }
@@ -133,11 +138,15 @@ function immersiveWebWindow(id, title, url) {
   const body = el('div'); body.style.cssText='width:100%;height:100%;background:#fff';
   const frame = el(native ? 'div' : 'iframe');
   if (native) { frame.dataset.nativeBrowser = browserId; frame.style.cssText='width:100%;height:100%;background:#fff'; frame.dataset.url = url; }
-  else { frame.style.cssText='width:100%;height:100%;border:0;background:#fff'; frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
+  else { frame.style.cssText='width:100%;height:100%;border:0;background:#fff';frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
   body.appendChild(frame);
   setDockHidden(true);
-  return open({ id: browserId, title, node: body, w: 1500, h: 860, immersive: true });
+  return open({ id: browserId, title, node: body, w: 2200, h: 1260, immersive: true });
 }
+function exitImmersive() {
+  if (_preImmersiveEnv !== null) { setEnvironment(_preImmersiveEnv); _preImmersiveEnv = null; }
+}
+on('immersiveOff', exitImmersive);
 
 function webWindow(id, title, url, note) {
   // Estilo Meta Quest Browser: barra URL escura no topo + dock inferior com atalhos.

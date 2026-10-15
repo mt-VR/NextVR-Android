@@ -48,7 +48,7 @@ test('entrar no jogo esconde tudo preservando o estado; sair devolve exatamente 
     assert.ok(!setHidden.includes(forbidden), `setHidden não mexe em ${forbidden}`);
   }
   // Janela escondida sai do arco, do hit-test e da conta de apps — mas nunca é descartada.
-  assert.match(windows, /wins\.filter\(w => w\.pinned && !w\.onboarding && !w\.hidden\)/);
+  assert.match(windows, /wins\.filter\(w => w\.pinned && !w\.onboarding && !w\.hidden/);
   assert.match(windows, /wins\.filter\(w => !w\.onboarding && !w\.hidden\)/,
     'o arco cheio não descarta uma janela escondida pelo jogo');
   assert.match(windows, /for \(const w of wins\) \{ if\(w\.hidden\)continue;/);

@@ -90,6 +90,7 @@ class Win {
       else if (a.dataset.act === 'dock') {
         for (const o of wins) if (o.hidden && o !== this) { o.hidden = false; o.obj.visible = true; }
         setDockHidden(false); layout();
+        emit('immersiveOff');
       }
       else if (a.dataset.act === 'theme') {
         const dark = !el.classList.toggle('dark');
@@ -227,11 +228,16 @@ class Win {
     const flat = Math.hypot(o.position.x, o.position.z) || .001;
     const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
     o.rotation.set(pitch, yaw, 0, 'YXZ');
-    const scale=(this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
+    const scale = this.immersive ? 1.05 * this.resizeScale : (this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
     o.scale.setScalar(PX * scale);
 
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
     this.hit.scale.setScalar(scale);
+
+    // No modo imersivo a tela é de cinema: sem alça de arrastar, sem alça de redimensionar.
+    const interactive = !this.immersive && !this.onboarding;
+    this.grab.visible = interactive;
+    this.resizeHit.visible = interactive;
 
     // A alça de movimento fica fora; a de tamanho ocupa o canto inferior direito.
     const down = (this.h / 2 + 34) * PX * scale;
@@ -284,9 +290,16 @@ function plane(w, h, win, segments = 1) {
  */
 function layout() {
   for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
+  // Janela imersiva (YouTube/Netflix/etc) fica centralizada, na frente do usuário, tipo cinema —
+  // não entra no arco; o arco volta quando ela é fechada.
+  const immersive = wins.find(w => w.immersive && !w.hidden);
+  if (immersive) {
+    const dist = Math.max(1.6, S.winDist + .3);
+    immersive.target.set(0, EYE + .05, -dist);
+  }
   // Janela escondida (jogo em andamento) não entra no arco: ela volta exatamente para o lugar, o
   // tamanho e a curvatura que tinha quando o jogo começou.
-  const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden);
+  const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden && !w.immersive);
   const n = pin.length; if (!n) return;
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
   // A folga entre janelas vizinhas é de MEIA JANELA (arcStep), não os 8 cm de antes: com duas
@@ -386,10 +399,11 @@ export function close(w) {
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
-  // Ao fechar uma janela imersiva, devolve todas as janelas escondidas e a dock.
+  // Ao fechar uma janela imersiva, devolve todas as janelas escondidas, a dock e o ambiente anterior.
   if (wasImmersive) {
     for (const o of wins) if (o.hidden) { o.hidden = false; o.obj.visible = true; }
     setDockHidden(false);
+    emit('immersiveOff');
   }
   layout(); emit('wins', wins);
 }
