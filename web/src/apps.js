@@ -113,9 +113,25 @@ function questBrowser() {
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
 
+/* Janela imersiva estilo Netflix/YouTube: fundo branco, sem barra nem borda, tela cheia,
+   com um botão "montanha" (▲) no topo que traz a dock de volta. */
+function immersiveWebWindow(id, title, url) {
+  const body = el('div'); body.style.cssText='width:100%;height:100%;background:#fff';
+  const frame = el(native ? 'div' : 'iframe');
+  if (native) { frame.dataset.nativeBrowser = id; frame.style.cssText='width:100%;height:100%;background:#fff'; frame.dataset.url = url; }
+  else { frame.style.cssText='width:100%;height:100%;border:0;background:#fff'; frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
+  body.appendChild(frame);
+  // Esconde a dock ao abrir; o botão ▲ devolve.
+  setDockHidden(true);
+  return open({ id, title, node: body, w: 1400, h: 820, immersive: true });
+}
+
 function webWindow(id, title, url, note) {
   // Estilo Meta Quest Browser: barra URL escura no topo + dock inferior com atalhos.
   if (id === 'browser') return questBrowser();
+  // Netflix e outros web-apps abrem imersivos (sem chrome, dock escondida, fundo branco).
+  if (id === 'netflix' || id === 'youtube' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
+    return immersiveWebWindow(id, title, url);
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
   const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
@@ -618,7 +634,7 @@ const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.q
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
-  youtube:  () => webWindow('browser', 'YouTube', 'https://m.youtube.com/'),
+  youtube:  () => immersiveWebWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
@@ -915,7 +931,7 @@ function makeDock() {
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
     { kind: 'sep' },
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
-    { id: 'youtube',  win: 'browser',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('browser','YouTube','https://m.youtube.com/') },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => immersiveWebWindow('youtube','YouTube','https://m.youtube.com/') },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }

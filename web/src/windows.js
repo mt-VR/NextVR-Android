@@ -40,9 +40,9 @@ function occupiedBoxes(except = null) {
 
 /* =================== uma janela =================== */
 class Win {
-  constructor({ id, title, node, w = 1040, h = 660, onboarding = false }) {
+  constructor({ id, title, node, w = 1040, h = 660, onboarding = false, immersive = false }) {
     this.onboarding=onboarding;
-    this.id = id; this.title = title; this.w = w; this.h = h;
+    this.id = id; this.title = title; this.w = w; this.h = h; this.immersive = immersive;
     this.pinned = true;                       // nasce presa acima da dock
     this.target = new THREE.Vector3();
     this.resizeScale = 1;
@@ -63,20 +63,27 @@ class Win {
     shell.style.width = w + 'px';
 
     const el = document.createElement('div');
-    el.className = 'win';
+    el.className = 'win' + (immersive ? ' immersive' : '');
     el.style.width = w + 'px'; el.style.height = h + 'px';
-    el.innerHTML = `<div class="win-bar">
+    if (immersive) {
+      el.innerHTML = `<button class="win-mountain" data-act="dock" aria-label="Mostrar menu" title="Mostrar menu">▲</button><div class="win-body"></div>`;
+      el.style.background = '#fff';
+    } else {
+      el.innerHTML = `<div class="win-bar">
         <div class="win-grip"></div><div class="win-title"></div>
         <button class="win-btn wide" data-act="curve" aria-label="360°" title="360°" aria-pressed="${this.curve > 0}">360°</button>
         <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
         <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
       </div><div class="win-body"></div>`;
-    el.querySelector('.win-title').textContent = title;
+      el.querySelector('.win-title').textContent = title;
+    }
     el.querySelector('.win-body').appendChild(node);
     el.addEventListener('pointerdown', () => focus(this), true);
-    el.querySelector('.win-bar').addEventListener('click', e => {
+    const bar = el.querySelector('.win-bar, .win-mountain');
+    if (bar) bar.addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
+      else if (a.dataset.act === 'dock') { setDockHidden(false); el.classList.remove('dockoff'); }
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
       else repin(this);
     });
@@ -107,7 +114,7 @@ class Win {
     this.bendHit();
     this.grab = plane(260 * PX, 90 * PX, this);
     this.grab.userData.isHandle = true;
-    this.resizeHit = plane(112 * PX, 112 * PX, this);
+    this.resizeHit = plane(80 * PX, 80 * PX, this);
     this.resizeHit.userData.isResize = true;
 
     // O WebView nativo não recebe pointer do touchscreen físico. Estes listeners existem apenas
@@ -222,10 +229,10 @@ class Win {
 
     this.resizeHit.position.copy(o.position);
     this.resizeHit.rotation.copy(o.rotation);
-    this.resizeHit.translateX((this.w / 2 - 48) * PX * scale);
-    this.resizeHit.translateY(-(this.h / 2 - 48) * PX * scale);
-    // A alça de tamanho também sobe para a superfície curvada.
-    this.resizeHit.translateZ(this.bulge(this.w / 2 - 48) + .003);
+    const offset = 28; // px — alça FORA da borda
+    this.resizeHit.translateX((this.w / 2 + offset) * PX * scale);
+    this.resizeHit.translateY(-(this.h / 2 + offset) * PX * scale);
+    this.resizeHit.translateZ(this.bulge(this.w / 2) + .003);
     this.resizeHit.scale.setScalar(scale);
   }
 
@@ -359,12 +366,15 @@ export const windowUnder = (x, y) => hitAt(x, y) !== null;
 export function close(w) {
   if (!w) return;
   const i = wins.indexOf(w); if (i < 0) return;
+  const wasImmersive = w.immersive;
   if (drag.win === w) endDrag();
   if (resizing.win === w) endResize();
   wins.splice(i, 1);
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
+  // Ao fechar a última janela imersiva, a dock volta automaticamente.
+  if (wasImmersive && !wins.some(x => x.immersive)) setDockHidden(false);
   layout(); emit('wins', wins);
 }
 export function focus(w) {
