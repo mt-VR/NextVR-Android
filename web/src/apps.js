@@ -32,7 +32,7 @@ function questBrowser() {
   const fwdSvg  = ico('<path d="M4 12h15"/><path d="m12 5 7 7-7 7"/>');
   const reloadSvg = ico('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>');
   const starSvg = ico('<polygon points="12 2 15.1 8.3 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 8.9 8.3 12 2"/>');
-  const gridIcon = '<span class="dk-grid">'+'<i></i>'.repeat(9)+'</span>';
+  const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 
   // Barra superior escura
   const top = el('div');
@@ -45,7 +45,7 @@ function questBrowser() {
   const star = el('button','qb-icn'); star.innerHTML=starSvg; star.title='Favorito';
   top.append(back,fwd,refr,fld,star);
 
-  // Área de conteúdo (WebView nativo em Android; iframe como fallback web)
+  // Área de conteúdo
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
   const frame = el(native ? 'div' : 'iframe');
@@ -61,18 +61,58 @@ function questBrowser() {
   }
   wrap.appendChild(frame);
 
-  // Dock inferior estilo Meta (atalhos de apps)
+  // Dock inferior no MESMO estilo da dock principal do sistema (avatar + hora/wifi/bateria + sep + apps)
+  const dock = el('div','qb-dock');
+  dock.style.cssText='display:flex;align-items:center;gap:6px;padding:9px 14px;background:#12151b;border-top:1px solid rgba(255,255,255,.08)';
+
+  // Perfil (avatar)
+  const av = el('button','qb-av'); av.innerHTML=AVATAR_SVG; av.title='Perfil';
+  // Hora / Wi-Fi / Bateria
+  const status = el('span','qb-status');
+  const batFill = '<rect class="fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor"/>';
+  status.innerHTML = '<span class="qb-time">--:--</span><span class="qb-wifi">'+icon('wifi')+'</span><span class="qb-bat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor"/>'+batFill+'</svg></span>';
+  // Separador
+  const sep = el('span'); sep.style.cssText='width:1.5px;height:24px;border-radius:2px;background:rgba(255,255,255,.18);flex:none;margin:0 4px';
+  dock.append(av, status, sep);
+
   const apps = [
-    {label:'YouTube',  svg:DK.play||icon('play'),     bg:'linear-gradient(145deg,#ff6b6b,#d63c3c)', url:'https://m.youtube.com'},
-    {label:'Discord',  svg:DK.people||icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app'},
-    {label:'Galeria',  svg:DK.camera||icon('camera'), bg:'linear-gradient(145deg,#ff6584,#d4204e)', url:'https://photos.google.com'},
-    {label:'Loja',     svg:DK.store||icon('store'),   bg:'linear-gradient(145deg,#ffb544,#e8741a)', url:'https://www.meta.com/experiences/'},
-    {label:'Nova aba', svg:reloadSvg,                 bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/'},
-    {label:'Ajustes',  svg:DK.gear||icon('gear'),     bg:'linear-gradient(145deg,#45d894,#1f9d63)', url:':settings'},
-    {label:'Apps',     svg:gridIcon,                  bg:'linear-gradient(145deg,#4b5568,#2a2f3d)', url:':library'},
+    {label:'YouTube', svg:DK.play||icon('play'),     bg:'linear-gradient(145deg,#ff6b6b,#d63c3c)', url:'https://m.youtube.com'},
+    {label:'Discord', svg:DK.people||icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app'},
+    {label:'Galeria', svg:DK.camera||icon('camera'), bg:'linear-gradient(145deg,#ff6584,#d4204e)', url:'https://photos.google.com'},
+    {label:'Loja',    svg:DK.store||icon('store'),   bg:'linear-gradient(145deg,#ffb544,#e8741a)', url:'https://www.meta.com/experiences/'},
+    {label:'Nova aba',svg:reloadSvg,                 bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/'},
   ];
-  const dock = el('div');
-  dock.style.cssText='display:flex;align-items:flex-end;justify-content:space-around;gap:4px;padding:9px 14px;background:#12151b;border-top:1px solid rgba(255,255,255,.08)';
+  function makeAppBtn(a){
+    const b = el('button','qb-app');
+    b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
+    if (a.bg) b.style.background=a.bg;
+    b.innerHTML = a.svg;
+    b.onmouseenter = () => b.classList.add('qb-hover');
+    b.onmouseleave = () => b.classList.remove('qb-hover');
+    b.onclick = () => a.onclick ? a.onclick() : nav(a.url);
+    dock.appendChild(b);
+    return b;
+  }
+  for (const a of apps) makeAppBtn(a);
+
+  body.append(top, wrap, dock);
+
+  // Atualiza hora/bateria/wifi
+  function tick(){
+    const t = dock.querySelector('.qb-time');
+    if(t) t.textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+  tick(); const tickI = setInterval(tick,20000);
+  if (navigator.getBattery) {
+    navigator.getBattery().then(b=>{
+      function paint(){
+        const f = dock.querySelector('.qb-bat .fill'); if(!f) return;
+        f.setAttribute('width', String(Math.max(2, 13*b.level)));
+        f.setAttribute('fill', b.charging?'#8de6c8':(b.level<.2?'#ff6b6b':'currentColor'));
+      }
+      b.addEventListener('levelchange',paint); b.addEventListener('chargingchange',paint); paint();
+    }).catch(()=>{});
+  }
 
   function nav(raw){
     let u=(raw||'').trim(); if(!u) return;
@@ -85,35 +125,15 @@ function questBrowser() {
   }
   function bCmd(cmd,u){ if(native && window.NativeXR?.browserCmd) NativeXR.browserCmd('browser',cmd,u||''); }
 
-  for (const a of apps) {
-    const b = el('button');
-    b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
-    b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;border:0;color:#cdd5e3;padding:6px 8px;border-radius:12px;cursor:pointer;transition:background .15s';
-    const ic = el('span');
-    ic.style.cssText='width:42px;height:42px;border-radius:13px;display:grid;place-items:center;color:#fff;background:'+a.bg+';border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.35)';
-    ic.innerHTML = a.svg;
-    const lb = el('span');
-    lb.style.cssText='font-size:11px;font-weight:600;color:#c7d0de;letter-spacing:-.2px';
-    lb.textContent = a.label;
-    b.append(ic,lb);
-    b.onmouseenter = () => b.style.background='rgba(120,160,220,.18)';
-    b.onmouseleave = () => b.style.background='transparent';
-    b.onclick = () => {
-      if (a.url === ':settings') settingsApp();
-      else if (a.url === ':library') libraryApp();
-      else nav(a.url);
-    };
-    dock.appendChild(b);
-  }
-
-  body.append(top, wrap, dock);
   fld.addEventListener('keydown', e => { if(e.key==='Enter'){ nav(fld.value); fld.blur(); } });
   fld.addEventListener('focus', () => keyboard(true, fld));
   back.onclick = () => bCmd('back');
   fwd.onclick  = () => bCmd('fwd');
   refr.onclick = () => bCmd('reload');
 
-  return open({id:'browser',title:'Navegador',node:body});
+  const win = open({id:'browser',title:'Navegador',node:body});
+  win._cleanupQB = () => clearInterval(tickI);
+  return win;
 }
 
 function webWindow(id, title, url, note) {

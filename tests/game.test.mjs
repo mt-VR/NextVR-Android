@@ -71,7 +71,12 @@ test('o menu do jogo é plano, de duas mãos e com as três ações do SteamVR',
   assert.match(chord, /armMs: 2000/, 'segurar ~2 s');
   assert.match(game, /export function twoHandsPinching\(pinched\) \{[\s\S]*?pinched\.some\(h => h\.left === true\)[\s\S]*?pinched\.some\(h => h\.left === false\)/);
   assert.match(game, /const state = chord\.update\(now, \{ left: both, right: both \}\);/);
-  assert.match(game, /if \(state\.opened\) openMenu\(\);/);
+  assert.match(game, /if \(state\.opened\) \{[\s\S]*?if \(active\) openMenu\(\);[\s\S]*?else toggleQuickMenu\(\);[\s\S]*?\}/);
+  // Fora do jogo o acorde abre o menu rápido (Ocultar UI / Ambientes / Recentrar / Teclado).
+  assert.match(game, /import[\s\S]*toggleQuickMenu[\s\S]*from '\.\/windows\.js'/);
+  assert.match(game, /on\('phonehands', packet => \{ updateHands\(packet, performance\.now\(\)\); \}\);/);
+  // O anel continua mostrando o progresso do acorde e some quando fecha, mesmo fora do jogo.
+  assert.match(game, /if \(state\.closed && !menuOpen\(\) && !quickMenuOpen\(\)\) paintRing\(0\);/);
   // Plano: o menu nasce com curvatura zero e a casca nunca curva essa janela.
   const menu = game.match(/function openMenu\(\) \{[\s\S]*?\n\}/)[0];
   assert.match(menu, /win\?\.setCurve\(0\);/, 'o menu é plano, nunca curvo');
@@ -93,7 +98,7 @@ test('o mundo é jogável pela pinça: colocar, mover, girar, escalar, editar e 
   // A pinça é a única entrada espacial: o caminho de ponteiro só existe no preview desktop.
   const preview = game.match(/if \(!native\) \{\s*let preview = null;[\s\S]*?\n\}/)[0];
   assert.match(preview, /addEventListener\('pointerdown'/);
-  assert.match(game, /on\('phonehands', packet => \{ if \(active\) updateHands\(packet, performance\.now\(\)\); \}\)/);
+  assert.match(game, /on\('phonehands', packet => \{ updateHands\(packet, performance\.now\(\)\); \}\)/);
   assert.match(game, /if \(windowUnder\(aim\.x, aim\.y\)\) \{ grips\.delete\(h\.id\); continue; \}/,
     'uma janela na frente é dona do gesto');
   assert.match(game, /g\.mode === 'rotate'/);

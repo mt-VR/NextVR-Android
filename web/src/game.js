@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { settings as S, t, on, emit, toast, onFrame, contentRoot, camera, EYE, native, viewport } from './core.js';
 import { open, close, wins, windowUnder, setDockHidden, setKeyboardHidden, keyboardShown,
-  dockHiddenNow, focus as focusWindow, focusedWin } from './windows.js';
+  dockHiddenNow, focus as focusWindow, focusedWin, toggleQuickMenu, quickMenuOpen, closeQuickMenu } from './windows.js';
 import { cursor, predictedCursor, screenPoint } from './hands.js';
 import { TwoHandMenuChord } from './two-hand-chord.js';
 import { icon } from './reference-icons.js';
@@ -516,43 +516,52 @@ function updateHands(packet, now) {
   for (const h of hands) aims.set(h.id, handRay(h, now));
   const pinched = hands.filter(h => h.pinching);
 
-  // Acorde do menu: as duas mãos pinçando, sem estar transformando um objeto.
   let transforming = false;
-  if (pinched.length >= 2 && selected()) {
-    const [a, b] = pinched.slice(0, 2).map(h => aims.get(h.id));
-    const o = selected();
-    if (a && b && hitObject(a.ray) === o && hitObject(b.ray) === o) {
-      twoHandTransform(a, b, o);
-      transforming = true;
-      for (const h of pinched.slice(0, 2)) grips.delete(h.id);
+  if (active) {
+    // Dentro do jogo: agarrar/redimensionar objetos com as duas mãos.
+    if (pinched.length >= 2 && selected()) {
+      const [a, b] = pinched.slice(0, 2).map(h => aims.get(h.id));
+      const o = selected();
+      if (a && b && hitObject(a.ray) === o && hitObject(b.ray) === o) {
+        twoHandTransform(a, b, o);
+        transforming = true;
+        for (const h of pinched.slice(0, 2)) grips.delete(h.id);
+      }
     }
-  }
-  if (!transforming) twoHand = null;
+    if (!transforming) twoHand = null;
 
-  for (const h of hands) {
-    const aim = aims.get(h.id);
-    const before = pinchState.get(h.id) || false;
-    pinchState.set(h.id, !!h.pinching);
-    const down = !!h.pinching && !before, up = !h.pinching && before;
-    if (transforming && pinched.includes(h)) continue;      // a mão está no objeto com a outra
-    if (down) {
-      // Uma janela na frente é dona do gesto (painel, menu): o mundo não disputa.
-      if (windowUnder(aim.x, aim.y)) { grips.delete(h.id); continue; }
-      const o = hitObject(aim.ray);
-      if (o) startGrip(h, o, aim);
-      else if (tool === 'place') placeAt(aim);
-      else select(null);
-    } else if (up) {
-      if (grips.has(h.id)) persist();
-      grips.delete(h.id);
-    } else if (h.pinching && grips.has(h.id)) moveGrip(h, aim);
+    for (const h of hands) {
+      const aim = aims.get(h.id);
+      const before = pinchState.get(h.id) || false;
+      pinchState.set(h.id, !!h.pinching);
+      const down = !!h.pinching && !before, up = !h.pinching && before;
+      if (transforming && pinched.includes(h)) continue;
+      if (down) {
+        if (windowUnder(aim.x, aim.y)) { grips.delete(h.id); continue; }
+        const o = hitObject(aim.ray);
+        if (o) startGrip(h, o, aim);
+        else if (tool === 'place') placeAt(aim);
+        else select(null);
+      } else if (up) {
+        if (grips.has(h.id)) persist();
+        grips.delete(h.id);
+      } else if (h.pinching && grips.has(h.id)) moveGrip(h, aim);
+    }
+  } else {
+    // Fora do jogo: nenhuma lógica de agarre.
+    grips.clear(); twoHand = null;
+    for (const h of hands) pinchState.set(h.id, !!h.pinching);
   }
 
+  // Acorde de pinça dupla funciona em QUALQUER tela — menu do jogo ou menu rápido.
   const both = !transforming && twoHandsPinching(pinched);
   const state = chord.update(now, { left: both, right: both });
   paintRing(state.progress);
-  if (state.opened) openMenu();
-  if (state.closed && !menuOpen()) paintRing(0);
+  if (state.opened) {
+    if (active) openMenu();
+    else toggleQuickMenu();
+  }
+  if (state.closed && !menuOpen() && !quickMenuOpen()) paintRing(0);
 }
 
 /** Coloca o objeto armado onde o raio encontra o chão (ou a 1,2 m, se o raio não desce até ele). */
@@ -572,7 +581,7 @@ function placeAt(aim) {
   return o;
 }
 
-on('phonehands', packet => { if (active) updateHands(packet, performance.now()); });
+on('phonehands', packet => { updateHands(packet, performance.now()); });
 on('pinchcancel', () => { endGrips(); });
 
 /* No preview do navegador (sem PhoneXR) o mundo responde ao ponteiro, como as janelas fazem. */

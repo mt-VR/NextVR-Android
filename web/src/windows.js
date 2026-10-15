@@ -1,7 +1,8 @@
 // NextVR — janelas 3D fixas no ambiente, dock horizontal e teclado flutuante.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d } from './core.js';
+import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d,
+  setEnvironment, recenter, envList } from './core.js';
 import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -1329,3 +1330,75 @@ onFrame((dt,now)=>{
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 });
+
+/* =================== Menu rápido (pinça de duas mãos por 2s) =================== */
+export const QUICK_MENU_ID = 'nextvr-quick-menu';
+let uiHidden = false;
+export function toggleQuickMenu() {
+  const existing = wins.find(w => w.id === QUICK_MENU_ID);
+  if (existing) { close(existing); return null; }
+  const body = document.createElement('div');
+  body.className = 'quick-menu';
+  const opts = [
+    { act:'hideui',   svg:icon(uiHidden ? 'eye' : 'eyeoff'), label: uiHidden ? 'Mostrar UI' : 'Ocultar UI' },
+    { act:'env',      svg:icon('camera'),  label: 'Ambientes' },
+    { act:'recenter', svg:icon('compass'), label: 'Recentrar UI' },
+    { act:'keyboard', svg:icon('keyboard')||icon('bell'), label: 'Teclado' },
+  ];
+  for (const o of opts) {
+    const b = document.createElement('button');
+    b.className = 'qm-btn'; b.dataset.act = o.act; b.type = 'button';
+    b.innerHTML = `<span class="qm-ic">${o.svg}</span><span class="qm-lb">${o.label}</span>`;
+    b.addEventListener('click', () => handleQuick(o.act));
+    body.appendChild(b);
+  }
+  const win = open({ id: QUICK_MENU_ID, title: '', node: body, w: 520, h: 132,
+    free: true, at: { x: 0, y: EYE, z: -.5 } });
+  win?.setCurve(0);
+  return win;
+}
+export const quickMenuOpen = () => wins.some(w => w.id === QUICK_MENU_ID);
+export function closeQuickMenu() { const w = wins.find(x => x.id === QUICK_MENU_ID); if (w) close(w); }
+
+function handleQuick(act) {
+  closeQuickMenu();
+  if (act === 'hideui') { setUIVisible(uiHidden); return; }
+  if (act === 'recenter') { recenter(); toast('UI recentrada'); return; }
+  if (act === 'keyboard') { keyboard(true); return; }
+  if (act === 'env') openEnvMenu();
+}
+function setUIVisible(visible) {
+  uiHidden = !visible;
+  const uiRoot = document.getElementById('ui') || document.body;
+  // Esconde todos os filhos da UI exceto o próprio quick-menu (que acaba de ser fechado) e o céu.
+  const DOCK_ID = 'dock';
+  for (const c of uiRoot.children) {
+    if (c.id && c.id.startsWith('nextvr-') && c.id !== QUICK_MENU_ID) c.style.display = uiHidden ? 'none' : '';
+  }
+  // Dock e janelas (via CSS3D):
+  setDockHidden(uiHidden);
+  for (const w of wins) {
+    if (w.id === QUICK_MENU_ID) continue;
+    w.obj.visible = !uiHidden;
+  }
+  toast(uiHidden ? 'UI ocultada — pinça dupla para voltar' : 'UI visível');
+}
+
+function openEnvMenu() {
+  const body = document.createElement('div');
+  body.className = 'env-menu';
+  const title = document.createElement('div');
+  title.className = 'env-t'; title.textContent = 'Ambientes'; body.appendChild(title);
+  const list = envList();
+  for (const e of list) {
+    const b = document.createElement('button');
+    b.className = 'env-btn' + (S.env === e.id ? ' active' : '');
+    b.type = 'button';
+    const bg = e.thumb ? `center/cover url(${JSON.stringify(e.thumb)})` : 'linear-gradient(145deg,#252b3a,#0f1422)';
+    b.innerHTML = `<span class="env-thumb" style="background:${bg}"></span><span class="env-name">${e.name}</span>`;
+    b.addEventListener('click', () => { setEnvironment(e.id); save(); closeEnvMenu(); toast('Ambiente: ' + e.name); });
+    body.appendChild(b);
+  }
+  open({ id: 'nextvr-env-menu', title: 'Ambientes', node: body, w: 540, h: 420, free: true, at: { x: 0, y: EYE, z: -.6 } });
+}
+function closeEnvMenu() { const w = wins.find(x => x.id === 'nextvr-env-menu'); if (w) close(w); }
