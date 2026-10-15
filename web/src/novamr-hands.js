@@ -99,23 +99,16 @@ function drawHandSilhouette(pts) {
 }
 
 function ptsFromFlat(arr63, w, h, scaleX, scaleY) {
-  // Os landmarks points[] vêm nas MESMAS coordenadas 0..1 do bitmap upright
-  // (já rotacionado em C++ na conversão YUV→ARGB) que shape.aimX/aimY usam.
-  // A fórmula EXATA idêntica ao aim (que acerta o cursor) é:
-  //   bx = (x-.5)*2*scaleX ; by = (.5-y)*2*scaleY  → tangentes FOV
-  // Aqui convertemos direto para pixels usando a inversa de screenPoint,
-  // que é x = .5 + bx/(2*TAN_X)? NÃO — o native já entrega scaleX dimensionado
-  // pro viewport: mx = sx/(referenceY*1.5), my = sy/referenceY, que é passado
-  // pra bridge como mx/my. Multiplicando points[i].x*mx*w dá pixel direto.
-  // (Ver: PhoneXrHandRenderer.x(i) = (p[i*3]-.5)*2*viewScaleX)
+  // points[] são landmarks raw 0..1 (upright). palmScreen usa (p[0]-.5)*scaleX+.5
+  // pro hit-test e acerta. O mesmo mapeamento vale pro canvas (Y é invertido por
+  // ser top-down no DOM, ao contrário do NDC/palmScreen que usa Y crescente).
   const pts = new Array(21);
   for (let i=0;i<21;i++){
-    const x = arr63[i*3];
-    const y = arr63[i*3+1];
-    // Espelha X pra corrigir mão oposta (câmera traseira sem mirror), Y invertido
-    // como no cursor (.5-y) pra mão ficar pra cima.
-    pts[i] = { x: (0.5 - (x - 0.5) * scaleX) * w,
-               y: (0.5 - (y - 0.5) * scaleY) * h };
+    const u = arr63[i*3];
+    const v = arr63[i*3+1];
+    // Mirror no X (põe mão no lado correto, câmera traseira).
+    pts[i] = { x: (0.5 - (u - 0.5) * scaleX) * w,
+               y: (0.5 + (v - 0.5) * scaleY) * h };
   }
   return pts;
 }
