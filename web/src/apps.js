@@ -600,7 +600,6 @@ const LIB_APPS = [
   { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
   { id:'twitch', name:'Twitch', bg:'linear-gradient(145deg,#b184ff,#6133b2)', slug:'twitch', color:'ffffff' },
   { id:'prime', name:'prime video', bg:'linear-gradient(145deg,#173e70,#0b172b)', html:'<span class="lx-prime">prime<b>video</b></span>' },
-  { id:'pluto', name:'pluto tv', bg:'linear-gradient(145deg,#34343a,#111115)', html:'<span class="lx-pluto">pluto<i>tv</i></span>' },
   { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', slug:'whatsapp', color:'ffffff' },
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram', color:'ffffff', iconOnly:true },
   { id:'x', name:'X Twitter', label:'Twitter', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
@@ -613,13 +612,13 @@ const LIB_APPS = [
   { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
 ];
 /* Ordem previsível; os jogos instalados surgem na posição habitual entre os apps. */
-const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
+const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
 
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
-  youtube:  () => youtube(),
+  youtube:  () => webWindow('browser', 'YouTube', 'https://m.youtube.com/'),
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
@@ -629,7 +628,6 @@ const LIB_ACTIONS = {
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
   twitch:   () => webWindow('twitch',    'Twitch',       'https://www.twitch.tv/'),
   prime:    () => webWindow('prime',     'prime video',  'https://www.primevideo.com/'),
-  pluto:    () => webWindow('pluto',     'pluto tv',     'https://pluto.tv/'),
   whatsapp: () => webWindow('whatsapp',  'WhatsApp',     'https://web.whatsapp.com/'),
   instagram:() => webWindow('instagram', 'Instagram',    'https://www.instagram.com/'),
   x:        () => webWindow('x',         'X Twitter',    'https://x.com/'),
@@ -917,7 +915,7 @@ function makeDock() {
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
     { kind: 'sep' },
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: youtube },
+    { id: 'youtube',  win: 'browser',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('browser','YouTube','https://m.youtube.com/') },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }
