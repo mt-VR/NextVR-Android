@@ -380,25 +380,25 @@
   .dock-tool.near-press,.dock-av.near-press,.dock-status.near-press{transform:scale(.92)!important}
   .dock-app.near-press{box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(39,232,255,.8),0 2px 8px rgba(0,0,0,.3)!important}
   /* ---- Quest Browser UI ---- */
-  .qb-icn{background:transparent;border:0;color:#cdd5e3;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .15s,transform .1s;padding:0}
+  .qb-icn{background:transparent;border:0;color:#cdd5e3;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .15s,transform .1s;padding:0}
   .qb-icn:hover{background:rgba(120,160,220,.22)}
   .qb-icn:active{transform:scale(.88)}
-  .qb-icn svg{display:block;width:16px;height:16px}
-  .qb-urlfld{flex:1;min-width:0;border:0;border-radius:999px;background:#1f2330;color:#e9edf4;padding:5px 11px;font-size:12px;font-family:inherit;font-weight:500;outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);height:26px;box-sizing:border-box}
+  .qb-icn svg{display:block;width:14px;height:14px}
+  .qb-urlfld{flex:1;min-width:0;border:0;border-radius:999px;background:#1a1e29;color:#e9edf4;padding:4px 10px;font-size:11px;font-family:inherit;font-weight:500;outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);height:22px;box-sizing:border-box}
   .qb-urlfld:focus{box-shadow:inset 0 0 0 2px rgba(39,232,255,.55)}
   .qb-urlfld::placeholder{color:#798299}
   .dk-grid{position:relative;display:inline-grid;grid-template-columns:repeat(3,1fr);gap:2px;width:20px;height:20px}
   .dk-grid i{width:4px;height:4px;border-radius:1px;background:#fff;display:block}
-  /* ---- Quest Browser dock (compacta, só perfil+hora/bateria) ---- */
-  .qb-dock{position:relative;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 8px;background:#10131a;border-top:1px solid rgba(255,255,255,.07)}
-  .qb-dock .dock-av,.qb-dock .dock-status{height:26px}
-  .qb-dock .dock-av{width:26px}
-  .qb-dock .dock-av svg{width:14px;height:14px}
-  .qb-dock .dock-status{padding:0 8px;gap:5px;font-size:11px;border-radius:8px;background:rgba(255,255,255,.05)}
-  .qb-dock .dock-time{font-size:11px;font-weight:700;letter-spacing:.2px}
-  .qb-dock .dock-wifi svg,.qb-dock .dock-bat svg{width:12px;height:12px}
-  .qb-dock .dock-av:hover{filter:brightness(1.15);transform:translateY(-1px) scale(1.06);background:rgba(120,160,220,.28)}
-  .qb-dock .dock-status:hover{background:rgba(120,160,220,.22);transform:translateY(-1px) scale(1.06)}
+  /* ---- Quest Browser dock (fininha, só perfil+hora/bateria) ---- */
+  .qb-dock{position:relative;display:flex;align-items:center;justify-content:center;gap:3px;padding:2px 6px;background:#0e1117;border-top:1px solid rgba(255,255,255,.06)}
+  .qb-dock .dock-av,.qb-dock .dock-status{height:20px}
+  .qb-dock .dock-av{width:20px;border-radius:50%}
+  .qb-dock .dock-av svg{width:11px;height:11px}
+  .qb-dock .dock-status{padding:0 6px;gap:4px;border-radius:6px;background:rgba(255,255,255,.04)}
+  .qb-dock .dock-time{font-size:10px;font-weight:700;letter-spacing:.1px}
+  .qb-dock .dock-wifi svg,.qb-dock .dock-bat svg{width:10px;height:10px}
+  .qb-dock .dock-av:hover{filter:brightness(1.15);background:rgba(120,160,220,.28)}
+  .qb-dock .dock-status:hover{background:rgba(120,160,220,.2)}
   /* ---- Menu rápido (pinça dupla) ---- */
   .quick-menu{display:flex;gap:8px;padding:8px;width:100%;height:100%;box-sizing:border-box;justify-content:space-between;align-items:stretch}
   .qm-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#e6ecf7;border-radius:16px;padding:10px 6px;cursor:pointer;transition:background .15s,transform .1s}

@@ -29,7 +29,7 @@ function questBrowser() {
 
   // Barra de URL superior — compacta, como a do Quest
   const top = el('div');
-  top.style.cssText='display:flex;align-items:center;gap:3px;padding:4px 8px;background:#10131a;border-bottom:1px solid rgba(255,255,255,.07)';
+  top.style.cssText='display:flex;align-items:center;gap:2px;padding:3px 6px;background:#0e1117;border-bottom:1px solid rgba(255,255,255,.06)';
   const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
   const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
   const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
@@ -928,25 +928,17 @@ const DK = Object.freeze({
 
 function makeDock() {
   buildDock([
-    // grupo da esquerda: perfil, status real (hora/wifi/bateria) e ferramentas
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
-    { kind: 'tool',   id: 'bell',    label: t('notif'),    svg: DK.bell,   run: () => toast(t('noNotif')) },
-    { kind: 'tool',   id: 'kb',      label: t('keyboard'), svg: DK.kb,     run: () => keyboard(!keyboardOpen(), null) },
-    { kind: 'tool',   id: 'center',  label: t('center'),   svg: DK.center, run: () => recenter() },
     { kind: 'sep' },
-    // apps principais (cores do print: azul, laranja, roxo, rosa)
+    // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
     { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
     { kind: 'sep' },
-    // segundo grupo (verde e vermelho do print)
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: youtube },
-    // lançador de 9 pontos: sempre o último, abre o menu de aplicações — onde os apps instalados no
-    // aparelho aparecem junto com os apps do NextVR. É a única entrada para os dois: o botão que
-    // abria uma página separada de apps Android, e a página com ele, foram removidos.
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }
