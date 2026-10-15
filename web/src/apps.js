@@ -23,53 +23,60 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  */
 
 /* ===== Quest-style DuckDuckGo Browser ===== */
-function questBrowser() {
+function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/') {
+  // Chrome do navegador estilo Quest: barra de URL, voltar/avançar/recarregar, mini dock.
+  // Se a janela 'browser' já existe, só navega pra URL nova (mantém a WebSurface nativa viva).
+  const existing = wins.find(w => w.id === 'browser');
+  if (existing) {
+    const f = existing.node.querySelector('[data-native-browser]') || existing.node.querySelector('iframe');
+    const fld = existing.node.querySelector('.qb-urlfld');
+    if (fld) fld.value = initialUrl;
+    if (f) {
+      if (native) { f.dataset.url = initialUrl; window.NativeXR?.browserCmd?.('browser','go',initialUrl); }
+      else f.src = initialUrl;
+    }
+    focus(existing); layout();
+    return existing;
+  }
   const body = el('div');
   body.style.cssText='display:flex;flex-direction:column;height:100%;background:#171a22;color:#e9edf4';
 
-  // Barra de URL superior — compacta, como a do Quest
   const top = el('div');
   top.style.cssText='display:flex;align-items:center;gap:2px;padding:3px 6px;background:#0e1117;border-bottom:1px solid rgba(255,255,255,.06)';
   const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
   const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
   const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
   const fld = el('input','qb-urlfld');
-  fld.type='text'; fld.placeholder='Pesquisar ou inserir URL'; fld.value='https://duckduckgo.com/';
+  fld.type='text'; fld.placeholder='Pesquisar ou inserir URL'; fld.value=initialUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
   top.append(bk,fw,rl,fld,st);
 
-  // Conteúdo (WebView nativo em Android)
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
   const frame = el(native ? 'div' : 'iframe');
   if (native) {
     frame.dataset.nativeBrowser = 'browser';
     frame.style.cssText = 'width:100%;height:100%;background:#fff';
-    frame.dataset.url = 'https://duckduckgo.com/';
+    frame.dataset.url = initialUrl;
   } else {
     frame.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
     frame.referrerPolicy = 'no-referrer';
     frame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation';
-    frame.src = 'https://duckduckgo.com/';
+    frame.src = initialUrl;
   }
   wrap.appendChild(frame);
 
-  // Dock compacta — SÓ perfil + hora/wifi/bateria (sem atalhos de apps)
   const dock = el('div','qb-dock');
-
   const av = document.createElement('button');
   av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
   av.innerHTML = AVATAR_HTML; dock.appendChild(av);
-
   const status = document.createElement('button');
   status.className = 'dock-status';
   status.title='Status';
   status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
   dock.appendChild(status);
-
   body.append(top, wrap, dock);
 
-  // Hora / bateria / rede
   function tick(){
     const t = dock.querySelector('.dock-time');
     if (t) t.textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -105,10 +112,11 @@ function questBrowser() {
   fw.onclick  = () => bCmd('fwd');
   rl.onclick  = () => bCmd('reload');
 
-  const win = open({id:'browser',title:'Navegador',node:body});
+  const win = open({id:'browser',title:title||'Navegador',node:body});
   win._cleanupQB = () => { clearInterval(tickI); removeEventListener('online',paintNet); removeEventListener('offline',paintNet); };
   return win;
 }
+function questBrowser() { return webBrowserFor('browser','Navegador','https://duckduckgo.com/'); }
 
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
@@ -204,11 +212,10 @@ function exitImmersive() {
 on('immersiveOff', exitImmersive);
 
 function webWindow(id, title, url, note) {
-  // Estilo Meta Quest Browser: barra URL escura no topo + dock inferior com atalhos.
-  if (id === 'browser') return questBrowser();
-  // Netflix e outros web-apps abrem imersivos (sem chrome, dock escondida, fundo branco).
-  if (id === 'netflix' || id === 'youtube' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
-    return immersiveWebWindow(id, title, url);
+  // Sites grandes (YouTube, Netflix, etc.) abrem no navegador completo estilo Quest, com
+  // barra de URL — modo "cinema" foi desativado a pedido do usuário (pra retomar depois).
+  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
+    return webBrowserFor(id, title, url);
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
   const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
@@ -501,21 +508,57 @@ function youtube() {
   return win;
 }
 
-/* ============ Galeria ============ */
+/* ============ Galeria (fotos + ambientes) ============ */
 let photos = [];
 function gallery() {
   const body = el('div', 'pad');
   const head = el('div');
-  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">${t('photosHelp')}</p>`;
+  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos e troque o ambiente do NextVR.</p>`;
+
+  // ---------- Ambientes ----------
+  const envSection = el('div');
+  envSection.style.marginTop = '22px';
+  envSection.innerHTML = `<h3 style="font-size:18px;margin:0 0 10px 0;font-weight:700">${t('env')}</h3>
+    <p class="sub" style="margin:0 0 12px 0">Escolha o fundo em que tudo flutua.</p>`;
+  const envGrid = el('div', 'grid3');
+  const paintEnvs = () => {
+    envGrid.innerHTML = '';
+    for (const e of envList()) {
+      const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+      b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
+      b.innerHTML = `<span>${e.name}</span>`;
+      b.setAttribute('aria-pressed', S.env === e.id ? 'true' : 'false');
+      b.onclick = () => {
+        setEnvironment(e.id);
+        [...envGrid.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
+        b.setAttribute('aria-pressed', 'true');
+        toast('Ambiente: ' + e.name);
+      };
+      envGrid.appendChild(b);
+    }
+  };
+  paintEnvs();
+  on('env', paintEnvs);
+  envSection.appendChild(envGrid);
+
+  // ---------- Fotos ----------
+  const photoHead = el('div');
+  photoHead.style.cssText = 'margin-top:26px;display:flex;align-items:center;gap:10px';
+  photoHead.innerHTML = `<h3 style="font-size:18px;margin:0;font-weight:700">${t('gallery')}</h3>`;
   const pick = el('button', 'go', t('pickPhotos'));
   const input = el('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.style.display = 'none';
-  const grid = el('div', 'grid4'); grid.style.marginTop = '20px';
-  const big = el('div'); big.style.cssText = 'margin-top:18px';
+  photoHead.appendChild(pick);
+
+  const grid = el('div', 'grid4');
+  const big = el('div'); big.style.cssText = 'margin-top:14px';
 
   const paint = () => {
     grid.innerHTML = '';
-    if (!photos.length) { grid.innerHTML = `<p class="sub" style="grid-column:1/-1">${t('noPhotos')}</p>`; return; }
-    photos.forEach((p, i) => {
+    if (!photos.length) {
+      grid.innerHTML = `<p class="sub" style="grid-column:1/-1">${t('noPhotos')}</p>`;
+      return;
+    }
+    photos.forEach(p => {
       const c = el('button', 'thumb'); c.innerHTML = `<img src="${p}" alt="">`;
       c.onclick = () => { big.innerHTML = `<img src="${p}" style="width:100%;border-radius:16px">`; };
       grid.appendChild(c);
@@ -527,8 +570,8 @@ function gallery() {
     paint(); toast(photos.length + ' fotos');
   };
   paint();
-  body.append(head, pick, input, grid, big);
-  body.append(el('p', 'note', 'Na web, o Android pede as fotos pelo seletor do sistema — é a forma correta e não precisa de permissão extra. No app Android use READ_MEDIA_IMAGES e liste direto no MediaStore.'));
+
+  body.append(head, envSection, photoHead, input, grid, big);
   return open({ id: 'gallery', title: t('gallery'), node: body });
 }
 
