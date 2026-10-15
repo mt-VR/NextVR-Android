@@ -87,7 +87,10 @@ class Win {
     if (bar) bar.addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
-      else if (a.dataset.act === 'dock') { setDockHidden(false); el.classList.remove('dockoff'); }
+      else if (a.dataset.act === 'dock') {
+        for (const o of wins) if (o.hidden && o !== this) { o.hidden = false; o.obj.visible = true; }
+        setDockHidden(false); layout();
+      }
       else if (a.dataset.act === 'theme') {
         const dark = !el.classList.toggle('dark');
         el.classList.toggle('dark', !dark);
@@ -383,8 +386,11 @@ export function close(w) {
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
-  // Ao fechar a última janela imersiva, a dock volta automaticamente.
-  if (wasImmersive && !wins.some(x => x.immersive)) setDockHidden(false);
+  // Ao fechar uma janela imersiva, devolve todas as janelas escondidas e a dock.
+  if (wasImmersive) {
+    for (const o of wins) if (o.hidden) { o.hidden = false; o.obj.visible = true; }
+    setDockHidden(false);
+  }
   layout(); emit('wins', wins);
 }
 export function focus(w) {
