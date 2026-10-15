@@ -99,18 +99,23 @@ function drawHandSilhouette(pts) {
 }
 
 function ptsFromFlat(arr63, w, h, scaleX, scaleY) {
-  // Os landmarks vêm do detector que roda no bitmap upright girado pelo YUV nativo.
-  // Na prática, a orientação natural da câmera traseira no VR box (paisagem) entrega
-  // os pontos invertidos verticalmente e espelhados horizontalmente em relação à
-  // projeção que o cursor usa. Aplicamos a correção: (u→1-u, v→v) espelha o eixo X
-  // (mão direita/errada trocada) e o sinal invertido em Y coloca a mão para cima.
+  // Os landmarks points[] vêm nas MESMAS coordenadas 0..1 do bitmap upright
+  // (já rotacionado em C++ na conversão YUV→ARGB) que shape.aimX/aimY usam.
+  // A fórmula EXATA idêntica ao aim (que acerta o cursor) é:
+  //   bx = (x-.5)*2*scaleX ; by = (.5-y)*2*scaleY  → tangentes FOV
+  // Aqui convertemos direto para pixels usando a inversa de screenPoint,
+  // que é x = .5 + bx/(2*TAN_X)? NÃO — o native já entrega scaleX dimensionado
+  // pro viewport: mx = sx/(referenceY*1.5), my = sy/referenceY, que é passado
+  // pra bridge como mx/my. Multiplicando points[i].x*mx*w dá pixel direto.
+  // (Ver: PhoneXrHandRenderer.x(i) = (p[i*3]-.5)*2*viewScaleX)
   const pts = new Array(21);
   for (let i=0;i<21;i++){
-    const u = arr63[i*3];
-    const v = arr63[i*3+1];
-    const nx = (0.5 - (u - 0.5) * scaleX);   // inverte X (mão no lado correto)
-    const ny = (0.5 + (v - 0.5) * scaleY);   // inverte Y (mão não fica de cabeça p/ baixo)
-    pts[i] = { x: nx * w, y: (1 - ny) * h };
+    const x = arr63[i*3];
+    const y = arr63[i*3+1];
+    // Espelha X pra corrigir mão oposta (câmera traseira sem mirror), Y invertido
+    // como no cursor (.5-y) pra mão ficar pra cima.
+    pts[i] = { x: (0.5 - (x - 0.5) * scaleX) * w,
+               y: (0.5 - (y - 0.5) * scaleY) * h };
   }
   return pts;
 }

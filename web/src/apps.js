@@ -785,12 +785,10 @@ const DK = Object.freeze({
 
 function makeDock() {
   buildDock([
-    // Apenas perfil + hora/status + apps principais + launcher de apps.
-    // Sem teclado, sem centralizar, sem sino, sem separadores, sem buracos.
-    // Teclado continua funcional (abre sozinho ao clicar em campos de texto);
-    // recentramento é feito por gesto de pinça longa (3s) no ar.
+    // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
+    { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
     // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },

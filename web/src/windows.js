@@ -628,6 +628,9 @@ export function buildDock(items) {
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
+    if (it.kind === 'spacer') {
+      const s = document.createElement('span'); s.className='dock-spacer'; dockEl.appendChild(s); continue;
+    }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
