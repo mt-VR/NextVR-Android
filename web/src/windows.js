@@ -1085,6 +1085,11 @@ on('phonehands', packet => {
   for(const w of wins)if(w!==hoverWin||nowMs-hoverAt>NEAR_HOVER_HOLD_MS)w.shell.classList.remove('phone-grab-hover');
   if(hoverWin&&nowMs-hoverAt<=NEAR_HOVER_HOLD_MS)hoverWin.shell.classList.add('phone-grab-hover');
   else hoverWin=null;
+  // Destaque de hover nos ícones da dock: quando o cursor passa por cima, o ícone cresce um pouco.
+  const overDock = dockTest(cursor.x, cursor.y);
+  for(let i=0;i<dockBtns.length;i++){
+    dockBtns[i].classList.toggle('dock-hover', !!(overDock && overDock.i===i) && !cursor.down);
+  }
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
     if(!drag.win && !resizing.win && h.fist && !before) {

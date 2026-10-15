@@ -99,11 +99,17 @@ function drawHandSilhouette(pts) {
 }
 
 function ptsFromFlat(arr63, w, h, scaleX, scaleY) {
+  // Os pontos do nativo vêm em coordenadas NORMALIZADAS 0..1 da câmera (sem scale
+  // aplicado — o scaleX/scaleY já está embutido em aim/base/pinch/grab do frame).
+  // Para mapear corretamente para pixels do viewport (head-overlay 1200x800) na
+  // mesma projeção do cursor/raio, usamos a mesma fórmula de screenPoint mas
+  // invertida: x = (.5 + u*scaleX) * w, y = (.5 - v*scaleY) * h.
   const pts = new Array(21);
   for (let i=0;i<21;i++){
-    // Landmarks vêm normalizados em 0..1 (PhoneXR). Aplica scaleX/scaleY que é o
-    // mapeamento câmera → viewport. Sem espelhamento (câmera traseira).
-    pts[i] = { x: arr63[i*3]*scaleX*w, y: arr63[i*3+1]*scaleY*h };
+    const u = arr63[i*3];     // 0..1
+    const v = arr63[i*3+1];   // 0..1
+    pts[i] = { x: (0.5 + (u - 0.5) * scaleX) * w,
+               y: (0.5 - (v - 0.5) * scaleY) * h };
   }
   return pts;
 }

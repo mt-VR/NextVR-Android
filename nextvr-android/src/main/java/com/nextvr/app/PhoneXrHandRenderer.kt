@@ -94,12 +94,12 @@ class PhoneXrHandRenderer {
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
         if(showSilhouette && visible!=null) {
             this.frame=visible
-            // Predicted to display time: the silhouette tracks the render rate even when the
-            // detection rate drops (app open, GPU contention) — no stepping, no flicker.
             meshes=meshesFor(visible.predicted(now),sx,sy,now)
             drawHandSkeletons(position,fade)
-        } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
-        // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
+        } else {
+            meshes=emptyList();meshPoints=emptyList();meshPool.clear()
+            return // Não desenha cursor/raio/anel GL — o WebView já tem a silhueta+cursor ciano
+        }
         val visual=visible?.predicted(now)
         if(visual==null)return
         // Both eyes/display frames commonly reuse the same bridge packet.
