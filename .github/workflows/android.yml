@@ -33,7 +33,8 @@ jobs:
         run: |
           # Runner às vezes enche com ferramentas pré-instaladas que não usamos.
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/local/.ghcup 2>/dev/null || true
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache 2>/dev/null || true
+          # NÃO apagar /usr/local/lib/android: é onde o setup-java e o SDK do Android vivem.
+          sudo rm -rf /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/Python*/*-arm* 2>/dev/null || true
           sudo swapoff -a 2>/dev/null || true
           sudo rm -f /mnt/swapfile /swapfile 2>/dev/null || true
           sudo apt-get clean || true
