@@ -508,6 +508,9 @@
   #stat i.on{background:var(--good)}
   #fps{color:var(--faint)}
 
+  /* Permissões: em modo nativo (VR/headset) os botões não podem ser clicados e
+     não fazem sentido aparecerem flutuando no campo de visão. */
+  .native #perm{display:none !important}
   html.native,html.native body{background:transparent;width:4096px;height:4096px}
   .native #gl{display:none}
   .native #css3d,.native #atlas{position:absolute;inset:0;width:4096px;height:4096px}
