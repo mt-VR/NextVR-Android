@@ -93,10 +93,10 @@ class Win {
         emit('immersiveOff');
       }
       else if (a.dataset.act === 'theme') {
-        const dark = !el.classList.toggle('dark');
-        el.classList.toggle('dark', !dark);
-        a.title = dark ? 'Tema escuro' : 'Tema claro';
-        a.setAttribute('aria-pressed', String(!dark));
+        const light = el.classList.toggle('light');
+        a.title = light ? 'Tema claro' : 'Tema escuro';
+        a.setAttribute('aria-pressed', String(light));
+        el.style.background = light ? '#fff' : '#0a0a0c';
       }
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
       else repin(this);
@@ -228,7 +228,7 @@ class Win {
     const flat = Math.hypot(o.position.x, o.position.z) || .001;
     const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
     o.rotation.set(pitch, yaw, 0, 'YXZ');
-    const scale = this.immersive ? 1.05 * this.resizeScale : (this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
+    const scale = this.immersive ? 1.0 * this.resizeScale : (this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
     o.scale.setScalar(PX * scale);
 
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
@@ -294,8 +294,9 @@ function layout() {
   // não entra no arco; o arco volta quando ela é fechada.
   const immersive = wins.find(w => w.immersive && !w.hidden);
   if (immersive) {
-    const dist = Math.max(1.6, S.winDist + .3);
-    immersive.target.set(0, EYE + .05, -dist);
+    // Tela de vídeo centralizada na frente, na distância confortável (~2m), levemente acima dos olhos.
+    const dist = Math.max(1.8, S.winDist);
+    immersive.target.set(0, EYE + .02, -dist);
   }
   // Janela escondida (jogo em andamento) não entra no arco: ela volta exatamente para o lugar, o
   // tamanho e a curvatura que tinha quando o jogo começou.

@@ -327,12 +327,13 @@ on('quality', resize);
  * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
  * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space', 'cinema']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
+  { id: 'cinema', name: 'Cinema', thumb: './env/cinema.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';

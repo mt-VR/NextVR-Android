@@ -113,35 +113,74 @@ function questBrowser() {
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
 
-/* Janela imersiva tipo Netflix/YouTube: entra em uma "sala de cinema" só com a tela do vídeo,
-   as outras janelas somem, o ambiente escurece pra noite, a dock some e a toolbar flutua em cima.
-   Fechar ou apertar o botão da dock devolve tudo ao estado anterior. */
+/* Janela imersiva tipo cinema: entra em uma sala escura com um piso de azulejo escuro,
+   só a tela grande do vídeo (YouTube/Netflix/etc.) no centro e a toolbar flutuando em cima.
+   As outras janelas somem, a dock some, o ambiente troca pro "cinema". Fechar ou apertar o
+   botão da dock devolve tudo exatamente como estava antes. */
 let _preImmersiveEnv = null;
 function immersiveWebWindow(id, title, url) {
-  // Reaproveita o WebView 'browser' (YouTube/netflix/etc são todos sites carregados no browser nativo).
   const browserId = 'browser';
-  // Entra no ambiente "noite" (tipo cinema). Salva o ambiente atual pra restaurar na saída.
-  if (_preImmersiveEnv === null) { _preImmersiveEnv = S.env || 'passthrough'; setEnvironment('night'); }
-  // Esconde todas as outras janelas abertas (não fecha, pra não perder o estado delas).
+  // Troca pro ambiente de cinema (sala escura com piso) — salva o ambiente atual pra restaurar na saída.
+  if (_preImmersiveEnv === null) { _preImmersiveEnv = S.env || 'passthrough'; setEnvironment('cinema'); }
+  // Esconde todas as outras janelas abertas (não fecha, pra não perder estado delas).
   for (const w of wins) if (w.id !== browserId) { w.hidden = true; w.obj.visible = false; }
-  // Se já tem um browser aberto, reaproveita: navega pro novo URL.
+  // Se já existe um browser imersivo (YouTube/Netflix já aberto), só navega pro URL novo.
+  // Se existe um browser NÃO-imersivo (DuckDuckGo da dock), navega ele pro URL do vídeo em vez de
+  // fechar e reabrir: fechar destruiria a WebSurface nativa 'browser' e o YouTube não carregava
+  // ("não abriu nada"). Mas a estrutura da janela (barra normal, tamanho pequeno) é diferente —
+  // transformamos a janela em modo imersivo na hora: troca classe, remove barra antiga, coloca a
+  // toolbar de cinema e aumenta o tamanho.
   const existing = wins.find(w => w.id === browserId);
   if (existing) {
-    existing.immersive = true;
-    existing.node.classList.add('immersive');
+    if (!existing.immersive) {
+      existing.immersive = true;
+      existing.w = 1600; existing.h = 900; existing.resizeScale = 1;
+      existing.el.classList.add('immersive');
+      existing.el.style.width = '1600px'; existing.el.style.height = '900px';
+      existing.el.style.background = '#000';
+      // Troca a barra normal (win-bar) pela toolbar imersiva.
+      const oldBar = existing.el.querySelector('.win-bar');
+      if (oldBar) oldBar.remove();
+      if (!existing.el.querySelector('.immersive-toolbar')) {
+        const tb = document.createElement('div');
+        tb.className = 'immersive-toolbar';
+        tb.innerHTML = `<button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>`
+          + `<button class="it-btn" data-act="dock" aria-label="Mostrar dock" title="Mostrar dock">${icon('chevronDown')}</button>`
+          + `<button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>`;
+        existing.el.insertBefore(tb, existing.el.firstChild);
+        tb.addEventListener('click', e => {
+          const a = e.target.closest('[data-act]'); if (!a) return;
+          if (a.dataset.act === 'close') close(existing);
+          else if (a.dataset.act === 'dock') {
+            for (const o of wins) if (o.hidden && o !== existing) { o.hidden = false; o.obj.visible = true; }
+            setDockHidden(false); layout(); emit('immersiveOff');
+          }
+          else if (a.dataset.act === 'theme') {
+            const light = existing.el.classList.toggle('light');
+            a.title = light ? 'Tema claro' : 'Tema escuro';
+            existing.el.style.background = light ? '#fff' : '#0a0a0c';
+          }
+        });
+      }
+      existing.setSize(1600, 900);
+    }
     const f = existing.node.querySelector('[data-native-browser]') || existing.node.querySelector('iframe');
-    if (f) { if (native) { f.dataset.url = url; window.NativeXR?.browserCmd?.(browserId,'go',url); } else f.src = url; }
+    if (f) {
+      if (native) { f.dataset.url = url; window.NativeXR?.browserCmd?.(browserId,'go',url); }
+      else f.src = url;
+    }
     setDockHidden(true);
-    focus(existing);
+    focus(existing); layout();
     return existing;
   }
-  const body = el('div'); body.style.cssText='width:100%;height:100%;background:#fff';
+  // Modo escuro por padrão (cinema) — o botão de tema troca p/ claro (#fff).
+  const body = el('div'); body.style.cssText='width:100%;height:100%;background:#0a0a0c';
   const frame = el(native ? 'div' : 'iframe');
-  if (native) { frame.dataset.nativeBrowser = browserId; frame.style.cssText='width:100%;height:100%;background:#fff'; frame.dataset.url = url; }
-  else { frame.style.cssText='width:100%;height:100%;border:0;background:#fff';frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
+  if (native) { frame.dataset.nativeBrowser = browserId; frame.style.cssText='width:100%;height:100%;background:#0a0a0c'; frame.dataset.url = url; }
+  else { frame.style.cssText='width:100%;height:100%;border:0;background:#0a0a0c';frame.referrerPolicy='no-referrer'; frame.sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'; frame.src=url; }
   body.appendChild(frame);
   setDockHidden(true);
-  return open({ id: browserId, title, node: body, w: 2200, h: 1260, immersive: true });
+  return open({ id: browserId, title, node: body, w: 1600, h: 900, immersive: true });
 }
 function exitImmersive() {
   if (_preImmersiveEnv !== null) { setEnvironment(_preImmersiveEnv); _preImmersiveEnv = null; }
