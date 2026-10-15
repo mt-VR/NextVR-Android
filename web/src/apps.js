@@ -54,39 +54,18 @@ function questBrowser() {
   }
   wrap.appendChild(frame);
 
-  // Dock compacta — usa EXATAMENTE as mesmas classes da dock principal (dock-av, dock-status, dock-app, dock-sep)
+  // Dock compacta — SÓ perfil + hora/wifi/bateria (sem atalhos de apps)
   const dock = el('div','qb-dock');
 
-  // Perfil (avatar)
   const av = document.createElement('button');
   av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
   av.innerHTML = AVATAR_HTML; dock.appendChild(av);
 
-  // Hora + Wi-Fi + bateria (mesma forma da dock principal)
   const status = document.createElement('button');
   status.className = 'dock-status';
   status.title='Status';
   status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
   dock.appendChild(status);
-
-  // Separador
-  const sep = document.createElement('span'); sep.className='dock-sep'; dock.appendChild(sep);
-
-  // Apps (usando dock-app para ter o mesmo visual e hover/press da dock)
-  const apps = [
-    { label:'YouTube', svg:icon('play'),   bg:'linear-gradient(145deg,#ff6b6b,#c03030)', url:'https://m.youtube.com' },
-    { label:'Discord', svg:icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app' },
-    { label:'Galeria', svg:icon('camera'), bg:'linear-gradient(145deg,#ff6584,#c21845)', url:'https://photos.google.com' },
-    { label:'Loja',    svg:icon('store'),  bg:'linear-gradient(145deg,#ffb544,#d06a12)', url:'https://www.meta.com/experiences/' },
-    { label:'Nova aba',svg:icon('globe'),  bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/' },
-  ];
-  for (const a of apps) {
-    const b = document.createElement('button');
-    b.className='dock-app'; b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
-    b.style.background = a.bg; b.innerHTML = a.svg;
-    b.addEventListener('click', () => nav(a.url));
-    dock.appendChild(b);
-  }
 
   body.append(top, wrap, dock);
 
