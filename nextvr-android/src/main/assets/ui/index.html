@@ -613,3 +613,30 @@
 <script defer src="./app.js"></script>
 </body>
 </html>
+
+  /* ---------- Configurações estilo YouTube Android ---------- */
+  .yt-back{width:40px;height:40px;border:0;background:transparent;border-radius:50%;color:#f1f1f1;cursor:pointer;display:grid;place-items:center}
+  .yt-back:hover{background:rgba(255,255,255,.08)}
+  .yt-back svg{width:24px;height:24px}
+  .yt-head-title{flex:1;font-size:20px;font-weight:500;color:#fff;padding:0 8px}
+  .yt-sec{padding:16px 16px 8px 72px;font-size:13px;font-weight:500;color:#3ea6ff;letter-spacing:.2px;text-transform:uppercase}
+  .yt-row{display:flex;align-items:center;gap:16px;padding:12px 24px 12px 16px;min-height:56px}
+  .yt-row:hover{background:rgba(255,255,255,.04)}
+  .yt-ic{width:40px;height:40px;display:grid;place-items:center;flex:none;color:#aaa}
+  .yt-ic svg{width:22px;height:22px}
+  .yt-txt{flex:1;min-width:0}
+  .yt-title{font-size:15px;color:#f1f1f1;line-height:1.3;font-weight:400}
+  .yt-sub{font-size:12px;color:#aaa;margin-top:2px;line-height:1.3}
+  .yt-ch{color:#717171}
+  .yt-ctl{display:flex;align-items:center;gap:8px;color:#aaa}
+  .yt-link{display:block;width:100%;border:0;background:transparent;color:inherit;padding:0;text-align:left;cursor:pointer;font:inherit}
+  .yt-sw{position:relative;width:52px;height:32px;border:0;background:transparent;cursor:pointer;padding:0}
+  .yt-sw::before{content:"";position:absolute;top:4px;left:4px;right:4px;bottom:4px;background:#5d5d5d;border-radius:99px;transition:background .2s}
+  .yt-sw::after{content:"";position:absolute;top:6px;left:6px;width:28px;height:28px;background:#fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:left .2s cubic-bezier(.4,0,.2,1)}
+  .yt-sw[data-on="1"]::before{background:#3ea6ff}
+  .yt-sw[data-on="1"]::after{left:26px}
+  .yt-seg{display:flex;gap:4px}
+  .yt-seg-btn{border:0;background:rgba(255,255,255,.08);color:#f1f1f1;padding:8px 14px;border-radius:8px;font:500 13px Inter,sans-serif;cursor:pointer}
+  .yt-seg-btn[aria-pressed="true"]{background:#3ea6ff;color:#0f0f0f}
+  .yt-range{width:130px;accent-color:#3ea6ff}
+  .yt-foot{padding:20px 72px 8px;font-size:12px;color:#717171}

@@ -598,102 +598,94 @@ function row(title, desc, ctl) {
   r.append(el('div', 'opt-l', `<div class="opt-t">${title}</div>${desc ? `<div class="opt-d">${desc}</div>` : ''}`), ctl);
   return r;
 }
-function toggle(key, after) {
-  const b = el('button', 'sw'); b.dataset.on = S[key] ? '1' : '0';
-  b.onclick = () => { S[key] = S[key] ? 0 : 1; b.dataset.on = S[key] ? '1' : '0'; save(); after && after(S[key]); };
+function ytRow(iconSvg, title, sub, ctl) {
+  const r = el('div', 'yt-row');
+  const ic = el('span', 'yt-ic'); ic.innerHTML = iconSvg;
+  const txt = el('div', 'yt-txt');
+  txt.innerHTML = `<div class="yt-title">${title}</div>${sub ? `<div class="yt-sub">${sub}</div>` : ''}`;
+  r.append(ic, txt);
+  if (ctl) { const w = el('div', 'yt-ctl'); w.appendChild(ctl); r.appendChild(w); }
+  else { const ch = el('span', 'yt-ch'); ch.innerHTML = ''; r.appendChild(ch); }
+  return r;
+}
+function ytToggle(key, after) {
+  const b = el('button', 'yt-sw');
+  b.type = 'button'; b.setAttribute('role','switch');
+  const upd = () => { b.dataset.on = S[key] ? '1' : '0'; b.setAttribute('aria-checked', S[key] ? 'true' : 'false'); };
+  upd();
+  b.onclick = () => { S[key] = S[key] ? 0 : 1; save(); upd(); after && after(S[key]); };
   return b;
 }
-function slider(key, min, max, step, after) {
-  const i = el('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = S[key];
-  i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
-  return i;
+function ytSection(label) {
+  const h = el('div', 'yt-sec'); h.textContent = label; return h;
+}
+function ytRange(key, mn, mx, st) {
+  const s = el('input','yt-range'); s.type='range'; s.min=mn; s.max=mx; s.step=st; s.value=S[key];
+  s.oninput=()=>{S[key]=+s.value;save();}; return s;
 }
 function settingsApp() {
-  const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
-  const tabs = el('div', 'tabs'); tabs.style.padding = '18px 24px 0';
-  const page = el('div', 'pad'); page.style.paddingTop = '6px';
-  body.append(tabs, page);
+  // Estilo Configurações do YouTube Android: cabeçalho com voltar, lista escura, ícones à
+  // esquerda, toggle/seta à direita, seções azuis.
+  const body = el('div');
+  body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f0f;color:#f1f1f1;font-family:Inter,system-ui,sans-serif;';
+  const head = el('div');
+  head.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 8px 4px;';
+  const back = el('button', 'yt-back');
+  back.innerHTML = icon('back'); back.title='Voltar';
+  back.setAttribute('aria-label','Voltar');
+  back.onclick = () => { const w = wins.find(x => x.id === 'settings'); if (w) close(w); };
+  const titleEl = el('div', 'yt-head-title'); titleEl.textContent = t('settings');
+  head.append(back, titleEl);
 
-  const TABS = [
-    [t('general'), () => {
-      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Next VR · shell XR para Android</p>`;
-      const c = el('div', 'card');
-      // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
-      const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
-      pick.onclick = () => {
-        const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
-          node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
-      };
-      c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
-      c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
-      page.append(c);
-      page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
-    }],
-    [t('hands'), () => {
-      page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
-      c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
-      c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
-      c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.30 / 0.48')));
-      c.append(row('Detector', 'MediaPipe Tasks Vision, 2 mãos por frame', el('span', 'note', 'NextVR')));
-      page.append(c);
-    }],
-    [t('windows'), () => {
-      page.innerHTML = `<h2>${t('windows')}</h2><p class="sub">As janelas ficam fixas no ambiente.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('curve'), '1 = encara o centro; menor = mais aberta', slider('winCurve', 0, 1, .05)));
-      c.append(row('Inclinação', 'Ajuste vertical ao subir/descer', slider('winTilt', 0, 1.5, .05)));
-      c.append(row(t('scale'), 'Tamanho das janelas', slider('winScale', .6, 1.6, .05)));
-      c.append(row(t('dist'), 'Distância do arco', slider('winDist', native?.6:1.5, native?1.8:3.4, .05)));
-      c.append(row(t('win360'), t('win360k'), slider('win360K', .2, 1.15, .05)));
-      c.append(row(t('win360All'), 'O botão 360° na barra da janela troca por janela', toggle('win360')));
-      page.append(c);
-    }],
-    [t('dock'), () => {
-      page.innerHTML = `<h2>${t('dock')}</h2><p class="sub">No modo paisagem a dock chega mais perto.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('size'), null, slider('dockSize', .7, 1.5, .05)));
-      c.append(row(t('dist'), null, slider('dockDist', .7, 1.5, .05)));
-      page.append(c);
-    }],
-    [t('env'), () => { page.innerHTML = ''; page.append(el('h2', null, t('env')));
-      page.append(el('p', 'sub', 'Passthrough da câmera ou um panorama 360° em volta de você.'));
-      const g = el('div', 'grid3');
-      for (const e of envList()) {
-        const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
-        b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-        b.innerHTML = `<span>${e.name}</span>`; b.setAttribute('aria-pressed', S.env === e.id);
-        b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
-        g.appendChild(b);
-      }
-      page.append(g);
-    }],
-    [t('perf'), () => {
-      page.innerHTML = `<h2>${t('perf')}</h2><p class="sub">Celular esquentando? Baixe a qualidade.</p>`;
-      const c = el('div', 'card');
-      const seg = el('div', 'seg');
-      for (const [id, name] of [['low','Baixa'],['auto','Automática'],['high','Alta']]) {
-        const b = el('button', null, name); b.setAttribute('aria-pressed', S.quality === id);
-        b.onclick = () => { S.quality = id; save(); emit('quality'); [...seg.children].forEach(x => x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
-        seg.appendChild(b);
-      }
-      c.append(row(t('quality'), 'Resolução de renderização', seg));
-      page.append(c);
-      page.append(el('p','note','O hand tracking roda na própria cadência (single-flight, sem fila), separado do render. Ative o contador de FPS para ver as duas taxas: render e tracking.'));
-    }],
-  ];
-  let cur = 0;
-  function rebuild() {
-    tabs.innerHTML = '';
-    TABS.forEach(([name], i) => {
-      const b = el('button', null, name); b.setAttribute('aria-selected', i === cur);
-      b.onclick = () => { cur = i; rebuild(); };
-      tabs.appendChild(b);
-    });
-    TABS[cur][1]();
+  const scroll = el('div');
+  scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
+
+  let picker = null;
+  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
+    node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
+
+  // Geral
+  scroll.append(ytSection(t('general')));
+  const langBtn = el('button','yt-link');
+  langBtn.append(ytRow(icon('globe'), t('language'), langRow(S.lang||'pt').label));
+  langBtn.onclick = openPicker;
+  scroll.append(langBtn);
+  scroll.append(ytRow(icon('gauge'), 'Contador de FPS', 'Mostrar taxa de quadros', ytToggle('showFps')));
+  const envBtn = el('button','yt-link');
+  envBtn.append(ytRow(icon('image'), 'Ambiente', 'Trocar passthrough / panorama'));
+  envBtn.onclick = () => { const w=wins.find(x=>x.id==='settings');if(w)close(w);gallery(); };
+  scroll.append(envBtn);
+
+  // Mãos
+  scroll.append(ytSection(t('hands')));
+  scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo · câmera traseira'));
+  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno ciano e cursor de pinça', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
+
+  // Janelas
+  scroll.append(ytSection(t('windows')));
+  scroll.append(ytRow(icon('maximize'), 'Tamanho', 'Escala das janelas', ytRange('winScale',.6,1.6,.05)));
+  scroll.append(ytRow(icon('distance'), 'Distância', 'Distância do arco', ytRange('winDist',native?.6:1.5,native?1.8:3.4,.05)));
+  scroll.append(ytRow(icon('curve'), 'Curvatura 360°', t('win360k'), ytRange('win360K',.2,1.15,.05)));
+
+  // Dock
+  scroll.append(ytSection(t('dock')));
+  scroll.append(ytRow(icon('appGrid'), 'Tamanho da dock', null, ytRange('dockSize',.7,1.5,.05)));
+
+  // Desempenho
+  scroll.append(ytSection('Desempenho'));
+  const seg = el('div','yt-seg');
+  for (const [id,name] of [['low','Baixa'],['auto','Automática'],['high','Alta']]) {
+    const b = el('button','yt-seg-btn'); b.textContent=name; b.setAttribute('aria-pressed',S.quality===id);
+    b.onclick=()=>{S.quality=id;save();emit('quality');[...seg.children].forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');};
+    seg.appendChild(b);
   }
-  rebuild();
+  scroll.append(ytRow(icon('settings'), 'Qualidade', 'Resolução de renderização', seg));
+
+  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v1.0';
+  scroll.append(foot);
+
+  body.append(head, scroll);
   return open({ id: 'settings', title: t('settings'), node: body });
 }
 
