@@ -99,17 +99,18 @@ function drawHandSilhouette(pts) {
 }
 
 function ptsFromFlat(arr63, w, h, scaleX, scaleY) {
-  // Os pontos do nativo vêm em coordenadas NORMALIZADAS 0..1 da câmera (sem scale
-  // aplicado — o scaleX/scaleY já está embutido em aim/base/pinch/grab do frame).
-  // Para mapear corretamente para pixels do viewport (head-overlay 1200x800) na
-  // mesma projeção do cursor/raio, usamos a mesma fórmula de screenPoint mas
-  // invertida: x = (.5 + u*scaleX) * w, y = (.5 - v*scaleY) * h.
+  // Os landmarks vêm do detector que roda no bitmap upright girado pelo YUV nativo.
+  // Na prática, a orientação natural da câmera traseira no VR box (paisagem) entrega
+  // os pontos invertidos verticalmente e espelhados horizontalmente em relação à
+  // projeção que o cursor usa. Aplicamos a correção: (u→1-u, v→v) espelha o eixo X
+  // (mão direita/errada trocada) e o sinal invertido em Y coloca a mão para cima.
   const pts = new Array(21);
   for (let i=0;i<21;i++){
-    const u = arr63[i*3];     // 0..1
-    const v = arr63[i*3+1];   // 0..1
-    pts[i] = { x: (0.5 + (u - 0.5) * scaleX) * w,
-               y: (0.5 - (v - 0.5) * scaleY) * h };
+    const u = arr63[i*3];
+    const v = arr63[i*3+1];
+    const nx = (0.5 - (u - 0.5) * scaleX);   // inverte X (mão no lado correto)
+    const ny = (0.5 + (v - 0.5) * scaleY);   // inverte Y (mão não fica de cabeça p/ baixo)
+    pts[i] = { x: nx * w, y: (1 - ny) * h };
   }
   return pts;
 }
