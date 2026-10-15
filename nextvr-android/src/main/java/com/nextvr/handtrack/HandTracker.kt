@@ -150,8 +150,9 @@ class HandTracker @JvmOverloads constructor(
     }
 
     companion object {
-        /** The search graph's slots: either hand, and both at once, is what it has to be able to find. */
-        const val WIDE_HANDS = 2
+        /** The search graph's slots: a single hand is tracked/quantized for speed; second-hand
+         *  discovery is dropped in favor of the frame rate (optimization target 3 -> 30 fps). */
+        const val WIDE_HANDS = 1
         /** The tracking graph's slots: the hand being tracked, and nothing else. */
         const val NARROW_HANDS = 1
         /** The graph used while a hand is tracked: MediaPipe's default-quality threshold. */
@@ -160,6 +161,6 @@ class HandTracker @JvmOverloads constructor(
          * enough that noise is not promoted to a hand (the fork's crop rescue used .3 on a crop). */
         const val SEARCH_CONFIDENCE = .25f
         /** One two-slot search frame while tracking, every this many milliseconds of camera time. */
-        const val PROBE_MS = 150L
+        const val PROBE_MS = 500L
     }
 }

@@ -9,7 +9,7 @@ import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 /* ============================ estado ============================ */
 const DEF = {
   lang: null,
-  handsOn: true, handDraw: 1,
+  handsOn: true, handDraw: 0,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,

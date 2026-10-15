@@ -43,7 +43,7 @@ final class PassthroughCamera {
      * page was still being rasterized is not evidence about a steady session. Two is the whole
      * budget: the retry would otherwise become the loop the latch exists to prevent.
      */
-    private static final int MAX_GPU_ATTEMPTS=2;
+    private static final int MAX_GPU_ATTEMPTS=0;
     /** A scaled analysis frame waiting for, or being processed by, hand tracking. */
     private static final class TrackingFrame {
         final Bitmap bitmap;
@@ -62,7 +62,13 @@ final class PassthroughCamera {
     private final Listener listener;
     private final HandlerThread thread=new HandlerThread("NextVR Camera2");
     private final Handler handler;
-    private final ExecutorService tracking=Executors.newSingleThreadExecutor(r->new Thread(r,"PhoneXR OrangeHanding"));
+    private final ExecutorService tracking=Executors.newSingleThreadExecutor(r-> {
+        Thread t=new Thread(r,"PhoneXR OrangeHanding");
+        // The tracking thread owns the MediaPipe inference; keep it above the UI/GC threads so a
+        // WebView reflow does not steal the core the landmarker is running on.
+        t.setPriority(Thread.MAX_PRIORITY);
+        return t;
+    });
     /** Newest frame not yet taken by the tracker. Replaced, never queued. */
     private final LatestFrameSlot<TrackingFrame> slot=new LatestFrameSlot<>();
     /** True while a drain task is queued or running on the tracking thread. */
@@ -102,7 +108,12 @@ final class PassthroughCamera {
     volatile float scaleX=1.1f,scaleY=.73f;
 
     PassthroughCamera(Context context,Listener listener) {
-        this.context=context;this.listener=listener;thread.start();handler=new Handler(thread.getLooper());
+        this.context=context;this.listener=listener;thread.start();
+        // Give the camera callback thread (and the GL passthrough hand-off that follows it) top
+        // priority: competing with the WebView's rasterizer for the same frames is what stalls it
+        // before inference even begins. This is the cheapest latency win available here.
+        thread.setPriority(Thread.MAX_PRIORITY);
+        handler=new Handler(thread.getLooper());
     }
     void start(int displayRotation) { handler.post(()->open(displayRotation)); }
     @SuppressLint("MissingPermission")
@@ -129,7 +140,7 @@ final class PassthroughCamera {
             Size selected=null;long best=Long.MAX_VALUE;
             for(Size size:map.getOutputSizes(ImageFormat.YUV_420_888)) {
                 if(size.getWidth()>1920 || size.getHeight()>1080)continue;
-                long score=Math.abs(size.getWidth()-1280)*10L+Math.abs(size.getHeight()-720);
+                long score=Math.abs(size.getWidth()-640)*10L+Math.abs(size.getHeight()-480);
                 if(score<best){best=score;selected=size;}
             }
             if(selected==null)throw new IllegalStateException("No suitable YUV stream");
