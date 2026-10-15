@@ -2,6 +2,7 @@ package com.nextvr.app.hands
 
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import kotlin.math.hypot
 
 /** Adapted from mt-VR/NextVR b878d8b VrHomeActivity.onHands/LandmarkSmoother.
  * Detection, smoothing, shapes, pinch and shoulder rays are native. The HTML shell only hit-tests
@@ -265,7 +266,38 @@ class PhoneXrHands {
             // updated its pinch latch (a release on a hand that never moved), and the web layer -
             // which owns presses and drags per `id` - could not tell the two apart. The duplicate
             // claim is moved to the free side, so each hand keeps its own state and its own id.
-            if (!detected.add(left)) { left = !left; detected.add(left) }
+            //
+            // The label alone is not enough, though: MediaPipe's handedness AND the order of its
+            // landmark lists both change between the two-slot search graph and the one-slot
+            // tracking graph, and between frames. Keying the filter state on them alone swapped the
+            // two hands' states, so each hand jumped to wherever the other one's filters were -
+            // which reads as a blink. So identity is matched by POSITION: the state whose last palm
+            // is nearest wins, with the label only used to break ties between equally near states.
+            // A state is only taken across from the other side when the label's own state is gone
+            // or implausibly far, which is exactly the transient re-acquisition case.
+            val palmRawX=(raw[0].x()+raw[5].x()+raw[9].x()+raw[17].x())*.25f
+            val palmRawY=(raw[0].y()+raw[5].y()+raw[9].y()+raw[17].y())*.25f
+            val palmW=hypot(raw[5].x()-raw[17].x(), raw[5].y()-raw[17].y())
+            val gate=maxOf(.25f, palmW*2.5f)
+            val gate2=gate*gate
+            var sameKey:Boolean?=null;var sameD=Float.MAX_VALUE
+            var otherKey:Boolean?=null;var otherD=Float.MAX_VALUE
+            for ((key,st) in states) {
+                if (key in detected) continue
+                val last=st.lastHand ?: continue
+                val dx=palmRawX-last.shape.palmX
+                val dy=palmRawY-last.shape.palmY
+                val d=dx*dx+dy*dy
+                if (key==left) { if(d<sameD){sameD=d;sameKey=key} }
+                else if(d<otherD){otherD=d;otherKey=key}
+            }
+            val chosen=when {
+                sameKey!=null&&sameD<=gate2 -> sameKey
+                otherKey!=null&&otherD<=gate2 -> otherKey
+                else -> null
+            }
+            if (chosen!=null) { left=chosen; detected.add(chosen) }
+            else if (!detected.add(left)) { left = !left; detected.add(left) }
             val state = states.getOrPut(left) { State() }
             val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
                 state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),
