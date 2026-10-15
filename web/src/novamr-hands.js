@@ -66,13 +66,12 @@ function ensureDom() {
   if (installed) return;
   installed = true;
   const host = document.getElementById('head-overlay') || document.body;
-  // Vídeo é o passthrough da câmera traseira (fundo). Canvas em cima só pra silhueta
-  // das mãos e cursores. Ligando direto como background, evitamos a disputa de câmera
-  // com o passthrough nativo GL (que é parado via NativeXR.nativeCamera(false)).
+  // O vídeo NÃO é desenhado na tela: ele fica escondido e é só fonte de frames pro MediaPipe.
+  // O passthrough REAL é a câmera nativa em GL (que permanece ligada o tempo todo), como era antes.
+  // Canvas e cursores são desenhados por cima, transparentes, só com os contornos ciano das mãos.
   [video, canvas, cursor1, cursor2, holdRing].forEach(el => host.appendChild(el));
-  video.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:1;pointer-events:none';
-  // O canvas fica transparente — só desenha os contornos ciano e cursores em cima do vídeo.
-  canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:none';
+  video.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:none;background:transparent';
   cursor1.style.cssText = cursor2.style.cssText = 'position:absolute;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,#27e8ff 0%,#00bfff 45%,rgba(0,191,255,0) 70%);box-shadow:0 0 18px #00dfff,0 0 36px #00bfff;transform:translate(-50%,-50%) scale(0);z-index:3;pointer-events:none;transition:transform .1s ease-out';
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
@@ -328,36 +327,26 @@ function stopCamera() {
 // Substitui as funções de start/stop do hands.js nativo.
 export async function startNovaHands() {
   if (started) return true;
-  // Desliga TODO o acesso nativo à câmera (hand tracking E passthrough GL) pra
-  // liberar o hardware pro getUserMedia do MediaPipe. O próprio <video> do
-  // NovaMR agora é o passthrough mono desenhado no fundo da head-overlay.
-  if (native && window.NativeXR?.hands) window.NativeXR.hands(false);
-  if (native && window.NativeXR?.nativeCamera) {
-    try { window.NativeXR.nativeCamera(false); } catch(e) { console.warn('nativeCamera', e); }
-    // Dá um tempo pra câmera nativa fechar de verdade antes de pedir getUserMedia.
-    await new Promise(r => setTimeout(r, 450));
-  }
+  // A câmera nativa CONTINUA ligada o tempo todo — ela é que faz o passthrough
+  // GL estéreo de verdade (com distorção de lente do Cardboard). Tentamos abrir
+  // uma SEGUNDA sessão getUserMedia pro MediaPipe das mãos; no Android 11+ o
+  // Camera2 aceita múltiplos clientes. Se não der (aparelho mais antigo), o
+  // passthrough continua normalmente e apenas o tracking de mãos fica off.
+  if (native && window.NativeXR?.hands) window.NativeXR.hands(false); // desliga só o HandTracker Java/GPU
   const ok = await startCamera();
-  emit('hands', ok);
   return ok;
 }
 export function stopNovaHands() {
   stopCamera();
-  // Restaura a câmera nativa se o NovaMR parar (ex.: ambiente virtual).
-  if (native && window.NativeXR?.nativeCamera) {
-    try { window.NativeXR.nativeCamera(true); } catch(e) {}
-  }
-  emit('hands', false);
 }
 export const novamrTracking = () => started;
 
 // Injeta CSS necessário para os cursores e canvas.
 (function injectCss(){
   const css = `
-    html.native #head-overlay{background:#000}
-    html.native #novamr-canvas{position:absolute;left:0;top:0;width:1200px;height:800px}
+    html.native #novamr-canvas{position:absolute;left:0;top:0;width:1200px;height:800px;background:transparent}
     html.native .novamr-cursor{position:absolute}
-    html.native #novamr-camera{position:absolute!important;left:0!important;top:0!important;width:1200px!important;height:800px!important;object-fit:cover!important;opacity:1!important}`;
+    html.native #novamr-camera{display:none!important}`;
   const tag = document.createElement('style');
   tag.textContent = css;
   document.head.appendChild(tag);
