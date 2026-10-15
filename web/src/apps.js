@@ -25,27 +25,20 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
 /* ===== Quest-style DuckDuckGo Browser ===== */
 function questBrowser() {
   const body = el('div');
-  body.style.cssText='display:flex;flex-direction:column;height:100%;background:#1a1d24;color:#e9edf4';
-  const DK = window.DK || {};
-  const ico = (p) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-  const backSvg = ico('<path d="M20 12H5"/><path d="m12 19-7-7 7-7"/>');
-  const fwdSvg  = ico('<path d="M4 12h15"/><path d="m12 5 7 7-7 7"/>');
-  const reloadSvg = ico('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>');
-  const starSvg = ico('<polygon points="12 2 15.1 8.3 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 8.9 8.3 12 2"/>');
-  const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+  body.style.cssText='display:flex;flex-direction:column;height:100%;background:#171a22;color:#e9edf4';
 
-  // Barra superior escura
+  // Barra de URL superior — compacta, como a do Quest
   const top = el('div');
-  top.style.cssText='display:flex;align-items:center;gap:8px;padding:11px 14px;background:#12151b;border-bottom:1px solid rgba(255,255,255,.08)';
-  const back = el('button','qb-icn'); back.innerHTML=backSvg; back.title='Voltar';
-  const fwd  = el('button','qb-icn'); fwd.innerHTML=fwdSvg; fwd.title='Avançar'; fwd.style.opacity='.5';
-  const refr = el('button','qb-icn'); refr.innerHTML=reloadSvg; refr.title='Recarregar';
+  top.style.cssText='display:flex;align-items:center;gap:4px;padding:6px 10px;background:#10131a;border-bottom:1px solid rgba(255,255,255,.07)';
+  const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
+  const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
+  const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
   const fld = el('input','qb-urlfld');
-  fld.type='text'; fld.placeholder='Buscar ou digitar endereço — DuckDuckGo'; fld.value='https://duckduckgo.com/';
-  const star = el('button','qb-icn'); star.innerHTML=starSvg; star.title='Favorito';
-  top.append(back,fwd,refr,fld,star);
+  fld.type='text'; fld.placeholder='Pesquisar ou inserir URL'; fld.value='https://duckduckgo.com/';
+  const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
+  top.append(bk,fw,rl,fld,st);
 
-  // Área de conteúdo
+  // Conteúdo (WebView nativo em Android)
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
   const frame = el(native ? 'div' : 'iframe');
@@ -61,80 +54,85 @@ function questBrowser() {
   }
   wrap.appendChild(frame);
 
-  // Dock inferior no MESMO estilo da dock principal do sistema (avatar + hora/wifi/bateria + sep + apps)
+  // Dock compacta — usa EXATAMENTE as mesmas classes da dock principal (dock-av, dock-status, dock-app, dock-sep)
   const dock = el('div','qb-dock');
-  dock.style.cssText='display:flex;align-items:center;gap:6px;padding:9px 14px;background:#12151b;border-top:1px solid rgba(255,255,255,.08)';
 
   // Perfil (avatar)
-  const av = el('button','qb-av'); av.innerHTML=AVATAR_SVG; av.title='Perfil';
-  // Hora / Wi-Fi / Bateria
-  const status = el('span','qb-status');
-  const batFill = '<rect class="fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor"/>';
-  status.innerHTML = '<span class="qb-time">--:--</span><span class="qb-wifi">'+icon('wifi')+'</span><span class="qb-bat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor"/>'+batFill+'</svg></span>';
-  // Separador
-  const sep = el('span'); sep.style.cssText='width:1.5px;height:24px;border-radius:2px;background:rgba(255,255,255,.18);flex:none;margin:0 4px';
-  dock.append(av, status, sep);
+  const av = document.createElement('button');
+  av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
+  av.innerHTML = AVATAR_HTML; dock.appendChild(av);
 
+  // Hora + Wi-Fi + bateria (mesma forma da dock principal)
+  const status = document.createElement('button');
+  status.className = 'dock-status';
+  status.title='Status';
+  status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
+  dock.appendChild(status);
+
+  // Separador
+  const sep = document.createElement('span'); sep.className='dock-sep'; dock.appendChild(sep);
+
+  // Apps (usando dock-app para ter o mesmo visual e hover/press da dock)
   const apps = [
-    {label:'YouTube', svg:DK.play||icon('play'),     bg:'linear-gradient(145deg,#ff6b6b,#d63c3c)', url:'https://m.youtube.com'},
-    {label:'Discord', svg:DK.people||icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app'},
-    {label:'Galeria', svg:DK.camera||icon('camera'), bg:'linear-gradient(145deg,#ff6584,#d4204e)', url:'https://photos.google.com'},
-    {label:'Loja',    svg:DK.store||icon('store'),   bg:'linear-gradient(145deg,#ffb544,#e8741a)', url:'https://www.meta.com/experiences/'},
-    {label:'Nova aba',svg:reloadSvg,                 bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/'},
+    { label:'YouTube', svg:icon('play'),   bg:'linear-gradient(145deg,#ff6b6b,#c03030)', url:'https://m.youtube.com' },
+    { label:'Discord', svg:icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app' },
+    { label:'Galeria', svg:icon('camera'), bg:'linear-gradient(145deg,#ff6584,#c21845)', url:'https://photos.google.com' },
+    { label:'Loja',    svg:icon('store'),  bg:'linear-gradient(145deg,#ffb544,#d06a12)', url:'https://www.meta.com/experiences/' },
+    { label:'Nova aba',svg:icon('globe'),  bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/' },
   ];
-  function makeAppBtn(a){
-    const b = el('button','qb-app');
-    b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
-    if (a.bg) b.style.background=a.bg;
-    b.innerHTML = a.svg;
-    b.onmouseenter = () => b.classList.add('qb-hover');
-    b.onmouseleave = () => b.classList.remove('qb-hover');
-    b.onclick = () => a.onclick ? a.onclick() : nav(a.url);
+  for (const a of apps) {
+    const b = document.createElement('button');
+    b.className='dock-app'; b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
+    b.style.background = a.bg; b.innerHTML = a.svg;
+    b.addEventListener('click', () => nav(a.url));
     dock.appendChild(b);
-    return b;
   }
-  for (const a of apps) makeAppBtn(a);
 
   body.append(top, wrap, dock);
 
-  // Atualiza hora/bateria/wifi
+  // Hora / bateria / rede
   function tick(){
-    const t = dock.querySelector('.qb-time');
-    if(t) t.textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const t = dock.querySelector('.dock-time');
+    if (t) t.textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   }
   tick(); const tickI = setInterval(tick,20000);
   if (navigator.getBattery) {
     navigator.getBattery().then(b=>{
       function paint(){
-        const f = dock.querySelector('.qb-bat .fill'); if(!f) return;
+        const f = dock.querySelector('.dock-bat .b-fill'); if(!f) return;
         f.setAttribute('width', String(Math.max(2, 13*b.level)));
         f.setAttribute('fill', b.charging?'#8de6c8':(b.level<.2?'#ff6b6b':'currentColor'));
       }
       b.addEventListener('levelchange',paint); b.addEventListener('chargingchange',paint); paint();
     }).catch(()=>{});
   }
+  function paintNet(){
+    const w = dock.querySelector('.dock-wifi'); if(w) w.style.opacity = navigator.onLine ? '1' : '.35';
+  }
+  addEventListener('online',paintNet); addEventListener('offline',paintNet); paintNet();
 
   function nav(raw){
     let u=(raw||'').trim(); if(!u) return;
     if(!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://'+u : 'https://duckduckgo.com/?q='+encodeURIComponent(u);
     fld.value=u;
-    if (native) {
-      frame.dataset.url=u;
-      if (window.NativeXR && NativeXR.browserCmd) NativeXR.browserCmd('browser','go',u);
-    } else { frame.src = u; }
+    if (native) { frame.dataset.url=u; window.NativeXR?.browserCmd?.('browser','go',u); }
+    else { frame.src = u; }
   }
   function bCmd(cmd,u){ if(native && window.NativeXR?.browserCmd) NativeXR.browserCmd('browser',cmd,u||''); }
 
   fld.addEventListener('keydown', e => { if(e.key==='Enter'){ nav(fld.value); fld.blur(); } });
   fld.addEventListener('focus', () => keyboard(true, fld));
-  back.onclick = () => bCmd('back');
-  fwd.onclick  = () => bCmd('fwd');
-  refr.onclick = () => bCmd('reload');
+  bk.onclick = () => bCmd('back');
+  fw.onclick  = () => bCmd('fwd');
+  rl.onclick  = () => bCmd('reload');
 
   const win = open({id:'browser',title:'Navegador',node:body});
-  win._cleanupQB = () => clearInterval(tickI);
+  win._cleanupQB = () => { clearInterval(tickI); removeEventListener('online',paintNet); removeEventListener('offline',paintNet); };
   return win;
 }
+
+const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
 
 function webWindow(id, title, url, note) {
   // Estilo Meta Quest Browser: barra URL escura no topo + dock inferior com atalhos.
