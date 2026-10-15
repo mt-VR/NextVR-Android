@@ -500,7 +500,8 @@
     z-index:7;max-width:86vw;background:rgba(10,12,18,.94);border:1px solid var(--line-2);
     padding:13px 22px;border-radius:999px;font-size:15px;opacity:0;transition:.2s;text-align:center;pointer-events:none!important}
   #toast.on{opacity:1;transform:translate(-50%,0)}
-  #stat{position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;z-index:6;display:flex;gap:8px;align-items:center;
+  /* HUD de status (mãos/giro/fps) — escondido a pedido do usuário pra ficar limpo */
+  #stat{display:none !important;position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;z-index:6;display:flex;gap:8px;align-items:center;
     font-size:12px;font-weight:600;color:var(--soft);background:rgba(10,12,18,.6);padding:7px 12px;border-radius:999px;
     border:1px solid var(--line);backdrop-filter:blur(8px)}
   #stat i{width:7px;height:7px;border-radius:50%;background:var(--faint);font-style:normal}

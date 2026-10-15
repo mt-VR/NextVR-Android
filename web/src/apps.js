@@ -641,7 +641,7 @@ function settingsApp() {
   scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
 
   let picker = null;
-  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:480, h:640,
+  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:400, h:560,
     node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
 
   // Geral
@@ -1132,7 +1132,7 @@ function languagePicker(pending, onPick, slim = false) {
   return body;
 }
 function languageWindow() {
-  const w = open({ id:'language', title:'Next VR', w:560, h:720, onboarding:true,
+  const w = open({ id:'language', title:'Next VR', w:480, h:680, onboarding:true,
     node:languagePicker(S.lang || deviceLanguage(), finishLanguage) });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();
