@@ -28,6 +28,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Free disk space
+        continue-on-error: true
+        run: |
+          # Runner às vezes enche com ferramentas pré-instaladas que não usamos.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/local/.ghcup 2>/dev/null || true
+          sudo apt-get clean || true
+          docker system prune -af 2>/dev/null || true
+          df -h /
       - name: Prune old CI artifacts
         continue-on-error: true
         env:
