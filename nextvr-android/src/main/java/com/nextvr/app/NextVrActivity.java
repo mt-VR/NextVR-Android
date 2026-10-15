@@ -375,7 +375,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             else if(bitmap!=null) bitmap.recycle();
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
-        @JavascriptInterface public void handVisuals(boolean enabled) { /* NovaMR: o desenho das mãos é feito no WebView; GL não desenha mais nada. */ }
+        @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         /**
          * NovaMR MediaPipe JS precisa da câmera traseira exclusiva pro getUserMedia.
          * Quando webPassthrough=true, paramos a câmera nativa e liberamos o hardware.

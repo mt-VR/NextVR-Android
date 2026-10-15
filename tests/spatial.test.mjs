@@ -48,13 +48,13 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
   assert.ok(hands.includes('startNovaHands') || novamr.includes('startNovaHands'), 'NovaMR MediaPipe Hands JS is the active tracker');
   assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands)'),
-    'The native pass still has a renderer entry point (defaulted off)');
+    'Native hand renderer draws the silhouette (showHands=true)');
   assert.ok(nativeHands.includes('meshes=meshesFor(visible.predicted(now),sx,sy,now)')
-    && nativeHands.includes('drawHandSkeletons(position,fade)'), 'Native silhouette code remains available (re-enableable)');
+    && nativeHands.includes('drawHandSkeletons(position,fade)'), 'Native silhouette renders at display rate');
   assert.ok(nativeHands.includes('MESH_REBUILD_EPSILON') && nativeHands.includes('MESH_REBUILD_MAX_NS'),
     'The native contour caches resting meshes and refreshes moving poses at display rate');
-  assert.ok(novamr.includes('nativePointsToPixelPts'), 'NovaMR draws the cyan silhouette using native MediaPipe landmarks (no second camera session)');
-  assert.ok(!novamr.includes("facingMode:") && !novamr.includes("getUserMedia"), 'NovaMR does not open a second getUserMedia (camera stays exclusively with passthrough GL)');
+  assert.ok(nativeHands.includes('.153f,.91f,1f'), 'Silhouette is colored cyan (#27e8ff) instead of default gray');
+  assert.ok(!novamr.includes("facingMode:") && !novamr.includes("getUserMedia"), 'No second getUserMedia session (no camera dispute)');
 });
 test('runtime shell cannot load untrusted executable content into its native bridge', async () => {
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java','utf8');

@@ -96,10 +96,7 @@ class PhoneXrHandRenderer {
             this.frame=visible
             meshes=meshesFor(visible.predicted(now),sx,sy,now)
             drawHandSkeletons(position,fade)
-        } else {
-            meshes=emptyList();meshPoints=emptyList();meshPool.clear()
-            return // Não desenha cursor/raio/anel GL — o WebView já tem a silhueta+cursor ciano
-        }
+        } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
         val visual=visible?.predicted(now)
         if(visual==null)return
         // Both eyes/display frames commonly reuse the same bridge packet.
@@ -230,9 +227,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         }
                     }
                     val rgba=when {
-                        outline && pinching -> floatArrayOf(1f,1f,1f,1f)
-                        outline -> floatArrayOf(.78f,.79f,.84f,.9f)
-                        else -> floatArrayOf(.09f,.09f,.16f,.62f)
+                        outline && pinching -> floatArrayOf(1f,1f,1f,.95f)
+                        outline -> floatArrayOf(.153f,.91f,1f,.95f)    // #27e8ff ciano
+                        else -> floatArrayOf(.153f,.91f,1f,.18f)       // preenchimento ciano translúcido
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     result.add(m)
@@ -293,7 +290,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, 1f, 1f, 1f, .95f*fade)
+                    GLES20.glUniform4f(color, .153f, .91f, 1f, .95f*fade)   // disco de pinça ciano
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
@@ -315,7 +312,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
                         across(ax, ay, az, .006f, wa)
                         across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                        GLES20.glUniform4f(color, .153f, .91f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f) * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -330,8 +327,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             // A small point for precise aiming, a little smaller still while pressing.
             val outer = (if (down || touching) .009f else .012f) * depth
             val inner = outer - .005f * depth
-            GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
-            GLES20.glUniform4f(color, fade, fade, fade, 1f)
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            GLES20.glUniform4f(color, .153f, .91f, 1f, .75f*fade)
             ring3d(b[3], b[4], b[5], outer, inner, position)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         }

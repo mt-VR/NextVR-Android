@@ -76,7 +76,7 @@ function consumeNativeFrame(frame, sx, sy) {
   const list = frame?.hands || [];
   for (const raw of list) {
     // calcula pontos em pixels do viewport para o novamr desenhar a silhueta
-    raw._pts = nativePointsToPixelPts(raw, viewport.width, viewport.height, scaleX, scaleY);
+    raw._pts = null; // não precisa: o GL desenha em 3D alinhado
     // Aim/base já vêm normalizados como tangentes FOV do nativo.
     hands.push(raw);
   }

@@ -116,29 +116,12 @@ function ptsFromFlat(arr63, w, h, scaleX, scaleY) {
 // Recebe os frames do adaptador hands.js (evento 'handframe') e desenha.
 on('handframe', ({hands}) => {
   if (!installed) return;
+  // O desenho da silhueta e do cursor/pinça agora VOLTOU para o render nativo GL
+  // (PhoneXrHandRenderer) com cores ciano — que acerta PERFEITAMENTE os dedos.
+  // Apenas apagamos o canvas a cada frame (para não ter artefatos) e usamos o
+  // anel ciano do recentramento.
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0,0,w,h);
-  cursor1.classList.remove('active'); cursor2.classList.remove('active');
-  if (!hands || !hands.length) return;
-  for (let i=0;i<Math.min(hands.length,2);i++){
-    const h0 = hands[i];
-    if (!h0 || !h0._pts) continue;
-    const pts = h0._pts;
-    const cur = i===0 ? cursor1 : cursor2;
-    drawHandSilhouette(pts);
-    const thumb=pts[4], idx=pts[8];
-    const d=Math.hypot(thumb.x-idx.x,thumb.y-idx.y);
-    if(d<45){
-      const cx=(thumb.x+idx.x)/2, cy=(thumb.y+idx.y)/2;
-      const scale=Math.max(.15,Math.min(1,(45-d)/45));
-      cur.style.left=cx+'px';cur.style.top=cy+'px';
-      cur.style.transform='translate(-50%,-50%) scale('+scale+')';
-      cur.classList.add('active');
-    } else {
-      cur.style.transform='translate(-50%,-50%) scale(0)';
-      cur.classList.remove('active');
-    }
-  }
 });
 
 export function setRecenterProgress(x, y, p) {
