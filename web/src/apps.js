@@ -29,7 +29,7 @@ function questBrowser() {
 
   // Barra de URL superior — compacta, como a do Quest
   const top = el('div');
-  top.style.cssText='display:flex;align-items:center;gap:4px;padding:6px 10px;background:#10131a;border-bottom:1px solid rgba(255,255,255,.07)';
+  top.style.cssText='display:flex;align-items:center;gap:3px;padding:4px 8px;background:#10131a;border-bottom:1px solid rgba(255,255,255,.07)';
   const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
   const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
   const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
