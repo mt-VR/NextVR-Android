@@ -144,7 +144,7 @@ jobs:
       # (evita bater cota de storage de artifacts do GitHub). O branch apk-dist contém
       # apenas dist/app-debug.apk e pode ser baixado com git fetch.
       - name: Publish APK to apk-dist branch
-        if: success()
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
