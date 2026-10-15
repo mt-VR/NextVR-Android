@@ -21,7 +21,104 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  * não iframe. Então: tentamos carregar, e deixamos a saída pronta se vier em branco.
  * O YouTube tem app próprio abaixo: busca via API pública + player oficial embutido.
  */
+
+/* ===== Quest-style DuckDuckGo Browser ===== */
+function questBrowser() {
+  const body = el('div');
+  body.style.cssText='display:flex;flex-direction:column;height:100%;background:#1a1d24;color:#e9edf4';
+  const DK = window.DK || {};
+  const ico = (p) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const backSvg = ico('<path d="M20 12H5"/><path d="m12 19-7-7 7-7"/>');
+  const fwdSvg  = ico('<path d="M4 12h15"/><path d="m12 5 7 7-7 7"/>');
+  const reloadSvg = ico('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>');
+  const starSvg = ico('<polygon points="12 2 15.1 8.3 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 8.9 8.3 12 2"/>');
+  const gridIcon = '<span class="dk-grid">'+'<i></i>'.repeat(9)+'</span>';
+
+  // Barra superior escura
+  const top = el('div');
+  top.style.cssText='display:flex;align-items:center;gap:8px;padding:11px 14px;background:#12151b;border-bottom:1px solid rgba(255,255,255,.08)';
+  const back = el('button','qb-icn'); back.innerHTML=backSvg; back.title='Voltar';
+  const fwd  = el('button','qb-icn'); fwd.innerHTML=fwdSvg; fwd.title='Avançar'; fwd.style.opacity='.5';
+  const refr = el('button','qb-icn'); refr.innerHTML=reloadSvg; refr.title='Recarregar';
+  const fld = el('input','qb-urlfld');
+  fld.type='text'; fld.placeholder='Buscar ou digitar endereço — DuckDuckGo'; fld.value='https://duckduckgo.com/';
+  const star = el('button','qb-icn'); star.innerHTML=starSvg; star.title='Favorito';
+  top.append(back,fwd,refr,fld,star);
+
+  // Área de conteúdo (WebView nativo em Android; iframe como fallback web)
+  const wrap = el('div');
+  wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
+  const frame = el(native ? 'div' : 'iframe');
+  if (native) {
+    frame.dataset.nativeBrowser = 'browser';
+    frame.style.cssText = 'width:100%;height:100%;background:#fff';
+    frame.dataset.url = 'https://duckduckgo.com/';
+  } else {
+    frame.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
+    frame.referrerPolicy = 'no-referrer';
+    frame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation';
+    frame.src = 'https://duckduckgo.com/';
+  }
+  wrap.appendChild(frame);
+
+  // Dock inferior estilo Meta (atalhos de apps)
+  const apps = [
+    {label:'YouTube',  svg:DK.play||icon('play'),     bg:'linear-gradient(145deg,#ff6b6b,#d63c3c)', url:'https://m.youtube.com'},
+    {label:'Discord',  svg:DK.people||icon('people'), bg:'linear-gradient(145deg,#ad82f4,#6c45c9)', url:'https://discord.com/app'},
+    {label:'Galeria',  svg:DK.camera||icon('camera'), bg:'linear-gradient(145deg,#ff6584,#d4204e)', url:'https://photos.google.com'},
+    {label:'Loja',     svg:DK.store||icon('store'),   bg:'linear-gradient(145deg,#ffb544,#e8741a)', url:'https://www.meta.com/experiences/'},
+    {label:'Nova aba', svg:reloadSvg,                 bg:'linear-gradient(145deg,#5a9bff,#2a5ee0)', url:'https://duckduckgo.com/'},
+    {label:'Ajustes',  svg:DK.gear||icon('gear'),     bg:'linear-gradient(145deg,#45d894,#1f9d63)', url:':settings'},
+    {label:'Apps',     svg:gridIcon,                  bg:'linear-gradient(145deg,#4b5568,#2a2f3d)', url:':library'},
+  ];
+  const dock = el('div');
+  dock.style.cssText='display:flex;align-items:flex-end;justify-content:space-around;gap:4px;padding:9px 14px;background:#12151b;border-top:1px solid rgba(255,255,255,.08)';
+
+  function nav(raw){
+    let u=(raw||'').trim(); if(!u) return;
+    if(!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://'+u : 'https://duckduckgo.com/?q='+encodeURIComponent(u);
+    fld.value=u;
+    if (native) {
+      frame.dataset.url=u;
+      if (window.NativeXR && NativeXR.browserCmd) NativeXR.browserCmd('browser','go',u);
+    } else { frame.src = u; }
+  }
+  function bCmd(cmd,u){ if(native && window.NativeXR?.browserCmd) NativeXR.browserCmd('browser',cmd,u||''); }
+
+  for (const a of apps) {
+    const b = el('button');
+    b.type='button'; b.title=a.label; b.setAttribute('aria-label',a.label);
+    b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;border:0;color:#cdd5e3;padding:6px 8px;border-radius:12px;cursor:pointer;transition:background .15s';
+    const ic = el('span');
+    ic.style.cssText='width:42px;height:42px;border-radius:13px;display:grid;place-items:center;color:#fff;background:'+a.bg+';border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.35)';
+    ic.innerHTML = a.svg;
+    const lb = el('span');
+    lb.style.cssText='font-size:11px;font-weight:600;color:#c7d0de;letter-spacing:-.2px';
+    lb.textContent = a.label;
+    b.append(ic,lb);
+    b.onmouseenter = () => b.style.background='rgba(120,160,220,.18)';
+    b.onmouseleave = () => b.style.background='transparent';
+    b.onclick = () => {
+      if (a.url === ':settings') settingsApp();
+      else if (a.url === ':library') libraryApp();
+      else nav(a.url);
+    };
+    dock.appendChild(b);
+  }
+
+  body.append(top, wrap, dock);
+  fld.addEventListener('keydown', e => { if(e.key==='Enter'){ nav(fld.value); fld.blur(); } });
+  fld.addEventListener('focus', () => keyboard(true, fld));
+  back.onclick = () => bCmd('back');
+  fwd.onclick  = () => bCmd('fwd');
+  refr.onclick = () => bCmd('reload');
+
+  return open({id:'browser',title:'Navegador',node:body});
+}
+
 function webWindow(id, title, url, note) {
+  // Estilo Meta Quest Browser: barra URL escura no topo + dock inferior com atalhos.
+  if (id === 'browser') return questBrowser();
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
   const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';

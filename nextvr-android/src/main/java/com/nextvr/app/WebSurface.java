@@ -166,6 +166,15 @@ final class WebSurface {
         return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",headers,new ByteArrayInputStream(new byte[0]));
     }
     void evaluate(String script) { if(!released) web.evaluateJavascript(script,null); }
+    void go(String url) { if(released || url==null) return;
+      String u=url.trim();
+      if(u.length()==0) return;
+      if(!u.contains("://")) u="https://duckduckgo.com/?q="+android.net.Uri.encode(u);
+      web.loadUrl(u);
+    }
+    void goBack()    { if(!released && web.canGoBack())    web.goBack(); }
+    void goForward() { if(!released && web.canGoForward()) web.goForward(); }
+    void reload()    { if(!released) web.reload(); }
     /** Injeta no WebView somente o contato espacial já validado pelo pipeline PhoneXR. */
     void dispatchHandEvent(int action,float x,float y) {
         if(released) return;

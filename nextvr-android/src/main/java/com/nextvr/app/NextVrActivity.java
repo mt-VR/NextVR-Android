@@ -574,6 +574,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(json==null || json.length()>8000) return;
             main.post(()->{ if(appWindows!=null && !closed) appWindows.command(json); });
         }
+        @JavascriptInterface public void browserCmd(String id,String cmd,String url) {
+          main.post(()->{ WebSurface b=browsers.get(id); if(b==null) return;
+            switch(cmd){case "go":b.go(url);break; case "back":b.goBack();break; case "fwd":b.goForward();break; case "reload":b.reload();break;}
+          });
+        }
         @JavascriptInterface public String battery() {
             Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
             if(state==null) return "null";
