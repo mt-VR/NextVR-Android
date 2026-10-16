@@ -88,6 +88,43 @@ e preserva as escalas que o usuário personalizou.
 A escala individual é usada pelo painel visual, superfície de hit, alça de movimento, alça de
 redimensionamento, toque próximo, punho e composição nativa.
 
+## Teclado flutuante
+
+O teclado deitado deixou de ser um painel decorativo ao lado da dock e passou a ser um teclado de
+verdade, ligado ao campo que está em foco. Quatro defeitos foram corrigidos:
+
+**1. A tecla só escrevia ao soltar, e não repetia.** O pinch armado a tecla no `down` mas só
+disparava `press()` no `up`, e só quando o elemento sob o raio era exatamente o mesmo. Escrever
+"casa" exigia quatro pinças completas, e segurar uma tecla não produzia nada. Agora a tecla escreve
+quando o dedo **desce**, repete depois de 420 ms e a cada 75 ms enquanto o dedo fica, troca quando o
+dedo **desliza** para outra tecla e solta sem escrever quando sai do painel. Soltar uma tecla não
+clica mais a janela que estiver atrás, porque o teclado tem a primeira palavra no `pinchup`.
+
+**2. Em WebView hospedado nenhuma tecla chegava.** `Bridge.key` montava um `EditorInfo` na mão e
+chamava `commitText` num `InputConnection` criado sob demanda. Esse WebView vive numa `Presentation`
+sobre um display virtual privado e **nunca tem foco de view**; o Chromium descarta texto enviado por
+uma input connection sem foco, então toda tecla sumia. Hoje a página hospedada recebe o motor de
+digitação do próprio app (`web/src/typing.js`), instalado como document-start script: a escrita vai
+pelo mesmo caminho de um teclado real — cursor, seleção, `keydown` cancelável, `input`, Enter que
+envia formulário. A versão anterior também escrevia no shell com `value += ch`, que ignora o cursor;
+agora os dois lados usam o mesmo arquivo, e `tests/keyboard.test.mjs` roda a mesma bateria nos dois.
+
+**3. O teclado não sabia de quem era.** Ele ficava sempre à frente da dock. Agora cada alvo sabe sua
+janela (`kbOwner`, por `closest('.win-shell')` no campo ou por `[data-native-browser]` /
+`[data-native-app]`), e `placeKb` deriva o azimute da posição dessa janela: o teclado caminha para a
+frente dela em meio segundo, na distância e altura confortáveis, e acompanha a janela se ela for
+arrastada. Sem alvo (o botão da dock) ele volta para a frente da dock e, se houver um último campo,
+retoma a escrita nele em vez de abrir um teclado mudo.
+
+**4. Uma janela de app Android não tinha como abrir o teclado.** Ela não tem DOM para sondar. Com o
+backend de acessibilidade ligado, um toque numa janela cujo app tem um editor em foco abre o teclado
+(`nextvrAppFocus`); sem acessibilidade isso continua sendo o botão da barra do app, e a digitação no
+backend de acessibilidade passou a respeitar o cursor que o app relata em vez de sempre acrescentar
+no fim da string.
+
+O arbitramento entre teclado e janelas também mudou: quem o raio alcança primeiro leva a pinça, com
+a mesma regra que a dock já usava. Antes uma janela na frente do teclado o deixava inalcançável.
+
 ## Codificação
 
 Os arquivos HTML e XML já declaram UTF-8, e `WebSurface` responde explicitamente com `UTF-8`.
@@ -108,6 +145,8 @@ Os testes cobrem, sem declarar validação em aparelho físico:
 - olhar mantido sem seleção e escolha do idioma por pinça PhoneXR;
 - DOWN/UP/CANCEL de navegador originados pela mão;
 - limiar de drag (pinça/punho parado não move), filtro de salto e limites espacial/vertical;
+- teclado: motor de digitação (cursor, seleção, ⌫, Enter, tecla vetada), tecla que escreve ao
+  descer, repetição enquanto segurada, deslize entre teclas e o teclado na frente da janela dona;
 - redimensionamento proporcional, limites, centro estável e conteúdo `1040×660` sem corte;
 - janelas/dock ancorados durante movimento de cabeça, repin e multitarefa;
 - recursos e paths exatos da referência nova, inclusive hash do arquivo;

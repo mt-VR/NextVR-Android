@@ -66,7 +66,19 @@ final class WebSurface {
         if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); // Always pair the APK bridge with this APK's UI.
         web.setVerticalScrollBarEnabled(false); web.setHorizontalScrollBarEnabled(false);
         if(shell) web.addJavascriptInterface(bridge,"NativeXR");
-        if(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+        /*
+         * Every hosted page gets the typing engine at document start, before its own scripts run, so
+         * a text field on a real website obeys the same caret, beforeinput/input and Enter rules as a
+         * field in the shell. It is this app's own web/src/typing.js, read from the assets the UI
+         * bundle ships; the engine only ever edits the page's own focused field.
+         */
+        final boolean documentStart=WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT);
+        if(!shell && documentStart) {
+            String typing=readTypingScript(owner.getAssets());
+            if(typing.length()>0)
+                WebViewCompat.addDocumentStartJavaScript(web,typing,java.util.Collections.singleton("*"));
+        }
+        if(documentStart)
             WebViewCompat.addDocumentStartJavaScript(web,AUDIO_SCRIPT,java.util.Collections.singleton("*"));
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
@@ -85,7 +97,12 @@ final class WebSurface {
                 return !isWebUrl(request.getUrl().toString());
             }
             @Override public void onPageFinished(WebView view,String address) {
-                if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) view.evaluateJavascript(AUDIO_SCRIPT,null);
+                if(!documentStart) {
+                    view.evaluateJavascript(AUDIO_SCRIPT,null);
+                    // Without DOCUMENT_START_SCRIPT the engine only lands after the page loaded; put it
+                    // back on every navigation so a page that is already typing keeps its keyboard.
+                    if(!shell) { String typing=readTypingScript(owner.getAssets()); if(typing.length()>0) view.evaluateJavascript(typing,null); }
+                }
                 audio(owner.isAudioFocused());
                 if(shell) owner.shellReady();
             }
@@ -119,7 +136,29 @@ final class WebSurface {
         container.addView(web,new FrameLayout.LayoutParams(-1,-1)); presentation.setContentView(container);
         presentation.show();
         presentation.getWindow().setLayout(width,height);
+        // A Presentation on a private virtual display never receives window focus, so nothing here
+        // would ever claim it. The page still needs the WebView focused to keep its own focused
+        // element (and its :focus styling and scroll-into-view) alive between keyboard strokes.
+        container.setFocusableInTouchMode(true);
+        web.setFocusableInTouchMode(true);
+        container.requestFocus();
+        web.requestFocus();
         web.loadUrl(url);
+    }
+
+    /** The shell's own typing engine, read once from the UI bundle's assets. */
+    private static String typingEngine;
+    private static String readTypingScript(android.content.res.AssetManager assets) {
+        if(typingEngine!=null)return typingEngine;
+        String source="";
+        try(java.io.InputStream in=assets.open("ui/typing.js")) {
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+            byte[] buffer=new byte[8192]; int read;
+            while((read=in.read(buffer))>0)out.write(buffer,0,read);
+            source=out.toString("UTF-8");
+        } catch(Exception ignored) { /* the bundle always ships it; without it keys simply do nothing */ }
+        typingEngine=source;
+        return typingEngine;
     }
     static boolean isWebUrl(String url) { Uri uri=Uri.parse(url); return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) && uri.getHost()!=null; }
     private WebResourceResponse asset(Uri uri) {

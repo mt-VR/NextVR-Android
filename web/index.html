@@ -509,6 +509,9 @@
 </div>
 
 
+<!-- The typing engine, before the bundle: windows.js writes through window.__nextvrTyping. The
+     native side injects this same file into hosted pages, so both edit text the same way. -->
+<script defer src="./typing.js"></script>
 <script defer src="./app.js"></script>
 </body>
 </html>

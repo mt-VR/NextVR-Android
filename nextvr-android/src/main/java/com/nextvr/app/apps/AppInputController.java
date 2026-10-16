@@ -85,11 +85,10 @@ public final class AppInputController {
         if (session.input == AppSession.InputBackend.ACCESSIBILITY) {
             Integer global = globalAction(name);
             if (global != null) return NextVrAccessibilityService.global(global);
-            if ("delete".equals(name)) {
-                String text = NextVrAccessibilityService.focusedText();
-                if (text == null || text.isEmpty()) return false;
-                return NextVrAccessibilityService.setText(text.substring(0, text.length() - 1));
-            }
+            // Backspace goes through the same caret-aware path as typing: the accessibility API can
+            // only set the whole text, so the character to cut is chosen from the selection the app
+            // reports instead of always being the last one in the string.
+            if ("delete".equals(name)) return NextVrAccessibilityService.type("⌫");
             // Enter has no accessibility equivalent; the UI tells the user instead of faking it.
             return false;
         }
@@ -116,8 +115,7 @@ public final class AppInputController {
         if ("⏎".equals(value)) return key(session, "enter");
         if (session.input == AppSession.InputBackend.NONE) refreshBackend(session);
         if (session.input == AppSession.InputBackend.ACCESSIBILITY) {
-            String current = NextVrAccessibilityService.focusedText();
-            return NextVrAccessibilityService.setText((current == null ? "" : current) + value);
+            return NextVrAccessibilityService.type(value);
         }
         IDisplayService service = service();
         if (service == null || session.displayId < 0) return false;

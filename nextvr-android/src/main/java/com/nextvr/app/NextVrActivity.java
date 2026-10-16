@@ -74,6 +74,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         "input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox])"
         +":not([type=radio]):not([type=range]):not([type=color]):not([type=file]),"
         +"textarea,[contenteditable]:not([contenteditable=\"false\"])";
+    /** Key states the floating keyboard sends over the bridge; mirrors web/src/typing.js. */
+    private static final int KEY_PHASE_UP = 3;
     private final Map<String,String> browserUrls=new HashMap<>();
     private final Set<String> pendingBrowsers=new HashSet<>();
     private volatile boolean resumed,closed;
@@ -301,7 +303,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(event.id.startsWith("app:")) {
                 // Hosted Android app window: the same 60 Hz queue, routed to the input controller
                 // instead of a WebView. Coordinates are normalized inside the app's display.
-                if(appWindows!=null && resumed && !closed) appWindows.touch(event.id.substring(4),event.action,event.x,event.y);
+                if(appWindows!=null && resumed && !closed) {
+                    appWindows.touch(event.id.substring(4),event.action,event.x,event.y);
+                    // An Android app has no DOM to probe, so there is no honest way to tell that a
+                    // tap landed on an editable field. The one signal there is: when the
+                    // accessibility backend is connected and the app itself has an editor focused,
+                    // the floating keyboard belongs on top of this window. Without accessibility the
+                    // window's own keyboard button stays the way in — it is never faked.
+                    if(event.action==MotionEvent.ACTION_UP && shell!=null && appWindows.editing(event.id.substring(4))) {
+                        final WebSurface sh=shell;
+                        sh.evaluate("window.nextvrAppFocus&&window.nextvrAppFocus("+JSONObject.quote(event.id)+")");
+                    }
+                }
                 continue;
             }
             WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
@@ -315,10 +328,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 final WebSurface sh=shell;
                 target.web.evaluateJavascript(
                     "(function(){var t=document.elementFromPoint("+event.x+","+event.y+");"
-                    +"var f=t&&t.closest?t.closest('"+EDITABLE_SELECTOR+"'):null;"
-                    +"if(f)try{f.focus()}catch(_){}return f?'1':'0'})()",
-                    value->sh.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("
-                        +JSONObject.quote(event.id)+","+("1".equals(value)?"true":"false")+")"));
+                    +"var f=t&&t.closest?t.closest("+JSONObject.quote(EDITABLE_SELECTOR)+"):null;"
+                    // O teclado reescreve o texto dentro da pagina; o campo precisa mesmo estar em
+                    // foco, e trazer o cursor para a vista e o que o IME real faria ao abrir.
+                    +"if(f)try{window.__nextvrTyping?window.__nextvrTyping.focus(f):f.focus()}catch(_){}"
+                    // Devolve um BOOLEANO, e nao a string '1'/'0'. O valor de evaluateJavascript e a
+                    // codificacao JSON do resultado, entao a string '1' voltaria como "\"1\"" e a
+                    // comparacao com "1" nunca bateria: toda sondagem dizia "aqui nao ha campo" e o
+                    // teclado FECHAVA em vez de abrir. Um booleano volta como "true"/"false".
+                    +"return !!f})()",
+                    value->{
+                        android.util.Log.d("NextVR","typing probe "+event.id+" field="+value);
+                        sh.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("
+                            +JSONObject.quote(event.id)+","+("true".equals(value)?"true":"false")+")");
+                    });
             }
         }
     }
@@ -557,21 +580,38 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             handTouchEvents.offer(id,action,x,y);
             scheduleHandTouchDrain();
         }
-        @JavascriptInterface public void key(String id,String key) {
-            if(key.length()>16) return;
-            if(id!=null && id.startsWith("app:")) {
+        /**
+         * One key from the floating keyboard. `key` is a character (space included), ⌫ or ⏎; `shift`
+         * says whether it is the capitalised stroke of the same key; `phase` is the key state:
+         * 0 is a whole key (down then up, what a tap gives), 1 is the key going down, 2 a held
+         * repeat ({@code KeyboardEvent.repeat}, what a 3D game in a browser listens to to keep
+         * moving) and 3 the key coming up. Only the up stops the movement, so a held WASD has to
+         * arrive as one down, many repeats and one up — not as a tap per character.
+         *
+         * <p>A hosted browser page is written by {@code web/src/typing.js}, the very engine the shell
+         * loads for its own fields, installed in the page at document start. The previous route —
+         * a hand-made {@code EditorInfo} plus {@code InputConnection.commitText} — was dead on
+         * arrival: this WebView lives in a Presentation on a private virtual display and never has
+         * view focus, and Chromium drops text committed on an unfocused input connection, so keys
+         * arrived nowhere.
+         */
+        @JavascriptInterface public void key(String id,String key,boolean shift,int phase) {
+            if(id==null || key==null || key.isEmpty() || key.length()>16) return;
+            if(phase<0||phase>3) return;
+            if(id.startsWith("app:")) {
                 final String packageName=id.substring(4);
                 final String typed=key;
+                // An Android app window keeps its own semantics: the accessibility backend can only
+                // set text, and the privileged one injects a complete key each time. A held key
+                // there repeats the character, it does not hold it.
+                if(phase==KEY_PHASE_UP) return;
                 main.post(()->{ if(appWindows!=null && !closed) appWindows.text(packageName,typed); });
                 return;
             }
             main.post(()->{
                 WebSurface b=browsers.get(id); if(b==null) return;
-                android.view.inputmethod.InputConnection input=b.web.onCreateInputConnection(new android.view.inputmethod.EditorInfo());
-                if(input==null) return;
-                if(key.equals("⌫")) input.deleteSurroundingText(1,0);
-                else if(key.equals("⏎")) { input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,android.view.KeyEvent.KEYCODE_ENTER)); input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,android.view.KeyEvent.KEYCODE_ENTER)); }
-                else input.commitText(key,1);
+                b.evaluate("window.__nextvrTyping&&window.__nextvrTyping.key("
+                    +JSONObject.quote(key)+","+(shift?"true":"false")+","+phase+")");
             });
         }
         /** Installed Android apps for the library grid, filtered and ranked, as JSON. */
