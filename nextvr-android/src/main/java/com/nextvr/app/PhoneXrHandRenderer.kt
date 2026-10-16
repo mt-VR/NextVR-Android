@@ -77,7 +77,7 @@ class PhoneXrHandRenderer {
     private val quad=FloatArray(18)
     private val beamShape=FloatBuilder(96*3)
 
-    fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
+    fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,view:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
         val visible=presentation.silhouette(frame,now)
         // Live tracking drives presses; a retained or motion-model-predicted pose is visual only.
@@ -120,8 +120,22 @@ class PhoneXrHandRenderer {
             val end=target?.optJSONArray("end")
             val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
             val e=beamEnd
-            if(end!=null && end.length()==3) { for(i in 0 until 3) e[i]=end.optDouble(i,Double.NaN).toFloat() }
-            else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
+            if(end!=null && end.length()==3) {
+                val wx=end.optDouble(0,Double.NaN).toFloat()
+                val wy=end.optDouble(1,Double.NaN).toFloat()
+                val wz=end.optDouble(2,Double.NaN).toFloat()
+                // World -> this eye's space (column-major, same convention as Matrix.multiplyMV):
+                // exactly the transform the panel geometry goes through before the projection, so
+                // the ring converges on the icon it hit instead of drifting per lens. Anything not
+                // genuinely in front of this eye falls back to the aim direction rather than
+                // dividing by a depth that would flip the ray.
+                val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
+                val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
+                val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
+                val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
+                if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez }
+                else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
+            } else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
             if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
             touching=direct && down
             val b=beamLine

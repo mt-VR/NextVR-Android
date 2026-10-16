@@ -169,31 +169,26 @@ final class SpatialRenderer {
     }
     private final int program;
     private final int aPosition, aUv, uTexture, uTransform, uRect;
-    private final int uViewProj, uFlat, uScale, uCurveR, uViewInv, uEnvSphere, uMono;
+    private final int uViewProj, uFlat, uScale, uCurveR, uViewInv, uEnvSphere;
     private final int cameraProgram;
     private final int envProgram;
     private final float[] viewInv = new float[16], viewProj = new float[16];
     private final int[] viewport = new int[4];
     volatile float spanX = 2.2f, spanY = 1.5f;
     private float[] eyeProjection;
-    /** Projecao canonica, sem o deslocamento do olho: governa tudo que tem de ser a MESMA
-     * imagem nas duas lentes (camera e maos) e, por ser a base do hit-test da shell, garante
-     * que o desenho e a selecao nunca apontem para alvos diferentes. */
-    private final float[] monoProjection = new float[16];
-    private float monoSpanX = 2.2f, monoSpanY = 1.5f;
     private int renderPass;
     private final FloatBuffer screen = floats(new float[]{-1,-1, 1,-1, -1,1, 1,1});
     SpatialRenderer() {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform mat4 uTransform; uniform vec4 uRect; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vUv=(uTransform*vec4(uRect.xy+aUv*uRect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.));}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uMono; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} vec3 envAt(vec2 ndc){ if(uEnvSphere){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} vec2 mono=ndc/uMono.xy; return cameraAt(vec2(.5+mono.x/uSpan.x,.5-mono.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
         uViewProj=GLES20.glGetUniformLocation(program,"uViewProj"); uFlat=GLES20.glGetUniformLocation(program,"uFlat");
         uScale=GLES20.glGetUniformLocation(program,"uScale"); uCurveR=GLES20.glGetUniformLocation(program,"uCurveR");
-        uViewInv=GLES20.glGetUniformLocation(program,"uViewInv"); uEnvSphere=GLES20.glGetUniformLocation(program,"uEnvSphere"); uMono=GLES20.glGetUniformLocation(program,"uMono");
+        uViewInv=GLES20.glGetUniformLocation(program,"uViewInv"); uEnvSphere=GLES20.glGetUniformLocation(program,"uEnvSphere");
         // A full-screen camera pass before *any* world surfaces. Camera image is never world-locked.
         cameraProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
@@ -249,17 +244,6 @@ final class SpatialRenderer {
     void update() { camera.update(); environment.update(); atlas.update(); for(Texture t:browsers.values()) t.update(); }
     void draw(float[] view, float[] projection) {
         eyeProjection=projection; GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,viewport,0);
-        // Uma unica projecao canonica para tudo que precisa ser a MESMA imagem nos dois olhos.
-        // O frusta assimetrico do Cardboard carrega o deslocamento do olho em p[8]/p[9]; alimentar
-        // a camera e as maos com a projecao do olho corrente fazia a mao cair em um app diferente
-        // em cada lente, enquanto a shell decidia o clique numa base so (sem p[8]) - por isso so a
-        // da esquerda "funcionava". Zerando o deslocamento, camera e maos sao identicas nas duas
-        // lentes e passam a usar exatamente a base do hit-test, deixando o desenho e a selecao
-        // impossiveis de divergir. O dock, as janelas e o panorama 360 seguem no par stereo real.
-        System.arraycopy(projection,0,monoProjection,0,16);
-        monoProjection[8]=0f; monoProjection[9]=0f;
-        monoSpanX=Math.abs(projection[0])>1e-6f?2f/Math.abs(projection[0]):spanX;
-        monoSpanY=Math.abs(projection[5])>1e-6f?2f/Math.abs(projection[5]):spanY;
         Matrix.invertM(viewInv,0,view,0);
         Matrix.multiplyMM(viewProj,0,projection,0,view,0);
         sphere=environment.ready && !"passthrough".equals(environmentId);
@@ -267,7 +251,7 @@ final class SpatialRenderer {
         // O mapeamento optico (span) sai da camera mesmo com panorama: e ele que poe os landmarks
         // das maos na tela, e o rastreamento continua na camera.
         if(camera.ready) mapping(projection,(float)camera.width/camera.height);
-        if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(monoProjection);
+        if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
         GLES20.glEnable(GLES20.GL_BLEND);
         // Android's hardware surfaces are premultiplied, including CSS shadows and translucent glass.
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
@@ -285,10 +269,9 @@ final class SpatialRenderer {
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
         com.nextvr.app.hands.PhoneXrHands.Frame handFrame=hands;
-        // Draw the predicted, cached hand contour and target ray directly in the Cardboard pass.
-        // Canonical projection: the contour is the same image in both lenses, and its basis is the
-        // one the shell hit-tests against, so the ring can never sit on a different app per eye.
-        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,monoProjection,handTargets,showHands);
+        // The target arrives in world space and is taken into this eye's space inside the renderer,
+        // so the beam lands on the hit icon by the same transform the panel geometry itself gets.
+        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p);
@@ -311,9 +294,7 @@ final class SpatialRenderer {
         GLES20.glUniform4fv(GLES20.glGetUniformLocation(program,"uGlass"),1,panel.glass,0);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(program,"uViewport"),viewport[0],viewport[1],viewport[2],viewport[3]);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(program,"uProjection"),eyeProjection[0],eyeProjection[5],eyeProjection[8],eyeProjection[9]);
-        // O fundo da camera e mono (mesma imagem nas duas lentes); o panorama 360 acima usa uProjection.
-        GLES20.glUniform4f(uMono,monoProjection[0],monoProjection[5],0f,0f);
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(program,"uSpan"),monoSpanX,monoSpanY);
+        GLES20.glUniform2f(GLES20.glGetUniformLocation(program,"uSpan"),spanX,spanY);
         // O fundo atras do vidro e o panorama quando ele esta ativo; senao, a imagem da camera.
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,sphere?environment.id:camera.id);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uCamera"),1);
@@ -332,10 +313,7 @@ final class SpatialRenderer {
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,(PANEL_COLUMNS+1)*2);
         GLES20.glDisableVertexAttribArray(aPosition); GLES20.glDisableVertexAttribArray(aUv);
     }
-    /** Same 72-degree reference interaction viewport as the HTML prototype. Aspect-fill, no stretch.
-     * O `abs` no deslocamento do frusta e proposital: os dois olhos tem p[8]/p[9] opostos, entao
-     * tomar o modulo faz spanX/spanY sairem identicos para ambos. E o que mantem a base handed to
-     * the shell (scaleX/scaleY) igual nas duas lentes, sem a qual o hit-test seria dependente do olho. */
+    /** Same 72-degree reference interaction viewport as the HTML prototype. Aspect-fill, no stretch. */
     private void mapping(float[] p,float aspect) {
         cameraAspect=aspect;
         float referenceY=2*(float)Math.tan(Math.toRadians(36));
@@ -353,7 +331,7 @@ final class SpatialRenderer {
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,camera.id);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(cameraProgram,"uTexture"),0);
         GLES20.glUniform4f(GLES20.glGetUniformLocation(cameraProgram,"uProjection"),p[0],p[5],p[8],p[9]);
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(cameraProgram,"uSpan"),monoSpanX,monoSpanY);
+        GLES20.glUniform2f(GLES20.glGetUniformLocation(cameraProgram,"uSpan"),spanX,spanY);
         drawScreenQuad(cameraProgram);
     }
     /** Fundo panoramico 360: esfera inteira em volta do usuario, presa ao mundo (gira com a cabeca). */

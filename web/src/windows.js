@@ -1351,7 +1351,13 @@ onFrame((dt,now)=>{
     const r=phoneRay(p.x,p.y);
     const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
-    targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
+    // The target goes out in WORLD space, the same space the panel matrices live in. The native
+    // renderer takes it into each eye's space before projecting, so the ring reaches the icon by
+    // the identical transform the icon's own geometry gets. Handing over camera-local coordinates
+    // instead meant projecting head-centred values through the asymmetric per-eye frustum, whose
+    // IPD compensation belongs to eye-centred ones: the ring landed on a different app per lens
+    // while the click, decided here, always followed the left.
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
