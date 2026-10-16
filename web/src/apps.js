@@ -595,36 +595,28 @@ function libraryApp() {
 
 /* ============ dock (mesma ordem do print) ============ */
 const DK = Object.freeze({
-  bell:icon('notification'), kb:icon('keyboard'), center:icon('crosshair'),
   compass:icon('compass'), store:icon('store'), people:icon('people'),
-  camera:icon('camera'), gear:icon('settings'), play:icon('play'), device:icon('device'),
+  camera:icon('camera'), gear:icon('settings'), play:icon('play'),
 });
 
 function makeDock() {
   buildDock([
-    // grupo da esquerda: perfil, status real (hora/wifi/bateria) e ferramentas
+    // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
-    { kind: 'tool',   id: 'bell',    label: t('notif'),    svg: DK.bell,   run: () => toast(t('noNotif')) },
-    { kind: 'tool',   id: 'kb',      label: t('keyboard'), svg: DK.kb,     run: () => keyboard(!keyboardOpen(), null) },
-    { kind: 'tool',   id: 'center',  label: t('center'),   svg: DK.center, run: () => recenter() },
-    { kind: 'sep' },
-    // apps principais (cores do print: azul, laranja, roxo, rosa)
+    { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
+    // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
     { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
-    { kind: 'sep' },
-    // segundo grupo (verde e vermelho do print)
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
-    // lançador de 9 pontos: sempre o último, abre o menu de aplicações — onde os apps instalados no
-    // aparelho aparecem junto com os apps do NextVR. É a única entrada para os dois: o botão que
-    // abria uma página separada de apps Android, e a página com ele, foram removidos.
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }
 on('lang', makeDock);
+
 
 /**
  * Count badge of the dock's applications tile: how many Android app windows are open right now

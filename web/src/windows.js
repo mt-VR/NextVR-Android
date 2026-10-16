@@ -808,6 +808,7 @@ export function buildDock(items) {
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
+    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '14px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
