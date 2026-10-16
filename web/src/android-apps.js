@@ -22,6 +22,56 @@ import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
 import { canvasBox, surfaceBox, windowBox } from './app-window-box.js';
 
+/**
+ * The dedicated Shizuku window: the status row (always, whatever the state) followed by the
+ * Android apps that run through it — one tap opens the app in its own VR window. This is about
+ * the phone's apps, not the built-in games.
+ */
+export function shizukuWindow() {
+  const w = wins.find(x => x.id === 'shizuku');
+  if (w) { paintShizukuWindow(); focus(w); return w; }
+  const body = document.createElement('div');
+  body.style.cssText = 'height:100%;display:flex;flex-direction:column;background:#10141c;';
+  const win = open({ id: 'shizuku', title: 'Shizuku', w: 620, h: 680, node: body });
+  paintShizukuWindow();
+  return win;
+}
+
+function shizukuAppsGrid() {
+  const grid = document.createElement('div');
+  grid.className = 'lib-grid';
+  const apps = androidApps().filter(a => !a.system);
+  grid.innerHTML = apps.length
+    ? apps.map(app => androidTileHtml(app)).join('')
+    : `<div class="lib-empty">Nenhum app encontrado.</div>`;
+  grid.addEventListener('click', e => {
+    const m = e.target.closest('[data-android]');
+    if (!m) return;
+    openApp(m.dataset.android);
+    focusAppWindow(m.dataset.android);
+  });
+  return grid;
+}
+
+export function paintShizukuWindow() {
+  const win = wins.find(x => x.id === 'shizuku');
+  const host = win?.el?.querySelector?.('.win-body');
+  if (!host) return;
+  loadLibrary(true);
+  host.innerHTML = '';
+  host.style.cssText = 'height:100%;display:flex;flex-direction:column;background:#10141c;overflow:hidden;';
+  const scroll = document.createElement('div');
+  scroll.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:16px;';
+  const status = shizukuStatusRow();
+  status.style.cssText += 'margin:0 0 16px;';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:13px;font-weight:700;color:#e8ebf1;margin:0 0 10px 2px;';
+  title.textContent = 'Apps do Android';
+  scroll.append(status, title, shizukuAppsGrid());
+  host.appendChild(scroll);
+}
+
+
 const SYNC_MS = 400;
 const CAPACITY = 3;
 // The shape is per app (AppWindowShape.java on the native side, same rule here): an app that declares
@@ -434,6 +484,16 @@ export function shizukuNotice() {
   const route = routeOf();
   // Nothing to explain when the hosted route is going to work: that is the normal, silent case.
   if (route === 'hosted' && (sh.ready || sh.binding)) return null;
+  return shizukuStatusRow();
+}
+
+/**
+ * The status row itself, also reused by the dedicated Shizuku window (which always shows it,
+ * whatever the state): the dot, the explanation, the action buttons and the diagnostics.
+ */
+export function shizukuStatusRow() {
+  const sh = state.shizuku || {};
+  const route = routeOf();
   const wrap = document.createElement('div');
   wrap.className = 'lib-note az-row';
   const dot = document.createElement('span');

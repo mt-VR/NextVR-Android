@@ -6,7 +6,7 @@ import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus
 import { startGame, refreshGame } from './game.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
-  androidRecentIndex, focusAppWindow, openWindowCount,
+  androidRecentIndex, focusAppWindow, openWindowCount, shizukuWindow, paintShizukuWindow,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -965,6 +965,7 @@ function buildLibrary() {
   root.innerHTML = `<nav class="lib-rail" aria-label="Navegação da biblioteca">
       ${railCats.map(navButton).join('')}
       <span class="lib-rail-spacer"></span>
+      <button class="lib-nav" data-shizuku title="Shizuku" aria-label="Abrir Shizuku">${icon('device')}<span>Shizuku</span></button>
       <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}<span>Loja</span></button>
     </nav>
     <section class="lib-main">
@@ -996,6 +997,7 @@ function buildLibrary() {
     const c = s => e.target.closest(s);
     let m;
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
+    if (c('[data-shizuku]')) { shizukuWindow(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
@@ -1064,7 +1066,7 @@ function paintWindowBadge() {
 }
 
 installAndroidApps();
-on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
+on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); if (wins.find(x => x.id === 'shizuku')) paintShizukuWindow(); });
 let libraryPaintTimer = 0;
 /**
  * Repaints the Applications menu a moment after the app state changed, if it is open at all.
