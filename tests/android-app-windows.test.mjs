@@ -638,11 +638,12 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(shape, /MIN_SHORT_SIDE = 1080/);
   assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
   assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
-  // An app that declares nothing gets what the phone would give it — portrait — and a game gets
-  // landscape, which is the one category that means it.
+  // An app that declares nothing opens the way hosted windows are seen — landscape, so portrait-
+  // by-default apps no longer open sideways/pinned; remembered and declared shapes still win first.
   assert.match(shape, /if \(isShape\(remembered\)\) return remembered;/);
   assert.match(shape, /if \(isShape\(declared\)\) return declared;/);
-  assert.match(shape, /return game \? LANDSCAPE : PORTRAIT;/);
+  assert.match(shape, /Hosted windows are used in the headset's landscape frame; default to landscape/);
+  assert.match(shape, /return LANDSCAPE;\n    }\n\n    \/\*\* Same rule without the game hint/);
 
   const web = await read(WEB.androidApps);
   assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| \(app\?\.game \? 'landscape' : 'portrait'\);/,
@@ -737,7 +738,8 @@ test('a display that changed shape or turned is followed, not assumed', async ()
     'the size the apps see is reported next to the natural one');
   assert.match(service, /json\.put\("rotation", display\.getRotation\(\)\);/);
   assert.match(service, /display\.getRealSize\(size\);/);
-  assert.match(service, /public static final int SERVICE_VERSION = 4;/, 'the user service changed');
+  assert.match(service, /public static final int SERVICE_VERSION = 5;/,
+    'the user service changed (installPackage), so its version had to rise with it');
 
   const geometry = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplayGeometry.java');
   assert.match(geometry, /boolean turned = quarterTurn && logicalWidth == naturalHeight && logicalHeight == naturalWidth;/,

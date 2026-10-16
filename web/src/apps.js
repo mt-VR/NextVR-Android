@@ -8,6 +8,9 @@ import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
   androidRecentIndex, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
+import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
+  refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
+  xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -126,6 +129,48 @@ function slider(key, min, max, step, after) {
   i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
   return i;
 }
+/**
+ * The PhoneXR page in the settings window: what is installed (runtime, VrApi driver, broker), the
+ * runtime install button when an APK is bundled, the hand-input mode of the running and next games,
+ * and the live diagnostics every step reports after a self test. It is a single source of truth for
+ * "why can't I open a headset game".
+ */
+function buildXrPage(host) {
+  host.innerHTML = '';
+  const s = xrState();
+  const card = host;
+  const head = el('div', 'az-row');
+  head.innerHTML = `<i class="az-dot" data-state="${s.runtime}"></i><span class="az-text">`
+    + `${t(xrRuntimeReady() ? 'xrRuntimeReady' : 'xrMissing')}<small>${s.summary || ''}</small></span>`;
+  card.append(head);
+
+  const actions = el('div', 'row');
+  actions.style.cssText = 'gap:10px;flex-wrap:wrap';
+  if (s.runtimeBundled && !xrRuntimeReady()) {
+    const install = el('button', 'go', t('xrInstall'));
+    install.onclick = () => { installXrRuntime(); };
+    actions.append(install);
+  }
+  const again = el('button', 'go', t('xrSelfTest'));
+  again.onclick = () => xrSelfTest();
+  actions.append(again);
+  const mode = el('div', 'seg');
+  for (const [id, label, sub] of [
+    ['controllers', t('xrModeControllers'), t('xrModeControllersSub')],
+    ['hands', t('xrModeHands'), t('xrModeHandsSub')],
+  ]) {
+    const b = el('button', null, label); b.title = sub;
+    b.setAttribute('aria-pressed', String(xrHandModeOf() === id));
+    b.onclick = () => { setXrHandMode(id); [...mode.children].forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); };
+    mode.appendChild(b);
+  }
+  card.append(row(t('xrHandMode'), t('xrHandModeSub'), mode), actions);
+  card.append(el('p', 'note', t('xrHandModeNote')));
+  if (!xrRuntimeReady() && !s.runtimeBundled) {
+    card.append(el('p', 'note', t('xrBundlingNote')));
+  }
+}
+
 function settingsApp() {
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
   const tabs = el('div', 'tabs'); tabs.style.padding = '18px 24px 0';
@@ -199,6 +244,11 @@ function settingsApp() {
       c.append(row(t('quality'), 'Resolução de renderização', seg));
       page.append(c);
       page.append(el('p','note','O hand tracking roda na própria cadência (single-flight, sem fila), separado do render. Ative o contador de FPS para ver as duas taxas: render e tracking.'));
+    }],
+    [t('xrTitle'), () => {
+      page.innerHTML = `<h2>${t('xrTitle')}</h2><p class="sub">${t('xrSub')}</p>`
+        + `<div class="card" data-xr-page></div>`;
+      buildXrPage(page.querySelector('[data-xr-page]'));
     }],
   ];
   let cur = 0;
@@ -440,14 +490,18 @@ function libItems() {
   // The native side is asked for the installed apps here, cheaply and cached: a tile drawn before
   // its icon existed is drawn again as soon as the native icon revision moves (applyState).
   loadAndroidLibrary(false);
+  // Headset games (OpenXR/PhoneXR) are found by the native side too, asynchronously: a first visit
+  // asks once, and the tiles appear when the answer is published (emit('xr') → paintLibrarySoon).
+  if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
+  const xr = xrLibraryItems();
   const games = GAMES.filter(g => installed.includes(g.id)).map(g => ({ ...g, kind: 'game' }));
   const apps = LIB_APPS.map(a => ({ ...a, kind: 'app' }));
   const android = androidApps().map(a => ({ kind: 'android', id: 'android:' + a.pkg, name: a.label || a.pkg,
     label: a.label || a.pkg, pkg: a.pkg, icon: a.icon, system: a.system, app: a }));
-  let list = [...games, ...apps, ...android];
+  let list = [...xr, ...games, ...apps, ...android];
   const ord = id => { const i = LIB_ORDER.indexOf(id); return i < 0 ? 99 : i; };
   list.sort((a, b) => ord(a.id) - ord(b.id));
-  if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
+  if (libFilter === 'games') list = list.filter(x => x.kind === 'game' || x.kind === 'xr');
   if (libFilter === 'apps') list = list.filter(x => x.kind === 'app' || x.kind === 'android');
   if (libFilter === 'recent') list = list.filter(x => x.kind === 'android'
     ? androidRecent(x.pkg) : libRecent.includes(x.id));
@@ -503,16 +557,19 @@ function buildLibrary() {
         <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
       </div>
       <div class="lib-scroll"><div class="lib-grid">${
-        list.map(x => x.kind === 'game' ? gameTile(x) : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
+        list.map(x => x.kind === 'game' ? gameTile(x) : x.kind === 'xr' ? xrTileHtml(x)
+          : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
       }</div>
       ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
     </section>
     `;
-  // The only Android-specific row in the interface, and it exists only while the shell service is
-  // not available: it says which of the two mechanisms a tile will use and how to get the other one.
+  // An Android-app and PhoneXR rows both live here only while their world needs explaining; when
+  // everything is ready neither exists (see shizukuNotice / phoneXrNotice).
   const notice = shizukuNotice();
   if (notice) root.querySelector('.lib-scroll')?.prepend(notice);
+  const xrNotice = phoneXrNotice();
+  if (xrNotice) root.querySelector('.lib-scroll')?.prepend(xrNotice);
 
   const q = root.querySelector('[data-q]:not([data-q="android"])');
   if (q && libQuery) q.classList.add('open');
@@ -539,10 +596,22 @@ function buildLibrary() {
       focusAppWindow(pkg);
       return;
     }
+    if ((m = c('[data-xr]'))) {
+      // A headset game: the native side has the word on whether it can open here (runtime,
+      // hostable, Shizuku). Refused opens come back as state with the problem, which report()
+      // already shows as a toast — the tile is never a dead end without a name for the reason.
+      // Clicking the hosted game's tile again re-attaches it (a minimized session keeps running).
+      const pkg = m.dataset.xr;
+      if (xrHosting()) restoreXrGame();
+      else launchXrGame(pkg);
+      return;
+    }
     if ((m = c('[data-game]'))) {
       const g = gameById(m.dataset.game); touchLib(g.id);
       // O jogo abre o mundo 3D nativo com a cena salva dele: geometria e transforms vão para o
       // renderer GLES2 do Cardboard (não é WebXR), e o workspace some com o estado preservado.
+      // Um jogo de headset em sessão é dono do mundo até sair: duas sessões de uma vez não existe.
+      if (xrHosting()) { toast(t('xrBusy')); return; }
       toast(`${g.name}: ${t('game.launching')}`);
       startGame(g.id);
       return;
@@ -622,7 +691,19 @@ function paintWindowBadge() {
 }
 
 installAndroidApps();
+installXrGames();
 on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
+/**
+ * PhoneXR state/library changed: repaint the library (hosted badge, runtime row) and the PhoneXR
+ * settings page when it is open. The XR game mode itself is handled by xr-games.js; this side only
+ * keeps the abandoned chrome updated.
+ */
+on('xr', () => {
+  paintLibrarySoon();
+  const host = winBody('settings');
+  if (host?.querySelector('[data-xr-page]')) buildXrPage(host.querySelector('[data-xr-page]'));
+});
+
 let libraryPaintTimer = 0;
 /**
  * Repaints the Applications menu a moment after the app state changed, if it is open at all.

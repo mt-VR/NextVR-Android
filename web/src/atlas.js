@@ -96,6 +96,31 @@ export class AtlasRenderer {
         const crop = [fit.u0, fit.v0, fit.uw, fit.vh].map(n => n.toFixed(5)).join(',');
         if (a.dataset.uv !== crop) a.dataset.uv = crop;
       }
+      /*
+       * Hosted headset games (PhoneXR). Same deal as a hosted Android app — the window body
+       * carries the surface id and the display's aspect — plus one difference that is the whole
+       * thing: the runtime presents the game's stereo picture SIDE BY SIDE inside that canvas, so
+       * this panel carries two rectangles, `uv` (the left view) and `uvR` (the right view).
+       * SpatialRenderer samples `uv` in the left eye's pass and `uvR` in the right eye's pass,
+       * which is what turns one panel into real stereo instead of a squeezed side-by-side video.
+       * Nothing is drawn while the game's first frame has not arrived.
+       */
+      for (const g of e.querySelectorAll('[data-native-xr]')) {
+        const box = g.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        const id = 'xr:' + g.dataset.nativeXr;
+        const aspect = +(g.dataset.aspect || 0);
+        const fit = fitDisplay(box.width, box.height, aspect);
+        const m = o.matrixWorld.clone()
+          .multiply(new THREE.Matrix4().makeTranslation(
+            box.left - origin.left + fit.x + fit.w / 2 - sizes[i].width / 2,
+            sizes[i].height / 2 - (box.top - origin.top + fit.y + fit.h / 2), .5))
+          .multiply(new THREE.Matrix4().makeScale(fit.w, fit.h, 1));
+        panels.push({ browser: id, matrix: m.toArray(),
+          rect: [0, 0, Math.round(box.width), Math.round(box.height)], curve: +(e.dataset.curve || 0),
+          uv: [fit.u0, fit.v0, fit.uw / 2, fit.vh],
+          uvR: [fit.u0 + fit.uw / 2, fit.v0, fit.uw / 2, fit.vh] });
+      }
       for (const b of e.querySelectorAll('[data-native-browser]')) {
         const box = b.getBoundingClientRect();
         if (!box.width || !box.height) continue;

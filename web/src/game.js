@@ -16,6 +16,8 @@ import { icon } from './reference-icons.js';
 
 export const GAME_WINDOW_ID = 'nextvr-game';
 export const GAME_MENU_ID = 'nextvr-game-menu';
+/** Was the 3D sandbox world active: a PhoneXR game and it must never chip each other's entrance. */
+export const sandboxActive = () => active;
 /** Tipos de objeto que o renderer nativo sabe desenhar (a geometria vem daqui, do three). */
 export const KINDS = ['box', 'sphere', 'cylinder', 'cone', 'plate'];
 export const PALETTE = ['#a78bfa', '#7c6bff', '#8de6c8', '#ffc45c', '#ff6b6b', '#63aaff', '#eef1f7', '#39415a'];
