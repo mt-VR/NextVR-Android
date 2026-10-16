@@ -2,7 +2,9 @@ package com.nextvr.app.xr;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -55,6 +57,12 @@ public final class XrRuntime {
     public static final String VRAPI_GAME_LAUNCHER = "dev.phonexr.vrapidriver.GameLauncher";
     /** The runtime broker itself, which an app needs in {@code <queries>} to resolve a runtime. */
     public static final String RUNTIME_BROKER = "org.khronos.openxr.runtime_broker";
+    /**
+     * The authority the Khronos loader asks for a runtime: the standalone broker package used to be
+     * the only thing that answered it, but PhoneXR's runtime declares the same provider itself, so
+     * its games resolve the runtime without a separate package.
+     */
+    public static final String SYSTEM_RUNTIME_BROKER = "org.khronos.openxr.system_runtime_broker";
 
     /** Asset path of the runtime build, when it has been fetched into the APK. */
     public static final String RUNTIME_ASSET = "xr/runtime/phonexr-runtime.apk";
@@ -133,6 +141,22 @@ public final class XrRuntime {
      * check than {@link #runtimeState()}.
      */
     public boolean brokerInstalled() {
+        // The runtime itself answers the broker question since v7: the provider it declares carries
+        // the same authority the Khronos loader queries, so a store game finds the runtime through
+        // it without a separate package. Counting the standalone package only would print "no
+        // broker" on the state that is actually complete.
+        if (installedVersion(PACKAGE) > 0) {
+            try {
+                PackageInfo info = context.getPackageManager()
+                    .getPackageInfo(PACKAGE, PackageManager.GET_PROVIDERS);
+                if (info.providers != null)
+                    for (ProviderInfo provider : info.providers)
+                        if (provider != null && SYSTEM_RUNTIME_BROKER.equals(provider.authority))
+                            return true;
+            } catch (Throwable notInstalled) {
+                // Fall through to the standalone broker check below.
+            }
+        }
         try {
             context.getPackageManager().getApplicationInfo(RUNTIME_BROKER, 0);
             return true;

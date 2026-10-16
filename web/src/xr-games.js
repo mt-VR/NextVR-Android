@@ -25,7 +25,7 @@ import { open, close, wins, setDockHidden, setKeyboardHidden, keyboardShown, doc
   focus as focusWindow, focusedWin, windowHitAt } from './windows.js';
 import { cursor } from './hands.js';
 import { TwoHandMenuChord } from './two-hand-chord.js';
-import { twoHandsPinching, sandboxActive } from './game.js';
+import { twoHandsPinching } from './two-hand-chord.js';
 import { icon } from './reference-icons.js';
 import { windowBox } from './app-window-box.js';
 
@@ -106,7 +106,7 @@ export function refreshXrLibrary() {
 
 /** Abre um jogo de headset: o lado nativo decide (runtime, hostable, Shizuku) e publica o estado. */
 export function launchXrGame(pkg) {
-  if (!pkg || state.hosting || sandboxActive()) return;
+  if (!pkg || state.hosting) return;
   command({ cmd: 'open', package: pkg });
 }
 export function closeXrGame() { if (state.hosting) command({ cmd: 'close' }); }
@@ -187,7 +187,7 @@ export function phoneXrNotice() {
 let active = false, snapshot = null;
 
 function enterGame(game) {
-  if (active || sandboxActive()) return;
+  if (active) return;
   snapshot = {
     windows: wins.map(w => ({ win: w, hidden: w.hidden })),
     dockHidden: dockHiddenNow(),

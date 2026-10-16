@@ -6,6 +6,12 @@ como janelas do próprio workspace, com as mãos do aparelho como controles. O r
 A casca continua sendo uma só: um frame estéreo, uma distorção de lente, os menus do NextVR por
 cima do jogo.
 
+**O PhoneXR é o único acervo de jogos do NextVR.** Os jogos demo embutidos (Minecraft VR, VRFS,
+Roblox e Brawl Stars, que eram tiles fake sobre o mundo 3D do sandbox) foram removidos junto com o
+sandbox (`web/src/game.js`, a ponte `gameMesh/gameFrame` e o `GameSceneRenderer`): a coleção de
+jogos agora vem do runtime — hospedados na janela ou abertos pelo launcher do runtime na tela do
+aparelho.
+
 ---
 
 ## 1. O que cada geração de jogo é, e como abre
@@ -33,7 +39,16 @@ do Shizuku (serviço privilegiado, transação `installPackage`, versão 5 do se
 | --- | --- | --- |
 | `org.freedesktop.monado.openxr_runtime.out_of_process` | o runtime OpenXR | `xr/runtime/phonexr-runtime.apk` |
 | `com.oculus.systemdriver` | driver VrApi para jogos Gear VR/Quest | `xr/runtime/phonexr-vrapi-driver.apk` |
-| `org.khronos.openxr.runtime_broker` | dá o runtime a jogos de loja que perguntam a ele | — (instalado junto quando o APK traz) |
+| `org.khronos.openxr.runtime_broker` | dá o runtime a jogos de loja que perguntam a ele | — opcional |
+
+Sobre o broker: o runtime PhoneXR (v7) **declara ele mesmo** a autoridade
+`org.khronos.openxr.system_runtime_broker` que o loader Khronos consulta, então os jogos de loja
+resolvem o runtime sem o pacote do Khronos — o status de broker da página *PhoneXR* considera isso.
+
+O APK do runtime não fica no git (regra `*.apk`): a tarefa **`fetchPhoneXrRuntime`** do gradle
+materializa `assets/xr/runtime/phonexr-runtime.apk` a partir do commit **pinado** da upstream
+(`samrat1games/phonexr`, `27c5bc469…`), conferindo o sha256 a cada build — tanto no CI quanto na
+máquina local, e recusa um download que não corresponda ao pin.
 
 Sem os APKs embutidos, tudo degrada bem: a biblioteca lista os jogos, a tile explica o que falta, e a
 página *PhoneXR* em Configurações mostra `runtime APK not bundled` com o caminho da seção 8.
@@ -130,19 +145,28 @@ Testes: `nextvr-android/src/test/java/com/nextvr/app/xr/` (manifest, protocolo, 
 
 ## 8. De onde vem o runtime (licença e build)
 
-O runtime e o driver VrApi vêm do projeto **PhoneXR** (monado Android) — veja
-`docs/THIRD-PARTY.md` quando os APKs forem efetivamente embutidos. Para gerar os APKs dentro do
-projeto PhoneXR (não deste repositório):
+O runtime vem do projeto **PhoneXR** (`github.com/samrat1games/phonexr`, monado Android); a
+procedência completa fica em `docs/THIRD-PARTY.md`. O APK não é compilado aqui: a PhoneXR publica
+o runtime **pronto** — o rebrand do monado, o broker embarcado, o GameLauncher e a assinatura vêm
+do pipeline deles (`openxr-runtime/build_runtime_apk.py`). Este repositório aponta esse APK por
+commit e sha256 e o materializa sozinho: a tarefa `fetchPhoneXrRuntime` do
+`nextvr-android/build.gradle` baixa o arquivo do commit pinado e confere os bytes a cada build,
+tanto localmente quanto no CI.
 
-```bash
-./gradlew :runtime:assembleRelease    # runtime out-of-process, com o hand driver
-./gradlew :vrapi:assembleRelease      # driver VrApi (opcional, só Gear VR/Quest)
-```
+Estado atual:
 
-Copiar para `nextvr-android/src/main/assets/xr/runtime/` com os nomes:
+- `phonexr-runtime.apk` — **embutido** (pin `27c5bc469…`, versionCode 7). Jogos OpenXR, o launcher
+  honesto para jogos de loja e o self-test funcionam com ele;
+- `phonexr-vrapi-driver.apk` — **ainda não embutido**: exigiria as headers do VrApi (SDK Oculus,
+  de distribuição restrita) e o build nativo do `gearvr-shim`. Enquanto ele falta, jogos Gear
+  VR/Quest degradam para "abrir no celular", sem janela preta; a página *PhoneXR* mostra
+  `VrApi missing`.
 
-- `phonexr-runtime.apk` — obrigatório para jogos OpenXR;
-- `phonexr-vrapi-driver.apk` — para jogos Gear VR/Quest.
+Para regenerar os APKs dentro do projeto PhoneXR (não deste repositório):
 
-Alternativa sem build: `adb install` dos APKs no aparelho — a casca detecta os pacotes já
-instalados pelo mesmo caminho.
+    python3 openxr-runtime/build_runtime_apk.py        # rework do monado: rebrand+broker+slim+sign
+    python3 vrapi-driver/build_driver_apk.py           # após o cmake do gearvr-shim (dois ABIs)
+
+O pin vive em `nextvr-android/build.gradle` (URL raw da upstream no commit + sha256 conferido).
+Para apontá-lo para um build novo, troque os dois valores lá — o build recusa bytes que não
+conferem.

@@ -176,7 +176,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-tile').count(),19,
-      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone');
+      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone (demo games are gone; a game tile now exists only if the runtime answers with one)');
     // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
     // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
     // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
@@ -185,13 +185,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
     assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
     await page.locator('.lib-nav[data-nav="games"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
+    assert.equal(await page.locator('.lib-tile').count(),0,
+      'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
     await page.locator('.lib-nav[data-nav="recent"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('.lib-nav[data-nav="all"]').click();
     assert.equal(await page.locator('.lib-tile').count(),19,'All restores the complete library, installed apps included');
     await page.locator('.dock [data-id="store"]').click();
-    await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
+    // The store is the honest shell now: Apps and Horizon+ (the demo-game tabs are gone). Wait for
+    // the window itself to be composited into the atlas, not just for the markup to exist — the
+    // next steps click again and must not race a frame.
+    await page.waitForFunction(()=>document.querySelectorAll('.st-tab').length===2);
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='store'));
     await page.locator('.dock [data-id="browser"]').click();
     await page.waitForFunction(()=>window.__last?.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('iframe').count(),0,'Native browser does not create a privileged iframe');
@@ -201,6 +206,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
     await page.locator('.dock [data-id="kb"]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
+    // The panel only reaches the bridge on the next frame send (30 Hz throttle), so wait for the
+    // compositor to actually carry the keyboard instead of racing the throttle.
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.rect[1]===3160));
     // Keyboard lies flat like a desk (Meta Quest style): the panel's local +Y (top edge) must
     // point away from the user (-Z). Matrix is column-major: column 1 (elements 4..7) is the
     // local Y basis, so its Z component is elements[6]; lying flat gives sin(pitch) < 0.

@@ -10,7 +10,7 @@ const FILES = {
   windows: 'web/src/windows.js',
   apps: 'web/src/apps.js',
   core: 'web/src/core.js',
-  game: 'web/src/game.js',
+  chord: 'web/src/two-hand-chord.js',
   activity: 'nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java',
   spatial: 'nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java',
   controller: 'nextvr-android/src/main/java/com/nextvr/app/xr/XrGameController.java',
@@ -54,11 +54,13 @@ test('pinch ownership: over our windows nothing presses into the game, on the ga
     'the game window itself is the trigger, not UI');
   const chord = await read('web/src/two-hand-chord.js');
   assert.ok(chord.includes('export class TwoHandMenuChord'));
-  // Same menu as the sandbox: the two-hand chord, held open time, painting the same ring.
+  // The two-hand chord, held open time, painting the same ring. The pinch helper that feeds it
+  // lives beside the chord now (it used to live in the removed demo-game module).
   assert.match(xr, /const chord = new TwoHandMenuChord\(\);/);
-  assert.match(xr, /import \{ twoHandsPinching, sandboxActive \} from '\.\/game\.js';/);
+  assert.match(xr, /import \{ twoHandsPinching \} from '\.\/two-hand-chord\.js';/);
+  assert.match(chord, /export function twoHandsPinching\(pinched\) \{/);
   assert.match(xr, /getElementById\('gameRing'\)/,
-    'the ring is the same element: the two modes never run at once');
+    'the ring is the shared game-mode element (hosted games own it now)');
 });
 
 test('the game window input never becomes a tap in some webview', async () => {
@@ -129,17 +131,56 @@ test('headset games share the Applications menu, and the runtime rows only exist
   const apps = await read(FILES.apps);
   assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
   assert.match(apps, /installAndroidApps\(\);\ninstallXrGames\(\);/);
-  assert.match(apps, /const xr = xrLibraryItems\(\);\n\s+const games = GAMES\.filter/);
-  assert.match(apps, /x\.kind === 'game' \? gameTile\(x\) : x\.kind === 'xr' \? xrTileHtml\(x\)/,
+  assert.match(apps, /const xr = xrLibraryItems\(\);\n\s+const apps = LIB_APPS\.map/,
+    'the Applications menu is XR games plus apps plus installed Android apps — that is the whole list');
+  assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,
     'one tile kind per origin, one row for each source');
   assert.match(apps, /if \(\(m = c\('\[data-xr\]'\)\)\) \{\n\s+\/\/ A headset game/);
   assert.match(apps, /if \(xrHosting\(\)\) restoreXrGame\(\);\n\s+else launchXrGame\(pkg\);/,
     'the tile re-attaches a minimized session instead of pretending it opened twice');
-  assert.match(apps, /if \(xrHosting\(\)\) \{ toast\(t\('xrBusy'\)\); return; \}/,
-    'the 3D sandbox tells the user to exit the headset game first: one at a time');
   const xr = await read(FILES.xr);
   assert.match(xr, /if \(xrRuntimeReady\(\) \|\| !gamesLoaded \|\| !games\.length\) return null;/,
     'the library row explains games that exist; the settings page is the runtime home otherwise');
+});
+
+test('the demo games are gone: PhoneXR is the games platform', async () => {
+  const apps = await read(FILES.apps);
+  // Minecraft VR, VRFS, Roblox and Brawl were fake demo tiles over a sandbox save; the crash the
+  // user hit came from that sandbox path. None of it may silently come back as "content".
+  for (const gone of ['const GAMES = [', "from './game.js'", 'startGame', 'gameTile', '[data-game]',
+    'downloading', 'startDownload', 'removeGame']) {
+    assert.ok(!apps.includes(gone), `apps.js dropped the demo-game piece: ${gone}`);
+  }
+  const xr = await read(FILES.xr);
+  assert.ok(!xr.includes("from './game.js'"), 'the hosted-game module does not lean on the removed module');
+  await assert.rejects(read('web/src/game.js'), { code: 'ENOENT' },
+    'the 3D sandbox module is deleted, not just unrouted');
+  assert.match(apps, /if \(libFilter === 'games'\) list = list\.filter\(x => x\.kind === 'xr'\);/,
+    'the Games filter is the PhoneXR library itself');
+  assert.match(apps, /Os jogos de headset aparecem aqui quando o PhoneXR os encontra\./,
+    'the empty Games filter explains where games come from, not where download them');
+  // The store cannot sell what is gone: it points at the library, and games live in PhoneXR.
+  assert.ok(!apps.includes("['games','Games']"), 'the store has no games tab anymore');
+  assert.match(apps, /Jogos de headset \(PhoneXR\) aparecem embarcados na Biblioteca quando o runtime os encontra\./);
+  // The two-hand menu survives, so only the four strings the XR menu uses remain translated.
+  const core = await read(FILES.core);
+  for (const key of ['game.menu', 'game.continue', 'game.settings', 'game.exit']) {
+    assert.equal(core.split(`'${key}':`).length - 1, 3,
+      `${key} is translated in pt, en and es (the XR game menu uses it)`);
+  }
+  for (const dead of ["'game.tools'", "'game.chord'", "'game.launching'", "'game.floor'",
+    "'game.menuTitle'", "'game.hint'", "'xrBusy'"]) {
+    assert.ok(!core.includes(dead), `core.js dropped the dead string: ${dead}`);
+  }
+  // The native sandbox pipeline ships nothing now: no mesh bridge, no scene renderer, no draw pass.
+  const activity = await read(FILES.activity);
+  for (const gone of ['gameMesh', 'gameFrame']) {
+    assert.ok(!activity.includes(gone), `NextVrActivity dropped the sandbox bridge: ${gone}`);
+  }
+  const spatial = await read(FILES.spatial);
+  assert.ok(!spatial.includes('GameSceneRenderer'), 'SpatialRenderer has no game pass');
+  assert.match(spatial, /for\(renderPass=0;renderPass<2;renderPass\+\+\) \{\n\s+GLES20\.glDepthMask\(renderPass==0\);\n\s+for\(Panel p:sorted\) if\(!p\.overlay\) drawPanel\(p\);\n\s+\}/,
+    'the two passes are exactly the opaque and the glass panels');
 });
 
 test('settings has the PhoneXR page and the hand mode switch', async () => {
@@ -150,7 +191,7 @@ test('settings has the PhoneXR page and the hand mode switch', async () => {
   assert.match(apps, /for \(const \[id, label, sub\] of \[\n\s+\['controllers', t\('xrModeControllers'\)/);
   assert.match(apps, /setXrHandMode\(id\);/);
   const core = await read(FILES.core);
-  for (const key of ['xrTitle', 'xrRuntimeReady', 'xrMissing', 'xrInstall', 'xrSelfTest', 'xrBusy',
+  for (const key of ['xrTitle', 'xrRuntimeReady', 'xrMissing', 'xrInstall', 'xrSelfTest',
     'xrHandMode', 'xrModeControllers', 'xrModeHands', 'xrBadge']) {
     assert.equal((core.match(new RegExp(key + `:`, 'g')) || []).length, 3,
       `${key} is translated in pt, en and es`);
@@ -159,12 +200,34 @@ test('settings has the PhoneXR page and the hand mode switch', async () => {
 
 /* ============ what ships ============ */
 
+test('the build ships with the pinned PhoneXR runtime, so hosting is not fetch-and-pray', async () => {
+  const gradle = await read('nextvr-android/build.gradle');
+  assert.match(gradle, /task fetchPhoneXrRuntime \{/,
+    'the runtime asset materializes itself in the build, the way extractNdk does for Cardboard');
+  assert.match(gradle, /27c5bc469fb736fb0c00b7254a6dfc532fea7003/,
+    'the upstream build is one pinned commit, not "latest"');
+  assert.match(gradle, /56dd0f53317e1e70d240d4de39217f7553011a04b1d4cf22a637de6d1ebf7fa8/,
+    'and it is verified down to the bytes: whatever the download claims, the hash decides');
+  assert.match(gradle, /preBuild\.dependsOn\(extractNdk, fetchPhoneXrRuntime\)/);
+  assert.match(gradle, /does not match the pinned build/,
+    'a wrong download fails the build instead of silently becoming the runtime the user plays with');
+  const runtime = await read('nextvr-android/src/main/java/com/nextvr/app/xr/XrRuntime.java');
+  assert.match(runtime, /SYSTEM_RUNTIME_BROKER\.equals\(provider\.authority\)/,
+    'the broker status counts the provider the runtime itself declares (v7+), not only the standalone package');
+  const provenance = await read('docs/THIRD-PARTY.md');
+  assert.ok(provenance.includes('27c5bc469fb736fb0c00b7254a6dfc532fea7003'),
+    'the provenance file carries the pin and the missing-license caution, like every other binary');
+});
+
 test('the bundled UI carries the embeddings: state push, panels, chords and no dead code', async () => {
   const bundle = await read(FILES.bundle);
   assert.ok(bundle.includes('nextvrXr'));
   assert.ok(bundle.includes('data-native-xr') || bundle.includes('nativeXr'));
   assert.ok(bundle.includes('hands-ui'));
   assert.ok(bundle.includes('nextvr-xr-game'));
+  for (const gone of ['gameMesh', 'gameFrame', 'startGame', 'MINECRAFT']) {
+    assert.ok(!bundle.includes(gone), `the shipped bundle carries no demo-game remains: ${gone}`);
+  }
   const html = await read(FILES.bundleHtml);
   assert.ok(html.includes('az-dot[data-state="outdated"]'), 'the runtime dot states ship with the page');
 });

@@ -566,7 +566,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 SpatialRenderer target=renderer; if(target==null) return;
                 boolean specsChanged;
                 synchronized(this) {
-                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null;pushGame(target); }
+                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
                     specsChanged=!browserSpecs.equals(cachedSpecs);
                 }
                 if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
@@ -606,32 +606,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null && !closed) target.setEnvironment(environment,bitmap);
             else if(bitmap!=null) bitmap.recycle();
-        }
-        /**
-         * Mundo 3D jogavel: a casca manda a geometria de cada tipo UMA vez (base64 de Float32Array
-         * little-endian) e a cena a cada mudanca. Um renderer recriado recebe tudo de novo, do
-         * mesmo jeito que a cena de paineis e as superficies de navegador.
-         */
-        private final Map<String,String[]> gameMeshes=new HashMap<>();
-        private String cachedGame;
-        private void pushGame(SpatialRenderer target) {
-            Map<String,String[]> copy; String json;
-            synchronized(this) { copy=new HashMap<>(gameMeshes); json=cachedGame; }
-            for(Map.Entry<String,String[]> e:copy.entrySet())
-                target.game.offerMesh(e.getKey(),e.getValue()[0],e.getValue()[1],e.getValue()[2]);
-            if(json!=null) target.game.offerObjects(json);
-        }
-        @JavascriptInterface public void gameMesh(String kind,String positions,String normals,String indices) {
-            if(kind==null || !kind.matches("[a-z]{1,16}")) return;
-            if(positions==null || normals==null || indices==null) return;
-            if(positions.length()>4000000 || normals.length()>4000000 || indices.length()>1000000) return;
-            synchronized(this) { gameMeshes.put(kind,new String[]{positions,normals,indices}); }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerMesh(kind,positions,normals,indices);
-        }
-        @JavascriptInterface public void gameFrame(String json) {
-            if(json==null || json.length()>200000) return;
-            synchronized(this) { cachedGame=json; }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerObjects(json);
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
