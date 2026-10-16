@@ -11,6 +11,8 @@ import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openAp
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
+
+const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const openOut = url => { if (native) return webWindow('browser-extra', t('browser'), url); try { window.open(url, '_blank', 'noopener'); } catch { toast('Bloqueado pelo navegador'); } };
 
 /* ============ janela com página externa (Google, Discord) ============ */
@@ -58,282 +60,6 @@ function webWindow(id, title, url, note) {
   nav(url);
 
   return open({ id, title, node: body });
-}
-
-/* ============ YouTube real (busca + player oficial dentro da janela) ============ */
-/*
- * These are volunteer-run proxies, not Google infrastructure: they go down without notice and
- * usually stay down. They are raced in parallel and the host that answered last is tried first,
- * because walking them one at a time makes a single outage cost the time of every dead host in
- * front of it -- which, with a few seconds of timeout each, is most of a minute of nothing
- * happening in a headset. Ordered by how they behaved when the list was last checked.
- */
-const YT_API = [
-  'https://api.piped.private.coffee',
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.adminforge.de',
-  'https://pipedapi.leptons.xyz',
-  'https://pipedapi.reallyaweso.me',
-  'https://pipedapi.nosebs.ru',
-];
-const YT_INV = [
-  'https://inv.nadeko.net/api/v1',
-  'https://inv.tux.pizza/api/v1',
-];
-let ytGoodHost = '';
-const ytFails = new Map();
-/** Only affects ordering, never membership: a host that recovers is still tried, just not first. */
-function ytRank(host) { return host === ytGoodHost ? 0 : 10 + (ytFails.get(host) || 0); }
-function ytNote(host, ok) {
-  if (ok) { ytGoodHost = host; ytFails.delete(host); } else ytFails.set(host, (ytFails.get(host) || 0) + 1);
-}
-const ytOrder = list => list.slice().sort((a, b) => ytRank(a) - ytRank(b));
-const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-async function ytGet(url, ms = 7000) {
-  const c = new AbortController();
-  const to = setTimeout(() => c.abort(), ms);
-  try {
-    const r = await fetch(url, { signal: c.signal });
-    if (!r.ok) throw new Error('http');
-    return await r.json();
-  } finally { clearTimeout(to); }
-}
-/** First host to answer with a non-empty list wins; every other request is left to finish on its own. */
-function ytRace(tasks) {
-  return new Promise((resolve, reject) => {
-    let left = tasks.length, settled = false;
-    const done = () => { if (--left <= 0 && !settled) { settled = true; reject(new Error('offline')); } };
-    for (const [host, run] of tasks) {
-      run().then(v => {
-        if (settled) return;
-        if (v && v.length) { settled = true; ytNote(host, true); resolve(v); }
-        else { ytNote(host, false); done(); }
-      }, () => { ytNote(host, false); done(); });
-    }
-  });
-}
-function ytDur(sec, live) {
-  if (live) return 'AO VIVO';
-  if (sec == null || sec < 0) return '';
-  sec = Math.round(sec);
-  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
-  const p = n => String(n).padStart(2, '0');
-  return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
-}
-function ytViews(n) {
-  n = Number(n);
-  if (!n || n < 0) return '';
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.', ',') + ' mi';
-  if (n >= 1e3) return Math.round(n / 1e3) + ' mil';
-  return String(n);
-}
-function ytIdOf(s) {
-  const m = String(s || '').match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/) || String(s || '').match(/^([\w-]{11})$/);
-  return m ? m[1] : null;
-}
-function ytMapPiped(it) {
-  const m = String(it.url || '').match(/[?&]v=([\w-]{11})/);
-  if (!m || !it.title) return null;
-  return { id: m[1], title: it.title, thumb: it.thumbnail || `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg`,
-    chan: it.uploaderName || '', dur: ytDur(it.duration, it.isLive), live: !!it.isLive, views: ytViews(it.views) };
-}
-function ytMapInv(v) {
-  if (!v.videoId || !v.title) return null;
-  const th = (v.videoThumbnails || []).find(t => t.quality === 'medium') || (v.videoThumbnails || [])[0] || {};
-  return { id: v.videoId, title: v.title, thumb: th.url, chan: v.author || '',
-    dur: ytDur(v.lengthSeconds, v.liveNow), live: !!v.liveNow, views: ytViews(v.viewCount) };
-}
-async function ytSearch(q) {
-  const tasks = [];
-  for (const b of ytOrder(YT_API)) tasks.push([b, () => ytGet(`${b}/search?q=${encodeURIComponent(q)}&filter=videos`)
-    .then(d => (d.items || []).map(ytMapPiped).filter(Boolean))]);
-  for (const b of ytOrder(YT_INV)) tasks.push([b, () => ytGet(`${b}/search?q=${encodeURIComponent(q)}&type=video`)
-    .then(d => (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean))]);
-  return ytRace(tasks);
-}
-async function ytTrending() {
-  const tasks = [];
-  for (const b of ytOrder(YT_API)) tasks.push([b, () => ytGet(`${b}/trending?region=BR`)
-    .then(d => (Array.isArray(d) ? d : []).map(ytMapPiped).filter(Boolean))]);
-  for (const b of ytOrder(YT_INV)) tasks.push([b, () => ytGet(`${b}/popular?region=BR`)
-    .then(d => (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean))]);
-  try { return await ytRace(tasks); } catch { return ytSearch('em alta brasil'); }
-}
-
-/* ---------- player com som: acionado somente pelo controle selecionado com a mão ---------- */
-let ytPlayer = null, ytApiPromise = null;
-
-function ytUnmute() {
-  try {
-    if (ytPlayer && ytPlayer.unMute) { ytPlayer.unMute(); ytPlayer.setVolume && ytPlayer.setVolume(100); }
-  } catch {}
-}
-
-function loadYtApi() {
-  if (ytApiPromise) return ytApiPromise;
-  ytApiPromise = new Promise((resolve, reject) => {
-    if (window.YT && window.YT.Player) return resolve(window.YT);
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => { prev && prev(); ytApiPromise = null; resolve(window.YT); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => { ytApiPromise = null; reject(new Error('api')); };
-    document.head.appendChild(s);
-    setTimeout(() => { if (!(window.YT && window.YT.Player)) { ytApiPromise = null; reject(new Error('timeout')); } }, 9000);
-  });
-  return ytApiPromise;
-}
-function ytDestroy() {
-  try { if (ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); } catch {}
-  ytPlayer = null;
-}
-
-function youtube() {
-  const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f12';
-  const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
-  const back = el('button', 'go', icon('back')); back.setAttribute('aria-label','Voltar'); back.title='Voltar'; back.style.display = 'none';
-  const fld = el('input', 'fld'); fld.placeholder = 'Pesquisar no YouTube ou colar link';
-  const go = el('button', 'go', icon('search')); go.setAttribute('aria-label',t('searchYt')); go.title=t('searchYt');
-  const out = el('button', 'go', icon('external')); out.setAttribute('aria-label','Abrir fora'); out.title='Abrir fora'; out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
-  bar.append(back, fld, go, out);
-
-  const chips = el('div', 'yt-chips');
-  const scroll = el('div', 'yt-scroll');
-  body.append(bar, chips, scroll);
-
-  const CHIPS = ['Música', 'Jogos', 'VR 360', 'Notícias', 'Ao vivo', 'Filmes'];
-  chips.innerHTML = CHIPS.map(c => `<button class="yt-chip" data-q="${c}">${c}</button>`).join('');
-  chips.addEventListener('click', e => {
-    const b = e.target.closest('[data-q]'); if (!b) return;
-    fld.value = b.dataset.q; doSearch(b.dataset.q);
-  });
-
-  let current = [], lastTitle = '', playing = null, token = 0;
-
-  const skel = () => { scroll.innerHTML = `<div class="yt-grid">${'<span class="yt-card"><span class="yt-thumb yt-skel"></span><span class="yt-meta"><span class="yt-skel-l"></span><span class="yt-skel-l short"></span></span></span>'.repeat(6)}</div>`; };
-
-  const card = v => `<button class="yt-card" data-v="${v.id}">`
-    + `<span class="yt-thumb">${v.thumb ? `<img loading="lazy" src="${v.thumb}" alt="">` : ''}`
-    + (v.dur ? `<span class="yt-dur${v.live ? ' live' : ''}">${escH(v.dur)}</span>` : '') + `</span>`
-    + `<span class="yt-meta"><span class="yt-t">${escH(v.title)}</span>`
-    + `<span class="yt-c">${escH(v.chan)}${v.views ? ' · ' + escH(v.views) : ''}</span></span></button>`;
-
-  function showList(title, videos) {
-    ytDestroy(); playing = null; current = videos;
-    back.style.display = 'none'; chips.style.display = '';
-    scroll.innerHTML = `<div class="yt-sec">${escH(title)}</div><div class="yt-grid">${videos.map(card).join('')}</div>`;
-  }
-  function showError(q) {
-    back.style.display = 'none'; chips.style.display = '';
-    scroll.innerHTML = `<div class="yt-err"><div style="display:grid;place-items:center;font-size:46px">${icon('wifi')}</div>`
-      + `<div class="yt-err-t">A busca não respondeu</div>`
-      + `<div class="yt-err-s">Os servidores públicos que indexam o YouTube estão fora do ar agora. `
-      + `Nada foi perdido: ${native ? 'a busca do próprio YouTube funciona sempre' : 'tente de novo em instantes'}`
-      + `${native ? ', e você também pode colar um link direto no campo acima.' : ', ou cole um link direto no campo acima.'}</div>`
-      + `<button class="yt-btn" data-retry>${iconText('refresh','TENTAR DE NOVO')}</button>`
-      + (native ? `<button class="yt-btn" data-openyt>${iconText('external','BUSCAR NO YOUTUBE')}</button>` : '') + `</div>`;
-    scroll.querySelector('[data-retry]').onclick = () => (q ? doSearch(q) : doHome());
-    // A dead proxy list must never be a dead end: YouTube's own search runs in a real WebView
-    // surface, so it does not depend on any of these third-party hosts being alive.
-    const openYt = scroll.querySelector('[data-openyt]');
-    if (openYt) openYt.onclick = () => webWindow('youtube-web', 'YouTube',
-      q ? 'https://m.youtube.com/results?search_query=' + encodeURIComponent(q) : 'https://m.youtube.com/');
-  }
-  async function doSearch(q) {
-    q = (q || '').trim(); if (!q) return;
-    const id = ytIdOf(q);
-    if (id) return play({ id, title: 'Vídeo do YouTube', chan: '', dur: '', views: '' });
-    const my = ++token; skel();
-    try {
-      const v = await ytSearch(q);
-      if (my !== token) return;
-      lastTitle = `Resultados para “${q}”`;
-      showList(lastTitle, v);
-    } catch { if (my === token) showError(q); }
-  }
-  async function doHome() {
-    const my = ++token; skel();
-    try {
-      const v = await ytTrending();
-      if (my !== token) return;
-      lastTitle = 'Em alta no Brasil';
-      showList(lastTitle, v);
-    } catch { if (my === token) showError(null); }
-  }
-  function play(v) {
-    playing = v; if (!current.length) current = [v];
-    back.style.display = ''; chips.style.display = 'none';
-    scroll.innerHTML = `<div class="yt-player">
-        <div class="yt-holder yt-frame"></div>
-        <div class="yt-info">
-          <div class="yt-ptitle">${escH(v.title)}</div>
-          ${v.chan ? `<div class="yt-pchan">${escH(v.chan)}${v.views ? ' · ' + escH(v.views) : ''}</div>` : ''}
-          <div class="yt-prow">
-            <button class="yt-btn" data-back>${iconText('back','VOLTAR')}</button>
-            <button class="yt-btn" data-snd>${iconText('volume','ATIVAR SOM')}</button>
-            <button class="yt-btn" data-out>${iconText('external','ABRIR')}</button>
-          </div>
-          <p class="yt-pchan" style="margin-top:10px">Use o controle de som com a mão e ajuste o volume pelas teclas do Android.</p>
-        </div></div>`;
-
-    const holder = scroll.querySelector('.yt-holder');
-    scroll.querySelector('[data-back]').onclick = () => { ytDestroy(); showList(lastTitle || 'Em alta no Brasil', current); };
-    scroll.querySelector('[data-out]').onclick = () => openOut('https://www.youtube.com/watch?v=' + v.id);
-    scroll.querySelector('[data-snd]').onclick = ytUnmute;
-
-    if (native) {
-      // In the app the player is a real WebView on its own surface, not an iframe: it gets the
-      // whole window instead of a box inside the shell, and it is never subject to the shell CSP.
-      const player = el('div'); player.dataset.nativeBrowser = 'youtube-player';
-      player.dataset.url = 'https://www.youtube.com/embed/' + encodeURIComponent(v.id)
-        + '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
-      player.style.cssText = 'width:100%;height:100%'; holder.append(player);
-      scroll.querySelector('[data-snd]').onclick = () => { window.NativeXR.click(); toast('Use Android media volume to adjust sound.'); };
-      return;
-    }
-    // plano A: API oficial — permite unMute() mesmo sem ativação de usuário
-    loadYtApi().then(YT => {
-      if (playing !== v) return;
-      try {
-        ytPlayer = new YT.Player(holder, {
-          videoId: v.id,
-          playerVars: { autoplay: 1, playsinline: 1, rel: 0, mute: 0, modestbranding: 1, enablejsapi: 1 },
-          events: {
-            onReady: e => { try { e.target.unMute(); e.target.setVolume(100); e.target.playVideo(); } catch {} setTimeout(ytUnmute, 350); },
-            onError: mountFallback,
-          },
-        });
-      } catch { mountFallback(); }
-    }).catch(mountFallback);
-
-    // plano B: iframe simples, se a API não carregar
-    function mountFallback() {
-      if (playing !== v || holder.dataset.fb) return;
-      holder.dataset.fb = '1';
-      holder.innerHTML = `<iframe class="yt-frame" title="${escH(v.title)}" `
-        + `src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&mute=0&playsinline=1&rel=0&enablejsapi=1" `
-        + `allow="accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-    }
-    setTimeout(ytUnmute, 600);
-  }
-
-  scroll.addEventListener('click', e => {
-    const c = e.target.closest('[data-v]'); if (!c) return;
-    const v = current.find(x => x.id === c.dataset.v);
-    if (v) play(v);
-  });
-  back.onclick = () => showList(lastTitle || 'Em alta no Brasil', current);
-  go.onclick = () => doSearch(fld.value);
-  out.onclick = () => openOut(playing ? 'https://www.youtube.com/watch?v=' + playing.id : 'https://m.youtube.com/results?search_query=' + encodeURIComponent(fld.value || ''));
-  fld.addEventListener('focus', () => keyboard(true, fld));
-  fld.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(fld.value); });
-
-  doHome();
-  const win = open({ id: 'youtube', title: 'YouTube', node: body });
-  // fecha a janela = para o áudio
-  on('wins', () => { if (!wins.some(w => w.id === 'youtube')) ytDestroy(); });
-  return win;
 }
 
 /* ============ Galeria ============ */
@@ -547,7 +273,7 @@ const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.q
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
-  youtube:  () => youtube(),
+  youtube:  () => webWindow('youtube',   'YouTube',      'https://m.youtube.com/'),
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
@@ -871,7 +597,7 @@ function makeDock() {
     { kind: 'sep' },
     // segundo grupo (verde e vermelho do print)
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: youtube },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // lançador de 9 pontos: sempre o último, abre o menu de aplicações — onde os apps instalados no
     // aparelho aparecem junto com os apps do NextVR. É a única entrada para os dois: o botão que
     // abria uma página separada de apps Android, e a página com ele, foram removidos.
