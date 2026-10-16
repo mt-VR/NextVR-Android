@@ -419,6 +419,22 @@ public final class AppWindowController {
         return input.text(session, value);
     }
 
+    /**
+     * Whether this window's app currently has an editable field focused, so a tap inside it should
+     * put the floating keyboard there.
+     *
+     * <p>Only answerable through the accessibility backend: an app on a virtual display has no DOM to
+     * probe and the privileged key-injection path exposes nothing about its focus either. With
+     * Shizuku this is {@code false} and the window keeps its keyboard button, which is the honest
+     * answer rather than a keyboard aimed at a field nobody can prove is there.
+     */
+    public boolean editing(String packageName) {
+        AppSession session = sessions.find(packageName);
+        if (session == null || !session.alive()) return false;
+        return AppSession.InputBackend.ACCESSIBILITY == session.input
+            && NextVrAccessibilityService.focusedEditable();
+    }
+
     /** The user asked for the Shizuku permission (or for instructions when it is not running). */
     public void requestShizuku() {
         boolean handled = shizuku.requestPermission();
