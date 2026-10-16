@@ -64,7 +64,8 @@ const APP_ICONS = Object.freeze({
   store:'<path d="M4 9.2 5.6 4h12.8L20 9.2"/><path d="M4.6 9.2V20h14.8V9.2"/><path d="M4 9.2c0 1.9 1.6 2.4 2.7 2.4s2.7-.5 2.7-2.4c0 1.9 1.2 2.4 2.6 2.4s2.7-.5 2.7-2.4c0 1.9 1.4 2.4 2.7 2.4S20 11.1 20 9.2"/><path d="M10 20v-5h4v5"/>',
   people:'<circle cx="9" cy="9" r="3"/><path d="M3.6 19c0-3.1 2.4-5 5.4-5s5.4 1.9 5.4 5"/><circle cx="17" cy="10" r="2.4"/><path d="M16.2 14.2c2.6 0 4.4 1.6 4.4 4.3"/>',
   play:'<rect x="3" y="6" width="18" height="12" rx="3.6"/><path d="M10.2 9.4v5.2l4.6-2.6z" fill="currentColor" stroke="none"/>',
-  top:'<path d="m7 14 5-5 5 5"/>'
+  top:'<path d="m7 14 5-5 5 5"/>',
+  shizuku:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>'
 });
 
 export const ICON_PATHS = Object.freeze({ ...APP_ICONS, ...REFERENCE_ICONS });

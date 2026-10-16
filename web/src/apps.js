@@ -564,6 +564,26 @@ function paintLibrary(keepFocus) {
   host.innerHTML = ''; host.appendChild(buildLibrary());
   host.querySelector('.lib-scroll').scrollTop = sc;
 }
+function shizukuWindow() {
+  const body = el('div', 'pad');
+  body.innerHTML = `<h2>${t('shizuku')}</h2><p class="sub">${t('androidApps')}</p>`;
+  const grid = el('div', 'lib-grid');
+  const apps = androidApps();
+  grid.innerHTML = apps.length
+    ? apps.map(a => androidTileHtml(a)).join('')
+    : `<p class="sub">${t('noPhotos')}</p>`;
+  body.appendChild(grid);
+  body.addEventListener('click', e => {
+    const m = e.target.closest('[data-android]');
+    if (!m) return;
+    openApp(m.dataset.android);
+    focusAppWindow(m.dataset.android);
+  });
+  return open({ id: 'shizuku', title: t('shizuku'), node: body });
+}
+const shizukuApp = shizukuWindow;
+const androidAppsWindow = shizukuWindow;
+
 function libraryApp() {
   const w = wins.find(x => x.id === 'library');
   if (w) { paintLibrary(); focus(w); return w; }

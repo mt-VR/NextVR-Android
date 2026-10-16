@@ -38,6 +38,7 @@ const STR = {
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
     envPass:'Camera passthrough', envSunset:'Panorama 360° · pôr do sol',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
+    envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -104,6 +105,7 @@ const STR = {
     arcFull:'Arc full (max 5 apps) — closing',
     envPass:'Camera passthrough', envSunset:'360° panorama · sunset',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
+    envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -170,6 +172,7 @@ const STR = {
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
     envPass:'Camera passthrough', envSunset:'Panorama 360° · atardecer',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
+    envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -327,9 +330,11 @@ on('quality', resize);
  * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
  * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space', 'palm', 'virtual']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
+  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
