@@ -133,7 +133,7 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |
 | Browser scrolling | Hold a hand pinch on the page and move. |
-| Type | Focus a field with the hand and use the floating keyboard. |
+| Type | Pinch a field — in a browser, a shell window or an Android app — and the floating keyboard appears in front of that window. Pinch a key and it types immediately; hold it to repeat; slide onto the next key to keep typing. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Crosshair/recenter control on the dock. |
 | Play a game | Store → install a title → Library → its tile. The workspace hides and the 3D world opens. |
@@ -165,6 +165,7 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
 | `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
+| `web/src/typing.js` | The one typing engine: loaded by the shell and injected by the native side into every hosted page, so a real website field and a shell field obey the same caret and key rules |
 | `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
 | `web/src/game.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | Playable 3D world (scene, tools, both-hands menu chord) and free-space-aware window placement |
 | `…/GameSceneRenderer.kt` | Native GL rendering of game objects: base64 meshes from the shell, one draw call per object, depth-tested against windows |

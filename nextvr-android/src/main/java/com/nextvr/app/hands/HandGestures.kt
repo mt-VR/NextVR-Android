@@ -10,13 +10,9 @@ object HandGestures {
     private val FOLDED_TIPS = intArrayOf(12, 16, 20)
     private val FOLDED_PIPS = intArrayOf(10, 14, 18)
 
-    /**
-     * Hysteresis for a deliberate pinch click. Looser than the PhoneXR reference on purpose: a
-     * pinch here is a click, and a strict close threshold made small gaps hard to hit. Releasing
-     * still needs a clearly open hand, so the gap between the two is wide.
-     */
-    const val PINCH_CLOSE_GAP = .38f
-    const val PINCH_OPEN_GAP = .56f
+    /** PhoneXR reference hysteresis for a deliberate pinch click. */
+    const val PINCH_CLOSE_GAP = .30f
+    const val PINCH_OPEN_GAP = .48f
     /**
      * Smallest palm (index to pinky base, in image widths) a landmark set may have and still be
      * measured. The pinch gap is a RATIO to the palm, so a collapsed or sub-pixel palm turns it into
@@ -78,15 +74,10 @@ object HandGestures {
         val gap = if (palmRaw < MIN_PALM) 1f else d(4, 8) / palm
         val strength = ((.9f - gap) / .6f).coerceIn(0f, 1f)
         var others = 0
-        for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.14f) others++
-        // The index limit is capped below the 1.12 that marks it EXTENDED (see [Shape.indexExtended]):
-        // any higher and one finger could read as both curled and extended at once. So the fist is
-        // relaxed on the middle/ring/pinky fold instead.
-        val indexCurled = d(0, 8) < d(0, 6) * 1.11f
-        // A fist has the index and at least two of the other fingers folded, so a pinch with the
-        // index bent and the other fingers open (or closed) is not a fist. The thumb is NOT part of
-        // this test on purpose: it is never measured here, so a fist can be made with the thumb
-        // outside across the fingers, where it naturally sits.
+        for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.04f) others++
+        val indexCurled = d(0, 8) < d(0, 6) * 1.04f
+        // A fist has every finger folded. A pinch with the index bent and the other fingers open
+        // (or closed) is not a fist.
         val fist = indexCurled && others >= 2
         // Winding of wrist -> index base -> pinky base: for the back camera, a right hand shows its
         // back (palm toward the user) when this turns clockwise in image space.
@@ -95,7 +86,7 @@ object HandGestures {
         val cross = ax * by - ay * bx
         val palmToFace = if (physicalLeft) cross < 0 else cross > 0
         return Shape(
-            pinch = !fist && gap < .42f,
+            pinch = !fist && gap < .35f,
             pinchStrength = strength,
             fist = fist,
             palmToFace = palmToFace && abs(cross) > palm * palm * .06f,

@@ -5,6 +5,10 @@ const out = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
 await mkdir(out, { recursive: true });
 await build({ entryPoints: ['web/src/apps.js'], bundle: true, format: 'iife', target: 'chrome80', minify: true, outfile: new URL('app.js', out).pathname, legalComments: 'eof' });
 await copyFile('web/index.html', new URL('index.html', out));
+// The typing engine is deliberately NOT part of the esbuild bundle: the native side installs this
+// very same file, byte for byte, as the document-start script of every hosted browser page, so a
+// text field on a real website and a text field in the shell obey the same caret and key rules.
+await copyFile('web/src/typing.js', new URL('typing.js', out));
 await mkdir(new URL('icons/', out), { recursive: true });
 // O "N" é o vetor original inline da referência mais recente, extraído sem redesenho.
 // Logo do app: o N cromado fornecido pelo usuário (chrome sobre preto, recortado com alfa), no

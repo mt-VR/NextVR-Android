@@ -164,6 +164,30 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
    — ele é descartado de propósito e nunca chega ao app.
 3. Minimize, restaure e redimensione de novo: continua funcionando.
 
+## D2. Digitar (o teclado que mora no mundo)
+
+1. Abra o **Browser** na dock e toque com a mão na **barra de endereço**.
+   → esperado: o teclado deitado **aparece na frente da janela do navegador** (não fica parado na
+   frente da dock) e o campo ganha o cursor. Ele pode ficar meio segundo atravessando o espaço até
+   chegar — esse é o "teleporte".
+2. Aperte uma letra.
+   → esperado: **um** caractere, no momento em que o dedo desce (não quando ele sobe).
+3. Segure a mesma letra por dois segundos.
+   → esperado: ela **se repete** enquanto o dedo fica. Solte e ela para.
+4. Com o dedo apertado, **deslize** para a letra vizinha.
+   → esperado: ele solta a primeira e escreve a segunda. Solte o dedo fora do teclado: para de
+   escrever, sem teclar nada a mais.
+5. **⌫** apaga o caractere **antes do cursor**, não o último da linha. Ponha o cursor no meio da
+   palavra antes de apertar.
+   → esperado: se o caractere for um emoji, ele inteiro some — nunca sobra metade quebrada.
+6. **⏎** numa barra de endereço ou numa busca **envia**; num campo de várias linhas, **quebra linha**.
+7. Teste a mesma coisa **dentro de um site de verdade** (abra o YouTube ou uma busca na barra) e num
+   **app Android** que tenha campo de texto (o botão de teclado da barra do app).
+   → esperado: o mesmo comportamento nos três. Num site, o cursor tem de ficar onde está e o texto
+   aparecer exatamente ali.
+8. Arraste a janela do navegador **com o teclado aberto**.
+   → esperado: o teclado **acompanha** a janela.
+
 ## D. Rotação
 
 1. Abra um app que só funciona em retrato (Instagram, banco — o que você tiver) numa janela.
