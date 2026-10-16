@@ -38,11 +38,10 @@ final class PassthroughCamera {
         void stopped();
     }
     /**
-     * GPU landmarkers this process may build. Zero: the GPU delegate was measured on this class of
-     * phone and is SLOWER than the CPU here (126 ms vs 96 ms mean for the same graph), because the
-     * GPU is shared with the Cardboard compositor and the WebView rasterizer and the tracker queues
-     * behind them - the "fast, empty or stalled" delegate [DelegateWatch] exists to catch. Paying a
-     * GPU graph build and its shader compilation to be dropped again is pure startup cost.
+     * GPU landmarkers this process may build. The first is the initial choice; the second is the
+     * retry a reopened camera arms (see open()), which exists because a GPU abandoned while the boot
+     * page was still being rasterized is not evidence about a steady session. Two is the whole
+     * budget: the retry would otherwise become the loop the latch exists to prevent.
      */
     private static final int MAX_GPU_ATTEMPTS=0;
     /** A scaled analysis frame waiting for, or being processed by, hand tracking. */

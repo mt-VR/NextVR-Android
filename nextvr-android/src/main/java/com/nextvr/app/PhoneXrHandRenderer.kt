@@ -22,13 +22,10 @@ import kotlin.math.hypot
  */
 class PhoneXrHandRenderer {
     private val colorProgram=SpatialRenderer.link(
-        "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
-        "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=1.-smoothstep(.46,1.,t); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
+        "attribute vec3 aPosition; uniform mat4 uMatrix; void main(){gl_Position=uMatrix*vec4(aPosition,1.);}",
+        "precision highp float; uniform vec4 uColor; void main(){gl_FragColor=uColor;}")
     private val matrixUniform=GLES20.glGetUniformLocation(colorProgram,"uMatrix")
     private val colorUniform=GLES20.glGetUniformLocation(colorProgram,"uColor")
-    private val wristUniform=GLES20.glGetUniformLocation(colorProgram,"uWrist")
-    private val knuckleUniform=GLES20.glGetUniformLocation(colorProgram,"uKnuckle")
-    private val gradUniform=GLES20.glGetUniformLocation(colorProgram,"uUseGrad")
     private var targetsText:String?=null
     private var targets=JSONArray()
     private var vertexBuffer=ByteBuffer.allocateDirect(65536).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -53,8 +50,6 @@ class PhoneXrHandRenderer {
     private class Mesh(initialCapacity:Int) {
         val vertices=FloatBuilder(initialCapacity)
         val color=FloatArray(4)
-        val wrist=FloatArray(2)
-        val knuckle=FloatArray(2)
     }
     private val meshPool=ArrayList<Mesh>()
     private var meshes=emptyList<Mesh>()
@@ -80,55 +75,6 @@ class PhoneXrHandRenderer {
     private val acrossA=FloatArray(3)
     private val acrossB=FloatArray(3)
     private val quad=FloatArray(18)
-    /** Scratch boundary polygon for the palm fan (x,y pairs), reused: the rebuild allocates nothing. */
-    private val palmRing=FloatArray(40)
-    /** Scratch sample points for the two wrist-border curves (x,y pairs; slot 0 is the start). */
-    private val radialChain=FloatArray(16)
-    private val ulnarChain=FloatArray(16)
-    /** Samples along each wrist border, not counting the start point. */
-    private val CHAIN_STEPS=4
-    /** Wrist breadth as a fraction of palm breadth (MCP5 -> MCP17) - adult anthropometry. */
-    private val WRIST_BREADTH=.44f
-    /** The virtual (estimated) wrist, past landmark 0, as a fraction of knuckle->wrist length. */
-    private val WRIST_EXTEND=.40f
-    /** Fraction of the wrist half-width carried as a centre offset; the rest is chain radius. */
-    private val STUB_TAPER=.50f
-    /** How far each wrist border bows away from the palm axis (hypothenar / thenar flesh). */
-    private val ULNAR_BULGE=.10f
-    private val RADIAL_BULGE=.13f
-    /** Radial (thumb-side) border handles. Deliberately unequal: a short handle at the wrist keeps
-     * the lower half essentially straight, and the long one at the thumb end means the curve only
-     * develops from about half the palm upwards - the real thenar shape, not a symmetric arc. */
-    private val RAD_T_WRIST=.18f
-    private val RAD_T_THUMB=.55f
-    /** Web handle lengths as a fraction of the web span. They differ on purpose: a long handle at
-     * the index end leaves the knuckle shallowly and a short one at the thumb end drops steeply
-     * into the thumb - the asymmetric "slope" of a real first web space, not a symmetric arc. */
-    private val WEB_T_THUMB=.24f
-    private val WEB_T_INDEX=.46f
-    /** Gradient begins here along the knuckle->virtual-wrist axis; it reaches zero at the wrist. */
-    private val FADE_START=.46f
-
-    /** Writes one Bezier sample into out[slot] as an x,y pair. */
-    private fun cubicAt(out:FloatArray,slot:Int,
-        x0:Float,y0:Float,x1:Float,y1:Float,x2:Float,y2:Float,x3:Float,y3:Float,t:Float) {
-        val u=1f-t
-        out[slot*2]=u*u*u*x0+3f*u*u*t*x1+3f*u*t*t*x2+t*t*t*x3
-        out[slot*2+1]=u*u*u*y0+3f*u*u*t*y1+3f*u*t*t*y2+t*t*t*y3
-    }
-
-    /** Fills out[0..steps] with a bezier from p0 to p3 that bows toward (bdx,bdy). */
-    private fun sampleChain(out:FloatArray,p0x:Float,p0y:Float,p3x:Float,p3y:Float,
-        bdx:Float,bdy:Float,bulge:Float,steps:Int,t0:Float=1f/3f,t1:Float=1f/3f) {
-        out[0]=p0x; out[1]=p0y
-        val dx=p3x-p0x; val dy=p3y-p0y
-        val d=hypot(dx,dy).coerceAtLeast(1e-4f)
-        val ux=dx/d; val uy=dy/d
-        val b=bulge*d
-        val c1x=p0x+ux*d*t0+bdx*b; val c1y=p0y+uy*d*t0+bdy*b
-        val c2x=p3x-ux*d*t1+bdx*b; val c2y=p3y-uy*d*t1+bdy*b
-        for (s in 1..steps) cubicAt(out,s,p0x,p0y,c1x,c1y,c2x,c2y,p3x,p3y,s/steps.toFloat())
-    }
     private val beamShape=FloatBuilder(96*3)
 
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,targetsJson:String,showSilhouette:Boolean) {
@@ -220,9 +166,6 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
         GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
         for(mesh in meshes) {
-            GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
-            GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
-            GLES20.glUniform1f(gradUniform,1f)
             GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
@@ -247,72 +190,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 val palm = hypot(x(9) - x(0), y(9) - y(0))
                 if (palm < 1e-4f) continue
                 val r = palm * .12f
-                val edge = if (pinching) maxOf(palm * .022f, .002f) else maxOf(palm * .012f, .0014f)
-                // Gradient axis = palm knuckles -> the VIRTUAL (estimated) wrist, not the landmark.
-                // MediaPipe gives a wrist point but no forearm, so the silhouette is carried a
-                // little past landmark 0 along the palm axis and dissolves there: the hand stays
-                // solid across the whole palm and the fade lands on an estimated wrist. The axis
-                // is hand-local, so it rotates with the hand instead of dragging a fixed point
-                // around when the wrist bends.
-                val kcx = (x(5) + x(9) + x(13) + x(17)) / 4f
-                val kcy = (y(5) + y(9) + y(13) + y(17)) / 4f
-                // Palm axis (knuckles -> forearm) and its perpendicular, signed towards the thumb.
-                var axX = x(0) - kcx; var axY = y(0) - kcy
-                val axL = hypot(axX, axY).coerceAtLeast(1e-4f)
-                axX /= axL; axY /= axL
-                var nx = -axY; var ny = axX
-                if ((x(1) - x(0)) * nx + (y(1) - y(0)) * ny < 0f) { nx = -nx; ny = -ny }
-                // Virtual wrist cross-section; wrist breadth is ~0.55 of palm breadth.
-                val wristHalf = .5f * WRIST_BREADTH * hypot(x(17) - x(5), y(17) - y(5))
-                val virtX = x(0) + axX * axL * WRIST_EXTEND
-                val virtY = y(0) + axY * axL * WRIST_EXTEND
-                val eh = wristHalf * STUB_TAPER
-                val ueX = virtX - nx * eh; val ueY = virtY - ny * eh
-                val reX = virtX + nx * eh; val reY = virtY + ny * eh
-                // The two wrist borders, sampled once per hand (they do not depend on the pass).
-                // They are curves, not landmark chords: a straight chord from the pinky MCP to the
-                // wrist left the pinky-side flesh uncovered, and that chord's grown outline then
-                // crossed the grown border and printed a visible step.
-                sampleChain(ulnarChain, x(17), y(17), ueX, ueY, -nx, -ny, ULNAR_BULGE, CHAIN_STEPS)
-                sampleChain(radialChain, reX, reY, x(1), y(1), nx, ny, RADIAL_BULGE, CHAIN_STEPS,
-                    RAD_T_WRIST, RAD_T_THUMB)
-                // Boundary polygon: it follows the SAME samples as the border capsules, so the fan
-                // reaches exactly their centreline. The capsules then add the flesh outside it and
-                // their grown ring becomes the contour - nothing uncovered, nothing drawn twice.
-                var pn = 0
-                palmRing[0] = reX; palmRing[1] = reY; pn = 1
-                for (s in 1..CHAIN_STEPS) {
-                    palmRing[pn * 2] = radialChain[s * 2]
-                    palmRing[pn * 2 + 1] = radialChain[s * 2 + 1]
-                    pn++
-                }
-                palmRing[pn * 2] = x(2); palmRing[pn * 2 + 1] = y(2); pn++
-                // Thumb web: thumb MCP -> index MCP, tangent-continuous at both ends so the
-                // notch is a smooth scoop instead of the hard V one straight edge produced, and
-                // asymmetric so it leaves the index shallowly and steepens into the thumb.
-                val w0x = x(2); val w0y = y(2); val w3x = x(5); val w3y = y(5)
-                val wd = hypot(w3x - w0x, w3y - w0y).coerceAtLeast(1e-4f)
-                var tix = w0x - x(1); var tiy = w0y - y(1)
-                var til = hypot(tix, tiy).coerceAtLeast(1e-4f)
-                tix /= til; tiy /= til
-                var tox = x(9) - w3x; var toy = y(9) - w3y
-                var tol = hypot(tox, toy).coerceAtLeast(1e-4f)
-                tox /= tol; toy /= tol
-                for (s in 0 until 2) {
-                    val t = (s + 1) / 3f
-                    cubicAt(palmRing, pn, w0x, w0y,
-                        w0x + tix * wd * WEB_T_THUMB, w0y + tiy * wd * WEB_T_THUMB,
-                        w3x - tox * wd * WEB_T_INDEX, w3y - toy * wd * WEB_T_INDEX, w3x, w3y, t)
-                    pn++
-                }
-                for (i in intArrayOf(5, 9, 13, 17)) {
-                    palmRing[pn * 2] = x(i); palmRing[pn * 2 + 1] = y(i); pn++
-                }
-                for (s in 1..CHAIN_STEPS) {
-                    palmRing[pn * 2] = ulnarChain[s * 2]
-                    palmRing[pn * 2 + 1] = ulnarChain[s * 2 + 1]
-                    pn++
-                }
+                val edge = if (pinching) maxOf(palm * .035f, .003f) else maxOf(palm * .018f, .0016f)
                 // With a stencil: fill first (it marks its pixels), then the outline only where the
                 // fill is not. Without one: the outline first and the solid fill over it.
                 for (pass in 0..1) {
@@ -325,40 +203,19 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         handBone(shape, x(i), y(i), x(j), y(j), ri + grow, rj + grow)
                         disc(i, ri); disc(j, rj)
                     }
-                    // A tapered capsule chain along precomputed samples: flesh AND contour from one
-                    // shape, so a border can never be filled by one and outlined by another.
-                    fun chain(pts: FloatArray, ra: Float, rb: Float) {
-                        var px = pts[0]; var py = pts[1]
-                        for (k in 1..CHAIN_STEPS) {
-                            val qx = pts[k * 2]; val qy = pts[k * 2 + 1]
-                            val rr = ra + (rb - ra) * (k / CHAIN_STEPS.toFloat()) + grow
-                            handBone(shape, px, py, qx, qy, rr, rr)
-                            if (k < CHAIN_STEPS) handDisc(shape, qx, qy, rr)
-                            px = qx; py = qy
-                        }
+                    // The palm: a fan over its outline, its sides rounded by bones.
+                    val ring = intArrayOf(0, 1, 2, 5, 9, 13, 17)
+                    var cx = 0f; var cy = 0f
+                    for (i in ring) { cx += x(i); cy += y(i) }
+                    cx /= ring.size; cy /= ring.size
+                    for (k in ring.indices) {
+                        val i = ring[k]; val j = ring[(k + 1) % ring.size]
+                        shape.vertex(cx,cy,-1f);shape.vertex(x(i),y(i),-1f);shape.vertex(x(j),y(j),-1f)
                     }
-                    val cx = (x(0) + x(1) + x(2) + x(5) + x(9) + x(13) + x(17)) / 7f
-                    val cy = (y(0) + y(1) + y(2) + y(5) + y(9) + y(13) + y(17)) / 7f
-                    for (k in 0 until pn) {
-                        val i = k * 2
-                        val j = ((k + 1) % pn) * 2
-                        shape.vertex(cx,cy,-1f)
-                        shape.vertex(palmRing[i],palmRing[i + 1],-1f)
-                        shape.vertex(palmRing[j],palmRing[j + 1],-1f)
-                    }
-                    // The old straight wrist capsules (0->1 and 0->17) are gone: the boundary
-                    // polygon and the border chains own those edges now, and the straight chords'
-                    // grown rings were crossing the curves and printing kinks in the thumb-side
-                    // border. bone(2,5) stays - the web curve still needs it to fill the web.
+                    bone(0, 1, r * 1.1f, r * 1.15f)
+                    bone(0, 17, r * 1.1f, r * .9f)
                     bone(2, 5, r * .7f, r * 1f)
                     bone(5, 9, r, r); bone(9, 13, r, r); bone(13, 17, r * .95f, r * .9f)
-                    // The wrist borders themselves, carrying the pinky-side (hypothenar) and
-                    // thumb-side (thenar) flesh down to the virtual wrist.
-                    // At the virtual wrist the silhouette half-width is (offset + radius), so
-                    // the radius must COMPLETE wristHalf rather than add to the offset on top of
-                    // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
-                    chain(ulnarChain, r * .95f, wristHalf - eh)
-                    chain(radialChain, wristHalf - eh, r * 1.12f)
                     // Thumb and fingers, thinner towards the tips.
                     val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
                     for (finger in 0 until 5) {
@@ -374,11 +231,10 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     }
                     val rgba=when {
                         outline && pinching -> floatArrayOf(1f,1f,1f,1f)
-                        outline -> floatArrayOf(.80f,.81f,.85f,.82f)
-                        else -> floatArrayOf(.10f,.10f,.13f,.82f)
+                        outline -> floatArrayOf(.78f,.79f,.84f,.9f)
+                        else -> floatArrayOf(.09f,.09f,.16f,.62f)
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
-                    m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
                     result.add(m)
                 }
             }
@@ -411,7 +267,6 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
 
 private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             val color = colorUniform
-            GLES20.glUniform1f(gradUniform,0f)
             if (b[2] < -.05f) {
                 val hx = b[0] / -b[2]; val hy = b[1] / -b[2]
                 val tx = b[3] / -b[5]; val ty = b[4] / -b[5]

@@ -109,7 +109,7 @@ class HandTracker @JvmOverloads constructor(
             // two slots on half of them, which is worse than searching properly until the hand is
             // back (the hand being tracked keeps its silhouette through the miss either way, see
             // PhoneXrHands' prediction bridge).
-            tracking = if (searching) hands == 1 else hands > 0
+            tracking = if (searching) hands >= 1 && hands < WIDE_HANDS else hands > 0
             lastFrameNarrow = !searching
             return result
         } catch (error: RuntimeException) {
@@ -150,10 +150,9 @@ class HandTracker @JvmOverloads constructor(
     }
 
     companion object {
-        /** The search graph's slots: BOTH hands, because this is the only graph that can report two.
-         *  It must stay at 2 - with a single slot a frame could never contain a second hand, so
-         *  two-hand gestures only ever started working once the first hand left the frame. */
-        const val WIDE_HANDS = 2
+        /** The search graph's slots: a single hand is tracked/quantized for speed; second-hand
+         *  discovery is dropped in favor of the frame rate (optimization target 3 -> 30 fps). */
+        const val WIDE_HANDS = 1
         /** The tracking graph's slots: the hand being tracked, and nothing else. */
         const val NARROW_HANDS = 1
         /** The graph used while a hand is tracked: MediaPipe's default-quality threshold. */

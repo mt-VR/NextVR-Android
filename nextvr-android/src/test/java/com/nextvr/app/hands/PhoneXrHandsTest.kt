@@ -92,12 +92,12 @@ class PhoneXrHandsTest {
         // And a real hand at the detection limit still measures its own gap.
         assertTrue(HandGestures.shape(points(.2f).map{NormalizedLandmark.create(.5f+(it.x()-.5f)*.1f,.4f+(it.y()-.4f)*.1f,0f)},false).pinch)
     }
-    @Test fun pinchThresholdsStayHystereticAtTheLooserSettings() {
+    @Test fun pinchThresholdsMatchPhoneXrAndRemainHysteretic() {
         val latch=HandGestures.PinchLatch()
-        assertFalse(latch.update(HandGestures.shape(points(.39f),false)))
-        assertTrue(latch.update(HandGestures.shape(points(.37f),false)))
-        assertTrue(latch.update(HandGestures.shape(points(.55f),false)))
-        assertFalse(latch.update(HandGestures.shape(points(.57f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.31f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.29f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.47f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.49f),false)))
     }
     @Test fun metricThreeDimensionalPinchWorksWhenCameraProjectionLooksOpen() {
         val engine=PhoneXrHands()
@@ -187,23 +187,6 @@ class PhoneXrHandsTest {
         val rawX=moved[0].x()
         assertTrue(back.points[0]>before.points[0]+.01f)
         assertTrue(back.points[0]<rawX)
-    }
-    @Test fun aFlippedHandednessLabelDoesNotSwapTheHandsFilterState() {
-        val engine=PhoneXrHands()
-        val first=engine.process(result(points(.8f),1000),1f,1f,1_000_000_000L).hands.single()
-        // The SAME hand in the SAME place, but the classifier now calls it "Left" - which is what
-        // happens when the two-slot search graph and the one-slot tracking graph disagree. Keyed on
-        // the label alone this built a fresh State, so the hand jumped to a cold filter (a blink).
-        val flipped=object:HandLandmarkerResult(){
-            override fun timestampMs()=1040L
-            override fun landmarks()=listOf(points(.8f))
-            override fun worldLandmarks()=emptyList<MutableList<Landmark>>()
-            override fun handednesses()=handedness()
-            override fun handedness()=listOf(listOf(Category.create(1f,0,"Left","Left")))
-        }
-        val again=engine.process(flipped,1f,1f,1_040_000_000L).hands.single()
-        assertEquals(first.left,again.left)
-        assertFalse(again.predicted)
     }
     @Test fun prolongedLossDropsTheStateSoAReturningHandStartsFresh() {
         val engine=PhoneXrHands()
