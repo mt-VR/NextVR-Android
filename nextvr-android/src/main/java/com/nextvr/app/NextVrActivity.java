@@ -68,6 +68,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private PassthroughCamera camera;
     private WebSurface shell;
     private final Map<String,WebSurface> browsers=new HashMap<>();
+    /** Campos que aceitam digitacao. Botoes e os controles nao textuais ficam de fora de proposito:
+     * o teclado flutuante nao tem o que escrever neles, e abrir ali seria um beco sem saida. */
+    private static final String EDITABLE_SELECTOR =
+        "input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox])"
+        +":not([type=radio]):not([type=range]):not([type=color]):not([type=file]),"
+        +"textarea,[contenteditable]:not([contenteditable=\"false\"])";
     private final Map<String,String> browserUrls=new HashMap<>();
     private final Set<String> pendingBrowsers=new HashSet<>();
     private volatile boolean resumed,closed;
@@ -301,9 +307,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
             if(target==null || !resumed || closed)continue;
             target.dispatchHandEvent(event.action,event.x,event.y);
-            if(event.action==MotionEvent.ACTION_UP && target!=shell)target.web.evaluateJavascript(
-                "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
-                value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(event.id)+")"); });
+            // O alvo do toque e quem decide o teclado. `activeElement` nao serve: depois que um
+            // campo ganha foco ele continua apontando para ele, entao tocar fora reabriria o
+            // teclado em um campo que o usuario nem tocou. O elemento sob o ponto tocado e a
+            // verdade, e o foco e forcado porque paginas que interceptam o toque nunca o fariam.
+            if(event.action==MotionEvent.ACTION_UP && target!=shell && shell!=null){
+                final WebSurface sh=shell;
+                target.web.evaluateJavascript(
+                    "(function(){var t=document.elementFromPoint("+event.x+","+event.y+");"
+                    +"var f=t&&t.closest?t.closest('"+EDITABLE_SELECTOR+"'):null;"
+                    +"if(f)try{f.focus()}catch(_){}return f?'1':'0'})()",
+                    value->sh.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("
+                        +JSONObject.quote(event.id)+","+("1".equals(value)?"true":"false")+")"));
+            }
         }
     }
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }

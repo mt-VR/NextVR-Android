@@ -358,6 +358,12 @@ export const windowUnder = (x, y) => hitAt(x, y) !== null;
 export function close(w) {
   if (!w) return;
   const i = wins.indexOf(w); if (i < 0) return;
+  // A janela dona do teclado acabou de sumir. Sem isto o teclado fica aberto apontando para um
+  // campo destacado ou para uma superficie nativa que ja nao existe, e as teclas nao chegam em
+  // lugar nenhum.
+  const hosted = w.el.querySelector('[data-native-browser],[data-native-app]');
+  const served = hosted?.dataset.nativeBrowser || (hosted ? 'app:' + hosted.dataset.nativeApp : null);
+  if (kbTarget && (kbTarget.nativeId ? kbTarget.nativeId === served : !w.el.contains(kbTarget))) keyboard(false);
   if (drag.win === w) endDrag();
   if (resizing.win === w) endResize();
   wins.splice(i, 1);
@@ -579,6 +585,16 @@ function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py);
+  /*
+   * O teclado segue o alvo do toque. Um campo assume o teclado; qualquer outra coisa na shell
+   * (titulo, botao, fundo) solta. Reabrir no mesmo campo so reposiciona, entao o teclado nao
+   * pisca ao pular de um input para outro da mesma janela. As superficies nativas ficam de fora
+   * aqui: quem sabe o que de fato esta em foco dentro do WebView e o lado nativo, e ele decide.
+   */
+  if (action === 0 && !el?.closest('[data-native-browser],[data-native-app]')) {
+    const f = editableField(el);
+    if (f) keyboard(true, f); else keyboard(false);
+  }
   /*
    * A hosted Android app window: the id the native side knows is "app:<package>" and the
    * coordinates it gets are normalized inside the app's display (the same rectangle the shader
@@ -966,6 +982,10 @@ const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
 let emojiIndex = 0;
 let kbObj = null, kbHit = null, kbTarget = null, kbShift = false, kbShiftLock = false;
 let kbHidden = false;
+/** Campos que aceitam digitacao. Espelha o seletor do lado nativo (NextVrActivity): os dois tem de
+ * concordar sobre o que e um campo, senao um toque abriria o teclado aqui e fecharia la. */
+const EDITABLE_SELECTOR = 'input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),textarea,[contenteditable]:not([contenteditable="false"])';
+const editableField = el => el?.closest?.(EDITABLE_SELECTOR) || null;
 
 /**
  * Esconde/devolve o teclado flutuante sem destruir nada: o jogo some com ele junto com as janelas
@@ -1128,7 +1148,14 @@ onFrame((dt, now) => {
 });
 
 if (native) {
-  window.nextvrBrowserFocus = id => keyboard(true, { nativeId: id });
+  /** Chamado pelo nativo quando um toque cai numa superficie web.
+ * `hasInput` diz se o elemento sob o dedo era um campo: com campo, o teclado abre (ou se
+ * reposiciona, se ja estava aberto, seja no mesmo campo ou em outro da mesma pagina); sem
+ * campo, fecha. Sem o segundo argumento (chamada antiga) assume que ha campo. */
+window.nextvrBrowserFocus = (id, hasInput) => {
+  if (hasInput !== false) keyboard(true, { nativeId: id });
+  else keyboard(false);
+};
   function updateBattery() { try { batt = JSON.parse(window.NativeXR.battery()); paintBat(); } catch {} }
   updateBattery(); setInterval(updateBattery, 30000);
   document.addEventListener('click', e => { if (e.target.closest('button')) window.NativeXR.click(); }, true);
