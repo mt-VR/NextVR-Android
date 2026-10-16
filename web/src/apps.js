@@ -61,21 +61,36 @@ function webWindow(id, title, url, note) {
 }
 
 /* ============ YouTube real (busca + player oficial dentro da janela) ============ */
+/*
+ * These are volunteer-run proxies, not Google infrastructure: they go down without notice and
+ * usually stay down. They are raced in parallel and the host that answered last is tried first,
+ * because walking them one at a time makes a single outage cost the time of every dead host in
+ * front of it -- which, with a few seconds of timeout each, is most of a minute of nothing
+ * happening in a headset. Ordered by how they behaved when the list was last checked.
+ */
 const YT_API = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.leptons.xyz',
-  'https://pipedapi.nosebs.ru',
-  'https://pipedapi.adminforge.de',
   'https://api.piped.private.coffee',
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.adminforge.de',
+  'https://pipedapi.leptons.xyz',
   'https://pipedapi.reallyaweso.me',
+  'https://pipedapi.nosebs.ru',
 ];
 const YT_INV = [
   'https://inv.nadeko.net/api/v1',
   'https://inv.tux.pizza/api/v1',
 ];
+let ytGoodHost = '';
+const ytFails = new Map();
+/** Only affects ordering, never membership: a host that recovers is still tried, just not first. */
+function ytRank(host) { return host === ytGoodHost ? 0 : 10 + (ytFails.get(host) || 0); }
+function ytNote(host, ok) {
+  if (ok) { ytGoodHost = host; ytFails.delete(host); } else ytFails.set(host, (ytFails.get(host) || 0) + 1);
+}
+const ytOrder = list => list.slice().sort((a, b) => ytRank(a) - ytRank(b));
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-async function ytGet(url, ms = 11000) {
+async function ytGet(url, ms = 7000) {
   const c = new AbortController();
   const to = setTimeout(() => c.abort(), ms);
   try {
@@ -83,6 +98,20 @@ async function ytGet(url, ms = 11000) {
     if (!r.ok) throw new Error('http');
     return await r.json();
   } finally { clearTimeout(to); }
+}
+/** First host to answer with a non-empty list wins; every other request is left to finish on its own. */
+function ytRace(tasks) {
+  return new Promise((resolve, reject) => {
+    let left = tasks.length, settled = false;
+    const done = () => { if (--left <= 0 && !settled) { settled = true; reject(new Error('offline')); } };
+    for (const [host, run] of tasks) {
+      run().then(v => {
+        if (settled) return;
+        if (v && v.length) { settled = true; ytNote(host, true); resolve(v); }
+        else { ytNote(host, false); done(); }
+      }, () => { ytNote(host, false); done(); });
+    }
+  });
 }
 function ytDur(sec, live) {
   if (live) return 'AO VIVO';
@@ -116,38 +145,20 @@ function ytMapInv(v) {
     dur: ytDur(v.lengthSeconds, v.liveNow), live: !!v.liveNow, views: ytViews(v.viewCount) };
 }
 async function ytSearch(q) {
-  for (const b of YT_API) {
-    try {
-      const d = await ytGet(`${b}/search?q=${encodeURIComponent(q)}&filter=videos`);
-      const out = (d.items || []).map(ytMapPiped).filter(Boolean);
-      if (out.length) return out;
-    } catch {}
-  }
-  for (const b of YT_INV) {
-    try {
-      const d = await ytGet(`${b}/search?q=${encodeURIComponent(q)}&type=video`);
-      const out = (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean);
-      if (out.length) return out;
-    } catch {}
-  }
-  throw new Error('offline');
+  const tasks = [];
+  for (const b of ytOrder(YT_API)) tasks.push([b, () => ytGet(`${b}/search?q=${encodeURIComponent(q)}&filter=videos`)
+    .then(d => (d.items || []).map(ytMapPiped).filter(Boolean))]);
+  for (const b of ytOrder(YT_INV)) tasks.push([b, () => ytGet(`${b}/search?q=${encodeURIComponent(q)}&type=video`)
+    .then(d => (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean))]);
+  return ytRace(tasks);
 }
 async function ytTrending() {
-  for (const b of YT_API) {
-    try {
-      const d = await ytGet(`${b}/trending?region=BR`);
-      const out = (Array.isArray(d) ? d : []).map(ytMapPiped).filter(Boolean);
-      if (out.length) return out;
-    } catch {}
-  }
-  for (const b of YT_INV) {
-    try {
-      const d = await ytGet(`${b}/popular?region=BR`);
-      const out = (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean);
-      if (out.length) return out;
-    } catch {}
-  }
-  return ytSearch('em alta brasil');
+  const tasks = [];
+  for (const b of ytOrder(YT_API)) tasks.push([b, () => ytGet(`${b}/trending?region=BR`)
+    .then(d => (Array.isArray(d) ? d : []).map(ytMapPiped).filter(Boolean))]);
+  for (const b of ytOrder(YT_INV)) tasks.push([b, () => ytGet(`${b}/popular?region=BR`)
+    .then(d => (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean))]);
+  try { return await ytRace(tasks); } catch { return ytSearch('em alta brasil'); }
 }
 
 /* ---------- player com som: acionado somente pelo controle selecionado com a mão ---------- */
@@ -216,10 +227,18 @@ function youtube() {
   function showError(q) {
     back.style.display = 'none'; chips.style.display = '';
     scroll.innerHTML = `<div class="yt-err"><div style="display:grid;place-items:center;font-size:46px">${icon('wifi')}</div>`
-      + `<div class="yt-err-t">Sem conexão com a busca</div>`
-      + `<div class="yt-err-s">Verifique a internet e tente de novo. Dá para colar um link direto também.</div>`
-      + `<button class="yt-btn" data-retry>${iconText('refresh','TENTAR DE NOVO')}</button></div>`;
+      + `<div class="yt-err-t">A busca não respondeu</div>`
+      + `<div class="yt-err-s">Os servidores públicos que indexam o YouTube estão fora do ar agora. `
+      + `Nada foi perdido: ${native ? 'a busca do próprio YouTube funciona sempre' : 'tente de novo em instantes'}`
+      + `${native ? ', e você também pode colar um link direto no campo acima.' : ', ou cole um link direto no campo acima.'}</div>`
+      + `<button class="yt-btn" data-retry>${iconText('refresh','TENTAR DE NOVO')}</button>`
+      + (native ? `<button class="yt-btn" data-openyt>${iconText('external','BUSCAR NO YOUTUBE')}</button>` : '') + `</div>`;
     scroll.querySelector('[data-retry]').onclick = () => (q ? doSearch(q) : doHome());
+    // A dead proxy list must never be a dead end: YouTube's own search runs in a real WebView
+    // surface, so it does not depend on any of these third-party hosts being alive.
+    const openYt = scroll.querySelector('[data-openyt]');
+    if (openYt) openYt.onclick = () => webWindow('youtube-web', 'YouTube',
+      q ? 'https://m.youtube.com/results?search_query=' + encodeURIComponent(q) : 'https://m.youtube.com/');
   }
   async function doSearch(q) {
     q = (q || '').trim(); if (!q) return;
@@ -264,8 +283,11 @@ function youtube() {
     scroll.querySelector('[data-snd]').onclick = ytUnmute;
 
     if (native) {
+      // In the app the player is a real WebView on its own surface, not an iframe: it gets the
+      // whole window instead of a box inside the shell, and it is never subject to the shell CSP.
       const player = el('div'); player.dataset.nativeBrowser = 'youtube-player';
-      player.dataset.url = 'https://www.youtube.com/embed/' + v.id + '?autoplay=1&playsinline=1';
+      player.dataset.url = 'https://www.youtube.com/embed/' + encodeURIComponent(v.id)
+        + '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
       player.style.cssText = 'width:100%;height:100%'; holder.append(player);
       scroll.querySelector('[data-snd]').onclick = () => { window.NativeXR.click(); toast('Use Android media volume to adjust sound.'); };
       return;
