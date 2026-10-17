@@ -526,7 +526,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
-            if(id==null || !(id.equals("passthrough")||id.equals("sunset")||id.equals("night")||id.equals("space"))) return;
+            if(id==null || !(id.equals("passthrough")||id.equals("lagoon")||id.equals("sunset")||id.equals("night")||id.equals("space"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {
