@@ -258,6 +258,27 @@ test('a batch of finished icons makes the shell read the grid again', async () =
     'and it repaints whenever it is open, not only while it has the focus');
 });
 
+test('approved quick settings panel is connected to native controls and keeps Shizuku separate', async () => {
+  const activity = await read(JAVA.activity);
+  for (const method of ['volume', 'setVolume', 'brightness', 'setBrightness', 'audioEnabled', 'systemPanel']) {
+    assert.match(activity, new RegExp(`@JavascriptInterface public (?:int|void) ${method}\\(`),
+      `the native bridge exposes ${method}`);
+  }
+  const apps = await read(WEB.apps);
+  const html = await read('web/index.html');
+  assert.ok(apps.includes('function controlCenterApp()'));
+  assert.ok(apps.includes("on('game:settings', () => controlCenterApp())"));
+  assert.ok(apps.includes("systemPanel('internet')"));
+  assert.ok(apps.includes("systemPanel('bluetooth')"));
+  assert.match(apps, /setBrightness/);
+  assert.match(apps, /setVolume/);
+  assert.match(apps, /Apps do Android/);
+  assert.match(apps, /android-results-count/);
+  assert.ok(html.includes('.quick-center'));
+  assert.ok(html.includes('.quick-vertical'));
+  assert.ok(html.includes('.android-results'));
+});
+
 test('the window is the canvas\' shape, and the canvas is the phone screen', async () => {
   const apps = await read(WEB.androidApps);
   // The window size is a function of the canvas: the two bars are chrome, the rest is the app surface,

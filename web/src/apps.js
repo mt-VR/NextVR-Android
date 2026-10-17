@@ -125,6 +125,85 @@ function slider(key, min, max, step, after) {
   i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
   return i;
 }
+/* ============ Central de controle (visão compacta inspirada no painel aprovado) ============ */
+function controlCenterApp() {
+  const body = el('div', 'quick-center');
+  const panel = el('section', 'quick-panel');
+  const side = el('aside', 'quick-side');
+  const status = el('div', 'quick-status');
+  const battery = (() => { try { return JSON.parse(window.NativeXR?.battery?.() || 'null'); } catch { return null; } })();
+  const date = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  status.innerHTML = `<div><strong>Configurações</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
+  const gear = el('button', 'quick-gear', icon('settings'));
+  gear.type = 'button'; gear.title = 'Todas as configurações'; gear.setAttribute('aria-label', 'Todas as configurações');
+  gear.onclick = () => settingsApp();
+  status.appendChild(gear);
+
+  const quickTiles = el('div', 'quick-tiles');
+  const systemTile = (name, title, subtitle, action, disabled=false) => {
+    const button = el('button', `quick-tile${disabled ? ' is-disabled' : ''}`);
+    button.type = 'button'; button.innerHTML = `<span class="quick-tile-icon">${icon(name)}</span><span><b>${title}</b><small>${subtitle}</small></span>`;
+    button.disabled = disabled; if (action) button.onclick = action; quickTiles.appendChild(button); return button;
+  };
+  systemTile('wifi', 'Wi-Fi', 'Abrir conexões', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('internet') : toast('Conexões disponíveis no Android'));
+  systemTile('bluetooth', 'Bluetooth', 'Dispositivos', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('bluetooth') : toast('Bluetooth disponível no Android'));
+  systemTile('android', 'Apps Android', 'Abrir janela Shizuku', () => shizukuWindow());
+  systemTile('lock', 'Limite', 'Movimento protegido', null, true);
+  panel.append(status, quickTiles);
+
+  const section = el('div', 'quick-section');
+  section.innerHTML = '<div class="quick-section-title"><b>Controles rápidos</b><span>Toque para ativar ou ajustar</span></div>';
+  const controls = el('div', 'quick-controls');
+  let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
+  let isMuted = false, dndControl = null, sideMute = null;
+  const syncMute = value => {
+    isMuted = !!value;
+    if (window.NativeXR?.audioEnabled) window.NativeXR.audioEnabled(!isMuted);
+    for (const button of [dndControl, sideMute]) if (button) {
+      button.classList.toggle('is-active', isMuted);
+      button.setAttribute('aria-pressed', String(isMuted));
+    }
+    if (dndControl) dndControl.querySelector('small').textContent = isMuted ? 'Áudio silenciado' : 'Som ativado';
+  };
+  const control = (name, label, detail, action, active=false) => {
+    const button = el('button', `quick-control${active ? ' is-active' : ''}`);
+    button.type = 'button'; button.setAttribute('aria-pressed', String(active));
+    button.innerHTML = `<span>${icon(name)}</span><b>${label}</b><small>${detail}</small>`;
+    button.onclick = () => { const value = action(button); button.classList.toggle('is-active', !!value); button.setAttribute('aria-pressed', String(!!value)); };
+    controls.appendChild(button); return button;
+  };
+  control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
+    const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
+  }, S.env === 'passthrough');
+  dndControl = control('volumeoff', 'Não perturbe', 'Silenciar áudio do app', () => { syncMute(!isMuted); return isMuted; });
+  control('crosshair', 'Recentralizar', 'Ajustar a visão', () => { recenter(); toast('Visão recentralizada'); return false; });
+  control('moon', 'Modo noturno', S.env === 'night' ? 'Ativado' : 'Desativado', button => {
+    const enabled = S.env !== 'night';
+    if (enabled) { previousEnvironment = S.env; setEnvironment('night'); }
+    else setEnvironment(previousEnvironment === 'night' ? 'passthrough' : previousEnvironment);
+    button.querySelector('small').textContent = enabled ? 'Ativado' : 'Desativado'; return enabled;
+  }, S.env === 'night');
+  control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
+  control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
+  section.appendChild(controls);
+  panel.append(section);
+
+  const sideTitle = el('div', 'quick-side-title', 'Ajustes');
+  const volumeIcon = el('span', 'quick-side-icon', icon('volume'));
+  const volume = el('input', 'quick-vertical'); volume.type = 'range'; volume.min = '0'; volume.max = '100'; volume.value = window.NativeXR?.volume ? window.NativeXR.volume() : 65;
+  volume.setAttribute('aria-label', 'Volume'); volume.title = `Volume ${volume.value}%`;
+  volume.oninput = () => { window.NativeXR?.setVolume?.(+volume.value); volume.title = `Volume ${volume.value}%`; };
+  sideMute = el('button', 'quick-side-button', icon('volumeoff')); sideMute.type = 'button'; sideMute.title = 'Silenciar áudio'; sideMute.setAttribute('aria-label', 'Silenciar áudio'); sideMute.setAttribute('aria-pressed', 'false');
+  sideMute.onclick = () => syncMute(!isMuted);
+  const brightnessIcon = el('span', 'quick-side-icon', icon('sun'));
+  const brightness = el('input', 'quick-vertical'); brightness.type = 'range'; brightness.min = '10'; brightness.max = '100'; brightness.value = window.NativeXR?.brightness ? window.NativeXR.brightness() : 70;
+  brightness.setAttribute('aria-label', 'Brilho'); brightness.title = `Brilho ${brightness.value}%`;
+  brightness.oninput = () => { window.NativeXR?.setBrightness?.(+brightness.value); brightness.title = `Brilho ${brightness.value}%`; };
+  side.append(sideTitle, volumeIcon, volume, sideMute, brightnessIcon, brightness);
+  body.append(panel, side);
+  return open({ id:'control-center', title:'Configurações', node:body, w:1100, h:760 });
+}
+
 function settingsApp() {
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
   const tabs = el('div', 'tabs'); tabs.style.padding = '18px 24px 0';
@@ -306,7 +385,7 @@ const LIB_ACTIONS = {
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
-  settings: () => settingsApp(),
+  settings: () => controlCenterApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
@@ -592,6 +671,8 @@ function paintShizuku(body) {
   const tabs = el('div', 'android-categories');
   const chips = ANDROID_CATEGORIES.map(category => `<button class="android-category" data-category="${category}" aria-pressed="${shizukuFilter === category}">${category}</button>`).join('');
   tabs.innerHTML = chips;
+  const results = el('div', 'android-results');
+  results.innerHTML = '<b>APPS INSTALADOS</b><span class="android-results-count"></span>';
   const scroll = el('div', 'android-app-scroll');
   const grid = el('div', 'android-app-grid');
   const paintGrid = () => {
@@ -601,6 +682,8 @@ function paintShizuku(body) {
       const matchesQuery = !q || `${app.label || ''} ${app.pkg || ''}`.toLocaleLowerCase('pt-BR').includes(q);
       return matchesCategory && matchesQuery;
     });
+    const count = results.querySelector('.android-results-count');
+    if (count) count.textContent = `${apps.length} ${apps.length === 1 ? 'app' : 'apps'}`;
     grid.innerHTML = apps.length
       ? apps.map(app => androidTileHtml(app)).join('')
       : `<div class="android-empty">${t('noAndroidApps')}</div>`;
@@ -609,7 +692,7 @@ function paintShizuku(body) {
   scroll.appendChild(grid);
   body.append(head);
   if (notice) body.appendChild(notice);
-  body.append(tabs, scroll);
+  body.append(tabs, results, scroll);
   body.oninput = event => {
     if (event.target.matches('.android-search input')) { shizukuQuery = event.target.value; paintGrid(); }
   };
@@ -655,14 +738,14 @@ function makeDock() {
   buildDock([
     // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
-    { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
+    { kind: 'status', id: 'status',  label: t('settings'), run: controlCenterApp },
     { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
     // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
     { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
-    { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
+    { id: 'settings', win: 'control-center', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: controlCenterApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(145deg,#4fd1c5,#1a8f87)', run: shizukuWindow },
@@ -816,4 +899,4 @@ if (native) {
 }
 
 /* O menu do jogo pede as configurações: a janela abre por cima do mundo, sem sair dele. */
-on('game:settings', () => settingsApp());
+on('game:settings', () => controlCenterApp());

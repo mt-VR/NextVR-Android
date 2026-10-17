@@ -15,11 +15,13 @@ import android.media.SoundPool;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
@@ -109,6 +111,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private SoundPool sounds;
     private int clickSound;
     private boolean soundReady,audioFocused;
+    private volatile int appBrightness=70;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -631,6 +634,40 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void appsCommand(String json) {
             if(json==null || json.length()>8000) return;
             main.post(()->{ if(appWindows!=null && !closed) appWindows.command(json); });
+        }
+        @JavascriptInterface public int volume() {
+            return audio==null ? 65 : Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC)*100f
+                / Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
+        }
+        @JavascriptInterface public void setVolume(int level) {
+            if(audio==null) return;
+            int max=audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC,Math.round(Math.max(0,Math.min(100,level))*max/100f),0);
+        }
+        @JavascriptInterface public int brightness() { return appBrightness; }
+        @JavascriptInterface public void setBrightness(int level) {
+            appBrightness=Math.max(10,Math.min(100,level));
+            main.post(()->{ if(closed) return; WindowManager.LayoutParams attrs=getWindow().getAttributes();
+                attrs.screenBrightness=appBrightness/100f; getWindow().setAttributes(attrs); });
+        }
+        @JavascriptInterface public void audioEnabled(boolean enabled) {
+            main.post(()->{ if(closed) return; if(enabled && resumed) requestAudio(); else setAudioEnabled(false); });
+        }
+        @JavascriptInterface public void systemPanel(String panel) {
+            main.post(()->{
+                if(closed) return;
+                Intent intent;
+                if("bluetooth".equals(panel)) intent=new Intent(Build.VERSION.SDK_INT>=29
+                    ? Settings.Panel.ACTION_BLUETOOTH : Settings.ACTION_BLUETOOTH_SETTINGS);
+                else intent=new Intent(Build.VERSION.SDK_INT>=29
+                    ? Settings.Panel.ACTION_INTERNET_CONNECTIVITY : Settings.ACTION_WIFI_SETTINGS);
+                try { startActivity(intent); }
+                catch(Exception unavailable) {
+                    try { startActivity(new Intent("bluetooth".equals(panel)
+                        ? Settings.ACTION_BLUETOOTH_SETTINGS : Settings.ACTION_WIFI_SETTINGS)); }
+                    catch(Exception ignored) { Toast.makeText(NextVrActivity.this,"Não foi possível abrir os controles do Android",Toast.LENGTH_SHORT).show(); }
+                }
+            });
         }
         @JavascriptInterface public String battery() {
             Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));

@@ -21,10 +21,9 @@ android {
         targetSdkVersion = 35
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
-        // 9 / 1.0.8: launcher Android separado do catálogo NextVR, com o logo enviado pelo usuário
-        // e dois panoramas novos. Incrementado para identificar esta rodada no aparelho.
-        versionCode 9
-        versionName "1.0.8"
+        // 10 / 1.0.9: central de controle redesenhada e janela Shizuku refinada.
+        versionCode 10
+        versionName "1.0.9"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

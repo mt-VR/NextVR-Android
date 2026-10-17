@@ -488,6 +488,9 @@
   .android-category{padding:9px 17px;border-radius:999px;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.06);
     color:#c7d0dd;font-size:14px;font-weight:600;white-space:nowrap}
   .android-category[aria-pressed="true"]{background:#2868e8;border-color:#4683ff;color:#fff;box-shadow:0 5px 14px rgba(26,91,218,.28)}
+  .android-results{display:flex;align-items:center;gap:12px;flex:none;padding:0 2px;color:#edf3ff;font-size:12px;letter-spacing:.11em}
+  .android-results:before{content:"";height:1px;flex:1;background:rgba(255,255,255,.13);order:1}
+  .android-results-count{order:2;color:#9eacc2;font-size:12px;letter-spacing:0}
   .android-app-scroll{flex:1;min-height:0;overflow-y:auto;padding:4px 2px 8px}
   .android-app-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:18px 24px;align-items:start}
   .android-app-grid .lib-tile{max-width:170px;justify-self:center;width:100%;align-items:center;text-align:center;gap:8px}
@@ -502,6 +505,52 @@
   .android-launcher>.lib-note{flex:none;margin:0;padding:10px 13px;font-size:13px}
   @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
     .android-launcher{padding:18px;gap:14px}.android-search{width:190px}}
+  /* Painel de controle, baseado na referência aprovada: cartões claros sobre o shell escuro. */
+  .quick-center{height:100%;min-height:0;display:flex;gap:14px;padding:16px;background:#080e19;color:#eaf0fa;overflow:hidden}
+  .quick-panel{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:19px;padding:22px 24px;
+    border-radius:24px;background:#e9edf3;color:#182234;overflow:auto}
+  .quick-status{display:flex;align-items:center;gap:14px;flex:none;min-height:46px}
+  .quick-status>div:first-child{display:flex;flex:1;flex-direction:column;gap:4px}
+  .quick-status strong{font-size:25px;line-height:1.1;font-weight:750}
+  .quick-status>div:first-child span{font-size:13px;color:#647187;text-transform:capitalize}
+  .quick-battery{display:flex;align-items:center;gap:6px;color:#46536a;font-size:13px}
+  .quick-battery .ui-icon{width:18px;height:18px}
+  .quick-gear{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#dce2eb;color:#25324a}
+  .quick-gear .ui-icon{width:20px;height:20px}
+  .quick-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .quick-tile{min-height:91px;display:flex;align-items:center;gap:12px;padding:14px;border-radius:17px;background:#fff;color:#152033;
+    text-align:left;box-shadow:0 4px 12px rgba(25,39,61,.06);transition:transform .14s,background .14s}
+  .quick-tile:active{transform:scale(.98)}
+  .quick-tile-icon{width:43px;height:43px;flex:none;display:grid;place-items:center;border-radius:14px;background:#e9f3ee;color:#198752}
+  .quick-tile-icon .ui-icon{width:22px;height:22px}
+  .quick-tile>span:last-child{min-width:0;display:flex;flex-direction:column;gap:5px}
+  .quick-tile b{font-size:14px;line-height:1.2}.quick-tile small{font-size:11px;color:#738095;line-height:1.3}
+  .quick-tile.is-disabled{opacity:.58;cursor:default}
+  .quick-section{flex:1;min-height:220px;display:flex;flex-direction:column;gap:13px;padding:17px 18px;border-radius:20px;background:#fff}
+  .quick-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .quick-section-title b{font-size:16px;color:#1b2638}.quick-section-title span{font-size:11px;color:#8994a6}
+  .quick-controls{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(90px,1fr);gap:10px}
+  .quick-control{min-width:0;display:grid;grid-template-columns:36px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:9px;row-gap:4px;
+    padding:12px;border-radius:15px;background:#f0f3f7;color:#26334a;text-align:left;border:1px solid transparent}
+  .quick-control>span{grid-row:1/3;width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:#e0e6ee;color:#52627a}
+  .quick-control .ui-icon{width:19px;height:19px}.quick-control b{align-self:end;font-size:12px;line-height:1.2}
+  .quick-control small{align-self:start;font-size:10px;line-height:1.25;color:#79869a}
+  .quick-control.is-active{background:#e5f4eb;border-color:#b9e2c8}.quick-control.is-active>span{background:#d0edd9;color:#12804b}
+  .quick-side{width:94px;flex:none;display:flex;flex-direction:column;align-items:center;gap:13px;padding:15px 10px;border-radius:22px;
+    background:#e7ebf1;color:#27364d}
+  .quick-side-title{font-size:11px;font-weight:700;color:#65738a}
+  .quick-side-icon{width:30px;height:24px;display:grid;place-items:center;color:#53627a}
+  .quick-side-icon .ui-icon{width:18px;height:18px}
+  .quick-vertical{width:24px;height:clamp(115px,22vh,180px);margin:0 0 3px;accent-color:#4c78d0;writing-mode:vertical-lr;direction:rtl;touch-action:none}
+  .quick-side-button{width:38px;height:38px;display:grid;place-items:center;border-radius:13px;background:#d6dce5;color:#475873}
+  .quick-side-button.is-active{background:#f5dede;color:#b93535}.quick-side-button .ui-icon{width:19px;height:19px}
+  @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
+    .android-launcher{padding:18px;gap:14px}.android-search{width:190px}
+    .quick-center{padding:10px;gap:9px}.quick-panel{padding:17px;gap:14px}.quick-side{width:74px}.quick-tiles{gap:8px}
+    .quick-tile{padding:9px;gap:8px}.quick-tile-icon{width:34px;height:34px}.quick-tile b{font-size:12px}.quick-tile small{font-size:10px}}
+  @media(max-width:650px){.quick-center{gap:7px;padding:7px}.quick-panel{padding:12px;gap:11px}.quick-side{width:62px;padding:12px 6px}
+    .quick-status strong{font-size:20px}.quick-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-tile{min-height:68px}
+    .quick-controls{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(74px,1fr)}.quick-section{padding:12px;min-height:240px}}
   .lib-note,.az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:15px}
   .az-dot{width:11px;height:11px;flex:none;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 4px rgba(139,147,161,.16)}

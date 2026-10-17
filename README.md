@@ -98,6 +98,17 @@ keeps running, frame production stops), restore re-attaches the same surface, an
 the display and the app's task. Full architecture, API choices, limitations and the on-device
 checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
 
+Version 1.0.9 adds the approved control-center layout to the settings entry points. Its Wi-Fi and
+Bluetooth cards open Android's system panels; volume, app audio, and display brightness use the
+native bridge. The separate Shizuku launcher now shows a live result count and keeps Android apps
+out of the NextVR library. Its detail gear still opens the full settings tabs.
+
+Approved visual proposals (illustrative design references, not device screenshots):
+
+![Approved control-center design proposal](artwork/proposals/settings-control-center-proposal.png)
+
+![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
+
 Static visual previews (illustrative layouts, not device screenshots):
 
 ![Shizuku Android-app launcher preview](artwork/previews/shizuku-launcher-preview.png)
