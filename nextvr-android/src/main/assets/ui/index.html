@@ -471,52 +471,59 @@
   .android-launcher>.lib-note{flex:none;margin:0;padding:10px 13px;font-size:13px}
   @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
     .android-launcher{padding:18px;gap:14px}.android-search{width:190px}}
-  /* Painel de controle, baseado na referência aprovada: cartões claros sobre o shell escuro. */
-  .quick-center{height:100%;min-height:0;display:flex;gap:14px;padding:16px;background:#080e19;color:#eaf0fa;overflow:hidden}
-  .quick-panel{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:19px;padding:22px 24px;
-    border-radius:24px;background:#e9edf3;color:#182234;overflow:auto}
-  .quick-status{display:flex;align-items:center;gap:14px;flex:none;min-height:46px}
+  /* Configurações são uma janela normal no workspace 3D (mesma moldura espacial do Shizuku),
+     não uma camada HUD: superfície escura inset, barra e controles permanecem dentro da janela. */
+  .quick-center{height:100%;min-height:0;display:flex;align-items:stretch;gap:12px;padding:16px 18px;
+    background:transparent;color:#edf2fa;overflow:hidden}
+  .quick-panel{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:15px;padding:18px;
+    border:1px solid rgba(255,255,255,.1);border-radius:19px;background:linear-gradient(145deg,#151e2b,#101722 72%,#141a25);
+    color:#edf2fa;overflow:auto;box-shadow:0 14px 38px rgba(0,0,0,.18)}
+  .quick-status{display:flex;align-items:center;gap:12px;flex:none;min-height:44px}
   .quick-status>div:first-child{display:flex;flex:1;flex-direction:column;gap:4px}
-  .quick-status strong{font-size:25px;line-height:1.1;font-weight:750}
-  .quick-status>div:first-child span{font-size:13px;color:#647187;text-transform:capitalize}
-  .quick-battery{display:flex;align-items:center;gap:6px;color:#46536a;font-size:13px}
-  .quick-battery .ui-icon{width:18px;height:18px}
-  .quick-gear{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#dce2eb;color:#25324a}
-  .quick-gear .ui-icon{width:20px;height:20px}
-  .quick-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-  .quick-tile{min-height:91px;display:flex;align-items:center;gap:12px;padding:14px;border-radius:17px;background:#fff;color:#152033;
-    text-align:left;box-shadow:0 4px 12px rgba(25,39,61,.06);transition:transform .14s,background .14s}
+  .quick-status strong{font-size:21px;line-height:1.1;font-weight:730}
+  .quick-status>div:first-child span{font-size:12px;color:#94a2b8;text-transform:capitalize}
+  .quick-battery{display:flex;align-items:center;gap:6px;color:#b7c2d2;font-size:12px}
+  .quick-battery .ui-icon{width:17px;height:17px}
+  .quick-gear{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);
+    border-radius:12px;background:rgba(255,255,255,.07);color:#dfe7f2}
+  .quick-gear .ui-icon{width:18px;height:18px}
+  .quick-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .quick-tile{min-height:76px;display:flex;align-items:center;gap:10px;padding:11px;border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;background:#1b2634;color:#f2f5fa;text-align:left;transition:transform .14s,background .14s}
   .quick-tile:active{transform:scale(.98)}
-  .quick-tile-icon{width:43px;height:43px;flex:none;display:grid;place-items:center;border-radius:14px;background:#e9f3ee;color:#198752}
-  .quick-tile-icon .ui-icon{width:22px;height:22px}
-  .quick-tile>span:last-child{min-width:0;display:flex;flex-direction:column;gap:5px}
-  .quick-tile b{font-size:14px;line-height:1.2}.quick-tile small{font-size:11px;color:#738095;line-height:1.3}
-  .quick-tile.is-disabled{opacity:.58;cursor:default}
-  .quick-section{flex:1;min-height:220px;display:flex;flex-direction:column;gap:13px;padding:17px 18px;border-radius:20px;background:#fff}
-  .quick-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .quick-section-title b{font-size:16px;color:#1b2638}.quick-section-title span{font-size:11px;color:#8994a6}
-  .quick-controls{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(90px,1fr);gap:10px}
-  .quick-control{min-width:0;display:grid;grid-template-columns:36px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:9px;row-gap:4px;
-    padding:12px;border-radius:15px;background:#f0f3f7;color:#26334a;text-align:left;border:1px solid transparent}
-  .quick-control>span{grid-row:1/3;width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:#e0e6ee;color:#52627a}
-  .quick-control .ui-icon{width:19px;height:19px}.quick-control b{align-self:end;font-size:12px;line-height:1.2}
-  .quick-control small{align-self:start;font-size:10px;line-height:1.25;color:#79869a}
-  .quick-control.is-active{background:#e5f4eb;border-color:#b9e2c8}.quick-control.is-active>span{background:#d0edd9;color:#12804b}
-  .quick-side{width:94px;flex:none;display:flex;flex-direction:column;align-items:center;gap:13px;padding:15px 10px;border-radius:22px;
-    background:#e7ebf1;color:#27364d}
-  .quick-side-title{font-size:11px;font-weight:700;color:#65738a}
-  .quick-side-icon{width:30px;height:24px;display:grid;place-items:center;color:#53627a}
-  .quick-side-icon .ui-icon{width:18px;height:18px}
-  .quick-vertical{width:24px;height:clamp(115px,22vh,180px);margin:0 0 3px;accent-color:#4c78d0;writing-mode:vertical-lr;direction:rtl;touch-action:none}
-  .quick-side-button{width:38px;height:38px;display:grid;place-items:center;border-radius:13px;background:#d6dce5;color:#475873}
-  .quick-side-button.is-active{background:#f5dede;color:#b93535}.quick-side-button .ui-icon{width:19px;height:19px}
+  .quick-tile-icon{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:12px;background:rgba(72,201,136,.13);color:#69d89d}
+  .quick-tile-icon .ui-icon{width:20px;height:20px}
+  .quick-tile>span:last-child{min-width:0;display:flex;flex-direction:column;gap:4px}
+  .quick-tile b{font-size:13px;line-height:1.2}.quick-tile small{font-size:10px;color:#9ba9bd;line-height:1.3}
+  .quick-tile.is-disabled{opacity:.54;cursor:default}
+  .quick-section{flex:1;min-height:190px;display:flex;flex-direction:column;gap:11px;padding:14px 15px;
+    border:1px solid rgba(255,255,255,.07);border-radius:16px;background:rgba(255,255,255,.035)}
+  .quick-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .quick-section-title b{font-size:14px;color:#edf2fa}.quick-section-title span{font-size:10px;color:#8998ad}
+  .quick-controls{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(76px,1fr);gap:9px}
+  .quick-control{min-width:0;display:grid;grid-template-columns:33px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:8px;row-gap:3px;
+    padding:10px;border:1px solid rgba(255,255,255,.045);border-radius:13px;background:#1b2634;color:#e4eaf3;text-align:left}
+  .quick-control>span{grid-row:1/3;width:33px;height:33px;display:grid;place-items:center;border-radius:11px;background:#273446;color:#a9bad0}
+  .quick-control .ui-icon{width:18px;height:18px}.quick-control b{align-self:end;font-size:11px;line-height:1.2}
+  .quick-control small{align-self:start;font-size:9px;line-height:1.25;color:#91a0b4}
+  .quick-control.is-active{background:#17352d;border-color:rgba(86,211,145,.25)}
+  .quick-control.is-active>span{background:#1b483a;color:#72dfaa}
+  .quick-side{width:76px;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;padding:13px 8px;
+    border:1px solid rgba(255,255,255,.1);border-radius:17px;background:#151e2b;color:#cbd5e2}
+  .quick-side-title{font-size:10px;font-weight:700;color:#9daabd}
+  .quick-side-icon{width:26px;height:20px;display:grid;place-items:center;color:#a5b3c6}
+  .quick-side-icon .ui-icon{width:16px;height:16px}
+  .quick-vertical{width:22px;height:clamp(100px,19vh,148px);margin:0 0 2px;accent-color:#69d89d;writing-mode:vertical-lr;direction:rtl;touch-action:none}
+  .quick-side-button{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.08);
+    border-radius:11px;background:#273446;color:#b8c5d6}
+  .quick-side-button.is-active{background:#4a2428;color:#ff999d}.quick-side-button .ui-icon{width:17px;height:17px}
   @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
     .android-launcher{padding:18px;gap:14px}.android-search{width:190px}
-    .quick-center{padding:10px;gap:9px}.quick-panel{padding:17px;gap:14px}.quick-side{width:74px}.quick-tiles{gap:8px}
-    .quick-tile{padding:9px;gap:8px}.quick-tile-icon{width:34px;height:34px}.quick-tile b{font-size:12px}.quick-tile small{font-size:10px}}
-  @media(max-width:650px){.quick-center{gap:7px;padding:7px}.quick-panel{padding:12px;gap:11px}.quick-side{width:62px;padding:12px 6px}
-    .quick-status strong{font-size:20px}.quick-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-tile{min-height:68px}
-    .quick-controls{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(74px,1fr)}.quick-section{padding:12px;min-height:240px}}
+    .quick-center{padding:10px;gap:8px}.quick-panel{padding:13px;gap:11px}.quick-side{width:68px}.quick-tiles{gap:7px}
+    .quick-tile{padding:8px;gap:7px}.quick-tile-icon{width:32px;height:32px}.quick-tile b{font-size:11px}.quick-tile small{font-size:9px}}
+  @media(max-width:650px){.quick-center{gap:6px;padding:7px}.quick-panel{padding:10px;gap:9px}.quick-side{width:58px;padding:10px 5px}
+    .quick-status strong{font-size:18px}.quick-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-tile{min-height:62px}
+    .quick-controls{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(66px,1fr)}.quick-section{padding:10px;min-height:210px}}
   .lib-note,.az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:15px}
   .az-dot{width:11px;height:11px;flex:none;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 4px rgba(139,147,161,.16)}

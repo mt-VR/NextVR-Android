@@ -177,7 +177,7 @@ function controlCenterApp() {
   const status = el('div', 'quick-status');
   const battery = (() => { try { return JSON.parse(window.NativeXR?.battery?.() || 'null'); } catch { return null; } })();
   const date = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  status.innerHTML = `<div><strong>Configurações</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
+  status.innerHTML = `<div><strong>Controles rápidos</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
   const gear = el('button', 'quick-gear', icon('settings'));
   gear.type = 'button'; gear.title = 'Todas as configurações'; gear.setAttribute('aria-label', 'Todas as configurações');
   gear.onclick = () => settingsApp();
@@ -245,7 +245,9 @@ function controlCenterApp() {
   brightness.oninput = () => { window.NativeXR?.setBrightness?.(+brightness.value); brightness.title = `Brilho ${brightness.value}%`; };
   side.append(sideTitle, volumeIcon, volume, sideMute, brightnessIcon, brightness);
   body.append(panel, side);
-  return open({ id:'control-center', title:'Configurações', node:body, w:1100, h:760 });
+  // É uma janela de conteúdo comum: tem barra, posição e curvatura do workspace, igual ao Shizuku.
+  // O tamanho contido evita que o painel pareça um HUD cobrindo o campo de visão.
+  return open({ id:'control-center', title:'Configurações', node:body, w:980, h:640 });
 }
 
 function settingsApp() {

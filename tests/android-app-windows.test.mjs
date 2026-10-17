@@ -267,6 +267,8 @@ test('approved quick settings panel is connected to native controls and keeps Sh
   const apps = await read(WEB.apps);
   const html = await read('web/index.html');
   assert.ok(apps.includes('function controlCenterApp()'));
+  assert.ok(apps.includes("open({ id:'control-center', title:'Configurações', node:body, w:980, h:640 })"),
+    'settings uses a regular, contained spatial window like Shizuku, not a full-field HUD');
   assert.ok(apps.includes("on('game:settings', () => controlCenterApp())"));
   assert.ok(apps.includes("systemPanel('internet')"));
   assert.ok(apps.includes("systemPanel('bluetooth')"));
@@ -275,6 +277,7 @@ test('approved quick settings panel is connected to native controls and keeps Sh
   assert.match(apps, /Apps do Android/);
   assert.match(apps, /android-results-count/);
   assert.ok(html.includes('.quick-center'));
+  assert.match(html, /\.quick-center\{[^}]*background:transparent/);
   assert.ok(html.includes('.quick-vertical'));
   assert.ok(html.includes('.android-results'));
 });

@@ -93,10 +93,10 @@ launcher explains the current state. The phone-screen mirror remains a separate,
 fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
 and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
 
-Version 1.0.9 adds the approved control-center layout to the settings entry points. Its Wi-Fi and
-Bluetooth cards open Android's system panels; volume, app audio, and display brightness use the
-native bridge. The separate Shizuku launcher keeps Android apps out of the NextVR library. Its detail
-gear still opens the complete settings tabs.
+Version 1.0.10 presents the control center as a contained, ordinary spatial window in the 3D
+workspace, not as a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
+and display brightness use the native bridge. The separate Shizuku launcher keeps Android apps out
+of the NextVR library, and its detail gear still opens the complete settings tabs.
 
 Approved visual proposals (illustrative design references, not device screenshots):
 
