@@ -80,25 +80,29 @@ The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
 distance from the eye, so moving it never sends it backwards.
-The current `N` mark and component icons are
-extracted from `new_references.zip`; the older archive is retained only as historical provenance.
+The APK and in-app store use the purple NextVR logo supplied with this request; component icons are
+extracted from `new_references.zip`. The older archive is retained only as historical provenance.
 
 ## Android app windows
 
-The dock's app library (`Apps do Android`, the phone icon) lists the launchable apps installed on
-the device with their real icons and opens them in floating windows of the existing arc. The
-window content is the real app: a dedicated virtual display per app, created by a Shizuku user
-service running as the `shell` user (no root), started with `am start --display`, with the hand's
-touch injected into that display. Without Shizuku the library still works and the dock offers the
-phone-screen mirror (`MediaProjection`, behind the foreground service Android requires for a
-capture, plus the accessibility service for input), which is a mirror and is labelled as one —
-never as an embedded app. Every tile then carries a *Espelhar* shortcut that brings that app to the
-phone screen with public API before the capture starts (Android 14+ lets the user pick it in the
-system dialog), and resizing a window never leaves the session claiming a size the display refused:
+The dock has a dedicated **Shizuku** launcher for Android apps, separate from NextVR's own app/game
+library. Opening it shows installed Android apps with their real icons, search, and category filters;
+each opens in a floating window in the existing arc. The window content is the real app: a dedicated
+virtual display per app, created by a Shizuku user service running as the `shell` user (no root),
+started with `am start --display`, with the hand's touch injected into that display. If Shizuku is
+not ready, the launcher explains the current access state and the existing phone-screen mirror path
+remains clearly identified as a mirror — never as an embedded app. Resizing a window never leaves
+the session claiming a size the display refused:
 the session only adopts a new size after the display confirms it. Minimize detaches the display surface (the app
 keeps running, frame production stops), restore re-attaches the same surface, and closing releases
 the display and the app's task. Full architecture, API choices, limitations and the on-device
 checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+
+Static visual previews (illustrative layouts, not device screenshots):
+
+![Shizuku Android-app launcher preview](artwork/previews/shizuku-launcher-preview.png)
+
+![NextVR settings and panorama preview](artwork/previews/settings-preview.png)
 
 ## 3D game platform
 

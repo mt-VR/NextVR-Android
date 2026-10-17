@@ -40,6 +40,7 @@ const STR = {
     envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Panorama 360° · pôr do sol', envPassOn:'Passthrough da câmera',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
     envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
+    envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -108,6 +109,7 @@ const STR = {
     envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'360° panorama · sunset', envPassOn:'Camera passthrough',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
     envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
+    envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -176,6 +178,7 @@ const STR = {
     envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Panorama 360° · atardecer', envPassOn:'Passthrough de la cámara',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
     envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
+    envTropical:'Panorama 360° · valle tropical', envLakeside:'Panorama 360° · lago al atardecer',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -334,7 +337,7 @@ on('quality', resize);
  * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
  * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'virtual', 'palm', 'sunset', 'night', 'space']);
+export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'virtual', 'palm', 'sunset', 'night', 'space', 'tropical', 'lakeside']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
@@ -343,6 +346,8 @@ export const envList = () => [
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
+  { id: 'tropical', name: t('envTropical'), thumb: './env/tropical.jpg' },
+  { id: 'lakeside', name: t('envLakeside'), thumb: './env/lakeside.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';

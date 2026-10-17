@@ -5,9 +5,8 @@ import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
 import { startGame, refreshGame } from './game.js';
 import { icon } from './reference-icons.js';
-import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
-  androidRecentIndex, focusAppWindow, openWindowCount,
-  loadLibrary as loadAndroidLibrary } from './android-apps.js';
+import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp,
+  focusAppWindow, openWindowCount, loadLibrary as loadAndroidLibrary } from './android-apps.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -134,18 +133,37 @@ function settingsApp() {
 
   const TABS = [
     [t('general'), () => {
-      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Next VR · shell XR para Android</p>`;
+      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Central de controle do espaço NextVR</p>`;
+      const scenes = el('div', 'quick-scenes');
+      for (const scene of envList().filter(item => ['tropical', 'lakeside'].includes(item.id))) {
+        const button = el('button', 'quick-scene');
+        button.dataset.env = scene.id;
+        button.style.backgroundImage = `linear-gradient(0deg,rgba(4,8,16,.76),transparent 70%),url('${scene.thumb}')`;
+        button.innerHTML = `<span>${scene.name}</span><small>Panorama 360°</small>`;
+        button.setAttribute('aria-pressed', String(S.env === scene.id));
+        button.onclick = () => {
+          setEnvironment(scene.id);
+          scenes.querySelectorAll('.quick-scene').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+        };
+        scenes.appendChild(button);
+      }
+      page.append(scenes);
       const c = el('div', 'card');
-      // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
+      // Mesmo seletor de idioma do primeiro uso, reaberto como uma janela normal.
       const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
       pick.onclick = () => {
         const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
           node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
       };
-      c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
-      c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
+      c.append(row(t('language'), 'Idioma da interface do NextVR', pick));
+      c.append(row('FPS', 'Mostrar o contador de desempenho', toggle('showFps')));
+      const passthrough = el('button', 'sw');
+      const syncPassthrough = () => { passthrough.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
+      passthrough.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncPassthrough();
+        scenes.querySelectorAll('.quick-scene').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.env === S.env))); };
+      syncPassthrough();
+      c.append(row(t('envPassOn'), 'Use a câmera do aparelho como fundo', passthrough));
       page.append(c);
-      page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
     }],
     [t('hands'), () => {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
@@ -442,38 +460,23 @@ function touchLib(id, silent) {
   persistShop(); if (!silent) paintLibrary();
 }
 /*
- * The Applications menu, as one list: NextVR's own apps and games plus the apps installed on the
- * phone. There is deliberately no separate Android page, no filter that hides them and no button
- * that has to be pressed first — an installed app is one more tile among the others, and the search
- * box, the sort and the "Recentes" filter treat it exactly like a web app.
+ * NextVR's Applications menu is intentionally limited to apps and games belonging to the game
+ * shell. Android-installed apps live only in the dedicated Shizuku window, keeping the two worlds
+ * visibly separate. The Shizuku launcher is the single entry point for the phone's app collection.
  */
 function libItems() {
-  // The native side is asked for the installed apps here, cheaply and cached: a tile drawn before
-  // its icon existed is drawn again as soon as the native icon revision moves (applyState).
-  loadAndroidLibrary(false);
   const games = GAMES.filter(g => installed.includes(g.id)).map(g => ({ ...g, kind: 'game' }));
   const apps = LIB_APPS.map(a => ({ ...a, kind: 'app' }));
-  const android = androidApps().map(a => ({ kind: 'android', id: 'android:' + a.pkg, name: a.label || a.pkg,
-    label: a.label || a.pkg, pkg: a.pkg, icon: a.icon, system: a.system, app: a }));
-  let list = [...games, ...apps, ...android];
+  let list = [...games, ...apps];
   const ord = id => { const i = LIB_ORDER.indexOf(id); return i < 0 ? 99 : i; };
   list.sort((a, b) => ord(a.id) - ord(b.id));
   if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
-  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app' || x.kind === 'android');
-  if (libFilter === 'recent') list = list.filter(x => x.kind === 'android'
-    ? androidRecent(x.pkg) : libRecent.includes(x.id));
+  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app');
+  if (libFilter === 'recent') list = list.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
   if (q) list = list.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
   if (libSort === 'az') return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  // The most recently used first. An installed app the native side counts as recent ranks with the
-  // web apps the shell remembers; everything else keeps the menu's own order.
-  const rank = item => {
-    if (item.kind === 'android') {
-      const i = androidRecentIndex(item.pkg);
-      return i < 0 ? 1e6 : i;
-    }
-    const i = libRecent.indexOf(item.id); return i < 0 ? 1e6 : i;
-  };
+  const rank = item => { const i = libRecent.indexOf(item.id); return i < 0 ? 1e6 : i; };
   return [...list].sort((a, b) => rank(a) - rank(b));
 }
 function appTile(a) {
@@ -514,17 +517,12 @@ function buildLibrary() {
         <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
       </div>
       <div class="lib-scroll"><div class="lib-grid">${
-        list.map(x => x.kind === 'game' ? gameTile(x) : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
+        list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
       }</div>
       ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
     </section>
     `;
-  // The only Android-specific row in the interface, and it exists only while the shell service is
-  // not available: it says which of the two mechanisms a tile will use and how to get the other one.
-  const notice = shizukuNotice();
-  if (notice) root.querySelector('.lib-scroll')?.prepend(notice);
-
   const q = root.querySelector('[data-q]:not([data-q="android"])');
   if (q && libQuery) q.classList.add('open');
   if (q) {
@@ -539,17 +537,6 @@ function buildLibrary() {
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
-    if ((m = c('[data-android]'))) {
-      // One action, one owner of the decision: the native side focuses a window that is already
-      // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
-      // shell only brings an existing window forward so the tap always ends on the app.
-      const pkg = m.dataset.android;
-      // The shape travels, not a size: the app is hosted on this phone's own screen, and the window
-      // takes that canvas' shape (see openApp).
-      openApp(pkg);
-      focusAppWindow(pkg);
-      return;
-    }
     if ((m = c('[data-game]'))) {
       const g = gameById(m.dataset.game); touchLib(g.id);
       // O jogo abre o mundo 3D nativo com a cena salva dele: geometria e transforms vão para o
@@ -577,33 +564,76 @@ function paintLibrary(keepFocus) {
 }
 /**
  * Janela dedicada do Shizuku: os apps instalados no aparelho, do jeito que o serviço do Shizuku os
- * entrega, numa janela só deles. É a mesma lista do menu de aplicações (uma fonte só, `androidApps()`),
- * com o aviso do Shizuku no topo quando o serviço ainda não está pronto — é ele que explica por que a
- * lista pode estar vazia e como liberar o acesso.
+ * entrega, numa janela só deles, sem misturá-los com a biblioteca de apps e jogos do NextVR. A lista
+ * inclui busca, filtros de categoria e o aviso de acesso quando o serviço ainda não está pronto.
  */
+let shizukuFilter = 'Todos';
+let shizukuQuery = '';
+const ANDROID_CATEGORIES = ['Todos', 'Jogos', 'Ferramentas', 'Redes Sociais', 'Mídia', 'Produtividade'];
+function androidCategory(app) {
+  const text = `${app.label || ''} ${app.pkg || ''}`.toLowerCase();
+  if (app.game || /game|jogo|minecraft|roblox|freefire|pubg|brawl|clash/.test(text)) return 'Jogos';
+  if (/whatsapp|instagram|tiktok|discord|facebook|telegram|snapchat|reddit|messenger|social/.test(text)) return 'Redes Sociais';
+  if (/youtube|netflix|spotify|prime video|music|música|video|vídeo|camera|câmera|photos|fotos|gallery|galeria/.test(text)) return 'Mídia';
+  if (/gmail|mail|drive|docs|office|calendar|agenda|notes|notas|calculator|calculadora|keep|word|excel/.test(text)) return 'Produtividade';
+  return 'Ferramentas';
+}
 function paintShizuku(body) {
-  body.innerHTML = `<h2>${t('shizuku')}</h2><p class="sub">${t('androidApps')}</p>`;
+  loadAndroidLibrary(false);
+  body.innerHTML = '';
+  body.classList.add('android-launcher');
+  const head = el('div', 'android-launcher-head');
+  head.innerHTML = `<div class="android-launcher-brand"><span class="android-robot">${icon('android')}</span>`
+    + `<div><h2>Apps do Android</h2><p class="sub">Aplicativos instalados no aparelho, separados do NextVR</p></div></div>`
+    + `<div class="android-launcher-actions"><label class="android-search">${icon('search')}`
+    + `<input type="search" placeholder="Buscar apps Android" aria-label="Buscar apps Android"></label>`
+    + `<button class="android-refresh" type="button" aria-label="Atualizar apps" title="Atualizar apps">${icon('refresh')}</button></div>`;
   const notice = shizukuNotice();
+  const tabs = el('div', 'android-categories');
+  const chips = ANDROID_CATEGORIES.map(category => `<button class="android-category" data-category="${category}" aria-pressed="${shizukuFilter === category}">${category}</button>`).join('');
+  tabs.innerHTML = chips;
+  const scroll = el('div', 'android-app-scroll');
+  const grid = el('div', 'android-app-grid');
+  const paintGrid = () => {
+    const q = shizukuQuery.trim().toLocaleLowerCase('pt-BR');
+    const apps = androidApps().filter(app => {
+      const matchesCategory = shizukuFilter === 'Todos' || androidCategory(app) === shizukuFilter;
+      const matchesQuery = !q || `${app.label || ''} ${app.pkg || ''}`.toLocaleLowerCase('pt-BR').includes(q);
+      return matchesCategory && matchesQuery;
+    });
+    grid.innerHTML = apps.length
+      ? apps.map(app => androidTileHtml(app)).join('')
+      : `<div class="android-empty">${t('noAndroidApps')}</div>`;
+  };
+  paintGrid();
+  scroll.appendChild(grid);
+  body.append(head);
   if (notice) body.appendChild(notice);
-  const grid = el('div', 'lib-grid');
-  const apps = androidApps();
-  grid.innerHTML = apps.length
-    ? apps.map(a => androidTileHtml(a)).join('')
-    : `<p class="sub">${t('noAndroidApps')}</p>`;
-  body.appendChild(grid);
+  body.append(tabs, scroll);
+  body.oninput = event => {
+    if (event.target.matches('.android-search input')) { shizukuQuery = event.target.value; paintGrid(); }
+  };
+  body.onclick = event => {
+    const category = event.target.closest('[data-category]');
+    if (category) {
+      shizukuFilter = category.dataset.category;
+      tabs.querySelectorAll('[data-category]').forEach(chip => chip.setAttribute('aria-pressed', String(chip === category)));
+      paintGrid();
+      return;
+    }
+    if (event.target.closest('.android-refresh')) { loadAndroidLibrary(true); paintGrid(); return; }
+    const tile = event.target.closest('[data-android]');
+    if (!tile) return;
+    openApp(tile.dataset.android);
+    focusAppWindow(tile.dataset.android);
+  };
 }
 function shizukuWindow() {
   const host = winBody('shizuku');
   if (host) { paintShizuku(host); return focus(wins.find(w => w.id === 'shizuku')); }
-  const body = el('div', 'pad');
+  const body = el('div', 'android-launcher');
   paintShizuku(body);
-  body.addEventListener('click', e => {
-    const m = e.target.closest('[data-android]');
-    if (!m) return;
-    openApp(m.dataset.android);
-    focusAppWindow(m.dataset.android);
-  });
-  return open({ id: 'shizuku', title: t('shizuku'), node: body });
+  return open({ id: 'shizuku', title: 'Apps do Android', node: body });
 }
 
 function libraryApp() {
@@ -642,13 +672,9 @@ function makeDock() {
 on('lang', makeDock);
 
 
-/**
- * Count badge of the dock's applications tile: how many Android app windows are open right now
- * (hosted or captured). The tile it sits on opens the same menu the windows are listed in, so the
- * number is where the user would look for them.
- */
+/** Count the active Android app windows on their dedicated Shizuku launcher tile. */
 function paintWindowBadge() {
-  const tile = document.querySelector('.dock [data-id="library"], .dock-app[data-id="library"]');
+  const tile = document.querySelector('.dock [data-id="shizuku"], .dock-app[data-id="shizuku"]');
   if (!tile) return;
   const count = openWindowCount();
   let badge = tile.querySelector('.dock-badge');

@@ -81,6 +81,14 @@
   .sub{margin:0 0 20px;color:var(--soft);font-size:17px;line-height:1.5}
   .sec{margin:26px 0 12px;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
   .card{background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:var(--r-card);padding:18px 20px;margin-bottom:12px}
+  .quick-scenes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 16px}
+  .quick-scene{position:relative;min-height:154px;overflow:hidden;border:1px solid rgba(255,255,255,.15);border-radius:18px;
+    background-size:cover;background-position:center;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
+    padding:18px;text-align:left;box-shadow:0 12px 30px rgba(0,0,0,.22);transition:transform .16s,border-color .16s}
+  .quick-scene span{font-size:18px;font-weight:700;text-shadow:0 2px 9px #000}
+  .quick-scene small{margin-top:4px;font-size:12px;color:#e0e7f1;text-shadow:0 2px 8px #000}
+  .quick-scene[aria-pressed="true"]{border:2px solid #4f8dff;box-shadow:0 0 0 2px rgba(79,141,255,.2),0 12px 30px rgba(0,0,0,.24)}
+  .quick-scene:active{transform:scale(.985)}
   .opt{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 0;border-top:1px solid var(--line)}
   .opt:first-child{border-top:0}
   .opt-l{min-width:0}
@@ -432,10 +440,9 @@
     border-radius:999px;background:#57dfa1;color:#052c1a;font-size:10.5px;font-weight:800;
     display:grid;place-items:center;box-shadow:0 2px 7px rgba(0,0,0,.5)}
 
-  /* ---------- apps instalados no aparelho, dentro do MENU de aplicações que já existe ----------
-     O tile é o mesmo .lib-tile da referência; o que muda é o conteúdo da capa: o ícone real que o
-     PackageManager devolveu (servido pelo lado nativo em /apps/<arquivo>.png) sobre um fundo neutro.
-     Sem ícone ainda — ou sem ícone legível — a capa mostra as iniciais do app, como os apps da web. */
+  /* ---------- app Android dedicado do Shizuku ----------
+     A coleção Android só aparece nesta janela, separada da biblioteca interna do NextVR. O tile usa
+     o ícone real do PackageManager e cai nas iniciais enquanto o ícone é carregado. */
   .lib-tile.android .lib-cover{background:rgba(255,255,255,.07)}
   /* 52 px: the same box the web apps' logos use in this grid (see .lib-brand img.logo), so an
      installed app and a NextVR app are drawn at the same size next to each other. */
@@ -458,9 +465,43 @@
     padding:3px 7px;background:rgba(87,223,161,.92);color:#052c1a}
   .lib-tile.android[data-session="suspended"] .lib-open{background:rgba(255,255,255,.84);color:#15181e}
 
-  /* ---------- a única linha específica de Android na interface ----------
-     Existe só enquanto o serviço shell não está pronto, para dizer qual dos dois mecanismos o tile
-     vai usar e como chegar no outro. Com o serviço pronto ela não é criada. */
+  /* ---------- grade exclusiva dos aplicativos Android, aberta pelo ícone Shizuku ---------- */
+  .android-launcher{height:100%;min-height:0;display:flex;flex-direction:column;gap:18px;padding:24px 30px 22px;
+    overflow:hidden;background:linear-gradient(145deg,#101725,#09111f 68%,#101521);color:#f4f7fc}
+  .android-launcher-head{display:flex;align-items:center;justify-content:space-between;gap:20px;flex:none}
+  .android-launcher-brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .android-robot{width:46px;height:46px;flex:none;display:grid;place-items:center;border-radius:15px;
+    background:rgba(83,158,255,.18);color:#8dbbff}
+  .android-robot .ui-icon{width:26px;height:26px}
+  .android-launcher-brand h2{font-size:25px;margin:0 0 4px}
+  .android-launcher-brand .sub{font-size:14px;margin:0;color:#a9b5c8}
+  .android-launcher-actions{display:flex;align-items:center;gap:10px}
+  .android-search{width:240px;height:44px;padding:0 13px;display:flex;align-items:center;gap:9px;
+    border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(255,255,255,.07);color:#aeb9cb}
+  .android-search .ui-icon{width:19px;height:19px;flex:none}
+  .android-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#fff;font:500 14px Inter,sans-serif}
+  .android-search input::placeholder{color:#909caf}
+  .android-refresh{width:44px;height:44px;display:grid;place-items:center;border-radius:14px;
+    background:rgba(255,255,255,.07);color:#dce5f2}
+  .android-refresh .ui-icon{width:21px;height:21px}
+  .android-categories{display:flex;gap:9px;flex:none;overflow-x:auto;padding-bottom:2px}
+  .android-category{padding:9px 17px;border-radius:999px;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.06);
+    color:#c7d0dd;font-size:14px;font-weight:600;white-space:nowrap}
+  .android-category[aria-pressed="true"]{background:#2868e8;border-color:#4683ff;color:#fff;box-shadow:0 5px 14px rgba(26,91,218,.28)}
+  .android-app-scroll{flex:1;min-height:0;overflow-y:auto;padding:4px 2px 8px}
+  .android-app-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:18px 24px;align-items:start}
+  .android-app-grid .lib-tile{max-width:170px;justify-self:center;width:100%;align-items:center;text-align:center;gap:8px}
+  .android-app-grid .lib-cover{aspect-ratio:1;min-height:0;border-radius:20px;background:rgba(255,255,255,.08)}
+  .android-app-grid .lib-app-icon{width:58px;height:58px}
+  .android-app-grid .lib-label{max-width:100%;font-size:14px;text-align:center}
+  .android-app-grid .lib-src{display:none}
+  .android-app-grid .lib-sys{top:6px;left:6px;font-size:9px}
+  .android-app-grid .lib-open{top:6px;right:6px;font-size:9px}
+  .android-empty{grid-column:1/-1;padding:34px 20px;border-radius:18px;background:rgba(255,255,255,.045);
+    color:#aeb9cb;text-align:center;font-size:16px}
+  .android-launcher>.lib-note{flex:none;margin:0;padding:10px 13px;font-size:13px}
+  @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
+    .android-launcher{padding:18px;gap:14px}.android-search{width:190px}}
   .lib-note,.az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:15px}
   .az-dot{width:11px;height:11px;flex:none;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 4px rgba(139,147,161,.16)}
