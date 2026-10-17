@@ -698,8 +698,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             main.post(()->{
                 if(closed) return;
                 Intent intent;
-                if("bluetooth".equals(panel)) intent=new Intent(Build.VERSION.SDK_INT>=29
-                    ? Settings.Panel.ACTION_BLUETOOTH : Settings.ACTION_BLUETOOTH_SETTINGS);
+                if("bluetooth".equals(panel)) intent=new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
                 else intent=new Intent(Build.VERSION.SDK_INT>=29
                     ? Settings.Panel.ACTION_INTERNET_CONNECTIVITY : Settings.ACTION_WIFI_SETTINGS);
                 try { startActivity(intent); }
