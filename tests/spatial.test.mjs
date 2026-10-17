@@ -45,8 +45,8 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   const nativeHands=await readFile('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt','utf8');
   assert.ok(!hands.includes('class OneEuro') && !hands.includes('pinchHold'));
   assert.ok(hands.includes('NativeXR.handVisuals?.(visual)'), 'The UI setting controls only the native silhouette visibility');
-  assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,handTargets,showHands)'),
-    'The native pass owns hand contours and rays');
+  assert.ok(java.includes('handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands)'),
+    'The native pass owns hand contours and rays, in the eye being rendered');
   assert.ok(nativeHands.includes('meshes=meshesFor(visible.predicted(now),sx,sy,now)')
     && nativeHands.includes('drawHandSkeletons(position,fade)'), 'The hand contour follows the predicted pose in the native render pass');
   assert.ok(nativeHands.includes('MESH_REBUILD_EPSILON') && nativeHands.includes('MESH_REBUILD_MAX_NS'),
