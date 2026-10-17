@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d,
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
@@ -221,14 +221,25 @@ function settingsApp() {
     }],
     [t('env'), () => { page.innerHTML = ''; page.append(el('h2', null, t('env')));
       page.append(el('p', 'sub', 'Passthrough da câmera ou um panorama 360° em volta de você.'));
+      const c = el('div', 'card');
+      // Interruptor do passthrough: não é uma chave de S; reflete S.env === 'passthrough'.
+      const sw = el('button', 'sw');
+      const syncSwitch = () => { sw.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
+      sw.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncSwitch(); paintGrid(); };
+      syncSwitch();
+      c.append(row(t('envPassOn'), 'Desligado mostra o último panorama (padrão: lagoa ao pôr do sol)', sw));
+      page.append(c);
       const g = el('div', 'grid3');
+      const paintGrid = () => [...g.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.env === S.env)));
       for (const e of envList()) {
         const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+        b.dataset.env = e.id;
         b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-        b.innerHTML = `<span>${e.name}</span>`; b.setAttribute('aria-pressed', S.env === e.id);
-        b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
+        b.innerHTML = `<span>${e.name}</span>`;
+        b.onclick = () => { setEnvironment(e.id); syncSwitch(); paintGrid(); };
         g.appendChild(b);
       }
+      paintGrid();
       page.append(g);
     }],
     [t('perf'), () => {
@@ -509,6 +520,37 @@ function paintLibrary(keepFocus) {
   host.innerHTML = ''; host.appendChild(buildLibrary());
   host.querySelector('.lib-scroll').scrollTop = sc;
 }
+/**
+ * Janela dedicada do Shizuku: os apps instalados no aparelho, do jeito que o serviço do Shizuku os
+ * entrega, numa janela só deles. É a mesma lista do menu de aplicações (uma fonte só, `androidApps()`),
+ * com o aviso do Shizuku no topo quando o serviço ainda não está pronto — é ele que explica por que a
+ * lista pode estar vazia e como liberar o acesso.
+ */
+function paintShizuku(body) {
+  body.innerHTML = `<h2>${t('shizuku')}</h2><p class="sub">${t('androidApps')}</p>`;
+  const notice = shizukuNotice();
+  if (notice) body.appendChild(notice);
+  const grid = el('div', 'lib-grid');
+  const apps = androidApps();
+  grid.innerHTML = apps.length
+    ? apps.map(a => androidTileHtml(a)).join('')
+    : `<p class="sub">${t('noAndroidApps')}</p>`;
+  body.appendChild(grid);
+}
+function shizukuWindow() {
+  const host = winBody('shizuku');
+  if (host) { paintShizuku(host); return focus(wins.find(w => w.id === 'shizuku')); }
+  const body = el('div', 'pad');
+  paintShizuku(body);
+  body.addEventListener('click', e => {
+    const m = e.target.closest('[data-android]');
+    if (!m) return;
+    openApp(m.dataset.android);
+    focusAppWindow(m.dataset.android);
+  });
+  return open({ id: 'shizuku', title: t('shizuku'), node: body });
+}
+
 function libraryApp() {
   const w = wins.find(x => x.id === 'library');
   if (w) { paintLibrary(); focus(w); return w; }
@@ -520,36 +562,30 @@ function libraryApp() {
 
 /* ============ dock (mesma ordem do print) ============ */
 const DK = Object.freeze({
-  bell:icon('notification'), kb:icon('keyboard'), center:icon('crosshair'),
   compass:icon('compass'), store:icon('store'), people:icon('people'),
-  camera:icon('camera'), gear:icon('settings'), play:icon('play'), device:icon('device'),
+  camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
 });
 
 function makeDock() {
   buildDock([
-    // grupo da esquerda: perfil, status real (hora/wifi/bateria) e ferramentas
+    // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
-    { kind: 'tool',   id: 'bell',    label: t('notif'),    svg: DK.bell,   run: () => toast(t('noNotif')) },
-    { kind: 'tool',   id: 'kb',      label: t('keyboard'), svg: DK.kb,     run: () => keyboard(!keyboardOpen(), null) },
-    { kind: 'tool',   id: 'center',  label: t('center'),   svg: DK.center, run: () => recenter() },
-    { kind: 'sep' },
-    // apps principais (cores do print: azul, laranja, roxo, rosa)
+    { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
+    // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
     { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
-    { kind: 'sep' },
-    // segundo grupo (verde e vermelho do print)
     { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
-    // lançador de 9 pontos: sempre o último, abre o menu de aplicações — onde os apps instalados no
-    // aparelho aparecem junto com os apps do NextVR. É a única entrada para os dois: o botão que
-    // abria uma página separada de apps Android, e a página com ele, foram removidos.
+    // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
+    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(145deg,#4fd1c5,#1a8f87)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
 }
 on('lang', makeDock);
+
 
 /**
  * Count badge of the dock's applications tile: how many Android app windows are open right now
@@ -594,6 +630,10 @@ function paintLibrarySoon() {
   libraryPaintTimer = setTimeout(() => {
     libraryPaintTimer = 0;
     if (winBody('library')) paintLibrary();
+    // A janela do Shizuku mostra a mesma lista: quando o serviço entrega (ou perde) os apps, ela
+    // acompanha em vez de ficar com a lista velha atrás da janela do app que acabou de abrir.
+    const shizukuHost = winBody('shizuku');
+    if (shizukuHost) paintShizuku(shizukuHost);
   }, 500);
 }
 

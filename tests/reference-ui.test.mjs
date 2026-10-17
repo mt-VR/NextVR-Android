@@ -167,8 +167,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with every previous function, in the selected language.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library'],
-      'the dock has no Android tile: the installed apps live in the Applications menu the launcher opens');
+    assert.deepEqual(ids,['profile','status','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+      'the dock is perfil + hora/status, a gap, the main apps, the Shizuku window and the launcher');
+    assert.equal(await page.locator('.dock .dock-spacer').count(),1,
+      'a single gap separates the clock/battery group from the apps, Quest-style');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
@@ -204,7 +206,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const browserSpec=await page.evaluate(()=>window.__last.browsers.find(b=>b.id==='browser'));
     assert.equal(browserSpec.url,'https://duckduckgo.com/');
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
-    await page.locator('.dock [data-id="kb"]').click();
+    // The keyboard has no dock tile any more: it opens the way it opens for a user, when a text
+    // field takes the focus — here a field in the hosted page, which is the native side telling the
+    // shell (nextvrBrowserFocus), the same call the WebView makes on a real site.
+    await page.evaluate(()=>window.nextvrBrowserFocus('browser',true));
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
     // The panel only reaches the bridge on the next frame send (30 Hz throttle), so wait for the
     // compositor to actually carry the keyboard instead of racing the throttle.
@@ -215,6 +220,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const kbPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.rect[1]===3160));
     assert.ok(kbPanel,'Keyboard panel is composited into the atlas');
     assert.ok(kbPanel.matrix[6]<0,'Keyboard lies flat (Meta Quest style), top edge away from the user');
+    // The way out is the keyboard's own close key, and focusing the field again brings it back:
+    // with no dock tile, these two are the whole open/close contract.
+    await page.locator('.kb [data-k="@close"]').click();
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
+    await page.evaluate(()=>window.nextvrBrowserFocus('browser',true));
+    await page.waitForFunction(()=>window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     // Count actual compositor updates, not wall time: CI's software renderer can be slow.
     const settle=async()=>{
       await page.evaluate(()=>window.__settle=null);
@@ -299,6 +310,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('.win-shell').filter({has:page.locator('.win-title', {hasText:'Browser'})}).locator('[data-act="close"]').click();
     await page.waitForFunction(()=>!window.__last.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('.win-shell').count(),2);
+    // The keyboard was serving that page: closing the window it belonged to closes it too, instead
+    // of leaving an orphan keyboard typing into a surface that no longer exists.
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     await settle();
     const libraryPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library'));
     const libraryMatrix=libraryPanel.matrix;
@@ -384,8 +398,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // The detached white grab bar under the dock is a real MediaPipe pinch target. A deliberate ray drag
     // moves only the dock, preserves the drag offset, and recenter restores its closer default.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
-    await page.locator('.dock [data-id="kb"]').click();
-    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
+    assert.equal(await page.locator('.kb').count(),0,'no keyboard is left over before the dock is dragged');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const grab=await page.evaluate(()=>{
       const panel=window.__last.panels.find(p=>p.id==='dock'),root=document.querySelector('.dock'),bar=root.querySelector('.dock-grab');
@@ -427,13 +440,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const resting=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(resting[12]-released[12])<.001,'Dock remains at the released position');
     assert.equal(await page.locator('.dock-grab[aria-pressed="true"]').count(),0,'Grab state clears on release');
-    await page.locator('.dock [data-id="center"]').click();
-    await page.waitForFunction(()=>{
-      const m=window.__last.panels.find(p=>p.id==='dock')?.matrix;
-      return m && Math.abs(m[12])<.001 && Math.abs(m[14]+.55)<.001;
-    },null,{timeout:12000});
-    const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
-    assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
+    // The dock has no recenter tile any more (the view is centred once, at boot and after the
+    // language pick): a dock the user moved stays where it was put, and nothing recentres it behind
+    // the user's back.
+    await page.waitForTimeout(400);
+    const settled=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(settled[12]-released[12])<.001,'Nothing recentres the dock after the drag');
     /* ================================ Android apps in floating windows ============================
        The dock's Android page lists the device's own apps and each open app becomes a window whose
        body is the app's real display. Everything the user does there must reach the app: the shell

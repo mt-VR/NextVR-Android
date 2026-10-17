@@ -646,8 +646,8 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(shape, /return LANDSCAPE;\n    }\n\n    \/\*\* Same rule without the game hint/);
 
   const web = await read(WEB.androidApps);
-  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| \(app\?\.game \? 'landscape' : 'portrait'\);/,
-    'the shell resolves the shape the same way, game category included');
+  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
+    'the shell resolves the shape the same way the native side does, hosted default included');
   // The window is built from the session's canvas: bars and border on top of its shape, and the element
   // inside what the atlas packs.
   const boxes = await read(WEB.boxes);
