@@ -551,6 +551,8 @@ function hitAt(x, y) {
   const g = h.object.geometry.parameters;
   return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height, distance:h.distance };
 }
+/** A janela sob o ponto, não só "há janela": o modo de jogo PhoneXR usa pra decidir entre UI e gatilho. */
+export const windowHitAt = hitAt;
 let nativePress = null;
 /* Pinch over window content: the DOWN is not sent yet — the click-vs-drag arbiter decides.
  * A still pinch becomes one clean tap on release; a sweeping one commits a drag (DOWN at the
@@ -602,6 +604,16 @@ function handTouch(hit, action) {
    * samples). Touch is never synthesized into this DOM — everything here is forwarded to the real
    * app on the other side. A point on a letterbox bar is dropped instead of being forwarded.
    */
+  /*
+   * Um jogo de headset hospedado por NextVR: o shell NÃO manda toque pra ele. O quadro dele é o
+   * render OpenXR do próprio jogo, movido pelo protocolo de controle do runtime PhoneXR — uma
+   * pinça aqui já é o gatilho nesse fluxo (a ponte transforma o gesto de rastreamento em pacote
+   * UDP). Sintetizar tap ou rotear coordenadas a uma WebView que não existe ia só causar um clique
+   * numa superfície errada; a janela em si continua ganhando o gesto (mover pelo título, fechar),
+   * que é este ramo saindo sem encaminhar nada.
+   */
+  const xr = el?.closest('[data-native-xr]');
+  if (xr) { nativePress = null; return; }
   const app = el?.closest('[data-native-app]');
   if (app) {
     const ar = app.getBoundingClientRect();

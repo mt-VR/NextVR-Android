@@ -56,4 +56,14 @@ interface IDisplayService {
     // The window needs this because an app may ask Android for another orientation at any moment and
     // the platform's answer to that request decides what the picture looks like.
     String displayState(int displayId) = 12;
+    // Installs an APK that this shell process can read, replacing an older copy (-r) and accepting a
+    // lower versionCode (-d), and pre-granting its runtime permissions (-g). Returns null when `pm`
+    // reported Success, else the text it printed.
+    //
+    // This is what puts the PhoneXR OpenXR runtime (org.freedesktop.monado.openxr_runtime) and its
+    // VrApi driver (com.oculus.systemdriver) on the phone. Installing a package is a shell privilege
+    // for the same reason creating a display is: an app cannot install one, and these two have to be
+    // real installed packages, because a game's OpenXR loader resolves the runtime through the
+    // system package manager. No root: Shizuku already runs this process as uid 2000.
+    String installPackage(String path) = 13;
 }

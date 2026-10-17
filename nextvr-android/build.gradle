@@ -127,5 +127,39 @@ task deleteNdk(type: Delete) {
     delete "libraries/cardboard.h"
 }
 
-preBuild.dependsOn(extractNdk)
+// The PhoneXR runtime is a published artifact of the upstream PhoneXR project — the monado-based
+// OpenXR runtime that hosts headset games (docs/PHONEXR-INTEGRATION.md). One pinned commit: the
+// asset ships inside this APK, and the runtime install/self-test verify exactly that build. It is
+// too big for git, so, like libraries/, it is materialized in the build: shipped as-is when it is
+// the pinned bytes, otherwise refetched — never silently shipping something else.
+def phonexrRuntimeAsset = new File(projectDir, "src/main/assets/xr/runtime/phonexr-runtime.apk")
+def phonexrRuntimeOrigin = "https://github.com/samrat1games/phonexr/raw/" +
+    "27c5bc469fb736fb0c00b7254a6dfc532fea7003/app/src/main/assets/runtime/phonexr-runtime.apk"
+def phonexrRuntimeSha256 = "56dd0f53317e1e70d240d4de39217f7553011a04b1d4cf22a637de6d1ebf7fa8"
+
+task fetchPhoneXrRuntime {
+    outputs.file(phonexrRuntimeAsset)
+    doLast {
+        def sha256 = { file ->
+            def digest = java.security.MessageDigest.getInstance("SHA-256")
+            file.withInputStream { stream ->
+                def buffer = new byte[64 * 1024]
+                for (def read = stream.read(buffer); read > 0; read = stream.read(buffer))
+                    digest.update(buffer, 0, read)
+            }
+            digest.digest().encodeHex().toString()
+        }
+        if (phonexrRuntimeAsset.file && sha256(phonexrRuntimeAsset) == phonexrRuntimeSha256) return
+        phonexrRuntimeAsset.parentFile.mkdirs()
+        new URL(phonexrRuntimeOrigin).withInputStream { stream ->
+            phonexrRuntimeAsset.withOutputStream { it << stream }
+        }
+        if (sha256(phonexrRuntimeAsset) != phonexrRuntimeSha256)
+            throw new GradleException(
+                "PhoneXR runtime download does not match the pinned build " + phonexrRuntimeSha256 +
+                " — hand-verify the upstream APK at " + phonexrRuntimeOrigin + " first")
+    }
+}
+
+preBuild.dependsOn(extractNdk, fetchPhoneXrRuntime)
 clean.dependsOn(deleteNdk)

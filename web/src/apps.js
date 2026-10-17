@@ -3,10 +3,12 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
-import { startGame, refreshGame } from './game.js';
 import { icon } from './reference-icons.js';
-import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp,
-  focusAppWindow, openWindowCount, loadLibrary as loadAndroidLibrary } from './android-apps.js';
+import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, focusAppWindow, openWindowCount,
+  loadLibrary as loadAndroidLibrary } from './android-apps.js';
+import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
+  refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
+  xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -125,6 +127,48 @@ function slider(key, min, max, step, after) {
   i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
   return i;
 }
+/**
+ * The PhoneXR page in the settings window: what is installed (runtime, VrApi driver, broker), the
+ * runtime install button when an APK is bundled, the hand-input mode of the running and next games,
+ * and the live diagnostics every step reports after a self test. It is a single source of truth for
+ * "why can't I open a headset game".
+ */
+function buildXrPage(host) {
+  host.innerHTML = '';
+  const s = xrState();
+  const card = host;
+  const head = el('div', 'az-row');
+  head.innerHTML = `<i class="az-dot" data-state="${s.runtime}"></i><span class="az-text">`
+    + `${t(xrRuntimeReady() ? 'xrRuntimeReady' : 'xrMissing')}<small>${s.summary || ''}</small></span>`;
+  card.append(head);
+
+  const actions = el('div', 'row');
+  actions.style.cssText = 'gap:10px;flex-wrap:wrap';
+  if (s.runtimeBundled && !xrRuntimeReady()) {
+    const install = el('button', 'go', t('xrInstall'));
+    install.onclick = () => { installXrRuntime(); };
+    actions.append(install);
+  }
+  const again = el('button', 'go', t('xrSelfTest'));
+  again.onclick = () => xrSelfTest();
+  actions.append(again);
+  const mode = el('div', 'seg');
+  for (const [id, label, sub] of [
+    ['controllers', t('xrModeControllers'), t('xrModeControllersSub')],
+    ['hands', t('xrModeHands'), t('xrModeHandsSub')],
+  ]) {
+    const b = el('button', null, label); b.title = sub;
+    b.setAttribute('aria-pressed', String(xrHandModeOf() === id));
+    b.onclick = () => { setXrHandMode(id); [...mode.children].forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); };
+    mode.appendChild(b);
+  }
+  card.append(row(t('xrHandMode'), t('xrHandModeSub'), mode), actions);
+  card.append(el('p', 'note', t('xrHandModeNote')));
+  if (!xrRuntimeReady() && !s.runtimeBundled) {
+    card.append(el('p', 'note', t('xrBundlingNote')));
+  }
+}
+
 /* ============ Central de controle (visão compacta inspirada no painel aprovado) ============ */
 function controlCenterApp() {
   const body = el('div', 'quick-center');
@@ -212,37 +256,18 @@ function settingsApp() {
 
   const TABS = [
     [t('general'), () => {
-      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Central de controle do espaço NextVR</p>`;
-      const scenes = el('div', 'quick-scenes');
-      for (const scene of envList().filter(item => ['tropical', 'lakeside'].includes(item.id))) {
-        const button = el('button', 'quick-scene');
-        button.dataset.env = scene.id;
-        button.style.backgroundImage = `linear-gradient(0deg,rgba(4,8,16,.76),transparent 70%),url('${scene.thumb}')`;
-        button.innerHTML = `<span>${scene.name}</span><small>Panorama 360°</small>`;
-        button.setAttribute('aria-pressed', String(S.env === scene.id));
-        button.onclick = () => {
-          setEnvironment(scene.id);
-          scenes.querySelectorAll('.quick-scene').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
-        };
-        scenes.appendChild(button);
-      }
-      page.append(scenes);
+      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Next VR · shell XR para Android</p>`;
       const c = el('div', 'card');
-      // Mesmo seletor de idioma do primeiro uso, reaberto como uma janela normal.
+      // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
       const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
       pick.onclick = () => {
         const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
           node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
       };
-      c.append(row(t('language'), 'Idioma da interface do NextVR', pick));
-      c.append(row('FPS', 'Mostrar o contador de desempenho', toggle('showFps')));
-      const passthrough = el('button', 'sw');
-      const syncPassthrough = () => { passthrough.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
-      passthrough.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncPassthrough();
-        scenes.querySelectorAll('.quick-scene').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.env === S.env))); };
-      syncPassthrough();
-      c.append(row(t('envPassOn'), 'Use a câmera do aparelho como fundo', passthrough));
+      c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
+      c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
       page.append(c);
+      page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
     }],
     [t('hands'), () => {
       page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
@@ -308,6 +333,11 @@ function settingsApp() {
       page.append(c);
       page.append(el('p','note','O hand tracking roda na própria cadência (single-flight, sem fila), separado do render. Ative o contador de FPS para ver as duas taxas: render e tracking.'));
     }],
+    [t('xrTitle'), () => {
+      page.innerHTML = `<h2>${t('xrTitle')}</h2><p class="sub">${t('xrSub')}</p>`
+        + `<div class="card" data-xr-page></div>`;
+      buildXrPage(page.querySelector('[data-xr-page]'));
+    }],
   ];
   let cur = 0;
   function rebuild() {
@@ -323,36 +353,13 @@ function settingsApp() {
   return open({ id: 'settings', title: t('settings'), node: body });
 }
 
-/* ============ Loja + Biblioteca (igual aos prints) ============ */
-const LS_INST = 'nextvr.store.installed.v1', LS_FAV = 'nextvr.store.favs.v1', LS_REC = 'nextvr.lib.recent.v1';
+/* ============ Loja + Biblioteca ============ */
+const LS_REC = 'nextvr.lib.recent.v1';
 const loadArr = k => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) ? v : []; } catch { return []; } };
-let installed = loadArr(LS_INST), favs = loadArr(LS_FAV), libRecent = loadArr(LS_REC);
+let libRecent = loadArr(LS_REC);
 const persistShop = () => { try {
-  localStorage.setItem(LS_INST, JSON.stringify(installed));
-  localStorage.setItem(LS_FAV, JSON.stringify(favs));
   localStorage.setItem(LS_REC, JSON.stringify(libRecent));
 } catch {} };
-const downloading = {};
-
-const GAMES = [
-  { id:'vrfs', name:'VRFS', label:'VRFS', cat:'Games · Sports · Futebol',
-    img:'https://i.ytimg.com/vi/FxkDg2NGzqw/hqdefault.jpg',
-    bg:'linear-gradient(160deg,#1d7a4b,#0c3a2b)',
-    badge:'<span style="background:#e11d2e;border-radius:10px;padding:10px 24px;font-size:32px;font-weight:900;box-shadow:0 4px 18px #0009">VRFS</span>',
-    mark:'<span style="font-size:34px;font-weight:900;font-style:italic;letter-spacing:-1px;text-shadow:0 2px 8px #0008">VRFS</span>' },
-  { id:'minecraft', name:'Minecraft VR', label:'MINECRAFT', cat:'Games · Sandbox · Aventura',
-    img:'https://minecraft.wiki/images/thumb/MC_key_art.png/800px-MC_key_art.png',
-    bg:'linear-gradient(180deg,#6cb04a 0 30%,#7a5230 30%)', badge:'',
-    mark:'<span style="font-size:23px;font-weight:900;letter-spacing:1px;text-shadow:0 2px 0 #222">MINECRAFT</span>' },
-  { id:'roblox', name:'Roblox VR', label:'ROBLOX', cat:'Games · Social · Multiplayer',
-    img:'', phones:true, bg:'linear-gradient(145deg,#23232c,#101014)', badge:'',
-    mark:'<span style="display:flex;align-items:center;gap:8px"><span style="width:34px;height:34px;background:#fff;border-radius:8px;transform:rotate(-8deg);display:grid;place-items:center"><span style="width:13px;height:13px;background:#c81e2b;border-radius:3px"></span></span><span style="font-size:24px;font-weight:900">ROBLOX</span></span>' },
-  { id:'brawl', name:'Brawl Stars VR', label:'BRAWL STARS', cat:'Games · Ação · Multiplayer',
-    img:'https://supercell.com/images/1a5b69311180a4a1c374e10556941f05/790/hero_bg_brawlstars.a385872a.webp',
-    bg:'linear-gradient(115deg,#ffd02e 0 50%,#1280ff 50%)', badge:'',
-    mark:'<span style="font-size:21px;font-weight:900;color:#111;text-shadow:0 1px 0 #fff">BRAWL<br>STARS ★</span>' },
-];
-const gameById = id => GAMES.find(g => g.id === id);
 
 /* Apps web e ferramentas NextVR são representados por capas locais, sem depender de uma CDN. */
 const LIB_APPS = [
@@ -375,7 +382,7 @@ const LIB_APPS = [
   { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
 ];
 /* Ordem previsível; os jogos instalados surgem na posição habitual entre os apps. */
-const LIB_ORDER = ['netflix','youtube','vrfs','tiktok','minecraft','roblox','brawl','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
+const LIB_ORDER = ['netflix','youtube','tiktok','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
 
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
@@ -400,46 +407,12 @@ const LIB_ACTIONS = {
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
 };
 
-/* ---------- loja ---------- */
-let storeTab = 'home';
-const STORE_TABS = [['home','Home'],['games','Games'],['apps','Apps'],['horizon','Horizon+'],['wish','Wish']];
-
-function robloxPhones() {
-  const ph = () => `<div style="width:96px;height:172px;background:#14141b;border-radius:10px;border:1px solid #383845;padding:9px;display:flex;flex-direction:column;gap:6px">`
-    + `<div style="height:9px;background:#33333f;border-radius:4px"></div>`
-    + `<div style="height:9px;background:#33333f;border-radius:4px;width:70%"></div>`
-    + `<div style="margin-top:auto;height:46px;background:linear-gradient(145deg,#c81e2b,#6f0f18);border-radius:7px"></div></div>`;
-  return `<div style="display:flex;gap:10px">${ph()}${ph()}${ph()}</div>`;
-}
-
-function coverArt(g) {
-  const img = g.img ? `<img class="cov" src="${g.img}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '';
-  const art = g.phones ? robloxPhones() : (g.badge || '');
-  return `<div class="st-cover" style="background:${g.bg}">${img}<div class="art">${art}</div>`
-    + (installed.includes(g.id) ? `<span class="st-inst">INSTALADO</span>` : '')
-    + `<span class="st-vr">VR</span><span class="st-clabel">${g.label}</span></div>`;
-}
-function thumbArt(g) {
-  const img = g.img ? `<img src="${g.img}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '';
-  const inner = g.id === 'roblox'
-    ? `<span style="width:30px;height:30px;background:#fff;border-radius:7px;transform:rotate(-8deg);display:grid;place-items:center"><span style="width:12px;height:12px;background:#c81e2b;border-radius:3px"></span></span>`
-    : (g.id === 'vrfs' ? '' : `<span style="font-weight:900;font-size:13px;text-align:center;line-height:1.1">${g.label}</span>`);
-  return `<span class="st-thumb" style="background:${g.bg}">${img}${inner}</span>`;
-}
-
-function gameCard(g) {
-  const done = installed.includes(g.id), pct = downloading[g.id];
-  const busy = pct !== undefined;
-  const fav = favs.includes(g.id);
-  const btns = done
-    ? `<button class="st-btn" data-open="${g.id}">ABRIR</button><button class="st-btn" data-rm="${g.id}">REMOVER</button>`
-    : `<button class="st-btn" data-dl="${g.id}" ${busy ? 'disabled' : ''}>${busy ? 'BAIXANDO ' + Math.round(pct) + '%' : 'ADICIONAR À BIBLIOTECA'}</button>`;
-  return `<article class="st-card" data-card="${g.id}">${coverArt(g)}
-    <div class="st-name">${g.name}</div><div class="st-meta">${g.cat}</div>
-    <div class="st-sub">${done ? 'Na biblioteca de apps' : 'Toque para ver e baixar'}</div>
-    <div class="st-row" style="justify-content:flex-end"><button class="st-heart${fav ? ' on' : ''}" data-fav="${g.id}" aria-label="Favorito">${icon('heart')}</button></div>
-    <div class="st-row">${btns}</div></article>`;
-}
+/* ---------- loja ----------
+ * Sem jogos demo embutidos (a coleção demo saiu: os jogos agora vêm do PhoneXR, na Biblioteca),
+ * a loja é honesta: aponta para a biblioteca e diz o que a Horizon+ não inclui.
+ */
+let storeTab = 'apps';
+const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 function buildStore() {
   const root = el('div', 'st');
@@ -447,25 +420,12 @@ function buildStore() {
   let html = `<div class="st-top"><img class="st-logo-img" src="./icons/nextvr-n.png" alt="NextVR"><div class="st-tabs">${tabs}</div>`
     + `<button class="st-ava" data-ava aria-label="Perfil">${icon('user')}</button><button class="st-x" data-x aria-label="Fechar">${icon('x')}</button></div>`;
 
-  if (storeTab === 'apps') {
-    html += `<p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.</p>
-      <div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
-  } else if (storeTab === 'horizon') {
+  if (storeTab === 'horizon') {
     html += `<p class="st-note">Esta loja não inclui uma assinatura Horizon+.</p>`;
-  } else if (storeTab === 'wish') {
-    const list = GAMES.filter(g => favs.includes(g.id));
-    html += list.length
-      ? `<div class="st-sec"><h3>Lista de desejos</h3></div><div class="st-cards">${list.map(gameCard).join('')}</div>`
-      : `<p class="st-note">Selecione o ícone de favorito de um jogo para salvá-lo aqui.</p>`;
   } else {
-    const rank = GAMES.map((g, i) => `<button class="st-ri" data-rank="${g.id}">${thumbArt(g)}
-      <span><span class="st-rk">${i + 1}. ${g.name}</span><div class="st-cat">${g.cat}</div>
-      <div class="st-st">${installed.includes(g.id) ? 'Na biblioteca de apps' : 'Toque para ver e baixar'}</div></span></button>`).join('');
-    const cards = GAMES.map(gameCard).join('');
-    const title = storeTab === 'games' ? 'Todos os jogos' : 'Jogos para você';
-    html += `<div class="st-rank">${rank}</div><div class="st-sec"><h3>${title}</h3>`
-      + (storeTab === 'home' ? `<button data-all>Ver todos</button>` : '') + `</div>`
-      + `<div class="st-cards">${cards}</div>`;
+    html += `<p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.
+      Jogos de headset (PhoneXR) aparecem embarcados na Biblioteca quando o runtime os encontra.</p>
+      <div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
   }
   root.innerHTML = html;
 
@@ -475,17 +435,7 @@ function buildStore() {
     if ((m = q('[data-tab]'))) { storeTab = m.dataset.tab; paintStore(); return; }
     if (q('[data-x]')) { const w = wins.find(x => x.id === 'store'); if (w) close(w); return; }
     if (q('[data-ava]')) { toast('Perfil (demonstração)'); return; }
-    if (q('[data-all]')) { storeTab = 'games'; paintStore(); return; }
     if (q('[data-openlib]')) { libraryApp(); return; }
-    if ((m = q('[data-rank]'))) { root.querySelector(`[data-card="${m.dataset.rank}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    if ((m = q('[data-fav]'))) {
-      const id = m.dataset.fav;
-      favs = favs.includes(id) ? favs.filter(x => x !== id) : [...favs, id];
-      persistShop(); paintStore(); return;
-    }
-    if ((m = q('[data-dl]'))) { startDownload(m.dataset.dl); return; }
-    if ((m = q('[data-rm]'))) { removeGame(m.dataset.rm); return; }
-    if ((m = q('[data-open]'))) { const g = gameById(m.dataset.open); toast(`Abrindo ${g.name}… (demonstração)`); touchLib(g.id); return; }
   });
   return root;
 }
@@ -496,10 +446,6 @@ function paintStore() {
   host.innerHTML = ''; host.appendChild(buildStore());
   host.querySelector('.st').scrollTop = sc;
 }
-function paintProgress(id) {
-  const host = winBody('store'); if (!host) return;
-  host.querySelectorAll(`[data-dl="${id}"]`).forEach(b => { b.textContent = 'BAIXANDO ' + Math.round(downloading[id] || 0) + '%'; });
-}
 function storeApp() {
   const w = wins.find(x => x.id === 'store');
   if (w) { paintStore(); focus(w); return w; }
@@ -508,28 +454,6 @@ function storeApp() {
   paintStore();
   return win;
 }
-
-function startDownload(id) {
-  if (downloading[id] !== undefined || installed.includes(id)) return;
-  downloading[id] = 0; paintStore();
-  const g = gameById(id);
-  toast('Baixando ' + g.name + '…');
-  const timer = setInterval(() => {
-    downloading[id] = Math.min(100, downloading[id] + 6 + Math.random() * 11);
-    if (downloading[id] < 100) { paintProgress(id); return; }
-    clearInterval(timer); delete downloading[id];
-    if (!installed.includes(id)) installed.push(id);
-    touchLib(id, true); persistShop(); paintStore(); paintLibrary();
-    toast(g.name + ' foi para a biblioteca de apps com sucesso');
-  }, 170);
-}
-function removeGame(id) {
-  installed = installed.filter(x => x !== id);
-  libRecent = libRecent.filter(x => x !== id);
-  persistShop(); paintStore(); paintLibrary();
-  toast(gameById(id).name + ' removido da biblioteca');
-}
-
 /* ---------- biblioteca ---------- */
 let libSort = 'recent', libFilter = 'all', libQuery = '';
 const LIB_FILTERS = ['all', 'games', 'apps', 'recent'];
@@ -539,24 +463,24 @@ function touchLib(id, silent) {
   persistShop(); if (!silent) paintLibrary();
 }
 /*
- * NextVR's Applications menu is intentionally limited to apps and games belonging to the game
- * shell. Android-installed apps live only in the dedicated Shizuku window, keeping the two worlds
- * visibly separate. The Shizuku launcher is the single entry point for the phone's app collection.
+ * The Applications menu, as one list: NextVR's own apps and games plus the apps installed on the
+ * phone. There is deliberately no separate Android page, no filter that hides them and no button
+ * that has to be pressed first — an installed app is one more tile among the others, and the search
+ * box, the sort and the "Recentes" filter treat it exactly like a web app.
  */
 function libItems() {
-  const games = GAMES.filter(g => installed.includes(g.id)).map(g => ({ ...g, kind: 'game' }));
-  const apps = LIB_APPS.map(a => ({ ...a, kind: 'app' }));
-  let list = [...games, ...apps];
-  const ord = id => { const i = LIB_ORDER.indexOf(id); return i < 0 ? 99 : i; };
-  list.sort((a, b) => ord(a.id) - ord(b.id));
-  if (libFilter === 'games') list = list.filter(x => x.kind === 'game');
-  if (libFilter === 'apps') list = list.filter(x => x.kind === 'app');
-  if (libFilter === 'recent') list = list.filter(x => libRecent.includes(x.id));
+  // PhoneXR games belong in the NextVR library; ordinary Android packages do not.
+  if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' }))];
+  let filtered = list;
+  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');
+  if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
+  if (libFilter === 'recent') filtered = filtered.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
-  if (q) list = list.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
-  if (libSort === 'az') return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  if (q) filtered = filtered.filter(x => (x.name + ' ' + (x.label || '')).toLowerCase().includes(q));
+  if (libSort === 'az') return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   const rank = item => { const i = libRecent.indexOf(item.id); return i < 0 ? 1e6 : i; };
-  return [...list].sort((a, b) => rank(a) - rank(b));
+  return [...filtered].sort((a, b) => rank(a) - rank(b));
 }
 function appTile(a) {
   const logo = a.slug
@@ -567,12 +491,6 @@ function appTile(a) {
   return `<button class="lib-tile" data-app="${a.id}" aria-label="Abrir ${a.name}">`
     + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand">${cover}</span></span>`
     + `<span class="lib-label">${a.label || a.name}</span></button>`;
-}
-function gameTile(g) {
-  const image = g.img ? `<img class="lib-game-cover" src="${g.img}" alt="" loading="lazy" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '';
-  return `<button class="lib-tile game" data-game="${g.id}" aria-label="Abrir ${g.name}">`
-    + `<span class="lib-cover" style="background:${g.bg}">${image}<span class="lib-art">${g.mark}</span>`
-    + `<span class="lib-vr">VR</span></span><span class="lib-label">${g.name}</span></button>`;
 }
 function buildLibrary() {
   const list = libItems();
@@ -596,12 +514,17 @@ function buildLibrary() {
         <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
       </div>
       <div class="lib-scroll"><div class="lib-grid">${
-        list.map(x => x.kind === 'game' ? gameTile(x) : appTile(x)).join('')
+        list.map(x => x.kind === 'xr' ? xrTileHtml(x)
+          : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
       }</div>
-      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Nenhum jogo baixado ainda. Baixe um na Store.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
+      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
       </div>
     </section>
     `;
+  // PhoneXR readiness belongs to its games filter; Android app status stays in the Shizuku window.
+  const xrNotice = phoneXrNotice();
+  if (xrNotice) root.querySelector('.lib-scroll')?.prepend(xrNotice);
+
   const q = root.querySelector('[data-q]:not([data-q="android"])');
   if (q && libQuery) q.classList.add('open');
   if (q) {
@@ -616,12 +539,25 @@ function buildLibrary() {
     if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
-    if ((m = c('[data-game]'))) {
-      const g = gameById(m.dataset.game); touchLib(g.id);
-      // O jogo abre o mundo 3D nativo com a cena salva dele: geometria e transforms vão para o
-      // renderer GLES2 do Cardboard (não é WebXR), e o workspace some com o estado preservado.
-      toast(`${g.name}: ${t('game.launching')}`);
-      startGame(g.id);
+    if ((m = c('[data-android]'))) {
+      // One action, one owner of the decision: the native side focuses a window that is already
+      // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
+      // shell only brings an existing window forward so the tap always ends on the app.
+      const pkg = m.dataset.android;
+      // The shape travels, not a size: the app is hosted on this phone's own screen, and the window
+      // takes that canvas' shape (see openApp).
+      openApp(pkg);
+      focusAppWindow(pkg);
+      return;
+    }
+    if ((m = c('[data-xr]'))) {
+      // A headset game: the native side has the word on whether it can open here (runtime,
+      // hostable, Shizuku). Refused opens come back as state with the problem, which report()
+      // already shows as a toast — the tile is never a dead end without a name for the reason.
+      // Clicking the hosted game's tile again re-attaches it (a minimized session keeps running).
+      const pkg = m.dataset.xr;
+      if (xrHosting()) restoreXrGame();
+      else launchXrGame(pkg);
       return;
     }
     if ((m = c('[data-app]'))) {
@@ -755,7 +691,11 @@ function makeDock() {
 on('lang', makeDock);
 
 
-/** Count the active Android app windows on their dedicated Shizuku launcher tile. */
+/**
+ * Count badge of the dock's applications tile: how many Android app windows are open right now
+ * (hosted or captured). The tile it sits on opens the same menu the windows are listed in, so the
+ * number is where the user would look for them.
+ */
 function paintWindowBadge() {
   const tile = document.querySelector('.dock [data-id="shizuku"], .dock-app[data-id="shizuku"]');
   if (!tile) return;
@@ -767,7 +707,19 @@ function paintWindowBadge() {
 }
 
 installAndroidApps();
+installXrGames();
 on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
+/**
+ * PhoneXR state/library changed: repaint the library (hosted badge, runtime row) and the PhoneXR
+ * settings page when it is open. The XR game mode itself is handled by xr-games.js; this side only
+ * keeps the abandoned chrome updated.
+ */
+on('xr', () => {
+  paintLibrarySoon();
+  const host = winBody('settings');
+  if (host?.querySelector('[data-xr-page]')) buildXrPage(host.querySelector('[data-xr-page]'));
+});
+
 let libraryPaintTimer = 0;
 /**
  * Repaints the Applications menu a moment after the app state changed, if it is open at all.
@@ -893,7 +845,7 @@ if (native) {
   document.getElementById('perm').hidden = true;
   // A resumed or recreated shell must receive the whole scene again even if nothing moved: the
   // atlas bridge skips payloads that are bit-identical to the one already sent.
-  window.nextvrResume = () => { css3d.invalidate?.(); refreshGame(); startGyro(); if (S.handsOn) startHands(); };
+  window.nextvrResume = () => { css3d.invalidate?.(); startGyro(); if (S.handsOn) startHands(); };
   window.nextvrSuspend = () => { stopHands(); };
   on('hands', () => { document.getElementById('perm').hidden = true; });
 }

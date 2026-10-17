@@ -5,7 +5,11 @@ import { join, extname } from 'node:path';
 import { TextDecoder } from 'node:util';
 
 const roots=['web','tests','docs','nextvr-android/src/main','README.md','package.json','build.gradle','settings.gradle','gradle.properties'];
-const binary=new Set(['.png','.jpg','.jpeg','.webp','.woff2','.wav','.task','.tflite','.zip','.so','.jar','.aar']);
+const binary=new Set(['.png','.jpg','.jpeg','.webp','.woff2','.wav','.task','.tflite','.zip','.so','.jar','.aar',
+  // The bundled PhoneXR runtime is a signed APK we ship verbatim (nextvr-android/build.gradle pins
+  // its bytes) — binary by design, and self-checking via its sha256, so it never goes through the
+  // decoder here.
+  '.apk']);
 const ignored=new Set(['build','node_modules','.gradle','.cxx']);
 async function files(path,out=[]){
   const entries=await readdir(path,{withFileTypes:true}).catch(()=>null);

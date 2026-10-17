@@ -178,9 +178,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-tile').count(),17,
-      'NextVR library contains its 17 own apps and built-in tools; Android packages stay in Shizuku');
+      'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
-      'installed Android apps never leak into the NextVR apps grid');
+      'installed Android packages never appear in the NextVR library');
     // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
     // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
     // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
@@ -189,13 +189,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
     assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
     await page.locator('.lib-nav[data-nav="games"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
+    assert.equal(await page.locator('.lib-tile').count(),0,
+      'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
     await page.locator('.lib-nav[data-nav="recent"]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('.lib-nav[data-nav="all"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete NextVR library');
+    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete NextVR library without Android packages');
     await page.locator('.dock [data-id="store"]').click();
-    await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
+    // The store is the honest shell now: Apps and Horizon+ (the demo-game tabs are gone). Wait for
+    // the window itself to be composited into the atlas, not just for the markup to exist — the
+    // next steps click again and must not race a frame.
+    await page.waitForFunction(()=>document.querySelectorAll('.st-tab').length===2);
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='store'));
     await page.locator('.dock [data-id="browser"]').click();
     await page.waitForFunction(()=>window.__last?.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('iframe').count(),0,'Native browser does not create a privileged iframe');
@@ -208,6 +213,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // shell (nextvrBrowserFocus), the same call the WebView makes on a real site.
     await page.evaluate(()=>window.nextvrBrowserFocus('browser',true));
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
+    // The panel only reaches the bridge on the next frame send (30 Hz throttle), so wait for the
+    // compositor to actually carry the keyboard instead of racing the throttle.
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.rect[1]===3160));
     // Keyboard lies flat like a desk (Meta Quest style): the panel's local +Y (top edge) must
     // point away from the user (-Z). Matrix is column-major: column 1 (elements 4..7) is the
     // local Y basis, so its Z component is elements[6]; lying flat gives sin(pitch) < 0.
@@ -446,23 +454,26 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        DOM never receives a synthetic event for an app window.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    /* ================================ Android apps in the Shizuku launcher =========================
-       The Android packages are isolated in their own window; the NextVR app/game library never mixes
-       them into its own grid. The native app icons and the existing hosted/mirror session flow remain.
+    /* ================================ the installed apps in the Applications menu ==================
+       There is no Android page and no mirror button: the apps installed on the phone are tiles of
+       the Applications menu the shell already had, in the same grid, drawn with the icon the
+       PackageManager returned. The window they open is either the app hosted on its own display or
+       a capture of the phone screen with the app on it, and its badge always says which one it is.
        ============================================================================================= */
-    await page.locator('.dock [data-id="shizuku"]').click();
-    await page.waitForFunction(()=>!!document.querySelector('.android-app-grid'));
-    assert.equal(await page.locator('.lib-tile.android').count(),2,'the Shizuku launcher lists both installed apps');
-    assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
-      'installed Android apps are not mixed into the NextVR library');
-    assert.equal(await page.locator('.android-category').count(),6,'the launcher includes app-category chips');
+    await page.locator('.dock [data-id="library"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
+    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,
+      'no rail entry leads to a separate Android page');
+    assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
+    assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
+      'and they sit in the same grid as the web apps, not in a page of their own');
     assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-sys').count(),1,
       'a system app is marked as one');
     await page.waitForFunction(()=>{
-      const img=document.querySelector('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
       return !!img&&img.complete&&img.naturalWidth>0;},null,{timeout:5000});
     const tileIcon=await page.evaluate(()=>{
-      const img=document.querySelector('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
+      const img=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] img.lib-app-icon');
       return img?{src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth>0}:null;});
     assert.equal(tileIcon?.src,'/apps/org.example.notes.png','the tile uses the icon URL the native side served');
     assert.equal(tileIcon?.loaded,true,'the served icon is a real image the tile keeps');
@@ -470,8 +481,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'an app whose icon could not be read is not left with a broken image');
     assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-cover.noicon .nm').count(),1,
       'it falls back to its initials instead');
-    assert.equal(await page.locator('.android-launcher > .lib-note').count(),1,
-      'the Shizuku access notice is kept inside the Android-only launcher');
+    // The row that explains the mechanism exists only while the shell service is not ready: the phone
+    // without Shizuku still opens apps, through the capture path.
+    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),1,
+      'without the shell service the menu says how an app will be opened');
     assert.ok(await page.locator('.lib-note .az-dot').count()>=1,'the Shizuku state is shown there');
     assert.equal(await page.evaluate(()=>!!document.querySelector('.az-caps')),false,
       'the self-test block stays closed until it is asked for');
@@ -547,18 +560,19 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
-    // With the shell service ready the access notice is gone. Session status and the count badge
-    // remain attached to the isolated Shizuku launcher, not to the NextVR apps library.
+    // With the shell service ready the explanatory row is gone: nothing is left in the menu that
+    // belongs only to the Android integration except the tiles themselves.
     await page.waitForFunction(()=>!document.querySelector('.lib-note'));
+    // The library and the dock repaint their badges when the session list changes.
     await page.waitForFunction(()=>{
-      const open=document.querySelector('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] .lib-open');
-      const badge=document.querySelector('.dock [data-id="shizuku"] .dock-badge');
+      const open=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] .lib-open');
+      const badge=document.querySelector('.dock [data-id="library"] .dock-badge');
       return !!open&&badge?.textContent?.trim()==='1';
     },null,{timeout:12000});
-    assert.equal(await page.locator('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
-      'the Shizuku launcher marks the app that is open in a window');
-    assert.equal(await page.locator('.dock [data-id="shizuku"] .dock-badge').innerText(),'1',
-      'the Shizuku dock tile counts the Android app windows');
+    assert.equal(await page.locator('.lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
+      'the menu marks the app that is open in a window');
+    assert.equal(await page.locator('.dock [data-id="library"] .dock-badge').innerText(),'1',
+      'the dock counts the open app windows');
     assert.equal(await page.locator('.dock [data-id="android"]').count(),0,'and there is no Android dock tile');
     // The same session in capture mode is a mirror, and the window says so.
     await page.evaluate(json=>window.nextvrApps(json),JSON.stringify({

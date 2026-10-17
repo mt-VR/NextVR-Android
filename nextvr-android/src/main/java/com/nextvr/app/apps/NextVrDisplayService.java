@@ -51,7 +51,7 @@ public class NextVrDisplayService extends IDisplayService.Stub {
      * bind time ({@code UserServiceArgs.version}) and mixing a new app with an old service process
      * is what this constant exists to prevent.
      */
-    public static final int SERVICE_VERSION = 4;
+    public static final int SERVICE_VERSION = 5;
 
     private static final int FLAG_PUBLIC = 1;                    // DisplayManager.VIRTUAL_DISPLAY_FLAG_*
     private static final int FLAG_PRESENTATION = 1 << 1;
@@ -396,6 +396,52 @@ public class NextVrDisplayService extends IDisplayService.Stub {
             } catch (Throwable ignored) { }
         }
         return report.toString();
+    }
+
+    /**
+     * Installs an APK from a path this process can read.
+     *
+     * <p>Installing a package is a shell privilege for the same reason creating a display is: an
+     * ordinary app cannot install one, and the PhoneXR OpenXR runtime and its VrApi driver have to be
+     * <em>installed packages</em>, because a game's OpenXR loader resolves the runtime through the
+     * package manager (the system runtime broker answers with the runtime's own package name and
+     * native library folder). No root: Shizuku runs this process as uid 2000.
+     *
+     * <p>{@code -r} replaces an older copy, {@code -d} accepts a lower versionCode (a runtime rebuilt
+     * locally can easily sort below what a previous install claimed), and {@code -g} pre-grants the
+     * runtime permissions the runtime declares, so the user is not asked about them one by one on a
+     * device with no way to reach the system settings page mid-session.
+     */
+    @Override public String installPackage(String path) {
+        if (path == null || path.isEmpty()) return "missing path";
+        java.io.File apk = new java.io.File(path);
+        if (!apk.isFile()) return "no such file: " + path;
+        if (!apk.canRead()) return "cannot read: " + path;
+        try {
+            ProcessBuilder builder = new ProcessBuilder("pm", "install", "-r", "-d", "-g", apk.getAbsolutePath());
+            builder.redirectErrorStream(true);
+            java.lang.Process process = builder.start();
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+            }
+            int code = process.waitFor();
+            String text = output.toString().trim();
+            // `pm install` prints "Success" and exits 0; everything else is the failure text, and it
+            // is the only place the real reason appears (INSTALL_FAILED_OLDER_SDK, a downgrade that
+            // still needs -d, a signature mismatch, no space). Hand it back verbatim.
+            if (code == 0 && text.contains("Success")) {
+                lastError = null;
+                return null;
+            }
+            lastError = text.isEmpty() ? ("pm exited with " + code) : text;
+            return lastError;
+        } catch (Throwable error) {
+            lastError = "install: " + error.getClass().getSimpleName() + ": " + error.getMessage();
+            Log.w(TAG, lastError, error);
+            return lastError;
+        }
     }
 
     /** Runs a shell command and returns its first output line, or the failure in one short line. */

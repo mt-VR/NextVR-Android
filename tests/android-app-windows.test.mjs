@@ -657,13 +657,12 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(shape, /MIN_SHORT_SIDE = 1080/);
   assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
   assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
-  // What the user chose wins, then what the app declares, and an app that declares nothing opens
-  // landscape: a hosted window is used in the headset's landscape frame, and opening those apps
-  // portrait is exactly what made them look sideways/pinned (fix: "prefer landscape for hosted
-  // Android app displays"). The game category already meant landscape on a phone.
+  // An app that declares nothing opens the way hosted windows are seen — landscape, so portrait-
+  // by-default apps no longer open sideways/pinned; remembered and declared shapes still win first.
   assert.match(shape, /if \(isShape\(remembered\)\) return remembered;/);
   assert.match(shape, /if \(isShape\(declared\)\) return declared;/);
-  assert.match(shape, /return LANDSCAPE;/);
+  assert.match(shape, /Hosted windows are used in the headset's landscape frame; default to landscape/);
+  assert.match(shape, /return LANDSCAPE;\n    }\n\n    \/\*\* Same rule without the game hint/);
 
   const web = await read(WEB.androidApps);
   assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
@@ -692,7 +691,7 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
   assert.match(manager, /AppWindowShape\.fromOrientation\(info\.activityInfo\.screenOrientation\)/);
   assert.match(manager, /android\.content\.pm\.ApplicationInfo\.CATEGORY_GAME/,
-    'the game category travels with the app, so a game is never hosted in a portrait canvas');
+    'the game category is what turns "declares nothing" into landscape, as it does on a phone');
   // The resizability note is read reflectively: ActivityInfo.resizeMode is @hide (and so are every
   // RESIZE_MODE_* constant and the deprecated FLAG_RESIZEABLE_FOR_SCREENS bit — checked against AOSP
   // 14), so compiling against it is what broke the build. Unknown must stay "resizeable": the note is
@@ -758,7 +757,8 @@ test('a display that changed shape or turned is followed, not assumed', async ()
     'the size the apps see is reported next to the natural one');
   assert.match(service, /json\.put\("rotation", display\.getRotation\(\)\);/);
   assert.match(service, /display\.getRealSize\(size\);/);
-  assert.match(service, /public static final int SERVICE_VERSION = 4;/, 'the user service changed');
+  assert.match(service, /public static final int SERVICE_VERSION = 5;/,
+    'the user service changed (installPackage), so its version had to rise with it');
 
   const geometry = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplayGeometry.java');
   assert.match(geometry, /boolean turned = quarterTurn && logicalWidth == naturalHeight && logicalHeight == naturalWidth;/,
@@ -810,8 +810,8 @@ test('Android apps are isolated in the dedicated Shizuku launcher', async () => 
     'the NextVR library has no Android category');
   assert.ok(!appsJs.includes("const android = androidApps().map"),
     'the NextVR library never merges installed packages into its own catalog');
-  assert.match(appsJs, /function libItems\(\)[\s\S]*?let list = \[\.\.\.games, \.\.\.apps\]/,
-    'the in-game library contains only NextVR apps and games');
+  assert.match(appsJs, /function libItems\(\)[\s\S]*?const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+    'the NextVR library includes its own apps and PhoneXR games only');
   assert.match(appsJs, /function shizukuWindow\(\)[\s\S]*?title: 'Apps do Android'/,
     'the single Shizuku launcher opens its own Android app window');
   assert.match(appsJs, /const ANDROID_CATEGORIES = \['Todos', 'Jogos', 'Ferramentas', 'Redes Sociais', 'Mídia', 'Produtividade'\]/,
@@ -823,7 +823,8 @@ test('Android apps are isolated in the dedicated Shizuku launcher', async () => 
     'selecting an app opens and focuses the Android app session');
   assert.ok(!/static final String MIRROR_PACKAGE/.test(await read(JAVA.display)),
     'there is no pseudo-package for screen capture');
-  assert.match(appsJs, /function paintWindowBadge\(\)/);
+  assert.ok(appsJs.slice(appsJs.indexOf('function paintWindowBadge()')).includes('data-id=\"shizuku\"'),
+    'the badge belongs to the dedicated Shizuku dock tile');
   assert.ok(!appsJs.includes('runningBadge'), 'the removed Android-library badge is gone');
 
   const web = await read(WEB.androidApps);

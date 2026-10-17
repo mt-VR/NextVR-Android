@@ -80,28 +80,23 @@ The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
 distance from the eye, so moving it never sends it backwards.
-The APK and in-app store use the purple NextVR logo supplied with this request; component icons are
-extracted from `new_references.zip`. The older archive is retained only as historical provenance.
+The current `N` mark and component icons are
+extracted from `new_references.zip`; the older archive is retained only as historical provenance.
 
 ## Android app windows
 
-The dock has a dedicated **Shizuku** launcher for Android apps, separate from NextVR's own app/game
-library. Opening it shows installed Android apps with their real icons, search, and category filters;
-each opens in a floating window in the existing arc. The window content is the real app: a dedicated
-virtual display per app, created by a Shizuku user service running as the `shell` user (no root),
-started with `am start --display`, with the hand's touch injected into that display. If Shizuku is
-not ready, the launcher explains the current access state and the existing phone-screen mirror path
-remains clearly identified as a mirror — never as an embedded app. Resizing a window never leaves
-the session claiming a size the display refused:
-the session only adopts a new size after the display confirms it. Minimize detaches the display surface (the app
-keeps running, frame production stops), restore re-attaches the same surface, and closing releases
-the display and the app's task. Full architecture, API choices, limitations and the on-device
-checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+The dock has one dedicated **Shizuku** launcher for Android apps, separate from NextVR's own
+app/game library. Its window lists the installed Android apps with real icons, search, category
+filters, refresh, and a live result count. Each app opens in its own floating window on a Shizuku
+virtual display. This uses the Shizuku shell-user service (no root); if access is unavailable, the
+launcher explains the current state. The phone-screen mirror remains a separate, clearly labelled
+fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
+and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
 
 Version 1.0.9 adds the approved control-center layout to the settings entry points. Its Wi-Fi and
 Bluetooth cards open Android's system panels; volume, app audio, and display brightness use the
-native bridge. The separate Shizuku launcher now shows a live result count and keeps Android apps
-out of the NextVR library. Its detail gear still opens the full settings tabs.
+native bridge. The separate Shizuku launcher keeps Android apps out of the NextVR library. Its detail
+gear still opens the complete settings tabs.
 
 Approved visual proposals (illustrative design references, not device screenshots):
 
@@ -109,26 +104,22 @@ Approved visual proposals (illustrative design references, not device screenshot
 
 ![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
 
-Static visual previews (illustrative layouts, not device screenshots):
+## Games (PhoneXR)
 
-![Shizuku Android-app launcher preview](artwork/previews/shizuku-launcher-preview.png)
+Headset games are the PhoneXR library: the bundled OpenXR runtime (`org.freedesktop.monado.openxr_runtime.out_of_process`,
+pinned upstream and embedded in the APK) decides per game whether it can be hosted in-headset on
+the phone or has to be opened by the runtime launcher on the phone screen, and the shell reflects
+that state in the Applications menu
+([`docs/PHONEXR-INTEGRATION.md`](docs/PHONEXR-INTEGRATION.md)).
 
-![NextVR settings and panorama preview](artwork/previews/settings-preview.png)
-
-## 3D game platform
-
-Installing a title from the store and opening it in the library now enters a **playable 3D world**
-drawn by the same GLES2 Cardboard pass as the windows, camera and hands — not WebXR. The shell owns
-the scene (three.js geometry uploaded once per type, plus a matrix and colour per object) and the
-native side only rasterizes it with real depth against the windows
-([`docs/GAME-PLATFORM.md`](docs/GAME-PLATFORM.md)).
-
-Entering a game hides every open window, the dock and the keyboard **without touching their state**
-(position, size, 360° curvature, contents, focus and arc order all survive); exiting restores each
-one exactly. In the world a pinch selects and moves an object, the tools panel places, recolours,
-duplicates, rotates, scales and removes them, and both hands pinching the same object rotate and
-scale it. Holding a pinch with **both** hands for ~2 s opens the flat, SteamVR-style game menu
-(Continue / Settings / Exit Game).
+A hostable game opens as **a window in the world driven by the runtime**: the workspace hides with
+its state preserved and restores exactly on exit, the game's stereo canvas is drawn by the same
+GLES2 panel pass as the other windows (left/right halves sampled per eye), and pinch input is
+gated between the shell and the game (a pinch over shell UI never presses a game button, and the
+game never receives a tap into shell windows). Holding a pinch with **both** hands for ~2 s opens
+the flat SteamVR-style game menu (Continue / Settings / Exit Game). There are no built-in demo
+games anymore — Minecraft VR, VRFS, Roblox and Brawl Stars were demo tiles over the 3D sandbox and
+are removed; the storefront points at the library instead of selling them.
 
 Window placement is now free-space aware: `web/src/spawn.js` measures each surface by the angular
 rectangle it occupies in the user's view, so a new window is born where nothing is covered and a
@@ -151,9 +142,7 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Type | Pinch a field — in a browser, a shell window or an Android app — and the floating keyboard appears in front of that window. Pinch a key and it types immediately; hold it to repeat; slide onto the next key to keep typing. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Crosshair/recenter control on the dock. |
-| Play a game | Store → install a title → Library → its tile. The workspace hides and the 3D world opens. |
-| Manipulate an object | Pinch it to select and drag to move; use the tools panel to place, recolour, duplicate, rotate, scale or remove. |
-| Rotate/scale with both hands | Pinch the same object with both hands: the distance scales it, the angle between them rotates it. |
+| Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
 | Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |

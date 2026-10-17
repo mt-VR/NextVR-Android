@@ -45,6 +45,8 @@ import com.nextvr.app.apps.AppSessionManager;
 import com.nextvr.app.apps.AppSurfaceHost;
 import com.nextvr.app.apps.AppWindowController;
 import com.nextvr.app.apps.ShizukuManager;
+import com.nextvr.app.xr.XrGameController;
+import com.nextvr.app.xr.XrHandBridge;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -103,6 +105,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private AppInputController appInput;
     private AppDisplayController appDisplays;
     private AppWindowController appWindows;
+    /**
+     * PhoneXR: the OpenXR runtime, the headset games it can start, and the hand feed that drives
+     * them. A hosted game runs on a display of ours like an app window does, so the whole session —
+     * camera, tracking, compositor and menus — stays alive underneath it. That is what lets the same
+     * pinch that selects a window select something inside a game.
+     */
+    private XrHandBridge xrHands;
+    private XrGameController xrGames;
     /** Sessions this activity suspended because the whole VR activity was paused (not by the user). */
     private final Set<String> pausedSessions=new HashSet<>();
     private ValueCallback<Uri[]> fileCallback;
@@ -143,6 +153,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appWindows=new AppWindowController(this,androidApps,shizuku,appSessions,appDisplays,appInput,shellEnvironment);
         appSessions.setListener(appWindows::onSessionsChanged);
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
+        xrHands=new XrHandBridge();
+        xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
         // The icons are rendered in the background anyway; starting now means the first paint of the
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
@@ -154,6 +166,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
+                // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
+                // being driven, and gating it here would mean a second rule for the same decision.
+                if(xrHands!=null) xrHands.offer(frame);
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
@@ -186,6 +202,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // The previous GL context took every texture slot with it: the hosted apps keep
                     // running, their displays are simply re-pointed at the new surfaces.
                     if(appWindows!=null) appWindows.displays().rebindSurfaces();
+                    if(xrGames!=null) xrGames.command("{\"cmd\":\"restore\"}");
                     startCamera();
                 });
             }
@@ -212,6 +229,47 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @Override public void pushState(){ pushAppState(); }
         @Override public void report(String message){ NextVrActivity.this.report(message); }
     };
+
+    /**
+     * What the PhoneXR session may use from the activity. It asks for the same two things an app
+     * window does — a GL texture slot and the shell user service — plus this phone's screen, because
+     * a hosted game's canvas is sized from it.
+     */
+    private final XrGameController.Environment xrEnvironment=new XrGameController.Environment() {
+        @Override public android.content.Context context(){ return NextVrActivity.this; }
+        @Override public com.nextvr.app.apps.AppSurfaceHost surfaces(){ return NextVrActivity.this; }
+        @Override public com.nextvr.app.apps.IDisplayService display(){ return shizuku==null?null:shizuku.service(); }
+        @Override public void report(String message){ NextVrActivity.this.report(message); }
+        @Override public int[] phoneSize(){ return NextVrActivity.this.phoneSize(); }
+        @Override public int density(){ return getResources().getDisplayMetrics().densityDpi; }
+    };
+    /** How the session talks to the shell WebView, from its own worker thread. */
+    private final XrGameController.Shell xrShell=new XrGameController.Shell() {
+        @Override public void evaluate(String script){ main.post(()->{ if(closed) return; WebSurface s=shell; if(s!=null&&ready) s.evaluate(script); }); }
+    };
+
+    /**
+     * This phone's own screen, long side first.
+     *
+     * <p>Used as the canvas of a hosted game: a VR game asks the runtime for a side-by-side swapchain
+     * and the runtime sizes it to the window, so this is what decides how many pixels each eye gets.
+     * Measured from the real display rather than assumed, because the same code has to be right on a
+     * 720p phone and on a 1440p one.
+     */
+    int[] phoneSize(){
+        android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();
+        int w=metrics.widthPixels,h=metrics.heightPixels;
+        // A windowed activity reports the app's own box, which on a foldable or in a split-screen
+        // session is smaller than the panel. The display is the truth about how big a canvas there is.
+        try {
+            android.hardware.display.DisplayManager manager=
+                (android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE);
+            android.view.Display display=manager==null?null:manager.getDisplay(android.view.Display.DEFAULT_DISPLAY);
+            if(display!=null){ android.graphics.Point size=new android.graphics.Point(); display.getRealSize(size);
+                if(size.x>0&&size.y>0){ w=size.x; h=size.y; } }
+        } catch(Throwable ignored) { }
+        return new int[]{Math.max(w,h),Math.min(w,h)};
+    }
 
     /**
      * Texture slots for app displays, created on the GL thread exactly like the browser surfaces.
@@ -380,6 +438,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
         for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
         if(appWindows!=null) appWindows.onShellResumed();
+        // A hosted game keeps running across a pause: it is in its own task on its own display, and
+        // the resume below re-attaches the same surface and restarts the hand feed — nothing has to
+        // be rebuilt, and the game's task never leaves its display.
+        if(xrGames!=null) xrGames.onActivityResumed();
         // Only the windows *this activity* suspended come back: a window the user minimized from the
         // dock stays minimized across a pause.
         for(String packageName:new ArrayList<>(pausedSessions)) appSessions.restore(packageName);
@@ -393,6 +455,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(appSessions!=null) for(AppSession session:appSessions.sessions())
             if(session.state==AppSession.State.RUNNING && appSessions.minimize(session.packageName))
                 pausedSessions.add(session.packageName);
+        // The hosted game follows the same rule as an app window: its display output detaches while
+        // nothing composites it, and the hand feed stops with the camera (it has nothing new to
+        // send — resume() restarts both, and the game's task never leaves its display).
+        if(xrGames!=null) xrGames.onActivityPaused();
         if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
         for(WebSurface b:browsers.values()) b.pause();
         setAudioEnabled(false); audio.abandonAudioFocusRequest(focus);
@@ -404,6 +470,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         if(appWindows!=null) appWindows.shutdown();
+        if(xrGames!=null) xrGames.shutdown();
         if(shizuku!=null) shizuku.stop();
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
@@ -502,7 +569,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 SpatialRenderer target=renderer; if(target==null) return;
                 boolean specsChanged;
                 synchronized(this) {
-                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null;pushGame(target); }
+                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
                     specsChanged=!browserSpecs.equals(cachedSpecs);
                 }
                 if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
@@ -544,32 +611,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null && !closed) target.setEnvironment(environment,bitmap);
             else if(bitmap!=null) bitmap.recycle();
-        }
-        /**
-         * Mundo 3D jogavel: a casca manda a geometria de cada tipo UMA vez (base64 de Float32Array
-         * little-endian) e a cena a cada mudanca. Um renderer recriado recebe tudo de novo, do
-         * mesmo jeito que a cena de paineis e as superficies de navegador.
-         */
-        private final Map<String,String[]> gameMeshes=new HashMap<>();
-        private String cachedGame;
-        private void pushGame(SpatialRenderer target) {
-            Map<String,String[]> copy; String json;
-            synchronized(this) { copy=new HashMap<>(gameMeshes); json=cachedGame; }
-            for(Map.Entry<String,String[]> e:copy.entrySet())
-                target.game.offerMesh(e.getKey(),e.getValue()[0],e.getValue()[1],e.getValue()[2]);
-            if(json!=null) target.game.offerObjects(json);
-        }
-        @JavascriptInterface public void gameMesh(String kind,String positions,String normals,String indices) {
-            if(kind==null || !kind.matches("[a-z]{1,16}")) return;
-            if(positions==null || normals==null || indices==null) return;
-            if(positions.length()>4000000 || normals.length()>4000000 || indices.length()>1000000) return;
-            synchronized(this) { gameMeshes.put(kind,new String[]{positions,normals,indices}); }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerMesh(kind,positions,normals,indices);
-        }
-        @JavascriptInterface public void gameFrame(String json) {
-            if(json==null || json.length()>200000) return;
-            synchronized(this) { cachedGame=json; }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerObjects(json);
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
@@ -674,6 +715,36 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(state==null) return "null";
             int level=state.getIntExtra("level",0), scale=state.getIntExtra("scale",100), status=state.getIntExtra("status",0);
             return "{\"level\":"+((float)level/Math.max(1,scale))+",\"charging\":"+(status==2||status==5)+"}";
+        }
+        /**
+         * One PhoneXR command from the shell: open/close/minimize/restore a hosted game, install the
+         * runtime, refresh the game list, or run the on-device self test. Posted to the controller's
+         * own worker, because reading a game manifest opens its APK and installing a runtime waits on
+         * {@code pm}; neither may happen on this thread.
+         */
+        @JavascriptInterface public void xrCommand(String json) {
+            if(json==null || json.length()>8000) return;
+            main.post(()->{ if(xrGames!=null && !closed) xrGames.command(json); });
+        }
+        /**
+         * The installed headset games, as JSON. Slow — it opens every candidate APK — so the shell
+         * asks for it once, off the frame path, and caches it until the user refreshes.
+         */
+        @JavascriptInterface public String xrLibrary() {
+            if(xrGames==null) return "{\"games\":[]}";
+            return xrGames.libraryJson();
+        }
+        /** The runtime state and the current session, as JSON. Cheap; safe to poll. */
+        @JavascriptInterface public String xrState() {
+            return xrGames==null?"{}":xrGames.stateJson();
+        }
+        /**
+         * Which gestures are buttons in a game. {@code controllers} makes a pinch the trigger and a
+         * fist the grip; {@code hands} moves the hand with the fingers and presses nothing.
+         */
+        @JavascriptInterface public void xrHandMode(String mode) {
+            XrHandBridge.Mode chosen="hands".equals(mode)?XrHandBridge.Mode.HANDS:XrHandBridge.Mode.CONTROLLERS;
+            main.post(()->{ if(xrGames!=null && !closed) xrGames.handMode(chosen); });
         }
     }
     public void closeSample(View v) { finish(); }

@@ -48,6 +48,13 @@ final class SpatialRenderer {
         String browser;
         boolean overlay;
         final float[] matrix = new float[16], uv = new float[4];
+        /**
+         * The RIGHT eye's sampling rect of a hosted headset game (PhoneXR): the runtime presents its
+         * stereo picture side by side inside one canvas, so the left pass samples the left half of
+         * the game and the right pass the right half — `uv` minus the other half's width. Identical
+         * to {@code uv} for every other surface, which is how the shader stays one program.
+         */
+        final float[] uvR = new float[4];
         final float[] glass = new float[]{0,0,1,1};
         /** Curvatura 360 da janela (radianos de meia-abertura; 0 = plana). */
         float curve;
@@ -141,8 +148,6 @@ final class SpatialRenderer {
     volatile String environmentId = "passthrough";
     final Texture atlas = new Texture();
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
-    /** Objetos do mundo 3D jogável: mesma passada GLES2, profundidade real contra as janelas. */
-    final GameSceneRenderer game = new GameSceneRenderer();
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
@@ -170,24 +175,28 @@ final class SpatialRenderer {
     private final int program;
     private final int aPosition, aUv, uTexture, uTransform, uRect;
     private final int uViewProj, uFlat, uScale, uCurveR, uViewInv, uEnvSphere;
+    private final int uRectR, uEye;
     private final int cameraProgram;
     private final int envProgram;
     private final float[] viewInv = new float[16], viewProj = new float[16];
     private final int[] viewport = new int[4];
     volatile float spanX = 2.2f, spanY = 1.5f;
+    /** Which eye this draw() belongs to: the GL viewport is the only per-eye tell there is. */
+    private float eyeUniform;
     private float[] eyeProjection;
     private int renderPass;
     private final FloatBuffer screen = floats(new float[]{-1,-1, 1,-1, -1,1, 1,1});
     SpatialRenderer() {
         Matrix.setIdentityM(identity, 0);
         program = link(
-            "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform mat4 uTransform; uniform vec4 uRect; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vUv=(uTransform*vec4(uRect.xy+aUv*uRect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.));}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
+            "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform mat4 uTransform; uniform vec4 uRect; uniform vec4 uRectR; uniform float uEye; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vec4 rect=mix(uRect,uRectR,uEye);vUv=(uTransform*vec4(rect.xy+aUv*rect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.));}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
             "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
         uViewProj=GLES20.glGetUniformLocation(program,"uViewProj"); uFlat=GLES20.glGetUniformLocation(program,"uFlat");
         uScale=GLES20.glGetUniformLocation(program,"uScale"); uCurveR=GLES20.glGetUniformLocation(program,"uCurveR");
+        uRectR=GLES20.glGetUniformLocation(program,"uRectR"); uEye=GLES20.glGetUniformLocation(program,"uEye");
         uViewInv=GLES20.glGetUniformLocation(program,"uViewInv"); uEnvSphere=GLES20.glGetUniformLocation(program,"uEnvSphere");
         // A full-screen camera pass before *any* world surfaces. Camera image is never world-locked.
         cameraProgram = link(
@@ -212,6 +221,9 @@ final class SpatialRenderer {
             float x=(float)r.getDouble(0), y=(float)r.getDouble(1), w=(float)r.getDouble(2), h=(float)r.getDouble(3);
             p.uv[0]=x/ATLAS; p.uv[1]=1-(y+h)/ATLAS; p.uv[2]=w/ATLAS; p.uv[3]=h/ATLAS;
             if(!p.browser.isEmpty()) { JSONArray uv=o.getJSONArray("uv"); for(int k=0;k<4;k++) p.uv[k]=(float)uv.getDouble(k); }
+            System.arraycopy(p.uv, 0, p.uvR, 0, 4);
+            if(p.browser.startsWith("xr:")) { JSONArray uvR=o.optJSONArray("uvR");
+                if(uvR!=null) for(int k=0;k<4;k++) p.uvR[k]=(float)uvR.getDouble(k); }
             p.curve=(float)Math.max(0,Math.min(1.2,o.optDouble("curve",0)));
             decompose(p);
             result.add(p);
@@ -244,6 +256,11 @@ final class SpatialRenderer {
     void update() { camera.update(); environment.update(); atlas.update(); for(Texture t:browsers.values()) t.update(); }
     void draw(float[] view, float[] projection) {
         eyeProjection=projection; GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,viewport,0);
+        // Cardboard draws this same patch of gl code once per eye against its own viewport; the
+        // viewport is the signal that tells us which eye is next. That's why a headset game panel
+        // samples the left view's rect in the first pass and the right view's rect in the second
+        // one — the two half-images won't be split per-pass otherwise.
+        eyeUniform=viewport[0]==0?0f:1f;
         Matrix.invertM(viewInv,0,view,0);
         Matrix.multiplyMM(viewProj,0,projection,0,view,0);
         sphere=environment.ready && !"passthrough".equals(environmentId);
@@ -263,9 +280,6 @@ final class SpatialRenderer {
         for(renderPass=0;renderPass<2;renderPass++) {
             GLES20.glDepthMask(renderPass==0);
             for(Panel p:sorted) if(!p.overlay) drawPanel(p);
-            // Mundo 3D do jogo entra entre o passe opaco e o translucido: as janelas solidas o
-            // ocluem de verdade e o vidro das janelas continua na frente dos objetos.
-            if(renderPass==0) game.draw(view,projection);
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
         com.nextvr.app.hands.PhoneXrHands.Frame handFrame=hands;
@@ -306,6 +320,7 @@ final class SpatialRenderer {
         // O #hud e preso na cabeca (era desenhado com a view identidade): projecao pura, sem view.
         GLES20.glUniformMatrix4fv(uViewProj,1,false,panel.overlay?eyeProjection:viewProj,0);
         GLES20.glUniformMatrix4fv(uTransform,1,false,tex.transform,0); GLES20.glUniform4fv(uRect,1,uv,0);
+        GLES20.glUniform4fv(uRectR,1,panel.uvR,0); GLES20.glUniform1f(uEye,eyeUniform);
         // Malha de 48 colunas em vez de um quad: a curvatura 360 dobra a superficie no shader.
         panelMesh.position(0); GLES20.glVertexAttribPointer(aPosition,2,GLES20.GL_FLOAT,false,16,panelMesh);
         panelMesh.position(2); GLES20.glVertexAttribPointer(aUv,2,GLES20.GL_FLOAT,false,16,panelMesh);
