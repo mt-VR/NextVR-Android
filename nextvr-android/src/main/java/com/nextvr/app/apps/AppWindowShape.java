@@ -51,12 +51,13 @@ public final class AppWindowShape {
     /**
      * The shape an app's window opens with: what the user chose for this app (a rotation is
      * remembered), then what the app itself declares, and then — for an app that declares nothing —
-     * the shape the phone would give it: portrait, unless the app says it is a game, which is the one
-     * category that means "landscape" on a phone.
+     * landscape, because a hosted window is used in the headset's landscape frame.
      *
      * <p>Declaring nothing is the common case (it is what most phone apps do, they just follow the
-     * screen), and it is the case that must default to portrait: a phone app that declares nothing is
-     * drawn in portrait on the phone.
+     * screen). On a phone that means portrait, but here the app is hosted on a display inside a VR
+     * window: opening those apps portrait is what made them look sideways/pinned, so the default is
+     * the frame they are actually used in. The game category already means landscape, and an app
+     * that declares a shape — or that the user rotated — still wins over the default.
      */
     public static String of(String remembered, String declared, boolean game) {
         if (isShape(remembered)) return remembered;
@@ -66,7 +67,7 @@ public final class AppWindowShape {
         return LANDSCAPE;
     }
 
-    /** Same rule without the game hint: portrait, which is what a phone would give the app. */
+    /** Same rule without the game hint: the hosted default, landscape. */
     public static String of(String remembered, String declared) {
         return of(remembered, declared, false);
     }

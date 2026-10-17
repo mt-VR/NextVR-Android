@@ -47,13 +47,14 @@ const CAPACITY = 3;
 /**
  * The shape this session's window should have: what the session itself reports (the native side owns
  * the rule and remembers the user's rotation), then what the library entry says, and then the same
- * fallback the native side uses — portrait, unless the app is a game. A phone gives an app that
- * declares nothing the portrait shape, so that is what the shell assumes before it is told otherwise.
+ * fallback the native side uses — landscape (AppWindowShape.of). A hosted app is used in the
+ * headset's landscape frame, so that is what the shell assumes before it is told otherwise: assuming
+ * portrait here is what made a window open tall and then jump when the native shape arrived.
  */
 function shapeOf(pkg, session) {
   if (session?.shape) return session.shape;
   const app = library.apps.find(a => a.pkg === pkg);
-  return app?.shape || app?.orient || (app?.game ? 'landscape' : 'portrait');
+  return app?.shape || app?.orient || 'landscape';
 }
 
 const state = {

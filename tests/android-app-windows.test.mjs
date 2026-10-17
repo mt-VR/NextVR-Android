@@ -638,15 +638,17 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(shape, /MIN_SHORT_SIDE = 1080/);
   assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
   assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
-  // An app that declares nothing gets what the phone would give it — portrait — and a game gets
-  // landscape, which is the one category that means it.
+  // What the user chose wins, then what the app declares, and an app that declares nothing opens
+  // landscape: a hosted window is used in the headset's landscape frame, and opening those apps
+  // portrait is exactly what made them look sideways/pinned (fix: "prefer landscape for hosted
+  // Android app displays"). The game category already meant landscape on a phone.
   assert.match(shape, /if \(isShape\(remembered\)\) return remembered;/);
   assert.match(shape, /if \(isShape\(declared\)\) return declared;/);
-  assert.match(shape, /return game \? LANDSCAPE : PORTRAIT;/);
+  assert.match(shape, /return LANDSCAPE;/);
 
   const web = await read(WEB.androidApps);
-  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| \(app\?\.game \? 'landscape' : 'portrait'\);/,
-    'the shell resolves the shape the same way, game category included');
+  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
+    'the shell resolves the shape the same way the native side does, hosted default included');
   // The window is built from the session's canvas: bars and border on top of its shape, and the element
   // inside what the atlas packs.
   const boxes = await read(WEB.boxes);
@@ -671,7 +673,7 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   const manager = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AndroidAppManager.java');
   assert.match(manager, /AppWindowShape\.fromOrientation\(info\.activityInfo\.screenOrientation\)/);
   assert.match(manager, /android\.content\.pm\.ApplicationInfo\.CATEGORY_GAME/,
-    'the game category is what turns "declares nothing" into landscape, as it does on a phone');
+    'the game category travels with the app, so a game is never hosted in a portrait canvas');
   // The resizability note is read reflectively: ActivityInfo.resizeMode is @hide (and so are every
   // RESIZE_MODE_* constant and the deprecated FLAG_RESIZEABLE_FOR_SCREENS bit — checked against AOSP
   // 14), so compiling against it is what broke the build. Unknown must stay "resizeable": the note is

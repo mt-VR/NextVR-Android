@@ -39,6 +39,7 @@ const STR = {
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
     envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Panorama 360° · pôr do sol', envPassOn:'Passthrough da câmera',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
+    envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -48,6 +49,7 @@ const STR = {
     repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
     moveDock:'Mover a dock',
     androidApps:'Apps do Android', appWindowBadge:'App do Android', appMirrorBadge:'Espelho da tela',
+    shizuku:'Shizuku', noAndroidApps:'Nenhum app do Android disponível ainda.',
     appBack:'Voltar', appHome:'Início', appRecents:'Recentes', appKeyboard:'Digitar no app',
     appRotate:'Girar a janela do app',
     appStarting:'Abrindo o app na janela…', appFailed:'Não foi possível abrir o app',
@@ -105,6 +107,7 @@ const STR = {
     arcFull:'Arc full (max 5 apps) — closing',
     envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'360° panorama · sunset', envPassOn:'Camera passthrough',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
+    envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -114,6 +117,7 @@ const STR = {
     repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
     moveDock:'Move the dock',
     androidApps:'Android apps', appWindowBadge:'Android app', appMirrorBadge:'Screen mirror',
+    shizuku:'Shizuku', noAndroidApps:'No Android apps available yet.',
     appBack:'Back', appHome:'Home', appRecents:'Recents', appKeyboard:'Type into the app',
     appRotate:'Rotate the app window',
     appStarting:'Opening the app in this window…', appFailed:'The app could not be opened',
@@ -171,6 +175,7 @@ const STR = {
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
     envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Panorama 360° · atardecer', envPassOn:'Passthrough de la cámara',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
+    envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -180,6 +185,7 @@ const STR = {
     repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
     moveDock:'Mover el dock',
     androidApps:'Apps de Android', appWindowBadge:'App de Android', appMirrorBadge:'Espejo de pantalla',
+    shizuku:'Shizuku', noAndroidApps:'Aún no hay apps de Android disponibles.',
     appBack:'Atrás', appHome:'Inicio', appRecents:'Recientes', appKeyboard:'Escribir en la app',
     appRotate:'Girar la ventana de la app',
     appStarting:'Abriendo la app en esta ventana…', appFailed:'No se pudo abrir la app',
@@ -328,10 +334,12 @@ on('quality', resize);
  * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
  * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'sunset', 'night', 'space']);
+export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'virtual', 'palm', 'sunset', 'night', 'space']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
+  { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
+  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
