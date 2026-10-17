@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, envList, startGyro, gyroLive, native, css3d,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d,
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
@@ -177,14 +177,25 @@ function settingsApp() {
     }],
     [t('env'), () => { page.innerHTML = ''; page.append(el('h2', null, t('env')));
       page.append(el('p', 'sub', 'Passthrough da câmera ou um panorama 360° em volta de você.'));
+      const c = el('div', 'card');
+      // Interruptor do passthrough: não é uma chave de S; reflete S.env === 'passthrough'.
+      const sw = el('button', 'sw');
+      const syncSwitch = () => { sw.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
+      sw.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncSwitch(); paintGrid(); };
+      syncSwitch();
+      c.append(row(t('envPassOn'), 'Desligado mostra o último panorama (padrão: lagoa ao pôr do sol)', sw));
+      page.append(c);
       const g = el('div', 'grid3');
+      const paintGrid = () => [...g.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.env === S.env)));
       for (const e of envList()) {
         const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+        b.dataset.env = e.id;
         b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-        b.innerHTML = `<span>${e.name}</span>`; b.setAttribute('aria-pressed', S.env === e.id);
-        b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
+        b.innerHTML = `<span>${e.name}</span>`;
+        b.onclick = () => { setEnvironment(e.id); syncSwitch(); paintGrid(); };
         g.appendChild(b);
       }
+      paintGrid();
       page.append(g);
     }],
     [t('perf'), () => {

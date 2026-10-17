@@ -14,7 +14,8 @@ const DEF = {
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
-  env: 'passthrough', quality: 'auto', showFps: 0,
+  // Passthrough é o padrão. `panorama` é o fundo usado quando o passthrough é desligado.
+  env: 'passthrough', panorama: 'lagoon', quality: 'auto', showFps: 0,
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
@@ -36,7 +37,7 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
-    envPass:'Camera passthrough', envSunset:'Panorama 360° · pôr do sol',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Panorama 360° · pôr do sol', envPassOn:'Passthrough da câmera',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
@@ -102,7 +103,7 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
-    envPass:'Camera passthrough', envSunset:'360° panorama · sunset',
+    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'360° panorama · sunset', envPassOn:'Camera passthrough',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
@@ -168,7 +169,7 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
-    envPass:'Camera passthrough', envSunset:'Panorama 360° · atardecer',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Panorama 360° · atardecer', envPassOn:'Passthrough de la cámara',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
@@ -327,19 +328,25 @@ on('quality', resize);
  * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
  * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space']);
+export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'sunset', 'night', 'space']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';
+  // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
+  if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
   // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
   window.NativeXR?.env?.(S.env);
 }
+
+/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: lagoa). */
+export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
 
 /* ============================ giroscópio ============================ */
 /*
