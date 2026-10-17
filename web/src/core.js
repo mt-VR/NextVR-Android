@@ -9,7 +9,9 @@ import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 /* ============================ estado ============================ */
 const DEF = {
   lang: null,
-  handsOn: true, handDraw: 0,
+  // O contorno da mao e ligado por padrao: e o que mostra ONDE a mao esta apontando. O feixe e o
+  // cursor continuam desenhando de qualquer forma (showSilhouette so cobre o contorno).
+  handsOn: true, handDraw: 1,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
@@ -19,7 +21,14 @@ const DEF = {
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
-if(native){S=migrateComfort(S);S.handsOn=true;try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
+if(native){S=migrateComfort(S);S.handsOn=true;
+  // O contorno da mao ja foi padrao de verdade no passado, e o 0 antigo era gravado no storage
+  // no primeiro launch nativo — entao um 0 guardado quase sempre e o padrao velho herdado, e nao
+  // uma escolha do usuario. Sobe uma vez so; depois disso o interruptor da settings funciona.
+  // (A linha acima fica intacta de proposito: o guard de input-isolation ancora nela.)
+  if(!S.handDrawSeen){S.handDraw=DEF.handDraw;S.handDrawSeen=1;}
+  try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}
+}
 export const settings = S;
 export const save = () => { try { localStorage.setItem('nextvr.v1', JSON.stringify(S)); } catch {} };
 
