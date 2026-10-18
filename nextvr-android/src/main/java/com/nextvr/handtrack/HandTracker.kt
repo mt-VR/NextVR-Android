@@ -14,9 +14,9 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
  *    can report both at once. It runs while searching, whenever tracking is lost, and continuously
  *    while two hands are present.
  *  - **Tracking graph** ([narrowGraph]): one slot and the stricter threshold. Once search finds
- *    exactly one hand, this graph handles the ordinary single-hand case. A two-slot probe runs every
- *    [PROBE_MS] so a second hand is discovered promptly without paying the two-slot cost on every
- *    one-hand frame.
+ *    exactly one hand, this graph handles the ordinary single-hand case. A two-slot probe runs
+ *    every [PROBE_FRAMES] so a second hand is discovered promptly without paying the two-slot cost
+ *    on every one-hand frame.
  *
  * The second-hand probe is a real two-hand frame, not a second always-on model or background task.
  * If it sees two hands, the wide graph stays active until the scene returns to one hand. The next
@@ -37,7 +37,7 @@ class HandTracker @JvmOverloads constructor(
     private var narrow: HandLandmarker? = null
     private var lastTimestamp = -1L
     /** Pure slot/cadence policy, also covered by JVM tests without constructing MediaPipe. */
-    private val slots = HandSlotPolicy(WIDE_HANDS, PROBE_MS)
+    private val slots = HandSlotPolicy(WIDE_HANDS, PROBE_MS, PROBE_FRAMES)
     /** Which graph processed the last frame, for the perf log. */
     private var lastFrameNarrow = false
 
@@ -68,7 +68,10 @@ class HandTracker @JvmOverloads constructor(
         try {
             // The two-slot graph is also the live graph while both hands are present. With one
             // hand, a periodic two-slot probe keeps the other hand discoverable without taxing the
-            // common single-hand tracking frames.
+            // common single-hand tracking frames. The probe is bounded by processed frames as well
+            // as by camera time: on a slow device the camera clock runs far ahead of the tracker,
+            // and a camera-time probe alone would fire on every frame and never reach the one-slot
+            // graph (the split's whole reason to exist).
             val searching = slots.useWide(stamp)
             val active = if (searching) wide else narrowGraph()
             // The upright pipeline feeds rotation 0 every frame: the plain overload is the same graph
@@ -137,7 +140,18 @@ class HandTracker @JvmOverloads constructor(
         /** The graph used while NOTHING is tracked: lower bar for a hard-to-see hand, still high
          * enough that noise is not promoted to a hand (the fork's crop rescue used .3 on a crop). */
         const val SEARCH_CONFIDENCE = .25f
-        /** Find a second hand within a quarter-second while keeping one-hand frames on the fast graph. */
+        /**
+         * Find a second hand while keeping one-hand frames on the fast graph: at most one two-slot
+         * frame in this many processed frames.
+         *
+         * Counted in frames, not milliseconds. The camera keeps producing frames while the tracker
+         * is busy, so on a slow device the camera clock runs far ahead of the results: a probe
+         * paced in camera time alone fires on EVERY processed frame there, the two-slot graph runs
+         * on every frame, and the one-slot fast path - 2.47x cheaper for a single tracked hand -
+         * never runs at all. Frames keep the two-slot share of the work bounded on every device.
+         */
+        const val PROBE_FRAMES = 4
+        /** Camera-time interval a second-hand probe also has to respect. */
         const val PROBE_MS = 250L
     }
 }

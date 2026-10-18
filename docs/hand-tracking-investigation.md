@@ -7,7 +7,12 @@
 - **Correção aplicada:** a câmera publica sempre o frame mais novo em um slot de tamanho 1 (`LatestFrameSlot`); o thread de tracking o consome assim que está livre. Nada enfileira; frames substituídos são liberados e contados como `dropped`.
 - **Rescue (resgate de mão por YOLO) saiu do thread de tracking:** antes ele rodava de forma síncrona (~20 ms no host por ocorrência). Agora roda em thread próprio, uma tarefa por vez, com intervalo mínimo de 33 ms, e o resultado é fundido só se tiver até 250 ms (`RescueMerger.MAX_AGE_MS`).
 - **Medição separada:** `NextVR-Perf` (logcat) reporta FPS de câmera e render (FPS do app), FPS efetivo do tracking, latência de inferência, captura→landmark (quando o sensor usa relógio REALTIME), acquire→landmark, publicação no WebView, frames descartados, CPU e memória.
-- **Não medido ainda:** FPS real, latência e jitter em aparelho Android; latência de gesto (ponta a ponta, com câmera filmada); estabilidade em sessões longas; comportamento do GPU delegate. Tudo isso exige o APK em um telefone (ver `tools/perf/README.md`).
+- **Leitura pontual recebida do headset (18/10/2026):** `tracking 2 fps · cam 54 · infer 382ms · CPU · slots 2`. Uma mão só no quadro, e mesmo assim `slots 2` — o grafo de duas slots em **todos** os quadros. A câmera não é o gargalo (54 fps); o modelo é.
+- **Causa raiz dessa leitura (medida no código, não no aparelho):** o probe que procura a segunda mão era contado em **tempo de câmera** (`stamp - lastSearchMs >= 250 ms`). Mas a câmera continua produzindo quadros enquanto o tracker está ocupado: em um aparelho lento, dois quadros **processados** consecutivos distam um inference inteiro no relógio da câmera — muito além de qualquer intervalo de probe. O probe disparava então em **todo** quadro, o grafo de duas slots pagava o imposto de 2,47x em cada quadro, e a trilha rápida de uma slot **nunca rodava**. A leitura `slots 2` com uma mão no quadro é exatamente essa degeneração.
+- **Correção aplicada:** o probe passou a exigir **os dois** limites — um mínimo de quadros processados (`PROBE_FRAMES = 4`) **e** o intervalo de tempo de câmera (`PROBE_MS = 250 ms`). O limite de quadros é o que importa para o split (mantém a fatia de duas slots limitada em qualquer aparelho); o limite de tempo é o que mantém a segunda mão encontrável em um quarto de segundo num aparelho rápido. O intervalo efetivo é o **maior** dos dois.
+- **Efeito previsto (simulação com os números do próprio aparelho: 382 ms no grafo de duas slots, 155 ms no de uma):** de 100% para 25% de quadros no grafo de duas slots; inference médio 382 → 212 ms; 2,6 → 4,7 atualizações por segundo; a mão acompanha o movimento ~170 ms antes.
+- **Delegate GPU:** permanece **desligado** (`MAX_GPU_ATTEMPTS = 0`). O PR #29 mediu o delegate GPU em 500 ms/quadro neste aparelho, contra 85–100 ms da CPU — a GPU é mais lenta aqui, e a tentativa só custaria um quadro. O watchdog (`DelegateWatch`) e o caminho de queda para CPU continuam no código para quando essa medição mudar.
+- **Ainda não medido no aparelho:** o FPS/latência/jitter depois da correção; a latência de gesto ponta a ponta (com câmera filmada); a estabilidade em sessões longas. Consulte `tools/perf/README.md`.
 
 Os números de hardware abaixo são de um host de desenvolvimento (2 vCPU, sem GPU). Eles servem como referência reproduzível do custo dos modelos, **não** como FPS de celular.
 
@@ -1481,3 +1486,101 @@ conta do log, na tela do aparelho.
 - LIVE_STREAM (`send()`): é o caminho do MediaPipe que **não** espera o grafo drenar, então é o que
   medir se o `waitUntilGraphIdle()` por frame for o teto em aparelho — mas troca o contrato do motor
   inteiro (resultado por callback, não por retorno). Não se faz isso sem medir.
+
+# 2026-10-18 (12ª rodada) — "a mão demora para acompanhar o movimento": o probe que nunca parava
+
+A queixa voltou como "a mão demora para acompanhar o movimento", e o aparelho respondeu com uma
+leitura só: **`tracking 2 fps · cam 54 · infer 382ms · CPU · slots 2`**. Os quatro números juntos
+dizem quase tudo, e nenhum deles aponta para a câmera.
+
+## 1. O que a leitura diz (e o que não diz)
+
+| Leitura | Significado | Veredito |
+|---|---|---|
+| `cam 54` | a câmera entrega 54 quadros/s | **não é o gargalo** |
+| `infer 382ms` | cada inferência custa 382 ms | **é o gargalo** |
+| `CPU` | o delegate em uso | correto neste aparelho (ver §4) |
+| `slots 2` | o grafo de **duas** slots roda em todos os quadros | **a pista decisiva** |
+| `tracking 2 fps` | 1/0,382 s = 2,6/s | consequência direta de `infer` |
+
+`slots 2` com **uma** mão no quadro é a contradição que manda a busca: o `web/src/core.js` diz
+exatamente isso — *"uma mão só e `slots 2` persistente = a trilha rápida de uma slot não está
+entrando"*. E a trilha rápida de uma slot é justamente o que economiza 2,47x por quadro (medido
+neste repositório: 29,1 ms com duas slots contra 11,8 ms com uma, para a mesma mão rastreada).
+
+## 2. A causa raiz: o probe era contado no relógio errado
+
+O probe que procura a segunda mão vivia em `HandSlotPolicy.useWide()`, e a condição era:
+
+```kotlin
+timestampMs - lastSearchMs >= probeMs      // probeMs = 250 ms
+```
+
+`timestampMs` é o **carimbo da câmera**. E aqui está o problema: a câmera continua produzindo
+quadros enquanto o tracker está ocupado com uma inferência. Em um aparelho onde a inferência
+custa 382 ms, dois quadros **processados** consecutivos estão separados por 382 ms no relógio da
+câmera — muito além dos 250 ms do probe. O probe disparava, então, em **todo** quadro.
+
+Reproduzindo a política exatamente como estava, com os números do próprio aparelho:
+
+```
+dois-slot: 30/30 (100%)   um-slot: 0 (0%)
+=> a trilha rápida de uma slot NUNCA rodou; todo quadro pagou o imposto de 2,47x
+```
+
+E o pior: isso é um laço que se alimenta. O grafo de duas slots é mais lento → a inferência
+sobe → o intervalo entre quadros processados cresce → o probe dispara ainda com mais frequência.
+O dispositivo cai para ~2,6 atualizações/s e fica lá.
+
+## 3. A correção: o probe passa a exigir os dois limites
+
+O probe agora só roda quando **os dois** limites forem cumpridos:
+
+- **um mínimo de quadros processados** (`PROBE_FRAMES = 4`) — é o limite que o split depende: a
+  fatia de quadros no grafo de duas slots tem que ficar limitada em **qualquer** aparelho, e só a
+  contagem de quadros garante isso;
+- **o intervalo de tempo de câmera** (`PROBE_MS = 250 ms`) — é o limite que mantém a segunda mão
+  encontrável num quarto de segundo num aparelho rápido, onde quatro quadros passam em ~130 ms.
+
+Como o probe exige os dois, o intervalo efetivo é o **maior** deles: o limite de quadros no
+aparelho lento (onde um quarto de segundo é fisicamente inalcançável — um único resultado já custa
+mais que isso) e o limite de tempo no rápido.
+
+O mesmo problema tinha um segundo sintoma, agora coberto: uma mão que o grafo de uma slot
+perdia voltava a ser empurrada para ele no quadro seguinte, e os dois grafos se alternavam — o
+largo readquirindo, o estreito perdendo de novo. A mão agora fica no grafo de duas slots por
+alguns quadros (`reacquireFrames`), então um grafo fica responsável por ela.
+
+Efeito previsto, simulando com os números do próprio aparelho (382 ms no grafo de duas slots,
+155 ms no de uma, uma mão no quadro):
+
+| | quadros de duas slots | inference médio | atualizações/s | intervalo |
+|---|---|---|---|---|
+| antes | 100% | 382 ms | 2,6 | 382 ms |
+| depois | 25% | 212 ms | 4,7 | 212 ms |
+
+**1,80x mais atualizações de mão, e a mão acompanha o movimento ~170 ms antes.** A previsão já
+existente (extrapolação para o instante do display) continua valendo — ela cobre o intervalo
+entre resultados, não o custo de produzir o próximo.
+
+## 4. O delegate GPU: continua desligado, e agora por um motivo medido
+
+O PR #29 mediu o delegate GPU em **500 ms por quadro neste aparelho**, contra 85–100 ms da CPU.
+Ou seja: neste aparelho a GPU é *mais lenta*, e `MAX_GPU_ATTEMPTS` volta a **0** — tentar a GPU
+só custaria um quadro para cair de volta na CPU. O `DelegateWatch` (que julga o delegate por
+custo medido e por "delegate silencioso") e o caminho de queda para CPU continuam no código, para
+quando essa medição mudar.
+
+## 5. Validação
+
+- **Kotlin/JVM:** `HandSlotPolicyTest` (8 testes) reescrito para a nova política e executado
+  localmente com o compilador Kotlin — todos passam. Os testes novos cobrem justamente a
+  regressão: *"theProbeIsCountedInFramesSoASlowDeviceStillReachesTheOneSlotGraph"* (o probe não
+  pode disparar em todo quadro num aparelho lento) e *"aFastDeviceStillProbesOnTheCameraTimeBound"*
+  (num aparelho rápido a segunda mão continua a aparecer dentro do quarto de segundo).
+- **Node:** `npm test` — 122 passam, 0 falham, 11 pulados (os visuais dependem de Chromium, ausente
+  neste sandbox). `tests/two-hand-tracking.test.mjs` ganhou a asserção estática do limite de
+  quadros.
+- **Não medido no aparelho:** o FPS e a latência depois da correção. É a leitura que fecha a
+  queixa: o mesmo contador (`Configurações → Geral → FPS → Mostrar contador`) deve mostrar
+  `slots 1` no caso de uma mão e `infer` bem abaixo de 382 ms.
