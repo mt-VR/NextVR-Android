@@ -114,10 +114,13 @@ primeiro.
 1. Biblioteca → os jogos de headset aparecem junto das outras (badge "XR"). Sem runtime: uma nota
    PhoneXR explica e oferece "Instalar runtime" (quando o APK vem embutido) e "Verificar agora"
    (self-test de toda a corrente).
-2. Toque na tile → o lado nativo decide (`open`): runtime pronto? Shizuku? o jogo é `hostable`?
-   → publica o estado, a shell entra no modo de jogo. Negação vem de volta com o motivo e vira toast.
-3. Deu certo: a janela aparece com o jogo e a mão vira controle.
-4. Saída: menu do jogo → Sair, ✕ da janela, ou fechar a janela da mão — o lado nativo solta o mundo,
+2. Toque na tile para abrir o menu de pré-jogo. Escolha a qualidade (65%, 82% ou 100% da
+   resolução) e o modo de entrada (controles ou mãos); essas escolhas ficam salvas.
+3. **Iniciar** envia o pacote real ao lado nativo (`open`), que verifica runtime, Shizuku e `hostable`.
+   A resolução do buffer e o density da display são escalados juntos para manter o layout lógico do
+   jogo. Se algo impedir a abertura, o motivo aparece no menu e o jogo não é substituído por uma demo.
+4. Deu certo: a janela aparece com o jogo e a mão vira controle.
+5. Saída: menu do jogo → Sair, ✕ da janela, ou fechar a janela da mão — o lado nativo solta o mundo,
    publica `hosting=false`, e a shell restaura o workspace.
 
 ## 7. Onde vive cada pedaço
@@ -128,6 +131,7 @@ nextvr-android/src/main/java/com/nextvr/app/xr/
   XrManifest.java        leitor binário do AndroidManifest.xml (targetSdk, queries, categorias)
   XrGameLibrary.java     varredura/classificação dos APKs, e o launch de cada geração
   XrGameController.java  a sessão: display, surface, feed da mão, comandos, estado JSON
+  XrRenderQuality.java   escalas de resolução e densidade da display antes de iniciar
   XrHandProtocol.kt      o formato de pacote (PH5/PH6, portas 42424/42425)
   XrHandBridge.kt        frame de rastreamento → controle, feed 60 Hz, bloqueio de UI
 nextvr-android/src/main/java/com/nextvr/app/apps/

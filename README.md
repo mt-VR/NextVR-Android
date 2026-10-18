@@ -112,7 +112,10 @@ Headset games are the PhoneXR library: the bundled OpenXR runtime (`org.freedesk
 pinned upstream and embedded in the APK) decides per game whether it can be hosted in-headset on
 the phone or has to be opened by the runtime launcher on the phone screen, and the shell reflects
 that state in the Applications menu
-([`docs/PHONEXR-INTEGRATION.md`](docs/PHONEXR-INTEGRATION.md)).
+([`docs/PHONEXR-INTEGRATION.md`](docs/PHONEXR-INTEGRATION.md)). Selecting a game opens a
+pre-launch menu: choose performance, balanced, or full resolution, pick controllers or hand input,
+then press **Iniciar** to start the installed game through PhoneXR. Resolution presets scale the
+native game buffer and display density together so the game's logical layout stays consistent.
 
 A hostable game opens as **a window in the world driven by the runtime**: the workspace hides with
 its state preserved and restores exactly on exit, the game's stereo canvas is drawn by the same
@@ -145,7 +148,7 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Type | Pinch a field — in a browser, shell window or Android app — to show the floating keyboard. Pinch a key to type; hold it to repeat or slide onto the next key. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Quick Settings → “Redefinir visualização”. |
-| Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
+| Play a game | Library → Games filter → select a game, set quality and input mode, then press **Iniciar** to launch the installed game through PhoneXR. |
 | Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |

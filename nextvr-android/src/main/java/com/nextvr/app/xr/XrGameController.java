@@ -110,6 +110,7 @@ public final class XrGameController {
     private Surface gameSurface;
     private volatile String problem;
     private volatile boolean busy;
+    private volatile String gameQuality = XrRenderQuality.BALANCED;
     private volatile XrHandBridge.Mode handMode = XrHandBridge.Mode.CONTROLLERS;
 
     public XrGameController(Environment env, Shell shell, XrHandBridge hands) {
@@ -195,8 +196,9 @@ public final class XrGameController {
         }
         final String name = command.optString("cmd", "");
         final String packageName = command.optString("package", "");
+        final String quality = command.optString("quality", XrRenderQuality.BALANCED);
         switch (name) {
-            case "open": offMain(() -> open(packageName)); break;
+            case "open": offMain(() -> open(packageName, quality)); break;
             case "close": offMain(this::close); break;
             case "minimize": offMain(this::minimize); break;
             case "restore": offMain(this::restore); break;
@@ -230,11 +232,12 @@ public final class XrGameController {
 
     // ------------------------------------------------------------------ the session
 
-    private void open(String packageName) {
+    private void open(String packageName, String requestedQuality) {
         if (busy) {
             env.report("A game is already being started");
             return;
         }
+        gameQuality = XrRenderQuality.normalize(requestedQuality);
         if (current != null && current.packageName.equals(packageName)) return;
         if (current != null) close();
         busy = true;
@@ -279,7 +282,7 @@ public final class XrGameController {
             // The feed starts before the game does, so the first frame it renders already has hands
             // in it; a game that polls its input once at startup would otherwise never see a hand.
             hands.start(handMode, true, true);
-            startDisplay(service, component, size[0], size[1]);
+            startDisplay(service, component, size[0], size[1], XrRenderQuality.density(env.density(), gameQuality));
         } finally {
             busy = false;
             publishState();
@@ -290,18 +293,19 @@ public final class XrGameController {
      * The canvas a hosted game draws into: this phone's own screen, long side across.
      *
      * <p>A VR game asks the runtime for a side-by-side swapchain and the runtime sizes it to the
-     * window, so the canvas decides how many pixels each eye gets. A real phone screen means a real
-     * phone screen's worth per eye, and it is the same rule the Android app windows use: a game laid
-     * out for less than that looks wrong in a way no window scaling can repair.
+     * window, so the canvas decides how many pixels each eye gets. The launch menu scales that
+     * buffer to the selected quality preset and scales display density by the same factor, preserving
+     * the game's logical dp layout while trading pixels for GPU headroom.
      */
     public int[] canvasSize() {
         int[] size = env.phoneSize();
         int longSide = Math.max(size[0], size[1]);
         int shortSide = Math.min(size[0], size[1]);
-        return new int[]{Math.max(longSide, AppWindowShape.MIN_LONG_SIDE), shortSide};
+        return XrRenderQuality.canvas(Math.max(longSide, AppWindowShape.MIN_LONG_SIDE),
+                shortSide, gameQuality);
     }
 
-    private void startDisplay(IDisplayService service, String component, int width, int height) {
+    private void startDisplay(IDisplayService service, String component, int width, int height, int density) {
         env.surfaces().acquire(surfaceId(current.packageName), width, height,
                 new AppSurfaceHost.Callback() {
                     @Override public void ready(SurfaceTexture texture) {
@@ -309,7 +313,7 @@ public final class XrGameController {
                         gameSurface = new Surface(texture);
                         int id;
                         try {
-                            id = service.createDisplay(gameSurface, width, height, env.density());
+                            id = service.createDisplay(gameSurface, width, height, density);
                         } catch (Throwable error) {
                             problem = "The shell service died creating the display: " + error.getMessage();
                             publishState();
@@ -483,6 +487,7 @@ public final class XrGameController {
             root.put("problem", problem == null ? JSONObject.NULL : problem);
             root.put("handFeed", hands.packetsSent());
             root.put("handMode", handMode.name().toLowerCase());
+            root.put("gameQuality", gameQuality);
             // The canvas a hosted game draws into, so the shell window can take its exact shape
             // (this phone's screen, long side across). The window is the shell's business; this only
             // says what the game is being given, the way an app session reports its display.
@@ -554,6 +559,7 @@ public final class XrGameController {
             root.put("broker", runtime.brokerInstalled());
             root.put("runtimeLibrary", runtimeLibrary());
             root.put("shell", env.display() != null);
+            root.put("gameQuality", gameQuality);
             int[] size = canvasSize();
             root.put("canvas", size[0] + "x" + size[1]);
             root.put("handFeed", hands.packetsSent());
