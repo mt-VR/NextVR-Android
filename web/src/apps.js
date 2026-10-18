@@ -28,7 +28,7 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
 function webWindow(id, title, url, note) {
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
-  const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
+  const bar = el('div', 'row browser-bar');
   const fld = el('input', 'fld'); fld.value = url; fld.placeholder = t('search');
   const go = el('button', 'go', icon('enter')); go.setAttribute('aria-label', t('open')); go.title=t('open');
   const out = el('button', 'go', icon('external')); out.setAttribute('aria-label', t('open')); out.title=t('open'); out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';

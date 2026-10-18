@@ -259,6 +259,16 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const browserSpec=await page.evaluate(()=>window.__last.browsers.find(b=>b.id==='browser'));
     assert.equal(browserSpec.url,'https://duckduckgo.com/');
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
+    const addressBar=await page.locator('.win-shell[data-window-id="browser"] .browser-bar').evaluate(e=>({
+      height:Math.round(e.getBoundingClientRect().height),
+      fieldHeight:Math.round(e.querySelector('.fld').getBoundingClientRect().height),
+      buttonHeight:Math.round(e.querySelector('.go').getBoundingClientRect().height),
+      fontSize:getComputedStyle(e.querySelector('.fld')).fontSize,
+    }));
+    assert.ok(addressBar.height<=54,'the URL row is compact and gives more height back to the web page');
+    assert.equal(addressBar.fieldHeight,42,'the compact URL field remains large enough to tap');
+    assert.equal(addressBar.buttonHeight,42,'browser actions match the compact address field height');
+    assert.equal(addressBar.fontSize,'16px','the URL remains easy to read while taking less space');
     // The keyboard has no dock tile any more: it opens the way it opens for a user, when a text
     // field takes the focus — here a field in the hosted page, which is the native side telling the
     // shell (nextvrBrowserFocus), the same call the WebView makes on a real site.
