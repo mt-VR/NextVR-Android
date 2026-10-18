@@ -39,7 +39,7 @@ function occupiedBoxes(except = null) {
 
 /* =================== uma janela =================== */
 class Win {
-  constructor({ id, title, node, w = 1040, h = 660, onboarding = false }) {
+  constructor({ id, title, node, w = 1040, h = 660, onboarding = false, chrome = true, resizable = true }) {
     this.onboarding=onboarding;
     this.id = id; this.title = title; this.w = w; this.h = h;
     this.pinned = true;                       // nasce presa acima da dock
@@ -79,6 +79,13 @@ class Win {
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
       else repin(this);
     });
+    // Screenshot-style windows hide the stock bar but keep a small contextual way back to the arc
+    // when the user has detached them. Do not treat the Android app bar's other data-act buttons as
+    // window controls.
+    el.addEventListener('click', e => {
+      const pin = e.target.closest('[data-act="pin"]');
+      if (pin && !el.querySelector('.win-bar')?.contains(pin)) repin(this);
+    });
 
     const handle = document.createElement('div');
     handle.className = 'win-handle';
@@ -86,6 +93,7 @@ class Win {
     handle.setAttribute('aria-label', t('moveWindow'));
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'win-resize';
+    resizeHandle.hidden = !resizable;
     resizeHandle.title = t('resize');
     resizeHandle.setAttribute('aria-label', t('resize'));
     resizeHandle.innerHTML = icon('move');
@@ -93,8 +101,9 @@ class Win {
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
     shell.dataset.curve = String(this.curve);
-    // A janela de primeiro uso (idioma) é só o cartão: sem barra de título, como na referência.
-    if (onboarding) el.querySelector('.win-bar').hidden = true;
+    // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
+    // controles no DOM, como as referências Quest. O onboarding também não usa a barra genérica.
+    if (onboarding || !chrome) el.querySelector('.win-bar').hidden = true;
     this.obj = new CSS3DObject(shell);
     this.obj.scale.setScalar(PX * (this.onboarding ? COMFORT.welcomeScale : S.winScale));
     contentRoot.add(this.obj);
@@ -831,7 +840,8 @@ export function buildDock(items) {
       b.className = 'dock-av'; b.innerHTML = AVATAR_SVG;
     } else if (it.kind === 'status') {
       b.className = 'dock-status';
-      b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span><span class="dk-bat">${BAT_SVG}</span>`;
+      b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
+        + `<span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span>`;
     } else if (it.kind === 'tool') {
       b.className = 'dock-tool'; b.innerHTML = it.svg;
     } else {
@@ -864,16 +874,27 @@ function syncDots() {
 }
 on('wins', syncDots);
 
-/* hora, rede e bateria: dados reais do aparelho, nada inventado */
+/* Status do sistema: Date usa o relógio/fuso do Android WebView; bateria vem do sticky broadcast
+ * nativo. A mesma cópia alimenta a dock e a Central de controle para não haver valores divergentes. */
+const deviceStatus = { time: '--:--', date: '', batteryLevel: null, charging: false, online: navigator.onLine };
+export const getDeviceStatus = () => ({ ...deviceStatus });
+function publishDeviceStatus() { emit('device-status', getDeviceStatus()); }
 function tick() {
   const c = dockEl.querySelector('.dk-time');
-  if (c) c.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  deviceStatus.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  deviceStatus.date = now.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  if (c) c.textContent = deviceStatus.time;
+  publishDeviceStatus();
 }
-setInterval(tick, 20000);
+tick();
+setInterval(tick, 1000);
 
 function refreshNet() {
   const w = dockEl.querySelector('.dk-wifi');
-  if (w) w.style.opacity = navigator.onLine ? '1' : '.35';
+  deviceStatus.online = navigator.onLine;
+  if (w) w.style.opacity = deviceStatus.online ? '1' : '.35';
+  publishDeviceStatus();
 }
 addEventListener('online', refreshNet);
 addEventListener('offline', refreshNet);
@@ -881,11 +902,19 @@ addEventListener('offline', refreshNet);
 let batt = null;
 function paintBat() {
   const el = dockEl.querySelector('.dk-bat'); if (!el) return;
-  if (!batt) { el.style.display = 'none'; return; }       // sem API de bateria: não mostra nada falso
+  const percent = el.querySelector('.dk-bat-percent');
+  if (!batt) { el.style.display = 'none'; deviceStatus.batteryLevel = null; publishDeviceStatus(); return; }
   el.style.display = '';
+  const level = Math.max(0, Math.min(1, Number(batt.level) || 0));
+  const charging = !!batt.charging;
   const f = el.querySelector('.fill');
-  f.setAttribute('width', String(Math.max(1.6, 13 * batt.level)));
-  f.setAttribute('fill', batt.charging ? '#8de6c8' : (batt.level < .2 ? '#ff6b6b' : 'currentColor'));
+  f.setAttribute('width', String(Math.max(1.6, 13 * level)));
+  f.setAttribute('fill', charging ? '#8de6c8' : (level < .2 ? '#ff6b6b' : 'currentColor'));
+  if (percent) percent.textContent = `${Math.round(level * 100)}%`;
+  el.title = `${Math.round(level * 100)}%${charging ? ' · carregando' : ''}`;
+  deviceStatus.batteryLevel = level;
+  deviceStatus.charging = charging;
+  publishDeviceStatus();
 }
 if (navigator.getBattery) {
   navigator.getBattery().then(b => {
@@ -1332,7 +1361,7 @@ window.nextvrBrowserFocus = (id, hasInput) => {
    * acessibilidade ligado). E o equivalente ao acima para uma superficie que nao tem DOM. */
 window.nextvrAppFocus = id => keyboard(true, { nativeId: id });
   function updateBattery() { try { batt = JSON.parse(window.NativeXR.battery()); paintBat(); } catch {} }
-  updateBattery(); setInterval(updateBattery, 30000);
+  updateBattery(); setInterval(updateBattery, 10000);
   document.addEventListener('click', e => { if (e.target.closest('button')) window.NativeXR.click(); }, true);
 }
 

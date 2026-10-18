@@ -72,10 +72,12 @@ head rotation updates the view only. Recognized pinch/fist/contact transitions a
 slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
 Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
 resizing. Hand tracking is one MediaPipe pipeline written for this project
-(`com.nextvr.handtrack.HandTracker`): a two-hand VIDEO graph per frame, plus a second graph of the
-same model at a lower detection confidence that runs while nothing is tracked, so a hand the strict
-graph cannot see is still acquired. The PhoneXR fork pipeline (adaptive one/two hand slots, YOLO11
-wrist recovery, CPU crop rescue on background threads) and its 11.7 MB AGPL pose model are gone.
+(`com.nextvr.handtrack.HandTracker`): both hands are detected and rendered together; when only one
+is present, a one-slot VIDEO graph keeps the common case responsive and a two-slot probe looks for
+the second hand every 250 ms. Once both are found, the two-slot graph follows both continuously.
+Per-hand prediction and confidence keep a brief missed detection from making its neighbour flicker.
+The PhoneXR fork pipeline (YOLO11 wrist recovery, CPU crop rescue on background threads) and its
+11.7 MB AGPL pose model are gone.
 The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
@@ -132,17 +134,17 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | --- | --- |
 | Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
-| Select | Aim the MediaPipe hand ray and pinch thumb/index; the tracked hands use the cyan contour and pinch cursor. |
+| Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
 | Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
-| Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
+| Move the dock | Pinch the grab area just below the dock, move it to a comfortable spot, then release. The small handle appears only while pointed at or moving the dock. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |
 | Browser scrolling | Hold a hand pinch on the page and move. |
 | Type | Pinch a field — in a browser, a shell window or an Android app — and the floating keyboard appears in front of that window. Pinch a key and it types immediately; hold it to repeat; slide onto the next key to keep typing. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
-| Recenter | Crosshair/recenter control on the dock. |
+| Recenter | Quick Settings → “Redefinir visualização”. |
 | Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
 | Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
@@ -150,11 +152,12 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Exit | Native close control or Android back. |
 
 Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome and animations come from the prototype. The
-provided cyan contour and pinch cursor are drawn from the APK's existing native MediaPipe
-landmarks; the camera stays with Camera2 passthrough, so the WebView does not open a competing
-`getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
-remain in place. Passthrough is the only environment.
+styling, menus, settings, gallery, browser chrome and animations come from the prototype. The hand
+silhouette keeps the requested dark fill (`#211923`) and soft light contour (`#D9D5DF`), drawn from
+the APK's native MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a
+competing `getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer
+gestures remain in place. The palm panorama is the default virtual environment; camera passthrough
+and the other 360° panoramas remain available.
 
 ## Hand tracking performance
 

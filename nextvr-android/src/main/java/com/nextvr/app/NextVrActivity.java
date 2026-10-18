@@ -717,6 +717,39 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             int level=state.getIntExtra("level",0), scale=state.getIntExtra("scale",100), status=state.getIntExtra("status",0);
             return "{\"level\":"+((float)level/Math.max(1,scale))+",\"charging\":"+(status==2||status==5)+"}";
         }
+        /** Current Android media-stream volume, normalized for the Quick Settings slider. */
+        @JavascriptInterface public int mediaVolumePercent() {
+            if(audio==null) return 50;
+            int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+            return Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC)*100f/max);
+        }
+        @JavascriptInterface public void setMediaVolumePercent(int percent) {
+            final int value=Math.max(0,Math.min(100,percent));
+            main.post(()->{
+                if(audio==null || closed) return;
+                int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC,Math.round(value*max/100f),0);
+            });
+        }
+        /** Current window brightness (or the phone's system level while automatic brightness is active). */
+        @JavascriptInterface public int brightnessPercent() {
+            float value=getWindow().getAttributes().screenBrightness;
+            if(value<0f) {
+                try { value=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS)/255f; }
+                catch(Settings.SettingNotFoundException ignored) { value=.5f; }
+            }
+            return Math.max(0,Math.min(100,Math.round(value*100f)));
+        }
+        /** Sets this Activity's brightness only; Android restores the system setting when the window closes. */
+        @JavascriptInterface public void setBrightnessPercent(int percent) {
+            final float value=Math.max(.03f,Math.min(1f,Math.max(0,Math.min(100,percent))/100f));
+            main.post(()->{
+                if(closed) return;
+                WindowManager.LayoutParams attributes=getWindow().getAttributes();
+                attributes.screenBrightness=value;
+                getWindow().setAttributes(attributes);
+            });
+        }
         /**
          * One PhoneXR command from the shell: open/close/minimize/restore a hosted game, install the
          * runtime, refresh the game list, or run the on-device self test. Posted to the controller's
@@ -783,9 +816,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
             final int repeat = event.getRepeatCount();
             main.post(() -> {
-                WebSurface target = shell;
-                if (target != null && ready && resumed)
-                    target.evaluate("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
+                WebSurface surface = shell;
+                if (surface != null && ready && resumed)
+                    surface.evaluate("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
                         + JSONObject.quote(command) + "," + down + "," + repeat + ")");
             });
             return true;
@@ -805,9 +838,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             final float stickX = Math.max(-1f, Math.min(1f, x));
             final float stickY = Math.max(-1f, Math.min(1f, y));
             main.post(() -> {
-                WebSurface target = shell;
-                if (target != null && ready && resumed)
-                    target.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
+                WebSurface surface = shell;
+                if (surface != null && ready && resumed)
+                    surface.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
                         + stickX + "," + stickY + ")");
             });
             return true;

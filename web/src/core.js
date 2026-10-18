@@ -9,17 +9,32 @@ import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 /* ============================ estado ============================ */
 const DEF = {
   lang: null,
-  handsOn: true, handDraw: 0,
+  // O contorno da mao e ligado por padrao: e o que mostra ONDE a mao esta apontando. O feixe e o
+  // cursor continuam desenhando de qualquer forma (showSilhouette so cobre o contorno).
+  handsOn: true, handDraw: 1,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
-  // Passthrough é o padrão. `panorama` é o fundo usado quando o passthrough é desligado.
-  env: 'passthrough', panorama: 'lagoon', quality: 'auto', showFps: 0,
+  // O panorama da palmeira é o ambiente principal; o passthrough continua disponível em um toque.
+  env: 'palm', panorama: 'palm', quality: 'auto', showFps: 0,
 };
 let S = { ...DEF };
 try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
-if(native){S=migrateComfort(S);S.handsOn=true;try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
+// Instalações antigas gravavam passthrough + lagoa como padrão. Migra só esse estado antigo uma vez;
+// quem já escolheu outro ambiente mantém a escolha e pode voltar ao passthrough quando quiser.
+if (!S.palmDefaultVersion) {
+  if (S.env === 'passthrough' && S.panorama === 'lagoon') { S.env = 'palm'; S.panorama = 'palm'; }
+  S.palmDefaultVersion = 1;
+}
+if(native){S=migrateComfort(S);S.handsOn=true;
+  // O contorno da mao ja foi padrao de verdade no passado, e o 0 antigo era gravado no storage
+  // no primeiro launch nativo — entao um 0 guardado quase sempre e o padrao velho herdado, e nao
+  // uma escolha do usuario. Sobe uma vez so; depois disso o interruptor da settings funciona.
+  // (A linha acima fica intacta de proposito: o guard de input-isolation ancora nela.)
+  if(!S.handDrawSeen){S.handDraw=DEF.handDraw;S.handDrawSeen=1;}
+  try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}
+}
 export const settings = S;
 export const save = () => { try { localStorage.setItem('nextvr.v1', JSON.stringify(S)); } catch {} };
 
@@ -33,6 +48,9 @@ const STR = {
     language:'Idioma', on:'Ativado', off:'Desativado', sens:'Sensibilidade', scale:'Escala',
     dist:'Distância', curve:'Curvatura', size:'Tamanho', quality:'Qualidade', apps:'Aplicativos',
     recents:'Recentes', battery:'Bateria', net:'Conexão', time:'Hora',
+    libAll:'Todos', libFilter:'Filtro', libGames:'Jogos',
+    libGamesEmpty:'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.',
+    libRecentEmpty:'Os apps abertos recentemente aparecem aqui.',
     pickPhotos:'Escolher fotos', noPhotos:'Nenhuma foto escolhida ainda.',
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
@@ -118,6 +136,9 @@ const STR = {
     language:'Language', on:'On', off:'Off', sens:'Sensitivity', scale:'Scale',
     dist:'Distance', curve:'Curve', size:'Size', quality:'Quality', apps:'Apps',
     recents:'Recent', battery:'Battery', net:'Network', time:'Time',
+    libAll:'All', libFilter:'Filter', libGames:'Games',
+    libGamesEmpty:'Headset games appear here when PhoneXR finds them.',
+    libRecentEmpty:'Recently opened apps will appear here.',
     pickPhotos:'Pick photos', noPhotos:'No photos picked yet.',
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
@@ -203,6 +224,9 @@ const STR = {
     language:'Idioma', on:'Activado', off:'Desactivado', sens:'Sensibilidad', scale:'Escala',
     dist:'Distancia', curve:'Curvatura', size:'Tamaño', quality:'Calidad', apps:'Aplicaciones',
     recents:'Recientes', battery:'Batería', net:'Conexión', time:'Hora',
+    libAll:'Todo', libFilter:'Filtro', libGames:'Juegos',
+    libGamesEmpty:'Los juegos de realidad virtual aparecerán aquí cuando PhoneXR los encuentre.',
+    libRecentEmpty:'Las aplicaciones abiertas recientemente aparecerán aquí.',
     pickPhotos:'Elegir fotos', noPhotos:'Aún no hay fotos elegidas.',
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
@@ -380,17 +404,16 @@ on('quality', resize);
 
 /* ============================ ambientes ============================ */
 /**
- * O passthrough da câmera continua sendo o padrão, e agora existem ambientes panorâmicos 360°:
- * o panorama é desenhado como fundo esférico no GL nativo (gira com a cabeça), com a câmera
- * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
- * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
+ * A palmeira é o ambiente virtual padrão. O passthrough continua disponível como opção; nos outros
+ * panoramas, o fundo é desenhado como esfera pelo GL nativo enquanto a câmera rastreia as mãos.
+ * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
 export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'virtual', 'palm', 'sunset', 'night', 'space', 'tropical', 'lakeside']);
 export const envList = () => [
+  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
   { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
-  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
@@ -406,7 +429,7 @@ export function setEnvironment(id) {
   window.NativeXR?.env?.(S.env);
 }
 
-/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: lagoa). */
+/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: palmeira). */
 export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
 
 /* ============================ giroscópio ============================ */
@@ -495,7 +518,8 @@ let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
 /* Estado do pipeline nativo, publicado pelo PerfLog a cada ~3 s (delegate, FPS da câmera, custo da
  * inferência, quantos frames foram de uma ou de duas slots). É o que responde "por que a mão está
  * lenta" na própria tela: `infer` alto = o modelo/o delegate; `cam` baixo = a câmera não entrega;
- * `slots 2` com a mão levantada = o grafo de uma slot não está sendo usado. */
+ * duas mãos visíveis e `slots 2` = esperado; uma mão só e `slots 2` persistente = a trilha rápida
+ * de uma slot não está entrando. */
 let diag = null;
 
 export const reportHandFrame = () => {

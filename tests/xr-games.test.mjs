@@ -157,8 +157,8 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
     'the 3D sandbox module is deleted, not just unrouted');
   assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr'\);/,
     'the Games filter is the PhoneXR library itself');
-  assert.match(apps, /Os jogos de headset aparecem aqui quando o PhoneXR os encontra\./,
-    'the empty Games filter explains where games come from, not where download them');
+  assert.match(apps, /libFilter === 'games' \? t\('libGamesEmpty'\)/,
+    'the empty Games filter uses a localized explanation, not download instructions');
   // The store cannot sell what is gone: it points at the library, and games live in PhoneXR.
   assert.ok(!apps.includes("['games','Games']"), 'the store has no games tab anymore');
   assert.match(apps, /Jogos de headset \(PhoneXR\) aparecem embarcados na Biblioteca quando o runtime os encontra\./);
