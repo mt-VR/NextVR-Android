@@ -21,6 +21,16 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
+    /** Softer default hand and pointer treatment; tracking remains fully interactive. */
+    private companion object {
+        const val HAND_FILL_ALPHA = 0.34f
+        const val HAND_OUTLINE_ALPHA = 0.46f
+        const val HAND_PINCH_ALPHA = 0.56f
+        const val POINTER_DROP_ALPHA = 0.62f
+        const val POINTER_CLICK_ALPHA = 0.66f
+        const val POINTER_RAY_ALPHA = 0.50f
+        const val POINTER_RING_INTENSITY = 0.72f
+    }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
         "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=1.-smoothstep(.46,1.,t); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
@@ -389,9 +399,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         }
                     }
                     val rgba=when {
-                        outline && pinching -> floatArrayOf(1f,1f,1f,handConfidence)
-                        outline -> floatArrayOf(.80f,.81f,.85f,.82f*handConfidence)
-                        else -> floatArrayOf(.10f,.10f,.13f,.82f*handConfidence)
+                        outline && pinching -> floatArrayOf(.92f,.95f,1f,HAND_PINCH_ALPHA*handConfidence)
+                        outline -> floatArrayOf(.72f,.78f,.82f,HAND_OUTLINE_ALPHA*handConfidence)
+                        else -> floatArrayOf(.12f,.16f,.18f,HAND_FILL_ALPHA*handConfidence)
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
@@ -443,7 +453,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, .95f, .95f, .97f, .9f*fade)
+                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_DROP_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {
@@ -454,7 +464,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, 1f, 1f, 1f, .95f*fade)
+                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_CLICK_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
@@ -476,7 +486,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
                         across(ax, ay, az, .006f, wa)
                         across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                        GLES20.glUniform4f(color, .92f, .95f, 1f, POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -492,7 +502,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             val outer = (if (down || touching) .009f else .012f) * depth
             val inner = outer - .005f * depth
             GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
-            GLES20.glUniform4f(color, fade, fade, fade, 1f)
+            GLES20.glUniform4f(color, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, 1f)
             ring3d(b[3], b[4], b[5], outer, inner, position)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         }

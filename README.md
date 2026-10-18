@@ -130,16 +130,16 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | --- | --- |
 | Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
-| Select | Aim the MediaPipe hand ray and pinch thumb/index; the tracked hands use the cyan contour and pinch cursor. |
+| Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
-| Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
+| Move the dock | Pinch the grab area just below the dock, move it to a comfortable spot, then release. The small handle appears only while pointed at or moving the dock. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |
 | Browser scrolling | Hold a hand pinch on the page and move. |
 | Type | Pinch a field — in a browser, a shell window or an Android app — and the floating keyboard appears in front of that window. Pinch a key and it types immediately; hold it to repeat; slide onto the next key to keep typing. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
-| Recenter | Crosshair/recenter control on the dock. |
+| Recenter | Quick Settings → “Redefinir visualização”. |
 | Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
 | Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |

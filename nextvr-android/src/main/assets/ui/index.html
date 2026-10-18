@@ -332,83 +332,79 @@
   .key[data-state="once"]{background:#4a5160;color:#fff}
   .key[data-state="lock"]{background:#7a8497;color:#fff}
 
-  /* ---------- dock: cápsula flutuante teal inspirada na referência Quest ---------- */
+  /* ---------- dock: painel compacto Quest-style, retangular com cantos arredondados ---------- */
   .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
-    align-items:center;gap:8px;width:max-content;padding:8px 12px 9px 10px;border-radius:28px;
-    background:linear-gradient(180deg,rgba(18,48,56,.94),rgba(7,25,31,.96));
-    border:1px solid rgba(188,225,229,.18);
-    backdrop-filter:blur(28px) saturate(1.45);-webkit-backdrop-filter:blur(28px) saturate(1.45);
-    box-shadow:0 18px 46px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.13),inset 0 -1px 0 rgba(0,0,0,.32);
+    align-items:center;gap:6px;width:max-content;padding:6px 8px;border-radius:16px;
+    background:linear-gradient(180deg,rgba(34,36,42,.94),rgba(17,19,24,.96));
+    border:1px solid rgba(255,255,255,.13);
+    backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);
+    box-shadow:0 14px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.10),inset 0 -1px 0 rgba(0,0,0,.30);
     pointer-events:auto}
-  .dock button{color:#e8f1f3}
-  /* O controle de arrasto continua acessível, mas o traço só aparece ao apontar ou mover a dock. */
-  .dock-grab{position:absolute;left:50%;top:calc(100% + 10px);bottom:auto;transform:translateX(-50%);z-index:5;
-    width:140px;height:16px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 4px;
+  .dock button{color:#e7e9ed}
+  /* A área de arrasto fica disponível, mas o puxador só aparece quando é apontado/arrastado. */
+  .dock-grab{position:absolute;left:50%;top:calc(100% + 8px);bottom:auto;transform:translateX(-50%);z-index:5;
+    width:120px;height:14px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 3px;
     border:0;border-radius:0;background:transparent;color:#fff;cursor:grab;touch-action:none;pointer-events:auto}
-  .dock-grab::after{content:"";display:block;width:52px;height:4px;border-radius:99px;opacity:0;
-    background:rgba(255,255,255,.88);box-shadow:0 1px 7px rgba(255,255,255,.28),0 2px 7px rgba(0,0,0,.38);
+  .dock-grab::after{content:"";display:block;width:42px;height:3px;border-radius:99px;opacity:0;
+    background:rgba(255,255,255,.78);box-shadow:0 1px 5px rgba(255,255,255,.2),0 2px 6px rgba(0,0,0,.34);
     transition:width .16s,height .16s,background .16s,box-shadow .16s,opacity .16s}
   .dock-grab:hover::after,.dock-grab:focus-visible::after,
-  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:64px;height:5px;opacity:1;background:#fff;
-    box-shadow:0 0 10px rgba(255,255,255,.5),0 2px 8px rgba(0,0,0,.4)}
+  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:52px;height:4px;opacity:1;background:#fff;
+    box-shadow:0 0 8px rgba(255,255,255,.42),0 2px 6px rgba(0,0,0,.38)}
   .dock.moving .dock-grab{cursor:grabbing}
 
-  /* Perfil e status sincronizado: hora local, rede e bateria do telefone. */
-  .dock-av{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;color:#f4ffff;
-    background:linear-gradient(145deg,#3c8c98,#174b58);border:1px solid rgba(218,248,250,.32);
-    box-shadow:0 2px 8px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.22);
-    transition:filter .15s,transform .15s}
-  .dock-av svg{width:19px;height:19px}
-  .dock-status{display:flex;align-items:center;gap:7px;flex:none;height:36px;padding:0 10px;border-radius:999px;
-    background:rgba(226,244,246,.105);border:1px solid rgba(255,255,255,.09);
-    font-size:13px;font-weight:650;letter-spacing:-.15px;white-space:nowrap;
+  /* Perfil e status compacto do telefone. */
+  .dock-av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:#f2f4f7;
+    background:linear-gradient(145deg,#59616d,#343943);border:1px solid rgba(255,255,255,.24);
+    box-shadow:0 2px 6px rgba(0,0,0,.34);transition:filter .15s,transform .15s}
+  .dock-av svg{width:17px;height:17px}
+  .dock-status{display:flex;align-items:center;gap:5px;flex:none;height:32px;padding:0 8px;border-radius:9px;
+    background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.07);
+    font-size:11px;font-weight:650;letter-spacing:-.1px;white-space:nowrap;
     font-variant-numeric:tabular-nums;transition:background .15s,transform .15s}
-  .dk-time{font-size:13px;font-weight:700}
-  .dk-wifi svg,.dk-bat svg{display:block;width:16px;height:16px;color:#d1e2e5}
-  .dk-bat{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
-  .dk-bat-percent{color:#edf5f6}
-  .dock-tool{width:34px;height:34px;border-radius:12px;flex:none;display:grid;place-items:center;
-    background:rgba(225,244,246,.09);border:1px solid rgba(255,255,255,.08);color:#d8e8ea;
-    transition:background .15s,transform .15s,filter .15s}
-  .dock-tool svg{width:18px;height:18px}
-  .dock-tool[data-id="notifications"]{background:linear-gradient(145deg,#348af2,#1765cc);border-color:rgba(132,188,255,.48);color:#fff}
-  .dock-tool[data-id="notifications"]:hover{filter:brightness(1.12)}
-  .dock-status:hover,.dock-tool:hover{background:rgba(184,220,225,.18)}
-  .dock-av:hover{filter:brightness(1.12)}
-  .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.92)}
-  .dock-sep{width:1px;height:23px;border-radius:2px;background:rgba(211,239,242,.22);flex:none;margin:0 2px}
-  .dock-spacer{width:14px;flex:none}
+  .dk-time{font-size:11px;font-weight:700}
+  .dk-wifi svg,.dk-bat svg{display:block;width:14px;height:14px;color:#d0d3da}
+  .dk-bat{display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;font-variant-numeric:tabular-nums}
+  .dk-bat-percent{color:#e9ebef}
+  .dock-tool{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);color:#d9dce2;
+    transition:background .15s,transform .15s}
+  .dock-tool svg{width:16px;height:16px}
+  .dock-status:hover,.dock-tool:hover{background:rgba(255,255,255,.14)}
+  .dock-av:hover{filter:brightness(1.1)}
+  .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.93)}
+  .dock-sep{width:1px;height:20px;border-radius:2px;background:rgba(255,255,255,.16);flex:none;margin:0 1px}
+  .dock-spacer{width:10px;flex:none}
 
-  /* Apps em tiles coloridos compactos, como na barra da referência. */
-  .dock-app{position:relative;width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
-    color:#fff;border:1px solid rgba(255,255,255,.19);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 3px 8px rgba(0,0,0,.34);
+  /* App shortcuts: compactos, coloridos e quadrados com cantos suaves. */
+  .dock-app{position:relative;width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+    color:#fff;border:1px solid rgba(255,255,255,.17);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 2px 6px rgba(0,0,0,.30);
     transition:transform .16s,filter .16s,box-shadow .16s}
-  .dock-app svg{width:21px;height:21px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-  .dock-app img{width:22px;height:22px;object-fit:contain}
-  .dock-app:hover,.dock-app.dock-hover{transform:translateY(-3px) scale(1.08);filter:brightness(1.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 0 2px rgba(84,202,233,.48),0 8px 18px rgba(0,0,0,.42)}
-  .dock-tool:hover,.dock-tool.dock-hover,.dock-av:hover,.dock-av.dock-hover,.dock-status:hover,.dock-status.dock-hover{transform:translateY(-2px) scale(1.05)}
-  .dock button:focus-visible{outline:2px solid rgba(105,205,235,.9);outline-offset:3px}
-  .dock-app:active{transform:scale(.9)}
-  .dock button.near-press{transform:scale(.88)!important;filter:brightness(1.3)!important}
-  .dock-tool.near-press,.dock-av.near-press,.dock-status.near-press{transform:scale(.92)!important}
-  .dock-app.near-press{box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(39,232,255,.8),0 2px 8px rgba(0,0,0,.3)!important}
-  .dock-dot{position:absolute;left:50%;bottom:-6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;
+  .dock-app svg{width:19px;height:19px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22))}
+  .dock-app img{width:20px;height:20px;object-fit:contain}
+  .dock-app:hover,.dock-app.dock-hover{transform:translateY(-2px) scale(1.05);filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 0 0 1px rgba(255,255,255,.22),0 5px 12px rgba(0,0,0,.36)}
+  .dock-tool:hover,.dock-tool.dock-hover,.dock-av:hover,.dock-av.dock-hover,.dock-status:hover,.dock-status.dock-hover{transform:translateY(-1px) scale(1.04)}
+  .dock button:focus-visible{outline:2px solid rgba(180,205,255,.82);outline-offset:2px}
+  .dock-app:active{transform:scale(.92)}
+  .dock button.near-press{transform:scale(.9)!important;filter:brightness(1.18)!important}
+  .dock-tool.near-press,.dock-av.near-press,.dock-status.near-press{transform:scale(.93)!important}
+  .dock-app.near-press{box-shadow:inset 0 1px 0 rgba(255,255,255,.36),0 0 0 2px rgba(185,207,255,.72),0 2px 6px rgba(0,0,0,.28)!important}
+  .dock-dot{position:absolute;left:50%;bottom:-5px;width:3px;height:3px;margin-left:-1.5px;border-radius:50%;
     background:#fff;opacity:0;transform:scale(.4);transition:opacity .16s,transform .16s;pointer-events:none}
-  .dock-dot.on{opacity:.95;transform:scale(1)}
+  .dock-dot.on{opacity:.9;transform:scale(1)}
 
   /* Lançador de nove pontos no extremo direito. */
-  .dock-launcher{background:rgba(224,244,247,.12)!important;box-shadow:none;border-color:rgba(255,255,255,.13)}
-  .dk-grid{display:grid;grid-template-columns:repeat(3,4px);gap:3px}
-  .dk-grid i{display:block;width:4px;height:4px;border-radius:1.5px;background:#eef7f8}
+  .dock-launcher{background:rgba(255,255,255,.10)!important;box-shadow:none;border-color:rgba(255,255,255,.1)}
+  .dk-grid{display:grid;grid-template-columns:repeat(3,3px);gap:2.5px}
+  .dk-grid i{display:block;width:3px;height:3px;border-radius:1px;background:#e7e9ed}
   @media(max-width:900px){
-    .dock{gap:6px;padding:7px 9px;border-radius:23px}
-    .dock-av,.dock-tool{width:31px;height:31px;border-radius:10px}
-    .dock-av svg,.dock-tool svg{width:17px;height:17px}
-    .dock-status{height:31px;gap:5px;padding:0 8px;font-size:11px}
-    .dk-time{font-size:11px}.dk-wifi svg,.dk-bat svg{width:14px;height:14px}.dk-bat{font-size:9px}
-    .dock-app{width:34px;height:34px;border-radius:10px}
-    .dock-app svg{width:19px;height:19px}.dock-app img{width:20px;height:20px}
+    .dock{gap:4px;padding:5px 7px;border-radius:14px}
+    .dock-av{width:28px;height:28px}.dock-av svg{width:15px;height:15px}
+    .dock-status{height:28px;gap:4px;padding:0 6px;font-size:10px}
+    .dk-time{font-size:10px}.dk-wifi svg,.dk-bat svg{width:12px;height:12px}.dk-bat{font-size:8px}
+    .dock-app{width:30px;height:30px;border-radius:9px}
+    .dock-app svg{width:17px;height:17px}.dock-app img{width:18px;height:18px}
   }
 
   /* ============ mundo 3D jogável (plataforma de jogos nativa) ============ */

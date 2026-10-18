@@ -20,17 +20,17 @@ test('dock and Quick Settings share device-clock and native battery data', async
   assert.match(java, /setBrightnessPercent\(int percent\)/);
 });
 
-test('dock styling follows the selected dark-teal capsule concept in the Android UI bundle', async () => {
+test('dock styling stays compact and rectangular in the Android UI bundle', async () => {
   const [html, apps, bundledHtml] = await Promise.all([
     readFile('web/index.html', 'utf8'),
     readFile('web/src/apps.js', 'utf8'),
     readFile('nextvr-android/src/main/assets/ui/index.html', 'utf8'),
   ]);
-  assert.match(html, /background:linear-gradient\(180deg,rgba\(18,48,56/);
-  assert.ok(html.includes('align-items:center;gap:8px;width:max-content;padding:8px 12px 9px 10px;border-radius:28px'));
+  assert.match(html, /background:linear-gradient\(180deg,rgba\(34,36,42/);
+  assert.ok(html.includes('align-items:center;gap:6px;width:max-content;padding:6px 8px;border-radius:16px'));
   assert.match(html, /\.dock-grab::after[^}]*opacity:0/);
-  assert.match(apps, /id: 'notifications', label: t\('notif'\)/);
-  assert.match(apps, /id: 'recenter', label: t\('center'\)/);
-  assert.match(apps, /kind: 'sep'/);
+  const dock = apps.slice(apps.indexOf('function makeDock()'), apps.indexOf("on('lang', makeDock)"));
+  assert.doesNotMatch(dock, /id: 'notifications'|id: 'recenter'/);
+  assert.match(dock, /kind: 'spacer'/);
   assert.equal(bundledHtml, html, 'the APK embeds the same dock stylesheet as the web source');
 });

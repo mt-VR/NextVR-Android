@@ -20,5 +20,10 @@ test('two-hand silhouettes predict and fade independently, with per-hand pinch f
   assert.match(renderer, /for \(\(handIndex, hand\) in hands\.withIndex\(\)\)/);
   assert.match(renderer, /val pinching = handPose\?\.pinching == true/);
   assert.match(renderer, /handConfidence/);
+  assert.match(renderer, /HAND_FILL_ALPHA = 0\.34f/);
+  assert.match(renderer, /HAND_OUTLINE_ALPHA = 0\.46f/);
+  assert.match(renderer, /HAND_PINCH_ALPHA = 0\.56f/);
+  assert.match(renderer, /POINTER_RAY_ALPHA = 0\.50f/);
+  assert.match(renderer, /HAND_OUTLINE_ALPHA\*handConfidence/);
   assert.doesNotMatch(renderer, /frame\.hands\.any \{ it\.pinching \}/);
 });
