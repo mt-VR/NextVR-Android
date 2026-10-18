@@ -9,6 +9,7 @@ import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openAp
 import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
   refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
+import { installJoycon } from './joycon.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -709,6 +710,7 @@ function paintWindowBadge() {
 }
 
 installAndroidApps();
+installJoycon();
 installXrGames();
 on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
 /**

@@ -130,7 +130,7 @@ test('the hand bridge gates presses with the shell flag and sides, not presence'
 test('headset games share the Applications menu, and the runtime rows only exist when needed', async () => {
   const apps = await read(FILES.apps);
   assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
-  assert.match(apps, /installAndroidApps\(\);\ninstallXrGames\(\);/);
+  assert.match(apps, /installAndroidApps\(\);\ninstallJoycon\(\);\ninstallXrGames\(\);/);
   assert.match(apps, /const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
     'the NextVR library is its own apps plus PhoneXR games; Android packages stay in Shizuku');
   assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,

@@ -93,8 +93,8 @@ launcher explains the current state. The phone-screen mirror remains a separate,
 fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
 and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
 
-Version 1.0.10 presents the control center as a contained, ordinary spatial window in the 3D
-workspace, not as a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
+Version 1.0.11 adds Joy-Con and Bluetooth gamepad navigation. The control center remains a contained,
+ordinary spatial window in the 3D workspace, not a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
 and display brightness use the native bridge. The separate Shizuku launcher keeps Android apps out
 of the NextVR library, and its detail gear still opens the complete settings tabs.
 
@@ -133,6 +133,7 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
 | Select | Aim the MediaPipe hand ray and pinch thumb/index; the tracked hands use the cyan contour and pinch cursor. |
+| Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
 | Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |

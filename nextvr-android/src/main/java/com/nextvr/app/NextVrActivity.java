@@ -23,6 +23,8 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.MenuItem;
+import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -753,6 +755,66 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(item.getItemId()==R.id.about_nextvr) { new AlertDialog.Builder(this).setTitle("NextVR").setMessage("Camera passthrough · Cardboard 3 DoF · Spatial HTML\nHand tracking is the only spatial UI input. Use seated. Monoscopic camera video is not depth-correct and is not safe for walking.").setPositiveButton(android.R.string.ok,null).show(); return true; }
         return false;
     }
+    private static boolean isGamepadSource(int source) {
+        return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+            || (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+            || (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
+    }
+
+    /** Android's input dispatcher delivers Joy-Con buttons as gamepad keys, not touch events. */
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        boolean gamepad = isGamepadSource(event.getSource());
+        String action = null;
+        if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) action = "home";
+        else if (gamepad) {
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: action = "left"; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: action = "right"; break;
+                case KeyEvent.KEYCODE_DPAD_UP: action = "up"; break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: action = "down"; break;
+                case KeyEvent.KEYCODE_BUTTON_A: action = "accept"; break;
+                case KeyEvent.KEYCODE_BUTTON_B: action = "back"; break;
+                default: break;
+            }
+        }
+        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME)) {
+            final String command = action;
+            final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+            final int repeat = event.getRepeatCount();
+            main.post(() -> {
+                WebSurface target = shell;
+                if (target != null && ready && resumed)
+                    target.evaluate("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
+                        + JSONObject.quote(command) + "," + down + "," + repeat + ")");
+            });
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    /** Left/right stick and hat-switch report events arrive as generic joystick motion. */
+    @Override public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_MOVE && isGamepadSource(event.getSource())) {
+            float x = event.getAxisValue(MotionEvent.AXIS_X);
+            float y = event.getAxisValue(MotionEvent.AXIS_Y);
+            float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+            float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            if (Math.abs(hatX) > Math.abs(x)) x = hatX;
+            if (Math.abs(hatY) > Math.abs(y)) y = hatY;
+            final float stickX = Math.max(-1f, Math.min(1f, x));
+            final float stickY = Math.max(-1f, Math.min(1f, y));
+            main.post(() -> {
+                WebSurface target = shell;
+                if (target != null && ready && resumed)
+                    target.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
+                        + stickX + "," + stickY + ")");
+            });
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(event);
+    }
+
     @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus); if(focus) immersive(); }
     private void immersive() { getWindow().getDecorView().setSystemUiVisibility(5894|View.SYSTEM_UI_FLAG_LAYOUT_STABLE); }
     private native long nativeOnCreate(AssetManager assets);
