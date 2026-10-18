@@ -23,6 +23,12 @@ import kotlin.math.hypot
 class PhoneXrHandRenderer {
     /** Softer default hand and pointer treatment; tracking remains fully interactive. */
     private companion object {
+        const val HAND_FILL_R = 0.12941177f // #211923
+        const val HAND_FILL_G = 0.09803922f
+        const val HAND_FILL_B = 0.13725491f
+        const val HAND_CONTOUR_R = 0.8509804f // #D9D5DF
+        const val HAND_CONTOUR_G = 0.8352941f
+        const val HAND_CONTOUR_B = 0.8745098f
         const val HAND_FILL_ALPHA = 0.34f
         const val HAND_OUTLINE_ALPHA = 0.46f
         const val HAND_PINCH_ALPHA = 0.56f
@@ -399,9 +405,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         }
                     }
                     val rgba=when {
-                        outline && pinching -> floatArrayOf(.92f,.95f,1f,HAND_PINCH_ALPHA*handConfidence)
-                        outline -> floatArrayOf(.72f,.78f,.82f,HAND_OUTLINE_ALPHA*handConfidence)
-                        else -> floatArrayOf(.12f,.16f,.18f,HAND_FILL_ALPHA*handConfidence)
+                        outline && pinching -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_PINCH_ALPHA*handConfidence)
+                        outline -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_OUTLINE_ALPHA*handConfidence)
+                        else -> floatArrayOf(HAND_FILL_R,HAND_FILL_G,HAND_FILL_B,HAND_FILL_ALPHA*handConfidence)
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
