@@ -6,7 +6,7 @@ import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focus
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
-import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
+import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, openXrGameMenu, phoneXrNotice,
   refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 import { installJoycon } from './joycon.js';
@@ -1092,13 +1092,12 @@ function buildLibrary() {
       return;
     }
     if ((m = c('[data-xr]'))) {
-      // A headset game: the native side has the word on whether it can open here (runtime,
-      // hostable, Shizuku). Refused opens come back as state with the problem, which report()
-      // already shows as a toast — the tile is never a dead end without a name for the reason.
-      // Clicking the hosted game's tile again re-attaches it (a minimized session keeps running).
+      // A headset game opens its pre-launch panel first; only Iniciar asks the native side to check
+      // the runtime, hostability and Shizuku. A refusal stays visible in that panel with its reason.
+      // Clicking a tile while a session is minimized re-attaches the same running game.
       const pkg = m.dataset.xr;
       if (xrHosting()) restoreXrGame();
-      else launchXrGame(pkg);
+      else openXrGameMenu(pkg);
       return;
     }
     if ((m = c('[data-app]'))) {

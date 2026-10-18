@@ -20,7 +20,7 @@
 // the game's trigger: the bridge owns the gesture straight from tracker frames, so the shell only
 // tells the native side when the cursor sits on one of OUR windows while a session runs
 // ("hands-ui"), and the bridge keeps that pinch from pressing buttons instead of firing into menus.
-import { t, on, emit, toast, native, EYE } from './core.js';
+import { settings, save, t, on, emit, toast, native, EYE } from './core.js';
 import { open, close, wins, setDockHidden, setKeyboardHidden, keyboardShown, dockHiddenNow,
   focus as focusWindow, focusedWin, windowHitAt } from './windows.js';
 import { cursor } from './hands.js';
@@ -31,15 +31,23 @@ import { windowBox } from './app-window-box.js';
 
 const GAME_ID = 'nextvr-xr-game';
 const MENU_ID = 'nextvr-xr-menu';
+const LAUNCH_ID = 'nextvr-xr-launch';
 
 /* ============================ estado (o espelho do JSON nativo) ============================ */
 
 const state = {
   runtime: 'missing', runtimeVersion: -1, runtimeBundled: false, vrapi: 'missing', broker: false,
   summary: '', hosting: false, display: -1, problem: null, handFeed: 0, handMode: 'controllers',
-  game: null, canvas: null,
+  gameQuality: 'balanced', game: null, canvas: null,
 };
 let games = [], gamesProblem = null, gamesLoaded = false;   // jogos de headset instalados
+let launchMenuPackage = null, launchAttempted = false;
+const GAME_QUALITIES = Object.freeze({
+  performance: { title: 'xrQualityPerformance', detail: 'xrQualityPerformanceSub' },
+  balanced: { title: 'xrQualityBalanced', detail: 'xrQualityBalancedSub' },
+  high: { title: 'xrQualityHigh', detail: 'xrQualityHighSub' },
+});
+const safeGameQuality = value => Object.prototype.hasOwnProperty.call(GAME_QUALITIES, value) ? value : 'balanced';
 
 export const xrState = () => state;
 export const xrGames = () => games;
@@ -64,8 +72,13 @@ export function applyState(json) {
   if (!next || typeof next !== 'object') return;
   Object.assign(state, next);
   uiBlocked = null;
-  if (state.hosting && state.game?.package) enterGame(state.game);
-  else exitGame();
+  if (state.hosting && state.game?.package) {
+    closeLaunchMenu();
+    enterGame(state.game);
+  } else {
+    exitGame();
+    updateLaunchFeedback();
+  }
   emit('xr', { ...state, games });
 }
 /** Chamado por XrGameController com a lista de jogos de headset instalados (string JSON). */
@@ -88,6 +101,7 @@ export function installXrGames() {
   window.nextvrXr = applyState;
   window.nextvrXrLibrary = applyLibrary;
   try { applyState(window.NativeXR.xrState?.() || '{}'); } catch { /*_native cria após this page */ }
+  setXrHandMode(settings.xrInputMode);
   askXrLibrary();
   on('lang', () => { askXrLibrary(); emit('xr', { ...state, games }); });
 }
@@ -105,9 +119,12 @@ export function refreshXrLibrary() {
 /* ============================ comandos que a shell pede ============================ */
 
 /** Abre um jogo de headset: o lado nativo decide (runtime, hostable, Shizuku) e publica o estado. */
-export function launchXrGame(pkg) {
+export function launchXrGame(pkg, quality = settings.xrQuality) {
   if (!pkg || state.hosting) return;
-  command({ cmd: 'open', package: pkg });
+  const selected = safeGameQuality(quality);
+  settings.xrQuality = selected;
+  save();
+  command({ cmd: 'open', package: pkg, quality: selected });
 }
 export function closeXrGame() { if (state.hosting) command({ cmd: 'close' }); }
 export function minimizeXrGame() { if (state.hosting) command({ cmd: 'minimize' }); }
@@ -120,6 +137,8 @@ export function setXrHandMode(mode) {
   const value = mode === 'hands' ? 'hands' : 'controllers';
   try { window.NativeXR?.xrHandMode?.(value); } catch { /* publicado de volta no estado */ }
   state.handMode = value;
+  settings.xrInputMode = value;
+  save();
   emit('xr', { ...state, games });
 }
 export function xrSelfTest() { command({ cmd: 'selftest' }); }
@@ -146,6 +165,120 @@ export function xrTileHtml(item) {
 }
 const escape = value => String(value == null ? '' : value)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function closeLaunchMenu() {
+  const menu = wins.find(win => win.id === LAUNCH_ID);
+  if (menu) close(menu);
+  launchMenuPackage = null;
+  launchAttempted = false;
+}
+
+function updateLaunchFeedback() {
+  if (!launchAttempted) return;
+  const menu = wins.find(win => win.id === LAUNCH_ID);
+  const status = menu?.el.querySelector('[data-xr-launch-status]');
+  const start = menu?.el.querySelector('[data-xr-start]');
+  if (!status || !start) return;
+  status.textContent = state.problem || t('xrLaunchHint');
+  status.dataset.state = state.problem ? 'error' : '';
+  start.disabled = false;
+  start.innerHTML = `${icon('play')}<span>${t('xrLaunchButton')}</span>`;
+  launchAttempted = false;
+}
+
+/** Opens a pre-game lobby: quality and hand input are saved before the native game is started. */
+export function openXrGameMenu(pkg) {
+  if (state.hosting) { restoreXrGame(); return; }
+  const game = games.find(item => item.package === pkg);
+  if (!game) { toast(t('libGamesEmpty')); return; }
+  closeLaunchMenu();
+  launchMenuPackage = pkg;
+  const selectedQuality = safeGameQuality(settings.xrQuality);
+  settings.xrQuality = selectedQuality;
+  const selectedMode = state.handMode === 'hands' ? 'hands' : 'controllers';
+  const info = [game.headset, game.describe].filter(Boolean).join(' · ');
+  const badge = game.hostable ? t('xrLaunchAvailable') : t('xrNotHostable');
+  const statusText = !game.hostable ? t('xrNotHostable')
+    : state.runtime === 'ready' ? t('xrLaunchHint') : (state.summary || t('xrSummaryMissing'));
+  const qualityChoices = [
+    ['performance', 'zap'], ['balanced', 'gauge'], ['high', 'eye'],
+  ].map(([id, glyph]) => {
+    const option = GAME_QUALITIES[id];
+    return `<button class="xr-quality-option" type="button" data-xr-quality="${id}"
+        aria-pressed="${selectedQuality === id}" aria-label="${escape(t(option.title))}: ${escape(t(option.detail))}">
+      ${icon(glyph, 'xr-quality-mark')}<strong>${escape(t(option.title))}</strong>
+      <small>${escape(t(option.detail))}</small></button>`;
+  }).join('');
+  const modeChoices = [
+    ['controllers', 'controller', 'xrModeControllers', 'xrModeControllersSub'],
+    ['hands', 'user', 'xrModeHands', 'xrModeHandsSub'],
+  ].map(([id, glyph, title, detail]) => `<button class="xr-mode-option" type="button" data-xr-mode="${id}"
+      aria-pressed="${selectedMode === id}">
+      <span class="xr-mode-icon">${icon(glyph)}</span><span><strong>${escape(t(title))}</strong>
+      <small>${escape(t(detail))}</small></span></button>`).join('');
+
+  const body = document.createElement('div');
+  body.className = 'xr-launch';
+  body.innerHTML = `<div class="xr-launch-head">
+      <span class="xr-launch-mark">${icon('headset')}</span>
+      <div class="xr-launch-heading"><span class="xr-launch-kicker">${escape(t('xrLaunchBadge'))}</span>
+        <h2 class="xr-launch-title">${escape(game.label || game.package)}</h2>
+        <div class="xr-launch-description">${escape(t('xrLaunchDescription'))}</div>
+        <div class="xr-launch-meta">${escape(info || game.package)}</div></div>
+      <span class="xr-launch-badge${game.hostable ? '' : ' external'}">${escape(badge)}</span>
+    </div>
+    <div class="xr-launch-grid">
+      <section class="xr-launch-section" aria-labelledby="xr-launch-quality-title">
+        <h3 class="xr-launch-section-head" id="xr-launch-quality-title">${escape(t('xrLaunchQuality'))}</h3>
+        <p class="xr-launch-section-sub">${escape(t('xrLaunchQualitySub'))}</p>
+        <div class="xr-quality-grid" role="group" aria-label="${escape(t('xrLaunchQuality'))}">${qualityChoices}</div>
+      </section>
+      <section class="xr-launch-section" aria-labelledby="xr-launch-input-title">
+        <h3 class="xr-launch-section-head" id="xr-launch-input-title">${escape(t('xrLaunchInput'))}</h3>
+        <p class="xr-launch-section-sub">${escape(t('xrLaunchInputSub'))}</p>
+        <div class="xr-mode-list" role="group" aria-label="${escape(t('xrLaunchInput'))}">${modeChoices}</div>
+      </section>
+    </div>
+    <div class="xr-launch-bottom"><div class="xr-launch-status" data-xr-launch-status role="status" aria-live="polite">${escape(statusText)}</div>
+      <div class="xr-launch-actions">
+        <button class="xr-launch-back" type="button" data-xr-action="back">${escape(t('xrLaunchBack'))}</button>
+        <button class="xr-launch-start" type="button" data-xr-start>${icon('play')}<span>${escape(t('xrLaunchButton'))}</span></button>
+      </div></div>`;
+
+  body.addEventListener('click', event => {
+    const quality = event.target.closest('[data-xr-quality]');
+    if (quality) {
+      settings.xrQuality = safeGameQuality(quality.dataset.xrQuality);
+      save();
+      body.querySelectorAll('[data-xr-quality]').forEach(button =>
+        button.setAttribute('aria-pressed', String(button === quality)));
+      return;
+    }
+    const mode = event.target.closest('[data-xr-mode]');
+    if (mode) {
+      setXrHandMode(mode.dataset.xrMode);
+      body.querySelectorAll('[data-xr-mode]').forEach(button =>
+        button.setAttribute('aria-pressed', String(button === mode)));
+      return;
+    }
+    const action = event.target.closest('[data-xr-action]');
+    if (action?.dataset.xrAction === 'back') { closeLaunchMenu(); return; }
+    if (!event.target.closest('[data-xr-start]') || launchAttempted) return;
+    launchAttempted = true;
+    const status = body.querySelector('[data-xr-launch-status]');
+    const start = body.querySelector('[data-xr-start]');
+    status.textContent = t('xrLaunchStarting');
+    status.dataset.state = 'pending';
+    start.disabled = true;
+    start.innerHTML = `${icon('play')}<span>${t('xrLaunchStarting')}</span>`;
+    launchXrGame(launchMenuPackage, settings.xrQuality);
+  });
+
+  const win = open({ id: LAUNCH_ID, title: t('xrLaunchTitle'), node: body,
+    w: 900, h: 640, free: true, at: { x: 0, y: EYE, z: -.72 } });
+  win?.setCurve(0);
+  return win;
+}
 
 /**
  * The one PhoneXR row the library shows, and only while headset games exist and the runtime is not

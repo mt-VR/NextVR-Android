@@ -129,18 +129,47 @@ test('the hand bridge gates presses with the shell flag and sides, not presence'
 
 test('headset games share the Applications menu, and the runtime rows only exist when needed', async () => {
   const apps = await read(FILES.apps);
-  assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
+  assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, openXrGameMenu, phoneXrNotice,/);
   assert.match(apps, /installAndroidApps\(\);\ninstallJoycon\(\);\ninstallXrGames\(\);/);
   assert.match(apps, /const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
     'the NextVR library is its own apps plus PhoneXR games; Android packages stay in Shizuku');
   assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,
     'one tile kind per origin, one row for each source');
   assert.match(apps, /if \(\(m = c\('\[data-xr\]'\)\)\) \{\n\s+\/\/ A headset game/);
-  assert.match(apps, /if \(xrHosting\(\)\) restoreXrGame\(\);\n\s+else launchXrGame\(pkg\);/,
-    'the tile re-attaches a minimized session instead of pretending it opened twice');
+  assert.match(apps, /if \(xrHosting\(\)\) restoreXrGame\(\);\n\s+else openXrGameMenu\(pkg\);/,
+    'a fresh game tile opens its pre-launch menu; a minimized session re-attaches directly');
   const xr = await read(FILES.xr);
   assert.match(xr, /if \(xrRuntimeReady\(\) \|\| !gamesLoaded \|\| !games\.length\) return null;/,
     'the library row explains games that exist; the settings page is the runtime home otherwise');
+});
+
+test('a game pre-launch menu saves quality and input before starting the real PhoneXR package', async () => {
+  const xr = await read(FILES.xr);
+  assert.match(xr, /export function openXrGameMenu\(pkg\)/);
+  assert.match(xr, /data-xr-quality=/, 'quality presets are selectable in the launch menu');
+  assert.match(xr, /data-xr-mode=/, 'the player can choose controllers or hands before launch');
+  assert.match(xr, /data-xr-start/, 'the menu has an explicit Iniciar/Start action');
+  assert.match(xr, /launchXrGame\(launchMenuPackage, settings\.xrQuality\)/,
+    'the start button sends the selected quality with the actual package launch command');
+  assert.match(xr, /const selected = safeGameQuality\(quality\);\n  settings\.xrQuality = selected;\n  save\(\);\n  command\(\{ cmd: 'open', package: pkg, quality: selected \}\)/,
+    'the chosen quality is persisted and forwarded to the native game launcher');
+  const apps = await read(FILES.apps);
+  assert.match(apps, /else openXrGameMenu\(pkg\);/);
+  const controller = await read(FILES.controller);
+  assert.match(controller, /case "open": offMain\(\(\) -> open\(packageName, quality\)\); break;/);
+  assert.match(controller, /XrRenderQuality\.canvas\(Math\.max\(longSide, AppWindowShape\.MIN_LONG_SIDE\),\n\s+shortSide, gameQuality\)/);
+  assert.match(controller, /XrRenderQuality\.density\(env\.density\(\), gameQuality\)/,
+    'the native game display scales pixels and density together to preserve its logical layout');
+  const quality = await read('nextvr-android/src/main/java/com/nextvr/app/xr/XrRenderQuality.java');
+  assert.match(quality, /case PERFORMANCE: return \.65f;/);
+  assert.match(quality, /case BALANCED:[\s\S]*?return \.82f;/);
+  assert.match(quality, /case HIGH: return 1f;/);
+  const core = await read(FILES.core);
+  for (const key of ['xrLaunchTitle', 'xrLaunchQuality', 'xrQualityPerformance', 'xrQualityBalanced',
+    'xrQualityHigh', 'xrLaunchInput', 'xrLaunchButton']) {
+    assert.equal((core.match(new RegExp(key + `:`, 'g')) || []).length, 3,
+      `${key} is translated in pt, en and es`);
+  }
 });
 
 test('the demo games are gone: PhoneXR is the games platform', async () => {
@@ -228,6 +257,9 @@ test('the bundled UI carries the embeddings: state push, panels, chords and no d
   assert.ok(bundle.includes('data-native-xr') || bundle.includes('nativeXr'));
   assert.ok(bundle.includes('hands-ui'));
   assert.ok(bundle.includes('nextvr-xr-game'));
+  assert.ok(bundle.includes('nextvr-xr-launch'));
+  assert.ok(bundle.includes('data-xr-start'));
+  assert.ok(bundle.includes('xrQualityPerformance'));
   for (const gone of ['gameMesh', 'gameFrame', 'startGame', 'MINECRAFT']) {
     assert.ok(!bundle.includes(gone), `the shipped bundle carries no demo-game remains: ${gone}`);
   }

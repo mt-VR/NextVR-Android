@@ -539,7 +539,59 @@
   .gt-color{width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.22)}
   .gt-color[aria-pressed="true"]{outline:3px solid #fff;outline-offset:2px}
   .gt-status{font-size:17px;color:var(--soft);line-height:1.5}
-  /* Menu do jogo: painel PLANO na frente do usuário (estilo SteamVR), nunca curvo. */
+  /* Pré-lançamento PhoneXR: tela de entrada com qualidade e controle escolhidos antes de abrir o APK real. */
+  .xr-launch{height:100%;min-height:0;padding:20px 22px;display:flex;flex-direction:column;gap:14px;overflow:auto;
+    color:#f7f5ff;background:radial-gradient(ellipse at 8% 0%,rgba(124,58,237,.22),transparent 48%),linear-gradient(145deg,#111324,#10111a 68%,#111827)}
+  .xr-launch-head{min-height:96px;display:flex;align-items:center;gap:16px;padding:15px 18px;border-radius:20px;
+    border:1px solid rgba(255,255,255,.1);background:linear-gradient(110deg,rgba(124,58,237,.2),rgba(255,255,255,.04));}
+  .xr-launch-mark{width:62px;height:62px;display:grid;place-items:center;flex:none;border-radius:18px;
+    color:#fff;background:linear-gradient(145deg,#a855f7,#5548d8);box-shadow:0 10px 28px rgba(124,58,237,.35)}
+  .xr-launch-mark .ui-icon{width:34px;height:34px}
+  .xr-launch-heading{min-width:0;flex:1}
+  .xr-launch-kicker{font-size:11px;font-weight:800;letter-spacing:.15em;color:#c6b5ff;text-transform:uppercase}
+  .xr-launch-title{margin:4px 0 4px;font-size:25px;line-height:1.15;font-weight:800;letter-spacing:-.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .xr-launch-description{font-size:11px;color:#d0cadf;line-height:1.3}
+  .xr-launch-meta{margin-top:3px;font-size:12px;color:#aab3c2;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .xr-launch-badge{align-self:flex-start;flex:none;max-width:205px;padding:8px 11px;border-radius:999px;border:1px solid rgba(141,230,200,.28);
+    background:rgba(141,230,200,.1);color:#a8f0d5;font-size:11px;font-weight:800;letter-spacing:.04em;line-height:1.3;text-align:center}
+  .xr-launch-badge.external{border-color:rgba(255,190,80,.28);background:rgba(255,190,80,.09);color:#ffd79a}
+  .xr-launch-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;min-height:0}
+  .xr-launch-section{min-width:0;padding:15px;border-radius:18px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035)}
+  .xr-launch-section-head{margin:0 0 4px;font-size:16px;font-weight:800;color:#f4f1ff}
+  .xr-launch-section-sub{margin:0 0 12px;color:#969db0;font-size:12px;line-height:1.4}
+  .xr-quality-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+  .xr-quality-option{min-width:0;min-height:120px;padding:12px 10px;border-radius:14px;text-align:left;
+    border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);transition:transform .15s,border-color .15s,background .15s}
+  .xr-quality-option:hover{background:rgba(255,255,255,.08);transform:translateY(-1px)}
+  .xr-quality-option[aria-pressed="true"]{border-color:#a78bfa;background:linear-gradient(155deg,rgba(124,107,255,.26),rgba(167,139,250,.1));
+    box-shadow:inset 0 0 0 1px rgba(167,139,250,.2),0 7px 18px rgba(84,62,190,.13)}
+  .xr-quality-option strong,.xr-quality-option small{display:block}
+  .xr-quality-option strong{font-size:13px;line-height:1.25}
+  .xr-quality-option small{margin-top:7px;color:#b1b8c9;font-size:11px;line-height:1.35}
+  .xr-quality-mark{display:block;width:21px;height:21px;margin-bottom:9px;color:#c9b8ff}
+  .xr-mode-list{display:grid;grid-template-columns:1fr;gap:8px}
+  .xr-mode-option{min-height:69px;padding:10px 12px;display:flex;align-items:center;gap:11px;text-align:left;
+    border-radius:13px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045)}
+  .xr-mode-option[aria-pressed="true"]{border-color:rgba(167,139,250,.75);background:rgba(124,107,255,.16)}
+  .xr-mode-icon{width:28px;height:28px;display:grid;place-items:center;flex:none;color:#c9b8ff}
+  .xr-mode-icon .ui-icon{width:24px;height:24px}
+  .xr-mode-option strong,.xr-mode-option small{display:block}
+  .xr-mode-option strong{font-size:13px}
+  .xr-mode-option small{margin-top:3px;color:#a7adbd;font-size:10px;line-height:1.35}
+  .xr-launch-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px}
+  .xr-launch-status{min-width:0;flex:1;color:#aab3c2;font-size:12px;line-height:1.4}
+  .xr-launch-status[data-state="error"]{color:#ffb7b7}
+  .xr-launch-actions{display:flex;align-items:center;gap:9px;flex:none}
+  .xr-launch-back,.xr-launch-start{min-height:48px;padding:0 20px;border-radius:14px;font-size:15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:9px}
+  .xr-launch-back{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#d6d8e2}
+  .xr-launch-start{min-width:150px;background:linear-gradient(125deg,#a855f7,#6459ee);color:#fff;
+    box-shadow:0 8px 22px rgba(105,75,231,.32);transition:transform .14s,filter .14s}
+  .xr-launch-start:hover{filter:brightness(1.13);transform:translateY(-1px)}
+  .xr-launch-start:disabled{opacity:.62;filter:saturate(.65);transform:none;cursor:wait}
+  .xr-launch-start .ui-icon{width:21px;height:21px}
+  .xr-launch button:focus-visible{outline:3px solid #67e8f9;outline-offset:2px}
+  @media(max-width:760px){.xr-launch{padding:15px}.xr-launch-grid{grid-template-columns:1fr}.xr-launch-section{padding:12px}.xr-quality-option{min-height:100px}}
+  /* Menu durante o jogo: painel PLANO na frente do usuário, nunca curvo. */
   .game-menu{height:100%;padding:26px;display:flex;flex-direction:column;gap:14px}
   .gm-t{font-size:24px;font-weight:700;margin-bottom:4px}
   .gm-btn{min-height:88px;border-radius:20px;background:rgba(255,255,255,.09);border:1px solid var(--line-2);
