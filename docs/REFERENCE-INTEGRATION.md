@@ -46,7 +46,7 @@ Camera2 rear camera → one YUV_420_888 ImageReader (latest frame, queue depth 2
        └─ independent 640px bitmap → com.nextvr.handtrack.HandTracker
              → MediaPipe VIDEO, 2 hands/frame (+ lower-confidence hunt graph while nothing tracked)
              → landmark filters / shapes / latch / shoulder rays (HandGestures, PhoneXrHands)
-                  ├─ transparent WebView overlay → cyan contour + pinch cursor for each hand
+                  ├─ native GL hand overlay → #211923 fill + #D9D5DF contour/cursor per hand
                   ├─ native GL → shoulder ray / drop / stick / beam / target ring
                   └─ reference surface hit-testing / fist grabbing / NEAR touch
 Reference HTML/CSS + spatial JS
@@ -61,10 +61,10 @@ Unmodified Cardboard SDK + existing native renderer infrastructure
 ```
 
 The renderer does **not** display one flat UI texture in front of the user. Each HTML spatial object
-has its own world transform, bounds, texture region and stereo projection. The cyan hand contour and
-pinch cursor share the head-locked camera overlay with the status HUD; they are drawn in the WebView
-from landmarks already produced by the native MediaPipe pipeline. The browser and UI are rendered
-once and sampled for both eyes; there are no duplicate browser sessions playing duplicate audio.
+has its own world transform, bounds, texture region and stereo projection. The hand fill (`#211923`),
+soft light contour (`#D9D5DF`) and per-hand pinch cursor are drawn by the native GL overlay from
+landmarks already produced by MediaPipe. The browser and UI are rendered once and sampled for both
+eyes; there are no duplicate browser sessions playing duplicate audio.
 
 ### Preserved spatial behavior
 
@@ -88,8 +88,8 @@ once and sampled for both eyes; there are no duplicate browser sessions playing 
 
 ### Necessary Android adaptations
 
-- Removed all demo OBJ/texture assets, room/target rendering, sky sphere, grid, fog and environment
-  switching. The environment choice is camera passthrough only.
+- Removed demo OBJ/texture assets, room/target rendering, grid and fog. Native GL renders the palm
+  panorama by default; the other 360° scenes and camera passthrough remain selectable.
 - Native orientation replaces **only** the web sensor input; native builds never register the web
   `deviceorientation` listener or open a second `getUserMedia` camera.
 - Rear-camera pixels are rotated `(sensorOrientation - displayRotation*90 + 360) % 360` once
@@ -138,10 +138,10 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
 - A stable thumb/index **base-weighted** aim point drives the shoulder-origin pointer, using
   the fork's lead and native cursor filters. The held hand owns the click; both hands get rays.
-- The transparent overlay now draws the supplied cyan outer contour and one pinch cursor per hand
-  from the native MediaPipe landmarks. It reuses the existing rear-camera results rather than
-  opening a second WebView `getUserMedia` stream or fetching the JavaScript tracker from a CDN.
-  The native GL pass remains responsible for the depth-aware shoulder ray and target marker; the
+- The native overlay draws the requested dark fill (`#211923`), soft light contour (`#D9D5DF`)
+  and one pinch cursor per hand from native MediaPipe landmarks. It reuses the existing rear-camera
+  results rather than opening a second WebView `getUserMedia` stream or fetching the JavaScript
+  tracker from a CDN. The same GL pass draws the depth-aware shoulder ray and target marker; the
   hand-visibility setting controls the contour/cursors.
 - A fist closing over a window arms grab; it does not detach until filtered palm motion crosses an
   18 px logical threshold. Fist and white-handle drags share a fixed world plane, preserve the
@@ -262,7 +262,7 @@ Use the following acceptance checklist before describing this as a device-verifi
    while the rear camera continues tracking hands.
 6. Compare dock, typography, restored icons, proportions, spacing, shadows, focus, window arc,
    thresholded drag, placement bounds, proportional resize, repin, keyboard and six-window limit.
-7. Verify the cyan contour and pinch cursors for both hands plus both native rays, fist grab/edge
+7. Verify the dark fill, soft light contour and pinch cursors for both hands plus both native rays, fist grab/edge
    highlight, near/far movement, pinch hold/release, hand loss/switching, browser scrolling, sliders
    and floating-keyboard input.
 8. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,

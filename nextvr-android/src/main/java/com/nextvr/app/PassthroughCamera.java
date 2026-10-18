@@ -38,10 +38,10 @@ final class PassthroughCamera {
         void stopped();
     }
     /**
-     * GPU landmarkers this process may build. The first is the initial choice; the second is the
-     * retry a reopened camera arms (see open()), which exists because a GPU abandoned while the boot
-     * page was still being rasterized is not evidence about a steady session. Two is the whole
-     * budget: the retry would otherwise become the loop the latch exists to prevent.
+     * GPU landmarkers this process may build. Zero: the GPU delegate was measured at 500 ms per
+     * frame on this device (PR #29), against 85-100 ms for the CPU delegate, so it is not a
+     * fallback worth spending a frame on. The watchdog that judges a delegate (DelegateWatch) and
+     * the CPU fallback path stay in place for when that measurement changes.
      */
     private static final int MAX_GPU_ATTEMPTS=0;
     /** A scaled analysis frame waiting for, or being processed by, hand tracking. */

@@ -21,6 +21,22 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
+    /** More visible hand and pointer treatment; requested RGB values and tracking behavior are unchanged. */
+    private companion object {
+        const val HAND_FILL_R = 0.12941177f // #211923
+        const val HAND_FILL_G = 0.09803922f
+        const val HAND_FILL_B = 0.13725491f
+        const val HAND_CONTOUR_R = 0.8509804f // #D9D5DF
+        const val HAND_CONTOUR_G = 0.8352941f
+        const val HAND_CONTOUR_B = 0.8745098f
+        const val HAND_FILL_ALPHA = 0.46f
+        const val HAND_OUTLINE_ALPHA = 0.62f
+        const val HAND_PINCH_ALPHA = 0.72f
+        const val POINTER_DROP_ALPHA = 0.72f
+        const val POINTER_CLICK_ALPHA = 0.76f
+        const val POINTER_RAY_ALPHA = 0.60f
+        const val POINTER_RING_INTENSITY = 0.82f
+    }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
         "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=1.-smoothstep(.46,1.,t); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
@@ -134,27 +150,27 @@ class PhoneXrHandRenderer {
     fun draw(frame: PhoneXrHands.Frame,sx:Float,sy:Float,projection:FloatArray,view:FloatArray,targetsJson:String,showSilhouette:Boolean) {
         val now=SystemClock.elapsedRealtimeNanos()
         val visible=presentation.silhouette(frame,now)
+        // Predict one shared two-hand pose for the silhouette and pointer pass. The per-hand
+        // confidence travels with that hand, so a brief miss fades only the missing hand instead
+        // of dimming its still-live neighbour.
+        val visual=visible?.predicted(now)
         // Live tracking drives presses; a retained or motion-model-predicted pose is visual only.
         val live=frame.hands.isNotEmpty() && frame.isFresh(now)
-        // Gradual confidence decay instead of abruptly hiding a hand whose detection blinked out:
-        // the silhouette fades along the prediction's confidence and the retention fade, whichever
-        // is weaker, so a lost hand dims out smoothly rather than popping away.
-        val fade=if(visible==null)0f else minOf(presentation.fade(visible,now),visible.hands.minOf{it.confidence})
+        val fade=if(visible==null)0f else presentation.fade(visible,now)
         viewScaleX=sx;viewScaleY=sy
         GLES20.glUseProgram(colorProgram)
         GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
-        if(showSilhouette && visible!=null) {
-            this.frame=visible
+        if(showSilhouette && visual!=null) {
+            this.frame=visual
             // Predicted to display time: the silhouette tracks the render rate even when the
             // detection rate drops (app open, GPU contention) — no stepping, no flicker.
-            meshes=meshesFor(visible.predicted(now),sx,sy,now)
+            meshes=meshesFor(visual,sx,sy,now)
             drawHandSkeletons(position,fade)
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
-        val visual=visible?.predicted(now)
         if(visual==null)return
         // Both eyes/display frames commonly reuse the same bridge packet.
         if(targetsText!=targetsJson){
@@ -195,7 +211,7 @@ class PhoneXrHandRenderer {
             val b=beamLine
             b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null)1f else 0f
-            drawBeam(b,down,position,fade)
+            drawBeam(b,down,position,fade*hand.confidence.coerceIn(0f,1f))
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -247,7 +263,6 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
     private fun buildHandMeshes() {
             val hands = handPoints
             val result=ArrayList<Mesh>()
-            val pinching = frame.hands.any { it.pinching }
             var used=0
             fun mesh(): Mesh {
                 val m=if(used<meshPool.size)meshPool[used] else Mesh(8192).also{meshPool.add(it)}
@@ -255,7 +270,10 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 m.vertices.reset()
                 return m
             }
-            for (hand in hands) {
+            for ((handIndex, hand) in hands.withIndex()) {
+                val handPose = frame.hands.getOrNull(handIndex)
+                val pinching = handPose?.pinching == true
+                val handConfidence = (handPose?.confidence ?: 1f).coerceIn(0f, 1f)
                 fun x(i: Int) = (hand[i * 3] - .5f) * 2f * viewScaleX
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
                 val palm = hypot(x(9) - x(0), y(9) - y(0))
@@ -387,9 +405,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         }
                     }
                     val rgba=when {
-                        outline && pinching -> floatArrayOf(1f,1f,1f,1f)
-                        outline -> floatArrayOf(.80f,.81f,.85f,.82f)
-                        else -> floatArrayOf(.10f,.10f,.13f,.82f)
+                        outline && pinching -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_PINCH_ALPHA*handConfidence)
+                        outline -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_OUTLINE_ALPHA*handConfidence)
+                        else -> floatArrayOf(HAND_FILL_R,HAND_FILL_G,HAND_FILL_B,HAND_FILL_ALPHA*handConfidence)
                     }
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
@@ -441,7 +459,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, .95f, .95f, .97f, .9f*fade)
+                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_DROP_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {
@@ -452,7 +470,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, 1f, 1f, 1f, .95f*fade)
+                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_CLICK_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
@@ -474,7 +492,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
                         across(ax, ay, az, .006f, wa)
                         across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, 1f, 1f, 1f, .85f * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                        GLES20.glUniform4f(color, .92f, .95f, 1f, POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -490,7 +508,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             val outer = (if (down || touching) .009f else .012f) * depth
             val inner = outer - .005f * depth
             GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
-            GLES20.glUniform4f(color, fade, fade, fade, 1f)
+            GLES20.glUniform4f(color, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, 1f)
             ring3d(b[3], b[4], b[5], outer, inner, position)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         }
