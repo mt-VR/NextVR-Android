@@ -2,7 +2,7 @@
 import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d,
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible } from './windows.js';
+import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, androidRecent,
   androidRecentIndex, focusAppWindow, openWindowCount,
@@ -275,6 +275,132 @@ function settingsApp() {
   return open({ id: 'settings', title: t('settings'), node: body });
 }
 
+/**
+ * System-style Quick Settings surface based on the supplied screenshot. Date/time use the Android
+ * WebView's system clock; battery is the same native sticky-broadcast value used by the dock.
+ * The media and brightness sliders use Android's public AudioManager/window APIs through the bridge.
+ */
+function quickSettingsApp() {
+  const existing = wins.find(w => w.id === 'quick-settings');
+  if (existing) { focus(existing); paintQuickSettingsStatus(getDeviceStatus()); return existing; }
+
+  const body = el('div', 'quick-settings');
+  body.innerHTML = `<section class="qs-panel">
+    <header class="qs-top">
+      <div class="qs-system">
+        <span class="qs-battery" data-q-battery>${icon('battery')}<span>--%</span></span>
+        <span data-q-time>--:--</span><span class="qs-date" data-q-date></span>
+      </div>
+      <span class="qs-top-spacer"></span>
+      <button class="qs-top-action" data-q-settings aria-label="Configurações NextVR">${icon('settings')}<span>Configurações</span></button>
+      <button class="qs-repin" data-act="pin" aria-label="Voltar ao arco">${icon('crosshair')}</button>
+      <button class="qs-close" data-q-close aria-label="Fechar">${icon('x')}</button>
+    </header>
+    <div class="qs-ranges">
+      <label class="qs-range" title="Volume de mídia"><input data-q-range="volume" type="range" min="0" max="100" value="50" aria-label="Volume"><span>${icon('volume')}</span></label>
+      <label class="qs-range" title="Brilho da tela"><input data-q-range="brightness" type="range" min="0" max="100" value="50" aria-label="Brilho"><span>${icon('sun')}</span></label>
+    </div>
+    <div class="qs-cards">
+      <div class="qs-card"><div class="qs-card-line">${icon('wifi')}<span class="qs-card-title">Wi-Fi</span></div><span class="qs-card-sub" data-q-network>Verificando conexão</span></div>
+      <div class="qs-card"><div class="qs-card-line">${icon('bluetooth')}<span class="qs-card-title">Bluetooth</span></div><span class="qs-card-sub">Gerenciado pelo Android</span></div>
+      <div class="qs-card"><div class="qs-card-line">${icon('link')}<span class="qs-card-title">Link</span></div><span class="qs-card-sub">Não conectado</span></div>
+      <div class="qs-card"><div class="qs-card-line">${icon('boundary')}<span class="qs-card-title">Limite</span></div><span class="qs-card-sub">Desativado</span></div>
+    </div>
+    <div class="qs-tools">
+      <button class="qs-tool" data-q-env>${icon('scene')}<span>Visão do ambiente</span></button>
+      <button class="qs-tool" disabled title="O NextVR não usa microfone">${icon('mic')}<span>Microfone</span></button>
+      <button class="qs-tool" data-q-recenter>${icon('move')}<span>Redefinir visualização</span></button>
+      <button class="qs-tool" data-q-night aria-pressed="false">${icon('sun')}<span>Modo noturno</span></button>
+      <button class="qs-tool" data-q-dnd aria-pressed="false">${icon('moon')}<span>Não perturbe</span></button>
+      <button class="qs-tool" disabled title="Espelhamento do sistema não disponível nesta tela">${icon('cast')}<span>Espelhar</span></button>
+      <button class="qs-tool" disabled>${icon('bug')}<span>Relatar problema</span></button>
+      <button class="qs-tool" disabled>${icon('lock')}<span>Modo viagem</span></button>
+      <button class="qs-tool" disabled>${icon('device')}<span>Remote Desktop</span></button>
+    </div>
+  </section>
+  <aside class="qs-side" aria-label="Controles rápidos">
+    <div class="qs-volume"><span class="qs-more"><i></i><i></i><i></i></span>
+      <div class="qs-volume-slider-wrap"><input class="qs-v-range" data-q-range="volume" type="range" min="0" max="100" value="50" aria-label="Volume de mídia"></div>
+      ${icon('volume')}
+    </div>
+    <button class="qs-side-button" data-q-mute aria-pressed="false" aria-label="Silenciar mídia">${icon('volumeoff')}</button>
+    <button class="qs-side-button" data-q-night aria-pressed="false" aria-label="Modo noturno">${icon('moon')}</button>
+  </aside>`;
+
+  const root = body;
+  let prefs = { night:false, dnd:false, muted:false, lastVolume:50 };
+  try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem('nextvr.quick-settings.v1') || '{}') }; } catch {}
+  const inputs = [...root.querySelectorAll('[data-q-range]')];
+  const readBridge = (method, fallback) => {
+    try { const n = Number(window.NativeXR?.[method]?.()); return Number.isFinite(n) ? Math.max(0,Math.min(100,n)) : fallback; }
+    catch { return fallback; }
+  };
+  let volume = native ? readBridge('mediaVolumePercent', 50) : 50;
+  const brightness = native ? readBridge('brightnessPercent', 50) : 50;
+  if (volume > 0) prefs.lastVolume = volume;
+  function setRange(name, value) {
+    const v = Math.max(0,Math.min(100,Number(value)||0));
+    for (const input of inputs.filter(x=>x.dataset.qRange===name)) {
+      input.value = String(v); input.style.setProperty('--fill', `${v}%`);
+    }
+    if (name === 'volume') {
+      volume = v;
+      if (v > 0) { prefs.lastVolume = v; prefs.muted = false; }
+      else prefs.muted = true;
+    }
+  }
+  function savePrefs() {
+    try { localStorage.setItem('nextvr.quick-settings.v1',JSON.stringify(prefs)); } catch {}
+  }
+  function syncPrefs() {
+    root.classList.toggle('night',!!prefs.night);
+    root.querySelectorAll('[data-q-night]').forEach(b=>b.setAttribute('aria-pressed',String(!!prefs.night)));
+    root.querySelectorAll('[data-q-dnd]').forEach(b=>b.setAttribute('aria-pressed',String(!!prefs.dnd)));
+    root.querySelectorAll('[data-q-mute]').forEach(b=>b.setAttribute('aria-pressed',String(!!prefs.muted)));
+  }
+  setRange('volume',volume);setRange('brightness',brightness);syncPrefs();
+  for (const input of inputs) {
+    input.addEventListener('input',()=>setRange(input.dataset.qRange,input.value));
+    input.addEventListener('change',()=>{
+      if(!native)return;
+      if(input.dataset.qRange==='volume')window.NativeXR.setMediaVolumePercent?.(volume);
+      if(input.dataset.qRange==='brightness')window.NativeXR.setBrightnessPercent?.(Number(input.value));
+      syncPrefs();savePrefs();
+    });
+  }
+  root.addEventListener('click',e=>{
+    const c=selector=>e.target.closest(selector);
+    if(c('[data-q-close]')){close(wins.find(w=>w.id==='quick-settings'));return;}
+    if(c('[data-q-settings]')){settingsApp();return;}
+    if(c('[data-q-env]')){environments();return;}
+    if(c('[data-q-recenter]')){recenter();return;}
+    if(c('[data-q-night]')){prefs.night=!prefs.night;syncPrefs();savePrefs();return;}
+    if(c('[data-q-dnd]')){prefs.dnd=!prefs.dnd;syncPrefs();savePrefs();return;}
+    if(c('[data-q-mute]')){
+      prefs.muted=!prefs.muted;
+      if(prefs.muted){if(volume>0)prefs.lastVolume=volume;setRange('volume',0);}
+      else setRange('volume',prefs.lastVolume||50);
+      if(native)window.NativeXR.setMediaVolumePercent?.(volume);
+      syncPrefs();savePrefs();
+    }
+  });
+  const win=open({id:'quick-settings',title:'Configurações',node:body,w:1040,h:660,chrome:false,resizable:false});
+  paintQuickSettingsStatus(getDeviceStatus());
+  return win;
+}
+
+function paintQuickSettingsStatus(status = getDeviceStatus()) {
+  const root = document.querySelector('.quick-settings');
+  if (!root) return;
+  const battery = root.querySelector('[data-q-battery] span');
+  if (battery) battery.textContent = status.batteryLevel == null ? '--%' : `${Math.round(status.batteryLevel*100)}%`;
+  const time = root.querySelector('[data-q-time]'); if (time) time.textContent = status.time || '--:--';
+  const date = root.querySelector('[data-q-date]'); if (date) date.textContent = status.date || '';
+  const network = root.querySelector('[data-q-network]');
+  if (network) network.textContent = status.online ? 'Conectado à internet' : 'Sem conexão';
+}
+on('device-status',paintQuickSettingsStatus);
+
 /* ============ Loja + Biblioteca ============ */
 const LS_REC = 'nextvr.lib.recent.v1';
 const loadArr = k => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) ? v : []; } catch { return []; } };
@@ -314,7 +440,7 @@ const LIB_ACTIONS = {
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
-  settings: () => settingsApp(),
+  settings: () => quickSettingsApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
@@ -378,8 +504,9 @@ function storeApp() {
 }
 /* ---------- biblioteca ---------- */
 let libSort = 'recent', libFilter = 'all', libQuery = '';
-const LIB_FILTERS = ['all', 'games', 'apps', 'recent'];
-const LIB_FILTER_LABELS = { all:'Todas', games:'Jogos', apps:'Apps', recent:'Recentes' };
+const LIB_FILTERS = ['all', 'apps', 'games', 'recent'];
+const LIB_FILTER_LABELS = { all:'All', games:'Games', apps:'Apps', recent:'Recent' };
+const LIB_FEATURED_IDS = new Set(['store', 'browser', 'settings', 'youtube']);
 function touchLib(id, silent) {
   libRecent = [id, ...libRecent.filter(x => x !== id)].slice(0, 40);
   persistShop(); if (!silent) paintLibrary();
@@ -435,32 +562,34 @@ function appTile(a) {
 function buildLibrary() {
   const list = libItems();
   const root = el('div', 'lib');
+  const showFeatured = libFilter === 'all' && !libQuery.trim();
+  const visibleList = showFeatured ? list.filter(x => !LIB_FEATURED_IDS.has(x.id)) : list;
   const fLabel = LIB_FILTER_LABELS[libFilter] || LIB_FILTER_LABELS.all;
-  const navButton = (id, label, glyph) => `<button class="lib-nav" data-nav="${id}" title="${label}" aria-label="${label}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
-  root.innerHTML = `<nav class="lib-rail" aria-label="Navegação da biblioteca">
-      ${navButton('all','Todas as aplicações','appGrid')}
-      ${navButton('apps','Aplicativos','device')}
-      ${navButton('games','Jogos','controller')}
-      ${navButton('recent','Recentes','timer')}
-      <span class="lib-rail-spacer"></span>
-      <button class="lib-nav lib-nav-store" data-app="store" title="Store" aria-label="Abrir Store">${icon('store')}</button>
-    </nav>
-    <section class="lib-main">
-      <div class="lib-head"><h2 class="lib-title">Apps</h2>
-        <button class="lib-sbtn" data-s aria-label="Buscar">${icon('search')}</button>
-        <input class="lib-search" data-q placeholder="Buscar" value="${escH(libQuery)}">
+  const shortcut = (id, label, glyph, cls) => `<button class="lib-shortcut ${cls}" data-app="${id}" aria-label="${label}">${icon(glyph)}<span>${label}</span></button>`;
+  root.innerHTML = `<section class="lib-main">
+      <div class="lib-head"><h2 class="lib-title">App Library</h2>
+        <button class="lib-sbtn" data-s aria-label="Search">${icon('search')}</button>
+        <input class="lib-search" data-q placeholder="Search apps" value="${escH(libQuery)}">
         <span class="lib-head-spacer"></span>
-        <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recentes'} ${icon('chevronDown')}</button>
-        <button class="lib-pill" data-filter>${fLabel} · ${list.length} ${icon('chevronDown')}</button>
+        <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recent'} ${icon('chevronDown')}</button>
+        <button class="lib-pill" data-filter>${fLabel} (${list.length}) ${icon('chevronDown')}</button>
       </div>
-      <div class="lib-scroll"><div class="lib-grid">${
-        list.map(x => x.kind === 'xr' ? xrTileHtml(x)
-          : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')
-      }</div>
-      ${list.length ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.' : libFilter === 'recent' ? 'Os apps usados recentemente vão aparecer aqui.' : 'Nenhum app encontrado.'}</div>`}
+      <div class="lib-scroll">
+        ${showFeatured ? `<div class="lib-shortcuts">
+          ${shortcut('store','Store','store','store')}
+          <button class="lib-shortcut explore" data-shortcut="explore" aria-label="Explore">${icon('compass')}<span>Explore</span></button>
+          ${shortcut('settings','Settings','settings','settings')}
+          ${shortcut('browser','Browser','compass','browser')}
+        </div>` : ''}
+        <div class="lib-grid">
+          ${showFeatured ? `<button class="lib-tv" data-app="youtube" aria-label="TV">${icon('play')}<span>TV</span></button>` : ''}
+          ${visibleList.map(x => x.kind === 'xr' ? xrTileHtml(x)
+            : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')}
+        </div>
+        ${visibleList.length || showFeatured ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.' : libFilter === 'recent' ? 'Recently opened apps will appear here.' : 'No apps found.'}</div>`}
       </div>
-    </section>
-    `;
+      <footer class="lib-foot"><button class="lib-close" data-lib-close aria-label="Close App Library">${icon('x')}</button><button class="lib-repin" data-act="pin" aria-label="Return to window arc">${icon('crosshair')}</button><span>App Library</span></footer>
+    </section>`;
   // An Android-app and PhoneXR rows both live here only while their world needs explaining; when
   // everything is ready neither exists (see shizukuNotice / phoneXrNotice).
   const notice = shizukuNotice();
@@ -478,8 +607,9 @@ function buildLibrary() {
   root.addEventListener('click', e => {
     const c = s => e.target.closest(s);
     let m;
+    if (c('[data-lib-close]')) { close(wins.find(w => w.id === 'library')); return; }
+    if (c('[data-shortcut="explore"]')) { environments(); return; }
     if (c('[data-s]')) { const i = root.querySelector('[data-q]:not([data-q="android"])'); if (!i) return; i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
-    if ((m = c('[data-nav]'))) { libFilter = m.dataset.nav; paintLibrary(); return; }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
@@ -487,8 +617,6 @@ function buildLibrary() {
       // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
       // shell only brings an existing window forward so the tap always ends on the app.
       const pkg = m.dataset.android;
-      // The shape travels, not a size: the app is hosted on this phone's own screen, and the window
-      // takes that canvas' shape (see openApp).
       openApp(pkg);
       focusAppWindow(pkg);
       return;
@@ -555,7 +683,7 @@ function libraryApp() {
   const w = wins.find(x => x.id === 'library');
   if (w) { paintLibrary(); focus(w); return w; }
   const body = el('div'); body.style.cssText = 'height:100%';
-  const win = open({ id: 'library', title: t('apps'), node: body });
+  const win = open({ id: 'library', title: 'App Library', node: body, w:1040, h:660, chrome:false, resizable:false });
   paintLibrary();
   return win;
 }
@@ -570,14 +698,14 @@ function makeDock() {
   buildDock([
     // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
-    { kind: 'status', id: 'status',  label: t('settings'), run: settingsApp },
+    { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
     // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
     { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
     { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
-    { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: settingsApp },
+    { id: 'settings', win: 'settings', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: quickSettingsApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(145deg,#4fd1c5,#1a8f87)', run: shizukuWindow },

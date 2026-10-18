@@ -72,10 +72,12 @@ head rotation updates the view only. Recognized pinch/fist/contact transitions a
 slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
 Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
 resizing. Hand tracking is one MediaPipe pipeline written for this project
-(`com.nextvr.handtrack.HandTracker`): a two-hand VIDEO graph per frame, plus a second graph of the
-same model at a lower detection confidence that runs while nothing is tracked, so a hand the strict
-graph cannot see is still acquired. The PhoneXR fork pipeline (adaptive one/two hand slots, YOLO11
-wrist recovery, CPU crop rescue on background threads) and its 11.7 MB AGPL pose model are gone.
+(`com.nextvr.handtrack.HandTracker`): both hands are detected and rendered together; when only one
+is present, a one-slot VIDEO graph keeps the common case responsive and a two-slot probe looks for
+the second hand every 250 ms. Once both are found, the two-slot graph follows both continuously.
+Per-hand prediction and confidence keep a brief missed detection from making its neighbour flicker.
+The PhoneXR fork pipeline (YOLO11 wrist recovery, CPU crop rescue on background threads) and its
+11.7 MB AGPL pose model are gone.
 The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its

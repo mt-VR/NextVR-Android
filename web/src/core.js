@@ -499,7 +499,8 @@ let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
 /* Estado do pipeline nativo, publicado pelo PerfLog a cada ~3 s (delegate, FPS da câmera, custo da
  * inferência, quantos frames foram de uma ou de duas slots). É o que responde "por que a mão está
  * lenta" na própria tela: `infer` alto = o modelo/o delegate; `cam` baixo = a câmera não entrega;
- * `slots 2` com a mão levantada = o grafo de uma slot não está sendo usado. */
+ * duas mãos visíveis e `slots 2` = esperado; uma mão só e `slots 2` persistente = a trilha rápida
+ * de uma slot não está entrando. */
 let diag = null;
 
 export const reportHandFrame = () => {

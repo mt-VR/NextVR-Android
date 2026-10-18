@@ -177,22 +177,39 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),19,
-      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone (demo games are gone; a game tile now exists only if the runtime answers with one)');
-    // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
-    // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
-    // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
+    assert.equal(await page.locator('.lib-tile').count(),15,
+      'the screenshot-style App Library keeps four featured apps in the top shortcuts and TV, while the remaining apps and installed Android apps fill the grid');
+    assert.equal(await page.locator('.lib-title').innerText(),'App Library');
+    assert.equal(await page.locator('.lib-shortcut').count(),4,'Store, Explore, Settings and Browser match the reference shortcuts');
+    assert.equal(await page.locator('.lib-tv').count(),1,'TV is the prominent first tile beneath the shortcuts');
+    assert.equal(await page.locator('.lib-foot').innerText(),'App Library','the library has its own footer and close control');
+    assert.equal(await page.locator('.lib-rail').count(),0,'the screenshot library has no left navigation rail');
+    // Wait for the atlas DOM rectangle before measuring the four image columns.
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
-    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
-    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
-    await page.locator('.lib-nav[data-nav="games"]').click();
+    await page.locator('[data-filter]').click();
+    assert.equal(await page.locator('.lib-tile').count(),19,'Apps filter shows every installed and built-in app as a tile');
+    await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,
       'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
-    await page.locator('.lib-nav[data-nav="recent"]').click();
+    await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
-    await page.locator('.lib-nav[data-nav="all"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the complete library, installed apps included');
+    await page.locator('[data-filter]').click();
+    assert.equal(await page.locator('.lib-tile').count(),15,'All restores the screenshot layout and installed-app grid');
+    await page.locator('.dock [data-id="status"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
+    assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');
+    assert.match(await page.locator('[data-q-time]').innerText(),/^\d{1,2}:\d{2}$/,'quick settings show the device clock');
+    assert.match(await page.locator('[data-q-date]').innerText(),/[0-9]/,'quick settings show the device date');
+    assert.equal(await page.locator('.qs-tools').locator('button').count(),9,'quick settings follow the reference action grid');
+    assert.equal(await page.locator('.qs-side').count(),1,'the volume and blue quick buttons match the side rail in the screenshot');
+    const quickPanel=await page.locator('.qs-panel').evaluate(e=>getComputedStyle(e).backgroundColor);
+    assert.equal(quickPanel,'rgb(16, 46, 51)','the system panel uses the reference dark teal');
+    await page.locator('.quick-settings [data-q-settings]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.win-shell[data-window-id="settings"] .tabs'));
+    await page.locator('.win-shell[data-window-id="settings"] [data-act="close"]').click();
+    await page.locator('.quick-settings [data-q-close]').click();
+    await page.waitForFunction(()=>!document.querySelector('.quick-settings'));
     await page.locator('.dock [data-id="store"]').click();
     // The store is the honest shell now: Apps and Horizon+ (the demo-game tabs are gone). Wait for
     // the window itself to be composited into the atlas, not just for the markup to exist — the
@@ -460,8 +477,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        ============================================================================================= */
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,
-      'no rail entry leads to a separate Android page');
+    assert.equal(await page.locator('.lib-rail').count(),0,
+      'the reference library has no rail entry for a separate Android page');
     assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
     assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
       'and they sit in the same grid as the web apps, not in a page of their own');

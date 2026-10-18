@@ -1414,38 +1414,33 @@ no código — e a terceira tem uma medição do próprio repositório apontando
   análise nem produz (`skips`). Taxa baixa **com** `cam_work` baixo não é a câmera: é o modelo ou o
   delegate.
 
-## 3. A hipótese principal para ~3 fps é o imposto do segundo slot — que a 9ª rodada tinha devolvido
+## 3. Slot policy: both hands together, one-hand fast path
 
-A 9ª rodada removeu a política de slots junto com o fork do PhoneXR: o motor novo (`HandTracker`)
-processa `numHands=2` em **todo** frame. A medição B da 7ª rodada continua valendo e descreve
-exatamente o caso do dia a dia (host, 1 core, 640 px, uma mão na cena):
+The shipped `HandTracker` uses two VIDEO graphs of the same MediaPipe model. The `wide` graph has
+two slots and is used for initial search, tracking loss, periodic second-hand probes, and every
+frame while two hands are present. When search sees exactly one hand, the `narrow` graph uses one
+slot for ordinary tracking; the next two-slot probe occurs within `PROBE_MS = 250` ms. If that probe
+sees both hands, `wide` remains active so neither hand is dropped. If the second hand leaves, the
+next one-hand frame returns to `narrow`; a tracking miss goes straight back to search.
 
-| configuração | mean | p95 |
-|---|---|---|
-| `numHands=1`, uma mão na cena | 11,8 ms | 14,3 ms |
-| `numHands=2`, uma mão na cena | 29,1 ms | 35,7 ms |
+The measurements below explain the trade-off, not a promise of handset FPS. On this shared host,
+one tracked hand costs 2.1–2.3x less with `numHands=1` (15.2–16.7 ms vs 32.3–38.6 ms), while palm
+search costs about the same either way (16.9 vs 17.1 ms). With two hands actually present, the
+wide graph is intentionally used every frame to preserve both detections. The second-slot tax is
+therefore paid when two hands are visible, rather than for an empty slot during the common
+single-hand case.
 
-Uma mão levantada — o caso da maior parte do uso — pagava **2,47×** por uma segunda slot vazia em todo
-frame. O simulador da 7ª rodada já tinha quantificado o efeito de tirar isso: **31,7 → 16,1 ms/frame**
-(~2× mais barato, 75% dos frames na slot única) e, com contenção, **17,0 → 25,9 Hz**. Num aparelho
-intermediário, 29 ms no host viram facilmente 150–300 ms → a faixa de 3–6 Hz.
+| Configuration | Behaviour |
+|---|---|
+| `wide`, `numHands=2`, confidence .25 | Find both hands; stays active while two are visible |
+| `narrow`, `numHands=1`, confidence .45 | Track the one visible hand between 250 ms probes |
+| `minTrackingConfidence=.35` | Retains the ROI through blur without making the presence model more permissive |
 
-**Correção desta rodada** (sem thread nenhum, dentro do motor de um grafo por frame que a 9ª rodada
-escreveu):
-
-- `wide` (2 slots, confiança .25) é o grafo de **busca**, sempre construído — é ele que acha a
-  primeira mão e a segunda, e o único que já reportou duas mãos.
-- `narrow` (1 slot, confiança .45) é o grafo de **rastreio**, construído na primeira mão encontrada e
-  usado enquanto exatamente uma mão é rastreada — é onde os 2,47× são economizados.
-- A cada `PROBE_MS = 150` de tempo de câmera um frame vem do grafo de busca, então uma segunda mão
-  aparece em no máximo ~150 ms (a cadência da `HandSlotPolicy` antiga). Um miss no frame de rastreio
-  volta direto para a busca: oscilar entre os grafos custaria um frame de detecção por troca e duas
-  slots em metade deles.
-- A telemetria `narrow`/`wide` **volta** à linha de resumo (a 9ª rodada a tinha removido junto com o
-  PhoneXR): com a mão levantada, `narrow` tem de dominar; `wide` dominando significa que os frames são
-  quase todos de busca.
-- O que **não** voltou: `FusionHands`, resgate por YOLO, thread de segundo plano. O que voltou é a
-  escolha de slots, e ela é local ao `HandTracker`.
+The two-hand renderer builds both silhouettes from a shared display-time prediction, but pinching
+and confidence are evaluated per hand. A temporary prediction fades only the hand that was missed;
+it does not dim the still-live neighbour. The visual pose may be predicted, but gesture edges and
+presses still require a live detection. The previous PhoneXR YOLO rescue, crop thread and 11.7 MB
+AGPL pose model are not part of this pipeline.
 
 ## O contador na tela (para não precisar de adb a cada rodada)
 
