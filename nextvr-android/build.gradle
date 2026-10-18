@@ -21,11 +21,9 @@ android {
         targetSdkVersion = 35
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
-        // 5 / 1.0.4: rodada 4 — apps do Android abrem no display próprio (a versão 4 ainda desviava
-        // para a tela do celular). O número sobe para dar como distinguir, no aparelho, o build
-        // corrigido do anterior.
-        versionCode 8
-        versionName "1.0.7"
+        // 12 / 1.0.11: navegação espacial com Joy-Con e botão Home para ocultar/restaurar workspace.
+        versionCode 12
+        versionName "1.0.11"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

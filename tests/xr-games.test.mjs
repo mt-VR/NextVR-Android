@@ -130,9 +130,9 @@ test('the hand bridge gates presses with the shell flag and sides, not presence'
 test('headset games share the Applications menu, and the runtime rows only exist when needed', async () => {
   const apps = await read(FILES.apps);
   assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
-  assert.match(apps, /installAndroidApps\(\);\ninstallXrGames\(\);/);
-  assert.match(apps, /const xr = xrLibraryItems\(\);\n\s+const apps = LIB_APPS\.map/,
-    'the Applications menu is XR games plus apps plus installed Android apps — that is the whole list');
+  assert.match(apps, /installAndroidApps\(\);\ninstallJoycon\(\);\ninstallXrGames\(\);/);
+  assert.match(apps, /const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+    'the NextVR library is its own apps plus PhoneXR games; Android packages stay in Shizuku');
   assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,
     'one tile kind per origin, one row for each source');
   assert.match(apps, /if \(\(m = c\('\[data-xr\]'\)\)\) \{\n\s+\/\/ A headset game/);
@@ -155,7 +155,7 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
   assert.ok(!xr.includes("from './game.js'"), 'the hosted-game module does not lean on the removed module');
   await assert.rejects(read('web/src/game.js'), { code: 'ENOENT' },
     'the 3D sandbox module is deleted, not just unrouted');
-  assert.match(apps, /if \(libFilter === 'games'\) list = list\.filter\(x => x\.kind === 'xr'\);/,
+  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr'\);/,
     'the Games filter is the PhoneXR library itself');
   assert.match(apps, /libFilter === 'games' \? t\('libGamesEmpty'\)/,
     'the empty Games filter uses a localized explanation, not download instructions');

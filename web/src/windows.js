@@ -1064,6 +1064,7 @@ export function setKeyboardHidden(hidden) {
   return true;
 }
 export const keyboardShown = () => !!kbObj && kbObj.visible !== false;
+export const keyboardHiddenNow = () => kbHidden;
 
 /** A janela dona do teclado: e dela que ele tira o lugar e o azimute. */
 function ownerWindow(target) {

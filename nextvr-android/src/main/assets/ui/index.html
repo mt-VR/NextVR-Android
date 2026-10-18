@@ -19,6 +19,7 @@
   html,body{margin:0;height:100%;overflow:hidden;background:#05070c;overscroll-behavior:none}
   body{font-family:Inter,system-ui,sans-serif;color:var(--ink);touch-action:none;user-select:none}
   button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+  .joycon-selected{outline:3px solid #67e8f9!important;outline-offset:3px;box-shadow:0 0 0 6px rgba(103,232,249,.22),0 0 20px rgba(103,232,249,.4)!important}
   .ui-icon{display:block;width:1.35em;height:1.35em;pointer-events:none}
   .icon-label{display:inline-flex;align-items:center;justify-content:center;gap:8px}
   [hidden]{display:none!important}
@@ -95,6 +96,14 @@
   .sub{margin:0 0 20px;color:var(--soft);font-size:17px;line-height:1.5}
   .sec{margin:26px 0 12px;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
   .card{background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:var(--r-card);padding:18px 20px;margin-bottom:12px}
+  .quick-scenes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 16px}
+  .quick-scene{position:relative;min-height:154px;overflow:hidden;border:1px solid rgba(255,255,255,.15);border-radius:18px;
+    background-size:cover;background-position:center;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
+    padding:18px;text-align:left;box-shadow:0 12px 30px rgba(0,0,0,.22);transition:transform .16s,border-color .16s}
+  .quick-scene span{font-size:18px;font-weight:700;text-shadow:0 2px 9px #000}
+  .quick-scene small{margin-top:4px;font-size:12px;color:#e0e7f1;text-shadow:0 2px 8px #000}
+  .quick-scene[aria-pressed="true"]{border:2px solid #4f8dff;box-shadow:0 0 0 2px rgba(79,141,255,.2),0 12px 30px rgba(0,0,0,.24)}
+  .quick-scene:active{transform:scale(.985)}
   .opt{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 0;border-top:1px solid var(--line)}
   .opt:first-child{border-top:0}
   .opt-l{min-width:0}
@@ -515,10 +524,9 @@
     border-radius:999px;background:#57dfa1;color:#052c1a;font-size:10.5px;font-weight:800;
     display:grid;place-items:center;box-shadow:0 2px 7px rgba(0,0,0,.5)}
 
-  /* ---------- apps instalados no aparelho, dentro do MENU de aplicações que já existe ----------
-     O tile é o mesmo .lib-tile da referência; o que muda é o conteúdo da capa: o ícone real que o
-     PackageManager devolveu (servido pelo lado nativo em /apps/<arquivo>.png) sobre um fundo neutro.
-     Sem ícone ainda — ou sem ícone legível — a capa mostra as iniciais do app, como os apps da web. */
+  /* ---------- app Android dedicado do Shizuku ----------
+     A coleção Android só aparece nesta janela, separada da biblioteca interna do NextVR. O tile usa
+     o ícone real do PackageManager e cai nas iniciais enquanto o ícone é carregado. */
   .lib-tile.android .lib-cover{background:rgba(255,255,255,.07)}
   /* 52 px: the same box the web apps' logos use in this grid (see .lib-brand img.logo), so an
      installed app and a NextVR app are drawn at the same size next to each other. */
@@ -541,9 +549,99 @@
     padding:3px 7px;background:rgba(87,223,161,.92);color:#052c1a}
   .lib-tile.android[data-session="suspended"] .lib-open{background:rgba(255,255,255,.84);color:#15181e}
 
-  /* ---------- a única linha específica de Android na interface ----------
-     Existe só enquanto o serviço shell não está pronto, para dizer qual dos dois mecanismos o tile
-     vai usar e como chegar no outro. Com o serviço pronto ela não é criada. */
+  /* ---------- grade exclusiva dos aplicativos Android, aberta pelo ícone Shizuku ---------- */
+  .android-launcher{height:100%;min-height:0;display:flex;flex-direction:column;gap:18px;padding:24px 30px 22px;
+    overflow:hidden;background:linear-gradient(145deg,#101725,#09111f 68%,#101521);color:#f4f7fc}
+  .android-launcher-head{display:flex;align-items:center;justify-content:space-between;gap:20px;flex:none}
+  .android-launcher-brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .android-robot{width:46px;height:46px;flex:none;display:grid;place-items:center;border-radius:15px;
+    background:rgba(83,158,255,.18);color:#8dbbff}
+  .android-robot .ui-icon{width:26px;height:26px}
+  .android-launcher-brand h2{font-size:25px;margin:0 0 4px}
+  .android-launcher-brand .sub{font-size:14px;margin:0;color:#a9b5c8}
+  .android-launcher-actions{display:flex;align-items:center;gap:10px}
+  .android-search{width:240px;height:44px;padding:0 13px;display:flex;align-items:center;gap:9px;
+    border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(255,255,255,.07);color:#aeb9cb}
+  .android-search .ui-icon{width:19px;height:19px;flex:none}
+  .android-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#fff;font:500 14px Inter,sans-serif}
+  .android-search input::placeholder{color:#909caf}
+  .android-refresh{width:44px;height:44px;display:grid;place-items:center;border-radius:14px;
+    background:rgba(255,255,255,.07);color:#dce5f2}
+  .android-refresh .ui-icon{width:21px;height:21px}
+  .android-categories{display:flex;gap:9px;flex:none;overflow-x:auto;padding-bottom:2px}
+  .android-category{padding:9px 17px;border-radius:999px;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.06);
+    color:#c7d0dd;font-size:14px;font-weight:600;white-space:nowrap}
+  .android-category[aria-pressed="true"]{background:#2868e8;border-color:#4683ff;color:#fff;box-shadow:0 5px 14px rgba(26,91,218,.28)}
+  .android-results{display:flex;align-items:center;gap:12px;flex:none;padding:0 2px;color:#edf3ff;font-size:12px;letter-spacing:.11em}
+  .android-results:before{content:"";height:1px;flex:1;background:rgba(255,255,255,.13);order:1}
+  .android-results-count{order:2;color:#9eacc2;font-size:12px;letter-spacing:0}
+  .android-app-scroll{flex:1;min-height:0;overflow-y:auto;padding:4px 2px 8px}
+  .android-app-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:18px 24px;align-items:start}
+  .android-app-grid .lib-tile{max-width:170px;justify-self:center;width:100%;align-items:center;text-align:center;gap:8px}
+  .android-app-grid .lib-cover{aspect-ratio:1;min-height:0;border-radius:20px;background:rgba(255,255,255,.08)}
+  .android-app-grid .lib-app-icon{width:58px;height:58px}
+  .android-app-grid .lib-label{max-width:100%;font-size:14px;text-align:center}
+  .android-app-grid .lib-src{display:none}
+  .android-app-grid .lib-sys{top:6px;left:6px;font-size:9px}
+  .android-app-grid .lib-open{top:6px;right:6px;font-size:9px}
+  .android-empty{grid-column:1/-1;padding:34px 20px;border-radius:18px;background:rgba(255,255,255,.045);
+    color:#aeb9cb;text-align:center;font-size:16px}
+  .android-launcher>.lib-note{flex:none;margin:0;padding:10px 13px;font-size:13px}
+  @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
+    .android-launcher{padding:18px;gap:14px}.android-search{width:190px}}
+  /* Configurações são uma janela normal no workspace 3D (mesma moldura espacial do Shizuku),
+     não uma camada HUD: superfície escura inset, barra e controles permanecem dentro da janela. */
+  .quick-center{height:100%;min-height:0;display:flex;align-items:stretch;gap:12px;padding:16px 18px;
+    background:transparent;color:#edf2fa;overflow:hidden}
+  .quick-panel{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:15px;padding:18px;
+    border:1px solid rgba(255,255,255,.1);border-radius:19px;background:linear-gradient(145deg,#151e2b,#101722 72%,#141a25);
+    color:#edf2fa;overflow:auto;box-shadow:0 14px 38px rgba(0,0,0,.18)}
+  .quick-status{display:flex;align-items:center;gap:12px;flex:none;min-height:44px}
+  .quick-status>div:first-child{display:flex;flex:1;flex-direction:column;gap:4px}
+  .quick-status strong{font-size:21px;line-height:1.1;font-weight:730}
+  .quick-status>div:first-child span{font-size:12px;color:#94a2b8;text-transform:capitalize}
+  .quick-battery{display:flex;align-items:center;gap:6px;color:#b7c2d2;font-size:12px}
+  .quick-battery .ui-icon{width:17px;height:17px}
+  .quick-gear{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);
+    border-radius:12px;background:rgba(255,255,255,.07);color:#dfe7f2}
+  .quick-gear .ui-icon{width:18px;height:18px}
+  .quick-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .quick-tile{min-height:76px;display:flex;align-items:center;gap:10px;padding:11px;border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;background:#1b2634;color:#f2f5fa;text-align:left;transition:transform .14s,background .14s}
+  .quick-tile:active{transform:scale(.98)}
+  .quick-tile-icon{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:12px;background:rgba(72,201,136,.13);color:#69d89d}
+  .quick-tile-icon .ui-icon{width:20px;height:20px}
+  .quick-tile>span:last-child{min-width:0;display:flex;flex-direction:column;gap:4px}
+  .quick-tile b{font-size:13px;line-height:1.2}.quick-tile small{font-size:10px;color:#9ba9bd;line-height:1.3}
+  .quick-tile.is-disabled{opacity:.54;cursor:default}
+  .quick-section{flex:1;min-height:190px;display:flex;flex-direction:column;gap:11px;padding:14px 15px;
+    border:1px solid rgba(255,255,255,.07);border-radius:16px;background:rgba(255,255,255,.035)}
+  .quick-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .quick-section-title b{font-size:14px;color:#edf2fa}.quick-section-title span{font-size:10px;color:#8998ad}
+  .quick-controls{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(76px,1fr);gap:9px}
+  .quick-control{min-width:0;display:grid;grid-template-columns:33px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:8px;row-gap:3px;
+    padding:10px;border:1px solid rgba(255,255,255,.045);border-radius:13px;background:#1b2634;color:#e4eaf3;text-align:left}
+  .quick-control>span{grid-row:1/3;width:33px;height:33px;display:grid;place-items:center;border-radius:11px;background:#273446;color:#a9bad0}
+  .quick-control .ui-icon{width:18px;height:18px}.quick-control b{align-self:end;font-size:11px;line-height:1.2}
+  .quick-control small{align-self:start;font-size:9px;line-height:1.25;color:#91a0b4}
+  .quick-control.is-active{background:#17352d;border-color:rgba(86,211,145,.25)}
+  .quick-control.is-active>span{background:#1b483a;color:#72dfaa}
+  .quick-side{width:76px;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;padding:13px 8px;
+    border:1px solid rgba(255,255,255,.1);border-radius:17px;background:#151e2b;color:#cbd5e2}
+  .quick-side-title{font-size:10px;font-weight:700;color:#9daabd}
+  .quick-side-icon{width:26px;height:20px;display:grid;place-items:center;color:#a5b3c6}
+  .quick-side-icon .ui-icon{width:16px;height:16px}
+  .quick-vertical{width:22px;height:clamp(100px,19vh,148px);margin:0 0 2px;accent-color:#69d89d;writing-mode:vertical-lr;direction:rtl;touch-action:none}
+  .quick-side-button{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.08);
+    border-radius:11px;background:#273446;color:#b8c5d6}
+  .quick-side-button.is-active{background:#4a2428;color:#ff999d}.quick-side-button .ui-icon{width:17px;height:17px}
+  @media(max-width:900px){.android-app-grid{grid-template-columns:repeat(4,minmax(80px,1fr));gap:16px}
+    .android-launcher{padding:18px;gap:14px}.android-search{width:190px}
+    .quick-center{padding:10px;gap:8px}.quick-panel{padding:13px;gap:11px}.quick-side{width:68px}.quick-tiles{gap:7px}
+    .quick-tile{padding:8px;gap:7px}.quick-tile-icon{width:32px;height:32px}.quick-tile b{font-size:11px}.quick-tile small{font-size:9px}}
+  @media(max-width:650px){.quick-center{gap:6px;padding:7px}.quick-panel{padding:10px;gap:9px}.quick-side{width:58px;padding:10px 5px}
+    .quick-status strong{font-size:18px}.quick-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-tile{min-height:62px}
+    .quick-controls{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(66px,1fr)}.quick-section{padding:10px;min-height:210px}}
   .lib-note,.az-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:15px}
   .az-dot{width:11px;height:11px;flex:none;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 4px rgba(139,147,161,.16)}

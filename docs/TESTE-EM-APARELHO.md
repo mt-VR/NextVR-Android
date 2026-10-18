@@ -68,10 +68,10 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 ## A. Com Shizuku autorizado (o caminho que estava quebrado)
 
 1. Shizuku rodando e o NextVR autorizado nele (uma vez: o diálogo aparece no visor). Abra a VR e
-   toque no **lançador de 9 pontos** na dock.
-   → esperado: os apps instalados estão **na mesma grade**, com o ícone real de cada um; **não
-   existe** menu “Apps do Android” separado nem botão “Espelhar” em tile nenhum; e a **linha de
-   estado do Shizuku não aparece** (com a rota hospedada funcionando não há nada a avisar).
+   toque no ícone **Shizuku** na dock.
+   → esperado: abre a janela “Apps do Android”, separada da biblioteca NextVR, com busca, filtros de
+   categoria e os ícones reais dos apps instalados; a linha de estado do Shizuku só aparece quando
+   for necessário orientar uma autorização ou inicialização.
    **Anota isso:** se a linha aparecer, copie o **Diagnóstico** — ele traz a rota, o estado e o
    motivo.
 2. Toque no tile de um app simples (calculadora, relógio, notas).

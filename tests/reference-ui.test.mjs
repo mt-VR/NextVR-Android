@@ -207,8 +207,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),19,
-      'the reference library shows colorful app tiles alongside installed Android apps');
+    assert.equal(await page.locator('.lib-tile').count(),17,
+      'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
+    assert.equal(await page.locator('.lib-tile.android').count(),0,
+      'installed Android packages never appear in the NextVR library');
     assert.equal(await page.locator('.lib-title').innerText(),'Apps');
     assert.equal(await page.locator('.lib-search').getAttribute('placeholder'),'Search apps','search stays visible in the top bar');
     assert.equal(await page.locator('.lib-rail').count(),1,'the dark floating library has a compact navigation rail');
@@ -224,14 +226,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),5,'Library cover art uses the screenshot five-column grid');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),19,'Apps filter shows every installed and built-in app as a tile');
+    assert.equal(await page.locator('.lib-tile').count(),17,'Apps filter shows every built-in app as a tile');
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,
       'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the screenshot layout and installed-app grid');
+    assert.equal(await page.locator('.lib-tile').count(),17,'All restores the complete NextVR library without Android packages');
     await page.locator('.dock [data-id="status"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
     assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');

@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
-"""Use supplied raster artwork verbatim (crop/resize only), for launcher + finger-menu icon.
-Usage: python tools/prepare_branding.py /path/to/original.png
+"""Use the supplied square NextVR logo verbatim for launcher + finger-menu artwork.
+Usage: python tools/prepare_branding.py [artwork/nextvr-apk-logo.png]
 Requires Pillow. Does not generate or recreate artwork.
 """
 from pathlib import Path
 import shutil, sys
 from PIL import Image, ImageOps
 root=Path(__file__).resolve().parents[1]
-source=Path(sys.argv[1]) if len(sys.argv)>1 else root/'artwork/nextvr-logo.png'
+source=Path(sys.argv[1]) if len(sys.argv)>1 else root/'artwork/nextvr-apk-logo.png'
 if not source.is_file():
     raise SystemExit('Missing original logo. Add artwork/nextvr-logo.png or pass its file path.')
 original=Image.open(source).convert('RGBA')
-# The supplied mark is silver on black: trim its large empty margin, retaining edge shading.
-mask=ImageOps.grayscale(original).point(lambda x:255 if x>55 else 0)
-bounds=mask.getbbox()
-if not bounds: raise SystemExit('The logo image is empty.')
-x0,y0,x1,y1=bounds;pad=max(8,round(max(x1-x0,y1-y0)*.08))
-mark=original.crop((max(0,x0-pad),max(0,y0-pad),min(original.width,x1+pad),min(original.height,y1+pad)))
+# Preserve the complete square composition, including the purple background and mark.
+mark=original
 def image(size, content, transparent=False):
     canvas=Image.new('RGBA',(size,size),(0,0,0,0 if transparent else 255))
     fit=ImageOps.contain(mark,(content,content),Image.Resampling.LANCZOS)
     canvas.alpha_composite(fit,((size-fit.width)//2,(size-fit.height)//2));return canvas
 art=root/'artwork';art.mkdir(exist_ok=True)
-if source.resolve()!=(art/'nextvr-logo.png').resolve():shutil.copyfile(source,art/'nextvr-logo.png')
+if source.resolve()!=(art/'nextvr-apk-logo.png').resolve():shutil.copyfile(source,art/'nextvr-apk-logo.png')
 image(256,224).save(art/'finger-logo.png')
 res=root/'nextvr-android/src/main/res'
 for density,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
     directory=res/f'drawable-{density}';directory.mkdir(exist_ok=True)
-    image(size,round(size*.78)).save(directory/'nextvr_ic_launcher.png')
+    image(size,size).save(directory/'nextvr_ic_launcher.png')
 (res/'drawable-nodpi').mkdir(exist_ok=True)
 image(432,240,True).save(res/'drawable-nodpi/nextvr_icon_foreground.png')
 (res/'drawable-anydpi-v26').mkdir(exist_ok=True)

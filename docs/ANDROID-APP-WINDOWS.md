@@ -1,9 +1,9 @@
 # Apps Android em janelas flutuantes
 
-Esta é a funcionalidade que transforma a dock do NextVR em um lançador de apps do próprio
-aparelho: a biblioteca lista os apps instalados com os ícones reais e cada app aberto ganha uma
-janela flutuante no arco multitarefa existente, com o visual da referência
-(`new_references.zip`) — barra de arrasto branca, janela com vidro, mesmos botões.
+O ícone **Shizuku** na dock abre um lançador dedicado aos apps Android instalados, com ícones reais,
+busca e filtros por categoria. Essa coleção fica separada da biblioteca de apps e jogos do NextVR.
+Cada app Android aberto ganha uma janela flutuante no arco multitarefa existente, com o visual da
+referência (`new_references.zip`) — barra de arrasto branca, janela com vidro, mesmos botões.
 
 O conteúdo da janela é o app de verdade rodando no Android. Não existe imitação em HTML, e a UI do
 NextVR não desenha “telas falsas” de apps.
@@ -143,11 +143,10 @@ certo.
   encontrá-lo; e se um ícone não puder ser lido, o tile mostra as iniciais do app (`onerror` →
   `.noicon`) — nunca uma imagem quebrada. O ícone é desenhado em 52 px, a mesma caixa dos logos dos
   apps da web na grade.
-* **Sem página separada**: os apps instalados são tiles do menu de aplicações que já existia — mesma
-  grade, mesma busca, mesma ordenação, mesma `data-*` de clique. A entrada `data-nav="android"` da
-  trilha, o tile da dock e o botão *Espelhar* foram removidos, junto com o CSS `.az-*`/`.az-mirror`.
-  O que sobrou de específico é uma única linha de estado, e só enquanto o serviço shell não está
-  pronto: ela diz qual mecanismo o toque vai usar e como chegar no outro.
+* **Coleções separadas**: apps Android aparecem somente na janela iniciada pelo ícone Shizuku da
+  dock. A biblioteca NextVR continua dedicada aos apps web e jogos próprios. Dentro da janela
+  Shizuku, a grade tem busca, categorias e atualização manual; o ícone real do pacote segue sendo
+  fornecido por `PackageManager`. O aviso do serviço shell aparece ali apenas quando é necessário.
 * **Falha com saída**: quando a janela não pôde ser preenchida (captura recusada, display vazio,
   serviço caindo entre a checagem e a criação), o aviso da janela oferece “Abrir no celular” — o
   caminho que não precisa de privilégio nenhum — em vez de terminar num beco sem saída.

@@ -87,20 +87,24 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 
 ## Android app windows
 
-The dock's app library (`Apps do Android`, the phone icon) lists the launchable apps installed on
-the device with their real icons and opens them in floating windows of the existing arc. The
-window content is the real app: a dedicated virtual display per app, created by a Shizuku user
-service running as the `shell` user (no root), started with `am start --display`, with the hand's
-touch injected into that display. Without Shizuku the library still works and the dock offers the
-phone-screen mirror (`MediaProjection`, behind the foreground service Android requires for a
-capture, plus the accessibility service for input), which is a mirror and is labelled as one —
-never as an embedded app. Every tile then carries a *Espelhar* shortcut that brings that app to the
-phone screen with public API before the capture starts (Android 14+ lets the user pick it in the
-system dialog), and resizing a window never leaves the session claiming a size the display refused:
-the session only adopts a new size after the display confirms it. Minimize detaches the display surface (the app
-keeps running, frame production stops), restore re-attaches the same surface, and closing releases
-the display and the app's task. Full architecture, API choices, limitations and the on-device
-checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+The dock has one dedicated **Shizuku** launcher for Android apps, separate from NextVR's own
+app/game library. Its window lists the installed Android apps with real icons, search, category
+filters, refresh, and a live result count. Each app opens in its own floating window on a Shizuku
+virtual display. This uses the Shizuku shell-user service (no root); if access is unavailable, the
+launcher explains the current state. The phone-screen mirror remains a separate, clearly labelled
+fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
+and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+
+Version 1.0.11 adds Joy-Con and Bluetooth gamepad navigation. The control center remains a contained,
+ordinary spatial window in the 3D workspace, not a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
+and display brightness use the native bridge. The separate Shizuku launcher keeps Android apps out
+of the NextVR library, and its detail gear still opens the complete settings tabs.
+
+Approved visual proposals (illustrative design references, not device screenshots):
+
+![Approved control-center design proposal](artwork/proposals/settings-control-center-proposal.png)
+
+![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
 
 ## Games (PhoneXR)
 
@@ -131,6 +135,7 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
 | Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
+| Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
 | Move the dock | Pinch the grab area just below the dock, move it to a comfortable spot, then release. The small handle appears only while pointed at or moving the dock. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
