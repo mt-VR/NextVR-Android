@@ -26,11 +26,16 @@ test('dock styling stays compact and rectangular in the Android UI bundle', asyn
     readFile('web/src/apps.js', 'utf8'),
     readFile('nextvr-android/src/main/assets/ui/index.html', 'utf8'),
   ]);
-  assert.match(html, /background:linear-gradient\(180deg,rgba\(34,36,42/);
+  assert.match(html, /background:linear-gradient\(180deg,rgba\(54,64,81/);
   assert.ok(html.includes('align-items:center;gap:6px;width:max-content;padding:6px 8px;border-radius:16px'));
-  assert.match(html, /\.dock-grab::after[^}]*opacity:0/);
+  assert.match(html, /\.dock-grab::after[^}]*opacity:\.94/);
+  assert.match(html, /background:#fff;box-shadow:0 1px 5px rgba\(255,255,255/,
+    'the dock movement handle is a visible white bar');
   const dock = apps.slice(apps.indexOf('function makeDock()'), apps.indexOf("on('lang', makeDock)"));
   assert.doesNotMatch(dock, /id: 'notifications'|id: 'recenter'/);
+  assert.match(dock, /id: 'virtual-environment'/);
+  assert.match(dock, /label: t\('envVirtual'\), svg: DK\.vision/);
   assert.match(dock, /kind: 'spacer'/);
+  assert.match(apps, /function toggleVirtualEnvironment\(\)[\s\S]*setPassthrough\(S\.env !== 'passthrough'\)/);
   assert.equal(bundledHtml, html, 'the APK embeds the same dock stylesheet as the web source');
 });

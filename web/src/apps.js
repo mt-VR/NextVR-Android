@@ -196,7 +196,7 @@ function settingsApp() {
       const c = el('div', 'card');
       c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
       c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
-      c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
+      c.append(row('Desenhar mãos', 'Contorno claro e cursor de pinça', toggle('handDraw')));
       c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.38 / 0.56')));
       c.append(row('Detector', 'MediaPipe Tasks Vision, 2 mãos por frame', el('span', 'note', 'NextVR')));
       page.append(c);
@@ -227,7 +227,7 @@ function settingsApp() {
       const syncSwitch = () => { sw.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
       sw.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncSwitch(); paintGrid(); };
       syncSwitch();
-      c.append(row(t('envPassOn'), 'Desligado mostra o último panorama (padrão: lagoa ao pôr do sol)', sw));
+      c.append(row(t('envPassOn'), 'Desligado mostra o último panorama (padrão: palmeira)', sw));
       page.append(c);
       const g = el('div', 'grid3');
       const paintGrid = () => [...g.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.env === S.env)));
@@ -411,7 +411,7 @@ const persistShop = () => { try {
 
 /* Apps web e ferramentas NextVR são representados por capas locais, sem depender de uma CDN. */
 const LIB_APPS = [
-  { id:'netflix', name:'Netflix', bg:'linear-gradient(145deg,#301014,#09090b)', html:'<span class="lx-netflix">NETFLIX</span>' },
+  { id:'netflix', name:'Netflix', bg:'linear-gradient(145deg,#301014,#09090b)', html:'<span class="lx-netflix">N</span>' },
   { id:'youtube', name:'YouTube', bg:'linear-gradient(145deg,#352020,#111115)', slug:'youtube', color:'FF0000' },
   { id:'tiktok', name:'TikTok', bg:'linear-gradient(145deg,#173035,#101014)', slug:'tiktok', color:'ffffff' },
   { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
@@ -420,7 +420,7 @@ const LIB_APPS = [
   { id:'pluto', name:'pluto tv', bg:'linear-gradient(145deg,#34343a,#111115)', html:'<span class="lx-pluto">pluto<i>tv</i></span>' },
   { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', slug:'whatsapp', color:'ffffff' },
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram', color:'ffffff', iconOnly:true },
-  { id:'x', name:'X Twitter', label:'Twitter', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
+  { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
   { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', slug:'facebook', color:'ffffff', iconOnly:true },
   { id:'telegram', name:'Telegram', bg:'linear-gradient(145deg,#69caff,#147eaf)', slug:'telegram', color:'ffffff' },
   { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
@@ -449,7 +449,7 @@ const LIB_ACTIONS = {
   pluto:    () => webWindow('pluto',     'pluto tv',     'https://pluto.tv/'),
   whatsapp: () => webWindow('whatsapp',  'WhatsApp',     'https://web.whatsapp.com/'),
   instagram:() => webWindow('instagram', 'Instagram',    'https://www.instagram.com/'),
-  x:        () => webWindow('x',         'X Twitter',    'https://x.com/'),
+  x:        () => webWindow('x',         'X',            'https://x.com/'),
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
@@ -505,8 +505,9 @@ function storeApp() {
 /* ---------- biblioteca ---------- */
 let libSort = 'recent', libFilter = 'all', libQuery = '';
 const LIB_FILTERS = ['all', 'apps', 'games', 'recent'];
-const LIB_FILTER_LABELS = { all:'All', games:'Games', apps:'Apps', recent:'Recent' };
-const LIB_FEATURED_IDS = new Set(['store', 'browser', 'settings', 'youtube']);
+const libFilterLabel = filter => ({
+  all:t('libAll'), apps:t('apps'), games:t('libGames'), recent:t('recents'),
+}[filter] || t('libAll'));
 function touchLib(id, silent) {
   libRecent = [id, ...libRecent.filter(x => x !== id)].slice(0, 40);
   persistShop(); if (!silent) paintLibrary();
@@ -562,43 +563,53 @@ function appTile(a) {
 function buildLibrary() {
   const list = libItems();
   const root = el('div', 'lib');
-  const showFeatured = libFilter === 'all' && !libQuery.trim();
-  const visibleList = showFeatured ? list.filter(x => !LIB_FEATURED_IDS.has(x.id)) : list;
-  const fLabel = LIB_FILTER_LABELS[libFilter] || LIB_FILTER_LABELS.all;
-  const shortcut = (id, label, glyph, cls) => `<button class="lib-shortcut ${cls}" data-app="${id}" aria-label="${label}">${icon(glyph)}<span>${label}</span></button>`;
-  root.innerHTML = `<section class="lib-main">
-      <div class="lib-head"><h2 class="lib-title">App Library</h2>
-        <button class="lib-sbtn" data-s aria-label="Search">${icon('search')}</button>
-        <input class="lib-search" data-q placeholder="Search apps" value="${escH(libQuery)}">
+  const fLabel = libFilterLabel(libFilter);
+  const currentWindow = wins.find(w => w.id === 'library');
+  const emptyText = libFilter === 'games' ? t('libGamesEmpty')
+    : libFilter === 'recent' ? t('libRecentEmpty') : t('appNoResults');
+  const navButton = (id, label, glyph) => `<button class="lib-rail-btn" data-lib-nav="${id}"
+    aria-label="${escH(label)}" title="${escH(label)}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
+  root.innerHTML = `<aside class="lib-rail" aria-label="${escH(t('apps'))}">
+      ${navButton('all', t('libAll'), 'appGrid')}
+      ${navButton('games', t('libGames'), 'controller')}
+      ${navButton('recent', t('recents'), 'timer')}
+      <span class="lib-rail-spacer"></span>
+      ${navButton('apps', t('apps'), 'phone')}
+    </aside>
+    <section class="lib-main">
+      <div class="lib-head">
+        <h2 class="lib-title">${escH(t('apps'))}</h2>
+        <div class="lib-searchbox">${icon('search')}
+          <input class="lib-search open" data-q aria-label="${escH(t('searchApps'))}"
+            placeholder="${escH(t('searchApps'))}" value="${escH(libQuery)}">
+        </div>
         <span class="lib-head-spacer"></span>
-        <button class="lib-pill" data-sort>${libSort === 'az' ? 'A–Z' : 'Recent'} ${icon('chevronDown')}</button>
-        <button class="lib-pill" data-filter>${fLabel} (${list.length}) ${icon('chevronDown')}</button>
+        <button class="lib-pill" data-sort aria-label="${escH(t('recents'))}">
+          <span>${libSort === 'az' ? 'A–Z' : escH(t('recents'))}</span>${icon('chevronDown')}
+        </button>
+        <button class="lib-pill" data-filter aria-label="${escH(t('libFilter'))}">
+          <span>${escH(t('libFilter'))} · ${escH(fLabel)} <i>(${list.length})</i></span>${icon('chevronDown')}
+        </button>
+        <button class="lib-curve" data-lib-curve aria-label="${escH(t('win360'))}"
+          title="${escH(t('win360'))}" aria-pressed="${!!currentWindow?.curve}">360°</button>
+        <button class="lib-close" data-lib-close aria-label="${escH(t('close'))}" title="${escH(t('close'))}">${icon('x')}</button>
+        <button class="lib-repin" data-act="pin" aria-label="${escH(t('repin'))}" title="${escH(t('repin'))}">${icon('crosshair')}</button>
       </div>
       <div class="lib-scroll">
-        ${showFeatured ? `<div class="lib-shortcuts">
-          ${shortcut('store','Store','store','store')}
-          <button class="lib-shortcut explore" data-shortcut="explore" aria-label="Explore">${icon('compass')}<span>Explore</span></button>
-          ${shortcut('settings','Settings','settings','settings')}
-          ${shortcut('browser','Browser','compass','browser')}
-        </div>` : ''}
         <div class="lib-grid">
-          ${showFeatured ? `<button class="lib-tv" data-app="youtube" aria-label="TV">${icon('play')}<span>TV</span></button>` : ''}
-          ${visibleList.map(x => x.kind === 'xr' ? xrTileHtml(x)
+          ${list.map(x => x.kind === 'xr' ? xrTileHtml(x)
             : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')}
+          ${list.length ? '' : `<div class="lib-empty">${escH(emptyText)}</div>`}
         </div>
-        ${visibleList.length || showFeatured ? '' : `<div class="lib-empty">${libFilter === 'games' ? 'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.' : libFilter === 'recent' ? 'Recently opened apps will appear here.' : 'No apps found.'}</div>`}
       </div>
-      <footer class="lib-foot"><button class="lib-close" data-lib-close aria-label="Close App Library">${icon('x')}</button><button class="lib-repin" data-act="pin" aria-label="Return to window arc">${icon('crosshair')}</button><span>App Library</span></footer>
     </section>`;
-  // An Android-app and PhoneXR rows both live here only while their world needs explaining; when
-  // everything is ready neither exists (see shizukuNotice / phoneXrNotice).
+  // Os avisos do Shizuku e do PhoneXR ficam acima da mesma grade de apps, como no painel de referência.
   const notice = shizukuNotice();
   if (notice) root.querySelector('.lib-scroll')?.prepend(notice);
   const xrNotice = phoneXrNotice();
   if (xrNotice) root.querySelector('.lib-scroll')?.prepend(xrNotice);
 
   const q = root.querySelector('[data-q]:not([data-q="android"])');
-  if (q && libQuery) q.classList.add('open');
   if (q) {
     q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]:not([data-q="android"])'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
     q.addEventListener('focus', () => keyboard(true, q));
@@ -608,8 +619,12 @@ function buildLibrary() {
     const c = s => e.target.closest(s);
     let m;
     if (c('[data-lib-close]')) { close(wins.find(w => w.id === 'library')); return; }
-    if (c('[data-shortcut="explore"]')) { environments(); return; }
-    if (c('[data-s]')) { const i = root.querySelector('[data-q]:not([data-q="android"])'); if (!i) return; i.classList.toggle('open'); if (i.classList.contains('open')) i.focus(); else { libQuery = ''; i.value = ''; paintLibrary(); } return; }
+    if ((m = c('[data-lib-nav]'))) { libFilter = m.dataset.libNav; paintLibrary(); return; }
+    if (c('[data-lib-curve]')) {
+      const w = wins.find(x => x.id === 'library');
+      if (w) { w.setCurve(w.curve > 0 ? 0 : S.win360K); paintLibrary(); }
+      return;
+    }
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
@@ -683,22 +698,36 @@ function libraryApp() {
   const w = wins.find(x => x.id === 'library');
   if (w) { paintLibrary(); focus(w); return w; }
   const body = el('div'); body.style.cssText = 'height:100%';
-  const win = open({ id: 'library', title: 'App Library', node: body, w:1040, h:660, chrome:false, resizable:false });
+  const win = open({ id: 'library', title: t('apps'), node: body, w:1040, h:660, chrome:false, resizable:false });
   paintLibrary();
   return win;
 }
 
-/* ============ dock (mesma ordem do print) ============ */
+/* ============ dock (compacta, com atalho de ambiente virtual) ============ */
 const DK = Object.freeze({
   compass:icon('compass'), store:icon('store'), people:icon('people'),
   camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
+  vision:icon('vision'),
 });
+
+function toggleVirtualEnvironment() {
+  // Um toque sai do passthrough para o último panorama (palmeira no padrão) e outro volta à câmera.
+  setPassthrough(S.env !== 'passthrough');
+}
+function syncVirtualEnvironmentDock() {
+  const button = document.querySelector('.dock [data-id="virtual-environment"]');
+  if (!button) return;
+  const active = S.env !== 'passthrough';
+  button.setAttribute('aria-pressed', String(active));
+  button.title = `${t('envVirtual')} · ${active ? t('on') : t('off')}`;
+}
 
 function makeDock() {
   buildDock([
-    // Perfil, status compacto, pequeno vão e os apps principais — sem atalhos extras na dock.
+    // Perfil, status do telefone, atalho do ambiente virtual no lugar do antigo recentramento e apps.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
+    { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
     // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
@@ -711,7 +740,9 @@ function makeDock() {
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(145deg,#4fd1c5,#1a8f87)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
+  syncVirtualEnvironmentDock();
 }
+on('env', syncVirtualEnvironmentDock);
 on('lang', makeDock);
 
 

@@ -75,9 +75,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.deepEqual(shaderResult.errors,[],'Camera, spatial-compositor and native hand GLSL compile and link');
     assert.deepEqual(shaderResult.pixels,[0,0,255,255,255,255,255,255,255,0,0,255,0,255,0,255],'Camera shader preserves upright bitmap corners (readPixels is bottom-up)');
     await page.addInitScript(()=>{
-      window.__frames=[]; window.__touches=[]; window.__frameSeq=0;
+      window.__frames=[]; window.__touches=[]; window.__frameSeq=0; window.__environmentCalls=[];
+      // Model an upgrade from the old default so this flow verifies the one-time migration to palm.
+      try { localStorage.setItem('nextvr.v1',JSON.stringify({env:'passthrough',panorama:'lagoon'})); } catch {}
       window.NativeXR={
         frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
+        env(id){window.__environmentCalls.push(id);},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
         // The installed-app list and the command channel are the native bridges; the stub answers
         // like the Java side does (same JSON shape, icon URLs served from /apps/).
@@ -110,6 +113,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     // Meta-style onboarding: only the language picker window (+ HUD overlay) is composited.
     await page.waitForFunction(()=>window.__last?.panels.length>=2);
+    assert.ok(await page.evaluate(()=>window.__environmentCalls.includes('palm')),
+      'the upgraded default enters the palm panorama instead of camera passthrough');
+    const migratedEnvironment=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
+    assert.equal(migratedEnvironment.env,'palm');
+    assert.equal(migratedEnvironment.panorama,'palm');
     assert.deepEqual(errors,[]);
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const hand = (gap,extra={}) => {
@@ -162,37 +170,59 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
     await page.evaluate(()=>clearInterval(window.__feed));
-    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
+    const languageState=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
+    assert.equal(languageState.lang,'en');
+    assert.equal(languageState.env,'palm','the palm panorama survives onboarding and remains the default');
+    assert.equal(languageState.panorama,'palm');
     // Choosing the language closes the picker and brings the whole shell back, Meta-style:
-    // the dock returns with every previous function, in the selected language.
+    // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','browser','store','discord','gallery','settings','youtube','shizuku','library'],
-      'the compact dock keeps only phone status and app shortcuts');
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+      'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
     assert.equal(await page.locator('.dock .dock-spacer').count(),1,
-      'a small gap separates the phone status from the app tiles');
-    assert.equal(await page.locator('.dock .dock-tool').count(),0,
-      'no extra notification or recenter controls are added to the dock');
+      'a small gap separates status and the app tiles');
+    assert.equal(await page.locator('.dock .dock-tool').count(),1,
+      'only the virtual-environment shortcut is added; notifications stay out of the dock');
+    const environmentShortcut=page.locator('.dock [data-id="virtual-environment"]');
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'true','palm is already active at startup');
+    assert.equal(await environmentShortcut.locator('svg').count(),1,'the environment shortcut uses a single vector silhouette');
+    assert.equal(await environmentShortcut.innerText(),'','the dock icon has no text or extra glyphs');
+    await environmentShortcut.click();
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'false','the headset shortcut can return to passthrough');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).env),'passthrough');
+    await environmentShortcut.click();
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'true','the same shortcut re-enters the saved palm environment');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).env),'palm');
     const dockSkin=await page.locator('.dock').evaluate(e=>{const s=getComputedStyle(e);return {background:s.backgroundImage,radius:s.borderRadius,blur:s.backdropFilter};});
-    assert.match(dockSkin.background,/34, 36, 42/,'the dock uses Quest-style charcoal glass');
+    assert.match(dockSkin.background,/54, 64, 81/,'the dock is dark blue-gray glass');
+    assert.match(dockSkin.background,/29, 37, 52/,'the dock keeps a blue-gray shadow tone');
     assert.equal(dockSkin.radius,'16px','the dock is a compact rounded rectangle, not a capsule');
     assert.match(dockSkin.blur,/blur\(20px\)/,'the dock keeps a subtle frosted-glass treatment');
+    assert.equal(await page.locator('.dock-grab').evaluate(e=>getComputedStyle(e,'::after').opacity),'0.94',
+      'the white movement handle stays visible below the dock');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),15,
-      'the screenshot-style App Library keeps four featured apps in the top shortcuts and TV, while the remaining apps and installed Android apps fill the grid');
-    assert.equal(await page.locator('.lib-title').innerText(),'App Library');
-    assert.equal(await page.locator('.lib-shortcut').count(),4,'Store, Explore, Settings and Browser match the reference shortcuts');
-    assert.equal(await page.locator('.lib-tv').count(),1,'TV is the prominent first tile beneath the shortcuts');
-    assert.equal(await page.locator('.lib-foot').innerText(),'App Library','the library has its own footer and close control');
-    assert.equal(await page.locator('.lib-rail').count(),0,'the screenshot library has no left navigation rail');
-    // Wait for the atlas DOM rectangle before measuring the four image columns.
+    assert.equal(await page.locator('.lib-tile').count(),19,
+      'the reference library shows colorful app tiles alongside installed Android apps');
+    assert.equal(await page.locator('.lib-title').innerText(),'Apps');
+    assert.equal(await page.locator('.lib-search').getAttribute('placeholder'),'Search apps','search stays visible in the top bar');
+    assert.equal(await page.locator('.lib-rail').count(),1,'the dark floating library has a compact navigation rail');
+    assert.equal(await page.locator('.lib-rail-btn').count(),4,'the rail filters apps, games and recent items');
+    assert.equal(await page.locator('.lib-shortcut').count(),0,'the old oversized shortcut cards are removed');
+    assert.equal(await page.locator('.lib-tv').count(),0,'YouTube appears as a normal colorful app tile');
+    assert.equal(await page.locator('.lib-foot').count(),0,'close and window controls live in the header');
+    assert.equal(await page.locator('.lib-close').count(),1,'the library keeps an accessible close button');
+    const firstApps=await page.locator('.lib-grid .lib-tile[data-app]').evaluateAll(nodes=>nodes.map(n=>n.dataset.app).slice(0,10));
+    assert.deepEqual(firstApps,['netflix','youtube','tiktok','discord','twitch','prime','pluto','whatsapp','instagram','x'],
+      'the first two rows match the app order in the supplied screenshot');
+    // Wait for the atlas DOM rectangle before measuring the five image columns.
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
-    assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
+    assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),5,'Library cover art uses the screenshot five-column grid');
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),19,'Apps filter shows every installed and built-in app as a tile');
     await page.locator('[data-filter]').click();
@@ -201,7 +231,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),15,'All restores the screenshot layout and installed-app grid');
+    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the screenshot layout and installed-app grid');
     await page.locator('.dock [data-id="status"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
     assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');
@@ -483,8 +513,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        ============================================================================================= */
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-rail').count(),0,
-      'the reference library has no rail entry for a separate Android page');
+    assert.equal(await page.locator('.lib-rail').count(),1,
+      'Android apps remain in the shared app grid rather than getting a separate rail page');
+    assert.equal(await page.locator('.lib-rail [data-lib-nav="android"]').count(),0,
+      'the navigation rail has no separate Android-app page');
     assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
     assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
       'and they sit in the same grid as the web apps, not in a page of their own');

@@ -147,11 +147,12 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Exit | Native close control or Android back. |
 
 Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome and animations come from the prototype. The
-provided cyan contour and pinch cursor are drawn from the APK's existing native MediaPipe
-landmarks; the camera stays with Camera2 passthrough, so the WebView does not open a competing
-`getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
-remain in place. Passthrough is the only environment.
+styling, menus, settings, gallery, browser chrome and animations come from the prototype. The hand
+silhouette keeps the requested dark fill (`#211923`) and soft light contour (`#D9D5DF`), drawn from
+the APK's native MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a
+competing `getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer
+gestures remain in place. The palm panorama is the default virtual environment; camera passthrough
+and the other 360° panoramas remain available.
 
 ## Hand tracking performance
 

@@ -21,7 +21,7 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
-    /** Softer default hand and pointer treatment; tracking remains fully interactive. */
+    /** More visible hand and pointer treatment; requested RGB values and tracking behavior are unchanged. */
     private companion object {
         const val HAND_FILL_R = 0.12941177f // #211923
         const val HAND_FILL_G = 0.09803922f
@@ -29,13 +29,13 @@ class PhoneXrHandRenderer {
         const val HAND_CONTOUR_R = 0.8509804f // #D9D5DF
         const val HAND_CONTOUR_G = 0.8352941f
         const val HAND_CONTOUR_B = 0.8745098f
-        const val HAND_FILL_ALPHA = 0.34f
-        const val HAND_OUTLINE_ALPHA = 0.46f
-        const val HAND_PINCH_ALPHA = 0.56f
-        const val POINTER_DROP_ALPHA = 0.62f
-        const val POINTER_CLICK_ALPHA = 0.66f
-        const val POINTER_RAY_ALPHA = 0.50f
-        const val POINTER_RING_INTENSITY = 0.72f
+        const val HAND_FILL_ALPHA = 0.46f
+        const val HAND_OUTLINE_ALPHA = 0.62f
+        const val HAND_PINCH_ALPHA = 0.72f
+        const val POINTER_DROP_ALPHA = 0.72f
+        const val POINTER_CLICK_ALPHA = 0.76f
+        const val POINTER_RAY_ALPHA = 0.60f
+        const val POINTER_RING_INTENSITY = 0.82f
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
