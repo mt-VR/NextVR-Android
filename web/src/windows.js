@@ -1,8 +1,7 @@
 // NextVR — janelas 3D fixas no ambiente, dock horizontal e teclado flutuante.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d,
-  setEnvironment, recenter, envList } from './core.js';
+import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d } from './core.js';
 import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -34,15 +33,15 @@ function occupiedBoxes(except = null) {
   }
   // A malha de hit nasce 1x1 m: só entra na conta quando a dock/teclado já têm tamanho medido.
   if (dockVisible && dockEl.offsetWidth > 0) { const b = boxFromMesh(dockHit); if (b) boxes.push(b); }
-  if (kbObj && kbHit && kbObj.element.offsetWidth > 0) { const b = boxFromMesh(kbHit); if (b) boxes.push(b); }
+  if (kbObj && kbHit && !kbHidden && kbObj.element.offsetWidth > 0) { const b = boxFromMesh(kbHit); if (b) boxes.push(b); }
   return boxes;
 }
 
 /* =================== uma janela =================== */
 class Win {
-  constructor({ id, title, node, w = 1040, h = 660, onboarding = false, immersive = false }) {
+  constructor({ id, title, node, w = 1040, h = 660, onboarding = false, chrome = true, resizable = true }) {
     this.onboarding=onboarding;
-    this.id = id; this.title = title; this.w = w; this.h = h; this.immersive = immersive;
+    this.id = id; this.title = title; this.w = w; this.h = h;
     this.pinned = true;                       // nasce presa acima da dock
     this.target = new THREE.Vector3();
     this.resizeScale = 1;
@@ -63,43 +62,29 @@ class Win {
     shell.style.width = w + 'px';
 
     const el = document.createElement('div');
-    el.className = 'win' + (immersive ? ' immersive' : '');
+    el.className = 'win';
     el.style.width = w + 'px'; el.style.height = h + 'px';
-    if (immersive) {
-      el.innerHTML = `<div class="immersive-toolbar">
-        <button class="it-btn" data-act="close" aria-label="Fechar" title="Fechar">${icon('x')}</button>
-        <button class="it-btn" data-act="dock" aria-label="Voltar ao MR" title="Voltar ao MR">${icon('chevronDown')}</button>
-        <button class="it-btn" data-act="theme" aria-label="Tema" title="Claro/Escuro">${icon('eyeoff')}</button>
-      </div><div class="win-body"></div>`;
-      el.style.background = '#0a0a0c';
-    } else {
-      el.innerHTML = `<div class="win-bar">
+    el.innerHTML = `<div class="win-bar">
         <div class="win-grip"></div><div class="win-title"></div>
         <button class="win-btn wide" data-act="curve" aria-label="360°" title="360°" aria-pressed="${this.curve > 0}">360°</button>
         <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
         <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
       </div><div class="win-body"></div>`;
-      el.querySelector('.win-title').textContent = title;
-    }
+    el.querySelector('.win-title').textContent = title;
     el.querySelector('.win-body').appendChild(node);
     el.addEventListener('pointerdown', () => focus(this), true);
-    const bar = el.querySelector('.win-bar, .immersive-toolbar');
-    if (bar) bar.addEventListener('click', e => {
+    el.querySelector('.win-bar').addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
-      else if (a.dataset.act === 'dock') {
-        for (const o of wins) if (o.hidden && o !== this) { o.hidden = false; o.obj.visible = true; }
-        setDockHidden(false); layout();
-        emit('immersiveOff');
-      }
-      else if (a.dataset.act === 'theme') {
-        const light = el.classList.toggle('light');
-        a.title = light ? 'Tema claro' : 'Tema escuro';
-        a.setAttribute('aria-pressed', String(light));
-        el.style.background = light ? '#fff' : '#0a0a0c';
-      }
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
       else repin(this);
+    });
+    // Screenshot-style windows hide the stock bar but keep a small contextual way back to the arc
+    // when the user has detached them. Do not treat the Android app bar's other data-act buttons as
+    // window controls.
+    el.addEventListener('click', e => {
+      const pin = e.target.closest('[data-act="pin"]');
+      if (pin && !el.querySelector('.win-bar')?.contains(pin)) repin(this);
     });
 
     const handle = document.createElement('div');
@@ -108,6 +93,7 @@ class Win {
     handle.setAttribute('aria-label', t('moveWindow'));
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'win-resize';
+    resizeHandle.hidden = !resizable;
     resizeHandle.title = t('resize');
     resizeHandle.setAttribute('aria-label', t('resize'));
     resizeHandle.innerHTML = icon('move');
@@ -115,8 +101,9 @@ class Win {
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
     shell.dataset.curve = String(this.curve);
-    // A janela de primeiro uso (idioma) é só o cartão: sem barra de título, como na referência.
-    if (onboarding) el.querySelector('.win-bar').hidden = true;
+    // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
+    // controles no DOM, como as referências Quest. O onboarding também não usa a barra genérica.
+    if (onboarding || !chrome) el.querySelector('.win-bar').hidden = true;
     this.obj = new CSS3DObject(shell);
     this.obj.scale.setScalar(PX * (this.onboarding ? COMFORT.welcomeScale : S.winScale));
     contentRoot.add(this.obj);
@@ -228,16 +215,11 @@ class Win {
     const flat = Math.hypot(o.position.x, o.position.z) || .001;
     const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
     o.rotation.set(pitch, yaw, 0, 'YXZ');
-    const scale = this.immersive ? 1.0 * this.resizeScale : (this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
+    const scale=(this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
     o.scale.setScalar(PX * scale);
 
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
     this.hit.scale.setScalar(scale);
-
-    // No modo imersivo a tela é de cinema: sem alça de arrastar, sem alça de redimensionar.
-    const interactive = !this.immersive && !this.onboarding;
-    this.grab.visible = interactive;
-    this.resizeHit.visible = interactive;
 
     // A alça de movimento fica fora; a de tamanho ocupa o canto inferior direito.
     const down = (this.h / 2 + 34) * PX * scale;
@@ -248,9 +230,10 @@ class Win {
 
     this.resizeHit.position.copy(o.position);
     this.resizeHit.rotation.copy(o.rotation);
-    const offset = 28; // px — alça FORA da borda
-    this.resizeHit.translateX((this.w / 2 + offset) * PX * scale);
-    this.resizeHit.translateY(-(this.h / 2 + offset) * PX * scale);
+    // A alça de tamanho fica fora da borda, como o controle visual em .win-resize.
+    const resizeOffset = 28;
+    this.resizeHit.translateX((this.w / 2 + resizeOffset) * PX * scale);
+    this.resizeHit.translateY(-(this.h / 2 + resizeOffset) * PX * scale);
     this.resizeHit.translateZ(this.bulge(this.w / 2) + .003);
     this.resizeHit.scale.setScalar(scale);
   }
@@ -290,17 +273,9 @@ function plane(w, h, win, segments = 1) {
  */
 function layout() {
   for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
-  // Janela imersiva (YouTube/Netflix/etc) fica centralizada, na frente do usuário, tipo cinema —
-  // não entra no arco; o arco volta quando ela é fechada.
-  const immersive = wins.find(w => w.immersive && !w.hidden);
-  if (immersive) {
-    // Tela de vídeo centralizada na frente, na distância confortável (~2m), levemente acima dos olhos.
-    const dist = Math.max(1.8, S.winDist);
-    immersive.target.set(0, EYE + .02, -dist);
-  }
   // Janela escondida (jogo em andamento) não entra no arco: ela volta exatamente para o lugar, o
   // tamanho e a curvatura que tinha quando o jogo começou.
-  const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden && !w.immersive);
+  const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden);
   const n = pin.length; if (!n) return;
   const dist = native?S.winDist:(-dockAt.z) + .5 + (S.winDist - 2.2);
   // A folga entre janelas vizinhas é de MEIA JANELA (arcStep), não os 8 cm de antes: com duas
@@ -393,19 +368,20 @@ export const windowUnder = (x, y) => hitAt(x, y) !== null;
 export function close(w) {
   if (!w) return;
   const i = wins.indexOf(w); if (i < 0) return;
-  const wasImmersive = w.immersive;
+  // A janela dona do teclado acabou de sumir. Sem isto o teclado fica aberto apontando para um
+  // campo destacado ou para uma superficie nativa que ja nao existe, e as teclas nao chegam em
+  // lugar nenhum.
+  const hosted = w.el.querySelector('[data-native-browser],[data-native-app]');
+  const served = hosted?.dataset.nativeBrowser || (hosted ? 'app:' + hosted.dataset.nativeApp : null);
+  if (kbTarget && (kbTarget.nativeId ? kbTarget.nativeId === served : w.el.contains(kbTarget))) keyboard(false);
+  if (lastKbField && w.el.contains(lastKbField)) lastKbField = null;
   if (drag.win === w) endDrag();
   if (resizing.win === w) endResize();
   wins.splice(i, 1);
+  w._cleanupQB?.();
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
-  // Ao fechar uma janela imersiva, devolve todas as janelas escondidas, a dock e o ambiente anterior.
-  if (wasImmersive) {
-    for (const o of wins) if (o.hidden) { o.hidden = false; o.obj.visible = true; }
-    setDockHidden(false);
-    emit('immersiveOff');
-  }
   layout(); emit('wins', wins);
 }
 export function focus(w) {
@@ -586,6 +562,8 @@ function hitAt(x, y) {
   const g = h.object.geometry.parameters;
   return { win: w, u: local.x / g.width + .5, v: .5 - local.y / g.height, distance:h.distance };
 }
+/** A janela sob o ponto, não só "há janela": o modo de jogo PhoneXR usa pra decidir entre UI e gatilho. */
+export const windowHitAt = hitAt;
 let nativePress = null;
 /* Pinch over window content: the DOWN is not sent yet — the click-vs-drag arbiter decides.
  * A still pinch becomes one clean tap on release; a sweeping one commits a drag (DOWN at the
@@ -622,11 +600,31 @@ function handTouch(hit, action) {
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py);
   /*
+   * O teclado segue o alvo do toque. Um campo assume o teclado; qualquer outra coisa na shell
+   * (titulo, botao, fundo) solta. Reabrir no mesmo campo so reposiciona, entao o teclado nao
+   * pisca ao pular de um input para outro da mesma janela. As superficies nativas ficam de fora
+   * aqui: quem sabe o que de fato esta em foco dentro do WebView e o lado nativo, e ele decide.
+   */
+  if (action === 0 && !el?.closest('[data-native-browser],[data-native-app]')) {
+    const f = editableField(el);
+    if (f) keyboard(true, f); else keyboard(false);
+  }
+  /*
    * A hosted Android app window: the id the native side knows is "app:<package>" and the
    * coordinates it gets are normalized inside the app's display (the same rectangle the shader
    * samples). Touch is never synthesized into this DOM — everything here is forwarded to the real
    * app on the other side. A point on a letterbox bar is dropped instead of being forwarded.
    */
+  /*
+   * Um jogo de headset hospedado por NextVR: o shell NÃO manda toque pra ele. O quadro dele é o
+   * render OpenXR do próprio jogo, movido pelo protocolo de controle do runtime PhoneXR — uma
+   * pinça aqui já é o gatilho nesse fluxo (a ponte transforma o gesto de rastreamento em pacote
+   * UDP). Sintetizar tap ou rotear coordenadas a uma WebView que não existe ia só causar um clique
+   * numa superfície errada; a janela em si continua ganhando o gesto (mover pelo título, fechar),
+   * que é este ramo saindo sem encaminhar nada.
+   */
+  const xr = el?.closest('[data-native-xr]');
+  if (xr) { nativePress = null; return; }
   const app = el?.closest('[data-native-app]');
   if (app) {
     const ar = app.getBoundingClientRect();
@@ -700,12 +698,15 @@ function box(el, root) {
 
 on('pinchdown', () => {
   const h = hitAt(cursor.x, cursor.y);
+  const kb = kbProbe(cursor.x, cursor.y);
   const dockGrab = dockGrabTest(cursor.x,cursor.y);
-  // The dock is intentionally in front of app windows. Prefer its grab bar only when the
-  // ray actually reaches it before any window surface; otherwise preserve normal window input.
-  if (dockGrab && (!h || dockGrab.distance < h.distance)) {
+  // The dock is intentionally in front of app windows. The keyboard follows the same rule: whoever
+  // the ray reaches first takes the pinch, the other leaves the arbitration. Without it the
+  // keyboard was unreachable whenever a window sat in front of it — and the reverse.
+  if (dockGrab && (!h || dockGrab.distance < h.distance) && (!kb || dockGrab.distance < kb.distance)) {
     startDockDrag(cursor.x,cursor.y,'pinch'); return;
   }
+  if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
   if (h?.resize) { startResize(h.win,cursor.x,cursor.y); return; }
   if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
   if (h) {
@@ -714,10 +715,12 @@ on('pinchdown', () => {
     pendingPress = { win: h.win, hit: h };
     return;
   }
-  if (kbPinch('down')) return;
   dockPinch('down');
 });
 on('pinchup', () => {
+  // The keyboard goes first: if it armed a key, this pinch belongs to it and nothing else sees the
+  // release. Otherwise letting go of a key also clicked whatever window was behind it.
+  if (kbHeld) { kbRelease(); return; }
   if (pendingPress && cursor.mode === 'drag') {
     // Classified a drag but the release beat the frame loop: commit the DOWN at the anchor now.
     clickThrough(pendingPress.hit, 'down'); pendingPress = null;
@@ -749,7 +752,6 @@ on('pinchup', () => {
   }
   const h = hitAt(cursor.x, cursor.y);
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
-  if (kbPinch('up')) return;
   dockPinch('up');
 });
 
@@ -811,6 +813,8 @@ export function setDockHidden(hidden) {
 export const dockHiddenNow = () => dockHidden;
 
 let dockItems = [], dockBtns = [];
+// The dock is a CSS3D object; on first construction it is not in document yet.
+export const dockButton = id => dockBtns.find(button => button.dataset.id === id) || null;
 const dockWins = [];                       // { b, win } → ponto branco quando a janela está aberta
 
 const WIFI_SVG = icon('wifi');
@@ -829,6 +833,7 @@ export function buildDock(items) {
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
+    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '14px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
@@ -839,7 +844,8 @@ export function buildDock(items) {
       b.className = 'dock-av'; b.innerHTML = AVATAR_SVG;
     } else if (it.kind === 'status') {
       b.className = 'dock-status';
-      b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span><span class="dk-bat">${BAT_SVG}</span>`;
+      b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
+        + `<span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span>`;
     } else if (it.kind === 'tool') {
       b.className = 'dock-tool'; b.innerHTML = it.svg;
     } else {
@@ -872,16 +878,27 @@ function syncDots() {
 }
 on('wins', syncDots);
 
-/* hora, rede e bateria: dados reais do aparelho, nada inventado */
+/* Status do sistema: Date usa o relógio/fuso do Android WebView; bateria vem do sticky broadcast
+ * nativo. A mesma cópia alimenta a dock e a Central de controle para não haver valores divergentes. */
+const deviceStatus = { time: '--:--', date: '', batteryLevel: null, charging: false, online: navigator.onLine };
+export const getDeviceStatus = () => ({ ...deviceStatus });
+function publishDeviceStatus() { emit('device-status', getDeviceStatus()); }
 function tick() {
   const c = dockEl.querySelector('.dk-time');
-  if (c) c.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  deviceStatus.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  deviceStatus.date = now.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  if (c) c.textContent = deviceStatus.time;
+  publishDeviceStatus();
 }
-setInterval(tick, 20000);
+tick();
+setInterval(tick, 1000);
 
 function refreshNet() {
   const w = dockEl.querySelector('.dk-wifi');
-  if (w) w.style.opacity = navigator.onLine ? '1' : '.35';
+  deviceStatus.online = navigator.onLine;
+  if (w) w.style.opacity = deviceStatus.online ? '1' : '.35';
+  publishDeviceStatus();
 }
 addEventListener('online', refreshNet);
 addEventListener('offline', refreshNet);
@@ -889,13 +906,23 @@ addEventListener('offline', refreshNet);
 let batt = null;
 function paintBat() {
   const el = dockEl.querySelector('.dk-bat'); if (!el) return;
-  if (!batt) { el.style.display = 'none'; return; }       // sem API de bateria: não mostra nada falso
+  const percent = el.querySelector('.dk-bat-percent');
+  if (!batt) { el.style.display = 'none'; deviceStatus.batteryLevel = null; publishDeviceStatus(); return; }
   el.style.display = '';
+  const level = Math.max(0, Math.min(1, Number(batt.level) || 0));
+  const charging = !!batt.charging;
   const f = el.querySelector('.fill');
-  f.setAttribute('width', String(Math.max(1.6, 13 * batt.level)));
-  f.setAttribute('fill', batt.charging ? '#8de6c8' : (batt.level < .2 ? '#ff6b6b' : 'currentColor'));
+  f.setAttribute('width', String(Math.max(1.6, 13 * level)));
+  f.setAttribute('fill', charging ? '#8de6c8' : (level < .2 ? '#ff6b6b' : 'currentColor'));
+  if (percent) percent.textContent = `${Math.round(level * 100)}%`;
+  el.title = `${Math.round(level * 100)}%${charging ? ' · carregando' : ''}`;
+  deviceStatus.batteryLevel = level;
+  deviceStatus.charging = charging;
+  publishDeviceStatus();
 }
-if (navigator.getBattery) {
+// In the APK the sticky-broadcast NativeXR value is authoritative; Chromium's Battery API may
+// expose a synthetic 100% battery for the virtual WebView and must not overwrite it.
+if (!native && navigator.getBattery) {
   navigator.getBattery().then(b => {
     batt = b;
     b.addEventListener('levelchange', paintBat);
@@ -940,12 +967,13 @@ function dockTest(x, y) {
   return null;
 }
 
-let dockKey = '', dockGrabKey='', dockYaw=0,kbYaw=0,dockPlacement=null;
-on('recenter',()=>{dockYaw=kbYaw=0;dockPlacement=null;endDockDrag();placeDock();});
+let dockKey = '', dockGrabKey='', dockYaw=0, dockPlacement=null;
+on('recenter',()=>{dockYaw=0;kbPose.ready=false;dockPlacement=null;endDockDrag();placeDock();});
 on('summon-dock',()=>{
   camera.updateMatrixWorld(true);contentRoot.updateMatrixWorld(true);
   const direction=camera.getWorldDirection(new THREE.Vector3()).transformDirection(contentRoot.matrixWorld.clone().invert());
   dockYaw=Math.atan2(-direction.x,-direction.z);
+  kbPose.ready=false;              // o teclado sem dono vai junto com a dock; com dono, fica na janela
   dockPlacement=null;
   endDockDrag();
   placeDock(); // Deliberately no layout/recenter: existing windows remain anchored.
@@ -1006,8 +1034,25 @@ const ROWS = [
 ];
 const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
 let emojiIndex = 0;
-let kbObj = null, kbHit = null, kbTarget = null, kbShift = false, kbShiftLock = false;
+let kbObj = null, kbHit = null, kbTarget = null, kbOwner = null, kbShift = false, kbShiftLock = false;
 let kbHidden = false;
+/**
+ * O motor de digitacao (web/src/typing.js) entra por index.html antes deste bundle e e injetado
+ * pelo lado nativo em cada pagina hospedada, com o MESMO arquivo. Os dois lados escrevem texto por
+ * `key()`, entao cursor, beforeinput/input e Enter sao iguais num campo da casca e num campo de um
+ * site real — o que a versao anterior nao era (aqui era `value +=`, la era commitText).
+ */
+const typing = window.__nextvrTyping;
+const editableField = el => typing?.editable(el) || null;
+/** Ultimo campo que recebeu texto: o botao do teclado na dock volta para ele, e nao para o vazio. */
+let lastKbField = null;
+/* Estados de tecla, os mesmos que web/src/typing.js expoe: 1 desce, 2 repete, 3 sobe. Uma tecla
+ * inteira e 1+3, e o que um toque da. */
+const KEY_DOWN = 1, KEY_REPEAT = 2, KEY_UP = 3;
+/* Rastro das teclas no logcat (NextVR-HTML). Só no APK, e só no aperto e no keyup — nunca na
+ * repetição, que a 11 Hz viraria hundreds de linhas por segundo. Num visor não há outra forma de ver
+ * para onde a tecla foi, e é o que responde "por que não digitou?". */
+const trace = native;
 
 /**
  * Esconde/devolve o teclado flutuante sem destruir nada: o jogo some com ele junto com as janelas
@@ -1020,20 +1065,48 @@ export function setKeyboardHidden(hidden) {
   kbObj.visible = !value;
   kbObj.element.style.setProperty('display', value ? 'none' : '', 'important');
   if (kbHit) kbHit.visible = !value;
-  if (value) kbArmed = null;
+  if (value) kbRelease();
   css3d.invalidate?.();
   return true;
 }
 export const keyboardShown = () => !!kbObj && kbObj.visible !== false;
+export const keyboardHiddenNow = () => kbHidden;
+
+/** A janela dona do teclado: e dela que ele tira o lugar e o azimute. */
+function ownerWindow(target) {
+  const node = target?.nativeId
+    ? document.querySelector(target.nativeId.startsWith('app:')
+        ? `[data-native-app="${target.nativeId.slice(4)}"]`
+        : `[data-native-browser="${target.nativeId}"]`)
+    : target;
+  const shell = node?.closest?.('.win-shell');
+  return shell ? wins.find(w => w.shell === shell) || null : null;
+}
 
 export function keyboard(on_, field) {
   if (!on_) {
+    if (native) console.log('kb close; was serving', kbTarget?.nativeId || kbTarget?.tagName || 'nothing');
+    // Solta a tecla segurada ANTES de esquecer o alvo: o keyup é o que faz um jogo parar de andar.
+    kbRelease();
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
-    kbTarget = null; kbShift = kbShiftLock = false;
+    kbTarget = null; kbOwner = null; kbShift = kbShiftLock = false;
+    kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
     return;
   }
-  kbTarget = field;
-  if (kbObj) return;
+  /*
+   * Sem alvo explicito (o botao da dock) o teclado volta para o ultimo campo em que se escreveu.
+   * Sem nenhum dos dois ele abre assim mesmo: e o que a dock promete, e um teclado sem alvo ainda
+   * e util para o usuario ver as teclas e escolher a proxima janela.
+   */
+  const wanted = field || lastKbField;
+  // Um campo do DOM e focado e trazido para a vista; uma superficie nativa ja tem o campo em foco
+  // do outro lado da ponte, e aqui so existe o endereco (`app:<pkg>` / id do browser).
+  kbTarget = wanted && !wanted.nativeId ? typing?.focus(wanted) || null : wanted || null;
+  if (kbTarget && !kbTarget.nativeId) lastKbField = kbTarget;
+  kbOwner = ownerWindow(kbTarget);
+  if (native) console.log('kb open for', kbTarget?.nativeId || kbTarget?.tagName || 'nothing',
+    'in window', kbOwner?.id ?? 'none');
+  if (kbObj) { placeKb(); return; }   // ja aberto: so troca o alvo e deixa o teclado caminhar ate ele
 
   const el = document.createElement('div');
   el.className = 'kb';
@@ -1051,9 +1124,14 @@ export function keyboard(on_, field) {
     }
     el.appendChild(r);
   }
-  el.addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) press(b.dataset.k, b); });
+  // Só no preview de desktop o teclado e um botão de verdade; no APK ele e um plano no mundo e quem
+  // aperta e a mao (kbHold). O clique segue o mesmo ciclo pressionar/soltar da mao.
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-k]'); if (!b) return;
+    kbPress(b); kbRelease();
+  });
 
-  kbObj = new CSS3DObject(el);kbYaw=dockYaw;
+  kbObj = new CSS3DObject(el);
   kbObj.scale.setScalar(PX * (native?COMFORT.keyboardScale:.9));
   contentRoot.add(kbObj);
   kbHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
@@ -1061,34 +1139,61 @@ export function keyboard(on_, field) {
   placeKb();
 }
 
-function press(k, btn) {
-  if (native) window.NativeXR.click();
-  if (btn) { btn.classList.add('hot'); setTimeout(() => btn.classList.remove('hot'), 110); }
-  if (k === '@close') return keyboard(false);
-  if (k === '⇧') {
-    // Meta Quest: um toque escreve em maiúsculas uma vez; o segundo trava; o terceiro solta.
-    if (!kbShift) { kbShift = true; kbShiftLock = false; }
-    else if (!kbShiftLock) kbShiftLock = true;
-    else { kbShift = false; kbShiftLock = false; }
-    paintShift(); return;
-  }
-  if (k === '@lang') return;
-  if (k === '@mic') { toast(t('micOff')); return; }
-  if (k === '@emoji') { type(EMOJI_CYCLE[emojiIndex++ % EMOJI_CYCLE.length]); return; }
-  type(k);
+function shiftCycle() {
+  // Meta Quest: um toque escreve em maiusculas uma vez; o segundo trava; o terceiro solta.
+  if (!kbShift) { kbShift = true; kbShiftLock = false; }
+  else if (!kbShiftLock) kbShiftLock = true;
+  else { kbShift = false; kbShiftLock = false; }
+  paintShift();
 }
-function type(k) {
-  if (!kbTarget) return;
-  const isAction = k === '⌫' || k === '⏎';
-  const ch = kbShift ? k.toUpperCase() : k;
-  if (kbTarget.nativeId) {
-    window.NativeXR.key(kbTarget.nativeId, ch);
-  } else if (k === '⌫') kbTarget.value = kbTarget.value.slice(0, -1);
-  else if (k === '⏎') { kbTarget.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return; }
-  else kbTarget.value += ch;
-  if (!kbTarget.nativeId) kbTarget.dispatchEvent(new Event('input', { bubbles: true }));
-  // Shift avulso dura uma tecla; o travado permanece até ser solto.
-  if (!isAction && kbShift && !kbShiftLock) { kbShift = false; paintShift(); }
+
+/** A tecla desceu, repetiu ou subiu. E o que faz som, pinta a tecla e escreve. */
+function press(k, btn, phase, upShift) {
+  // Shift e os utilitarios sao controles do proprio teclado: viram um caractere so na pagina se
+  // fossem enviados, e `KeyboardEvent.key = '⇧'` nao e o Shift de um teclado de verdade. O shift
+  // ja viaja junto de cada tecla, no flag.
+  const writes = k !== '⇧' && !k.startsWith('@');
+  if (phase === KEY_UP) {
+    if (btn) btn.classList.remove('hot');
+    // O keyup sai com o MESMO shift que o keydown, senão um jogo que compara os dois eventos vê a
+    // tecla mudar de mão no meio do aperto.
+    if (writes) type(k, k, !!upShift, KEY_UP);
+    return;
+  }
+  if (phase === KEY_DOWN) {
+    if (native) window.NativeXR.click();          // so o aperto estala
+    if (btn) btn.classList.add('hot');
+    if (k === '@close') { keyboard(false); return; }
+    if (k === '⇧') { shiftCycle(); return; }
+    if (k === '@lang') return;
+    if (k === '@mic') { toast(t('micOff')); return; }
+    if (k === '@emoji') { type(k, EMOJI_CYCLE[emojiIndex++ % EMOJI_CYCLE.length], false, KEY_DOWN); return; }
+  }
+  type(k, k, k === '⌫' || k === '⏎' ? false : undefined, phase);
+}
+
+/**
+ * Escreve UMA tecla. `ch` e o caractere a escrever (o emoji, quando a tecla e @emoji) e `shift` se a
+ * tecla vai maiuscula. Os dois caminhos terminam no mesmo motor de digitacao: um campo do DOM e
+ * resolvido aqui; uma superficie nativa vai por `NativeXR.key`, e o motor roda dentro do WebView.
+ */
+function type(k, ch, shift, phase) {
+  if (!kbTarget) return false;
+  const capital = shift === undefined ? kbShift : shift;
+  if (kbTarget.nativeId) window.NativeXR.key(kbTarget.nativeId, ch, !!capital, phase || 0);
+  else typing?.key(k, !!capital, phase || 0);
+  if (trace && phase !== KEY_REPEAT) {
+    /*
+     * Uma linha por tecla apertada e uma por keyup (nunca por repetição): o console da casca sai no
+     * logcat como NextVR-HTML, e num visor não há outra forma de ver para onde a tecla foi. Uma
+     * tecla por digitação humana é ruído desprezível ao lado do PerfLog que já roda o tempo todo.
+     */
+    console.log('kb key ->', kbTarget.nativeId || (kbTarget.tagName + '.' + (kbTarget.type || '')),
+      JSON.stringify(k), 'shift=' + !!capital, 'phase=' + (phase || 0));
+  }
+  // Shift avulso dura uma tecla; o travado permanece ate ser solto.
+  if (phase !== KEY_UP && capital && kbShift && !kbShiftLock) { kbShift = false; paintShift(); }
+  return true;
 }
 function paintShift() {
   if (!kbObj) return;
@@ -1103,14 +1208,40 @@ function paintShift() {
 let kbKey = '';
 /** Inclinação do teclado deitado na direção do usuário (rad) — estilo Meta Quest. */
 const KB_TILT = .35;
-function placeKb() {
+/** Azimute para onde o teclado caminha. `ready=false` = o proximo quadro e um teleporte seco. */
+const kbPose = { yaw: 0, ready: false };
+/** Diferença de angulo mais curta: −π..π, para o teclado nunca dar a volta completa no meio. */
+const shortAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * Para onde o teclado vai: NA FRENTE da janela dona, na mesma direcao do olhar que a ve, sempre a
+ * uma distancia confortavel do olho. Sem dona (o botao da dock), a frente da dock como antes. So o
+ * azimute vem da janela — a altura e a distancia sao as de conforto, para o teclado nunca subir nem
+ * descer junto com o titulo de uma janela arrastada.
+ */
+function kbAnchor() {
+  const w = kbOwner;
+  if (w && !w.hidden) {
+    const { x, z } = w.obj.position;
+    if (Math.hypot(x, z) > 1e-3) return Math.atan2(-x, -z);
+  }
+  return dockYaw;
+}
+
+function placeKb(dt = 0) {
   if (!kbObj) return;
+  const wanted = kbAnchor();
+  // O teleporte e curto, nao instantaneo: meio segundo e o teclado ja esta na frente da janela nova
+  // e o olhar ainda sabe onde ele estava.
+  if (!kbPose.ready) { kbPose.yaw = wanted; kbPose.ready = true; }
+  else kbPose.yaw += shortAngle(wanted - kbPose.yaw) * (1 - Math.exp(-dt * 7));
+  const yaw = kbPose.yaw;
   const distance=native?COMFORT.keyboardDistance:-dockAt.z-.35;
-  kbObj.position.set(-Math.sin(kbYaw)*distance, EYE-(native?COMFORT.keyboardDrop:.68), -Math.cos(kbYaw)*distance);   // à frente da dock, deitado como mesa
+  kbObj.position.set(-Math.sin(yaw)*distance, EYE-(native?COMFORT.keyboardDrop:.68), -Math.cos(yaw)*distance);   // deitado como mesa, à frente do alvo
   // Deitado igual Meta Quest: -π/2 é o plano horizontal (teclado "deitado"), KB_TILT inclina
   // só o necessário na direção do usuário para ler e digitar. Aplicado a cada frame para
-  // acompanhar o yaw da dock após recenter/summon.
-  kbObj.rotation.set(-Math.PI / 2 + KB_TILT, kbYaw, 0, 'YXZ');
+  // acompanhar a janela dona depois de arrastá-la, recenter ou summon.
+  kbObj.rotation.set(-Math.PI / 2 + KB_TILT, yaw, 0, 'YXZ');
   const w = kbObj.element.offsetWidth * kbObj.scale.x, h = kbObj.element.offsetHeight * kbObj.scale.x;
   const key = w.toFixed(3) + 'x' + h.toFixed(3);
   if (w > 0 && key !== kbKey) {
@@ -1119,22 +1250,73 @@ function placeKb() {
   }
   kbHit.position.copy(kbObj.position); kbHit.rotation.copy(kbObj.rotation);
 }
-let kbArmed = null;
-on('pinchcancel', () => { kbArmed = null; });
-function kbPinch(type) {
-  // O Raycaster do three não liga para `visible`: o portão do teclado escondido é explícito.
-  if (!kbObj || kbHidden) return false;
-  ndc.set(cursor.x * 2 - 1, -(cursor.y * 2 - 1));
+
+/* =================== segurar a tecla: repeticao e deslize =================== */
+/* Um teclado de verdade escreve quando o dedo DESCE, repete enquanto ele fica e só levanta no keyup.
+ * A versao anterior so escrevia ao SOLTAR, o que tornava impossivel segurar uma tecla e exigia um
+ * pinch inteiro por caractere. Repetir o caractere NAO e segurar a tecla: um jogo 3D no browser
+ * anda no keydown e para no keyup, entao um keyup no meio do caminho e o personagem dando um passo
+ * por letra. Aqui a tecla e armada no pinchdown, repete com keydown(repeat:true) e so sobe uma vez. */
+const KB_REPEAT_DELAY = 700;   // ms com o dedo parado antes de repetir
+const KB_REPEAT_RATE = 90;     // ms entre repeticoes
+/** Estas teclas repetem; as de estado (shift) e as de utilitario nao. */
+const repeats = k => k !== '⇧' && k !== '⏎' && !k.startsWith('@');
+let kbHeld = null;             // { key, button, shift }
+let kbRepeatAt = 0;
+
+/** A tecla (ou o nada) sob o raio da mao, com a distancia para arbitrar contra as janelas. */
+function kbProbe(x, y) {
+  // O Raycaster do three nao liga para `visible`: o portao do teclado escondido e explicito.
+  if (!kbObj || kbHidden) return null;
+  ndc.set(x * 2 - 1, -(y * 2 - 1));
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObject(kbHit, false)[0]; if (!hit) return false;
+  const hit = ray.intersectObject(kbHit, false)[0]; if (!hit) return null;
   const local = kbHit.worldToLocal(hit.point.clone());
   const g = kbHit.geometry.parameters;
   const px = (local.x / g.width + .5) * kbObj.element.offsetWidth;
   const py = (.5 - local.y / g.height) * kbObj.element.offsetHeight;
-  const b = deepPick(kbObj.element, px, py);
-  if (type === 'down') { kbArmed = b; return true; }
-  if (b && b === kbArmed && b.dataset && b.dataset.k) press(b.dataset.k, b);
-  kbArmed = null;
+  // A tecla e a ancora [data-k] do ponto, e nao o elemento mais fundo: as teclas de icone tem um
+  // <svg> dentro, e apertar o icone de voltar/enter/shift tem de ser a mesma tecla que apertar o
+  // fundo dela.
+  return { distance: hit.distance, button: deepPick(kbObj.element, px, py)?.closest?.('[data-k]') || null };
+}
+
+/** O dedo desceu numa tecla: ela escreve na hora e fica segurada. */
+function kbPress(button) {
+  const key = button?.dataset?.k || null;
+  kbRelease();                                   // solta o que estava preso antes
+  if (!key) return false;
+  // O shift fica preso no aperto: as repeticoes e o keyup falam com o mesmo modificador, senao um
+  // `W` segurado viraria `w` no meio por causa do shift avulso.
+  kbHeld = { key, button, shift: kbShift };
+  press(key, button, KEY_DOWN);
+  if (repeats(key)) kbRepeatAt = performance.now() + KB_REPEAT_DELAY;
+  return true;
+}
+function kbRelease() {
+  const held = kbHeld;
+  kbHeld = null; kbRepeatAt = 0;
+  // Só solta a tecla que estava apertada. O shift avulso é consumido na hora de escrever (type), e
+  // limpá-lo aqui apagaria o shift travado que o usuário acabou de travar.
+  if (held) press(held.key, held.button, KEY_UP, held.shift);
+}
+on('pinchcancel', kbRelease);
+
+/**
+ * Enquanto o dedo continua apertado: repete a tecla e troca quando o dedo desliza para outra. Só
+ * solta quando o raio SAI do teclado — passar pelo vão entre duas teclas continua na mesma tecla,
+ * como num teclado físico, em vez de engasgar a meio caminho.
+ */
+function kbHold(now) {
+  if (!kbHeld) return false;
+  const over = kbProbe(cursor.x, cursor.y);
+  if (!over) { kbRelease(); return false; }
+  const key = over.button?.dataset?.k || null;
+  if (key && key !== kbHeld.key) { kbRelease(); return kbPress(over.button); }
+  if (kbRepeatAt && now >= kbRepeatAt) {
+    press(kbHeld.key, kbHeld.button, KEY_REPEAT);
+    kbRepeatAt = now + KB_REPEAT_RATE;
+  }
   return true;
 }
 
@@ -1143,7 +1325,8 @@ let layoutSettings = '';
 onFrame((dt, now) => {
   const nextSettings = `${S.winScale}:${S.winDist}`;
   if (layoutSettings !== nextSettings) { layoutSettings = nextSettings; layout(); }
-  placeDock(); placeKb();
+  placeDock(); placeKb(dt);
+  if (kbHeld) kbHold(now);   // o ciclo da tecla e do proprio teclado: nasce no pinchdown, morre no up
   if (pendingPress && cursor.mode === 'drag') {
     // Arbiter classified the held pinch as a drag: commit the content DOWN at the pinch anchor
     // exactly once; from here on the move stream below follows the hand.
@@ -1170,9 +1353,21 @@ onFrame((dt, now) => {
 });
 
 if (native) {
-  window.nextvrBrowserFocus = id => keyboard(true, { nativeId: id });
+  /** Chamado pelo nativo quando um toque cai numa superficie web.
+ * `hasInput` diz se o elemento sob o dedo era um campo: com campo, o teclado abre (ou se
+ * reposiciona, se ja estava aberto, seja no mesmo campo ou em outro da mesma pagina); sem
+ * campo, fecha. Sem o segundo argumento (chamada antiga) assume que ha campo. */
+window.nextvrBrowserFocus = (id, hasInput) => {
+  if (hasInput !== false) keyboard(true, { nativeId: id });
+  // Sem campo o teclado so fecha se NAO estiver servindo esta mesma pagina: tocar numa foto para
+  // rolar a pagina nao pode derrubar o que se estava escrevendo nela.
+  else if (kbTarget?.nativeId !== id) keyboard(false);
+};
+  /** Chamado pelo nativo quando o app de uma janela Android tem um editor em foco (backend de
+   * acessibilidade ligado). E o equivalente ao acima para uma superficie que nao tem DOM. */
+window.nextvrAppFocus = id => keyboard(true, { nativeId: id });
   function updateBattery() { try { batt = JSON.parse(window.NativeXR.battery()); paintBat(); } catch {} }
-  updateBattery(); setInterval(updateBattery, 30000);
+  updateBattery(); setInterval(updateBattery, 10000);
   document.addEventListener('click', e => { if (e.target.closest('button')) window.NativeXR.click(); }, true);
 }
 
@@ -1364,82 +1559,16 @@ onFrame((dt,now)=>{
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj)list.push(kbHit);
+    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
-    targets.push({id:h.id,...(hit?{end:camera.worldToLocal(hit.point.clone()).toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
+    // The target goes out in WORLD space, the same space the panel matrices live in. The native
+    // renderer takes it into each eye's space before projecting, so the ring reaches the icon by
+    // the identical transform the icon's own geometry gets. Handing over camera-local coordinates
+    // instead meant projecting head-centred values through the asymmetric per-eye frustum, whose
+    // IPD compensation belongs to eye-centred ones: the ring landed on a different app per lens
+    // while the click, decided here, always followed the left.
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 });
-
-/* =================== Menu rápido (pinça de duas mãos por 2s) =================== */
-export const QUICK_MENU_ID = 'nextvr-quick-menu';
-let uiHidden = false;
-export function toggleQuickMenu() {
-  const existing = wins.find(w => w.id === QUICK_MENU_ID);
-  if (existing) { close(existing); return null; }
-  const body = document.createElement('div');
-  body.className = 'quick-menu';
-  const opts = [
-    { act:'hideui',   svg:icon(uiHidden ? 'eye' : 'eyeoff'), label: uiHidden ? 'Mostrar UI' : 'Ocultar UI' },
-    { act:'env',      svg:icon('camera'),  label: 'Ambientes' },
-    { act:'recenter', svg:icon('compass'), label: 'Recentrar UI' },
-    { act:'keyboard', svg:icon('keyboard')||icon('bell'), label: 'Teclado' },
-  ];
-  for (const o of opts) {
-    const b = document.createElement('button');
-    b.className = 'qm-btn'; b.dataset.act = o.act; b.type = 'button';
-    b.innerHTML = `<span class="qm-ic">${o.svg}</span><span class="qm-lb">${o.label}</span>`;
-    b.addEventListener('click', () => handleQuick(o.act));
-    body.appendChild(b);
-  }
-  const win = open({ id: QUICK_MENU_ID, title: '', node: body, w: 520, h: 132,
-    free: true, at: { x: 0, y: EYE, z: -.5 } });
-  win?.setCurve(0);
-  return win;
-}
-export const quickMenuOpen = () => wins.some(w => w.id === QUICK_MENU_ID);
-export function closeQuickMenu() { const w = wins.find(x => x.id === QUICK_MENU_ID); if (w) close(w); }
-
-function handleQuick(act) {
-  closeQuickMenu();
-  if (act === 'hideui') { setUIVisible(uiHidden); return; }
-  if (act === 'recenter') { recenter(); toast('UI recentrada'); return; }
-  if (act === 'keyboard') { keyboard(true); return; }
-  if (act === 'env') openEnvMenu();
-}
-function setUIVisible(visible) {
-  uiHidden = !visible;
-  const uiRoot = document.getElementById('ui') || document.body;
-  // Esconde todos os filhos da UI exceto o próprio quick-menu (que acaba de ser fechado) e o céu.
-  const DOCK_ID = 'dock';
-  for (const c of uiRoot.children) {
-    if (c.id && c.id.startsWith('nextvr-') && c.id !== QUICK_MENU_ID) c.style.display = uiHidden ? 'none' : '';
-  }
-  // Dock e janelas (via CSS3D):
-  setDockHidden(uiHidden);
-  for (const w of wins) {
-    if (w.id === QUICK_MENU_ID) continue;
-    w.obj.visible = !uiHidden;
-  }
-  toast(uiHidden ? 'UI ocultada — pinça dupla para voltar' : 'UI visível');
-}
-
-function openEnvMenu() {
-  const body = document.createElement('div');
-  body.className = 'env-menu';
-  const title = document.createElement('div');
-  title.className = 'env-t'; title.textContent = 'Ambientes'; body.appendChild(title);
-  const list = envList();
-  for (const e of list) {
-    const b = document.createElement('button');
-    b.className = 'env-btn' + (S.env === e.id ? ' active' : '');
-    b.type = 'button';
-    const bg = e.thumb ? `center/cover url(${JSON.stringify(e.thumb)})` : 'linear-gradient(145deg,#252b3a,#0f1422)';
-    b.innerHTML = `<span class="env-thumb" style="background:${bg}"></span><span class="env-name">${e.name}</span>`;
-    b.addEventListener('click', () => { setEnvironment(e.id); save(); closeEnvMenu(); toast('Ambiente: ' + e.name); });
-    body.appendChild(b);
-  }
-  open({ id: 'nextvr-env-menu', title: 'Ambientes', node: body, w: 540, h: 420, free: true, at: { x: 0, y: EYE, z: -.6 } });
-}
-function closeEnvMenu() { const w = wins.find(x => x.id === 'nextvr-env-menu'); if (w) close(w); }

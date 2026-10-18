@@ -75,9 +75,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.deepEqual(shaderResult.errors,[],'Camera, spatial-compositor and native hand GLSL compile and link');
     assert.deepEqual(shaderResult.pixels,[0,0,255,255,255,255,255,255,255,0,0,255,0,255,0,255],'Camera shader preserves upright bitmap corners (readPixels is bottom-up)');
     await page.addInitScript(()=>{
-      window.__frames=[]; window.__touches=[]; window.__frameSeq=0;
+      window.__frames=[]; window.__touches=[]; window.__frameSeq=0; window.__environmentCalls=[];
+      // Model an upgrade from the old default to this branch's sunset panorama.
+      try { localStorage.setItem('nextvr.v1',JSON.stringify({env:'passthrough',panorama:'lagoon'})); } catch {}
       window.NativeXR={
         frame(scene,browsers){window.__frameSeq++;window.__last={panels:JSON.parse(scene),browsers:JSON.parse(browsers)};window.__frames.push(window.__last);if(window.__frames.length>10)window.__frames.shift();},
+        env(id){window.__environmentCalls.push(id);},
         battery(){return '{"level":0.72,"charging":false}';}, hands(){}, click(){}, key(){},
         // The installed-app list and the command channel are the native bridges; the stub answers
         // like the Java side does (same JSON shape, icon URLs served from /apps/).
@@ -110,6 +113,11 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     // Meta-style onboarding: only the language picker window (+ HUD overlay) is composited.
     await page.waitForFunction(()=>window.__last?.panels.length>=2);
+    assert.ok(await page.evaluate(()=>window.__environmentCalls.includes('sunset')),
+      'the upgraded default enters the sunset panorama instead of camera passthrough');
+    const migratedEnvironment=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
+    assert.equal(migratedEnvironment.env,'sunset');
+    assert.equal(migratedEnvironment.panorama,'sunset');
     assert.deepEqual(errors,[]);
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const hand = (gap,extra={}) => {
@@ -140,7 +148,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const centre=new THREE.Vector3().setFromMatrixPosition(languageMatrix);
     assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
     const widthMetres=languageMatrix.elements[0]*language.glass[2];
-    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>65,'Setup has a readable angular size');
+    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>60,'Portrait setup remains readable at eye distance');
     // O piso é ditado pelo teto de 660 px do slot de textura no atlas nativo, que é o que permite os
     // doze idiomas aparecerem de uma vez, como no print (~40 px = ~4 cm a 0,42 m ≈ 5,3 graus).
     assert.ok(language.buttonHeight>=38,'Language rows stay large enough for a hand pinch');
@@ -162,36 +170,94 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(hand(.4));
     await page.waitForFunction(()=>!document.querySelector('.lang-option'));
     await page.evaluate(()=>clearInterval(window.__feed));
-    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).lang),'en');
+    const languageState=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
+    assert.equal(languageState.lang,'en');
+    assert.equal(languageState.env,'sunset','the sunset panorama survives onboarding and remains the default');
+    assert.equal(languageState.panorama,'sunset');
     // Choosing the language closes the picker and brings the whole shell back, Meta-style:
-    // the dock returns with every previous function, in the selected language.
+    // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','bell','kb','center','browser','store','discord','gallery','settings','youtube','library'],
-      'the dock has no Android tile: the installed apps live in the Applications menu the launcher opens');
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+      'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
+    assert.equal(await page.locator('.dock .dock-spacer').count(),1,
+      'a small gap separates status and the app tiles');
+    assert.equal(await page.locator('.dock .dock-tool').count(),1,
+      'only the virtual-environment shortcut is added; notifications stay out of the dock');
+    const environmentShortcut=page.locator('.dock [data-id="virtual-environment"]');
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'true','sunset is already active at startup');
+    assert.equal(await environmentShortcut.locator('svg').count(),1,'the environment shortcut uses a single vector silhouette');
+    assert.equal(await environmentShortcut.innerText(),'','the dock icon has no text or extra glyphs');
+    await environmentShortcut.click();
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'false','the headset shortcut can return to passthrough');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).env),'passthrough');
+    await environmentShortcut.click();
+    assert.equal(await environmentShortcut.getAttribute('aria-pressed'),'true','the same shortcut re-enters the saved sunset environment');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')).env),'sunset');
+    const dockSkin=await page.locator('.dock').evaluate(e=>{const s=getComputedStyle(e);return {background:s.backgroundImage,radius:s.borderRadius,blur:s.backdropFilter};});
+    assert.match(dockSkin.background,/54, 64, 81/,'the dock is dark blue-gray glass');
+    assert.match(dockSkin.background,/29, 37, 52/,'the dock keeps a blue-gray shadow tone');
+    assert.equal(dockSkin.radius,'16px','the dock is a compact rounded rectangle, not a capsule');
+    assert.match(dockSkin.blur,/blur\(20px\)/,'the dock keeps a subtle frosted-glass treatment');
+    assert.equal(await page.locator('.dock-grab').evaluate(e=>getComputedStyle(e,'::after').opacity),'0.94',
+      'the white movement handle stays visible below the dock');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),19,
-      'Quest-style library: the 17 web apps and built-in tools plus the 2 apps installed on the phone');
-    // A janela é disposta num quadro posterior quando a máquina está carregada (a suíte inteira roda
-    // vários Chromium ao mesmo tempo): um elemento ainda sem caixa devolve o `repeat(4,...)` do
-    // arquivo em vez das quatro colunas resolvidas. Espera a caixa existir e então mede.
+    assert.equal(await page.locator('.lib-tile').count(),16,
+      'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
+    assert.equal(await page.locator('.lib-tile.android').count(),0,
+      'installed Android packages never appear in the NextVR library');
+    assert.equal(await page.locator('.lib-title').innerText(),'Apps');
+    assert.equal(await page.locator('.lib-search').getAttribute('placeholder'),'Search apps','search stays visible in the top bar');
+    assert.equal(await page.locator('.lib-rail').count(),1,'the dark floating library has a compact navigation rail');
+    assert.equal(await page.locator('.lib-rail-btn').count(),4,'the rail filters apps, games and recent items');
+    assert.equal(await page.locator('.lib-shortcut').count(),0,'the old oversized shortcut cards are removed');
+    assert.equal(await page.locator('.lib-tv').count(),0,'YouTube appears as a normal colorful app tile');
+    assert.equal(await page.locator('.lib-foot').count(),0,'close and window controls live in the header');
+    assert.equal(await page.locator('.lib-close').count(),1,'the library keeps an accessible close button');
+    const firstApps=await page.locator('.lib-grid .lib-tile[data-app]').evaluateAll(nodes=>nodes.map(n=>n.dataset.app).slice(0,10));
+    assert.deepEqual(firstApps,['netflix','youtube','tiktok','discord','twitch','prime','whatsapp','instagram','x','facebook'],
+      'the first two rows match the app order in the supplied screenshot');
+    // Wait for the atlas DOM rectangle before measuring the five image columns.
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
-    assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),4,'Library cover art uses a four-column grid');
-    assert.equal(await page.locator('.lib-nav[data-nav]').count(),4,'Library rail provides all, apps, games and recent — the installed apps are tiles, not a page');
-    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,'and no rail entry leads anywhere else');
-    await page.locator('.lib-nav[data-nav="games"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),0,'Games filter only shows installed demos');
-    await page.locator('.lib-nav[data-nav="recent"]').click();
+    assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),5,'Library cover art uses the screenshot five-column grid');
+    await page.locator('[data-filter]').click();
+    assert.equal(await page.locator('.lib-tile').count(),16,'Apps filter shows every built-in app as a tile');
+    await page.locator('[data-filter]').click();
+    assert.equal(await page.locator('.lib-tile').count(),0,
+      'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
+    await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
-    await page.locator('.lib-nav[data-nav="all"]').click();
-    assert.equal(await page.locator('.lib-tile').count(),19,'All restores the complete library, installed apps included');
+    await page.locator('[data-filter]').click();
+    assert.equal(await page.locator('.lib-tile').count(),16,'All restores the complete NextVR library without Android packages');
+    await page.locator('.dock [data-id="status"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
+    assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');
+    assert.match(await page.locator('[data-q-time]').innerText(),/^\d{1,2}:\d{2}(?:\s?[AP]M)?$/,'quick settings show the device-local clock');
+    assert.match(await page.locator('[data-q-date]').innerText(),/[0-9]/,'quick settings show the device date');
+    assert.equal(await page.locator('.qs-tools').locator('button').count(),9,'quick settings follow the reference action grid');
+    assert.equal(await page.locator('.qs-side').count(),1,'the volume and blue quick buttons match the side rail in the screenshot');
+    const quickPanel=await page.locator('.qs-panel').evaluate(e=>getComputedStyle(e).backgroundColor);
+    assert.equal(quickPanel,'rgb(16, 46, 51)','the system panel uses the reference dark teal');
+    await page.locator('.quick-settings [data-q-settings]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.win-shell[data-window-id="settings"] .yt-head-title'));
+    // PhoneXR remains reachable in this branch's compact settings layout.
+    const xrSettings = page.locator('.win-shell[data-window-id="settings"] .yt-link').filter({hasText:'PhoneXR'});
+    await xrSettings.evaluate(button => button.click());
+    assert.equal(await page.locator('[data-xr-page] .seg button').count(),2,'PhoneXR offers controllers and hands modes');
+    await page.locator('.win-shell[data-window-id="settings"] [data-act="close"]').click();
+    await page.locator('.quick-settings [data-q-close]').click();
+    await page.waitForFunction(()=>!document.querySelector('.quick-settings'));
     await page.locator('.dock [data-id="store"]').click();
-    await page.waitForFunction(()=>document.querySelectorAll('.st-card').length===4);
+    // The store is the honest shell now: Apps and Horizon+ (the demo-game tabs are gone). Wait for
+    // the window itself to be composited into the atlas, not just for the markup to exist — the
+    // next steps click again and must not race a frame.
+    await page.waitForFunction(()=>document.querySelectorAll('.st-tab').length===2);
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='store'));
     await page.locator('.dock [data-id="browser"]').click();
     await page.waitForFunction(()=>window.__last?.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('iframe').count(),0,'Native browser does not create a privileged iframe');
@@ -199,14 +265,37 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const browserSpec=await page.evaluate(()=>window.__last.browsers.find(b=>b.id==='browser'));
     assert.equal(browserSpec.url,'https://duckduckgo.com/');
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
-    await page.locator('.dock [data-id="kb"]').click();
+    const chrome=await page.locator('.win-shell[data-window-id="browser"]').evaluate(shell=>{
+      const bar=shell.querySelector('.win-bar'),field=shell.querySelector('.qb-urlfld');
+      return {fieldHeight:Math.round(field.getBoundingClientRect().height),
+        fontSize:getComputedStyle(field).fontSize,nav:shell.querySelectorAll('.qb-icn').length,
+        status:!!shell.querySelector('.qb-dock .dock-status'),windowActions:bar.querySelectorAll('[data-act]').length};
+    });
+    assert.equal(chrome.fieldHeight,22,'Quest browser keeps its compact URL field');
+    assert.equal(chrome.fontSize,'11px');
+    assert.equal(chrome.nav,4,'back, forward, reload and favourite controls remain visible');
+    assert.equal(chrome.status,true,'the browser keeps its device status rail');
+    assert.equal(chrome.windowActions,3,'curve, repin and close stay reachable');
+    // The keyboard has no dock tile any more: it opens the way it opens for a user, when a text
+    // field takes the focus — here a field in the hosted page, which is the native side telling the
+    // shell (nextvrBrowserFocus), the same call the WebView makes on a real site.
+    await page.evaluate(()=>window.nextvrBrowserFocus('browser',true));
     await page.waitForFunction(()=>document.querySelectorAll('.key').length>30);
+    // The panel only reaches the bridge on the next frame send (30 Hz throttle), so wait for the
+    // compositor to actually carry the keyboard instead of racing the throttle.
+    await page.waitForFunction(()=>window.__last?.panels.some(p=>p.rect[1]===3160));
     // Keyboard lies flat like a desk (Meta Quest style): the panel's local +Y (top edge) must
     // point away from the user (-Z). Matrix is column-major: column 1 (elements 4..7) is the
     // local Y basis, so its Z component is elements[6]; lying flat gives sin(pitch) < 0.
     const kbPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.rect[1]===3160));
     assert.ok(kbPanel,'Keyboard panel is composited into the atlas');
     assert.ok(kbPanel.matrix[6]<0,'Keyboard lies flat (Meta Quest style), top edge away from the user');
+    // The way out is the keyboard's own close key, and focusing the field again brings it back:
+    // with no dock tile, these two are the whole open/close contract.
+    await page.locator('.kb [data-k="@close"]').click();
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
+    await page.evaluate(()=>window.nextvrBrowserFocus('browser',true));
+    await page.waitForFunction(()=>window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     // Count actual compositor updates, not wall time: CI's software renderer can be slow.
     const settle=async()=>{
       await page.evaluate(()=>window.__settle=null);
@@ -238,7 +327,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(before.length,after.length);
     for(let i=0;i<before.length;i++) for(let k=0;k<16;k++) assert.ok(Math.abs(before[i][k]-after[i][k])<.001,'Head movement must not move world-anchored surfaces');
     const dock=after[0];
-    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(dock[14]+.55)<.001,'Dock sits a little farther from the user');
+    assert.ok(Math.abs(dock[13]-1.33)<.001 && Math.abs(Math.hypot(dock[12],dock[14])-.55)<.001,
+      `Dock remains at its comfortable radius after following the user: ${dock.slice(12,15)}`);
     // Only a PhoneXR pinch aimed at the window centre reaches the native browser surface.
     const browserPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.browser==='browser'));
     const target=new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(browserPanel.matrix));
@@ -291,6 +381,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.locator('.win-shell').filter({has:page.locator('.win-title', {hasText:'Browser'})}).locator('[data-act="close"]').click();
     await page.waitForFunction(()=>!window.__last.browsers.some(b=>b.id==='browser'));
     assert.equal(await page.locator('.win-shell').count(),2);
+    // The keyboard was serving that page: closing the window it belonged to closes it too, instead
+    // of leaving an orphan keyboard typing into a surface that no longer exists.
+    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
     await settle();
     const libraryPanel=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library'));
     const libraryMatrix=libraryPanel.matrix;
@@ -306,7 +399,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!document.querySelector('.win-shell.moving'));
     assert.equal(await page.locator('.win-shell.free').count(),1,'White handle detaches the window only after deliberate hand movement');
     assert.equal(await page.locator('.win-shell.moving').count(),0);
-    await page.locator('.win-shell.free [data-act="pin"]').click();
+    await page.locator('.win-shell.free .lib-repin').click();
     assert.equal(await page.locator('.win-shell.free').count(),0,'Repin restores the dock/window relationship');
     await settle();
     // PhoneXR's fist grabs the whole window, not the old pinch handle. It must not click the page.
@@ -336,9 +429,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.ok(boundedRadius>=.37&&boundedRadius<=1.61,'window remains inside radial limits');
 
     // Every existing window has a distinct hand resize target. It preserves aspect/content and centre.
-    await page.locator('.win-shell.free [data-act="pin"]').click();await settle();
+    await page.locator('.win-shell.free .lib-repin').click();await settle();
     const resizePanel=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='library'));
-    const resizePoint=new THREE.Vector3((1040/2-48)/resizePanel.rect[2],-(660/2-48)/resizePanel.rect[3],0)
+    const resizePoint=new THREE.Vector3((1040/2+28)/resizePanel.rect[2],-(660/2+28)/resizePanel.rect[3],0)
       .applyMatrix4(new THREE.Matrix4().fromArray(resizePanel.matrix));
     const resizeView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),resizePoint,new THREE.Vector3(0,1,0)).invert();
     await page.evaluate(p=>window.nextvrPose(p),resizeView.toArray());
@@ -376,15 +469,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // The detached white grab bar under the dock is a real MediaPipe pinch target. A deliberate ray drag
     // moves only the dock, preserves the drag offset, and recenter restores its closer default.
     await page.evaluate(()=>{clearInterval(window.__feed);window.nextvrHands({hands:[]});window.nextvrSuspend();});
-    await page.locator('.dock [data-id="kb"]').click();
-    await page.waitForFunction(()=>!window.__last.panels.some(p=>p.rect[1]===3160),null,{timeout:12000});
+    assert.equal(await page.locator('.kb').count(),0,'no keyboard is left over before the dock is dragged');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
     const grab=await page.evaluate(()=>{
       const panel=window.__last.panels.find(p=>p.id==='dock'),root=document.querySelector('.dock'),bar=root.querySelector('.dock-grab');
       return {matrix:panel.matrix,rect:panel.rect,rootWidth:root.offsetWidth,rootHeight:root.offsetHeight,
         top:bar.offsetTop,height:bar.offsetHeight};
     });
-    assert.ok(grab.top>=grab.rootHeight+10,'The grab pill floats below the dock instead of touching its body');
+    assert.ok(grab.top>=grab.rootHeight+5,
+      `The grab pill floats below the dock instead of touching its body: ${JSON.stringify(grab)}`);
     const grabLocal=new THREE.Vector3((160+grab.rootWidth/2)/grab.rect[2]-.5,
       .5-(160+grab.top+grab.height/2)/grab.rect[3],0);
     const grabWorld=grabLocal.applyMatrix4(new THREE.Matrix4().fromArray(grab.matrix));
@@ -419,32 +512,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const resting=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
     assert.ok(Math.abs(resting[12]-released[12])<.001,'Dock remains at the released position');
     assert.equal(await page.locator('.dock-grab[aria-pressed="true"]').count(),0,'Grab state clears on release');
-    await page.locator('.dock [data-id="center"]').click();
-    await page.waitForFunction(()=>{
-      const m=window.__last.panels.find(p=>p.id==='dock')?.matrix;
-      return m && Math.abs(m[12])<.001 && Math.abs(m[14]+.55)<.001;
-    },null,{timeout:12000});
-    const recentered=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
-    assert.ok(Math.abs(recentered[12])<.001 && Math.abs(recentered[14]+.55)<.001,'Recenter restores the dock default');
+    // The dock has no recenter tile any more (the view is centred once, at boot and after the
+    // language pick): a dock the user moved stays where it was put, and nothing recentres it behind
+    // the user's back.
+    await page.waitForTimeout(400);
+    const settled=await page.evaluate(()=>window.__last.panels.find(p=>p.id==='dock').matrix);
+    assert.ok(Math.abs(settled[12]-released[12])<.001,'Nothing recentres the dock after the drag');
     /* ================================ Android apps in floating windows ============================
-       The dock's Android page lists the device's own apps and each open app becomes a window whose
-       body is the app's real display. Everything the user does there must reach the app: the shell
-       DOM never receives a synthetic event for an app window.
+       The dedicated Shizuku launcher lists device apps, separate from NextVR's own app library.
+       Each open Android app is still hosted on a real display or captured from the phone; input
+       reaches the app rather than becoming a synthetic click on the shell.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    /* ================================ the installed apps in the Applications menu ==================
-       There is no Android page and no mirror button: the apps installed on the phone are tiles of
-       the Applications menu the shell already had, in the same grid, drawn with the icon the
-       PackageManager returned. The window they open is either the app hosted on its own display or
-       a capture of the phone screen with the app on it, and its badge always says which one it is.
-       ============================================================================================= */
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-nav[data-nav="android"]').count(),0,
-      'no rail entry leads to a separate Android page');
-    assert.equal(await page.locator('.lib-tile.android').count(),2,'both apps from the bridge are tiles of the menu');
-    assert.ok(await page.locator('.lib-grid .lib-tile').count()>2,
-      'and they sit in the same grid as the web apps, not in a page of their own');
+    assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
+      'the NextVR library does not mix device apps into its own grid');
+    await page.locator('.dock [data-id="shizuku"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.android-app-grid'));
+    assert.equal(await page.locator('.android-app-grid .lib-tile.android').count(),2,
+      'both installed apps appear in the dedicated Shizuku launcher');
+    assert.equal(await page.locator('.android-category').count(),6,
+      'the launcher keeps its category filters');
     assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-sys').count(),1,
       'a system app is marked as one');
     await page.waitForFunction(()=>{
@@ -459,16 +548,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'an app whose icon could not be read is not left with a broken image');
     assert.equal(await page.locator('.lib-tile.android[data-pkg="com.android.settings"] .lib-cover.noicon .nm').count(),1,
       'it falls back to its initials instead');
-    // The row that explains the mechanism exists only while the shell service is not ready: the phone
-    // without Shizuku still opens apps, through the capture path.
-    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),1,
-      'without the shell service the menu says how an app will be opened');
-    assert.ok(await page.locator('.lib-note .az-dot').count()>=1,'the Shizuku state is shown there');
+    // Shizuku's status and fallback route belong to the launcher, not to the NextVR library.
+    assert.equal(await page.locator('.android-launcher > .lib-note').count(),1,
+      'the launcher explains how an app will open without the shell service');
+    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),0,
+      'the NextVR library does not show Shizuku diagnostics');
+    assert.ok(await page.locator('.android-launcher > .lib-note .az-dot').count()>=1,
+      'the Shizuku state is shown in its launcher');
     assert.equal(await page.evaluate(()=>!!document.querySelector('.az-caps')),false,
       'the self-test block stays closed until it is asked for');
     assert.equal(await page.locator('.lib-tile.android .az-mirror, .lib-tile.android [data-act="mirror"]').count(),0,
       'no tile carries a mirror button any more');
-    await page.locator('.lib-note .az-btn').first().click();
+    await page.locator('.android-launcher > .lib-note .az-btn').first().click();
     let commands=await page.evaluate(()=>window.__appCommands||[]);
     assert.ok(commands.some(c=>c.cmd==='refresh'),'checking Shizuku again refreshes the app list over the bridge');
     await page.locator('.lib-tile.android[data-pkg="org.example.notes"]').click();
@@ -538,20 +629,26 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const badge=await appWindow.locator('.app-badge').innerText();
     assert.match(badge,/android app/i,'a hosted app is labelled as a hosted app');
     assert.doesNotMatch(badge,/mirror/i,'a hosted app is never presented as a screen mirror');
-    // With the shell service ready the explanatory row is gone: nothing is left in the menu that
-    // belongs only to the Android integration except the tiles themselves.
-    await page.waitForFunction(()=>!document.querySelector('.lib-note'));
-    // The library and the dock repaint their badges when the session list changes.
+    // The dedicated launcher keeps its status row even while ready; the library stays separate.
+    await page.waitForFunction(()=>document.querySelector('.android-launcher > .lib-note .az-dot')?.dataset.state==='ready');
+    assert.equal(await page.locator('.lib-scroll > .lib-note').count(),0);
+    // The Shizuku launcher and its dock tile repaint their badges when sessions change.
     await page.waitForFunction(()=>{
-      const open=document.querySelector('.lib-tile.android[data-pkg="org.example.notes"] .lib-open');
-      const badge=document.querySelector('.dock [data-id="library"] .dock-badge');
+      const open=document.querySelector('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] .lib-open');
+      const badge=document.querySelector('.dock [data-id="shizuku"] .dock-badge');
       return !!open&&badge?.textContent?.trim()==='1';
     },null,{timeout:12000});
-    assert.equal(await page.locator('.lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
-      'the menu marks the app that is open in a window');
-    assert.equal(await page.locator('.dock [data-id="library"] .dock-badge').innerText(),'1',
-      'the dock counts the open app windows');
+    assert.equal(await page.locator('.android-app-grid .lib-tile.android[data-pkg="org.example.notes"] .lib-open').count(),1,
+      'the launcher marks the app that is open in a window');
+    assert.equal(await page.locator('.dock [data-id="shizuku"] .dock-badge').innerText(),'1',
+      'the Shizuku dock tile counts open Android app windows');
     assert.equal(await page.locator('.dock [data-id="android"]').count(),0,'and there is no Android dock tile');
+    // Close the launcher after checking its badge: unlike the old shared menu it is another full
+    // window, which can physically occlude the app if both occupy the same arc slot.
+    await page.locator('[data-window-id="shizuku"] .win-bar [data-act="close"]').click();
+    await page.locator('.lib-close').click();
+    await settle();
+    const remainingWindows = await page.locator('.win-shell').count() - 1;
     // The same session in capture mode is a mirror, and the window says so.
     await page.evaluate(json=>window.nextvrApps(json),JSON.stringify({
       sessions:[{pkg:'org.example.notes',title:'Notas',mode:'mirror',state:'running',input:'accessibility',alive:true,
@@ -645,7 +742,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     commands=await page.evaluate(()=>window.__appCommands||[]);
     assert.equal(commands.filter(c=>c.cmd==='close'&&c.pkg==='org.example.notes').length,0,
       'a minimized window is not closed on the native side');
-    assert.equal(await page.locator('.win-shell').count(),windowsBefore,'the arc goes back to what it was');
+    assert.equal(await page.locator('.win-shell').count(),remainingWindows,
+      'minimizing removes only the app window from the remaining arc');
 
     // Closing the window from its own bar is what tells the native side to release the display.
     await page.evaluate(json=>window.nextvrApps(json),appSession('running'));

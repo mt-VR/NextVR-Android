@@ -1,9 +1,9 @@
 # Apps Android em janelas flutuantes
 
-Esta é a funcionalidade que transforma a dock do NextVR em um lançador de apps do próprio
-aparelho: a biblioteca lista os apps instalados com os ícones reais e cada app aberto ganha uma
-janela flutuante no arco multitarefa existente, com o visual da referência
-(`new_references.zip`) — barra de arrasto branca, janela com vidro, mesmos botões.
+O ícone **Shizuku** na dock abre um lançador dedicado aos apps Android instalados, com ícones reais,
+busca e filtros por categoria. Essa coleção fica separada da biblioteca de apps e jogos do NextVR.
+Cada app Android aberto ganha uma janela flutuante no arco multitarefa existente, com o visual da
+referência (`new_references.zip`) — barra de arrasto branca, janela com vidro, mesmos botões.
 
 O conteúdo da janela é o app de verdade rodando no Android. Não existe imitação em HTML, e a UI do
 NextVR não desenha “telas falsas” de apps.
@@ -143,11 +143,10 @@ certo.
   encontrá-lo; e se um ícone não puder ser lido, o tile mostra as iniciais do app (`onerror` →
   `.noicon`) — nunca uma imagem quebrada. O ícone é desenhado em 52 px, a mesma caixa dos logos dos
   apps da web na grade.
-* **Sem página separada**: os apps instalados são tiles do menu de aplicações que já existia — mesma
-  grade, mesma busca, mesma ordenação, mesma `data-*` de clique. A entrada `data-nav="android"` da
-  trilha, o tile da dock e o botão *Espelhar* foram removidos, junto com o CSS `.az-*`/`.az-mirror`.
-  O que sobrou de específico é uma única linha de estado, e só enquanto o serviço shell não está
-  pronto: ela diz qual mecanismo o toque vai usar e como chegar no outro.
+* **Coleções separadas**: apps Android aparecem somente na janela iniciada pelo ícone Shizuku da
+  dock. A biblioteca NextVR continua dedicada aos apps web e jogos próprios. Dentro da janela
+  Shizuku, a grade tem busca, categorias e atualização manual; o ícone real do pacote segue sendo
+  fornecido por `PackageManager`. O aviso do serviço shell aparece ali apenas quando é necessário.
 * **Falha com saída**: quando a janela não pôde ser preenchida (captura recusada, display vazio,
   serviço caindo entre a checagem e a criação), o aviso da janela oferece “Abrir no celular” — o
   caminho que não precisa de privilégio nenhum — em vez de terminar num beco sem saída.
@@ -493,9 +492,9 @@ Tudo o que é específico desta funcionalidade está em
 | `NextVrAccessibilityService` | o caminho sem Shizuku: `dispatchGesture` e ações globais |
 | `AppMirrorService` | o serviço em primeiro plano, tipo `mediaProjection`, que o Android exige para a captura existir (e a notificação que avisa que a tela está sendo capturada) |
 
-No shell (`web/src/`): `android-apps.js` (estado, janelas, biblioteca, dock), `app-window-box.js`
-(os dois tamanhos — canvas e elemento da janela —, puros e testados) e `display-fit.js` (onde a
-imagem da tela do app fica dentro da janela e como o toque volta normalizado).
+No shell (`web/src/`): `android-apps.js` (estado, sessões e biblioteca de pacotes), `apps.js`
+(janela Shizuku dedicada e contador na dock), `app-window-box.js` (tamanhos do canvas e da janela,
+puros e testados) e `display-fit.js` (ajuste da imagem e normalização do toque).
 
 ## Como a imagem aparece na janela
 
@@ -574,7 +573,8 @@ exige privilégios que um app comum não tem, com ou sem `MediaProjection`. O Ne
 o mesmo `adb shell`, sem root. Foi por isso que o caminho escolhido é o mesmo que o PhoneXR usa:
 é o único caminho não-root conhecido que faz a coisa real.
 
-A biblioteca mostra a linha do Shizuku com o estado exato e o próximo passo:
+A janela Shizuku, aberta pela dock e separada da biblioteca do NextVR, sempre mostra sua linha de
+estado e o próximo passo (inclusive quando o serviço já está pronto):
 
 | Situação | O que a UI diz | O que o usuário faz |
 | --- | --- | --- |
@@ -745,9 +745,9 @@ Automatizados (rodam no CI, sem aparelho):
   diálogo de consentimento, `registerCallback` antes de `createVirtualDisplay`, a visibilidade de
   pacotes (`MAIN + LAUNCHER` em `<queries>`), a lista de permissões proibidas (a mesma que sustenta a
   seção de anticheat acima) e, na rodada 3, quatro novos: a decisão única de mecanismo no lado
-  nativo (`route`, no lugar de `canHost`), a revisão de ícones que faz a grade se repintar, a ausência
-  de `MIRROR_PACKAGE`/`focus`/botão *Espelhar* e a integração dos apps instalados no menu que já
-  existia (sem trilha, sem tile na dock, sem página). A rodada 4 acrescentou quatro blocos que
+  nativo (`route`, no lugar de `canHost`), a revisão de ícones que faz a grade se repintar e a ausência
+  de `MIRROR_PACKAGE`/`focus`/botão *Espelhar*. A janela Shizuku atual fica separada da biblioteca
+  NextVR, com acesso pela dock. A rodada 4 acrescentou quatro blocos que
   descrevem o bug relatado por escrito: tocar num app **hospeda** (e o teste quebra se alguém voltar a
   decidir a rota pelo instante do bind, a reintroduzir `setLaunchDisplayId` ou a chamar `unbind` na
   mudança de estado), o caminho privilegiado **verificável no aparelho** (`selfTest`, com display de
@@ -767,19 +767,16 @@ Automatizados (rodam no CI, sem aparelho):
   receptor de AIDL fora de `try`** (o `RemoteException` que o javac exige tratar). Roda no CI junto
   dos testes, e `--self-test` fixa as duas regras com seis casos sintéticos (`tests/java-refs-tool.test.mjs`
   roda o mesmo self-test aqui).
-- `tests/reference-ui.test.mjs` — o teste de integração em Chromium termina com o bloco das janelas.
-  Na rodada 3 ele passou a abrir o menu de aplicações pelo lançador da dock e a exigir: nenhuma
-  entrada de trilha para uma página de apps Android, os apps instalados na **mesma** grade dos apps
-  do NextVR, o ícone real carregado de `/apps/<arquivo>.png`, as iniciais como reserva quando o ícone
-  não veio, nenhum botão de espelhar em tile, o selo do sistema, a linha de estado aparecendo sem o
-  serviço e sumindo com ele, `{cmd:'open'}` sem mecanismo escolhido pelo shell, o selo da janela
-  seguindo o modo (`android app` × `screen mirror`), o contador na dock, o botão “Abrir no celular”
-  mandando `{cmd:'phone'}`, o recorte do shader igual ao `data-uv`, a pinça da mão entregando toques
-  em `app:<pacote>`, minimizar sem fechar e fechar mandando `{cmd:'close'}`. Este teste **pula** em
-  ambientes sem Chromium e roda no CI.
+- `tests/reference-ui.test.mjs` — o teste de integração em Chromium verifica o lançador Shizuku
+  dedicado e a biblioteca NextVR separada: ícone real carregado de `/apps/<arquivo>.png`, iniciais
+  quando não há ícone, selo de app do sistema, filtros, status Shizuku sempre disponível e contador
+  na dock. Também verifica `{cmd:'open'}` sem mecanismo escolhido pelo shell, selo da janela conforme
+  a rota (`android app` × `screen mirror`), botão “Abrir no celular” mandando `{cmd:'phone'}`, recorte
+  do shader igual ao `data-uv`, pinça entregando toques em `app:<pacote>`, minimizar sem fechar e
+  fechar mandando `{cmd:'close'}`. O teste **pula** em ambientes sem Chromium e roda no CI.
 
-Estado no CI (verde, rodada 6 já com o `main` mesclado, runs `38653780575` (push) e `38653786814`
-(pull request), commit `1efd1c9`): Node **116/116** (incluindo o teste de integração em Chromium, que
+Registro histórico do CI (rodada 6, commit `1efd1c9`, **anterior a esta mesclagem**;
+runs `38653780575` e `38653786814`): Node **116/116** (incluindo o teste de integração em Chromium, que
 no CI roda de verdade — e que aqui roda com o mesmo Chromium do CI) e testes JVM **150 em 21 classes,
 0 falhas** — 67 deles nas nove classes de `apps/`, entre elas as três que a rodada 6 reescreveu
 (`AppWindowShapeTest`, 8 casos, `AppDisplaySpecTest`, 6, e `AppSessionManagerTest`, 11). O verificador
@@ -794,11 +791,9 @@ identifica sozinha: nesta rodada ela é `versionCode` **8** / `versionName` **1.
 janelas de app com a plataforma de jogos (a rodada 6 era `7` / `1.0.6`, 48 040 916 bytes, e a rodada 5
 era `6` / `1.0.5`, 48 040 700 bytes).
 
-> **A `apk-dist` é compartilhada por todas as linhas de trabalho do repositório**: cada run verde
-> regrava a branch (é um `push --force` de um único arquivo). O `dist/build.txt` publicado ao lado do
-> APK diz **de que run e de que commit** o arquivo veio, com tamanho e md5 — é por isso que ele existe.
-> Na hora de instalar, confira que o `build.txt` aponta o commit deste merge; se apontar outro, o
-> arquivo foi trocado por um run de outra linha depois deste.
+> A `apk-dist` é publicada apenas pelo fluxo de `main`; builds de branches de trabalho entregam
+> artefatos do próprio run, sem sobrescrever a branch de distribuição. Para instalar, confira o
+> commit no `dist/build.txt` publicado ao lado do APK (ou no artefato do run que você baixou).
 
 Só pode ser validado em aparelho (e é o que o PR reporta como não validado). O roteiro completo, na
 ordem de execução e com o resultado esperado de cada passo, está em `docs/TESTE-EM-APARELHO.md`; a

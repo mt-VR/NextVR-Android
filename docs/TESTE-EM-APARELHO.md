@@ -48,7 +48,7 @@ adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
 adb shell pidof moe.shizuku.privileged.api       # o Shizuku está de pé?
 ```
 
-Depois, **no visor**: menu de aplicações → **Testar Shizuku agora**. Ele roda o caminho
+Depois, **no visor**: ícone **Shizuku** na dock → **Testar Shizuku agora**. Ele roda o caminho
 privilegiado inteiro dentro do serviço shell e devolve, no Diagnóstico, uma linha `device self-test`
 com `"ok": true` e:
 
@@ -68,12 +68,11 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 ## A. Com Shizuku autorizado (o caminho que estava quebrado)
 
 1. Shizuku rodando e o NextVR autorizado nele (uma vez: o diálogo aparece no visor). Abra a VR e
-   toque no **lançador de 9 pontos** na dock.
-   → esperado: os apps instalados estão **na mesma grade**, com o ícone real de cada um; **não
-   existe** menu “Apps do Android” separado nem botão “Espelhar” em tile nenhum; e a **linha de
-   estado do Shizuku não aparece** (com a rota hospedada funcionando não há nada a avisar).
-   **Anota isso:** se a linha aparecer, copie o **Diagnóstico** — ele traz a rota, o estado e o
-   motivo.
+   toque no ícone **Shizuku** na dock.
+   → esperado: abre a janela “Apps do Android”, separada da biblioteca NextVR, com busca, filtros de
+   categoria e os ícones reais dos apps instalados; a linha de estado do Shizuku permanece visível,
+   inclusive quando o serviço está pronto.
+   **Anota isso:** copie o **Diagnóstico** se houver falha — ele traz a rota, o estado e o motivo.
 2. Toque no tile de um app simples (calculadora, relógio, notas).
    → esperado: **nenhum diálogo de captura**, o app **não aparece na tela do celular** e a janela
    abre com o selo **APP DO ANDROID**, com a interface dele viva na janela. Enquanto o serviço shell
@@ -90,8 +89,8 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 
 ## B. Sem Shizuku nenhum (o caminho sem privilégio, que continua valendo)
 
-1. Shizuku parado (ou nem instalado). Menu de aplicações → um app da grade.
-   → esperado: a linha de estado aparece e diz, com estas palavras, que **o app abre na tela do
+1. Shizuku parado (ou nem instalado). Abra a janela Shizuku pela dock e toque num app da grade.
+   → esperado: a linha de estado diz, com estas palavras, que **o app abre na tela do
    celular e a janela mostra a tela com a sua autorização de captura**. É o único caminho que resta,
    e ele é apresentado como o que é.
 2. Toque no tile de um app simples.

@@ -253,9 +253,33 @@ test('a batch of finished icons makes the shell read the grid again', async () =
   assert.match(web, /state\.launch = next\.launch \|\| null;/);
 
   const appsJs = await read(WEB.apps);
-  assert.match(appsJs, /loadAndroidLibrary\(false\)/, 'the grid asks for the installed apps when it paints');
+  assert.match(appsJs, /loadAndroidLibrary\(false\)/, 'the dedicated Shizuku grid asks for installed apps when it paints');
   assert.match(appsJs, /if \(winBody\('library'\)\) paintLibrary\(\);/,
     'and it repaints whenever it is open, not only while it has the focus');
+});
+
+test('approved quick settings panel is connected to native controls and keeps Shizuku separate', async () => {
+  const activity = await read(JAVA.activity);
+  for (const method of ['volume', 'setVolume', 'brightness', 'setBrightness', 'audioEnabled', 'systemPanel']) {
+    assert.match(activity, new RegExp(`@JavascriptInterface public (?:int|void) ${method}\\(`),
+      `the native bridge exposes ${method}`);
+  }
+  const apps = await read(WEB.apps);
+  const html = await read('web/index.html');
+  assert.ok(apps.includes('function controlCenterApp()'));
+  assert.ok(apps.includes("open({ id:'control-center', title:'Configurações', node:body, w:980, h:640 })"),
+    'settings uses a regular, contained spatial window like Shizuku, not a full-field HUD');
+  assert.ok(apps.includes("on('game:settings', () => controlCenterApp())"));
+  assert.ok(apps.includes("systemPanel('internet')"));
+  assert.ok(apps.includes("systemPanel('bluetooth')"));
+  assert.match(apps, /setBrightness/);
+  assert.match(apps, /setVolume/);
+  assert.match(apps, /Apps do Android/);
+  assert.match(apps, /android-results-count/);
+  assert.ok(html.includes('.quick-center'));
+  assert.match(html, /\.quick-center\{[^}]*background:transparent/);
+  assert.ok(html.includes('.quick-vertical'));
+  assert.ok(html.includes('.android-results'));
 });
 
 test('the window is the canvas\' shape, and the canvas is the phone screen', async () => {
@@ -282,8 +306,8 @@ test('the window is the canvas\' shape, and the canvas is the phone screen', asy
   // And the command that opens the app carries the shape, not a size: a window size sent as the app's
   // screen size is exactly what cut the bottom off almost every app.
   const appsJs = await read(WEB.apps);
-  assert.match(appsJs, /openApp\(pkg\);\s*focusAppWindow\(pkg\);/,
-    'tapping a tile in the Applications menu opens the window by shape, and nothing else');
+  assert.match(appsJs, /openApp\(tile\.dataset\.android\);\s*focusAppWindow\(tile\.dataset\.android\);/,
+    'tapping a tile in the Shizuku launcher opens the Android window by shape, and nothing else');
   assert.match(apps, /command\(\{ cmd: 'open', pkg, shape: shapeOf\(pkg, sessionOf\(pkg\)\) \}\);/,
     'the open command carries the shape');
   assert.match(apps, /const payload = \[\];[\s\S]*?payload\.push\(\{ pkg, visible: true \}\);/,
@@ -577,10 +601,8 @@ test('an app that cannot be hosted opens in a window that names its mechanism', 
 });
 
 /*
- * Round 3 removed the separate Android page: the installed apps live in the Applications menu that
- * already existed, are listed by the same grid, searched by the same box and opened by the same tap.
- * This checks the integration points, because that page was reachable from the dock and from a rail
- * button, and leaving either behind would leave a dead end in the interface.
+ * Android apps now enter through one Shizuku dock tile and stay in their own launcher window. This
+ * checks the integration points so the Android apps remain isolated from NextVR's own catalog.
  */
 test('the whole privileged path can be verified on the device itself', async () => {
   const aidl = await read(JAVA.aidl);
@@ -638,15 +660,16 @@ test('an app window takes the shape the app asks for, on this phone\'s screen', 
   assert.match(shape, /MIN_SHORT_SIDE = 1080/);
   assert.match(shape, /case 1: case 9: case 7: case 12: return PORTRAIT;/);
   assert.match(shape, /case 0: case 8: case 6: case 11: return LANDSCAPE;/);
-  // An app that declares nothing gets what the phone would give it — portrait — and a game gets
-  // landscape, which is the one category that means it.
+  // An app that declares nothing opens the way hosted windows are seen — landscape, so portrait-
+  // by-default apps no longer open sideways/pinned; remembered and declared shapes still win first.
   assert.match(shape, /if \(isShape\(remembered\)\) return remembered;/);
   assert.match(shape, /if \(isShape\(declared\)\) return declared;/);
-  assert.match(shape, /return game \? LANDSCAPE : PORTRAIT;/);
+  assert.match(shape, /Hosted windows are used in the headset's landscape frame; default to landscape/);
+  assert.match(shape, /return LANDSCAPE;\n    }\n\n    \/\*\* Same rule without the game hint/);
 
   const web = await read(WEB.androidApps);
-  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| \(app\?\.game \? 'landscape' : 'portrait'\);/,
-    'the shell resolves the shape the same way, game category included');
+  assert.match(web, /return app\?\.shape \|\| app\?\.orient \|\| 'landscape';/,
+    'the shell resolves the shape the same way the native side does, hosted default included');
   // The window is built from the session's canvas: bars and border on top of its shape, and the element
   // inside what the atlas packs.
   const boxes = await read(WEB.boxes);
@@ -737,7 +760,8 @@ test('a display that changed shape or turned is followed, not assumed', async ()
     'the size the apps see is reported next to the natural one');
   assert.match(service, /json\.put\("rotation", display\.getRotation\(\)\);/);
   assert.match(service, /display\.getRealSize\(size\);/);
-  assert.match(service, /public static final int SERVICE_VERSION = 4;/, 'the user service changed');
+  assert.match(service, /public static final int SERVICE_VERSION = 5;/,
+    'the user service changed (installPackage), so its version had to rise with it');
 
   const geometry = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppDisplayGeometry.java');
   assert.match(geometry, /boolean turned = quarterTurn && logicalWidth == naturalHeight && logicalHeight == naturalWidth;/,
@@ -782,27 +806,29 @@ test('the diagnostics panel carries the answers a bug report needs', async () =>
   assert.ok(bundle.includes('shizuku reason:'), 'and the Shizuku reason with it');
 });
 
-test('the installed apps live inside the existing Applications menu', async () => {
+test('Android apps are isolated in the dedicated Shizuku launcher', async () => {
   const appsJs = await read(WEB.apps);
-  assert.ok(!appsJs.includes('androidLibraryPage'), 'no separate page is mounted');
+  assert.ok(!appsJs.includes('androidLibraryPage'), 'the Android launcher is a normal spatial window');
   assert.ok(!appsJs.includes('data-nav="android"') && !appsJs.includes("navButton('android'"),
-    'no rail entry leads to it');
-  assert.ok(!appsJs.includes('data-id="android"'), 'no dock tile leads to it');
-  assert.match(appsJs, /const android = androidApps\(\)\.map\(a => \(\{ kind: 'android'/,
-    'the installed apps are one more kind of item in the same list');
-  assert.match(appsJs, /x\.kind === 'android' \? androidTileHtml\(x\.app\) : appTile\(x\)/,
-    'and the same grid draws them');
-  assert.match(appsJs, /c\('\[data-android\]'\)/, 'a tap is handled by the same delegator');
-  assert.match(appsJs, /openApp\(pkg\);\s*focusAppWindow\(pkg\);/,
-    'the tap is one action: the native side decides, the shell only brings an open window forward');
+    'the NextVR library has no Android category');
+  assert.ok(!appsJs.includes("const android = androidApps().map"),
+    'the NextVR library never merges installed packages into its own catalog');
+  assert.match(appsJs, /function libItems\(\)[\s\S]*?const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+    'the NextVR library includes its own apps and PhoneXR games only');
+  assert.match(appsJs, /function shizukuWindow\(\)[\s\S]*?title: 'Apps do Android'/,
+    'the single Shizuku launcher opens its own Android app window');
+  assert.match(appsJs, /const ANDROID_CATEGORIES = \['Todos', 'Jogos', 'Ferramentas', 'Redes Sociais', 'Mídia', 'Produtividade'\]/,
+    'the Android launcher has the requested category chips');
+  assert.match(appsJs, /loadAndroidLibrary\(false\)/, 'the Android app list is queried only inside Shizuku');
+  assert.match(appsJs, /androidApps\(\)\.filter\(app =>/,
+    'search and category filters operate on the isolated Android list');
+  assert.match(appsJs, /openApp\(tile\.dataset\.android\);\s*focusAppWindow\(tile\.dataset\.android\);/,
+    'selecting an app opens and focuses the Android app session');
   assert.ok(!/static final String MIRROR_PACKAGE/.test(await read(JAVA.display)),
-    'there is no pseudo-package for the capture any more: it belongs to the app');
-  assert.match(appsJs, /androidRecent\(x\.pkg\)/, 'the native recent list feeds the Recentes filter');
-  assert.match(appsJs, /const notice = shizukuNotice\(\);/,
-    'the only Android-specific row is the one that explains the current mechanism');
-  assert.match(appsJs, /if \(notice\) root\.querySelector\('\.lib-scroll'\)\?\.prepend\(notice\)/);
-  assert.match(appsJs, /function paintWindowBadge\(\)/);
-  assert.ok(!appsJs.includes('runningBadge'), 'the old badge of the removed page is gone');
+    'there is no pseudo-package for screen capture');
+  assert.ok(appsJs.slice(appsJs.indexOf('function paintWindowBadge()')).includes('data-id=\"shizuku\"'),
+    'the badge belongs to the dedicated Shizuku dock tile');
+  assert.ok(!appsJs.includes('runningBadge'), 'the removed Android-library badge is gone');
 
   const web = await read(WEB.androidApps);
   assert.ok(!web.includes('export function openPhoneMirror'), 'the mirror button entry point is gone');
@@ -811,5 +837,5 @@ test('the installed apps live inside the existing Applications menu', async () =
   assert.match(web, /export function androidTileHtml\(app\)/);
   assert.match(web, /export function shizukuNotice\(\)/);
   assert.match(web, /if \(route === 'hosted' && \(sh\.ready \|\| sh\.binding\)\) return null;/,
-    'going to work: no row, no warning, nothing to dismiss');
+    'when Shizuku is ready there is no unnecessary warning to dismiss');
 });

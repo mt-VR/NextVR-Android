@@ -9,20 +9,36 @@ import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 /* ============================ estado ============================ */
 const DEF = {
   lang: null,
-  handsOn: true, handDraw: 0,
+  // O contorno da mao e ligado por padrao: e o que mostra ONDE a mao esta apontando. O feixe e o
+  // cursor continuam desenhando de qualquer forma (showSilhouette so cobre o contorno).
+  handsOn: true, handDraw: 1,
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
-  env: 'sunset', quality: 'auto', showFps: 0,
+  // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
+  env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
 };
-let S = { ...DEF };
-try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
+let S = { ...DEF, ...saved };
+// O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
+// passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
+if (!S.sunsetDefaultVersion) {
+  if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
+    S.env = 'sunset';
+  if (!saved.panorama || (S.env === 'sunset' && !S.envChosen))
+    S.panorama = S.env === 'passthrough' ? 'sunset' : S.env;
+  S.sunsetDefaultVersion = 1;
+}
 if(native){S=migrateComfort(S);S.handsOn=true;
-  // Migração do ambiente: quem ainda estava no passthrough antigo vai para o pôr do sol novo
-  // (o panorama principal). Quem escolheu outro ambiente expressamente mantém a escolha.
-  if (S.env === 'passthrough' && !S.envChosen) { S.env = 'sunset'; }
-  try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}}
+  // O contorno da mao ja foi padrao de verdade no passado, e o 0 antigo era gravado no storage
+  // no primeiro launch nativo — entao um 0 guardado quase sempre e o padrao velho herdado, e nao
+  // uma escolha do usuario. Sobe uma vez so; depois disso o interruptor da settings funciona.
+  // (A linha acima fica intacta de proposito: o guard de input-isolation ancora nela.)
+  if(!S.handDrawSeen){S.handDraw=DEF.handDraw;S.handDrawSeen=1;}
+  try{localStorage.setItem('nextvr.v1',JSON.stringify(S));}catch{}
+}
 export const settings = S;
 export const save = () => { try { localStorage.setItem('nextvr.v1', JSON.stringify(S)); } catch {} };
 
@@ -36,12 +52,17 @@ const STR = {
     language:'Idioma', on:'Ativado', off:'Desativado', sens:'Sensibilidade', scale:'Escala',
     dist:'Distância', curve:'Curvatura', size:'Tamanho', quality:'Qualidade', apps:'Aplicativos',
     recents:'Recentes', battery:'Bateria', net:'Conexão', time:'Hora',
+    libAll:'Todos', libFilter:'Filtro', libGames:'Jogos',
+    libGamesEmpty:'Os jogos de headset aparecem aqui quando o PhoneXR os encontra.',
+    libRecentEmpty:'Os apps abertos recentemente aparecem aqui.',
     pickPhotos:'Escolher fotos', noPhotos:'Nenhuma foto escolhida ainda.',
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
-    envPass:'Camera passthrough', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
+    envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
+    envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -51,6 +72,7 @@ const STR = {
     repin:'Voltar ao arco de janelas', resize:'Redimensionar janela', moveWindow:'Mover janela',
     moveDock:'Mover a dock',
     androidApps:'Apps do Android', appWindowBadge:'App do Android', appMirrorBadge:'Espelho da tela',
+    shizuku:'Shizuku', noAndroidApps:'Nenhum app do Android disponível ainda.',
     appBack:'Voltar', appHome:'Início', appRecents:'Recentes', appKeyboard:'Digitar no app',
     appRotate:'Girar a janela do app',
     appStarting:'Abrindo o app na janela…', appFailed:'Não foi possível abrir o app',
@@ -81,15 +103,31 @@ const STR = {
     shizukuDenied:'O acesso ao Shizuku foi negado', shizukuRebind:'Reconectando ao Shizuku',
     shizukuReady:'Shizuku pronto: apps abrem em janelas próprias',
     shizukuUnknown:'Verificando o Shizuku', shizukuGrant:'Permitir', shizukuRecheck:'Verificar de novo',
+    /* Jogos de headset pelo runtime PhoneXR: OpenXR, GearVR/Quest (VrApi) e Daydream/Cardboard. */
+    xrTitle:'PhoneXR',
+    xrSub:'Jogos de headset (OpenXR e VrApi) abrindo dentro do NextVR, com as mãos como controles',
+    xrBadge:'Jogo de headset',
+    xrReady:'Runtime PhoneXR pronto',
+    xrRuntimeReady:'Runtime PhoneXR pronto: jogos de headset abrem aqui dentro',
+    xrMissing:'O runtime PhoneXR não está instalado: o jogo aparece na biblioteca mas não abre',
+    xrMissingNoApk:'O runtime PhoneXR não está instalado: veja docs/PHONEXR-INTEGRATION.md',
+    xrSummaryMissing:'Instale o runtime (requer Shizuku) para abrir jogos de headset aqui dentro',
+    xrInstall:'Instalar runtime',
+    xrInstalling:'Instalando o runtime PhoneXR…',
+    xrSelfTest:'Verificar agora',
+    xrNotHostable:'Este jogo precisa ser aberto pelo launcher do runtime na tela do aparelho',
+    xrMenuHint:'Pinça sobre uma janela agita o menu · fora dela a pinça é o gatilho do jogo',
+    xrHandMode:'Entrada das mãos',
+    xrHandModeSub:'Como as mãos chegam ao jogo',
+    xrHandModeNote:'No modo controles, pinça é gatilho e punho fechado é grip. No modo mãos as cordas dos dedos seguem a sua mão, sem botões.',
+    xrModeControllers:'Controles',
+    xrModeControllersSub:'Pinça = gatilho · punho fechado = grip (como Oculus Touch)',
+    xrModeHands:'Mãos',
+    xrModeHandsSub:'Só cordas dos dedos, sem botões (jogos com suporte a mãos)',
+    xrBundlingNote:'Nenhum APK do runtime vem embutido neste build: coloque os APKs do PhoneXR em nextvr-android/src/main/assets/xr/runtime/ (veja docs/PHONEXR-INTEGRATION.md).',
     /* Mundo 3D jogável: a plataforma de jogos nativa (colocar, mover, girar, escalar, remover). */
-    'game.tools':'Mundo 3D', 'game.place':'Colocar objeto', 'game.edit':'Editar objeto',
-    'game.duplicate':'Duplicar', 'game.remove':'Remover', 'game.removed':'removido',
-    'game.reset':'Recomeçar cena', 'game.exit':'Sair do jogo', 'game.none':'Nenhum objeto selecionado',
-    'game.hint':'Pinça num objeto para mover · duas mãos para girar e escalar',
-    'game.floor':'Chão', 'game.menu':'Menu do jogo', 'game.menuTitle':'Jogo em andamento',
+    'game.exit':'Sair do jogo', 'game.menu':'Menu do jogo',
     'game.continue':'Continuar', 'game.settings':'Configurações',
-    'game.launching':'Abrindo o mundo 3D…',
-    'game.chord':'Segure a pinça com as duas mãos para abrir o menu',
     'tool.move':'Mover', 'tool.rotate':'Girar', 'tool.scale':'Tamanho', 'tool.place':'Colocar',
     'kind.box':'Cubo', 'kind.sphere':'Esfera', 'kind.cylinder':'Cilindro',
     'kind.cone':'Cone', 'kind.plate':'Placa',
@@ -102,12 +140,17 @@ const STR = {
     language:'Language', on:'On', off:'Off', sens:'Sensitivity', scale:'Scale',
     dist:'Distance', curve:'Curve', size:'Size', quality:'Quality', apps:'Apps',
     recents:'Recent', battery:'Battery', net:'Network', time:'Time',
+    libAll:'All', libFilter:'Filter', libGames:'Games',
+    libGamesEmpty:'Headset games appear here when PhoneXR finds them.',
+    libRecentEmpty:'Recently opened apps will appear here.',
     pickPhotos:'Pick photos', noPhotos:'No photos picked yet.',
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
-    envPass:'Camera passthrough', envSunset:'Sunset · palms', envDusk:'Dusk',
+    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
+    envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
+    envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -117,6 +160,7 @@ const STR = {
     repin:'Return to the window arc', resize:'Resize window', moveWindow:'Move window',
     moveDock:'Move the dock',
     androidApps:'Android apps', appWindowBadge:'Android app', appMirrorBadge:'Screen mirror',
+    shizuku:'Shizuku', noAndroidApps:'No Android apps available yet.',
     appBack:'Back', appHome:'Home', appRecents:'Recents', appKeyboard:'Type into the app',
     appRotate:'Rotate the app window',
     appStarting:'Opening the app in this window…', appFailed:'The app could not be opened',
@@ -147,15 +191,31 @@ const STR = {
     shizukuDenied:'Shizuku access was denied', shizukuRebind:'Reconnecting to Shizuku',
     shizukuReady:'Shizuku ready: apps open in their own windows',
     shizukuUnknown:'Checking Shizuku', shizukuGrant:'Allow', shizukuRecheck:'Check again',
+    /* Headset games through the PhoneXR runtime: OpenXR, GearVR/Quest (VrApi), Daydream/Cardboard. */
+    xrTitle:'PhoneXR',
+    xrSub:'Headset games (OpenXR and VrApi) opening inside NextVR, hands as controllers',
+    xrBadge:'Headset game',
+    xrReady:'PhoneXR runtime ready',
+    xrRuntimeReady:'PhoneXR runtime ready: headset games open inside here',
+    xrMissing:'The PhoneXR runtime is not installed: the game shows in the library but cannot open',
+    xrMissingNoApk:'The PhoneXR runtime is not installed: see docs/PHONEXR-INTEGRATION.md',
+    xrSummaryMissing:'Install the runtime (needs Shizuku) to open headset games in here',
+    xrInstall:'Install runtime',
+    xrInstalling:'Installing the PhoneXR runtime…',
+    xrSelfTest:'Check now',
+    xrNotHostable:'This game has to be started by the runtime launcher on the phone screen',
+    xrMenuHint:'Pinch over a window works this menu · outside it the pinch is the game trigger',
+    xrHandMode:'Hand input',
+    xrHandModeSub:'How the hands reach the game',
+    xrHandModeNote:'Controllers mode: pinch is trigger, a fist is grip. Hands mode tracks your finger curls with no buttons.',
+    xrModeControllers:'Controllers',
+    xrModeControllersSub:'Pinch = trigger · fist = grip (like Oculus Touch)',
+    xrModeHands:'Hands',
+    xrModeHandsSub:'Finger curls only, no buttons (hand-tracking-native games)',
+    xrBundlingNote:'No runtime APK ships in this build: put the PhoneXR APKs in nextvr-android/src/main/assets/xr/runtime/ (see docs/PHONEXR-INTEGRATION.md).',
     /* Playable 3D world: the native game platform (place, move, rotate, scale, remove). */
-    'game.tools':'3D world', 'game.place':'Place object', 'game.edit':'Edit object',
-    'game.duplicate':'Duplicate', 'game.remove':'Remove', 'game.removed':'removed',
-    'game.reset':'Restart scene', 'game.exit':'Exit game', 'game.none':'No object selected',
-    'game.hint':'Pinch an object to move · two hands to rotate and scale',
-    'game.floor':'Floor', 'game.menu':'Game menu', 'game.menuTitle':'Game running',
+    'game.exit':'Exit game', 'game.menu':'Game menu',
     'game.continue':'Continue', 'game.settings':'Settings',
-    'game.launching':'Opening the 3D world…',
-    'game.chord':'Hold the pinch with both hands to open the menu',
     'tool.move':'Move', 'tool.rotate':'Rotate', 'tool.scale':'Scale', 'tool.place':'Place',
     'kind.box':'Cube', 'kind.sphere':'Sphere', 'kind.cylinder':'Cylinder',
     'kind.cone':'Cone', 'kind.plate':'Plate',
@@ -168,12 +228,17 @@ const STR = {
     language:'Idioma', on:'Activado', off:'Desactivado', sens:'Sensibilidad', scale:'Escala',
     dist:'Distancia', curve:'Curvatura', size:'Tamaño', quality:'Calidad', apps:'Aplicaciones',
     recents:'Recientes', battery:'Batería', net:'Conexión', time:'Hora',
+    libAll:'Todo', libFilter:'Filtro', libGames:'Juegos',
+    libGamesEmpty:'Los juegos de realidad virtual aparecerán aquí cuando PhoneXR los encuentre.',
+    libRecentEmpty:'Las aplicaciones abiertas recientemente aparecerán aquí.',
     pickPhotos:'Elegir fotos', noPhotos:'Aún no hay fotos elegidas.',
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
-    envPass:'Camera passthrough', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
+    envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
+    envTropical:'Panorama 360° · valle tropical', envLakeside:'Panorama 360° · lago al atardecer',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -183,6 +248,7 @@ const STR = {
     repin:'Volver al arco de ventanas', resize:'Cambiar tamaño de ventana', moveWindow:'Mover ventana',
     moveDock:'Mover el dock',
     androidApps:'Apps de Android', appWindowBadge:'App de Android', appMirrorBadge:'Espejo de pantalla',
+    shizuku:'Shizuku', noAndroidApps:'Aún no hay apps de Android disponibles.',
     appBack:'Atrás', appHome:'Inicio', appRecents:'Recientes', appKeyboard:'Escribir en la app',
     appRotate:'Girar la ventana de la app',
     appStarting:'Abriendo la app en esta ventana…', appFailed:'No se pudo abrir la app',
@@ -213,15 +279,31 @@ const STR = {
     shizukuDenied:'Se denegó el acceso a Shizuku', shizukuRebind:'Reconectando con Shizuku',
     shizukuReady:'Shizuku listo: las apps abren en sus propias ventanas',
     shizukuUnknown:'Comprobando Shizuku', shizukuGrant:'Permitir', shizukuRecheck:'Comprobar de nuevo',
+    /* Juegos de visor con el runtime PhoneXR: OpenXR, GearVR/Quest (VrApi) y Daydream/Cardboard. */
+    xrTitle:'PhoneXR',
+    xrSub:'Juegos de visor (OpenXR y VrApi) abiertos dentro de NextVR, con las manos de controles',
+    xrBadge:'Juego de visor',
+    xrReady:'Runtime PhoneXR listo',
+    xrRuntimeReady:'Runtime PhoneXR listo: los juegos de visor abren aquí dentro',
+    xrMissing:'El runtime PhoneXR no está instalado: el juego aparece en la biblioteca pero no abre',
+    xrMissingNoApk:'El runtime PhoneXR no está instalado: mira docs/PHONEXR-INTEGRATION.md',
+    xrSummaryMissing:'Instala el runtime (necesita Shizuku) para abrir juegos de visor aquí',
+    xrInstall:'Instalar runtime',
+    xrInstalling:'Instalando el runtime PhoneXR…',
+    xrSelfTest:'Comprobar ahora',
+    xrNotHostable:'Este juego debe ser iniciado por el launcher del runtime en la pantalla del móvil',
+    xrMenuHint:'Pinza sobre una ventana mueve este menú · fuera de ellas la pinza es el gatillo',
+    xrHandMode:'Entrada de manos',
+    xrHandModeSub:'Cómo llegan las manos al juego',
+    xrHandModeNote:'En modo controles la pinza es gatillo y el puño es grip. En modo manos siguen las curvas de tus dedos, sin botones.',
+    xrModeControllers:'Controles',
+    xrModeControllersSub:'Pinza = gatillo · puño = grip (como Oculus Touch)',
+    xrModeHands:'Manos',
+    xrModeHandsSub:'Solo curvas de dedos, sin botones (juegos con manos nativas)',
+    xrBundlingNote:'Ningún APK del runtime se incluye en este build: pon los APKs de PhoneXR en nextvr-android/src/main/assets/xr/runtime/ (mira docs/PHONEXR-INTEGRATION.md).',
     /* Mundo 3D jugable: la plataforma de juegos nativa (colocar, mover, girar, escalar, quitar). */
-    'game.tools':'Mundo 3D', 'game.place':'Colocar objeto', 'game.edit':'Editar objeto',
-    'game.duplicate':'Duplicar', 'game.remove':'Quitar', 'game.removed':'quitado',
-    'game.reset':'Reiniciar escena', 'game.exit':'Salir del juego', 'game.none':'Ningún objeto seleccionado',
-    'game.hint':'Pellizca un objeto para moverlo · dos manos para girar y escalar',
-    'game.floor':'Suelo', 'game.menu':'Menú del juego', 'game.menuTitle':'Juego en curso',
+    'game.exit':'Salir del juego', 'game.menu':'Menú del juego',
     'game.continue':'Continuar', 'game.settings':'Ajustes',
-    'game.launching':'Abriendo el mundo 3D…',
-    'game.chord':'Mantén el pellizco con las dos manos para abrir el menú',
     'tool.move':'Mover', 'tool.rotate':'Girar', 'tool.scale':'Tamaño', 'tool.place':'Colocar',
     'kind.box':'Cubo', 'kind.sphere':'Esfera', 'kind.cylinder':'Cilindro',
     'kind.cone':'Cono', 'kind.plate':'Placa',
@@ -326,27 +408,36 @@ on('quality', resize);
 
 /* ============================ ambientes ============================ */
 /**
- * O passthrough da câmera continua sendo o padrão, e agora existem ambientes panorâmicos 360°:
- * o panorama é desenhado como fundo esférico no GL nativo (gira com a cabeça), com a câmera
- * seguindo ligada só para o rastreamento das mãos. Os ids são os mesmos nomes dos assets
- * (`env/<id>.jpg` no APK); `passthrough` desliga o fundo virtual.
+ * O pôr do sol com palmeiras é o panorama inicial. O passthrough continua disponível; nos outros
+ * ambientes, o GL nativo desenha uma esfera enquanto a câmera rastreia as mãos.
+ * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'night', 'space', 'cinema', 'dusk']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside']);
 export const envList = () => [
-  { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
+  { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'dusk', name: t('envDusk'), thumb: './env/dusk.jpg' },
+  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
+  { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
+  { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
-  { id: 'cinema', name: 'Cinema', thumb: './env/cinema.jpg' },
+  { id: 'cinema', name: t('envCinema'), thumb: './env/cinema.jpg' },
+  { id: 'tropical', name: t('envTropical'), thumb: './env/tropical.jpg' },
+  { id: 'lakeside', name: t('envLakeside'), thumb: './env/lakeside.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';
-  S.envChosen = 1;   // escolha expressa do usuário: migrações futuras não sobrescrevem
+  S.envChosen = 1; // Não sobrescreva uma escolha explícita em migrações futuras.
+  // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
+  if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
   // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
   window.NativeXR?.env?.(S.env);
 }
+
+/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: pôr do sol). */
+export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
 
 /* ============================ giroscópio ============================ */
 /*
@@ -434,7 +525,8 @@ let handLast = 0, handAcc = 0, handN = 0, handFps = 0;
 /* Estado do pipeline nativo, publicado pelo PerfLog a cada ~3 s (delegate, FPS da câmera, custo da
  * inferência, quantos frames foram de uma ou de duas slots). É o que responde "por que a mão está
  * lenta" na própria tela: `infer` alto = o modelo/o delegate; `cam` baixo = a câmera não entrega;
- * `slots 2` com a mão levantada = o grafo de uma slot não está sendo usado. */
+ * duas mãos visíveis e `slots 2` = esperado; uma mão só e `slots 2` persistente = a trilha rápida
+ * de uma slot não está entrando. */
 let diag = null;
 
 export const reportHandFrame = () => {

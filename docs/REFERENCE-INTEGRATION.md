@@ -1,5 +1,10 @@
 # Reference integration and verification
 
+> This records the original reference-porting phase. For the merged app's current Android app
+> windows, PhoneXR game runtime and controls, see [README](../README.md),
+> [Android app windows](ANDROID-APP-WINDOWS.md) and [PhoneXR integration](PHONEXR-INTEGRATION.md).
+> Historical design/scope notes below are not a claim that later features were never built.
+>
 > The current UI/input behavior is documented in
 > [UI interaction revision](UI-INTERACTION-REVISION.md). It supersedes the older gaze/touch,
 > placement and pending-artwork notes in historical documents.
@@ -21,7 +26,7 @@ Inspected before implementation:
    SHA-256: `268ee731352e5385e1b9ea111dac7f0fe6611627959459f3dd110412b73cf42d`.
    Its self-contained `index.html` supplies the current `N` artwork, settings/crosshair/move/close,
    status and media vectors, glass palette and current component treatment. Those paths are
-   extracted into `web/assets/nextvr-n.svg` and `web/src/reference-icons.js` without network loads.
+   extracted into `web/assets/nextvr-n.png` and `web/src/reference-icons.js` without network loads.
 3. `references.zip` (SHA-256 `aabc3bd5391186a25e7f9111a0e2c1c4dc24e0b2b82f45dd6a4fc910cd4787e1`)
    remains a **legacy structural reference** for floating windows, the dock arc, store/library and
    keyboard components absent from the new archive. It never overrides a differing new asset.
@@ -46,7 +51,7 @@ Camera2 rear camera → one YUV_420_888 ImageReader (latest frame, queue depth 2
        └─ independent 640px bitmap → com.nextvr.handtrack.HandTracker
              → MediaPipe VIDEO, 2 hands/frame (+ lower-confidence hunt graph while nothing tracked)
              → landmark filters / shapes / latch / shoulder rays (HandGestures, PhoneXrHands)
-                  ├─ transparent WebView overlay → cyan contour + pinch cursor for each hand
+                  ├─ native GL hand overlay → dark teal fill + cyan contour/cursor per hand
                   ├─ native GL → shoulder ray / drop / stick / beam / target ring
                   └─ reference surface hit-testing / fist grabbing / NEAR touch
 Reference HTML/CSS + spatial JS
@@ -61,10 +66,10 @@ Unmodified Cardboard SDK + existing native renderer infrastructure
 ```
 
 The renderer does **not** display one flat UI texture in front of the user. Each HTML spatial object
-has its own world transform, bounds, texture region and stereo projection. The cyan hand contour and
-pinch cursor share the head-locked camera overlay with the status HUD; they are drawn in the WebView
-from landmarks already produced by the native MediaPipe pipeline. The browser and UI are rendered
-once and sampled for both eyes; there are no duplicate browser sessions playing duplicate audio.
+has its own world transform, bounds, texture region and stereo projection. The dark teal hand fill,
+cyan contour and per-hand pinch cursor are drawn by the native GL overlay from
+landmarks already produced by MediaPipe. The browser and UI are rendered once and sampled for both
+eyes; there are no duplicate browser sessions playing duplicate audio.
 
 ### Preserved spatial behavior
 
@@ -88,8 +93,8 @@ once and sampled for both eyes; there are no duplicate browser sessions playing 
 
 ### Necessary Android adaptations
 
-- Removed all demo OBJ/texture assets, room/target rendering, sky sphere, grid, fog and environment
-  switching. The environment choice is camera passthrough only.
+- Removed demo OBJ/texture assets, room/target rendering, grid and fog. Native GL renders the sunset
+  panorama by default; the other 360° scenes and camera passthrough remain selectable.
 - Native orientation replaces **only** the web sensor input; native builds never register the web
   `deviceorientation` listener or open a second `getUserMedia` camera.
 - Rear-camera pixels are rotated `(sensorOrientation - displayRotation*90 + 360) % 360` once
@@ -138,10 +143,10 @@ The hand implementation is sourced from `mt-VR/NextVR` at the pinned commit abov
   prototype sensitivity setting, two-frame confirmation or 280 ms tracking grace.
 - A stable thumb/index **base-weighted** aim point drives the shoulder-origin pointer, using
   the fork's lead and native cursor filters. The held hand owns the click; both hands get rays.
-- The transparent overlay now draws the supplied cyan outer contour and one pinch cursor per hand
-  from the native MediaPipe landmarks. It reuses the existing rear-camera results rather than
-  opening a second WebView `getUserMedia` stream or fetching the JavaScript tracker from a CDN.
-  The native GL pass remains responsible for the depth-aware shoulder ray and target marker; the
+- The native overlay draws a dark teal fill, cyan contour and one pinch cursor per hand from
+  native MediaPipe landmarks. It reuses the existing rear-camera
+  results rather than opening a second WebView `getUserMedia` stream or fetching the JavaScript
+  tracker from a CDN. The same GL pass draws the depth-aware shoulder ray and target marker; the
   hand-visibility setting controls the contour/cursors.
 - A fist closing over a window arms grab; it does not detach until filtered palm motion crosses an
   18 px logical threshold. Fist and white-handle drags share a fixed world plane, preserve the
@@ -201,11 +206,12 @@ The camera remains active for that hand tracking even though touchscreen event f
 
 ## Explicit scope limits — not claims of completed features
 
-The supplied web prototype itself simulates game installation/progress and game launching, and
-has demonstration account/subscription/notification states. Those store/library demonstrations
-remain demonstrations in this integration. **No APK/game-runtime installer, Shizuku app mirroring,
-PhoneXR cinema/game compatibility layer or account backend has been implemented.** The separate
-native integration examples cannot supply those absent systems on their own.
+The supplied web prototype simulates some store/account/subscription/notification states. Those
+store and account demonstrations are not a purchase or account backend. Later work added Android
+app windows (Shizuku-hosted or explicitly labelled phone-screen capture) and the bundled PhoneXR
+runtime/game flow; see the dedicated integration documents above for prerequisites and limits.
+Neither feature guarantees compatibility with every third-party app or headset game, and neither
+has been validated on a physical device as part of this merge.
 
 Browser downloads use the real Android download manager with confirmation. Browser service
 availability, DRM/login restrictions, and the prototype's third-party YouTube search endpoints
@@ -261,8 +267,8 @@ Use the following acceptance checklist before describing this as a device-verifi
 5. Confirm a long gaze, viewer-button press and touchscreen tap never activate/highlight the VR UI,
    while the rear camera continues tracking hands.
 6. Compare dock, typography, restored icons, proportions, spacing, shadows, focus, window arc,
-   thresholded drag, placement bounds, proportional resize, repin, keyboard and six-window limit.
-7. Verify the cyan contour and pinch cursors for both hands plus both native rays, fist grab/edge
+   thresholded drag, placement bounds, proportional resize, repin, keyboard and three-window limit.
+7. Verify the cyan contours and pinch cursors for both hands plus both native rays, fist grab/edge
    highlight, near/far movement, pinch hold/release, hand loss/switching, browser scrolling, sliders
    and floating-keyboard input.
 8. Browser audio/video/Web Audio, multiple windows, closing a playing window, volume buttons,

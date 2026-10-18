@@ -22,6 +22,20 @@ export const CHORD_DEFAULTS = {
 };
 
 /**
+ * Duas mãos pinçando ao mesmo tempo (a pré-condição do acorde): aceita amostras de mão com ou sem
+ * o rótulo de lado (`left`) — quando há rótulo, exige um de cada; sem rótulo, duas IDs distintas
+ * bastam. Pura e compartilhada por quem detecta acordes de mão.
+ */
+export function twoHandsPinching(pinched) {
+  if (pinched.length < 2) return false;
+  const left = pinched.some(h => h.left === true);
+  const right = pinched.some(h => h.left === false);
+  if (left && right) return true;
+  const labelled = pinched.some(h => typeof h.left === 'boolean');
+  return !labelled && new Set(pinched.map(h => h.id)).size >= 2;
+}
+
+/**
  * Acorde de duas mãos para o menu do jogo.
  *
  * `update(nowMs, { left, right, leftValid, rightValid })` → `{ progress, opened, closed, active }`

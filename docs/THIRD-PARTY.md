@@ -17,6 +17,18 @@
   no code from the fork runs in the detection path. The pinned upstream
   tree has no root license file: do not assume these additions inherit Cardboard's Apache license;
   establish appropriate source-code permission before third-party redistribution.
+- **PhoneXR runtime APK (bundled asset)**: fetched by `nextvr-android/build.gradle`
+  (`fetchPhoneXrRuntime`) from `https://github.com/samrat1games/phonexr`, pinned to commit
+  `27c5bc469fb736fb0c00b7254a6dfc532fea7003`, file
+  `app/src/main/assets/runtime/phonexr-runtime.apk`
+  (SHA-256: `56dd0f53317e1e70d240d4de39217f7553011a04b1d4cf22a637de6d1ebf7fa8`, versionCode 7),
+  placed at `nextvr-android/src/main/assets/xr/runtime/phonexr-runtime.apk`. It is the
+  monado-based OpenXR runtime with PhoneXR's hand-controller driver, plus the runtime broker and
+  GameLauncher compiled in by the upstream's own rework script. Not redistributed as extracted
+  code: it ships as the Android package the app installs (Shizuku `installPackage`) and which
+  games resolve through the Khronos loader. The pinned upstream tree has no root license file
+  (monado itself is distributed under the Boost Software License 1.0); the same caution applies:
+  establish appropriate source-code permission before third-party redistribution.
 - **MediaPipe Tasks Vision 0.10.35**: Google, Apache-2.0 library fetched through Gradle.
   The bundled `hand_landmarker.task` (`nextvr-android/src/main/assets/`) is taken from that
   technical reference at `orangehanding/src/main/assets/hand_landmarker.task`.

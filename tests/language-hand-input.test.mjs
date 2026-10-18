@@ -255,7 +255,7 @@ test('language window: leaving direct-touch range releases and suppresses the he
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
-    const aim = await languageTarget(page, '.lq-title');
+    const aim = await languageTarget(page, '.lq-welcome');
     // Encosta e aperta (o toque direto passa a ser dono da mão), e SÓ ENTÃO fecha a pinça: com o
     // contato já pressionado a pinça não vira um clique do raio distante. Depois sai da faixa ainda
     // pinçado — é a saída de faixa que solta — e volta pinçado: aquela pinça não pode reiniciar nada.
@@ -276,8 +276,8 @@ test('language window: releasing a push while still pinched emits one UP and no 
     try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
     catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
-    // The title is not a button, so this press must not close the window.
-    const aim = await languageTarget(page, '.lq-title');
+    // The welcome heading is not a button, so this press must not close the window.
+    const aim = await languageTarget(page, '.lq-welcome');
     // Chega, atravessa o vidro com a pinça fechada (aperta UMA vez), recua até soltar, e sai de vez
     // ainda pinçado: a pinça presa não pode virar um segundo toque nem reiniciar o raio.
     const actions = await runSequence(page, aim, glass(

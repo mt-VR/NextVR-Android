@@ -5,10 +5,10 @@ NextVR combines the spatial HTML workspace with the latest visual assets from
 engine built for this project (`com.nextvr.handtrack`, MediaPipe Tasks Vision), hardware-rendered
 browser surfaces and the existing Google Cardboard SDK (**v1.35.0**).
 
-The old artificial room and collectible objects have been removed. The camera is the background;
-the dock, floating windows and keyboard remain independent spatial surfaces rendered for both
-eyes. Cardboard still owns head orientation, eye projection and lens distortion. **6 DoF is not
-included or enabled.**
+The old artificial room and collectible objects have been removed. A selected panorama (or camera
+passthrough) is the background; the dock, floating windows and keyboard remain independent spatial
+surfaces rendered for both eyes. Cardboard still owns head orientation, eye projection and lens
+distortion. **6 DoF is not included or enabled.**
 
 > This is an integration with automated UI tests and APK build verification, not a claim of
 > physical-device or pixel-perfect validation. The reference's simulated game-store features
@@ -72,10 +72,12 @@ head rotation updates the view only. Recognized pinch/fist/contact transitions a
 slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
 Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
 resizing. Hand tracking is one MediaPipe pipeline written for this project
-(`com.nextvr.handtrack.HandTracker`): a two-hand VIDEO graph per frame, plus a second graph of the
-same model at a lower detection confidence that runs while nothing is tracked, so a hand the strict
-graph cannot see is still acquired. The PhoneXR fork pipeline (adaptive one/two hand slots, YOLO11
-wrist recovery, CPU crop rescue on background threads) and its 11.7 MB AGPL pose model are gone.
+(`com.nextvr.handtrack.HandTracker`): both hands are detected and rendered together; when only one
+is present, a one-slot VIDEO graph keeps the common case responsive and a two-slot probe looks for
+the second hand every 250 ms. Once both are found, the two-slot graph follows both continuously.
+Per-hand prediction and confidence keep a brief missed detection from making its neighbour flicker.
+The PhoneXR fork pipeline (YOLO11 wrist recovery, CPU crop rescue on background threads) and its
+11.7 MB AGPL pose model are gone.
 The
 multitask arc keeps the first app centered with the others alternating around it at half a window of
 clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
@@ -85,35 +87,41 @@ extracted from `new_references.zip`; the older archive is retained only as histo
 
 ## Android app windows
 
-The dock's app library (`Apps do Android`, the phone icon) lists the launchable apps installed on
-the device with their real icons and opens them in floating windows of the existing arc. The
-window content is the real app: a dedicated virtual display per app, created by a Shizuku user
-service running as the `shell` user (no root), started with `am start --display`, with the hand's
-touch injected into that display. Without Shizuku the library still works and the dock offers the
-phone-screen mirror (`MediaProjection`, behind the foreground service Android requires for a
-capture, plus the accessibility service for input), which is a mirror and is labelled as one —
-never as an embedded app. Every tile then carries a *Espelhar* shortcut that brings that app to the
-phone screen with public API before the capture starts (Android 14+ lets the user pick it in the
-system dialog), and resizing a window never leaves the session claiming a size the display refused:
-the session only adopts a new size after the display confirms it. Minimize detaches the display surface (the app
-keeps running, frame production stops), restore re-attaches the same surface, and closing releases
-the display and the app's task. Full architecture, API choices, limitations and the on-device
-checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+The dock has one dedicated **Shizuku** launcher for Android apps, separate from NextVR's own
+app/game library. Its window lists the installed Android apps with real icons, search, category
+filters, refresh, and a live result count. Each app opens in its own floating window on a Shizuku
+virtual display. This uses the Shizuku shell-user service (no root); if access is unavailable, the
+launcher explains the current state. The phone-screen mirror remains a separate, clearly labelled
+fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
+and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
 
-## 3D game platform
+Version 1.0.11 adds Joy-Con and Bluetooth gamepad navigation. The control center remains a contained,
+ordinary spatial window in the 3D workspace, not a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
+and display brightness use the native bridge. The separate Shizuku launcher keeps Android apps out
+of the NextVR library, and its detail gear still opens the complete settings tabs.
 
-Installing a title from the store and opening it in the library now enters a **playable 3D world**
-drawn by the same GLES2 Cardboard pass as the windows, camera and hands — not WebXR. The shell owns
-the scene (three.js geometry uploaded once per type, plus a matrix and colour per object) and the
-native side only rasterizes it with real depth against the windows
-([`docs/GAME-PLATFORM.md`](docs/GAME-PLATFORM.md)).
+Approved visual proposals (illustrative design references, not device screenshots):
 
-Entering a game hides every open window, the dock and the keyboard **without touching their state**
-(position, size, 360° curvature, contents, focus and arc order all survive); exiting restores each
-one exactly. In the world a pinch selects and moves an object, the tools panel places, recolours,
-duplicates, rotates, scales and removes them, and both hands pinching the same object rotate and
-scale it. Holding a pinch with **both** hands for ~2 s opens the flat, SteamVR-style game menu
-(Continue / Settings / Exit Game).
+![Approved control-center design proposal](artwork/proposals/settings-control-center-proposal.png)
+
+![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
+
+## Games (PhoneXR)
+
+Headset games are the PhoneXR library: the bundled OpenXR runtime (`org.freedesktop.monado.openxr_runtime.out_of_process`,
+pinned upstream and embedded in the APK) decides per game whether it can be hosted in-headset on
+the phone or has to be opened by the runtime launcher on the phone screen, and the shell reflects
+that state in the Applications menu
+([`docs/PHONEXR-INTEGRATION.md`](docs/PHONEXR-INTEGRATION.md)).
+
+A hostable game opens as **a window in the world driven by the runtime**: the workspace hides with
+its state preserved and restores exactly on exit, the game's stereo canvas is drawn by the same
+GLES2 panel pass as the other windows (left/right halves sampled per eye), and pinch input is
+gated between the shell and the game (a pinch over shell UI never presses a game button, and the
+game never receives a tap into shell windows). Holding a pinch with **both** hands for ~2 s opens
+the flat SteamVR-style game menu (Continue / Settings / Exit Game). There are no built-in demo
+games anymore — Minecraft VR, VRFS, Roblox and Brawl Stars were demo tiles over the 3D sandbox and
+are removed; the storefront points at the library instead of selling them.
 
 Window placement is now free-space aware: `web/src/spawn.js` measures each surface by the angular
 rectangle it occupies in the user's view, so a new window is born where nothing is covered and a
@@ -126,30 +134,30 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | --- | --- |
 | Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
 | Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
-| Select | Aim the MediaPipe hand ray and pinch thumb/index; the tracked hands use the cyan contour and pinch cursor. |
+| Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
+| Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
-| Move the dock | Pinch the short white bar underneath the dock, move it to a comfortable spot, then release. The dock stays there until recentering. |
+| Move the dock | Pinch the visible grab handle just below the dock, move it to a comfortable spot, then release. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |
 | Browser scrolling | Hold a hand pinch on the page and move. |
-| Type | Focus a field with the hand and use the floating keyboard. |
+| Type | Pinch a field — in a browser, shell window or Android app — to show the floating keyboard. Pinch a key to type; hold it to repeat or slide onto the next key. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
-| Recenter | Crosshair/recenter control on the dock. |
-| Play a game | Store → install a title → Library → its tile. The workspace hides and the 3D world opens. |
-| Manipulate an object | Pinch it to select and drag to move; use the tools panel to place, recolour, duplicate, rotate, scale or remove. |
-| Rotate/scale with both hands | Pinch the same object with both hands: the distance scales it, the angle between them rotates it. |
+| Recenter | Quick Settings → “Redefinir visualização”. |
+| Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
 | Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
 | Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
 | Exit | Native close control or Android back. |
 
-Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome and animations come from the prototype. The
-provided cyan contour and pinch cursor are drawn from the APK's existing native MediaPipe
-landmarks; the camera stays with Camera2 passthrough, so the WebView does not open a competing
+Up to three regular app windows share the arc in addition to the dock, keyboard and HUD.
+Library/store styling, menus, settings, gallery, browser chrome and animations come from the
+prototype. The hand silhouette uses a dark teal fill and cyan contour, drawn from the APK's native
+MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a competing
 `getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
-remain in place. Passthrough is the only environment.
+remain in place. The sunset panorama is the default virtual environment; camera passthrough and the
+other 360° panoramas remain available.
 
 ## Hand tracking performance
 
@@ -165,9 +173,10 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
 | `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
+| `web/src/typing.js` | Shared typing engine for shell fields and hosted browser WebViews (injected at document start) |
 | `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
-| `web/src/game.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | Playable 3D world (scene, tools, both-hands menu chord) and free-space-aware window placement |
-| `…/GameSceneRenderer.kt` | Native GL rendering of game objects: base64 meshes from the shell, one draw call per object, depth-tested against windows |
+| `web/src/xr-games.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | PhoneXR game mode, both-hands menu chord and free-space-aware window placement |
+| `…/xr/` | Native PhoneXR game controller, runtime, library and hand bridge |
 | `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
 | `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |

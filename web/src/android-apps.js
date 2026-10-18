@@ -2,7 +2,7 @@
 // owns the shell half of the feature; the native half lives in
 // nextvr-android/src/main/java/com/nextvr/app/apps/ and they talk through one JSON state object.
 //
-// An Android app appears as a tile in the *same* Applications menu as NextVR's own apps. Tapping it
+// An Android app appears as a tile in the dedicated Shizuku launcher. Tapping it
 // opens a floating window; which mechanism runs behind that window is decided by the native side and
 // reported back in `mode`, and the three mechanisms are never presented as the same thing:
 //  * `display` — the app really runs on a display of its own, created by the shell user service
@@ -11,66 +11,15 @@
 //    public API and that screen is captured with the user's consent. Input goes through the
 //    accessibility service. Badge: "ESPELHO DA TELA".
 //  * an *HTML/web* window is a page rendered by the shell's own WebView (webWindow in apps.js).
-// Only the last two are ever called a mirror, and the window's badge always names what it is.
+// Only the capture path is called a mirror; the window's badge always names what it is.
 //
-// There is no mirror button and no separate Android page: the app library, the dock badge and the
-// window bar are the whole interface, and a failure names its reason instead of leaving a blank
-// window (see sessionError).
+// There is no mirror button: the Shizuku launcher owns the Android app list and badge,
+// and a failed session names its reason instead of leaving a blank window (see sessionError).
 import { t, toast, on, emit, native } from './core.js';
 import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
 import { canvasBox, surfaceBox, windowBox } from './app-window-box.js';
-
-/**
- * The dedicated Shizuku window: the status row (always, whatever the state) followed by the
- * Android apps that run through it — one tap opens the app in its own VR window. This is about
- * the phone's apps, not the built-in games.
- */
-export function shizukuWindow() {
-  const w = wins.find(x => x.id === 'shizuku');
-  if (w) { paintShizukuWindow(); focus(w); return w; }
-  const body = document.createElement('div');
-  body.style.cssText = 'height:100%;display:flex;flex-direction:column;background:#10141c;';
-  const win = open({ id: 'shizuku', title: 'Shizuku', w: 620, h: 680, node: body });
-  paintShizukuWindow();
-  return win;
-}
-
-function shizukuAppsGrid() {
-  const grid = document.createElement('div');
-  grid.className = 'lib-grid';
-  const apps = androidApps().filter(a => !a.system);
-  grid.innerHTML = apps.length
-    ? apps.map(app => androidTileHtml(app)).join('')
-    : `<div class="lib-empty">Nenhum app encontrado.</div>`;
-  grid.addEventListener('click', e => {
-    const m = e.target.closest('[data-android]');
-    if (!m) return;
-    openApp(m.dataset.android);
-    focusAppWindow(m.dataset.android);
-  });
-  return grid;
-}
-
-export function paintShizukuWindow() {
-  const win = wins.find(x => x.id === 'shizuku');
-  const host = win?.el?.querySelector?.('.win-body');
-  if (!host) return;
-  loadLibrary(true);
-  host.innerHTML = '';
-  host.style.cssText = 'height:100%;display:flex;flex-direction:column;background:#10141c;overflow:hidden;';
-  const scroll = document.createElement('div');
-  scroll.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:16px;';
-  const status = shizukuStatusRow();
-  status.style.cssText += 'margin:0 0 16px;';
-  const title = document.createElement('div');
-  title.style.cssText = 'font-size:13px;font-weight:700;color:#e8ebf1;margin:0 0 10px 2px;';
-  title.textContent = 'Apps do Android';
-  scroll.append(status, title, shizukuAppsGrid());
-  host.appendChild(scroll);
-}
-
 
 const SYNC_MS = 400;
 const CAPACITY = 3;
@@ -97,13 +46,14 @@ const CAPACITY = 3;
 /**
  * The shape this session's window should have: what the session itself reports (the native side owns
  * the rule and remembers the user's rotation), then what the library entry says, and then the same
- * fallback the native side uses — portrait, unless the app is a game. A phone gives an app that
- * declares nothing the portrait shape, so that is what the shell assumes before it is told otherwise.
+ * fallback the native side uses — landscape (AppWindowShape.of). A hosted app is used in the
+ * headset's landscape frame, so that is what the shell assumes before it is told otherwise: assuming
+ * portrait here is what made a window open tall and then jump when the native shape arrived.
  */
 function shapeOf(pkg, session) {
   if (session?.shape) return session.shape;
   const app = library.apps.find(a => a.pkg === pkg);
-  return app?.shape || app?.orient || (app?.game ? 'landscape' : 'portrait');
+  return app?.shape || app?.orient || 'landscape';
 }
 
 const state = {

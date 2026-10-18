@@ -5,20 +5,20 @@ const out = new URL('../nextvr-android/src/main/assets/ui/', import.meta.url);
 await mkdir(out, { recursive: true });
 await build({ entryPoints: ['web/src/apps.js'], bundle: true, format: 'iife', target: 'chrome80', minify: true, outfile: new URL('app.js', out).pathname, legalComments: 'eof' });
 await copyFile('web/index.html', new URL('index.html', out));
+// The same engine runs in the shell and is injected at document start into hosted WebViews.
+await copyFile('web/src/typing.js', new URL('typing.js', out));
 await mkdir(new URL('icons/', out), { recursive: true });
-// O "N" é o vetor original inline da referência mais recente, extraído sem redesenho.
-// Logo do app: o N cromado fornecido pelo usuário (chrome sobre preto, recortado com alfa), no
-// lugar do antigo vetor "N" da referência. O mesmo arquivo vira o ícone do APK.
+// O logo roxo quadrado do NextVR enviado pelo usuário é usado na interface e também como launcher icon do APK.
 await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.
 await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
 await mkdir(new URL('env/', out), { recursive: true });
-for (const id of ['sunset','dusk','night','space','cinema'])
+for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside'])
   await copyFile(`web/env/${id}.jpg`, new URL(`env/${id}.jpg`, out));
 await writeFile(new URL('branding.json',out),JSON.stringify({
-  source:'logo fornecida pelo usuário (chrome N sobre preto)',
+  source:'logo roxa quadrada fornecida pelo usuário',
   format:'png',asset:'icons/nextvr-n.png',icon:'res/drawable-*-xhdpi/nextvr_ic_launcher.png',
-  environments:['env/sunset.jpg','env/dusk.jpg','env/night.jpg','env/space.jpg','env/cinema.jpg']
+  environments:['env/sunset.jpg','env/dusk.jpg','env/cinema.jpg','env/lagoon.jpg','env/virtual.jpg','env/palm.jpg','env/night.jpg','env/space.jpg','env/tropical.jpg','env/lakeside.jpg']
 })+'\n','utf8');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';

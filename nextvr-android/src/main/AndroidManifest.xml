@@ -40,6 +40,34 @@
         <package android:name="moe.shizuku.manager" />
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="rikka.shizuku" />
+
+        <!-- PhoneXR. The runtime, its VrApi driver and the OpenXR broker are named directly because
+             their exact package names are what the UI has to report on ("installed", "outdated") and
+             a wrong answer there means a black screen with no explanation. The category queries are
+             what find the games: a headset game says so in its manifest and there is no other way to
+             ask, because neither PackageManager nor anything else reports which libraries it ships.
+             Gear VR games declare MAIN + INFO instead of a launcher entry, so the categories have to
+             be queried as well as the launcher. -->
+        <package android:name="org.freedesktop.monado.openxr_runtime.out_of_process" />
+        <package android:name="org.freedesktop.monado.openxr_runtime.in_process" />
+        <package android:name="com.oculus.systemdriver" />
+        <package android:name="org.khronos.openxr.runtime_broker" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="com.oculus.intent.category.VR" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="com.google.intent.category.DAYDREAM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="com.google.intent.category.CARDBOARD" />
+        </intent>
     </queries>
 
     <application

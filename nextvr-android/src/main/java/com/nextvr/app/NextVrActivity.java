@@ -15,12 +15,16 @@ import android.media.SoundPool;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.MenuItem;
+import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -43,6 +47,8 @@ import com.nextvr.app.apps.AppSessionManager;
 import com.nextvr.app.apps.AppSurfaceHost;
 import com.nextvr.app.apps.AppWindowController;
 import com.nextvr.app.apps.ShizukuManager;
+import com.nextvr.app.xr.XrGameController;
+import com.nextvr.app.xr.XrHandBridge;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -68,6 +74,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private PassthroughCamera camera;
     private WebSurface shell;
     private final Map<String,WebSurface> browsers=new HashMap<>();
+    /** Campos que aceitam digitacao. Botoes e os controles nao textuais ficam de fora de proposito:
+     * o teclado flutuante nao tem o que escrever neles, e abrir ali seria um beco sem saida. */
+    private static final String EDITABLE_SELECTOR =
+        "input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox])"
+        +":not([type=radio]):not([type=range]):not([type=color]):not([type=file]),"
+        +"textarea,[contenteditable]:not([contenteditable=\"false\"])";
+    /** Key states the floating keyboard sends over the bridge; mirrors web/src/typing.js. */
+    private static final int KEY_PHASE_UP = 3;
     private final Map<String,String> browserUrls=new HashMap<>();
     private final Set<String> pendingBrowsers=new HashSet<>();
     private volatile boolean resumed,closed;
@@ -93,6 +107,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private AppInputController appInput;
     private AppDisplayController appDisplays;
     private AppWindowController appWindows;
+    /**
+     * PhoneXR: the OpenXR runtime, the headset games it can start, and the hand feed that drives
+     * them. A hosted game runs on a display of ours like an app window does, so the whole session —
+     * camera, tracking, compositor and menus — stays alive underneath it. That is what lets the same
+     * pinch that selects a window select something inside a game.
+     */
+    private XrHandBridge xrHands;
+    private XrGameController xrGames;
     /** Sessions this activity suspended because the whole VR activity was paused (not by the user). */
     private final Set<String> pausedSessions=new HashSet<>();
     private ValueCallback<Uri[]> fileCallback;
@@ -101,6 +123,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private SoundPool sounds;
     private int clickSound;
     private boolean soundReady,audioFocused;
+    private volatile int appBrightness=70;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -132,6 +155,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appWindows=new AppWindowController(this,androidApps,shizuku,appSessions,appDisplays,appInput,shellEnvironment);
         appSessions.setListener(appWindows::onSessionsChanged);
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
+        xrHands=new XrHandBridge();
+        xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
         // The icons are rendered in the background anyway; starting now means the first paint of the
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
@@ -143,6 +168,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
+                // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
+                // being driven, and gating it here would mean a second rule for the same decision.
+                if(xrHands!=null) xrHands.offer(frame);
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
@@ -175,6 +204,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // The previous GL context took every texture slot with it: the hosted apps keep
                     // running, their displays are simply re-pointed at the new surfaces.
                     if(appWindows!=null) appWindows.displays().rebindSurfaces();
+                    if(xrGames!=null) xrGames.command("{\"cmd\":\"restore\"}");
                     startCamera();
                 });
             }
@@ -201,6 +231,47 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @Override public void pushState(){ pushAppState(); }
         @Override public void report(String message){ NextVrActivity.this.report(message); }
     };
+
+    /**
+     * What the PhoneXR session may use from the activity. It asks for the same two things an app
+     * window does — a GL texture slot and the shell user service — plus this phone's screen, because
+     * a hosted game's canvas is sized from it.
+     */
+    private final XrGameController.Environment xrEnvironment=new XrGameController.Environment() {
+        @Override public android.content.Context context(){ return NextVrActivity.this; }
+        @Override public com.nextvr.app.apps.AppSurfaceHost surfaces(){ return NextVrActivity.this; }
+        @Override public com.nextvr.app.apps.IDisplayService display(){ return shizuku==null?null:shizuku.service(); }
+        @Override public void report(String message){ NextVrActivity.this.report(message); }
+        @Override public int[] phoneSize(){ return NextVrActivity.this.phoneSize(); }
+        @Override public int density(){ return getResources().getDisplayMetrics().densityDpi; }
+    };
+    /** How the session talks to the shell WebView, from its own worker thread. */
+    private final XrGameController.Shell xrShell=new XrGameController.Shell() {
+        @Override public void evaluate(String script){ main.post(()->{ if(closed) return; WebSurface s=shell; if(s!=null&&ready) s.evaluate(script); }); }
+    };
+
+    /**
+     * This phone's own screen, long side first.
+     *
+     * <p>Used as the canvas of a hosted game: a VR game asks the runtime for a side-by-side swapchain
+     * and the runtime sizes it to the window, so this is what decides how many pixels each eye gets.
+     * Measured from the real display rather than assumed, because the same code has to be right on a
+     * 720p phone and on a 1440p one.
+     */
+    int[] phoneSize(){
+        android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();
+        int w=metrics.widthPixels,h=metrics.heightPixels;
+        // A windowed activity reports the app's own box, which on a foldable or in a split-screen
+        // session is smaller than the panel. The display is the truth about how big a canvas there is.
+        try {
+            android.hardware.display.DisplayManager manager=
+                (android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE);
+            android.view.Display display=manager==null?null:manager.getDisplay(android.view.Display.DEFAULT_DISPLAY);
+            if(display!=null){ android.graphics.Point size=new android.graphics.Point(); display.getRealSize(size);
+                if(size.x>0&&size.y>0){ w=size.x; h=size.y; } }
+        } catch(Throwable ignored) { }
+        return new int[]{Math.max(w,h),Math.min(w,h)};
+    }
 
     /**
      * Texture slots for app displays, created on the GL thread exactly like the browser surfaces.
@@ -295,15 +366,46 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(event.id.startsWith("app:")) {
                 // Hosted Android app window: the same 60 Hz queue, routed to the input controller
                 // instead of a WebView. Coordinates are normalized inside the app's display.
-                if(appWindows!=null && resumed && !closed) appWindows.touch(event.id.substring(4),event.action,event.x,event.y);
+                if(appWindows!=null && resumed && !closed) {
+                    appWindows.touch(event.id.substring(4),event.action,event.x,event.y);
+                    // An Android app has no DOM to probe, so there is no honest way to tell that a
+                    // tap landed on an editable field. The one signal there is: when the
+                    // accessibility backend is connected and the app itself has an editor focused,
+                    // the floating keyboard belongs on top of this window. Without accessibility the
+                    // window's own keyboard button stays the way in — it is never faked.
+                    if(event.action==MotionEvent.ACTION_UP && shell!=null && appWindows.editing(event.id.substring(4))) {
+                        final WebSurface sh=shell;
+                        sh.evaluate("window.nextvrAppFocus&&window.nextvrAppFocus("+JSONObject.quote(event.id)+")");
+                    }
+                }
                 continue;
             }
             WebSurface target=event.id.equals("shell")?shell:browsers.get(event.id);
             if(target==null || !resumed || closed)continue;
             target.dispatchHandEvent(event.action,event.x,event.y);
-            if(event.action==MotionEvent.ACTION_UP && target!=shell)target.web.evaluateJavascript(
-                "!!(document.activeElement&&(document.activeElement.matches('input,textarea')||document.activeElement.isContentEditable))",
-                value->{ if("true".equals(value) && shell!=null) shell.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("+JSONObject.quote(event.id)+")"); });
+            // O alvo do toque e quem decide o teclado. `activeElement` nao serve: depois que um
+            // campo ganha foco ele continua apontando para ele, entao tocar fora reabriria o
+            // teclado em um campo que o usuario nem tocou. O elemento sob o ponto tocado e a
+            // verdade, e o foco e forcado porque paginas que interceptam o toque nunca o fariam.
+            if(event.action==MotionEvent.ACTION_UP && target!=shell && shell!=null){
+                final WebSurface sh=shell;
+                target.web.evaluateJavascript(
+                    "(function(){var t=document.elementFromPoint("+event.x+","+event.y+");"
+                    +"var f=t&&t.closest?t.closest("+JSONObject.quote(EDITABLE_SELECTOR)+"):null;"
+                    // O teclado reescreve o texto dentro da pagina; o campo precisa mesmo estar em
+                    // foco, e trazer o cursor para a vista e o que o IME real faria ao abrir.
+                    +"if(f)try{window.__nextvrTyping?window.__nextvrTyping.focus(f):f.focus()}catch(_){}"
+                    // Devolve um BOOLEANO, e nao a string '1'/'0'. O valor de evaluateJavascript e a
+                    // codificacao JSON do resultado, entao a string '1' voltaria como "\"1\"" e a
+                    // comparacao com "1" nunca bateria: toda sondagem dizia "aqui nao ha campo" e o
+                    // teclado FECHAVA em vez de abrir. Um booleano volta como "true"/"false".
+                    +"return !!f})()",
+                    value->{
+                        android.util.Log.d("NextVR","typing probe "+event.id+" field="+value);
+                        sh.evaluate("window.nextvrBrowserFocus&&window.nextvrBrowserFocus("
+                            +JSONObject.quote(event.id)+","+("true".equals(value)?"true":"false")+")");
+                    });
+            }
         }
     }
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
@@ -338,6 +440,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
         for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
         if(appWindows!=null) appWindows.onShellResumed();
+        // A hosted game keeps running across a pause: it is in its own task on its own display, and
+        // the resume below re-attaches the same surface and restarts the hand feed — nothing has to
+        // be rebuilt, and the game's task never leaves its display.
+        if(xrGames!=null) xrGames.onActivityResumed();
         // Only the windows *this activity* suspended come back: a window the user minimized from the
         // dock stays minimized across a pause.
         for(String packageName:new ArrayList<>(pausedSessions)) appSessions.restore(packageName);
@@ -351,6 +457,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(appSessions!=null) for(AppSession session:appSessions.sessions())
             if(session.state==AppSession.State.RUNNING && appSessions.minimize(session.packageName))
                 pausedSessions.add(session.packageName);
+        // The hosted game follows the same rule as an app window: its display output detaches while
+        // nothing composites it, and the hand feed stops with the camera (it has nothing new to
+        // send — resume() restarts both, and the game's task never leaves its display).
+        if(xrGames!=null) xrGames.onActivityPaused();
         if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
         for(WebSurface b:browsers.values()) b.pause();
         setAudioEnabled(false); audio.abandonAudioFocusRequest(focus);
@@ -362,6 +472,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         if(appWindows!=null) appWindows.shutdown();
+        if(xrGames!=null) xrGames.shutdown();
         if(shizuku!=null) shizuku.stop();
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
@@ -431,7 +542,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(existing!=null) { if(!url.equals(browserUrls.get(id))) { browserUrls.put(id,url); existing.web.loadUrl(url); } continue; }
             if(!pendingBrowsers.add(id)) continue;
             browserUrls.put(id,url);
-            int width=Math.max(100,Math.min(2400,spec.getInt("width"))), height=Math.max(100,Math.min(1600,spec.getInt("height")));
+            int width=Math.max(100,Math.min(1600,spec.getInt("width"))), height=Math.max(100,Math.min(1200,spec.getInt("height")));
             glView.queueEvent(()->{
                 if(renderer!=target) return;
                 SpatialRenderer.Texture texture=new SpatialRenderer.Texture(); target.browsers.put(id,texture);
@@ -460,7 +571,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 SpatialRenderer target=renderer; if(target==null) return;
                 boolean specsChanged;
                 synchronized(this) {
-                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null;pushGame(target); }
+                    if(target!=cachedTarget) { cachedTarget=target;cachedScene=null;cachedSpecs=null; }
                     specsChanged=!browserSpecs.equals(cachedSpecs);
                 }
                 if(!scene.equals(cachedScene)) { target.panels=SpatialRenderer.decode(scene);cachedScene=scene; }
@@ -487,7 +598,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
-            if(id==null || !(id.equals("passthrough")||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")||id.equals("cinema"))) return;
+            if(id==null || !(id.equals("passthrough")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
+                    ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
+                    ||id.equals("cinema")||id.equals("tropical")||id.equals("lakeside"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {
@@ -500,32 +613,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null && !closed) target.setEnvironment(environment,bitmap);
             else if(bitmap!=null) bitmap.recycle();
-        }
-        /**
-         * Mundo 3D jogavel: a casca manda a geometria de cada tipo UMA vez (base64 de Float32Array
-         * little-endian) e a cena a cada mudanca. Um renderer recriado recebe tudo de novo, do
-         * mesmo jeito que a cena de paineis e as superficies de navegador.
-         */
-        private final Map<String,String[]> gameMeshes=new HashMap<>();
-        private String cachedGame;
-        private void pushGame(SpatialRenderer target) {
-            Map<String,String[]> copy; String json;
-            synchronized(this) { copy=new HashMap<>(gameMeshes); json=cachedGame; }
-            for(Map.Entry<String,String[]> e:copy.entrySet())
-                target.game.offerMesh(e.getKey(),e.getValue()[0],e.getValue()[1],e.getValue()[2]);
-            if(json!=null) target.game.offerObjects(json);
-        }
-        @JavascriptInterface public void gameMesh(String kind,String positions,String normals,String indices) {
-            if(kind==null || !kind.matches("[a-z]{1,16}")) return;
-            if(positions==null || normals==null || indices==null) return;
-            if(positions.length()>4000000 || normals.length()>4000000 || indices.length()>1000000) return;
-            synchronized(this) { gameMeshes.put(kind,new String[]{positions,normals,indices}); }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerMesh(kind,positions,normals,indices);
-        }
-        @JavascriptInterface public void gameFrame(String json) {
-            if(json==null || json.length()>200000) return;
-            synchronized(this) { cachedGame=json; }
-            SpatialRenderer target=renderer; if(target!=null) target.game.offerObjects(json);
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
@@ -541,21 +628,38 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             handTouchEvents.offer(id,action,x,y);
             scheduleHandTouchDrain();
         }
-        @JavascriptInterface public void key(String id,String key) {
-            if(key.length()>16) return;
-            if(id!=null && id.startsWith("app:")) {
+        /**
+         * One key from the floating keyboard. `key` is a character (space included), ⌫ or ⏎; `shift`
+         * says whether it is the capitalised stroke of the same key; `phase` is the key state:
+         * 0 is a whole key (down then up, what a tap gives), 1 is the key going down, 2 a held
+         * repeat ({@code KeyboardEvent.repeat}, what a 3D game in a browser listens to to keep
+         * moving) and 3 the key coming up. Only the up stops the movement, so a held WASD has to
+         * arrive as one down, many repeats and one up — not as a tap per character.
+         *
+         * <p>A hosted browser page is written by {@code web/src/typing.js}, the very engine the shell
+         * loads for its own fields, installed in the page at document start. The previous route —
+         * a hand-made {@code EditorInfo} plus {@code InputConnection.commitText} — was dead on
+         * arrival: this WebView lives in a Presentation on a private virtual display and never has
+         * view focus, and Chromium drops text committed on an unfocused input connection, so keys
+         * arrived nowhere.
+         */
+        @JavascriptInterface public void key(String id,String key,boolean shift,int phase) {
+            if(id==null || key==null || key.isEmpty() || key.length()>16) return;
+            if(phase<0||phase>3) return;
+            if(id.startsWith("app:")) {
                 final String packageName=id.substring(4);
                 final String typed=key;
+                // An Android app window keeps its own semantics: the accessibility backend can only
+                // set text, and the privileged one injects a complete key each time. A held key
+                // there repeats the character, it does not hold it.
+                if(phase==KEY_PHASE_UP) return;
                 main.post(()->{ if(appWindows!=null && !closed) appWindows.text(packageName,typed); });
                 return;
             }
             main.post(()->{
                 WebSurface b=browsers.get(id); if(b==null) return;
-                android.view.inputmethod.InputConnection input=b.web.onCreateInputConnection(new android.view.inputmethod.EditorInfo());
-                if(input==null) return;
-                if(key.equals("⌫")) input.deleteSurroundingText(1,0);
-                else if(key.equals("⏎")) { input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,android.view.KeyEvent.KEYCODE_ENTER)); input.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,android.view.KeyEvent.KEYCODE_ENTER)); }
-                else input.commitText(key,1);
+                b.evaluate("window.__nextvrTyping&&window.__nextvrTyping.key("
+                    +JSONObject.quote(key)+","+(shift?"true":"false")+","+phase+")");
             });
         }
         /** Installed Android apps for the library grid, filtered and ranked, as JSON. */
@@ -574,16 +678,122 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(json==null || json.length()>8000) return;
             main.post(()->{ if(appWindows!=null && !closed) appWindows.command(json); });
         }
+        /** Navigate the Quest browser's existing WebSurface, retaining its history and focus. */
         @JavascriptInterface public void browserCmd(String id,String cmd,String url) {
-          main.post(()->{ WebSurface b=browsers.get(id); if(b==null) return;
-            switch(cmd){case "go":b.go(url);break; case "back":b.goBack();break; case "fwd":b.goForward();break; case "reload":b.reload();break;}
-          });
+            if(id==null || !id.matches("[a-zA-Z0-9_-]{1,64}") || cmd==null) return;
+            if("go".equals(cmd) && (url==null || !WebSurface.isWebUrl(url))) return;
+            main.post(()->{
+                WebSurface b=browsers.get(id); if(b==null || closed) return;
+                switch(cmd) {
+                    case "go": b.go(url); break;
+                    case "back": b.goBack(); break;
+                    case "fwd": b.goForward(); break;
+                    case "reload": b.reload(); break;
+                    default: break;
+                }
+            });
+        }
+        @JavascriptInterface public int volume() {
+            return audio==null ? 65 : Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC)*100f
+                / Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
+        }
+        @JavascriptInterface public void setVolume(int level) {
+            if(audio==null) return;
+            int max=audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC,Math.round(Math.max(0,Math.min(100,level))*max/100f),0);
+        }
+        @JavascriptInterface public int brightness() { return appBrightness; }
+        @JavascriptInterface public void setBrightness(int level) {
+            appBrightness=Math.max(10,Math.min(100,level));
+            main.post(()->{ if(closed) return; WindowManager.LayoutParams attrs=getWindow().getAttributes();
+                attrs.screenBrightness=appBrightness/100f; getWindow().setAttributes(attrs); });
+        }
+        @JavascriptInterface public void audioEnabled(boolean enabled) {
+            main.post(()->{ if(closed) return; if(enabled && resumed) requestAudio(); else setAudioEnabled(false); });
+        }
+        @JavascriptInterface public void systemPanel(String panel) {
+            main.post(()->{
+                if(closed) return;
+                Intent intent;
+                if("bluetooth".equals(panel)) intent=new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+                else intent=new Intent(Build.VERSION.SDK_INT>=29
+                    ? Settings.Panel.ACTION_INTERNET_CONNECTIVITY : Settings.ACTION_WIFI_SETTINGS);
+                try { startActivity(intent); }
+                catch(Exception unavailable) {
+                    try { startActivity(new Intent("bluetooth".equals(panel)
+                        ? Settings.ACTION_BLUETOOTH_SETTINGS : Settings.ACTION_WIFI_SETTINGS)); }
+                    catch(Exception ignored) { Toast.makeText(NextVrActivity.this,"Não foi possível abrir os controles do Android",Toast.LENGTH_SHORT).show(); }
+                }
+            });
         }
         @JavascriptInterface public String battery() {
             Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
             if(state==null) return "null";
             int level=state.getIntExtra("level",0), scale=state.getIntExtra("scale",100), status=state.getIntExtra("status",0);
             return "{\"level\":"+((float)level/Math.max(1,scale))+",\"charging\":"+(status==2||status==5)+"}";
+        }
+        /** Current Android media-stream volume, normalized for the Quick Settings slider. */
+        @JavascriptInterface public int mediaVolumePercent() {
+            if(audio==null) return 50;
+            int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+            return Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC)*100f/max);
+        }
+        @JavascriptInterface public void setMediaVolumePercent(int percent) {
+            final int value=Math.max(0,Math.min(100,percent));
+            main.post(()->{
+                if(audio==null || closed) return;
+                int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC,Math.round(value*max/100f),0);
+            });
+        }
+        /** Current window brightness (or the phone's system level while automatic brightness is active). */
+        @JavascriptInterface public int brightnessPercent() {
+            float value=getWindow().getAttributes().screenBrightness;
+            if(value<0f) {
+                try { value=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS)/255f; }
+                catch(Settings.SettingNotFoundException ignored) { value=.5f; }
+            }
+            return Math.max(0,Math.min(100,Math.round(value*100f)));
+        }
+        /** Sets this Activity's brightness only; Android restores the system setting when the window closes. */
+        @JavascriptInterface public void setBrightnessPercent(int percent) {
+            final float value=Math.max(.03f,Math.min(1f,Math.max(0,Math.min(100,percent))/100f));
+            main.post(()->{
+                if(closed) return;
+                WindowManager.LayoutParams attributes=getWindow().getAttributes();
+                attributes.screenBrightness=value;
+                getWindow().setAttributes(attributes);
+            });
+        }
+        /**
+         * One PhoneXR command from the shell: open/close/minimize/restore a hosted game, install the
+         * runtime, refresh the game list, or run the on-device self test. Posted to the controller's
+         * own worker, because reading a game manifest opens its APK and installing a runtime waits on
+         * {@code pm}; neither may happen on this thread.
+         */
+        @JavascriptInterface public void xrCommand(String json) {
+            if(json==null || json.length()>8000) return;
+            main.post(()->{ if(xrGames!=null && !closed) xrGames.command(json); });
+        }
+        /**
+         * The installed headset games, as JSON. Slow — it opens every candidate APK — so the shell
+         * asks for it once, off the frame path, and caches it until the user refreshes.
+         */
+        @JavascriptInterface public String xrLibrary() {
+            if(xrGames==null) return "{\"games\":[]}";
+            return xrGames.libraryJson();
+        }
+        /** The runtime state and the current session, as JSON. Cheap; safe to poll. */
+        @JavascriptInterface public String xrState() {
+            return xrGames==null?"{}":xrGames.stateJson();
+        }
+        /**
+         * Which gestures are buttons in a game. {@code controllers} makes a pinch the trigger and a
+         * fist the grip; {@code hands} moves the hand with the fingers and presses nothing.
+         */
+        @JavascriptInterface public void xrHandMode(String mode) {
+            XrHandBridge.Mode chosen="hands".equals(mode)?XrHandBridge.Mode.HANDS:XrHandBridge.Mode.CONTROLLERS;
+            main.post(()->{ if(xrGames!=null && !closed) xrGames.handMode(chosen); });
         }
     }
     public void closeSample(View v) { finish(); }
@@ -593,6 +803,66 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(item.getItemId()==R.id.about_nextvr) { new AlertDialog.Builder(this).setTitle("NextVR").setMessage("Camera passthrough · Cardboard 3 DoF · Spatial HTML\nHand tracking is the only spatial UI input. Use seated. Monoscopic camera video is not depth-correct and is not safe for walking.").setPositiveButton(android.R.string.ok,null).show(); return true; }
         return false;
     }
+    private static boolean isGamepadSource(int source) {
+        return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+            || (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+            || (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
+    }
+
+    /** Android's input dispatcher delivers Joy-Con buttons as gamepad keys, not touch events. */
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        boolean gamepad = isGamepadSource(event.getSource());
+        String action = null;
+        if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) action = "home";
+        else if (gamepad) {
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: action = "left"; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: action = "right"; break;
+                case KeyEvent.KEYCODE_DPAD_UP: action = "up"; break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: action = "down"; break;
+                case KeyEvent.KEYCODE_BUTTON_A: action = "accept"; break;
+                case KeyEvent.KEYCODE_BUTTON_B: action = "back"; break;
+                default: break;
+            }
+        }
+        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME)) {
+            final String command = action;
+            final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+            final int repeat = event.getRepeatCount();
+            main.post(() -> {
+                WebSurface surface = shell;
+                if (surface != null && ready && resumed)
+                    surface.evaluate("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
+                        + JSONObject.quote(command) + "," + down + "," + repeat + ")");
+            });
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    /** Left/right stick and hat-switch report events arrive as generic joystick motion. */
+    @Override public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_MOVE && isGamepadSource(event.getSource())) {
+            float x = event.getAxisValue(MotionEvent.AXIS_X);
+            float y = event.getAxisValue(MotionEvent.AXIS_Y);
+            float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+            float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            if (Math.abs(hatX) > Math.abs(x)) x = hatX;
+            if (Math.abs(hatY) > Math.abs(y)) y = hatY;
+            final float stickX = Math.max(-1f, Math.min(1f, x));
+            final float stickY = Math.max(-1f, Math.min(1f, y));
+            main.post(() -> {
+                WebSurface surface = shell;
+                if (surface != null && ready && resumed)
+                    surface.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
+                        + stickX + "," + stickY + ")");
+            });
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(event);
+    }
+
     @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus); if(focus) immersive(); }
     private void immersive() { getWindow().getDecorView().setSystemUiVisibility(5894|View.SYSTEM_UI_FLAG_LAYOUT_STABLE); }
     private native long nativeOnCreate(AssetManager assets);
