@@ -16,16 +16,20 @@ const DEF = {
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
-  // O panorama da palmeira é o ambiente principal; o passthrough continua disponível em um toque.
-  env: 'palm', panorama: 'palm', quality: 'auto', showFps: 0,
+  // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
+  env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
 };
-let S = { ...DEF };
-try { S = { ...DEF, ...JSON.parse(localStorage.getItem('nextvr.v1') || '{}') }; } catch {}
-// Instalações antigas gravavam passthrough + lagoa como padrão. Migra só esse estado antigo uma vez;
-// quem já escolheu outro ambiente mantém a escolha e pode voltar ao passthrough quando quiser.
-if (!S.palmDefaultVersion) {
-  if (S.env === 'passthrough' && S.panorama === 'lagoon') { S.env = 'palm'; S.panorama = 'palm'; }
-  S.palmDefaultVersion = 1;
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
+let S = { ...DEF, ...saved };
+// O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
+// passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
+if (!S.sunsetDefaultVersion) {
+  if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
+    S.env = 'sunset';
+  if (!saved.panorama || (S.env === 'sunset' && !S.envChosen))
+    S.panorama = S.env === 'passthrough' ? 'sunset' : S.env;
+  S.sunsetDefaultVersion = 1;
 }
 if(native){S=migrateComfort(S);S.handsOn=true;
   // O contorno da mao ja foi padrao de verdade no passado, e o 0 antigo era gravado no storage
@@ -55,7 +59,7 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Panorama 360° · pôr do sol', envPassOn:'Passthrough da câmera',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
     envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
     envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
@@ -143,7 +147,7 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
-    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'360° panorama · sunset', envPassOn:'Camera passthrough',
+    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
     envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
     envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
@@ -231,7 +235,7 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Panorama 360° · atardecer', envPassOn:'Passthrough de la cámara',
+    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
     envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
     envTropical:'Panorama 360° · valle tropical', envLakeside:'Panorama 360° · lago al atardecer',
@@ -404,24 +408,27 @@ on('quality', resize);
 
 /* ============================ ambientes ============================ */
 /**
- * A palmeira é o ambiente virtual padrão. O passthrough continua disponível como opção; nos outros
- * panoramas, o fundo é desenhado como esfera pelo GL nativo enquanto a câmera rastreia as mãos.
+ * O pôr do sol com palmeiras é o panorama inicial. O passthrough continua disponível; nos outros
+ * ambientes, o GL nativo desenha uma esfera enquanto a câmera rastreia as mãos.
  * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'lagoon', 'virtual', 'palm', 'sunset', 'night', 'space', 'tropical', 'lakeside']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside']);
 export const envList = () => [
-  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
+  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'dusk', name: t('envDusk'), thumb: './env/dusk.jpg' },
+  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
   { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
-  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
+  { id: 'cinema', name: t('envCinema'), thumb: './env/cinema.jpg' },
   { id: 'tropical', name: t('envTropical'), thumb: './env/tropical.jpg' },
   { id: 'lakeside', name: t('envLakeside'), thumb: './env/lakeside.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';
+  S.envChosen = 1; // Não sobrescreva uma escolha explícita em migrações futuras.
   // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
   if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
@@ -429,7 +436,7 @@ export function setEnvironment(id) {
   window.NativeXR?.env?.(S.env);
 }
 
-/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: palmeira). */
+/** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: pôr do sol). */
 export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
 
 /* ============================ giroscópio ============================ */

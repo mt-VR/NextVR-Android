@@ -48,7 +48,7 @@ adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh
 adb shell pidof moe.shizuku.privileged.api       # o Shizuku está de pé?
 ```
 
-Depois, **no visor**: menu de aplicações → **Testar Shizuku agora**. Ele roda o caminho
+Depois, **no visor**: ícone **Shizuku** na dock → **Testar Shizuku agora**. Ele roda o caminho
 privilegiado inteiro dentro do serviço shell e devolve, no Diagnóstico, uma linha `device self-test`
 com `"ok": true` e:
 
@@ -70,10 +70,9 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 1. Shizuku rodando e o NextVR autorizado nele (uma vez: o diálogo aparece no visor). Abra a VR e
    toque no ícone **Shizuku** na dock.
    → esperado: abre a janela “Apps do Android”, separada da biblioteca NextVR, com busca, filtros de
-   categoria e os ícones reais dos apps instalados; a linha de estado do Shizuku só aparece quando
-   for necessário orientar uma autorização ou inicialização.
-   **Anota isso:** se a linha aparecer, copie o **Diagnóstico** — ele traz a rota, o estado e o
-   motivo.
+   categoria e os ícones reais dos apps instalados; a linha de estado do Shizuku permanece visível,
+   inclusive quando o serviço está pronto.
+   **Anota isso:** copie o **Diagnóstico** se houver falha — ele traz a rota, o estado e o motivo.
 2. Toque no tile de um app simples (calculadora, relógio, notas).
    → esperado: **nenhum diálogo de captura**, o app **não aparece na tela do celular** e a janela
    abre com o selo **APP DO ANDROID**, com a interface dele viva na janela. Enquanto o serviço shell
@@ -90,8 +89,8 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
 
 ## B. Sem Shizuku nenhum (o caminho sem privilégio, que continua valendo)
 
-1. Shizuku parado (ou nem instalado). Menu de aplicações → um app da grade.
-   → esperado: a linha de estado aparece e diz, com estas palavras, que **o app abre na tela do
+1. Shizuku parado (ou nem instalado). Abra a janela Shizuku pela dock e toque num app da grade.
+   → esperado: a linha de estado diz, com estas palavras, que **o app abre na tela do
    celular e a janela mostra a tela com a sua autorização de captura**. É o único caminho que resta,
    e ele é apresentado como o que é.
 2. Toque no tile de um app simples.
@@ -163,30 +162,6 @@ mesma verificação que eu faria por ADB, sem você precisar de computador.
    → esperado: o toque acerta o mesmo botão. Um toque na **tarja** (fora da imagem) não deve fazer nada
    — ele é descartado de propósito e nunca chega ao app.
 3. Minimize, restaure e redimensione de novo: continua funcionando.
-
-## D2. Digitar (o teclado que mora no mundo)
-
-1. Abra o **Browser** na dock e toque com a mão na **barra de endereço**.
-   → esperado: o teclado deitado **aparece na frente da janela do navegador** (não fica parado na
-   frente da dock) e o campo ganha o cursor. Ele pode ficar meio segundo atravessando o espaço até
-   chegar — esse é o "teleporte".
-2. Aperte uma letra.
-   → esperado: **um** caractere, no momento em que o dedo desce (não quando ele sobe).
-3. Segure a mesma letra por dois segundos.
-   → esperado: ela **se repete** enquanto o dedo fica. Solte e ela para.
-4. Com o dedo apertado, **deslize** para a letra vizinha.
-   → esperado: ele solta a primeira e escreve a segunda. Solte o dedo fora do teclado: para de
-   escrever, sem teclar nada a mais.
-5. **⌫** apaga o caractere **antes do cursor**, não o último da linha. Ponha o cursor no meio da
-   palavra antes de apertar.
-   → esperado: se o caractere for um emoji, ele inteiro some — nunca sobra metade quebrada.
-6. **⏎** numa barra de endereço ou numa busca **envia**; num campo de várias linhas, **quebra linha**.
-7. Teste a mesma coisa **dentro de um site de verdade** (abra o YouTube ou uma busca na barra) e num
-   **app Android** que tenha campo de texto (o botão de teclado da barra do app).
-   → esperado: o mesmo comportamento nos três. Num site, o cursor tem de ficar onde está e o texto
-   aparecer exatamente ali.
-8. Arraste a janela do navegador **com o teclado aberto**.
-   → esperado: o teclado **acompanha** a janela.
 
 ## D. Rotação
 

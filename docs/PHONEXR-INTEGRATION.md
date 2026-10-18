@@ -94,9 +94,8 @@ frame das janelas, do dock e das mãos da casca.
 
 Ao abrir um jogo:
 
-- o workspace **some com o estado preservado** — janelas escondidas uma a uma, dock e teclado,
-  foco — igual ao sandbox 3D (`web/src/game.js`), e restitui na saída, fechando o que foi aberto
-  durante o modo (Configurações, por exemplo);
+- o workspace **some com o estado preservado** — janelas escondidas uma a uma, dock, teclado e
+  foco — e é restituído na saída, fechando o que foi aberto durante o modo (Configurações, por exemplo);
 - a janela do jogo tem barra própria: badge "Jogo de headset", minimizar e fechar;
 - **pinça das duas mãos por ~2 s** abre o menu do jogo (Continuar / Configurações / Sair) — o mesmo
   acorde `TwoHandMenuChord` do sandbox, pintando o mesmo anel `#gameRing`;

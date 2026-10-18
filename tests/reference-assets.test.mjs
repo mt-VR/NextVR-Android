@@ -26,6 +26,18 @@ test('latest supplied archive is the provenance for restored vectors',async()=>{
   }
 });
 
+test('every literal UI icon name resolves to a bundled vector', async () => {
+  for (const file of ['apps.js', 'windows.js', 'android-apps.js', 'xr-games.js']) {
+    const source = await readFile(`web/src/${file}`, 'utf8');
+    // Helpers forward their first argument to icon(); object properties supply library/keyboard icons.
+    const names = /\b(?:icon|iconText|systemTile|control)\(['"]([^'"]+)['"]\)|\bicon:\s*['"]([^'"]+)['"]/g;
+    for (const [, call, property] of source.matchAll(names)) {
+      const name = call || property;
+      assert.ok(ICON_PATHS[name], `${file}: missing local vector for ${name}`);
+    }
+  }
+});
+
 test('the two supplied panoramas are selectable environments and ship in the APK',async()=>{
   const core=await readFile('web/src/core.js','utf8');
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java','utf8');

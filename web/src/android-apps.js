@@ -2,7 +2,7 @@
 // owns the shell half of the feature; the native half lives in
 // nextvr-android/src/main/java/com/nextvr/app/apps/ and they talk through one JSON state object.
 //
-// An Android app appears as a tile in the *same* Applications menu as NextVR's own apps. Tapping it
+// An Android app appears as a tile in the dedicated Shizuku launcher. Tapping it
 // opens a floating window; which mechanism runs behind that window is decided by the native side and
 // reported back in `mode`, and the three mechanisms are never presented as the same thing:
 //  * `display` — the app really runs on a display of its own, created by the shell user service
@@ -11,11 +11,10 @@
 //    public API and that screen is captured with the user's consent. Input goes through the
 //    accessibility service. Badge: "ESPELHO DA TELA".
 //  * an *HTML/web* window is a page rendered by the shell's own WebView (webWindow in apps.js).
-// Only the last two are ever called a mirror, and the window's badge always names what it is.
+// Only the capture path is called a mirror; the window's badge always names what it is.
 //
-// There is no mirror button and no separate Android page: the app library, the dock badge and the
-// window bar are the whole interface, and a failure names its reason instead of leaving a blank
-// window (see sessionError).
+// There is no mirror button: the Shizuku launcher owns the Android app list and badge,
+// and a failed session names its reason instead of leaving a blank window (see sessionError).
 import { t, toast, on, emit, native } from './core.js';
 import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
@@ -435,6 +434,16 @@ export function shizukuNotice() {
   const route = routeOf();
   // Nothing to explain when the hosted route is going to work: that is the normal, silent case.
   if (route === 'hosted' && (sh.ready || sh.binding)) return null;
+  return shizukuStatusRow();
+}
+
+/**
+ * The status row itself, also reused by the dedicated Shizuku window (which always shows it,
+ * whatever the state): the dot, the explanation, the action buttons and the diagnostics.
+ */
+export function shizukuStatusRow() {
+  const sh = state.shizuku || {};
+  const route = routeOf();
   const wrap = document.createElement('div');
   wrap.className = 'lib-note az-row';
   const dot = document.createElement('span');

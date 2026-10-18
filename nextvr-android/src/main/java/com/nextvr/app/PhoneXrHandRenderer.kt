@@ -21,21 +21,20 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
-    /** More visible hand and pointer treatment; requested RGB values and tracking behavior are unchanged. */
+    /** Quest-style cyan hand/pointer colours, faded per hand when native tracking is predicted. */
     private companion object {
-        const val HAND_FILL_R = 0.12941177f // #211923
-        const val HAND_FILL_G = 0.09803922f
-        const val HAND_FILL_B = 0.13725491f
-        const val HAND_CONTOUR_R = 0.8509804f // #D9D5DF
-        const val HAND_CONTOUR_G = 0.8352941f
-        const val HAND_CONTOUR_B = 0.8745098f
-        const val HAND_FILL_ALPHA = 0.46f
-        const val HAND_OUTLINE_ALPHA = 0.62f
-        const val HAND_PINCH_ALPHA = 0.72f
-        const val POINTER_DROP_ALPHA = 0.72f
-        const val POINTER_CLICK_ALPHA = 0.76f
-        const val POINTER_RAY_ALPHA = 0.60f
-        const val POINTER_RING_INTENSITY = 0.82f
+        const val HAND_FILL_R = .04f
+        const val HAND_FILL_G = .18f
+        const val HAND_FILL_B = .24f
+        const val HAND_CONTOUR_R = .153f
+        const val HAND_CONTOUR_G = .91f
+        const val HAND_CONTOUR_B = 1f
+        const val HAND_FILL_ALPHA = .55f
+        const val HAND_OUTLINE_ALPHA = .9f
+        const val HAND_PINCH_ALPHA = 1f
+        const val POINTER_DROP_ALPHA = .85f
+        const val POINTER_CLICK_ALPHA = .95f
+        const val POINTER_RAY_ALPHA = .85f
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
@@ -194,11 +193,8 @@ class PhoneXrHandRenderer {
                 val wx=end.optDouble(0,Double.NaN).toFloat()
                 val wy=end.optDouble(1,Double.NaN).toFloat()
                 val wz=end.optDouble(2,Double.NaN).toFloat()
-                // World -> this eye's space (column-major, same convention as Matrix.multiplyMV):
-                // exactly the transform the panel geometry goes through before the projection, so
-                // the ring converges on the icon it hit instead of drifting per lens. Anything not
-                // genuinely in front of this eye falls back to the aim direction rather than
-                // dividing by a depth that would flip the ray.
+                // World -> this eye's space, matching the panel's view transformation. Without
+                // this step the ring drifts in stereo even though the input hit-test was correct.
                 val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
                 val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
                 val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
@@ -459,7 +455,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_DROP_ALPHA*fade)
+                    GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, POINTER_DROP_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {
@@ -470,7 +466,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, .94f, .96f, 1f, POINTER_CLICK_ALPHA*fade)
+                    GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, POINTER_CLICK_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
@@ -492,7 +488,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
                         across(ax, ay, az, .006f, wa)
                         across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, .92f, .95f, 1f, POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                        GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B,
+                            POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -506,11 +503,11 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
             val depth = -b[5]
             // A small point for precise aiming, a little smaller still while pressing.
             val outer = (if (down || touching) .009f else .012f) * depth
-            val inner = outer - .005f * depth
-            GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
-            GLES20.glUniform4f(color, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, POINTER_RING_INTENSITY*fade, 1f)
-            ring3d(b[3], b[4], b[5], outer, inner, position)
+            // Um anel ciano fino, sem inversão branca da cor de fundo.
+            val inner = outer - .0035f * depth
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, fade)
+            ring3d(b[3], b[4], b[5], outer, inner, position)
         }
 
 private fun ring3d(x: Float, y: Float, z: Float, outer: Float, inner: Float, position: Int) {

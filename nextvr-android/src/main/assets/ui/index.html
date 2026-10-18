@@ -40,16 +40,28 @@
     box-shadow:0 2px 14px rgba(0,0,0,.5);cursor:grab;pointer-events:auto;transition:width .16s,background .16s}
   .win-shell.free .win-handle{width:150px;background:rgba(255,255,255,.65)}
   .win-shell.moving .win-handle{width:260px;background:#fff}
-  .win-resize{position:absolute;right:9px;bottom:9px;width:78px;height:78px;border-radius:18px 0 18px 0;
-    display:grid;place-items:center;color:rgba(255,255,255,.76);z-index:4;pointer-events:auto;cursor:nwse-resize;
-    background:linear-gradient(135deg,transparent 30%,rgba(167,139,250,.18));
-    border-right:2px solid rgba(255,255,255,.55);border-bottom:2px solid rgba(255,255,255,.55);
-    transition:background .16s,color .16s,transform .16s}
-  .win-resize .ui-icon{width:30px;height:30px;transform:rotate(-45deg)}
-  .win-shell.resizing .win-resize{color:#fff;background:rgba(124,107,255,.42);transform:scale(1.08)}
+  .win-resize{position:absolute;right:-22px;bottom:-22px;width:56px;height:56px;border-radius:0;
+    display:block;z-index:4;pointer-events:auto;cursor:nwse-resize;
+    border-right:3px solid rgba(124,107,255,.75);border-bottom:3px solid rgba(124,107,255,.75);
+    background:transparent;transition:border-color .16s}
+  .win-resize:hover{border-color:#c9b4ff}
+  .win-resize .ui-icon{display:none}
+  .win-shell.resizing .win-resize{border-color:#fff;transform:scale(1.08)}
   .win-shell.resizing .win{border-color:rgba(167,139,250,.8);box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 3px rgba(167,139,250,.28)}
+  .win.immersive{border:0;background:#0a0a0c;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 60px 200px rgba(0,0,0,.6);padding-top:54px;border-radius:10px;overflow:hidden}
+  .immersive-toolbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 14px;z-index:5;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);pointer-events:none}
+  .immersive-toolbar .it-btn{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;
+    background:rgba(0,0,0,.4);color:#dfe3ec;backdrop-filter:blur(8px);display:grid;place-items:center;
+    transition:background .15s,transform .15s;padding:0}
+  .immersive-toolbar .it-btn:hover{background:rgba(0,0,0,.6);transform:scale(1.06)}
+  .immersive-toolbar .it-btn:active{transform:scale(.92)}
+  .immersive-toolbar .it-btn svg{width:20px;height:20px;display:block}
+  .win.immersive.light{background:#fff}
+  .win.immersive.light .immersive-toolbar{background:linear-gradient(180deg,rgba(255,255,255,.28),transparent)}
+  .win.immersive.light .immersive-toolbar .it-btn{background:rgba(255,255,255,.25);color:#222}
   .win{width:1280px;height:820px;background:var(--glass);border:1px solid var(--line);
-    border-radius:var(--r-win);overflow:hidden;display:flex;flex-direction:column;
+    border-radius:0;overflow:hidden;display:flex;flex-direction:column;
     backdrop-filter:blur(18px);box-shadow:0 40px 120px rgba(0,0,0,.55);pointer-events:auto;
     transition:border-color .18s,box-shadow .18s}
   .win.focus{border-color:rgba(155,186,255,.55);box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 2px rgba(155,186,255,.28)}
@@ -92,6 +104,48 @@
   .browser-bar .go{height:42px;min-width:42px;padding:0 12px;font-size:15px}
   .browser-bar .go .ui-icon{width:19px;height:19px}
 
+  /* ---------- YouTube real ---------- */
+  .yt-chips{display:flex;gap:10px;padding:12px 14px 2px;overflow-x:auto;flex:none}
+  .yt-chip{flex:none;height:44px;padding:0 20px;border-radius:999px;background:rgba(255,255,255,.08);
+    border:1px solid var(--line);font-size:16px;font-weight:600}
+  .yt-chip:active{background:rgba(255,255,255,.2)}
+  .yt-scroll{flex:1;min-height:0;overflow-y:auto;padding:14px}
+  .yt-sec{margin:0 2px 12px;font-size:18px;font-weight:700}
+  .yt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .yt-card{text-align:left;background:rgba(255,255,255,.045);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;padding:0;display:block}
+  .yt-card:active{background:rgba(255,255,255,.12)}
+  .yt-thumb{position:relative;aspect-ratio:16/9;background:#000;display:block}
+  .yt-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .yt-dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.82);padding:3px 8px;
+    border-radius:7px;font-size:13px;font-weight:600}
+  .yt-dur.live{background:#c00}
+  .yt-meta{padding:10px 12px 13px;display:block}
+  .yt-t{font-size:15px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden}
+  .yt-c{font-size:13px;color:var(--soft);margin-top:5px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;display:block}
+  .yt-skel{background:linear-gradient(100deg,#1c212b 40%,#272e3b 50%,#1c212b 60%);
+    background-size:200% 100%;animation:ytp 1.1s linear infinite}
+  .yt-skel-l{display:block;height:15px;border-radius:7px;margin:0 0 8px;
+    background:linear-gradient(100deg,#1c212b 40%,#272e3b 50%,#1c212b 60%);
+    background-size:200% 100%;animation:ytp 1.1s linear infinite}
+  .yt-skel-l.short{width:60%}
+  @keyframes ytp{to{background-position:-200% 0}}
+  .yt-err{text-align:center;padding:60px 20px}
+  .yt-err-t{font-size:20px;font-weight:700;margin:14px 0 6px}
+  .yt-err-s{color:var(--soft);font-size:15px;margin-bottom:22px;line-height:1.6}
+  .yt-player{background:#000}
+  .yt-frame{width:100%;aspect-ratio:16/9;border:0;display:block;background:#000}
+  .yt-holder iframe{width:100%;height:100%;border:0;display:block}
+  .yt-info{padding:14px 16px 22px;background:#0f0f12}
+  .yt-ptitle{font-size:19px;font-weight:700;line-height:1.4}
+  .yt-pchan{color:var(--soft);font-size:14px;margin-top:6px}
+  .yt-prow{display:flex;gap:10px;margin-top:16px}
+  .yt-btn{flex:1;background:rgba(255,255,255,.1);border:1px solid var(--line-2);border-radius:13px;
+    padding:15px 10px;font-size:14px;font-weight:800;letter-spacing:.03em;display:grid;place-items:center}
+  .yt-btn .ui-icon{width:21px;height:21px}
+  .yt-btn:active{background:rgba(255,255,255,.24)}
   h2{margin:0 0 6px;font-size:30px;font-weight:700;letter-spacing:-.4px}
   .sub{margin:0 0 20px;color:var(--soft);font-size:17px;line-height:1.5}
   .sec{margin:26px 0 12px;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
@@ -145,40 +199,54 @@
      para cada idioma, seja qual for a altura da janela — que, aliás, está presa em 660 px, porque o
      slot de textura de uma janela no atlas nativo tem 980 px de altura com 160 px de margem por
      lado. `line-height` é explícito em cada peça para o texto não crescer dentro da linha. */
-  .langwin{height:100%;width:100%;padding:28px 38px 20px;display:flex;flex-direction:column;
-    background:linear-gradient(160deg,#fcfcff,#e8e8f1);color:#15171e}
-  .lq-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
-  .lq-pick{background:#e4e4ec;border-radius:12px;padding:8px 14px;font-size:20px;line-height:1.25;font-weight:600;color:#1b1d24}
-  .lq-title{font-size:14px;line-height:1.25;letter-spacing:.16em;text-transform:uppercase;color:#7c8090}
-  .lq-main{flex:1;display:flex;gap:24px;min-height:0}
-  .lang-options{flex:1;display:flex;flex-direction:column;justify-content:flex-start;gap:2px;overflow-y:auto;padding-right:4px}
+  /* ---------- escolher idioma / onboarding (retrato com logo N roxo) ---------- */
+  .langwin{height:100%;width:100%;padding:24px 28px 20px;display:flex;flex-direction:column;
+    background:linear-gradient(160deg,#1a0b3a 0%,#0d0820 70%);color:#f2f2f5;gap:0}
+  .lq-hero{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;
+    padding:4px 4px 14px;gap:8px;flex:none}
+  .lq-logo{width:80px;height:80px;object-fit:contain;display:block;
+    filter:drop-shadow(0 6px 18px rgba(168,85,247,.55))}
+  .lq-logo-sm{width:48px;height:48px;margin:2px auto 8px;display:block;object-fit:contain;
+    filter:drop-shadow(0 4px 14px rgba(168,85,247,.6))}
+  .lq-pickrow{text-align:center;margin-bottom:8px}
+  .lq-welcome{margin:2px 0 0;font-size:24px;line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#fff}
+  .lq-tag{margin:0;color:#c9b8f0;font-size:13px;line-height:1.3}
+  .lq-pick{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:12px;
+    padding:6px 14px;font-size:18px;line-height:1.25;font-weight:600;color:#fff;display:inline-block}
+  /* No onboarding (janela de boas-vindas) o hero fica em uma faixa vertical roxa
+     à esquerda e as opções de idioma à direita. No slim (janela das Configurações) o
+     layout fica em coluna, com o ícone pequeno em cima, porque a janela é mais estreita. */
+  .lq-main{flex:1;display:flex;flex-direction:row;gap:18px;min-height:0}
+  .lq-main:has(.lq-hero){background:rgba(255,255,255,.03);border-radius:18px;padding:12px;gap:12px;border:1px solid rgba(255,255,255,.08)}
+  .lq-hero{width:140px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+    padding:18px 14px;border-radius:14px;background:linear-gradient(160deg,#2d1065,#150838);
+    border:1px solid rgba(168,85,247,.35);text-align:center}
+  .lang-options{flex:1;display:flex;flex-direction:column;justify-content:flex-start;gap:2px;
+    overflow-y:auto;padding-right:4px}
   .lang-option{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;
-    flex:1 1 0;min-height:0;padding:8px 14px;border-radius:10px;font-size:18px;line-height:1.25;
-    font-weight:500;color:#22242c}
-  .lang-option[aria-pressed="true"]{background:#e4e4ec;font-weight:650}
-  .lang-option:hover:not(.soon),.lang-option:focus-visible{background:#eef0f8}
-  .lang-option.soon{color:#a6a9b6;cursor:default}
-  /* A nota das linhas sem tradução fica em UMA linha: duas linhas pediriam altura que a linha do
-     idioma não tem mais (ela é uma fração fixa do espaço), e o texto vazaria da linha. */
-  .lang-option.soon i{font-size:11px;font-style:normal;color:#b3b6c2;text-align:right;max-width:42%;
-    min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lq-art{width:36%;display:grid;place-items:center}
-  .lq-art img{width:100%;max-width:330px;object-fit:contain;filter:drop-shadow(0 12px 24px rgba(20,22,34,.2))}
-  .lq-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:12px}
-  .lq-go{background:#2f6bff;color:#fff;font-size:18px;line-height:1.25;font-weight:650;padding:11px 34px;border-radius:999px;
-    box-shadow:0 10px 24px rgba(47,107,255,.3)}
-  .lq-go:hover{filter:brightness(1.06)}
-  .lq-go:active{transform:scale(.97)}
-  .lang-tracking{font-size:14px;color:#82869a}
-  /* Mesma tela aberta como janela normal (Configurações): aqui a barra de título ocupa 62 px dos
-     660 px, então a lista encurta as linhas para os doze idiomas continuarem aparecendo de uma vez
-     (12 x 34 px + 11 vãos de 2 px = 430 px dentro dos ~456 px que sobram). */
-  .langwin.slim .lq-head{margin-bottom:10px}
-  .langwin.slim .lq-pick{padding:6px 12px;font-size:18px}
-  .langwin.slim .lang-option{padding:7px 14px;font-size:16px}
-  .langwin.slim .lq-foot{margin-top:10px}
-  .langwin.slim .lq-go{padding:9px 28px;font-size:17px}
-  @media(max-width:700px){.langwin{padding:24px 20px}.lq-art{display:none}.lang-option{font-size:19px}}
+    border-radius:12px;border:0;background:transparent;color:#e9e9f2;padding:12px 14px;font-size:18px;
+    line-height:1.25;cursor:pointer;transition:background .12s;font-weight:500}
+  /* The 660px native atlas slot must show all 12 options at once: a pinch cannot scroll this list. */
+  .langwin:not(.slim) .lang-option{flex:1 1 0;min-height:38px;padding:5px 8px;font-size:16px;line-height:1.2}
+  .lang-option[aria-pressed="true"]{background:rgba(168,85,247,.22);font-weight:700;color:#fff}
+  .lang-option:hover:not(.soon),.lang-option:focus-visible{background:rgba(255,255,255,.06)}
+  .lang-option.soon{color:#77798a;cursor:default}
+  .lang-option span{display:flex;align-items:center;gap:10px}
+  .lang-option.soon i{font-size:11px;font-style:normal;color:#8a8c9e;text-align:right;max-width:42%;
+    padding:3px 8px;background:rgba(255,255,255,.06);border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lq-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:14px}
+  .lang-tracking{font-size:13px;color:#9799ab}
+  .lq-go{appearance:none;border:0;border-radius:12px;padding:12px 28px;font-size:17px;font-weight:700;
+    cursor:pointer;color:#fff;background:linear-gradient(135deg,#a855f7,#6366f1);
+    box-shadow:0 6px 18px rgba(139,92,246,.4);transition:transform .08s}
+  .lq-go:active{transform:translateY(1px)}
+  /* Slim (de dentro de Configurações): retrato compacto, só o ícone pequeno em cima */
+  .langwin.slim{background:#15121f;padding:16px 14px 12px}
+  .langwin.slim .lang-option{padding:8px 12px;font-size:16px}
+  .langwin.slim .lq-foot{margin-top:8px}
+  .langwin.slim .lq-go{padding:9px 22px;font-size:15px}
+  .langwin.slim .lq-main{gap:6px}
+  @media(max-width:700px){.langwin{padding:20px 16px}.lang-option{font-size:17px}}
 
   /* ---------- loja (igual ao print) ---------- */
   .st{background:#232327;height:100%;overflow-y:auto;padding:18px 24px 30px;color:#f2f2f5}
@@ -425,6 +493,26 @@
     background:#fff;opacity:0;transform:scale(.4);transition:opacity .16s,transform .16s;pointer-events:none}
   .dock-dot.on{opacity:.9;transform:scale(1)}
 
+  /* Browser chrome remains a compact Quest-style toolbar above the page. */
+  /* ---- Quest Browser UI ---- */
+  .qb-icn{background:transparent;border:0;color:#cdd5e3;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .15s,transform .1s;padding:0}
+  .qb-icn:hover{background:rgba(120,160,220,.22)}
+  .qb-icn:active{transform:scale(.88)}
+  .qb-icn svg{display:block;width:14px;height:14px}
+  .qb-urlfld{flex:1;min-width:0;border:0;border-radius:999px;background:#1a1e29;color:#e9edf4;padding:4px 10px;font-size:11px;font-family:inherit;font-weight:500;outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);height:22px;box-sizing:border-box}
+  .qb-urlfld:focus{box-shadow:inset 0 0 0 2px rgba(39,232,255,.55)}
+  .qb-urlfld::placeholder{color:#798299}
+  /* ---- Quest Browser dock (fininha, só perfil+hora/bateria) ---- */
+  .qb-dock{position:relative;display:flex;align-items:center;justify-content:center;gap:3px;padding:2px 6px;background:#0e1117;border-top:1px solid rgba(255,255,255,.06)}
+  .qb-dock .dock-av,.qb-dock .dock-status{height:20px}
+  .qb-dock .dock-av{width:20px;border-radius:50%}
+  .qb-dock .dock-av svg{width:11px;height:11px}
+  .qb-dock .dock-status{padding:0 6px;gap:4px;border-radius:6px;background:rgba(255,255,255,.04)}
+  .qb-dock .dock-time{font-size:10px;font-weight:700;letter-spacing:.1px}
+  .qb-dock .dock-wifi svg,.qb-dock .dock-bat svg{width:10px;height:10px}
+  .qb-dock .dock-av:hover{filter:brightness(1.15);background:rgba(120,160,220,.28)}
+  .qb-dock .dock-status:hover{background:rgba(120,160,220,.2)}
+
   /* Lançador de nove pontos no extremo direito. */
   .dock-launcher{background:rgba(255,255,255,.10)!important;box-shadow:none;border-color:rgba(255,255,255,.1)}
   .dk-grid{display:grid;grid-template-columns:repeat(3,3px);gap:2.5px}
@@ -479,13 +567,17 @@
     z-index:7;max-width:86vw;background:rgba(10,12,18,.94);border:1px solid var(--line-2);
     padding:13px 22px;border-radius:999px;font-size:15px;opacity:0;transition:.2s;text-align:center;pointer-events:none!important}
   #toast.on{opacity:1;transform:translate(-50%,0)}
-  #stat{position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;z-index:6;display:flex;gap:8px;align-items:center;
+  /* HUD de status (mãos/giro/fps) — escondido a pedido do usuário pra ficar limpo */
+  #stat{display:none !important;position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;z-index:6;display:flex;gap:8px;align-items:center;
     font-size:12px;font-weight:600;color:var(--soft);background:rgba(10,12,18,.6);padding:7px 12px;border-radius:999px;
     border:1px solid var(--line);backdrop-filter:blur(8px)}
   #stat i{width:7px;height:7px;border-radius:50%;background:var(--faint);font-style:normal}
   #stat i.on{background:var(--good)}
   #fps{color:var(--faint)}
 
+  /* Permissões: em modo nativo (VR/headset) os botões não podem ser clicados e
+     não fazem sentido aparecerem flutuando no campo de visão. */
+  .native #perm{display:none !important}
   html.native,html.native body{background:transparent;width:4096px;height:4096px}
   .native #gl{display:none}
   .native #css3d,.native #atlas{position:absolute;inset:0;width:4096px;height:4096px}
@@ -694,9 +786,35 @@
 </div>
 
 
-<!-- The typing engine, before the bundle: windows.js writes through window.__nextvrTyping. The
-     native side injects this same file into hosted pages, so both edit text the same way. -->
+<!-- Shared shell/hosted-page typing engine must load before the application bundle. -->
 <script defer src="./typing.js"></script>
 <script defer src="./app.js"></script>
 </body>
 </html>
+
+  /* ---------- Configurações estilo YouTube Android ---------- */
+  .yt-back{width:40px;height:40px;border:0;background:transparent;border-radius:50%;color:#f1f1f1;cursor:pointer;display:grid;place-items:center}
+  .yt-back:hover{background:rgba(255,255,255,.08)}
+  .yt-back svg{width:24px;height:24px}
+  .yt-head-title{flex:1;font-size:20px;font-weight:500;color:#fff;padding:0 8px}
+  .yt-sec{padding:16px 16px 8px 72px;font-size:13px;font-weight:500;color:#3ea6ff;letter-spacing:.2px;text-transform:uppercase}
+  .yt-row{display:flex;align-items:center;gap:16px;padding:12px 24px 12px 16px;min-height:56px}
+  .yt-row:hover{background:rgba(255,255,255,.04)}
+  .yt-ic{width:40px;height:40px;display:grid;place-items:center;flex:none;color:#aaa}
+  .yt-ic svg{width:22px;height:22px}
+  .yt-txt{flex:1;min-width:0}
+  .yt-title{font-size:15px;color:#f1f1f1;line-height:1.3;font-weight:400}
+  .yt-sub{font-size:12px;color:#aaa;margin-top:2px;line-height:1.3}
+  .yt-ch{color:#717171}
+  .yt-ctl{display:flex;align-items:center;gap:8px;color:#aaa}
+  .yt-link{display:block;width:100%;border:0;background:transparent;color:inherit;padding:0;text-align:left;cursor:pointer;font:inherit}
+  .yt-sw{position:relative;width:52px;height:32px;border:0;background:transparent;cursor:pointer;padding:0}
+  .yt-sw::before{content:"";position:absolute;top:4px;left:4px;right:4px;bottom:4px;background:#5d5d5d;border-radius:99px;transition:background .2s}
+  .yt-sw::after{content:"";position:absolute;top:6px;left:6px;width:28px;height:28px;background:#fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:left .2s cubic-bezier(.4,0,.2,1)}
+  .yt-sw[data-on="1"]::before{background:#3ea6ff}
+  .yt-sw[data-on="1"]::after{left:26px}
+  .yt-seg{display:flex;gap:4px}
+  .yt-seg-btn{border:0;background:rgba(255,255,255,.08);color:#f1f1f1;padding:8px 14px;border-radius:8px;font:500 13px Inter,sans-serif;cursor:pointer}
+  .yt-seg-btn[aria-pressed="true"]{background:#3ea6ff;color:#0f0f0f}
+  .yt-range{width:130px;accent-color:#3ea6ff}
+  .yt-foot{padding:20px 72px 8px;font-size:12px;color:#717171}

@@ -28,6 +28,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Free disk space
+        continue-on-error: true
+        run: |
+          # Runner às vezes enche com ferramentas pré-instaladas que não usamos.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/local/.ghcup 2>/dev/null || true
+          # NÃO apagar /usr/local/lib/android: é onde o setup-java e o SDK do Android vivem.
+          sudo rm -rf /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/Python*/*-arm* 2>/dev/null || true
+          sudo swapoff -a 2>/dev/null || true
+          sudo rm -f /mnt/swapfile /swapfile 2>/dev/null || true
+          sudo apt-get clean || true
+          docker system prune -af 2>/dev/null || true
+          df -h /
       - name: Prune old CI artifacts
         continue-on-error: true
         env:
@@ -215,8 +227,10 @@ jobs:
             echo "check-run upload failed (attempt $attempt); retrying"
             sleep $((attempt * 5))
           done
-          [ "$uploaded" = "1" ]
+          [ "$uploaded" = "1" ] || echo "diagnostics upload failed (ignored)"
 
+      # Diagnostics are best-effort, but validation is not: the build/test steps use
+      # continue-on-error so their logs can be published before the job fails.
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1

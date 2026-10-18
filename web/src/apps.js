@@ -2,9 +2,9 @@
 import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d,
   LANG_ROWS, langRow } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, getDeviceStatus } from './windows.js';
+import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
-import { installAndroidApps, androidApps, androidTileHtml, shizukuNotice, openApp, focusAppWindow, openWindowCount,
+import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
   refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
@@ -13,8 +13,6 @@ import { installJoycon } from './joycon.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
-
-const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const openOut = url => { if (native) return webWindow('browser-extra', t('browser'), url); try { window.open(url, '_blank', 'noopener'); } catch { toast('Bloqueado pelo navegador'); } };
 
 /* ============ janela com página externa (Google, Discord) ============ */
@@ -25,7 +23,121 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  * não iframe. Então: tentamos carregar, e deixamos a saída pronta se vier em branco.
  * O YouTube tem app próprio abaixo: busca via API pública + player oficial embutido.
  */
+
+/* ===== Quest-style DuckDuckGo Browser ===== */
+function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/') {
+  // Chrome do navegador estilo Quest: barra de URL, voltar/avançar/recarregar, mini dock.
+  // Se a janela 'browser' já existe, só navega pra URL nova (mantém a WebSurface nativa viva).
+  const existing = wins.find(w => w.id === 'browser');
+  if (existing) {
+    const f = existing.el.querySelector('[data-native-browser], iframe');
+    const fld = existing.el.querySelector('.qb-urlfld');
+    if (fld) fld.value = initialUrl;
+    if (f) {
+      if (native) { f.dataset.url = initialUrl; window.NativeXR?.browserCmd?.('browser','go',initialUrl); }
+      else f.src = initialUrl;
+    }
+    focus(existing);
+    return existing;
+  }
+  const body = el('div');
+  body.style.cssText='display:flex;flex-direction:column;height:100%;background:#171a22;color:#e9edf4';
+
+  const top = el('div');
+  top.style.cssText='display:flex;align-items:center;gap:2px;padding:3px 6px;background:#0e1117;border-bottom:1px solid rgba(255,255,255,.06)';
+  const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
+  const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
+  const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
+  const fld = el('input','fld qb-urlfld');
+  fld.type='text'; fld.placeholder='Pesquisar ou inserir URL'; fld.value=initialUrl;
+  const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
+  top.append(bk,fw,rl,fld,st);
+
+  const wrap = el('div');
+  wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
+  const frame = el(native ? 'div' : 'iframe');
+  if (native) {
+    frame.dataset.nativeBrowser = 'browser';
+    frame.style.cssText = 'width:100%;height:100%;background:#fff';
+    frame.dataset.url = initialUrl;
+  } else {
+    frame.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
+    frame.referrerPolicy = 'no-referrer';
+    frame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation';
+    frame.src = initialUrl;
+  }
+  wrap.appendChild(frame);
+
+  const dock = el('div','qb-dock');
+  const av = document.createElement('button');
+  av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
+  av.innerHTML = AVATAR_HTML; dock.appendChild(av);
+  const status = document.createElement('button');
+  status.className = 'dock-status';
+  status.title='Status';
+  status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
+  dock.appendChild(status);
+  body.append(top, wrap, dock);
+
+  function tick(){
+    const device = getDeviceStatus();
+    const time = dock.querySelector('.dock-time');
+    if (time) time.textContent = device.time === '--:--'
+      ? new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : device.time;
+    if (native && device.batteryLevel != null) {
+      const fill = dock.querySelector('.dock-bat .b-fill');
+      if (fill) {
+        fill.setAttribute('width', String(Math.max(2, 13*device.batteryLevel)));
+        fill.setAttribute('fill', device.charging ? '#8de6c8' :
+          (device.batteryLevel < .2 ? '#ff6b6b' : 'currentColor'));
+      }
+    }
+  }
+  tick(); const tickI = setInterval(tick,20000);
+  if (!native && navigator.getBattery) {
+    navigator.getBattery().then(b=>{
+      function paint(){
+        const f = dock.querySelector('.dock-bat .b-fill'); if(!f) return;
+        f.setAttribute('width', String(Math.max(2, 13*b.level)));
+        f.setAttribute('fill', b.charging?'#8de6c8':(b.level<.2?'#ff6b6b':'currentColor'));
+      }
+      b.addEventListener('levelchange',paint); b.addEventListener('chargingchange',paint); paint();
+    }).catch(()=>{});
+  }
+  function paintNet(){
+    const w = dock.querySelector('.dock-wifi'); if(w) w.style.opacity = navigator.onLine ? '1' : '.35';
+  }
+  addEventListener('online',paintNet); addEventListener('offline',paintNet); paintNet();
+
+  function nav(raw){
+    let u=(raw||'').trim(); if(!u) return;
+    if(!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://'+u : 'https://duckduckgo.com/?q='+encodeURIComponent(u);
+    fld.value=u;
+    if (native) { frame.dataset.url=u; window.NativeXR?.browserCmd?.('browser','go',u); }
+    else { frame.src = u; }
+  }
+  function bCmd(cmd,u){ if(native) window.NativeXR?.browserCmd?.('browser',cmd,u||''); }
+
+  fld.addEventListener('keydown', e => { if(e.key==='Enter'){ nav(fld.value); fld.blur(); } });
+  fld.addEventListener('focus', () => keyboard(true, fld));
+  bk.onclick = () => bCmd('back');
+  fw.onclick  = () => bCmd('fwd');
+  rl.onclick  = () => bCmd('reload');
+
+  const win = open({id:'browser',title:title||'Navegador',node:body});
+  win._cleanupQB = () => { clearInterval(tickI); removeEventListener('online',paintNet); removeEventListener('offline',paintNet); };
+  return win;
+}
+
+const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5"/><rect x="20" y="10" width="2.2" height="4" rx="1" fill="currentColor" stroke="none"/><rect class="b-fill" x="4" y="6.5" width="13" height="11" rx="2" fill="currentColor" stroke="none"/></svg>';
+
+
 function webWindow(id, title, url, note) {
+  // Sites grandes (YouTube, Netflix, etc.) abrem no navegador completo estilo Quest, com
+  // barra de URL — modo "cinema" foi desativado a pedido do usuário (pra retomar depois).
+  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
+    return webBrowserFor(id, title, url);
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
   const bar = el('div', 'row browser-bar');
@@ -66,21 +178,311 @@ function webWindow(id, title, url, note) {
   return win;
 }
 
-/* ============ Galeria ============ */
+/* ============ YouTube real (busca + player oficial dentro da janela) ============ */
+const YT_API = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.leptons.xyz',
+  'https://pipedapi.nosebs.ru',
+  'https://pipedapi.adminforge.de',
+  'https://api.piped.private.coffee',
+  'https://pipedapi.reallyaweso.me',
+];
+const YT_INV = [
+  'https://inv.nadeko.net/api/v1',
+  'https://inv.tux.pizza/api/v1',
+];
+const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function ytGet(url, ms = 11000) {
+  const c = new AbortController();
+  const to = setTimeout(() => c.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: c.signal });
+    if (!r.ok) throw new Error('http');
+    return await r.json();
+  } finally { clearTimeout(to); }
+}
+function ytDur(sec, live) {
+  if (live) return 'AO VIVO';
+  if (sec == null || sec < 0) return '';
+  sec = Math.round(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+function ytViews(n) {
+  n = Number(n);
+  if (!n || n < 0) return '';
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.', ',') + ' mi';
+  if (n >= 1e3) return Math.round(n / 1e3) + ' mil';
+  return String(n);
+}
+function ytIdOf(s) {
+  const m = String(s || '').match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/) || String(s || '').match(/^([\w-]{11})$/);
+  return m ? m[1] : null;
+}
+function ytMapPiped(it) {
+  const m = String(it.url || '').match(/[?&]v=([\w-]{11})/);
+  if (!m || !it.title) return null;
+  return { id: m[1], title: it.title, thumb: it.thumbnail || `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg`,
+    chan: it.uploaderName || '', dur: ytDur(it.duration, it.isLive), live: !!it.isLive, views: ytViews(it.views) };
+}
+function ytMapInv(v) {
+  if (!v.videoId || !v.title) return null;
+  const th = (v.videoThumbnails || []).find(t => t.quality === 'medium') || (v.videoThumbnails || [])[0] || {};
+  return { id: v.videoId, title: v.title, thumb: th.url, chan: v.author || '',
+    dur: ytDur(v.lengthSeconds, v.liveNow), live: !!v.liveNow, views: ytViews(v.viewCount) };
+}
+async function ytSearch(q) {
+  for (const b of YT_API) {
+    try {
+      const d = await ytGet(`${b}/search?q=${encodeURIComponent(q)}&filter=videos`);
+      const out = (d.items || []).map(ytMapPiped).filter(Boolean);
+      if (out.length) return out;
+    } catch {}
+  }
+  for (const b of YT_INV) {
+    try {
+      const d = await ytGet(`${b}/search?q=${encodeURIComponent(q)}&type=video`);
+      const out = (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean);
+      if (out.length) return out;
+    } catch {}
+  }
+  throw new Error('offline');
+}
+async function ytTrending() {
+  for (const b of YT_API) {
+    try {
+      const d = await ytGet(`${b}/trending?region=BR`);
+      const out = (Array.isArray(d) ? d : []).map(ytMapPiped).filter(Boolean);
+      if (out.length) return out;
+    } catch {}
+  }
+  for (const b of YT_INV) {
+    try {
+      const d = await ytGet(`${b}/popular?region=BR`);
+      const out = (Array.isArray(d) ? d : []).map(ytMapInv).filter(Boolean);
+      if (out.length) return out;
+    } catch {}
+  }
+  return ytSearch('em alta brasil');
+}
+
+/* ---------- player com som: acionado somente pelo controle selecionado com a mão ---------- */
+let ytPlayer = null, ytApiPromise = null;
+
+function ytUnmute() {
+  try {
+    if (ytPlayer && ytPlayer.unMute) { ytPlayer.unMute(); ytPlayer.setVolume && ytPlayer.setVolume(100); }
+  } catch {}
+}
+
+function loadYtApi() {
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve, reject) => {
+    if (window.YT && window.YT.Player) return resolve(window.YT);
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { prev && prev(); ytApiPromise = null; resolve(window.YT); };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => { ytApiPromise = null; reject(new Error('api')); };
+    document.head.appendChild(s);
+    setTimeout(() => { if (!(window.YT && window.YT.Player)) { ytApiPromise = null; reject(new Error('timeout')); } }, 9000);
+  });
+  return ytApiPromise;
+}
+function ytDestroy() {
+  try { if (ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); } catch {}
+  ytPlayer = null;
+}
+
+function youtube() {
+  const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f12';
+  const bar = el('div', 'row'); bar.style.cssText = 'padding:12px 14px;gap:10px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--line)';
+  const back = el('button', 'go', icon('back')); back.setAttribute('aria-label','Voltar'); back.title='Voltar'; back.style.display = 'none';
+  const fld = el('input', 'fld'); fld.placeholder = 'Pesquisar no YouTube ou colar link';
+  const go = el('button', 'go', icon('search')); go.setAttribute('aria-label',t('searchYt')); go.title=t('searchYt');
+  const out = el('button', 'go', icon('external')); out.setAttribute('aria-label','Abrir fora'); out.title='Abrir fora'; out.style.background = 'rgba(255,255,255,.12)'; out.style.color = '#fff';
+  bar.append(back, fld, go, out);
+
+  const chips = el('div', 'yt-chips');
+  const scroll = el('div', 'yt-scroll');
+  body.append(bar, chips, scroll);
+
+  const CHIPS = ['Música', 'Jogos', 'VR 360', 'Notícias', 'Ao vivo', 'Filmes'];
+  chips.innerHTML = CHIPS.map(c => `<button class="yt-chip" data-q="${c}">${c}</button>`).join('');
+  chips.addEventListener('click', e => {
+    const b = e.target.closest('[data-q]'); if (!b) return;
+    fld.value = b.dataset.q; doSearch(b.dataset.q);
+  });
+
+  let current = [], lastTitle = '', playing = null, token = 0;
+
+  const skel = () => { scroll.innerHTML = `<div class="yt-grid">${'<span class="yt-card"><span class="yt-thumb yt-skel"></span><span class="yt-meta"><span class="yt-skel-l"></span><span class="yt-skel-l short"></span></span></span>'.repeat(6)}</div>`; };
+
+  const card = v => `<button class="yt-card" data-v="${v.id}">`
+    + `<span class="yt-thumb">${v.thumb ? `<img loading="lazy" src="${v.thumb}" alt="">` : ''}`
+    + (v.dur ? `<span class="yt-dur${v.live ? ' live' : ''}">${escH(v.dur)}</span>` : '') + `</span>`
+    + `<span class="yt-meta"><span class="yt-t">${escH(v.title)}</span>`
+    + `<span class="yt-c">${escH(v.chan)}${v.views ? ' · ' + escH(v.views) : ''}</span></span></button>`;
+
+  function showList(title, videos) {
+    ytDestroy(); playing = null; current = videos;
+    back.style.display = 'none'; chips.style.display = '';
+    scroll.innerHTML = `<div class="yt-sec">${escH(title)}</div><div class="yt-grid">${videos.map(card).join('')}</div>`;
+  }
+  function showError(q) {
+    back.style.display = 'none'; chips.style.display = '';
+    scroll.innerHTML = `<div class="yt-err"><div style="display:grid;place-items:center;font-size:46px">${icon('wifi')}</div>`
+      + `<div class="yt-err-t">Sem conexão com a busca</div>`
+      + `<div class="yt-err-s">Verifique a internet e tente de novo. Dá para colar um link direto também.</div>`
+      + `<button class="yt-btn" data-retry>${iconText('refresh','TENTAR DE NOVO')}</button></div>`;
+    scroll.querySelector('[data-retry]').onclick = () => (q ? doSearch(q) : doHome());
+  }
+  async function doSearch(q) {
+    q = (q || '').trim(); if (!q) return;
+    const id = ytIdOf(q);
+    if (id) return play({ id, title: 'Vídeo do YouTube', chan: '', dur: '', views: '' });
+    const my = ++token; skel();
+    try {
+      const v = await ytSearch(q);
+      if (my !== token) return;
+      lastTitle = `Resultados para “${q}”`;
+      showList(lastTitle, v);
+    } catch { if (my === token) showError(q); }
+  }
+  async function doHome() {
+    const my = ++token; skel();
+    try {
+      const v = await ytTrending();
+      if (my !== token) return;
+      lastTitle = 'Em alta no Brasil';
+      showList(lastTitle, v);
+    } catch { if (my === token) showError(null); }
+  }
+  function play(v) {
+    playing = v; if (!current.length) current = [v];
+    back.style.display = ''; chips.style.display = 'none';
+    scroll.innerHTML = `<div class="yt-player">
+        <div class="yt-holder yt-frame"></div>
+        <div class="yt-info">
+          <div class="yt-ptitle">${escH(v.title)}</div>
+          ${v.chan ? `<div class="yt-pchan">${escH(v.chan)}${v.views ? ' · ' + escH(v.views) : ''}</div>` : ''}
+          <div class="yt-prow">
+            <button class="yt-btn" data-back>${iconText('back','VOLTAR')}</button>
+            <button class="yt-btn" data-snd>${iconText('volume','ATIVAR SOM')}</button>
+            <button class="yt-btn" data-out>${iconText('external','ABRIR')}</button>
+          </div>
+          <p class="yt-pchan" style="margin-top:10px">Use o controle de som com a mão e ajuste o volume pelas teclas do Android.</p>
+        </div></div>`;
+
+    const holder = scroll.querySelector('.yt-holder');
+    scroll.querySelector('[data-back]').onclick = () => { ytDestroy(); showList(lastTitle || 'Em alta no Brasil', current); };
+    scroll.querySelector('[data-out]').onclick = () => openOut('https://www.youtube.com/watch?v=' + v.id);
+    scroll.querySelector('[data-snd]').onclick = ytUnmute;
+
+    if (native) {
+      const player = el('div'); player.dataset.nativeBrowser = 'youtube-player';
+      player.dataset.url = 'https://www.youtube.com/embed/' + v.id + '?autoplay=1&playsinline=1';
+      player.style.cssText = 'width:100%;height:100%'; holder.append(player);
+      scroll.querySelector('[data-snd]').onclick = () => { window.NativeXR.click(); toast('Use Android media volume to adjust sound.'); };
+      return;
+    }
+    // plano A: API oficial — permite unMute() mesmo sem ativação de usuário
+    loadYtApi().then(YT => {
+      if (playing !== v) return;
+      try {
+        ytPlayer = new YT.Player(holder, {
+          videoId: v.id,
+          playerVars: { autoplay: 1, playsinline: 1, rel: 0, mute: 0, modestbranding: 1, enablejsapi: 1 },
+          events: {
+            onReady: e => { try { e.target.unMute(); e.target.setVolume(100); e.target.playVideo(); } catch {} setTimeout(ytUnmute, 350); },
+            onError: mountFallback,
+          },
+        });
+      } catch { mountFallback(); }
+    }).catch(mountFallback);
+
+    // plano B: iframe simples, se a API não carregar
+    function mountFallback() {
+      if (playing !== v || holder.dataset.fb) return;
+      holder.dataset.fb = '1';
+      holder.innerHTML = `<iframe class="yt-frame" title="${escH(v.title)}" `
+        + `src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&mute=0&playsinline=1&rel=0&enablejsapi=1" `
+        + `allow="accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+    }
+    setTimeout(ytUnmute, 600);
+  }
+
+  scroll.addEventListener('click', e => {
+    const c = e.target.closest('[data-v]'); if (!c) return;
+    const v = current.find(x => x.id === c.dataset.v);
+    if (v) play(v);
+  });
+  back.onclick = () => showList(lastTitle || 'Em alta no Brasil', current);
+  go.onclick = () => doSearch(fld.value);
+  out.onclick = () => openOut(playing ? 'https://www.youtube.com/watch?v=' + playing.id : 'https://m.youtube.com/results?search_query=' + encodeURIComponent(fld.value || ''));
+  fld.addEventListener('focus', () => keyboard(true, fld));
+  fld.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(fld.value); });
+
+  doHome();
+  const win = open({ id: 'youtube', title: 'YouTube', node: body });
+  // fecha a janela = para o áudio
+  on('wins', () => { if (!wins.some(w => w.id === 'youtube')) ytDestroy(); });
+  return win;
+}
+
+/* ============ Galeria (fotos + ambientes) ============ */
 let photos = [];
 function gallery() {
   const body = el('div', 'pad');
   const head = el('div');
-  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">${t('photosHelp')}</p>`;
+  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos e troque o ambiente do NextVR.</p>`;
+
+  // ---------- Ambientes ----------
+  const envSection = el('div');
+  envSection.style.marginTop = '22px';
+  envSection.innerHTML = `<h3 style="font-size:18px;margin:0 0 10px 0;font-weight:700">${t('env')}</h3>
+    <p class="sub" style="margin:0 0 12px 0">Escolha o fundo em que tudo flutua.</p>`;
+  const envGrid = el('div', 'grid3');
+  const paintEnvs = () => {
+    envGrid.innerHTML = '';
+    for (const e of envList()) {
+      const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+      b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
+      b.innerHTML = `<span>${e.name}</span>`;
+      b.setAttribute('aria-pressed', S.env === e.id ? 'true' : 'false');
+      b.onclick = () => {
+        setEnvironment(e.id);
+        [...envGrid.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
+        b.setAttribute('aria-pressed', 'true');
+        toast('Ambiente: ' + e.name);
+      };
+      envGrid.appendChild(b);
+    }
+  };
+  paintEnvs();
+  on('env', paintEnvs);
+  envSection.appendChild(envGrid);
+
+  // ---------- Fotos ----------
+  const photoHead = el('div');
+  photoHead.style.cssText = 'margin-top:26px;display:flex;align-items:center;gap:10px';
+  photoHead.innerHTML = `<h3 style="font-size:18px;margin:0;font-weight:700">${t('gallery')}</h3>`;
   const pick = el('button', 'go', t('pickPhotos'));
   const input = el('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.style.display = 'none';
-  const grid = el('div', 'grid4'); grid.style.marginTop = '20px';
-  const big = el('div'); big.style.cssText = 'margin-top:18px';
+  photoHead.appendChild(pick);
+
+  const grid = el('div', 'grid4');
+  const big = el('div'); big.style.cssText = 'margin-top:14px';
 
   const paint = () => {
     grid.innerHTML = '';
-    if (!photos.length) { grid.innerHTML = `<p class="sub" style="grid-column:1/-1">${t('noPhotos')}</p>`; return; }
-    photos.forEach((p, i) => {
+    if (!photos.length) {
+      grid.innerHTML = `<p class="sub" style="grid-column:1/-1">${t('noPhotos')}</p>`;
+      return;
+    }
+    photos.forEach(p => {
       const c = el('button', 'thumb'); c.innerHTML = `<img src="${p}" alt="">`;
       c.onclick = () => { big.innerHTML = `<img src="${p}" style="width:100%;border-radius:16px">`; };
       grid.appendChild(c);
@@ -92,8 +494,8 @@ function gallery() {
     paint(); toast(photos.length + ' fotos');
   };
   paint();
-  body.append(head, pick, input, grid, big);
-  body.append(el('p', 'note', 'Na web, o Android pede as fotos pelo seletor do sistema — é a forma correta e não precisa de permissão extra. No app Android use READ_MEDIA_IMAGES e liste direto no MediaStore.'));
+
+  body.append(head, envSection, photoHead, input, grid, big);
   return open({ id: 'gallery', title: t('gallery'), node: body });
 }
 
@@ -120,15 +522,30 @@ function row(title, desc, ctl) {
   r.append(el('div', 'opt-l', `<div class="opt-t">${title}</div>${desc ? `<div class="opt-d">${desc}</div>` : ''}`), ctl);
   return r;
 }
-function toggle(key, after) {
-  const b = el('button', 'sw'); b.dataset.on = S[key] ? '1' : '0';
-  b.onclick = () => { S[key] = S[key] ? 0 : 1; b.dataset.on = S[key] ? '1' : '0'; save(); after && after(S[key]); };
+function ytRow(iconSvg, title, sub, ctl) {
+  const r = el('div', 'yt-row');
+  const ic = el('span', 'yt-ic'); ic.innerHTML = iconSvg;
+  const txt = el('div', 'yt-txt');
+  txt.innerHTML = `<div class="yt-title">${title}</div>${sub ? `<div class="yt-sub">${sub}</div>` : ''}`;
+  r.append(ic, txt);
+  if (ctl) { const w = el('div', 'yt-ctl'); w.appendChild(ctl); r.appendChild(w); }
+  else { const ch = el('span', 'yt-ch'); ch.innerHTML = ''; r.appendChild(ch); }
+  return r;
+}
+function ytToggle(key, after) {
+  const b = el('button', 'yt-sw');
+  b.type = 'button'; b.setAttribute('role','switch');
+  const upd = () => { b.dataset.on = S[key] ? '1' : '0'; b.setAttribute('aria-checked', S[key] ? 'true' : 'false'); };
+  upd();
+  b.onclick = () => { S[key] = S[key] ? 0 : 1; save(); upd(); after && after(S[key]); };
   return b;
 }
-function slider(key, min, max, step, after) {
-  const i = el('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = S[key];
-  i.oninput = () => { S[key] = +i.value; save(); after && after(S[key]); };
-  return i;
+function ytSection(label) {
+  const h = el('div', 'yt-sec'); h.textContent = label; return h;
+}
+function ytRange(key, mn, mx, st) {
+  const s = el('input','yt-range'); s.type='range'; s.min=mn; s.max=mx; s.step=st; s.value=S[key];
+  s.oninput=()=>{S[key]=+s.value;save();}; return s;
 }
 /**
  * The PhoneXR page in the settings window: what is installed (runtime, VrApi driver, broker), the
@@ -254,107 +671,88 @@ function controlCenterApp() {
 }
 
 function settingsApp() {
-  const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
-  const tabs = el('div', 'tabs'); tabs.style.padding = '18px 24px 0';
-  const page = el('div', 'pad'); page.style.paddingTop = '6px';
-  body.append(tabs, page);
+  // Estilo Configurações do YouTube Android: cabeçalho com voltar, lista escura, ícones à
+  // esquerda, toggle/seta à direita, seções azuis.
+  const body = el('div');
+  body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f0f;color:#f1f1f1;font-family:Inter,system-ui,sans-serif;';
+  const head = el('div');
+  head.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 8px 4px;';
+  const back = el('button', 'yt-back');
+  back.innerHTML = icon('back'); back.title='Voltar';
+  back.setAttribute('aria-label','Voltar');
+  back.onclick = () => { const w = wins.find(x => x.id === 'settings'); if (w) close(w); };
+  const titleEl = el('div', 'yt-head-title'); titleEl.textContent = t('settings');
+  head.append(back, titleEl);
 
-  const TABS = [
-    [t('general'), () => {
-      page.innerHTML = `<h2>${t('general')}</h2><p class="sub">Next VR · shell XR para Android</p>`;
-      const c = el('div', 'card');
-      // Mesma tela do Quest do primeiro uso, aberta como janela normal (o idioma atual é o destaque).
-      const pick = el('button', 'seg-btn', langRow(S.lang || 'pt').label);
-      pick.onclick = () => {
-        const picker = open({ id:'language-pick', title:t('langTitle'), w:880, h:660,
-          node:languagePicker(S.lang || 'pt', id => { setLang(id); toast(t('langChanged')); rebuild(); close(picker); }, true) });
-      };
-      c.append(row(t('language'), 'Mesma tela do primeiro uso', pick));
-      c.append(row('FPS', 'Mostrar contador', toggle('showFps')));
-      page.append(c);
-      page.append(el('p', 'note', 'Shizuku: abrir apps Android instalados só existe no app nativo. Nesta versão web o navegador não tem como iniciar outro app.'));
-    }],
-    [t('hands'), () => {
-      page.innerHTML = `<h2>${t('hands')}</h2><p class="sub">Câmera traseira, MediaPipe.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
-      c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
-      c.append(row('Desenhar mãos', 'Contorno claro e cursor de pinça', toggle('handDraw')));
-      c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.38 / 0.56')));
-      c.append(row('Detector', 'MediaPipe Tasks Vision, 2 mãos por frame', el('span', 'note', 'NextVR')));
-      page.append(c);
-    }],
-    [t('windows'), () => {
-      page.innerHTML = `<h2>${t('windows')}</h2><p class="sub">As janelas ficam fixas no ambiente.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('curve'), '1 = encara o centro; menor = mais aberta', slider('winCurve', 0, 1, .05)));
-      c.append(row('Inclinação', 'Ajuste vertical ao subir/descer', slider('winTilt', 0, 1.5, .05)));
-      c.append(row(t('scale'), 'Tamanho das janelas', slider('winScale', .6, 1.6, .05)));
-      c.append(row(t('dist'), 'Distância do arco', slider('winDist', native?.6:1.5, native?1.8:3.4, .05)));
-      c.append(row(t('win360'), t('win360k'), slider('win360K', .2, 1.15, .05)));
-      c.append(row(t('win360All'), 'O botão 360° na barra da janela troca por janela', toggle('win360')));
-      page.append(c);
-    }],
-    [t('dock'), () => {
-      page.innerHTML = `<h2>${t('dock')}</h2><p class="sub">No modo paisagem a dock chega mais perto.</p>`;
-      const c = el('div', 'card');
-      c.append(row(t('size'), null, slider('dockSize', .7, 1.5, .05)));
-      c.append(row(t('dist'), null, slider('dockDist', .7, 1.5, .05)));
-      page.append(c);
-    }],
-    [t('env'), () => { page.innerHTML = ''; page.append(el('h2', null, t('env')));
-      page.append(el('p', 'sub', 'Passthrough da câmera ou um panorama 360° em volta de você.'));
-      const c = el('div', 'card');
-      // Interruptor do passthrough: não é uma chave de S; reflete S.env === 'passthrough'.
-      const sw = el('button', 'sw');
-      const syncSwitch = () => { sw.dataset.on = S.env === 'passthrough' ? '1' : '0'; };
-      sw.onclick = () => { setPassthrough(S.env !== 'passthrough'); syncSwitch(); paintGrid(); };
-      syncSwitch();
-      c.append(row(t('envPassOn'), 'Desligado mostra o último panorama (padrão: palmeira)', sw));
-      page.append(c);
-      const g = el('div', 'grid3');
-      const paintGrid = () => [...g.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.env === S.env)));
-      for (const e of envList()) {
-        const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
-        b.dataset.env = e.id;
-        b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-        b.innerHTML = `<span>${e.name}</span>`;
-        b.onclick = () => { setEnvironment(e.id); syncSwitch(); paintGrid(); };
-        g.appendChild(b);
-      }
-      paintGrid();
-      page.append(g);
-    }],
-    [t('perf'), () => {
-      page.innerHTML = `<h2>${t('perf')}</h2><p class="sub">Celular esquentando? Baixe a qualidade.</p>`;
-      const c = el('div', 'card');
-      const seg = el('div', 'seg');
-      for (const [id, name] of [['low','Baixa'],['auto','Automática'],['high','Alta']]) {
-        const b = el('button', null, name); b.setAttribute('aria-pressed', S.quality === id);
-        b.onclick = () => { S.quality = id; save(); emit('quality'); [...seg.children].forEach(x => x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
-        seg.appendChild(b);
-      }
-      c.append(row(t('quality'), 'Resolução de renderização', seg));
-      page.append(c);
-      page.append(el('p','note','O hand tracking roda na própria cadência (single-flight, sem fila), separado do render. Ative o contador de FPS para ver as duas taxas: render e tracking.'));
-    }],
-    [t('xrTitle'), () => {
-      page.innerHTML = `<h2>${t('xrTitle')}</h2><p class="sub">${t('xrSub')}</p>`
-        + `<div class="card" data-xr-page></div>`;
-      buildXrPage(page.querySelector('[data-xr-page]'));
-    }],
-  ];
-  let cur = 0;
-  function rebuild() {
-    tabs.innerHTML = '';
-    TABS.forEach(([name], i) => {
-      const b = el('button', null, name); b.setAttribute('aria-selected', i === cur);
-      b.onclick = () => { cur = i; rebuild(); };
-      tabs.appendChild(b);
-    });
-    TABS[cur][1]();
+  const scroll = el('div');
+  scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
+
+  let picker = null;
+  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:400, h:560,
+    node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
+
+  // Geral
+  scroll.append(ytSection(t('general')));
+  const langBtn = el('button','yt-link');
+  langBtn.append(ytRow(icon('globe'), t('language'), langRow(S.lang||'pt').label));
+  langBtn.onclick = openPicker;
+  scroll.append(langBtn);
+  scroll.append(ytRow(icon('gauge'), 'Contador de FPS', 'Mostrar taxa de quadros', ytToggle('showFps')));
+  const envBtn = el('button','yt-link');
+  envBtn.append(ytRow(icon('image'), 'Ambiente', 'Trocar passthrough / panorama'));
+  envBtn.onclick = () => { const w=wins.find(x=>x.id==='settings');if(w)close(w);gallery(); };
+  scroll.append(envBtn);
+
+  // Mãos
+  scroll.append(ytSection(t('hands')));
+  scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo · câmera traseira'));
+  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno ciano e cursor de pinça', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
+
+  // Janelas
+  scroll.append(ytSection(t('windows')));
+  scroll.append(ytRow(icon('maximize'), 'Tamanho', 'Escala das janelas', ytRange('winScale',.6,1.6,.05)));
+  scroll.append(ytRow(icon('distance'), 'Distância', 'Distância do arco', ytRange('winDist',native?.6:1.5,native?1.8:3.4,.05)));
+  scroll.append(ytRow(icon('curve'), t('curve'), 'Abertura do arco', ytRange('winCurve',0,1,.05)));
+  scroll.append(ytRow(icon('curve'), t('win360'), t('win360k'), ytRange('win360K',.2,1.15,.05)));
+  scroll.append(ytRow(icon('curve'), t('win360All'), 'Novas janelas curvadas', ytToggle('win360')));
+  scroll.append(ytRow(icon('move'), 'Inclinação', 'Ajuste vertical das janelas', ytRange('winTilt',0,1.5,.05)));
+
+  // Dock
+  scroll.append(ytSection(t('dock')));
+  scroll.append(ytRow(icon('appGrid'), 'Tamanho da dock', null, ytRange('dockSize',.7,1.5,.05)));
+  scroll.append(ytRow(icon('distance'), 'Distância da dock', null, ytRange('dockDist',.7,1.5,.05)));
+
+  // Desempenho
+  scroll.append(ytSection('Desempenho'));
+  const seg = el('div','yt-seg');
+  for (const [id,name] of [['low','Baixa'],['auto','Automática'],['high','Alta']]) {
+    const b = el('button','yt-seg-btn'); b.textContent=name; b.setAttribute('aria-pressed',S.quality===id);
+    b.onclick=()=>{S.quality=id;save();emit('quality');[...seg.children].forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');};
+    seg.appendChild(b);
   }
-  rebuild();
+  scroll.append(ytRow(icon('settings'), 'Qualidade', 'Resolução de renderização', seg));
+
+  // O runtime PhoneXR do main mantém a própria página dentro das Configurações compactas.
+  scroll.append(ytSection(t('xrTitle')));
+  const xrButton = el('button', 'yt-link');
+  xrButton.append(ytRow(icon('controller'), t('xrTitle'), t('xrSub')));
+  xrButton.setAttribute('aria-expanded', 'false');
+  const xrPage = el('div', 'card');
+  xrPage.dataset.xrPage = '';
+  xrPage.style.margin = '0 16px 14px';
+  xrPage.hidden = true;
+  xrButton.onclick = () => {
+    xrPage.hidden = !xrPage.hidden;
+    xrButton.setAttribute('aria-expanded', String(!xrPage.hidden));
+    if (!xrPage.hidden) buildXrPage(xrPage);
+  };
+  scroll.append(xrButton, xrPage);
+
+  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v1.0';
+  scroll.append(foot);
+
+  body.append(head, scroll);
   return open({ id: 'settings', title: t('settings'), node: body });
 }
 
@@ -473,7 +871,9 @@ function quickSettingsApp() {
 }
 
 function paintQuickSettingsStatus(status = getDeviceStatus()) {
-  const root = document.querySelector('.quick-settings');
+  // The CSS3D window is not attached to document until the next atlas frame. Paint its owned DOM
+  // immediately, otherwise battery/time show -- until the next one-second status tick.
+  const root = wins.find(w => w.id === 'quick-settings')?.el.querySelector('.quick-settings');
   if (!root) return;
   const battery = root.querySelector('[data-q-battery] span');
   if (battery) battery.textContent = status.batteryLevel == null ? '--%' : `${Math.round(status.batteryLevel*100)}%`;
@@ -500,7 +900,6 @@ const LIB_APPS = [
   { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
   { id:'twitch', name:'Twitch', bg:'linear-gradient(145deg,#b184ff,#6133b2)', slug:'twitch', color:'ffffff' },
   { id:'prime', name:'prime video', bg:'linear-gradient(145deg,#173e70,#0b172b)', html:'<span class="lx-prime">prime<b>video</b></span>' },
-  { id:'pluto', name:'pluto tv', bg:'linear-gradient(145deg,#34343a,#111115)', html:'<span class="lx-pluto">pluto<i>tv</i></span>' },
   { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', slug:'whatsapp', color:'ffffff' },
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram', color:'ffffff', iconOnly:true },
   { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
@@ -512,14 +911,11 @@ const LIB_APPS = [
   { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#ff8096,#bd254b)', icon:'camera' },
   { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
 ];
-/* Ordem previsível; os jogos instalados surgem na posição habitual entre os apps. */
-const LIB_ORDER = ['netflix','youtube','tiktok','discord','twitch','prime','pluto','whatsapp','instagram','x','facebook','telegram','spotify','browser','store','gallery','settings'];
-
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
-  youtube:  () => webWindow('youtube',   'YouTube',      'https://m.youtube.com/'),
+  youtube:  () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
   browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
@@ -529,7 +925,6 @@ const LIB_ACTIONS = {
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
   twitch:   () => webWindow('twitch',    'Twitch',       'https://www.twitch.tv/'),
   prime:    () => webWindow('prime',     'prime video',  'https://www.primevideo.com/'),
-  pluto:    () => webWindow('pluto',     'pluto tv',     'https://pluto.tv/'),
   whatsapp: () => webWindow('whatsapp',  'WhatsApp',     'https://web.whatsapp.com/'),
   instagram:() => webWindow('instagram', 'Instagram',    'https://www.instagram.com/'),
   x:        () => webWindow('x',         'X',            'https://x.com/'),
@@ -674,7 +1069,7 @@ function buildLibrary() {
 
   const q = root.querySelector('[data-q]:not([data-q="android"])');
   if (q) {
-    q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]:not([data-q="android"])'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
+    q.addEventListener('input', () => { libQuery = q.value; paintLibrary(true); const nq = winBody('library')?.querySelector('[data-q]'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
     q.addEventListener('focus', () => keyboard(true, q));
   }
 
@@ -691,9 +1086,6 @@ function buildLibrary() {
     if (c('[data-sort]')) { libSort = libSort === 'az' ? 'recent' : 'az'; paintLibrary(); return; }
     if (c('[data-filter]')) { libFilter = LIB_FILTERS[(LIB_FILTERS.indexOf(libFilter) + 1) % LIB_FILTERS.length]; paintLibrary(); return; }
     if ((m = c('[data-android]'))) {
-      // One action, one owner of the decision: the native side focuses a window that is already
-      // open, wakes a minimized one and restarts a failed one — whichever mechanism it needs. The
-      // shell only brings an existing window forward so the tap always ends on the app.
       const pkg = m.dataset.android;
       openApp(pkg);
       focusAppWindow(pkg);
@@ -744,6 +1136,7 @@ function androidCategory(app) {
 }
 function paintShizuku(body) {
   loadAndroidLibrary(false);
+  const previousScroll = body.querySelector('.android-app-scroll')?.scrollTop || 0;
   body.innerHTML = '';
   body.classList.add('android-launcher');
   const head = el('div', 'android-launcher-head');
@@ -752,7 +1145,8 @@ function paintShizuku(body) {
     + `<div class="android-launcher-actions"><label class="android-search">${icon('search')}`
     + `<input type="search" placeholder="Buscar apps Android" aria-label="Buscar apps Android"></label>`
     + `<button class="android-refresh" type="button" aria-label="Atualizar apps" title="Atualizar apps">${icon('refresh')}</button></div>`;
-  const notice = shizukuNotice();
+  head.querySelector('.android-search input').value = shizukuQuery;
+  const notice = shizukuStatusRow();
   const tabs = el('div', 'android-categories');
   const chips = ANDROID_CATEGORIES.map(category => `<button class="android-category" data-category="${category}" aria-pressed="${shizukuFilter === category}">${category}</button>`).join('');
   tabs.innerHTML = chips;
@@ -778,6 +1172,7 @@ function paintShizuku(body) {
   body.append(head);
   if (notice) body.appendChild(notice);
   body.append(tabs, results, scroll);
+  scroll.scrollTop = previousScroll;
   body.oninput = event => {
     if (event.target.matches('.android-search input')) { shizukuQuery = event.target.value; paintGrid(); }
   };
@@ -821,11 +1216,11 @@ const DK = Object.freeze({
 });
 
 function toggleVirtualEnvironment() {
-  // Um toque sai do passthrough para o último panorama (palmeira no padrão) e outro volta à câmera.
+  // Um toque sai do passthrough para o último panorama (pôr do sol no padrão) e outro volta à câmera.
   setPassthrough(S.env !== 'passthrough');
 }
 function syncVirtualEnvironmentDock() {
-  const button = document.querySelector('.dock [data-id="virtual-environment"]');
+  const button = dockButton('virtual-environment');
   if (!button) return;
   const active = S.env !== 'passthrough';
   button.setAttribute('aria-pressed', String(active));
@@ -935,14 +1330,20 @@ function languagePicker(pending, onPick, slim = false) {
   const body = el('div', slim ? 'langwin slim' : 'langwin');
   const label = id => langRow(id).label;
   const paint = () => {
-    body.innerHTML = `<div class="lq-head"><span class="lq-pick">${label(pending)}</span><span class="lq-title">${t('langTitle')}</span></div>
+    const hero = slim ? '' :
+      `<div class="lq-hero">
+         <img class="lq-logo" src="./icons/nextvr-n.png" alt="NextVR">
+         <h1 class="lq-welcome">Bem-vindo<br>ao NextVR</h1>
+         <p class="lq-tag">Aponte e pinça<br>para escolher.</p>
+       </div>`;
+    body.innerHTML = `${slim ? `<img class="lq-logo-sm" src="./icons/nextvr-n.png" alt="NextVR"><div class="lq-pickrow"><span class="lq-pick">${label(pending)}</span></div>` : ''}
       <div class="lq-main">
+        ${hero}
         <div class="lang-options" role="list">${LANG_ROWS.map(r => `<button class="lang-option${r.table ? '' : ' soon'}" data-lang="${r.id}"
             ${r.table ? '' : 'disabled aria-disabled="true"'}
             aria-pressed="${r.id === pending}"><span>${r.label}</span>${r.table ? '' : `<i>${t('langSoon')}</i>`}</button>`).join('')}</div>
-        <div class="lq-art"><img src="./hand-controller.png" alt=""></div>
       </div>
-      <div class="lq-foot"><span class="lang-tracking">Aponte com a mão e faça uma pinça para escolher.</span>
+      <div class="lq-foot"><span class="lang-tracking">${slim ? 'Escolha o idioma.' : 'Aponte com a mão e faça uma pinça.'}</span>
         <button class="lq-go">${t('langContinue')}</button></div>`;
     body.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => onPick(b.dataset.lang));
     body.querySelector('.lq-go').onclick = () => onPick(pending);
@@ -951,7 +1352,8 @@ function languagePicker(pending, onPick, slim = false) {
   return body;
 }
 function languageWindow() {
-  const w = open({ id:'language', title:'Next VR', w:880, h:660, onboarding:true,
+  // The atlas reserves 660 content pixels per window (plus 160px padding on each side).
+  const w = open({ id:'language', title:'Next VR', w:480, h:660, onboarding:true,
     node:languagePicker(S.lang || deviceLanguage(), finishLanguage) });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();

@@ -115,7 +115,7 @@ class Win {
     this.bendHit();
     this.grab = plane(260 * PX, 90 * PX, this);
     this.grab.userData.isHandle = true;
-    this.resizeHit = plane(112 * PX, 112 * PX, this);
+    this.resizeHit = plane(80 * PX, 80 * PX, this);
     this.resizeHit.userData.isResize = true;
 
     // O WebView nativo não recebe pointer do touchscreen físico. Estes listeners existem apenas
@@ -230,10 +230,11 @@ class Win {
 
     this.resizeHit.position.copy(o.position);
     this.resizeHit.rotation.copy(o.rotation);
-    this.resizeHit.translateX((this.w / 2 - 48) * PX * scale);
-    this.resizeHit.translateY(-(this.h / 2 - 48) * PX * scale);
-    // A alça de tamanho também sobe para a superfície curvada.
-    this.resizeHit.translateZ(this.bulge(this.w / 2 - 48) + .003);
+    // A alça de tamanho fica fora da borda, como o controle visual em .win-resize.
+    const resizeOffset = 28;
+    this.resizeHit.translateX((this.w / 2 + resizeOffset) * PX * scale);
+    this.resizeHit.translateY(-(this.h / 2 + resizeOffset) * PX * scale);
+    this.resizeHit.translateZ(this.bulge(this.w / 2) + .003);
     this.resizeHit.scale.setScalar(scale);
   }
 
@@ -372,11 +373,12 @@ export function close(w) {
   // lugar nenhum.
   const hosted = w.el.querySelector('[data-native-browser],[data-native-app]');
   const served = hosted?.dataset.nativeBrowser || (hosted ? 'app:' + hosted.dataset.nativeApp : null);
-  if (kbTarget && (kbTarget.nativeId ? kbTarget.nativeId === served : !w.el.contains(kbTarget))) keyboard(false);
-  if (lastKbField && !w.el.contains(lastKbField)) lastKbField = null;
+  if (kbTarget && (kbTarget.nativeId ? kbTarget.nativeId === served : w.el.contains(kbTarget))) keyboard(false);
+  if (lastKbField && w.el.contains(lastKbField)) lastKbField = null;
   if (drag.win === w) endDrag();
   if (resizing.win === w) endResize();
   wins.splice(i, 1);
+  w._cleanupQB?.();
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
@@ -811,6 +813,8 @@ export function setDockHidden(hidden) {
 export const dockHiddenNow = () => dockHidden;
 
 let dockItems = [], dockBtns = [];
+// The dock is a CSS3D object; on first construction it is not in document yet.
+export const dockButton = id => dockBtns.find(button => button.dataset.id === id) || null;
 const dockWins = [];                       // { b, win } → ponto branco quando a janela está aberta
 
 const WIFI_SVG = icon('wifi');
@@ -916,7 +920,9 @@ function paintBat() {
   deviceStatus.charging = charging;
   publishDeviceStatus();
 }
-if (navigator.getBattery) {
+// In the APK the sticky-broadcast NativeXR value is authoritative; Chromium's Battery API may
+// expose a synthetic 100% battery for the virtual WebView and must not overwrite it.
+if (!native && navigator.getBattery) {
   navigator.getBattery().then(b => {
     batt = b;
     b.addEventListener('levelchange', paintBat);

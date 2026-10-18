@@ -10,7 +10,7 @@ export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hoveri
 const clickState = new HandClickState();
 const pressArbiter = new ClickDragArbiter();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
-let enabled = false, lastFrame = -Infinity, scaleX = 1, scaleY = 1, visual = null, validForMs = 500;
+let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 export const tracking = () => enabled;
 export async function startHands() {
   if (!native) { toast('Hand tracking requires the Android camera pipeline.'); return false; }
@@ -34,7 +34,16 @@ export function stopHands() {
   if (native) window.NativeXR.hands(false);
   emit('hands', false);
 }
-export function screenPoint(tangent) { return { x: .5 + tangent[0] / (2*TAN_X), y: .5 - tangent[1] / (2*TAN_Y) }; }
+/** aim do native vem como (aimX,aimY) = (tan_x * sx_mapping, tan_y * sy_mapping), onde
+ *  sx_mapping = spanX = 2(1+|p8|)/p0 (dimensão horizontal real da projeção Cardboard em
+ *  unidades de tangente). scaleX/scaleY recebidos do native são mappingX/mappingY (razão
+ *  pro spanX relativo ao FOV de referência de 36°), então convertemos:
+ *    spanX = mappingX * 2*TAN_X_REF,  spanY = mappingY * 2*TAN_Y_REF
+ *  e mapeamos pra NDC [0,1] com divisão direta. Corrige o cursor deslocado/olhos diferentes. */
+export function screenPoint(tangent) {
+  const sx = scaleX * 2*TAN_X, sy = scaleY * 2*TAN_Y;
+  return { x: .5 + tangent[0] / sx, y: .5 - tangent[1] / sy };
+}
 
 /* Predição do cursor só para apresentação — o mesmo princípio do Frame.predicted() nativo:
  * movimento contínuo (arrastar/redimensionar janela, alvo do raio/anel) é extrapolado até a

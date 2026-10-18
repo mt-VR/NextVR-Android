@@ -185,8 +185,11 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
 
 test('settings has the PhoneXR page and the hand mode switch', async () => {
   const apps = await read(FILES.apps);
-  assert.match(apps, /\[t\('xrTitle'\), \(\) => \{/);
-  assert.match(apps, /data-xr-page/);
+  // This branch uses a compact YouTube-style settings page rather than main's tab array.
+  assert.match(apps, /scroll\.append\(ytSection\(t\('xrTitle'\)\)\)/);
+  assert.match(apps, /xrButton\.append\(ytRow\(icon\('controller'\), t\('xrTitle'\), t\('xrSub'\)\)\)/);
+  assert.match(apps, /xrPage\.dataset\.xrPage = ''/);
+  assert.match(apps, /xrButton\.onclick = \(\) => \{[\s\S]*?buildXrPage\(xrPage\)/);
   assert.match(apps, /function buildXrPage\(host\) \{/);
   assert.match(apps, /for \(const \[id, label, sub\] of \[\n\s+\['controllers', t\('xrModeControllers'\)/);
   assert.match(apps, /setXrHandMode\(id\);/);

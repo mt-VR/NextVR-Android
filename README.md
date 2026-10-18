@@ -5,10 +5,10 @@ NextVR combines the spatial HTML workspace with the latest visual assets from
 engine built for this project (`com.nextvr.handtrack`, MediaPipe Tasks Vision), hardware-rendered
 browser surfaces and the existing Google Cardboard SDK (**v1.35.0**).
 
-The old artificial room and collectible objects have been removed. The camera is the background;
-the dock, floating windows and keyboard remain independent spatial surfaces rendered for both
-eyes. Cardboard still owns head orientation, eye projection and lens distortion. **6 DoF is not
-included or enabled.**
+The old artificial room and collectible objects have been removed. A selected panorama (or camera
+passthrough) is the background; the dock, floating windows and keyboard remain independent spatial
+surfaces rendered for both eyes. Cardboard still owns head orientation, eye projection and lens
+distortion. **6 DoF is not included or enabled.**
 
 > This is an integration with automated UI tests and APK build verification, not a claim of
 > physical-device or pixel-perfect validation. The reference's simulated game-store features
@@ -137,12 +137,12 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
 | Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
 | Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
-| Move the dock | Pinch the grab area just below the dock, move it to a comfortable spot, then release. The small handle appears only while pointed at or moving the dock. |
+| Move the dock | Pinch the visible grab handle just below the dock, move it to a comfortable spot, then release. |
 | Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
 | Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
 | Return to dock arc | Use the window's crosshair/repin control. |
 | Browser scrolling | Hold a hand pinch on the page and move. |
-| Type | Pinch a field — in a browser, a shell window or an Android app — and the floating keyboard appears in front of that window. Pinch a key and it types immediately; hold it to repeat; slide onto the next key to keep typing. |
+| Type | Pinch a field — in a browser, shell window or Android app — to show the floating keyboard. Pinch a key to type; hold it to repeat or slide onto the next key. |
 | Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
 | Recenter | Quick Settings → “Redefinir visualização”. |
 | Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
@@ -151,13 +151,13 @@ spacing is forced — two windows can still be placed edge to edge, or deliberat
 | Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
 | Exit | Native close control or Android back. |
 
-Six floating windows are supported in addition to the dock, keyboard and HUD. Library/store
-styling, menus, settings, gallery, browser chrome and animations come from the prototype. The hand
-silhouette keeps the requested dark fill (`#211923`) and soft light contour (`#D9D5DF`), drawn from
-the APK's native MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a
-competing `getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer
-gestures remain in place. The palm panorama is the default virtual environment; camera passthrough
-and the other 360° panoramas remain available.
+Up to three regular app windows share the arc in addition to the dock, keyboard and HUD.
+Library/store styling, menus, settings, gallery, browser chrome and animations come from the
+prototype. The hand silhouette uses a dark teal fill and cyan contour, drawn from the APK's native
+MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a competing
+`getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
+remain in place. The sunset panorama is the default virtual environment; camera passthrough and the
+other 360° panoramas remain available.
 
 ## Hand tracking performance
 
@@ -173,10 +173,10 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
 | `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
 | `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
-| `web/src/typing.js` | The one typing engine: loaded by the shell and injected by the native side into every hosted page, so a real website field and a shell field obey the same caret and key rules |
+| `web/src/typing.js` | Shared typing engine for shell fields and hosted browser WebViews (injected at document start) |
 | `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
-| `web/src/game.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | Playable 3D world (scene, tools, both-hands menu chord) and free-space-aware window placement |
-| `…/GameSceneRenderer.kt` | Native GL rendering of game objects: base64 meshes from the shell, one draw call per object, depth-tested against windows |
+| `web/src/xr-games.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | PhoneXR game mode, both-hands menu chord and free-space-aware window placement |
+| `…/xr/` | Native PhoneXR game controller, runtime, library and hand bridge |
 | `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
 | `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
 | `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |

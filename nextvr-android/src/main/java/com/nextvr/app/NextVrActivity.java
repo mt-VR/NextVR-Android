@@ -599,8 +599,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          */
         @JavascriptInterface public void env(String id) {
             if(id==null || !(id.equals("passthrough")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
-                    ||id.equals("sunset")||id.equals("night")||id.equals("space")||id.equals("tropical")
-                    ||id.equals("lakeside"))) return;
+                    ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
+                    ||id.equals("cinema")||id.equals("tropical")||id.equals("lakeside"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {
@@ -677,6 +677,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void appsCommand(String json) {
             if(json==null || json.length()>8000) return;
             main.post(()->{ if(appWindows!=null && !closed) appWindows.command(json); });
+        }
+        /** Navigate the Quest browser's existing WebSurface, retaining its history and focus. */
+        @JavascriptInterface public void browserCmd(String id,String cmd,String url) {
+            if(id==null || !id.matches("[a-zA-Z0-9_-]{1,64}") || cmd==null) return;
+            if("go".equals(cmd) && (url==null || !WebSurface.isWebUrl(url))) return;
+            main.post(()->{
+                WebSurface b=browsers.get(id); if(b==null || closed) return;
+                switch(cmd) {
+                    case "go": b.go(url); break;
+                    case "back": b.goBack(); break;
+                    case "fwd": b.goForward(); break;
+                    case "reload": b.reload(); break;
+                    default: break;
+                }
+            });
         }
         @JavascriptInterface public int volume() {
             return audio==null ? 65 : Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC)*100f

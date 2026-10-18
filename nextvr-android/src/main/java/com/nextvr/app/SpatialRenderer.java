@@ -283,8 +283,8 @@ final class SpatialRenderer {
         }
         GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
         com.nextvr.app.hands.PhoneXrHands.Frame handFrame=hands;
-        // The target arrives in world space and is taken into this eye's space inside the renderer,
-        // so the beam lands on the hit icon by the same transform the panel geometry itself gets.
+        // The ray target is in world space; the hand pass transforms it for each eye before
+        // projection, keeping the pointer over the same icon in both Cardboard lenses.
         if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
