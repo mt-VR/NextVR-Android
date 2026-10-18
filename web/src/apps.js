@@ -197,7 +197,7 @@ function settingsApp() {
       c.append(row(t('on'), 'Única entrada da interface VR', el('span', 'note', 'Sempre ativo')));
       c.append(row(t('sens'), 'MediaPipe nativo · câmera traseira', el('span', 'note', '2 mãos · 21 landmarks')));
       c.append(row('Desenhar mãos', 'Contorno ciano e cursor de pinça', toggle('handDraw')));
-      c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.30 / 0.48')));
+      c.append(row('Pinch', 'Entrada nativa estável com histerese', el('span', 'note', '0.38 / 0.56')));
       c.append(row('Detector', 'MediaPipe Tasks Vision, 2 mãos por frame', el('span', 'note', 'NextVR')));
       page.append(c);
     }],

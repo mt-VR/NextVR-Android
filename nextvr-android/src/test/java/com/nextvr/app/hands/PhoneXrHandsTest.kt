@@ -94,10 +94,10 @@ class PhoneXrHandsTest {
     }
     @Test fun pinchThresholdsMatchPhoneXrAndRemainHysteretic() {
         val latch=HandGestures.PinchLatch()
-        assertFalse(latch.update(HandGestures.shape(points(.31f),false)))
-        assertTrue(latch.update(HandGestures.shape(points(.29f),false)))
-        assertTrue(latch.update(HandGestures.shape(points(.47f),false)))
-        assertFalse(latch.update(HandGestures.shape(points(.49f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.39f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.37f),false)))
+        assertTrue(latch.update(HandGestures.shape(points(.55f),false)))
+        assertFalse(latch.update(HandGestures.shape(points(.57f),false)))
     }
     @Test fun metricThreeDimensionalPinchWorksWhenCameraProjectionLooksOpen() {
         val engine=PhoneXrHands()
