@@ -692,14 +692,17 @@ function libraryApp() {
 const DK = Object.freeze({
   compass:icon('compass'), store:icon('store'), people:icon('people'),
   camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
+  notification:icon('notification'), center:icon('crosshair'),
 });
 
 function makeDock() {
   buildDock([
-    // Apenas perfil + hora/status + vão + apps principais + launcher de apps.
+    // Perfil e status do telefone, dois atalhos de sistema, separador e apps principais.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
-    { kind: 'spacer' },  // vão entre hora/bateria e os apps (estilo Quest/Meta)
+    { kind: 'tool', id: 'notifications', label: t('notif'), svg: DK.notification, run: () => toast(t('noNotif')) },
+    { kind: 'tool', id: 'recenter', label: t('center'), svg: DK.center, run: recenter },
+    { kind: 'sep' },
     // apps principais
     { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },

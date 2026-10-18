@@ -167,10 +167,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with every previous function, in the selected language.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','browser','store','discord','gallery','settings','youtube','shizuku','library'],
-      'the dock is perfil + hora/status, a gap, the main apps, the Shizuku window and the launcher');
-    assert.equal(await page.locator('.dock .dock-spacer').count(),1,
-      'a single gap separates the clock/battery group from the apps, Quest-style');
+    assert.deepEqual(ids,['profile','status','notifications','recenter','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+      'the dock groups phone status and system shortcuts before the colorful app tiles and launcher');
+    assert.equal(await page.locator('.dock .dock-sep').count(),1,
+      'a subtle divider separates system shortcuts from the app row');
+    const dockSkin=await page.locator('.dock').evaluate(e=>{const s=getComputedStyle(e);return {background:s.backgroundImage,radius:s.borderRadius,blur:s.backdropFilter};});
+    assert.match(dockSkin.background,/18, 48, 56/,'the dock uses the screenshot-inspired dark teal glass');
+    assert.equal(dockSkin.radius,'28px','the dock is a floating rounded capsule');
+    assert.match(dockSkin.blur,/blur\(28px\)/,'the capsule has a frosted-glass treatment');
     assert.equal(await page.getByRole('button',{name:'Move the dock'}).count(),1,'the short Quest-style dock handle is available');
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
