@@ -66,6 +66,15 @@
   .win-btn.close:active{background:#e5484d;color:#fff}
   .win-body{flex:1;min-height:0;position:relative;background:#11151d}
   .win-body iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+  /* External pages use a slim bottom rail: the page and URL field keep the top of the window. */
+  .web-page-window .win-bar{order:2;height:38px;gap:8px;padding:0 10px;background:rgba(24,22,34,.96);
+    border-top:1px solid var(--line);border-bottom:0}
+  .web-page-window .win-body{order:1}
+  .web-page-window .win-grip{width:28px;height:4px}
+  .web-page-window .win-title{font-size:15px}
+  .web-page-window .win-btn{width:32px;height:32px;border-radius:9px}
+  .web-page-window .win-btn .ui-icon{width:17px;height:17px}
+  .web-page-window .win-btn.wide{min-width:48px;height:32px;padding:0 9px;border-radius:9px;font-size:12px}
 
   /* ---------- conteúdos ---------- */
   .pad{padding:26px 30px;overflow-y:auto;height:100%}

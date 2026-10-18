@@ -25,8 +25,20 @@ test('external-page address bar uses a compact toolbar without removing navigati
   assert.match(field, /font-size:\s*16px/);
   assert.match(button, /height:\s*42px/);
 
+  const bottomRail = html.match(/\.web-page-window \.win-bar\s*\{([^}]+)\}/)?.[1] || '';
+  const pageBody = html.match(/\.web-page-window \.win-body\s*\{([^}]+)\}/)?.[1] || '';
+  assert.match(apps, /win\.shell\.classList\.add\('web-page-window'\)/,
+    'external pages opt into the bottom-rail layout');
+  assert.match(bottomRail, /order:\s*2/);
+  assert.match(bottomRail, /height:\s*38px/);
+  assert.match(pageBody, /order:\s*1/);
+
   assert.match(bundledApps, /browser-bar/,
     'the compact toolbar class is included in the Android UI bundle');
+  assert.match(bundledApps, /web-page-window/,
+    'the external-page bottom-rail class is included in the Android UI bundle');
   assert.match(bundledHtml, /\.browser-bar \.fld/,
     'the compact field sizing is shipped with the Android UI');
+  assert.match(bundledHtml, /\.web-page-window \.win-bar/,
+    'the slim bottom title/control rail is shipped with the Android UI');
 });

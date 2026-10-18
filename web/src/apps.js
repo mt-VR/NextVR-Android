@@ -61,7 +61,9 @@ function webWindow(id, title, url, note) {
   out.onclick = () => openOut(fld.value);
   nav(url);
 
-  return open({ id, title, node: body });
+  const win = open({ id, title, node: body });
+  win.shell.classList.add('web-page-window');
+  return win;
 }
 
 /* ============ Galeria ============ */

@@ -269,6 +269,17 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(addressBar.fieldHeight,42,'the compact URL field remains large enough to tap');
     assert.equal(addressBar.buttonHeight,42,'browser actions match the compact address field height');
     assert.equal(addressBar.fontSize,'16px','the URL remains easy to read while taking less space');
+    const bottomRail=await page.locator('.win-shell[data-window-id="browser"]').evaluate(shell=>{
+      const win=shell.querySelector('.win'),bar=win.querySelector('.win-bar'),body=win.querySelector('.win-body');
+      return {barOrder:getComputedStyle(bar).order,bodyOrder:getComputedStyle(body).order,
+        height:Math.round(bar.getBoundingClientRect().height),bottomGap:Math.round(win.getBoundingClientRect().bottom-bar.getBoundingClientRect().bottom),
+        options:bar.querySelectorAll('[data-act]').length};
+    });
+    assert.equal(bottomRail.barOrder,'2','browser title and controls are ordered below the page');
+    assert.equal(bottomRail.bodyOrder,'1','the address field and page stay above the bottom controls');
+    assert.equal(bottomRail.height,38,'the bottom title bar remains slim');
+    assert.ok(Math.abs(bottomRail.bottomGap)<=1,'the title/control rail sits at the bottom edge');
+    assert.equal(bottomRail.options,3,'360, repin and close all stay in the bottom rail');
     // The keyboard has no dock tile any more: it opens the way it opens for a user, when a text
     // field takes the focus — here a field in the hosted page, which is the native side telling the
     // shell (nextvrBrowserFocus), the same call the WebView makes on a real site.
