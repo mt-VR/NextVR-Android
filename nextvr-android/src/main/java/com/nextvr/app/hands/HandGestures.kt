@@ -10,9 +10,13 @@ object HandGestures {
     private val FOLDED_TIPS = intArrayOf(12, 16, 20)
     private val FOLDED_PIPS = intArrayOf(10, 14, 18)
 
-    /** PhoneXR reference hysteresis for a deliberate pinch click. */
-    const val PINCH_CLOSE_GAP = .30f
-    const val PINCH_OPEN_GAP = .48f
+    /**
+     * Hysteresis for a deliberate pinch click. Looser than the PhoneXR reference on purpose: a
+     * pinch here is a click, and a strict close threshold made small gaps hard to hit. Releasing
+     * still needs a clearly open hand, so the gap between the two is wide.
+     */
+    const val PINCH_CLOSE_GAP = .38f
+    const val PINCH_OPEN_GAP = .56f
     /**
      * Smallest palm (index to pinky base, in image widths) a landmark set may have and still be
      * measured. The pinch gap is a RATIO to the palm, so a collapsed or sub-pixel palm turns it into
@@ -86,7 +90,7 @@ object HandGestures {
         val cross = ax * by - ay * bx
         val palmToFace = if (physicalLeft) cross < 0 else cross > 0
         return Shape(
-            pinch = !fist && gap < .35f,
+            pinch = !fist && gap < .42f,
             pinchStrength = strength,
             fist = fist,
             palmToFace = palmToFace && abs(cross) > palm * palm * .06f,
