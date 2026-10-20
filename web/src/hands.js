@@ -129,6 +129,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   cursor.mode=pressArbiter.mode;
   cursor.down=clickState.down;cursor.phase=clickState.phase;
   emitClickEvents(clickEvents);
+  if (cursor.down) emit('pinchsample', cursor);
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');

@@ -874,6 +874,12 @@ on('pinchdown', () => {
   }
   dockPinch('down');
 });
+on('pinchsample', () => {
+  if (pendingPress && cursor.mode === 'drag') {
+    clickThrough(pendingPress.hit, 'down');
+    pendingPress = null;
+  }
+});
 on('pinchup', () => {
   clearWinBrowserHold();
   if (winHoldConsumed) {
