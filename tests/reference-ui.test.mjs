@@ -129,46 +129,44 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         fist:false,palmFacesEyes:false,...extra}]};
     };
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
-    // Like Meta's first-run flow: the dock is neither composited nor in the DOM yet, so the
-    // language picker is the only surface the hand can reach.
-    assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during language onboarding');
-    assert.equal(await page.locator('.dock').count(),0,'Meta-style onboarding shows only the language picker');
-    assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden until a language exists');
-    assert.equal(await page.locator('.win-title').innerText(),'Next VR');
+    // Entry menu onboarding: only the NextVR v2.0.0 entry menu window (+ HUD overlay) is composited.
+    assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during entry menu onboarding');
+    assert.equal(await page.locator('.dock').count(),0,'entry menu onboarding shows only the entry menu');
+    assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden while entry menu is open');
+    assert.equal(await page.locator('.entry-subtitle').innerText(),'ENTRE EM OUTRO MUNDO');
+    // Switch language to English in the entry menu basic settings so subsequent assertions run in English.
+    await page.evaluate(()=>{
+      document.querySelector('[data-entry-act="settings"]').click();
+      document.querySelector('[data-entry-lang="en"]').click();
+      document.querySelector('[data-entry-act="back"]').click();
+    });
     // Pose/gaze alone and the removed viewer callback cannot select setup; PhoneXR pinch can.
     await page.evaluate(()=>{window.nextvrResume();window.nextvrHands({hands:[]});});
-    const language=await page.evaluate(()=>{
-      const shell=document.querySelector('.win-shell'),button=shell.querySelector('[data-lang="en"]');
+    const entryStart=await page.evaluate(()=>{
+      const shell=document.querySelector('.win-shell[data-window-id="entry-menu"]'),button=shell.querySelector('[data-entry-act="start"]');
       const r=shell.getBoundingClientRect(),b=button.getBoundingClientRect();
-      const panel=window.__last.panels.filter(p=>!p.overlay)[0];   // dock hidden: the picker is first
+      const panel=window.__last.panels.filter(p=>!p.overlay)[0];
       return {matrix:panel.matrix,rect:panel.rect,glass:panel.glass,width:r.width,height:r.height,
         x:b.left+b.width/2-r.left-r.width/2,y:r.height/2-(b.top+b.height/2-r.top),buttonHeight:b.height};
     });
-    const languageMatrix=new THREE.Matrix4().fromArray(language.matrix);
-    const centre=new THREE.Vector3().setFromMatrixPosition(languageMatrix);
-    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
-    const widthMetres=languageMatrix.elements[0]*language.glass[2];
-    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>60,'Portrait setup remains readable at eye distance');
-    // O piso é ditado pelo teto de 660 px do slot de textura no atlas nativo, que é o que permite os
-    // doze idiomas aparecerem de uma vez, como no print (~40 px = ~4 cm a 0,42 m ≈ 5,3 graus).
-    assert.ok(language.buttonHeight>=38,'Language rows stay large enough for a hand pinch');
-    assert.equal(await page.locator('.lang-option').count(),12,'the picker lists every language from the reference');
-    // No print todos os idiomas aparecem de uma vez; a lista não pode depender de rolagem (o toque
-    // por pinca não rola). Este número é o mais fácil de quebrar sem querer ao mexer no CSS.
-    const list=await page.evaluate(()=>{const l=document.querySelector('.lang-options');return {scroll:l.scrollHeight,client:l.clientHeight,rows:l.children.length};});
-    assert.ok(list.scroll<=list.client+1,`all twelve languages are visible at once: ${JSON.stringify(list)}`);
-    const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
-    const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
-    await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
+    const entryMatrix=new THREE.Matrix4().fromArray(entryStart.matrix);
+    const centre=new THREE.Vector3().setFromMatrixPosition(entryMatrix);
+    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Entry menu window is close and at eye level');
+    const widthMetres=entryMatrix.elements[0]*entryStart.glass[2];
+    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>60,'Entry menu remains readable at eye distance');
+    assert.ok(entryStart.buttonHeight>=38,'Entry menu cards stay large enough for a hand pinch');
+    const startTarget=new THREE.Vector3(entryStart.x/entryStart.rect[2],entryStart.y/entryStart.rect[3],0).applyMatrix4(entryMatrix);
+    const startView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),startTarget,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>window.nextvrPose(p),startView.toArray());
     await page.waitForTimeout(1400);
-    assert.equal(await page.locator('.lang-option[aria-pressed="true"]').count(),1,'looking at setup never selects it');
+    assert.equal(await page.locator('.entry-menu-root').count(),1,'looking at entry menu never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
     await feed(hand(.02));
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down),null,{timeout:5000});
     assert.ok(await page.evaluate(()=>window.__handTargets.some(t=>t.id==='right'&&t.down)),
       'a live PhoneXR pinch reaches the native hand renderer as an active pointer target');
     await feed(hand(.4));
-    await page.waitForFunction(()=>!document.querySelector('.lang-option'));
+    await page.waitForFunction(()=>!document.querySelector('.entry-menu-root'));
     await page.evaluate(()=>clearInterval(window.__feed));
     const languageState=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
     assert.equal(languageState.lang,'en');

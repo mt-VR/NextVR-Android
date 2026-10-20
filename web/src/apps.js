@@ -1,8 +1,8 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d,
-  LANG_ROWS, langRow } from './core.js';
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d, scene, camera,
+  LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, getDeviceStatus } from './windows.js';
+import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
@@ -10,6 +10,8 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 import { installJoycon } from './joycon.js';
+import { buildEntryMenu } from './entry-menu.js';
+import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -25,33 +27,63 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  */
 
 /* ===== Quest-style DuckDuckGo Browser ===== */
-function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/') {
+function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options = {}) {
+  const mode = options?.mode === 'incognito-tab' || options?.incognito ? 'incognito-tab' : 'new-tab';
+  const isIncognito = mode === 'incognito-tab';
+  const resolvedUrl = isIncognito && initialUrl === 'https://duckduckgo.com/'
+    ? 'https://duckduckgo.com/?kae=d&kp=-1'
+    : initialUrl;
+  const resolvedTitle = isIncognito
+    ? 'Navegador · Guia Anônima'
+    : (options?.mode === 'new-tab' ? 'Navegador · Nova Guia' : (title || 'Navegador'));
+
   // Chrome do navegador estilo Quest: barra de URL, voltar/avançar/recarregar, mini dock.
-  // Se a janela 'browser' já existe, só navega pra URL nova (mantém a WebSurface nativa viva).
+  // Se a janela 'browser' já existe, atualiza modo (Nova Guia / Guia Anônima) e navega pra URL.
   const existing = wins.find(w => w.id === 'browser');
   if (existing) {
+    existing.el.dataset.browserMode = mode;
+    existing.el.dataset.incognito = isIncognito ? '1' : '0';
+    if (existing.shell) {
+      existing.shell.dataset.browserMode = mode;
+      existing.shell.dataset.incognito = isIncognito ? '1' : '0';
+    }
+    const titleEl = existing.el.querySelector('.win-title');
+    if (titleEl) titleEl.textContent = resolvedTitle;
+    const badgeEl = existing.el.querySelector('[data-browser-incognito]');
+    if (badgeEl) {
+      badgeEl.dataset.browserIncognito = isIncognito ? '1' : '0';
+      badgeEl.textContent = isIncognito ? '🕶️ GUIA ANÔNIMA' : '+ NOVA GUIA';
+      badgeEl.style.background = isIncognito ? 'rgba(139,92,246,0.28)' : 'rgba(59,130,246,0.22)';
+      badgeEl.style.borderColor = isIncognito ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.45)';
+    }
     const f = existing.el.querySelector('[data-native-browser], iframe');
     const fld = existing.el.querySelector('.qb-urlfld');
-    if (fld) fld.value = initialUrl;
+    if (fld) fld.value = resolvedUrl;
     if (f) {
-      if (native) { f.dataset.url = initialUrl; window.NativeXR?.browserCmd?.('browser','go',initialUrl); }
-      else f.src = initialUrl;
+      if (native) { f.dataset.url = resolvedUrl; window.NativeXR?.browserCmd?.('browser','go',resolvedUrl); }
+      else f.src = resolvedUrl;
     }
     focus(existing);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
     return existing;
   }
   const body = el('div');
-  body.style.cssText='display:flex;flex-direction:column;height:100%;background:#171a22;color:#e9edf4';
+  body.style.cssText=`display:flex;flex-direction:column;height:100%;background:${isIncognito ? '#120e1e' : '#171a22'};color:#e9edf4`;
 
   const top = el('div');
-  top.style.cssText='display:flex;align-items:center;gap:2px;padding:3px 6px;background:#0e1117;border-bottom:1px solid rgba(255,255,255,.06)';
+  top.style.cssText=`display:flex;align-items:center;gap:4px;padding:3px 6px;background:${isIncognito ? '#0b0814' : '#0e1117'};border-bottom:1px solid rgba(255,255,255,.08)`;
   const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
   const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
   const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
+  const modeBadge = el('span', 'qb-mode-badge');
+  modeBadge.dataset.browserIncognito = isIncognito ? '1' : '0';
+  modeBadge.textContent = isIncognito ? '🕶️ GUIA ANÔNIMA' : '+ NOVA GUIA';
+  modeBadge.style.cssText = `font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap;color:#f8fafc;background:${isIncognito ? 'rgba(139,92,246,0.28)' : 'rgba(59,130,246,0.22)'};border:1px solid ${isIncognito ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.45)'}`;
   const fld = el('input','fld qb-urlfld');
-  fld.type='text'; fld.placeholder='Pesquisar ou inserir URL'; fld.value=initialUrl;
+  fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada anônima ou URL' : 'Pesquisar ou inserir URL'; fld.value=resolvedUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
-  top.append(bk,fw,rl,fld,st);
+  top.append(bk,fw,rl,modeBadge,fld,st);
 
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#fff';
@@ -59,12 +91,12 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/') {
   if (native) {
     frame.dataset.nativeBrowser = 'browser';
     frame.style.cssText = 'width:100%;height:100%;background:#fff';
-    frame.dataset.url = initialUrl;
+    frame.dataset.url = resolvedUrl;
   } else {
     frame.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
     frame.referrerPolicy = 'no-referrer';
     frame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation';
-    frame.src = initialUrl;
+    frame.src = resolvedUrl;
   }
   wrap.appendChild(frame);
 
@@ -124,9 +156,34 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/') {
   fw.onclick  = () => bCmd('fwd');
   rl.onclick  = () => bCmd('reload');
 
-  const win = open({id:'browser',title:title||'Navegador',node:body});
+  const win = open({id:'browser',title:resolvedTitle,node:body});
+  if (win?.el) {
+    win.el.dataset.browserMode = mode;
+    win.el.dataset.incognito = isIncognito ? '1' : '0';
+  }
+  if (win?.shell) {
+    win.shell.dataset.browserMode = mode;
+    win.shell.dataset.incognito = isIncognito ? '1' : '0';
+  }
   win._cleanupQB = () => { clearInterval(tickI); removeEventListener('online',paintNet); removeEventListener('offline',paintNet); };
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
   return win;
+}
+
+export function openBrowserWithMode(mode = 'new-tab') {
+  const isIncognito = mode === 'incognito-tab';
+  const win = webBrowserFor(
+    'browser',
+    isIncognito ? 'Navegador · Guia Anônima' : 'Navegador · Nova Guia',
+    isIncognito ? 'https://duckduckgo.com/?kae=d&kp=-1' : 'https://duckduckgo.com/',
+    { mode: isIncognito ? 'incognito-tab' : 'new-tab', incognito: isIncognito }
+  );
+  toast(isIncognito ? 'Guia Anônima aberta' : 'Nova Guia aberta');
+  return win;
+}
+if (typeof window !== 'undefined') {
+  window.nextvrOpenBrowserOption = openBrowserWithMode;
 }
 
 const AVATAR_HTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
@@ -595,9 +652,28 @@ function controlCenterApp() {
   const panel = el('section', 'quick-panel');
   const side = el('aside', 'quick-side');
   const status = el('div', 'quick-status');
-  const battery = (() => { try { return JSON.parse(window.NativeXR?.battery?.() || 'null'); } catch { return null; } })();
+  const readBat = () => {
+    try {
+      const raw = window.NativeXR?.battery?.();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.level === 'number') return parsed;
+      }
+    } catch {}
+    const st = getDeviceStatus();
+    if (st && typeof st.batteryLevel === 'number') return { level: st.batteryLevel, charging: !!st.charging };
+    return null;
+  };
+  const battery = readBat();
   const date = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  status.innerHTML = `<div><strong>Controles rápidos</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
+  status.innerHTML = `<div><strong>Controles rápidos</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b data-cc-battery>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
+  const paintCcBat = () => {
+    const bEl = status.querySelector('[data-cc-battery]');
+    if (!bEl) return;
+    const b = readBat();
+    bEl.textContent = `${b ? Math.round(b.level * 100) : '—'}%`;
+  };
+  on('device-status', paintCcBat);
   const gear = el('button', 'quick-gear', icon('settings'));
   gear.type = 'button'; gear.title = 'Todas as configurações'; gear.setAttribute('aria-label', 'Todas as configurações');
   gear.onclick = () => settingsApp();
@@ -649,6 +725,42 @@ function controlCenterApp() {
   }, S.env === 'night');
   control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
   control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
+  control('appGrid', 'Spatial App', S.spatialLauncher ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)', button => {
+    const enabled = !S.spatialLauncher;
+    setSpatialLauncherMode(enabled);
+    button.querySelector('small').textContent = enabled ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)';
+    return enabled;
+  }, !!S.spatialLauncher);
+  control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
+    S.wideCamera = S.wideCamera ? 0 : 1;
+    save(S);
+    window.NativeXR?.wideCamera?.(!!S.wideCamera);
+    button.querySelector('small').textContent = S.wideCamera ? 'Ativada' : 'Normal';
+    return !!S.wideCamera;
+  }, !!S.wideCamera);
+  control('move', t('dockSnapSlot'), S.dockSnapSlot !== 0 ? t('on') : t('off'), button => {
+    S.dockSnapSlot = S.dockSnapSlot === 0 ? 1 : 0;
+    save(S);
+    button.querySelector('small').textContent = S.dockSnapSlot !== 0 ? t('on') : t('off');
+    return S.dockSnapSlot !== 0;
+  }, S.dockSnapSlot !== 0);
+  control('crosshair', t('fingerTouch'), S.fingerTouch !== 0 ? t('on') : t('off'), button => {
+    S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
+    save(S);
+    window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+    emit('fingerTouch', S.fingerTouch !== 0);
+    button.querySelector('small').textContent = S.fingerTouch !== 0 ? t('on') : t('off');
+    return S.fingerTouch !== 0;
+  }, S.fingerTouch !== 0);
+  control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
+    S.sixdof = S.sixdof === 0 ? 1 : 0;
+    save(S);
+    if (!S.sixdof) SixDof.reset();
+    window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
+    emit('sixdof', S.sixdof !== 0);
+    button.querySelector('small').textContent = S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado';
+    return S.sixdof !== 0;
+  }, S.sixdof !== 0);
   section.appendChild(controls);
   panel.append(section);
 
@@ -688,7 +800,7 @@ function settingsApp() {
   scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
 
   let picker = null;
-  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:400, h:560,
+  const openPicker = () => { picker = open({ id:'language-pick', title:t('langTitle'), w:320, h:420,
     node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
 
   // Geral
@@ -698,6 +810,26 @@ function settingsApp() {
   langBtn.onclick = openPicker;
   scroll.append(langBtn);
   scroll.append(ytRow(icon('gauge'), 'Contador de FPS', 'Mostrar taxa de quadros', ytToggle('showFps')));
+  const dofSeg = el('div');
+  dofSeg.style.cssText = 'display:inline-flex;gap:6px;align-items:center;';
+  const btn3Dof = el('button', 'entry-seg-btn' + (S.sixdof === 0 ? ' on' : ''), '3DoF');
+  btn3Dof.dataset.settingsDof = '3dof';
+  const btn6Dof = el('button', 'entry-seg-btn' + (S.sixdof !== 0 ? ' on' : ''), '6DoF');
+  btn6Dof.dataset.settingsDof = '6dof';
+  const syncDofBtns = () => {
+    btn3Dof.classList.toggle('on', S.sixdof === 0);
+    btn6Dof.classList.toggle('on', S.sixdof !== 0);
+  };
+  btn3Dof.onclick = () => {
+    S.sixdof = 0; save(S); SixDof.reset();
+    window.NativeXR?.setSixDofEnabled?.(false); emit('sixdof', false); syncDofBtns();
+  };
+  btn6Dof.onclick = () => {
+    S.sixdof = 1; save(S);
+    window.NativeXR?.setSixDofEnabled?.(true); emit('sixdof', true); syncDofBtns();
+  };
+  dofSeg.append(btn3Dof, btn6Dof);
+  scroll.append(ytRow(icon('move'), 'Modo 3DoF / 6DoF', 'Alternar entre 3DoF (rotação) e 6DoF (andar no espaço)', dofSeg));
   const envBtn = el('button','yt-link');
   envBtn.append(ytRow(icon('image'), 'Ambiente', 'Trocar passthrough / panorama'));
   envBtn.onclick = () => { const w=wins.find(x=>x.id==='settings');if(w)close(w);gallery(); };
@@ -707,6 +839,10 @@ function settingsApp() {
   scroll.append(ytSection(t('hands')));
   scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo · câmera traseira'));
   scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno ciano e cursor de pinça', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('crosshair'), t('fingerTouch'), t('fingerTouchDesc'), ytToggle('fingerTouch', v => {
+    window.NativeXR?.setFingerTouch?.(!!v);
+    emit('fingerTouch', !!v);
+  })));
   scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
 
   // Janelas
@@ -722,16 +858,17 @@ function settingsApp() {
   scroll.append(ytSection(t('dock')));
   scroll.append(ytRow(icon('appGrid'), 'Tamanho da dock', null, ytRange('dockSize',.7,1.5,.05)));
   scroll.append(ytRow(icon('distance'), 'Distância da dock', null, ytRange('dockDist',.7,1.5,.05)));
+  scroll.append(ytRow(icon('move'), t('dockSnapSlot'), t('dockSnapDesc'), ytToggle('dockSnapSlot')));
 
   // Desempenho
-  scroll.append(ytSection('Desempenho'));
+  scroll.append(ytSection(t('perf')));
   const seg = el('div','yt-seg');
-  for (const [id,name] of [['low','Baixa'],['auto','Automática'],['high','Alta']]) {
+  for (const [id,name] of [['low',t('qualityLow')],['medium',t('qualityMedium')],['high',t('qualityHigh')],['auto',t('qualityAuto')]]) {
     const b = el('button','yt-seg-btn'); b.textContent=name; b.setAttribute('aria-pressed',S.quality===id);
     b.onclick=()=>{S.quality=id;save();emit('quality');[...seg.children].forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');};
     seg.appendChild(b);
   }
-  scroll.append(ytRow(icon('settings'), 'Qualidade', 'Resolução de renderização', seg));
+  scroll.append(ytRow(icon('settings'), t('quality'), '1080p · 890p · 390p · Auto', seg));
 
   // O runtime PhoneXR do main mantém a própria página dentro das Configurações compactas.
   scroll.append(ytSection(t('xrTitle')));
@@ -911,6 +1048,14 @@ const LIB_APPS = [
   { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#ff8096,#bd254b)', icon:'camera' },
   { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
 ];
+const GORILLA_TAG_ITEM = {
+  id: 'gorilla-tag',
+  name: 'Gorilla Tag',
+  label: 'Gorilla Tag',
+  bg: '#0b141a',
+  html: '<img class="lx-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
+  kind: 'app',
+};
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
@@ -931,6 +1076,7 @@ const LIB_ACTIONS = {
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
+  'gorilla-tag': () => openGorillaTag(),
 };
 
 /* ---------- loja ----------
@@ -938,6 +1084,7 @@ const LIB_ACTIONS = {
  * a loja é honesta: aponta para a biblioteca e diz o que a Horizon+ não inclui.
  */
 let storeTab = 'apps';
+let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 function buildStore() {
@@ -949,7 +1096,31 @@ function buildStore() {
   if (storeTab === 'horizon') {
     html += `<p class="st-note">Esta loja não inclui uma assinatura Horizon+.</p>`;
   } else {
-    html += `<p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.
+    const installed = !!S.gorillaInstalled;
+    const actionHtml = gorillaFetchPct !== null
+      ? `<div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;font-weight:700;color:#fb923c">Baixando... ${gorillaFetchPct}%</span></div>`
+      : installed
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+             <span data-gorilla-installed="1" style="font-size:11px;font-weight:800;color:#4ade80;padding:4px 10px;border-radius:999px;background:rgba(34,197,94,.16);border:1px solid rgba(74,222,128,.35)">✓ Na Biblioteca de Apps</span>
+             <button class="st-btn" data-launch-gorilla style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">ABRIR GORILLA TAG</button>
+           </div>`
+        : `<button class="st-btn" data-install-gorilla style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">BAIXAR</button>`;
+
+    html += `
+      <div class="st-gorilla-card" data-store-gorilla style="margin:6px 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(145deg,rgba(255,138,43,.16),rgba(15,23,42,.88));border:1px solid rgba(255,138,43,.38);display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div style="display:flex;align-items:center;gap:14px;min-width:0">
+          <img class="st-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" style="width:62px;height:62px;border-radius:14px;object-fit:cover;flex-shrink:0;box-shadow:0 6px 18px rgba(249,115,22,.36);border:1px solid rgba(255,255,255,.18)">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <strong style="font-size:15px;color:#f8fafc">Gorilla Tag</strong>
+              <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(56,189,248,.16);color:#7dd3fc;border:1px solid rgba(56,189,248,.32)">Lentes ${CARDBOARD_2015_LENS.model}</span>
+            </div>
+            <div style="font-size:11.5px;color:#cbd5e1;margin-top:3px">Mapa da floresta 3D + braços de Gorila com Hand Tracking nas lentes do NextVR.</div>
+          </div>
+        </div>
+        <div style="flex-shrink:0">${actionHtml}</div>
+      </div>
+      <p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.
       Jogos de headset (PhoneXR) aparecem embarcados na Biblioteca quando o runtime os encontra.</p>
       <div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
   }
@@ -962,6 +1133,27 @@ function buildStore() {
     if (q('[data-x]')) { const w = wins.find(x => x.id === 'store'); if (w) close(w); return; }
     if (q('[data-ava]')) { toast('Perfil (demonstração)'); return; }
     if (q('[data-openlib]')) { libraryApp(); return; }
+    if (q('[data-install-gorilla]')) {
+      S.gorillaInstalled = 1;
+      save();
+      touchLib('gorilla-tag', true);
+      paintLibrary();
+      gorillaFetchPct = 35;
+      paintStore();
+      setTimeout(() => { gorillaFetchPct = 80; paintStore(); }, 120);
+      setTimeout(() => {
+        gorillaFetchPct = null;
+        paintStore();
+        paintLibrary();
+        toast('Gorilla Tag baixado! Adicionado à Biblioteca de Apps.');
+      }, 260);
+      return;
+    }
+    if (q('[data-launch-gorilla]')) {
+      touchLib('gorilla-tag');
+      openGorillaTag();
+      return;
+    }
   });
   return root;
 }
@@ -971,13 +1163,15 @@ function paintStore() {
   const sc = host.querySelector('.st')?.scrollTop || 0;
   host.innerHTML = ''; host.appendChild(buildStore());
   host.querySelector('.st').scrollTop = sc;
+  css3d.invalidate?.();
 }
 function storeApp() {
   const w = wins.find(x => x.id === 'store');
-  if (w) { paintStore(); focus(w); return w; }
+  if (w) { paintStore(); focus(w); css3d.render?.(scene, camera); return w; }
   const body = el('div'); body.style.cssText = 'height:100%';
   const win = open({ id: 'store', title: 'Store', node: body });
   paintStore();
+  css3d.render?.(scene, camera);
   return win;
 }
 /* ---------- biblioteca ---------- */
@@ -999,9 +1193,10 @@ function touchLib(id, silent) {
 function libItems() {
   // PhoneXR games belong in the NextVR library; ordinary Android packages do not.
   if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' }))];
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : [])];
   let filtered = list;
   if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');
+  if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
   if (libFilter === 'recent') filtered = filtered.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
@@ -1016,8 +1211,9 @@ function appTile(a) {
     : a.icon ? `<span class="lib-icon">${icon(a.icon)}</span>` : '';
   const mark = a.html ? a.html : logo ? logo : `<span class="nm">${a.label || a.name}</span>`;
   const cover = a.slug ? `${logo}<span class="nm fb">${a.label || a.name}</span>` : mark;
+  const brandStyle = a.id === 'gorilla-tag' ? ' style="width:100%;height:100%;display:block"' : '';
   return `<button class="lib-tile" data-app="${a.id}" aria-label="Abrir ${a.name}">`
-    + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand">${cover}</span></span>`
+    + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand"${brandStyle}>${cover}</span></span>`
     + `<span class="lib-label">${a.label || a.name}</span></button>`;
 }
 function buildLibrary() {
@@ -1102,7 +1298,7 @@ function buildLibrary() {
       return;
     }
     if ((m = c('[data-app]'))) {
-      const a = LIB_APPS.find(x => x.id === m.dataset.app); if (!a) return;
+      const a = [...LIB_APPS, GORILLA_TAG_ITEM].find(x => x.id === m.dataset.app); if (!a) return;
       touchLib(a.id);
       const run = LIB_ACTIONS[a.id];
       if (run) run();
@@ -1117,6 +1313,7 @@ function paintLibrary(keepFocus) {
   const sc = host.querySelector('.lib-scroll')?.scrollTop || 0;
   host.innerHTML = ''; host.appendChild(buildLibrary());
   host.querySelector('.lib-scroll').scrollTop = sc;
+  css3d.invalidate?.();
 }
 /**
  * Janela dedicada do Shizuku: os apps instalados no aparelho, do jeito que o serviço do Shizuku os
@@ -1201,12 +1398,352 @@ function shizukuWindow() {
 
 function libraryApp() {
   const w = wins.find(x => x.id === 'library');
-  if (w) { paintLibrary(); focus(w); return w; }
+  if (w) { paintLibrary(); focus(w); css3d.render?.(scene, camera); return w; }
   const body = el('div'); body.style.cssText = 'height:100%';
   const win = open({ id: 'library', title: t('apps'), node: body, w:1040, h:660, chrome:false, resizable:false });
   paintLibrary();
+  css3d.render?.(scene, camera);
   return win;
 }
+
+/* ============ Spatial App (Interface Library flutuante transparente 7e3d8ab40bd4dd3 sobre a câmera traseira real) ============ */
+const SPATIAL_CORE_APPS = [
+  { id:'browser',   name:'Browser',   bg:'linear-gradient(145deg,#818cf8,#6366f1)', icon:'compass' },
+  { id:'settings',  name:'Settings',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', icon:'settings' },
+  { id:'spotify',   name:'Spotify',   bg:'linear-gradient(145deg,#1db954,#0b3b1e)', slug:'spotify' },
+  { id:'twitch',    name:'Twitch',    bg:'linear-gradient(145deg,#a855f7,#581c87)', slug:'twitch' },
+  { id:'youtube',   name:'YouTube',   bg:'linear-gradient(145deg,#ffffff,#e2e8f0)', slug:'youtube', lightBg:true },
+  { id:'tiktok',    name:'TikTok',    bg:'linear-gradient(145deg,#18181b,#09090b)', slug:'tiktok' },
+  { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram' },
+  { id:'facebook',  name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', slug:'facebook' },
+  { id:'telegram',  name:'Telegram',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', slug:'telegram' },
+  { id:'x',         name:'X',         bg:'linear-gradient(145deg,#18181b,#050507)', slug:'x' },
+  { id:'discord',   name:'Discord',   bg:'linear-gradient(145deg,#6366f1,#4338ca)', slug:'discord' },
+  { id:'whatsapp',  name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', slug:'whatsapp' },
+  { id:'shizuku',   name:'My apps',   bg:'linear-gradient(145deg,#f97316,#ea580c)', icon:'appGrid' },
+];
+
+let spatialNavTab = 'all'; // 'all' | 'apps' | 'worlds' | 'horizon' | 'downloads'
+let spatialSortMode = 'recent'; // 'recent' | 'az'
+let spatialSearchQuery = '';
+
+const SVG_HZ_DOTS = `<svg class="ui-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="12" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>`;
+const SVG_HZ_DOWNLOAD = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M5 19h14"/></svg>`;
+const SVG_HZ_FILTER = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="4 5 20 5 14 12 14 19 10 17 10 12 4 5"/></svg>`;
+const SVG_HZ_SORT = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h4M17 7v11m0 0-3-3m3 3 3-3"/></svg>`;
+const SVG_HZ_META = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 14.5c0-3 2-5.5 4.2-5.5 1.8 0 3.3 1.8 4.8 4.2 1.5 2.4 2.6 3.3 4 3.3 1.4 0 2.5-1.2 2.5-3 0-2.5-1.6-4.5-3.6-4.5-1.5 0-2.7 1.1-4.2 3.4-1.5 2.3-2.9 4.1-4.8 4.1-1.7 0-2.9-.8-2.9-2z"/></svg>`;
+const SVG_HZ_LAYOUT = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="5" height="14" rx="1.5"/><rect x="10" y="5" width="5" height="14" rx="1.5"/><rect x="17" y="5" width="4" height="14" rx="1.2"/></svg>`;
+
+function buildSpatialMixedItems() {
+  let list = SPATIAL_CORE_APPS.map(a => ({ kind: 'builtin', ...a }));
+  if ((spatialNavTab === 'downloads' || spatialNavTab === 'worlds') && S.gorillaInstalled) {
+    list = [
+      {
+        kind: 'builtin',
+        id: 'gorilla-tag',
+        name: 'Gorilla Tag',
+        bg: '#0d1b12',
+        imgUrl: './icons/gorilla-tag-logo.jpg',
+      },
+      ...list,
+    ];
+  }
+  const q = spatialSearchQuery.trim().toLowerCase();
+  if (q) {
+    list = list.filter(item => item.name.toLowerCase().includes(q));
+  }
+  if (spatialSortMode === 'az') {
+    list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
+  return list;
+}
+
+function renderSpatialTile(item) {
+  if (item.kind === 'android') {
+    const initials = (item.name || '?').trim().slice(0, 2).toUpperCase();
+    const inner = item.iconUrl
+      ? `<img class="spatial-app-img" src="${escH(item.iconUrl)}" alt="" draggable="false" onerror="this.remove()">`
+      : `<span class="spatial-app-init">${escH(initials)}</span>`;
+    return `<button type="button" class="spatial-app-tile" data-spatial-android="${escH(item.pkg)}" title="${escH(item.name)}">
+      <span class="spatial-app-circle spatial-app-circle--android">${inner}</span>
+      <span class="spatial-app-label">${escH(item.name)}</span>
+      <i class="spatial-app-tick" aria-hidden="true"></i>
+    </button>`;
+  }
+  const inner = item.imgUrl
+    ? `<img class="spatial-app-img" src="${escH(item.imgUrl)}" alt="" draggable="false">`
+    : item.slug
+      ? `<img class="spatial-app-svg" src="./icons/${item.slug}.svg" alt="" draggable="false" onerror="this.remove()">`
+      : item.icon
+        ? `<span class="spatial-app-glyph">${icon(item.icon)}</span>`
+        : item.html || `<span class="spatial-app-init">${escH(item.name.slice(0, 2))}</span>`;
+  return `<button type="button" class="spatial-app-tile" data-spatial-builtin="${escH(item.id)}" title="${escH(item.name)}">
+    <span class="spatial-app-circle ${item.lightBg ? 'spatial-app-circle--light' : ''}" style="background:${item.bg}">${inner}</span>
+    <span class="spatial-app-label">${escH(item.name)}</span>
+    <i class="spatial-app-tick" aria-hidden="true"></i>
+  </button>`;
+}
+
+function buildSpatialLauncherDom() {
+  const items = buildSpatialMixedItems();
+  // Grade de 5 colunas igual à interface Library (7e3d8ab40bd4dd3)
+  const rows = [];
+  for (let i = 0; i < items.length; i += 5) {
+    rows.push(items.slice(i, i + 5));
+  }
+  const st = getDeviceStatus();
+  const batPct = Math.round(Math.max(0, Math.min(1, st.batteryLevel ?? 0.9)) * 100);
+  const clockStr = st.time && st.time !== '--:--' ? st.time : '9:48';
+  const avatarHtml = S.profileAvatar
+    ? `<img src="${escH(S.profileAvatar)}" alt="" class="spatial-hz-avatar-img" draggable="false" />`
+    : icon('user');
+
+  const root = el('div', 'spatial-launcher-root');
+  root.innerHTML = `
+    <header class="spatial-hz-header">
+      <h2 class="spatial-hz-title">Library</h2>
+      <label class="spatial-hz-search">
+        ${icon('search')}
+        <input type="text" class="spatial-hz-search-input" data-spatial-search placeholder="Search" value="${escH(spatialSearchQuery)}" aria-label="Search Library" />
+      </label>
+    </header>
+
+    <div class="spatial-launcher-stage">
+      <aside class="spatial-hz-rail" aria-label="Library navigation">
+        <button type="button" class="spatial-hz-nav-item ${spatialNavTab === 'all' ? 'on' : ''}" data-spatial-nav="all">
+          ${SVG_HZ_DOTS}<span>All</span>
+        </button>
+        <button type="button" class="spatial-hz-nav-item ${spatialNavTab === 'apps' ? 'on' : ''}" data-spatial-nav="apps">
+          ${icon('appGrid')}<span>Apps</span>
+        </button>
+        <button type="button" class="spatial-hz-nav-item ${spatialNavTab === 'worlds' ? 'on' : ''}" data-spatial-nav="worlds">
+          ${icon('location')}<span>Worlds</span>
+        </button>
+        <button type="button" class="spatial-hz-nav-item ${spatialNavTab === 'horizon' ? 'on' : ''}" data-spatial-nav="horizon">
+          ${icon('refresh')}<span>Horizon+</span>
+        </button>
+        <button type="button" class="spatial-hz-nav-item ${spatialNavTab === 'downloads' ? 'on' : ''}" data-spatial-nav="downloads">
+          ${SVG_HZ_DOWNLOAD}<span>Downloads</span>
+        </button>
+        <div class="spatial-hz-rail-divider" aria-hidden="true"></div>
+        <button type="button" class="spatial-hz-nav-item spatial-hz-nav-item--store" data-spatial-act="store">
+          <span class="spatial-hz-store-badge">${icon('store')}</span><span>Store</span>
+        </button>
+      </aside>
+
+      <div class="spatial-honeycomb" role="list">
+        ${rows.map((r, rIdx) => `
+          <div class="spatial-row spatial-row--five" data-row="${rIdx}">
+            ${r.map(renderSpatialTile).join('')}
+          </div>
+        `).join('')}
+      </div>
+
+      <aside class="spatial-hz-filters" aria-label="Filters and sorting">
+        <button type="button" class="spatial-hz-filter-btn" data-spatial-act="filter" title="Filter: Installed">
+          ${SVG_HZ_FILTER}<span>Filter: Insta...</span>${icon('chevronDown')}
+        </button>
+        <button type="button" class="spatial-hz-filter-btn" data-spatial-act="sort" title="Sort">
+          ${SVG_HZ_SORT}<span>Sort: ${spatialSortMode === 'az' ? 'A–Z' : 'Recen...'}</span>${icon('chevronDown')}
+        </button>
+      </aside>
+    </div>
+
+    <footer class="spatial-hz-bottom" aria-label="Horizon bar">
+      <div class="spatial-hz-bot-left">
+        <button type="button" class="spatial-hz-game-pill" data-spatial-act="store" title="Store">${icon('controller')}</button>
+        <button type="button" class="spatial-hz-icon-btn" data-spatial-act="env" title="Câmera Traseira (Ambiente Real)">${icon('camera')}</button>
+      </div>
+
+      <div class="spatial-hz-bot-center">
+        <div class="spatial-hz-bot-main">
+          <button type="button" class="spatial-hz-icon-btn" data-spatial-act="recenter" title="Recentralizar">${SVG_HZ_META}</button>
+          <button type="button" class="spatial-hz-home-circle" data-spatial-nav="all" title="Library">${SVG_HZ_DOTS}</button>
+          <button type="button" class="spatial-hz-icon-btn" data-spatial-act="close" title="Alternar para Dock">${SVG_HZ_LAYOUT}</button>
+        </div>
+        <div class="spatial-hz-bot-status">
+          ${icon('wifi')}
+          <span data-spatial-clock>${escH(clockStr)}</span>
+          <span class="spatial-hz-bat-pill"><i style="width:${batPct}%"></i></span>
+          <span data-spatial-bat>${batPct}%</span>
+        </div>
+      </div>
+
+      <div class="spatial-hz-bot-right">
+        <button type="button" class="spatial-hz-icon-btn" data-spatial-act="library" title="Biblioteca Completa">${icon('notification')}</button>
+        <button type="button" class="spatial-hz-icon-btn" data-spatial-act="settings" title="Configurações">${icon('sliders')}</button>
+        <button type="button" class="spatial-hz-avatar-btn" data-spatial-act="settings" title="Perfil">${avatarHtml}</button>
+      </div>
+    </footer>
+
+    <div class="browser-tab-popup spatial-browser-popup" data-browser-tab-menu="spatial" hidden>
+      <button type="button" class="browser-tab-opt" data-browser-opt="new-tab">+ NOVA GUIA</button>
+      <button type="button" class="browser-tab-opt" data-browser-opt="incognito-tab">+ GUIA ANÔNIMA</button>
+    </div>
+  `;
+
+  const searchInput = root.querySelector('[data-spatial-search]');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      spatialSearchQuery = searchInput.value;
+      paintSpatialLauncher();
+    });
+  }
+
+  const browserBtn = root.querySelector('[data-spatial-builtin="browser"]');
+  const spatialPopup = root.querySelector('[data-browser-tab-menu="spatial"]');
+  let spatialHoldTimer = null;
+  if (browserBtn && spatialPopup) {
+    browserBtn.addEventListener('pointerdown', () => {
+      clearTimeout(spatialHoldTimer);
+      spatialHoldTimer = setTimeout(() => {
+        browserBtn.dataset.holdConsumed = '1';
+        spatialPopup.hidden = false;
+        window.NativeXR?.click?.();
+        css3d.invalidate?.();
+        css3d.render?.(scene, camera);
+      }, 2000);
+    });
+    const cancelHold = () => { clearTimeout(spatialHoldTimer); spatialHoldTimer = null; };
+    browserBtn.addEventListener('pointerup', cancelHold);
+    browserBtn.addEventListener('pointercancel', cancelHold);
+    browserBtn.addEventListener('pointerleave', cancelHold);
+  }
+
+  root.addEventListener('click', e => {
+    const optBtn = e.target.closest('[data-browser-opt]');
+    if (optBtn) {
+      e.stopPropagation();
+      const mode = optBtn.dataset.browserOpt || 'new-tab';
+      if (spatialPopup) spatialPopup.hidden = true;
+      openBrowserWithMode(mode);
+      return;
+    }
+    const bBuiltin = e.target.closest('[data-spatial-builtin]');
+    if (bBuiltin) {
+      if (bBuiltin.dataset.holdConsumed === '1') {
+        bBuiltin.dataset.holdConsumed = '0';
+        return;
+      }
+      if (spatialPopup && !spatialPopup.hidden) spatialPopup.hidden = true;
+      const id = bBuiltin.dataset.spatialBuiltin;
+      if (id === 'shizuku') { shizukuWindow(); return; }
+      if (id === 'gorilla-tag') { openGorillaTag(); return; }
+      const run = LIB_ACTIONS[id];
+      if (run) run();
+      return;
+    }
+    const bAndroid = e.target.closest('[data-spatial-android]');
+    if (bAndroid) {
+      const pkg = bAndroid.dataset.spatialAndroid;
+      openApp(pkg);
+      focusAppWindow(pkg);
+      return;
+    }
+    const navBtn = e.target.closest('[data-spatial-nav]');
+    if (navBtn) {
+      spatialNavTab = navBtn.dataset.spatialNav || 'all';
+      paintSpatialLauncher();
+      return;
+    }
+    const act = e.target.closest('[data-spatial-act]')?.dataset.spatialAct;
+    if (act === 'settings') controlCenterApp();
+    else if (act === 'store') storeApp();
+    else if (act === 'library') libraryApp();
+    else if (act === 'recenter') recenter();
+    else if (act === 'sort') {
+      spatialSortMode = spatialSortMode === 'az' ? 'recent' : 'az';
+      paintSpatialLauncher();
+    } else if (act === 'filter') {
+      spatialNavTab = spatialNavTab === 'downloads' ? 'all' : 'downloads';
+      paintSpatialLauncher();
+    } else if (act === 'env') {
+      // No modo de apps flutuantes, mantém o ambiente real na câmera traseira
+      S.env = 'passthrough';
+      save(S);
+      setPassthrough(true);
+    } else if (act === 'close') {
+      setSpatialLauncherMode(false);
+    }
+  });
+  return root;
+}
+
+function paintSpatialLauncher() {
+  const host = winBody('spatial-launcher');
+  if (!host) return;
+  const scroll = host.querySelector('.spatial-honeycomb')?.scrollTop || 0;
+  host.innerHTML = '';
+  host.appendChild(buildSpatialLauncherDom());
+  const next = host.querySelector('.spatial-honeycomb');
+  if (next) next.scrollTop = scroll;
+  css3d.invalidate?.();
+}
+
+function spatialLauncherApp() {
+  // Garante sempre o ambiente real usando a câmera traseira atrás dos apps flutuantes
+  S.env = 'passthrough';
+  setPassthrough(true);
+  const existing = wins.find(w => w.id === 'spatial-launcher');
+  if (existing) {
+    paintSpatialLauncher();
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return existing;
+  }
+  const body = el('div', 'spatial-launcher-host');
+  const win = open({
+    id: 'spatial-launcher',
+    title: 'Spatial App',
+    node: body,
+    w: 1040,
+    h: 660,
+    onboarding: true,
+    chrome: false,
+    resizable: false,
+  });
+  win.handle.hidden = true;
+  win.resizeHandle.hidden = true;
+  paintSpatialLauncher();
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+function setSpatialLauncherMode(enabled) {
+  S.spatialLauncher = enabled ? 1 : 0;
+  if (S.spatialLauncher) {
+    S.env = 'passthrough';
+    setPassthrough(true);
+  }
+  save(S);
+  if (S.spatialLauncher) {
+    setDockHidden(true);
+    setDockVisible(false);
+    spatialLauncherApp();
+  } else {
+    const existing = wins.find(w => w.id === 'spatial-launcher');
+    if (existing) close(existing);
+    setDockHidden(false);
+    if (!entryWin && !fullscreenEntryHost && !langWin) setDockVisible(true);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+  }
+}
+on('spatialLauncher', enabled => setSpatialLauncherMode(enabled));
+on('device-status', status => {
+  const host = winBody('spatial-launcher');
+  if (!host) return;
+  const clk = host.querySelector('[data-spatial-clock]');
+  if (clk && status?.time && status.time !== '--:--') clk.textContent = status.time;
+  const bat = host.querySelector('[data-spatial-bat]');
+  const fill = host.querySelector('.spatial-hz-bat-pill i');
+  if (typeof status?.batteryLevel === 'number') {
+    const pct = Math.round(Math.max(0, Math.min(1, status.batteryLevel)) * 100);
+    if (bat) bat.textContent = `${pct}%`;
+    if (fill) fill.style.width = `${pct}%`;
+  }
+});
 
 /* ============ dock (compacta, com atalho de ambiente virtual) ============ */
 const DK = Object.freeze({
@@ -1229,8 +1766,8 @@ function syncVirtualEnvironmentDock() {
 
 function makeDock() {
   buildDock([
-    // Perfil, status do telefone, atalho do ambiente virtual no lugar do antigo recentramento e apps.
-    { kind: 'avatar', id: 'profile', label: t('profile'),  run: settingsApp },
+    // Perfil abre o menu de entrada NextVR, status do telefone e atalho do ambiente virtual.
+    { kind: 'avatar', id: 'profile', label: t('profile'),  run: openEntryMenu },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
@@ -1295,6 +1832,7 @@ function paintLibrarySoon() {
   libraryPaintTimer = setTimeout(() => {
     libraryPaintTimer = 0;
     if (winBody('library')) paintLibrary();
+    if (winBody('spatial-launcher')) paintSpatialLauncher();
     // A janela do Shizuku mostra a mesma lista: quando o serviço entrega (ou perde) os apps, ela
     // acompanha em vez de ficar com a lista velha atrás da janela do app que acabou de abrir.
     const shizukuHost = winBody('shizuku');
@@ -1352,8 +1890,8 @@ function languagePicker(pending, onPick, slim = false) {
   return body;
 }
 function languageWindow() {
-  // The atlas reserves 660 content pixels per window (plus 160px padding on each side).
-  const w = open({ id:'language', title:'Next VR', w:480, h:660, onboarding:true,
+  // Compact language selector window that still displays all 12 options at once.
+  const w = open({ id:'language', title:'Next VR', w:390, h:500, onboarding:true,
     node:languagePicker(S.lang || deviceLanguage(), finishLanguage) });
   // No language means no normal shell yet: the only close path is choosing a language.
   w.el.querySelector('[data-act="close"]')?.remove();
@@ -1384,6 +1922,181 @@ async function finishLanguage(lang) {
   setTimeout(() => recenter(), 280);
 }
 
+let entryWin = null;
+let fullscreenEntryHost = null;
+const isFullscreenEntryMode = new URLSearchParams(location.search).get('fullscreen') === '1' ||
+  location.hash.includes('fullscreen=1');
+
+function launchGorillaFromEntryMenu() {
+  S.gorillaInstalled = 1;
+  save(S);
+  touchLib('gorilla-tag', true);
+  paintLibrary();
+  paintStore();
+  const delegatedToNativeHost = isFullscreenEntryMode && native && typeof window.NativeXR?.startVrSession === 'function';
+  if (delegatedToNativeHost) {
+    S.autoLaunchGorilla = 1;
+    save(S);
+    finishEntryMenu();
+    return;
+  }
+  finishEntryMenu();
+  openGorillaTag();
+}
+
+on('gorilla-installed', () => {
+  S.gorillaInstalled = 1;
+  save(S);
+  touchLib('gorilla-tag', true);
+  paintLibrary();
+  paintStore();
+});
+
+function mountFullscreenEntryMenu() {
+  if (fullscreenEntryHost) fullscreenEntryHost.remove();
+  const host = document.createElement('div');
+  host.id = 'entry-fullscreen';
+  host.appendChild(buildEntryMenu({
+    fullscreen: true,
+    onStart: finishEntryMenu,
+    onLaunchGorilla: launchGorillaFromEntryMenu,
+    getStatus: getDeviceStatus,
+  }));
+  document.body.appendChild(host);
+  fullscreenEntryHost = host;
+  return host;
+}
+
+function entryMenuWindow() {
+  const w = open({
+    id: 'entry-menu',
+    title: 'NextVR',
+    w: 840,
+    h: 525,
+    chrome: false,
+    resizable: false,
+    onboarding: true,
+    node: buildEntryMenu({
+      fullscreen: false,
+      onStart: finishEntryMenu,
+      onLaunchGorilla: launchGorillaFromEntryMenu,
+      getStatus: getDeviceStatus,
+    }),
+  });
+  return w;
+}
+
+async function finishEntryMenu(fromHost = false) {
+  const isFromHost = fromHost === true;
+  if (!S.lang) setLang(deviceLanguage() || 'pt');
+  const delegatedToNativeHost = !isFromHost && isFullscreenEntryMode && native && typeof window.NativeXR?.startVrSession === 'function';
+  if (fullscreenEntryHost && !delegatedToNativeHost) {
+    fullscreenEntryHost.remove();
+    fullscreenEntryHost = null;
+  }
+  if (entryWin) { close(entryWin); entryWin = null; }
+  else close('entry-menu');
+  if (S.spatialLauncher) {
+    setDockHidden(true);
+    setDockVisible(false);
+    spatialLauncherApp();
+  } else {
+    close('spatial-launcher');
+    setDockHidden(false);
+    setDockVisible(true);
+  }
+  document.getElementById('stat').hidden = false;
+  if (!native) document.getElementById('perm').hidden = false;
+  window.NativeXR?.handVisuals?.(!!S.handDraw);
+  window.NativeXR?.wideCamera?.(!!S.wideCamera);
+  if (!isFromHost) {
+    window.NativeXR?.startVrSession?.(JSON.stringify(S));
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  if (delegatedToNativeHost) {
+    fullscreenEntryHost?.querySelector('.entry-menu-root')?.resetToHome?.();
+    return;
+  }
+  const gyroPromise = startGyro();
+  const handPromise = S.handsOn ? startHands() : Promise.resolve(false);
+  await Promise.allSettled([gyroPromise, handPromise]);
+  if (!native) setTimeout(() => recenter(), 280);
+}
+
+function openEntryMenu() {
+  if (native && window.NativeXR?.openEntryMenu) {
+    window.NativeXR.openEntryMenu();
+    return null;
+  }
+  setDockVisible(false);
+  document.getElementById('stat').hidden = true;
+  if (isFullscreenEntryMode || !native) {
+    return mountFullscreenEntryMenu();
+  }
+  entryWin = entryMenuWindow();
+  return entryWin;
+}
+
+let initialWorkspaceCentered = false;
+window.nextvrEnterWorkspace = rawSettings => {
+  if (rawSettings) {
+    try {
+      const parsed = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
+      if (parsed.handDraw !== undefined) S.handDraw = parsed.handDraw ? 1 : 0;
+      if (parsed.showFps !== undefined) S.showFps = parsed.showFps ? 1 : 0;
+      if (parsed.mediaVolume !== undefined) S.mediaVolume = parsed.mediaVolume;
+      if (parsed.brightness !== undefined) S.brightness = parsed.brightness;
+      if (parsed.quality !== undefined) { S.quality = parsed.quality; emit('quality'); }
+      if (parsed.wideCamera !== undefined) S.wideCamera = parsed.wideCamera ? 1 : 0;
+      if (parsed.spatialLauncher !== undefined) S.spatialLauncher = parsed.spatialLauncher ? 1 : 0;
+      if (parsed.dockSnapSlot !== undefined) S.dockSnapSlot = parsed.dockSnapSlot ? 1 : 0;
+      if (parsed.fingerTouch !== undefined) S.fingerTouch = parsed.fingerTouch ? 1 : 0;
+      if (parsed.sixdof !== undefined) {
+        S.sixdof = parsed.sixdof ? 1 : 0;
+        if (!S.sixdof) SixDof.reset();
+        window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
+      }
+      if (parsed.gorillaInstalled !== undefined) {
+        S.gorillaInstalled = parsed.gorillaInstalled ? 1 : 0;
+        if (S.gorillaInstalled) {
+          touchLib('gorilla-tag', true);
+          paintLibrary();
+          paintStore();
+        }
+      }
+      if (parsed.profileName !== undefined) S.profileName = parsed.profileName;
+      if (parsed.profileAvatar !== undefined) S.profileAvatar = parsed.profileAvatar;
+      if (parsed.lang) setLang(parsed.lang);
+      if (!S.spatialLauncher && parsed.entryEnvChosen && parsed.env && parsed.env !== 'passthrough') {
+        setEnvironment(parsed.env);
+      } else {
+        S.env = 'passthrough';
+        setPassthrough(true);
+      }
+      const shouldAutoGorilla = !!parsed.autoLaunchGorilla;
+      if (S.autoLaunchGorilla) S.autoLaunchGorilla = 0;
+      save(S);
+      makeDock();
+      window.NativeXR?.handVisuals?.(!!S.handDraw);
+      window.NativeXR?.wideCamera?.(!!S.wideCamera);
+      window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+      if (shouldAutoGorilla) {
+        setTimeout(() => openGorillaTag(), 120);
+      }
+    } catch {}
+  } else if (native) {
+    setPassthrough(true);
+    window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+  }
+  finishEntryMenu(true);
+  if (!initialWorkspaceCentered) {
+    initialWorkspaceCentered = true;
+    setTimeout(() => recenter(), 220);
+  }
+};
+on('profile-updated', () => makeDock());
+
 document.getElementById('btnGyro').onclick = () => startGyro();
 document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : startHands());
 
@@ -1391,21 +2104,45 @@ document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : s
 on('hands', v => { document.getElementById('dotHand').classList.toggle('on', !!v); });
 on('gyro', v => { document.getElementById('dotGyro').classList.toggle('on', !!v); });
 
-// Onboarding estilo Meta: sem idioma escolhido, SÓ a janelinha de idioma aparece na tela —
-// a dock fica escondida (fora do atlas e fora do hit-test da mão). Depois da escolha ela volta
-// inteira, com todas as funcionalidades de antes e o idioma selecionado.
+// Menu de entrada NextVR v2.0.0 abre sempre ao iniciar o app/jogo.
 makeDock();
-if (S.lang) {
-  setDockVisible(true);
-  if (native) { startGyro(); if (S.handsOn) startHands(); }
+const bootOnboarding = new URLSearchParams(location.search).get('onboarding') ||
+  (location.hash.includes('onboarding=language') ? 'language' :
+   location.hash.includes('onboarding=skip') ? 'skip' : '');
+if (isFullscreenEntryMode) {
+  setDockVisible(false);
+  document.getElementById('stat').hidden = true;
+  window.NativeXR?.handVisuals?.(!!S.handDraw);
+  mountFullscreenEntryMenu();
+} else if (bootOnboarding === 'language') {
+  setDockVisible(false);
+  document.getElementById('stat').hidden = true;
+  langWin = languageWindow();
+} else if (bootOnboarding === 'skip') {
+  if (S.spatialLauncher) {
+    setDockHidden(true);
+    setDockVisible(false);
+    spatialLauncherApp();
+  } else {
+    setDockHidden(false);
+    setDockVisible(true);
+  }
+  if (native) {
+    window.NativeXR?.wideCamera?.(!!S.wideCamera);
+    startGyro();
+    if (S.handsOn) startHands();
+  }
   document.getElementById('perm').hidden = false;
-  // Permissions/camera are user-gesture gated on mobile. Do not wake them on boot.
   setTimeout(() => recenter(), 280);
 } else {
   setDockVisible(false);
-  // Nada de chrome de status (mãos/giro/fps, ainda sem tradução) sobre a escolha de idioma.
   document.getElementById('stat').hidden = true;
-  langWin = languageWindow();
+  if (native) {
+    window.NativeXR?.handVisuals?.(!!S.handDraw);
+    startGyro();
+    if (S.handsOn) startHands();
+  }
+  entryWin = entryMenuWindow();
 }
 
 if (native) {

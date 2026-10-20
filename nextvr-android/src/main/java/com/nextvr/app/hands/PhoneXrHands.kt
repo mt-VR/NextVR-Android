@@ -44,7 +44,7 @@ class PhoneXrHands {
         /** One prediction step may never move a landmark further than this (normalized units). */
         const val MAX_PREDICT_STEP = .35f
         /** Per-sample weight of the velocity estimate from consecutive detections. */
-        private const val VELOCITY_EMA = .5f
+        private const val VELOCITY_EMA = .65f
     }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
@@ -98,6 +98,15 @@ class PhoneXrHands {
         }
         private fun lerp(a: FloatArray, b: FloatArray, t: Float): FloatArray {
             if (a.size != b.size) return b
+            if (a.size == 63 && t > 1f) {
+                val dt = t - 1f
+                val dx = (b[0] - a[0]) * dt
+                val dy = (b[1] - a[1]) * dt
+                val dz = (b[2] - a[2]) * dt
+                return FloatArray(63) { i ->
+                    b[i] + when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
+                }
+            }
             val out = FloatArray(a.size)
             for (i in a.indices) out[i] = a[i] + (b[i] - a[i]) * t
             return out
@@ -162,11 +171,14 @@ class PhoneXrHands {
     }
     private class State {
         val landmarks = Array(63) { i ->
-            if(i % 3 == 2) HandGestures.OneEuro(minCutoff=.8f, beta=1.2f)
-            else HandGestures.OneEuro(minCutoff=1.2f, beta=8f, deadZone=.0012f)
+            when {
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=.85f, beta=1.6f, deadZone=.0018f)
+                i < 3 -> HandGestures.OneEuro(minCutoff=1.6f, beta=11.5f, deadZone=.0008f)
+                else -> HandGestures.OneEuro(minCutoff=1.35f, beta=6.2f, deadZone=.0016f)
+            }
         }
-        val x = HandGestures.OneEuro(minCutoff=.9f, beta=3f, deadZone=.0015f)
-        val y = HandGestures.OneEuro(minCutoff=.9f, beta=3f, deadZone=.0015f)
+        val x = HandGestures.OneEuro(minCutoff=1.1f, beta=4.5f, deadZone=.0012f)
+        val y = HandGestures.OneEuro(minCutoff=1.1f, beta=4.5f, deadZone=.0012f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
@@ -228,8 +240,8 @@ class PhoneXrHands {
             if (since <= 0L || since > PREDICT_HORIZON_NS) return null
             val t = since / 1e9f
             fun step(velocity: Float) = (velocity * t).coerceIn(-MAX_PREDICT_STEP, MAX_PREDICT_STEP)
-            val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i]) }
-            val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i]) } }
+            val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i % 3]) }
+            val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i % 3]) } }
             val shape = hand.shape.copy(palmX = hand.shape.palmX + step(vPalm[0]),
                 palmY = hand.shape.palmY + step(vPalm[1]))
             return PhoneXrHands.Hand(hand.left, points, head, shape,

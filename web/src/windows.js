@@ -1,7 +1,7 @@
 // NextVR — janelas 3D fixas no ambiente, dock horizontal e teclado flutuante.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { settings as S, save, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d } from './core.js';
+import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -12,6 +12,7 @@ import { ARC_CAPACITY, arcSlots, arcStep, pickLru, windowAngle, ARC_TOP_ROW_STEP
 import { appHostPoint } from './display-fit.js';
 import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 import { boxFromMesh, boxOfWindow, chooseSpawn, resolveSlot } from './spawn.js';
+import { TwoHandMenuChord, twoHandsPinching } from './two-hand-chord.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
@@ -272,7 +273,23 @@ function plane(w, h, win, segments = 1) {
  * lado não cabem no campo de visão. Soltas (arrastadas) ficam onde o usuário largou.
  */
 function layout() {
-  for(const w of wins)if(w.onboarding)w.target.set(0,EYE,-COMFORT.welcomeDistance);
+  const hasOpenAppWins = wins.some(w => !w.onboarding && !w.hidden);
+  for (const w of wins) {
+    if (!w.onboarding) continue;
+    if (w.id === 'spatial-launcher') {
+      // Interface Library flutuante em tamanho amplo (igual à foto de referência 7e3d8ab40bd4dd3) a 0.84 m sobre a câmera traseira real.
+      if (hasOpenAppWins) {
+        w.resizeScale = 0.88;
+        w.target.set(0, EYE - 0.22, -0.84);
+      } else {
+        w.resizeScale = 1.24;
+        w.target.set(0, EYE - 0.01, -0.84);
+      }
+      w.apply();
+    } else {
+      w.target.set(0, EYE, -COMFORT.welcomeDistance);
+    }
+  }
   // Janela escondida (jogo em andamento) não entra no arco: ela volta exatamente para o lugar, o
   // tamanho e a curvatura que tinha quando o jogo começou.
   const pin = wins.filter(w => w.pinned && !w.onboarding && !w.hidden);
@@ -339,6 +356,7 @@ export function open(spec) {
   if (spec.free) placeFree(w, spec.at);
   if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
   w.apply();
+  css3d.invalidate?.();
   emit('wins', wins);
   return w;
 }
@@ -366,6 +384,7 @@ function placeFree(w, at = null) {
 export const windowUnder = (x, y) => hitAt(x, y) !== null;
 
 export function close(w) {
+  if (typeof w === 'string') w = wins.find(x => x.id === w);
   if (!w) return;
   const i = wins.indexOf(w); if (i < 0) return;
   // A janela dona do teclado acabou de sumir. Sem isto o teclado fica aberto apontando para um
@@ -382,7 +401,9 @@ export function close(w) {
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
-  layout(); emit('wins', wins);
+  layout();
+  css3d.invalidate?.();
+  emit('wins', wins);
 }
 export function focus(w) {
   if (focused === w) return;
@@ -391,7 +412,15 @@ export function focus(w) {
   wins.forEach(x => x.el.classList.toggle('focus', x === focused));
 }
 /** Devolve a janela para cima da dock. */
-function repin(w) { w.pinned = true; w.shell.classList.remove('free'); layout(); }
+function repin(w) {
+  w.pinned = true;
+  w.shell.classList.remove('free');
+  layout();
+  w.obj.position.copy(w.target);
+  w.apply();
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+}
 export const focusedWin = () => focused;
 
 /* =================== mover e redimensionar =================== */
@@ -400,6 +429,76 @@ const ndc = new THREE.Vector2();
 const drag = { win:null, source:null, hand:null, start:null, active:false, plane:null, anchor:null };
 const resizing = { win:null, start:null, active:false, startScale:1, startDistance:1 };
 const dockDrag = { source:null, start:null, active:false, plane:null, anchor:null };
+
+const winDropSlotEl = document.createElement('div');
+winDropSlotEl.className = 'win-drop-slot';
+winDropSlotEl.dataset.windowId = 'drop-slot';
+winDropSlotEl.hidden = true;
+winDropSlotEl.innerHTML = `<div class="win-drop-slot-inner"><span class="win-drop-slot-badge"></span></div>`;
+const winDropSlotObj = new CSS3DObject(winDropSlotEl);
+winDropSlotObj.visible = false;
+contentRoot.add(winDropSlotObj);
+let dragSnapSlotPos = null;
+let dragSnapReady = false;
+
+function computePredefinedSlots(w) {
+  const dist = native ? S.winDist : (-dockAt.z) + .5 + (S.winDist - 2.2);
+  const hh = w.h * PX * S.winScale * w.resizeScale;
+  const lift = dockAt.y + dockAt.h / 2 + .14 + hh / 2;
+  const baseYaw = dockYaw || 0;
+  const step = 0.56;
+  return [0, -step, step].map(offset => {
+    const a = baseYaw + offset;
+    return new THREE.Vector3(Math.sin(a) * dist, lift, -Math.cos(a) * dist);
+  });
+}
+
+function updateDropSlot(w) {
+  if (!w || S.spatialLauncher || S.dockSnapSlot === 0) {
+    hideDropSlot();
+    return;
+  }
+  const slots = computePredefinedSlots(w);
+  const others = wins.filter(x => x !== w && !x.onboarding && !x.hidden);
+  const freeSlots = slots.filter(s => !others.some(o => o.obj.position.distanceTo(s) < 0.22));
+  const pool = freeSlots.length ? freeSlots : slots;
+  let best = pool[0], bestDist = w.obj.position.distanceTo(pool[0]);
+  for (let i = 1; i < pool.length; i++) {
+    const d = w.obj.position.distanceTo(pool[i]);
+    if (d < bestDist) { best = pool[i]; bestDist = d; }
+  }
+  dragSnapSlotPos = best;
+  const startLocal = drag.anchor?.center ? contentRoot.worldToLocal(drag.anchor.center.clone()) : w.obj.position;
+  const movedEnough = w.obj.position.distanceTo(startLocal) > 0.04;
+  dragSnapReady = movedEnough && bestDist <= 0.16;
+
+  winDropSlotEl.style.width = w.w + 'px';
+  winDropSlotEl.style.height = w.h + 'px';
+  const badge = winDropSlotEl.querySelector('.win-drop-slot-badge');
+  if (badge) badge.textContent = t('dockSnapHint');
+  winDropSlotEl.classList.toggle('is-ready', dragSnapReady);
+  winDropSlotEl.hidden = false;
+
+  winDropSlotObj.position.copy(best);
+  const yaw = Math.atan2(-best.x, -best.z) * S.winCurve;
+  const flat = Math.hypot(best.x, best.z) || .001;
+  const pitch = Math.atan2(EYE - best.y, flat) * S.winTilt * -1;
+  winDropSlotObj.rotation.set(pitch, yaw, 0, 'YXZ');
+  const scale = S.winScale * w.resizeScale;
+  winDropSlotObj.scale.setScalar(PX * scale);
+  winDropSlotObj.visible = true;
+}
+
+function hideDropSlot() {
+  dragSnapSlotPos = null;
+  dragSnapReady = false;
+  if (winDropSlotObj.visible || !winDropSlotEl.hidden) {
+    winDropSlotObj.visible = false;
+    winDropSlotEl.hidden = true;
+    winDropSlotEl.classList.remove('is-ready');
+    css3d.invalidate?.();
+  }
+}
 
 function setRay(nx, ny, target=ray) {
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
@@ -439,6 +538,7 @@ function activateDrag() {
   drag.active=true;w.pinned=false;
   w.shell.classList.add('free','moving');
   layout();                               // só agora as outras janelas se reorganizam
+  updateDropSlot(w);
 }
 function dragTo(nx, ny) {
   const w=drag.win;if(!w)return false;
@@ -460,10 +560,20 @@ function dragTo(nx, ny) {
   const limited=boundedPosition(w,contentRoot.worldToLocal(world),a.radius);
   w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
+  updateDropSlot(w);
   return true;
 }
 function endDrag() {
-  if(drag.win)drag.win.shell.classList.remove('moving');
+  const w=drag.win;
+  if(w){
+    if(dragSnapReady && dragSnapSlotPos){
+      w.target.copy(dragSnapSlotPos);
+      w.obj.position.copy(w.target);
+      w.apply();
+    }
+    w.shell.classList.remove('moving');
+  }
+  hideDropSlot();
   Object.assign(drag,{win:null,source:null,hand:null,start:null,active:false,plane:null,anchor:null});
 }
 function startDockDrag(nx,ny,source='pinch') {
@@ -503,7 +613,8 @@ function dockDragTo(nx,ny) {
   const world=a.center.clone().add(a.applied);
   const local=contentRoot.worldToLocal(world);
   const stable=clampWindowPosition(local,dockAt.h/2,EYE);
-  dockPlacement=new THREE.Vector3(stable.x,stable.y,stable.z);
+  const safeDockY=Math.max(EYE-0.55,Math.min(EYE-0.08,stable.y));
+  dockPlacement=new THREE.Vector3(stable.x,safeDockY,stable.z);
   dockYaw=Math.atan2(-stable.x,-stable.z);
   placeDock();
   return true;
@@ -564,6 +675,7 @@ function hitAt(x, y) {
 }
 /** A janela sob o ponto, não só "há janela": o modo de jogo PhoneXR usa pra decidir entre UI e gatilho. */
 export const windowHitAt = hitAt;
+window.windowHitAt = hitAt;
 let nativePress = null;
 /* Pinch over window content: the DOWN is not sent yet — the click-vs-drag arbiter decides.
  * A still pinch becomes one clean tap on release; a sweeping one commits a drag (DOWN at the
@@ -595,10 +707,29 @@ function sendPress(press, action, x = press.x, y = press.y, target = null) {
   if (press.id === 'shell' && press.win?.onboarding) shellPointer(press, action, x, y, target);
   else window.NativeXR.handTouch(press.id, action, x, y);
 }
+function pickInElement(root, u, v) {
+  const rect = root.getBoundingClientRect();
+  const clientX = rect.left + u * (rect.width || root.offsetWidth);
+  const clientY = rect.top + v * (rect.height || root.offsetHeight);
+  const fromPt = document.elementFromPoint(clientX, clientY);
+  if (fromPt && root.contains(fromPt)) return fromPt;
+  let best = null;
+  const walk = node => {
+    for (const c of node.children) {
+      const r = c.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        best = c;
+      }
+      walk(c);
+    }
+  };
+  walk(root);
+  return best || root;
+}
 function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
-  const el = document.elementFromPoint(rect.left + px, rect.top + py);
+  const el = document.elementFromPoint(rect.left + px, rect.top + py) || deepPick(root, px, py);
   /*
    * O teclado segue o alvo do toque. Um campo assume o teclado; qualquer outra coisa na shell
    * (titulo, botao, fundo) solta. Reabrir no mesmo campo so reposiciona, entao o teclado nao
@@ -696,21 +827,47 @@ function box(el, root) {
   return { l, t, r: l + el.offsetWidth, b: t + el.offsetHeight };
 }
 
+let winBrowserHoldTimer = null;
+let winHoldConsumed = false;
+function clearWinBrowserHold() {
+  if (winBrowserHoldTimer) {
+    clearTimeout(winBrowserHoldTimer);
+    winBrowserHoldTimer = null;
+  }
+}
+
 on('pinchdown', () => {
+  clearWinBrowserHold();
+  winHoldConsumed = false;
   const h = hitAt(cursor.x, cursor.y);
   const kb = kbProbe(cursor.x, cursor.y);
   const dockGrab = dockGrabTest(cursor.x,cursor.y);
+  const dk = dockTest(cursor.x, cursor.y);
   // The dock is intentionally in front of app windows. The keyboard follows the same rule: whoever
   // the ray reaches first takes the pinch, the other leaves the arbitration. Without it the
-  // keyboard was unreachable whenever a window sat in front of it — and the reverse.
-  if (dockGrab && (!h || dockGrab.distance < h.distance) && (!kb || dockGrab.distance < kb.distance)) {
-    startDockDrag(cursor.x,cursor.y,'pinch'); return;
-  }
-  if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
+  // keyboard or dock was unreachable whenever a window sat behind it — especially when walking
+  // close to the dock in bar mode.
   if (h?.resize) { startResize(h.win,cursor.x,cursor.y); return; }
   if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
+  if (dockGrab && (!h || dockGrab.distance <= (h.distance ?? Infinity) + 0.12) && (!kb || dockGrab.distance < kb.distance)) {
+    startDockDrag(cursor.x,cursor.y,'pinch'); return;
+  }
+  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15) && (!kb || dk.distance < kb.distance)) {
+    dockPinch('down'); return;
+  }
+  if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
   if (h) {
     focus(h.win);
+    const picked = pickInElement(h.win.el, h.u, h.v);
+    const browserTile = picked?.closest?.('[data-spatial-builtin="browser"], [data-app="browser"]');
+    if (browserTile) {
+      winBrowserHoldTimer = setTimeout(() => {
+        winBrowserHoldTimer = null;
+        winHoldConsumed = true;
+        pendingPress = null;
+        showBrowserTabMenu('spatial');
+      }, 2000);
+    }
     // Content press: hold the DOWN until the click-vs-drag arbiter classifies the gesture.
     pendingPress = { win: h.win, hit: h };
     return;
@@ -718,9 +875,19 @@ on('pinchdown', () => {
   dockPinch('down');
 });
 on('pinchup', () => {
+  clearWinBrowserHold();
+  if (winHoldConsumed) {
+    winHoldConsumed = false;
+    pendingPress = null;
+    return;
+  }
   // The keyboard goes first: if it armed a key, this pinch belongs to it and nothing else sees the
   // release. Otherwise letting go of a key also clicked whatever window was behind it.
   if (kbHeld) { kbRelease(); return; }
+  if (dockArmed >= 0 || dockArmedPopupOpt || dockHoldConsumed) {
+    dockPinch('up');
+    return;
+  }
   if (pendingPress && cursor.mode === 'drag') {
     // Classified a drag but the release beat the frame loop: commit the DOWN at the anchor now.
     clickThrough(pendingPress.hit, 'down'); pendingPress = null;
@@ -750,7 +917,9 @@ on('pinchup', () => {
     endDockDrag();
     return;
   }
+  const dk = dockTest(cursor.x, cursor.y);
   const h = hitAt(cursor.x, cursor.y);
+  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) { dockPinch('up'); return; }
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
   dockPinch('up');
 });
@@ -758,6 +927,22 @@ on('pinchup', () => {
 /* =================== dock =================== */
 const dockEl = document.createElement('div');
 dockEl.className = 'dock';
+const dockBrowserPopup = document.createElement('div');
+dockBrowserPopup.className = 'browser-tab-popup dock-browser-popup';
+dockBrowserPopup.dataset.browserTabMenu = 'dock';
+dockBrowserPopup.hidden = true;
+dockBrowserPopup.innerHTML = `
+  <button type="button" class="browser-tab-opt" data-browser-opt="new-tab">+ NOVA GUIA</button>
+  <button type="button" class="browser-tab-opt" data-browser-opt="incognito-tab">+ GUIA ANÔNIMA</button>
+`;
+dockBrowserPopup.addEventListener('click', e => {
+  const optBtn = e.target.closest('[data-browser-opt]');
+  if (!optBtn) return;
+  e.stopPropagation();
+  const mode = optBtn.dataset.browserOpt || 'new-tab';
+  hideBrowserTabMenus();
+  window.nextvrOpenBrowserOption?.(mode);
+});
 const dockGrabEl = document.createElement('button');
 dockGrabEl.type = 'button';
 dockGrabEl.className = 'dock-grab';
@@ -768,7 +953,37 @@ const dockObj = new CSS3DObject(dockEl);
 contentRoot.add(dockObj);
 const dockHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
 const dockMoveHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
-contentRoot.add(dockHit, dockMoveHit);
+const dockPopupHit = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.14), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
+contentRoot.add(dockHit, dockMoveHit, dockPopupHit);
+
+export function hideBrowserTabMenus() {
+  dockBrowserPopup.hidden = true;
+  const sp = document.querySelector('[data-browser-tab-menu="spatial"]');
+  if (sp) sp.hidden = true;
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+}
+
+export function showBrowserTabMenu(where = 'dock') {
+  if (where === 'spatial') {
+    const sp = document.querySelector('[data-browser-tab-menu="spatial"]');
+    if (sp) sp.hidden = false;
+  } else {
+    const b = dockButton('browser');
+    if (b) {
+      dockBrowserPopup.style.left = `${b.offsetLeft + b.offsetWidth / 2}px`;
+    }
+    dockBrowserPopup.hidden = false;
+    placeDock();
+  }
+  window.NativeXR?.click?.();
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+}
+if (typeof window !== 'undefined') {
+  window.nextvrShowBrowserTabMenu = showBrowserTabMenu;
+  window.nextvrHideBrowserTabMenus = hideBrowserTabMenus;
+}
 if (!native) {
   const point = e => ({ x:e.clientX / viewport.width, y:e.clientY / viewport.height });
   dockGrabEl.addEventListener('pointerdown', e => {
@@ -795,6 +1010,7 @@ export function setDockVisible(visible) {
   dockVisible = !!visible;
   dockObj.visible = dockVisible;
   if (!dockVisible) { dockArmed = -1; endDockDrag(); }
+  css3d.invalidate?.();
 }
 export const dockShown = () => dockVisible;
 
@@ -841,7 +1057,11 @@ export function buildDock(items) {
     b.setAttribute('aria-label', it.label || it.id);
 
     if (it.kind === 'avatar') {
-      b.className = 'dock-av'; b.innerHTML = AVATAR_SVG;
+      b.className = 'dock-av';
+      b.innerHTML = S.profileAvatar
+        ? `<img src="${S.profileAvatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
+        : AVATAR_SVG;
+      if (S.profileName) b.title = S.profileName;
     } else if (it.kind === 'status') {
       b.className = 'dock-status';
       b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
@@ -859,9 +1079,31 @@ export function buildDock(items) {
         dockWins.push({ b, win: it.win });
       }
     }
-    b.addEventListener('click', () => it.run());
+    if (it.id === 'browser') {
+      let ptrHoldTimer = null;
+      b.addEventListener('pointerdown', () => {
+        clearTimeout(ptrHoldTimer);
+        ptrHoldTimer = setTimeout(() => {
+          b.dataset.holdConsumed = '1';
+          showBrowserTabMenu('dock');
+        }, 2000);
+      });
+      const cancelPtrHold = () => { clearTimeout(ptrHoldTimer); ptrHoldTimer = null; };
+      b.addEventListener('pointerup', cancelPtrHold);
+      b.addEventListener('pointercancel', cancelPtrHold);
+      b.addEventListener('pointerleave', cancelPtrHold);
+    }
+    b.addEventListener('click', () => {
+      if (b.dataset.holdConsumed === '1') {
+        b.dataset.holdConsumed = '0';
+        return;
+      }
+      hideBrowserTabMenus();
+      it.run();
+    });
     dockEl.appendChild(b); dockBtns.push(b);
   }
+  dockEl.appendChild(dockBrowserPopup);
   dockGrabEl.title = t('moveDock');
   dockGrabEl.setAttribute('aria-label', t('moveDock'));
   dockEl.appendChild(dockGrabEl);
@@ -905,21 +1147,40 @@ addEventListener('offline', refreshNet);
 
 let batt = null;
 function paintBat() {
-  const el = dockEl.querySelector('.dk-bat'); if (!el) return;
-  const percent = el.querySelector('.dk-bat-percent');
-  if (!batt) { el.style.display = 'none'; deviceStatus.batteryLevel = null; publishDeviceStatus(); return; }
-  el.style.display = '';
+  const el = dockEl.querySelector('.dk-bat');
+  if (!batt) {
+    if (el) el.style.display = 'none';
+    deviceStatus.batteryLevel = null;
+    deviceStatus.charging = false;
+    publishDeviceStatus();
+    return;
+  }
   const level = Math.max(0, Math.min(1, Number(batt.level) || 0));
   const charging = !!batt.charging;
-  const f = el.querySelector('.fill');
-  f.setAttribute('width', String(Math.max(1.6, 13 * level)));
-  f.setAttribute('fill', charging ? '#8de6c8' : (level < .2 ? '#ff6b6b' : 'currentColor'));
-  if (percent) percent.textContent = `${Math.round(level * 100)}%`;
-  el.title = `${Math.round(level * 100)}%${charging ? ' · carregando' : ''}`;
   deviceStatus.batteryLevel = level;
   deviceStatus.charging = charging;
+  if (el) {
+    el.style.display = '';
+    const percent = el.querySelector('.dk-bat-percent');
+    const f = el.querySelector('.fill');
+    if (f) {
+      f.setAttribute('width', String(Math.max(1.6, 13 * level)));
+      f.setAttribute('fill', charging ? '#8de6c8' : (level < .2 ? '#ff6b6b' : 'currentColor'));
+    }
+    if (percent) percent.textContent = `${Math.round(level * 100)}%`;
+    el.title = `${Math.round(level * 100)}%${charging ? ' · carregando' : ''}`;
+  }
   publishDeviceStatus();
 }
+window.nextvrBattery = data => {
+  try {
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    if (parsed && typeof parsed.level === 'number') {
+      batt = parsed;
+      paintBat();
+    }
+  } catch {}
+};
 // In the APK the sticky-broadcast NativeXR value is authoritative; Chromium's Battery API may
 // expose a synthetic 100% battery for the virtual WebView and must not overwrite it.
 if (!native && navigator.getBattery) {
@@ -935,25 +1196,99 @@ if (!native && navigator.getBattery) {
 export const keyboardOpen = () => !!kbObj;
 
 let dockArmed = -1;
-on('pinchcancel', () => { dockArmed = -1; });
+let dockArmedPopupOpt = null;
+let dockArmedPt = { x: -1, y: -1 };
+let dockBrowserHoldTimer = null;
+let dockHoldConsumed = false;
+function clearDockBrowserHold() {
+  if (dockBrowserHoldTimer) {
+    clearTimeout(dockBrowserHoldTimer);
+    dockBrowserHoldTimer = null;
+  }
+}
+on('pinchcancel', () => {
+  dockArmed = -1;
+  dockArmedPopupOpt = null;
+  dockHoldConsumed = false;
+  clearDockBrowserHold();
+  clearWinBrowserHold();
+});
 function dockPinch(type) {
   const r = dockTest(cursor.x, cursor.y);
-  if (type === 'down') { dockArmed = r ? r.i : -1; return; }
-  const armed = dockArmed; dockArmed = -1;
-  if (!r || r.i !== armed) return;
+  if (type === 'down') {
+    clearDockBrowserHold();
+    dockHoldConsumed = false;
+    dockArmedPt = { x: cursor.x, y: cursor.y };
+    if (r?.popupOpt) {
+      dockArmed = -1;
+      dockArmedPopupOpt = r.popupOpt;
+      return;
+    }
+    dockArmedPopupOpt = null;
+    dockArmed = r ? r.i : -1;
+    if (dockArmed >= 0 && dockBtns[dockArmed]?.dataset?.id === 'browser') {
+      dockBrowserHoldTimer = setTimeout(() => {
+        dockBrowserHoldTimer = null;
+        dockHoldConsumed = true;
+        showBrowserTabMenu('dock');
+      }, 2000);
+    }
+    return;
+  }
+  clearDockBrowserHold();
+  if (dockHoldConsumed) {
+    dockHoldConsumed = false;
+    dockArmed = -1;
+    dockArmedPopupOpt = null;
+    return;
+  }
+  const armed = dockArmed;
+  const armedPopup = dockArmedPopupOpt;
+  dockArmed = -1;
+  dockArmedPopupOpt = null;
+
   if (type === 'up') {
-    const b = dockBtns[r.i];
-    if (b) { b.style.transform = 'scale(.88)'; setTimeout(() => b.style.transform = '', 150); b.click(); }
+    const popupTarget = r?.popupOpt || armedPopup;
+    if (popupTarget) {
+      hideBrowserTabMenus();
+      window.nextvrOpenBrowserOption?.(popupTarget);
+      return;
+    }
+    let idx = (r && r.i === armed) ? r.i : -1;
+    // Ao chegar perto da dock em bar, o movimento natural dos dedos ao soltar a pinça pode deslocar
+    // ligeiramente o raio; se o utilizador soltou perto do ponto onde armou, confirma o clique no botão armado.
+    if (idx < 0 && armed >= 0 && Math.hypot(cursor.x - dockArmedPt.x, cursor.y - dockArmedPt.y) < 0.085) {
+      idx = armed;
+    }
+    if (idx < 0) return;
+    const b = dockBtns[idx];
+    if (b) {
+      b.style.transform = 'scale(.88)';
+      setTimeout(() => b.style.transform = '', 150);
+      b.click();
+    }
   }
 }
 function dockGrabTest(x,y) {
   if (!dockVisible || !dockGrabKey) return null;
   setRay(x,y);
+  dockMoveHit.updateMatrixWorld(true);
   return ray.intersectObject(dockMoveHit,false)[0]||null;
 }
 function dockTest(x, y) {
   if (!dockVisible) return null;
   setRay(x,y);
+  if (!dockBrowserPopup.hidden) {
+    dockPopupHit.updateMatrixWorld(true);
+    const pHit = ray.intersectObject(dockPopupHit, false)[0];
+    if (pHit) {
+      const pLocal = dockPopupHit.worldToLocal(pHit.point.clone());
+      const popupOpt = pLocal.y >= 0 ? 'new-tab' : 'incognito-tab';
+      const optEl = dockBrowserPopup.querySelector(`[data-browser-opt="${popupOpt}"]`);
+      return { i: -1, popupOpt, el: optEl, distance: pHit.distance };
+    }
+  }
+  dockHit.updateMatrixWorld(true);
   const hit = ray.intersectObject(dockHit, false)[0]; if (!hit) return null;
   const local = dockHit.worldToLocal(hit.point.clone());
   const g=dockHit.geometry.parameters;
@@ -961,14 +1296,27 @@ function dockTest(x, y) {
   const py = (.5 - local.y / g.height) * dockEl.offsetHeight;
   for (let i = 0; i < dockBtns.length; i++) {
     const b = dockBtns[i];
-    if (px >= b.offsetLeft && px <= b.offsetLeft + b.offsetWidth
-        && py >= b.offsetTop && py <= b.offsetTop + b.offsetHeight) return { i };
+    if (px >= b.offsetLeft - 4 && px <= b.offsetLeft + b.offsetWidth + 4
+        && py >= b.offsetTop - 4 && py <= b.offsetTop + b.offsetHeight + 4) {
+      return { i, distance: hit.distance, button: b };
+    }
   }
   return null;
 }
 
 let dockKey = '', dockGrabKey='', dockYaw=0, dockPlacement=null;
-on('recenter',()=>{dockYaw=0;kbPose.ready=false;dockPlacement=null;endDockDrag();placeDock();});
+on('recenter',()=>{
+  dockYaw=0;kbPose.ready=false;dockPlacement=null;endDockDrag();
+  for (const w of wins) {
+    if (!w.onboarding && !w.hidden) {
+      w.pinned = true;
+      w.shell.classList.remove('free');
+    }
+  }
+  placeDock();
+  layout();
+  for (const w of wins) if (!w.hidden) w.apply();
+});
 on('summon-dock',()=>{
   camera.updateMatrixWorld(true);contentRoot.updateMatrixWorld(true);
   const direction=camera.getWorldDirection(new THREE.Vector3()).transformDirection(contentRoot.matrixWorld.clone().invert());
@@ -1008,6 +1356,15 @@ function placeDock() {
   }
   dockHit.position.copy(dockObj.position);
   dockHit.rotation.copy(dockObj.rotation);
+  dockPopupHit.position.copy(dockObj.position);
+  dockPopupHit.rotation.copy(dockObj.rotation);
+  const bBrowser = dockButton('browser');
+  const bOffsetX = bBrowser && dockEl.offsetWidth > 0
+    ? ((bBrowser.offsetLeft + bBrowser.offsetWidth * 0.5) - dockEl.offsetWidth * 0.5) * sc
+    : 0;
+  dockPopupHit.translateX(bOffsetX);
+  dockPopupHit.translateY((dockEl.offsetHeight * 0.5 + 52) * sc);
+  dockPopupHit.translateZ(0.005);
   dockMoveHit.position.copy(dockObj.position);
   dockMoveHit.rotation.copy(dockObj.rotation);
   dockMoveHit.translateY((dockEl.offsetHeight/2-dockGrabEl.offsetTop-dockGrabEl.offsetHeight/2)*sc);
@@ -1350,7 +1707,81 @@ onFrame((dt, now) => {
     const p=predictedCursor(now); dockDragTo(p.x,p.y);
   }
   for (const w of wins) if(!w.hidden) w.apply();
+  updateBackfaceStates();
 });
+
+function isCameraBehindObject(obj) {
+  const m = obj.matrixWorld.elements;
+  const dx = camera.position.x - m[12];
+  const dz = camera.position.z - m[14];
+  return (dx * m[8] + dz * m[10]) < 0;
+}
+function updateBackfaceStates() {
+  scene.updateMatrixWorld(true);
+  let changed = false;
+  if (dockVisible && dockEl) {
+    const nextDock = isCameraBehindObject(dockObj) ? '1' : '0';
+    if (dockEl.dataset.backface !== nextDock) {
+      dockEl.dataset.backface = nextDock;
+      changed = true;
+    }
+  }
+  for (const w of wins) {
+    if (w.hidden || !w.shell) continue;
+    const nextWin = isCameraBehindObject(w.obj) ? '1' : '0';
+    if (w.shell.dataset.backface !== nextWin) {
+      w.shell.dataset.backface = nextWin;
+      changed = true;
+    }
+  }
+  if (changed) css3d.invalidate?.();
+}
+if (typeof window !== 'undefined') window.__updateBackfaceStates = updateBackfaceStates;
+
+const INTERACTIVE_SEL = 'button, .d-btn, .spatial-app-tile, .lib-tile, .st-card, .st-tab, .quick-control, .entry-card, .entry-seg-btn, .entry-btn, .entry-store-card, .entry-profile-box, .yt-link, [role="button"]';
+let _choosingEl = null;
+
+export function setNextvrChoosingElement(rawTarget) {
+  const el = rawTarget?.closest?.(INTERACTIVE_SEL) || null;
+  if (el === _choosingEl) return el;
+  if (_choosingEl) _choosingEl.classList.remove('nextvr-choosing');
+  _choosingEl = el;
+  if (_choosingEl) _choosingEl.classList.add('nextvr-choosing');
+  return _choosingEl;
+}
+
+export function playNextvrClickAnimation(rawTarget) {
+  const el = rawTarget?.closest?.(INTERACTIVE_SEL) || (rawTarget instanceof HTMLElement ? rawTarget : null);
+  if (!el) return null;
+  setNextvrChoosingElement(el);
+  el.classList.remove('nextvr-clicking');
+  el.classList.add('nextvr-clicking');
+  let ripple = el.querySelector(':scope > .nextvr-click-ripple');
+  if (!ripple) {
+    ripple = document.createElement('span');
+    ripple.className = 'nextvr-click-ripple';
+    ripple.setAttribute('aria-hidden', 'true');
+    el.appendChild(ripple);
+  }
+  ripple.classList.remove('is-active');
+  ripple.classList.add('is-active');
+  setTimeout(() => {
+    el.classList.remove('nextvr-clicking');
+    ripple?.remove();
+  }, 340);
+  return el;
+}
+
+if (typeof window !== 'undefined') {
+  window.__nextvrChooseAnim = setNextvrChoosingElement;
+  window.__nextvrClickAnim = playNextvrClickAnimation;
+  document.addEventListener('pointerover', e => {
+    if (e.target instanceof Element) setNextvrChoosingElement(e.target);
+  }, { passive: true, capture: true });
+  document.addEventListener('click', e => {
+    if (e.target instanceof Element) playNextvrClickAnimation(e.target);
+  }, { passive: true, capture: true });
+}
 
 if (native) {
   /** Chamado pelo nativo quando um toque cai numa superficie web.
@@ -1365,7 +1796,7 @@ window.nextvrBrowserFocus = (id, hasInput) => {
 };
   /** Chamado pelo nativo quando o app de uma janela Android tem um editor em foco (backend de
    * acessibilidade ligado). E o equivalente ao acima para uma superficie que nao tem DOM. */
-window.nextvrAppFocus = id => keyboard(true, { nativeId: id });
+  window.nextvrAppFocus = id => keyboard(true, { nativeId: id });
   function updateBattery() { try { batt = JSON.parse(window.NativeXR.battery()); paintBat(); } catch {} }
   updateBattery(); setInterval(updateBattery, 10000);
   document.addEventListener('click', e => { if (e.target.closest('button')) window.NativeXR.click(); }, true);
@@ -1376,6 +1807,8 @@ window.nextvrAppFocus = id => keyboard(true, { nativeId: id });
  * none of these operations introduce head-position tracking. */
 let nearContact = null;
 const fistBefore = new Map();
+/** Pinça segurada por 2 segundos com AS DUAS MÃOS recentra a dock/apps flutuantes e as janelas abertas (sem bolinha carregando). */
+const recenterChord = new TwoHandMenuChord({ holdMs: 2000, graceMs: 260 });
 /** Hands whose direct touch just ended while still pinched: the ray ignores them until the pinch opens. */
 const pinchSuppressed = new Set();
 let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
@@ -1437,6 +1870,347 @@ function fistHit(r) {
   }
   return best;
 }
+const fingerPokeByHand = new Map();
+let fingerPokeFlashUntil = 0;
+let hoveredFingerEl = null;
+
+function setFingerHoverEl(nextEl) {
+  if (hoveredFingerEl === nextEl) return;
+  if (hoveredFingerEl) hoveredFingerEl.classList?.remove?.('finger-hover');
+  hoveredFingerEl = nextEl || null;
+  if (hoveredFingerEl) hoveredFingerEl.classList?.add?.('finger-hover');
+}
+
+function isIndexFingerPointing(h) {
+  if (!h || h.pinching || h.fist || h.predicted) return false;
+  const p = h.points;
+  if (!p || p.length < 63) return false;
+  const wx = p[0], wy = p[1];
+  const pipX = p[18], pipY = p[19];
+  const tipX = p[24], tipY = p[25];
+  const dTip = Math.hypot(tipX - wx, tipY - wy);
+  const dPip = Math.hypot(pipX - wx, pipY - wy);
+  return dTip > 0.045 && dTip > dPip * 1.05;
+}
+
+function resolvePointTarget(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const kb = kbProbe(x, y);
+  const h = hitAt(x, y);
+  const dk = dockTest(x, y);
+  if (kb && (!h || kb.distance < h.distance) && kb.button) {
+    setNextvrChoosingElement(kb.button);
+    return { kind: 'kb', x, y, el: kb.button, key: 'kb:' + (kb.button.dataset?.k || kb.button.textContent || '') };
+  }
+  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) {
+    if (dk.popupOpt && dk.el) {
+      setNextvrChoosingElement(dk.el);
+      return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, key: 'dock-popup:' + dk.popupOpt };
+    }
+    if (dockBtns[dk.i]) {
+      const b = dockBtns[dk.i];
+      setNextvrChoosingElement(b);
+      return { kind: 'dock', x, y, el: b, key: 'dock:' + (b.dataset?.id || dk.i) };
+    }
+  }
+  if (h && !h.handle && !h.resize) {
+    const targetEl = pickInElement(h.win.el, h.u, h.v);
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
+    const nativeSurf = targetEl?.closest?.('[data-native-browser],[data-native-app],[data-native-xr]') || null;
+    if (clickable) {
+      setNextvrChoosingElement(clickable);
+      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
+      return { kind: 'win', x, y, el: clickable, hit: h, key: `win:${h.win.id}:${idAttr}` };
+    }
+    if (nativeSurf) {
+      const qx = Math.round(h.u * 16), qy = Math.round(h.v * 12);
+      return { kind: 'win-surf', x, y, el: nativeSurf, hit: h, key: `surf:${h.win.id}:${qx}:${qy}` };
+    }
+  }
+  if (dk?.popupOpt && dk.el) {
+    return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, key: 'dock-popup:' + dk.popupOpt };
+  }
+  if (dk && dockBtns[dk.i]) {
+    const b = dockBtns[dk.i];
+    return { kind: 'dock', x, y, el: b, key: 'dock:' + (b.dataset?.id || dk.i) };
+  }
+  return null;
+}
+
+function resolveFingerTarget(h, packet) {
+  const p = h.points;
+  const sx = Number(packet?.scaleX) || 1;
+  const sy = Number(packet?.scaleY) || 1;
+  if (p && p.length >= 26 && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
+    const tx = (p[24] - 0.5) * sx + 0.5;
+    const ty = (p[25] - 0.5) * sy + 0.5;
+    const offsets = [
+      [0, 0],
+      [0, 0.015],
+      [0, -0.015],
+      [0.015, 0],
+      [-0.015, 0],
+    ];
+    for (const [ox, oy] of offsets) {
+      const hit = resolvePointTarget(tx + ox, ty + oy);
+      if (hit) return hit;
+    }
+    // Pad of the index finger (DIP landmark 7)
+    const dx = (p[21] - 0.5) * sx + 0.5;
+    const dy = (p[22] - 0.5) * sy + 0.5;
+    const dipHit = resolvePointTarget(dx, dy);
+    if (dipHit) return dipHit;
+  }
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    const aimHit = resolvePointTarget(aimPt.x, aimPt.y);
+    if (aimHit) return aimHit;
+  }
+  return null;
+}
+
+function triggerFingerTouchTap(x, y, preferredEl = null) {
+  const kb = kbProbe(x, y);
+  const h = hitAt(x, y);
+  const dk = dockTest(x, y);
+  if (kb && (!h || kb.distance < h.distance)) {
+    kbPress(kb.button);
+    setTimeout(() => kbRelease(), 55);
+    return true;
+  }
+  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) {
+    if (dk.popupOpt) {
+      hideBrowserTabMenus();
+      window.nextvrOpenBrowserOption?.(dk.popupOpt);
+      return true;
+    }
+    if (dockBtns[dk.i]) {
+      const b = dockBtns[dk.i];
+      b.classList.add('finger-pressed');
+      b.style.transform = 'scale(.88)';
+      setTimeout(() => { b.style.transform = ''; b.classList.remove('finger-pressed'); }, 160);
+      b.click();
+      css3d.invalidate?.(); css3d.render?.(scene, camera);
+      return true;
+    }
+  }
+  if (h && !h.handle && !h.resize) {
+    focus(h.win);
+    const targetEl = (preferredEl && h.win.el.contains(preferredEl)) ? preferredEl : pickInElement(h.win.el, h.u, h.v);
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea') || targetEl;
+    if (clickable?.classList) {
+      clickable.classList.add('finger-pressed');
+      setTimeout(() => clickable.classList?.remove?.('finger-pressed'), 180);
+    }
+    let clicked = false;
+    const onClick = () => { clicked = true; };
+    clickable?.addEventListener?.('click', onClick, { once: true });
+    clickThrough(h, 'down');
+    clickThrough(h, 'up');
+    clickable?.removeEventListener?.('click', onClick);
+    if (!clicked && clickable && !clickable.closest?.('[data-native-browser],[data-native-app],[data-native-xr]')) {
+      clickable.click?.();
+    }
+    css3d.invalidate?.(); css3d.render?.(scene, camera);
+    return true;
+  }
+  if (dk?.popupOpt) {
+    hideBrowserTabMenus();
+    window.nextvrOpenBrowserOption?.(dk.popupOpt);
+    return true;
+  }
+  if (dk && dockBtns[dk.i]) {
+    const b = dockBtns[dk.i];
+    b.classList.add('finger-pressed');
+    b.style.transform = 'scale(.88)';
+    setTimeout(() => { b.style.transform = ''; b.classList.remove('finger-pressed'); }, 160);
+    b.click();
+    css3d.invalidate?.(); css3d.render?.(scene, camera);
+    return true;
+  }
+  if (preferredEl && typeof preferredEl.click === 'function' && document.body.contains(preferredEl)) {
+    preferredEl.classList?.add?.('finger-pressed');
+    setTimeout(() => preferredEl.classList?.remove?.('finger-pressed'), 160);
+    preferredEl.click();
+    css3d.invalidate?.(); css3d.render?.(scene, camera);
+    return true;
+  }
+  return false;
+}
+
+function handBoneSpan2D(p) {
+  if (!p || p.length < 63) return 0;
+  return (
+    Math.hypot(p[15] - p[0], p[16] - p[1]) +
+    Math.hypot(p[51] - p[0], p[52] - p[1]) +
+    Math.hypot(p[51] - p[15], p[52] - p[16]) +
+    Math.hypot(p[27] - p[0], p[28] - p[1])
+  );
+}
+
+function updateFingerPoke(h, packet, nowMs) {
+  if (S.fingerTouch === 0 || !isIndexFingerPointing(h)) {
+    fingerPokeByHand.delete(h?.id);
+    setFingerHoverEl(null);
+    return false;
+  }
+  const tipDist = (h.head && h.head.length === 63)
+    ? Math.hypot(h.head[24], h.head[25], h.head[26])
+    : 0;
+  const tipRelZ = (h.head && h.head.length === 63)
+    ? (h.head[29] - h.head[26])
+    : 0;
+  const palm = Number(h.palmWidth) || 0;
+  const boneSpan = handBoneSpan2D(h.points);
+
+  let st = fingerPokeByHand.get(h.id);
+  const target = resolveFingerTarget(h, packet);
+
+  const checkForwardPush = state => {
+    if (!state) return false;
+    const distPush = (tipDist > 0 && state.baseDist > 0) ? (tipDist - state.baseDist) : 0;
+    const distRatio = (tipDist > 0 && state.baseDist > 0) ? (distPush / state.baseDist) : 0;
+    const palmDropRatio = (palm > 0.012 && state.basePalm > 0.012) ? ((state.basePalm - palm) / state.basePalm) : 0;
+    const spanDropRatio = (boneSpan > 0.02 && state.baseSpan > 0.02) ? ((state.baseSpan - boneSpan) / state.baseSpan) : 0;
+    const tipRelPush = tipRelZ - state.baseTipRelZ;
+    return (
+      distPush >= 0.016 ||
+      distRatio >= 0.036 ||
+      palmDropRatio >= 0.042 ||
+      spanDropRatio >= 0.042 ||
+      (tipRelPush >= 0.014 && (distPush >= 0.006 || palmDropRatio >= 0.018 || spanDropRatio >= 0.018))
+    );
+  };
+
+  if (!target) {
+    if (st && st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
+      st.pendingBrowserTap = false;
+      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
+        st.latched = true;
+        st.lastTapAt = nowMs;
+        fingerPokeFlashUntil = nowMs + 220;
+        return true;
+      }
+    }
+    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && checkForwardPush(st) && (nowMs - st.lastTapAt >= 360)) {
+      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
+        st.latched = true;
+        st.lastTapAt = nowMs;
+        fingerPokeFlashUntil = nowMs + 220;
+        return true;
+      }
+    }
+    if (!st || nowMs - st.lastSeenAt > 180) {
+      fingerPokeByHand.delete(h.id);
+      setFingerHoverEl(null);
+    }
+    return false;
+  }
+
+  setFingerHoverEl(target.el);
+
+  const pushingAlready = st && (nowMs - st.enterAt >= 40) && checkForwardPush(st);
+  if (!st || (target.key !== st.targetKey && !pushingAlready)) {
+    st = {
+      targetKey: target.key,
+      targetEl: target.el,
+      tapX: target.x,
+      tapY: target.y,
+      baseDist: tipDist,
+      basePalm: palm,
+      baseSpan: boneSpan,
+      baseTipRelZ: tipRelZ,
+      enterAt: nowMs,
+      lastSeenAt: nowMs,
+      latched: false,
+      holdMenuOpened: false,
+      pendingBrowserTap: false,
+      lastTapAt: st?.lastTapAt ?? -1000,
+    };
+    fingerPokeByHand.set(h.id, st);
+    return false;
+  }
+
+  if (target.key === st.targetKey) {
+    st.tapX = target.x;
+    st.tapY = target.y;
+    st.targetEl = target.el;
+    st.lastSeenAt = nowMs;
+  }
+
+  const isBrowserBtn = Boolean(
+    st.targetEl?.dataset?.id === 'browser' ||
+    st.targetEl?.dataset?.spatialBuiltin === 'browser' ||
+    st.targetEl?.dataset?.app === 'browser'
+  );
+
+  // Segurar por 2 segundos (2000ms) no ícone do Navegador com Hand tracking de toque abre + NOVA GUIA / + GUIA ANÔNIMA
+  if (isBrowserBtn && !st.holdMenuOpened && (nowMs - st.enterAt >= 2000)) {
+    st.holdMenuOpened = true;
+    st.pendingBrowserTap = false;
+    st.latched = true;
+    st.lastTapAt = nowMs;
+    showBrowserTabMenu(st.targetEl?.dataset?.id === 'browser' ? 'dock' : 'spatial');
+    fingerPokeFlashUntil = nowMs + 220;
+    return true;
+  }
+
+  // Aguarda o indicador pousar na opção escolhida (~40ms) antes de aceitar o avanço da mão ("ir lá na frente")
+  if (nowMs - st.enterAt < 40) {
+    if (tipDist > 0) st.baseDist = st.baseDist > 0 ? (st.baseDist * 0.5 + tipDist * 0.5) : tipDist;
+    if (palm > 0) st.basePalm = st.basePalm > 0 ? (st.basePalm * 0.5 + palm * 0.5) : palm;
+    if (boneSpan > 0) st.baseSpan = st.baseSpan > 0 ? (st.baseSpan * 0.5 + boneSpan * 0.5) : boneSpan;
+    st.baseTipRelZ = st.baseTipRelZ * 0.5 + tipRelZ * 0.5;
+    return false;
+  }
+
+  const pushedForward = checkForwardPush(st);
+
+  if (!st.latched && pushedForward && (nowMs - st.lastTapAt >= 360)) {
+    if (isBrowserBtn) {
+      // No ícone do Browser, aguarda para distinguir toque rápido (< 2s) de segurar por 2s (>= 2s)
+      st.pendingBrowserTap = true;
+      st.latched = true;
+      return false;
+    }
+    if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
+      st.latched = true;
+      st.lastTapAt = nowMs;
+      fingerPokeFlashUntil = nowMs + 220;
+      return true;
+    }
+  } else if (st.latched) {
+    const distPush = (tipDist > 0 && st.baseDist > 0) ? (tipDist - st.baseDist) : 0;
+    const palmDropRatio = (palm > 0.012 && st.basePalm > 0.012) ? ((st.basePalm - palm) / st.basePalm) : 0;
+    const spanDropRatio = (boneSpan > 0.02 && st.baseSpan > 0.02) ? ((stateSpan(st, boneSpan))) : 0;
+    const pulledBack = distPush <= 0.008 && palmDropRatio <= 0.022 && spanDropRatio <= 0.022;
+    if (pulledBack) {
+      if (st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
+        st.pendingBrowserTap = false;
+        st.latched = false;
+        st.lastTapAt = nowMs;
+        fingerPokeFlashUntil = nowMs + 220;
+        triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl);
+        return true;
+      }
+      st.latched = false;
+      st.baseDist = tipDist;
+      st.basePalm = palm;
+      st.baseSpan = boneSpan;
+      st.baseTipRelZ = tipRelZ;
+    }
+  } else {
+    // Enquanto a mão apenas repousa na opção sem avançar, adapta suavemente a posição de repouso (TouchLatch)
+    if (tipDist > 0) st.baseDist = st.baseDist > 0 ? Math.min(st.baseDist, st.baseDist * 0.92 + tipDist * 0.08) : tipDist;
+    if (palm > 0.012) st.basePalm = st.basePalm > 0 ? Math.max(st.basePalm, st.basePalm * 0.92 + palm * 0.08) : palm;
+    if (boneSpan > 0.02) st.baseSpan = st.baseSpan > 0 ? Math.max(st.baseSpan, st.baseSpan * 0.92 + boneSpan * 0.08) : boneSpan;
+  }
+  return false;
+}
+function stateSpan(st, boneSpan) {
+  return (st.baseSpan - boneSpan) / st.baseSpan;
+}
+
 function endNear(cancel=false, packet=lastPhonePacket) {
   const ended=nearContact;
   if(ended?.down) {
@@ -1452,7 +2226,9 @@ function endNear(cancel=false, packet=lastPhonePacket) {
 on('phonehands', packet => {
   lastPhonePacket=packet;
   const ids=new Set(packet.hands.map(h=>h.id));
+  if (!packet.hands.length) setFingerHoverEl(null);
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
+  for(const id of fingerPokeByHand.keys())if(!ids.has(id))fingerPokeByHand.delete(id);
   for(const id of pinchSuppressed) {
     const h=packet.hands.find(h=>h.id===id);
     if(!h || !h.pinching) pinchSuppressed.delete(id); else packet.consumed.add(id);
@@ -1466,6 +2242,39 @@ on('phonehands', packet => {
   }
   // The grab outline is sticky for a moment: palm noise must not flash the window border.
   const nowMs=performance.now();
+  // Pinça por 2 segundos com AS DUAS MÃOS: recentra dock / apps flutuantes e janelas abertas para onde estiver olhando, sem bolinha carregando.
+  if (!document.documentElement.classList.contains('xr-on') && !wins.some(w => w.id === 'entry-menu' && !w.hidden)) {
+    if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || nearContact) {
+      recenterChord.reset();
+    } else {
+      const pinching = (packet.hands || []).filter(h => h.pinching && !h.predicted);
+      const both = twoHandsPinching(pinching);
+      const st = recenterChord.update(nowMs, { left: both, right: both });
+      if (st.opened) {
+        recenterChord.reset();
+        cancelHandInput();
+        pendingPress = null;
+        nativePress = null;
+        dockArmed = -1;
+        endDrag();
+        endResize();
+        endDockDrag();
+        for (const h of pinching) {
+          pinchSuppressed.add(h.id);
+          packet.consumed.add(h.id);
+        }
+        recenter();
+      } else if (both && st.progress > 0.15) {
+        // Enquanto as duas mãos estão pinçando juntas, cancela clique de uma mão para não abrir app por acidente.
+        cancelHandInput();
+        pendingPress = null;
+        nativePress = null;
+        dockArmed = -1;
+      }
+    }
+  } else {
+    recenterChord.reset();
+  }
   if(!(drag.win && drag.source==='fist')) {
     const h=packet.hands.find(h=>!h.fist);
     if(h) {
@@ -1498,11 +2307,15 @@ on('phonehands', packet => {
   let best=null;
   for(const h of packet.hands) {
     if(packet.consumed.has(h.id) || !h.head || h.head.length!==63)continue;
+    if (Array.isArray(h.aim) && h.aim.length >= 2) {
+      const pAim = screenPoint(h.aim);
+      if (dockTest(pAim.x, pAim.y)) continue;
+    }
     const tip=new THREE.Vector3().fromArray(h.head,24);
     if(tip.length()>.7)continue;
     tip.applyMatrix4(camera.matrixWorld);
     for(const w of wins) {
-      if(w.hidden)continue;
+      if(w.hidden || w.id === 'spatial-launcher')continue;
       const p=windowPoint(w,tip),current=nearContact?.win===w && nearContact.id===h.id;
       // Hysteresis: a contact already engaged stays until clearly away (0.26 m / 8 cm margin).
       const margin=current?.08:.02;
@@ -1511,12 +2324,23 @@ on('phonehands', packet => {
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
   }
+  const runFingerPokes = () => {
+    if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed')) return;
+    for (const h of packet.hands) {
+      if (packet.consumed.has(h.id)) continue;
+      updateFingerPoke(h, packet, nowMs);
+    }
+  };
   // Brief near-band jitter keeps an existing contact, but never keeps a press after tracking loss.
   if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
       && !nearContact.win.hidden && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
     best={...nearContact,current:true,held:true};
   }
-  if(!best) { endNear(!ids.has(nearContact?.id),packet);return; }
+  if(!best) {
+    endNear(!ids.has(nearContact?.id),packet);
+    runFingerPokes();
+    return;
+  }
   if(!best.current) {
     endNear(false,packet);
     // A fingertip already behind the glass cannot press merely by entering the near zone.
@@ -1543,31 +2367,31 @@ on('phonehands', packet => {
   // Only an actual press owns the hand. Hovering within reach leaves the FAR ray pinch working,
   // which is how the welcome window's language options (about 0.42 m away) are chosen.
   if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
+  else runFingerPokes();
 });
 let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
   // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
-  const packet=lastPhonePacket, targets=[];
+  const packet=lastPhonePacket, targets=[], noBeam = S.fingerTouch !== 0;
   for(const h of packet.hands) {
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
-    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);if(dockVisible)list.push(dockMoveHit,dockHit);if(kbHit && kbObj && !kbHidden)list.push(kbHit);
+    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);
+    if(dockVisible){
+      if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
+      list.push(dockMoveHit,dockHit);
+    }
+    if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
-    // The target goes out in WORLD space, the same space the panel matrices live in. The native
-    // renderer takes it into each eye's space before projecting, so the ring reaches the icon by
-    // the identical transform the icon's own geometry gets. Handing over camera-local coordinates
-    // instead meant projecting head-centred values through the asymmetric per-eye frustum, whose
-    // IPD compensation belongs to eye-centred ones: the ring landed on a different app per lens
-    // while the click, decided here, always followed the left.
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:cursor.hand?.id===h.id&&cursor.down});
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil,...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

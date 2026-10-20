@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { migrateComfort } from './comfort.js';
 import { AtlasRenderer, VIEW } from './atlas.js';
+import { SixDof, Walk, handBoxes, bindSixDofContext } from './sixdof.js';
+export { SixDof, Walk, handBoxes };
 export const native = !!window.NativeXR;
 export const viewport = native ? VIEW : { width: innerWidth, height: innerHeight };
 import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
@@ -18,6 +20,10 @@ const DEF = {
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
+  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1,
+  sixdof: 1, lateLatch: 0,
+  gorillaInstalled: 0,
+  profileName: '', profileAvatar: '',
 };
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
@@ -309,23 +315,166 @@ const STR = {
     'kind.cone':'Cono', 'kind.plate':'Placa',
   },
 };
+Object.assign(STR.pt, {
+  dockSnapSlot:'Espaço pré-definido na Dock',
+  dockSnapDesc:'Mostrar janela preta transparente ao mover janelas na Dock normal',
+  dockSnapHint:'Solte aqui para encaixar no espaço pré-definido',
+  fingerTouch:'Toque com indicador (sem pinça)',
+  fingerTouchDesc:'Abrir apps na Dock ou Spatial levando o indicador à frente',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Média (890p)', qualityLow:'Baixa (390p)', qualityAuto:'Automática',
+});
+Object.assign(STR.en, {
+  dockSnapSlot:'Pre-defined Dock Slot',
+  dockSnapDesc:'Show semi-transparent black slot when moving windows in normal Dock',
+  dockSnapHint:'Drop here to snap into pre-defined slot',
+  fingerTouch:'Index Finger Touch (No Pinch)',
+  fingerTouchDesc:'Open apps in Dock or Spatial by pushing your index finger forward',
+  qualityHigh:'High (1080p)', qualityMedium:'Medium (890p)', qualityLow:'Low (390p)', qualityAuto:'Auto',
+});
+Object.assign(STR.es, {
+  dockSnapSlot:'Espacio predefinido en Dock',
+  dockSnapDesc:'Mostrar ventana negra semitransparente al mover ventanas en el Dock normal',
+  dockSnapHint:'Suelta aquí para encajar en el espacio predefinido',
+  fingerTouch:'Toque con índice (sin pinza)',
+  fingerTouchDesc:'Abrir apps en el Dock o Spatial llevando el dedo índice hacia adelante',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Media (890p)', qualityLow:'Baja (390p)', qualityAuto:'Automática',
+});
+STR.ja = {
+  ...STR.en,
+  desktop:'ワークスペース', browser:'ブラウザ', youtube:'YouTube', gallery:'ギャラリー',
+  settings:'設定', menu:'メニュー', store:'ストア', env:'環境', keyboard:'キーボード', center:'正面にリセット',
+  search:'ウェブを検索', searchYt:'動画を検索', open:'開く', close:'閉じる',
+  general:'一般', hands:'ハンドトラッキング', windows:'ウィンドウ', dock:'ドック', perf:'パフォーマンス',
+  language:'言語', on:'オン', off:'オフ', sens:'感度', scale:'スケール',
+  dist:'距離', curve:'カーブ', size:'サイズ', quality:'画質', apps:'アプリ',
+  recents:'最近', battery:'バッテリー', net:'ネットワーク', time:'時刻',
+  libAll:'すべて', libFilter:'フィルター', libGames:'ゲーム',
+  centered:'視点をリセットしました', langChanged:'言語を変更しました',
+  langTitle:'言語', langContinue:'次へ', langPick:'言語を選択',
+  notif:'通知', noNotif:'新しい通知はありません', profile:'プロフィール',
+  dockSnapSlot:'ドック定義済みスロット', dockSnapDesc:'ウィンドウ移動時に半透明の黒枠を表示',
+  dockSnapHint:'ここにドロップして配置',
+  qualityHigh:'高 (1080p)', qualityMedium:'中 (890p)', qualityLow:'低 (390p)', qualityAuto:'自動',
+};
+STR.fr = {
+  ...STR.en,
+  desktop:'Espace de travail', browser:'Navigateur', youtube:'YouTube', gallery:'Galerie',
+  settings:'Paramètres', menu:'Menu', store:'Boutique', env:'Environnements', keyboard:'Clavier', center:'Recentrer',
+  search:'Rechercher sur le web', searchYt:'Rechercher des vidéos', open:'Ouvrir', close:'Fermer',
+  general:'Général', hands:'Suivi des mains', windows:'Fenêtres', dock:'Dock', perf:'Performance',
+  language:'Langue', on:'Activé', off:'Désactivé', sens:'Sensibilité', scale:'Échelle',
+  dist:'Distance', curve:'Courbure', size:'Taille', quality:'Qualité', apps:'Applications',
+  recents:'Récents', battery:'Batterie', net:'Réseau', time:'Heure',
+  libAll:'Tout', libFilter:'Filtre', libGames:'Jeux',
+  centered:'Espace recentré', langChanged:'Langue modifiée',
+  langTitle:'Langue', langContinue:'Continuer', langPick:'Choisissez votre langue',
+  notif:'Notifications', noNotif:'Aucune notification', profile:'Profil',
+  dockSnapSlot:'Emplacement prédéfini du Dock', dockSnapDesc:'Afficher un cadre noir semi-transparent lors du déplacement',
+  dockSnapHint:'Relâchez ici pour placer la fenêtre',
+  qualityHigh:'Haute (1080p)', qualityMedium:'Moyenne (890p)', qualityLow:'Basse (390p)', qualityAuto:'Auto',
+};
+STR.de = {
+  ...STR.en,
+  desktop:'Arbeitsbereich', browser:'Browser', youtube:'YouTube', gallery:'Galerie',
+  settings:'Einstellungen', menu:'Menü', store:'Store', env:'Umgebungen', keyboard:'Tastatur', center:'Zentrieren',
+  search:'Im Web suchen', searchYt:'Videos suchen', open:'Öffnen', close:'Schließen',
+  general:'Allgemein', hands:'Hand-Tracking', windows:'Fenster', dock:'Dock', perf:'Leistung',
+  language:'Sprache', on:'Ein', off:'Aus', sens:'Empfindlichkeit', scale:'Skalierung',
+  dist:'Abstand', curve:'Krümmung', size:'Größe', quality:'Qualität', apps:'Apps',
+  recents:'Zuletzt', battery:'Akku', net:'Netzwerk', time:'Zeit',
+  libAll:'Alle', libFilter:'Filter', libGames:'Spiele',
+  centered:'Ansicht zentriert', langChanged:'Sprache geändert',
+  langTitle:'Sprache', langContinue:'Weiter', langPick:'Sprache auswählen',
+  notif:'Mitteilungen', noNotif:'Keine neuen Mitteilungen', profile:'Profil',
+  dockSnapSlot:'Vordefinierter Dock-Platz', dockSnapDesc:'Halbtransparentes schwarzes Zielfenster beim Bewegen anzeigen',
+  dockSnapHint:'Hier ablegen zum Einrasten',
+  qualityHigh:'Hoch (1080p)', qualityMedium:'Mittel (890p)', qualityLow:'Niedrig (390p)', qualityAuto:'Automatisch',
+};
+STR.ko = {
+  ...STR.en,
+  desktop:'작업 공간', browser:'브라우저', youtube:'YouTube', gallery:'갤러리',
+  settings:'설정', menu:'메뉴', store:'스토어', env:'환경', keyboard:'키보드', center:'중앙 정렬',
+  search:'웹 검색', searchYt:'동영상 검색', open:'열기', close:'닫기',
+  general:'일반', hands:'핸드 트래킹', windows:'창', dock:'독', perf:'성능',
+  language:'언어', on:'켜짐', off:'꺼짐', sens:'감도', scale:'크기 비율',
+  dist:'거리', curve:'곡률', size:'크기', quality:'화질', apps:'앱',
+  recents:'최근 항목', battery:'배터리', net:'네트워크', time:'시간',
+  libAll:'전체', libFilter:'필터', libGames:'게임',
+  centered:'화면이 중앙에 맞춰졌습니다', langChanged:'언어가 변경되었습니다',
+  langTitle:'언어', langContinue:'계속', langPick:'언어 선택',
+  notif:'알림', noNotif:'새 알림 없음', profile:'프로필',
+  dockSnapSlot:'독 사전 정의 슬롯', dockSnapDesc:'창 이동 시 반투명 검은 슬롯 표시',
+  dockSnapHint:'여기에 놓아 슬롯에 배치',
+  qualityHigh:'높음 (1080p)', qualityMedium:'중간 (890p)', qualityLow:'낮음 (390p)', qualityAuto:'자동',
+};
+STR.it = {
+  ...STR.en,
+  desktop:'Spazio di lavoro', browser:'Browser', youtube:'YouTube', gallery:'Galleria',
+  settings:'Impostazioni', menu:'Menu', store:'Store', env:'Ambienti', keyboard:'Tastiera', center:'Ricentra',
+  search:'Cerca sul web', searchYt:'Cerca video', open:'Apri', close:'Chiudi',
+  general:'Generale', hands:'Tracciamento mani', windows:'Finestre', dock:'Dock', perf:'Prestazioni',
+  language:'Lingua', on:'Attivo', off:'Disattivo', sens:'Sensibilità', scale:'Scala',
+  dist:'Distanza', curve:'Curvatura', size:'Dimensione', quality:'Qualità', apps:'App',
+  recents:'Recenti', battery:'Batteria', net:'Rete', time:'Ora',
+  libAll:'Tutti', libFilter:'Filtro', libGames:'Giochi',
+  centered:'Ambiente centrato', langChanged:'Lingua modificata',
+  langTitle:'Lingua', langContinue:'Continua', langPick:'Scegli la lingua',
+  notif:'Notifiche', noNotif:'Nessuna notifica', profile:'Profilo',
+  dockSnapSlot:'Slot predefinito Dock', dockSnapDesc:'Mostra finestra nera semitrasparente quando sposti le finestre',
+  dockSnapHint:'Rilascia qui per agganciare',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Media (890p)', qualityLow:'Bassa (390p)', qualityAuto:'Automatica',
+};
+STR.nl = {
+  ...STR.en,
+  desktop:'Werkruimte', browser:'Browser', youtube:'YouTube', gallery:'Galerij',
+  settings:'Instellingen', menu:'Menu', store:'Winkel', env:'Omgevingen', keyboard:'Toetsenbord', center:'Centreren',
+  search:'Zoeken op het web', searchYt:'Video’s zoeken', open:'Openen', close:'Sluiten',
+  general:'Algemeen', hands:'Handtracking', windows:'Vensters', dock:'Dock', perf:'Prestaties',
+  language:'Taal', on:'Aan', off:'Uit', sens:'Gevoeligheid', scale:'Schaal',
+  dist:'Afstand', curve:'Kromming', size:'Grootte', quality:'Kwaliteit', apps:'Apps',
+  recents:'Recent', battery:'Batterij', net:'Netwerk', time:'Tijd',
+  libAll:'Alles', libFilter:'Filter', libGames:'Games',
+  centered:'Omgeving gecentreerd', langChanged:'Taal gewijzigd',
+  langTitle:'Taal', langContinue:'Doorgaan', langPick:'Kies je taal',
+  notif:'Meldingen', noNotif:'Geen nieuwe meldingen', profile:'Profiel',
+  dockSnapSlot:'Vooraf ingesteld Dock-vak', dockSnapDesc:'Toon halftransparant zwart vak tijdens verplaatsen van vensters',
+  dockSnapHint:'Laat hier los om te plaatsen',
+  qualityHigh:'Hoog (1080p)', qualityMedium:'Gemiddeld (890p)', qualityLow:'Laag (390p)', qualityAuto:'Automatisch',
+};
+STR.ru = {
+  ...STR.en,
+  desktop:'Рабочее пространство', browser:'Браузер', youtube:'YouTube', gallery:'Галерея',
+  settings:'Настройки', menu:'Меню', store:'Магазин', env:'Окружение', keyboard:'Клавиатура', center:'Центрировать',
+  search:'Поиск в сети', searchYt:'Поиск видео', open:'Открыть', close:'Закрыть',
+  general:'Общие', hands:'Отслеживание рук', windows:'Окна', dock:'Док', perf:'Производительность',
+  language:'Язык', on:'Вкл.', off:'Выкл.', sens:'Чувствительность', scale:'Масштаб',
+  dist:'Расстояние', curve:'Изгиб', size:'Размер', quality:'Качество', apps:'Приложения',
+  recents:'Недавние', battery:'Батарея', net:'Сеть', time:'Время',
+  libAll:'Все', libFilter:'Фильтр', libGames:'Игры',
+  centered:'Пространство центрировано', langChanged:'Язык изменён',
+  langTitle:'Язык', langContinue:'Продолжить', langPick:'Выберите язык',
+  notif:'Уведомления', noNotif:'Нет новых уведомлений', profile:'Профиль',
+  dockSnapSlot:'Предустановленный слот дока', dockSnapDesc:'Показывать полупрозрачное чёрное окно при перемещении окон',
+  dockSnapHint:'Отпустите здесь для размещения',
+  fingerTouch:'Касание указательным пальцем (без щипка)',
+  fingerTouchDesc:'Наведение выбирает; движение руки вперёд открывает приложение (без луча и кружка)',
+  qualityHigh:'Высокое (1080p)', qualityMedium:'Среднее (890p)', qualityLow:'Низкое (390p)', qualityAuto:'Авто',
+};
 /**
  * Idiomas do seletor, na ordem da referência (a lista do Quest), com o português na frente porque
- * é o idioma principal deste app. `table` é a tradução que a linha usa: há duas linhas de inglês e
- * duas de espanhol (US/UK e Espanha/Latinoamérica) que compartilham a mesma tabela. As linhas sem
- * `table` aparecem na lista (identidade visual da referência) mas ainda não têm tradução.
+ * é o idioma principal deste app. Todos os 12 idiomas possuem tabela de tradução ativa.
  */
 export const LANG_ROWS = Object.freeze([
   { id: 'en', label: 'English (US)', table: 'en' },
-  { id: 'ja', label: '日本語' },
-  { id: 'fr', label: 'Français' },
-  { id: 'de', label: 'Deutsch' },
-  { id: 'ko', label: '한국어' },
+  { id: 'ja', label: '日本語', table: 'ja' },
+  { id: 'ru', label: 'Русский', table: 'ru' },
+  { id: 'de', label: 'Deutsch', table: 'de' },
+  { id: 'ko', label: '한국어', table: 'ko' },
   { id: 'es-ES', label: 'Español (España)', table: 'es' },
-  { id: 'it', label: 'Italiano' },
+  { id: 'it', label: 'Italiano', table: 'it' },
   { id: 'en-GB', label: 'English (UK)', table: 'en' },
-  { id: 'nl', label: 'Nederlands' },
-  { id: 'ru', label: 'Русский' },
+  { id: 'nl', label: 'Nederlands', table: 'nl' },
+  { id: 'pt-PT', label: 'Português (Portugal)', table: 'pt' },
   { id: 'es', label: 'Español (Latinoamérica)', table: 'es' },
   { id: 'pt', label: 'Português (Brasil)', table: 'pt' },
 ]);
@@ -338,8 +487,8 @@ export const LANG_ROWS = Object.freeze([
 const LANG_FALLBACK = 'pt';
 export const langRow = id => LANG_ROWS.find(r => r.id === id) || LANG_ROWS.find(r => r.id === LANG_FALLBACK);
 export const langLabel = () => langRow(S.lang).label;
-const langTable = () => langRow(S.lang).table || 'pt';
-export const t = k => (STR[langTable()] || STR.pt)[k] || k;
+export const langTable = () => langRow(S.lang).table || 'pt';
+export const t = k => (STR[langTable()] || STR.pt)[k] || STR.pt[k] || k;
 export const setLang = l => {
   if (!LANG_ROWS.some(r => r.id === l && r.table)) return false;
   S.lang = l; save(); emit('lang'); return true;
@@ -373,6 +522,7 @@ scene.add(contentRoot);
 
 export const EYE = 1.55;              // altura dos olhos, metros
 camera.position.set(0, EYE, 0);
+bindSixDofContext({ settings: S, camera, contentRoot });
 
 export const renderer = native ? { setClearColor(){}, setPixelRatio(){}, setSize(){}, render(){} }
   : new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -386,14 +536,31 @@ if (native) {
   for (const id of ['overlay','hud','toast','boot']) hud.append(document.getElementById(id));
 }
 
+export const QUALITY_PRESETS = Object.freeze({
+  high:   { id: 'high',   height: 1080, label: '1080p', dpr: 2.0 },
+  medium: { id: 'medium', height: 890,  label: '890p',  dpr: 1.55 },
+  low:    { id: 'low',    height: 390,  label: '390p',  dpr: 1.0 },
+});
+let autoQualityTier = 'medium';
+export const activeQualityTier = () => S.quality === 'auto' ? autoQualityTier : (QUALITY_PRESETS[S.quality] ? S.quality : 'medium');
+export const activeQualityPreset = () => QUALITY_PRESETS[activeQualityTier()] || QUALITY_PRESETS.medium;
+
 function dpr() {
-  const q = S.quality;
-  if (q === 'low') return 1;
-  if (q === 'high') return Math.min(devicePixelRatio, 2);
-  return Math.min(devicePixelRatio, 1.6);     // auto
+  const tier = activeQualityTier();
+  if (tier === 'low') return 1;
+  if (tier === 'high') return Math.min(devicePixelRatio, 2);
+  return Math.min(devicePixelRatio, 1.55);     // medium (890p)
+}
+function applyQualityState() {
+  const tier = activeQualityTier();
+  const preset = activeQualityPreset();
+  document.documentElement.dataset.quality = S.quality;
+  document.documentElement.dataset.qualityTier = tier;
+  document.documentElement.dataset.qualityRes = preset.label;
+  window.NativeXR?.setQuality?.(tier);
 }
 function resize() {
-  document.documentElement.dataset.quality = S.quality;
+  applyQualityState();
   if (!native) { viewport.width = innerWidth; viewport.height = innerHeight; }
   const w = viewport.width, h = viewport.height;
   camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -508,9 +675,11 @@ addEventListener('pointercancel', () => drag = null);
  * Não fecha app, não reinicia nada, não mexe no sensor.
  */
 export function recenter() {
+  SixDof.reset();
   const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
   contentRoot.rotation.y = e.y;
   contentRoot.position.set(0, 0, 0);
+  camera.position.set(0, EYE, 0);
   emit('recenter');
   toast(t('centered'));
 }
@@ -547,7 +716,13 @@ function loop(now) {
     camera.quaternion.setFromEuler(new THREE.Euler(dragPitch, camera.rotation.y + dragYaw, 0, 'YXZ'));
     dragYaw = 0;
   }
-  camera.position.set(0, EYE, 0);
+  SixDof.update(now, dt);
+  camera.position.set(SixDof.out.x, EYE + SixDof.out.y, SixDof.out.z);
+  if (window.__gorillaStereoOverlay) {
+    css3d.render(scene, camera);
+    requestAnimationFrame(loop);
+    return;
+  }
 
   for (const f of frameSubs) f(dt, now);
   renderer.render(scene, camera);
@@ -555,18 +730,38 @@ function loop(now) {
 
   fpsAcc += dt; fpsN++;
   if (fpsAcc >= 1) {
+    const measuredFps = Math.round(fpsN / fpsAcc);
+    if (S.quality === 'auto') {
+      const effectiveFps = (native && S.handsOn && handFps >= 15) ? Math.min(measuredFps, handFps * 2) : measuredFps;
+      const nextTier = effectiveFps >= 52 ? 'high' : effectiveFps >= 34 ? 'medium' : 'low';
+      if (nextTier !== autoQualityTier) {
+        autoQualityTier = nextTier;
+        applyQualityState();
+        renderer.setPixelRatio(dpr());
+        emit('quality-tier', autoQualityTier);
+      }
+    }
     const el = document.getElementById('fps');
     el.textContent = S.showFps
-      ? Math.round(fpsN / fpsAcc) + ' fps' + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
+      ? measuredFps + ' fps · ' + activeQualityPreset().label
+        + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
         + (native && S.handsOn ? diagText() : '')
       : '';
     fpsAcc = 0; fpsN = 0;
   }
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
-
-setEnvironment(S.env);
+const isFullscreenOverlay = typeof location !== 'undefined' &&
+  (new URLSearchParams(location.search).get('fullscreen') === '1' || location.hash.includes('fullscreen=1'));
+const isNativeShellSkip = typeof location !== 'undefined' && location.hash.includes('onboarding=skip');
+if (!isFullscreenOverlay) {
+  requestAnimationFrame(loop);
+  if (isNativeShellSkip && !S.entryEnvChosen) {
+    setPassthrough(true);
+  } else {
+    setEnvironment(S.env);
+  }
+}
 
 if (native) {
   const poseMatrix = new THREE.Matrix4();
@@ -574,7 +769,7 @@ if (native) {
   window.nextvrPose = values => {
     poseMatrix.fromArray(values).invert();
     camera.quaternion.setFromRotationMatrix(poseMatrix);
-    camera.position.set(0, EYE, 0); camera.updateMatrixWorld(true);
+    camera.position.set(SixDof.out.x, EYE + SixDof.out.y, SixDof.out.z); camera.updateMatrixWorld(true);
     if (firstPose) { contentRoot.rotation.y = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; firstPose = false; }
   };
   window.nextvrMessage = toast;

@@ -29,6 +29,8 @@ import java.util.Map;
 final class WebSurface {
     static final String ORIGIN="https://appassets.androidplatform.net";
     static final String HOME=ORIGIN+"/ui/index.html";
+    static final String SHELL_HOME=HOME+"#onboarding=skip";
+    static final String ENTRY_HOME=HOME+"?fullscreen=1";
     final WebView web;
     final Presentation presentation;
     private final VirtualDisplay display;
@@ -93,7 +95,7 @@ final class WebSurface {
                 return null;
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
-                if(shell) return !request.getUrl().toString().equals(HOME);
+                if(shell) return !request.getUrl().toString().startsWith(HOME);
                 return !isWebUrl(request.getUrl().toString());
             }
             @Override public void onPageFinished(WebView view,String address) {
@@ -161,18 +163,60 @@ final class WebSurface {
         return typingEngine;
     }
     static boolean isWebUrl(String url) { Uri uri=Uri.parse(url); return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) && uri.getHost()!=null; }
-    private WebResourceResponse asset(Uri uri) {
+    static WebResourceResponse assetFromOwner(NextVrActivity owner,Uri uri) {
         String path=uri.getPath();
-        if(path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
+        if(owner==null || path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
         try {
-            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":"application/octet-stream";
+            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav":"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src https: blob:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
         } catch(Exception e) { return denied(); }
+    }
+    private WebResourceResponse asset(Uri uri) { return assetFromOwner(owner,uri); }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    static WebView createFullscreenEntryView(NextVrActivity owner,Object bridge) {
+        WebView entry=new WebView(owner);
+        entry.setBackgroundColor(Color.parseColor("#070c1f"));
+        WebSettings s=entry.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        s.setSupportMultipleWindows(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setUseWideViewPort(false);
+        s.setLoadWithOverviewMode(false);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        entry.setVerticalScrollBarEnabled(false);
+        entry.setHorizontalScrollBarEnabled(false);
+        entry.addJavascriptInterface(bridge,"NativeXR");
+        entry.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
+                Uri u=request.getUrl();
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return assetFromOwner(owner,u);
+                return null;
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
+                return !request.getUrl().toString().startsWith(HOME);
+            }
+        });
+        entry.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                android.util.Log.d("NextVR-Entry",m.message()+" @"+m.lineNumber()); return true;
+            }
+            @Override public boolean onShowFileChooser(WebView v,ValueCallback<Uri[]> cb,FileChooserParams p) {
+                owner.chooseFiles(cb,p); return true;
+            }
+        });
+        entry.loadUrl(ENTRY_HOME);
+        return entry;
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the

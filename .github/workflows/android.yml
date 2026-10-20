@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/80a6e3eb-nextvr-android", "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
+    branches: [ "arena/98e128f7-nextvr-android", "arena/80a6e3eb-nextvr-android", "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -236,9 +236,7 @@ jobs:
         run: exit 1
 
       - name: Publish debug APK to apk-dist branch
-        # Keep the public APK branch owned by main's release stream. Arena feature branches only
-        # upload their run artifact; they never push to a different branch.
-        if: github.ref == 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

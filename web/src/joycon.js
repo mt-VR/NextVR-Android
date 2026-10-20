@@ -13,6 +13,8 @@ const held = new Set();
 const ACTIONABLE = 'button:not(:disabled),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[role="button"], [tabindex]:not([tabindex="-1"])';
 
 function currentRoot() {
+  const fsEntry = document.getElementById('entry-fullscreen');
+  if (fsEntry && !fsEntry.hidden) return fsEntry;
   const win = focusedWin();
   if (win && !win.hidden) return win.el;
   const dock = document.querySelector('.dock');
@@ -77,7 +79,11 @@ function activate() {
 }
 
 function back() {
+  const fsBack = document.querySelector('#entry-fullscreen [data-entry-act="back"]');
+  if (fsBack) { fsBack.click(); mark(null); return; }
   const win = focusedWin();
+  const entryBack = win?.el?.querySelector('[data-entry-act="back"]');
+  if (entryBack) { entryBack.click(); mark(null); return; }
   if (win && !win.onboarding) { close(win); mark(null); return; }
   const active = document.activeElement;
   if (active && active !== document.body) active.blur();

@@ -1,0 +1,31 @@
+// Dados estáticos do menu de entrada NextVR v2.0.0.
+export const ENTRY_VERSION = 'v2.0.0';
+export const ENTRY_VERSION_ALPHA = 'v2.0.0 (Alpha)';
+export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
+export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
+export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
+
+export const ENTRY_COLLABORATORS = Object.freeze([
+  'NeyVR',
+  'Faylan',
+  'colaboradores do nextVR',
+  'JocaVR',
+]);
+
+export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
+  NeyVR: 'o Dono absoluto mais aurudo do planeta.',
+  Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
+  'colaboradores do nextVR': '',
+  JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
+});
+
+export const ENTRY_ABOUT_TITLE = 'NextVR — realidade aumentada';
+
+export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
+  'O NextVR é um projeto de realidade virtual criado para transformar a maneira como você interage com o mundo digital usando apenas um celular e um VR Box.',
+  'Nosso objetivo é aproximar a experiência de dispositivos como o Meta Quest, trazendo recursos como Hand Tracking, ambientes virtuais imersivos e uma interface moderna, futurista e intuitiva.',
+  'Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, sem precisar de equipamentos caros. Cada atualização representa um novo passo rumo a uma experiência mais completa, interativa e acessível.',
+  'NextVR — Mais que um app, uma nova forma de ver.',
+]);
+
+export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');

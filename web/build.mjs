@@ -10,6 +10,11 @@ await copyFile('web/src/typing.js', new URL('typing.js', out));
 await mkdir(new URL('icons/', out), { recursive: true });
 // O logo roxo quadrado do NextVR enviado pelo usuário é usado na interface e também como launcher icon do APK.
 await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
+await copyFile('web/assets/nextvr-chrome-n.png', new URL('icons/nextvr-chrome-n.png', out));
+await copyFile('web/assets/entry-bg-blue.jpg', new URL('icons/entry-bg-blue.jpg', out));
+await copyFile('web/assets/gorilla-tag-logo.jpg', new URL('icons/gorilla-tag-logo.jpg', out));
+await copyFile('web/assets/gorilla-map.task', new URL('gorilla-map.task', out));
+await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.
 await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
 await mkdir(new URL('env/', out), { recursive: true });

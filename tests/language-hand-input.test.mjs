@@ -81,7 +81,7 @@ async function openFreshPage(browser, url) {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(nativeShim);
-  await page.goto(url);
+  await page.goto(`${url}#onboarding=language`);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForFunction(() => window.__last?.panels.length >= 1);

@@ -33,8 +33,8 @@ class HandTracker @JvmOverloads constructor(
     private var generations = 0
     /** The graph of the search: two slots, lower bar. Always built (it is the graph that must be). */
     private val wide: HandLandmarker = build(SEARCH_CONFIDENCE, WIDE_HANDS)
-    /** The one-slot graph. Built the first time a hand is found; a session that only searches pays nothing. */
-    private var narrow: HandLandmarker? = null
+    /** The one-slot graph. Pre-warmed at construction so switching to 1-hand tracking never stalls. */
+    private var narrow: HandLandmarker? = build(TRACK_CONFIDENCE, NARROW_HANDS)
     private var lastTimestamp = -1L
     /** Pure slot/cadence policy, also covered by JVM tests without constructing MediaPipe. */
     private val slots = HandSlotPolicy(WIDE_HANDS, PROBE_MS, PROBE_FRAMES)
@@ -136,10 +136,10 @@ class HandTracker @JvmOverloads constructor(
         /** The tracking graph's slots: the hand being tracked, and nothing else. */
         const val NARROW_HANDS = 1
         /** The graph used while a hand is tracked: MediaPipe's default-quality threshold. */
-        const val TRACK_CONFIDENCE = .45f
+        const val TRACK_CONFIDENCE = .35f
         /** The graph used while NOTHING is tracked: lower bar for a hard-to-see hand, still high
          * enough that noise is not promoted to a hand (the fork's crop rescue used .3 on a crop). */
-        const val SEARCH_CONFIDENCE = .25f
+        const val SEARCH_CONFIDENCE = .20f
         /**
          * Find a second hand while keeping one-hand frames on the fast graph: at most one two-slot
          * frame in this many processed frames.

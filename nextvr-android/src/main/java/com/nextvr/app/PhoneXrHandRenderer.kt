@@ -21,20 +21,20 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
-    /** Quest-style cyan hand/pointer colours, faded per hand when native tracking is predicted. */
+    /** Dark translucent hand silhouette with thin crisp white contour (fits snugly on the hand). */
     private companion object {
-        const val HAND_FILL_R = .04f
-        const val HAND_FILL_G = .18f
-        const val HAND_FILL_B = .24f
-        const val HAND_CONTOUR_R = .153f
-        const val HAND_CONTOUR_G = .91f
+        const val HAND_FILL_R = .03f
+        const val HAND_FILL_G = .03f
+        const val HAND_FILL_B = .04f
+        const val HAND_CONTOUR_R = .96f
+        const val HAND_CONTOUR_G = .97f
         const val HAND_CONTOUR_B = 1f
-        const val HAND_FILL_ALPHA = .55f
-        const val HAND_OUTLINE_ALPHA = .9f
-        const val HAND_PINCH_ALPHA = 1f
-        const val POINTER_DROP_ALPHA = .85f
+        const val HAND_FILL_ALPHA = .35f
+        const val HAND_OUTLINE_ALPHA = .70f
+        const val HAND_PINCH_ALPHA = .94f
+        const val POINTER_DROP_ALPHA = .82f
         const val POINTER_CLICK_ALPHA = .95f
-        const val POINTER_RAY_ALPHA = .85f
+        const val POINTER_RAY_ALPHA = .82f
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
@@ -79,6 +79,7 @@ class PhoneXrHandRenderer {
     private var meshScaleY=0f
     private val hasStencil=true
     private var touching=false
+    @Volatile var showPointer=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
@@ -102,15 +103,15 @@ class PhoneXrHandRenderer {
     private val ulnarChain=FloatArray(16)
     /** Samples along each wrist border, not counting the start point. */
     private val CHAIN_STEPS=4
-    /** Wrist breadth as a fraction of palm breadth (MCP5 -> MCP17) - adult anthropometry. */
-    private val WRIST_BREADTH=.44f
+    /** Wrist breadth as a fraction of palm breadth (MCP5 -> MCP17) - snug fit on hand. */
+    private val WRIST_BREADTH=.38f
     /** The virtual (estimated) wrist, past landmark 0, as a fraction of knuckle->wrist length. */
-    private val WRIST_EXTEND=.40f
+    private val WRIST_EXTEND=.36f
     /** Fraction of the wrist half-width carried as a centre offset; the rest is chain radius. */
     private val STUB_TAPER=.50f
     /** How far each wrist border bows away from the palm axis (hypothenar / thenar flesh). */
-    private val ULNAR_BULGE=.10f
-    private val RADIAL_BULGE=.13f
+    private val ULNAR_BULGE=.065f
+    private val RADIAL_BULGE=.085f
     /** Radial (thumb-side) border handles. Deliberately unequal: a short handle at the wrist keeps
      * the lower half essentially straight, and the long one at the thumb end means the curve only
      * develops from about half the palm upwards - the real thenar shape, not a symmetric arc. */
@@ -171,6 +172,11 @@ class PhoneXrHandRenderer {
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
+        if(!showPointer) {
+            GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+            GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            return
+        }
         // Both eyes/display frames commonly reuse the same bridge packet.
         if(targetsText!=targetsJson){
             targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
@@ -181,7 +187,7 @@ class PhoneXrHandRenderer {
             val id=if(hand.left) "left" else "right"
             var target:JSONObject?=null
             for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
-            if(target?.optBoolean("hidden")==true) continue
+            if(target?.optBoolean("hidden")==true || target?.optBoolean("noBeam")==true) continue
             val direct=target?.optBoolean("direct")==true
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.
@@ -274,8 +280,8 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
                 val palm = hypot(x(9) - x(0), y(9) - y(0))
                 if (palm < 1e-4f) continue
-                val r = palm * .12f
-                val edge = if (pinching) maxOf(palm * .022f, .002f) else maxOf(palm * .012f, .0014f)
+                val r = palm * .105f
+                val edge = if (pinching) maxOf(palm * .013f, .0016f) else maxOf(palm * .007f, .001f)
                 // Gradient axis = palm knuckles -> the VIRTUAL (estimated) wrist, not the landmark.
                 // MediaPipe gives a wrist point but no forearm, so the silhouette is carried a
                 // little past landmark 0 along the palm axis and dissolves there: the hand stays
@@ -289,9 +295,11 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 val axL = hypot(axX, axY).coerceAtLeast(1e-4f)
                 axX /= axL; axY /= axL
                 var nx = -axY; var ny = axX
-                if ((x(1) - x(0)) * nx + (y(1) - y(0)) * ny < 0f) { nx = -nx; ny = -ny }
+                val sideX = (x(5) - x(17)) + (x(1) - x(0)) * .6f
+                val sideY = (y(5) - y(17)) + (y(1) - y(0)) * .6f
+                if (sideX * nx + sideY * ny < 0f) { nx = -nx; ny = -ny }
                 // Virtual wrist cross-section; wrist breadth is ~0.55 of palm breadth.
-                val wristHalf = .5f * WRIST_BREADTH * hypot(x(17) - x(5), y(17) - y(5))
+                val wristHalf = minOf(.5f * WRIST_BREADTH * hypot(x(17) - x(5), y(17) - y(5)), palm * .22f)
                 val virtX = x(0) + axX * axL * WRIST_EXTEND
                 val virtY = y(0) + axY * axL * WRIST_EXTEND
                 val eh = wristHalf * STUB_TAPER
@@ -387,17 +395,17 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
                     chain(ulnarChain, r * .95f, wristHalf - eh)
                     chain(radialChain, wristHalf - eh, r * 1.12f)
-                    // Thumb and fingers, thinner towards the tips.
-                    val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
+                    // Thumb and fingers, natural human finger thickness with gentle taper towards tips.
+                    val scale = floatArrayOf(.98f, .98f, 1.02f, .96f, .86f)
                     for (finger in 0 until 5) {
                         val base = 1 + finger * 4
                         val f = scale[finger]
                         if (finger == 0) {
-                            bone(1, 2, r * 1.15f, r * 1.02f); bone(2, 3, r * 1.02f, r * .95f); bone(3, 4, r * .95f, r * .82f)
+                            bone(1, 2, r * 1.22f, r * 1.08f); bone(2, 3, r * 1.08f, r * 1.00f); bone(3, 4, r * 1.00f, r * .88f)
                         } else {
-                            bone(base, base + 1, r * f, r * .92f * f)
-                            bone(base + 1, base + 2, r * .92f * f, r * .85f * f)
-                            bone(base + 2, base + 3, r * .85f * f, r * .76f * f)
+                            bone(base, base + 1, r * f, r * .95f * f)
+                            bone(base + 1, base + 2, r * .95f * f, r * .89f * f)
+                            bone(base + 2, base + 3, r * .89f * f, r * .82f * f)
                         }
                     }
                     val rgba=when {

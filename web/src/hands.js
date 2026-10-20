@@ -4,6 +4,7 @@
 // Dock invocation is NOT via pinch: the palm+pinch dock gesture has been removed. Other PhoneXR
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
+import { bindSixDofContext, updateHandBoxesFromPacket } from './sixdof.js';
 import { HandClickState, ClickDragArbiter } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
@@ -11,6 +12,7 @@ const clickState = new HandClickState();
 const pressArbiter = new ClickDragArbiter();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
+bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
 export const tracking = () => enabled;
 export async function startHands() {
   if (!native) { toast('Hand tracking requires the Android camera pipeline.'); return false; }
@@ -96,8 +98,13 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   validForMs=Math.max(1000,Math.min(1500,Number(frame.validForMs)||500));
   hands.splice(0,hands.length,...(frame.hands || []));
   emit('handframe',{...frame,hands});
+  if (window.__gorillaStereoOverlay) {
+    window.__gorillaOnHands?.(now);
+    return;
+  }
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };
+  updateHandBoxesFromPacket(packet);
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
   if(packet.blockFar){cancel();return;}
@@ -127,7 +134,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
 const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 onFrame(()=>{
-  if (native && visual!==!!S.handDraw) { visual=!!S.handDraw; window.NativeXR.handVisuals?.(visual); }
+  if (!window.__gorillaStereoOverlay && native && visual!==!!S.handDraw) { visual=!!S.handDraw; window.NativeXR.handVisuals?.(visual); }
   if (hands.length && performance.now()-lastFrame>validForMs) {
     hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }
