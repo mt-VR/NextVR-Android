@@ -47,6 +47,7 @@ final class SpatialRenderer {
     static final class Panel {
         String browser;
         boolean overlay;
+        boolean homeOverlay;
         final float[] matrix = new float[16], uv = new float[4];
         /**
          * The RIGHT eye's sampling rect of a hosted headset game (PhoneXR): the runtime presents its
@@ -203,7 +204,7 @@ final class SpatialRenderer {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform mat4 uTransform; uniform vec4 uRect; uniform vec4 uRectR; uniform float uEye; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vec4 rect=mix(uRect,uRectR,uEye);vUv=(uTransform*vec4(rect.xy+aUv*rect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.));}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackface>.5){float ba=c.a*.32; c=vec4(vec3(.96,.98,1.)*ba,ba);} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb;} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackface>.5){bool inG=all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw)); float ba=inG?max(c.a,.78):c.a*.78; vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 bg=uBackdrop?(envAt(ndc)*2.+envAt(ndc+vec2(.009,0.))+envAt(ndc-vec2(.009,0.))+envAt(ndc+vec2(0.,.009))+envAt(ndc-vec2(0.,.009)))/6.:vec3(.92,.95,.99); vec3 frost=mix(bg,vec3(.94,.96,.99),.76); c=vec4(frost*ba,ba);} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
@@ -241,7 +242,7 @@ final class SpatialRenderer {
         List<Panel> result = new ArrayList<>();
         for(int i=0;i<arr.length();i++) {
             JSONObject o=arr.getJSONObject(i); Panel p=new Panel();
-            p.browser=o.optString("browser", ""); p.overlay=o.optBoolean("overlay");
+            p.browser=o.optString("browser", ""); p.overlay=o.optBoolean("overlay"); p.homeOverlay=o.optBoolean("homeOverlay");
             JSONArray m=o.getJSONArray("matrix"), r=o.getJSONArray("rect");
             JSONArray glass=o.optJSONArray("glass"); if(glass!=null) for(int k=0;k<4;k++) p.glass[k]=(float)glass.getDouble(k);
             for(int k=0;k<16;k++) { p.matrix[k]=(float)m.getDouble(k); if(!Float.isFinite(p.matrix[k])) throw new IllegalArgumentException("Invalid transform"); }
@@ -323,6 +324,11 @@ final class SpatialRenderer {
         GLES20.glDisable(GLES20.GL_BLEND);
     }
     private void drawPanel(Panel p) {
+        if(!p.browser.isEmpty()) {
+            if(p.homeOverlay) return;
+            float facing = (viewInv[12] - p.flat[12]) * p.flat[8] + (viewInv[14] - p.flat[14]) * p.flat[10];
+            if(!p.overlay && facing < 0f) return;
+        }
         Texture tex=p.browser.isEmpty()?atlas:browsers.get(p.browser);
         if(tex==null || !tex.ready) return;
         // A matriz combinada saiu de cena: o shader aplica uViewProj*uFlat e dobra a superficie.

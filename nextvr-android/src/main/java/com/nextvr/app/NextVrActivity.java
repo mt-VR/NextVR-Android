@@ -219,9 +219,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
-            @Override public void sixDof(float sc, float gx, float gy) {
+            @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 if(!sixDofEnabled || Math.abs(sc)>0.22f) return;
-                if(Math.abs(sc)<0.004f) {
+                float latDx=mx-gx;
+                if(Math.abs(sc)<0.004f && Math.abs(latDx)<0.45f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
@@ -231,7 +232,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 boolean moving=(!hasWalkAccel || (nowMs-lastWalkStepMs<1050L) || (Math.abs(sc)>=0.008f && Math.hypot(gx,gy)<=4.0)) && gyroRate<2.4f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",moving:"+moving+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
                 });
             }
             @Override public void stopped() {

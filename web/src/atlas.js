@@ -175,6 +175,7 @@ export class AtlasRenderer {
             sizes[i].height / 2 - (clip.top - origin.top + ch / 2), .5))
           .multiply(new THREE.Matrix4().makeScale(cw, ch, 1));
         panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height], curve: +(e.dataset.curve || 0),
+          homeOverlay: b.dataset.homeOverlay === '1',
           uv: [(clip.left - box.left) / width, (box.bottom - clip.bottom) / height, cw / width, ch / height] });
       }
     });

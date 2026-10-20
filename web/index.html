@@ -425,17 +425,18 @@
   }
 
   /* ---------- teclado estilo Meta Quest: painel escuro, deitado, teclas graúdas ---------- */
-  .kb{width:1150px;background:rgba(24,26,31,.93);border:1px solid rgba(255,255,255,.09);
+  .kb{position:relative;width:1150px;background:linear-gradient(180deg,rgba(35,38,45,.96),rgba(24,26,31,.98));border:1px solid rgba(255,255,255,.11);
     border-radius:28px;padding:18px 18px 14px;display:flex;flex-direction:column;gap:10px;
-    backdrop-filter:blur(18px);pointer-events:auto;box-shadow:0 44px 130px rgba(0,0,0,.65)}
+    backdrop-filter:blur(18px);pointer-events:auto;box-shadow:0 44px 130px rgba(0,0,0,.68),inset 0 1px 0 rgba(255,255,255,.08)}
   .kb-row{display:flex;gap:10px;flex-wrap:nowrap}
-  .key{flex:1 1 0;min-width:0;height:88px;border-radius:16px;background:#343941;color:#eef1f6;
-    display:grid;place-items:center;font-size:29px;font-weight:500;box-shadow:0 3px 0 rgba(0,0,0,.32)}
-  .key.wide{flex:1.65 1 0;background:#2a2e35}
+  .key{position:relative;flex:1 1 0;min-width:0;height:88px;border-radius:14px;background:#2f333c;color:#f3f5f9;
+    display:grid;place-items:center;font-size:29px;font-weight:500;border:1px solid rgba(255,255,255,.05);box-shadow:0 3px 0 rgba(0,0,0,.36)}
+  .key[data-sub]::after{content:attr(data-sub);position:absolute;top:7px;right:10px;font-size:13px;font-weight:600;color:rgba(210,218,230,.54);line-height:1;pointer-events:none}
+  .key.wide{flex:1.65 1 0;background:#262a32}
   .key.wide .ui-icon{width:34px;height:34px}
-  .key.space{flex:5.2 1 0;font-size:21px;font-weight:600;color:#9aa6b6;letter-spacing:.04em}
-  .key.enter{flex:1.9 1 0;background:#e6eaf1;color:#171a1f}
-  .key.util{background:#2a2e35;color:#c6cdd8;font-size:24px;box-shadow:0 3px 0 rgba(0,0,0,.28)}
+  .key.space{flex:5.2 1 0;font-size:21px;font-weight:600;color:#aeb7c4;letter-spacing:.04em;background:#343943;border-radius:18px}
+  .key.enter{flex:1.9 1 0;background:#ffffff;color:#111318;border-radius:20px;box-shadow:0 4px 14px rgba(255,255,255,.22)}
+  .key.util{background:#262a32;color:#d0d6e0;font-size:24px;box-shadow:0 3px 0 rgba(0,0,0,.28)}
   .key .ui-icon{width:32px;height:32px}
   .key.hot{background:#fff;color:#14181d;transform:translateY(2px);box-shadow:none}
   .key[data-state="once"]{background:#4a5160;color:#fff}
@@ -444,10 +445,10 @@
   /* ---------- dock: painel compacto Quest-style, retangular com cantos arredondados ---------- */
   .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
     align-items:center;gap:6px;width:max-content;padding:6px 8px;border-radius:16px;
-    background:linear-gradient(180deg,rgba(54,64,81,.97),rgba(29,37,52,.98));
-    border:1px solid rgba(194,207,231,.19);
+    background:linear-gradient(180deg,rgba(54,64,81,.16),rgba(29,37,52,.20)),linear-gradient(180deg,rgba(24,26,32,.96),rgba(16,18,23,.98));
+    border:1px solid rgba(214,224,242,.20);
     backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);
-    box-shadow:0 14px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.10),inset 0 -1px 0 rgba(0,0,0,.30);
+    box-shadow:0 16px 38px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.38);
     pointer-events:auto}
   .dock button{color:#e7e9ed}
   /* A área de arrasto mantém uma barrinha branca visível logo abaixo da dock. */
@@ -517,6 +518,38 @@
   /* ---- Quest Browser dock (fininha, só perfil+hora/bateria) ---- */
   .qb-dock{position:relative;display:flex;align-items:center;justify-content:center;gap:3px;padding:2px 6px;background:#0e1117;border-top:1px solid rgba(255,255,255,.06)}
   .qb-dock .dock-av,.qb-dock .dock-status{height:20px}
+  /* ---- Meta Quest 3S Browser Start Page (Populares, Continuar navegando, Entretenimento, Experiências imersivas) ---- */
+  .qb-home-overlay{position:absolute;inset:0;z-index:12;background:linear-gradient(180deg,#1c1f26 0%,#15171d 100%);color:#f1f5f9;overflow:hidden;display:flex;flex-direction:column}
+  .qb-home-overlay[hidden]{display:none!important}
+  .qb-home-scroll{flex:1;min-height:0;overflow-y:auto;padding:18px 28px 24px;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin}
+  .qb-sec{display:flex;flex-direction:column;gap:10px}
+  .qb-sec-head{display:flex;align-items:center;justify-content:space-between}
+  .qb-sec-title{font-size:15px;font-weight:700;color:#e2e8f0;letter-spacing:-.01em}
+  .qb-sec-more{font-size:12px;font-weight:600;color:#94a3b8}
+  .qb-pop-row{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px}
+  .qb-pop-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border:0;border-radius:12px;background:rgba(255,255,255,.04);color:#e2e8f0;cursor:pointer;transition:transform .14s,background .14s}
+  .qb-pop-item:hover{background:rgba(255,255,255,.10);transform:translateY(-2px)}
+  .qb-pop-icon{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:17px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+  .qb-pop-lbl{font-size:11px;font-weight:600;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .qb-cont-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .qb-cont-card{display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#232730;overflow:hidden;padding:0;text-align:left;color:#f1f5f9;cursor:pointer;transition:transform .14s,border-color .14s}
+  .qb-cont-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.22)}
+  .qb-cont-thumb{height:64px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;letter-spacing:.02em}
+  .qb-cont-meta{padding:8px 10px}
+  .qb-cont-ttl{font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qb-cont-dom{font-size:10px;color:#94a3b8;margin-top:2px}
+  .qb-ent-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 12px}
+  .qb-ent-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:0;background:transparent;padding:0;color:#e2e8f0;cursor:pointer;text-align:left;transition:transform .14s}
+  .qb-ent-tile:hover{transform:translateY(-2px) scale(1.02)}
+  .qb-ent-card{width:100%;height:74px;border-radius:12px;border:1px solid rgba(255,255,255,.09);display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+  .qb-ent-logo{padding:6px 14px;border-radius:999px;font-size:14px;font-weight:900;letter-spacing:-.02em;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+  .qb-ent-lbl{font-size:11.5px;font-weight:600;color:#cbd5e1;padding-left:2px}
+  .qb-imm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .qb-imm-card{min-height:86px;border-radius:14px;border:1px solid rgba(255,255,255,.12);padding:12px 14px;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;text-align:left;color:#fff;cursor:pointer;position:relative;overflow:hidden;transition:transform .14s}
+  .qb-imm-card:hover{transform:translateY(-2px)}
+  .qb-imm-badge{position:absolute;top:10px;right:10px;font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25)}
+  .qb-imm-ttl{font-size:13px;font-weight:800}
+  .qb-imm-sub{font-size:11px;color:#cbd5e1}
   .qb-dock .dock-av{width:20px;border-radius:50%}
   .qb-dock .dock-av svg{width:11px;height:11px}
   .qb-dock .dock-status{padding:0 6px;gap:4px;border-radius:6px;background:rgba(255,255,255,.04)}
@@ -1367,11 +1400,30 @@
     width:14px;height:14px;filter:none
   }
 
+  .spatial-honeycomb-wrap{
+    flex:1;min-width:0;position:relative;display:flex;align-items:center;gap:6px;max-height:475px
+  }
+  .spatial-scroll-btn{
+    width:34px;height:68px;flex:none;border-radius:999px;border:1px solid rgba(255,255,255,.24);
+    background:rgba(15,23,42,.62);color:#f8fafc;font-size:26px;font-weight:800;line-height:1;
+    display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 8px 20px rgba(0,0,0,.45);transition:transform .14s,background .14s,border-color .14s
+  }
+  .spatial-scroll-btn:hover,.spatial-scroll-btn.finger-hover{
+    background:rgba(56,189,248,.32);border-color:#38bdf8;transform:scale(1.08)
+  }
   .spatial-honeycomb{
-    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:18px;
-    max-height:475px;overflow-y:auto;padding:6px 8px;scrollbar-width:none;background:transparent!important
+    position:relative;flex:1;min-width:0;display:grid;
+    grid-auto-flow:column;grid-template-rows:repeat(3,auto);grid-auto-columns:106px;
+    align-items:start;justify-content: start;gap:16px 18px;
+    max-height:475px;overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;
+    padding:8px 10px;scrollbar-width:none;background:transparent!important
   }
   .spatial-honeycomb::-webkit-scrollbar{display:none}
+  .spatial-app-circle--game{
+    background:linear-gradient(145deg,#10b981,#047857);
+    border:1.5px solid rgba(110,231,183,.55)
+  }
   .spatial-row{
     display:flex;flex-direction:row;align-items:flex-start;justify-content:center;gap:18px
   }
@@ -1735,11 +1787,28 @@
   .yt-seg-btn[aria-pressed="true"]{background:#3ea6ff;color:#0f0f0f}
   .yt-range{width:130px;accent-color:#3ea6ff}
   .yt-foot{padding:20px 72px 8px;font-size:12px;color:#717171}
-  html:not(.native) .dock[data-backface="1"],
-  html:not(.native) .win-shell[data-backface="1"]{
-    opacity:.32;
-    filter:brightness(2.6) saturate(.08) contrast(.72);
-    transition:opacity .12s ease,filter .12s ease;
+  .dock[data-backface="1"]::before,
+  .win-shell[data-backface="1"] .win::after,
+  .kb[data-backface="1"]::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    border-radius:inherit;
+    background:linear-gradient(180deg,rgba(238,243,250,.84),rgba(214,222,235,.78));
+    border:1.5px solid rgba(255,255,255,.82);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 16px 38px rgba(0,0,0,.28);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    z-index:999;
+    pointer-events:none;
+  }
+  .dock[data-backface="1"] > *,
+  .win-shell[data-backface="1"] .win > *,
+  .kb[data-backface="1"] > *{
+    opacity:0!important;
+  }
+  .dock-grab[data-backface="1"]::after{
+    background:rgba(240,244,250,.82)!important;
   }
 
   /* ---------- Opções de Guias do Navegador (+ NOVA GUIA / + GUIA ANÔNIMA ao segurar 2s) ---------- */

@@ -255,7 +255,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
             GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
             GLES20.glUniform1f(gradUniform,1f)
-            GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
+            val isOutline = mesh.color[0] > .5f
+            val alpha = if (isOutline) minOf(.96f, mesh.color[3] * 1.30f) else minOf(.58f, mesh.color[3] * 1.62f)
+            GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],alpha*fade)
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
@@ -281,7 +283,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 val palm = hypot(x(9) - x(0), y(9) - y(0))
                 if (palm < 1e-4f) continue
                 val r = palm * .105f
-                val edge = if (pinching) maxOf(palm * .013f, .0016f) else maxOf(palm * .007f, .001f)
+                val edge = if (pinching) maxOf(palm * .016f, .0022f) else maxOf(palm * .0115f, .0016f)
                 // Gradient axis = palm knuckles -> the VIRTUAL (estimated) wrist, not the landmark.
                 // MediaPipe gives a wrist point but no forearm, so the silhouette is carried a
                 // little past landmark 0 along the palm axis and dissolves there: the hand stays

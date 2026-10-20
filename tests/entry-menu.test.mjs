@@ -118,6 +118,12 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'SpatialRenderer.java translates view by (-sixDofX,-sixDofY,-sixDofZ) before invertM/multiplyMM so handRenderer and panels share the exact 6DoF view matrix');
   assert.ok(appsSrc.includes('data-store-gorilla') && appsSrc.includes('data-install-gorilla') && appsSrc.includes("id: 'gorilla-tag'") && appsSrc.includes('gorilla-tag-logo.jpg'),
     'apps.js lists Gorilla Tag with its official logo in the Store and installs it into the App Library');
+  assert.ok(appsSrc.includes('QB_ENTERTAINMENT_TILES') && appsSrc.includes('Crunchyroll') && appsSrc.includes('Paramount+') && appsSrc.includes('buildQuestBrowserHomeHtml'),
+    'apps.js implements the Meta Quest 3S Browser Start Page with Populares, Continuar navegando, Entretenimento, and Experiências imersivas');
+  assert.ok(appsSrc.includes('SPATIAL_GAME_ITEMS') && appsSrc.includes('data-spatial-scroll-track') && appsSrc.includes('syncSpatialLauncherVisibility'),
+    'apps.js shows games in the Spatial App, makes it horizontally scrollable, and hides/restores it when opening/closing an app window');
+  assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateGunDockToggle') && windowsSrc.includes('KEY_SUBS'),
+    'windows.js implements finger-lift touch activation, gun-gesture dock hide/unhide toggle, and keyboard superscript symbols');
 });
 
 test('entry menu interactive flow in browser: hand tracking toggle, colaboradores, sobre, configurações and iniciar', { timeout: 60000 }, async (t) => {
@@ -289,13 +295,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       'spatial-launcher window fits the native 1360x980 atlas cell and is published to NativeXR.frame');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.dock')).display), 'none', 'Spatial App mode hides the dock');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.win-shell[data-window-id="spatial-launcher"] .win-handle')).display), 'none', 'Spatial App has no white move bar');
-    assert.equal(await page.locator('.spatial-app-tile').count(), 13, 'Spatial App renders the 13 core squircle icons up to My apps after WhatsApp');
+    assert.ok(await page.locator('.spatial-app-tile').count() >= 18, 'Spatial App renders the core squircle icons plus games inside the horizontally scrollable track');
+    assert.ok(await page.locator('.spatial-app-tile[data-spatial-game="1"]').count() >= 5, 'Spatial App includes games inside the launcher');
+    assert.equal(await page.locator('[data-spatial-scroll-track]').count(), 1, 'Spatial App uses a horizontally scrollable track');
     assert.equal(await page.locator('.spatial-hz-title').innerText(), 'Library', 'Spatial App displays the Horizon Library header');
     assert.equal(await page.locator('.spatial-hz-rail [data-spatial-nav]').count(), 5, 'Spatial App displays All, Apps, Worlds, Horizon+ and Downloads on the left rail');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')).env), 'passthrough', 'Spatial App forces real rear camera passthrough behind floating apps');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.spatial-launcher-root')).backgroundColor), 'rgba(0, 0, 0, 0)', 'Spatial App root is 100% transparent so only the apps appear over the rear camera');
 
-    // 6b-2. Direct index-finger touch (sem pinça): hovering over YouTube in Spatial App does NOT open it, pushing hand forward ("ir lá na frente") opens YouTube
+    // 6b-2. Direct index-finger touch (sem pinça): passing/holding finger over YouTube in Spatial App selects it without opening; lifting finger ("levantar o dedo") opens YouTube, hides Spatial App, and closing YouTube restores Spatial App
     const pokeResult = await page.evaluate(async () => {
       // Find aim coordinates that hit the YouTube tile in spatial-launcher
       const winEl = document.querySelector('.win-shell[data-window-id="spatial-launcher"]');
@@ -319,15 +327,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
       const aimTan = [(bestAim.x - 0.5) * 2 * TAN_X, (0.5 - bestAim.y) * 2 * TAN_Y];
 
-      const mkPointingHand = (palmWidth, headZ) => {
+      const mkPointingHand = (palmWidth, headZ, liftDeltaY = 0) => {
         const pts = new Array(63).fill(0.5);
-        // Index TIP at (bestAim.x, bestAim.y), PIP below it, Wrist below PIP
+        // Index TIP at (bestAim.x, bestAim.y - liftDeltaY), PIP below it, Wrist below PIP
         pts[0] = bestAim.x; pts[1] = Math.min(0.95, bestAim.y + 0.24); pts[2] = 0;
         pts[18] = bestAim.x; pts[19] = Math.min(0.90, bestAim.y + 0.10); pts[20] = -0.02;
         pts[21] = bestAim.x; pts[22] = Math.min(0.90, bestAim.y + 0.04); pts[23] = -0.03;
-        pts[24] = bestAim.x; pts[25] = bestAim.y; pts[26] = -0.04;
+        pts[24] = bestAim.x; pts[25] = bestAim.y - liftDeltaY; pts[26] = -0.04;
         const head = new Array(63).fill(0);
-        head[24] = 0; head[25] = 0; head[26] = headZ;
+        head[24] = 0; head[25] = liftDeltaY * 0.6; head[26] = headZ;
         return {
           id: 'right',
           pinching: false,
@@ -342,21 +350,28 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         };
       };
 
-      // Step 1: Hover/choose with index finger without moving hand forward -> must NOT open YouTube
-      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45)] });
+      // Step 1: Hover/hold index finger over YouTube -> selects it (.finger-hover) without opening
+      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45, 0)] });
       await new Promise(r => setTimeout(r, 85));
-      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45)] });
+      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45, 0)] });
+      const selectedOnHover = !!winEl.querySelector('[data-spatial-builtin="youtube"].finger-hover');
       const openedOnHover = !!document.querySelector('.win-shell[data-window-id="browser"]');
 
-      // Step 2: Push hand / index finger forward ("ir lá na frente") -> MUST open YouTube without pinching
-      window.nextvrHands({ hands: [mkPointingHand(0.18, -0.52)] });
-      await new Promise(r => setTimeout(r, 30));
+      // Step 2: Lift index finger ("levantar o dedo") while over the app -> opens YouTube and hides spatial-launcher
+      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45, 0.015)] });
+      await new Promise(r => setTimeout(r, 40));
       const openedOnPoke = !!document.querySelector('.win-shell[data-window-id="browser"]');
+      const spatialHiddenWhileAppOpen = getComputedStyle(winEl).display === 'none';
       document.querySelector('.win-shell[data-window-id="browser"] [data-act="close"]')?.click();
-      return { openedOnHover, openedOnPoke };
+      await new Promise(r => setTimeout(r, 40));
+      const spatialRestoredAfterClose = getComputedStyle(winEl).display !== 'none';
+      return { selectedOnHover, openedOnHover, openedOnPoke, spatialHiddenWhileAppOpen, spatialRestoredAfterClose };
     });
-    assert.equal(pokeResult.openedOnHover, false, 'aiming/hovering with index finger must NOT open the app');
-    assert.equal(pokeResult.openedOnPoke, true, 'pushing index finger/hand forward ("ir lá na frente") opens the app without pinching');
+    assert.equal(pokeResult.selectedOnHover, true, 'passing/holding index finger over app selects/highlights it');
+    assert.equal(pokeResult.openedOnHover, false, 'holding index finger over app must NOT open it before lifting the finger');
+    assert.equal(pokeResult.openedOnPoke, true, 'lifting index finger ("levantar o dedo") while over the app opens it');
+    assert.equal(pokeResult.spatialHiddenWhileAppOpen, true, 'opening an app from Spatial App hides the Spatial App launcher');
+    assert.equal(pokeResult.spatialRestoredAfterClose, true, 'closing the app window restores the Spatial App launcher');
 
     // 6c. 2-second pinch with BOTH hands recenters dock/floating apps and open windows without any loading ring
     const recenterResult = await page.evaluate(async () => {
@@ -399,6 +414,64 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.notEqual(await page.evaluate(() => getComputedStyle(document.querySelector('.dock')).display), 'none', 'normal dock is visible when spatialLauncher is 0');
     assert.ok(await page.evaluate(() => Array.isArray(window.__last) && window.__last.some(p => p.id === 'dock') && !window.__last.some(p => p.id === 'spatial-launcher')),
       'normal dock is published to NativeXR.frame and spatial-launcher is removed');
+
+    // 6c-2b. Gun gesture + closing index finger ("arma com qualquer mão e fechar o dedo indicador") hides and unhides the Dock
+    const gunDockResult = await page.evaluate(async () => {
+      const mkGunHand = (triggerClosed) => {
+        const pts = new Array(63).fill(0.5);
+        // Wrist at (0.5, 0.72)
+        pts[0] = 0.5; pts[1] = 0.72; pts[2] = 0;
+        // Thumb extended up/left (gun hammer): MCP(2) at (0.45, 0.64), TIP(4) at (0.41, 0.52)
+        pts[6] = 0.45; pts[7] = 0.64; pts[8] = 0;
+        pts[9] = 0.43; pts[10] = 0.58; pts[11] = 0;
+        pts[12] = 0.41; pts[13] = 0.52; pts[14] = 0;
+        // Index finger: MCP(5) at (0.5, 0.58), PIP(6) at (0.5, 0.50)
+        pts[15] = 0.5; pts[16] = 0.58; pts[17] = 0;
+        pts[18] = 0.5; pts[19] = 0.50; pts[20] = 0;
+        if (triggerClosed) {
+          // Index curled back toward wrist (trigger pulled)
+          pts[21] = 0.5; pts[22] = 0.57; pts[23] = 0;
+          pts[24] = 0.5; pts[25] = 0.60; pts[26] = 0;
+        } else {
+          // Index extended forward/up (gun barrel)
+          pts[21] = 0.5; pts[22] = 0.42; pts[23] = 0;
+          pts[24] = 0.5; pts[25] = 0.34; pts[26] = 0;
+        }
+        // Middle(10,12), Ring(14,16), Pinky(18,20) curled near palm
+        for (const [pipIdx, tipIdx] of [[10, 12], [14, 16], [18, 20]]) {
+          pts[pipIdx * 3] = 0.54; pts[pipIdx * 3 + 1] = 0.60; pts[pipIdx * 3 + 2] = 0;
+          pts[tipIdx * 3] = 0.53; pts[tipIdx * 3 + 1] = 0.65; pts[tipIdx * 3 + 2] = 0;
+        }
+        return {
+          id: 'right',
+          pinching: false,
+          pinch: 0.55,
+          fist: false,
+          palmWidth: 0.2,
+          aim: [0, 0],
+          palm: [0.5, 0.6, 0.3],
+          ring: [0.5, 0.6],
+          points: pts,
+        };
+      };
+      // 1) Arm gun pose (index open) then pull trigger (close index finger) -> hides dock
+      window.nextvrHands({ hands: [mkGunHand(false)] });
+      await new Promise(r => setTimeout(r, 30));
+      window.nextvrHands({ hands: [mkGunHand(true)] });
+      await new Promise(r => setTimeout(r, 30));
+      const hiddenAfterFirstGun = getComputedStyle(document.querySelector('.dock')).display === 'none';
+      // 2) Wait cooldown, arm gun pose again and close index finger -> unhides dock
+      await new Promise(r => setTimeout(r, 560));
+      window.nextvrHands({ hands: [mkGunHand(false)] });
+      await new Promise(r => setTimeout(r, 30));
+      window.nextvrHands({ hands: [mkGunHand(true)] });
+      await new Promise(r => setTimeout(r, 30));
+      const visibleAfterSecondGun = getComputedStyle(document.querySelector('.dock')).display !== 'none';
+      window.nextvrHands({ hands: [] });
+      return { hiddenAfterFirstGun, visibleAfterSecondGun };
+    });
+    assert.equal(gunDockResult.hiddenAfterFirstGun, true, 'gun gesture + closing index finger hides the Dock');
+    assert.equal(gunDockResult.visibleAfterSecondGun, true, 'repeating gun gesture + closing index finger unhides the Dock');
 
     // 6c-3. 6DoF Falso estabilizado (fluxo ótico 96x72 / SixDof):
     // - NÃO anda para a frente sozinho quando parado (moving: false) nem continua a deslizar sozinho após parar

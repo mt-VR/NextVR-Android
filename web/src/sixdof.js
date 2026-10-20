@@ -11,6 +11,7 @@ import * as THREE from 'three';
  * ============================================================================ */
 
 const _sdFwd = new THREE.Vector3();
+const _sdRight = new THREE.Vector3();
 const _sdDelta = new THREE.Vector3();
 
 let _getCam = () => null;
@@ -103,7 +104,7 @@ export const SixDof = {
   lastSc: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
-  depth: 1.85, // metros assumidos até aos objetos à frente (escala do passo refinada para 6DoF mais responsivo)
+  depth: 2.05, // metros assumidos até aos objetos à frente (escala do passo refinada para 6DoF mais responsivo)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -243,7 +244,7 @@ export const SixDof = {
     if (good.length < 8) return null;
     f = fit(good);
 
-    this.applyFlowScale(f.sc, gx, gy, movingOverride);
+    this.applyFlowScale(f.sc, gx, gy, movingOverride, f.mx - gx);
     return { sc: f.sc, gx, gy };
   },
 
@@ -251,12 +252,12 @@ export const SixDof = {
    * Aplica o fator de escala radial `sc` à posição 6DoF da câmara,
    * seguindo exatamente o 6DOF_FALSO.js (2 frames concordantes, média, sem deriva autónoma).
    */
-  applyFlowScale(sc, gx = 0, gy = 0, movingOverride) {
+  applyFlowScale(sc, gx = 0, gy = 0, movingOverride, latDx = 0) {
     if (!_isEnabled()) return;
     const cam = _getCam();
     if (!cam) return;
 
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0045 || Math.abs(sc) > 0.22) {
+    if (!Number.isFinite(sc) || Math.abs(sc) < 0.004 || Math.abs(sc) > 0.24) {
       this.lastSc = 0;
       return;
     }
@@ -280,7 +281,7 @@ export const SixDof = {
       return;
     }
 
-    const step = Math.max(-0.12, Math.min(0.12, stepSc * this.depth));
+    const step = Math.max(-0.14, Math.min(0.14, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
@@ -290,6 +291,15 @@ export const SixDof = {
     else _sdFwd.set(0, 0, -1);
 
     this.pos.addScaledVector(_sdFwd, step);
+    if (Number.isFinite(latDx) && Math.abs(latDx) > 0.22 && Math.hypot(gx, gy) <= 3) {
+      _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
+      _sdRight.y = 0;
+      if (_sdRight.lengthSq() > 1e-6) {
+        _sdRight.normalize();
+        const latStep = Math.max(-0.03, Math.min(0.03, -latDx * 0.008));
+        this.pos.addScaledVector(_sdRight, latStep);
+      }
+    }
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal

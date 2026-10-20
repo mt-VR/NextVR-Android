@@ -207,7 +207,7 @@ public final class FakeSixDof {
         }
 
         System.arraycopy(g, 0, P, 0, g.length);
-        if (nPts < 10) return new float[]{ 0f, gx, gy };
+        if (nPts < 10) return new float[]{ 0f, gx, gy, gx };
 
         // 3) Modelo radial: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
         float mx = 0f, my = 0f, px = 0f, py = 0f;
@@ -238,7 +238,7 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 0.85f) return new float[]{ 0f, gx, gy };
+        if (med > 0.85f) return new float[]{ 0f, gx, gy, gx };
         float limit = Math.max(0.35f, med * 2f);
 
         int goodCount = 0;
@@ -252,7 +252,7 @@ public final class FakeSixDof {
                 gpy += ptY[i];
             }
         }
-        if (goodCount < 8) return new float[]{ 0f, gx, gy };
+        if (goodCount < 8) return new float[]{ 0f, gx, gy, gx };
         gmx /= goodCount;
         gmy /= goodCount;
         gpx /= goodCount;
@@ -266,6 +266,6 @@ public final class FakeSixDof {
             gden += X * X + Y * Y;
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
-        return new float[]{ finalSc, gx, gy };
+        return new float[]{ finalSc, gx, gy, gmx };
     }
 }

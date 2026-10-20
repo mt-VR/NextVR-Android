@@ -34,7 +34,7 @@ final class PassthroughCamera {
         /** Ownership of this upright bitmap transfers to the renderer. */
         void frame(Bitmap upright);
         void hands(PhoneXrHands.Frame frame);
-        default void sixDof(float sc, float gx, float gy) {}
+        default void sixDof(float sc, float gx, float gy, float mx) {}
         void error(String message);
         void stopped();
     }
@@ -410,7 +410,7 @@ final class PassthroughCamera {
             PerfLog.cameraWork(workMs);
             if(image!=null){image.close();image=null;}
             float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
-            if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2]);
+            if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             long handoffStart=SystemClock.elapsedRealtime();
             listener.frame(upright);upright=null;
             PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);

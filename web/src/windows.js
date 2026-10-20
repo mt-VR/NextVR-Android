@@ -237,6 +237,11 @@ class Win {
     this.resizeHit.translateY(-(this.h / 2 + resizeOffset) * PX * scale);
     this.resizeHit.translateZ(this.bulge(this.w / 2) + .003);
     this.resizeHit.scale.setScalar(scale);
+
+    o.updateMatrixWorld(true);
+    this.hit.updateMatrixWorld(true);
+    this.grab.updateMatrixWorld(true);
+    this.resizeHit.updateMatrixWorld(true);
   }
 
   /**
@@ -705,7 +710,13 @@ function shellPointer(press, action, x, y, target) {
 }
 function sendPress(press, action, x = press.x, y = press.y, target = null) {
   if (press.id === 'shell' && press.win?.onboarding) shellPointer(press, action, x, y, target);
-  else window.NativeXR.handTouch(press.id, action, x, y);
+  else {
+    window.NativeXR.handTouch(press.id, action, x, y);
+    if (action === 1 && target) {
+      const qbTile = target.closest?.('[data-qb-url],[data-qb-act]');
+      if (qbTile) qbTile.click();
+    }
+  }
 }
 function pickInElement(root, u, v) {
   const rect = root.getBoundingClientRect();
@@ -875,6 +886,7 @@ on('pinchdown', () => {
   dockPinch('down');
 });
 on('pinchsample', () => {
+  if (kbHeld) kbHold(performance.now());
   if (pendingPress && cursor.mode === 'drag') {
     clickThrough(pendingPress.hit, 'down');
     pendingPress = null;
@@ -1395,6 +1407,11 @@ const ROWS = [
    { k:'@mic', cls:'util', icon:'mic', label:'Ditado' },
    { k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
 ];
+const KEY_SUBS = {
+  q:'1', w:'2', e:'3', r:'4', t:'5', y:'6', u:'7', i:'8', o:'9', p:'0',
+  a:'@', s:'#', d:'$', f:'%', g:'&', h:'*', j:'-', k:'+', l:'(', 'ç':')',
+  z:'!', x:'"', c:"'", v:':', b:';', n:'/', m:'?',
+};
 const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
 let emojiIndex = 0;
 let kbObj = null, kbHit = null, kbTarget = null, kbOwner = null, kbShift = false, kbShiftLock = false;
@@ -1454,6 +1471,8 @@ export function keyboard(on_, field) {
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
     kbTarget = null; kbOwner = null; kbShift = kbShiftLock = false;
     kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
     return;
   }
   /*
@@ -1469,7 +1488,13 @@ export function keyboard(on_, field) {
   kbOwner = ownerWindow(kbTarget);
   if (native) console.log('kb open for', kbTarget?.nativeId || kbTarget?.tagName || 'nothing',
     'in window', kbOwner?.id ?? 'none');
-  if (kbObj) { placeKb(); return; }   // ja aberto: so troca o alvo e deixa o teclado caminhar ate ele
+  if (kbObj) {
+    placeKb();
+    scene.updateMatrixWorld(true);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return;
+  }   // ja aberto: so troca o alvo e deixa o teclado caminhar ate ele
 
   const el = document.createElement('div');
   el.className = 'kb';
@@ -1479,7 +1504,7 @@ export function keyboard(on_, field) {
       const k = typeof item === 'string' ? item : item.k;
       const b = document.createElement('button');
       b.className = 'key' + (typeof item === 'string' ? '' : ' ' + item.cls);
-      if(typeof item==='string')b.textContent=k;
+      if(typeof item==='string'){b.textContent=k; if(KEY_SUBS[k]) b.dataset.sub=KEY_SUBS[k];}
       else if(item.icon){b.innerHTML=icon(item.icon);b.setAttribute('aria-label',item.label);b.title=item.label;}
       else b.textContent=item.lbl||k;
       b.dataset.k = k;
@@ -1500,6 +1525,9 @@ export function keyboard(on_, field) {
   kbHit = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
   contentRoot.add(kbHit);
   placeKb();
+  scene.updateMatrixWorld(true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
 }
 
 function shiftCycle() {
@@ -1729,6 +1757,14 @@ function updateBackfaceStates() {
     const nextDock = isCameraBehindObject(dockObj) ? '1' : '0';
     if (dockEl.dataset.backface !== nextDock) {
       dockEl.dataset.backface = nextDock;
+      if (dockGrabEl) dockGrabEl.dataset.backface = nextDock;
+      changed = true;
+    }
+  }
+  if (kbObj && kbObj.visible !== false && kbObj.element) {
+    const nextKb = isCameraBehindObject(kbObj) ? '1' : '0';
+    if (kbObj.element.dataset.backface !== nextKb) {
+      kbObj.element.dataset.backface = nextKb;
       changed = true;
     }
   }
@@ -1740,7 +1776,10 @@ function updateBackfaceStates() {
       changed = true;
     }
   }
-  if (changed) css3d.invalidate?.();
+  if (changed) {
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+  }
 }
 if (typeof window !== 'undefined') window.__updateBackfaceStates = updateBackfaceStates;
 
@@ -1903,7 +1942,13 @@ function resolvePointTarget(x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   const kb = kbProbe(x, y);
   const h = hitAt(x, y);
-  const dk = dockTest(x, y);
+  let dk = dockTest(x, y);
+  if (!dk && dockVisible) {
+    for (const dy of [-0.02, 0.02, -0.038, 0.038]) {
+      dk = dockTest(x, y + dy);
+      if (dk) break;
+    }
+  }
   if (kb && (!h || kb.distance < h.distance) && kb.button) {
     setNextvrChoosingElement(kb.button);
     return { kind: 'kb', x, y, el: kb.button, key: 'kb:' + (kb.button.dataset?.k || kb.button.textContent || '') };
@@ -1921,11 +1966,11 @@ function resolvePointTarget(x, y) {
   }
   if (h && !h.handle && !h.resize) {
     const targetEl = pickInElement(h.win.el, h.u, h.v);
-    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-qb-url],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
     const nativeSurf = targetEl?.closest?.('[data-native-browser],[data-native-app],[data-native-xr]') || null;
     if (clickable) {
       setNextvrChoosingElement(clickable);
-      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
+      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
       return { kind: 'win', x, y, el: clickable, hit: h, key: `win:${h.win.id}:${idAttr}` };
     }
     if (nativeSurf) {
@@ -1934,10 +1979,12 @@ function resolvePointTarget(x, y) {
     }
   }
   if (dk?.popupOpt && dk.el) {
+    setNextvrChoosingElement(dk.el);
     return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, key: 'dock-popup:' + dk.popupOpt };
   }
   if (dk && dockBtns[dk.i]) {
     const b = dockBtns[dk.i];
+    setNextvrChoosingElement(b);
     return { kind: 'dock', x, y, el: b, key: 'dock:' + (b.dataset?.id || dk.i) };
   }
   return null;
@@ -1947,21 +1994,20 @@ function resolveFingerTarget(h, packet) {
   const p = h.points;
   const sx = Number(packet?.scaleX) || 1;
   const sy = Number(packet?.scaleY) || 1;
+  const offsets = [
+    [0, 0],
+    [0, 0.015],
+    [0, -0.015],
+    [0.015, 0],
+    [-0.015, 0],
+  ];
   if (p && p.length >= 26 && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     const tx = (p[24] - 0.5) * sx + 0.5;
     const ty = (p[25] - 0.5) * sy + 0.5;
-    const offsets = [
-      [0, 0],
-      [0, 0.015],
-      [0, -0.015],
-      [0.015, 0],
-      [-0.015, 0],
-    ];
     for (const [ox, oy] of offsets) {
       const hit = resolvePointTarget(tx + ox, ty + oy);
       if (hit) return hit;
     }
-    // Pad of the index finger (DIP landmark 7)
     const dx = (p[21] - 0.5) * sx + 0.5;
     const dy = (p[22] - 0.5) * sy + 0.5;
     const dipHit = resolvePointTarget(dx, dy);
@@ -1969,13 +2015,30 @@ function resolveFingerTarget(h, packet) {
   }
   if (Array.isArray(h.aim) && h.aim.length >= 2) {
     const aimPt = screenPoint(h.aim);
-    const aimHit = resolvePointTarget(aimPt.x, aimPt.y);
-    if (aimHit) return aimHit;
+    for (const [ox, oy] of offsets) {
+      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
+      if (aimHit) return aimHit;
+    }
   }
   return null;
 }
 
 function triggerFingerTouchTap(x, y, preferredEl = null) {
+  if (preferredEl?.dataset?.browserOpt) {
+    hideBrowserTabMenus();
+    window.nextvrOpenBrowserOption?.(preferredEl.dataset.browserOpt);
+    css3d.invalidate?.(); css3d.render?.(scene, camera);
+    return true;
+  }
+  if (preferredEl && dockBtns.includes(preferredEl)) {
+    preferredEl.classList.add('finger-pressed');
+    preferredEl.style.transform = 'scale(.88)';
+    setTimeout(() => { preferredEl.style.transform = ''; preferredEl.classList.remove('finger-pressed'); }, 160);
+    playNextvrClickAnimation(preferredEl);
+    preferredEl.click();
+    css3d.invalidate?.(); css3d.render?.(scene, camera);
+    return true;
+  }
   const kb = kbProbe(x, y);
   const h = hitAt(x, y);
   const dk = dockTest(x, y);
@@ -1995,6 +2058,7 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
       b.classList.add('finger-pressed');
       b.style.transform = 'scale(.88)';
       setTimeout(() => { b.style.transform = ''; b.classList.remove('finger-pressed'); }, 160);
+      playNextvrClickAnimation(b);
       b.click();
       css3d.invalidate?.(); css3d.render?.(scene, camera);
       return true;
@@ -2003,10 +2067,11 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
   if (h && !h.handle && !h.resize) {
     focus(h.win);
     const targetEl = (preferredEl && h.win.el.contains(preferredEl)) ? preferredEl : pickInElement(h.win.el, h.u, h.v);
-    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea') || targetEl;
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-qb-url]') || targetEl;
     if (clickable?.classList) {
       clickable.classList.add('finger-pressed');
       setTimeout(() => clickable.classList?.remove?.('finger-pressed'), 180);
+      playNextvrClickAnimation(clickable);
     }
     let clicked = false;
     const onClick = () => { clicked = true; };
@@ -2014,7 +2079,7 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
     clickThrough(h, 'down');
     clickThrough(h, 'up');
     clickable?.removeEventListener?.('click', onClick);
-    if (!clicked && clickable && !clickable.closest?.('[data-native-browser],[data-native-app],[data-native-xr]')) {
+    if (!clicked && clickable && (!clickable.closest?.('[data-native-browser],[data-native-app],[data-native-xr]') || clickable.matches?.('[data-qb-url],[data-qb-act]'))) {
       clickable.click?.();
     }
     css3d.invalidate?.(); css3d.render?.(scene, camera);
@@ -2030,6 +2095,7 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
     b.classList.add('finger-pressed');
     b.style.transform = 'scale(.88)';
     setTimeout(() => { b.style.transform = ''; b.classList.remove('finger-pressed'); }, 160);
+    playNextvrClickAnimation(b);
     b.click();
     css3d.invalidate?.(); css3d.render?.(scene, camera);
     return true;
@@ -2037,6 +2103,7 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
   if (preferredEl && typeof preferredEl.click === 'function' && document.body.contains(preferredEl)) {
     preferredEl.classList?.add?.('finger-pressed');
     setTimeout(() => preferredEl.classList?.remove?.('finger-pressed'), 160);
+    playNextvrClickAnimation(preferredEl);
     preferredEl.click();
     css3d.invalidate?.(); css3d.render?.(scene, camera);
     return true;
@@ -2060,6 +2127,12 @@ function updateFingerPoke(h, packet, nowMs) {
     setFingerHoverEl(null);
     return false;
   }
+  const p = h.points;
+  const tipX = (p && p.length >= 26) ? p[24] : 0.5;
+  const tipY = (p && p.length >= 26) ? p[25] : 0.5;
+  const mcpY = (p && p.length >= 17) ? p[16] : tipY;
+  const fingerLift = mcpY - tipY; // aumenta quando o dedo indicador se levanta em relação ao nó (MCP)
+  const tipHeadY = (h.head && h.head.length === 63) ? h.head[25] : 0;
   const tipDist = (h.head && h.head.length === 63)
     ? Math.hypot(h.head[24], h.head[25], h.head[26])
     : 0;
@@ -2088,6 +2161,18 @@ function updateFingerPoke(h, packet, nowMs) {
     );
   };
 
+  // Quando passar o dedo ou ficar com o dedo encima vai escolher mas não vai abrir;
+  // só abre no momento em que, com o dedo encima do app, o utilizador LEVANTA O DEDO ("levantar o dedo").
+  const checkFingerLift = state => {
+    if (!state) return false;
+    const tipLiftUp = (state.restTipY - tipY) >= 0.0085;
+    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0085;
+    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.008;
+    const horizontalSlide = Math.abs(tipX - state.lastTipX) > Math.abs(tipY - state.lastTipY) * 1.45 && Math.abs(tipX - state.lastTipX) > 0.012;
+    if (horizontalSlide && !checkForwardPush(state)) return false;
+    return tipLiftUp || knuckleLiftUp || headLiftUp || checkForwardPush(state);
+  };
+
   if (!target) {
     if (st && st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
       st.pendingBrowserTap = false;
@@ -2098,7 +2183,7 @@ function updateFingerPoke(h, packet, nowMs) {
         return true;
       }
     }
-    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && checkForwardPush(st) && (nowMs - st.lastTapAt >= 360)) {
+    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && checkFingerLift(st) && (nowMs - st.lastTapAt >= 360)) {
       if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
         st.latched = true;
         st.lastTapAt = nowMs;
@@ -2115,13 +2200,26 @@ function updateFingerPoke(h, packet, nowMs) {
 
   setFingerHoverEl(target.el);
 
-  const pushingAlready = st && (nowMs - st.enterAt >= 40) && checkForwardPush(st);
-  if (!st || (target.key !== st.targetKey && !pushingAlready)) {
+  const liftingAlready = st && (nowMs - st.enterAt >= 40) && (target.key === st.targetKey) && checkFingerLift(st);
+  if (!st || (target.key !== st.targetKey && !liftingAlready)) {
+    if (st && !st.latched && (nowMs - st.enterAt >= 45) && (nowMs - st.lastSeenAt <= 120) && (st.lastTipY - tipY >= 0.010) && Math.abs(tipX - st.lastTipX) <= 0.018 && (nowMs - st.lastTapAt >= 360)) {
+      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
+        st.latched = true;
+        st.lastTapAt = nowMs;
+        fingerPokeFlashUntil = nowMs + 220;
+        return true;
+      }
+    }
     st = {
       targetKey: target.key,
       targetEl: target.el,
       tapX: target.x,
       tapY: target.y,
+      restTipY: tipY,
+      restFingerLift: fingerLift,
+      restHeadY: tipHeadY,
+      lastTipX: tipX,
+      lastTipY: tipY,
       baseDist: tipDist,
       basePalm: palm,
       baseSpan: boneSpan,
@@ -2161,8 +2259,13 @@ function updateFingerPoke(h, packet, nowMs) {
     return true;
   }
 
-  // Aguarda o indicador pousar na opção escolhida (~40ms) antes de aceitar o avanço da mão ("ir lá na frente")
+  // Enquanto pousa o dedo no app (~40ms), apenas escolhe/destaca sem abrir e calibra a posição do dedo em cima do app
   if (nowMs - st.enterAt < 40) {
+    st.restTipY = Math.max(st.restTipY, tipY);
+    st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
+    st.restHeadY = Math.min(st.restHeadY, tipHeadY);
+    st.lastTipX = tipX;
+    st.lastTipY = tipY;
     if (tipDist > 0) st.baseDist = st.baseDist > 0 ? (st.baseDist * 0.5 + tipDist * 0.5) : tipDist;
     if (palm > 0) st.basePalm = st.basePalm > 0 ? (st.basePalm * 0.5 + palm * 0.5) : palm;
     if (boneSpan > 0) st.baseSpan = st.baseSpan > 0 ? (st.baseSpan * 0.5 + boneSpan * 0.5) : boneSpan;
@@ -2170,11 +2273,12 @@ function updateFingerPoke(h, packet, nowMs) {
     return false;
   }
 
-  const pushedForward = checkForwardPush(st);
+  const liftedFinger = checkFingerLift(st);
+  st.lastTipX = tipX;
+  st.lastTipY = tipY;
 
-  if (!st.latched && pushedForward && (nowMs - st.lastTapAt >= 360)) {
-    if (isBrowserBtn) {
-      // No ícone do Browser, aguarda para distinguir toque rápido (< 2s) de segurar por 2s (>= 2s)
+  if (!st.latched && liftedFinger && (nowMs - st.lastTapAt >= 360)) {
+    if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0085 || (fingerLift - st.restFingerLift) >= 0.0085)) {
       st.pendingBrowserTap = true;
       st.latched = true;
       return false;
@@ -2189,8 +2293,8 @@ function updateFingerPoke(h, packet, nowMs) {
     const distPush = (tipDist > 0 && st.baseDist > 0) ? (tipDist - st.baseDist) : 0;
     const palmDropRatio = (palm > 0.012 && st.basePalm > 0.012) ? ((st.basePalm - palm) / st.basePalm) : 0;
     const spanDropRatio = (boneSpan > 0.02 && st.baseSpan > 0.02) ? ((stateSpan(st, boneSpan))) : 0;
-    const pulledBack = distPush <= 0.008 && palmDropRatio <= 0.022 && spanDropRatio <= 0.022;
-    if (pulledBack) {
+    const settled = distPush <= 0.008 && palmDropRatio <= 0.022 && spanDropRatio <= 0.022 && Math.abs(st.restTipY - tipY) <= 0.006;
+    if (settled) {
       if (st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
         st.pendingBrowserTap = false;
         st.latched = false;
@@ -2200,13 +2304,18 @@ function updateFingerPoke(h, packet, nowMs) {
         return true;
       }
       st.latched = false;
+      st.restTipY = tipY;
+      st.restFingerLift = fingerLift;
+      st.restHeadY = tipHeadY;
       st.baseDist = tipDist;
       st.basePalm = palm;
       st.baseSpan = boneSpan;
       st.baseTipRelZ = tipRelZ;
     }
   } else {
-    // Enquanto a mão apenas repousa na opção sem avançar, adapta suavemente a posição de repouso (TouchLatch)
+    st.restTipY = Math.max(st.restTipY, tipY);
+    st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
+    st.restHeadY = Math.min(st.restHeadY, tipHeadY);
     if (tipDist > 0) st.baseDist = st.baseDist > 0 ? Math.min(st.baseDist, st.baseDist * 0.92 + tipDist * 0.08) : tipDist;
     if (palm > 0.012) st.basePalm = st.basePalm > 0 ? Math.max(st.basePalm, st.basePalm * 0.92 + palm * 0.08) : palm;
     if (boneSpan > 0.02) st.baseSpan = st.baseSpan > 0 ? Math.max(st.baseSpan, st.baseSpan * 0.92 + boneSpan * 0.08) : boneSpan;
@@ -2215,6 +2324,74 @@ function updateFingerPoke(h, packet, nowMs) {
 }
 function stateSpan(st, boneSpan) {
   return (st.baseSpan - boneSpan) / st.baseSpan;
+}
+
+/* =================== Gesto de Arma + Fechar Indicador (qualquer mão) para ocultar/mostrar a Dock =================== */
+const gunDockByHand = new Map();
+let lastGunDockToggleAt = -2000;
+
+function updateGunDockToggle(packet, nowMs) {
+  if (!packet?.hands?.length) return false;
+  if (wins.some(w => w.id === 'entry-menu' || w.id === 'language') || document.querySelector('.entry-menu-root')) return false;
+  if (drag.win || resizing.win || dockDrag.start) return false;
+
+  for (const h of packet.hands) {
+    if (!h || h.predicted || h.menuEligible) continue;
+    const p = h.points;
+    if (!p || p.length < 63) continue;
+    const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
+    const palmLen = Math.hypot(p[9 * 3] - p[0], p[9 * 3 + 1] - p[1]);
+    if (palmLen < 0.04) continue;
+    // Garante que os nós dos dedos são reais e distintos (evita mãos sintéticas de teste onde todos os pontos são 0.5)
+    if (dist(14, 16) < 0.01 || dist(18, 20) < 0.01 || dist(5, 6) < 0.01) continue;
+
+    // Anelar (13..16) e Mindinho (17..20) recolhidos na palma (ponta mais perto do pulso que o PIP) + Polegar (1..4) levantado
+    const ringCurled = dist(0, 16) < dist(0, 14) * 0.96;
+    const pinkyCurled = dist(0, 20) < dist(0, 18) * 0.96;
+    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.10;
+    const indexRatio = dist(0, 8) / Math.max(1e-4, dist(0, 6));
+
+    const handKey = h.id || (h.left ? 'left' : 'right');
+    let st = gunDockByHand.get(handKey);
+    if (!st) {
+      st = { armedUntil: 0, maxIndexRatio: 0, latched: false };
+      gunDockByHand.set(handKey, st);
+    }
+
+    const isGunBarrelOpen = ringCurled && pinkyCurled && thumbExtended && indexRatio >= 1.14 && !h.pinching && !h.fist;
+    if (isGunBarrelOpen) {
+      st.armedUntil = nowMs + 1400;
+      st.maxIndexRatio = Math.max(st.maxIndexRatio, indexRatio);
+      st.latched = false;
+      continue;
+    }
+
+    // Com a mão armada em pose de arma, fechar o dedo indicador (gatilho) oculta ou reexibe a Dock
+    const triggerClosed = ringCurled && pinkyCurled && thumbExtended && (
+      indexRatio <= 0.98 ||
+      (st.maxIndexRatio >= 1.18 && (st.maxIndexRatio - indexRatio) >= 0.16)
+    );
+    if (!st.latched && nowMs <= st.armedUntil && triggerClosed && (nowMs - lastGunDockToggleAt >= 550)) {
+      st.latched = true;
+      st.armedUntil = 0;
+      st.maxIndexRatio = 0;
+      lastGunDockToggleAt = nowMs;
+      packet.consumed?.add?.(h.id);
+      if (S.spatialLauncher) {
+        const spWin = wins.find(w => w.id === 'spatial-launcher');
+        if (spWin) spWin.setHidden(!spWin.hidden);
+      } else {
+        const nextHidden = !dockHidden;
+        setDockHidden(nextHidden);
+        if (dockGrabEl) dockGrabEl.hidden = nextHidden;
+      }
+      window.NativeXR?.click?.();
+      css3d.invalidate?.();
+      css3d.render?.(scene, camera);
+      return true;
+    }
+  }
+  return false;
 }
 
 function endNear(cancel=false, packet=lastPhonePacket) {
@@ -2332,6 +2509,7 @@ on('phonehands', packet => {
   }
   const runFingerPokes = () => {
     if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed')) return;
+    if (updateGunDockToggle(packet, nowMs)) return;
     for (const h of packet.hands) {
       if (packet.consumed.has(h.id)) continue;
       updateFingerPoke(h, packet, nowMs);
