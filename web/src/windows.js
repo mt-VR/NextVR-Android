@@ -3129,7 +3129,7 @@ function updateLeftQuickMenuAttachment(packet) {
   if (!lhWin) return;
   lhWin.shell.dataset.attachedHand = 'left';
   const handsList = packet?.hands || [];
-  const leftHand = handsList.find(h => isLeftBolinhaHand(h)) || handsList[0];
+  const leftHand = handsList.find(h => isLeftBolinhaHand(h));
   if (!leftHand) return;
   const p = leftHand.points;
   const sx = Number(packet?.scaleX) || 1;
@@ -3139,7 +3139,7 @@ function updateLeftQuickMenuAttachment(packet) {
   const normX = Math.max(0.14, Math.min(0.86, (rawX - 0.5) * sx + 0.5));
   const normY = Math.max(0.14, Math.min(0.84, (rawY - 0.5) * sy + 0.5));
   const r = phoneRay(normX, normY);
-  const worldPt = r.origin.clone().addScaledVector(r.direction, 1.12);
+  const worldPt = r.ray.origin.clone().addScaledVector(r.ray.direction, 1.12);
   contentRoot.updateMatrixWorld(true);
   const localPt = contentRoot.worldToLocal(worldPt);
   lhWin.target.copy(localPt);
