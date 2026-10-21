@@ -56,12 +56,14 @@ const SVG_TIKTOK_VERIFIED = `
 </svg>`;
 
 const MENU_STORE_APPS = [
-  { id: 'youtube', name: 'YouTube VR', cat: 'Vídeo · 360°', bg: '#dc2626' },
-  { id: 'netflix', name: 'Netflix', cat: 'Cinema · TV', bg: '#991b1b' },
-  { id: 'discord', name: 'Discord', cat: 'Social · Voz', bg: '#4f46e5' },
-  { id: 'tiktok', name: 'TikTok', cat: 'Vídeos Curtos', bg: '#0f172a' },
-  { id: 'twitch', name: 'Twitch', cat: 'Lives · Jogos', bg: '#7c3aed' },
-  { id: 'spotify', name: 'Spotify', cat: 'Música · Áudio', bg: '#059669' },
+  { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
+  { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
+  { id: 'roblox-vr', name: 'Roblox', cat: 'Ambiente Preto · 4.8 ★', bg: '#090d16', img: './roblox-logo.jpg' },
+  { id: 'tiktok', name: 'TikTok', cat: 'Vídeos Curtos · 4.9 ★', bg: '#000000', img: './tiktok-logo.jpg' },
+  { id: 'youtube', name: 'YouTube VR', cat: 'Vídeo · 360° · 4.8 ★', bg: '#dc2626', img: './icons/youtube.svg' },
+  { id: 'discord', name: 'Discord', cat: 'Social · Voz · 4.7 ★', bg: '#4f46e5', img: './icons/discord.svg' },
+  { id: 'netflix', name: 'Netflix', cat: 'Cinema · TV · 4.8 ★', bg: '#991b1b' },
+  { id: 'spotify', name: 'Spotify', cat: 'Música · Áudio · 4.8 ★', bg: '#059669', img: './icons/spotify.svg' },
 ];
 
 const PRESET_AVATARS = [
@@ -392,7 +394,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     return `
       <div class="entry-subpanel entry-subpanel--store" data-entry-panel="store">
         <div class="entry-subpanel-head">
-          <h2 class="entry-subpanel-title">${emT('storeTitle')}</h2>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 class="entry-subpanel-title">${emT('storeTitle')}</h2>
+            <div style="display:inline-flex;gap:6px;flex-wrap:wrap">
+              <span class="entry-store-card-pill" style="background:rgba(255,255,255,.16);color:#fff">Página inicial</span>
+              <span class="entry-store-card-pill">Jogos</span>
+              <span class="entry-store-card-pill">Apps</span>
+              <span class="entry-store-card-pill">Lista de desejos</span>
+            </div>
+          </div>
           <div class="entry-subpanel-actions">
             <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">${emT('back')}</button>
             <button type="button" class="entry-btn entry-btn--primary" data-entry-act="start">${emT('startVr')}</button>
@@ -412,18 +422,22 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
           </div>
 
-          <div class="entry-store-section-label">APPS DISPONÍVEIS NA STORE &amp; BIBLIOTECA</div>
+          <div class="entry-store-section-label">NAVEGAR POR TUDO · JOGOS &amp; APPS NEXTVR</div>
           <div class="entry-store-grid">
-            ${MENU_STORE_APPS.map(app => `
+            ${MENU_STORE_APPS.map(app => {
+              const iconInner = app.img
+                ? `<img src="${app.img}" alt="${escHtml(app.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`
+                : app.name.slice(0, 2).toUpperCase();
+              return `
               <div class="entry-store-card" data-entry-store-app="${app.id}">
-                <div class="entry-store-card-dot" style="background:${app.bg}">${app.name.slice(0, 2).toUpperCase()}</div>
+                <div class="entry-store-card-dot" style="background:${app.bg};overflow:hidden;padding:0">${iconInner}</div>
                 <div class="entry-store-card-meta">
                   <div class="entry-store-card-name">${escHtml(app.name)}</div>
                   <div class="entry-store-card-cat">${escHtml(app.cat)}</div>
                 </div>
-                <span class="entry-store-card-pill">Incluso</span>
-              </div>
-            `).join('')}
+                <span class="entry-store-card-pill">Grátis</span>
+              </div>`;
+            }).join('')}
           </div>
         </div>
       </div>`;
@@ -519,6 +533,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
               <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
               <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
+              <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Fazer pose de arminha e fechar o indicador para ocultar/mostrar a Dock" style="display:inline-flex;align-items:center;justify-content:center;gap:6px"><img src="./gun-logo.jpg" alt="" style="width:15px;height:15px;border-radius:50%;object-fit:cover"><span>Arminha (Dock): ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
               <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
               <div class="entry-hand-env-title">${emT('envTitle')}</div>
               ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
@@ -957,6 +972,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         save(S);
         window.NativeXR?.setFingerTouch?.(Boolean(S.fingerTouch));
         emit('fingerTouch', !!S.fingerTouch);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-gun-gesture]').forEach(btn => {
+      btn.onclick = () => {
+        S.gunGesture = S.gunGesture === 0 ? 1 : 0;
+        save(S);
+        emit('gunGesture', !!S.gunGesture);
         paint();
       };
     });

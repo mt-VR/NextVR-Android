@@ -668,6 +668,140 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(gorillaFlow.rightArmCoinCounter, true, 'Gorilla Tag renders a 3D coin counter on the Gorilla right arm');
     assert.equal(gorillaFlow.exitedOnBtn, true, 'Gorilla Tag exits cleanly via the exit control');
 
+    // 6b. Store Meta Quest 3 UI, Beat Saber auto-VR, Roblox black environment, Gun gesture logo & Settings option, and clean window header
+    const questAndFeatures = await page.evaluate(async () => {
+      document.querySelector('.dock [data-id="store"]')?.click();
+      await new Promise(r => setTimeout(r, 80));
+      const storeWin = document.querySelector('.win-shell[data-window-id="store"]');
+      const pillTexts = [...storeWin.querySelectorAll('.st-quest-pill')].map(b => b.textContent.trim());
+      const hasBrowseAll = storeWin.textContent.includes('Navegar por tudo');
+      const cardIds = [...storeWin.querySelectorAll('[data-store-card]')].map(c => c.dataset.storeCard);
+      const hasLogos =
+        !!storeWin.querySelector('img[src*="beat-saber-logo.jpg"]') &&
+        !!storeWin.querySelector('img[src*="hyper-dash-logo.jpg"]') &&
+        !!storeWin.querySelector('img[src*="roblox-logo.jpg"]') &&
+        !!storeWin.querySelector('img[src*="tiktok-logo.jpg"]');
+
+      // Clean floating window top bar: no purple background, + Criar nova guia button, and top-right fold + X
+      const winBar = storeWin.querySelector('.win-bar');
+      const winBarBg = getComputedStyle(winBar).backgroundColor;
+      const hasNewTabBtn = !!winBar.querySelector('[data-win-new-tab]');
+      const topRightActs = winBar.querySelector('.win-top-right-acts');
+      const hasFoldNextToClose =
+        !!topRightActs?.querySelector('[data-act="curve"]') &&
+        !!topRightActs?.querySelector('[data-act="close"]');
+
+      // Launch Beat Saber from Store -> enters VR mode immediately
+      storeWin.querySelector('[data-store-launch="beat-vr"]')?.click();
+      await new Promise(r => setTimeout(r, 80));
+      const beatWin = document.querySelector('.win-shell[data-window-id="beat-saber"]');
+      const beatVrMode =
+        beatWin?.dataset?.beatSaberVr === '1' &&
+        !!beatWin?.querySelector('[data-bs-vr-active="1"]');
+      beatWin?.querySelector('[data-bs-exit]')?.click();
+      await new Promise(r => setTimeout(r, 40));
+
+      // Launch Roblox from Store -> environment turns black and floating Roblox window appears
+      storeWin.querySelector('[data-store-launch="roblox-vr"]')?.click();
+      await new Promise(r => setTimeout(r, 80));
+      const robloxWin = document.querySelector('.win-shell[data-window-id="roblox"]');
+      const robloxBlackEnvActive =
+        document.documentElement.dataset.robloxBlackEnv === '1' &&
+        !!robloxWin;
+      robloxWin?.querySelector('[data-act="close"]')?.click();
+      await new Promise(r => setTimeout(r, 60));
+      const robloxBlackEnvRestored = !document.documentElement.dataset.robloxBlackEnv;
+
+      // Gun gesture (arminha): thumb up + index open -> gun logo bubble appears; index closes -> toggles dock
+      const dockEl = document.querySelector('.dock');
+      const dockVisibleBefore = getComputedStyle(dockEl).display !== 'none' && getComputedStyle(dockEl).opacity !== '0';
+      const mkGunPoseHand = (indexOpen) => {
+        const pts = new Array(63).fill(0);
+        const setPt = (idx, x, y, z = 0) => {
+          pts[idx * 3] = x;
+          pts[idx * 3 + 1] = y;
+          pts[idx * 3 + 2] = z;
+        };
+        for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
+        setPt(0, 0.50, 0.72); // wrist
+        // Thumb raised up
+        setPt(1, 0.46, 0.66);
+        setPt(2, 0.43, 0.59);
+        setPt(3, 0.41, 0.51);
+        setPt(4, 0.39, 0.43);
+        // Index finger: extended forward/up when open, curled to palm when closed
+        setPt(5, 0.48, 0.56);
+        setPt(6, 0.48, 0.47);
+        setPt(7, indexOpen ? 0.48 : 0.49, indexOpen ? 0.38 : 0.56);
+        setPt(8, indexOpen ? 0.48 : 0.49, indexOpen ? 0.30 : 0.61);
+        // Middle, Ring, Pinky curled into palm
+        setPt(9,  0.51, 0.56);
+        setPt(10, 0.51, 0.49);
+        setPt(11, 0.51, 0.57);
+        setPt(12, 0.51, 0.62);
+        setPt(13, 0.54, 0.57);
+        setPt(14, 0.54, 0.50);
+        setPt(15, 0.54, 0.58);
+        setPt(16, 0.54, 0.63);
+        setPt(17, 0.57, 0.59);
+        setPt(18, 0.57, 0.52);
+        setPt(19, 0.57, 0.60);
+        setPt(20, 0.57, 0.65);
+        return {
+          id: 'right',
+          left: false,
+          pinch: 0.35,
+          pinching: false,
+          fist: false,
+          menuEligible: false,
+          aim: [0, 0],
+          palm: [0.50, 0.58, 0.3],
+          ring: [0.50, 0.58],
+          points: pts,
+        };
+      };
+      window.nextvrHands({ hands: [mkGunPoseHand(true)] });
+      await new Promise(r => setTimeout(r, 40));
+      const gunBubble = document.getElementById('gun-gesture-indicator');
+      const gunBubbleShown = !!gunBubble && !gunBubble.hidden && !!gunBubble.querySelector('img[src*="gun-logo.jpg"]');
+
+      window.nextvrHands({ hands: [mkGunPoseHand(false)] });
+      await new Promise(r => setTimeout(r, 40));
+      const dockHiddenAfterTrigger = getComputedStyle(dockEl).display === 'none' || dockEl.hidden || dockEl.style.display === 'none';
+
+      // Trigger again to restore dock
+      return {
+        pillTexts,
+        hasBrowseAll,
+        cardIds,
+        hasLogos,
+        winBarBg,
+        hasNewTabBtn,
+        hasFoldNextToClose,
+        beatVrMode,
+        robloxBlackEnvActive,
+        robloxBlackEnvRestored,
+        dockVisibleBefore,
+        gunBubbleShown,
+        dockHiddenAfterTrigger,
+      };
+    });
+    assert.deepEqual(
+      questAndFeatures.pillTexts,
+      ['Página inicial', 'Jogos', 'Apps', 'Lista de desejos'],
+      'Store renders Meta Quest 3 top navigation pills'
+    );
+    assert.equal(questAndFeatures.hasBrowseAll, true, 'Store renders "Navegar por tudo" section');
+    assert.equal(questAndFeatures.hasLogos, true, 'Store displays uploaded logos for Beat Saber, Hyper Dash VR, Roblox, and TikTok');
+    assert.equal(questAndFeatures.winBarBg, 'rgba(0, 0, 0, 0)', 'Floating window top bar has no purple background');
+    assert.equal(questAndFeatures.hasNewTabBtn, true, 'Floating window top bar has "+ Criar nova guia" option');
+    assert.equal(questAndFeatures.hasFoldNextToClose, true, 'Floating window top bar places X next to the top-right collapse button');
+    assert.equal(questAndFeatures.beatVrMode, true, 'Launching Beat Saber immediately enters VR mode');
+    assert.equal(questAndFeatures.robloxBlackEnvActive, true, 'Launching Roblox turns the surrounding environment black with floating Roblox window');
+    assert.equal(questAndFeatures.robloxBlackEnvRestored, true, 'Closing Roblox restores the normal environment');
+    assert.equal(questAndFeatures.gunBubbleShown, true, 'Making the gun gesture displays the floating circle with gun-logo.jpg');
+    assert.equal(questAndFeatures.dockHiddenAfterTrigger, true, 'Closing the index finger from the gun pose hides/toggles the Dock');
+
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });
     await page.goto(`http://127.0.0.1:${server.address().port}/?fullscreen=1`);

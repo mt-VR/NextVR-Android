@@ -14,10 +14,10 @@ export const CARDBOARD_2015_LENS = Object.freeze({
 
 const SPAWN_HINT = [0, 2, 7];
 const R_HEAD = 0.55;
-const R_HAND = 0.12;
-const MAXV = 10.5;
-const BOOST = 1.28;
-const ARM_LEN = 1.0;
+const R_HAND = 0.14;
+const MAXV = 11.4;
+const BOOST = 1.42;
+const ARM_LEN = 1.04;
 
 let active = false;
 let entering = false;
@@ -39,6 +39,7 @@ let rafId = 0;
 let lastT = 0;
 let yawOff = 0;
 let hiddenWinSnapshot = [];
+const worldCoinNodes = [];
 
 const V = () => new THREE.Vector3();
 const vel = V();
@@ -954,10 +955,14 @@ function ensureScene() {
   if (S) return;
   S = new THREE.Scene();
   S.background = new THREE.Color(0x87c8ff);
-  S.add(new THREE.HemisphereLight(0xdff4ff, 0x4a6b3b, 0.95));
-  const sun = new THREE.DirectionalLight(0xfff2d6, 0.85);
+  S.fog = new THREE.FogExp2(0x87c8ff, 0.0042);
+  S.add(new THREE.HemisphereLight(0xdff4ff, 0x4a6b3b, 0.98));
+  const sun = new THREE.DirectionalLight(0xfff2d6, 0.92);
   sun.position.set(30, 60, 20);
   S.add(sun);
+  const rim = new THREE.DirectionalLight(0xa5f3fc, 0.32);
+  rim.position.set(-28, 34, -22);
+  S.add(rim);
 
   player = new THREE.Group();
   S.add(player);
@@ -978,6 +983,25 @@ function ensureScene() {
   if (coinWatch && !coinWatch.parent) S.add(coinWatch);
   updateRightArmCoinCounterPose();
 
+  // Moedas douradas 3D flutuantes pelo mapa da floresta para coletar com as mãos de Gorila
+  worldCoinNodes.length = 0;
+  const coinGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.055, 18);
+  coinGeo.rotateX(Math.PI * 0.5);
+  const coinMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24, emissive: 0x92400e });
+  const coinPositions = [
+    [0.0, 1.35, 4.8], [-2.2, 1.45, 3.6], [2.2, 1.45, 3.6],
+    [-3.8, 1.85, 0.8], [3.8, 1.85, 0.8], [0.0, 2.20, -2.5],
+    [-1.8, 1.60, 8.8], [1.8, 1.60, 8.8],
+  ];
+  for (let i = 0; i < coinPositions.length; i++) {
+    const [cx, cy, cz] = coinPositions[i];
+    const m = new THREE.Mesh(coinGeo, coinMat);
+    m.position.set(cx, cy, cz);
+    m.userData = { baseY: cy, phase: i * 0.85, cooldownUntil: 0 };
+    S.add(m);
+    worldCoinNodes.push(m);
+  }
+
   try {
     glRenderer = new THREE.WebGLRenderer({
       canvas: glCanvas,
@@ -988,7 +1012,7 @@ function ensureScene() {
       powerPreference: 'high-performance',
     });
     glRenderer.setPixelRatio(1);
-    glRenderer.setSize(768, 512, false);
+    glRenderer.setSize(896, 560, false);
     glRenderer.setScissorTest(true);
   } catch (e) {
     glRenderer = null;
@@ -1073,8 +1097,8 @@ function ensureDom() {
 
   glCanvas = document.createElement('canvas');
   glCanvas.id = 'gorilla-canvas';
-  glCanvas.width = 768;
-  glCanvas.height = 512;
+  glCanvas.width = 896;
+  glCanvas.height = 560;
   glCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1200px;height:800px;display:block;';
   overlayEl.appendChild(glCanvas);
 
@@ -1095,8 +1119,9 @@ function ensureDom() {
   // Barra superior compacta e limpa por olho (sem sobrepor controles do Cardboard)
   const mkEyeHud = (leftPx, isLeft) => {
     const bar = document.createElement('div');
-    bar.style.cssText = `position:absolute;left:${leftPx + 140}px;top:12px;width:320px;display:flex;align-items:center;justify-content:center;gap:6px;z-index:6;pointer-events:auto;font-family:Inter,system-ui,sans-serif`;
+    bar.style.cssText = `position:absolute;left:${leftPx + 120}px;top:12px;width:360px;display:flex;align-items:center;justify-content:center;gap:6px;z-index:6;pointer-events:auto;font-family:Inter,system-ui,sans-serif`;
     bar.innerHTML = `
+      <button type="button" data-gorilla-act="jump" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(251,191,36,.45);background:rgba(120,53,15,.82);color:#fde68a;font:700 10px Inter,sans-serif;cursor:pointer">Salto</button>
       <button type="button" data-gorilla-act="spawn" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(9,13,22,.72);color:#e2e8f0;font:700 10px Inter,sans-serif;cursor:pointer">Spawn</button>
       <button type="button" data-gorilla-act="recenter" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(9,13,22,.72);color:#e2e8f0;font:700 10px Inter,sans-serif;cursor:pointer">Recentrar</button>
       <button type="button" data-gorilla-act="exit" ${isLeft ? 'data-gorilla-exit="1"' : ''} style="padding:4px 10px;border-radius:999px;border:1px solid rgba(248,113,113,.45);background:rgba(153,27,27,.82);color:#fff;font:700 10px Inter,sans-serif;cursor:pointer">Sair</button>
@@ -1148,7 +1173,15 @@ function ensureDom() {
     const act = btn.dataset.gorillaAct;
     if (act === 'exit') exitGorillaTag();
     else if (act === 'spawn') respawn();
-    else if (act === 'recenter') {
+    else if (act === 'jump') {
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(C ? C.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion());
+      fwd.y = 0;
+      if (fwd.lengthSq() > 1e-4) fwd.normalize();
+      vel.x += fwd.x * 4.2;
+      vel.z += fwd.z * 4.2;
+      vel.y = Math.max(vel.y, 4.8);
+      addGorillaCoins(1);
+    } else if (act === 'recenter') {
       const eul = new THREE.Euler().setFromQuaternion(coreCamera.quaternion, 'YXZ');
       yawOff = eul.y;
     }
@@ -1253,12 +1286,12 @@ function tick(now) {
       -Math.min(0.95, Math.max(0.25, 0.09 / Math.max(h.s, 0.035)))
     );
     if (hlP[i]) {
-      // Limita salto brusco de detecção em 1 frame e suaviza o movimento
+      // Limita salto brusco de detecção em 1 frame e responde com fluidez rápida
       const step = t.clone().sub(hlP[i]);
-      if (step.length() > 0.22) {
-        t.copy(hlP[i]).addScaledVector(step.normalize(), 0.22);
+      if (step.length() > 0.32) {
+        t.copy(hlP[i]).addScaledVector(step.normalize(), 0.32);
       }
-      t.lerp(hlP[i], 0.42);
+      t.lerp(hlP[i], 0.24);
     }
     const off = t.clone().sub(sp);
     if (off.length() > ARM_LEN * 0.97) {
@@ -1266,7 +1299,7 @@ function tick(now) {
     }
     hl[i].copy(t);
     const desiredW = C.localToWorld(t.clone());
-    const hit = trackFrames[i] > 2 && sphereQ(desiredW.x, desiredW.y, desiredW.z, R_HAND);
+    const hit = trackFrames[i] >= 1 && sphereQ(desiredW.x, desiredW.y, desiredW.z, R_HAND);
     if (hit) {
       const cW = new THREE.Vector3(
         Q.x + Q.nx * R_HAND,
@@ -1280,15 +1313,15 @@ function tick(now) {
         const push = anchor[i].clone().sub(desiredW);
         const pushLen = push.length();
         if (pushLen > 1e-3) {
-          if (pushLen > 0.24) push.multiplyScalar(0.24 / pushLen);
+          if (pushLen > 0.28) push.multiplyScalar(0.28 / pushLen);
           player.position.add(push);
           pushCoinProgress += push.length();
-          if (pushCoinProgress >= 0.45) {
+          if (pushCoinProgress >= 0.38) {
             pushCoinProgress = 0;
             addGorillaCoins(1);
           }
           const vImp = push.clone().multiplyScalar(BOOST / Math.max(dt, 0.010));
-          vel.lerp(vImp, 0.50);
+          vel.lerp(vImp, 0.56);
           if (vel.length() > MAXV) vel.setLength(MAXV);
           player.updateMatrixWorld(true);
           resolveHeadCollisions();
@@ -1308,6 +1341,30 @@ function tick(now) {
     if (!hlP[i]) hlP[i] = V();
     hlP[i].copy(tl);
     if (a) solveArm(a, hW[i], h.ori);
+  }
+
+  // Anima e coleta moedas 3D flutuantes no mapa da floresta
+  if (worldCoinNodes.length) {
+    const headPos = headW();
+    for (let cIdx = 0; cIdx < worldCoinNodes.length; cIdx++) {
+      const cn = worldCoinNodes[cIdx];
+      const ud = cn.userData;
+      if (now < ud.cooldownUntil) {
+        cn.visible = false;
+        continue;
+      }
+      cn.visible = true;
+      cn.rotation.y += dt * 2.4;
+      cn.position.y = ud.baseY + Math.sin(now * 0.003 + ud.phase) * 0.08;
+      const distHead = cn.position.distanceTo(headPos);
+      const distL = hands[0] ? cn.position.distanceTo(hW[0]) : 99;
+      const distR = hands[1] ? cn.position.distanceTo(hW[1]) : 99;
+      if (distHead < 0.85 || distL < 0.45 || distR < 0.45) {
+        ud.cooldownUntil = now + 4500;
+        cn.visible = false;
+        addGorillaCoins(5);
+      }
+    }
   }
 
   // Atualiza a posição do contador de moedas preso ao braço direito do Gorila

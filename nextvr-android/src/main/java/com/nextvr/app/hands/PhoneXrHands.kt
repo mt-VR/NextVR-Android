@@ -172,13 +172,13 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=.85f, beta=1.6f, deadZone=.0018f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=.95f, beta=2.2f, deadZone=.0015f)
                 i < 3 -> HandGestures.OneEuro(minCutoff=1.6f, beta=11.5f, deadZone=.0008f)
-                else -> HandGestures.OneEuro(minCutoff=1.35f, beta=6.2f, deadZone=.0016f)
+                else -> HandGestures.OneEuro(minCutoff=1.55f, beta=9.5f, deadZone=.0010f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=1.1f, beta=4.5f, deadZone=.0012f)
-        val y = HandGestures.OneEuro(minCutoff=1.1f, beta=4.5f, deadZone=.0012f)
+        val x = HandGestures.OneEuro(minCutoff=1.45f, beta=6.8f, deadZone=.0009f)
+        val y = HandGestures.OneEuro(minCutoff=1.45f, beta=6.8f, deadZone=.0009f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
@@ -270,6 +270,15 @@ class PhoneXrHands {
             if(raw.size != 21) return@forEachIndexed
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
             var left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            if (result.landmarks().size == 1 && !states.containsKey(left)) {
+                val other = states[!left]
+                val lastH = other?.lastHand
+                if (other != null && lastH != null && stamp - other.lastStampNs in 1L..280_000_000L) {
+                    val dx = raw[0].x() - lastH.points[0]
+                    val dy = raw[0].y() - lastH.points[1]
+                    if (dx * dx + dy * dy < 0.032f) left = !left
+                }
+            }
             // Two hands in one image can never be the same physical side, but the classifier does
             // label both the same when the hands cross or are seen edge-on. That used to give the
             // second hand the same `id` on the wire AND the same filter/pinch state as the first:
@@ -279,9 +288,24 @@ class PhoneXrHands {
             // claim is moved to the free side, so each hand keeps its own state and its own id.
             if (!detected.add(left)) { left = !left; detected.add(left) }
             val state = states.getOrPut(left) { State() }
-            val points = raw.mapIndexed { i,p -> NormalizedLandmark.create(
-                state.landmarks[i*3].filter(p.x(),stamp), state.landmarks[i*3+1].filter(p.y(),stamp),
-                state.landmarks[i*3+2].filter(p.z(),stamp)) }
+            val w0x = raw[0].x(); val w0y = raw[0].y()
+            val m9x = raw[9].x(); val m9y = raw[9].y()
+            val palmLen = kotlin.math.hypot(m9x - w0x, m9y - w0y)
+            val maxReach = (palmLen * 2.35f).coerceAtLeast(0.06f)
+            val points = raw.mapIndexed { i,p ->
+                var px = p.x(); var py = p.y()
+                if (i > 0 && palmLen > 0.015f) {
+                    val rx = px - w0x; val ry = py - w0y
+                    val rd = kotlin.math.hypot(rx, ry)
+                    if (rd > maxReach && rd > 1e-4f) {
+                        val s = maxReach / rd
+                        px = w0x + rx * s; py = w0y + ry * s
+                    }
+                }
+                NormalizedLandmark.create(
+                    state.landmarks[i*3].filter(px,stamp), state.landmarks[i*3+1].filter(py,stamp),
+                    state.landmarks[i*3+2].filter(p.z(),stamp))
+            }
             val imageShape = HandGestures.shape(points,left)
             val world = result.worldLandmarks().getOrNull(index)
             // Gesture decisions are measured on the RAW detection: the position filters exist to

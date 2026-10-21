@@ -66,15 +66,23 @@ class Win {
     el.className = 'win';
     el.style.width = w + 'px'; el.style.height = h + 'px';
     el.innerHTML = `<div class="win-bar">
-        <div class="win-grip"></div><div class="win-title"></div>
-        <button class="win-btn wide" data-act="curve" aria-label="360°" title="360°" aria-pressed="${this.curve > 0}">360°</button>
-        <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
-        <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
+        <button class="win-new-tab-btn" data-win-new-tab type="button" title="Criar nova guia"><span class="win-new-tab-plus">+</span><span>Criar nova guia</span></button>
+        <div class="win-grip" style="display:none"></div><div class="win-title" style="position:absolute;opacity:.01;pointer-events:none;width:1px;height:1px;overflow:hidden"></div>
+        <div class="win-top-right-acts">
+          <button class="win-btn" data-act="pin" aria-label="${t('repin')}" title="${t('repin')}">${icon('crosshair')}</button>
+          <button class="win-btn wide fold-btn" data-act="curve" aria-label="360°" title="Dobra / 360°" aria-pressed="${this.curve > 0}">360°</button>
+          <button class="win-btn close" data-act="close" aria-label="${t('close')}" title="${t('close')}">${icon('x')}</button>
+        </div>
       </div><div class="win-body"></div>`;
     el.querySelector('.win-title').textContent = title;
     el.querySelector('.win-body').appendChild(node);
     el.addEventListener('pointerdown', () => focus(this), true);
     el.querySelector('.win-bar').addEventListener('click', e => {
+      const nt = e.target.closest('[data-win-new-tab]');
+      if (nt) {
+        window.nextvrOpenBrowserOption?.('new-tab');
+        return;
+      }
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'close') close(this);
       else if (a.dataset.act === 'curve') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
@@ -2122,16 +2130,46 @@ function handBoneSpan2D(p) {
 }
 
 function updateFingerPoke(h, packet, nowMs) {
-  if (S.fingerTouch === 0 || !isIndexFingerPointing(h)) {
+  if (S.fingerTouch === 0) {
     fingerPokeByHand.delete(h?.id);
     setFingerHoverEl(null);
     return false;
   }
-  const p = h.points;
+  const p = h?.points;
+  const currentSt = fingerPokeByHand.get(h?.id);
+  if (!isIndexFingerPointing(h)) {
+    if (
+      currentSt &&
+      !currentSt.latched &&
+      !h?.pinching &&
+      !h?.fist &&
+      !h?.predicted &&
+      p &&
+      p.length >= 26 &&
+      (nowMs - currentSt.enterAt >= 40) &&
+      (nowMs - currentSt.lastSeenAt <= 220) &&
+      (nowMs - currentSt.lastTapAt >= 360) &&
+      Math.hypot(p[0] - (currentSt.wristX ?? p[0]), p[1] - (currentSt.wristY ?? p[1])) <= 0.045
+    ) {
+      const tapped = triggerFingerTouchTap(currentSt.tapX, currentSt.tapY, currentSt.targetEl);
+      fingerPokeByHand.delete(h?.id);
+      setFingerHoverEl(null);
+      if (tapped) {
+        fingerPokeFlashUntil = nowMs + 220;
+        return true;
+      }
+    }
+    fingerPokeByHand.delete(h?.id);
+    setFingerHoverEl(null);
+    return false;
+  }
   const tipX = (p && p.length >= 26) ? p[24] : 0.5;
   const tipY = (p && p.length >= 26) ? p[25] : 0.5;
   const mcpY = (p && p.length >= 17) ? p[16] : tipY;
   const fingerLift = mcpY - tipY; // aumenta quando o dedo indicador se levanta em relação ao nó (MCP)
+  const dTip = (p && p.length >= 26) ? Math.hypot(p[24] - p[0], p[25] - p[1]) : 0.1;
+  const dPip = (p && p.length >= 20) ? Math.hypot(p[18] - p[0], p[19] - p[1]) : 0.08;
+  const curIndexRatio = dTip / Math.max(1e-4, dPip);
   const tipHeadY = (h.head && h.head.length === 63) ? h.head[25] : 0;
   const tipDist = (h.head && h.head.length === 63)
     ? Math.hypot(h.head[24], h.head[25], h.head[26])
@@ -2142,7 +2180,7 @@ function updateFingerPoke(h, packet, nowMs) {
   const palm = Number(h.palmWidth) || 0;
   const boneSpan = handBoneSpan2D(h.points);
 
-  let st = fingerPokeByHand.get(h.id);
+  let st = currentSt;
   const target = resolveFingerTarget(h, packet);
 
   const checkForwardPush = state => {
@@ -2165,12 +2203,13 @@ function updateFingerPoke(h, packet, nowMs) {
   // só abre no momento em que, com o dedo encima do app, o utilizador LEVANTA O DEDO ("levantar o dedo").
   const checkFingerLift = state => {
     if (!state) return false;
-    const tipLiftUp = (state.restTipY - tipY) >= 0.0085;
-    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0085;
-    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.008;
+    const tipLiftUp = (state.restTipY - tipY) >= 0.0075;
+    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0075;
+    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.0075;
+    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.09;
     const horizontalSlide = Math.abs(tipX - state.lastTipX) > Math.abs(tipY - state.lastTipY) * 1.45 && Math.abs(tipX - state.lastTipX) > 0.012;
-    if (horizontalSlide && !checkForwardPush(state)) return false;
-    return tipLiftUp || knuckleLiftUp || headLiftUp || checkForwardPush(state);
+    if (horizontalSlide && !checkForwardPush(state) && !indexFlexLift) return false;
+    return tipLiftUp || knuckleLiftUp || headLiftUp || indexFlexLift || checkForwardPush(state);
   };
 
   if (!target) {
@@ -2215,6 +2254,9 @@ function updateFingerPoke(h, packet, nowMs) {
       targetEl: target.el,
       tapX: target.x,
       tapY: target.y,
+      wristX: p[0],
+      wristY: p[1],
+      maxIndexRatio: curIndexRatio,
       restTipY: tipY,
       restFingerLift: fingerLift,
       restHeadY: tipHeadY,
@@ -2239,6 +2281,8 @@ function updateFingerPoke(h, packet, nowMs) {
     st.tapX = target.x;
     st.tapY = target.y;
     st.targetEl = target.el;
+    st.wristX = p[0];
+    st.wristY = p[1];
     st.lastSeenAt = nowMs;
   }
 
@@ -2264,6 +2308,7 @@ function updateFingerPoke(h, packet, nowMs) {
     st.restTipY = Math.max(st.restTipY, tipY);
     st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
     st.restHeadY = Math.min(st.restHeadY, tipHeadY);
+    st.maxIndexRatio = Math.max(st.maxIndexRatio || curIndexRatio, curIndexRatio);
     st.lastTipX = tipX;
     st.lastTipY = tipY;
     if (tipDist > 0) st.baseDist = st.baseDist > 0 ? (st.baseDist * 0.5 + tipDist * 0.5) : tipDist;
@@ -2278,7 +2323,7 @@ function updateFingerPoke(h, packet, nowMs) {
   st.lastTipY = tipY;
 
   if (!st.latched && liftedFinger && (nowMs - st.lastTapAt >= 360)) {
-    if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0085 || (fingerLift - st.restFingerLift) >= 0.0085)) {
+    if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0075 || (fingerLift - st.restFingerLift) >= 0.0075)) {
       st.pendingBrowserTap = true;
       st.latched = true;
       return false;
@@ -2307,6 +2352,7 @@ function updateFingerPoke(h, packet, nowMs) {
       st.restTipY = tipY;
       st.restFingerLift = fingerLift;
       st.restHeadY = tipHeadY;
+      st.maxIndexRatio = curIndexRatio;
       st.baseDist = tipDist;
       st.basePalm = palm;
       st.baseSpan = boneSpan;
@@ -2316,6 +2362,7 @@ function updateFingerPoke(h, packet, nowMs) {
     st.restTipY = Math.max(st.restTipY, tipY);
     st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
     st.restHeadY = Math.min(st.restHeadY, tipHeadY);
+    st.maxIndexRatio = Math.max(st.maxIndexRatio || curIndexRatio, curIndexRatio);
     if (tipDist > 0) st.baseDist = st.baseDist > 0 ? Math.min(st.baseDist, st.baseDist * 0.92 + tipDist * 0.08) : tipDist;
     if (palm > 0.012) st.basePalm = st.basePalm > 0 ? Math.max(st.basePalm, st.basePalm * 0.92 + palm * 0.08) : palm;
     if (boneSpan > 0.02) st.baseSpan = st.baseSpan > 0 ? Math.max(st.baseSpan, st.baseSpan * 0.92 + boneSpan * 0.08) : boneSpan;
@@ -2326,12 +2373,50 @@ function stateSpan(st, boneSpan) {
   return (st.baseSpan - boneSpan) / st.baseSpan;
 }
 
-/* =================== Gesto de Arma + Fechar Indicador (qualquer mão) para ocultar/mostrar a Dock =================== */
+/* =================== Gesto de Arma + Fechar Indicador (qualquer mão) + Bolinha com Logo (243d24346222890...) =================== */
 const gunDockByHand = new Map();
 let lastGunDockToggleAt = -2000;
+let gunBubbleEl = null;
+let gunBubbleHideTimer = null;
+
+function ensureGunLogoBubble() {
+  if (gunBubbleEl && document.body.contains(gunBubbleEl)) return gunBubbleEl;
+  const hud = document.getElementById('hud') || document.body;
+  gunBubbleEl = document.createElement('div');
+  gunBubbleEl.id = 'gun-gesture-indicator';
+  gunBubbleEl.className = 'gun-logo-bubble';
+  gunBubbleEl.dataset.gunBubble = '1';
+  gunBubbleEl.hidden = true;
+  gunBubbleEl.innerHTML = `<img src="./gun-logo.jpg" alt="Gun Gesture Logo" class="gun-logo-img">`;
+  hud.appendChild(gunBubbleEl);
+  return gunBubbleEl;
+}
+
+function showGunLogoBubble(xNorm = 0.5, yNorm = 0.5, triggered = false) {
+  const el = ensureGunLogoBubble();
+  const cx = Math.max(0.08, Math.min(0.92, Number.isFinite(xNorm) ? xNorm : 0.5));
+  const cy = Math.max(0.08, Math.min(0.92, Number.isFinite(yNorm) ? yNorm : 0.5));
+  el.style.left = `${(cx * 100).toFixed(1)}%`;
+  el.style.top = `${(cy * 100).toFixed(1)}%`;
+  el.hidden = false;
+  el.classList.toggle('gun-triggered', !!triggered);
+  css3d.invalidate?.();
+  if (gunBubbleHideTimer) clearTimeout(gunBubbleHideTimer);
+  gunBubbleHideTimer = setTimeout(() => {
+    if (gunBubbleEl) {
+      gunBubbleEl.hidden = true;
+      gunBubbleEl.classList.remove('gun-triggered');
+      css3d.invalidate?.();
+    }
+  }, triggered ? 750 : 450);
+}
+window.nextvrShowGunLogoBubble = showGunLogoBubble;
 
 function updateGunDockToggle(packet, nowMs) {
+  if (S.gunGesture === 0) return false;
   if (!packet?.hands?.length) return false;
+  const gOv = document.getElementById('gorilla-overlay');
+  if (gOv && gOv.style.display && gOv.style.display !== 'none') return false;
   if (wins.some(w => w.id === 'entry-menu' || w.id === 'language') || document.querySelector('.entry-menu-root')) return false;
   if (drag.win || resizing.win || dockDrag.start) return false;
 
@@ -2348,8 +2433,10 @@ function updateGunDockToggle(packet, nowMs) {
     // Anelar (13..16) e Mindinho (17..20) recolhidos na palma (ponta mais perto do pulso que o PIP) + Polegar (1..4) levantado
     const ringCurled = dist(0, 16) < dist(0, 14) * 0.96;
     const pinkyCurled = dist(0, 20) < dist(0, 18) * 0.96;
-    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.10;
+    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.06 || (p[2 * 3 + 1] - p[4 * 3 + 1]) > 0.025;
     const indexRatio = dist(0, 8) / Math.max(1e-4, dist(0, 6));
+    const bubbleX = (p[4 * 3] + p[5 * 3]) * 0.5;
+    const bubbleY = Math.min(p[4 * 3 + 1], p[5 * 3 + 1]) - 0.045;
 
     const handKey = h.id || (h.left ? 'left' : 'right');
     let st = gunDockByHand.get(handKey);
@@ -2358,24 +2445,26 @@ function updateGunDockToggle(packet, nowMs) {
       gunDockByHand.set(handKey, st);
     }
 
-    const isGunBarrelOpen = ringCurled && pinkyCurled && thumbExtended && indexRatio >= 1.14 && !h.pinching && !h.fist;
+    const isGunBarrelOpen = ringCurled && pinkyCurled && thumbExtended && indexRatio >= 1.12 && !h.pinching && !h.fist;
     if (isGunBarrelOpen) {
-      st.armedUntil = nowMs + 1400;
+      st.armedUntil = nowMs + 1600;
       st.maxIndexRatio = Math.max(st.maxIndexRatio, indexRatio);
       st.latched = false;
+      showGunLogoBubble(bubbleX, bubbleY, false);
       continue;
     }
 
-    // Com a mão armada em pose de arma, fechar o dedo indicador (gatilho) oculta ou reexibe a Dock
+    // Com a mão armada em pose de arma (foto 1), fechar o dedo indicador (foto 2) mostra a bolinha pulsando e oculta/reexibe a Dock
     const triggerClosed = ringCurled && pinkyCurled && thumbExtended && (
-      indexRatio <= 0.98 ||
-      (st.maxIndexRatio >= 1.18 && (st.maxIndexRatio - indexRatio) >= 0.16)
+      indexRatio <= 1.02 ||
+      (st.maxIndexRatio >= 1.14 && (st.maxIndexRatio - indexRatio) >= 0.13)
     );
     if (!st.latched && nowMs <= st.armedUntil && triggerClosed && (nowMs - lastGunDockToggleAt >= 550)) {
       st.latched = true;
       st.armedUntil = 0;
       st.maxIndexRatio = 0;
       lastGunDockToggleAt = nowMs;
+      showGunLogoBubble(bubbleX, bubbleY, true);
       packet.consumed?.add?.(h.id);
       if (S.spatialLauncher) {
         const spWin = wins.find(w => w.id === 'spatial-launcher');

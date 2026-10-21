@@ -20,7 +20,7 @@ const DEF = {
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
-  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1,
+  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1, gunGesture: 1,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',

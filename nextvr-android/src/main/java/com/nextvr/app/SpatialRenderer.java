@@ -280,6 +280,7 @@ final class SpatialRenderer {
      * camera continua rodando (o rastreamento das maos depende dela); so o passe de fundo muda.
      */
     void setEnvironment(String id, android.graphics.Bitmap bitmap) {
+        if("black".equals(id)) { environmentId="black"; environment.clear(); return; }
         if(bitmap==null || "passthrough".equals(id)) { environmentId="passthrough"; environment.clear(); return; }
         environmentId=id; environment.offer(bitmap);
     }
@@ -294,12 +295,14 @@ final class SpatialRenderer {
         if(sixDofX!=0f || sixDofY!=0f || sixDofZ!=0f) Matrix.translateM(view,0,-sixDofX,-sixDofY,-sixDofZ);
         Matrix.invertM(viewInv,0,view,0);
         Matrix.multiplyMM(viewProj,0,projection,0,view,0);
-        sphere=environment.ready && !"passthrough".equals(environmentId);
+        boolean blackEnv="black".equals(environmentId);
+        sphere=!blackEnv && environment.ready && !"passthrough".equals(environmentId);
         GLES20.glDisable(GLES20.GL_CULL_FACE); GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDisable(GLES20.GL_BLEND);
         // O mapeamento optico (span) sai da camera mesmo com panorama: e ele que poe os landmarks
         // das maos na tela, e o rastreamento continua na camera.
         if(camera.ready) mapping(projection,(float)camera.width/camera.height);
-        if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
+        if(blackEnv) { GLES20.glClearColor(0f,0f,0f,1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT); }
+        else if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
         GLES20.glEnable(GLES20.GL_BLEND);
         // Android's hardware surfaces are premultiplied, including CSS shadows and translucent glass.
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);

@@ -480,8 +480,8 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
-                if (down) {
-                    // The line, only while clicking: from the stick's end, fading out before the target.
+                // Thin middle-only ray (faded out at both the hand end and cursor dot end).
+                run {
                     val sz = -1f
                     val ex = b[3]; val ey = b[4]; val ez = b[5]
                     fun across(px: Float, py: Float, pz: Float, width: Float, out: FloatArray) {
@@ -490,16 +490,25 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val cl = kotlin.math.sqrt(cx * cx + cy * cy + cz * cz).coerceAtLeast(1e-6f)
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
-                    val segments = 10
+                    val segments = 12
+                    val startT = 0.24f
+                    val endT = 0.76f * RAY_SHOWN
+                    val rayWidth = if (down) .0024f else .0019f
+                    val boost = if (down) 1f else .78f
                     val wa = acrossA; val wb = acrossB; val q = quad
                     for (k in 0 until segments) {
-                        val t0 = k / segments.toFloat() * RAY_SHOWN; val t1 = (k + 1) / segments.toFloat() * RAY_SHOWN
+                        val u0 = k / segments.toFloat()
+                        val u1 = (k + 1) / segments.toFloat()
+                        val um = (u0 + u1) * .5f
+                        val t0 = startT + (endT - startT) * u0
+                        val t1 = startT + (endT - startT) * u1
+                        val midBell = kotlin.math.sin(um * Math.PI).toFloat().coerceIn(0f, 1f)
                         val ax = sx + (ex - sx) * t0; val ay = sy + (ey - sy) * t0; val az = sz + (ez - sz) * t0
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
-                        across(ax, ay, az, .006f, wa)
-                        across(bx, by, bz, .006f, wb)
+                        across(ax, ay, az, rayWidth * (.65f + .35f * midBell), wa)
+                        across(bx, by, bz, rayWidth * (.65f + .35f * midBell), wb)
                         GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B,
-                            POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                            POINTER_RAY_ALPHA * (midBell * midBell) * boost * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]

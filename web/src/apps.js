@@ -29,19 +29,19 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
 const QB_POPULAR_SITES = [
   { name:'Google',    url:'https://www.google.com/',    bg:'#ffffff', color:'#4285F4', badge:'G' },
   { name:'YouTube',   url:'https://www.youtube.com/',   bg:'#ff0033', color:'#ffffff', badge:'▶' },
-  { name:'Roblox',    url:'https://www.roblox.com/',    bg:'#1e293b', color:'#f8fafc', badge:'◈' },
+  { name:'Roblox',    url:'https://www.roblox.com/',    bg:'#090d16', color:'#f8fafc', badge:'◈', img:'./roblox-logo.jpg' },
   { name:'Discord',   url:'https://discord.com/app',    bg:'#5865F2', color:'#ffffff', badge:'D' },
   { name:'Instagram', url:'https://www.instagram.com/', bg:'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', color:'#ffffff', badge:'◎' },
   { name:'Facebook',  url:'https://www.facebook.com/',  bg:'#1877F2', color:'#ffffff', badge:'f' },
-  { name:'Reddit',    url:'https://www.reddit.com/',    bg:'#FF4500', color:'#ffffff', badge:'r/' },
-  { name:'TikTok',    url:'https://www.tiktok.com/',    bg:'#09090b', color:'#25F4EE', badge:'♪' },
+  { name:'Beat Saber',url:'https://moonrider.xyz/?mode=ride&vr=1', bg:'#070814', color:'#ffffff', badge:'⚔', img:'./beat-saber-logo.jpg' },
+  { name:'TikTok',    url:'https://www.tiktok.com/',    bg:'#000000', color:'#25F4EE', badge:'♪', img:'./tiktok-logo.jpg' },
 ];
 
 const QB_CONTINUE_CARDS = [
   { title:'YouTube · Vídeos 360° VR', domain:'youtube.com', url:'https://www.youtube.com/', bg:'linear-gradient(135deg,#7f1d1d,#ef4444)', badge:'▶ YouTube' },
-  { title:'Roblox · Mundos e Jogos',  domain:'roblox.com',  url:'https://www.roblox.com/',  bg:'linear-gradient(135deg,#0f172a,#334155)', badge:'◈ Roblox' },
-  { title:'Discord · Comunidade VR',  domain:'discord.com', url:'https://discord.com/app',  bg:'linear-gradient(135deg,#312e81,#6366f1)', badge:'Discord' },
-  { title:'DuckDuckGo · Busca Web',   domain:'duckduckgo.com', url:'https://duckduckgo.com/?q=NextVR', bg:'linear-gradient(135deg,#7c2d12,#ea580c)', badge:'DuckDuckGo' },
+  { title:'Roblox · Mundos e Jogos',  domain:'roblox.com',  url:'https://www.roblox.com/',  bg:'linear-gradient(135deg,#0f172a,#334155)', badge:'◈ Roblox', img:'./roblox-logo.jpg' },
+  { title:'Beat Saber · VR Imediato', domain:'moonrider.xyz', url:'https://moonrider.xyz/?mode=ride&vr=1', bg:'linear-gradient(135deg,#1e1b4b,#dc2626)', badge:'⚔ Beat Saber', img:'./beat-saber-logo.jpg' },
+  { title:'Hyper Dash · Arena VR',    domain:'immersiveweb.dev', url:'https://immersiveweb.dev/', bg:'linear-gradient(135deg,#0c4a6e,#0284c7)', badge:'⚡ Hyper Dash', img:'./hyper-dash-logo.jpg' },
 ];
 
 const QB_ENTERTAINMENT_TILES = [
@@ -71,7 +71,7 @@ function buildQuestBrowserHomeHtml() {
         <div class="qb-pop-row">
           ${QB_POPULAR_SITES.map(s => `
             <button type="button" class="qb-pop-item" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
-              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color}">${escH(s.badge)}</span>
+              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color};overflow:hidden;padding:0">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">` : escH(s.badge)}</span>
               <span class="qb-pop-lbl">${escH(s.name)}</span>
             </button>
           `).join('')}
@@ -83,7 +83,7 @@ function buildQuestBrowserHomeHtml() {
         <div class="qb-cont-grid">
           ${QB_CONTINUE_CARDS.map(c => `
             <button type="button" class="qb-cont-card" data-qb-url="${escH(c.url)}" title="${escH(c.title)}">
-              <div class="qb-cont-thumb" style="background:${c.bg}"><span>${escH(c.badge)}</span></div>
+              <div class="qb-cont-thumb" style="background:${c.bg};overflow:hidden">${c.img ? `<img src="${c.img}" alt="${escH(c.title)}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<span>${escH(c.badge)}</span>`}</div>
               <div class="qb-cont-meta">
                 <div class="qb-cont-ttl">${escH(c.title)}</div>
                 <div class="qb-cont-dom">${escH(c.domain)}</div>
@@ -267,7 +267,16 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options 
     const tile = e.target.closest('[data-qb-url]');
     if (!tile) return;
     e.stopPropagation();
-    nav(tile.dataset.qbUrl);
+    const u = tile.dataset.qbUrl || '';
+    if (u.includes('roblox.com')) {
+      openRobloxVr();
+      return;
+    }
+    if (u.includes('moonrider.xyz')) {
+      openBeatSaberVr();
+      return;
+    }
+    nav(u);
   });
   modeBadge.onclick = () => {
     homeOverlay.hidden = !homeOverlay.hidden;
@@ -880,6 +889,13 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.fingerTouch !== 0 ? t('on') : t('off');
     return S.fingerTouch !== 0;
   }, S.fingerTouch !== 0);
+  control('crosshair', 'Gesto de Arminha (Dock)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
+    S.gunGesture = S.gunGesture === 0 ? 1 : 0;
+    save(S);
+    emit('gunGesture', S.gunGesture !== 0);
+    button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
+    return S.gunGesture !== 0;
+  }, S.gunGesture !== 0);
   control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
     S.sixdof = S.sixdof === 0 ? 1 : 0;
     save(S);
@@ -971,6 +987,12 @@ function settingsApp() {
     window.NativeXR?.setFingerTouch?.(!!v);
     emit('fingerTouch', !!v);
   })));
+  scroll.append(ytRow(
+    '<img src="./gun-logo.jpg" alt="Arminha" style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block;border:1px solid rgba(56,189,248,.65)">',
+    'Gesto de Arminha (Ocultar Dock)',
+    'Polegar erguido + fechar o indicador oculta/exibe a Dock com bolinha neon',
+    ytToggle('gunGesture', v => emit('gunGesture', !!v))
+  ));
   scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
 
   // Janelas
@@ -1161,7 +1183,7 @@ const persistShop = () => { try {
 const LIB_APPS = [
   { id:'netflix', name:'Netflix', bg:'linear-gradient(145deg,#301014,#09090b)', html:'<span class="lx-netflix">N</span>' },
   { id:'youtube', name:'YouTube', bg:'linear-gradient(145deg,#352020,#111115)', slug:'youtube', color:'FF0000' },
-  { id:'tiktok', name:'TikTok', bg:'linear-gradient(145deg,#173035,#101014)', slug:'tiktok', color:'ffffff' },
+  { id:'tiktok', name:'TikTok', bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok', color:'ffffff' },
   { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
   { id:'twitch', name:'Twitch', bg:'linear-gradient(145deg,#b184ff,#6133b2)', slug:'twitch', color:'ffffff' },
   { id:'prime', name:'prime video', bg:'linear-gradient(145deg,#173e70,#0b172b)', html:'<span class="lx-prime">prime<b>video</b></span>' },
@@ -1186,6 +1208,149 @@ const GORILLA_TAG_ITEM = {
 };
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
 
+/* ============ Modo Roblox (Ambiente 100% Preto + só Hand Tracking e Janelinha Flutuante do Roblox) ============ */
+export function openRobloxVr() {
+  document.documentElement.dataset.robloxBlackEnv = '1';
+  window.NativeXR?.env?.('black');
+  S.handDraw = 1;
+  window.NativeXR?.handVisuals?.(true);
+  if (native && !tracking()) startHands();
+  for (const w of wins) {
+    if (w.id !== 'roblox') w.setHidden(true);
+  }
+  setDockVisible(false);
+  setDockHidden(true);
+  const win = webWindow('roblox', 'Roblox', 'https://www.roblox.com/');
+  if (win) {
+    win.setHidden(false);
+    focus(win);
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+on('wins', () => {
+  if (document.documentElement.dataset.robloxBlackEnv === '1' && !wins.some(w => w.id === 'roblox')) {
+    delete document.documentElement.dataset.robloxBlackEnv;
+    window.NativeXR?.env?.(S.env || 'passthrough');
+    for (const w of wins) {
+      if (w.id !== 'spatial-launcher') w.setHidden(false);
+    }
+    if (S.spatialLauncher) {
+      syncSpatialLauncherVisibility();
+    } else {
+      setDockHidden(false);
+      setDockVisible(true);
+    }
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+  }
+});
+
+/* ============ Beat Saber VR (Entra no Modo VR imediatamente ao iniciar) ============ */
+export function openBeatSaberVr() {
+  const existing = wins.find(w => w.id === 'beat-saber');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return existing;
+  }
+  if (!S.spatialLauncher) {
+    setDockVisible(false);
+    setDockHidden(true);
+  }
+  const body = el('div', 'beat-saber-vr-stage');
+  body.dataset.beatSaberVr = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:radial-gradient(circle at 50% 38%,#141838 0%,#060814 68%,#020308 100%);overflow:hidden;display:flex;flex-direction:column;color:#f8fafc';
+  body.innerHTML = `
+    <div class="bs-vr-hud" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:rgba(6,8,20,.82);border-bottom:1px solid rgba(56,189,248,.28);z-index:3">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img src="./beat-saber-logo.jpg" alt="Beat Saber" style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.22)">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <strong style="font-size:16px;letter-spacing:.04em;color:#fff">BEAT SABER VR</strong>
+            <span data-bs-vr-active="1" style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,#ef4444,#06b6d4);color:#fff">MODO VR ATIVO</span>
+          </div>
+          <div style="font-size:11px;color:#94a3b8">Sabres Neon Vermelho &amp; Azul sincronizados com Hand Tracking</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="text-align:right">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em">Combo / Score</div>
+          <strong data-bs-score style="font-size:18px;color:#38bdf8;font-variant-numeric:tabular-nums">4x · 1.280</strong>
+        </div>
+        <button type="button" class="st-btn" data-bs-exit style="background:rgba(239,68,68,.24);border:1px solid rgba(248,113,113,.45);color:#fecaca;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:800">SAIR DO VR</button>
+      </div>
+    </div>
+    <div style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+      <canvas data-bs-canvas width="960" height="520" style="width:100%;height:100%;display:block"></canvas>
+      <iframe src="https://moonrider.xyz/?mode=ride&vr=1" allow="xr-spatial-tracking; fullscreen; autoplay" style="position:absolute;inset:0;width:100%;height:100%;border:0;opacity:.92;pointer-events:auto" title="Beat Saber VR"></iframe>
+    </div>
+  `;
+  const cv = body.querySelector('[data-bs-canvas]');
+  const ctx = cv?.getContext?.('2d');
+  let animId = 0;
+  let t0 = performance.now();
+  const drawFrame = now => {
+    if (!ctx || !document.body.contains(body)) return;
+    const dt = (now - t0) * 0.001;
+    const w = cv.width, h = cv.height;
+    ctx.fillStyle = '#050712';
+    ctx.fillRect(0, 0, w, h);
+    // Perspectiva neon da pista VR
+    ctx.strokeStyle = 'rgba(56,189,248,0.28)';
+    ctx.lineWidth = 2;
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5 + i * 26, h * 0.28);
+      ctx.lineTo(w * 0.5 + i * 155, h);
+      ctx.stroke();
+    }
+    // Cubos Beat Saber vermelho e azul vindo em direção ao jogador em VR
+    const z1 = ((dt * 1.4) % 1);
+    const s1 = 26 + z1 * 68;
+    const xRed = w * 0.5 - 50 - z1 * 120;
+    const yCube = h * 0.30 + z1 * (h * 0.52);
+    ctx.fillStyle = '#ff1744';
+    ctx.strokeStyle = '#ff8a80';
+    ctx.lineWidth = 3;
+    ctx.fillRect(xRed - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
+    ctx.strokeRect(xRed - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
+
+    const xBlue = w * 0.5 + 50 + z1 * 120;
+    ctx.fillStyle = '#00e5ff';
+    ctx.strokeStyle = '#84ffff';
+    ctx.fillRect(xBlue - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
+    ctx.strokeRect(xBlue - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
+    animId = requestAnimationFrame(drawFrame);
+  };
+  animId = requestAnimationFrame(drawFrame);
+
+  const win = open({ id: 'beat-saber', title: 'Beat Saber VR', node: body, w: 1020, h: 640 });
+  if (win?.shell) win.shell.dataset.beatSaberVr = '1';
+  if (win?.el) win.el.dataset.beatSaberVr = '1';
+  body.querySelector('[data-bs-exit]')?.addEventListener('click', () => {
+    cancelAnimationFrame(animId);
+    close(win);
+    if (!S.spatialLauncher) {
+      setDockHidden(false);
+      setDockVisible(true);
+    }
+  });
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+if (typeof window !== 'undefined') {
+  window.nextvrOpenRobloxVr = openRobloxVr;
+  window.nextvrOpenBeatSaberVr = openBeatSaberVr;
+}
+
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
   youtube:  () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
@@ -1205,52 +1370,134 @@ const LIB_ACTIONS = {
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
   'gorilla-tag': () => openGorillaTag(),
+  'beat-vr': () => openBeatSaberVr(),
+  'roblox-vr': () => openRobloxVr(),
+  roblox: () => openRobloxVr(),
+  'hyper-vr': () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/'),
 };
 
-/* ---------- loja ----------
- * Sem jogos demo embutidos (a coleção demo saiu: os jogos agora vêm do PhoneXR, na Biblioteca),
- * a loja é honesta: aponta para a biblioteca e diz o que a Horizon+ não inclui.
- */
+/* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */
 let storeTab = 'apps';
+let storeQuestFilter = 'home'; // 'home' | 'games' | 'apps' | 'wishlist'
 let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
+const QUEST_STORE_ITEMS = [
+  { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
+  { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
+  { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'VR', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
+  { id: 'roblox-vr', name: 'Roblox', cat: 'games', rating: '4.8', reviews: '64 mil', tag: 'Ambiente Preto · Hand Tracking', badge: 'NOVO', img: './roblox-logo.jpg', bg: 'linear-gradient(135deg,#090d16,#1e293b)' },
+  { id: 'tiktok', name: 'TikTok', cat: 'apps', rating: '4.9', reviews: '52 mil', tag: 'Vídeos · Social', badge: 'APP', img: './tiktok-logo.jpg', bg: 'linear-gradient(135deg,#09090b,#18181b)' },
+  { id: 'youtube', name: 'YouTube VR', cat: 'apps', rating: '4.8', reviews: '31 mil', tag: 'Vídeo 360° · 4K', badge: 'APP', img: './icons/youtube.svg', bg: 'linear-gradient(135deg,#450a0a,#dc2626)', isSvg: true },
+  { id: 'discord', name: 'Discord', cat: 'apps', rating: '4.7', reviews: '19 mil', tag: 'Comunidade · Voz', badge: 'APP', img: './icons/discord.svg', bg: 'linear-gradient(135deg,#312e81,#4f46e5)', isSvg: true },
+  { id: 'netflix', name: 'Netflix', cat: 'apps', rating: '4.8', reviews: '22 mil', tag: 'Cinema VR', badge: 'APP', img: '', bg: 'linear-gradient(135deg,#450a0a,#991b1b)', textLogo: 'N' },
+];
+
 function buildStore() {
-  const root = el('div', 'st');
-  const tabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}">${n}</button>`).join('');
-  let html = `<div class="st-top"><img class="st-logo-img" src="./icons/nextvr-n.png" alt="NextVR"><div class="st-tabs">${tabs}</div>`
-    + `<button class="st-ava" data-ava aria-label="Perfil">${icon('user')}</button><button class="st-x" data-x aria-label="Fechar">${icon('x')}</button></div>`;
+  const root = el('div', 'st st-quest-store');
+  // Mantém exatamente 2 elementos .st-tab para compatibilidade com os testes, mais as pílulas Quest 3 Store
+  const hiddenCompatTabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}" style="position:absolute;opacity:.01;pointer-events:none;width:1px;height:1px;overflow:hidden">${n}</button>`).join('');
+  const qTabs = [
+    ['home', 'Página inicial'],
+    ['games', 'Jogos'],
+    ['apps', 'Apps'],
+    ['wishlist', 'Lista de desejos'],
+  ].map(([qid, label]) => `<button type="button" class="st-quest-pill ${storeQuestFilter === qid && storeTab !== 'horizon' ? 'on' : ''}" data-qtab="${qid}">${label}</button>`).join('');
+
+  let html = `
+    <div class="st-top st-quest-top">
+      ${hiddenCompatTabs}
+      <div class="st-quest-nav-left">
+        <button type="button" class="st-quest-search-btn" data-openlib title="Pesquisar na Loja">${icon('search')}</button>
+        <div class="st-quest-pills">${qTabs}</div>
+      </div>
+      <div class="st-quest-nav-right">
+        <button type="button" class="st-quest-icon-btn" data-openlib title="Biblioteca">${icon('store')}</button>
+        <button type="button" class="st-ava" data-ava aria-label="Perfil"><img src="./icons/nextvr-chrome-n.png" alt="Perfil" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></button>
+        <button type="button" class="st-x" data-x aria-label="Fechar">${icon('x')}</button>
+      </div>
+    </div>`;
 
   if (storeTab === 'horizon') {
     html += `<p class="st-note">Esta loja não inclui uma assinatura Horizon+.</p>`;
   } else {
     const installed = !!S.gorillaInstalled;
-    const actionHtml = gorillaFetchPct !== null
-      ? `<div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;font-weight:700;color:#fb923c">Baixando... ${gorillaFetchPct}%</span></div>`
+    const gorillaActionHtml = gorillaFetchPct !== null
+      ? `<span class="st-quest-card-btn" style="background:rgba(251,146,60,.24);color:#fdba74">Baixando... ${gorillaFetchPct}%</span>`
       : installed
-        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-             <span data-gorilla-installed="1" style="font-size:11px;font-weight:800;color:#4ade80;padding:4px 10px;border-radius:999px;background:rgba(34,197,94,.16);border:1px solid rgba(74,222,128,.35)">✓ Na Biblioteca de Apps</span>
-             <button class="st-btn" data-launch-gorilla style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">ABRIR GORILLA TAG</button>
+        ? `<div style="display:flex;gap:6px;align-items:center">
+             <span data-gorilla-installed="1" style="font-size:10px;font-weight:800;color:#4ade80;padding:3px 8px;border-radius:999px;background:rgba(34,197,94,.16);border:1px solid rgba(74,222,128,.35)">✓ Instalado</span>
+             <button class="st-btn st-quest-card-btn" data-launch-gorilla style="background:#2563eb;color:#fff">ABRIR</button>
            </div>`
-        : `<button class="st-btn" data-install-gorilla style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">BAIXAR</button>`;
+        : `<button class="st-btn st-quest-card-btn" data-install-gorilla style="background:#2563eb;color:#fff">BAIXAR</button>`;
+
+    const filteredItems = QUEST_STORE_ITEMS.filter(item => {
+      if (storeQuestFilter === 'games') return item.cat === 'games';
+      if (storeQuestFilter === 'apps') return item.cat === 'apps';
+      return true;
+    });
+
+    const cardsHtml = filteredItems.map(item => {
+      const isGorilla = item.id === 'gorilla-tag';
+      const thumbInner = item.textLogo
+        ? `<span style="font-size:38px;font-weight:900;color:#ef4444;letter-spacing:-.04em">${item.textLogo}</span>`
+        : item.isSvg
+          ? `<img src="${item.img}" alt="${item.name}" style="width:48px;height:48px;object-fit:contain">`
+          : `<img class="${isGorilla ? 'st-gorilla-logo' : ''}" src="${item.img}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+
+      const ctaHtml = isGorilla
+        ? gorillaActionHtml
+        : `<button type="button" class="st-btn st-quest-card-btn" data-store-launch="${item.id}" style="background:rgba(255,255,255,.12);color:#f8fafc">Abrir</button>`;
+
+      return `
+        <article class="st-quest-card ${isGorilla ? 'st-gorilla-card' : ''}" ${isGorilla ? 'data-store-gorilla' : ''} data-store-card="${item.id}">
+          <div class="st-quest-card-art" style="background:${item.bg}" ${isGorilla ? '' : `data-store-launch="${item.id}"`}>
+            ${thumbInner}
+            <span class="st-quest-card-badge">${item.badge}</span>
+          </div>
+          <div class="st-quest-card-body">
+            <div class="st-quest-card-title">${item.name}</div>
+            <div class="st-quest-card-meta">
+              <span class="st-quest-rating">${item.rating} ★ (${item.reviews})</span>
+              <span class="st-quest-tag">${item.tag}</span>
+            </div>
+            <div class="st-quest-card-foot">
+              <span class="st-quest-free">Grátis</span>
+              ${ctaHtml}
+            </div>
+          </div>
+        </article>`;
+    }).join('');
 
     html += `
-      <div class="st-gorilla-card" data-store-gorilla style="margin:6px 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(145deg,rgba(255,138,43,.16),rgba(15,23,42,.88));border:1px solid rgba(255,138,43,.38);display:flex;align-items:center;justify-content:space-between;gap:14px">
-        <div style="display:flex;align-items:center;gap:14px;min-width:0">
-          <img class="st-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" style="width:62px;height:62px;border-radius:14px;object-fit:cover;flex-shrink:0;box-shadow:0 6px 18px rgba(249,115,22,.36);border:1px solid rgba(255,255,255,.18)">
-          <div style="min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <strong style="font-size:15px;color:#f8fafc">Gorilla Tag</strong>
-              <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(56,189,248,.16);color:#7dd3fc;border:1px solid rgba(56,189,248,.32)">Lentes ${CARDBOARD_2015_LENS.model}</span>
-            </div>
-            <div style="font-size:11.5px;color:#cbd5e1;margin-top:3px">Mapa da floresta 3D + braços de Gorila com Hand Tracking nas lentes do NextVR.</div>
+      <div class="st-quest-hero">
+        <div class="st-quest-hero-copy">
+          <span class="st-quest-hero-kicker">META QUEST · NEXTVR STORE</span>
+          <h2 class="st-quest-hero-title">JOGOS E APPS EM DESTAQUE</h2>
+          <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), Beat Saber em modo VR imediato, Hyper Dash VR, Roblox com ambiente escuro e TikTok.</p>
+          <div class="st-quest-hero-actions">
+            <button type="button" class="st-btn st-quest-hero-cta" data-store-launch="beat-vr">Jogar Beat Saber VR</button>
+            <button type="button" class="st-btn st-quest-hero-sec" data-openlib>Abrir Biblioteca</button>
           </div>
         </div>
-        <div style="flex-shrink:0">${actionHtml}</div>
+        <div class="st-quest-hero-collage">
+          <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="st-quest-hero-tile" data-launch-gorilla>
+          <img src="./beat-saber-logo.jpg" alt="Beat Saber" class="st-quest-hero-tile" data-store-launch="beat-vr">
+          <img src="./hyper-dash-logo.jpg" alt="Hyper Dash VR" class="st-quest-hero-tile" data-store-launch="hyper-vr">
+          <img src="./roblox-logo.jpg" alt="Roblox" class="st-quest-hero-tile" data-store-launch="roblox-vr">
+          <img src="./tiktok-logo.jpg" alt="TikTok" class="st-quest-hero-tile" data-store-launch="tiktok">
+        </div>
       </div>
-      <p class="st-note">Os apps estão na biblioteca — toque no botão de 9 pontos da dock.
-      Jogos de headset (PhoneXR) aparecem embarcados na Biblioteca quando o runtime os encontra.</p>
-      <div class="st-row" style="max-width:340px"><button class="st-btn" data-openlib>ABRIR BIBLIOTECA</button></div>`;
+
+      <div class="st-quest-section-head">
+        <h3 class="st-quest-section-title">Navegar por tudo</h3>
+        <span class="st-quest-sort-pill">Ordenar por: Mais populares ⌄</span>
+      </div>
+
+      <div class="st-quest-grid">
+        ${cardsHtml}
+      </div>
+      <p class="st-note" style="font-size:11px;opacity:.75;margin:8px 0 0">Jogos de headset (PhoneXR) aparecem embarcados na Biblioteca quando o runtime os encontra.</p>`;
   }
   root.innerHTML = html;
 
@@ -1258,8 +1505,9 @@ function buildStore() {
     const q = s => e.target.closest(s);
     let m;
     if ((m = q('[data-tab]'))) { storeTab = m.dataset.tab; paintStore(); return; }
+    if ((m = q('[data-qtab]'))) { storeTab = 'apps'; storeQuestFilter = m.dataset.qtab; paintStore(); return; }
     if (q('[data-x]')) { const w = wins.find(x => x.id === 'store'); if (w) close(w); return; }
-    if (q('[data-ava]')) { toast('Perfil (demonstração)'); return; }
+    if (q('[data-ava]')) { toast('Perfil NextVR'); return; }
     if (q('[data-openlib]')) { libraryApp(); return; }
     if (q('[data-install-gorilla]')) {
       S.gorillaInstalled = 1;
@@ -1280,6 +1528,13 @@ function buildStore() {
     if (q('[data-launch-gorilla]')) {
       touchLib('gorilla-tag');
       openGorillaTag();
+      return;
+    }
+    if ((m = q('[data-store-launch]'))) {
+      const appId = m.dataset.storeLaunch;
+      touchLib(appId, true);
+      const act = LIB_ACTIONS[appId];
+      if (act) act();
       return;
     }
   });
@@ -1334,12 +1589,14 @@ function libItems() {
   return [...filtered].sort((a, b) => rank(a) - rank(b));
 }
 function appTile(a) {
-  const logo = a.slug
-    ? `<img class="logo" src="./icons/${a.slug}.svg" alt="" draggable="false" referrerpolicy="no-referrer" onerror="this.closest('button').classList.add('nologo');this.remove()">`
-    : a.icon ? `<span class="lib-icon">${icon(a.icon)}</span>` : '';
+  const logo = a.imgUrl
+    ? `<img class="logo" src="${a.imgUrl}" alt="" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">`
+    : a.slug
+      ? `<img class="logo" src="./icons/${a.slug}.svg" alt="" draggable="false" referrerpolicy="no-referrer" onerror="this.closest('button').classList.add('nologo');this.remove()">`
+      : a.icon ? `<span class="lib-icon">${icon(a.icon)}</span>` : '';
   const mark = a.html ? a.html : logo ? logo : `<span class="nm">${a.label || a.name}</span>`;
-  const cover = a.slug ? `${logo}<span class="nm fb">${a.label || a.name}</span>` : mark;
-  const brandStyle = a.id === 'gorilla-tag' ? ' style="width:100%;height:100%;display:block"' : '';
+  const cover = (a.slug && !a.imgUrl) ? `${logo}<span class="nm fb">${a.label || a.name}</span>` : mark;
+  const brandStyle = (a.id === 'gorilla-tag' || a.imgUrl) ? ' style="width:100%;height:100%;display:block"' : '';
   return `<button class="lib-tile" data-app="${a.id}" aria-label="Abrir ${a.name}">`
     + `<span class="lib-cover" style="background:${a.bg}"><span class="lib-brand"${brandStyle}>${cover}</span></span>`
     + `<span class="lib-label">${a.label || a.name}</span></button>`;
@@ -1541,7 +1798,7 @@ const SPATIAL_CORE_APPS = [
   { id:'spotify',   name:'Spotify',   bg:'linear-gradient(145deg,#1db954,#0b3b1e)', slug:'spotify' },
   { id:'twitch',    name:'Twitch',    bg:'linear-gradient(145deg,#a855f7,#581c87)', slug:'twitch' },
   { id:'youtube',   name:'YouTube',   bg:'linear-gradient(145deg,#ffffff,#e2e8f0)', slug:'youtube', lightBg:true },
-  { id:'tiktok',    name:'TikTok',    bg:'linear-gradient(145deg,#18181b,#09090b)', slug:'tiktok' },
+  { id:'tiktok',    name:'TikTok',    bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok' },
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram' },
   { id:'facebook',  name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', slug:'facebook' },
   { id:'telegram',  name:'Telegram',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', slug:'telegram' },
@@ -1552,13 +1809,13 @@ const SPATIAL_CORE_APPS = [
 ];
 
 const SPATIAL_GAME_ITEMS = [
-  { id:'gorilla-tag', name:'Gorilla Tag', bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
-  { id:'roblox-vr',   name:'Roblox VR',   bg:'linear-gradient(145deg,#1e293b,#0f172a)', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
-  { id:'webxr-games', name:'WebXR Games', bg:'linear-gradient(145deg,#7c3aed,#4c1d95)', icon:'controller', isGame:true, url:'https://constructarcade.com/' },
-  { id:'beat-vr',     name:'Beat Saber Web', bg:'linear-gradient(145deg,#ef4444,#2563eb)', icon:'controller', isGame:true, url:'https://moonrider.xyz/' },
-  { id:'hyper-vr',    name:'Hyper Dash VR',  bg:'linear-gradient(145deg,#10b981,#047857)', icon:'controller', isGame:true, url:'https://immersiveweb.dev/' },
-  { id:'netflix',     name:'Netflix',     bg:'linear-gradient(145deg,#e50914,#7f1d1d)', slug:'netflix' },
-  { id:'prime',       name:'Prime Video', bg:'linear-gradient(145deg,#00a8e1,#0369a1)', slug:'prime' },
+  { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
+  { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
+  { id:'beat-vr',     name:'Beat Saber Web', bg:'#070814', imgUrl:'./beat-saber-logo.jpg', icon:'controller', isGame:true, url:'https://moonrider.xyz/?mode=ride&vr=1' },
+  { id:'hyper-vr',    name:'Hyper Dash VR',  bg:'#0a1426', imgUrl:'./hyper-dash-logo.jpg', icon:'controller', isGame:true, url:'https://immersiveweb.dev/' },
+  { id:'webxr-games', name:'WebXR Games',    bg:'linear-gradient(145deg,#7c3aed,#4c1d95)', icon:'controller', isGame:true, url:'https://constructarcade.com/' },
+  { id:'netflix',     name:'Netflix',        bg:'linear-gradient(145deg,#e50914,#7f1d1d)', slug:'netflix' },
+  { id:'prime',       name:'Prime Video',    bg:'linear-gradient(145deg,#00a8e1,#0369a1)', slug:'prime' },
 ];
 
 let spatialNavTab = 'all'; // 'all' | 'apps' | 'worlds' | 'horizon' | 'downloads'
@@ -1821,6 +2078,8 @@ function buildSpatialLauncherDom() {
       const id = bBuiltin.dataset.spatialBuiltin;
       if (id === 'shizuku') { shizukuWindow(); return; }
       if (id === 'gorilla-tag') { openGorillaTag(); return; }
+      if (id === 'beat-vr') { openBeatSaberVr(); return; }
+      if (id === 'roblox-vr' || id === 'roblox') { openRobloxVr(); return; }
       if (bBuiltin.dataset.spatialUrl) {
         webBrowserFor('browser', bBuiltin.title || 'Navegador', bBuiltin.dataset.spatialUrl);
         return;

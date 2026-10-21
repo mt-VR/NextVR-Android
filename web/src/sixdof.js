@@ -57,10 +57,10 @@ export function updateHandBoxesFromPacket(packet) {
     }
     if (x1 >= x0 && y1 >= y0) {
       handBoxes.push({
-        x0: Math.max(0, x0 - 0.08),
-        y0: Math.max(0, y0 - 0.08),
-        x1: Math.min(1, x1 + 0.08),
-        y1: Math.min(1, y1 + 0.08),
+        x0: Math.max(0, x0 - 0.14),
+        y0: Math.max(0, y0 - 0.14),
+        x1: Math.min(1, x1 + 0.14),
+        y1: Math.min(1, y1 + 0.14),
       });
     }
   }
@@ -77,16 +77,16 @@ export const Walk = {
     if (!a || a.x === null) return;
     if (this.lastA) {
       const d = Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y, a.z - this.lastA.z);
-      if (d > 0.15) {
-        this.energy = Math.min(4, this.energy * 0.88 + d);
+      if (d > 0.42) {
+        this.energy = Math.min(4, this.energy * 0.85 + d);
       } else {
-        this.energy *= 0.88;
+        this.energy *= 0.84;
       }
     }
     this.lastA = { x: a.x, y: a.y, z: a.z };
   },
   moving() {
-    return !this.lastA || this.energy > 0.30;
+    return !this.lastA || this.energy > 0.75;
   }
 };
 
@@ -104,7 +104,7 @@ export const SixDof = {
   lastSc: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
-  depth: 2.05, // metros assumidos até aos objetos à frente (escala do passo refinada para 6DoF mais responsivo)
+  depth: 1.45, // metros assumidos até aos objetos à frente (estável sem saltar para a frente)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -281,7 +281,7 @@ export const SixDof = {
       return;
     }
 
-    const step = Math.max(-0.14, Math.min(0.14, stepSc * this.depth));
+    const step = Math.max(-0.11, Math.min(0.11, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
@@ -291,15 +291,6 @@ export const SixDof = {
     else _sdFwd.set(0, 0, -1);
 
     this.pos.addScaledVector(_sdFwd, step);
-    if (Number.isFinite(latDx) && Math.abs(latDx) > 0.22 && Math.hypot(gx, gy) <= 3) {
-      _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
-      _sdRight.y = 0;
-      if (_sdRight.lengthSq() > 1e-6) {
-        _sdRight.normalize();
-        const latStep = Math.max(-0.03, Math.min(0.03, -latDx * 0.008));
-        this.pos.addScaledVector(_sdRight, latStep);
-      }
-    }
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal

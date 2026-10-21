@@ -13,6 +13,10 @@ await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
 await copyFile('web/assets/nextvr-chrome-n.png', new URL('icons/nextvr-chrome-n.png', out));
 await copyFile('web/assets/entry-bg-blue.jpg', new URL('icons/entry-bg-blue.jpg', out));
 await copyFile('web/assets/gorilla-tag-logo.jpg', new URL('icons/gorilla-tag-logo.jpg', out));
+for (const logo of ['gun-logo.jpg', 'beat-saber-logo.jpg', 'hyper-dash-logo.jpg', 'roblox-logo.jpg', 'tiktok-logo.jpg']) {
+  await copyFile(`web/assets/${logo}`, new URL(logo, out));
+  await copyFile(`web/assets/${logo}`, new URL(`icons/${logo}`, out));
+}
 await copyFile('web/assets/gorilla-map.task', new URL('gorilla-map.task', out));
 await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.

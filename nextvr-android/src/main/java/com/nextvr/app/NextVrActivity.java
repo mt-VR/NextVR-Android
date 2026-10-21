@@ -151,11 +151,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     gravZ=0.88f*gravZ + 0.12f*az;
                     float lx=ax-gravX, ly=ay-gravY, lz=az-gravZ;
                     float linAcc=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                    if(linAcc>0.055f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.92f + linAcc);
-                        lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(linAcc>0.42f && gyroRate<1.25f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.86f + linAcc);
+                        if(walkEnergy>0.78f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.95f;
+                        walkEnergy*=0.88f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
@@ -220,16 +220,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
-                if(!sixDofEnabled || Math.abs(sc)>0.22f) return;
-                float latDx=mx-gx;
-                if(Math.abs(sc)<0.004f && Math.abs(latDx)<0.45f) {
+                if(!sixDofEnabled || Math.abs(sc)>0.18f) return;
+                SpatialRenderer r=renderer;
+                boolean handsVisible=r!=null && r.hands!=null && !r.hands.getHands().isEmpty();
+                if(handsVisible && walkEnergy<1.25f) return;
+                if(Math.abs(sc)<0.008f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                boolean moving=(!hasWalkAccel || (nowMs-lastWalkStepMs<1050L) || (Math.abs(sc)>=0.008f && Math.hypot(gx,gy)<=4.0)) && gyroRate<2.4f;
+                boolean moving=(!hasWalkAccel || (walkEnergy>0.72f && nowMs-lastWalkStepMs<520L)) && gyroRate<1.15f && Math.hypot(gx,gy)<=3.2;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
@@ -799,7 +801,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
-            if(id==null || !(id.equals("passthrough")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
+            if(id==null || !(id.equals("passthrough")||id.equals("black")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
                     ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
                     ||id.equals("cinema")||id.equals("tropical")||id.equals("lakeside"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
@@ -807,7 +809,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         private void loadEnvironment(String environment) {
             Bitmap bitmap=null;
             try {
-                if(!environment.equals("passthrough")) {
+                if(!environment.equals("passthrough") && !environment.equals("black")) {
                     try(InputStream in=getAssets().open("env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
                 }
             } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
