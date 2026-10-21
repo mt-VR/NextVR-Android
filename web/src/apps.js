@@ -1132,8 +1132,12 @@ function quickSettingsApp() {
     }
     if (name === 'volume') {
       volume = v;
+      S.mediaVolume = v;
       if (v > 0) { prefs.lastVolume = v; prefs.muted = false; }
       else prefs.muted = true;
+    }
+    if (name === 'brightness') {
+      window.nextvrSetScreenBrightness?.(v);
     }
   }
   function savePrefs() {
@@ -2446,6 +2450,152 @@ export function openFistQuickMenu() {
   return win;
 }
 window.nextvrOpenFistQuickMenu = openFistQuickMenu;
+
+/* ============ Menu de Controlo Rápido da Mão Esquerda (IMG_20261021_144416.jpg) ============ */
+let leftHandQuickMenuEl = null;
+
+function ensureLeftHandQuickMenu() {
+  const hud = document.getElementById('hud') || document.body;
+  if (leftHandQuickMenuEl && document.body.contains(leftHandQuickMenuEl)) {
+    syncLeftHandQuickMenuValues();
+    return leftHandQuickMenuEl;
+  }
+  const root = document.createElement('div');
+  root.id = 'left-hand-quick-menu';
+  root.className = 'lh-quick-menu';
+  root.hidden = true;
+  const vol = Math.max(0, Math.min(100, Number(S.mediaVolume ?? 70) || 70));
+  const bri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
+  const dim = S.mrDim ? 80 : 20;
+  root.innerHTML = `
+    <div class="lh-quick-grid">
+      <div class="lh-apps-col">
+        <button type="button" class="lh-app-tile" data-lh-app="browser" title="Browser">
+          <span class="lh-app-icon lh-app-icon--browser">${icon('compass')}</span>
+        </button>
+        <button type="button" class="lh-app-tile" data-lh-app="youtube" title="YouTube">
+          <img src="./icons/youtube.svg" alt="YouTube" class="lh-app-img" draggable="false"/>
+        </button>
+        <button type="button" class="lh-app-tile" data-lh-app="roblox" title="Roblox">
+          <img src="./icons/roblox-logo.png" alt="Roblox" class="lh-app-img" draggable="false"/>
+        </button>
+        <button type="button" class="lh-app-tile" data-lh-app="store" title="Store">
+          <span class="lh-app-icon lh-app-icon--store">${icon('store')}</span>
+        </button>
+        <button type="button" class="lh-round-btn lh-home-btn" data-lh-act="home" title="Início">
+          ${icon('home')}
+        </button>
+      </div>
+      <div class="lh-sliders-col">
+        <div class="lh-sliders-row">
+          <div class="lh-vslider-pill" title="Volume">
+            <input type="range" min="0" max="100" value="${vol}" class="lh-vslider-input" data-lh-slider="volume" aria-label="Volume" style="--fill:${vol}%"/>
+            <span class="lh-vslider-ico">${icon('volume')}</span>
+          </div>
+          <div class="lh-vslider-pill" title="Brilho">
+            <input type="range" min="10" max="100" value="${bri}" class="lh-vslider-input" data-lh-slider="brightness" aria-label="Brilho" style="--fill:${bri}%"/>
+            <span class="lh-vslider-ico">${icon('sun')}</span>
+          </div>
+          <div class="lh-vslider-pill" title="Escurecimento MR">
+            <input type="range" min="0" max="100" value="${dim}" class="lh-vslider-input" data-lh-slider="dim" aria-label="Ambiente Escuro" style="--fill:${dim}%"/>
+            <span class="lh-vslider-ico">${icon('vision')}</span>
+          </div>
+        </div>
+        <div class="lh-bottom-actions">
+          <button type="button" class="lh-round-btn lh-hands-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-lh-act="hands" title="Toque Direto">
+            ${icon('hand')}
+          </button>
+          <button type="button" class="lh-round-btn lh-close-btn" data-lh-act="close" title="Fechar">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  root.querySelectorAll('[data-lh-slider]').forEach(inp => {
+    const onInput = e => {
+      e.stopPropagation();
+      const k = inp.dataset.lhSlider;
+      const v = Math.max(0, Math.min(100, Number(inp.value) || 0));
+      inp.style.setProperty('--fill', `${v}%`);
+      if (k === 'volume') {
+        S.mediaVolume = v;
+        save(S);
+        window.NativeXR?.setMediaVolumePercent?.(v);
+      } else if (k === 'brightness') {
+        window.nextvrSetScreenBrightness?.(v);
+      } else if (k === 'dim') {
+        setMrDim(v >= 50);
+      }
+      css3d.invalidate?.();
+    };
+    inp.addEventListener('input', onInput);
+    inp.addEventListener('change', onInput);
+    inp.addEventListener('pointerdown', e => e.stopPropagation());
+  });
+  root.addEventListener('click', e => {
+    const appBtn = e.target.closest('[data-lh-app]');
+    if (appBtn) {
+      e.stopPropagation();
+      const appId = appBtn.dataset.lhApp;
+      root.hidden = true;
+      if (appId === 'browser') browserApp();
+      else if (appId === 'youtube') webWindow('youtube');
+      else if (appId === 'roblox') webWindow('roblox');
+      else if (appId === 'store') storeApp();
+      css3d.invalidate?.();
+      css3d.render?.(scene, camera);
+      return;
+    }
+    const actBtn = e.target.closest('[data-lh-act]');
+    if (!actBtn) return;
+    e.stopPropagation();
+    const act = actBtn.dataset.lhAct;
+    if (act === 'close') {
+      root.hidden = true;
+    } else if (act === 'home') {
+      root.hidden = true;
+      toggleSpatialAndDockFromGesture();
+    } else if (act === 'hands') {
+      S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
+      save(S);
+      actBtn.classList.toggle('on', S.fingerTouch !== 0);
+      window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+      toast(S.fingerTouch !== 0 ? 'Toque Direto: Ativo' : 'Toque Direto: Desativado');
+    }
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+  });
+  hud.appendChild(root);
+  leftHandQuickMenuEl = root;
+  return root;
+}
+
+function syncLeftHandQuickMenuValues() {
+  if (!leftHandQuickMenuEl) return;
+  const vol = Math.max(0, Math.min(100, Number(S.mediaVolume ?? 70) || 70));
+  const bri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
+  const dim = S.mrDim ? 80 : 20;
+  const volInp = leftHandQuickMenuEl.querySelector('[data-lh-slider="volume"]');
+  if (volInp) { volInp.value = String(vol); volInp.style.setProperty('--fill', `${vol}%`); }
+  const briInp = leftHandQuickMenuEl.querySelector('[data-lh-slider="brightness"]');
+  if (briInp) { briInp.value = String(bri); briInp.style.setProperty('--fill', `${bri}%`); }
+  const dimInp = leftHandQuickMenuEl.querySelector('[data-lh-slider="dim"]');
+  if (dimInp) { dimInp.value = String(dim); dimInp.style.setProperty('--fill', `${dim}%`); }
+  const handsBtn = leftHandQuickMenuEl.querySelector('[data-lh-act="hands"]');
+  if (handsBtn) handsBtn.classList.toggle('on', S.fingerTouch !== 0);
+}
+
+export function toggleLeftHandQuickMenu(forceState = undefined) {
+  const menu = ensureLeftHandQuickMenu();
+  const nextOpen = typeof forceState === 'boolean' ? forceState : menu.hidden;
+  syncLeftHandQuickMenuValues();
+  menu.hidden = !nextOpen;
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return nextOpen;
+}
+window.nextvrToggleLeftHandQuickMenu = toggleLeftHandQuickMenu;
 
 function setSpatialLauncherMode(enabled) {
   S.spatialLauncher = enabled ? 1 : 0;

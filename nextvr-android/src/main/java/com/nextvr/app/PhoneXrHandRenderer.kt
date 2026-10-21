@@ -35,12 +35,12 @@ class PhoneXrHandRenderer {
         const val POINTER_DROP_ALPHA = .82f
         const val POINTER_CLICK_ALPHA = .95f
         const val POINTER_RAY_ALPHA = .82f
-        const val TOUCH_FILL_R = .24f
-        const val TOUCH_FILL_G = .24f
-        const val TOUCH_FILL_B = .25f
-        const val IDLE_FILL_R = .18f
-        const val IDLE_FILL_G = .18f
-        const val IDLE_FILL_B = .19f
+        const val TOUCH_FILL_R = .22f
+        const val TOUCH_FILL_G = .22f
+        const val TOUCH_FILL_B = .24f
+        const val IDLE_FILL_R = .14f
+        const val IDLE_FILL_G = .14f
+        const val IDLE_FILL_B = .15f
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
@@ -89,7 +89,7 @@ class PhoneXrHandRenderer {
     private var touching=false
     @Volatile var showPointer=false
     private val CURSOR_R=.016f
-    private val RAY_SHOWN=.55f
+    private val RAY_SHOWN=.84f
     /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
      * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
     private val MESH_REBUILD_EPSILON=.0003f
@@ -213,12 +213,16 @@ class PhoneXrHandRenderer {
             val direct=target?.optBoolean("direct")==true
             val hFade=fade*hand.confidence.coerceIn(0f,1f)
             if(fingerHover && hand.points.size>=26) {
-                val fx=(hand.points[24]-.5f)*2f*sx
-                val fy=(.5f-hand.points[25])*2f*sy
+                val stickX=target?.optDouble("stickX",Double.NaN)?.toFloat() ?: Float.NaN
+                val stickY=target?.optDouble("stickY",Double.NaN)?.toFloat() ?: Float.NaN
+                val rawX=if(stickX.isFinite()) (hand.points[24]*.28f + stickX*.72f) else hand.points[24]
+                val rawY=if(stickY.isFinite()) (hand.points[25]*.28f + stickY*.72f) else hand.points[25]
+                val fx=(rawX-.5f)*2f*sx
+                val fy=(.5f-rawY)*2f*sy
                 GLES20.glUniform1f(gradUniform,0f)
                 GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
-                ring3d(fx,fy,-1f,.022f,.0185f,position)
+                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.96f*hFade)
+                ring3d(fx,fy,-1f,.022f,.018f,position)
             }
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.
@@ -324,8 +328,9 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 fun y(i: Int) = (.5f - hand[i * 3 + 1]) * 2f * viewScaleY
                 val palm = hypot(x(9) - x(0), y(9) - y(0))
                 if (palm < 1e-4f) continue
-                val r = palm * .12f
-                val edge = if (pinching) maxOf(palm * .022f, .002f) else maxOf(palm * .012f, .0014f)
+                val knuckleSpan = hypot(x(17) - x(5), y(17) - y(5))
+                val r = minOf(palm * .102f, maxOf(palm * .068f, knuckleSpan * .148f))
+                val edge = if (pinching) maxOf(palm * .022f, .0024f) else maxOf(palm * .016f, .0018f)
                 // Gradient axis = palm knuckles -> the VIRTUAL (estimated) wrist, not the landmark.
                 // MediaPipe gives a wrist point but no forearm, so the silhouette is carried a
                 // little past landmark 0 along the palm axis and dissolves there: the hand stays
@@ -428,26 +433,65 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // polygon and the border chains own those edges now, and the straight chords'
                     // grown rings were crossing the curves and printing kinks in the thumb-side
                     // border. bone(2,5) stays - the web curve still needs it to fill the web.
-                    bone(2, 5, r * .7f, r * 1f)
-                    bone(5, 9, r, r); bone(9, 13, r, r); bone(13, 17, r * .95f, r * .9f)
+                    // Recessed anatomical interdigital webs so finger valleys stay clean and distinct
+                    fun webBridge(mcpA: Int, pipA: Int, mcpB: Int, pipB: Int, rad: Float) {
+                        val ax = x(mcpA) * .84f + x(pipA) * .16f
+                        val ay = y(mcpA) * .84f + y(pipA) * .16f
+                        val bx = x(mcpB) * .84f + x(pipB) * .16f
+                        val by = y(mcpB) * .84f + y(pipB) * .16f
+                        val rr = rad + grow
+                        handBone(shape, ax, ay, bx, by, rr, rr)
+                        handDisc(shape, ax, ay, rr); handDisc(shape, bx, by, rr)
+                    }
+                    bone(2, 5, r * .68f, r * .92f)
+                    bone(5, 9, r * .88f, r * .88f); bone(9, 13, r * .88f, r * .86f); bone(13, 17, r * .85f, r * .80f)
+                    webBridge(5, 6, 9, 10, r * .72f)
+                    webBridge(9, 10, 13, 14, r * .70f)
+                    webBridge(13, 14, 17, 18, r * .66f)
                     // The wrist borders themselves, carrying the pinky-side (hypothenar) and
                     // thumb-side (thenar) flesh down to the virtual wrist.
-                    // At the virtual wrist the silhouette half-width is (offset + radius), so
-                    // the radius must COMPLETE wristHalf rather than add to the offset on top of
-                    // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
-                    chain(ulnarChain, r * .95f, wristHalf - eh)
-                    chain(radialChain, wristHalf - eh, r * 1.12f)
-                    // Thumb and fingers, thinner towards the tips.
-                    val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
+                    chain(ulnarChain, r * .90f, wristHalf - eh)
+                    chain(radialChain, wristHalf - eh, r * 1.06f)
+                    // Smooth anatomical finger spline interpolation across MCP -> PIP -> DIP -> TIP
+                    fun curvedFinger(i0: Int, i1: Int, i2: Int, i3: Int, r0: Float, r1: Float, r2: Float, r3: Float) {
+                        val x0 = x(i0); val y0 = y(i0)
+                        val x1 = x(i1); val y1 = y(i1)
+                        val x2 = x(i2); val y2 = y(i2)
+                        val x3 = x(i3); val y3 = y(i3)
+                        // Segment 1: MCP -> PIP with subtle midpoint rounding toward DIP
+                        val m01x = (x0 + x1) * .5f + (x1 - (x0 + x2) * .5f) * .18f
+                        val m01y = (y0 + y1) * .5f + (y1 - (y0 + y2) * .5f) * .18f
+                        val rm01 = (r0 + r1) * .5f
+                        handBone(shape, x0, y0, m01x, m01y, r0 + grow, rm01 + grow)
+                        handDisc(shape, x0, y0, r0 + grow); handDisc(shape, m01x, m01y, rm01 + grow)
+                        handBone(shape, m01x, m01y, x1, y1, rm01 + grow, r1 + grow)
+                        handDisc(shape, x1, y1, r1 + grow)
+                        // Segment 2: PIP -> DIP with smooth joint curvature
+                        val m12x = (x1 + x2) * .5f + (x2 - (x1 + x3) * .5f) * .16f
+                        val m12y = (y1 + y2) * .5f + (y2 - (y1 + y3) * .5f) * .16f
+                        val rm12 = (r1 + r2) * .5f
+                        handBone(shape, x1, y1, m12x, m12y, r1 + grow, rm12 + grow)
+                        handDisc(shape, m12x, m12y, rm12 + grow)
+                        handBone(shape, m12x, m12y, x2, y2, rm12 + grow, r2 + grow)
+                        handDisc(shape, x2, y2, r2 + grow)
+                        // Segment 3: DIP -> TIP with rounded anatomical fingertip pad
+                        val m23x = (x2 + x3) * .5f
+                        val m23y = (y2 + y3) * .5f
+                        val rm23 = r2 * .46f + r3 * .54f
+                        handBone(shape, x2, y2, m23x, m23y, r2 + grow, rm23 + grow)
+                        handDisc(shape, m23x, m23y, rm23 + grow)
+                        handBone(shape, m23x, m23y, x3, y3, rm23 + grow, r3 + grow)
+                        handDisc(shape, x3, y3, r3 + grow)
+                    }
+                    // Thumb and fingers, natural anatomical proportions tapering towards the tips (IMG_20261021_144613.jpg).
+                    val scale = floatArrayOf(1.04f, .96f, 1.00f, .94f, .82f)
                     for (finger in 0 until 5) {
                         val base = 1 + finger * 4
                         val f = scale[finger]
                         if (finger == 0) {
-                            bone(1, 2, r * 1.15f, r * 1.02f); bone(2, 3, r * 1.02f, r * .95f); bone(3, 4, r * .95f, r * .82f)
+                            curvedFinger(1, 2, 3, 4, r * 1.10f, r * .98f, r * .88f, r * .76f)
                         } else {
-                            bone(base, base + 1, r * f, r * .92f * f)
-                            bone(base + 1, base + 2, r * .92f * f, r * .85f * f)
-                            bone(base + 2, base + 3, r * .85f * f, r * .76f * f)
+                            curvedFinger(base, base + 1, base + 2, base + 3, r * f, r * .89f * f, r * .79f * f, r * .68f * f)
                         }
                     }
                     val rgba=when {
@@ -464,7 +508,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
         }
 
 private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
-            val segments = 14
+            val segments = 20
             for (k in 0 until segments) {
                 val a0 = (k * 2 * Math.PI / segments).toFloat()
                 val a1 = ((k + 1) * 2 * Math.PI / segments).toFloat()
@@ -530,11 +574,11 @@ private fun drawBeam(b: FloatArray, down: Boolean, noBeam: Boolean, position: In
                         val cl = kotlin.math.sqrt(cx * cx + cy * cy + cz * cz).coerceAtLeast(1e-6f)
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
-                    val segments = 12
-                    val startT = 0.24f
-                    val endT = 0.76f * RAY_SHOWN
-                    val rayWidth = if (down) .0024f else .0019f
-                    val boost = if (down) 1f else .78f
+                    val segments = 14
+                    val startT = 0.10f
+                    val endT = 0.86f * RAY_SHOWN
+                    val rayWidth = if (down) .0022f else .0017f
+                    val boost = if (down) 1f else .84f
                     val wa = acrossA; val wb = acrossB; val q = quad
                     for (k in 0 until segments) {
                         val u0 = k / segments.toFloat()

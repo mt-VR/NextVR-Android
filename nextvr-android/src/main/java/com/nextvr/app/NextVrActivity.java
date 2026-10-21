@@ -152,14 +152,16 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     gravY=0.88f*gravY + 0.12f*ay;
                     gravZ=0.88f*gravZ + 0.12f*az;
                     gravMag=0.92f*gravMag + 0.08f*mag;
-                    // Usa a magnitude escalar (invariante à rotação 3D da cabeça) para detetar passos reais
-                    // sem confundir inclinação da cabeça com caminhada (elimina o drift do 6DoF).
+                    // Usa a magnitude escalar (invariante à rotação 3D da cabeça) e a variação linear filtrada
+                    // para responder imediatamente ao aproximar ou afastar sem confundir rotação da cabeça com caminhada.
                     float stepImpact=Math.abs(mag-gravMag);
-                    if(stepImpact>0.26f && gyroRate<0.75f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.84f + stepImpact);
-                        if(walkEnergy>0.34f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    float vecDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
+                    float motionSignal=Math.max(stepImpact, vecDelta*0.65f);
+                    if(motionSignal>0.055f && gyroRate<0.95f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.86f + motionSignal*1.35f);
+                        if(walkEnergy>0.075f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.86f;
+                        walkEnergy*=0.88f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
@@ -224,11 +226,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
-                if(!sixDofEnabled || Math.abs(sc)>0.12f) return;
-                SpatialRenderer r=renderer;
-                boolean handsVisible=r!=null && r.hands!=null && !r.hands.getHands().isEmpty();
-                if(handsVisible && walkEnergy<0.55f) return;
-                if(Math.abs(sc)<0.0035f) {
+                if(!sixDofEnabled || Math.abs(sc)>0.22f) return;
+                if(Math.abs(sc)<0.0022f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
@@ -236,9 +235,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
                 long nowMs=android.os.SystemClock.elapsedRealtime();
                 boolean accelMoving=!hasWalkAccel
-                    ? (Math.abs(sc)>=0.0045f && Math.abs(sc)<=0.055f)
-                    : (walkEnergy>0.32f && nowMs-lastWalkStepMs<620L);
-                boolean moving=accelMoving && gyroRate<0.65f && Math.hypot(gx,gy)<=2.4;
+                    ? (Math.abs(sc)>=0.0025f && Math.abs(sc)<=0.18f)
+                    : ((walkEnergy>0.07f && nowMs-lastWalkStepMs<1100L) || (Math.abs(sc)>=0.0040f && gyroRate<0.52f && Math.hypot(gx,gy)<=1.9));
+                boolean moving=accelMoving && gyroRate<0.92f && Math.hypot(gx,gy)<=3.2;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");

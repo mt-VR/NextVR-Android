@@ -106,10 +106,70 @@ class Win {
     resizeHandle.title = t('resize');
     resizeHandle.setAttribute('aria-label', t('resize'));
     resizeHandle.innerHTML = icon('move');
-    shell.append(el, handle, resizeHandle);
+
+    // Barra compacta do Modo 360 Cinema (IMG_20261021_143952.jpg): título à esquerda, minimizar —, ponto • e expandir/sair ⛶
+    const cinemaBar = document.createElement('div');
+    cinemaBar.className = 'win-cinema-bar';
+    cinemaBar.hidden = !(this.curve > 0 && !onboarding);
+    cinemaBar.innerHTML = `<span class="win-cinema-title">${title}</span>`
+      + `<div class="win-cinema-acts">`
+      + `<button type="button" class="win-cinema-btn" data-cinema-act="min" title="Minimizar" aria-label="Minimizar">—</button>`
+      + `<span class="win-cinema-dot" aria-hidden="true">•</span>`
+      + `<button type="button" class="win-cinema-btn win-cinema-expand" data-cinema-act="exit-360" title="Sair do modo 360" aria-label="Sair do modo 360">⛶</button>`
+      + `</div>`;
+    cinemaBar.addEventListener('click', e => {
+      const btn = e.target.closest('[data-cinema-act]');
+      if (!btn) return;
+      e.stopPropagation();
+      if (btn.dataset.cinemaAct === 'exit-360') this.setCurve(0);
+      else if (btn.dataset.cinemaAct === 'min') close(this);
+    });
+
+    // Barra de controlo de brilho sob a janela (IMG_20261021_144045.jpg): aumenta e diminui o brilho
+    const brightnessBar = document.createElement('div');
+    brightnessBar.className = 'win-brightness-bar';
+    brightnessBar.hidden = onboarding;
+    const initBri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
+    brightnessBar.innerHTML = `<span class="win-bri-icon">${icon('sun')}</span>`
+      + `<input type="range" class="win-bri-range" data-win-brightness min="10" max="100" step="1" value="${initBri}" style="--bri-fill:${initBri}%" aria-label="Brilho"/>`;
+    const briInput = brightnessBar.querySelector('[data-win-brightness]');
+    if (briInput) {
+      const onBri = e => {
+        e.stopPropagation();
+        setScreenBrightness(Number(briInput.value));
+      };
+      briInput.addEventListener('input', onBri);
+      briInput.addEventListener('change', onBri);
+    }
+
+    // Telinhas pré-definidas nas laterais para posicionar as janelinhas flutuantes (IMG_20261021_143929.jpg)
+    const predefinedSlotsBar = document.createElement('div');
+    predefinedSlotsBar.className = 'win-predefined-slots';
+    predefinedSlotsBar.hidden = onboarding;
+    predefinedSlotsBar.innerHTML = `
+      <button type="button" class="win-predefined-slot win-predefined-slot--left" data-predefined-slot="left" title=" encaixar à esquerda" aria-label="Telinha pré-definida esquerda">
+        <span class="win-predefined-slot-frame"></span>
+      </button>
+      <button type="button" class="win-predefined-slot win-predefined-slot--center" data-predefined-slot="center" title="Encaixar ao centro" aria-label="Telinha pré-definida central">
+        <span class="win-predefined-slot-frame"></span>
+      </button>
+      <button type="button" class="win-predefined-slot win-predefined-slot--right" data-predefined-slot="right" title="Encaixar à direita" aria-label="Telinha pré-definida direita">
+        <span class="win-predefined-slot-frame"></span>
+      </button>
+    `;
+    predefinedSlotsBar.addEventListener('click', e => {
+      const slotBtn = e.target.closest('[data-predefined-slot]');
+      if (!slotBtn) return;
+      e.stopPropagation();
+      snapWindowToSlot(this, slotBtn.dataset.predefinedSlot);
+    });
+
+    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar);
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
+    this.cinemaBar = cinemaBar; this.brightnessBar = brightnessBar; this.predefinedSlotsBar = predefinedSlotsBar;
     shell.dataset.curve = String(this.curve);
+    if (this.curve > 0 && !onboarding) shell.classList.add('cinema-360');
     // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
     // controles no DOM, como as referências Quest. O onboarding também não usa a barra genérica.
     if (onboarding || !chrome) el.querySelector('.win-bar').hidden = true;
@@ -184,8 +244,20 @@ class Win {
     this.curve = curveAngle(angle);
     this.curveRadius = curveRadius(this.w, this.curve);
     this.shell.dataset.curve = String(this.curve);
+    const is360 = this.curve > 0 && !this.onboarding;
+    this.shell.classList.toggle('cinema-360', is360);
+    if (this.cinemaBar) this.cinemaBar.hidden = !is360;
     const button = this.el.querySelector('[data-act="curve"]');
     if (button) button.setAttribute('aria-pressed', String(this.curve > 0));
+    if (is360) {
+      document.documentElement.dataset.cinema360 = '1';
+      window.NativeXR?.env?.('dark');
+    } else if (!wins.some(w => w !== this && !w.hidden && !w.onboarding && w.curve > 0)) {
+      delete document.documentElement.dataset.cinema360;
+      if (document.documentElement.dataset.robloxBlackEnv !== '1') {
+        window.NativeXR?.env?.(S.env || 'passthrough');
+      }
+    }
     // A malha de hit só é curvada quando há curvatura: plana continua sendo 1 segmento.
     const segments = this.curve > 0 ? 32 : 1;
     if (this.hitSegments !== segments) {
@@ -195,6 +267,8 @@ class Win {
     }
     this.bendHit();
     this.apply();
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
   }
 
   /** Deslocamento da superfície (metros) no px `x` da janela (0 = centro). */
@@ -367,7 +441,12 @@ export function open(spec) {
   // Janela fora do arco (`free`): nasce onde há espaço livre, para não cobrir a dock, o teclado ou
   // o que já está no mundo. É assim que o jogo posiciona o painel de ferramentas e o menu.
   if (spec.free) placeFree(w, spec.at);
-  if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
+  if(w.onboarding){
+    w.handle.hidden=true;w.resizeHandle.hidden=true;
+    if(w.cinemaBar)w.cinemaBar.hidden=true;
+    if(w.brightnessBar)w.brightnessBar.hidden=true;
+    if(w.predefinedSlotsBar)w.predefinedSlotsBar.hidden=true;
+  }
   w.apply();
   scene.updateMatrixWorld(true);
   css3d.invalidate?.();
@@ -415,6 +494,12 @@ export function close(w) {
   contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
+  if (!wins.some(x => !x.hidden && !x.onboarding && x.curve > 0)) {
+    delete document.documentElement.dataset.cinema360;
+    if (document.documentElement.dataset.robloxBlackEnv !== '1') {
+      window.NativeXR?.env?.(S.env || 'passthrough');
+    }
+  }
   layout();
   css3d.invalidate?.();
   emit('wins', wins);
@@ -465,6 +550,59 @@ function computePredefinedSlots(w) {
     const a = baseYaw + offset;
     return new THREE.Vector3(Math.sin(a) * dist, lift, -Math.cos(a) * dist);
   });
+}
+
+export function setScreenBrightness(value) {
+  const v = Math.max(10, Math.min(100, Math.round(Number(value) || 80)));
+  S.brightness = v;
+  save(S);
+  const filterScale = (0.38 + (v / 100) * 0.62).toFixed(3);
+  document.documentElement.style.setProperty('--nextvr-brightness', filterScale);
+  document.documentElement.dataset.brightnessPercent = String(v);
+  for (const inp of document.querySelectorAll('[data-win-brightness]')) {
+    if (String(inp.value) !== String(v)) inp.value = String(v);
+    inp.style.setProperty('--bri-fill', `${v}%`);
+  }
+  for (const inp of document.querySelectorAll('[data-lh-slider="brightness"], [data-q-range="brightness"]')) {
+    if (String(inp.value) !== String(v)) inp.value = String(v);
+    inp.style.setProperty('--fill', `${v}%`);
+  }
+  if (native) {
+    window.NativeXR?.setBrightnessPercent?.(v);
+    window.NativeXR?.setBrightness?.(v);
+  }
+  emit('brightness', v);
+  css3d.invalidate?.();
+  return v;
+}
+export const getScreenBrightness = () => Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
+
+export function snapWindowToSlot(winOrId, slotKey = 'center') {
+  const w = typeof winOrId === 'string'
+    ? wins.find(x => x.id === winOrId)
+    : (winOrId || focused || wins.find(x => !x.onboarding && !x.hidden));
+  if (!w || w.onboarding) return null;
+  const slots = computePredefinedSlots(w);
+  const idx = slotKey === 'left' || slotKey === -1 ? 1
+    : slotKey === 'right' || slotKey === 1 ? 2
+    : 0;
+  const targetPos = slots[idx] || slots[0];
+  w.pinned = false;
+  w.slotKey = idx === 1 ? 'left' : idx === 2 ? 'right' : 'center';
+  w.shell.dataset.predefinedSlot = w.slotKey;
+  w.shell.classList.add('free');
+  w.target.copy(targetPos);
+  w.obj.position.copy(w.target);
+  w.apply();
+  scene.updateMatrixWorld(true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return { x: w.obj.position.x, y: w.obj.position.y, z: w.obj.position.z, slot: w.slotKey };
+}
+if (typeof window !== 'undefined') {
+  window.nextvrSetScreenBrightness = setScreenBrightness;
+  window.nextvrGetScreenBrightness = getScreenBrightness;
+  window.nextvrSnapWindowToSlot = snapWindowToSlot;
 }
 
 function updateDropSlot(w) {
@@ -859,16 +997,31 @@ function clearWinBrowserHold() {
   }
 }
 
-const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env]';
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 function findDirectAppPoint(cx, cy) {
+  if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
+    const hudMenu = document.getElementById('left-hand-quick-menu');
+    if (hudMenu && !hudMenu.hidden) {
+      const fromHud = document.elementFromPoint(cx * viewport.width, cy * viewport.height);
+      const lhMatch = fromHud?.closest?.('[data-lh-app],[data-lh-act],[data-lh-slider]');
+      if (lhMatch) return { x: cx, y: cy, el: lhMatch, isHud: true };
+    }
+  }
   const dk = dockTest(cx, cy);
   if (dk) {
     const el = dk.popupOpt ? dk.el : dockBtns[dk.i];
     return { x: cx, y: cy, el: el || null, isDock: true };
   }
+  const dkGrab = dockGrabTest(cx, cy);
+  if (dkGrab) {
+    return { x: cx, y: cy, el: null, isDockGrab: true };
+  }
   const hit = hitAt(cx, cy);
-  if (hit && !hit.handle && !hit.resize) {
+  if (hit) {
+    if (hit.handle || hit.resize) {
+      return { x: cx, y: cy, el: null, hit, isWinControl: true };
+    }
     const picked = pickInElement(hit.win.el, hit.u, hit.v);
     const matched = picked?.closest?.(DIRECT_PINCH_SEL) || null;
     if (matched) {
@@ -2103,12 +2256,50 @@ function fistHit(r) {
 const fingerPokeByHand = new Map();
 let fingerPokeFlashUntil = 0;
 let hoveredFingerEl = null;
+let stickyFingerDotEl = null;
 
-function setFingerHoverEl(nextEl) {
-  if (hoveredFingerEl === nextEl) return;
-  if (hoveredFingerEl) hoveredFingerEl.classList?.remove?.('finger-hover');
+function updateStickyFingerDot(el, normX = null, normY = null) {
+  if (typeof document === 'undefined') return;
+  if (!el) {
+    if (stickyFingerDotEl) stickyFingerDotEl.hidden = true;
+    return;
+  }
+  const hud = document.getElementById('hud') || document.body;
+  if (!stickyFingerDotEl || !document.body.contains(stickyFingerDotEl)) {
+    stickyFingerDotEl = document.createElement('div');
+    stickyFingerDotEl.id = 'finger-sticky-dot';
+    stickyFingerDotEl.className = 'finger-sticky-dot';
+    hud.appendChild(stickyFingerDotEl);
+  }
+  let xPct = Number.isFinite(normX) ? normX * 100 : 50;
+  let yPct = Number.isFinite(normY) ? normY * 100 : 50;
+  if (!Number.isFinite(normX) || !Number.isFinite(normY)) {
+    const r = el.getBoundingClientRect?.();
+    if (r && r.width > 0 && r.height > 0 && viewport.width > 0 && viewport.height > 0) {
+      xPct = ((r.left + r.width * 0.5) / viewport.width) * 100;
+      yPct = ((r.top + r.height * 0.5) / viewport.height) * 100;
+    }
+  }
+  stickyFingerDotEl.style.left = `${Math.max(4, Math.min(96, xPct)).toFixed(1)}%`;
+  stickyFingerDotEl.style.top = `${Math.max(4, Math.min(96, yPct)).toFixed(1)}%`;
+  stickyFingerDotEl.hidden = false;
+}
+
+function setFingerHoverEl(nextEl, normX = null, normY = null) {
+  if (hoveredFingerEl === nextEl) {
+    if (hoveredFingerEl) updateStickyFingerDot(hoveredFingerEl, normX, normY);
+    return;
+  }
+  if (hoveredFingerEl) {
+    hoveredFingerEl.classList?.remove?.('finger-hover', 'finger-sticking');
+  }
   hoveredFingerEl = nextEl || null;
-  if (hoveredFingerEl) hoveredFingerEl.classList?.add?.('finger-hover');
+  if (hoveredFingerEl) {
+    hoveredFingerEl.classList?.add?.('finger-hover', 'finger-sticking');
+    updateStickyFingerDot(hoveredFingerEl, normX, normY);
+  } else {
+    updateStickyFingerDot(null);
+  }
 }
 
 function isIndexFingerPointing(h) {
@@ -2549,7 +2740,7 @@ function updateFingerPoke(h, packet, nowMs) {
     return false;
   }
 
-  setFingerHoverEl(target.el);
+  setFingerHoverEl(target.el, target.x, target.y);
 
   const liftingAlready = st && (nowMs - st.enterAt >= 40) && (target.key === st.targetKey) && checkFingerLift(st);
   if (!st || (target.key !== st.targetKey && !liftingAlready)) {
@@ -2685,50 +2876,88 @@ function stateSpan(st, boneSpan) {
   return (st.baseSpan - boneSpan) / st.baseSpan;
 }
 
-/* =================== Gesto da Mão Direita (17925923443225481183077146402614.jpg) -> Bolinha com Logo IMG_20261007_215701.png + Contorno Azul =================== */
+/* =================== Gesto da Mão Direita & Esquerda (V/L "Arminha" na Palma -> Bolinha com Logos IMG_20261007_215701.png / 215728.png + Pinça Polegar+Indicador + Contorno Azul) =================== */
 let bolinhaBubbleEl = null;
 let bolinhaHideTimer = null;
+let leftBolinhaBubbleEl = null;
+let leftBolinhaHideTimer = null;
 let rightHandBolinhaState = {
   frames: 0,
   armed: false,
   lastArmedAt: 0,
   lastTriggerAt: -2000,
+  blueUntil: 0,
+};
+let leftHandBolinhaState = {
+  frames: 0,
+  armed: false,
+  lastArmedAt: 0,
+  lastTriggerAt: -2000,
+  blueUntil: 0,
 };
 
-function isRightHandBolinhaGesture(h) {
-  if (!h || h.left || h.predicted || h.pinching || h.fist) return false;
-  if (h.id && h.id !== 'right') return false;
+function isPalmTurnedForBolinha(h, isLeft) {
+  if (!h || !h.points || h.points.length < 63) return false;
+  if (h.palmToFace === false || h.backOfHand === true) return false;
+  if (h.palmToFace === true) return true;
+  const p = h.points;
+  // Quando a mão está virada de costas para o utilizador (ex: IMG_20261021_144721.jpg):
+  // Na mão direita de costas, o polegar (4, idx 12) fica à esquerda do indicador MCP (5, idx 15) e mindinho MCP (17, idx 51) à direita.
+  // Na mão direita com a palma virada para o utilizador (IMG_20261021_144958.jpg), o polegar fica à direita do indicador MCP (p[12] >= p[15] - 0.015).
+  if (!isLeft) {
+    if (p[12] < p[15] - 0.015 && p[15] < p[51]) return false;
+    return p[12] >= p[15] - 0.015;
+  } else {
+    if (p[12] > p[15] + 0.015 && p[15] > p[51]) return false;
+    return p[12] <= p[15] + 0.015;
+  }
+}
+
+function isVLArminhaPose(h, isLeft) {
+  if (!h || Boolean(h.left) !== Boolean(isLeft) || h.predicted || h.pinching || h.fist) return false;
+  if (!isLeft && h.id && h.id !== 'right') return false;
+  if (isLeft && h.id && h.id !== 'left') return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
+  if (!isPalmTurnedForBolinha(h, isLeft)) return false;
   const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
   // Ignora mãos sintéticas de testes que têm juntas colapsadas no mesmo ponto
   if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
   const palmLen = Math.max(0.042, dist(0, 9));
   // Indicador (8) esticado para cima
-  const indexExtended = dist(0, 8) > dist(0, 6) * 1.13 && dist(0, 8) > palmLen * 1.28;
-  // Polegar (4) aberto e afastado do indicador formando o V/L da foto 17925923443225481183077146402614.jpg
-  const thumbExtended = dist(1, 4) > dist(1, 2) * 1.38 && dist(4, 8) > palmLen * 0.48 && dist(4, 5) > palmLen * 0.34;
+  const indexExtended = dist(0, 8) > dist(0, 6) * 1.12 && dist(0, 8) > palmLen * 1.24;
+  // Polegar (4) aberto formando o gesto de "arminha" / V-L entre polegar e indicador (IMG_20261021_144958.jpg / 144416.jpg)
+  const thumbExtended = dist(1, 4) > dist(1, 2) * 1.34 && dist(4, 8) > palmLen * 0.42 && dist(4, 5) > palmLen * 0.30;
   // Médio (12), Anelar (16) e Mindinho (20) dobrados na palma
-  const midCurled = dist(0, 12) < dist(0, 10) * 1.12 || dist(0, 12) < dist(0, 8) * 0.80;
-  const ringCurled = dist(0, 16) < dist(0, 14) * 1.12 || dist(0, 16) < dist(0, 8) * 0.78;
-  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.14 || dist(0, 20) < dist(0, 8) * 0.76;
+  const midCurled = dist(0, 12) < dist(0, 10) * 1.14 || dist(0, 12) < dist(0, 8) * 0.82;
+  const ringCurled = dist(0, 16) < dist(0, 14) * 1.14 || dist(0, 16) < dist(0, 8) * 0.80;
+  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.16 || dist(0, 20) < dist(0, 8) * 0.78;
   return indexExtended && thumbExtended && midCurled && ringCurled && pinkyCurled;
 }
 
-function isRightHandClosedFromBolinha(h) {
-  if (!h || h.left || h.predicted) return false;
+function isRightHandBolinhaGesture(h) {
+  return isVLArminhaPose(h, false);
+}
+
+function isLeftHandBolinhaGesture(h) {
+  return isVLArminhaPose(h, true);
+}
+
+function isHandPinchFromBolinha(h, isLeft) {
+  if (!h || Boolean(h.left) !== Boolean(isLeft) || h.predicted) return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
   const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
   if (dist(5, 6) < 0.008) return false;
   const palmLen = Math.max(0.042, dist(0, 9));
-  const midCurled = dist(0, 12) < dist(0, 10) * 1.14;
-  const ringCurled = dist(0, 16) < dist(0, 14) * 1.14;
-  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.16;
+  const midCurled = dist(0, 12) < dist(0, 10) * 1.16 || dist(0, 12) < palmLen * 1.15;
+  const ringCurled = dist(0, 16) < dist(0, 14) * 1.16 || dist(0, 16) < palmLen * 1.12;
+  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.18 || dist(0, 20) < palmLen * 1.10;
   if (!(midCurled && ringCurled && pinkyCurled)) return false;
+  // Ativação por movimento de pinça entre o polegar (4) e o indicador (8) (IMG_20261021_145046.jpg / 145203.jpg)
+  const thumbIndexPinch = h.pinching === true || dist(4, 8) < palmLen * 0.42;
   const indexClosed = h.fist === true || dist(0, 8) < dist(0, 6) * 1.10;
-  const fingersClosedTogether = h.pinching === true || dist(4, 8) < palmLen * 0.35;
-  return indexClosed || fingersClosedTogether;
+  return thumbIndexPinch || indexClosed;
 }
 
 function showBolinhaBubble(h, packet, fired = false) {
@@ -2741,15 +2970,22 @@ function showBolinhaBubble(h, packet, fired = false) {
     bolinhaBubbleEl = document.createElement('div');
     bolinhaBubbleEl.id = 'gun-gesture-indicator';
     bolinhaBubbleEl.className = 'gun-logo-bubble';
-    bolinhaBubbleEl.innerHTML = `<img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false"/>`;
+    bolinhaBubbleEl.dataset.hand = 'right';
+    bolinhaBubbleEl.innerHTML = `
+      <div class="bolinha-card-inner">
+        <img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false"/>
+        <span class="bolinha-menu-lbl">Menu</span>
+        <span class="bolinha-menu-bar"><span class="bolinha-menu-bar-fill"></span></span>
+      </div>
+    `;
     hud.appendChild(bolinhaBubbleEl);
   }
   const p = h.points;
   const sx = Number(packet?.scaleX) || 1;
   const sy = Number(packet?.scaleY) || 1;
-  // Posiciona a bolinha logo acima das pontas do indicador/polegar da mão direita (como na Screenshot_2026-10-21-01-51-02-663)
-  const rawX = (p && p.length >= 26) ? (p[24] * 0.65 + p[12] * 0.35) : (h.palm?.[0] ?? 0.55);
-  const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.055) : ((h.palm?.[1] ?? 0.5) - 0.08);
+  // Posiciona a bolinha entre o polegar (4, idx 12/13) e o indicador (8, idx 24/25) da mão direita (IMG_20261021_144958.jpg / 145046.jpg)
+  const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.55);
+  const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
   const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
   const normY = Math.max(0.08, Math.min(0.90, (rawY - 0.5) * sy + 0.5));
   bolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
@@ -2757,6 +2993,7 @@ function showBolinhaBubble(h, packet, fired = false) {
   bolinhaBubbleEl.hidden = false;
   bolinhaBubbleEl.classList.toggle('fired', !!fired);
   bolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
+  bolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
 }
 
 function hideBolinhaBubble(delayMs = 0) {
@@ -2770,11 +3007,77 @@ function hideBolinhaBubble(delayMs = 0) {
       bolinhaHideTimer = null;
       bolinhaBubbleEl?.remove();
       bolinhaBubbleEl = null;
+      if (document.documentElement.dataset.handBlueOutline === 'right') {
+        delete document.documentElement.dataset.handBlueOutline;
+      }
       css3d.invalidate?.();
     }, delayMs);
   } else {
     bolinhaBubbleEl.remove();
     bolinhaBubbleEl = null;
+    if (document.documentElement.dataset.handBlueOutline === 'right') {
+      delete document.documentElement.dataset.handBlueOutline;
+    }
+  }
+}
+
+function showLeftBolinhaBubble(h, packet, fired = false) {
+  if (leftBolinhaHideTimer) {
+    clearTimeout(leftBolinhaHideTimer);
+    leftBolinhaHideTimer = null;
+  }
+  const hud = document.getElementById('hud') || document.body;
+  if (!leftBolinhaBubbleEl || !document.body.contains(leftBolinhaBubbleEl)) {
+    leftBolinhaBubbleEl = document.createElement('div');
+    leftBolinhaBubbleEl.id = 'left-gesture-indicator';
+    leftBolinhaBubbleEl.className = 'gun-logo-bubble left-logo-bubble';
+    leftBolinhaBubbleEl.dataset.hand = 'left';
+    leftBolinhaBubbleEl.innerHTML = `
+      <div class="bolinha-card-inner">
+        <img src="./icons/nextvr-bolinha-left.png" alt="NextVR Control" class="gun-logo-img left-logo-img" draggable="false"/>
+        <span class="bolinha-menu-lbl">Menu</span>
+        <span class="bolinha-menu-bar"><span class="bolinha-menu-bar-fill"></span></span>
+      </div>
+    `;
+    hud.appendChild(leftBolinhaBubbleEl);
+  }
+  const p = h.points;
+  const sx = Number(packet?.scaleX) || 1;
+  const sy = Number(packet?.scaleY) || 1;
+  const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.35);
+  const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
+  const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
+  const normY = Math.max(0.08, Math.min(0.90, (rawY - 0.5) * sy + 0.5));
+  leftBolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
+  leftBolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
+  leftBolinhaBubbleEl.hidden = false;
+  leftBolinhaBubbleEl.classList.toggle('fired', !!fired);
+  leftBolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
+  leftBolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
+}
+
+function hideLeftBolinhaBubble(delayMs = 0) {
+  if (leftBolinhaHideTimer) {
+    clearTimeout(leftBolinhaHideTimer);
+    leftBolinhaHideTimer = null;
+  }
+  if (!leftBolinhaBubbleEl) return;
+  if (delayMs > 0) {
+    leftBolinhaHideTimer = setTimeout(() => {
+      leftBolinhaHideTimer = null;
+      leftBolinhaBubbleEl?.remove();
+      leftBolinhaBubbleEl = null;
+      if (document.documentElement.dataset.handBlueOutline === 'left') {
+        delete document.documentElement.dataset.handBlueOutline;
+      }
+      css3d.invalidate?.();
+    }, delayMs);
+  } else {
+    leftBolinhaBubbleEl.remove();
+    leftBolinhaBubbleEl = null;
+    if (document.documentElement.dataset.handBlueOutline === 'left') {
+      delete document.documentElement.dataset.handBlueOutline;
+    }
   }
 }
 
@@ -2782,38 +3085,52 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   if (S.gunGesture === 0) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
     hideBolinhaBubble(0);
+    hideLeftBolinhaBubble(0);
     return false;
   }
   const gOv = document.getElementById('gorilla-overlay');
   if (gOv && gOv.style.display && gOv.style.display !== 'none') {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
     hideBolinhaBubble(0);
+    hideLeftBolinhaBubble(0);
     return false;
   }
   if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden) || document.querySelector('.entry-menu-root')) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
     hideBolinhaBubble(0);
+    hideLeftBolinhaBubble(0);
     return false;
   }
   if (drag.win || resizing.win || dockDrag.start) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
     hideBolinhaBubble(0);
+    hideLeftBolinhaBubble(0);
     return false;
   }
+
+  let anyActive = false;
+
+  // 1. Mão direita ("N" logo -> IMG_20261007_215701.png + Menu card + contorno azul + alternar Dock/Apps)
   const rightHand = (packet?.hands || []).find(h => h && !h.left && (!h.id || h.id === 'right'));
   if (!rightHand) {
-    if (nowMs - rightHandBolinhaState.lastArmedAt > 240) {
+    if (nowMs - rightHandBolinhaState.lastArmedAt > 300 && nowMs >= rightHandBolinhaState.blueUntil) {
       rightHandBolinhaState.frames = 0;
       rightHandBolinhaState.armed = false;
       hideBolinhaBubble(0);
     }
-    return false;
-  }
-  if (isRightHandBolinhaGesture(rightHand)) {
+  } else if (isRightHandBolinhaGesture(rightHand)) {
     rightHandBolinhaState.frames += 1;
     if (rightHandBolinhaState.frames >= 2) {
       rightHandBolinhaState.armed = true;
@@ -2821,35 +3138,85 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
       showBolinhaBubble(rightHand, packet, false);
       css3d.invalidate?.();
     }
-    return rightHandBolinhaState.armed;
-  }
-  if (
+    anyActive = anyActive || rightHandBolinhaState.armed;
+  } else if (
     rightHandBolinhaState.armed &&
-    (nowMs - rightHandBolinhaState.lastArmedAt <= 550) &&
-    (nowMs - rightHandBolinhaState.lastTriggerAt >= 850) &&
-    isRightHandClosedFromBolinha(rightHand)
+    (nowMs - rightHandBolinhaState.lastArmedAt <= 850) &&
+    (nowMs - rightHandBolinhaState.lastTriggerAt >= 750) &&
+    isHandPinchFromBolinha(rightHand, false)
   ) {
     rightHandBolinhaState.armed = false;
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.lastTriggerAt = nowMs;
+    rightHandBolinhaState.blueUntil = nowMs + 750;
+    document.documentElement.dataset.handBlueOutline = 'right';
+    S.handDraw = 1;
+    window.NativeXR?.handVisuals?.(true);
     fistHoldByHand.delete(rightHand.id || 'right');
     pinchSuppressed.add(rightHand.id || 'right');
     packet.consumed.add(rightHand.id || 'right');
     cancelHandInput();
     showBolinhaBubble(rightHand, packet, true);
-    hideBolinhaBubble(240);
+    hideBolinhaBubble(420);
     window.nextvrToggleSpatialAndDockFromGesture?.();
     window.NativeXR?.click?.();
     css3d.invalidate?.();
     css3d.render?.(scene, camera);
-    return true;
-  }
-  if (nowMs - rightHandBolinhaState.lastArmedAt > 220) {
+    anyActive = true;
+  } else if (nowMs - rightHandBolinhaState.lastArmedAt > 300 && nowMs >= rightHandBolinhaState.blueUntil) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
     hideBolinhaBubble(0);
   }
-  return false;
+
+  // 2. Mão esquerda (Logo IMG_20261007_215728.png -> Pinça polegar+indicador abre/fecha o menu de controlo rápido da mão esquerda IMG_20261021_144416.jpg)
+  const leftHand = (packet?.hands || []).find(h => h && (h.left === true || h.id === 'left'));
+  if (!leftHand) {
+    if (nowMs - leftHandBolinhaState.lastArmedAt > 300 && nowMs >= leftHandBolinhaState.blueUntil) {
+      leftHandBolinhaState.frames = 0;
+      leftHandBolinhaState.armed = false;
+      hideLeftBolinhaBubble(0);
+    }
+  } else if (isLeftHandBolinhaGesture(leftHand)) {
+    leftHandBolinhaState.frames += 1;
+    if (leftHandBolinhaState.frames >= 2) {
+      leftHandBolinhaState.armed = true;
+      leftHandBolinhaState.lastArmedAt = nowMs;
+      showLeftBolinhaBubble(leftHand, packet, false);
+      css3d.invalidate?.();
+    }
+    anyActive = anyActive || leftHandBolinhaState.armed;
+  } else if (
+    leftHandBolinhaState.armed &&
+    (nowMs - leftHandBolinhaState.lastArmedAt <= 850) &&
+    (nowMs - leftHandBolinhaState.lastTriggerAt >= 750) &&
+    isHandPinchFromBolinha(leftHand, true)
+  ) {
+    leftHandBolinhaState.armed = false;
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.lastTriggerAt = nowMs;
+    leftHandBolinhaState.blueUntil = nowMs + 750;
+    document.documentElement.dataset.handBlueOutline = 'left';
+    S.handDraw = 1;
+    window.NativeXR?.handVisuals?.(true);
+    fistHoldByHand.delete(leftHand.id || 'left');
+    pinchSuppressed.add(leftHand.id || 'left');
+    packet.consumed.add(leftHand.id || 'left');
+    cancelHandInput();
+    showLeftBolinhaBubble(leftHand, packet, true);
+    hideLeftBolinhaBubble(420);
+    window.nextvrToggleLeftHandQuickMenu?.();
+    window.NativeXR?.click?.();
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    anyActive = true;
+  } else if (nowMs - leftHandBolinhaState.lastArmedAt > 300 && nowMs >= leftHandBolinhaState.blueUntil) {
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
+    hideLeftBolinhaBubble(0);
+  }
+
+  return anyActive;
 }
 
 /* =================== Gesto de Soco por 2 Segundos (Fechar a mão toda por 2s abre o Menuzinho Rápido) =================== */
@@ -2916,6 +3283,8 @@ function updateFistQuickMenu(packet, nowMs) {
         }
         if (!st.latched && (nowMs - st.startAt >= 2000)) {
           st.latched = true;
+          hideBolinhaBubble(0);
+          hideLeftBolinhaBubble(0);
           if (drag.win && drag.source === 'fist') endDrag();
           cancelHandInput();
           window.nextvrOpenFistQuickMenu?.();
@@ -3145,15 +3514,26 @@ let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
   // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
-  const packet=lastPhonePacket, targets=[], noBeam = S.fingerTouch !== 0;
+  const packet=lastPhonePacket, targets=[];
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl);
-    const blueOutline = Boolean(!h.left && (h.id === 'right' || !h.id) && rightHandBolinhaState.armed && bolinhaBubbleEl && !bolinhaBubbleEl.hidden);
+    const directPt = (S.pinchOnApp !== 0) ? resolveDirectPinchPoint(h) : null;
+    const directPinchHover = Boolean(directPt?.el);
+    const handNoBeam = Boolean(fingerHover || directPinchHover);
+    const stickExtra = (fingerHover && Number.isFinite(fSt?.tapX) && Number.isFinite(fSt?.tapY))
+      ? { stickX: Number(fSt.tapX.toFixed(4)), stickY: Number(fSt.tapY.toFixed(4)) }
+      : {};
+    const isRight = !h.left && (h.id === 'right' || !h.id);
+    const isLeft = Boolean(h.left || h.id === 'left');
+    const blueOutline = Boolean(
+      (isRight && ((rightHandBolinhaState.armed && bolinhaBubbleEl && !bolinhaBubbleEl.hidden) || now < rightHandBolinhaState.blueUntil)) ||
+      (isLeft && ((leftHandBolinhaState.armed && leftBolinhaBubbleEl && !leftBolinhaBubbleEl.hidden) || now < leftHandBolinhaState.blueUntil))
+    );
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,noBeam:true,...stickExtra});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
@@ -3167,8 +3547,8 @@ onFrame((dt,now)=>{
     if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
-    const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(noBeam?{noBeam:true}:{})});
+    const isTouching=fingerHover || directPinchHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(handNoBeam?{noBeam:true}:{}),...stickExtra});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

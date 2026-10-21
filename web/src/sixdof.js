@@ -80,13 +80,13 @@ export const Walk = {
     if (!a || a.x === null) return;
     const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
     if (this.lastA) {
-      // Usa a diferença da magnitude escalar (invariante à rotação da cabeça) para detetar passos reais
+      // Usa a diferença da magnitude escalar (invariante à rotação da cabeça) para detetar aproximação/afastamento imediato
       const d = Math.abs(mag - this.lastA.mag);
-      if (d > 0.26 && rotRate < 65) {
-        this.energy = Math.min(4, this.energy * 0.84 + d);
-        if (this.energy > 0.34) this.lastStepT = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (d > 0.07 && rotRate < 85) {
+        this.energy = Math.min(4, this.energy * 0.86 + d * 1.35);
+        if (this.energy > 0.09) this.lastStepT = typeof performance !== 'undefined' ? performance.now() : Date.now();
       } else {
-        this.energy *= 0.86;
+        this.energy *= 0.88;
       }
     }
     this.lastA = { x: a.x, y: a.y, z: a.z, mag: this.lastA ? (0.92 * this.lastA.mag + 0.08 * mag) : mag };
@@ -94,7 +94,7 @@ export const Walk = {
   moving() {
     if (!this.lastA) return true;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    return this.energy > 0.30 && (now - this.lastStepT) < 620;
+    return this.energy > 0.08 && (now - this.lastStepT) < 1050;
   }
 };
 
@@ -112,7 +112,7 @@ export const SixDof = {
   lastSc: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
-  depth: 1.45, // metros assumidos até aos objetos à frente (estável sem saltar para a frente)
+  depth: 2.35, // metros assumidos até aos objetos à frente (resposta rápida ao se aproximar ou afastar)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -265,7 +265,7 @@ export const SixDof = {
     const cam = _getCam();
     if (!cam) return;
 
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0035 || Math.abs(sc) > 0.16) {
+    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0022 || Math.abs(sc) > 0.24) {
       this.lastSc = 0;
       return;
     }
@@ -282,18 +282,18 @@ export const SixDof = {
       return;
     }
 
-    // Só conta se duas medições seguidas concordam em sinal e magnitude aproximada (tira o tremor e o drift)
+    // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
     const prevSc = this.lastSc;
     this.lastSc = sc;
     if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc)) {
       return;
     }
-    if (Math.abs(sc - prevSc) > Math.max(0.018, Math.abs(sc) * 0.95)) {
+    if (Math.abs(sc - prevSc) > Math.max(0.065, Math.abs(sc) * 1.65)) {
       return;
     }
 
-    const stepSc = (sc + prevSc) * 0.5;
-    const step = Math.max(-0.075, Math.min(0.075, stepSc * this.depth));
+    const stepSc = sc * 0.65 + prevSc * 0.35;
+    const step = Math.max(-0.14, Math.min(0.14, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
@@ -321,7 +321,7 @@ export const SixDof = {
       return;
     }
 
-    const lerpK = Math.max(0.38, 1 - Math.exp(-Math.max(0.005, dt) * 24));
+    const lerpK = Math.max(0.55, 1 - Math.exp(-Math.max(0.005, dt) * 32));
     this.out.lerp(this.pos, lerpK);
     this.out.y = 0;
 

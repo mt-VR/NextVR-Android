@@ -18,7 +18,7 @@ public final class FakeSixDof {
 
     private final float[] g = new float[W * H];
     private float[] prev = null;
-    private final float[] sad25 = new float[25];
+    private final float[] sad49 = new float[49];
     private final float[] ptX = new float[64];
     private final float[] ptY = new float[64];
     private final float[] ptDx = new float[64];
@@ -49,7 +49,7 @@ public final class FakeSixDof {
             PhoneXrHands.Frame handsFrame,
             long nowMs) {
         if (cameraPixels == null || outW < W || outH < H) return null;
-        if (lastMs != 0L && nowMs - lastMs < 45L) return null;
+        if (lastMs != 0L && nowMs - lastMs < 24L) return null;
         lastMs = nowMs;
 
         // Downsampling 2x2 com filtro de caixa (box filter) para 96x72 em luminância:
@@ -154,17 +154,17 @@ public final class FakeSixDof {
                         tex += Math.abs(P[row + x + 1] - P[row + x]);
                     }
                 }
-                if (tex < 200f) continue; // sem textura suficiente (parede lisa)
+                if (tex < 95f) continue; // sem textura suficiente (parede lisa)
 
                 int si = 0;
                 float bs = 1e18f;
                 int bdx = 0, bdy = 0;
-                for (int oy = -2; oy <= 2; oy++) {
-                    for (int ox = -2; ox <= 2; ox++) {
+                for (int oy = -3; oy <= 3; oy++) {
+                    for (int ox = -3; ox <= 3; ox++) {
                         int X0 = bx + gx + ox;
                         int Y0 = by + gy + oy;
                         if (X0 < 0 || Y0 < 0 || X0 + 8 > W || Y0 + 8 > H) {
-                            sad25[si++] = 1e18f;
+                            sad49[si++] = 1e18f;
                             continue;
                         }
                         float sad = 0f;
@@ -175,7 +175,7 @@ public final class FakeSixDof {
                                 sad += Math.abs(g[r2 + x] - P[r + x]);
                             }
                         }
-                        sad25[si++] = sad;
+                        sad49[si++] = sad;
                         if (sad < bs) {
                             bs = sad;
                             bdx = ox;
@@ -184,15 +184,15 @@ public final class FakeSixDof {
                     }
                 }
                 float fx = 0f, fy = 0f;
-                if (Math.abs(bdx) < 2) {
-                    float a = sad25[(bdy + 2) * 5 + (bdx - 1 + 2)];
-                    float c = sad25[(bdy + 2) * 5 + (bdx + 1 + 2)];
+                if (Math.abs(bdx) < 3) {
+                    float a = sad49[(bdy + 3) * 7 + (bdx - 1 + 3)];
+                    float c = sad49[(bdy + 3) * 7 + (bdx + 1 + 3)];
                     float den = a - 2f * bs + c;
                     if (den > 0f && a < 1e17f && c < 1e17f) fx = 0.5f * (a - c) / den;
                 }
-                if (Math.abs(bdy) < 2) {
-                    float a = sad25[(bdy - 1 + 2) * 5 + (bdx + 2)];
-                    float c = sad25[(bdy + 1 + 2) * 5 + (bdx + 2)];
+                if (Math.abs(bdy) < 3) {
+                    float a = sad49[(bdy - 1 + 3) * 7 + (bdx + 3)];
+                    float c = sad49[(bdy + 1 + 3) * 7 + (bdx + 3)];
                     float den = a - 2f * bs + c;
                     if (den > 0f && a < 1e17f && c < 1e17f) fy = 0.5f * (a - c) / den;
                 }
@@ -207,7 +207,7 @@ public final class FakeSixDof {
         }
 
         System.arraycopy(g, 0, P, 0, g.length);
-        if (nPts < 10) return new float[]{ 0f, gx, gy, gx };
+        if (nPts < 6) return new float[]{ 0f, gx, gy, gx };
 
         // 3) Modelo radial: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
         float mx = 0f, my = 0f, px = 0f, py = 0f;
@@ -238,8 +238,8 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 0.65f || Math.hypot(gx, gy) > 3.2) return new float[]{ 0f, gx, gy, gx };
-        float limit = Math.max(0.32f, med * 1.85f);
+        if (med > 0.95f || Math.hypot(gx, gy) > 3.5) return new float[]{ 0f, gx, gy, gx };
+        float limit = Math.max(0.36f, med * 2.0f);
 
         int goodCount = 0;
         float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f;
@@ -252,7 +252,7 @@ public final class FakeSixDof {
                 gpy += ptY[i];
             }
         }
-        if (goodCount < 10) return new float[]{ 0f, gx, gy, gx };
+        if (goodCount < 6) return new float[]{ 0f, gx, gy, gx };
         gmx /= goodCount;
         gmy /= goodCount;
         gpx /= goodCount;

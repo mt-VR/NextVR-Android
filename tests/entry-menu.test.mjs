@@ -124,6 +124,31 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'apps.js shows games in the Spatial App, makes it horizontally scrollable, and hides/restores it when opening/closing an app window');
   assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
     'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
+  const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');
+  const phoneXrHandsKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
+  const handRendererKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8');
+  assert.ok(
+    windowsSrc.includes('isPalmTurnedForBolinha') &&
+    windowsSrc.includes('isHandPinchFromBolinha') &&
+    windowsSrc.includes('nextvr-bolinha-logo.png') &&
+    windowsSrc.includes('nextvr-bolinha-left.png') &&
+    windowsSrc.includes('bolinha-menu-card') &&
+    windowsSrc.includes('win-cinema-bar') &&
+    windowsSrc.includes('win-brightness-bar') &&
+    windowsSrc.includes('win-predefined-slots') &&
+    windowsSrc.includes('finger-sticking') &&
+    appsSrc.includes('nextvrToggleLeftHandQuickMenu'),
+    'Build 43 implements palm-only V/L right/left bolinhas with uploaded logos, thumb+index pinch [Logo / Menu] card, 360 cinema bar, brightness slider, predefined slots, left-hand quick menu, and sticky finger touch'
+  );
+  assert.ok(
+    handGesturesKt.includes('sidewaysPinchPose') &&
+    phoneXrHandsKt.includes('rawShape.pinchGap * 1.05f') &&
+    handRendererKt.includes('curvedFinger') &&
+    handRendererKt.includes('webBridge') &&
+    handRendererKt.includes('RAY_SHOWN=.84f') &&
+    handRendererKt.includes('stickX'),
+    'Build 43 implements angle-independent pinch, anatomical hand silhouette, Quest 3S selection ray, and sticky fingertip ring'
+  );
 });
 
 test('entry menu interactive flow in browser: hand tracking toggle, colaboradores, sobre, configurações and iniciar', { timeout: 60000 }, async (t) => {
@@ -827,6 +852,51 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       }
       const spatialUnhiddenByGesture = getComputedStyle(spatialWin).display !== 'none';
 
+      // Back of right hand (thumb on left of index MCP, IMG_20261021_144721.jpg) must NOT show the bolinha
+      window.nextvrHands({ hands: [] });
+      const backHand = mkRightVLHand(false);
+      backHand.points[12] = 0.36; // thumb tip to the left of index MCP (0.48) while pinky MCP is 0.56
+      window.nextvrHands({ hands: [backHand] });
+      window.nextvrHands({ hands: [backHand] });
+      const noBolinhaOnBackOfHand = !document.getElementById('gun-gesture-indicator');
+
+      // Left-hand V/L gesture (IMG_20261021_144416.jpg) shows #left-gesture-indicator with nextvr-bolinha-left.png, and thumb-index pinch opens #left-hand-quick-menu
+      const mkLeftVLHand = (pinched = false) => {
+        const pts = new Array(63).fill(0);
+        const setPt = (idx, x, y, z = 0) => { pts[idx * 3] = x; pts[idx * 3 + 1] = y; pts[idx * 3 + 2] = z; };
+        for (let i = 0; i < 21; i++) setPt(i, 0.35, 0.6, 0);
+        setPt(0, 0.35, 0.78);
+        setPt(1, 0.31, 0.70); setPt(2, 0.28, 0.63); setPt(3, 0.26, 0.54);
+        setPt(4, pinched ? 0.38 : 0.24, pinched ? 0.58 : 0.44); // thumb extended left (palm facing) or pinched to index
+        setPt(5, 0.39, 0.62); setPt(6, 0.41, 0.53); setPt(7, 0.43, 0.45);
+        setPt(8, pinched ? 0.39 : 0.45, pinched ? 0.58 : 0.37); // index extended up-right or pinched
+        setPt(9, 0.37, 0.63); setPt(10, 0.38, 0.55); setPt(11, 0.37, 0.63); setPt(12, 0.36, 0.67);
+        setPt(13, 0.34, 0.64); setPt(14, 0.35, 0.56); setPt(15, 0.34, 0.64); setPt(16, 0.33, 0.68);
+        setPt(17, 0.31, 0.66); setPt(18, 0.32, 0.58); setPt(19, 0.31, 0.66); setPt(20, 0.30, 0.70);
+        return {
+          id: 'left',
+          left: true,
+          pinch: pinched ? 0.01 : 0.55,
+          pinching: pinched,
+          fist: false,
+          menuEligible: false,
+          aim: [0, 0],
+          palm: [0.35, 0.64, 0.3],
+          ring: [0.35, 0.64],
+          points: pts,
+        };
+      };
+      window.nextvrHands({ hands: [mkLeftVLHand(false)] });
+      window.nextvrHands({ hands: [mkLeftVLHand(false)] });
+      const leftBolinhaEl = document.getElementById('left-gesture-indicator');
+      const leftBolinhaShown = !!leftBolinhaEl && !leftBolinhaEl.hidden && leftBolinhaEl.querySelector('img')?.getAttribute('src')?.includes('nextvr-bolinha-left.png');
+      window.nextvrHands({ hands: [mkLeftVLHand(true)] });
+      const lhMenu = document.getElementById('left-hand-quick-menu');
+      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
+      window.nextvrSetScreenBrightness?.(55);
+      const brightnessUpdated = document.documentElement.dataset.brightnessPercent === '55';
+      lhMenu?.querySelector('[data-lh-act="close"]')?.click();
+
       return {
         pillTexts,
         hasBrowseAll,
@@ -848,6 +918,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         bolinhaShownOnGesture,
         spatialHiddenByGesture,
         spatialUnhiddenByGesture,
+        noBolinhaOnBackOfHand,
+        leftBolinhaShown,
+        leftQuickMenuOpened,
+        brightnessUpdated,
       };
     });
     assert.deepEqual(
@@ -873,6 +947,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.bolinhaShownOnGesture, true, 'Right-hand V/L gesture displays the bolinha with nextvr-bolinha-logo.png');
     assert.equal(questAndFeatures.spatialHiddenByGesture, true, 'Closing fingers from the right-hand gesture hides the Spatial App');
     assert.equal(questAndFeatures.spatialUnhiddenByGesture, true, 'Repeating the right-hand gesture and closing fingers unhides the Spatial App');
+    assert.equal(questAndFeatures.noBolinhaOnBackOfHand, true, 'Back-of-hand pose does not display the right-hand bolinha');
+    assert.equal(questAndFeatures.leftBolinhaShown, true, 'Left-hand V/L gesture displays the bolinha with nextvr-bolinha-left.png');
+    assert.equal(questAndFeatures.leftQuickMenuOpened, true, 'Thumb+index pinch on left-hand bolinha opens the Left-Hand Quick Controls menu');
+    assert.equal(questAndFeatures.brightnessUpdated, true, 'Brightness slider updates screen brightness');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

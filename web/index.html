@@ -2892,6 +2892,399 @@
     border-color:#38bdf8;
     background:rgba(14,165,233,.28);
   }
+
+  /* ============ Build 43: Bolinha Direita/Esquerda + Card [Logo / Menu], Modo 360 Cinema, Brilho, Telinhas Pré-Definidas, Menu da Mão Esquerda e Dedo Gruda ============ */
+  :root{
+    --nextvr-brightness:1;
+  }
+  .win,
+  .dock,
+  .lh-quick-menu{
+    filter:brightness(var(--nextvr-brightness,1));
+  }
+  html[data-cinema360="1"] body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    background:radial-gradient(circle at 50% 48%,rgba(14,18,26,.92) 0%,rgba(2,3,6,.99) 70%);
+    pointer-events:none;
+    z-index:0;
+  }
+  .win.cinema-360{
+    border-radius:16px !important;
+    border:1.5px solid rgba(255,255,255,.16) !important;
+    box-shadow:0 32px 90px rgba(0,0,0,.92),0 0 60px rgba(56,189,248,.12) !important;
+  }
+  .win-cinema-bar{
+    position:absolute;
+    left:50%;
+    bottom:-46px;
+    transform:translateX(-50%);
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:6px 14px;
+    border-radius:999px;
+    background:rgba(24,26,32,.88);
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:0 10px 28px rgba(0,0,0,.62);
+    color:#f8fafc;
+    font:600 12px/1 Inter,sans-serif;
+    pointer-events:auto;
+    z-index:8;
+  }
+  .win-cinema-bar[hidden]{
+    display:none !important;
+  }
+  .win-cinema-title{
+    max-width:160px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:#e2e8f0;
+  }
+  .win-cinema-dot{
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:rgba(255,255,255,.55);
+  }
+  .win-cinema-btn{
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    border:0;
+    background:rgba(255,255,255,.10);
+    color:#ffffff;
+    font:700 12px/1 Inter,sans-serif;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .win-cinema-btn:hover,
+  .win-cinema-btn.finger-hover{
+    background:rgba(56,189,248,.35);
+  }
+  .win-brightness-bar{
+    position:absolute;
+    left:50%;
+    bottom:-54px;
+    transform:translateX(-50%);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:5px 12px;
+    border-radius:999px;
+    background:rgba(32,35,44,.82);
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 8px 20px rgba(0,0,0,.45);
+    color:#f8fafc;
+    pointer-events:auto;
+    z-index:6;
+  }
+  .win-shell.cinema-360 .win-brightness-bar{
+    display:none !important;
+  }
+  .win-brightness-ico{
+    width:14px;
+    height:14px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    color:#e2e8f0;
+  }
+  .win-brightness-ico svg{
+    width:14px;
+    height:14px;
+  }
+  .win-brightness-range{
+    -webkit-appearance:none;
+    appearance:none;
+    width:118px;
+    height:6px;
+    border-radius:999px;
+    background:linear-gradient(90deg,#ffffff 0%,#ffffff var(--bri-fill,80%),rgba(255,255,255,.22) var(--bri-fill,80%),rgba(255,255,255,.22) 100%);
+    outline:none;
+    cursor:pointer;
+  }
+  .win-brightness-range::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background:#ffffff;
+    box-shadow:0 1px 4px rgba(0,0,0,.55);
+  }
+  .win-predefined-slots{
+    position:absolute;
+    right:96px;
+    top:10px;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:3px 6px;
+    border-radius:999px;
+    background:rgba(20,24,33,.64);
+    border:1px solid rgba(255,255,255,.14);
+    pointer-events:auto;
+    z-index:7;
+  }
+  .win-shell.cinema-360 .win-predefined-slots{
+    display:none !important;
+  }
+  .win-slot-btn{
+    width:20px;
+    height:16px;
+    padding:0;
+    border-radius:5px;
+    border:1px solid rgba(255,255,255,.24);
+    background:rgba(255,255,255,.08);
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .win-slot-btn:hover,
+  .win-slot-btn.finger-hover,
+  .win-shell[data-predefined-slot="left"] .win-slot-btn[data-predefined-slot="left"],
+  .win-shell[data-predefined-slot="center"] .win-slot-btn[data-predefined-slot="center"],
+  .win-shell[data-predefined-slot="right"] .win-slot-btn[data-predefined-slot="right"]{
+    background:rgba(56,189,248,.36);
+    border-color:#38bdf8;
+  }
+  .win-slot-glyph{
+    width:10px;
+    height:7px;
+    border-radius:2px;
+    border:1.2px solid rgba(255,255,255,.85);
+    display:block;
+  }
+
+  /* Bolinha + Card [Logo / Menu] (IMG_20261021_144958.jpg, 145046.jpg, 145203.jpg) */
+  .bolinha-card-inner{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+  }
+  .bolinha-menu-lbl,
+  .bolinha-menu-bar{
+    display:none;
+  }
+  .gun-logo-bubble.bolinha-menu-card{
+    width:auto !important;
+    height:auto !important;
+    min-width:74px;
+    padding:8px 14px 9px;
+    border-radius:18px !important;
+    background:rgba(22,26,35,.92) !important;
+    border:2px solid #2b8cff !important;
+    box-shadow:0 10px 28px rgba(0,0,0,.65),0 0 22px rgba(43,140,255,.55) !important;
+  }
+  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-lbl{
+    display:block;
+    font:700 11px/1.1 Inter,sans-serif;
+    color:#f8fafc;
+    letter-spacing:.02em;
+  }
+  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-bar{
+    display:block;
+    width:46px;
+    height:4px;
+    border-radius:999px;
+    background:rgba(255,255,255,.22);
+    overflow:hidden;
+  }
+  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-bar-fill{
+    display:block;
+    width:100%;
+    height:100%;
+    border-radius:999px;
+    background:linear-gradient(90deg,#2b8cff,#38bdf8);
+  }
+
+  /* Menu Rápido da Mão Esquerda (IMG_20261021_144416.jpg) */
+  .lh-quick-menu{
+    position:absolute;
+    left:16%;
+    top:44%;
+    transform:translate(-50%,-50%);
+    padding:12px 14px;
+    border-radius:24px;
+    background:rgba(24,27,36,.84);
+    border:1.5px solid rgba(255,255,255,.16);
+    box-shadow:0 22px 54px rgba(0,0,0,.68);
+    backdrop-filter:blur(16px);
+    pointer-events:auto;
+    z-index:48;
+  }
+  .lh-quick-menu[hidden]{
+    display:none !important;
+  }
+  .lh-quick-grid{
+    display:flex;
+    align-items:stretch;
+    gap:12px;
+  }
+  .lh-apps-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  .lh-app-tile{
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(38,43,56,.92);
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    cursor:pointer;
+    overflow:hidden;
+    transition:transform .14s ease,border-color .14s ease;
+  }
+  .lh-app-tile:hover,
+  .lh-app-tile.finger-hover{
+    transform:scale(1.08);
+    border-color:#38bdf8;
+  }
+  .lh-app-img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .lh-app-icon{
+    width:24px;
+    height:24px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    color:#ffffff;
+  }
+  .lh-app-icon svg{
+    width:22px;
+    height:22px;
+  }
+  .lh-sliders-col{
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .lh-sliders-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .lh-vslider-pill{
+    position:relative;
+    width:38px;
+    height:142px;
+    border-radius:999px;
+    background:rgba(42,46,58,.90);
+    border:1px solid rgba(255,255,255,.16);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    padding-bottom:10px;
+    overflow:hidden;
+  }
+  .lh-vslider-input{
+    -webkit-appearance:none;
+    appearance:none;
+    position:absolute;
+    width:126px;
+    height:34px;
+    left:50%;
+    top:46%;
+    transform:translate(-50%,-50%) rotate(-90deg);
+    background:linear-gradient(90deg,rgba(255,255,255,.88) 0%,rgba(255,255,255,.88) var(--fill,70%),rgba(255,255,255,.16) var(--fill,70%),rgba(255,255,255,.16) 100%);
+    border-radius:999px;
+    outline:none;
+    cursor:pointer;
+  }
+  .lh-vslider-input::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#ffffff;
+    box-shadow:0 2px 6px rgba(0,0,0,.45);
+  }
+  .lh-vslider-ico{
+    position:relative;
+    z-index:2;
+    width:16px;
+    height:16px;
+    color:#0f172a;
+    pointer-events:none;
+  }
+  .lh-vslider-ico svg{
+    width:16px;
+    height:16px;
+  }
+  .lh-bottom-actions{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+  }
+  .lh-round-btn{
+    width:38px;
+    height:38px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,.20);
+    background:rgba(45,50,64,.92);
+    color:#f8fafc;
+    font:700 14px/1 Inter,sans-serif;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition:transform .14s ease,background .14s ease,border-color .14s ease;
+  }
+  .lh-round-btn svg{
+    width:18px;
+    height:18px;
+  }
+  .lh-round-btn.on,
+  .lh-round-btn:hover,
+  .lh-round-btn.finger-hover{
+    background:linear-gradient(135deg,#0284c7,#2563eb);
+    border-color:#38bdf8;
+    transform:scale(1.06);
+  }
+
+  /* Dedo "gruda" ao clicar (IMG_20261021_145423.jpg) */
+  .finger-sticking{
+    box-shadow:0 0 0 2.5px rgba(255,255,255,.92),0 0 18px rgba(56,189,248,.65) !important;
+    transform:scale(0.96);
+    transition:transform .08s ease,box-shadow .08s ease !important;
+  }
+  .finger-sticky-dot{
+    position:absolute;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(255,255,255,.96) 0%,rgba(255,255,255,.82) 48%,rgba(56,189,248,.35) 100%);
+    border:2px solid #ffffff;
+    box-shadow:0 0 14px rgba(56,189,248,.85);
+    pointer-events:none;
+    z-index:52;
+  }
+  .finger-sticky-dot[hidden]{
+    display:none !important;
+  }
 </style>
 </head>
 <body>

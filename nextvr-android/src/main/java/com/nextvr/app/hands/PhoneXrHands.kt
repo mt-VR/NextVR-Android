@@ -315,7 +315,11 @@ class PhoneXrHands {
             // metric 3D thumb-index distance is preferred when world landmarks are available.
             val rawShape = HandGestures.shape(raw,left)
             val metricGap = world?.let { HandGestures.pinchGap3d(it) }?.takeIf { it.isFinite() }
-            val gap = metricGap ?: rawShape.pinchGap
+            val gap = when {
+                metricGap == null -> rawShape.pinchGap
+                rawShape.pinchGap < .32f && metricGap < .48f -> minOf(metricGap, rawShape.pinchGap * 1.05f)
+                else -> metricGap
+            }
             val shape = imageShape.copy(
                 pinch = !rawShape.fist && gap < .35f,
                 pinchStrength = ((.9f - gap) / .6f).coerceIn(0f, 1f),
