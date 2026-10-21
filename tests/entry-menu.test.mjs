@@ -769,7 +769,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       await new Promise(r => setTimeout(r, 40));
       const dockHiddenAfterTrigger = getComputedStyle(dockEl).display === 'none' || dockEl.hidden || dockEl.style.display === 'none';
 
-      window.nextvrTriggerCircleLoading?.('env', 'dark');
+      window.nextvrShowCircleLoader?.('env', 'dark');
       const circleLoader = document.getElementById('vr-circle-loader');
       const circleLoaderShown = !!circleLoader && !circleLoader.hidden && !!circleLoader.querySelector('.vr-circle-ring-svg');
 

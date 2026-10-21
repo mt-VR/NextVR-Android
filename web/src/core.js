@@ -602,7 +602,7 @@ export function setEnvironment(id) {
   // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
   if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
-  if (typeof window !== 'undefined') window.nextvrTriggerCircleLoading?.('env', S.env);
+  if (typeof window !== 'undefined') window.nextvrShowCircleLoader?.('env', S.env);
   // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
   window.NativeXR?.env?.(S.env);
 }

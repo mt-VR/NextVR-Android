@@ -386,7 +386,7 @@ export function open(spec) {
       w.shell?.classList?.remove?.('win-circle-reveal');
       css3d.invalidate?.();
     }, 520);
-    if (typeof window !== 'undefined') window.nextvrTriggerCircleLoading?.('app', w.title || w.id);
+    if (typeof window !== 'undefined') window.nextvrShowCircleLoader?.('app', w.title || w.id);
   }
   css3d.invalidate?.();
   emit('wins', wins);
@@ -2518,7 +2518,7 @@ function triggerCircleLoading(kind = 'env', label = '') {
     }
   }, 620);
 }
-window.nextvrTriggerCircleLoading = triggerCircleLoading;
+window.nextvrShowCircleLoader = triggerCircleLoading;
 
 function updateGunDockToggle(packet, nowMs) {
   if (S.gunGesture === 0) return false;
