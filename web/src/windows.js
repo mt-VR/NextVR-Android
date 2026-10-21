@@ -1957,6 +1957,7 @@ function isIndexFingerPointing(h) {
   if (!h || h.pinching || h.fist || h.predicted) return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
+  if (Math.hypot(p[21] - p[18], p[22] - p[19]) < 0.005) return false;
   const wx = p[0], wy = p[1];
   const pipX = p[18], pipY = p[19];
   const tipX = p[24], tipY = p[25];
@@ -2169,7 +2170,12 @@ function updateFingerPoke(h, packet, nowMs) {
   const currentSt = fingerPokeByHand.get(h?.id);
   const wasPinching = pinchOnAppBefore.get(h?.id) || false;
   pinchOnAppBefore.set(h?.id, !!h?.pinching);
-  const hasRealFingerJoints = Boolean(p && p.length >= 26 && Math.hypot(p[24] - p[18], p[25] - p[19]) > 0.008);
+  const hasRealFingerJoints = Boolean(
+    p &&
+    p.length >= 26 &&
+    Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008 &&
+    Math.hypot(p[24] - p[18], p[25] - p[19]) > 0.008
+  );
 
   // Opção de Toque sem Pinça: fazer a pinça diretamente encima de um app abre o app na hora, sem precisar do raio
   if (
@@ -2178,12 +2184,17 @@ function updateFingerPoke(h, packet, nowMs) {
     !wasPinching &&
     !h?.fist &&
     !h?.predicted &&
-    hasRealFingerJoints
+    (currentSt?.targetEl || hasRealFingerJoints)
   ) {
-    const pinchTarget = (currentSt?.targetEl && (nowMs - currentSt.lastSeenAt <= 400))
+    const pinchTarget = (currentSt?.targetEl && (nowMs - currentSt.lastSeenAt <= 450))
       ? { x: currentSt.tapX, y: currentSt.tapY, el: currentSt.targetEl }
       : resolveFingerTarget(h, packet);
-    if (pinchTarget && (nowMs - (currentSt?.lastTapAt ?? -1000) >= 280)) {
+    const isAppTarget = Boolean(
+      pinchTarget?.el?.matches?.(
+        '[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,.d-btn,[data-qb-url]'
+      )
+    );
+    if (pinchTarget && isAppTarget && (nowMs - (currentSt?.lastTapAt ?? -1000) >= 280)) {
       const tapped = triggerFingerTouchTap(pinchTarget.x, pinchTarget.y, pinchTarget.el);
       fingerPokeByHand.delete(h?.id);
       setFingerHoverEl(null);

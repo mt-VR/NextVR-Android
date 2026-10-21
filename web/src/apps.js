@@ -328,9 +328,10 @@ const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 
 function webWindow(id, title, url, note) {
-  // Sites grandes (YouTube, Netflix, Roblox, etc.) abrem no navegador completo estilo Quest, com
+  // Sites grandes (YouTube, Netflix, etc.) abrem no navegador completo estilo Quest, com
   // barra de URL — modo "cinema" foi desativado a pedido do usuário (pra retomar depois).
-  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord' || id === 'roblox')
+  // O Roblox usa a sua própria janela dedicada ('roblox') para manter o ambiente escuro isolado.
+  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
     return webBrowserFor(id, title, url);
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
