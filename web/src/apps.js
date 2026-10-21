@@ -328,9 +328,9 @@ const BAT_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 
 function webWindow(id, title, url, note) {
-  // Sites grandes (YouTube, Netflix, etc.) abrem no navegador completo estilo Quest, com
+  // Sites grandes (YouTube, Netflix, Roblox, etc.) abrem no navegador completo estilo Quest, com
   // barra de URL — modo "cinema" foi desativado a pedido do usuário (pra retomar depois).
-  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord')
+  if (id === 'browser' || id === 'youtube' || id === 'netflix' || id === 'prime' || id === 'tiktok' || id === 'twitch' || id === 'discord' || id === 'roblox')
     return webBrowserFor(id, title, url);
   const body = el('div'); body.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
@@ -369,6 +369,11 @@ function webWindow(id, title, url, note) {
 
   const win = open({ id, title, node: body });
   win.shell.classList.add('web-page-window');
+  win.obj.position.copy(win.target);
+  win.apply();
+  scene.updateMatrixWorld(true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
   return win;
 }
 
@@ -889,6 +894,13 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.fingerTouch !== 0 ? t('on') : t('off');
     return S.fingerTouch !== 0;
   }, S.fingerTouch !== 0);
+  control('crosshair', 'Pinça no App (Sem Raio)', S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado', button => {
+    S.pinchOnApp = S.pinchOnApp === 0 ? 1 : 0;
+    save(S);
+    emit('pinchOnApp', S.pinchOnApp !== 0);
+    button.querySelector('small').textContent = S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado';
+    return S.pinchOnApp !== 0;
+  }, S.pinchOnApp !== 0);
   control('crosshair', 'Gesto de Arminha (Dock)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
     S.gunGesture = S.gunGesture === 0 ? 1 : 0;
     save(S);
@@ -987,6 +999,12 @@ function settingsApp() {
     window.NativeXR?.setFingerTouch?.(!!v);
     emit('fingerTouch', !!v);
   })));
+  scroll.append(ytRow(
+    icon('crosshair'),
+    'Pinça no App (Sem Raio)',
+    'Fazer a pinça encima de um app abre o app na hora, sem precisar do raio',
+    ytToggle('pinchOnApp', v => emit('pinchOnApp', !!v))
+  ));
   scroll.append(ytRow(
     '<img src="./gun-logo.jpg" alt="Arminha" style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block;border:1px solid rgba(56,189,248,.65)">',
     'Gesto de Arminha (Ocultar Dock)',
@@ -1223,6 +1241,9 @@ export function openRobloxVr() {
   const win = webWindow('roblox', 'Roblox', 'https://www.roblox.com/');
   if (win) {
     win.setHidden(false);
+    win.obj.position.copy(win.target);
+    win.apply();
+    scene.updateMatrixWorld(true);
     focus(win);
   }
   css3d.invalidate?.();

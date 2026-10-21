@@ -752,8 +752,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
           left: false,
           pinch: 0.35,
           pinching: false,
-          fist: false,
-          menuEligible: false,
+          fist: !indexOpen,
+          menuEligible: true,
           aim: [0, 0],
           palm: [0.50, 0.58, 0.3],
           ring: [0.50, 0.58],
@@ -768,6 +768,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.nextvrHands({ hands: [mkGunPoseHand(false)] });
       await new Promise(r => setTimeout(r, 40));
       const dockHiddenAfterTrigger = getComputedStyle(dockEl).display === 'none' || dockEl.hidden || dockEl.style.display === 'none';
+
+      window.nextvrTriggerCircleLoading?.('env', 'dark');
+      const circleLoader = document.getElementById('vr-circle-loader');
+      const circleLoaderShown = !!circleLoader && !circleLoader.hidden && !!circleLoader.querySelector('.vr-circle-ring-svg');
 
       // Trigger again to restore dock
       return {
@@ -784,6 +788,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         dockVisibleBefore,
         gunBubbleShown,
         dockHiddenAfterTrigger,
+        circleLoaderShown,
       };
     });
     assert.deepEqual(
@@ -801,6 +806,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.robloxBlackEnvRestored, true, 'Closing Roblox restores the normal environment');
     assert.equal(questAndFeatures.gunBubbleShown, true, 'Making the gun gesture displays the floating circle with gun-logo.jpg');
     assert.equal(questAndFeatures.dockHiddenAfterTrigger, true, 'Closing the index finger from the gun pose hides/toggles the Dock');
+    assert.equal(questAndFeatures.circleLoaderShown, true, 'Circular loading transition appears for environment and app loading');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

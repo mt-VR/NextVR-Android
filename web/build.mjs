@@ -22,12 +22,12 @@ await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.
 await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
 await mkdir(new URL('env/', out), { recursive: true });
-for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside'])
+for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside','dark'])
   await copyFile(`web/env/${id}.jpg`, new URL(`env/${id}.jpg`, out));
 await writeFile(new URL('branding.json',out),JSON.stringify({
   source:'logo roxa quadrada fornecida pelo usuário',
   format:'png',asset:'icons/nextvr-n.png',icon:'res/drawable-*-xhdpi/nextvr_ic_launcher.png',
-  environments:['env/sunset.jpg','env/dusk.jpg','env/cinema.jpg','env/lagoon.jpg','env/virtual.jpg','env/palm.jpg','env/night.jpg','env/space.jpg','env/tropical.jpg','env/lakeside.jpg']
+  environments:['env/sunset.jpg','env/dusk.jpg','env/cinema.jpg','env/lagoon.jpg','env/virtual.jpg','env/palm.jpg','env/night.jpg','env/space.jpg','env/tropical.jpg','env/lakeside.jpg','env/dark.jpg']
 })+'\n','utf8');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';

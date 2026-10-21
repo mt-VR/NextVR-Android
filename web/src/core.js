@@ -20,7 +20,7 @@ const DEF = {
   dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
-  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1, gunGesture: 1,
+  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -69,6 +69,7 @@ const STR = {
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
     envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
     envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
+    envDark:'Panorama 360° · Dark',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -157,6 +158,7 @@ const STR = {
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
     envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
     envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
+    envDark:'360° panorama · Dark',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -579,10 +581,11 @@ on('quality', resize);
  * ambientes, o GL nativo desenha uma esfera enquanto a câmera rastreia as mãos.
  * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside', 'dark']);
 export const envList = () => [
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'dark', name: t('envDark'), thumb: './env/dark.jpg' },
   { id: 'dusk', name: t('envDusk'), thumb: './env/dusk.jpg' },
   { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
   { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
@@ -599,6 +602,7 @@ export function setEnvironment(id) {
   // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
   if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
+  if (typeof window !== 'undefined') window.nextvrTriggerCircleLoading?.('env', S.env);
   // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
   window.NativeXR?.env?.(S.env);
 }

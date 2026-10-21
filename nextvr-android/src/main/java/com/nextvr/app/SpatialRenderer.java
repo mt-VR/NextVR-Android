@@ -301,8 +301,9 @@ final class SpatialRenderer {
         // O mapeamento optico (span) sai da camera mesmo com panorama: e ele que poe os landmarks
         // das maos na tela, e o rastreamento continua na camera.
         if(camera.ready) mapping(projection,(float)camera.width/camera.height);
-        if(blackEnv) { GLES20.glClearColor(0f,0f,0f,1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT); }
-        else if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
+        if(!blackEnv) {
+            if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
+        }
         GLES20.glEnable(GLES20.GL_BLEND);
         // Android's hardware surfaces are premultiplied, including CSS shadows and translucent glass.
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
@@ -345,7 +346,7 @@ final class SpatialRenderer {
         float ex = viewInv[12], ez = viewInv[14];
         float facing = (ex - panel.flat[12]) * panel.flat[8] + (ez - panel.flat[14]) * panel.flat[10];
         GLES20.glUniform1f(uBackface, !panel.overlay && facing < 0f ? 1f : 0f);
-        GLES20.glUniform1i(uBackdrop,(camera.ready||sphere) && qualityHeight>500f && !panel.overlay && panel.browser.isEmpty()?1:0);
+        GLES20.glUniform1i(uBackdrop,!"black".equals(environmentId) && (camera.ready||sphere) && qualityHeight>500f && !panel.overlay && panel.browser.isEmpty()?1:0);
         GLES20.glUniform1i(uEnvSphere,sphere?1:0);
         GLES20.glUniformMatrix4fv(uViewInv,1,false,viewInv,0);
         GLES20.glUniform4fv(uGlass,1,panel.glass,0);

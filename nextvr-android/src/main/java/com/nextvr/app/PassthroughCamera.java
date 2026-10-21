@@ -386,7 +386,7 @@ final class PassthroughCamera {
                 // stay off the thread whose cost caps the tracking rate (AnalysisGate).
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int width=Math.min(upright.getWidth(),budget.width()*5/8);
+                    int width=Math.min(upright.getWidth(),Math.min(320,budget.width()*5/8));
                     int height=Math.max(1,width*upright.getHeight()/upright.getWidth());
                     Bitmap analysis=(width==upright.getWidth() && height==upright.getHeight())
                         ? upright.copy(Bitmap.Config.ARGB_8888,false)

@@ -104,7 +104,9 @@ class PhoneXrHands {
                 val dy = (b[1] - a[1]) * dt
                 val dz = (b[2] - a[2]) * dt
                 return FloatArray(63) { i ->
-                    b[i] + when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
+                    val wristShift = when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
+                    val localShift = (b[i] - a[i]) * dt
+                    b[i] + wristShift * 0.45f + localShift * 0.55f
                 }
             }
             val out = FloatArray(a.size)
@@ -172,17 +174,17 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=.95f, beta=2.2f, deadZone=.0015f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=1.35f, beta=4.5f, deadZone=.0012f)
                 i < 3 -> HandGestures.OneEuro(minCutoff=1.6f, beta=11.5f, deadZone=.0008f)
-                else -> HandGestures.OneEuro(minCutoff=1.55f, beta=9.5f, deadZone=.0010f)
+                else -> HandGestures.OneEuro(minCutoff=2.8f, beta=18.5f, deadZone=.0005f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=1.45f, beta=6.8f, deadZone=.0009f)
-        val y = HandGestures.OneEuro(minCutoff=1.45f, beta=6.8f, deadZone=.0009f)
+        val x = HandGestures.OneEuro(minCutoff=2.4f, beta=14.0f, deadZone=.0005f)
+        val y = HandGestures.OneEuro(minCutoff=2.4f, beta=14.0f, deadZone=.0005f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
-        val grabY = HandGestures.OneEuro(minCutoff=.6f,beta=1f)
+        val grabX = HandGestures.OneEuro(minCutoff=1.4f,beta=4.5f)
+        val grabY = HandGestures.OneEuro(minCutoff=1.4f,beta=4.5f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false

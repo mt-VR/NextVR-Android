@@ -369,6 +369,25 @@ export function open(spec) {
   if (spec.free) placeFree(w, spec.at);
   if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
   w.apply();
+  scene.updateMatrixWorld(true);
+  if (!w.onboarding && w.id !== 'spatial-launcher') {
+    w.shell.classList.add('win-circle-reveal');
+    let ring = w.shell.querySelector('.win-circle-loader');
+    if (!ring) {
+      ring = document.createElement('div');
+      ring.className = 'win-circle-loader';
+      ring.setAttribute('aria-hidden', 'true');
+      ring.innerHTML = `<svg viewBox="0 0 64 64" class="win-circle-svg"><circle cx="32" cy="32" r="24" class="win-circle-track"/><circle cx="32" cy="32" r="24" class="win-circle-prog"/></svg>`;
+      w.shell.appendChild(ring);
+    }
+    ring.classList.remove('done');
+    setTimeout(() => {
+      ring?.classList?.add?.('done');
+      w.shell?.classList?.remove?.('win-circle-reveal');
+      css3d.invalidate?.();
+    }, 520);
+    if (typeof window !== 'undefined') window.nextvrTriggerCircleLoading?.('app', w.title || w.id);
+  }
   css3d.invalidate?.();
   emit('wins', wins);
   return w;
@@ -2016,6 +2035,14 @@ function resolveFingerTarget(h, packet) {
       const hit = resolvePointTarget(tx + ox, ty + oy);
       if (hit) return hit;
     }
+    if (Number.isFinite(p[12]) && Number.isFinite(p[13])) {
+      const px = ((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5;
+      const py = ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5;
+      for (const [ox, oy] of offsets) {
+        const pinchHit = resolvePointTarget(px + ox, py + oy);
+        if (pinchHit) return pinchHit;
+      }
+    }
     const dx = (p[21] - 0.5) * sx + 0.5;
     const dy = (p[22] - 0.5) * sy + 0.5;
     const dipHit = resolvePointTarget(dx, dy);
@@ -2129,14 +2156,44 @@ function handBoneSpan2D(p) {
   );
 }
 
+const pinchOnAppBefore = new Map();
+
 function updateFingerPoke(h, packet, nowMs) {
   if (S.fingerTouch === 0) {
     fingerPokeByHand.delete(h?.id);
+    pinchOnAppBefore.delete(h?.id);
     setFingerHoverEl(null);
     return false;
   }
   const p = h?.points;
   const currentSt = fingerPokeByHand.get(h?.id);
+  const wasPinching = pinchOnAppBefore.get(h?.id) || false;
+  pinchOnAppBefore.set(h?.id, !!h?.pinching);
+  const hasRealFingerJoints = Boolean(p && p.length >= 26 && Math.hypot(p[24] - p[18], p[25] - p[19]) > 0.008);
+
+  // Opção de Toque sem Pinça: fazer a pinça diretamente encima de um app abre o app na hora, sem precisar do raio
+  if (
+    S.pinchOnApp !== 0 &&
+    h?.pinching &&
+    !wasPinching &&
+    !h?.fist &&
+    !h?.predicted &&
+    hasRealFingerJoints
+  ) {
+    const pinchTarget = (currentSt?.targetEl && (nowMs - currentSt.lastSeenAt <= 400))
+      ? { x: currentSt.tapX, y: currentSt.tapY, el: currentSt.targetEl }
+      : resolveFingerTarget(h, packet);
+    if (pinchTarget && (nowMs - (currentSt?.lastTapAt ?? -1000) >= 280)) {
+      const tapped = triggerFingerTouchTap(pinchTarget.x, pinchTarget.y, pinchTarget.el);
+      fingerPokeByHand.delete(h?.id);
+      setFingerHoverEl(null);
+      if (tapped) {
+        fingerPokeFlashUntil = nowMs + 220;
+        return true;
+      }
+    }
+  }
+
   if (!isIndexFingerPointing(h)) {
     if (
       currentSt &&
@@ -2394,23 +2451,74 @@ function ensureGunLogoBubble() {
 
 function showGunLogoBubble(xNorm = 0.5, yNorm = 0.5, triggered = false) {
   const el = ensureGunLogoBubble();
-  const cx = Math.max(0.08, Math.min(0.92, Number.isFinite(xNorm) ? xNorm : 0.5));
-  const cy = Math.max(0.08, Math.min(0.92, Number.isFinite(yNorm) ? yNorm : 0.5));
-  el.style.left = `${(cx * 100).toFixed(1)}%`;
-  el.style.top = `${(cy * 100).toFixed(1)}%`;
+  const cx = Math.max(0.10, Math.min(0.90, Number.isFinite(xNorm) ? xNorm : 0.5));
+  const cy = Math.max(0.10, Math.min(0.90, Number.isFinite(yNorm) ? yNorm : 0.5));
+  if (native) {
+    el.style.left = `${Math.round(cx * 1200)}px`;
+    el.style.top = `${Math.round(cy * 800)}px`;
+  } else {
+    el.style.left = `${(cx * 100).toFixed(1)}%`;
+    el.style.top = `${(cy * 100).toFixed(1)}%`;
+  }
   el.hidden = false;
   el.classList.toggle('gun-triggered', !!triggered);
   css3d.invalidate?.();
+  css3d.render?.(scene, camera);
   if (gunBubbleHideTimer) clearTimeout(gunBubbleHideTimer);
   gunBubbleHideTimer = setTimeout(() => {
     if (gunBubbleEl) {
       gunBubbleEl.hidden = true;
       gunBubbleEl.classList.remove('gun-triggered');
       css3d.invalidate?.();
+      css3d.render?.(scene, camera);
     }
-  }, triggered ? 750 : 450);
+  }, triggered ? 850 : 600);
 }
 window.nextvrShowGunLogoBubble = showGunLogoBubble;
+
+let circleLoaderEl = null;
+let circleLoaderTimer = null;
+function triggerCircleLoading(kind = 'env', label = '') {
+  const hud = document.getElementById('hud') || document.body;
+  if (!circleLoaderEl || !document.body.contains(circleLoaderEl)) {
+    circleLoaderEl = document.createElement('div');
+    circleLoaderEl.id = 'vr-circle-loader';
+    circleLoaderEl.className = 'vr-circle-loader';
+    circleLoaderEl.dataset.circleLoader = '1';
+    circleLoaderEl.hidden = true;
+    circleLoaderEl.innerHTML = `
+      <div class="vr-circle-ring-wrap">
+        <svg viewBox="0 0 84 84" class="vr-circle-ring-svg">
+          <circle cx="42" cy="42" r="34" class="vr-circle-track"/>
+          <circle cx="42" cy="42" r="34" class="vr-circle-progress"/>
+        </svg>
+        <div class="vr-circle-label"></div>
+      </div>
+    `;
+    hud.appendChild(circleLoaderEl);
+  }
+  circleLoaderEl.dataset.kind = kind;
+  const lbl = circleLoaderEl.querySelector('.vr-circle-label');
+  if (lbl) {
+    lbl.textContent = kind === 'env'
+      ? `Carregando ambiente${label ? ' · ' + label : ''}…`
+      : `Abrindo ${label || 'app'}…`;
+  }
+  circleLoaderEl.hidden = false;
+  circleLoaderEl.classList.remove('active');
+  void circleLoaderEl.offsetWidth;
+  circleLoaderEl.classList.add('active');
+  css3d.invalidate?.();
+  if (circleLoaderTimer) clearTimeout(circleLoaderTimer);
+  circleLoaderTimer = setTimeout(() => {
+    if (circleLoaderEl) {
+      circleLoaderEl.hidden = true;
+      circleLoaderEl.classList.remove('active');
+      css3d.invalidate?.();
+    }
+  }, 620);
+}
+window.nextvrTriggerCircleLoading = triggerCircleLoading;
 
 function updateGunDockToggle(packet, nowMs) {
   if (S.gunGesture === 0) return false;
@@ -2421,48 +2529,58 @@ function updateGunDockToggle(packet, nowMs) {
   if (drag.win || resizing.win || dockDrag.start) return false;
 
   for (const h of packet.hands) {
-    if (!h || h.predicted || h.menuEligible) continue;
+    if (!h || h.predicted) continue;
     const p = h.points;
     if (!p || p.length < 63) continue;
     const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
     const palmLen = Math.hypot(p[9 * 3] - p[0], p[9 * 3 + 1] - p[1]);
-    if (palmLen < 0.04) continue;
+    if (palmLen < 0.032) continue;
     // Garante que os nós dos dedos são reais e distintos (evita mãos sintéticas de teste onde todos os pontos são 0.5)
-    if (dist(14, 16) < 0.01 || dist(18, 20) < 0.01 || dist(5, 6) < 0.01) continue;
+    if (dist(14, 16) < 0.008 || dist(18, 20) < 0.008 || dist(5, 6) < 0.008) continue;
 
-    // Anelar (13..16) e Mindinho (17..20) recolhidos na palma (ponta mais perto do pulso que o PIP) + Polegar (1..4) levantado
-    const ringCurled = dist(0, 16) < dist(0, 14) * 0.96;
-    const pinkyCurled = dist(0, 20) < dist(0, 18) * 0.96;
-    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.06 || (p[2 * 3 + 1] - p[4 * 3 + 1]) > 0.025;
+    // Anelar (13..16), Mindinho (17..20) e Médio (9..12) recolhidos (funciona de frente ou de lado na câmara traseira)
+    const midCurled = dist(0, 12) < dist(0, 10) * 1.15 || dist(9, 12) < palmLen * 0.85;
+    const ringCurled = dist(0, 16) < dist(0, 14) * 1.16 || dist(13, 16) < palmLen * 0.85;
+    const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.18 || dist(17, 20) < palmLen * 0.85;
+    const lowerFingersCurled = (ringCurled && pinkyCurled) || (midCurled && (ringCurled || pinkyCurled));
+    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.01 || (p[2 * 3 + 1] - p[4 * 3 + 1]) > 0.012 || dist(4, 9) > palmLen * 0.34;
     const indexRatio = dist(0, 8) / Math.max(1e-4, dist(0, 6));
-    const bubbleX = (p[4 * 3] + p[5 * 3]) * 0.5;
-    const bubbleY = Math.min(p[4 * 3 + 1], p[5 * 3 + 1]) - 0.045;
+    const indexSpan = dist(5, 8);
+    const sx = Number(packet?.scaleX) || 1;
+    const sy = Number(packet?.scaleY) || 1;
+    const bubbleX = ((p[4 * 3] + p[5 * 3]) * 0.5 - 0.5) * sx + 0.5;
+    const bubbleY = (Math.min(p[4 * 3 + 1], p[5 * 3 + 1]) - 0.045 - 0.5) * sy + 0.5;
 
     const handKey = h.id || (h.left ? 'left' : 'right');
     let st = gunDockByHand.get(handKey);
     if (!st) {
-      st = { armedUntil: 0, maxIndexRatio: 0, latched: false };
+      st = { armedUntil: 0, maxIndexRatio: 0, maxIndexSpan: 0, latched: false };
       gunDockByHand.set(handKey, st);
     }
 
-    const isGunBarrelOpen = ringCurled && pinkyCurled && thumbExtended && indexRatio >= 1.12 && !h.pinching && !h.fist;
+    const indexClearlyOut = indexRatio >= 1.07 || indexSpan > Math.max(dist(13, 16), dist(17, 20)) * 1.25;
+    const isGunBarrelOpen = lowerFingersCurled && thumbExtended && indexClearlyOut && !h.pinching && !h.fist;
     if (isGunBarrelOpen) {
-      st.armedUntil = nowMs + 1600;
+      st.armedUntil = nowMs + 2200;
       st.maxIndexRatio = Math.max(st.maxIndexRatio, indexRatio);
+      st.maxIndexSpan = Math.max(st.maxIndexSpan, indexSpan);
       st.latched = false;
       showGunLogoBubble(bubbleX, bubbleY, false);
       continue;
     }
 
     // Com a mão armada em pose de arma (foto 1), fechar o dedo indicador (foto 2) mostra a bolinha pulsando e oculta/reexibe a Dock
-    const triggerClosed = ringCurled && pinkyCurled && thumbExtended && (
-      indexRatio <= 1.02 ||
-      (st.maxIndexRatio >= 1.14 && (st.maxIndexRatio - indexRatio) >= 0.13)
+    const triggerClosed = lowerFingersCurled && thumbExtended && (
+      indexRatio <= 1.05 ||
+      (st.maxIndexRatio >= 1.08 && (st.maxIndexRatio - indexRatio) >= 0.06) ||
+      (st.maxIndexSpan > 0.02 && indexSpan <= st.maxIndexSpan * 0.84) ||
+      h.fist
     );
-    if (!st.latched && nowMs <= st.armedUntil && triggerClosed && (nowMs - lastGunDockToggleAt >= 550)) {
+    if (!st.latched && nowMs <= st.armedUntil && triggerClosed && (nowMs - lastGunDockToggleAt >= 500)) {
       st.latched = true;
       st.armedUntil = 0;
       st.maxIndexRatio = 0;
+      st.maxIndexSpan = 0;
       lastGunDockToggleAt = nowMs;
       showGunLogoBubble(bubbleX, bubbleY, true);
       packet.consumed?.add?.(h.id);
@@ -2470,8 +2588,9 @@ function updateGunDockToggle(packet, nowMs) {
         const spWin = wins.find(w => w.id === 'spatial-launcher');
         if (spWin) spWin.setHidden(!spWin.hidden);
       } else {
-        const nextHidden = !dockHidden;
+        const nextHidden = !(dockHidden || !dockVisible);
         setDockHidden(nextHidden);
+        setDockVisible(!nextHidden);
         if (dockGrabEl) dockGrabEl.hidden = nextHidden;
       }
       window.NativeXR?.click?.();
@@ -2564,6 +2683,8 @@ on('phonehands', packet => {
   else hoverWin=null;
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
+    const gunSt=gunDockByHand.get(h.id || (h.left ? 'left' : 'right'));
+    if(gunSt && nowMs <= gunSt.armedUntil) continue;
     if(!drag.win && !resizing.win && h.fist && !before) {
       const p=palmScreen(h,packet,true),hit=fistHit(phoneRay(p.x,p.y));
       if(hit) {
@@ -2655,7 +2776,11 @@ onFrame((dt,now)=>{
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
-    const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
+    let p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
+    if(noBeam && h.points && h.points.length>=26 && Number.isFinite(h.points[24]) && Number.isFinite(h.points[25])) {
+      const sx=Number(packet.scaleX)||1, sy=Number(packet.scaleY)||1;
+      p={ x:(h.points[24]-.5)*sx+.5, y:(h.points[25]-.5)*sy+.5 };
+    }
     const r=phoneRay(p.x,p.y);
     const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);
     if(dockVisible){

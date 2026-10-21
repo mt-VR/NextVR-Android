@@ -77,16 +77,16 @@ export const Walk = {
     if (!a || a.x === null) return;
     if (this.lastA) {
       const d = Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y, a.z - this.lastA.z);
-      if (d > 0.42) {
-        this.energy = Math.min(4, this.energy * 0.85 + d);
+      if (d > 0.14) {
+        this.energy = Math.min(4, this.energy * 0.88 + d);
       } else {
-        this.energy *= 0.84;
+        this.energy *= 0.90;
       }
     }
     this.lastA = { x: a.x, y: a.y, z: a.z };
   },
   moving() {
-    return !this.lastA || this.energy > 0.75;
+    return !this.lastA || this.energy > 0.20;
   }
 };
 
@@ -257,7 +257,7 @@ export const SixDof = {
     const cam = _getCam();
     if (!cam) return;
 
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.004 || Math.abs(sc) > 0.24) {
+    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0028 || Math.abs(sc) > 0.22) {
       this.lastSc = 0;
       return;
     }
@@ -281,7 +281,7 @@ export const SixDof = {
       return;
     }
 
-    const step = Math.max(-0.11, Math.min(0.11, stepSc * this.depth));
+    const step = Math.max(-0.075, Math.min(0.075, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!

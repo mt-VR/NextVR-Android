@@ -84,15 +84,18 @@ class PhoneXrHandRenderer {
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
      * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
-    private val MESH_REBUILD_EPSILON=.0006f
+    private val MESH_REBUILD_EPSILON=.0003f
     /** Even a slowly drifting hand refreshes its silhouette at least this often. */
-    private val MESH_REBUILD_MAX_NS=120_000_000L
+    private val MESH_REBUILD_MAX_NS=35_000_000L
     private val RING_STEPS=40
     /** Reused per-frame scratch on the GL thread: the beam/ring path used to allocate a 720-float
      *  ring array plus ~30 small arrays per hand per eye per frame — GC churn exactly under load. */
     private val ringData=FloatArray(RING_STEPS*18)
     private val beamEnd=FloatArray(3)
     private val beamLine=FloatArray(7)
+    private val handProj=FloatArray(16)
+    private val eyeViewport=IntArray(4)
+    private var stereoDepth=0.88f
     private val acrossA=FloatArray(3)
     private val acrossB=FloatArray(3)
     private val quad=FloatArray(18)
@@ -158,8 +161,32 @@ class PhoneXrHandRenderer {
         val live=frame.hands.isNotEmpty() && frame.isFresh(now)
         val fade=if(visible==null)0f else presentation.fade(visible,now)
         viewScaleX=sx;viewScaleY=sy
+        if(targetsText!=targetsJson){
+            targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
+            targetsText=targetsJson
+        }
+        var targetDepth=0f
+        for(i in 0 until targets.length()) {
+            val end=targets.optJSONObject(i)?.optJSONArray("end") ?: continue
+            if(end.length()==3) {
+                val wx=end.optDouble(0,Double.NaN).toFloat()
+                val wy=end.optDouble(1,Double.NaN).toFloat()
+                val wz=end.optDouble(2,Double.NaN).toFloat()
+                val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
+                if(ez.isFinite() && ez<-.25f) {
+                    val d=(-ez).coerceIn(0.65f, 1.45f)
+                    if(targetDepth==0f || d<targetDepth) targetDepth=d
+                }
+            }
+        }
+        if(targetDepth>0f) stereoDepth=stereoDepth*0.80f+targetDepth*0.20f
+        GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,eyeViewport,0)
+        val eyeSign=if(eyeViewport[0]==0) 1f else -1f
+        val stereoShiftX=(eyeSign*0.032f)/stereoDepth
+        System.arraycopy(projection,0,handProj,0,16)
+        handProj[12]=projection[12]+projection[0]*stereoShiftX
         GLES20.glUseProgram(colorProgram)
-        GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
+        GLES20.glUniformMatrix4fv(matrixUniform,1,false,handProj,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
@@ -170,17 +197,13 @@ class PhoneXrHandRenderer {
             meshes=meshesFor(visual,sx,sy,now)
             drawHandSkeletons(position,fade)
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
+        GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
         if(!showPointer) {
             GLES20.glDisable(GLES20.GL_STENCIL_TEST)
             GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
             return
-        }
-        // Both eyes/display frames commonly reuse the same bridge packet.
-        if(targetsText!=targetsJson){
-            targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
-            targetsText=targetsJson
         }
         // Beam positions are predicted to display time; pinch state is always the live one.
         for(hand in visual.hands) {
@@ -211,7 +234,7 @@ class PhoneXrHandRenderer {
             if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
             touching=direct && down
             val b=beamLine
-            b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
+            b[0]=if(direct)0f else (hand.baseX+stereoShiftX);b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null)1f else 0f
             drawBeam(b,down,position,fade*hand.confidence.coerceIn(0f,1f))
         }
