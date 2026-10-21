@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, envList, startGyro, gyroLive, native, css3d, scene, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
@@ -1928,12 +1928,22 @@ function buildSpatialLauncherDom() {
     : icon('user');
 
   const curEnv = S.env || 'passthrough';
+  const isMrDim = !!S.mrDim;
   const root = el('div', 'spatial-launcher-root');
   root.innerHTML = `
     <header class="spatial-hz-header">
+      <div class="spatial-hz-top-status" aria-label="Status e Ambiente MR">
+        <span class="spatial-hz-top-bat"><span class="spatial-hz-bat-pill"><i style="width:${batPct}%"></i></span><strong data-spatial-bat-top>${batPct}%</strong></span>
+        <span class="spatial-hz-top-clock" data-spatial-clock-top>${escH(clockStr)}</span>
+        <span class="spatial-hz-top-wifi">${icon('wifi')}</span>
+        <button type="button" class="spatial-hz-mrdim-circle ${isMrDim ? 'on' : ''}" data-spatial-act="mr-dim" title="${isMrDim ? 'Ambiente MR: Escuro (toque para Normal)' : 'Escurecer Ambiente MR em volta dos apps'}" aria-pressed="${isMrDim ? 'true' : 'false'}">
+          ${icon('vision')}
+        </button>
+      </div>
       <h2 class="spatial-hz-title">Library</h2>
       <div class="spatial-hz-env-pills" aria-label="Ambientes Virtuais">
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'passthrough' ? 'on' : ''}" data-spatial-env="passthrough" title="Câmera Real (Passthrough)">Câmera</button>
+        <button type="button" class="spatial-hz-env-pill spatial-hz-mrdim-pill ${isMrDim ? 'on' : ''}" data-spatial-act="mr-dim" title="Alternar Ambiente MR Escuro ou Normal">${isMrDim ? 'MR Escuro: ON' : 'Escurecer MR'}</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'sunset' ? 'on' : ''}" data-spatial-env="sunset" title="Ambiente Pôr do Sol 360°">Sunset</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'lagoon' ? 'on' : ''}" data-spatial-env="lagoon" title="Ambiente Lagoa 360°">Lagoon</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'dark' ? 'on' : ''}" data-spatial-env="dark" title="Ambiente Escuro 360°">Dark</button>
@@ -2152,6 +2162,10 @@ function buildSpatialLauncherDom() {
       paintSpatialLauncher();
     } else if (act === 'env') {
       environments();
+    } else if (act === 'mr-dim') {
+      setMrDim(!S.mrDim);
+      paintSpatialLauncher();
+      toast(S.mrDim ? 'Ambiente MR: Escuro' : 'Ambiente MR: Normal');
     } else if (act === 'close') {
       setSpatialLauncherMode(false);
     }
@@ -2179,6 +2193,10 @@ function paintSpatialLauncher() {
   css3d.invalidate?.();
 }
 
+let spatialLauncherGestureSuppressed = false;
+let spatialLauncherGestureForcedVisible = false;
+let lastSpatialAppWinCount = 0;
+
 function syncSpatialLauncherVisibility() {
   if (_syncingSpatialWins) return;
   const spatialWin = wins.find(w => w.id === 'spatial-launcher');
@@ -2193,7 +2211,13 @@ function syncSpatialLauncherVisibility() {
         if (oldWin !== newest) close(oldWin);
       }
     }
-    const shouldHideSpatial = appWins.length > 0;
+    if (appWins.length !== lastSpatialAppWinCount) {
+      // Abrir ou fechar um app limpa o override manual do gesto para manter o fluxo automático padrão
+      spatialLauncherGestureSuppressed = false;
+      spatialLauncherGestureForcedVisible = false;
+      lastSpatialAppWinCount = appWins.length;
+    }
+    const shouldHideSpatial = spatialLauncherGestureSuppressed || (appWins.length > 0 && !spatialLauncherGestureForcedVisible);
     if (spatialWin.hidden !== shouldHideSpatial) {
       spatialWin.setHidden(shouldHideSpatial);
       css3d.invalidate?.();
@@ -2208,6 +2232,43 @@ on('env', () => {
   if (winBody('spatial-launcher')) paintSpatialLauncher();
   if (winBody('fist-menu')) paintFistQuickMenu();
 });
+on('mr-dim', () => {
+  if (winBody('spatial-launcher')) paintSpatialLauncher();
+  if (winBody('fist-menu')) paintFistQuickMenu();
+});
+
+export function toggleSpatialAndDockFromGesture() {
+  if (S.spatialLauncher || wins.some(w => w.id === 'spatial-launcher')) {
+    let spWin = wins.find(w => w.id === 'spatial-launcher');
+    if (!spWin) {
+      S.spatialLauncher = 1;
+      spWin = spatialLauncherApp();
+    }
+    const nextHidden = !spWin.hidden;
+    spatialLauncherGestureSuppressed = nextHidden;
+    spatialLauncherGestureForcedVisible = !nextHidden;
+    spWin.setHidden(nextHidden);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    toast(nextHidden ? 'Spatial App ocultado' : 'Spatial App exibido');
+    return !nextHidden;
+  }
+  const dockNode = document.querySelector('.dock');
+  const isDockHidden = !dockNode || dockNode.hidden || getComputedStyle(dockNode).display === 'none';
+  if (isDockHidden) {
+    setDockHidden(false);
+    setDockVisible(true);
+    toast('Dock exibida');
+  } else {
+    setDockVisible(false);
+    setDockHidden(true);
+    toast('Dock ocultada');
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return isDockHidden;
+}
+window.nextvrToggleSpatialAndDockFromGesture = toggleSpatialAndDockFromGesture;
 
 function spatialLauncherApp() {
   const existing = wins.find(w => w.id === 'spatial-launcher');
@@ -2270,6 +2331,14 @@ function buildFistQuickMenuDom() {
           <small>Abrir painel completo de ambientes 360°</small>
         </div>
       </button>
+
+      <button type="button" class="fist-menu-btn ${S.mrDim ? 'fist-menu-btn--primary' : ''}" data-fist-act="mr-dim">
+        ${icon('camera')}
+        <div>
+          <strong>Ambiente MR: ${S.mrDim ? 'Escuro (Ativo)' : 'Normal'}</strong>
+          <small>Escurecer o ambiente real em volta dos apps flutuantes</small>
+        </div>
+      </button>
     </div>
 
     <div class="fist-menu-env-section">
@@ -2325,15 +2394,12 @@ function buildFistQuickMenuDom() {
     } else if (act === 'environments') {
       close('fist-menu');
       environments();
+    } else if (act === 'mr-dim') {
+      setMrDim(!S.mrDim);
+      paintFistQuickMenu();
+      toast(S.mrDim ? 'Ambiente MR: Escuro' : 'Ambiente MR: Normal');
     } else if (act === 'toggle-dock') {
-      if (S.spatialLauncher) {
-        const spWin = wins.find(w => w.id === 'spatial-launcher');
-        if (spWin) spWin.setHidden(!spWin.hidden);
-      } else {
-        const nextHidden = !document.querySelector('.dock')?.hidden;
-        setDockHidden(nextHidden);
-        setDockVisible(!nextHidden);
-      }
+      toggleSpatialAndDockFromGesture();
       close('fist-menu');
     } else if (act === 'toggle-spatial') {
       close('fist-menu');
@@ -2730,6 +2796,7 @@ window.nextvrEnterWorkspace = rawSettings => {
       if (parsed.spatialLauncher !== undefined) S.spatialLauncher = parsed.spatialLauncher ? 1 : 0;
       if (parsed.dockSnapSlot !== undefined) S.dockSnapSlot = parsed.dockSnapSlot ? 1 : 0;
       if (parsed.fingerTouch !== undefined) S.fingerTouch = parsed.fingerTouch ? 1 : 0;
+      if (parsed.mrDim !== undefined) setMrDim(!!parsed.mrDim);
       if (parsed.sixdof !== undefined) {
         S.sixdof = parsed.sixdof ? 1 : 0;
         if (!S.sixdof) SixDof.reset();

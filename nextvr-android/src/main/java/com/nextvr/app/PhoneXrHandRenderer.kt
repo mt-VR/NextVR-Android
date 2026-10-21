@@ -77,6 +77,7 @@ class PhoneXrHandRenderer {
         val wrist=FloatArray(2)
         val knuckle=FloatArray(2)
         var touching=false
+        var blueOutline=false
     }
     private val meshPool=ArrayList<Mesh>()
     private var meshes=emptyList<Mesh>()
@@ -190,6 +191,7 @@ class PhoneXrHandRenderer {
                     (tObj?.optBoolean("direct") == true) ||
                     (tObj?.optBoolean("down") == true) ||
                     (tObj?.optJSONArray("end") != null)
+                m.blueOutline = (tObj?.optBoolean("blueOutline") == true)
             }
             drawHandSkeletons(position,fade)
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
@@ -286,8 +288,11 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             val isOutline = mesh.color[0] > .5f
             GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
             if (isOutline) {
-                val alpha = if (mesh.touching) .96f else minOf(.92f, mesh.color[3] * 1.28f)
-                GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],alpha*fade)
+                val alpha = if (mesh.blueOutline) .98f else if (mesh.touching) .96f else minOf(.92f, mesh.color[3] * 1.28f)
+                val cr = if (mesh.blueOutline) .23f else mesh.color[0]
+                val cg = if (mesh.blueOutline) .62f else mesh.color[1]
+                val cb = if (mesh.blueOutline) 1.0f else mesh.color[2]
+                GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
             } else {
                 val r = if (mesh.touching) TOUCH_FILL_R else IDLE_FILL_R
                 val g = if (mesh.touching) TOUCH_FILL_G else IDLE_FILL_G

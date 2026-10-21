@@ -850,6 +850,8 @@ function box(el, root) {
 let winBrowserHoldTimer = null;
 let winHoldConsumed = false;
 let pinchOverridePt = null;
+let pinchDirectConsumed = false;
+const handOverAppByHand = new Map();
 function clearWinBrowserHold() {
   if (winBrowserHoldTimer) {
     clearTimeout(winBrowserHoldTimer);
@@ -857,9 +859,28 @@ function clearWinBrowserHold() {
   }
 }
 
-function resolveDirectPinchPoint() {
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env]';
+
+function findDirectAppPoint(cx, cy) {
+  const dk = dockTest(cx, cy);
+  if (dk) {
+    const el = dk.popupOpt ? dk.el : dockBtns[dk.i];
+    return { x: cx, y: cy, el: el || null, isDock: true };
+  }
+  const hit = hitAt(cx, cy);
+  if (hit && !hit.handle && !hit.resize) {
+    const picked = pickInElement(hit.win.el, hit.u, hit.v);
+    const matched = picked?.closest?.(DIRECT_PINCH_SEL) || null;
+    if (matched) {
+      return { x: cx, y: cy, el: matched, hit };
+    }
+  }
+  return null;
+}
+
+function resolveDirectPinchPoint(handArg = null) {
   if (S.pinchOnApp === 0) return null;
-  const h = cursor.hand;
+  const h = handArg || cursor.hand;
   const p = h?.points;
   if (!p || p.length < 26) return null;
   if (Math.hypot(p[18] - p[15], p[19] - p[16]) <= 0.008 || Math.hypot(p[24] - p[18], p[25] - p[19]) <= 0.008) {
@@ -867,31 +888,79 @@ function resolveDirectPinchPoint() {
   }
   const sx = Number(lastPhonePacket?.scaleX) || 1;
   const sy = Number(lastPhonePacket?.scaleY) || 1;
-  const candidates = [];
+  const basePts = [];
   if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
-    candidates.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
+    basePts.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
   }
   if (Number.isFinite(p[24]) && Number.isFinite(p[25])) {
-    candidates.push([(p[24] - 0.5) * sx + 0.5, (p[25] - 0.5) * sy + 0.5]);
+    basePts.push([(p[24] - 0.5) * sx + 0.5, (p[25] - 0.5) * sy + 0.5]);
   }
-  for (const [cx, cy] of candidates) {
-    const dk = dockTest(cx, cy);
-    if (dk) return { x: cx, y: cy };
-    const hit = hitAt(cx, cy);
-    if (hit && !hit.handle && !hit.resize) {
-      const picked = pickInElement(hit.win.el, hit.u, hit.v);
-      if (picked?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env]')) {
-        return { x: cx, y: cy };
+  if (p.length >= 30 && Number.isFinite(p[15]) && Number.isFinite(p[16]) && Number.isFinite(p[27]) && Number.isFinite(p[28])) {
+    basePts.push([((p[15] + p[27]) * 0.5 - 0.5) * sx + 0.5, ((p[16] + p[28]) * 0.5 - 0.5) * sy + 0.5]);
+  }
+  if (Array.isArray(h.palm) && h.palm.length >= 2) {
+    basePts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
+  }
+  const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0]];
+  for (const [bx, by] of basePts) {
+    for (const [ox, oy] of offsets) {
+      const found = findDirectAppPoint(bx + ox, by + oy);
+      if (found) return found;
+    }
+  }
+  const recent = handOverAppByHand.get(h?.id || 'right');
+  if (recent && (performance.now() - recent.at <= 380) && recent.el && document.body.contains(recent.el)) {
+    return { x: recent.x, y: recent.y, el: recent.el };
+  }
+  return null;
+}
+
+let lastDragScrollPt = null;
+function scrollDomContainerAt(win, u, v, dxNorm, dyNorm) {
+  if (!win?.el) return false;
+  const picked = pickInElement(win.el, u, v);
+  let node = picked;
+  let scrolled = false;
+  while (node && node !== document.body) {
+    if (node instanceof HTMLElement) {
+      const canV = node.scrollHeight > node.clientHeight + 2;
+      const canH = node.scrollWidth > node.clientWidth + 2;
+      if (canV && Math.abs(dyNorm) > 1e-4) {
+        node.scrollTop -= dyNorm * 1650;
+        scrolled = true;
+      }
+      if (canH && Math.abs(dxNorm) > 1e-4) {
+        node.scrollLeft -= dxNorm * 1650;
+        scrolled = true;
+      }
+      if (scrolled) break;
+    }
+    if (node === win.el) break;
+    node = node.parentElement;
+  }
+  if (!scrolled) {
+    const track = win.el.querySelector('[data-spatial-scroll-track], .spatial-honeycomb, .st-quest-main, .st-main, .lib-grid, .set-body, .win-body');
+    if (track instanceof HTMLElement) {
+      if (track.scrollHeight > track.clientHeight + 2 && Math.abs(dyNorm) > 1e-4) {
+        track.scrollTop -= dyNorm * 1650;
+        scrolled = true;
+      }
+      if (track.scrollWidth > track.clientWidth + 2 && Math.abs(dxNorm) > 1e-4) {
+        track.scrollLeft -= dxNorm * 1650;
+        scrolled = true;
       }
     }
   }
-  return null;
+  if (scrolled) css3d.invalidate?.();
+  return scrolled;
 }
 
 on('pinchdown', () => {
   clearWinBrowserHold();
   winHoldConsumed = false;
   pinchOverridePt = null;
+  pinchDirectConsumed = false;
+  lastDragScrollPt = { x: cursor.x, y: cursor.y };
   let px = cursor.x, py = cursor.y;
   let h = hitAt(px, py);
   let kb = kbProbe(px, py);
@@ -905,16 +974,26 @@ on('pinchdown', () => {
     (kb && kb.button) ||
     (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
   );
-  if (!hasDirectHit) {
-    const alt = resolveDirectPinchPoint();
-    if (alt) {
-      pinchOverridePt = alt;
-      px = alt.x;
-      py = alt.y;
-      h = hitAt(px, py);
-      kb = kbProbe(px, py);
-      dockGrab = dockGrabTest(px, py);
-      dk = dockTest(px, py);
+  const alt = (S.fingerTouch !== 0 || !hasDirectHit) ? resolveDirectPinchPoint() : null;
+  if (alt) {
+    pinchOverridePt = alt;
+    px = alt.x;
+    py = alt.y;
+    h = hitAt(px, py);
+    kb = kbProbe(px, py);
+    dockGrab = dockGrabTest(px, py);
+    dk = dockTest(px, py);
+    const isBrowserBtn = Boolean(
+      alt.el?.dataset?.id === 'browser' ||
+      alt.el?.dataset?.spatialBuiltin === 'browser' ||
+      alt.el?.dataset?.app === 'browser'
+    );
+    if (!isBrowserBtn && alt.el && !h?.resize && !h?.handle && !dockGrab && !(kb && kb.button)) {
+      if (triggerFingerTouchTap(alt.x, alt.y, alt.el)) {
+        pinchDirectConsumed = true;
+        fingerPokeFlashUntil = performance.now() + 220;
+        return;
+      }
     }
   }
   // The dock is intentionally in front of app windows. The keyboard follows the same rule: whoever
@@ -951,13 +1030,30 @@ on('pinchdown', () => {
 });
 on('pinchsample', () => {
   if (kbHeld) kbHold(performance.now());
-  if (pendingPress && cursor.mode === 'drag') {
+  if (pendingPress && cursor.mode === 'drag' && !pinchOverridePt?.el) {
     clickThrough(pendingPress.hit, 'down');
     pendingPress = null;
+  }
+  if (cursor.mode === 'drag' && !pinchOverridePt?.el && !resizing.win && !drag.win && !dockDrag.start) {
+    const prev = lastDragScrollPt || { x: cursor.x, y: cursor.y };
+    const dx = cursor.x - prev.x;
+    const dy = cursor.y - prev.y;
+    lastDragScrollPt = { x: cursor.x, y: cursor.y };
+    const hit = hitAt(cursor.x, cursor.y);
+    if (hit && !hit.handle && !hit.resize) {
+      scrollDomContainerAt(hit.win, hit.u, hit.v, dx, dy);
+    }
   }
 });
 on('pinchup', () => {
   clearWinBrowserHold();
+  lastDragScrollPt = null;
+  if (pinchDirectConsumed) {
+    pinchDirectConsumed = false;
+    pinchOverridePt = null;
+    pendingPress = null;
+    return;
+  }
   const ov = pinchOverridePt;
   pinchOverridePt = null;
   const px = ov ? ov.x : cursor.x;
@@ -973,6 +1069,11 @@ on('pinchup', () => {
   if (dockArmed >= 0 || dockArmedPopupOpt || dockHoldConsumed) {
     if (ov) { cursor.x = px; cursor.y = py; }
     dockPinch('up');
+    return;
+  }
+  if (ov?.el && document.body.contains(ov.el)) {
+    pendingPress = null;
+    triggerFingerTouchTap(ov.x, ov.y, ov.el);
     return;
   }
   if (pendingPress && cursor.mode === 'drag') {
@@ -1466,27 +1567,27 @@ function placeDock() {
 }
 
 /* =================== teclado flutuante (estilo Meta Quest, deitado) =================== */
-/* Layout Meta Quest: fileira de números, QWERTY com Ç, shift com trava de 2 toques,
- * espaço largo e utilitários (idioma, emoji, ditado, fechar) na fileira inferior. */
+/* Layout Meta Quest (Screenshot_2026-10-20-19-10-52-394): 4 fileiras com números/símbolos sobrescritos,
+ * tecla Enter branca arredondada à direita, Shift à esquerda e barra inferior com Ocultar, !123, Emoji, Espaço, Idioma e Ajustes. */
 const ROWS = [
-  ['1','2','3','4','5','6','7','8','9','0',{ k:'⌫', cls:'wide', icon:'backspace', label:'Apagar' }],
-  ['q','w','e','r','t','y','u','i','o','p'],
-  ['a','s','d','f','g','h','j','k','l','ç',{ k:'⏎', cls:'enter', icon:'enter', label:'Enter' }],
-  [{ k:'⇧', cls:'wide', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.'],
-  [{ k:'@lang', cls:'util', icon:'globe', label:'Idioma' },
+  ['q','w','e','r','t','y','u','i','o','p',{ k:'⌫', cls:'wide kb-bksp', icon:'backspace', label:'Apagar' }],
+  ['a','s','d','f','g','h','j','k','l',{ k:'⏎', cls:'enter', icon:'enter', label:'Enter' }],
+  [{ k:'⇧', cls:'wide kb-shift', icon:'shift', label:'Shift' },'z','x','c','v','b','n','m',',','.'],
+  [{ k:'@close', cls:'util kb-hide', icon:'keyboard', label:'Fechar teclado' },
+   { k:'@sym', cls:'util kb-sym', lbl:'!123', label:'Números e símbolos' },
    { k:'@emoji', cls:'util', icon:'smile', label:'Emoji' },
-   { k:' ', cls:'space', lbl:'espaço' },
-   { k:'@mic', cls:'util', icon:'mic', label:'Ditado' },
-   { k:'@close', cls:'util', icon:'keyboard', label:'Fechar teclado' }],
+   { k:' ', cls:'space', lbl:' ' },
+   { k:'@lang', cls:'util', icon:'globe', label:'Idioma' },
+   { k:'@settings', cls:'util', icon:'settings', label:'Configurações' }],
 ];
 const KEY_SUBS = {
   q:'1', w:'2', e:'3', r:'4', t:'5', y:'6', u:'7', i:'8', o:'9', p:'0',
-  a:'@', s:'#', d:'$', f:'%', g:'&', h:'*', j:'-', k:'+', l:'(', 'ç':')',
-  z:'!', x:'"', c:"'", v:':', b:';', n:'/', m:'?',
+  a:'@', s:'#', d:'$', f:'&', g:'*', h:'(', j:')', k:"'", l:'"',
+  z:'%', x:'-', c:'+', v:'=', b:'/', n:';', m:':', ',':'!', '.':'?',
 };
 const EMOJI_CYCLE = ['🙂','😀','😂','❤️','👍','🙏','😍','😅'];
 let emojiIndex = 0;
-let kbObj = null, kbHit = null, kbTarget = null, kbOwner = null, kbShift = false, kbShiftLock = false;
+let kbObj = null, kbHit = null, kbTarget = null, kbOwner = null, kbShift = false, kbShiftLock = false, kbSym = false;
 let kbHidden = false;
 /**
  * O motor de digitacao (web/src/typing.js) entra por index.html antes deste bundle e e injetado
@@ -1541,7 +1642,7 @@ export function keyboard(on_, field) {
     // Solta a tecla segurada ANTES de esquecer o alvo: o keyup é o que faz um jogo parar de andar.
     kbRelease();
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
-    kbTarget = null; kbOwner = null; kbShift = kbShiftLock = false;
+    kbTarget = null; kbOwner = null; kbShift = kbShiftLock = kbSym = false;
     kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
     css3d.invalidate?.();
     css3d.render?.(scene, camera);
@@ -1616,11 +1717,12 @@ function press(k, btn, phase, upShift) {
   // fossem enviados, e `KeyboardEvent.key = '⇧'` nao e o Shift de um teclado de verdade. O shift
   // ja viaja junto de cada tecla, no flag.
   const writes = k !== '⇧' && !k.startsWith('@');
+  const outKey = (writes && kbSym && KEY_SUBS[k]) ? KEY_SUBS[k] : k;
   if (phase === KEY_UP) {
     if (btn) btn.classList.remove('hot');
     // O keyup sai com o MESMO shift que o keydown, senão um jogo que compara os dois eventos vê a
     // tecla mudar de mão no meio do aperto.
-    if (writes) type(k, k, !!upShift, KEY_UP);
+    if (writes) type(outKey, outKey, !!upShift, KEY_UP);
     return;
   }
   if (phase === KEY_DOWN) {
@@ -1628,11 +1730,12 @@ function press(k, btn, phase, upShift) {
     if (btn) btn.classList.add('hot');
     if (k === '@close') { keyboard(false); return; }
     if (k === '⇧') { shiftCycle(); return; }
-    if (k === '@lang') return;
+    if (k === '@sym') { kbSym = !kbSym; paintShift(); return; }
+    if (k === '@lang' || k === '@settings') return;
     if (k === '@mic') { toast(t('micOff')); return; }
     if (k === '@emoji') { type(k, EMOJI_CYCLE[emojiIndex++ % EMOJI_CYCLE.length], false, KEY_DOWN); return; }
   }
-  type(k, k, k === '⌫' || k === '⏎' ? false : undefined, phase);
+  type(outKey, outKey, outKey === '⌫' || outKey === '⏎' || kbSym ? false : undefined, phase);
 }
 
 /**
@@ -1662,9 +1765,19 @@ function paintShift() {
   if (!kbObj) return;
   for (const b of kbObj.element.querySelectorAll('[data-k="⇧"]'))
     b.dataset.state = !kbShift ? '' : kbShiftLock ? 'lock' : 'once';
+  for (const b of kbObj.element.querySelectorAll('[data-k="@sym"]')) {
+    b.textContent = kbSym ? 'ABC' : '!123';
+    b.dataset.state = kbSym ? 'lock' : '';
+  }
   for (const b of kbObj.element.querySelectorAll('[data-k]')) {
     const k = b.dataset.k;
-    if (k.length === 1 && /[a-zç]/i.test(k)) b.textContent = kbShift ? k.toUpperCase() : k.toLowerCase();
+    if (kbSym && KEY_SUBS[k]) {
+      b.textContent = KEY_SUBS[k];
+      b.dataset.sub = k;
+    } else if (k.length === 1 && /[a-zç,.]/i.test(k)) {
+      b.textContent = /[a-zç]/i.test(k) ? (kbShift ? k.toUpperCase() : k.toLowerCase()) : k;
+      if (KEY_SUBS[k]) b.dataset.sub = KEY_SUBS[k];
+    }
   }
 }
 
@@ -2202,17 +2315,96 @@ function handBoneSpan2D(p) {
   );
 }
 
+const fingerScrollByHand = new Map();
+
+function applyFingerTouchScroll(scrollSt, screenX, screenY, stepDx, stepDy) {
+  const hit = hitAt(screenX, screenY) || scrollSt.winHit;
+  if (!hit || !hit.win || hit.win.hidden) return false;
+  scrollSt.winHit = hit;
+  const winEl = hit.win.el;
+  const picked = pickInElement(winEl, hit.u, hit.v);
+  const nativeSurf = picked?.closest?.('[data-native-browser],[data-native-app]');
+  if (nativeSurf) {
+    if (!scrollSt.nativeDownSent) {
+      scrollSt.nativeDownSent = true;
+      handTouch(hit, 0);
+    } else {
+      handTouch(hit, 2);
+    }
+    return true;
+  }
+  let vEl = null, hEl = null;
+  let node = picked;
+  while (node && node !== document.body) {
+    if (node instanceof HTMLElement) {
+      if (!vEl && node.scrollHeight > node.clientHeight + 2) vEl = node;
+      if (!hEl && node.scrollWidth > node.clientWidth + 2) hEl = node;
+      if (vEl && hEl) break;
+    }
+    if (node === winEl) break;
+    node = node.parentElement;
+  }
+  if (!vEl || !hEl) {
+    const candidates = winEl.querySelectorAll('[data-spatial-scroll-track], .spatial-honeycomb, .st-quest-main, .st-main, .lib-grid, .set-body, .win-body');
+    for (const c of candidates) {
+      if (c instanceof HTMLElement) {
+        if (!vEl && c.scrollHeight > c.clientHeight + 2) vEl = c;
+        if (!hEl && c.scrollWidth > c.clientWidth + 2) hEl = c;
+      }
+    }
+  }
+  let didScroll = false;
+  if (vEl && Math.abs(stepDy) > 1e-4) {
+    if (scrollSt.dirY === 0) {
+      // Se a página já está no topo (scrollTop <= 4) e o utilizador arrasta o dedo para baixo ("arrastar pra baixo"),
+      // rola para baixo (+1); caso contrário usa arrasto natural (-1) para subir/descer livremente.
+      scrollSt.dirY = (vEl.scrollTop <= 4 && (screenY - scrollSt.startScreenY) > 0.012) ? 1 : -1;
+    }
+    vEl.scrollTop += scrollSt.dirY * stepDy * 1850;
+    didScroll = true;
+  }
+  if (hEl && Math.abs(stepDx) > 1e-4) {
+    if (scrollSt.dirX === 0) {
+      scrollSt.dirX = (hEl.scrollLeft <= 4 && (screenX - scrollSt.startScreenX) > 0.012) ? 1 : -1;
+    }
+    hEl.scrollLeft += scrollSt.dirX * stepDx * 1850;
+    didScroll = true;
+  }
+  if (didScroll) css3d.invalidate?.();
+  return didScroll;
+}
+
+function endFingerTouchScroll(handId) {
+  const st = fingerScrollByHand.get(handId);
+  if (st?.nativeDownSent && st.winHit) {
+    handTouch(st.winHit, 1);
+  }
+  fingerScrollByHand.delete(handId);
+}
+
 function updateFingerPoke(h, packet, nowMs) {
   if (S.fingerTouch === 0) {
     fingerPokeByHand.delete(h?.id);
+    endFingerTouchScroll(h?.id);
     setFingerHoverEl(null);
     return false;
   }
   const p = h?.points;
   const currentSt = fingerPokeByHand.get(h?.id);
 
+  // Atualiza sempre a memória do app sob a mão para que a "pinça sem raio" abra o app ao fazer pinça encima dele
+  if (p && p.length >= 26 && Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008) {
+    const hoverTarget = resolveFingerTarget(h, packet);
+    if (hoverTarget?.el) {
+      handOverAppByHand.set(h.id || 'right', { x: hoverTarget.x, y: hoverTarget.y, el: hoverTarget.el, at: nowMs });
+    }
+  }
+
   if (!isIndexFingerPointing(h)) {
+    const wasScrolling = fingerScrollByHand.get(h?.id)?.scrolling;
+    endFingerTouchScroll(h?.id);
     if (
+      !wasScrolling &&
       currentSt &&
       !currentSt.latched &&
       !h?.pinching &&
@@ -2239,6 +2431,49 @@ function updateFingerPoke(h, packet, nowMs) {
   }
   const tipX = (p && p.length >= 26) ? p[24] : 0.5;
   const tipY = (p && p.length >= 26) ? p[25] : 0.5;
+  const sx = Number(packet?.scaleX) || 1;
+  const sy = Number(packet?.scaleY) || 1;
+  const screenX = (tipX - 0.5) * sx + 0.5;
+  const screenY = (tipY - 0.5) * sy + 0.5;
+
+  // Rolar para baixo/cima ou para os lados usando o toque sem pinça (arrastar a mão/dedo indicador)
+  let scrollSt = fingerScrollByHand.get(h.id);
+  const curWinHit = hitAt(screenX, screenY) || (Array.isArray(h.aim) && h.aim.length >= 2 ? hitAt(screenPoint(h.aim).x, screenPoint(h.aim).y) : null);
+  if (!scrollSt) {
+    scrollSt = {
+      startTipX: tipX,
+      startTipY: tipY,
+      startWristX: p ? p[0] : tipX,
+      startWristY: p ? p[1] : tipY,
+      startScreenX: screenX,
+      startScreenY: screenY,
+      lastScreenX: screenX,
+      lastScreenY: screenY,
+      dirX: 0,
+      dirY: 0,
+      scrolling: false,
+      nativeDownSent: false,
+      winHit: curWinHit,
+    };
+    fingerScrollByHand.set(h.id, scrollSt);
+  } else {
+    const stepDx = screenX - scrollSt.lastScreenX;
+    const stepDy = screenY - scrollSt.lastScreenY;
+    scrollSt.lastScreenX = screenX;
+    scrollSt.lastScreenY = screenY;
+    if (curWinHit) scrollSt.winHit = curWinHit;
+    const tipMove = Math.hypot(tipX - scrollSt.startTipX, tipY - scrollSt.startTipY);
+    const wristMove = p ? Math.hypot(p[0] - scrollSt.startWristX, p[1] - scrollSt.startWristY) : 0;
+    if (!scrollSt.scrolling && scrollSt.winHit && ((tipMove >= 0.022 && wristMove >= 0.012) || tipMove >= 0.036)) {
+      scrollSt.scrolling = true;
+    }
+    if (scrollSt.scrolling) {
+      applyFingerTouchScroll(scrollSt, screenX, screenY, stepDx, stepDy);
+      if (currentSt) currentSt.latched = true;
+      setFingerHoverEl(null);
+      return true;
+    }
+  }
   const mcpY = (p && p.length >= 17) ? p[16] : tipY;
   const fingerLift = mcpY - tipY; // aumenta quando o dedo indicador se levanta em relação ao nó (MCP)
   const dTip = (p && p.length >= 26) ? Math.hypot(p[24] - p[0], p[25] - p[1]) : 0.1;
@@ -2450,6 +2685,173 @@ function stateSpan(st, boneSpan) {
   return (st.baseSpan - boneSpan) / st.baseSpan;
 }
 
+/* =================== Gesto da Mão Direita (17925923443225481183077146402614.jpg) -> Bolinha com Logo IMG_20261007_215701.png + Contorno Azul =================== */
+let bolinhaBubbleEl = null;
+let bolinhaHideTimer = null;
+let rightHandBolinhaState = {
+  frames: 0,
+  armed: false,
+  lastArmedAt: 0,
+  lastTriggerAt: -2000,
+};
+
+function isRightHandBolinhaGesture(h) {
+  if (!h || h.left || h.predicted || h.pinching || h.fist) return false;
+  if (h.id && h.id !== 'right') return false;
+  const p = h.points;
+  if (!p || p.length < 63) return false;
+  const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
+  // Ignora mãos sintéticas de testes que têm juntas colapsadas no mesmo ponto
+  if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
+  const palmLen = Math.max(0.042, dist(0, 9));
+  // Indicador (8) esticado para cima
+  const indexExtended = dist(0, 8) > dist(0, 6) * 1.13 && dist(0, 8) > palmLen * 1.28;
+  // Polegar (4) aberto e afastado do indicador formando o V/L da foto 17925923443225481183077146402614.jpg
+  const thumbExtended = dist(1, 4) > dist(1, 2) * 1.38 && dist(4, 8) > palmLen * 0.48 && dist(4, 5) > palmLen * 0.34;
+  // Médio (12), Anelar (16) e Mindinho (20) dobrados na palma
+  const midCurled = dist(0, 12) < dist(0, 10) * 1.12 || dist(0, 12) < dist(0, 8) * 0.80;
+  const ringCurled = dist(0, 16) < dist(0, 14) * 1.12 || dist(0, 16) < dist(0, 8) * 0.78;
+  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.14 || dist(0, 20) < dist(0, 8) * 0.76;
+  return indexExtended && thumbExtended && midCurled && ringCurled && pinkyCurled;
+}
+
+function isRightHandClosedFromBolinha(h) {
+  if (!h || h.left || h.predicted) return false;
+  const p = h.points;
+  if (!p || p.length < 63) return false;
+  const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
+  if (dist(5, 6) < 0.008) return false;
+  const palmLen = Math.max(0.042, dist(0, 9));
+  const midCurled = dist(0, 12) < dist(0, 10) * 1.14;
+  const ringCurled = dist(0, 16) < dist(0, 14) * 1.14;
+  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.16;
+  if (!(midCurled && ringCurled && pinkyCurled)) return false;
+  const indexClosed = h.fist === true || dist(0, 8) < dist(0, 6) * 1.10;
+  const fingersClosedTogether = h.pinching === true || dist(4, 8) < palmLen * 0.35;
+  return indexClosed || fingersClosedTogether;
+}
+
+function showBolinhaBubble(h, packet, fired = false) {
+  if (bolinhaHideTimer) {
+    clearTimeout(bolinhaHideTimer);
+    bolinhaHideTimer = null;
+  }
+  const hud = document.getElementById('hud') || document.body;
+  if (!bolinhaBubbleEl || !document.body.contains(bolinhaBubbleEl)) {
+    bolinhaBubbleEl = document.createElement('div');
+    bolinhaBubbleEl.id = 'gun-gesture-indicator';
+    bolinhaBubbleEl.className = 'gun-logo-bubble';
+    bolinhaBubbleEl.innerHTML = `<img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false"/>`;
+    hud.appendChild(bolinhaBubbleEl);
+  }
+  const p = h.points;
+  const sx = Number(packet?.scaleX) || 1;
+  const sy = Number(packet?.scaleY) || 1;
+  // Posiciona a bolinha logo acima das pontas do indicador/polegar da mão direita (como na Screenshot_2026-10-21-01-51-02-663)
+  const rawX = (p && p.length >= 26) ? (p[24] * 0.65 + p[12] * 0.35) : (h.palm?.[0] ?? 0.55);
+  const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.055) : ((h.palm?.[1] ?? 0.5) - 0.08);
+  const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
+  const normY = Math.max(0.08, Math.min(0.90, (rawY - 0.5) * sy + 0.5));
+  bolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
+  bolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
+  bolinhaBubbleEl.hidden = false;
+  bolinhaBubbleEl.classList.toggle('fired', !!fired);
+  bolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
+}
+
+function hideBolinhaBubble(delayMs = 0) {
+  if (bolinhaHideTimer) {
+    clearTimeout(bolinhaHideTimer);
+    bolinhaHideTimer = null;
+  }
+  if (!bolinhaBubbleEl) return;
+  if (delayMs > 0) {
+    bolinhaHideTimer = setTimeout(() => {
+      bolinhaHideTimer = null;
+      bolinhaBubbleEl?.remove();
+      bolinhaBubbleEl = null;
+      css3d.invalidate?.();
+    }, delayMs);
+  } else {
+    bolinhaBubbleEl.remove();
+    bolinhaBubbleEl = null;
+  }
+}
+
+function updateRightHandBolinhaGesture(packet, nowMs) {
+  if (S.gunGesture === 0) {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(0);
+    return false;
+  }
+  const gOv = document.getElementById('gorilla-overlay');
+  if (gOv && gOv.style.display && gOv.style.display !== 'none') {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(0);
+    return false;
+  }
+  if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden) || document.querySelector('.entry-menu-root')) {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(0);
+    return false;
+  }
+  if (drag.win || resizing.win || dockDrag.start) {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(0);
+    return false;
+  }
+  const rightHand = (packet?.hands || []).find(h => h && !h.left && (!h.id || h.id === 'right'));
+  if (!rightHand) {
+    if (nowMs - rightHandBolinhaState.lastArmedAt > 240) {
+      rightHandBolinhaState.frames = 0;
+      rightHandBolinhaState.armed = false;
+      hideBolinhaBubble(0);
+    }
+    return false;
+  }
+  if (isRightHandBolinhaGesture(rightHand)) {
+    rightHandBolinhaState.frames += 1;
+    if (rightHandBolinhaState.frames >= 2) {
+      rightHandBolinhaState.armed = true;
+      rightHandBolinhaState.lastArmedAt = nowMs;
+      showBolinhaBubble(rightHand, packet, false);
+      css3d.invalidate?.();
+    }
+    return rightHandBolinhaState.armed;
+  }
+  if (
+    rightHandBolinhaState.armed &&
+    (nowMs - rightHandBolinhaState.lastArmedAt <= 550) &&
+    (nowMs - rightHandBolinhaState.lastTriggerAt >= 850) &&
+    isRightHandClosedFromBolinha(rightHand)
+  ) {
+    rightHandBolinhaState.armed = false;
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.lastTriggerAt = nowMs;
+    fistHoldByHand.delete(rightHand.id || 'right');
+    pinchSuppressed.add(rightHand.id || 'right');
+    packet.consumed.add(rightHand.id || 'right');
+    cancelHandInput();
+    showBolinhaBubble(rightHand, packet, true);
+    hideBolinhaBubble(240);
+    window.nextvrToggleSpatialAndDockFromGesture?.();
+    window.NativeXR?.click?.();
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return true;
+  }
+  if (nowMs - rightHandBolinhaState.lastArmedAt > 220) {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(0);
+  }
+  return false;
+}
+
 /* =================== Gesto de Soco por 2 Segundos (Fechar a mão toda por 2s abre o Menuzinho Rápido) =================== */
 const fistHoldByHand = new Map();
 
@@ -2610,6 +3012,7 @@ on('phonehands', packet => {
   }
   // The grab outline is sticky for a moment: palm noise must not flash the window border.
   const nowMs=performance.now();
+  updateRightHandBolinhaGesture(packet, nowMs);
   updateFistQuickMenu(packet, nowMs);
   // Pinça por 2 segundos com AS DUAS MÃOS: recentra dock / apps flutuantes e janelas abertas para onde estiver olhando, sem bolinha carregando.
   if (!document.documentElement.classList.contains('xr-on') && !wins.some(w => w.id === 'entry-menu' && !w.hidden)) {
@@ -2746,12 +3149,13 @@ onFrame((dt,now)=>{
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl);
+    const blueOutline = Boolean(!h.left && (h.id === 'right' || !h.id) && rightHandBolinhaState.armed && bolinhaBubbleEl && !bolinhaBubbleEl.hidden);
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
     }
-    if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
+    if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
     const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
@@ -2764,7 +3168,7 @@ onFrame((dt,now)=>{
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

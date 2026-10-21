@@ -774,6 +774,59 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const circleLoader = document.getElementById('vr-circle-loader');
       const circleLoaderShown = !!circleLoader && !circleLoader.hidden && !!circleLoader.querySelector('.vr-circle-ring-svg');
 
+      // MR Dim toggle inside Spatial App
+      spatialWin?.querySelector('[data-spatial-act="mr-dim"]')?.click();
+      await new Promise(r => setTimeout(r, 25));
+      const mrDimEnabled = JSON.parse(localStorage.getItem('nextvr.v1')).mrDim === 1 && document.documentElement.dataset.mrDim === '1';
+      spatialWin?.querySelector('[data-spatial-act="mr-dim"]')?.click();
+      await new Promise(r => setTimeout(r, 25));
+
+      // Right-hand V/L gesture (17925923443225481183077146402614.jpg) shows bolinha with nextvr-bolinha-logo.png, and closing fingers toggles spatial-launcher hide/unhide
+      const mkRightVLHand = (closed = false) => {
+        const pts = new Array(63).fill(0);
+        const setPt = (idx, x, y, z = 0) => { pts[idx * 3] = x; pts[idx * 3 + 1] = y; pts[idx * 3 + 2] = z; };
+        for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
+        setPt(0, 0.52, 0.78); // wrist
+        setPt(1, 0.56, 0.70); setPt(2, 0.59, 0.63); setPt(3, 0.61, 0.54);
+        setPt(4, closed ? 0.49 : 0.63, closed ? 0.58 : 0.44); // thumb extended right or closed
+        setPt(5, 0.48, 0.62); setPt(6, 0.46, 0.53); setPt(7, 0.44, 0.45);
+        setPt(8, closed ? 0.48 : 0.42, closed ? 0.58 : 0.37); // index extended up-left or closed
+        // middle, ring, pinky curled into palm
+        setPt(9, 0.50, 0.63); setPt(10, 0.49, 0.55); setPt(11, 0.50, 0.63); setPt(12, 0.51, 0.67);
+        setPt(13, 0.53, 0.64); setPt(14, 0.52, 0.56); setPt(15, 0.53, 0.64); setPt(16, 0.54, 0.68);
+        setPt(17, 0.56, 0.66); setPt(18, 0.55, 0.58); setPt(19, 0.56, 0.66); setPt(20, 0.57, 0.70);
+        return {
+          id: 'right',
+          left: false,
+          pinch: closed ? 0.01 : 0.55,
+          pinching: closed,
+          fist: closed,
+          menuEligible: false,
+          aim: [0, 0],
+          palm: [0.52, 0.64, 0.3],
+          ring: [0.52, 0.64],
+          points: pts,
+        };
+      };
+      window.nextvrHands({ hands: [mkRightVLHand(false)] });
+      window.nextvrHands({ hands: [mkRightVLHand(false)] });
+      const bolinhaEl = document.getElementById('gun-gesture-indicator');
+      const bolinhaShownOnGesture = !!bolinhaEl && !bolinhaEl.hidden && bolinhaEl.querySelector('img')?.getAttribute('src')?.includes('nextvr-bolinha-logo.png');
+      window.nextvrHands({ hands: [mkRightVLHand(true)] });
+      const spatialHiddenByGesture = getComputedStyle(spatialWin).display === 'none';
+      // Unhide again with the same gesture + closing fingers after cooldown
+      const origNow2 = performance.now.bind(performance);
+      let off2 = 1000;
+      performance.now = () => origNow2() + off2;
+      try {
+        window.nextvrHands({ hands: [mkRightVLHand(false)] });
+        window.nextvrHands({ hands: [mkRightVLHand(false)] });
+        window.nextvrHands({ hands: [mkRightVLHand(true)] });
+      } finally {
+        performance.now = origNow2;
+      }
+      const spatialUnhiddenByGesture = getComputedStyle(spatialWin).display !== 'none';
+
       return {
         pillTexts,
         hasBrowseAll,
@@ -791,6 +844,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         hasSpatialEnvOptions,
         spatialEnvSwitched,
         circleLoaderShown,
+        mrDimEnabled,
+        bolinhaShownOnGesture,
+        spatialHiddenByGesture,
+        spatialUnhiddenByGesture,
       };
     });
     assert.deepEqual(
@@ -806,12 +863,16 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.beatVrMode, true, 'Launching Beat Saber immediately enters VR mode');
     assert.equal(questAndFeatures.robloxBlackEnvActive, true, 'Launching Roblox turns the surrounding environment black with floating Roblox window');
     assert.equal(questAndFeatures.robloxBlackEnvRestored, true, 'Closing Roblox restores the normal environment');
-    assert.equal(questAndFeatures.noGunBubble, true, 'Floating gun gesture bolinha is completely removed from gameplay');
+    assert.equal(questAndFeatures.noGunBubble, true, 'Floating gun gesture bolinha is not active during closed-fist gesture');
     assert.equal(questAndFeatures.fistMenuOpened, true, 'Holding a closed fist (soco) for 2 seconds opens the Quick Menu with Recenter Dock and Virtual Environment options');
     assert.equal(questAndFeatures.envChangedFromFistMenu, true, 'Quick Menu switches the virtual environment immediately');
     assert.equal(questAndFeatures.hasSpatialEnvOptions, true, 'Floating Apps (spatial-launcher) includes Virtual Environment options');
     assert.equal(questAndFeatures.spatialEnvSwitched, true, 'Selecting an environment inside Floating Apps switches the active environment');
     assert.equal(questAndFeatures.circleLoaderShown, true, 'Circular loading transition appears for environment loading');
+    assert.equal(questAndFeatures.mrDimEnabled, true, 'MR Dim option darkens the MR environment around apps');
+    assert.equal(questAndFeatures.bolinhaShownOnGesture, true, 'Right-hand V/L gesture displays the bolinha with nextvr-bolinha-logo.png');
+    assert.equal(questAndFeatures.spatialHiddenByGesture, true, 'Closing fingers from the right-hand gesture hides the Spatial App');
+    assert.equal(questAndFeatures.spatialUnhiddenByGesture, true, 'Repeating the right-hand gesture and closing fingers unhides the Spatial App');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

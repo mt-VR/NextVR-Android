@@ -21,6 +21,7 @@ const DEF = {
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
+  mrDim: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -609,6 +610,22 @@ export function setEnvironment(id) {
 
 /** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: pôr do sol). */
 export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
+
+/** Liga/desliga o escurecimento do ambiente MR (câmera traseira escura em volta dos apps). */
+export function setMrDim(enabled) {
+  S.mrDim = enabled ? 1 : 0;
+  save();
+  if (typeof document !== 'undefined') {
+    if (S.mrDim) document.documentElement.dataset.mrDim = '1';
+    else delete document.documentElement.dataset.mrDim;
+  }
+  window.NativeXR?.setMrDim?.(!!S.mrDim);
+  emit('mr-dim', S.mrDim);
+}
+if (typeof document !== 'undefined' && S.mrDim) {
+  document.documentElement.dataset.mrDim = '1';
+  window.NativeXR?.setMrDim?.(true);
+}
 
 /* ============================ giroscópio ============================ */
 /*

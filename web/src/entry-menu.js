@@ -535,7 +535,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
               <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
               <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
-              <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Fechar a mão toda por 2 segundos abre o Menuzinho Rápido"><span>Soco 2s (Menu): ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
+              <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
+              <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
               <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
               <div class="entry-hand-env-title">${emT('envTitle')}</div>
               ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
@@ -1067,6 +1068,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         S.showFps = S.showFps ? 0 : 1;
         save(S);
         emit('fps-toggle', S.showFps);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-mr-dim]').forEach(btn => {
+      btn.onclick = () => {
+        S.mrDim = S.mrDim ? 0 : 1;
+        save(S);
+        window.NativeXR?.setMrDim?.(!!S.mrDim);
+        emit('mr-dim', S.mrDim);
         paint();
       };
     });

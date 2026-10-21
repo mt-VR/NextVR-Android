@@ -117,15 +117,15 @@ public final class FakeSixDof {
                     if (px > x1) x1 = px;
                     if (py > y1) y1 = py;
                 }
-                handBoxes[hbCount][0] = Math.max(0f, x0 - 0.08f);
-                handBoxes[hbCount][1] = Math.max(0f, y0 - 0.08f);
-                handBoxes[hbCount][2] = Math.min(1f, x1 + 0.08f);
-                handBoxes[hbCount][3] = Math.min(1f, y1 + 0.08f);
+                handBoxes[hbCount][0] = Math.max(0f, x0 - 0.16f);
+                handBoxes[hbCount][1] = Math.max(0f, y0 - 0.16f);
+                handBoxes[hbCount][2] = Math.min(1f, x1 + 0.16f);
+                handBoxes[hbCount][3] = Math.min(1f, y1 + 0.16f);
                 hbCount++;
             }
             retainedHandCount = hbCount;
             lastHandsMs = nowMs;
-        } else if (retainedHandCount > 0 && nowMs - lastHandsMs <= 400L) {
+        } else if (retainedHandCount > 0 && nowMs - lastHandsMs <= 650L) {
             hbCount = retainedHandCount;
         } else {
             retainedHandCount = 0;
@@ -238,8 +238,8 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 0.85f) return new float[]{ 0f, gx, gy, gx };
-        float limit = Math.max(0.35f, med * 2f);
+        if (med > 0.65f || Math.hypot(gx, gy) > 3.2) return new float[]{ 0f, gx, gy, gx };
+        float limit = Math.max(0.32f, med * 1.85f);
 
         int goodCount = 0;
         float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f;
@@ -252,7 +252,7 @@ public final class FakeSixDof {
                 gpy += ptY[i];
             }
         }
-        if (goodCount < 8) return new float[]{ 0f, gx, gy, gx };
+        if (goodCount < 10) return new float[]{ 0f, gx, gy, gx };
         gmx /= goodCount;
         gmy /= goodCount;
         gpx /= goodCount;

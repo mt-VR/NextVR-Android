@@ -72,21 +72,29 @@ export function updateHandBoxesFromPacket(packet) {
 export const Walk = {
   energy: 0,
   lastA: null,
+  lastStepT: 0,
   onMotion(e) {
+    const r = e?.rotationRate;
+    const rotRate = r ? Math.hypot(r.alpha || 0, r.beta || 0, r.gamma || 0) : 0;
     const a = e?.accelerationIncludingGravity || e?.acceleration;
     if (!a || a.x === null) return;
+    const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
     if (this.lastA) {
-      const d = Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y, a.z - this.lastA.z);
-      if (d > 0.14) {
-        this.energy = Math.min(4, this.energy * 0.88 + d);
+      // Usa a diferença da magnitude escalar (invariante à rotação da cabeça) para detetar passos reais
+      const d = Math.abs(mag - this.lastA.mag);
+      if (d > 0.26 && rotRate < 65) {
+        this.energy = Math.min(4, this.energy * 0.84 + d);
+        if (this.energy > 0.34) this.lastStepT = typeof performance !== 'undefined' ? performance.now() : Date.now();
       } else {
-        this.energy *= 0.90;
+        this.energy *= 0.86;
       }
     }
-    this.lastA = { x: a.x, y: a.y, z: a.z };
+    this.lastA = { x: a.x, y: a.y, z: a.z, mag: this.lastA ? (0.92 * this.lastA.mag + 0.08 * mag) : mag };
   },
   moving() {
-    return !this.lastA || this.energy > 0.20;
+    if (!this.lastA) return true;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return this.energy > 0.30 && (now - this.lastStepT) < 620;
   }
 };
 
@@ -257,22 +265,15 @@ export const SixDof = {
     const cam = _getCam();
     if (!cam) return;
 
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0028 || Math.abs(sc) > 0.22) {
+    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0035 || Math.abs(sc) > 0.16) {
       this.lastSc = 0;
       return;
     }
 
-    // Só conta se duas medições seguidas concordam (tira o tremor de medições soltas)
-    const prevSc = this.lastSc;
-    this.lastSc = sc;
-    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc)) {
+    // Cabeça a rodar: ignora o fluxo ótico e zera o acumulador para nunca causar drift
+    if (Math.hypot(gx, gy) > 3.2) {
+      this.lastSc = 0;
       return;
-    }
-
-    let stepSc = (sc + prevSc) * 0.5;
-    // Cabeça a rodar depressa: imagem tremida, confia menos
-    if (Math.hypot(gx, gy) > 6) {
-      stepSc *= 0.3;
     }
 
     const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
@@ -281,6 +282,17 @@ export const SixDof = {
       return;
     }
 
+    // Só conta se duas medições seguidas concordam em sinal e magnitude aproximada (tira o tremor e o drift)
+    const prevSc = this.lastSc;
+    this.lastSc = sc;
+    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc)) {
+      return;
+    }
+    if (Math.abs(sc - prevSc) > Math.max(0.018, Math.abs(sc) * 0.95)) {
+      return;
+    }
+
+    const stepSc = (sc + prevSc) * 0.5;
     const step = Math.max(-0.075, Math.min(0.075, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
