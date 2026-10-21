@@ -2274,16 +2274,18 @@ function updateFingerPoke(h, packet, nowMs) {
   };
 
   // Quando passar o dedo ou ficar com o dedo encima vai escolher mas não vai abrir;
-  // só abre no momento em que, com o dedo encima do app, o utilizador LEVANTA O DEDO ("levantar o dedo").
+  // só abre no momento em que, com o dedo encima do app, o utilizador LEVANTA/AFASTA O DEDO (como nas fotos de referência).
   const checkFingerLift = state => {
     if (!state) return false;
     const tipLiftUp = (state.restTipY - tipY) >= 0.0075;
     const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0075;
     const headLiftUp = (tipHeadY - state.restHeadY) >= 0.0075;
-    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.09;
-    const horizontalSlide = Math.abs(tipX - state.lastTipX) > Math.abs(tipY - state.lastTipY) * 1.45 && Math.abs(tipX - state.lastTipX) > 0.012;
-    if (horizontalSlide && !checkForwardPush(state) && !indexFlexLift) return false;
-    return tipLiftUp || knuckleLiftUp || headLiftUp || indexFlexLift || checkForwardPush(state);
+    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.08;
+    const wx = (state.wristX ?? 0.5) - state.restTipX;
+    const wy = (state.wristY ?? 0.7) - state.restTipY;
+    const wLen = Math.hypot(wx, wy) || 1;
+    const retractAlongFinger = ((tipX - state.restTipX) * (wx / wLen) + (tipY - state.restTipY) * (wy / wLen)) >= 0.0075;
+    return tipLiftUp || knuckleLiftUp || headLiftUp || indexFlexLift || retractAlongFinger || checkForwardPush(state);
   };
 
   if (!target) {
@@ -2296,7 +2298,8 @@ function updateFingerPoke(h, packet, nowMs) {
         return true;
       }
     }
-    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && checkFingerLift(st) && (nowMs - st.lastTapAt >= 360)) {
+    const pulledOffTarget = st && (checkFingerLift(st) || Math.hypot(tipX - st.restTipX, tipY - st.restTipY) >= 0.006);
+    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && pulledOffTarget && (nowMs - st.lastTapAt >= 360)) {
       if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
         st.latched = true;
         st.lastTapAt = nowMs;
@@ -2741,10 +2744,12 @@ onFrame((dt,now)=>{
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
   const packet=lastPhonePacket, targets=[], noBeam = S.fingerTouch !== 0;
   for(const h of packet.hands) {
+    const fSt = fingerPokeByHand.get(h.id);
+    const fingerHover = Boolean(fSt?.targetEl);
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
@@ -2757,7 +2762,9 @@ onFrame((dt,now)=>{
     }
     if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil,...(noBeam?{noBeam:true}:{})});
+    const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
+    const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
