@@ -156,20 +156,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // para responder imediatamente ao aproximar ou afastar sem confundir rotação da cabeça com caminhada.
                     float stepImpact=Math.abs(mag-gravMag);
                     float vecDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    float motionSignal=Math.max(stepImpact, vecDelta*0.75f);
-                    if(motionSignal>0.022f && gyroRate<1.35f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.88f + motionSignal*1.65f);
-                        if(walkEnergy>0.032f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    float motionSignal=Math.max(stepImpact, vecDelta*0.65f);
+                    if(motionSignal>0.048f && gyroRate<1.05f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.85f + motionSignal*1.25f);
+                        if(walkEnergy>0.068f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.90f;
+                        walkEnergy*=0.86f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.025f && gyroRate<1.35f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.88f + lmag*1.55f);
-                    if(walkEnergy>0.032f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.055f && gyroRate<1.05f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.85f + lmag*1.15f);
+                    if(walkEnergy>0.068f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -233,8 +233,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
-                if(!sixDofEnabled || Math.abs(sc)>0.24f) return;
-                if(Math.abs(sc)<0.0016f) {
+                if(!sixDofEnabled || Math.abs(sc)>0.16f) return;
+                if(Math.abs(sc)<0.0020f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
@@ -242,9 +242,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
                 long nowMs=android.os.SystemClock.elapsedRealtime();
                 boolean accelMoving=!hasWalkAccel
-                    ? (Math.abs(sc)>=0.0018f && Math.abs(sc)<=0.22f)
-                    : ((walkEnergy>0.032f && nowMs-lastWalkStepMs<1400L) || (Math.abs(sc)>=0.0024f && gyroRate<0.85f && Math.hypot(gx,gy)<=2.6));
-                boolean moving=accelMoving && gyroRate<1.32f && Math.hypot(gx,gy)<=3.8;
+                    ? (Math.abs(sc)>=0.0022f && Math.abs(sc)<=0.16f)
+                    : (walkEnergy>0.068f && nowMs-lastWalkStepMs<950L);
+                boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.8;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
@@ -1067,6 +1067,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                             target.wideCamera=wide;
                             if(camera!=null)camera.setWideCamera(wide);
                             if(o.has("quality")) target.setQuality(o.optString("quality","auto"));
+                            if(o.has("handDraw")) {
+                                boolean hd=o.optBoolean("handDraw",false) || o.optInt("handDraw",1)!=0;
+                                target.showHands=hd;
+                            }
                             if(o.has("fingerTouch")) {
                                 boolean ft=o.optBoolean("fingerTouch",false) || o.optInt("fingerTouch",1)!=0;
                                 target.handRenderer.setShowPointer(!ft);
@@ -1141,8 +1145,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         int code = event.getKeyCode();
         boolean gamepad = isGamepadSource(event.getSource());
         String action = null;
-        if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) action = "home";
-        else if (gamepad) {
+        if (code == KeyEvent.KEYCODE_BUTTON_START || code == KeyEvent.KEYCODE_PLUS || code == KeyEvent.KEYCODE_EQUALS || code == KeyEvent.KEYCODE_NUMPAD_ADD) {
+            action = "plus";
+        } else if (code == KeyEvent.KEYCODE_BUTTON_SELECT || code == KeyEvent.KEYCODE_MINUS) {
+            action = "minus";
+        } else if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) {
+            action = "home";
+        } else if (gamepad) {
             switch (code) {
                 case KeyEvent.KEYCODE_DPAD_LEFT: action = "left"; break;
                 case KeyEvent.KEYCODE_DPAD_RIGHT: action = "right"; break;
@@ -1150,10 +1159,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 case KeyEvent.KEYCODE_DPAD_DOWN: action = "down"; break;
                 case KeyEvent.KEYCODE_BUTTON_A: action = "accept"; break;
                 case KeyEvent.KEYCODE_BUTTON_B: action = "back"; break;
+                case KeyEvent.KEYCODE_BUTTON_X: action = "x"; break;
+                case KeyEvent.KEYCODE_BUTTON_Y: action = "y"; break;
+                case KeyEvent.KEYCODE_BUTTON_L1:
+                case KeyEvent.KEYCODE_BUTTON_THUMBL: action = "l1"; break;
+                case KeyEvent.KEYCODE_BUTTON_R1:
+                case KeyEvent.KEYCODE_BUTTON_THUMBR: action = "r1"; break;
+                case KeyEvent.KEYCODE_BUTTON_L2: action = "l2"; break;
+                case KeyEvent.KEYCODE_BUTTON_R2: action = "r2"; break;
                 default: break;
             }
         }
-        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME)) {
+        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME || "plus".equals(action) || "minus".equals(action))) {
             final String command = action;
             final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
             final int repeat = event.getRepeatCount();
@@ -1182,18 +1199,28 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
             if (Math.abs(hatX) > Math.abs(x)) x = hatX;
             if (Math.abs(hatY) > Math.abs(y)) y = hatY;
+            float rx = event.getAxisValue(MotionEvent.AXIS_Z);
+            float ry = event.getAxisValue(MotionEvent.AXIS_RZ);
+            if (Math.abs(rx) < 0.05f) rx = event.getAxisValue(MotionEvent.AXIS_RX);
+            if (Math.abs(ry) < 0.05f) ry = event.getAxisValue(MotionEvent.AXIS_RY);
+            float lTrig = Math.max(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE));
+            float rTrig = Math.max(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS));
             final float stickX = Math.max(-1f, Math.min(1f, x));
             final float stickY = Math.max(-1f, Math.min(1f, y));
+            final float rightX = Math.max(-1f, Math.min(1f, rx));
+            final float rightY = Math.max(-1f, Math.min(1f, ry));
+            final float lt = Math.max(0f, Math.min(1f, lTrig));
+            final float rt = Math.max(0f, Math.min(1f, rTrig));
             main.post(() -> {
                 if (entryVisible && entryView != null && resumed) {
                     entryView.evaluateJavascript("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
-                        + stickX + "," + stickY + ")", null);
+                        + stickX + "," + stickY + "," + rightX + "," + rightY + "," + lt + "," + rt + ")", null);
                     return;
                 }
                 WebSurface surface = shell;
                 if (surface != null && ready && resumed)
                     surface.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
-                        + stickX + "," + stickY + ")");
+                        + stickX + "," + stickY + "," + rightX + "," + rightY + "," + lt + "," + rt + ")");
             });
             return true;
         }

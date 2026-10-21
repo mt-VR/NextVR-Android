@@ -55,6 +55,143 @@ const touch = [false, false];
 const anchor = [V(), V()];
 let dragPointer = null;
 
+/* === SUPORTE A JOY-CON PARA GORILLA TAG (O JOY-CON VIRA O HAND TRACKING E NUNCA DESGRUDA; BOTÃO + SAI DO JOGO) === */
+const gorillaJoycon = {
+  active: false,
+  locked: true, // O Hand tracking NUNCA desgruda do Joy-Con
+  lx: 0,
+  ly: 0,
+  rx: 0,
+  ry: 0,
+  lt: 0,
+  rt: 0,
+  buttons: new Set(),
+  handX: [0.32, 0.68],
+  handY: [0.58, 0.58],
+  handS: [0.11, 0.11],
+  ori: [null, null],
+  swingPhase: 0,
+  plusWasPressed: false,
+  lastInputAt: 0,
+};
+
+function handleGorillaJoyconKey(action, down, repeat = 0) {
+  if (action === 'plus' && down) {
+    exitGorillaTag();
+    return;
+  }
+  if (!active && !entering) return;
+  gorillaJoycon.active = true;
+  gorillaJoycon.locked = true;
+  gorillaJoycon.lastInputAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (down) {
+    gorillaJoycon.buttons.add(action);
+    if (action === 'minus' && repeat === 0 && coreCamera) {
+      const eul = new THREE.Euler().setFromQuaternion(coreCamera.quaternion, 'YXZ');
+      yawOff = eul.y;
+    } else if ((action === 'accept' || action === 'x' || action === 'r1' || action === 'l1') && repeat === 0 && C) {
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(C.getWorldQuaternion(new THREE.Quaternion()));
+      fwd.y = 0;
+      if (fwd.lengthSq() > 1e-4) fwd.normalize();
+      vel.x += fwd.x * 3.8;
+      vel.z += fwd.z * 3.8;
+      vel.y = Math.max(vel.y, 4.4);
+      addGorillaCoins(1);
+    }
+  } else {
+    gorillaJoycon.buttons.delete(action);
+  }
+  const dpadX = (gorillaJoycon.buttons.has('right') ? 1 : 0) - (gorillaJoycon.buttons.has('left') ? 1 : 0);
+  const dpadY = (gorillaJoycon.buttons.has('down') ? 1 : 0) - (gorillaJoycon.buttons.has('up') ? 1 : 0);
+  if (dpadX !== 0 || dpadY !== 0 || (!down && ['left', 'right', 'up', 'down'].includes(action))) {
+    gorillaJoycon.lx = dpadX;
+    gorillaJoycon.ly = dpadY;
+  }
+}
+
+function handleGorillaJoyconAxes(x = 0, y = 0, rx = 0, ry = 0, lt = 0, rt = 0) {
+  if (!active && !entering) return;
+  gorillaJoycon.active = true;
+  gorillaJoycon.locked = true;
+  gorillaJoycon.lx = Math.max(-1, Math.min(1, Number(x) || 0));
+  gorillaJoycon.ly = Math.max(-1, Math.min(1, Number(y) || 0));
+  gorillaJoycon.rx = Math.max(-1, Math.min(1, Number(rx) || 0));
+  gorillaJoycon.ry = Math.max(-1, Math.min(1, Number(ry) || 0));
+  gorillaJoycon.lt = Math.max(0, Math.min(1, Number(lt) || 0));
+  gorillaJoycon.rt = Math.max(0, Math.min(1, Number(rt) || 0));
+  gorillaJoycon.lastInputAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function pollWebGamepadsForGorilla(now) {
+  if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
+  let pads;
+  try { pads = navigator.getGamepads(); } catch { return; }
+  if (!pads) return;
+  let anyPad = false;
+  let lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
+  let plusNow = false;
+  let jumpBtn = false;
+  for (let i = 0; i < pads.length; i++) {
+    const gp = pads[i];
+    if (!gp || !gp.connected) continue;
+    anyPad = true;
+    const id = String(gp.id || '').toLowerCase();
+    const isRightJoyconOnly = id.includes('joy-con (r)') || id.includes('joycon (r)');
+    const ax0 = gp.axes?.[0] || 0;
+    const ax1 = gp.axes?.[1] || 0;
+    const ax2 = gp.axes?.[2] || 0;
+    const ax3 = gp.axes?.[3] || 0;
+    if (isRightJoyconOnly) {
+      rx = ax0;
+      ry = ax1;
+    } else {
+      if (Math.abs(ax0) > Math.abs(lx)) lx = ax0;
+      if (Math.abs(ax1) > Math.abs(ly)) ly = ax1;
+      if (Math.abs(ax2) > Math.abs(rx)) rx = ax2;
+      if (Math.abs(ax3) > Math.abs(ry)) ry = ax3;
+    }
+    if (gp.buttons?.[6]?.pressed || (gp.buttons?.[6]?.value || 0) > 0.25) lt = Math.max(lt, gp.buttons[6].value || 1);
+    if (gp.buttons?.[7]?.pressed || (gp.buttons?.[7]?.value || 0) > 0.25) rt = Math.max(rt, gp.buttons[7].value || 1);
+    // Botão + (Plus / Start = button 9 nos Joy-Cons / Gamepads padrão) sai imediatamente do Gorilla Tag
+    if (gp.buttons?.[9]?.pressed) plusNow = true;
+    if (gp.buttons?.[0]?.pressed || gp.buttons?.[1]?.pressed || gp.buttons?.[4]?.pressed || gp.buttons?.[5]?.pressed) {
+      jumpBtn = true;
+    }
+  }
+  if (plusNow && !gorillaJoycon.plusWasPressed) {
+    gorillaJoycon.plusWasPressed = true;
+    exitGorillaTag();
+    return;
+  }
+  if (!plusNow) gorillaJoycon.plusWasPressed = false;
+  if (anyPad) {
+    gorillaJoycon.active = true;
+    gorillaJoycon.locked = true;
+    if (Math.hypot(lx, ly) > 0.08 || Math.hypot(rx, ry) > 0.08 || lt > 0.1 || rt > 0.1 || jumpBtn) {
+      gorillaJoycon.lx = lx;
+      gorillaJoycon.ly = ly;
+      gorillaJoycon.rx = rx;
+      gorillaJoycon.ry = ry;
+      gorillaJoycon.lt = lt;
+      gorillaJoycon.rt = rt;
+      gorillaJoycon.lastInputAt = now;
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__gorillaJoyconState = gorillaJoycon;
+  window.__gorillaJoyconKey = handleGorillaJoyconKey;
+  window.__gorillaJoyconAxes = handleGorillaJoyconAxes;
+  window.addEventListener('keydown', e => {
+    if (!active && !entering) return;
+    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+      e.preventDefault();
+      exitGorillaTag();
+    }
+  });
+}
+
 // Estado do gesto de sair: "Arma de dedo" (polegar + indicador abertos, médio/anelar/mínimo fechados)
 // seguido de fechar o dedo indicador nas duas mãos.
 const gunArmedUntil = [0, 0];
@@ -877,7 +1014,12 @@ function updateHandsFromNextVR(now) {
     for (let idx = 0; idx < 2; idx++) {
       const { lm } = parsed[idx];
       const s = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
-      hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori: handInfo(lm, idx === 1), t: now };
+      const ori = handInfo(lm, idx === 1);
+      gorillaJoycon.handX[idx] = lm[9].x;
+      gorillaJoycon.handY[idx] = lm[9].y;
+      gorillaJoycon.handS[idx] = s;
+      gorillaJoycon.ori[idx] = ori;
+      hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori, t: now, joyconLocked: true };
       rawHands[idx] = lm;
     }
   } else if (parsed.length === 1) {
@@ -886,13 +1028,91 @@ function updateHandsFromNextVR(now) {
     const idx = isRight ? 1 : 0;
     const otherIdx = 1 - idx;
     const s = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
-    hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori: handInfo(lm, idx === 1), t: now };
+    const ori = handInfo(lm, idx === 1);
+    gorillaJoycon.handX[idx] = lm[9].x;
+    gorillaJoycon.handY[idx] = lm[9].y;
+    gorillaJoycon.handS[idx] = s;
+    gorillaJoycon.ori[idx] = ori;
+    hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori, t: now, joyconLocked: true };
     rawHands[idx] = lm;
-    // Limpa o outro braço imediatamente para que apenas o braço correto se mova
-    hands[otherIdx] = null;
-    rawHands[otherIdx] = null;
-    touch[otherIdx] = false;
-    hlP[otherIdx] = null;
+    if (!gorillaJoycon.active) {
+      // Limpa o outro braço apenas quando o modo Joy-Con não está ativo
+      hands[otherIdx] = null;
+      rawHands[otherIdx] = null;
+      touch[otherIdx] = false;
+      hlP[otherIdx] = null;
+    }
+  }
+
+  // Suporte Joy-Con -> Hand Tracking colado 100% no Joy-Con (NUNCA desgruda do Joy-Con!)
+  pollWebGamepadsForGorilla(now);
+  if (gorillaJoycon.active) {
+    const lMag = Math.hypot(gorillaJoycon.lx, gorillaJoycon.ly);
+    const rMag = Math.hypot(gorillaJoycon.rx, gorillaJoycon.ry);
+    const lSlam = gorillaJoycon.lt > 0.25 || gorillaJoycon.buttons.has('l1') || gorillaJoycon.buttons.has('l2') || gorillaJoycon.buttons.has('back');
+    const rSlam = gorillaJoycon.rt > 0.25 || gorillaJoycon.buttons.has('r1') || gorillaJoycon.buttons.has('r2') || gorillaJoycon.buttons.has('accept');
+    if (lMag > 0.12 || rMag > 0.12 || lSlam || rSlam) {
+      gorillaJoycon.swingPhase += 0.22;
+    }
+    // Se apenas 1 Joy-Con está enviando analógico (ex: lx/ly), espelha o balanço para os dois braços ou move a mão do Joy-Con
+    const effRx = rMag > 0.08 ? gorillaJoycon.rx : gorillaJoycon.lx;
+    const effRy = rMag > 0.08 ? gorillaJoycon.ry : gorillaJoycon.ly;
+    const swingL = (lMag > 0.12 || lSlam) ? Math.sin(gorillaJoycon.swingPhase) * 0.16 : 0;
+    const swingR = (lMag > 0.12 || rMag > 0.12 || rSlam) ? Math.cos(gorillaJoycon.swingPhase) * 0.16 : 0;
+
+    // Quando a câmara também vê a mão com o Joy-Con, soma o deslocamento do Joy-Con sem nunca desgrudar;
+    // quando a mão sai da câmara, mantém-se 100% presa à posição do Joy-Con!
+    const baseLX = parsed.length >= 2 ? parsed[0].lm[9].x : (parsed.length === 1 && !detectIsRightHand(parsed[0].th, parsed[0].lm) ? parsed[0].lm[9].x : 0.32);
+    const baseLY = parsed.length >= 2 ? parsed[0].lm[9].y : (parsed.length === 1 && !detectIsRightHand(parsed[0].th, parsed[0].lm) ? parsed[0].lm[9].y : 0.56);
+    const baseRX = parsed.length >= 2 ? parsed[1].lm[9].x : (parsed.length === 1 && detectIsRightHand(parsed[0].th, parsed[0].lm) ? parsed[0].lm[9].x : 0.68);
+    const baseRY = parsed.length >= 2 ? parsed[1].lm[9].y : (parsed.length === 1 && detectIsRightHand(parsed[0].th, parsed[0].lm) ? parsed[0].lm[9].y : 0.56);
+
+    const targetLX = Math.max(0.08, Math.min(0.92, baseLX + gorillaJoycon.lx * 0.26));
+    const targetLY = Math.max(0.10, Math.min(0.92, baseLY + gorillaJoycon.ly * 0.24 + swingL + (lSlam ? 0.18 : 0)));
+    const targetRX = Math.max(0.08, Math.min(0.92, baseRX + effRx * 0.26));
+    const targetRY = Math.max(0.10, Math.min(0.92, baseRY + effRy * 0.24 + swingR + (rSlam ? 0.18 : 0)));
+
+    gorillaJoycon.handX[0] = targetLX;
+    gorillaJoycon.handY[0] = targetLY;
+    gorillaJoycon.handS[0] = lSlam ? 0.085 : 0.115;
+
+    gorillaJoycon.handX[1] = targetRX;
+    gorillaJoycon.handY[1] = targetRY;
+    gorillaJoycon.handS[1] = rSlam ? 0.085 : 0.115;
+
+    for (let idx = 0; idx < 2; idx++) {
+      hands[idx] = {
+        x: gorillaJoycon.handX[idx],
+        y: gorillaJoycon.handY[idx],
+        s: gorillaJoycon.handS[idx],
+        ori: gorillaJoycon.ori[idx],
+        t: now,
+        joyconLocked: true,
+      };
+    }
+
+    // Locomoção direta por impulso de braço do Joy-Con quando o analógico é inclinado
+    if ((lMag > 0.16 || rMag > 0.16) && C) {
+      const moveX = Math.abs(gorillaJoycon.lx) >= Math.abs(gorillaJoycon.rx) ? gorillaJoycon.lx : gorillaJoycon.rx;
+      const moveY = Math.abs(gorillaJoycon.ly) >= Math.abs(gorillaJoycon.ry) ? gorillaJoycon.ly : gorillaJoycon.ry;
+      const camQ = C.getWorldQuaternion(new THREE.Quaternion());
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camQ);
+      fwd.y = 0;
+      if (fwd.lengthSq() > 1e-4) fwd.normalize();
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camQ);
+      right.y = 0;
+      if (right.lengthSq() > 1e-4) right.normalize();
+      const wish = fwd.multiplyScalar(-moveY * 4.6).addScaledVector(right, moveX * 3.8);
+      vel.x = vel.x * 0.82 + wish.x * 0.18;
+      vel.z = vel.z * 0.82 + wish.z * 0.18;
+    }
+  } else {
+    // Mesmo sem botões Joy-Con pressionados, se uma mão foi detectada segurando o Joy-Con, mantém a pose viva sem desgrudar
+    for (let idx = 0; idx < 2; idx++) {
+      if (hands[idx] && hands[idx].joyconLocked && now - hands[idx].t <= 1800) {
+        hands[idx].t = now;
+      }
+    }
   }
 
   if (dragPointer && now - dragPointer.t < 450) {
@@ -903,6 +1123,7 @@ function updateHandsFromNextVR(now) {
       s: dragPointer.s,
       ori: null,
       t: now,
+      joyconLocked: true,
     };
   }
 }
@@ -1262,9 +1483,9 @@ function tick(now) {
   player.updateMatrixWorld(true);
   resolveHeadCollisions();
 
-  // Mãos: IK dos braços Gorilla + impulso suave ao empurrar o chão/árvores
+  // Mãos: IK dos braços Gorilla + impulso suave ao empurrar o chão/árvores (Hand tracking 100% grudado no Joy-Con)
   for (let i = 0; i < 2; i++) {
-    if (hands[i] && now - hands[i].t > 220) hands[i] = null;
+    if (hands[i] && !hands[i].joyconLocked && !gorillaJoycon.active && now - hands[i].t > 1800) hands[i] = null;
     const h = hands[i];
     const a = arms[i ? 0 : 1];
     if (!h) {
@@ -1285,19 +1506,17 @@ function tick(now) {
       (0.5 - h.y) * 1.8 - 0.34,
       -Math.min(0.95, Math.max(0.25, 0.09 / Math.max(h.s, 0.035)))
     );
-    if (hlP[i]) {
-      // Limita salto brusco de detecção em 1 frame e responde com fluidez rápida
-      const step = t.clone().sub(hlP[i]);
-      if (step.length() > 0.32) {
-        t.copy(hlP[i]).addScaledVector(step.normalize(), 0.32);
-      }
-      t.lerp(hlP[i], 0.24);
+    // Sem clamp de distância nem atraso: o Hand tracking fica 100% grudado no Joy-Con/mão sem desgrudar!
+    if (hlP[i] && !h.joyconLocked && !gorillaJoycon.active) {
+      t.lerp(hlP[i], 0.12);
     }
     const off = t.clone().sub(sp);
     if (off.length() > ARM_LEN * 0.97) {
       t.copy(sp).addScaledVector(off.setLength(ARM_LEN * 0.97), 1);
     }
     hl[i].copy(t);
+    if (!hlP[i]) hlP[i] = V();
+    hlP[i].copy(t);
     const desiredW = C.localToWorld(t.clone());
     const hit = trackFrames[i] >= 1 && sphereQ(desiredW.x, desiredW.y, desiredW.z, R_HAND);
     if (hit) {
@@ -1327,7 +1546,8 @@ function tick(now) {
           resolveHeadCollisions();
         }
       }
-      hW[i].copy(anchor[i]);
+      // Mantém o braço visual 100% grudado na posição da mão/Joy-Con (desiredW) para nunca desgrudar no chão
+      hW[i].copy(C.localToWorld(t.clone()));
     } else {
       touch[i] = false;
       hW[i].copy(desiredW);
@@ -1338,8 +1558,6 @@ function tick(now) {
       tl.copy(sp).addScaledVector(o2.setLength(ARM_LEN * 0.97), 1);
       hW[i].copy(C.localToWorld(tl));
     }
-    if (!hlP[i]) hlP[i] = V();
-    hlP[i].copy(tl);
     if (a) solveArm(a, hW[i], h.ori);
   }
 

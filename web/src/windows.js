@@ -2407,8 +2407,6 @@ function resolveFingerTarget(h, packet) {
     [0, 0],
     [0, 0.015],
     [0, -0.015],
-    [0.015, 0],
-    [-0.015, 0],
   ];
   if (p && p.length >= 26 && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     const tx = (p[24] - 0.5) * sx + 0.5;
@@ -2420,10 +2418,8 @@ function resolveFingerTarget(h, packet) {
     if (Number.isFinite(p[12]) && Number.isFinite(p[13])) {
       const px = ((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5;
       const py = ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5;
-      for (const [ox, oy] of offsets) {
-        const pinchHit = resolvePointTarget(px + ox, py + oy);
-        if (pinchHit) return pinchHit;
-      }
+      const pinchHit = resolvePointTarget(px, py);
+      if (pinchHit) return pinchHit;
     }
     const dx = (p[21] - 0.5) * sx + 0.5;
     const dy = (p[22] - 0.5) * sy + 0.5;
@@ -2432,10 +2428,8 @@ function resolveFingerTarget(h, packet) {
   }
   if (Array.isArray(h.aim) && h.aim.length >= 2) {
     const aimPt = screenPoint(h.aim);
-    for (const [ox, oy] of offsets) {
-      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
-      if (aimHit) return aimHit;
-    }
+    const aimHit = resolvePointTarget(aimPt.x, aimPt.y);
+    if (aimHit) return aimHit;
   }
   return null;
 }
@@ -2620,10 +2614,13 @@ function updateFingerPoke(h, packet, nowMs) {
   const currentSt = fingerPokeByHand.get(h?.id);
 
   // Atualiza sempre a memória do app sob a mão para que a "pinça sem raio" abra o app ao fazer pinça encima dele
+  let cachedHoverTarget = null;
+  let hoverTargetComputed = false;
   if (p && p.length >= 26 && Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008) {
-    const hoverTarget = resolveFingerTarget(h, packet);
-    if (hoverTarget?.el) {
-      handOverAppByHand.set(h.id || 'right', { x: hoverTarget.x, y: hoverTarget.y, el: hoverTarget.el, at: nowMs });
+    cachedHoverTarget = resolveFingerTarget(h, packet);
+    hoverTargetComputed = true;
+    if (cachedHoverTarget?.el) {
+      handOverAppByHand.set(h.id || 'right', { x: cachedHoverTarget.x, y: cachedHoverTarget.y, el: cachedHoverTarget.el, at: nowMs });
     }
   }
 
@@ -2717,7 +2714,7 @@ function updateFingerPoke(h, packet, nowMs) {
   const boneSpan = handBoneSpan2D(h.points);
 
   let st = currentSt;
-  const target = resolveFingerTarget(h, packet);
+  const target = hoverTargetComputed ? cachedHoverTarget : resolveFingerTarget(h, packet);
 
   const checkForwardPush = state => {
     if (!state) return false;
@@ -3127,7 +3124,33 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   }
 }
 
+function updateLeftQuickMenuAttachment(packet) {
+  const lhWin = wins.find(w => w.id === 'left-quick-menu' && !w.hidden);
+  if (!lhWin) return;
+  lhWin.shell.dataset.attachedHand = 'left';
+  const handsList = packet?.hands || [];
+  const leftHand = handsList.find(h => isLeftBolinhaHand(h)) || handsList[0];
+  if (!leftHand) return;
+  const p = leftHand.points;
+  const sx = Number(packet?.scaleX) || 1;
+  const sy = Number(packet?.scaleY) || 1;
+  const rawX = (p && p.length >= 26) ? (p[24] * 0.45 + p[12] * 0.35 + p[0] * 0.20) : (leftHand.palm?.[0] ?? 0.35);
+  const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.06) : ((leftHand.palm?.[1] ?? 0.5) - 0.08);
+  const normX = Math.max(0.14, Math.min(0.86, (rawX - 0.5) * sx + 0.5));
+  const normY = Math.max(0.14, Math.min(0.84, (rawY - 0.5) * sy + 0.5));
+  const r = phoneRay(normX, normY);
+  const worldPt = r.origin.clone().addScaledVector(r.direction, 1.12);
+  contentRoot.updateMatrixWorld(true);
+  const localPt = contentRoot.worldToLocal(worldPt);
+  lhWin.target.copy(localPt);
+  lhWin.obj.position.copy(lhWin.target);
+  lhWin.apply();
+  lhWin.shell.dataset.attachedPos = `${localPt.x.toFixed(2)},${localPt.y.toFixed(2)},${localPt.z.toFixed(2)}`;
+  css3d.invalidate?.();
+}
+
 function updateRightHandBolinhaGesture(packet, nowMs) {
+  updateLeftQuickMenuAttachment(packet);
   if (S.gunGesture === 0) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
@@ -3203,8 +3226,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     rightHandBolinhaState.lastTriggerAt = nowMs;
     rightHandBolinhaState.blueUntil = nowMs + 750;
     document.documentElement.dataset.handBlueOutline = 'right';
-    S.handDraw = 1;
-    window.NativeXR?.handVisuals?.(true);
+    window.NativeXR?.handVisuals?.(!!S.handDraw);
     fistHoldByHand.delete(hKey);
     pinchSuppressed.add(hKey);
     packet.consumed.add(hKey);
@@ -3257,8 +3279,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     leftHandBolinhaState.lastTriggerAt = nowMs;
     leftHandBolinhaState.blueUntil = nowMs + 750;
     document.documentElement.dataset.handBlueOutline = 'left';
-    S.handDraw = 1;
-    window.NativeXR?.handVisuals?.(true);
+    window.NativeXR?.handVisuals?.(!!S.handDraw);
     fistHoldByHand.delete(hKey);
     pinchSuppressed.add(hKey);
     packet.consumed.add(hKey);
@@ -3266,6 +3287,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     showLeftBolinhaBubble(leftHand, packet, true);
     hideLeftBolinhaBubble(420);
     window.nextvrToggleLeftHandQuickMenu?.();
+    updateLeftQuickMenuAttachment(packet);
     window.NativeXR?.click?.();
     css3d.invalidate?.();
     css3d.render?.(scene, camera);

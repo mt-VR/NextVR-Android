@@ -53,7 +53,7 @@ public final class FakeSixDof {
             PhoneXrHands.Frame handsFrame,
             long nowMs) {
         if (cameraPixels == null || outW < W || outH < H) return null;
-        if (lastMs != 0L && nowMs - lastMs < 24L) return null;
+        if (lastMs != 0L && nowMs - lastMs < 50L) return null;
         lastMs = nowMs;
 
         // Downsampling 2x2 com filtro de caixa (box filter) para 96x72 em luminância:
@@ -270,16 +270,15 @@ public final class FakeSixDof {
             gden += X * X + Y * Y;
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
-        if (Math.abs(finalSc) >= 0.0016f && Math.abs(finalSc) <= 0.22f) {
-            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 220L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
-                finalSc = finalSc * 0.78f + prevValidSc * 0.42f;
+        if (Math.abs(finalSc) >= 0.0018f && Math.abs(finalSc) <= 0.16f) {
+            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 180L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                finalSc = finalSc * 0.65f + prevValidSc * 0.35f;
             }
             prevValidSc = finalSc;
             prevValidMs = nowMs;
-        } else if (nowMs - prevValidMs > 260L) {
+        } else {
             prevValidSc = 0f;
         }
-        float latDx = gmx - gx;
-        return new float[]{ finalSc, gx, gy, latDx };
+        return new float[]{ finalSc, gx, gy };
     }
 }

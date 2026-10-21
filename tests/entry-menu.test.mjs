@@ -145,9 +145,12 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     phoneXrHandsKt.includes('rawShape.pinchGap * 1.05f') &&
     windowsSrc.includes('resolveDirectPinchPoint') &&
     windowsSrc.includes('findDirectAppPoint') &&
+    windowsSrc.includes('updateLeftQuickMenuAttachment') &&
+    gorillaSrc.includes('gorillaJoycon') &&
+    gorillaSrc.includes('joyconLocked: true') &&
     handRendererKt.includes('RAY_SHOWN=.55f') &&
     !handRendererKt.includes('curvedFinger'),
-    'Build 44 restores Build 42 hand tracking renderer while keeping direct pinch without ray and angle-independent pinch'
+    'Build 45 glues brightness control to left hand, adds Joy-Con hand tracking lock + Plus button exit for Gorilla Tag, normalizes 6DoF speed, and preserves invisible hand mode'
   );
 });
 
@@ -886,6 +889,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
           points: pts,
         };
       };
+      // Invisible hand (handDraw: 0) must stay invisible (0) even after triggering bolinha gestures
+      window.nextvrEnterWorkspace(JSON.stringify({ spatialLauncher: 1, wideCamera: 1, handDraw: 0 }));
       window.nextvrHands({ hands: [mkLeftVLHand(false)] });
       window.nextvrHands({ hands: [mkLeftVLHand(false)] });
       const leftBolinhaEl = document.getElementById('left-gesture-indicator');
@@ -894,7 +899,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const lhMenu = document.getElementById('left-hand-quick-menu');
       const lhFloatingShell = lhMenu?.closest('.win-shell[data-window-id="left-quick-menu"]');
       const lhMenuTransparentBg = !!lhMenu && getComputedStyle(lhMenu).backgroundColor === 'rgba(0, 0, 0, 0)';
-      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
+      const lhAttachedToLeftHand = lhFloatingShell?.dataset?.attachedHand === 'left' && !!lhFloatingShell?.dataset?.attachedPos;
+      const invisibleHandPreserved = JSON.parse(localStorage.getItem('nextvr.v1')).handDraw === 0;
+      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && lhAttachedToLeftHand && invisibleHandPreserved && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
       window.nextvrSetScreenBrightness?.(55);
       const brightnessUpdated = document.documentElement.dataset.brightnessPercent === '55';
       lhMenu?.querySelector('[data-lh-act="close"]')?.click();

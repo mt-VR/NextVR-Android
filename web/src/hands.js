@@ -128,14 +128,33 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
     pressArbiter.sample(chosen.id,point.x*viewport.width,point.y*viewport.height,now);
   cursor.mode=pressArbiter.mode;
   cursor.down=clickState.down;cursor.phase=clickState.phase;
+  if (!window.__gorillaStereoOverlay && native) {
+    const wantVisual = !!S.handDraw;
+    if (visual !== wantVisual) {
+      visual = wantVisual;
+      window.NativeXR.handVisuals?.(wantVisual);
+    }
+  }
   emitClickEvents(clickEvents);
   if (cursor.down) emit('pinchsample', cursor);
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+on('handDraw', () => {
+  if (!window.__gorillaStereoOverlay && native) {
+    visual = !!S.handDraw;
+    window.NativeXR.handVisuals?.(visual);
+  }
+});
 onFrame(()=>{
-  if (!window.__gorillaStereoOverlay && native && visual!==!!S.handDraw) { visual=!!S.handDraw; window.NativeXR.handVisuals?.(visual); }
+  if (!window.__gorillaStereoOverlay && native) {
+    const wantVisual = !!S.handDraw;
+    if (visual !== wantVisual) {
+      visual = wantVisual;
+      window.NativeXR.handVisuals?.(wantVisual);
+    }
+  }
   if (hands.length && performance.now()-lastFrame>validForMs) {
     hands.length=0;cancel();emit('phonehands',{hands:[],consumed:new Set(),scaleX,scaleY});
   }

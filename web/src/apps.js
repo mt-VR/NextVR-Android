@@ -1235,8 +1235,7 @@ const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.q
 export function openRobloxVr() {
   document.documentElement.dataset.robloxBlackEnv = '1';
   window.NativeXR?.env?.('black');
-  S.handDraw = 1;
-  window.NativeXR?.handVisuals?.(true);
+  window.NativeXR?.handVisuals?.(!!S.handDraw);
   if (native && !tracking()) startHands();
   for (const w of wins) {
     if (w.id !== 'roblox') w.setHidden(true);
@@ -2618,21 +2617,29 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
+    existing.resizeScale = 1.18;
+    existing.shell.dataset.attachedHand = 'left';
+    existing.apply();
     focus(existing);
   } else {
     const body = el('div', 'lh-quick-menu-host');
     body.appendChild(leftHandQuickMenuEl);
-    open({
+    const win = open({
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 420,
-      h: 300,
+      w: 560,
+      h: 410,
       chrome: false,
       resizable: false,
       free: true,
-      at: { x: -0.22, y: 1.46, z: -1.42 },
+      at: { x: -0.22, y: 1.46, z: -1.16 },
     });
+    if (win) {
+      win.resizeScale = 1.18;
+      win.shell.dataset.attachedHand = 'left';
+      win.apply();
+    }
   }
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
