@@ -2451,19 +2451,15 @@ export function openFistQuickMenu() {
 }
 window.nextvrOpenFistQuickMenu = openFistQuickMenu;
 
-/* ============ Menu de Controlo Rápido da Mão Esquerda (IMG_20261021_144416.jpg) ============ */
+/* ============ Janelinha Flutuante Transparente de Brilho e Som da Mão Esquerda (IMG_20261021_144416.jpg) ============ */
 let leftHandQuickMenuEl = null;
 
-function ensureLeftHandQuickMenu() {
-  const hud = document.getElementById('hud') || document.body;
-  if (leftHandQuickMenuEl && document.body.contains(leftHandQuickMenuEl)) {
-    syncLeftHandQuickMenuValues();
-    return leftHandQuickMenuEl;
-  }
+function buildLeftHandQuickMenuDom() {
   const root = document.createElement('div');
   root.id = 'left-hand-quick-menu';
-  root.className = 'lh-quick-menu';
-  root.hidden = true;
+  root.className = 'lh-quick-menu lh-quick-menu--floating';
+  root.dataset.floatingWindow = '1';
+  root.hidden = false;
   const vol = Math.max(0, Math.min(100, Number(S.mediaVolume ?? 70) || 70));
   const bri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
   const dim = S.mrDim ? 80 : 20;
@@ -2533,12 +2529,27 @@ function ensureLeftHandQuickMenu() {
     inp.addEventListener('change', onInput);
     inp.addEventListener('pointerdown', e => e.stopPropagation());
   });
+  root.querySelectorAll('.lh-vslider-pill').forEach(pill => {
+    pill.addEventListener('click', e => {
+      const inp = pill.querySelector('[data-lh-slider]');
+      if (!inp || e.target === inp) return;
+      const rect = pill.getBoundingClientRect();
+      if (rect.height > 8 && Number.isFinite(e.clientY)) {
+        const frac = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+        const min = Number(inp.min) || 0;
+        const max = Number(inp.max) || 100;
+        inp.value = String(Math.round(min + frac * (max - min)));
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
   root.addEventListener('click', e => {
     const appBtn = e.target.closest('[data-lh-app]');
     if (appBtn) {
       e.stopPropagation();
       const appId = appBtn.dataset.lhApp;
-      root.hidden = true;
+      toggleLeftHandQuickMenu(false);
       if (appId === 'browser') browserApp();
       else if (appId === 'youtube') webWindow('youtube');
       else if (appId === 'roblox') webWindow('roblox');
@@ -2552,9 +2563,9 @@ function ensureLeftHandQuickMenu() {
     e.stopPropagation();
     const act = actBtn.dataset.lhAct;
     if (act === 'close') {
-      root.hidden = true;
+      toggleLeftHandQuickMenu(false);
     } else if (act === 'home') {
-      root.hidden = true;
+      toggleLeftHandQuickMenu(false);
       toggleSpatialAndDockFromGesture();
     } else if (act === 'hands') {
       S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
@@ -2566,8 +2577,6 @@ function ensureLeftHandQuickMenu() {
     css3d.invalidate?.();
     css3d.render?.(scene, camera);
   });
-  hud.appendChild(root);
-  leftHandQuickMenuEl = root;
   return root;
 }
 
@@ -2587,13 +2596,47 @@ function syncLeftHandQuickMenuValues() {
 }
 
 export function toggleLeftHandQuickMenu(forceState = undefined) {
-  const menu = ensureLeftHandQuickMenu();
-  const nextOpen = typeof forceState === 'boolean' ? forceState : menu.hidden;
+  const existing = wins.find(w => w.id === 'left-quick-menu');
+  const isCurrentlyOpen = Boolean(existing && !existing.hidden && leftHandQuickMenuEl && !leftHandQuickMenuEl.hidden);
+  const nextOpen = typeof forceState === 'boolean' ? forceState : !isCurrentlyOpen;
+  if (!nextOpen) {
+    if (leftHandQuickMenuEl) leftHandQuickMenuEl.hidden = true;
+    if (existing) close('left-quick-menu');
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return false;
+  }
+  if (!leftHandQuickMenuEl) {
+    leftHandQuickMenuEl = buildLeftHandQuickMenuDom();
+  }
+  leftHandQuickMenuEl.hidden = false;
   syncLeftHandQuickMenuValues();
-  menu.hidden = !nextOpen;
+  if (existing) {
+    const host = winBody('left-quick-menu');
+    if (host && !host.contains(leftHandQuickMenuEl)) {
+      host.innerHTML = '';
+      host.appendChild(leftHandQuickMenuEl);
+    }
+    existing.setHidden(false);
+    focus(existing);
+  } else {
+    const body = el('div', 'lh-quick-menu-host');
+    body.appendChild(leftHandQuickMenuEl);
+    open({
+      id: 'left-quick-menu',
+      title: 'Controle de Brilho e Som',
+      node: body,
+      w: 420,
+      h: 300,
+      chrome: false,
+      resizable: false,
+      free: true,
+      at: { x: -0.22, y: 1.46, z: -1.42 },
+    });
+  }
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
-  return nextOpen;
+  return true;
 }
 window.nextvrToggleLeftHandQuickMenu = toggleLeftHandQuickMenu;
 

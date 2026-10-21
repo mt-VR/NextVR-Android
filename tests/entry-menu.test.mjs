@@ -143,11 +143,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
   assert.ok(
     handGesturesKt.includes('sidewaysPinchPose') &&
     phoneXrHandsKt.includes('rawShape.pinchGap * 1.05f') &&
-    handRendererKt.includes('curvedFinger') &&
-    handRendererKt.includes('webBridge') &&
-    handRendererKt.includes('RAY_SHOWN=.84f') &&
-    handRendererKt.includes('stickX'),
-    'Build 43 implements angle-independent pinch, anatomical hand silhouette, Quest 3S selection ray, and sticky fingertip ring'
+    windowsSrc.includes('resolveDirectPinchPoint') &&
+    windowsSrc.includes('findDirectAppPoint') &&
+    handRendererKt.includes('RAY_SHOWN=.55f') &&
+    !handRendererKt.includes('curvedFinger'),
+    'Build 44 restores Build 42 hand tracking renderer while keeping direct pinch without ray and angle-independent pinch'
   );
 });
 
@@ -806,30 +806,30 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       spatialWin?.querySelector('[data-spatial-act="mr-dim"]')?.click();
       await new Promise(r => setTimeout(r, 25));
 
-      // Right-hand V/L gesture (17925923443225481183077146402614.jpg) shows bolinha with nextvr-bolinha-logo.png, and closing fingers toggles spatial-launcher hide/unhide
+      // Physical Right-hand V/L gesture (palm facing user on rear camera -> id:'left', left:true) shows bolinha with nextvr-bolinha-logo.png, and closing fingers toggles spatial-launcher hide/unhide
       const mkRightVLHand = (closed = false) => {
         const pts = new Array(63).fill(0);
         const setPt = (idx, x, y, z = 0) => { pts[idx * 3] = x; pts[idx * 3 + 1] = y; pts[idx * 3 + 2] = z; };
-        for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
-        setPt(0, 0.52, 0.78); // wrist
-        setPt(1, 0.56, 0.70); setPt(2, 0.59, 0.63); setPt(3, 0.61, 0.54);
-        setPt(4, closed ? 0.49 : 0.63, closed ? 0.58 : 0.44); // thumb extended right or closed
-        setPt(5, 0.48, 0.62); setPt(6, 0.46, 0.53); setPt(7, 0.44, 0.45);
-        setPt(8, closed ? 0.48 : 0.42, closed ? 0.58 : 0.37); // index extended up-left or closed
+        for (let i = 0; i < 21; i++) setPt(i, 0.35, 0.6, 0);
+        setPt(0, 0.35, 0.78); // wrist
+        setPt(1, 0.31, 0.70); setPt(2, 0.28, 0.63); setPt(3, 0.26, 0.54);
+        setPt(4, closed ? 0.38 : 0.24, closed ? 0.58 : 0.44); // thumb extended left (palm facing) or pinched to index
+        setPt(5, 0.39, 0.62); setPt(6, 0.41, 0.53); setPt(7, 0.43, 0.45);
+        setPt(8, closed ? 0.39 : 0.45, closed ? 0.58 : 0.37); // index extended up-right or closed
         // middle, ring, pinky curled into palm
-        setPt(9, 0.50, 0.63); setPt(10, 0.49, 0.55); setPt(11, 0.50, 0.63); setPt(12, 0.51, 0.67);
-        setPt(13, 0.53, 0.64); setPt(14, 0.52, 0.56); setPt(15, 0.53, 0.64); setPt(16, 0.54, 0.68);
-        setPt(17, 0.56, 0.66); setPt(18, 0.55, 0.58); setPt(19, 0.56, 0.66); setPt(20, 0.57, 0.70);
+        setPt(9, 0.37, 0.63); setPt(10, 0.38, 0.55); setPt(11, 0.37, 0.63); setPt(12, 0.36, 0.67);
+        setPt(13, 0.34, 0.64); setPt(14, 0.35, 0.56); setPt(15, 0.34, 0.64); setPt(16, 0.33, 0.68);
+        setPt(17, 0.31, 0.66); setPt(18, 0.32, 0.58); setPt(19, 0.31, 0.66); setPt(20, 0.30, 0.70);
         return {
-          id: 'right',
-          left: false,
+          id: 'left',
+          left: true,
           pinch: closed ? 0.01 : 0.55,
           pinching: closed,
           fist: closed,
           menuEligible: false,
           aim: [0, 0],
-          palm: [0.52, 0.64, 0.3],
-          ring: [0.52, 0.64],
+          palm: [0.35, 0.64, 0.3],
+          ring: [0.35, 0.64],
           points: pts,
         };
       };
@@ -852,37 +852,37 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       }
       const spatialUnhiddenByGesture = getComputedStyle(spatialWin).display !== 'none';
 
-      // Back of right hand (thumb on left of index MCP, IMG_20261021_144721.jpg) must NOT show the bolinha
+      // Back of hand (IMG_20261021_144721.jpg) must NOT show the bolinha
       window.nextvrHands({ hands: [] });
       const backHand = mkRightVLHand(false);
-      backHand.points[12] = 0.36; // thumb tip to the left of index MCP (0.48) while pinky MCP is 0.56
+      backHand.points[12] = 0.52; // thumb tip to the right of index MCP (0.39) while pinky MCP is 0.31
       window.nextvrHands({ hands: [backHand] });
       window.nextvrHands({ hands: [backHand] });
       const noBolinhaOnBackOfHand = !document.getElementById('gun-gesture-indicator');
 
-      // Left-hand V/L gesture (IMG_20261021_144416.jpg) shows #left-gesture-indicator with nextvr-bolinha-left.png, and thumb-index pinch opens #left-hand-quick-menu
+      // Physical Left-hand V/L gesture (IMG_20261021_144416.jpg) shows #left-gesture-indicator with nextvr-bolinha-left.png, and thumb-index pinch opens 3D floating #left-hand-quick-menu with transparent background
       const mkLeftVLHand = (pinched = false) => {
         const pts = new Array(63).fill(0);
         const setPt = (idx, x, y, z = 0) => { pts[idx * 3] = x; pts[idx * 3 + 1] = y; pts[idx * 3 + 2] = z; };
-        for (let i = 0; i < 21; i++) setPt(i, 0.35, 0.6, 0);
-        setPt(0, 0.35, 0.78);
-        setPt(1, 0.31, 0.70); setPt(2, 0.28, 0.63); setPt(3, 0.26, 0.54);
-        setPt(4, pinched ? 0.38 : 0.24, pinched ? 0.58 : 0.44); // thumb extended left (palm facing) or pinched to index
-        setPt(5, 0.39, 0.62); setPt(6, 0.41, 0.53); setPt(7, 0.43, 0.45);
-        setPt(8, pinched ? 0.39 : 0.45, pinched ? 0.58 : 0.37); // index extended up-right or pinched
-        setPt(9, 0.37, 0.63); setPt(10, 0.38, 0.55); setPt(11, 0.37, 0.63); setPt(12, 0.36, 0.67);
-        setPt(13, 0.34, 0.64); setPt(14, 0.35, 0.56); setPt(15, 0.34, 0.64); setPt(16, 0.33, 0.68);
-        setPt(17, 0.31, 0.66); setPt(18, 0.32, 0.58); setPt(19, 0.31, 0.66); setPt(20, 0.30, 0.70);
+        for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
+        setPt(0, 0.52, 0.78);
+        setPt(1, 0.56, 0.70); setPt(2, 0.59, 0.63); setPt(3, 0.61, 0.54);
+        setPt(4, pinched ? 0.49 : 0.63, pinched ? 0.58 : 0.44); // thumb extended right (palm facing) or pinched to index
+        setPt(5, 0.48, 0.62); setPt(6, 0.46, 0.53); setPt(7, 0.44, 0.45);
+        setPt(8, pinched ? 0.48 : 0.42, pinched ? 0.58 : 0.37); // index extended up-left or pinched
+        setPt(9, 0.50, 0.63); setPt(10, 0.49, 0.55); setPt(11, 0.50, 0.63); setPt(12, 0.51, 0.67);
+        setPt(13, 0.53, 0.64); setPt(14, 0.52, 0.56); setPt(15, 0.53, 0.64); setPt(16, 0.54, 0.68);
+        setPt(17, 0.56, 0.66); setPt(18, 0.55, 0.58); setPt(19, 0.56, 0.66); setPt(20, 0.57, 0.70);
         return {
-          id: 'left',
-          left: true,
+          id: 'right',
+          left: false,
           pinch: pinched ? 0.01 : 0.55,
           pinching: pinched,
           fist: false,
           menuEligible: false,
           aim: [0, 0],
-          palm: [0.35, 0.64, 0.3],
-          ring: [0.35, 0.64],
+          palm: [0.52, 0.64, 0.3],
+          ring: [0.52, 0.64],
           points: pts,
         };
       };
@@ -892,7 +892,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const leftBolinhaShown = !!leftBolinhaEl && !leftBolinhaEl.hidden && leftBolinhaEl.querySelector('img')?.getAttribute('src')?.includes('nextvr-bolinha-left.png');
       window.nextvrHands({ hands: [mkLeftVLHand(true)] });
       const lhMenu = document.getElementById('left-hand-quick-menu');
-      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
+      const lhFloatingShell = lhMenu?.closest('.win-shell[data-window-id="left-quick-menu"]');
+      const lhMenuTransparentBg = !!lhMenu && getComputedStyle(lhMenu).backgroundColor === 'rgba(0, 0, 0, 0)';
+      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
       window.nextvrSetScreenBrightness?.(55);
       const brightnessUpdated = document.documentElement.dataset.brightnessPercent === '55';
       lhMenu?.querySelector('[data-lh-act="close"]')?.click();

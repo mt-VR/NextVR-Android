@@ -110,9 +110,10 @@ export const SixDof = {
   stepDelta: new THREE.Vector3(),
   lastT: 0,
   lastSc: 0,
+  lastScAt: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
-  depth: 2.35, // metros assumidos até aos objetos à frente (resposta rápida ao se aproximar ou afastar)
+  depth: 2.85, // metros assumidos até aos objetos à frente (escala física 1:1 estilo Meta Quest)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -129,6 +130,7 @@ export const SixDof = {
     this.stepDelta.set(0, 0, 0);
     this.prev = null;
     this.lastSc = 0;
+    this.lastScAt = 0;
     this._lastSentX = 0;
     this._lastSentZ = 0;
     const cam = _getCam();
@@ -265,13 +267,14 @@ export const SixDof = {
     const cam = _getCam();
     if (!cam) return;
 
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0022 || Math.abs(sc) > 0.24) {
-      this.lastSc = 0;
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0016 || Math.abs(sc) > 0.25) {
+      if (nowMs - this.lastScAt > 220) this.lastSc = 0;
       return;
     }
 
     // Cabeça a rodar: ignora o fluxo ótico e zera o acumulador para nunca causar drift
-    if (Math.hypot(gx, gy) > 3.2) {
+    if (Math.hypot(gx, gy) > 3.8) {
       this.lastSc = 0;
       return;
     }
@@ -285,15 +288,16 @@ export const SixDof = {
     // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
     const prevSc = this.lastSc;
     this.lastSc = sc;
+    this.lastScAt = nowMs;
     if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc)) {
       return;
     }
-    if (Math.abs(sc - prevSc) > Math.max(0.065, Math.abs(sc) * 1.65)) {
+    if (Math.abs(sc - prevSc) > Math.max(0.085, Math.abs(sc) * 1.85)) {
       return;
     }
 
-    const stepSc = sc * 0.65 + prevSc * 0.35;
-    const step = Math.max(-0.14, Math.min(0.14, stepSc * this.depth));
+    const stepSc = sc * 0.72 + prevSc * 0.28;
+    const step = Math.max(-0.18, Math.min(0.18, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
@@ -303,16 +307,46 @@ export const SixDof = {
     else _sdFwd.set(0, 0, -1);
 
     this.pos.addScaledVector(_sdFwd, step);
+
+    // Paralaxe lateral (strafe esquerda/direita estilo Meta Quest) quando há translação lateral sem rotação rápida
+    if (Number.isFinite(latDx) && Math.abs(latDx) >= 0.14 && Math.abs(latDx) <= 2.4 && Math.hypot(gx, gy) <= 1.25) {
+      _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
+      _sdRight.y = 0;
+      if (_sdRight.lengthSq() > 1e-6) {
+        _sdRight.normalize();
+        const latStep = Math.max(-0.045, Math.min(0.045, -latDx * 0.018));
+        this.pos.addScaledVector(_sdRight, latStep);
+      }
+    }
+
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal
     const planarLen = Math.hypot(this.pos.x, this.pos.z);
-    if (planarLen > 3.0) {
-      const scale = 3.0 / planarLen;
+    if (planarLen > 3.2) {
+      const scale = 3.2 / planarLen;
       this.pos.x *= scale;
       this.pos.z *= scale;
     }
     this.pos.y = 0;
+
+    // Atualiza imediatamente a saída e a matriz nativa para eliminar latência entre o passo e o render
+    this.out.lerp(this.pos, 0.76);
+    this.out.y = 0;
+    cam.position.x = this.out.x;
+    cam.position.z = this.out.z;
+    if (Math.hypot(this.out.x - this._lastSentX, this.out.z - this._lastSentZ) > 1e-4) {
+      this._lastSentX = this.out.x;
+      this._lastSentZ = this.out.z;
+      if (typeof _onNativeOffset === 'function') {
+        _onNativeOffset(this.out.x, 0, this.out.z);
+      } else if (typeof window !== 'undefined') {
+        window.NativeXR?.sixDofOffset?.(this.out.x, 0, this.out.z);
+      }
+      if (typeof window !== 'undefined') {
+        window.__updateBackfaceStates?.();
+      }
+    }
   },
 
   update(now, dt = 0.016) {
@@ -400,7 +434,8 @@ if (typeof window !== 'undefined') {
       const sc = Number(payload.sc ?? 0);
       const gx = Number(payload.gx ?? 0);
       const gy = Number(payload.gy ?? 0);
-      SixDof.applyFlowScale(sc, gx, gy, payload.moving);
+      const mx = Number(payload.mx ?? 0);
+      SixDof.applyFlowScale(sc, gx, gy, payload.moving, mx);
       return { sc, gx, gy };
     }
     const sc = Number(payload ?? 0);

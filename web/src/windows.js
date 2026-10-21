@@ -128,7 +128,7 @@ class Win {
     // Barra de controlo de brilho sob a janela (IMG_20261021_144045.jpg): aumenta e diminui o brilho
     const brightnessBar = document.createElement('div');
     brightnessBar.className = 'win-brightness-bar';
-    brightnessBar.hidden = onboarding;
+    brightnessBar.hidden = onboarding || id === 'left-quick-menu';
     const initBri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
     brightnessBar.innerHTML = `<span class="win-bri-icon">${icon('sun')}</span>`
       + `<input type="range" class="win-bri-range" data-win-brightness min="10" max="100" step="1" value="${initBri}" style="--bri-fill:${initBri}%" aria-label="Brilho"/>`;
@@ -145,7 +145,7 @@ class Win {
     // Telinhas pré-definidas nas laterais para posicionar as janelinhas flutuantes (IMG_20261021_143929.jpg)
     const predefinedSlotsBar = document.createElement('div');
     predefinedSlotsBar.className = 'win-predefined-slots';
-    predefinedSlotsBar.hidden = onboarding;
+    predefinedSlotsBar.hidden = onboarding || id === 'left-quick-menu';
     predefinedSlotsBar.innerHTML = `
       <button type="button" class="win-predefined-slot win-predefined-slot--left" data-predefined-slot="left" title=" encaixar à esquerda" aria-label="Telinha pré-definida esquerda">
         <span class="win-predefined-slot-frame"></span>
@@ -360,7 +360,7 @@ function plane(w, h, win, segments = 1) {
  * lado não cabem no campo de visão. Soltas (arrastadas) ficam onde o usuário largou.
  */
 function layout() {
-  const hasOpenAppWins = wins.some(w => !w.onboarding && !w.hidden);
+  const hasOpenAppWins = wins.some(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
   for (const w of wins) {
     if (!w.onboarding) continue;
     if (w.id === 'spatial-launcher') {
@@ -429,8 +429,8 @@ export function open(spec) {
   if (same) { focus(same); return same; }
   // Janelas escondidas pelo jogo não ocupam slot do arco e NUNCA são descartadas para dar lugar a
   // outra: posição, tamanho, curvatura e conteúdo delas têm que voltar exatamente iguais na saída.
-  const apps = wins.filter(w => !w.onboarding && !w.hidden);
-  if (apps.length >= ARC_CAPACITY) {
+  const apps = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
+  if (spec.id !== 'left-quick-menu' && apps.length >= ARC_CAPACITY) {
     // Multitarefa em arco: até 3 apps de vez. Com o arco cheio, o menos recente sai para o novo entrar.
     const lru = pickLru(apps);
     if (lru) { toast(`${t('arcFull')}: ${lru.title}`); close(lru); }
@@ -440,7 +440,19 @@ export function open(spec) {
   w.obj.position.copy(w.target);            // já nasce no lugar: nada de voar da dock
   // Janela fora do arco (`free`): nasce onde há espaço livre, para não cobrir a dock, o teclado ou
   // o que já está no mundo. É assim que o jogo posiciona o painel de ferramentas e o menu.
-  if (spec.free) placeFree(w, spec.at);
+  if (spec.id === 'left-quick-menu') {
+    w.pinned = false;
+    w.shell.classList.add('free', 'lh-floating-win-shell');
+    const at = spec.at || { x: -0.22, y: EYE - 0.04, z: -1.42 };
+    w.target.set(at.x, at.y, at.z);
+    w.obj.position.copy(w.target);
+    w.resizeHandle.hidden = true;
+    if (w.cinemaBar) w.cinemaBar.hidden = true;
+    if (w.brightnessBar) w.brightnessBar.hidden = true;
+    if (w.predefinedSlotsBar) w.predefinedSlotsBar.hidden = true;
+  } else if (spec.free) {
+    placeFree(w, spec.at);
+  }
   if(w.onboarding){
     w.handle.hidden=true;w.resizeHandle.hidden=true;
     if(w.cinemaBar)w.cinemaBar.hidden=true;
@@ -884,10 +896,30 @@ function pickInElement(root, u, v) {
   walk(root);
   return best || root;
 }
+function applyLeftQuickSliderAtHit(hit, el) {
+  const pill = el?.closest?.('.lh-vslider-pill');
+  if (!pill || !hit?.win?.el) return false;
+  const input = pill.querySelector('input[data-lh-slider]');
+  if (!input) return false;
+  const b = box(pill, hit.win.el);
+  const py = hit.v * hit.win.el.offsetHeight;
+  const frac = Math.max(0, Math.min(1, 1 - (py - b.t) / Math.max(1, b.b - b.t)));
+  const min = Number.isFinite(Number(input.min)) ? Number(input.min) : 0;
+  const max = Number.isFinite(Number(input.max)) ? Number(input.max) : 100;
+  const val = Math.round(min + frac * (max - min));
+  input.value = String(val);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
 function handTouch(hit, action) {
   const root = hit.win.el, px = hit.u * root.offsetWidth, py = hit.v * root.offsetHeight;
   const rect = root.getBoundingClientRect();
   const el = document.elementFromPoint(rect.left + px, rect.top + py) || deepPick(root, px, py);
+  if (action === 0 || action === 2) {
+    applyLeftQuickSliderAtHit(hit, el);
+  }
   /*
    * O teclado segue o alvo do toque. Um campo assume o teclado; qualquer outra coisa na shell
    * (titulo, botao, fundo) solta. Reabrir no mesmo campo so reposiciona, entao o teclado nao
@@ -2452,7 +2484,11 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
   if (h && !h.handle && !h.resize) {
     focus(h.win);
     const targetEl = (preferredEl && h.win.el.contains(preferredEl)) ? preferredEl : pickInElement(h.win.el, h.u, h.v);
-    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-qb-url]') || targetEl;
+    if (applyLeftQuickSliderAtHit(h, targetEl)) {
+      css3d.invalidate?.(); css3d.render?.(scene, camera);
+      return true;
+    }
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-qb-url],[data-lh-app],[data-lh-act],[data-lh-slider]') || targetEl;
     if (clickable?.classList) {
       clickable.classList.add('finger-pressed');
       setTimeout(() => clickable.classList?.remove?.('finger-pressed'), 180);
@@ -2896,30 +2932,39 @@ let leftHandBolinhaState = {
   blueUntil: 0,
 };
 
-function isPalmTurnedForBolinha(h, isLeft) {
+function isPalmTurnedForBolinha(h, isRightBolinha) {
   if (!h || !h.points || h.points.length < 63) return false;
   if (h.palmToFace === false || h.backOfHand === true) return false;
   if (h.palmToFace === true) return true;
   const p = h.points;
-  // Quando a mão está virada de costas para o utilizador (ex: IMG_20261021_144721.jpg):
-  // Na mão direita de costas, o polegar (4, idx 12) fica à esquerda do indicador MCP (5, idx 15) e mindinho MCP (17, idx 51) à direita.
-  // Na mão direita com a palma virada para o utilizador (IMG_20261021_144958.jpg), o polegar fica à direita do indicador MCP (p[12] >= p[15] - 0.015).
-  if (!isLeft) {
-    if (p[12] < p[15] - 0.015 && p[15] < p[51]) return false;
-    return p[12] >= p[15] - 0.015;
-  } else {
+  // Na câmera traseira real (PhoneXrHands), quando o utilizador vira a palma da MÃO DIREITA para o rosto:
+  // MediaPipe classifica a palma como "Right" e PhoneXrHands inverte para h.left = true (id = 'left'),
+  // ficando o polegar (4, idx 12) à esquerda do indicador MCP (5, idx 15): p[12] <= p[15] + 0.015.
+  // E quando o utilizador vira a palma da MÃO ESQUERDA para o rosto:
+  // PhoneXrHands reporta h.left = false (id = 'right'), ficando o polegar à direita do indicador MCP: p[12] >= p[15] - 0.015.
+  if (isRightBolinha) {
     if (p[12] > p[15] + 0.015 && p[15] > p[51]) return false;
     return p[12] <= p[15] + 0.015;
+  } else {
+    if (p[12] < p[15] - 0.015 && p[15] < p[51]) return false;
+    return p[12] >= p[15] - 0.015;
   }
 }
 
-function isVLArminhaPose(h, isLeft) {
-  if (!h || Boolean(h.left) !== Boolean(isLeft) || h.predicted || h.pinching || h.fist) return false;
-  if (!isLeft && h.id && h.id !== 'right') return false;
-  if (isLeft && h.id && h.id !== 'left') return false;
+function isRightBolinhaHand(h) {
+  return Boolean(h && (h.left === true || h.id === 'left'));
+}
+
+function isLeftBolinhaHand(h) {
+  return Boolean(h && !h.left && (!h.id || h.id === 'right'));
+}
+
+function isVLArminhaPose(h, isRightBolinha) {
+  if (!h || h.predicted || h.pinching || h.fist) return false;
+  if (isRightBolinha ? !isRightBolinhaHand(h) : !isLeftBolinhaHand(h)) return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
-  if (!isPalmTurnedForBolinha(h, isLeft)) return false;
+  if (!isPalmTurnedForBolinha(h, isRightBolinha)) return false;
   const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
   // Ignora mãos sintéticas de testes que têm juntas colapsadas no mesmo ponto
   if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
@@ -2936,15 +2981,16 @@ function isVLArminhaPose(h, isLeft) {
 }
 
 function isRightHandBolinhaGesture(h) {
-  return isVLArminhaPose(h, false);
-}
-
-function isLeftHandBolinhaGesture(h) {
   return isVLArminhaPose(h, true);
 }
 
-function isHandPinchFromBolinha(h, isLeft) {
-  if (!h || Boolean(h.left) !== Boolean(isLeft) || h.predicted) return false;
+function isLeftHandBolinhaGesture(h) {
+  return isVLArminhaPose(h, false);
+}
+
+function isHandPinchFromBolinha(h, isRightBolinha) {
+  if (!h || h.predicted) return false;
+  if (isRightBolinha ? !isRightBolinhaHand(h) : !isLeftBolinhaHand(h)) return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
   const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
@@ -3122,8 +3168,8 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
 
   let anyActive = false;
 
-  // 1. Mão direita ("N" logo -> IMG_20261007_215701.png + Menu card + contorno azul + alternar Dock/Apps)
-  const rightHand = (packet?.hands || []).find(h => h && !h.left && (!h.id || h.id === 'right'));
+  // 1. Mão direita física ("N" logo -> IMG_20261007_215701.png + Menu card + contorno azul + alternar Dock/Apps)
+  const rightHand = (packet?.hands || []).find(h => isRightBolinhaHand(h));
   if (!rightHand) {
     if (!packet?.hands?.length || (nowMs - rightHandBolinhaState.lastArmedAt > 240 && nowMs >= rightHandBolinhaState.blueUntil)) {
       rightHandBolinhaState.frames = 0;
@@ -3131,7 +3177,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
       rightHandBolinhaState.blueUntil = 0;
       hideBolinhaBubble(0);
     }
-  } else if (!isPalmTurnedForBolinha(rightHand, false)) {
+  } else if (!isPalmTurnedForBolinha(rightHand, true)) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
     rightHandBolinhaState.blueUntil = 0;
@@ -3149,8 +3195,9 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     rightHandBolinhaState.armed &&
     (nowMs - rightHandBolinhaState.lastArmedAt <= 850) &&
     (nowMs - rightHandBolinhaState.lastTriggerAt >= 750) &&
-    isHandPinchFromBolinha(rightHand, false)
+    isHandPinchFromBolinha(rightHand, true)
   ) {
+    const hKey = rightHand.id || 'left';
     rightHandBolinhaState.armed = false;
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.lastTriggerAt = nowMs;
@@ -3158,9 +3205,9 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     document.documentElement.dataset.handBlueOutline = 'right';
     S.handDraw = 1;
     window.NativeXR?.handVisuals?.(true);
-    fistHoldByHand.delete(rightHand.id || 'right');
-    pinchSuppressed.add(rightHand.id || 'right');
-    packet.consumed.add(rightHand.id || 'right');
+    fistHoldByHand.delete(hKey);
+    pinchSuppressed.add(hKey);
+    packet.consumed.add(hKey);
     cancelHandInput();
     showBolinhaBubble(rightHand, packet, true);
     hideBolinhaBubble(420);
@@ -3175,8 +3222,8 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     hideBolinhaBubble(0);
   }
 
-  // 2. Mão esquerda (Logo IMG_20261007_215728.png -> Pinça polegar+indicador abre/fecha o menu de controlo rápido da mão esquerda IMG_20261021_144416.jpg)
-  const leftHand = (packet?.hands || []).find(h => h && (h.left === true || h.id === 'left'));
+  // 2. Mão esquerda física (Logo IMG_20261007_215728.png -> Pinça polegar+indicador abre/fecha a janelinha flutuante transparente de Brilho e Som)
+  const leftHand = (packet?.hands || []).find(h => isLeftBolinhaHand(h));
   if (!leftHand) {
     if (!packet?.hands?.length || (nowMs - leftHandBolinhaState.lastArmedAt > 240 && nowMs >= leftHandBolinhaState.blueUntil)) {
       leftHandBolinhaState.frames = 0;
@@ -3184,7 +3231,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
       leftHandBolinhaState.blueUntil = 0;
       hideLeftBolinhaBubble(0);
     }
-  } else if (!isPalmTurnedForBolinha(leftHand, true)) {
+  } else if (!isPalmTurnedForBolinha(leftHand, false)) {
     leftHandBolinhaState.frames = 0;
     leftHandBolinhaState.armed = false;
     leftHandBolinhaState.blueUntil = 0;
@@ -3202,8 +3249,9 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     leftHandBolinhaState.armed &&
     (nowMs - leftHandBolinhaState.lastArmedAt <= 850) &&
     (nowMs - leftHandBolinhaState.lastTriggerAt >= 750) &&
-    isHandPinchFromBolinha(leftHand, true)
+    isHandPinchFromBolinha(leftHand, false)
   ) {
+    const hKey = leftHand.id || 'right';
     leftHandBolinhaState.armed = false;
     leftHandBolinhaState.frames = 0;
     leftHandBolinhaState.lastTriggerAt = nowMs;
@@ -3211,9 +3259,9 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
     document.documentElement.dataset.handBlueOutline = 'left';
     S.handDraw = 1;
     window.NativeXR?.handVisuals?.(true);
-    fistHoldByHand.delete(leftHand.id || 'left');
-    pinchSuppressed.add(leftHand.id || 'left');
-    packet.consumed.add(leftHand.id || 'left');
+    fistHoldByHand.delete(hKey);
+    pinchSuppressed.add(hKey);
+    packet.consumed.add(hKey);
     cancelHandInput();
     showLeftBolinhaBubble(leftHand, packet, true);
     hideLeftBolinhaBubble(420);
@@ -3526,26 +3574,20 @@ let lastTargetAt=0,lastTargets='';
 onFrame((dt,now)=>{
   // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
-  const packet=lastPhonePacket, targets=[];
+  const packet=lastPhonePacket, targets=[], noBeam = S.fingerTouch !== 0;
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl);
-    const directPt = (S.pinchOnApp !== 0) ? resolveDirectPinchPoint(h) : null;
-    const directPinchHover = Boolean(directPt?.el);
-    const handNoBeam = Boolean(fingerHover || directPinchHover);
-    const stickExtra = (fingerHover && Number.isFinite(fSt?.tapX) && Number.isFinite(fSt?.tapY))
-      ? { stickX: Number(fSt.tapX.toFixed(4)), stickY: Number(fSt.tapY.toFixed(4)) }
-      : {};
-    const isRight = !h.left && (h.id === 'right' || !h.id);
-    const isLeft = Boolean(h.left || h.id === 'left');
+    const isRightBolinha = isRightBolinhaHand(h);
+    const isLeftBolinha = isLeftBolinhaHand(h);
     const blueOutline = Boolean(
-      (isRight && ((rightHandBolinhaState.armed && bolinhaBubbleEl && !bolinhaBubbleEl.hidden) || now < rightHandBolinhaState.blueUntil)) ||
-      (isLeft && ((leftHandBolinhaState.armed && leftBolinhaBubbleEl && !leftBolinhaBubbleEl.hidden) || now < leftHandBolinhaState.blueUntil))
+      (isRightBolinha && ((rightHandBolinhaState.armed && bolinhaBubbleEl && !bolinhaBubbleEl.hidden) || now < rightHandBolinhaState.blueUntil)) ||
+      (isLeftBolinha && ((leftHandBolinhaState.armed && leftBolinhaBubbleEl && !leftBolinhaBubbleEl.hidden) || now < leftHandBolinhaState.blueUntil))
     );
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,noBeam:true,...stickExtra});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
@@ -3559,8 +3601,8 @@ onFrame((dt,now)=>{
     if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
-    const isTouching=fingerHover || directPinchHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(handNoBeam?{noBeam:true}:{}),...stickExtra});
+    const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

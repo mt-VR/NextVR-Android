@@ -156,13 +156,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // para responder imediatamente ao aproximar ou afastar sem confundir rotação da cabeça com caminhada.
                     float stepImpact=Math.abs(mag-gravMag);
                     float vecDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    float motionSignal=Math.max(stepImpact, vecDelta*0.65f);
-                    if(motionSignal>0.055f && gyroRate<0.95f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.86f + motionSignal*1.35f);
-                        if(walkEnergy>0.075f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    float motionSignal=Math.max(stepImpact, vecDelta*0.75f);
+                    if(motionSignal>0.022f && gyroRate<1.35f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.88f + motionSignal*1.65f);
+                        if(walkEnergy>0.032f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.88f;
+                        walkEnergy*=0.90f;
                     }
+                }
+            } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
+                float lx=event.values[0], ly=event.values[1], lz=event.values[2];
+                float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
+                if(lmag>0.025f && gyroRate<1.35f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.88f + lmag*1.55f);
+                    if(walkEnergy>0.032f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -226,8 +233,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
-                if(!sixDofEnabled || Math.abs(sc)>0.22f) return;
-                if(Math.abs(sc)<0.0022f) {
+                if(!sixDofEnabled || Math.abs(sc)>0.24f) return;
+                if(Math.abs(sc)<0.0016f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
@@ -235,9 +242,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
                 long nowMs=android.os.SystemClock.elapsedRealtime();
                 boolean accelMoving=!hasWalkAccel
-                    ? (Math.abs(sc)>=0.0025f && Math.abs(sc)<=0.18f)
-                    : ((walkEnergy>0.07f && nowMs-lastWalkStepMs<1100L) || (Math.abs(sc)>=0.0040f && gyroRate<0.52f && Math.hypot(gx,gy)<=1.9));
-                boolean moving=accelMoving && gyroRate<0.92f && Math.hypot(gx,gy)<=3.2;
+                    ? (Math.abs(sc)>=0.0018f && Math.abs(sc)<=0.22f)
+                    : ((walkEnergy>0.032f && nowMs-lastWalkStepMs<1400L) || (Math.abs(sc)>=0.0024f && gyroRate<0.85f && Math.hypot(gx,gy)<=2.6));
+                boolean moving=accelMoving && gyroRate<1.32f && Math.hypot(gx,gy)<=3.8;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
@@ -589,8 +596,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(sensorManager==null) sensorManager=getSystemService(android.hardware.SensorManager.class);
                 if(sensorManager!=null) {
                     android.hardware.Sensor acc=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+                    android.hardware.Sensor lin=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_LINEAR_ACCELERATION);
                     android.hardware.Sensor gyr=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
                     if(acc!=null) sensorManager.registerListener(walkSensorListener,acc,android.hardware.SensorManager.SENSOR_DELAY_GAME);
+                    if(lin!=null) sensorManager.registerListener(walkSensorListener,lin,android.hardware.SensorManager.SENSOR_DELAY_GAME);
                     if(gyr!=null) sensorManager.registerListener(walkSensorListener,gyr,android.hardware.SensorManager.SENSOR_DELAY_GAME);
                     walkSensorsRegistered=true;
                 }

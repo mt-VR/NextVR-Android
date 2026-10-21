@@ -30,12 +30,16 @@ public final class FakeSixDof {
     private int retainedHandCount = 0;
     private long lastHandsMs = 0L;
     private long lastMs = 0L;
+    private float prevValidSc = 0f;
+    private long prevValidMs = 0L;
 
     public synchronized void reset() {
         prev = null;
         lastMs = 0L;
         retainedHandCount = 0;
         lastHandsMs = 0L;
+        prevValidSc = 0f;
+        prevValidMs = 0L;
     }
 
     /**
@@ -207,7 +211,7 @@ public final class FakeSixDof {
         }
 
         System.arraycopy(g, 0, P, 0, g.length);
-        if (nPts < 6) return new float[]{ 0f, gx, gy, gx };
+        if (nPts < 5) return null;
 
         // 3) Modelo radial: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
         float mx = 0f, my = 0f, px = 0f, py = 0f;
@@ -238,8 +242,8 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 0.95f || Math.hypot(gx, gy) > 3.5) return new float[]{ 0f, gx, gy, gx };
-        float limit = Math.max(0.36f, med * 2.0f);
+        if (med > 1.12f || Math.hypot(gx, gy) > 4.2) return null;
+        float limit = Math.max(0.42f, med * 2.15f);
 
         int goodCount = 0;
         float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f;
@@ -252,7 +256,7 @@ public final class FakeSixDof {
                 gpy += ptY[i];
             }
         }
-        if (goodCount < 6) return new float[]{ 0f, gx, gy, gx };
+        if (goodCount < 5) return null;
         gmx /= goodCount;
         gmy /= goodCount;
         gpx /= goodCount;
@@ -266,6 +270,16 @@ public final class FakeSixDof {
             gden += X * X + Y * Y;
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
-        return new float[]{ finalSc, gx, gy, gmx };
+        if (Math.abs(finalSc) >= 0.0016f && Math.abs(finalSc) <= 0.22f) {
+            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 220L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                finalSc = finalSc * 0.78f + prevValidSc * 0.42f;
+            }
+            prevValidSc = finalSc;
+            prevValidMs = nowMs;
+        } else if (nowMs - prevValidMs > 260L) {
+            prevValidSc = 0f;
+        }
+        float latDx = gmx - gx;
+        return new float[]{ finalSc, gx, gy, latDx };
     }
 }

@@ -351,7 +351,7 @@ final class SpatialRenderer {
         float ex = viewInv[12], ez = viewInv[14];
         float facing = (ex - panel.flat[12]) * panel.flat[8] + (ez - panel.flat[14]) * panel.flat[10];
         GLES20.glUniform1f(uBackface, !panel.overlay && facing < 0f ? 1f : 0f);
-        GLES20.glUniform1i(uBackdrop,!"black".equals(environmentId) && (camera.ready||sphere) && qualityHeight>500f && !panel.overlay && panel.browser.isEmpty() && !"spatial-launcher".equals(panel.id)?1:0);
+        GLES20.glUniform1i(uBackdrop,!"black".equals(environmentId) && (camera.ready||sphere) && qualityHeight>500f && !panel.overlay && panel.browser.isEmpty() && !"spatial-launcher".equals(panel.id) && !"left-quick-menu".equals(panel.id)?1:0);
         GLES20.glUniform1i(uEnvSphere,sphere?1:0);
         GLES20.glUniform1f(uCamDim,mrDim?0.68f:0.0f);
         GLES20.glUniformMatrix4fv(uViewInv,1,false,viewInv,0);

@@ -3106,18 +3106,35 @@
     background:linear-gradient(90deg,#2b8cff,#38bdf8);
   }
 
-  /* Menu Rápido da Mão Esquerda (IMG_20261021_144416.jpg) */
+  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda com Fundo 100% Transparente */
+  .win-shell[data-window-id="left-quick-menu"],
+  .win-shell[data-window-id="left-quick-menu"] .win,
+  .win-shell[data-window-id="left-quick-menu"] .win-body,
+  .lh-quick-menu-host{
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+    backdrop-filter:none !important;
+    overflow:visible !important;
+  }
+  .lh-quick-menu-host{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
   .lh-quick-menu{
-    position:absolute;
-    left:16%;
-    top:44%;
-    transform:translate(-50%,-50%);
-    padding:12px 14px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px 10px;
     border-radius:24px;
-    background:rgba(24,27,36,.84);
-    border:1.5px solid rgba(255,255,255,.16);
-    box-shadow:0 22px 54px rgba(0,0,0,.68);
-    backdrop-filter:blur(16px);
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+    backdrop-filter:none !important;
     pointer-events:auto;
     z-index:48;
   }
