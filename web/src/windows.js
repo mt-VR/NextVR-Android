@@ -3125,11 +3125,17 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 1. Mão direita ("N" logo -> IMG_20261007_215701.png + Menu card + contorno azul + alternar Dock/Apps)
   const rightHand = (packet?.hands || []).find(h => h && !h.left && (!h.id || h.id === 'right'));
   if (!rightHand) {
-    if (nowMs - rightHandBolinhaState.lastArmedAt > 300 && nowMs >= rightHandBolinhaState.blueUntil) {
+    if (!packet?.hands?.length || (nowMs - rightHandBolinhaState.lastArmedAt > 240 && nowMs >= rightHandBolinhaState.blueUntil)) {
       rightHandBolinhaState.frames = 0;
       rightHandBolinhaState.armed = false;
+      rightHandBolinhaState.blueUntil = 0;
       hideBolinhaBubble(0);
     }
+  } else if (!isPalmTurnedForBolinha(rightHand, false)) {
+    rightHandBolinhaState.frames = 0;
+    rightHandBolinhaState.armed = false;
+    rightHandBolinhaState.blueUntil = 0;
+    hideBolinhaBubble(0);
   } else if (isRightHandBolinhaGesture(rightHand)) {
     rightHandBolinhaState.frames += 1;
     if (rightHandBolinhaState.frames >= 2) {
@@ -3172,11 +3178,17 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 2. Mão esquerda (Logo IMG_20261007_215728.png -> Pinça polegar+indicador abre/fecha o menu de controlo rápido da mão esquerda IMG_20261021_144416.jpg)
   const leftHand = (packet?.hands || []).find(h => h && (h.left === true || h.id === 'left'));
   if (!leftHand) {
-    if (nowMs - leftHandBolinhaState.lastArmedAt > 300 && nowMs >= leftHandBolinhaState.blueUntil) {
+    if (!packet?.hands?.length || (nowMs - leftHandBolinhaState.lastArmedAt > 240 && nowMs >= leftHandBolinhaState.blueUntil)) {
       leftHandBolinhaState.frames = 0;
       leftHandBolinhaState.armed = false;
+      leftHandBolinhaState.blueUntil = 0;
       hideLeftBolinhaBubble(0);
     }
+  } else if (!isPalmTurnedForBolinha(leftHand, true)) {
+    leftHandBolinhaState.frames = 0;
+    leftHandBolinhaState.armed = false;
+    leftHandBolinhaState.blueUntil = 0;
+    hideLeftBolinhaBubble(0);
   } else if (isLeftHandBolinhaGesture(leftHand)) {
     leftHandBolinhaState.frames += 1;
     if (leftHandBolinhaState.frames >= 2) {
