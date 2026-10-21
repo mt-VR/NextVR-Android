@@ -2680,6 +2680,187 @@
     font:800 11px/1 Inter,sans-serif;
     cursor:pointer;
   }
+
+  /* ---------- Opção de Ambiente nos Apps Flutuantes ---------- */
+  .spatial-hz-env-pills{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 6px;
+    border-radius:999px;
+    background:rgba(12,18,32,.68);
+    border:1px solid rgba(125,211,252,.28);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .spatial-hz-env-pill{
+    appearance:none;
+    border:1px solid transparent;
+    background:transparent;
+    color:#cbd5e1;
+    font:700 11px/1 Inter,system-ui,sans-serif;
+    padding:6px 11px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .14s ease,color .14s ease,border-color .14s ease;
+  }
+  .spatial-hz-env-pill:hover,
+  .spatial-hz-env-pill.finger-hover{
+    color:#ffffff;
+    border-color:rgba(56,189,248,.55);
+  }
+  .spatial-hz-env-pill.on{
+    background:linear-gradient(135deg,#0284c7,#2563eb);
+    border-color:rgba(125,211,252,.65);
+    color:#ffffff;
+    box-shadow:0 0 12px rgba(56,189,248,.35);
+  }
+
+  /* ---------- Menuzinho Rápido (Soco por 2s) ---------- */
+  .fist-quick-menu-host{
+    height:100%;
+    background:linear-gradient(160deg,rgba(8,14,28,.96),rgba(5,9,18,.98));
+    color:#f8fafc;
+    box-sizing:border-box;
+  }
+  .fist-quick-menu{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    padding:16px 18px;
+    height:100%;
+    box-sizing:border-box;
+    font-family:Inter,system-ui,sans-serif;
+  }
+  .fist-menu-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .fist-menu-badge{
+    width:36px;
+    height:36px;
+    border-radius:12px;
+    background:linear-gradient(135deg,#0284c7,#2563eb);
+    display:grid;
+    place-items:center;
+    color:#fff;
+    box-shadow:0 0 14px rgba(56,189,248,.4);
+  }
+  .fist-menu-title{
+    margin:0;
+    font-size:16px;
+    font-weight:800;
+    color:#ffffff;
+  }
+  .fist-menu-sub{
+    margin:2px 0 0;
+    font-size:11.5px;
+    color:#94a3b8;
+  }
+  .fist-menu-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .fist-menu-btn{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 13px;
+    border-radius:14px;
+    background:rgba(15,25,46,.88);
+    border:1.5px solid rgba(56,189,248,.32);
+    color:#f1f5f9;
+    text-align:left;
+    cursor:pointer;
+    transition:transform .14s ease,border-color .14s ease,background .14s ease;
+  }
+  .fist-menu-btn--primary{
+    background:linear-gradient(135deg,rgba(2,132,199,.38),rgba(37,99,235,.32));
+    border-color:rgba(56,189,248,.65);
+  }
+  .fist-menu-btn:hover,
+  .fist-menu-btn.finger-hover{
+    transform:scale(1.02);
+    border-color:#00f2fe;
+  }
+  .fist-menu-btn strong{
+    display:block;
+    font-size:13px;
+    font-weight:800;
+    color:#ffffff;
+  }
+  .fist-menu-btn small{
+    display:block;
+    margin-top:2px;
+    font-size:10.5px;
+    color:#cbd5e1;
+    line-height:1.25;
+  }
+  .fist-menu-env-section{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+  }
+  .fist-menu-section-lbl{
+    font-size:10.5px;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:#7dd3fc;
+  }
+  .fist-menu-env-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+  }
+  .fist-env-chip{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    padding:9px 6px;
+    border-radius:12px;
+    background:rgba(15,23,42,.85);
+    border:1.5px solid rgba(148,163,184,.24);
+    color:#e2e8f0;
+    font:700 11px/1.15 Inter,sans-serif;
+    cursor:pointer;
+    transition:transform .14s ease,border-color .14s ease,background .14s ease;
+  }
+  .fist-env-chip.on,
+  .fist-env-chip:hover,
+  .fist-env-chip.finger-hover{
+    background:linear-gradient(135deg,#0284c7,#2563eb);
+    border-color:#38bdf8;
+    color:#ffffff;
+  }
+  .fist-menu-footer-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-top:auto;
+  }
+  .fist-menu-sec-btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:9px 10px;
+    border-radius:11px;
+    background:rgba(30,41,59,.78);
+    border:1px solid rgba(148,163,184,.28);
+    color:#f1f5f9;
+    font:700 11px/1.1 Inter,sans-serif;
+    cursor:pointer;
+  }
+  .fist-menu-sec-btn:hover,
+  .fist-menu-sec-btn.finger-hover{
+    border-color:#38bdf8;
+    background:rgba(14,165,233,.28);
+  }
 </style>
 </head>
 <body>

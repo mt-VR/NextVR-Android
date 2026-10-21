@@ -122,8 +122,8 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'apps.js implements the Meta Quest 3S Browser Start Page with Populares, Continuar navegando, Entretenimento, and Experiências imersivas');
   assert.ok(appsSrc.includes('SPATIAL_GAME_ITEMS') && appsSrc.includes('data-spatial-scroll-track') && appsSrc.includes('syncSpatialLauncherVisibility'),
     'apps.js shows games in the Spatial App, makes it horizontally scrollable, and hides/restores it when opening/closing an app window');
-  assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateGunDockToggle') && windowsSrc.includes('KEY_SUBS'),
-    'windows.js implements finger-lift touch activation, gun-gesture dock hide/unhide toggle, and keyboard superscript symbols');
+  assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
+    'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
 });
 
 test('entry menu interactive flow in browser: hand tracking toggle, colaboradores, sobre, configurações and iniciar', { timeout: 60000 }, async (t) => {
@@ -415,38 +415,20 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.ok(await page.evaluate(() => Array.isArray(window.__last) && window.__last.some(p => p.id === 'dock') && !window.__last.some(p => p.id === 'spatial-launcher')),
       'normal dock is published to NativeXR.frame and spatial-launcher is removed');
 
-    // 6c-2b. Gun gesture + closing index finger ("arma com qualquer mão e fechar o dedo indicador") hides and unhides the Dock
-    const gunDockResult = await page.evaluate(async () => {
-      const mkGunHand = (triggerClosed) => {
+    // 6c-2b. Holding a closed fist (soco) for 2 seconds opens the Quick Menu (`fist-menu`) with Recenter Dock, Virtual Environments, and Dock Toggle
+    const fistMenuResult = await page.evaluate(async () => {
+      const mkFistHand = () => {
         const pts = new Array(63).fill(0.5);
-        // Wrist at (0.5, 0.72)
         pts[0] = 0.5; pts[1] = 0.72; pts[2] = 0;
-        // Thumb extended up/left (gun hammer): MCP(2) at (0.45, 0.64), TIP(4) at (0.41, 0.52)
-        pts[6] = 0.45; pts[7] = 0.64; pts[8] = 0;
-        pts[9] = 0.43; pts[10] = 0.58; pts[11] = 0;
-        pts[12] = 0.41; pts[13] = 0.52; pts[14] = 0;
-        // Index finger: MCP(5) at (0.5, 0.58), PIP(6) at (0.5, 0.50)
-        pts[15] = 0.5; pts[16] = 0.58; pts[17] = 0;
-        pts[18] = 0.5; pts[19] = 0.50; pts[20] = 0;
-        if (triggerClosed) {
-          // Index curled back toward wrist (trigger pulled)
-          pts[21] = 0.5; pts[22] = 0.57; pts[23] = 0;
-          pts[24] = 0.5; pts[25] = 0.60; pts[26] = 0;
-        } else {
-          // Index extended forward/up (gun barrel)
-          pts[21] = 0.5; pts[22] = 0.42; pts[23] = 0;
-          pts[24] = 0.5; pts[25] = 0.34; pts[26] = 0;
-        }
-        // Middle(10,12), Ring(14,16), Pinky(18,20) curled near palm
-        for (const [pipIdx, tipIdx] of [[10, 12], [14, 16], [18, 20]]) {
-          pts[pipIdx * 3] = 0.54; pts[pipIdx * 3 + 1] = 0.60; pts[pipIdx * 3 + 2] = 0;
-          pts[tipIdx * 3] = 0.53; pts[tipIdx * 3 + 1] = 0.65; pts[tipIdx * 3 + 2] = 0;
+        for (const [pipIdx, tipIdx] of [[6, 8], [10, 12], [14, 16], [18, 20]]) {
+          pts[pipIdx * 3] = 0.52; pts[pipIdx * 3 + 1] = 0.52; pts[pipIdx * 3 + 2] = 0;
+          pts[tipIdx * 3] = 0.52; pts[tipIdx * 3 + 1] = 0.62; pts[tipIdx * 3 + 2] = 0;
         }
         return {
           id: 'right',
           pinching: false,
           pinch: 0.55,
-          fist: false,
+          fist: true,
           palmWidth: 0.2,
           aim: [0, 0],
           palm: [0.5, 0.6, 0.3],
@@ -454,24 +436,33 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
           points: pts,
         };
       };
-      // 1) Arm gun pose (index open) then pull trigger (close index finger) -> hides dock
-      window.nextvrHands({ hands: [mkGunHand(false)] });
+      const origNow = performance.now.bind(performance);
+      let fakeOffset = 0;
+      performance.now = () => origNow() + fakeOffset;
+      try {
+        window.nextvrHands({ hands: [mkFistHand()] });
+        fakeOffset += 2100;
+        window.nextvrHands({ hands: [mkFistHand()] });
+      } finally {
+        performance.now = origNow;
+      }
       await new Promise(r => setTimeout(r, 30));
-      window.nextvrHands({ hands: [mkGunHand(true)] });
+      const fistWin = document.querySelector('.win-shell[data-window-id="fist-menu"]');
+      const openedMenu = !!fistWin && !fistWin.hidden;
+      fistWin?.querySelector('[data-fist-act="toggle-dock"]')?.click();
       await new Promise(r => setTimeout(r, 30));
-      const hiddenAfterFirstGun = getComputedStyle(document.querySelector('.dock')).display === 'none';
-      // 2) Wait cooldown, arm gun pose again and close index finger -> unhides dock
-      await new Promise(r => setTimeout(r, 560));
-      window.nextvrHands({ hands: [mkGunHand(false)] });
+      const hiddenAfterToggle = getComputedStyle(document.querySelector('.dock')).display === 'none';
+      window.nextvrOpenFistQuickMenu?.();
       await new Promise(r => setTimeout(r, 30));
-      window.nextvrHands({ hands: [mkGunHand(true)] });
+      document.querySelector('.win-shell[data-window-id="fist-menu"] [data-fist-act="recenter"]')?.click();
       await new Promise(r => setTimeout(r, 30));
-      const visibleAfterSecondGun = getComputedStyle(document.querySelector('.dock')).display !== 'none';
+      const visibleAfterRecenter = getComputedStyle(document.querySelector('.dock')).display !== 'none';
       window.nextvrHands({ hands: [] });
-      return { hiddenAfterFirstGun, visibleAfterSecondGun };
+      return { openedMenu, hiddenAfterToggle, visibleAfterRecenter };
     });
-    assert.equal(gunDockResult.hiddenAfterFirstGun, true, 'gun gesture + closing index finger hides the Dock');
-    assert.equal(gunDockResult.visibleAfterSecondGun, true, 'repeating gun gesture + closing index finger unhides the Dock');
+    assert.equal(fistMenuResult.openedMenu, true, 'holding a closed fist (soco) for 2 seconds opens the Quick Menu');
+    assert.equal(fistMenuResult.hiddenAfterToggle, true, 'Quick Menu toggle-dock action hides the Dock');
+    assert.equal(fistMenuResult.visibleAfterRecenter, true, 'Quick Menu recenter action restores and recenters the Dock');
 
     // 6c-3. 6DoF Falso estabilizado (fluxo ótico 96x72 / SixDof):
     // - NÃO anda para a frente sozinho quando parado (moving: false) nem continua a deslizar sozinho após parar
@@ -712,10 +703,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       await new Promise(r => setTimeout(r, 60));
       const robloxBlackEnvRestored = !document.documentElement.dataset.robloxBlackEnv;
 
-      // Gun gesture (arminha): thumb up + index open -> gun logo bubble appears; index closes -> toggles dock
-      const dockEl = document.querySelector('.dock');
-      const dockVisibleBefore = getComputedStyle(dockEl).display !== 'none' && getComputedStyle(dockEl).opacity !== '0';
-      const mkGunPoseHand = (indexOpen) => {
+      // Gun gesture (arminha) + bolinha removed from game; holding a closed fist (soco) for 2s opens the Quick Menu (fist-menu)
+      const mkFistHand = () => {
         const pts = new Array(63).fill(0);
         const setPt = (idx, x, y, z = 0) => {
           pts[idx * 3] = x;
@@ -724,35 +713,21 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         };
         for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
         setPt(0, 0.50, 0.72); // wrist
-        // Thumb raised up
         setPt(1, 0.46, 0.66);
-        setPt(2, 0.43, 0.59);
-        setPt(3, 0.41, 0.51);
-        setPt(4, 0.39, 0.43);
-        // Index finger: extended forward/up when open, curled to palm when closed
-        setPt(5, 0.48, 0.56);
-        setPt(6, 0.48, 0.47);
-        setPt(7, indexOpen ? 0.48 : 0.49, indexOpen ? 0.38 : 0.56);
-        setPt(8, indexOpen ? 0.48 : 0.49, indexOpen ? 0.30 : 0.61);
-        // Middle, Ring, Pinky curled into palm
-        setPt(9,  0.51, 0.56);
-        setPt(10, 0.51, 0.49);
-        setPt(11, 0.51, 0.57);
-        setPt(12, 0.51, 0.62);
-        setPt(13, 0.54, 0.57);
-        setPt(14, 0.54, 0.50);
-        setPt(15, 0.54, 0.58);
-        setPt(16, 0.54, 0.63);
-        setPt(17, 0.57, 0.59);
-        setPt(18, 0.57, 0.52);
-        setPt(19, 0.57, 0.60);
-        setPt(20, 0.57, 0.65);
+        setPt(2, 0.45, 0.61);
+        setPt(3, 0.46, 0.58);
+        setPt(4, 0.48, 0.57);
+        // All 4 fingers curled into palm (fist / soco)
+        setPt(5, 0.48, 0.56); setPt(6, 0.48, 0.48); setPt(7, 0.49, 0.56); setPt(8, 0.49, 0.62);
+        setPt(9, 0.51, 0.56); setPt(10, 0.51, 0.48); setPt(11, 0.51, 0.57); setPt(12, 0.51, 0.62);
+        setPt(13, 0.54, 0.57); setPt(14, 0.54, 0.49); setPt(15, 0.54, 0.58); setPt(16, 0.54, 0.63);
+        setPt(17, 0.57, 0.59); setPt(18, 0.57, 0.51); setPt(19, 0.57, 0.60); setPt(20, 0.57, 0.65);
         return {
           id: 'right',
           left: false,
-          pinch: 0.35,
+          pinch: 0.45,
           pinching: false,
-          fist: !indexOpen,
+          fist: true,
           menuEligible: true,
           aim: [0, 0],
           palm: [0.50, 0.58, 0.3],
@@ -760,20 +735,45 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
           points: pts,
         };
       };
-      window.nextvrHands({ hands: [mkGunPoseHand(true)] });
+      const origNow = performance.now.bind(performance);
+      let fakeOffset = 0;
+      performance.now = () => origNow() + fakeOffset;
+      try {
+        window.nextvrHands({ hands: [mkFistHand()] });
+        fakeOffset += 2100;
+        window.nextvrHands({ hands: [mkFistHand()] });
+      } finally {
+        performance.now = origNow;
+      }
       await new Promise(r => setTimeout(r, 40));
-      const gunBubble = document.getElementById('gun-gesture-indicator');
-      const gunBubbleShown = !!gunBubble && !gunBubble.hidden && !!gunBubble.querySelector('img[src*="gun-logo.jpg"]');
+      const noGunBubble = !document.getElementById('gun-gesture-indicator');
+      const fistMenuWin = document.querySelector('.win-shell[data-window-id="fist-menu"]');
+      const fistMenuOpened =
+        !!fistMenuWin &&
+        !!fistMenuWin.querySelector('[data-fist-act="recenter"]') &&
+        !!fistMenuWin.querySelector('[data-fist-act="environments"]') &&
+        !!fistMenuWin.querySelector('[data-fist-env="sunset"]');
+      fistMenuWin?.querySelector('[data-fist-env="dark"]')?.click();
+      await new Promise(r => setTimeout(r, 30));
+      const envChangedFromFistMenu = JSON.parse(localStorage.getItem('nextvr.v1')).env === 'dark';
+      fistMenuWin?.querySelector('[data-fist-act="recenter"]')?.click();
 
-      window.nextvrHands({ hands: [mkGunPoseHand(false)] });
-      await new Promise(r => setTimeout(r, 40));
-      const dockHiddenAfterTrigger = getComputedStyle(dockEl).display === 'none' || dockEl.hidden || dockEl.style.display === 'none';
+      // Environment options inside Floating Apps (spatial-launcher)
+      window.nextvrEnterWorkspace(JSON.stringify({ spatialLauncher: 1, wideCamera: 1, handDraw: 1 }));
+      await new Promise(r => setTimeout(r, 60));
+      const spatialWin = document.querySelector('.win-shell[data-window-id="spatial-launcher"]');
+      const hasSpatialEnvOptions =
+        !!spatialWin?.querySelector('[data-spatial-env="sunset"]') &&
+        !!spatialWin?.querySelector('[data-spatial-env="dark"]') &&
+        !!spatialWin?.querySelector('[data-spatial-builtin="environments"]');
+      spatialWin?.querySelector('[data-spatial-env="sunset"]')?.click();
+      await new Promise(r => setTimeout(r, 30));
+      const spatialEnvSwitched = JSON.parse(localStorage.getItem('nextvr.v1')).env === 'sunset';
 
       window.nextvrShowCircleLoader?.('env', 'dark');
       const circleLoader = document.getElementById('vr-circle-loader');
       const circleLoaderShown = !!circleLoader && !circleLoader.hidden && !!circleLoader.querySelector('.vr-circle-ring-svg');
 
-      // Trigger again to restore dock
       return {
         pillTexts,
         hasBrowseAll,
@@ -785,9 +785,11 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         beatVrMode,
         robloxBlackEnvActive,
         robloxBlackEnvRestored,
-        dockVisibleBefore,
-        gunBubbleShown,
-        dockHiddenAfterTrigger,
+        noGunBubble,
+        fistMenuOpened,
+        envChangedFromFistMenu,
+        hasSpatialEnvOptions,
+        spatialEnvSwitched,
         circleLoaderShown,
       };
     });
@@ -804,9 +806,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.beatVrMode, true, 'Launching Beat Saber immediately enters VR mode');
     assert.equal(questAndFeatures.robloxBlackEnvActive, true, 'Launching Roblox turns the surrounding environment black with floating Roblox window');
     assert.equal(questAndFeatures.robloxBlackEnvRestored, true, 'Closing Roblox restores the normal environment');
-    assert.equal(questAndFeatures.gunBubbleShown, true, 'Making the gun gesture displays the floating circle with gun-logo.jpg');
-    assert.equal(questAndFeatures.dockHiddenAfterTrigger, true, 'Closing the index finger from the gun pose hides/toggles the Dock');
-    assert.equal(questAndFeatures.circleLoaderShown, true, 'Circular loading transition appears for environment and app loading');
+    assert.equal(questAndFeatures.noGunBubble, true, 'Floating gun gesture bolinha is completely removed from gameplay');
+    assert.equal(questAndFeatures.fistMenuOpened, true, 'Holding a closed fist (soco) for 2 seconds opens the Quick Menu with Recenter Dock and Virtual Environment options');
+    assert.equal(questAndFeatures.envChangedFromFistMenu, true, 'Quick Menu switches the virtual environment immediately');
+    assert.equal(questAndFeatures.hasSpatialEnvOptions, true, 'Floating Apps (spatial-launcher) includes Virtual Environment options');
+    assert.equal(questAndFeatures.spatialEnvSwitched, true, 'Selecting an environment inside Floating Apps switches the active environment');
+    assert.equal(questAndFeatures.circleLoaderShown, true, 'Circular loading transition appears for environment loading');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

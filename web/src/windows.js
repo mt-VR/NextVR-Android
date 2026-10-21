@@ -370,24 +370,6 @@ export function open(spec) {
   if(w.onboarding){w.handle.hidden=true;w.resizeHandle.hidden=true;}
   w.apply();
   scene.updateMatrixWorld(true);
-  if (!w.onboarding && w.id !== 'spatial-launcher') {
-    w.shell.classList.add('win-circle-reveal');
-    let ring = w.shell.querySelector('.win-circle-loader');
-    if (!ring) {
-      ring = document.createElement('div');
-      ring.className = 'win-circle-loader';
-      ring.setAttribute('aria-hidden', 'true');
-      ring.innerHTML = `<svg viewBox="0 0 64 64" class="win-circle-svg"><circle cx="32" cy="32" r="24" class="win-circle-track"/><circle cx="32" cy="32" r="24" class="win-circle-prog"/></svg>`;
-      w.shell.appendChild(ring);
-    }
-    ring.classList.remove('done');
-    setTimeout(() => {
-      ring?.classList?.add?.('done');
-      w.shell?.classList?.remove?.('win-circle-reveal');
-      css3d.invalidate?.();
-    }, 520);
-    if (typeof window !== 'undefined') window.nextvrShowCircleLoader?.('app', w.title || w.id);
-  }
   css3d.invalidate?.();
   emit('wins', wins);
   return w;
@@ -867,6 +849,7 @@ function box(el, root) {
 
 let winBrowserHoldTimer = null;
 let winHoldConsumed = false;
+let pinchOverridePt = null;
 function clearWinBrowserHold() {
   if (winBrowserHoldTimer) {
     clearTimeout(winBrowserHoldTimer);
@@ -874,23 +857,77 @@ function clearWinBrowserHold() {
   }
 }
 
+function resolveDirectPinchPoint() {
+  if (S.pinchOnApp === 0) return null;
+  const h = cursor.hand;
+  const p = h?.points;
+  if (!p || p.length < 26) return null;
+  if (Math.hypot(p[18] - p[15], p[19] - p[16]) <= 0.008 || Math.hypot(p[24] - p[18], p[25] - p[19]) <= 0.008) {
+    return null;
+  }
+  const sx = Number(lastPhonePacket?.scaleX) || 1;
+  const sy = Number(lastPhonePacket?.scaleY) || 1;
+  const candidates = [];
+  if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
+    candidates.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
+  }
+  if (Number.isFinite(p[24]) && Number.isFinite(p[25])) {
+    candidates.push([(p[24] - 0.5) * sx + 0.5, (p[25] - 0.5) * sy + 0.5]);
+  }
+  for (const [cx, cy] of candidates) {
+    const dk = dockTest(cx, cy);
+    if (dk) return { x: cx, y: cy };
+    const hit = hitAt(cx, cy);
+    if (hit && !hit.handle && !hit.resize) {
+      const picked = pickInElement(hit.win.el, hit.u, hit.v);
+      if (picked?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env]')) {
+        return { x: cx, y: cy };
+      }
+    }
+  }
+  return null;
+}
+
 on('pinchdown', () => {
   clearWinBrowserHold();
   winHoldConsumed = false;
-  const h = hitAt(cursor.x, cursor.y);
-  const kb = kbProbe(cursor.x, cursor.y);
-  const dockGrab = dockGrabTest(cursor.x,cursor.y);
-  const dk = dockTest(cursor.x, cursor.y);
+  pinchOverridePt = null;
+  let px = cursor.x, py = cursor.y;
+  let h = hitAt(px, py);
+  let kb = kbProbe(px, py);
+  let dockGrab = dockGrabTest(px, py);
+  let dk = dockTest(px, py);
+  const hasDirectHit = Boolean(
+    h?.resize ||
+    h?.handle ||
+    dockGrab ||
+    dk ||
+    (kb && kb.button) ||
+    (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
+  );
+  if (!hasDirectHit) {
+    const alt = resolveDirectPinchPoint();
+    if (alt) {
+      pinchOverridePt = alt;
+      px = alt.x;
+      py = alt.y;
+      h = hitAt(px, py);
+      kb = kbProbe(px, py);
+      dockGrab = dockGrabTest(px, py);
+      dk = dockTest(px, py);
+    }
+  }
   // The dock is intentionally in front of app windows. The keyboard follows the same rule: whoever
   // the ray reaches first takes the pinch, the other leaves the arbitration. Without it the
   // keyboard or dock was unreachable whenever a window sat behind it — especially when walking
   // close to the dock in bar mode.
-  if (h?.resize) { startResize(h.win,cursor.x,cursor.y); return; }
-  if (h?.handle) { startDrag(h.win,cursor.x,cursor.y,'handle',cursor.hand?.id); return; }
+  if (h?.resize) { startResize(h.win,px,py); return; }
+  if (h?.handle) { startDrag(h.win,px,py,'handle',cursor.hand?.id); return; }
   if (dockGrab && (!h || dockGrab.distance <= (h.distance ?? Infinity) + 0.12) && (!kb || dockGrab.distance < kb.distance)) {
-    startDockDrag(cursor.x,cursor.y,'pinch'); return;
+    startDockDrag(px,py,'pinch'); return;
   }
   if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15) && (!kb || dk.distance < kb.distance)) {
+    if (pinchOverridePt) { cursor.x = px; cursor.y = py; }
     dockPinch('down'); return;
   }
   if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
@@ -921,6 +958,10 @@ on('pinchsample', () => {
 });
 on('pinchup', () => {
   clearWinBrowserHold();
+  const ov = pinchOverridePt;
+  pinchOverridePt = null;
+  const px = ov ? ov.x : cursor.x;
+  const py = ov ? ov.y : cursor.y;
   if (winHoldConsumed) {
     winHoldConsumed = false;
     pendingPress = null;
@@ -930,6 +971,7 @@ on('pinchup', () => {
   // release. Otherwise letting go of a key also clicked whatever window was behind it.
   if (kbHeld) { kbRelease(); return; }
   if (dockArmed >= 0 || dockArmedPopupOpt || dockHoldConsumed) {
+    if (ov) { cursor.x = px; cursor.y = py; }
     dockPinch('up');
     return;
   }
@@ -940,7 +982,7 @@ on('pinchup', () => {
   if (pendingPress) {
     // Click — or released before the decision window elapsed (a tap). DOWN and UP go out at the
     // SAME point so the page synthesizes a click, never a drag from between-sample movement.
-    const h = hitAt(cursor.x, cursor.y);
+    const h = hitAt(px, py);
     const target = (h && !h.handle && !h.resize && h.win === pendingPress.win) ? h : pendingPress.hit;
     pendingPress = null;
     clickThrough(target, 'down');
@@ -948,7 +990,7 @@ on('pinchup', () => {
     return;
   }
   if (nativePress) {
-    const h = hitAt(cursor.x, cursor.y);
+    const h = hitAt(px, py);
     if (h && h.win === nativePress.win && !h.handle && !h.resize) handTouch(h, 1);
     else cancelPress();
     return;
@@ -962,9 +1004,12 @@ on('pinchup', () => {
     endDockDrag();
     return;
   }
-  const dk = dockTest(cursor.x, cursor.y);
-  const h = hitAt(cursor.x, cursor.y);
-  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) { dockPinch('up'); return; }
+  const dk = dockTest(px, py);
+  const h = hitAt(px, py);
+  if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) {
+    if (ov) { cursor.x = px; cursor.y = py; }
+    dockPinch('up'); return;
+  }
   if (h && !h.handle && !h.resize) { clickThrough(h, 'up'); return; }
   dockPinch('up');
 });
@@ -1994,11 +2039,11 @@ function resolvePointTarget(x, y) {
   }
   if (h && !h.handle && !h.resize) {
     const targetEl = pickInElement(h.win.el, h.u, h.v);
-    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-qb-url],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-spatial-env],[data-fist-act],[data-fist-env],[data-qb-url],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
     const nativeSurf = targetEl?.closest?.('[data-native-browser],[data-native-app],[data-native-xr]') || null;
     if (clickable) {
       setNextvrChoosingElement(clickable);
-      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
+      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.spatialEnv || clickable.dataset?.fistAct || clickable.dataset?.fistEnv || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
       return { kind: 'win', x, y, el: clickable, hit: h, key: `win:${h.win.id}:${idAttr}` };
     }
     if (nativeSurf) {
@@ -2157,53 +2202,14 @@ function handBoneSpan2D(p) {
   );
 }
 
-const pinchOnAppBefore = new Map();
-
 function updateFingerPoke(h, packet, nowMs) {
   if (S.fingerTouch === 0) {
     fingerPokeByHand.delete(h?.id);
-    pinchOnAppBefore.delete(h?.id);
     setFingerHoverEl(null);
     return false;
   }
   const p = h?.points;
   const currentSt = fingerPokeByHand.get(h?.id);
-  const wasPinching = pinchOnAppBefore.get(h?.id) || false;
-  pinchOnAppBefore.set(h?.id, !!h?.pinching);
-  const hasRealFingerJoints = Boolean(
-    p &&
-    p.length >= 26 &&
-    Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008 &&
-    Math.hypot(p[24] - p[18], p[25] - p[19]) > 0.008
-  );
-
-  // Opção de Toque sem Pinça: fazer a pinça diretamente encima de um app abre o app na hora, sem precisar do raio
-  if (
-    S.pinchOnApp !== 0 &&
-    h?.pinching &&
-    !wasPinching &&
-    !h?.fist &&
-    !h?.predicted &&
-    (currentSt?.targetEl || hasRealFingerJoints)
-  ) {
-    const pinchTarget = (currentSt?.targetEl && (nowMs - currentSt.lastSeenAt <= 450))
-      ? { x: currentSt.tapX, y: currentSt.tapY, el: currentSt.targetEl }
-      : resolveFingerTarget(h, packet);
-    const isAppTarget = Boolean(
-      pinchTarget?.el?.matches?.(
-        '[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,.d-btn,[data-qb-url]'
-      )
-    );
-    if (pinchTarget && isAppTarget && (nowMs - (currentSt?.lastTapAt ?? -1000) >= 280)) {
-      const tapped = triggerFingerTouchTap(pinchTarget.x, pinchTarget.y, pinchTarget.el);
-      fingerPokeByHand.delete(h?.id);
-      setFingerHoverEl(null);
-      if (tapped) {
-        fingerPokeFlashUntil = nowMs + 220;
-        return true;
-      }
-    }
-  }
 
   if (!isIndexFingerPointing(h)) {
     if (
@@ -2441,51 +2447,90 @@ function stateSpan(st, boneSpan) {
   return (st.baseSpan - boneSpan) / st.baseSpan;
 }
 
-/* =================== Gesto de Arma + Fechar Indicador (qualquer mão) + Bolinha com Logo (243d24346222890...) =================== */
-const gunDockByHand = new Map();
-let lastGunDockToggleAt = -2000;
-let gunBubbleEl = null;
-let gunBubbleHideTimer = null;
+/* =================== Gesto de Soco por 2 Segundos (Fechar a mão toda por 2s abre o Menuzinho Rápido) =================== */
+const fistHoldByHand = new Map();
 
-function ensureGunLogoBubble() {
-  if (gunBubbleEl && document.body.contains(gunBubbleEl)) return gunBubbleEl;
-  const hud = document.getElementById('hud') || document.body;
-  gunBubbleEl = document.createElement('div');
-  gunBubbleEl.id = 'gun-gesture-indicator';
-  gunBubbleEl.className = 'gun-logo-bubble';
-  gunBubbleEl.dataset.gunBubble = '1';
-  gunBubbleEl.hidden = true;
-  gunBubbleEl.innerHTML = `<img src="./gun-logo.jpg" alt="Gun Gesture Logo" class="gun-logo-img">`;
-  hud.appendChild(gunBubbleEl);
-  return gunBubbleEl;
+function isClosedFistHand(h) {
+  if (!h || h.predicted || h.pinching) return false;
+  if (h.fist === true) return true;
+  const p = h.points;
+  if (!p || p.length < 63) return false;
+  const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
+  if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
+  const indexCurled = dist(0, 8) < dist(0, 6) * 1.08;
+  const midCurled = dist(0, 12) < dist(0, 10) * 1.08;
+  const ringCurled = dist(0, 16) < dist(0, 14) * 1.08;
+  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.08;
+  return indexCurled && midCurled && ringCurled && pinkyCurled;
 }
 
-function showGunLogoBubble(xNorm = 0.5, yNorm = 0.5, triggered = false) {
-  const el = ensureGunLogoBubble();
-  const cx = Math.max(0.10, Math.min(0.90, Number.isFinite(xNorm) ? xNorm : 0.5));
-  const cy = Math.max(0.10, Math.min(0.90, Number.isFinite(yNorm) ? yNorm : 0.5));
-  if (native) {
-    el.style.left = `${Math.round(cx * 1200)}px`;
-    el.style.top = `${Math.round(cy * 800)}px`;
-  } else {
-    el.style.left = `${(cx * 100).toFixed(1)}%`;
-    el.style.top = `${(cy * 100).toFixed(1)}%`;
+function updateFistQuickMenu(packet, nowMs) {
+  if (S.gunGesture === 0) {
+    fistHoldByHand.clear();
+    return false;
   }
-  el.hidden = false;
-  el.classList.toggle('gun-triggered', !!triggered);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  if (gunBubbleHideTimer) clearTimeout(gunBubbleHideTimer);
-  gunBubbleHideTimer = setTimeout(() => {
-    if (gunBubbleEl) {
-      gunBubbleEl.hidden = true;
-      gunBubbleEl.classList.remove('gun-triggered');
-      css3d.invalidate?.();
-      css3d.render?.(scene, camera);
+  const gOv = document.getElementById('gorilla-overlay');
+  if (gOv && gOv.style.display && gOv.style.display !== 'none') {
+    fistHoldByHand.clear();
+    return false;
+  }
+  if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden) || document.querySelector('.entry-menu-root')) {
+    fistHoldByHand.clear();
+    return false;
+  }
+  if (resizing.win || dockDrag.start) {
+    fistHoldByHand.clear();
+    return false;
+  }
+  const handsList = packet?.hands || [];
+  const seenKeys = new Set();
+  for (const h of handsList) {
+    if (!h) continue;
+    const key = h.id || (h.left ? 'left' : 'right');
+    seenKeys.add(key);
+    const closed = isClosedFistHand(h);
+    const p = palmScreen(h, packet, true);
+    let st = fistHoldByHand.get(key);
+    if (closed) {
+      if (!st || !st.active) {
+        st = {
+          active: true,
+          startAt: nowMs,
+          lastSeenAt: nowMs,
+          startX: p.x,
+          startY: p.y,
+          latched: false,
+        };
+        fistHoldByHand.set(key, st);
+      } else {
+        st.lastSeenAt = nowMs;
+        if (Math.hypot(p.x - st.startX, p.y - st.startY) > 0.12) {
+          st.startAt = nowMs;
+          st.startX = p.x;
+          st.startY = p.y;
+        }
+        if (!st.latched && (nowMs - st.startAt >= 2000)) {
+          st.latched = true;
+          if (drag.win && drag.source === 'fist') endDrag();
+          cancelHandInput();
+          window.nextvrOpenFistQuickMenu?.();
+          window.NativeXR?.click?.();
+          css3d.invalidate?.();
+          css3d.render?.(scene, camera);
+          return true;
+        }
+      }
+    } else if (st && (st.latched || nowMs < st.lastSeenAt || (nowMs - st.lastSeenAt > 260))) {
+      fistHoldByHand.delete(key);
     }
-  }, triggered ? 850 : 600);
+  }
+  for (const [k, st] of fistHoldByHand.entries()) {
+    if (!seenKeys.has(k) && (st.latched || nowMs < st.lastSeenAt || (nowMs - st.lastSeenAt > 260))) {
+      fistHoldByHand.delete(k);
+    }
+  }
+  return false;
 }
-window.nextvrShowGunLogoBubble = showGunLogoBubble;
 
 let circleLoaderEl = null;
 let circleLoaderTimer = null;
@@ -2531,88 +2576,6 @@ function triggerCircleLoading(kind = 'env', label = '') {
 }
 window.nextvrShowCircleLoader = triggerCircleLoading;
 
-function updateGunDockToggle(packet, nowMs) {
-  if (S.gunGesture === 0) return false;
-  if (!packet?.hands?.length) return false;
-  const gOv = document.getElementById('gorilla-overlay');
-  if (gOv && gOv.style.display && gOv.style.display !== 'none') return false;
-  if (wins.some(w => w.id === 'entry-menu' || w.id === 'language') || document.querySelector('.entry-menu-root')) return false;
-  if (drag.win || resizing.win || dockDrag.start) return false;
-
-  for (const h of packet.hands) {
-    if (!h || h.predicted) continue;
-    const p = h.points;
-    if (!p || p.length < 63) continue;
-    const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
-    const palmLen = Math.hypot(p[9 * 3] - p[0], p[9 * 3 + 1] - p[1]);
-    if (palmLen < 0.032) continue;
-    // Garante que os nós dos dedos são reais e distintos (evita mãos sintéticas de teste onde todos os pontos são 0.5)
-    if (dist(14, 16) < 0.008 || dist(18, 20) < 0.008 || dist(5, 6) < 0.008) continue;
-
-    // Anelar (13..16), Mindinho (17..20) e Médio (9..12) recolhidos (funciona de frente ou de lado na câmara traseira)
-    const midCurled = dist(0, 12) < dist(0, 10) * 1.15 || dist(9, 12) < palmLen * 0.85;
-    const ringCurled = dist(0, 16) < dist(0, 14) * 1.16 || dist(13, 16) < palmLen * 0.85;
-    const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.18 || dist(17, 20) < palmLen * 0.85;
-    const lowerFingersCurled = (ringCurled && pinkyCurled) || (midCurled && (ringCurled || pinkyCurled));
-    const thumbExtended = dist(0, 4) > dist(0, 2) * 1.01 || (p[2 * 3 + 1] - p[4 * 3 + 1]) > 0.012 || dist(4, 9) > palmLen * 0.34;
-    const indexRatio = dist(0, 8) / Math.max(1e-4, dist(0, 6));
-    const indexSpan = dist(5, 8);
-    const sx = Number(packet?.scaleX) || 1;
-    const sy = Number(packet?.scaleY) || 1;
-    const bubbleX = ((p[4 * 3] + p[5 * 3]) * 0.5 - 0.5) * sx + 0.5;
-    const bubbleY = (Math.min(p[4 * 3 + 1], p[5 * 3 + 1]) - 0.045 - 0.5) * sy + 0.5;
-
-    const handKey = h.id || (h.left ? 'left' : 'right');
-    let st = gunDockByHand.get(handKey);
-    if (!st) {
-      st = { armedUntil: 0, maxIndexRatio: 0, maxIndexSpan: 0, latched: false };
-      gunDockByHand.set(handKey, st);
-    }
-
-    const indexClearlyOut = indexRatio >= 1.07 || indexSpan > Math.max(dist(13, 16), dist(17, 20)) * 1.25;
-    const isGunBarrelOpen = lowerFingersCurled && thumbExtended && indexClearlyOut && !h.pinching && !h.fist;
-    if (isGunBarrelOpen) {
-      st.armedUntil = nowMs + 2200;
-      st.maxIndexRatio = Math.max(st.maxIndexRatio, indexRatio);
-      st.maxIndexSpan = Math.max(st.maxIndexSpan, indexSpan);
-      st.latched = false;
-      showGunLogoBubble(bubbleX, bubbleY, false);
-      continue;
-    }
-
-    // Com a mão armada em pose de arma (foto 1), fechar o dedo indicador (foto 2) mostra a bolinha pulsando e oculta/reexibe a Dock
-    const triggerClosed = lowerFingersCurled && thumbExtended && (
-      indexRatio <= 1.05 ||
-      (st.maxIndexRatio >= 1.08 && (st.maxIndexRatio - indexRatio) >= 0.06) ||
-      (st.maxIndexSpan > 0.02 && indexSpan <= st.maxIndexSpan * 0.84) ||
-      h.fist
-    );
-    if (!st.latched && nowMs <= st.armedUntil && triggerClosed && (nowMs - lastGunDockToggleAt >= 500)) {
-      st.latched = true;
-      st.armedUntil = 0;
-      st.maxIndexRatio = 0;
-      st.maxIndexSpan = 0;
-      lastGunDockToggleAt = nowMs;
-      showGunLogoBubble(bubbleX, bubbleY, true);
-      packet.consumed?.add?.(h.id);
-      if (S.spatialLauncher) {
-        const spWin = wins.find(w => w.id === 'spatial-launcher');
-        if (spWin) spWin.setHidden(!spWin.hidden);
-      } else {
-        const nextHidden = !(dockHidden || !dockVisible);
-        setDockHidden(nextHidden);
-        setDockVisible(!nextHidden);
-        if (dockGrabEl) dockGrabEl.hidden = nextHidden;
-      }
-      window.NativeXR?.click?.();
-      css3d.invalidate?.();
-      css3d.render?.(scene, camera);
-      return true;
-    }
-  }
-  return false;
-}
-
 function endNear(cancel=false, packet=lastPhonePacket) {
   const ended=nearContact;
   if(ended?.down) {
@@ -2644,6 +2607,7 @@ on('phonehands', packet => {
   }
   // The grab outline is sticky for a moment: palm noise must not flash the window border.
   const nowMs=performance.now();
+  updateFistQuickMenu(packet, nowMs);
   // Pinça por 2 segundos com AS DUAS MÃOS: recentra dock / apps flutuantes e janelas abertas para onde estiver olhando, sem bolinha carregando.
   if (!document.documentElement.classList.contains('xr-on') && !wins.some(w => w.id === 'entry-menu' && !w.hidden)) {
     if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || nearContact) {
@@ -2694,8 +2658,6 @@ on('phonehands', packet => {
   else hoverWin=null;
   for(const h of packet.hands) {
     const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
-    const gunSt=gunDockByHand.get(h.id || (h.left ? 'left' : 'right'));
-    if(gunSt && nowMs <= gunSt.armedUntil) continue;
     if(!drag.win && !resizing.win && h.fist && !before) {
       const p=palmScreen(h,packet,true),hit=fistHit(phoneRay(p.x,p.y));
       if(hit) {
@@ -2730,7 +2692,6 @@ on('phonehands', packet => {
   }
   const runFingerPokes = () => {
     if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed')) return;
-    if (updateGunDockToggle(packet, nowMs)) return;
     for (const h of packet.hands) {
       if (packet.consumed.has(h.id)) continue;
       updateFingerPoke(h, packet, nowMs);
@@ -2787,11 +2748,7 @@ onFrame((dt,now)=>{
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
-    let p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
-    if(noBeam && h.points && h.points.length>=26 && Number.isFinite(h.points[24]) && Number.isFinite(h.points[25])) {
-      const sx=Number(packet.scaleX)||1, sy=Number(packet.scaleY)||1;
-      p={ x:(h.points[24]-.5)*sx+.5, y:(h.points[25]-.5)*sy+.5 };
-    }
+    const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
     const r=phoneRay(p.x,p.y);
     const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);
     if(dockVisible){

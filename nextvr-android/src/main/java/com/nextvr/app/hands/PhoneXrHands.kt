@@ -104,9 +104,7 @@ class PhoneXrHands {
                 val dy = (b[1] - a[1]) * dt
                 val dz = (b[2] - a[2]) * dt
                 return FloatArray(63) { i ->
-                    val wristShift = when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
-                    val localShift = (b[i] - a[i]) * dt
-                    b[i] + wristShift * 0.45f + localShift * 0.55f
+                    b[i] + when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
                 }
             }
             val out = FloatArray(a.size)

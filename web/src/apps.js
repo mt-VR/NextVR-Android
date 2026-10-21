@@ -902,7 +902,7 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado';
     return S.pinchOnApp !== 0;
   }, S.pinchOnApp !== 0);
-  control('crosshair', 'Gesto de Arminha (Dock)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
+  control('crosshair', 'Gesto de Soco 2s (Menu Rápido)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
     S.gunGesture = S.gunGesture === 0 ? 1 : 0;
     save(S);
     emit('gunGesture', S.gunGesture !== 0);
@@ -1007,9 +1007,9 @@ function settingsApp() {
     ytToggle('pinchOnApp', v => emit('pinchOnApp', !!v))
   ));
   scroll.append(ytRow(
-    '<img src="./gun-logo.jpg" alt="Arminha" style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block;border:1px solid rgba(56,189,248,.65)">',
-    'Gesto de Arminha (Ocultar Dock)',
-    'Polegar erguido + fechar o indicador oculta/exibe a Dock com bolinha neon',
+    icon('crosshair'),
+    'Gesto de Soco 2s (Menu Rápido)',
+    'Fechar a mão toda por 2 segundos abre o menuzinho de recentrar dock e ambientes',
     ytToggle('gunGesture', v => emit('gunGesture', !!v))
   ));
   scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
@@ -1815,19 +1815,20 @@ function libraryApp() {
 
 /* ============ Spatial App (Interface Library flutuante transparente 7e3d8ab40bd4dd3 sobre a câmera traseira real) ============ */
 const SPATIAL_CORE_APPS = [
-  { id:'browser',   name:'Browser',   bg:'linear-gradient(145deg,#818cf8,#6366f1)', icon:'compass' },
-  { id:'settings',  name:'Settings',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', icon:'settings' },
-  { id:'spotify',   name:'Spotify',   bg:'linear-gradient(145deg,#1db954,#0b3b1e)', slug:'spotify' },
-  { id:'twitch',    name:'Twitch',    bg:'linear-gradient(145deg,#a855f7,#581c87)', slug:'twitch' },
-  { id:'youtube',   name:'YouTube',   bg:'linear-gradient(145deg,#ffffff,#e2e8f0)', slug:'youtube', lightBg:true },
-  { id:'tiktok',    name:'TikTok',    bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok' },
-  { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram' },
-  { id:'facebook',  name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', slug:'facebook' },
-  { id:'telegram',  name:'Telegram',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', slug:'telegram' },
-  { id:'x',         name:'X',         bg:'linear-gradient(145deg,#18181b,#050507)', slug:'x' },
-  { id:'discord',   name:'Discord',   bg:'linear-gradient(145deg,#6366f1,#4338ca)', slug:'discord' },
-  { id:'whatsapp',  name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', slug:'whatsapp' },
-  { id:'shizuku',   name:'My apps',   bg:'linear-gradient(145deg,#f97316,#ea580c)', icon:'appGrid' },
+  { id:'browser',      name:'Browser',   bg:'linear-gradient(145deg,#818cf8,#6366f1)', icon:'compass' },
+  { id:'environments', name:'Ambientes', bg:'linear-gradient(145deg,#8b5cf6,#4c1d95)', icon:'vision' },
+  { id:'settings',     name:'Settings',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', icon:'settings' },
+  { id:'spotify',      name:'Spotify',   bg:'linear-gradient(145deg,#1db954,#0b3b1e)', slug:'spotify' },
+  { id:'twitch',       name:'Twitch',    bg:'linear-gradient(145deg,#a855f7,#581c87)', slug:'twitch' },
+  { id:'youtube',      name:'YouTube',   bg:'linear-gradient(145deg,#ffffff,#e2e8f0)', slug:'youtube', lightBg:true },
+  { id:'tiktok',       name:'TikTok',    bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok' },
+  { id:'instagram',    name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram' },
+  { id:'facebook',     name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', slug:'facebook' },
+  { id:'telegram',     name:'Telegram',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', slug:'telegram' },
+  { id:'x',            name:'X',         bg:'linear-gradient(145deg,#18181b,#050507)', slug:'x' },
+  { id:'discord',      name:'Discord',   bg:'linear-gradient(145deg,#6366f1,#4338ca)', slug:'discord' },
+  { id:'whatsapp',     name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', slug:'whatsapp' },
+  { id:'shizuku',      name:'My apps',   bg:'linear-gradient(145deg,#f97316,#ea580c)', icon:'appGrid' },
 ];
 
 const SPATIAL_GAME_ITEMS = [
@@ -1926,10 +1927,17 @@ function buildSpatialLauncherDom() {
     ? `<img src="${escH(S.profileAvatar)}" alt="" class="spatial-hz-avatar-img" draggable="false" />`
     : icon('user');
 
+  const curEnv = S.env || 'passthrough';
   const root = el('div', 'spatial-launcher-root');
   root.innerHTML = `
     <header class="spatial-hz-header">
       <h2 class="spatial-hz-title">Library</h2>
+      <div class="spatial-hz-env-pills" aria-label="Ambientes Virtuais">
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'passthrough' ? 'on' : ''}" data-spatial-env="passthrough" title="Câmera Real (Passthrough)">Câmera</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'sunset' ? 'on' : ''}" data-spatial-env="sunset" title="Ambiente Pôr do Sol 360°">Sunset</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'lagoon' ? 'on' : ''}" data-spatial-env="lagoon" title="Ambiente Lagoa 360°">Lagoon</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'dark' ? 'on' : ''}" data-spatial-env="dark" title="Ambiente Escuro 360°">Dark</button>
+      </div>
       <label class="spatial-hz-search">
         ${icon('search')}
         <input type="text" class="spatial-hz-search-input" data-spatial-search placeholder="Search" value="${escH(spatialSearchQuery)}" aria-label="Search Library" />
@@ -2098,6 +2106,7 @@ function buildSpatialLauncherDom() {
       }
       if (spatialPopup && !spatialPopup.hidden) spatialPopup.hidden = true;
       const id = bBuiltin.dataset.spatialBuiltin;
+      if (id === 'environments') { environments(); return; }
       if (id === 'shizuku') { shizukuWindow(); return; }
       if (id === 'gorilla-tag') { openGorillaTag(); return; }
       if (id === 'beat-vr') { openBeatSaberVr(); return; }
@@ -2115,6 +2124,13 @@ function buildSpatialLauncherDom() {
       const pkg = bAndroid.dataset.spatialAndroid;
       openApp(pkg);
       focusAppWindow(pkg);
+      return;
+    }
+    const envBtn = e.target.closest('[data-spatial-env]');
+    if (envBtn) {
+      const envId = envBtn.dataset.spatialEnv || 'passthrough';
+      setEnvironment(envId);
+      paintSpatialLauncher();
       return;
     }
     const navBtn = e.target.closest('[data-spatial-nav]');
@@ -2135,10 +2151,7 @@ function buildSpatialLauncherDom() {
       spatialNavTab = spatialNavTab === 'downloads' ? 'all' : 'downloads';
       paintSpatialLauncher();
     } else if (act === 'env') {
-      // No modo de apps flutuantes, mantém o ambiente real na câmera traseira
-      S.env = 'passthrough';
-      save(S);
-      setPassthrough(true);
+      environments();
     } else if (act === 'close') {
       setSpatialLauncherMode(false);
     }
@@ -2172,7 +2185,7 @@ function syncSpatialLauncherVisibility() {
   if (!S.spatialLauncher || !spatialWin) return;
   _syncingSpatialWins = true;
   try {
-    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && !w.onboarding && !w.hidden);
+    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && w.id !== 'fist-menu' && !w.onboarding && !w.hidden);
     if (appWins.length > 1) {
       // Mantém apenas a janelinha recém-aberta visível no modo Spatial App
       const newest = appWins[appWins.length - 1];
@@ -2191,11 +2204,12 @@ function syncSpatialLauncherVisibility() {
   }
 }
 on('wins', syncSpatialLauncherVisibility);
+on('env', () => {
+  if (winBody('spatial-launcher')) paintSpatialLauncher();
+  if (winBody('fist-menu')) paintFistQuickMenu();
+});
 
 function spatialLauncherApp() {
-  // Garante sempre o ambiente real usando a câmera traseira atrás dos apps flutuantes
-  S.env = 'passthrough';
-  setPassthrough(true);
   const existing = wins.find(w => w.id === 'spatial-launcher');
   if (existing) {
     paintSpatialLauncher();
@@ -2204,6 +2218,9 @@ function spatialLauncherApp() {
     css3d.render?.(scene, camera);
     return existing;
   }
+  // Ao iniciar o modo de apps flutuantes pela primeira vez, começa com o passthrough real
+  S.env = 'passthrough';
+  setPassthrough(true);
   const body = el('div', 'spatial-launcher-host');
   const win = open({
     id: 'spatial-launcher',
@@ -2223,6 +2240,146 @@ function spatialLauncherApp() {
   css3d.render?.(scene, camera);
   return win;
 }
+
+/* ============ Menuzinho Rápido (Fechar a mão tipo Soco por 2s) ============ */
+function buildFistQuickMenuDom() {
+  const curEnv = S.env || 'passthrough';
+  const root = el('div', 'fist-quick-menu');
+  root.innerHTML = `
+    <div class="fist-menu-head">
+      <div class="fist-menu-badge">${icon('crosshair')}</div>
+      <div>
+        <h3 class="fist-menu-title">Menu Rápido</h3>
+        <p class="fist-menu-sub">Atalho de soco (2s) · Escolha uma ação</p>
+      </div>
+    </div>
+
+    <div class="fist-menu-actions">
+      <button type="button" class="fist-menu-btn fist-menu-btn--primary" data-fist-act="recenter">
+        ${icon('move')}
+        <div>
+          <strong>Recentrar Dock e Visão</strong>
+          <small>Traga a dock e janelas para a direção do olhar</small>
+        </div>
+      </button>
+
+      <button type="button" class="fist-menu-btn" data-fist-act="environments">
+        ${icon('vision')}
+        <div>
+          <strong>Entrar em Ambiente Virtual</strong>
+          <small>Abrir painel completo de ambientes 360°</small>
+        </div>
+      </button>
+    </div>
+
+    <div class="fist-menu-env-section">
+      <span class="fist-menu-section-lbl">Trocar Ambiente Agora</span>
+      <div class="fist-menu-env-grid">
+        <button type="button" class="fist-env-chip ${curEnv === 'passthrough' ? 'on' : ''}" data-fist-env="passthrough">
+          ${icon('camera')}<span>Câmera Real</span>
+        </button>
+        <button type="button" class="fist-env-chip ${curEnv === 'sunset' ? 'on' : ''}" data-fist-env="sunset">
+          ${icon('vision')}<span>Sunset 360°</span>
+        </button>
+        <button type="button" class="fist-env-chip ${curEnv === 'lagoon' ? 'on' : ''}" data-fist-env="lagoon">
+          ${icon('vision')}<span>Lagoon 360°</span>
+        </button>
+        <button type="button" class="fist-env-chip ${curEnv === 'dark' ? 'on' : ''}" data-fist-env="dark">
+          ${icon('vision')}<span>Escuro 360°</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="fist-menu-footer-row">
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-dock">
+        ${icon('appGrid')}<span>Mostrar / Ocultar Dock</span>
+      </button>
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-spatial">
+        ${icon('maximize')}<span>${S.spatialLauncher ? 'Modo Dock' : 'Apps Flutuantes'}</span>
+      </button>
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="settings">
+        ${icon('settings')}<span>Ajustes</span>
+      </button>
+    </div>
+  `;
+
+  root.addEventListener('click', e => {
+    const envBtn = e.target.closest('[data-fist-env]');
+    if (envBtn) {
+      const envId = envBtn.dataset.fistEnv || 'passthrough';
+      setEnvironment(envId);
+      paintFistQuickMenu();
+      toast('Ambiente: ' + envId);
+      return;
+    }
+    const actBtn = e.target.closest('[data-fist-act]');
+    if (!actBtn) return;
+    const act = actBtn.dataset.fistAct;
+    if (act === 'recenter') {
+      if (!S.spatialLauncher) {
+        setDockHidden(false);
+        setDockVisible(true);
+      }
+      recenter();
+      close('fist-menu');
+    } else if (act === 'environments') {
+      close('fist-menu');
+      environments();
+    } else if (act === 'toggle-dock') {
+      if (S.spatialLauncher) {
+        const spWin = wins.find(w => w.id === 'spatial-launcher');
+        if (spWin) spWin.setHidden(!spWin.hidden);
+      } else {
+        const nextHidden = !document.querySelector('.dock')?.hidden;
+        setDockHidden(nextHidden);
+        setDockVisible(!nextHidden);
+      }
+      close('fist-menu');
+    } else if (act === 'toggle-spatial') {
+      close('fist-menu');
+      setSpatialLauncherMode(!S.spatialLauncher);
+    } else if (act === 'settings') {
+      close('fist-menu');
+      controlCenterApp();
+    } else if (act === 'close') {
+      close('fist-menu');
+    }
+  });
+  return root;
+}
+
+function paintFistQuickMenu() {
+  const host = winBody('fist-menu');
+  if (!host) return;
+  host.innerHTML = '';
+  host.appendChild(buildFistQuickMenuDom());
+  css3d.invalidate?.();
+}
+
+export function openFistQuickMenu() {
+  const existing = wins.find(w => w.id === 'fist-menu');
+  if (existing) {
+    existing.setHidden(false);
+    paintFistQuickMenu();
+    focus(existing);
+    css3d.invalidate?.();
+    css3d.render?.(scene, camera);
+    return existing;
+  }
+  const body = el('div', 'fist-quick-menu-host');
+  const win = open({
+    id: 'fist-menu',
+    title: 'Menu Rápido',
+    node: body,
+    w: 520,
+    h: 430,
+  });
+  paintFistQuickMenu();
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+window.nextvrOpenFistQuickMenu = openFistQuickMenu;
 
 function setSpatialLauncherMode(enabled) {
   S.spatialLauncher = enabled ? 1 : 0;
@@ -2515,6 +2672,9 @@ async function finishEntryMenu(fromHost = false) {
   if (entryWin) { close(entryWin); entryWin = null; }
   else close('entry-menu');
   if (S.spatialLauncher) {
+    for (const w of [...wins]) {
+      if (w.id !== 'spatial-launcher' && !w.onboarding) close(w);
+    }
     setDockHidden(true);
     setDockVisible(false);
     spatialLauncherApp();
