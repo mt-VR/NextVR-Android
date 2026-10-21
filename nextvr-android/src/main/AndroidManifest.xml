@@ -83,6 +83,7 @@
             android:name="com.nextvr.app.NextVrActivity"
             android:label="@string/title_activity_vr"
             android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:hardwareAccelerated="true"
             android:screenOrientation="landscape"
             android:exported="true">
             <intent-filter>

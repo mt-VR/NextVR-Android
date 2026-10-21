@@ -123,13 +123,15 @@ function buildQuestBrowserHomeHtml() {
   `;
 }
 
-/* ===== Quest-style DuckDuckGo Browser ===== */
-function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options = {}) {
+/* ===== Quest-style Google Browser (GPU Accelerated) ===== */
+function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}) {
   const mode = options?.mode === 'incognito-tab' || options?.incognito ? 'incognito-tab' : 'new-tab';
   const isIncognito = mode === 'incognito-tab';
-  const resolvedUrl = isIncognito && initialUrl === 'https://duckduckgo.com/'
-    ? 'https://duckduckgo.com/?kae=d&kp=-1'
-    : initialUrl;
+  const isDefaultGoogle = initialUrl === 'https://google.com/' || initialUrl === 'https://google.com' || initialUrl === 'https://duckduckgo.com/';
+  const baseGoogleUrl = 'https://google.com/';
+  const resolvedUrl = isIncognito && isDefaultGoogle
+    ? 'https://google.com/?igu=1'
+    : (isDefaultGoogle ? baseGoogleUrl : initialUrl);
   const resolvedTitle = isIncognito
     ? 'Navegador · Guia Anônima'
     : (options?.mode === 'new-tab' ? 'Navegador · Nova Guia' : (title || 'Navegador'));
@@ -155,7 +157,7 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options 
     }
     const f = existing.el.querySelector('[data-native-browser], iframe');
     const homeOv = existing.el.querySelector('.qb-home-overlay');
-    const showHome = initialUrl === 'https://duckduckgo.com/';
+    const showHome = Boolean(options?.showHomeOverlay);
     if (homeOv) homeOv.hidden = !showHome;
     const fld = existing.el.querySelector('.qb-urlfld');
     if (fld) fld.value = resolvedUrl;
@@ -184,13 +186,13 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options 
   modeBadge.textContent = isIncognito ? '🕶️ GUIA ANÔNIMA' : '+ NOVA GUIA';
   modeBadge.style.cssText = `cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap;color:#f8fafc;background:${isIncognito ? 'rgba(139,92,246,0.28)' : 'rgba(59,130,246,0.22)'};border:1px solid ${isIncognito ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.45)'}`;
   const fld = el('input','fld qb-urlfld');
-  fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada anônima ou URL' : 'Pesquisar ou inserir URL'; fld.value=resolvedUrl;
+  fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada anônima no Google ou URL' : 'Pesquisar no Google ou inserir URL'; fld.value=resolvedUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
   top.append(bk,fw,rl,modeBadge,fld,st);
 
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#181a20';
-  const showStartHome = initialUrl === 'https://duckduckgo.com/';
+  const showStartHome = Boolean(options?.showHomeOverlay);
   const homeOverlay = el('div', 'qb-home-overlay', buildQuestBrowserHomeHtml());
   homeOverlay.hidden = !showStartHome;
   const frame = el(native ? 'div' : 'iframe');
@@ -253,7 +255,7 @@ function webBrowserFor(id, title, initialUrl='https://duckduckgo.com/', options 
 
   function nav(raw){
     let u=(raw||'').trim(); if(!u) return;
-    if(!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://'+u : 'https://duckduckgo.com/?q='+encodeURIComponent(u);
+    if(!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://'+u : 'https://www.google.com/search?q='+encodeURIComponent(u);
     fld.value=u;
     homeOverlay.hidden = true;
     frame.dataset.homeOverlay = '0';
@@ -313,7 +315,7 @@ export function openBrowserWithMode(mode = 'new-tab') {
   const win = webBrowserFor(
     'browser',
     isIncognito ? 'Navegador · Guia Anônima' : 'Navegador · Nova Guia',
-    isIncognito ? 'https://duckduckgo.com/?kae=d&kp=-1' : 'https://duckduckgo.com/',
+    isIncognito ? 'https://google.com/?igu=1' : 'https://google.com/',
     { mode: isIncognito ? 'incognito-tab' : 'new-tab', incognito: isIncognito }
   );
   toast(isIncognito ? 'Guia Anônima aberta' : 'Nova Guia aberta');
@@ -354,7 +356,7 @@ function webWindow(id, title, url, note) {
 
   const nav = raw => {
     let u = (raw || '').trim(); if (!u) return;
-    if (!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://' + u : 'https://duckduckgo.com/?q=' + encodeURIComponent(u);
+    if (!/^https?:\/\//i.test(u)) u = /\.\w{2,}($|\/)/.test(u) ? 'https://' + u : 'https://www.google.com/search?q=' + encodeURIComponent(u);
     fld.value = u;
     if (native) { frame.dataset.url = u; warn.style.display = 'none'; return; }
     frame.src = u;
@@ -1205,21 +1207,21 @@ const persistShop = () => { try {
 /* Apps web e ferramentas NextVR são representados por capas locais, sem depender de uma CDN. */
 const LIB_APPS = [
   { id:'netflix', name:'Netflix', bg:'linear-gradient(145deg,#301014,#09090b)', html:'<span class="lx-netflix">N</span>' },
-  { id:'youtube', name:'YouTube', bg:'linear-gradient(145deg,#352020,#111115)', slug:'youtube', color:'FF0000' },
+  { id:'youtube', name:'YouTube', bg:'linear-gradient(145deg,#c026d3,#7c3aed)', imgUrl:'./icons/hz-tv.png', slug:'youtube', color:'FF0000' },
   { id:'tiktok', name:'TikTok', bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok', color:'ffffff' },
-  { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#7887ff,#3e48a3)', slug:'discord', color:'ffffff' },
+  { id:'discord', name:'Discord', bg:'linear-gradient(145deg,#b865c6,#9356b8)', imgUrl:'./icons/hz-system-messenger.png', slug:'discord', color:'ffffff' },
   { id:'twitch', name:'Twitch', bg:'linear-gradient(145deg,#b184ff,#6133b2)', slug:'twitch', color:'ffffff' },
   { id:'prime', name:'prime video', bg:'linear-gradient(145deg,#173e70,#0b172b)', html:'<span class="lx-prime">prime<b>video</b></span>' },
-  { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', slug:'whatsapp', color:'ffffff' },
-  { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram', color:'ffffff', iconOnly:true },
+  { id:'whatsapp', name:'WhatsApp', bg:'linear-gradient(145deg,#59e58b,#128a48)', imgUrl:'./icons/hz-whatsapp.png', slug:'whatsapp', color:'ffffff' },
+  { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', imgUrl:'./icons/hz-instagram.png', slug:'instagram', color:'ffffff', iconOnly:true },
   { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
-  { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', slug:'facebook', color:'ffffff', iconOnly:true },
+  { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', imgUrl:'./icons/hz-facebook.png', slug:'facebook', color:'ffffff', iconOnly:true },
   { id:'telegram', name:'Telegram', bg:'linear-gradient(145deg,#69caff,#147eaf)', slug:'telegram', color:'ffffff' },
   { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
-  { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#63aaff,#3052bb)', icon:'compass' },
-  { id:'store', name:'Store', bg:'linear-gradient(145deg,#ffc45c,#d96b17)', icon:'store' },
-  { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#ff8096,#bd254b)', icon:'camera' },
-  { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#57dfa1,#168052)', icon:'settings' },
+  { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
+  { id:'store', name:'Store', bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
+  { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#fdba74,#c084fc)', imgUrl:'./icons/hz-gallery.png', icon:'camera' },
+  { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#9ca8b8,#556170)', imgUrl:'./icons/hz-settings.png', icon:'settings' },
 ];
 const GORILLA_TAG_ITEM = {
   id: 'gorilla-tag',
@@ -1379,7 +1381,7 @@ if (typeof window !== 'undefined') {
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
 const LIB_ACTIONS = {
   youtube:  () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/'),
-  browser:  () => webWindow('browser', t('browser'), 'https://duckduckgo.com/'),
+  browser:  () => webWindow('browser', t('browser'), 'https://google.com/'),
   store:    () => storeApp(),
   gallery:  () => gallery(),
   settings: () => controlCenterApp(),
@@ -1818,20 +1820,22 @@ function libraryApp() {
 
 /* ============ Spatial App (Interface Library flutuante transparente 7e3d8ab40bd4dd3 sobre a câmera traseira real) ============ */
 const SPATIAL_CORE_APPS = [
-  { id:'browser',      name:'Browser',   bg:'linear-gradient(145deg,#818cf8,#6366f1)', icon:'compass' },
-  { id:'environments', name:'Ambientes', bg:'linear-gradient(145deg,#8b5cf6,#4c1d95)', icon:'vision' },
-  { id:'settings',     name:'Settings',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', icon:'settings' },
+  { id:'browser',      name:'Browser',   bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
+  { id:'store',        name:'Store',     bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
+  { id:'environments', name:'Ambientes', bg:'linear-gradient(145deg,#fb923c,#ec4899)', imgUrl:'./icons/hz-camera-share.png', icon:'vision' },
+  { id:'gallery',      name:'Gallery',   bg:'linear-gradient(145deg,#fdba74,#c084fc)', imgUrl:'./icons/hz-gallery.png', icon:'camera' },
+  { id:'settings',     name:'Settings',  bg:'linear-gradient(145deg,#9ca8b8,#556170)', imgUrl:'./icons/hz-settings.png', icon:'settings' },
+  { id:'youtube',      name:'TV / YouTube', bg:'linear-gradient(145deg,#f472b6,#7c3aed)', imgUrl:'./icons/hz-tv.png', slug:'youtube' },
+  { id:'whatsapp',     name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', imgUrl:'./icons/hz-whatsapp.png', slug:'whatsapp' },
+  { id:'instagram',    name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', imgUrl:'./icons/hz-instagram.png', slug:'instagram' },
+  { id:'facebook',     name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', imgUrl:'./icons/hz-facebook.png', slug:'facebook' },
+  { id:'discord',      name:'Messenger / Discord', bg:'linear-gradient(145deg,#f5a3c7,#9356b8)', imgUrl:'./icons/hz-system-messenger.png', slug:'discord' },
+  { id:'shizuku',      name:'Files & Apps', bg:'linear-gradient(145deg,#7dd3fc,#455e8c)', imgUrl:'./icons/hz-files.png', icon:'appGrid' },
+  { id:'tiktok',       name:'TikTok',    bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok' },
   { id:'spotify',      name:'Spotify',   bg:'linear-gradient(145deg,#1db954,#0b3b1e)', slug:'spotify' },
   { id:'twitch',       name:'Twitch',    bg:'linear-gradient(145deg,#a855f7,#581c87)', slug:'twitch' },
-  { id:'youtube',      name:'YouTube',   bg:'linear-gradient(145deg,#ffffff,#e2e8f0)', slug:'youtube', lightBg:true },
-  { id:'tiktok',       name:'TikTok',    bg:'#000000', imgUrl:'./tiktok-logo.jpg', slug:'tiktok' },
-  { id:'instagram',    name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', slug:'instagram' },
-  { id:'facebook',     name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', slug:'facebook' },
   { id:'telegram',     name:'Telegram',  bg:'linear-gradient(145deg,#38bdf8,#0284c7)', slug:'telegram' },
   { id:'x',            name:'X',         bg:'linear-gradient(145deg,#18181b,#050507)', slug:'x' },
-  { id:'discord',      name:'Discord',   bg:'linear-gradient(145deg,#6366f1,#4338ca)', slug:'discord' },
-  { id:'whatsapp',     name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', slug:'whatsapp' },
-  { id:'shizuku',      name:'My apps',   bg:'linear-gradient(145deg,#f97316,#ea580c)', icon:'appGrid' },
 ];
 
 const SPATIAL_GAME_ITEMS = [
@@ -2466,16 +2470,16 @@ function buildLeftHandQuickMenuDom() {
     <div class="lh-quick-grid">
       <div class="lh-apps-col">
         <button type="button" class="lh-app-tile" data-lh-app="browser" title="Browser">
-          <span class="lh-app-icon lh-app-icon--browser">${icon('compass')}</span>
+          <img src="./icons/hz-browser.png" alt="Browser" class="lh-app-img" draggable="false"/>
         </button>
         <button type="button" class="lh-app-tile" data-lh-app="youtube" title="YouTube">
-          <img src="./icons/youtube.svg" alt="YouTube" class="lh-app-img" draggable="false"/>
+          <img src="./icons/hz-tv.png" alt="YouTube" class="lh-app-img" draggable="false"/>
         </button>
         <button type="button" class="lh-app-tile" data-lh-app="roblox" title="Roblox">
-          <img src="./icons/roblox-logo.png" alt="Roblox" class="lh-app-img" draggable="false"/>
+          <img src="./icons/roblox-logo.jpg" alt="Roblox" class="lh-app-img" draggable="false"/>
         </button>
         <button type="button" class="lh-app-tile" data-lh-app="store" title="Store">
-          <span class="lh-app-icon lh-app-icon--store">${icon('store')}</span>
+          <img src="./icons/hz-store.png" alt="Store" class="lh-app-img" draggable="false"/>
         </button>
         <button type="button" class="lh-round-btn lh-home-btn" data-lh-act="home" title="Início">
           ${icon('home')}
@@ -2549,7 +2553,7 @@ function buildLeftHandQuickMenuDom() {
       e.stopPropagation();
       const appId = appBtn.dataset.lhApp;
       toggleLeftHandQuickMenu(false);
-      if (appId === 'browser') browserApp();
+      if (appId === 'browser') webWindow('browser', t('browser'), 'https://google.com/');
       else if (appId === 'youtube') webWindow('youtube');
       else if (appId === 'roblox') webWindow('roblox');
       else if (appId === 'store') storeApp();
@@ -2712,15 +2716,16 @@ function makeDock() {
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
-    // apps principais
-    { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(145deg,#5a9bff,#2a5ee0)', run: () => webWindow('browser', t('browser'), 'https://duckduckgo.com/') },
-    { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(145deg,#ffb544,#e8741a)', run: storeApp },
-    { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(145deg,#ad82f4,#6c45c9)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
-    { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(145deg,#ff6584,#d4204e)', run: gallery },
-    { id: 'settings', win: 'control-center', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(145deg,#45d894,#1f9d63)', run: controlCenterApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(145deg,#ff6b6b,#d63c3c)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
+    // apps principais com ícones Horizon OS 2.7 (v207)
+    { id: 'browser', win: 'browser', label: t('browser'), img: './icons/hz-browser.png', svg: DK.compass, bg: 'linear-gradient(145deg,#8aa7ff,#5d62d5)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
+    { id: 'store',   win: 'store',   label: t('store'),   img: './icons/hz-store.png',   svg: DK.store,   bg: 'linear-gradient(145deg,#fcd34d,#ea580c)', run: storeApp },
+    { id: 'discord', win: 'discord', label: 'Discord',    img: './icons/hz-whatsapp.png', svg: DK.people,  bg: 'linear-gradient(145deg,#4ade80,#16a34a)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
+    { id: 'gallery', win: 'gallery', label: t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera,  bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
+    { kind: 'sep' },
+    { id: 'settings', win: 'control-center', label: t('settings'), img: './icons/hz-settings.png', svg: DK.gear, bg: 'linear-gradient(145deg,#9ca8b8,#556170)', run: controlCenterApp },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
-    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(145deg,#4fd1c5,#1a8f87)', run: shizukuWindow },
+    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
   syncVirtualEnvironmentDock();

@@ -261,7 +261,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('iframe').count(),0,'Native browser does not create a privileged iframe');
     assert.equal(await page.locator('.win-shell').count(),3);
     const browserSpec=await page.evaluate(()=>window.__last.browsers.find(b=>b.id==='browser'));
-    assert.equal(browserSpec.url,'https://duckduckgo.com/');
+    assert.equal(browserSpec.url,'https://google.com/');
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
     const chrome=await page.locator('.win-shell[data-window-id="browser"]').evaluate(shell=>{
       const bar=shell.querySelector('.win-bar'),field=shell.querySelector('.qb-urlfld');

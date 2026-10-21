@@ -140,6 +140,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('nextvrToggleLeftHandQuickMenu'),
     'Build 43 implements palm-only V/L right/left bolinhas with uploaded logos, thumb+index pinch [Logo / Menu] card, 360 cinema bar, brightness slider, predefined slots, left-hand quick menu, and sticky finger touch'
   );
+  const webSurfaceJava = readFileSync('nextvr-android/src/main/java/com/nextvr/app/WebSurface.java', 'utf8');
   assert.ok(
     handGesturesKt.includes('sidewaysPinchPose') &&
     phoneXrHandsKt.includes('rawShape.pinchGap * 1.05f') &&
@@ -149,8 +150,12 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     gorillaSrc.includes('gorillaJoycon') &&
     gorillaSrc.includes('joyconLocked: true') &&
     handRendererKt.includes('RAY_SHOWN=.55f') &&
-    !handRendererKt.includes('curvedFinger'),
-    'Build 45 glues brightness control to left hand, adds Joy-Con hand tracking lock + Plus button exit for Gorilla Tag, normalizes 6DoF speed, and preserves invisible hand mode'
+    !handRendererKt.includes('curvedFinger') &&
+    appsSrc.includes('./icons/hz-browser.png') &&
+    appsSrc.includes('./icons/hz-store.png') &&
+    appsSrc.includes('https://google.com/') &&
+    webSurfaceJava.includes('LAYER_TYPE_HARDWARE'),
+    'Build 46 includes Horizon OS 2.7 (v207) icons, Google default browser URL with GPU hardware acceleration, and Horizon OS Quest 3S dock bar'
   );
 });
 

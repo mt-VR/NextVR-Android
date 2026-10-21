@@ -17,6 +17,11 @@ for (const logo of ['gun-logo.jpg', 'nextvr-bolinha-logo.png', 'nextvr-bolinha-r
   await copyFile(`web/assets/${logo}`, new URL(logo, out));
   await copyFile(`web/assets/${logo}`, new URL(`icons/${logo}`, out));
 }
+for (const hz of ['browser', 'calculator', 'calendar', 'camera-share', 'clock', 'facebook', 'files', 'gallery', 'help-center', 'instagram', 'remote-desktop', 'settings', 'store', 'system-messenger', 'tv', 'whatsapp']) {
+  const file = `hz-${hz}.png`;
+  await copyFile(`web/assets/hz/${file}`, new URL(file, out));
+  await copyFile(`web/assets/hz/${file}`, new URL(`icons/${file}`, out));
+}
 await copyFile('web/assets/gorilla-map.task', new URL('gorilla-map.task', out));
 await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.

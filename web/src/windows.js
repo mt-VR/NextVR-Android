@@ -1425,7 +1425,7 @@ export function buildDock(items) {
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
-    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '14px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
+    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '58px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
@@ -1440,16 +1440,21 @@ export function buildDock(items) {
       if (S.profileName) b.title = S.profileName;
     } else if (it.kind === 'status') {
       b.className = 'dock-status';
-      b.innerHTML = `<span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
+      b.innerHTML = `<i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
         + `<span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span>`;
     } else if (it.kind === 'tool') {
+      const bell = document.createElement('span');
+      bell.className = 'dock-bell-ind';
+      bell.setAttribute('aria-hidden', 'true');
+      bell.innerHTML = icon('notification');
+      dockEl.appendChild(bell);
       b.className = 'dock-tool'; b.innerHTML = it.svg;
     } else {
       b.className = 'dock-app' + (it.launcher ? ' dock-launcher' : '');
       if (it.bg) b.style.background = it.bg;
       b.innerHTML = it.launcher
         ? '<span class="dk-grid">' + '<i></i>'.repeat(9) + '</span>'
-        : (it.svg || (it.icon ? `<img src="${it.icon}" alt="">` : `<span>${it.glyph || '•'}</span>`));
+        : ((it.img || it.icon) ? `<img class="dock-hz-img" src="${it.img || it.icon}" alt="">` : (it.svg || `<span>${it.glyph || '•'}</span>`));
       if (it.win) {
         const d = document.createElement('i'); d.className = 'dock-dot'; b.appendChild(d);
         dockWins.push({ b, win: it.win });

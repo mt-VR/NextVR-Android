@@ -57,15 +57,18 @@ final class WebSurface {
         presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         web=new WebView(presentation.getContext());
+        web.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         web.setBackgroundColor(shell?Color.TRANSPARENT:Color.WHITE);
         web.setInitialScale(100);
-        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
+        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        if(android.os.Build.VERSION.SDK_INT>=23) s.setOffscreenPreRaster(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(true); // Only SAF-selected photo URIs are granted.
         s.setMediaPlaybackRequiresUserGesture(false); // Native pinch is a real user action, not WebView JS activation.
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setUseWideViewPort(!shell); s.setLoadWithOverviewMode(!shell);
-        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); // Always pair the APK bridge with this APK's UI.
+        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); else s.setCacheMode(WebSettings.LOAD_DEFAULT); // Always pair the APK bridge with this APK's UI.
         web.setVerticalScrollBarEnabled(false); web.setHorizontalScrollBarEnabled(false);
         if(shell) web.addJavascriptInterface(bridge,"NativeXR");
         /*
@@ -135,6 +138,7 @@ final class WebSurface {
         });
         web.setDownloadListener((address,agent,disposition,mime,length)->owner.download(address,agent,disposition,mime));
         container=new FrameLayout(presentation.getContext()); container.setBackgroundColor(Color.TRANSPARENT);
+        container.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         container.addView(web,new FrameLayout.LayoutParams(-1,-1)); presentation.setContentView(container);
         presentation.show();
         presentation.getWindow().setLayout(width,height);
@@ -181,10 +185,12 @@ final class WebSurface {
     @SuppressLint("SetJavaScriptEnabled")
     static WebView createFullscreenEntryView(NextVrActivity owner,Object bridge) {
         WebView entry=new WebView(owner);
+        entry.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         entry.setBackgroundColor(Color.parseColor("#070c1f"));
         WebSettings s=entry.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(true);
         s.setMediaPlaybackRequiresUserGesture(false);

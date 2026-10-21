@@ -445,42 +445,48 @@
   .key[data-state="once"]{background:#4a5160;color:#fff}
   .key[data-state="lock"]{background:#7a8497;color:#fff}
 
-  /* ---------- dock: painel compacto Quest-style, retangular com cantos arredondados ---------- */
+  /* ---------- dock: painel Horizon OS 2.7 Quest 3S, retangular com cantos arredondados ---------- */
   .dock{position:relative;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
     align-items:center;gap:6px;width:max-content;padding:6px 8px;border-radius:16px;
-    background:linear-gradient(180deg,rgba(54,64,81,.16),rgba(29,37,52,.20)),linear-gradient(180deg,rgba(24,26,32,.96),rgba(16,18,23,.98));
-    border:1px solid rgba(214,224,242,.20);
+    background:linear-gradient(180deg,rgba(54,64,81,.78),rgba(29,37,52,.90)),linear-gradient(180deg,rgba(24,28,36,.96),rgba(15,18,25,.98));
+    border:1px solid rgba(214,224,242,.22);
     backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);
-    box-shadow:0 16px 38px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.38);
+    box-shadow:0 16px 38px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.38);
     pointer-events:auto}
   .dock button{color:#e7e9ed}
   /* A área de arrasto mantém uma barrinha branca visível logo abaixo da dock. */
   .dock-grab{position:absolute;left:50%;top:calc(100% + 8px);bottom:auto;transform:translateX(-50%);z-index:5;
     width:120px;height:14px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 3px;
     border:0;border-radius:0;background:transparent;color:#fff;cursor:grab;touch-action:none;pointer-events:auto}
-  .dock-grab::after{content:"";display:block;width:42px;height:3px;border-radius:99px;opacity:.94;
+  .dock-grab::after{content:"";display:block;width:64px;height:3.5px;border-radius:99px;opacity:.94;
     background:#fff;box-shadow:0 1px 5px rgba(255,255,255,.2),0 2px 6px rgba(0,0,0,.34);
     transition:width .16s,height .16s,background .16s,box-shadow .16s,opacity .16s}
   .dock-grab:hover::after,.dock-grab:focus-visible::after,
-  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:52px;height:4px;opacity:1;background:#fff;
+  .dock.grab-armed .dock-grab::after,.dock.moving .dock-grab::after{width:76px;height:4.5px;opacity:1;background:#fff;
     box-shadow:0 0 8px rgba(255,255,255,.42),0 2px 6px rgba(0,0,0,.38)}
   .dock.moving .dock-grab{cursor:grabbing}
 
-  /* Perfil e status compacto do telefone. */
+  /* Perfil e status compacto do telefone (estilo Horizon OS Quest 3S). */
   .dock-av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:#f2f4f7;
-    background:linear-gradient(145deg,#59616d,#343943);border:1px solid rgba(255,255,255,.24);
-    box-shadow:0 2px 6px rgba(0,0,0,.34);transition:filter .15s,transform .15s}
+    background:radial-gradient(circle at 32% 28%,#d8b89c,#826451 62%,#4b3930);border:1.5px solid rgba(255,255,255,.32);
+    box-shadow:0 2px 6px rgba(0,0,0,.34);transition:filter .15s,transform .15s;overflow:hidden;padding:0}
   .dock-av svg{width:17px;height:17px}
-  .dock-status{display:flex;align-items:center;gap:5px;flex:none;height:32px;padding:0 8px;border-radius:9px;
-    background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.07);
-    font-size:11px;font-weight:650;letter-spacing:-.1px;white-space:nowrap;
+  .dock-status{display:flex;align-items:center;gap:5px;flex:none;height:28px;padding:0 10px;border-radius:999px;
+    background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);
+    font-size:11px;font-weight:700;letter-spacing:-.1px;white-space:nowrap;
     font-variant-numeric:tabular-nums;transition:background .15s,transform .15s}
+  .dk-status-dot{display:inline-block;width:4.5px;height:4.5px;border-radius:50%;background:#dbeafe;opacity:.92;flex:none}
   .dk-time{font-size:11px;font-weight:700}
-  .dk-wifi svg,.dk-bat svg{display:block;width:14px;height:14px;color:#d0d3da}
+  .dk-wifi svg,.dk-bat svg{display:block;width:13px;height:13px;color:#e2e8f0}
   .dk-bat{display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;font-variant-numeric:tabular-nums}
-  .dk-bat-percent{color:#e9ebef}
-  .dock-tool{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;
-    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);color:#d9dce2;
+  .dk-bat-percent{display:none;color:#e9ebef}
+  .dock-bell-ind{position:relative;width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+    color:#e2e8f0;opacity:.92;pointer-events:none}
+  .dock-bell-ind svg{width:15px;height:15px}
+  .dock-bell-ind::after{content:"";position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;
+    background:#38bdf8;box-shadow:0 0 4px rgba(56,189,248,.8)}
+  .dock-tool{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);color:#d9dce2;
     transition:background .15s,transform .15s}
   .dock-tool svg{width:16px;height:16px}
   .dock-tool[data-id="virtual-environment"]{background:rgba(138,158,192,.18);border-color:rgba(209,222,245,.2);color:#f1f5fd}
@@ -488,16 +494,17 @@
   .dock-status:hover,.dock-tool:hover{background:rgba(255,255,255,.14)}
   .dock-av:hover{filter:brightness(1.1)}
   .dock-av:active,.dock-tool:active,.dock-status:active{transform:scale(.93)}
-  .dock-sep{width:1px;height:20px;border-radius:2px;background:rgba(255,255,255,.16);flex:none;margin:0 1px}
-  .dock-spacer{width:10px;flex:none}
+  .dock-sep{width:1px;height:22px;border-radius:2px;background:rgba(255,255,255,.20);flex:none;margin:0 2px}
+  .dock-spacer{width:58px;flex:none}
 
-  /* App shortcuts: compactos, coloridos e quadrados com cantos suaves. */
-  .dock-app{position:relative;width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
-    color:#fff;border:1px solid rgba(255,255,255,.17);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 2px 6px rgba(0,0,0,.30);
+  /* App shortcuts: ícones Horizon OS 2.7 (v207) quadrados com cantos suaves. */
+  .dock-app{position:relative;width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;
+    padding:0;overflow:visible;color:#fff;border:1px solid rgba(255,255,255,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 2px 6px rgba(0,0,0,.32);
     transition:transform .16s,filter .16s,box-shadow .16s}
   .dock-app svg{width:19px;height:19px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22))}
   .dock-app img{width:20px;height:20px;object-fit:contain}
+  .dock-app img.dock-hz-img{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
   .dock-app:hover,.dock-app.dock-hover{transform:translateY(-2px) scale(1.05);filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 0 0 1px rgba(255,255,255,.22),0 5px 12px rgba(0,0,0,.36)}
   .dock-tool:hover,.dock-tool.dock-hover,.dock-av:hover,.dock-av.dock-hover,.dock-status:hover,.dock-status.dock-hover{transform:translateY(-1px) scale(1.04)}
   .dock button:focus-visible{outline:2px solid rgba(180,205,255,.82);outline-offset:2px}
@@ -561,10 +568,10 @@
   .qb-dock .dock-av:hover{filter:brightness(1.15);background:rgba(120,160,220,.28)}
   .qb-dock .dock-status:hover{background:rgba(120,160,220,.2)}
 
-  /* Lançador de nove pontos no extremo direito. */
-  .dock-launcher{background:rgba(255,255,255,.10)!important;box-shadow:none;border-color:rgba(255,255,255,.1)}
+  /* Lançador circular de nove pontos no extremo direito. */
+  .dock-launcher{border-radius:50%!important;background:rgba(255,255,255,.12)!important;box-shadow:none;border-color:rgba(255,255,255,.14)}
   .dk-grid{display:grid;grid-template-columns:repeat(3,3px);gap:2.5px}
-  .dk-grid i{display:block;width:3px;height:3px;border-radius:1px;background:#e7e9ed}
+  .dk-grid i{display:block;width:3px;height:3px;border-radius:50%;background:#f1f5f9}
   @media(max-width:900px){
     .dock{gap:4px;padding:5px 7px;border-radius:14px}
     .dock-av{width:28px;height:28px}.dock-av svg{width:15px;height:15px}
