@@ -918,13 +918,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const lhAttachedToLeftHand = lhFloatingShell?.dataset?.attachedHand === 'left' && !!lhFloatingShell?.dataset?.attachedPos;
       // Move left hand far away (smaller palmWidth) vs closer (larger palmWidth) and verify attachedDist follows depth
       for (let i = 0; i < 6; i++) {
-        const farLh = mkGestureHand(false, false);
+        const farLh = mkLeftVLHand(false);
         farLh.palmWidth = 0.045;
         window.nextvrHands({ t: performance.now(), hands: [farLh] });
       }
       const farDist = parseFloat(lhFloatingShell?.dataset?.attachedDist || '0');
       for (let i = 0; i < 6; i++) {
-        const nearLh = mkGestureHand(false, false);
+        const nearLh = mkLeftVLHand(false);
         nearLh.palmWidth = 0.19;
         window.nextvrHands({ t: performance.now(), hands: [nearLh] });
       }
