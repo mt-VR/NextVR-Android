@@ -1824,11 +1824,12 @@ function libraryApp() {
 /* ============ Spatial App (Interface Library flutuante transparente 7e3d8ab40bd4dd3 sobre a câmera traseira real) ============ */
 const SPATIAL_CORE_APPS = [
   { id:'browser',      name:'Browser',   bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
+  { id:'youtube',      name:'YouTube',   bg:'linear-gradient(145deg,#ff0000,#b91c1c)', slug:'youtube' },
   { id:'store',        name:'Store',     bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
   { id:'environments', name:'Ambientes', bg:'linear-gradient(145deg,#fb923c,#ec4899)', imgUrl:'./icons/hz-camera-share.png', icon:'vision' },
   { id:'gallery',      name:'Gallery',   bg:'linear-gradient(145deg,#fdba74,#c084fc)', imgUrl:'./icons/hz-gallery.png', icon:'camera' },
   { id:'settings',     name:'Settings',  bg:'linear-gradient(145deg,#9ca8b8,#556170)', imgUrl:'./icons/hz-settings.png', icon:'settings' },
-  { id:'youtube',      name:'TV / YouTube', bg:'linear-gradient(145deg,#f472b6,#7c3aed)', imgUrl:'./icons/hz-tv.png', slug:'youtube' },
+  { id:'horizon-tv',   name:'Horizon TV', bg:'linear-gradient(145deg,#f472b6,#7c3aed)', imgUrl:'./icons/hz-tv.png', url:'https://www.youtube.com/tv' },
   { id:'whatsapp',     name:'WhatsApp',  bg:'linear-gradient(145deg,#22c55e,#15803d)', imgUrl:'./icons/hz-whatsapp.png', slug:'whatsapp' },
   { id:'instagram',    name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', imgUrl:'./icons/hz-instagram.png', slug:'instagram' },
   { id:'facebook',     name:'Facebook',  bg:'linear-gradient(145deg,#3b82f6,#1d4ed8)', imgUrl:'./icons/hz-facebook.png', slug:'facebook' },
@@ -2494,14 +2495,8 @@ export function toggleCameraSoloMode(forceState = undefined, autoFromDefocus = f
   return cameraSoloActive;
 }
 window.nextvrToggleCameraSolo = toggleCameraSoloMode;
-window.nextvrOnCameraDefocus = defocused => {
-  if (window.__gorillaStereoOverlay || window.__vrfsStereoOverlay) return;
-  if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden)) return;
-  if (defocused) {
-    if (!cameraSoloActive) toggleCameraSoloMode(true, true);
-  } else if (cameraSoloActive && cameraSoloAutoTriggered) {
-    toggleCameraSoloMode(false, false);
-  }
+window.nextvrOnCameraDefocus = () => {
+  // Foco automático sozinho desativado por pedido do utilizador
 };
 
 export function openFistQuickMenu() {

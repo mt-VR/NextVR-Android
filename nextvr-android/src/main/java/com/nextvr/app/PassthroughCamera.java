@@ -99,26 +99,7 @@ final class PassthroughCamera {
     private volatile boolean cameraCurrentlyDefocused = false;
     private final CameraCaptureSession.CaptureCallback afCallback = new CameraCaptureSession.CaptureCallback() {
         @Override public void onCaptureCompleted(CameraCaptureSession s, CaptureRequest req, android.hardware.camera2.TotalCaptureResult result) {
-            Integer afState = result.get(android.hardware.camera2.CaptureResult.CONTROL_AF_STATE);
-            if (afState == null) return;
-            if (afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED
-                    || afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
-                long now = android.os.SystemClock.uptimeMillis();
-                if (!cameraCurrentlyDefocused) {
-                    cameraCurrentlyDefocused = true;
-                    listener.cameraDefocus(true);
-                }
-                if (now - lastAfTriggerMs > 2000L) {
-                    lastAfTriggerMs = now;
-                    triggerAutoFocus();
-                }
-            } else if (afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED
-                    || afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED) {
-                if (cameraCurrentlyDefocused && android.os.SystemClock.uptimeMillis() - lastAfTriggerMs > 1200L) {
-                    cameraCurrentlyDefocused = false;
-                    listener.cameraDefocus(false);
-                }
-            }
+            // Automatic focus hunting & defocus solo-camera trigger disabled per user request.
         }
     };
     private ImageReader reader;

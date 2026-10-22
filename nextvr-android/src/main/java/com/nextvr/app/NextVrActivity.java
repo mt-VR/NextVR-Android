@@ -153,24 +153,24 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     gravY=0.88f*gravY + 0.12f*ay;
                     gravZ=0.88f*gravZ + 0.12f*az;
                     gravMag=0.92f*gravMag + 0.08f*mag;
-                    // Usa a magnitude escalar (invariante à rotação 3D da cabeça) e a variação linear filtrada
-                    // para responder imediatamente ao aproximar ou afastar sem confundir rotação da cabeça com caminhada.
+                    // Usa apenas o impacto escalar de passo (invariante à inclinação da cabeça) com limiar real
+                    // de caminhada para o 6DoF nunca andar para a frente sozinho parado ou ao girar a cabeça.
                     float stepImpact=Math.abs(mag-gravMag);
-                    float vecDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    float motionSignal=Math.max(stepImpact, vecDelta*0.65f);
-                    if(motionSignal>0.048f && gyroRate<1.05f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.85f + motionSignal*1.25f);
-                        if(walkEnergy>0.068f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(stepImpact>0.55f && gyroRate<0.38f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.80f + stepImpact*0.95f);
+                        if(walkEnergy>0.48f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.86f;
+                        walkEnergy*=0.75f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.055f && gyroRate<1.05f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.85f + lmag*1.15f);
-                    if(walkEnergy>0.068f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.60f && gyroRate<0.38f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.80f + lmag*0.90f);
+                    if(walkEnergy>0.48f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                } else {
+                    walkEnergy*=0.80f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -239,18 +239,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
-                if(!sixDofEnabled || Math.abs(sc)>0.16f) return;
-                if(Math.abs(sc)<0.0020f) {
+                long nowMs=android.os.SystemClock.elapsedRealtime();
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.12f) return;
+                SpatialRenderer r=renderer;
+                if(r!=null && r.hands!=null && !r.hands.getHands().isEmpty()) return;
+                if(Math.abs(sc)<0.0065f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                long nowMs=android.os.SystemClock.elapsedRealtime();
-                boolean accelMoving=!hasWalkAccel
-                    ? (Math.abs(sc)>=0.0022f && Math.abs(sc)<=0.16f)
-                    : (walkEnergy>0.068f && nowMs-lastWalkStepMs<950L);
-                boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.8;
+                boolean accelMoving=hasWalkAccel && walkEnergy>0.48f && (nowMs-lastWalkStepMs)<320L;
+                boolean moving=accelMoving && gyroRate<0.38f && Math.hypot(gx,gy)<=1.2;
+                if(!moving && sentZeroSixDof) return;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");

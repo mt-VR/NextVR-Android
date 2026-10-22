@@ -260,7 +260,13 @@ jobs:
           git add dist
           git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin apk-dist
+          for attempt in 1 2 3 4; do
+            if git push --force origin apk-dist; then
+              break
+            fi
+            echo "apk-dist push failed (attempt $attempt); retrying"
+            sleep $((attempt * 4))
+          done
           echo "APK published: branch apk-dist, path dist/app-debug.apk"
 
 

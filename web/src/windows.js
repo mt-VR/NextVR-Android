@@ -2741,7 +2741,16 @@ function updateFingerPoke(h, packet, nowMs) {
     if (curWinHit) scrollSt.winHit = curWinHit;
     const tipMove = Math.hypot(tipX - scrollSt.startTipX, tipY - scrollSt.startTipY);
     const wristMove = p ? Math.hypot(p[0] - scrollSt.startWristX, p[1] - scrollSt.startWristY) : 0;
-    if (!scrollSt.scrolling && scrollSt.winHit && ((tipMove >= 0.022 && wristMove >= 0.012) || tipMove >= 0.036)) {
+    const isStickingToOption = Boolean(currentSt && !currentSt.latched && currentSt.targetEl);
+    const pullingUpward = Boolean(currentSt && (tipY < currentSt.restTipY - 0.003 || stepDy < -0.002));
+    if (
+      !scrollSt.scrolling &&
+      scrollSt.winHit &&
+      !pullingUpward &&
+      (isStickingToOption
+        ? (tipMove >= 0.085 && (tipY - (currentSt?.restTipY ?? tipY)) >= 0.015)
+        : ((tipMove >= 0.022 && wristMove >= 0.012) || tipMove >= 0.036))
+    ) {
       scrollSt.scrolling = true;
     }
     if (scrollSt.scrolling) {
@@ -2767,7 +2776,28 @@ function updateFingerPoke(h, packet, nowMs) {
   const boneSpan = handBoneSpan2D(h.points);
 
   let st = currentSt;
-  const target = hoverTargetComputed ? cachedHoverTarget : resolveFingerTarget(h, packet);
+  let target = hoverTargetComputed ? cachedHoverTarget : resolveFingerTarget(h, packet);
+
+  // Grudadinha magnética: se o dedo já encostou num app/opção e ainda não puxou para cima,
+  // mantém o dedo "grudado" na opção dentro do raio magnético (~5.8%) para não escapar antes do puxão para cima.
+  if (
+    st &&
+    !st.latched &&
+    st.targetEl &&
+    document.body.contains(st.targetEl) &&
+    (nowMs - st.lastSeenAt <= 240) &&
+    Math.hypot(tipX - (st.stickRawX ?? st.restTipX ?? tipX), tipY - (st.stickRawY ?? st.restTipY ?? tipY)) <= 0.058
+  ) {
+    if (!target || target.key !== st.targetKey) {
+      target = {
+        kind: 'win',
+        key: st.targetKey,
+        el: st.targetEl,
+        x: st.tapX,
+        y: st.tapY,
+      };
+    }
+  }
 
   const checkForwardPush = state => {
     if (!state) return false;
@@ -2785,23 +2815,22 @@ function updateFingerPoke(h, packet, nowMs) {
     );
   };
 
-  // Quando passar o dedo ou ficar com o dedo encima vai escolher mas não vai abrir;
-  // só abre no momento em que, com o dedo encima do app, o utilizador LEVANTA/AFASTA O DEDO (como nas fotos de referência).
+  // Quando encostar o dedo no app ou opção ele dá uma "grudadinha", e quando puxar o dedo para cima conta como clique.
   const checkFingerLift = state => {
     if (!state) return false;
-    const tipLiftUp = (state.restTipY - tipY) >= 0.0075;
-    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0075;
-    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.0075;
-    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.08;
+    const tipLiftUp = (state.restTipY - tipY) >= 0.0055 || (state.lastTipY - tipY) >= 0.0060;
+    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0060;
+    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.0060;
+    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.075;
     const wx = (state.wristX ?? 0.5) - state.restTipX;
     const wy = (state.wristY ?? 0.7) - state.restTipY;
     const wLen = Math.hypot(wx, wy) || 1;
-    const retractAlongFinger = ((tipX - state.restTipX) * (wx / wLen) + (tipY - state.restTipY) * (wy / wLen)) >= 0.0075;
+    const retractAlongFinger = ((tipX - state.restTipX) * (wx / wLen) + (tipY - state.restTipY) * (wy / wLen)) >= 0.0065;
     return tipLiftUp || knuckleLiftUp || headLiftUp || indexFlexLift || retractAlongFinger || checkForwardPush(state);
   };
 
   if (!target) {
-    if (st && st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
+    if (st && st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 320)) {
       st.pendingBrowserTap = false;
       if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
         st.latched = true;
@@ -2810,16 +2839,17 @@ function updateFingerPoke(h, packet, nowMs) {
         return true;
       }
     }
-    const pulledOffTarget = st && (checkFingerLift(st) || Math.hypot(tipX - st.restTipX, tipY - st.restTipY) >= 0.006);
-    if (st && (nowMs - st.lastSeenAt <= 180) && (nowMs - st.enterAt >= 40) && !st.latched && pulledOffTarget && (nowMs - st.lastTapAt >= 360)) {
+    const pulledOffTarget = st && (checkFingerLift(st) || (st.restTipY - tipY) >= 0.0050 || Math.hypot(tipX - st.restTipX, tipY - st.restTipY) >= 0.006);
+    if (st && (nowMs - st.lastSeenAt <= 240) && (nowMs - st.enterAt >= 30) && !st.latched && pulledOffTarget && (nowMs - st.lastTapAt >= 320)) {
       if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
         st.latched = true;
         st.lastTapAt = nowMs;
         fingerPokeFlashUntil = nowMs + 220;
+        setFingerHoverEl(null);
         return true;
       }
     }
-    if (!st || nowMs - st.lastSeenAt > 180) {
+    if (!st || nowMs - st.lastSeenAt > 240) {
       fingerPokeByHand.delete(h.id);
       setFingerHoverEl(null);
     }
@@ -2828,9 +2858,9 @@ function updateFingerPoke(h, packet, nowMs) {
 
   setFingerHoverEl(target.el, target.x, target.y);
 
-  const liftingAlready = st && (nowMs - st.enterAt >= 40) && (target.key === st.targetKey) && checkFingerLift(st);
+  const liftingAlready = st && !st.latched && (nowMs - st.enterAt >= 30) && checkFingerLift(st);
   if (!st || (target.key !== st.targetKey && !liftingAlready)) {
-    if (st && !st.latched && (nowMs - st.enterAt >= 45) && (nowMs - st.lastSeenAt <= 120) && (st.lastTipY - tipY >= 0.010) && Math.abs(tipX - st.lastTipX) <= 0.018 && (nowMs - st.lastTapAt >= 360)) {
+    if (st && !st.latched && (nowMs - st.enterAt >= 30) && (nowMs - st.lastSeenAt <= 220) && ((st.restTipY - tipY >= 0.0055) || (st.lastTipY - tipY >= 0.0060) || checkFingerLift(st)) && (nowMs - st.lastTapAt >= 320)) {
       if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
         st.latched = true;
         st.lastTapAt = nowMs;
@@ -2843,9 +2873,12 @@ function updateFingerPoke(h, packet, nowMs) {
       targetEl: target.el,
       tapX: target.x,
       tapY: target.y,
+      stickRawX: tipX,
+      stickRawY: tipY,
       wristX: p[0],
       wristY: p[1],
       maxIndexRatio: curIndexRatio,
+      restTipX: tipX,
       restTipY: tipY,
       restFingerLift: fingerLift,
       restHeadY: tipHeadY,
@@ -3663,6 +3696,9 @@ onFrame((dt,now)=>{
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl);
+    const stick = (fSt?.targetEl && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
+      ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
+      : null;
     const isRightBolinha = isRightBolinhaHand(h);
     const isLeftBolinha = isLeftBolinhaHand(h);
     const blueOutline = Boolean(
@@ -3672,7 +3708,7 @@ onFrame((dt,now)=>{
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
@@ -3687,7 +3723,7 @@ onFrame((dt,now)=>{
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

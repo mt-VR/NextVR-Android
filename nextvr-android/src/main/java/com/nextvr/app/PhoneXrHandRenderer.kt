@@ -203,6 +203,24 @@ class PhoneXrHandRenderer {
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
         if(!showPointer) {
+            for((hIdx, hand) in visual.hands.withIndex()) {
+                val id=if(hand.left) "left" else "right"
+                var target:JSONObject?=null
+                for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
+                if(target?.optBoolean("hidden")==true) continue
+                if(target?.optBoolean("fingerHover")==true) {
+                    val pts=handPoints.getOrNull(hIdx) ?: hand.points
+                    if(pts.size>=26) {
+                        val hFade=fade*hand.confidence.coerceIn(0f,1f)
+                        val fx=(pts[24]-.5f)*2f*sx
+                        val fy=(.5f-pts[25])*2f*sy
+                        GLES20.glUniform1f(gradUniform,0f)
+                        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                        GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
+                        ring3d(fx,fy,-1f,.022f,.0185f,position)
+                    }
+                }
+            }
             GLES20.glDisable(GLES20.GL_STENCIL_TEST)
             GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
             return
@@ -259,7 +277,28 @@ class PhoneXrHandRenderer {
      * exact same buffers and a moving hand rebuilds every display frame, so the silhouette
      * glides with the prediction instead of stepping at the detection rate. */
     private fun meshesFor(frame:PhoneXrHands.Frame,sx:Float,sy:Float,nowNs:Long):List<Mesh> {
-        val points=frame.hands.map { it.points }
+        val points=frame.hands.map { hand ->
+            val hId=if(hand.left) "left" else "right"
+            var stickArr:JSONArray?=null
+            for(i in 0 until targets.length()) {
+                val o=targets.optJSONObject(i)
+                if(o!=null && o.optString("id")==hId) { stickArr=o.optJSONArray("stick"); break }
+            }
+            val rawPts=hand.points
+            if(stickArr!=null && stickArr.length()>=2 && rawPts.size>=26) {
+                val sxRaw=stickArr.optDouble(0,Double.NaN).toFloat()
+                val syRaw=stickArr.optDouble(1,Double.NaN).toFloat()
+                if(sxRaw.isFinite() && syRaw.isFinite()) {
+                    val copy=rawPts.copyOf()
+                    val dx=(sxRaw-copy[24]).coerceIn(-.042f,.042f)
+                    val dy=(syRaw-copy[25]).coerceIn(-.042f,.042f)
+                    copy[24]+=dx*.70f; copy[25]+=dy*.70f
+                    copy[21]+=dx*.42f; copy[22]+=dy*.42f
+                    copy[18]+=dx*.18f; copy[19]+=dy*.18f
+                    copy
+                } else rawPts
+            } else rawPts
+        }
         val moved=points.size!=meshPoints.size || sx!=meshScaleX || sy!=meshScaleY || points.indices.any { i ->
             val a=points[i];val b=meshPoints[i];var j=0;var d=0f
             while(j<a.size) { val delta=abs(a[j]-b[j]);if(delta>d)d=delta;j++ }
