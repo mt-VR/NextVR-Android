@@ -642,7 +642,13 @@ final class PassthroughCamera {
      */
     private void clearHands() {
         hands.reset();
+        latestHandsFrame=null;
         listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
+    }
+    void resetHandsState() {
+        discardWaitingFrame();
+        latestHandsFrame=null;
+        tracking.execute(this::clearHands);
     }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;

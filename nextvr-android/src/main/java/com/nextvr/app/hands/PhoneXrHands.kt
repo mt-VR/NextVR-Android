@@ -186,6 +186,7 @@ class PhoneXrHands {
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
+        var consecutiveMisses = 0
         /** Capture time of the last real detection; pruning and prediction key off it. */
         var lastStampNs = 0L
         var lastHand: PhoneXrHands.Hand? = null
@@ -226,6 +227,7 @@ class PhoneXrHands {
             lastStampNs = stampNs
             lastHand = hand
             sawDetection = true
+            consecutiveMisses = 0
         }
 
         /**
@@ -236,6 +238,8 @@ class PhoneXrHands {
         fun predict(stampNs: Long): PhoneXrHands.Hand? {
             val hand = lastHand ?: return null
             if (!sawDetection) return null
+            consecutiveMisses++
+            if (consecutiveMisses >= 2) return null
             val since = stampNs - lastStampNs
             if (since <= 0L || since > PREDICT_HORIZON_NS) return null
             val t = since / 1e9f

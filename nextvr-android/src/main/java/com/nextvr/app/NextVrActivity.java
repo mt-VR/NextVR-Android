@@ -125,7 +125,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private boolean soundReady,audioFocused;
     private volatile int appBrightness=70;
     private WebView entryView;
-    private boolean entryVisible=true;
+    private volatile boolean entryVisible=true;
+    private volatile long vrSessionReadyAtMs=0L;
     private String pendingVrSettingsJson;
     private android.hardware.SensorManager sensorManager;
     private boolean walkSensorsRegistered=false;
@@ -221,7 +222,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(r!=null && resumed && !closed)r.camera.offer(bitmap);else bitmap.recycle();
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
-                SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                SpatialRenderer r=renderer;
+                if(entryVisible || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs) {
+                    if(r!=null) r.hands=null;
+                    return;
+                }
+                if(r!=null)r.hands=frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
@@ -1064,9 +1070,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(closed) return;
                 synchronized(Bridge.this) { cachedScene=null; cachedSpecs=null; }
                 pendingVrSettingsJson=settingsJson;
+                vrSessionReadyAtMs=android.os.SystemClock.elapsedRealtime()+650L;
+                handFrames.requestReset();
+                handFrames.drain();
+                if(camera!=null) camera.resetHandsState();
                 setEntryMenuVisible(false);
                 SpatialRenderer target=renderer;
                 if(target!=null) {
+                    target.hands=null;
+                    target.handRenderer.resetPresentation();
                     boolean customEnv=false;
                     if(settingsJson!=null) {
                         try {
@@ -1108,6 +1120,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void openEntryMenu() {
             main.post(()->{
                 if(closed) return;
+                handFrames.requestReset();
+                handFrames.drain();
+                if(camera!=null) camera.resetHandsState();
+                SpatialRenderer target=renderer;
+                if(target!=null) {
+                    target.hands=null;
+                    target.handRenderer.resetPresentation();
+                }
                 setEntryMenuVisible(true);
                 immersive();
             });

@@ -2548,50 +2548,57 @@ function buildLeftHandQuickMenuDom() {
   const bri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
   const dim = S.mrDim ? 80 : 20;
   root.innerHTML = `
-    <div class="lh-quick-grid">
-      <div class="lh-apps-col">
-        <button type="button" class="lh-app-tile" data-lh-app="browser" title="Browser">
-          <img src="./icons/hz-browser.png" alt="Browser" class="lh-app-img" draggable="false"/>
-        </button>
-        <button type="button" class="lh-app-tile" data-lh-app="youtube" title="YouTube">
-          <img src="./icons/hz-tv.png" alt="YouTube" class="lh-app-img" draggable="false"/>
-        </button>
-        <button type="button" class="lh-app-tile" data-lh-app="roblox" title="Roblox">
-          <img src="./icons/roblox-logo.jpg" alt="Roblox" class="lh-app-img" draggable="false"/>
-        </button>
-        <button type="button" class="lh-app-tile" data-lh-app="store" title="Store">
-          <img src="./icons/hz-store.png" alt="Store" class="lh-app-img" draggable="false"/>
-        </button>
-        <button type="button" class="lh-round-btn lh-home-btn" data-lh-act="home" title="Início">
-          ${icon('home')}
-        </button>
-      </div>
-      <div class="lh-sliders-col">
-        <div class="lh-sliders-row">
+    <div class="lh-quick-panel">
+      <div class="lh-quick-cols">
+        <div class="lh-col lh-apps-col">
+          <span class="lh-col-lbl">Apps</span>
+          <button type="button" class="lh-app-tile lh-app-spotify" data-lh-app="spotify" title="Spotify">
+            <span class="lh-spotify-badge">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.59 14.42c-.18.3-.56.39-.86.21-2.35-1.44-5.31-1.76-8.8-.96-.34.08-.67-.13-.75-.47-.08-.34.13-.67.47-.75 3.82-.87 7.1-.5 9.73 1.11.3.18.39.56.21.86zm1.22-2.72c-.23.37-.71.49-1.08.26-2.69-1.65-6.79-2.13-9.97-1.16-.41.12-.85-.11-.97-.52-.12-.41.11-.85.52-.97 3.63-1.1 8.15-.57 11.24 1.33.37.23.49.71.26 1.06zm.11-2.83C14.7 8.95 9.38 8.77 6.3 9.71c-.49.15-1.01-.13-1.16-.62-.15-.49.13-1.01.62-1.16 3.54-1.07 9.42-.86 13.14 1.35.44.26.59.83.33 1.27-.26.44-.83.59-1.31.32z"/></svg>
+            </span>
+          </button>
+          <button type="button" class="lh-app-tile" data-lh-app="youtube" title="YouTube">
+            <img src="./icons/hz-tv.png" alt="YouTube" class="lh-app-img" draggable="false"/>
+          </button>
+          <button type="button" class="lh-app-tile" data-lh-app="browser" title="Browser">
+            <img src="./icons/hz-browser.png" alt="Browser" class="lh-app-img" draggable="false"/>
+          </button>
+          <button type="button" class="lh-app-tile" data-lh-app="store" title="Store">
+            <img src="./icons/hz-store.png" alt="Store" class="lh-app-img" draggable="false"/>
+          </button>
+        </div>
+        <div class="lh-col lh-vol-col">
+          <span class="lh-col-lbl">Master Volume</span>
           <div class="lh-vslider-pill" title="Volume">
             <input type="range" min="0" max="100" value="${vol}" class="lh-vslider-input" data-lh-slider="volume" aria-label="Volume" style="--fill:${vol}%"/>
             <span class="lh-vslider-ico">${icon('volume')}</span>
           </div>
-          <div class="lh-vslider-pill" title="Brilho">
+          <button type="button" class="lh-mini-round-btn ${S.mrDim ? 'on' : ''}" data-lh-act="dim" title="Escurecimento MR">
+            ∞
+          </button>
+          <input type="range" min="0" max="100" value="${dim}" class="lh-vslider-input lh-hidden-dim-slider" data-lh-slider="dim" aria-label="Ambiente Escuro" style="display:none;--fill:${dim}%"/>
+        </div>
+        <div class="lh-col lh-bri-col">
+          <span class="lh-col-lbl">Brilho</span>
+          <div class="lh-vslider-pill lh-vslider-pill--bri" title="Brilho">
             <input type="range" min="10" max="100" value="${bri}" class="lh-vslider-input" data-lh-slider="brightness" aria-label="Brilho" style="--fill:${bri}%"/>
             <span class="lh-vslider-ico">${icon('sun')}</span>
           </div>
-          <div class="lh-vslider-pill" title="Escurecimento MR">
-            <input type="range" min="0" max="100" value="${dim}" class="lh-vslider-input" data-lh-slider="dim" aria-label="Ambiente Escuro" style="--fill:${dim}%"/>
-            <span class="lh-vslider-ico">${icon('vision')}</span>
-          </div>
         </div>
-        <div class="lh-bottom-actions">
-          <button type="button" class="lh-round-btn lh-hands-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-lh-act="hands" title="Toque Direto">
-            ${icon('hand')}
-          </button>
-          <button type="button" class="lh-round-btn lh-cam-solo-btn ${cameraSoloActive ? 'on' : ''}" data-lh-act="camera-solo" title="Câmera Sozinha (Focar Câmera)">
-            ${icon('camera')}
-          </button>
-          <button type="button" class="lh-round-btn lh-close-btn" data-lh-act="close" title="Fechar">
-            ✕
-          </button>
-        </div>
+      </div>
+      <div class="lh-bottom-actions">
+        <button type="button" class="lh-sq-btn lh-home-btn" data-lh-act="home" title="Início">
+          ${icon('home')}
+        </button>
+        <button type="button" class="lh-sq-btn lh-hands-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-lh-act="hands" title="Toque Direto">
+          ${icon('hand')}
+        </button>
+        <button type="button" class="lh-sq-btn lh-cam-solo-btn ${cameraSoloActive ? 'on' : ''}" data-lh-act="camera-solo" title="Câmera Sozinha (Focar Câmera)">
+          ${icon('camera')}
+        </button>
+        <button type="button" class="lh-round-btn lh-close-btn" data-lh-act="close" title="Fechar">
+          ✕
+        </button>
       </div>
     </div>
   `;
@@ -2638,6 +2645,7 @@ function buildLeftHandQuickMenuDom() {
       const appId = appBtn.dataset.lhApp;
       toggleLeftHandQuickMenu(false);
       if (appId === 'browser') webWindow('browser', t('browser'), 'https://google.com/');
+      else if (appId === 'spotify') webWindow('spotify', 'Spotify', 'https://open.spotify.com/');
       else if (appId === 'youtube') webWindow('youtube');
       else if (appId === 'roblox') webWindow('roblox');
       else if (appId === 'store') storeApp();
@@ -2654,6 +2662,9 @@ function buildLeftHandQuickMenuDom() {
     } else if (act === 'home') {
       toggleLeftHandQuickMenu(false);
       toggleSpatialAndDockFromGesture();
+    } else if (act === 'dim') {
+      setMrDim(!S.mrDim);
+      actBtn.classList.toggle('on', !!S.mrDim);
     } else if (act === 'camera-solo') {
       toggleLeftHandQuickMenu(false);
       toggleCameraSoloMode();
@@ -2711,7 +2722,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
-    existing.resizeScale = 1.95;
+    existing.resizeScale = 0.88;
     existing.shell.dataset.attachedHand = 'left';
     existing.apply();
     focus(existing);
@@ -2722,15 +2733,15 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 880,
-      h: 640,
+      w: 320,
+      h: 420,
       chrome: false,
       resizable: false,
       free: true,
-      at: { x: -0.20, y: 1.46, z: -0.74 },
+      at: { x: -0.18, y: 1.44, z: -0.76 },
     });
     if (win) {
-      win.resizeScale = 1.95;
+      win.resizeScale = 0.88;
       win.shell.dataset.attachedHand = 'left';
       win.apply();
     }

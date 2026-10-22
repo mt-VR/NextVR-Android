@@ -59,6 +59,11 @@ class PhoneXrHandRenderer {
     private var viewScaleX=1f
     private var viewScaleY=1f
     private val presentation=com.nextvr.app.hands.HandPresentation()
+    fun resetPresentation() {
+        presentation.reset()
+        meshes=emptyList()
+        meshPoints=emptyList()
+    }
     /** Primitive builder: a hand mesh is tens of thousands of floats per result frame. */
     private class FloatBuilder(initialCapacity:Int) {
         var values=FloatArray(maxOf(3,initialCapacity)); private set

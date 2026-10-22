@@ -95,7 +95,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Floor of 1 s: opening a floating window stalls the WebView/main thread briefly, delaying
   // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
-  validForMs=Math.max(1000,Math.min(1500,Number(frame.validForMs)||500));
+  validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
   hands.splice(0,hands.length,...(frame.hands || []));
   emit('handframe',{...frame,hands});
   if (window.__gorillaStereoOverlay) {

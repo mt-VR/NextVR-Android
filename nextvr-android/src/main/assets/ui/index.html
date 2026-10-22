@@ -3113,7 +3113,7 @@
     background:linear-gradient(90deg,#2b8cff,#38bdf8);
   }
 
-  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda com Fundo 100% Transparente (Ampliada) */
+  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Tamanho Compacto do Print Screenshot_2026-10-22-09-32-59-911) */
   .win-shell[data-window-id="left-quick-menu"],
   .win-shell[data-window-id="left-quick-menu"] .win,
   .win-shell[data-window-id="left-quick-menu"] .win-body,
@@ -3136,8 +3136,8 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding:12px 16px;
-    border-radius:28px;
+    padding:6px 8px;
+    border-radius:20px;
     background:transparent !important;
     border:0 !important;
     box-shadow:none !important;
@@ -3148,35 +3148,68 @@
   .lh-quick-menu[hidden]{
     display:none !important;
   }
-  .lh-quick-grid{
+  .lh-quick-panel{
     display:flex;
-    align-items:stretch;
-    gap:26px;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    transform:rotate(-8deg);
+  }
+  .lh-quick-cols{
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    gap:12px;
+  }
+  .lh-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:7px;
+  }
+  .lh-col-lbl{
+    font:600 9.5px/1.1 Inter,sans-serif;
+    color:rgba(248,250,252,.92);
+    text-shadow:0 1px 4px rgba(0,0,0,.85);
+    white-space:nowrap;
+    letter-spacing:.01em;
+    margin-bottom:2px;
   }
   .lh-apps-col{
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:18px;
+    gap:7px;
   }
   .lh-app-tile{
-    width:88px;
-    height:88px;
-    border-radius:22px;
-    border:2px solid rgba(255,255,255,.28);
-    background:rgba(38,43,56,.96);
+    width:44px;
+    height:44px;
+    border-radius:12px;
+    border:1.5px solid rgba(255,255,255,.24);
+    background:rgba(38,43,56,.88);
     display:inline-flex;
     align-items:center;
     justify-content:center;
     padding:0;
     cursor:pointer;
     overflow:hidden;
+    box-shadow:0 4px 12px rgba(0,0,0,.42);
     transition:transform .14s ease,border-color .14s ease;
   }
   .lh-app-tile:hover,
   .lh-app-tile.finger-hover{
-    transform:scale(1.08);
+    transform:scale(1.07);
     border-color:#38bdf8;
+  }
+  .lh-spotify-badge{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    background:#1db954;
+    color:#0b0f14;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
   }
   .lh-app-img{
     width:100%;
@@ -3184,53 +3217,31 @@
     object-fit:cover;
     display:block;
   }
-  .lh-app-icon{
-    width:44px;
-    height:44px;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    color:#ffffff;
-  }
-  .lh-app-icon svg{
-    width:42px;
-    height:42px;
-  }
-  .lh-sliders-col{
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    gap:20px;
-  }
-  .lh-sliders-row{
-    display:flex;
-    align-items:center;
-    gap:22px;
-  }
   .lh-vslider-pill{
     position:relative;
-    width:100px;
-    height:332px;
-    border-radius:46px;
-    background:rgba(42,46,58,.95);
-    border:2px solid rgba(255,255,255,.26);
+    width:38px;
+    height:186px;
+    border-radius:999px;
+    background:rgba(42,46,58,.86);
+    border:1.5px solid rgba(255,255,255,.24);
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:flex-end;
-    padding-bottom:20px;
+    padding-bottom:8px;
     overflow:hidden;
+    box-shadow:0 4px 12px rgba(0,0,0,.42);
   }
   .lh-vslider-input{
     -webkit-appearance:none;
     appearance:none;
     position:absolute;
-    width:306px;
-    height:86px;
+    width:170px;
+    height:32px;
     left:50%;
-    top:46%;
+    top:47%;
     transform:translate(-50%,-50%) rotate(-90deg);
-    background:linear-gradient(90deg,rgba(255,255,255,.94) 0%,rgba(255,255,255,.94) var(--fill,70%),rgba(255,255,255,.22) var(--fill,70%),rgba(255,255,255,.22) 100%);
+    background:linear-gradient(90deg,rgba(255,255,255,.95) 0%,rgba(255,255,255,.95) var(--fill,70%),rgba(255,255,255,.20) var(--fill,70%),rgba(255,255,255,.20) 100%);
     border-radius:999px;
     outline:none;
     cursor:pointer;
@@ -3238,54 +3249,98 @@
   .lh-vslider-input::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
-    width:38px;
-    height:38px;
+    width:20px;
+    height:20px;
     border-radius:50%;
     background:#ffffff;
-    box-shadow:0 2px 10px rgba(0,0,0,.55);
+    box-shadow:0 2px 6px rgba(0,0,0,.55);
   }
   .lh-vslider-ico{
     position:relative;
     z-index:2;
-    width:36px;
-    height:36px;
+    width:16px;
+    height:16px;
     color:#0f172a;
     pointer-events:none;
   }
   .lh-vslider-ico svg{
-    width:36px;
-    height:36px;
+    width:16px;
+    height:16px;
+  }
+  .lh-mini-round-btn{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:1.5px solid rgba(255,255,255,.24);
+    background:rgba(45,50,64,.88);
+    color:#f8fafc;
+    font:700 13px/1 Inter,sans-serif;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .lh-mini-round-btn.on{
+    background:linear-gradient(135deg,#0284c7,#2563eb);
+    border-color:#38bdf8;
   }
   .lh-bottom-actions{
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:20px;
+    gap:10px;
+    margin-top:2px;
   }
-  .lh-round-btn{
-    width:82px;
-    height:82px;
-    border-radius:50%;
-    border:2px solid rgba(255,255,255,.28);
-    background:rgba(45,50,64,.96);
+  .lh-sq-btn{
+    width:46px;
+    height:46px;
+    border-radius:14px;
+    border:1.5px solid rgba(255,255,255,.24);
+    background:rgba(148,163,184,.36);
     color:#f8fafc;
-    font:800 24px/1 Inter,sans-serif;
     display:inline-flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,.38);
+    transition:transform .14s ease,background .14s ease,border-color .14s ease;
+  }
+  .lh-sq-btn svg{
+    width:20px;
+    height:20px;
+  }
+  .lh-sq-btn.on,
+  .lh-sq-btn:hover,
+  .lh-sq-btn.finger-hover{
+    background:rgba(56,189,248,.48);
+    border-color:#38bdf8;
+    transform:scale(1.06);
+  }
+  .lh-round-btn{
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    border:1.5px solid rgba(255,255,255,.32);
+    background:rgba(239,68,68,.92);
+    color:#ffffff;
+    font:800 15px/1 Inter,sans-serif;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,.45);
     transition:transform .14s ease,background .14s ease,border-color .14s ease;
   }
   .lh-round-btn svg{
-    width:36px;
-    height:36px;
+    width:18px;
+    height:18px;
   }
   .lh-round-btn.on,
   .lh-round-btn:hover,
   .lh-round-btn.finger-hover{
-    background:linear-gradient(135deg,#0284c7,#2563eb);
-    border-color:#38bdf8;
-    transform:scale(1.06);
+    background:#dc2626;
+    border-color:#fca5a5;
+    transform:scale(1.08);
   }
 
   /* Dedo "gruda" ao clicar (IMG_20261021_145423.jpg) */
