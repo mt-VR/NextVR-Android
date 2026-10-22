@@ -122,6 +122,17 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'apps.js implements the Meta Quest 3S Browser Start Page with Populares, Continuar navegando, Entretenimento, and Experiências imersivas');
   assert.ok(appsSrc.includes('SPATIAL_GAME_ITEMS') && appsSrc.includes('data-spatial-scroll-track') && appsSrc.includes('syncSpatialLauncherVisibility'),
     'apps.js shows games in the Spatial App, makes it horizontally scrollable, and hides/restores it when opening/closing an app window');
+  const vrfsSrc = readFileSync('web/src/vrfs-game.js', 'utf8');
+  assert.ok(vrfsSrc.includes('openVrfsGame') && vrfsSrc.includes('R_BALL = 0.21') && vrfsSrc.includes('createVrfsSoccerBallTexture') && vrfsSrc.includes('ballShadow') && vrfsSrc.includes('./vrfs-assets.task') && vrfsSrc.includes('./icons/vrfs-logo.jpg'),
+    'vrfs-game.js implements VRFS 3D football simulator with visible 3D soccer ball, ground shadow, VRFS logo, cleats, and stereo VR Box mode');
+  assert.ok(appsSrc.includes("id:'vrfs'") && appsSrc.includes('./icons/vrfs-logo.jpg') && appsSrc.includes('openVrfsGame') && entryMenuSrc.includes("id: 'vrfs'"),
+    'apps.js and entry-menu.js integrate VRFS with its attached logo into Library, Store, Spatial Launcher, and Entry Menu');
+  assert.ok(windowsSrc.includes('measureHandApparentSize') && windowsSrc.includes('currentRadius') && windowsSrc.includes('leftQuickMenuDist') && windowsSrc.includes("emit('sixDof', true)"),
+    'windows.js auto-enables 6DoF on window drag, pulls/pushes window depth with hand distance, and makes left-quick-menu follow left-hand depth');
+  assert.ok(appsSrc.includes('toggleCameraSoloMode') && appsSrc.includes('camera-solo') && activitySrc.includes('public void refocusCamera()') && cameraSrc.includes('triggerAutoFocus'),
+    'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
+  assert.ok(appsSrc.includes('w: 760') && appsSrc.includes('h: 560') && appsSrc.includes('resizeScale = 1.62') && rendererSrc.includes('1440f'),
+    'apps.js enlarges the left-hand quick menu (760x560, scale 1.62) and SpatialRenderer.java raises rendering quality to 1440p');
   assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
     'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
   const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');
@@ -905,11 +916,30 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const lhFloatingShell = lhMenu?.closest('.win-shell[data-window-id="left-quick-menu"]');
       const lhMenuTransparentBg = !!lhMenu && getComputedStyle(lhMenu).backgroundColor === 'rgba(0, 0, 0, 0)';
       const lhAttachedToLeftHand = lhFloatingShell?.dataset?.attachedHand === 'left' && !!lhFloatingShell?.dataset?.attachedPos;
+      // Move left hand far away (smaller palmWidth) vs closer (larger palmWidth) and verify attachedDist follows depth
+      for (let i = 0; i < 6; i++) {
+        const farLh = mkGestureHand(false, false);
+        farLh.palmWidth = 0.045;
+        window.nextvrHands({ t: performance.now(), hands: [farLh] });
+      }
+      const farDist = parseFloat(lhFloatingShell?.dataset?.attachedDist || '0');
+      for (let i = 0; i < 6; i++) {
+        const nearLh = mkGestureHand(false, false);
+        nearLh.palmWidth = 0.19;
+        window.nextvrHands({ t: performance.now(), hands: [nearLh] });
+      }
+      const nearDist = parseFloat(lhFloatingShell?.dataset?.attachedDist || '0');
+      const lhDepthFollowed = farDist > nearDist && nearDist > 0.45;
       const invisibleHandPreserved = JSON.parse(localStorage.getItem('nextvr.v1')).handDraw === 0;
-      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && lhAttachedToLeftHand && invisibleHandPreserved && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
+      const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && lhAttachedToLeftHand && lhDepthFollowed && invisibleHandPreserved && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
       window.nextvrSetScreenBrightness?.(55);
       const brightnessUpdated = document.documentElement.dataset.brightnessPercent === '55';
       lhMenu?.querySelector('[data-lh-act="close"]')?.click();
+      window.nextvrToggleCameraSolo?.(true);
+      const camSoloOn = document.documentElement.dataset.cameraSolo === '1' && !document.getElementById('camera-solo-pill')?.hidden;
+      window.nextvrToggleCameraSolo?.(false);
+      const camSoloOff = !document.documentElement.dataset.cameraSolo;
+      const cameraSoloWorks = camSoloOn && camSoloOff;
 
       return {
         pillTexts,
@@ -936,6 +966,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         leftBolinhaShown,
         leftQuickMenuOpened,
         brightnessUpdated,
+        cameraSoloWorks,
       };
     });
     assert.deepEqual(
@@ -963,8 +994,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.spatialUnhiddenByGesture, true, 'Repeating the right-hand gesture and closing fingers unhides the Spatial App');
     assert.equal(questAndFeatures.noBolinhaOnBackOfHand, true, 'Back-of-hand pose does not display the right-hand bolinha');
     assert.equal(questAndFeatures.leftBolinhaShown, true, 'Left-hand V/L gesture displays the bolinha with nextvr-bolinha-left.png');
-    assert.equal(questAndFeatures.leftQuickMenuOpened, true, 'Thumb+index pinch on left-hand bolinha opens the Left-Hand Quick Controls menu');
+    assert.equal(questAndFeatures.leftQuickMenuOpened, true, 'Thumb+index pinch on left-hand bolinha opens the Left-Hand Quick Controls menu and follows hand depth');
     assert.equal(questAndFeatures.brightnessUpdated, true, 'Brightness slider updates screen brightness');
+    assert.equal(questAndFeatures.cameraSoloWorks, true, 'Camera Solo mode hides all windows to let the camera refocus alone and restores them cleanly');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

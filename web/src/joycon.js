@@ -130,8 +130,13 @@ function buttonDown(action, repeat) {
 }
 
 function onButton(action, down, repeat = 0) {
-  if (action === 'plus' && down && window.__gorillaStereoOverlay) {
-    window.__gorillaExit?.();
+  if (action === 'plus' && down && (window.__vrfsStereoOverlay || window.__gorillaStereoOverlay)) {
+    if (window.__vrfsStereoOverlay) window.__vrfsExit?.();
+    else window.__gorillaExit?.();
+    return;
+  }
+  if (window.__vrfsStereoOverlay && typeof window.__vrfsJoyconKey === 'function') {
+    window.__vrfsJoyconKey(action, down, repeat);
     return;
   }
   if (window.__gorillaStereoOverlay && typeof window.__gorillaJoyconKey === 'function') {
@@ -148,6 +153,10 @@ function axisDirection(x, y) {
   return y < 0 ? 'up' : 'down';
 }
 function onAxes(x, y, rx = 0, ry = 0, lt = 0, rt = 0) {
+  if (window.__vrfsStereoOverlay && typeof window.__vrfsJoyconAxes === 'function') {
+    window.__vrfsJoyconAxes(x, y, rx, ry, lt, rt);
+    return;
+  }
   if (window.__gorillaStereoOverlay && typeof window.__gorillaJoyconAxes === 'function') {
     window.__gorillaJoyconAxes(x, y, rx, ry, lt, rt);
     return;

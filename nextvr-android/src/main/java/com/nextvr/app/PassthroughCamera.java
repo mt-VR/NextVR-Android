@@ -93,6 +93,8 @@ final class PassthroughCamera {
     private volatile PhoneXrHands.Frame latestHandsFrame;
     private CameraDevice camera;
     private CameraCaptureSession session;
+    private CaptureRequest.Builder activeRequestBuilder;
+    private volatile long lastAfTriggerMs = 0L;
     private ImageReader reader;
     private boolean gpuDetector;
     /**
@@ -132,6 +134,19 @@ final class PassthroughCamera {
         handler.post(()->{
             try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); }
             catch(Throwable ignored) {}
+        });
+    }
+    void triggerAutoFocus() {
+        handler.post(()->{
+            if(destroyed || session==null || activeRequestBuilder==null) return;
+            try {
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_AUTO);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_START);
+                session.capture(activeRequestBuilder.build(),null,handler);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                session.setRepeatingRequest(activeRequestBuilder.build(),null,handler);
+            } catch(Throwable ignored) {}
         });
     }
     void setWideCamera(boolean enabled) {
@@ -291,7 +306,21 @@ final class PassthroughCamera {
                                             }
                                         } catch(Throwable ignored) {}
                                     }
-                                    session.setRepeatingRequest(request.build(),null,handler);
+                                    activeRequestBuilder=request;
+                                    CameraCaptureSession.CaptureCallback afCallback=new CameraCaptureSession.CaptureCallback() {
+                                        @Override public void onCaptureCompleted(CameraCaptureSession s, CaptureRequest req, android.hardware.camera2.TotalCaptureResult result) {
+                                            Integer afState=result.get( android.hardware.camera2.CaptureResult.CONTROL_AF_STATE);
+                                            if(afState!=null && (afState==android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED
+                                                    || afState==android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED)) {
+                                                long now=android.os.SystemClock.uptimeMillis();
+                                                if(now-lastAfTriggerMs>2400L) {
+                                                    lastAfTriggerMs=now;
+                                                    triggerAutoFocus();
+                                                }
+                                            }
+                                        }
+                                    };
+                                    session.setRepeatingRequest(request.build(),afCallback,handler);
                                     handler.postDelayed(()->{
                                         if(token==generation && !destroyed && sessionFrames==0 && openRetries<3) {
                                             android.util.Log.w("NextVR-Camera","Watchdog: 0 frames after 1500ms, reopening camera");

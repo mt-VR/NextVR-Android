@@ -540,19 +540,19 @@ if (native) {
 }
 
 export const QUALITY_PRESETS = Object.freeze({
-  high:   { id: 'high',   height: 1080, label: '1080p', dpr: 2.0 },
-  medium: { id: 'medium', height: 890,  label: '890p',  dpr: 1.55 },
-  low:    { id: 'low',    height: 390,  label: '390p',  dpr: 1.0 },
+  high:   { id: 'high',   height: 1080, label: '1080p', dpr: 2.25 },
+  medium: { id: 'medium', height: 890,  label: '890p',  dpr: 1.85 },
+  low:    { id: 'low',    height: 390,  label: '390p',  dpr: 1.35 },
 });
-let autoQualityTier = 'medium';
-export const activeQualityTier = () => S.quality === 'auto' ? autoQualityTier : (QUALITY_PRESETS[S.quality] ? S.quality : 'medium');
-export const activeQualityPreset = () => QUALITY_PRESETS[activeQualityTier()] || QUALITY_PRESETS.medium;
+let autoQualityTier = 'high';
+export const activeQualityTier = () => S.quality === 'auto' ? autoQualityTier : (QUALITY_PRESETS[S.quality] ? S.quality : 'high');
+export const activeQualityPreset = () => QUALITY_PRESETS[activeQualityTier()] || QUALITY_PRESETS.high;
 
 function dpr() {
   const tier = activeQualityTier();
-  if (tier === 'low') return 1;
-  if (tier === 'high') return Math.min(devicePixelRatio, 2);
-  return Math.min(devicePixelRatio, 1.55);     // medium (890p)
+  if (tier === 'low') return Math.min(devicePixelRatio, 1.35);
+  if (tier === 'high') return Math.min(devicePixelRatio, 2.25);
+  return Math.min(devicePixelRatio, 1.85);     // medium (890p+)
 }
 function applyQualityState() {
   const tier = activeQualityTier();
@@ -753,8 +753,7 @@ function loop(now) {
   if (fpsAcc >= 1) {
     const measuredFps = Math.round(fpsN / fpsAcc);
     if (S.quality === 'auto') {
-      const effectiveFps = (native && S.handsOn && handFps >= 15) ? Math.min(measuredFps, handFps * 2) : measuredFps;
-      const nextTier = effectiveFps >= 52 ? 'high' : effectiveFps >= 34 ? 'medium' : 'low';
+      const nextTier = measuredFps >= 28 ? 'high' : 'medium';
       if (nextTier !== autoQualityTier) {
         autoQualityTier = nextTier;
         applyQualityState();

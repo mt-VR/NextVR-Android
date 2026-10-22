@@ -675,6 +675,32 @@ function boundedPosition(w, point, radius=null) {
   const p=clampWindowPosition(point,halfHeight(w),EYE,radius);
   return new THREE.Vector3(p.x,p.y,p.z);
 }
+function measureHandApparentSize(h) {
+  if (!h) return 0;
+  const palm = Number(h.palmWidth) || 0;
+  const p = h.points;
+  let span = 0;
+  if (p && p.length >= 30) {
+    span = Math.hypot(p[27] - p[0], p[28] - p[1]);
+  }
+  if (palm > 0.01 && span > 0.02) return palm * 0.55 + span * 0.45;
+  if (palm > 0.01) return palm;
+  if (span > 0.02) return span;
+  if (h.head && h.head.length === 63) {
+    const d = Math.hypot(h.head[0], h.head[1], h.head[2]);
+    if (d > 0.05) return 0.14 / d;
+  }
+  return 0;
+}
+function findActiveDragHand(handId) {
+  const list = lastPhonePacket?.hands || [];
+  if (handId) {
+    const found = list.find(x => x.id === handId);
+    if (found) return found;
+  }
+  if (cursor.hand) return cursor.hand;
+  return list[0] || null;
+}
 function startDrag(w, nx, ny, source='handle', hand=null) {
   if(w.onboarding || resizing.win)return false;
   if(drag.win)endDrag();
@@ -683,18 +709,19 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(),center);
   const hit=ray.ray.intersectPlane(plane,new THREE.Vector3());
   if(!hit)return false;
-  // Âncora estável capturada NO MOMENTO DO GRAB: a janela segue deltas relativos a este ponto
-  // fixo — nunca é reavaliada contra a posição defasada da janela nem contra o ponto onde o
-  // gesto foi ativado (que já embutiria o salto que disparou o arrasto e o descartaria).
-  //
-  // O RAIO do grab também é capturado aqui: o plano do cursor é perpendicular ao olhar do momento
-  // do grab, então uma janela fora do eixo andava por um plano inclinado em relação à esfera e
-  // GANHAVA distância do olho — ela "ia para trás", longe da dock, enquanto era movida. Preso o
-  // raio, mover só gira a janela em volta do usuário (mesma altura, mesma distância).
+  // Ativa o 6DoF ao puxar uma janela para que aproximar/afastar traga a tela para perto ou longe
+  if (!S.sixDof) {
+    S.sixDof = 1;
+    window.NativeXR?.sixDof?.(true);
+    window.NativeXR?.setSixDofEnabled?.(true);
+    emit('sixDof', true);
+  }
+  const activeHandObj = findActiveDragHand(hand);
+  const startHandSize = measureHandApparentSize(activeHandObj);
   const local=contentRoot.worldToLocal(center.clone());
   const radius=Math.hypot(local.x,local.z);
   Object.assign(drag,{win:w,source,hand,start:{x:nx,y:ny},active:false,plane,
-    anchor:{hit:hit.clone(),center:center.clone(),radius,applied:new THREE.Vector3()}});
+    anchor:{hit:hit.clone(),center:center.clone(),radius,currentRadius:radius,startHandSize,applied:new THREE.Vector3()}});
   return true;
 }
 function activateDrag() {
@@ -716,14 +743,24 @@ function dragTo(nx, ny) {
   const a=drag.anchor;
   const delta=hit.clone().sub(a.hit);
   a.applied.copy(stepDragDelta(a.applied,delta));
-  // Delta relativo no espaço do mundo -> centro local; a âncora nunca é reavaliada contra o
-  // estado defasado da janela, então não há retroalimentação (janela puxando de um lado para o
-  // outro) nem acúmulo de erro: o mesmo delta devolve sempre a mesma posição.
+  // Quando puxa a mão para perto (mão aparente maior), a janela aproxima; quando bota para longe (mão menor), ela afasta
+  const activeHandObj = findActiveDragHand(drag.hand);
+  const curHandSize = measureHandApparentSize(activeHandObj);
+  if (a.startHandSize > 0.015 && curHandSize > 0.015) {
+    const ratio = a.startHandSize / curHandSize;
+    if (Math.abs(1 - ratio) > 0.025) {
+      const targetR = Math.max(
+        WINDOW_LIMITS.minRadius,
+        Math.min(WINDOW_LIMITS.maxRadius, a.radius * Math.pow(ratio, 1.35))
+      );
+      a.currentRadius += (targetR - a.currentRadius) * 0.45;
+    }
+  }
   const world=a.center.clone().add(a.applied);
-  // O raio do grab vai junto: mover nunca aproxima nem afasta a janela do olho (sem "ir pra trás").
-  const limited=boundedPosition(w,contentRoot.worldToLocal(world),a.radius);
+  const limited=boundedPosition(w,contentRoot.worldToLocal(world),a.currentRadius ?? a.radius);
   w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
+  w.apply();
   updateDropSlot(w);
   return true;
 }
@@ -3129,6 +3166,8 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   }
 }
 
+let leftQuickMenuDist = 0.88;
+
 function updateLeftQuickMenuAttachment(packet) {
   const lhWin = wins.find(w => w.id === 'left-quick-menu' && !w.hidden);
   if (!lhWin) return;
@@ -3143,14 +3182,22 @@ function updateLeftQuickMenuAttachment(packet) {
   const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.06) : ((leftHand.palm?.[1] ?? 0.5) - 0.08);
   const normX = Math.max(0.14, Math.min(0.86, (rawX - 0.5) * sx + 0.5));
   const normY = Math.max(0.14, Math.min(0.84, (rawY - 0.5) * sy + 0.5));
+  const handSize = measureHandApparentSize(leftHand);
+  if (handSize > 0.015) {
+    // Mão perto (handSize maior) -> menu vem para perto (até 0.52m); mão longe (handSize menor) -> menu vai para longe (até 1.68m)
+    const refSize = 0.16;
+    const targetDist = Math.max(0.52, Math.min(1.68, 0.88 * Math.pow(refSize / handSize, 1.15)));
+    leftQuickMenuDist += (targetDist - leftQuickMenuDist) * 0.45;
+  }
   const r = phoneRay(normX, normY);
-  const worldPt = r.ray.origin.clone().addScaledVector(r.ray.direction, 1.12);
+  const worldPt = r.ray.origin.clone().addScaledVector(r.ray.direction, leftQuickMenuDist);
   contentRoot.updateMatrixWorld(true);
   const localPt = contentRoot.worldToLocal(worldPt);
   lhWin.target.copy(localPt);
   lhWin.obj.position.copy(lhWin.target);
   lhWin.apply();
   lhWin.shell.dataset.attachedPos = `${localPt.x.toFixed(2)},${localPt.y.toFixed(2)},${localPt.z.toFixed(2)}`;
+  lhWin.shell.dataset.attachedDist = leftQuickMenuDist.toFixed(2);
   css3d.invalidate?.();
 }
 

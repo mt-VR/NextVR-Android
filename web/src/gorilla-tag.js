@@ -452,7 +452,7 @@ function optimizeTex(tex) {
   tex.generateMipmaps = false;
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  tex.anisotropy = 1;
+  tex.anisotropy = 4;
   return tex;
 }
 
@@ -1232,7 +1232,7 @@ function ensureScene() {
       depth: true,
       powerPreference: 'high-performance',
     });
-    glRenderer.setPixelRatio(1);
+    glRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
     glRenderer.setSize(896, 560, false);
     glRenderer.setScissorTest(true);
   } catch (e) {

@@ -1018,6 +1018,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.setQuality(quality);
         }
+        @JavascriptInterface public void refocusCamera() {
+            PassthroughCamera cam=passthrough;
+            if(cam!=null) cam.triggerAutoFocus();
+        }
         @JavascriptInterface public void setFingerTouch(boolean enabled) {
             SpatialRenderer target=renderer;
             if(target!=null) target.handRenderer.setShowPointer(!enabled);

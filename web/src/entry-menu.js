@@ -56,6 +56,7 @@ const SVG_TIKTOK_VERIFIED = `
 </svg>`;
 
 const MENU_STORE_APPS = [
+  { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'Chuteiras VR · Bola 3D · 4.9 ★', bg: '#052e16', img: './icons/vrfs-logo.jpg' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
   { id: 'roblox-vr', name: 'Roblox', cat: 'Ambiente Preto · 4.8 ★', bg: '#090d16', img: './roblox-logo.jpg' },
@@ -885,6 +886,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         }
       };
     }
+    root.querySelectorAll('[data-entry-store-app]').forEach(card => {
+      card.onclick = () => {
+        const appId = card.dataset.entryStoreApp;
+        if (appId) emit('store-app-launch', appId);
+      };
+    });
 
     // Eventos do painel Login / Perfil
     const nameInput = root.querySelector('[data-profile-name-input]');

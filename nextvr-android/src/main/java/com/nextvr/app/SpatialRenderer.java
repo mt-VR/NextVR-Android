@@ -161,12 +161,12 @@ final class SpatialRenderer {
     volatile boolean wideCamera = false;
     volatile boolean mrDim = false;
     volatile float sixDofX = 0f, sixDofY = 0f, sixDofZ = 0f;
-    /** Target vertical resolution: High = 1080p, Medium = 890p, Low = 390p (Auto alternates). */
-    volatile float qualityHeight = 890f;
+    /** Target vertical resolution: High = 1440p, Medium = 1280p, Low = 1080p (never pixelates below 1080p). */
+    volatile float qualityHeight = 1280f;
     void setQuality(String q) {
-        if("high".equals(q)) qualityHeight = 1080f;
-        else if("low".equals(q)) qualityHeight = 390f;
-        else qualityHeight = 890f;
+        if("high".equals(q)) qualityHeight = 1440f;
+        else if("low".equals(q)) qualityHeight = 1080f;
+        else qualityHeight = 1280f;
     }
     private final float[] identity = new float[16];
     private boolean sphere;

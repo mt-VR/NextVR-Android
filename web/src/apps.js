@@ -12,6 +12,7 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
+import { openVrfsGame } from './vrfs-game.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -1216,7 +1217,7 @@ const LIB_APPS = [
   { id:'instagram', name:'Instagram', bg:'linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)', imgUrl:'./icons/hz-instagram.png', slug:'instagram', color:'ffffff', iconOnly:true },
   { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
   { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', imgUrl:'./icons/hz-facebook.png', slug:'facebook', color:'ffffff', iconOnly:true },
-  { id:'telegram', name:'Telegram', bg:'linear-gradient(145deg,#69caff,#147eaf)', slug:'telegram', color:'ffffff' },
+  { id:'vrfs', name:'VRFS', label:'VRFS', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', html:'<img class="lx-vrfs-logo" src="./icons/vrfs-logo.jpg" alt="VRFS" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">' },
   { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
   { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
   { id:'store', name:'Store', bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
@@ -1396,6 +1397,7 @@ const LIB_ACTIONS = {
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
+  vrfs:     () => openVrfsGame(),
   'gorilla-tag': () => openGorillaTag(),
   'beat-vr': () => openBeatSaberVr(),
   'roblox-vr': () => openRobloxVr(),
@@ -1411,6 +1413,7 @@ const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
+  { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'VR', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
   { id: 'roblox-vr', name: 'Roblox', cat: 'games', rating: '4.8', reviews: '64 mil', tag: 'Ambiente Preto · Hand Tracking', badge: 'NOVO', img: './roblox-logo.jpg', bg: 'linear-gradient(135deg,#090d16,#1e293b)' },
@@ -1840,6 +1843,7 @@ const SPATIAL_CORE_APPS = [
 
 const SPATIAL_GAME_ITEMS = [
   { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
+  { id:'vrfs',        name:'VRFS Futebol VR', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', isGame:true },
   { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
   { id:'beat-vr',     name:'Beat Saber Web', bg:'#070814', imgUrl:'./beat-saber-logo.jpg', icon:'controller', isGame:true, url:'https://moonrider.xyz/?mode=ride&vr=1' },
   { id:'hyper-vr',    name:'Hyper Dash VR',  bg:'#0a1426', imgUrl:'./hyper-dash-logo.jpg', icon:'controller', isGame:true, url:'https://immersiveweb.dev/' },
@@ -2126,6 +2130,7 @@ function buildSpatialLauncherDom() {
       if (id === 'environments') { environments(); return; }
       if (id === 'shizuku') { shizukuWindow(); return; }
       if (id === 'gorilla-tag') { openGorillaTag(); return; }
+      if (id === 'vrfs') { openVrfsGame(); return; }
       if (id === 'beat-vr') { openBeatSaberVr(); return; }
       if (id === 'roblox-vr' || id === 'roblox') { openRobloxVr(); return; }
       if (bBuiltin.dataset.spatialUrl) {
@@ -2367,6 +2372,9 @@ function buildFistQuickMenuDom() {
     </div>
 
     <div class="fist-menu-footer-row">
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="camera-solo">
+        ${icon('camera')}<span>Câmera Sozinha</span>
+      </button>
       <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-dock">
         ${icon('appGrid')}<span>Mostrar / Ocultar Dock</span>
       </button>
@@ -2405,6 +2413,9 @@ function buildFistQuickMenuDom() {
       setMrDim(!S.mrDim);
       paintFistQuickMenu();
       toast(S.mrDim ? 'Ambiente MR: Escuro' : 'Ambiente MR: Normal');
+    } else if (act === 'camera-solo') {
+      close('fist-menu');
+      toggleCameraSoloMode(true);
     } else if (act === 'toggle-dock') {
       toggleSpatialAndDockFromGesture();
       close('fist-menu');
@@ -2429,10 +2440,62 @@ function paintFistQuickMenu() {
   css3d.invalidate?.();
 }
 
+let cameraSoloActive = false;
+let cameraSoloSavedWins = [];
+let cameraSoloPillEl = null;
+
+export function toggleCameraSoloMode(forceState = undefined) {
+  const next = typeof forceState === 'boolean' ? forceState : !cameraSoloActive;
+  cameraSoloActive = next;
+  if (next) {
+    setPassthrough(true);
+    window.NativeXR?.refocusCamera?.();
+    cameraSoloSavedWins = wins.filter(w => !w.hidden).map(w => w.id);
+    for (const w of wins) w.setHidden(true);
+    setDockHidden(true);
+    setDockVisible(false);
+    document.documentElement.dataset.cameraSolo = '1';
+    const hud = document.getElementById('hud') || document.body;
+    if (!cameraSoloPillEl || !document.body.contains(cameraSoloPillEl)) {
+      cameraSoloPillEl = document.createElement('button');
+      cameraSoloPillEl.id = 'camera-solo-pill';
+      cameraSoloPillEl.type = 'button';
+      cameraSoloPillEl.className = 'camera-solo-pill';
+      cameraSoloPillEl.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:205;padding:9px 18px;border-radius:999px;border:1.5px solid rgba(56,189,248,.65);background:rgba(15,23,42,.86);color:#f8fafc;font:700 13px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.55);cursor:pointer;pointer-events:auto';
+      cameraSoloPillEl.textContent = '📷 Câmera Sozinha (Foco Automático) · Toque para voltar';
+      cameraSoloPillEl.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleCameraSoloMode(false);
+      });
+      hud.appendChild(cameraSoloPillEl);
+    }
+    cameraSoloPillEl.hidden = false;
+    toast('Modo Câmera Sozinha ativado · Focando câmera...');
+  } else {
+    delete document.documentElement.dataset.cameraSolo;
+    if (cameraSoloPillEl) cameraSoloPillEl.hidden = true;
+    for (const id of cameraSoloSavedWins) {
+      const w = wins.find(x => x.id === id);
+      if (w) w.setHidden(false);
+    }
+    cameraSoloSavedWins = [];
+    if (!S.spatialLauncher) {
+      setDockHidden(false);
+      setDockVisible(true);
+    }
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return cameraSoloActive;
+}
+window.nextvrToggleCameraSolo = toggleCameraSoloMode;
+
 export function openFistQuickMenu() {
   const existing = wins.find(w => w.id === 'fist-menu');
   if (existing) {
     existing.setHidden(false);
+    existing.resizeScale = 1.28;
+    existing.apply();
     paintFistQuickMenu();
     focus(existing);
     css3d.invalidate?.();
@@ -2444,9 +2507,13 @@ export function openFistQuickMenu() {
     id: 'fist-menu',
     title: 'Menu Rápido',
     node: body,
-    w: 520,
-    h: 430,
+    w: 640,
+    h: 480,
   });
+  if (win) {
+    win.resizeScale = 1.28;
+    win.apply();
+  }
   paintFistQuickMenu();
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
@@ -2503,6 +2570,9 @@ function buildLeftHandQuickMenuDom() {
         <div class="lh-bottom-actions">
           <button type="button" class="lh-round-btn lh-hands-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-lh-act="hands" title="Toque Direto">
             ${icon('hand')}
+          </button>
+          <button type="button" class="lh-round-btn lh-cam-solo-btn ${cameraSoloActive ? 'on' : ''}" data-lh-act="camera-solo" title="Câmera Sozinha (Focar Câmera)">
+            ${icon('camera')}
           </button>
           <button type="button" class="lh-round-btn lh-close-btn" data-lh-act="close" title="Fechar">
             ✕
@@ -2570,6 +2640,9 @@ function buildLeftHandQuickMenuDom() {
     } else if (act === 'home') {
       toggleLeftHandQuickMenu(false);
       toggleSpatialAndDockFromGesture();
+    } else if (act === 'camera-solo') {
+      toggleLeftHandQuickMenu(false);
+      toggleCameraSoloMode();
     } else if (act === 'hands') {
       S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
       save(S);
@@ -2599,6 +2672,9 @@ function syncLeftHandQuickMenuValues() {
 }
 
 export function toggleLeftHandQuickMenu(forceState = undefined) {
+  if (cameraSoloActive && forceState !== false) {
+    toggleCameraSoloMode(false);
+  }
   const existing = wins.find(w => w.id === 'left-quick-menu');
   const isCurrentlyOpen = Boolean(existing && !existing.hidden && leftHandQuickMenuEl && !leftHandQuickMenuEl.hidden);
   const nextOpen = typeof forceState === 'boolean' ? forceState : !isCurrentlyOpen;
@@ -2621,7 +2697,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
-    existing.resizeScale = 1.18;
+    existing.resizeScale = 1.62;
     existing.shell.dataset.attachedHand = 'left';
     existing.apply();
     focus(existing);
@@ -2632,15 +2708,15 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 560,
-      h: 410,
+      w: 760,
+      h: 560,
       chrome: false,
       resizable: false,
       free: true,
-      at: { x: -0.22, y: 1.46, z: -1.16 },
+      at: { x: -0.22, y: 1.46, z: -0.88 },
     });
     if (win) {
-      win.resizeScale = 1.18;
+      win.resizeScale = 1.62;
       win.shell.dataset.attachedHand = 'left';
       win.apply();
     }
@@ -2896,6 +2972,13 @@ on('gorilla-installed', () => {
   touchLib('gorilla-tag', true);
   paintLibrary();
   paintStore();
+});
+on('store-app-launch', appId => {
+  if (!appId) return;
+  touchLib(appId, true);
+  finishEntryMenu();
+  const act = LIB_ACTIONS[appId];
+  if (act) act();
 });
 
 function mountFullscreenEntryMenu() {
