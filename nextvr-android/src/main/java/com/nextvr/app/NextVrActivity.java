@@ -1019,7 +1019,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(target!=null) target.setQuality(quality);
         }
         @JavascriptInterface public void refocusCamera() {
-            PassthroughCamera cam=passthrough;
+            PassthroughCamera cam=camera;
             if(cam!=null) cam.triggerAutoFocus();
         }
         @JavascriptInterface public void setFingerTouch(boolean enabled) {
