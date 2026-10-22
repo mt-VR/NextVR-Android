@@ -250,6 +250,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
                 });
             }
+            @Override public void cameraDefocus(boolean defocused) {
+                main.post(()->{
+                    if(closed || !resumed || shell==null || !ready) return;
+                    shell.evaluate("window.nextvrOnCameraDefocus&&window.nextvrOnCameraDefocus("+defocused+")");
+                });
+            }
             @Override public void stopped() {
                 SpatialRenderer r=renderer;if(r!=null){r.camera.clear();r.hands=null;}
                 handFrames.requestReset();

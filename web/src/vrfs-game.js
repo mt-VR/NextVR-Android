@@ -773,15 +773,15 @@ function renderVrfsFrame(now) {
   updateBootsAndPhysics(dt, now);
 
   if (!glRenderer || !scene || !camera) return;
-  const W = glCanvas.clientWidth || window.innerWidth || 960;
-  const H = glCanvas.clientHeight || window.innerHeight || 540;
+  const W = 1200;
+  const H = 800;
   if (glCanvas.width !== W || glCanvas.height !== H) {
     glRenderer.setSize(W, H, false);
   }
 
   if (useVR) {
-    const halfW = Math.floor(W / 2);
-    const aspect = Math.max(0.5, halfW / Math.max(1, H));
+    const halfW = W >> 1;
+    const aspect = halfW / H;
     const ipdHalf = (CARDBOARD_2015_LENS.ipd || 0.064) * 0.5;
     const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
 
@@ -800,12 +800,12 @@ function renderVrfsFrame(now) {
     glRenderer.setScissor(0, 0, halfW, H);
     glRenderer.render(scene, camL);
 
-    glRenderer.setViewport(halfW, 0, W - halfW, H);
-    glRenderer.setScissor(halfW, 0, W - halfW, H);
+    glRenderer.setViewport(halfW, 0, halfW, H);
+    glRenderer.setScissor(halfW, 0, halfW, H);
     glRenderer.render(scene, camR);
     glRenderer.setScissorTest(false);
   } else {
-    camera.aspect = Math.max(0.5, W / Math.max(1, H));
+    camera.aspect = W / H;
     camera.updateProjectionMatrix();
     glRenderer.setScissorTest(false);
     glRenderer.setViewport(0, 0, W, H);
@@ -826,9 +826,9 @@ function ensureDom() {
     'position:fixed',
     'left:0',
     'top:0',
-    'width:100vw',
-    'height:100vh',
-    'z-index:210',
+    'width:1200px',
+    'height:800px',
+    'z-index:9997',
     'display:none',
     'background:#07140c',
     'overflow:hidden',
@@ -839,7 +839,9 @@ function ensureDom() {
 
   glCanvas = document.createElement('canvas');
   glCanvas.id = 'vrfs-canvas';
-  glCanvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:auto';
+  glCanvas.width = 1200;
+  glCanvas.height = 800;
+  glCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1200px;height:800px;display:block;pointer-events:auto';
   overlayEl.appendChild(glCanvas);
 
   try {
@@ -850,6 +852,7 @@ function ensureDom() {
       powerPreference: 'high-performance',
     });
     glRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
+    glRenderer.setSize(1200, 800, false);
     if ('outputColorSpace' in glRenderer && THREE.SRGBColorSpace) {
       glRenderer.outputColorSpace = THREE.SRGBColorSpace;
     }
@@ -858,9 +861,10 @@ function ensureDom() {
   }
 
   const buildEyeHud = (eyeSide, isLeft) => {
+    const leftPx = isLeft ? 0 : 600;
     const bar = document.createElement('div');
     bar.dataset.vrfsEyeHud = eyeSide;
-    bar.style.cssText = `position:absolute;top:10px;left:${isLeft ? '25%' : '75%'};transform:translateX(-50%);display:flex;align-items:center;gap:6px;z-index:12;pointer-events:auto`;
+    bar.style.cssText = `position:absolute;top:12px;left:${leftPx + 90}px;width:420px;display:flex;align-items:center;justify-content:center;gap:6px;z-index:12;pointer-events:auto`;
     bar.innerHTML = `
       <span data-vrfs-score style="padding:4px 9px;border-radius:999px;background:rgba(22,101,52,.9);border:1px solid rgba(74,222,128,.55);color:#fff;font:800 10px Inter,sans-serif">⚽ ${scoreGoals}</span>
       <button type="button" data-vrfs-act="ball" ${isLeft ? 'data-vrfs-ball="1"' : ''} style="padding:4px 9px;border-radius:999px;border:1px solid rgba(74,222,128,.55);background:rgba(22,163,74,.88);color:#fff;font:700 10px Inter,sans-serif;cursor:pointer">Bola</button>
@@ -876,14 +880,14 @@ function ensureDom() {
 
   splashEl = document.createElement('div');
   splashEl.id = 'vrfs-splash';
-  splashEl.style.cssText = 'position:absolute;inset:0;z-index:15;display:flex;background:radial-gradient(circle at 50% 42%,#0f2918,#050e08 76%);color:#fff;font-family:Inter,system-ui,sans-serif';
+  splashEl.style.cssText = 'position:absolute;left:0;top:0;width:1200px;height:800px;z-index:15;display:flex;background:radial-gradient(circle at 50% 42%,#0f2918,#050e08 76%);color:#fff;font-family:Inter,system-ui,sans-serif';
   const buildSplashHalf = isLeft => `
-    <div style="width:50%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px;box-sizing:border-box;text-align:center">
+    <div style="width:600px;height:800px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px;box-sizing:border-box;text-align:center;${isLeft ? 'border-right:1px solid rgba(255,255,255,.15)' : ''}">
       <img src="./icons/vrfs-logo.jpg" alt="VRFS" style="width:92px;height:92px;border-radius:50%;object-fit:cover;box-shadow:0 12px 32px rgba(220,38,38,.45);border:2.5px solid rgba(255,255,255,.28)">
       <div ${isLeft ? 'data-vrfs-entering="1"' : ''} style="font-size:22px;font-weight:900;letter-spacing:.02em;color:#f8fafc">Futebol VR · VRFS</div>
       <div style="font-size:11.5px;font-weight:600;color:#86efac;letter-spacing:.06em;text-transform:uppercase">Você é a chuteira · Hand Tracking & 6DoF</div>
       <div data-vrfs-splash-step style="font-size:11.5px;font-weight:600;color:#cbd5e1;margin-top:2px">Preparando estádio e bola VRFS...</div>
-      <div style="width:66%;max-width:210px;height:6px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:4px">
+      <div style="width:220px;height:7px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:4px">
         <div data-vrfs-splash-fill style="width:20%;height:100%;border-radius:999px;background:linear-gradient(90deg,#ef4444,#22c55e);transition:width .2s ease"></div>
       </div>
     </div>

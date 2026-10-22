@@ -2441,16 +2441,20 @@ function paintFistQuickMenu() {
 }
 
 let cameraSoloActive = false;
+let cameraSoloAutoTriggered = false;
 let cameraSoloSavedWins = [];
 let cameraSoloPillEl = null;
 
-export function toggleCameraSoloMode(forceState = undefined) {
+export function toggleCameraSoloMode(forceState = undefined, autoFromDefocus = false) {
   const next = typeof forceState === 'boolean' ? forceState : !cameraSoloActive;
   cameraSoloActive = next;
   if (next) {
+    cameraSoloAutoTriggered = Boolean(autoFromDefocus);
     setPassthrough(true);
     window.NativeXR?.refocusCamera?.();
-    cameraSoloSavedWins = wins.filter(w => !w.hidden).map(w => w.id);
+    if (cameraSoloSavedWins.length === 0) {
+      cameraSoloSavedWins = wins.filter(w => !w.hidden).map(w => w.id);
+    }
     for (const w of wins) w.setHidden(true);
     setDockHidden(true);
     setDockVisible(false);
@@ -2472,6 +2476,7 @@ export function toggleCameraSoloMode(forceState = undefined) {
     cameraSoloPillEl.hidden = false;
     toast('Modo Câmera Sozinha ativado · Focando câmera...');
   } else {
+    cameraSoloAutoTriggered = false;
     delete document.documentElement.dataset.cameraSolo;
     if (cameraSoloPillEl) cameraSoloPillEl.hidden = true;
     for (const id of cameraSoloSavedWins) {
@@ -2489,6 +2494,15 @@ export function toggleCameraSoloMode(forceState = undefined) {
   return cameraSoloActive;
 }
 window.nextvrToggleCameraSolo = toggleCameraSoloMode;
+window.nextvrOnCameraDefocus = defocused => {
+  if (window.__gorillaStereoOverlay || window.__vrfsStereoOverlay) return;
+  if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden)) return;
+  if (defocused) {
+    if (!cameraSoloActive) toggleCameraSoloMode(true, true);
+  } else if (cameraSoloActive && cameraSoloAutoTriggered) {
+    toggleCameraSoloMode(false, false);
+  }
+};
 
 export function openFistQuickMenu() {
   const existing = wins.find(w => w.id === 'fist-menu');
@@ -2697,7 +2711,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
-    existing.resizeScale = 1.62;
+    existing.resizeScale = 1.95;
     existing.shell.dataset.attachedHand = 'left';
     existing.apply();
     focus(existing);
@@ -2708,15 +2722,15 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 760,
-      h: 560,
+      w: 880,
+      h: 640,
       chrome: false,
       resizable: false,
       free: true,
-      at: { x: -0.22, y: 1.46, z: -0.88 },
+      at: { x: -0.20, y: 1.46, z: -0.74 },
     });
     if (win) {
-      win.resizeScale = 1.62;
+      win.resizeScale = 1.95;
       win.shell.dataset.attachedHand = 'left';
       win.apply();
     }

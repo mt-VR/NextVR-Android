@@ -35,6 +35,7 @@ final class PassthroughCamera {
         void frame(Bitmap upright);
         void hands(PhoneXrHands.Frame frame);
         default void sixDof(float sc, float gx, float gy, float mx) {}
+        default void cameraDefocus(boolean defocused) {}
         void error(String message);
         void stopped();
     }
@@ -95,6 +96,31 @@ final class PassthroughCamera {
     private CameraCaptureSession session;
     private CaptureRequest.Builder activeRequestBuilder;
     private volatile long lastAfTriggerMs = 0L;
+    private volatile boolean cameraCurrentlyDefocused = false;
+    private final CameraCaptureSession.CaptureCallback afCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override public void onCaptureCompleted(CameraCaptureSession s, CaptureRequest req, android.hardware.camera2.TotalCaptureResult result) {
+            Integer afState = result.get(android.hardware.camera2.CaptureResult.CONTROL_AF_STATE);
+            if (afState == null) return;
+            if (afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED
+                    || afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (!cameraCurrentlyDefocused) {
+                    cameraCurrentlyDefocused = true;
+                    listener.cameraDefocus(true);
+                }
+                if (now - lastAfTriggerMs > 2000L) {
+                    lastAfTriggerMs = now;
+                    triggerAutoFocus();
+                }
+            } else if (afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED
+                    || afState == android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED) {
+                if (cameraCurrentlyDefocused && android.os.SystemClock.uptimeMillis() - lastAfTriggerMs > 1200L) {
+                    cameraCurrentlyDefocused = false;
+                    listener.cameraDefocus(false);
+                }
+            }
+        }
+    };
     private ImageReader reader;
     private boolean gpuDetector;
     /**
@@ -142,10 +168,10 @@ final class PassthroughCamera {
             try {
                 activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_AUTO);
                 activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_START);
-                session.capture(activeRequestBuilder.build(),null,handler);
+                session.capture(activeRequestBuilder.build(),afCallback,handler);
                 activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
                 activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-                session.setRepeatingRequest(activeRequestBuilder.build(),null,handler);
+                session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
             } catch(Throwable ignored) {}
         });
     }
@@ -307,19 +333,6 @@ final class PassthroughCamera {
                                         } catch(Throwable ignored) {}
                                     }
                                     activeRequestBuilder=request;
-                                    CameraCaptureSession.CaptureCallback afCallback=new CameraCaptureSession.CaptureCallback() {
-                                        @Override public void onCaptureCompleted(CameraCaptureSession s, CaptureRequest req, android.hardware.camera2.TotalCaptureResult result) {
-                                            Integer afState=result.get( android.hardware.camera2.CaptureResult.CONTROL_AF_STATE);
-                                            if(afState!=null && (afState==android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED
-                                                    || afState==android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED)) {
-                                                long now=android.os.SystemClock.uptimeMillis();
-                                                if(now-lastAfTriggerMs>2400L) {
-                                                    lastAfTriggerMs=now;
-                                                    triggerAutoFocus();
-                                                }
-                                            }
-                                        }
-                                    };
                                     session.setRepeatingRequest(request.build(),afCallback,handler);
                                     handler.postDelayed(()->{
                                         if(token==generation && !destroyed && sessionFrames==0 && openRetries<3) {
