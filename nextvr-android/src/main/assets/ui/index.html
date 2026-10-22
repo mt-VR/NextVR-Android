@@ -2100,99 +2100,140 @@
     position:absolute;
     left:50%;
     top:50%;
-    width:84px;
-    height:84px;
-    margin-left:-42px;
-    margin-top:-42px;
+    width:40px;
+    height:40px;
+    margin-left:-20px;
+    margin-top:-20px;
     border-radius:50%;
     overflow:hidden;
     z-index:9995;
     pointer-events:none;
-    border:3px solid rgba(235,244,255,.95);
-    box-shadow:0 0 28px rgba(59,158,255,.88),0 8px 22px rgba(0,0,0,.78);
-    background:#090b10;
-    transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
+    border:1.8px solid rgba(255,255,255,.58);
+    box-shadow:0 4px 16px rgba(0,0,0,.38);
+    background:rgba(10,12,16,.32);
+    backdrop-filter:blur(6px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease,background .14s ease;
   }
   .gun-logo-bubble[hidden]{display:none!important}
   .gun-logo-bubble .gun-logo-img{
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    display:block;
+    display:none!important;
+    width:0!important;
+    height:0!important;
+    opacity:0!important;
+  }
+  .bolinha-bw-dot{
+    width:28px;
+    height:28px;
     border-radius:50%;
-    filter:brightness(2.65) contrast(1.38);
+    border:1.5px solid rgba(255,255,255,.68);
+    background:rgba(0,0,0,.28);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .bolinha-bw-core{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    background:rgba(255,255,255,.78);
+    box-shadow:0 0 8px rgba(255,255,255,.55);
   }
   .gun-logo-bubble.fired,
   .gun-logo-bubble.gun-triggered{
-    transform:scale(1.25);
-    border-color:#ffffff;
-    box-shadow:0 0 38px rgba(56,189,248,1),0 0 16px #ffffff;
+    transform:scale(1.12);
+    border-color:rgba(255,255,255,.88);
+    background:rgba(255,255,255,.22);
+    box-shadow:0 0 18px rgba(255,255,255,.52);
   }
 
-  /* ---------- Transição Circular de Carregamento (Ambiente e Apps) ---------- */
-  @keyframes nextvrCircleSweep{
-    0%{stroke-dashoffset:214;transform:rotate(-90deg) scale(.86)}
-    65%{stroke-dashoffset:24;transform:rotate(160deg) scale(1.02)}
-    100%{stroke-dashoffset:0;transform:rotate(270deg) scale(1)}
+  /* ---------- Transição de Carregamento do Ambiente Esfumaçada Subindo de Baixo (Estilo Meta Quest) ---------- */
+  @keyframes nextvrSmokeRiseUp{
+    0%{transform:translateY(62%) scaleX(1.04);opacity:0}
+    15%{opacity:.95}
+    75%{opacity:.90}
+    100%{transform:translateY(-68%) scaleX(1.12);opacity:0}
+  }
+  @keyframes nextvrSmokeFloorPulse{
+    0%{transform:translateX(-50%) scale(.72);opacity:0}
+    25%{transform:translateX(-50%) scale(1);opacity:.88}
+    80%{transform:translateX(-50%) scale(1.12);opacity:.65}
+    100%{transform:translateX(-50%) scale(1.22);opacity:0}
   }
   @keyframes nextvrIrisOpen{
     0%{clip-path:circle(14% at 50% 50%)}
     100%{clip-path:circle(145% at 50% 50%)}
   }
   .vr-circle-loader{
-    position:absolute;
-    left:50%;
-    top:50%;
-    transform:translate(-50%,-50%);
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
     z-index:9990;
     pointer-events:none;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
+    overflow:hidden;
   }
   .vr-circle-loader[hidden]{display:none!important}
-  .vr-circle-ring-wrap{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-    padding:16px 22px;
-    border-radius:28px;
-    background:rgba(4,8,18,.78);
-    border:1px solid rgba(56,189,248,.38);
-    box-shadow:0 16px 44px rgba(0,0,0,.68),0 0 28px rgba(56,189,248,.28);
-    backdrop-filter:blur(12px);
+  .vr-smoke-rise-stage{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+    overflow:hidden;
+  }
+  .vr-smoke-floor-pad{
+    position:absolute;
+    left:50%;
+    bottom:-10%;
+    width:92%;
+    height:36%;
+    border-radius:50%;
+    background:radial-gradient(ellipse at 50% 65%,rgba(248,250,252,.78) 0%,rgba(203,213,225,.48) 38%,rgba(148,163,184,.18) 65%,rgba(15,23,42,0) 82%);
+    filter:blur(18px);
+    opacity:0;
+  }
+  .vr-smoke-rise-wave{
+    position:absolute;
+    left:-12%;
+    right:-12%;
+    bottom:-25%;
+    height:150%;
+    background:
+      radial-gradient(ellipse 68% 28% at 50% 54%,rgba(255,255,255,.82) 0%,rgba(226,232,240,.54) 44%,rgba(148,163,184,0) 78%),
+      radial-gradient(ellipse 46% 24% at 24% 58%,rgba(241,245,249,.68) 0%,rgba(203,213,225,0) 74%),
+      radial-gradient(ellipse 46% 24% at 76% 58%,rgba(241,245,249,.68) 0%,rgba(203,213,225,0) 74%),
+      linear-gradient(0deg,rgba(15,23,42,.38) 0%,rgba(226,232,240,.65) 46%,rgba(255,255,255,.84) 54%,rgba(255,255,255,0) 72%);
+    filter:blur(24px);
+    opacity:0;
+  }
+  .vr-smoke-rise-mist{
+    position:absolute;
+    left:-8%;
+    right:-8%;
+    bottom:-18%;
+    height:135%;
+    background:radial-gradient(ellipse 80% 34% at 50% 50%,rgba(255,255,255,.65) 0%,rgba(203,213,225,.32) 48%,rgba(15,23,42,0) 76%);
+    filter:blur(32px);
+    opacity:0;
+  }
+  .vr-circle-loader.active .vr-smoke-floor-pad{
+    animation:nextvrSmokeFloorPulse 1.12s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  .vr-circle-loader.active .vr-smoke-rise-wave{
+    animation:nextvrSmokeRiseUp 1.12s cubic-bezier(.20,.88,.32,1) forwards;
+  }
+  .vr-circle-loader.active .vr-smoke-rise-mist{
+    animation:nextvrSmokeRiseUp 1.12s cubic-bezier(.16,.84,.36,1) .05s forwards;
   }
   .vr-circle-ring-svg{
-    width:68px;
-    height:68px;
-    overflow:visible;
-  }
-  .vr-circle-track{
-    fill:none;
-    stroke:rgba(148,163,184,.24);
-    stroke-width:5.5;
-  }
-  .vr-circle-progress{
-    fill:none;
-    stroke:#38bdf8;
-    stroke-width:5.5;
-    stroke-linecap:round;
-    stroke-dasharray:214;
-    stroke-dashoffset:214;
-    transform-origin:42px 42px;
-  }
-  .vr-circle-loader.active .vr-circle-progress{
-    animation:nextvrCircleSweep .58s cubic-bezier(.22,1,.36,1) forwards;
-  }
-  .vr-circle-label{
-    font-size:12.5px;
-    font-weight:700;
-    letter-spacing:.03em;
-    color:#e2e8f0;
-    text-shadow:0 2px 8px rgba(0,0,0,.85);
-    white-space:nowrap;
+    width:0;
+    height:0;
+    opacity:0;
+    position:absolute;
+    pointer-events:none;
   }
   .win-shell.win-circle-reveal .win{
     animation:nextvrIrisOpen .44s cubic-bezier(.22,1,.36,1) both;
@@ -3069,51 +3110,30 @@
     display:block;
   }
 
-  /* Bolinha + Card [Logo / Menu] (IMG_20261021_144958.jpg, 145046.jpg, 145203.jpg) */
+  /* Bolinha Preta e Branca Transparente (sem card grande ao ativar) */
   .bolinha-card-inner{
     display:flex;
-    flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:4px;
+    width:100%;
+    height:100%;
   }
   .bolinha-menu-lbl,
   .bolinha-menu-bar{
-    display:none;
+    display:none !important;
   }
   .gun-logo-bubble.bolinha-menu-card{
-    width:auto !important;
-    height:auto !important;
-    min-width:110px;
-    padding:12px 20px 14px;
-    border-radius:22px !important;
-    background:rgba(22,26,35,.94) !important;
-    border:2.5px solid #2b8cff !important;
-    box-shadow:0 12px 32px rgba(0,0,0,.70),0 0 28px rgba(43,140,255,.65) !important;
-  }
-  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-lbl{
-    display:block;
-    font:800 15px/1.15 Inter,sans-serif;
-    color:#f8fafc;
-    letter-spacing:.02em;
-  }
-  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-bar{
-    display:block;
-    width:68px;
-    height:6px;
-    border-radius:999px;
-    background:rgba(255,255,255,.22);
-    overflow:hidden;
-  }
-  .gun-logo-bubble.bolinha-menu-card .bolinha-menu-bar-fill{
-    display:block;
-    width:100%;
-    height:100%;
-    border-radius:999px;
-    background:linear-gradient(90deg,#2b8cff,#38bdf8);
+    width:40px !important;
+    height:40px !important;
+    min-width:0 !important;
+    padding:0 !important;
+    border-radius:50% !important;
+    background:rgba(255,255,255,.22) !important;
+    border:2px solid rgba(255,255,255,.86) !important;
+    box-shadow:0 0 18px rgba(255,255,255,.48),0 4px 14px rgba(0,0,0,.38) !important;
   }
 
-  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Tamanho Compacto do Print Screenshot_2026-10-22-09-32-59-911) */
+  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Aumentada um pouco) */
   .win-shell[data-window-id="left-quick-menu"],
   .win-shell[data-window-id="left-quick-menu"] .win,
   .win-shell[data-window-id="left-quick-menu"] .win-body,
@@ -3136,8 +3156,8 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding:6px 8px;
-    border-radius:20px;
+    padding:10px 12px;
+    border-radius:24px;
     background:transparent !important;
     border:0 !important;
     box-shadow:none !important;
@@ -3152,40 +3172,40 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:12px;
+    gap:16px;
     transform:rotate(-8deg);
   }
   .lh-quick-cols{
     display:flex;
     align-items:flex-start;
     justify-content:center;
-    gap:12px;
+    gap:16px;
   }
   .lh-col{
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:7px;
+    gap:9px;
   }
   .lh-col-lbl{
-    font:600 9.5px/1.1 Inter,sans-serif;
-    color:rgba(248,250,252,.92);
+    font:700 11.5px/1.1 Inter,sans-serif;
+    color:rgba(248,250,252,.95);
     text-shadow:0 1px 4px rgba(0,0,0,.85);
     white-space:nowrap;
     letter-spacing:.01em;
-    margin-bottom:2px;
+    margin-bottom:3px;
   }
   .lh-apps-col{
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:7px;
+    gap:9px;
   }
   .lh-app-tile{
-    width:44px;
-    height:44px;
-    border-radius:12px;
-    border:1.5px solid rgba(255,255,255,.24);
+    width:56px;
+    height:56px;
+    border-radius:15px;
+    border:1.5px solid rgba(255,255,255,.26);
     background:rgba(38,43,56,.88);
     display:inline-flex;
     align-items:center;
@@ -3193,7 +3213,7 @@
     padding:0;
     cursor:pointer;
     overflow:hidden;
-    box-shadow:0 4px 12px rgba(0,0,0,.42);
+    box-shadow:0 6px 16px rgba(0,0,0,.44);
     transition:transform .14s ease,border-color .14s ease;
   }
   .lh-app-tile:hover,
@@ -3202,8 +3222,8 @@
     border-color:#38bdf8;
   }
   .lh-spotify-badge{
-    width:30px;
-    height:30px;
+    width:38px;
+    height:38px;
     border-radius:50%;
     background:#1db954;
     color:#0b0f14;
@@ -3219,25 +3239,25 @@
   }
   .lh-vslider-pill{
     position:relative;
-    width:38px;
-    height:186px;
+    width:48px;
+    height:236px;
     border-radius:999px;
-    background:rgba(42,46,58,.86);
-    border:1.5px solid rgba(255,255,255,.24);
+    background:rgba(42,46,58,.88);
+    border:1.5px solid rgba(255,255,255,.26);
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:flex-end;
-    padding-bottom:8px;
+    padding-bottom:10px;
     overflow:hidden;
-    box-shadow:0 4px 12px rgba(0,0,0,.42);
+    box-shadow:0 6px 16px rgba(0,0,0,.44);
   }
   .lh-vslider-input{
     -webkit-appearance:none;
     appearance:none;
     position:absolute;
-    width:170px;
-    height:32px;
+    width:216px;
+    height:40px;
     left:50%;
     top:47%;
     transform:translate(-50%,-50%) rotate(-90deg);
@@ -3249,8 +3269,8 @@
   .lh-vslider-input::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
-    width:20px;
-    height:20px;
+    width:24px;
+    height:24px;
     border-radius:50%;
     background:#ffffff;
     box-shadow:0 2px 6px rgba(0,0,0,.55);
@@ -3258,23 +3278,23 @@
   .lh-vslider-ico{
     position:relative;
     z-index:2;
-    width:16px;
-    height:16px;
+    width:20px;
+    height:20px;
     color:#0f172a;
     pointer-events:none;
   }
   .lh-vslider-ico svg{
-    width:16px;
-    height:16px;
+    width:20px;
+    height:20px;
   }
   .lh-mini-round-btn{
-    width:30px;
-    height:30px;
+    width:38px;
+    height:38px;
     border-radius:50%;
-    border:1.5px solid rgba(255,255,255,.24);
+    border:1.5px solid rgba(255,255,255,.26);
     background:rgba(45,50,64,.88);
     color:#f8fafc;
-    font:700 13px/1 Inter,sans-serif;
+    font:700 15px/1 Inter,sans-serif;
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -3288,14 +3308,14 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:10px;
-    margin-top:2px;
+    gap:14px;
+    margin-top:4px;
   }
   .lh-sq-btn{
-    width:46px;
-    height:46px;
-    border-radius:14px;
-    border:1.5px solid rgba(255,255,255,.24);
+    width:58px;
+    height:58px;
+    border-radius:16px;
+    border:1.5px solid rgba(255,255,255,.26);
     background:rgba(148,163,184,.36);
     color:#f8fafc;
     display:inline-flex;

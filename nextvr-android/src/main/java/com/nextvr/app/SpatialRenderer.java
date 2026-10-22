@@ -192,7 +192,8 @@ final class SpatialRenderer {
     private final int cameraProgram;
     private final int camAPos, camUTex, camUProj, camUSpan, camUQual, camUDim;
     private final int envProgram;
-    private final int envAPos, envUTex, envUProj, envUViewInv, envUQual;
+    private final int envAPos, envUTex, envUProj, envUViewInv, envUQual, envUReveal;
+    private volatile long envTransitionStartMs = 0L;
     private final List<Panel> sorted = new ArrayList<>(24);
     private final float[] viewInv = new float[16], viewProj = new float[16];
     private final int[] viewport = new int[4];
@@ -233,12 +234,13 @@ final class SpatialRenderer {
         // pelo inverso da view, entao o panorama gira com a cabeca. Sem uSpan: nada de aspect-fill.
         envProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
-            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform mat4 uViewInv; uniform float uQualityHeight; const float PI=3.14159265; void main(){vec2 t=(vNdc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(t.x,t.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); vec2 uv=vec2(.5+lon/(2.*PI),.5-lat/PI); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*2.,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} gl_FragColor=vec4(texture2D(uTexture,uv).rgb,1.);}");
+            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform mat4 uViewInv; uniform float uQualityHeight; uniform float uReveal; const float PI=3.14159265; void main(){vec2 t=(vNdc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(t.x,t.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); vec2 uv=vec2(.5+lon/(2.*PI),.5-lat/PI); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*2.,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 envCol=texture2D(uTexture,uv).rgb; if(uReveal>=.999){gl_FragColor=vec4(envCol,1.);return;} float normH=lat/PI+.5; float wave=sin(lon*5.+uReveal*8.)*.028+cos(lon*11.-uReveal*6.)*.016; float edge=uReveal*1.32-.12+wave; float alpha=1.-smoothstep(edge-.02,edge+.16,normH); float smoke=smoothstep(edge-.18,edge,normH)*(1.-smoothstep(edge,edge+.16,normH)); vec3 col=mix(envCol,vec3(.88,.91,.96),smoke*.82); gl_FragColor=vec4(col*alpha,alpha);}");
         envAPos=GLES20.glGetAttribLocation(envProgram,"aPosition");
         envUTex=GLES20.glGetUniformLocation(envProgram,"uTexture");
         envUProj=GLES20.glGetUniformLocation(envProgram,"uProjection");
         envUViewInv=GLES20.glGetUniformLocation(envProgram,"uViewInv");
         envUQual=GLES20.glGetUniformLocation(envProgram,"uQualityHeight");
+        envUReveal=GLES20.glGetUniformLocation(envProgram,"uReveal");
     }
     static List<Panel> decode(String json) throws Exception {
         JSONArray arr = new JSONArray(json);
@@ -285,6 +287,7 @@ final class SpatialRenderer {
      * camera continua rodando (o rastreamento das maos depende dela); so o passe de fundo muda.
      */
     void setEnvironment(String id, android.graphics.Bitmap bitmap) {
+        envTransitionStartMs = android.os.SystemClock.uptimeMillis();
         if("black".equals(id)) { environmentId="black"; environment.clear(); return; }
         if(bitmap==null || "passthrough".equals(id)) { environmentId="passthrough"; environment.clear(); return; }
         environmentId=id; environment.offer(bitmap);
@@ -306,8 +309,24 @@ final class SpatialRenderer {
         // O mapeamento optico (span) sai da camera mesmo com panorama: e ele que poe os landmarks
         // das maos na tela, e o rastreamento continua na camera.
         if(camera.ready) mapping(projection,(float)camera.width/camera.height);
+        float envReveal = 1f;
+        long elapsedEnv = android.os.SystemClock.uptimeMillis() - envTransitionStartMs;
+        if(elapsedEnv >= 0L && elapsedEnv < 1200L) {
+            float tEnv = elapsedEnv / 1200f;
+            envReveal = 1f - (1f - tEnv) * (1f - tEnv) * (1f - tEnv);
+        }
         if(!blackEnv) {
-            if(sphere) drawEnvironment(projection); else if(camera.ready) drawCamera(projection);
+            if(sphere && envReveal >= 0.999f) {
+                drawEnvironment(projection, 1f);
+            } else {
+                if(camera.ready) drawCamera(projection);
+                if(sphere) {
+                    GLES20.glEnable(GLES20.GL_BLEND);
+                    GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                    drawEnvironment(projection, envReveal);
+                    GLES20.glDisable(GLES20.GL_BLEND);
+                }
+            }
         }
         GLES20.glEnable(GLES20.GL_BLEND);
         // Android's hardware surfaces are premultiplied, including CSS shadows and translucent glass.
@@ -409,13 +428,14 @@ final class SpatialRenderer {
         drawScreenQuad(camAPos);
     }
     /** Fundo panoramico 360: esfera inteira em volta do usuario, presa ao mundo (gira com a cabeca). */
-    private void drawEnvironment(float[] p) {
+    private void drawEnvironment(float[] p, float reveal) {
         GLES20.glUseProgram(envProgram);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,environment.id);
         GLES20.glUniform1i(envUTex,0);
         GLES20.glUniform4f(envUProj,p[0],p[5],p[8],p[9]);
         GLES20.glUniformMatrix4fv(envUViewInv,1,false,viewInv,0);
         GLES20.glUniform1f(envUQual,qualityHeight);
+        GLES20.glUniform1f(envUReveal,reveal);
         drawScreenQuad(envAPos);
     }
     private static FloatBuffer floats(float[] a) { FloatBuffer b=ByteBuffer.allocateDirect(a.length*4).order(ByteOrder.nativeOrder()).asFloatBuffer(); b.put(a).position(0); return b; }

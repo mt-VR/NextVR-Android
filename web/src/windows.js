@@ -419,7 +419,10 @@ function layout() {
       halfWidth: halfW, halfHeight: halfH, outerLimit: WINDOW_LIMITS.maxYaw - .06, maxShift: 4,
     });
     w.target.set(spot.x, spot.y, spot.z);
+    w.apply();
   }
+  scene.updateMatrixWorld(true);
+  css3d.invalidate?.();
 }
 on('recenter', layout);
 on('resize', layout);
@@ -427,6 +430,12 @@ on('resize', layout);
 export function open(spec) {
   const same = wins.find(w => w.id === spec.id);
   if (same) { focus(same); return same; }
+  // Garante que o 6DoF esteja sempre ativo desde a primeira página aberta (corrige o bug de só funcionar com 2 páginas)
+  if (S.sixdof !== 0) {
+    S.sixdof = 1;
+    S.sixDof = 1;
+    window.NativeXR?.setSixDofEnabled?.(true);
+  }
   // Janelas escondidas pelo jogo não ocupam slot do arco e NUNCA são descartadas para dar lugar a
   // outra: posição, tamanho, curvatura e conteúdo delas têm que voltar exatamente iguais na saída.
   const apps = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
@@ -719,7 +728,8 @@ function startDrag(w, nx, ny, source='handle', hand=null) {
   const hit=ray.ray.intersectPlane(plane,new THREE.Vector3());
   if(!hit)return false;
   // Ativa o 6DoF ao puxar uma janela para que aproximar/afastar traga a tela para perto ou longe
-  if (!S.sixDof) {
+  if (S.sixdof !== 0) {
+    S.sixdof = 1;
     S.sixDof = 1;
     window.NativeXR?.sixDof?.(true);
     window.NativeXR?.setSixDofEnabled?.(true);
@@ -3102,9 +3112,8 @@ function showBolinhaBubble(h, packet, fired = false) {
     bolinhaBubbleEl.dataset.hand = 'right';
     bolinhaBubbleEl.innerHTML = `
       <div class="bolinha-card-inner">
-        <img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false"/>
-        <span class="bolinha-menu-lbl">Menu</span>
-        <span class="bolinha-menu-bar"><span class="bolinha-menu-bar-fill"></span></span>
+        <span class="bolinha-bw-dot"><span class="bolinha-bw-core"></span></span>
+        <img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false" style="display:none;width:0;height:0;opacity:0;pointer-events:none"/>
       </div>
     `;
     hud.appendChild(bolinhaBubbleEl);
@@ -3112,7 +3121,7 @@ function showBolinhaBubble(h, packet, fired = false) {
   const p = h.points;
   const sx = Number(packet?.scaleX) || 1;
   const sy = Number(packet?.scaleY) || 1;
-  // Posiciona a bolinha entre o polegar (4, idx 12/13) e o indicador (8, idx 24/25) da mão direita (IMG_20261021_144958.jpg / 145046.jpg)
+  // Posiciona a bolinha discreta preta e branca transparente entre o polegar e o indicador da mão direita
   const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.55);
   const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
   const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
@@ -3163,9 +3172,8 @@ function showLeftBolinhaBubble(h, packet, fired = false) {
     leftBolinhaBubbleEl.dataset.hand = 'left';
     leftBolinhaBubbleEl.innerHTML = `
       <div class="bolinha-card-inner">
-        <img src="./icons/nextvr-bolinha-left.png" alt="NextVR Control" class="gun-logo-img left-logo-img" draggable="false"/>
-        <span class="bolinha-menu-lbl">Menu</span>
-        <span class="bolinha-menu-bar"><span class="bolinha-menu-bar-fill"></span></span>
+        <span class="bolinha-bw-dot"><span class="bolinha-bw-core"></span></span>
+        <img src="./icons/nextvr-bolinha-left.png" alt="NextVR Control" class="gun-logo-img left-logo-img" draggable="false" style="display:none;width:0;height:0;opacity:0;pointer-events:none"/>
       </div>
     `;
     hud.appendChild(leftBolinhaBubbleEl);
@@ -3495,23 +3503,20 @@ function triggerCircleLoading(kind = 'env', label = '') {
     circleLoaderEl.dataset.circleLoader = '1';
     circleLoaderEl.hidden = true;
     circleLoaderEl.innerHTML = `
-      <div class="vr-circle-ring-wrap">
-        <svg viewBox="0 0 84 84" class="vr-circle-ring-svg">
-          <circle cx="42" cy="42" r="34" class="vr-circle-track"/>
-          <circle cx="42" cy="42" r="34" class="vr-circle-progress"/>
-        </svg>
-        <div class="vr-circle-label"></div>
+      <div class="vr-smoke-rise-stage">
+        <div class="vr-smoke-floor-pad"></div>
+        <div class="vr-smoke-rise-wave"></div>
+        <div class="vr-smoke-rise-mist"></div>
       </div>
+      <svg viewBox="0 0 84 84" class="vr-circle-ring-svg" style="width:0;height:0;opacity:0;position:absolute;pointer-events:none">
+        <circle cx="42" cy="42" r="34" class="vr-circle-track"/>
+        <circle cx="42" cy="42" r="34" class="vr-circle-progress"/>
+      </svg>
     `;
     hud.appendChild(circleLoaderEl);
   }
   circleLoaderEl.dataset.kind = kind;
-  const lbl = circleLoaderEl.querySelector('.vr-circle-label');
-  if (lbl) {
-    lbl.textContent = kind === 'env'
-      ? `Carregando ambiente${label ? ' · ' + label : ''}…`
-      : `Abrindo ${label || 'app'}…`;
-  }
+  circleLoaderEl.dataset.label = label || '';
   circleLoaderEl.hidden = false;
   circleLoaderEl.classList.remove('active');
   void circleLoaderEl.offsetWidth;
@@ -3524,7 +3529,7 @@ function triggerCircleLoading(kind = 'env', label = '') {
       circleLoaderEl.classList.remove('active');
       css3d.invalidate?.();
     }
-  }, 620);
+  }, 1150);
 }
 window.nextvrShowCircleLoader = triggerCircleLoading;
 

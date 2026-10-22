@@ -2216,9 +2216,8 @@ function syncSpatialLauncherVisibility() {
   if (!S.spatialLauncher || !spatialWin) return;
   _syncingSpatialWins = true;
   try {
-    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && w.id !== 'fist-menu' && !w.onboarding && !w.hidden);
-    if (appWins.length > 1) {
-      // Mantém apenas a janelinha recém-aberta visível no modo Spatial App
+    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && w.id !== 'fist-menu' && w.id !== 'left-quick-menu' && !w.onboarding && !w.hidden);
+    if (appWins.length > 3) {
       const newest = appWins[appWins.length - 1];
       for (const oldWin of appWins) {
         if (oldWin !== newest) close(oldWin);
@@ -2717,7 +2716,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
-    existing.resizeScale = 0.88;
+    existing.resizeScale = 1.15;
     existing.shell.dataset.attachedHand = 'left';
     existing.apply();
     focus(existing);
@@ -2728,15 +2727,15 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 320,
-      h: 420,
+      w: 420,
+      h: 520,
       chrome: false,
       resizable: false,
       free: true,
       at: { x: -0.18, y: 1.44, z: -0.76 },
     });
     if (win) {
-      win.resizeScale = 0.88;
+      win.resizeScale = 1.15;
       win.shell.dataset.attachedHand = 'left';
       win.apply();
     }
@@ -3059,6 +3058,11 @@ async function finishEntryMenu(fromHost = false) {
   }
   document.getElementById('stat').hidden = false;
   if (!native) document.getElementById('perm').hidden = false;
+  if (S.sixdof !== 0) {
+    S.sixdof = 1;
+    S.sixDof = 1;
+    window.NativeXR?.setSixDofEnabled?.(true);
+  }
   window.NativeXR?.handVisuals?.(!!S.handDraw);
   window.NativeXR?.wideCamera?.(!!S.wideCamera);
   if (!isFromHost) {

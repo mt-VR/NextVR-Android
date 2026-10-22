@@ -268,7 +268,9 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (!Number.isFinite(sc) || Math.abs(sc) < 0.0020 || Math.abs(sc) > 0.16) {
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0020 && Math.abs(sc) <= 0.16;
+    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.22 && Math.abs(latDx) <= 4.5;
+    if (!hasDepthFlow && !hasLatFlow) {
       this.lastSc = 0;
       return;
     }
@@ -287,9 +289,9 @@ export const SixDof = {
 
     // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
     const prevSc = this.lastSc;
-    this.lastSc = sc;
+    this.lastSc = hasDepthFlow ? sc : 0;
     this.lastScAt = nowMs;
-    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc)) {
+    if (prevSc === 0 || !hasDepthFlow || Math.sign(prevSc) !== Math.sign(sc)) {
       return;
     }
     if (Math.abs(sc - prevSc) > Math.max(0.055, Math.abs(sc) * 1.45)) {
@@ -297,7 +299,7 @@ export const SixDof = {
     }
 
     const stepSc = (sc + prevSc) * 0.5;
-    const step = Math.max(-0.055, Math.min(0.055, stepSc * this.depth));
+    const step = Math.max(-0.065, Math.min(0.065, stepSc * this.depth));
 
     // Direção de marcha estritamente no plano horizontal do chão (XZ):
     // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
@@ -307,6 +309,14 @@ export const SixDof = {
     else _sdFwd.set(0, 0, -1);
 
     this.pos.addScaledVector(_sdFwd, step);
+    if (hasLatFlow) {
+      _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
+      _sdRight.y = 0;
+      if (_sdRight.lengthSq() > 1e-6) _sdRight.normalize();
+      else _sdRight.set(1, 0, 0);
+      const latStep = Math.max(-0.035, Math.min(0.035, -latDx * 0.012));
+      this.pos.addScaledVector(_sdRight, latStep);
+    }
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal
@@ -317,6 +327,25 @@ export const SixDof = {
       this.pos.z *= scale;
     }
     this.pos.y = 0;
+
+    // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
+    // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
+    this.out.lerp(this.pos, 0.52);
+    this.out.y = 0;
+    cam.position.x = this.out.x;
+    cam.position.z = this.out.z;
+    if (Math.hypot(this.out.x - this._lastSentX, this.out.z - this._lastSentZ) > 1e-4) {
+      this._lastSentX = this.out.x;
+      this._lastSentZ = this.out.z;
+      if (typeof _onNativeOffset === 'function') {
+        _onNativeOffset(this.out.x, 0, this.out.z);
+      } else if (typeof window !== 'undefined') {
+        window.NativeXR?.sixDofOffset?.(this.out.x, 0, this.out.z);
+      }
+      if (typeof window !== 'undefined') {
+        window.__updateBackfaceStates?.();
+      }
+    }
   },
 
   update(now, dt = 0.016) {
@@ -405,7 +434,7 @@ if (typeof window !== 'undefined') {
       const gx = Number(payload.gx ?? 0);
       const gy = Number(payload.gy ?? 0);
       const mx = Number(payload.mx ?? 0);
-      SixDof.applyFlowScale(sc, gx, gy, payload.moving, mx);
+      SixDof.applyFlowScale(sc, gx, gy, payload.moving, mx - gx);
       return { sc, gx, gy };
     }
     const sc = Number(payload ?? 0);

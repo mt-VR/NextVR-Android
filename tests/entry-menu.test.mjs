@@ -131,8 +131,8 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'windows.js auto-enables 6DoF on window drag, pulls/pushes window depth with hand distance, and makes left-quick-menu follow left-hand depth');
   assert.ok(appsSrc.includes('toggleCameraSoloMode') && appsSrc.includes('camera-solo') && activitySrc.includes('public void refocusCamera()') && cameraSrc.includes('triggerAutoFocus'),
     'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
-  assert.ok(appsSrc.includes('w: 320') && appsSrc.includes('h: 420') && appsSrc.includes('resizeScale = 0.88') && rendererSrc.includes('1440f'),
-    'apps.js sizes the left-hand quick menu to the compact reference layout (320x420, scale 0.88) and SpatialRenderer.java raises rendering quality to 1440p');
+  assert.ok(appsSrc.includes('w: 420') && appsSrc.includes('h: 520') && appsSrc.includes('resizeScale = 1.15') && rendererSrc.includes('1440f'),
+    'apps.js sizes the left-hand quick menu slightly larger (420x520, scale 1.15) and SpatialRenderer.java raises rendering quality to 1440p');
   assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
     'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
   const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');

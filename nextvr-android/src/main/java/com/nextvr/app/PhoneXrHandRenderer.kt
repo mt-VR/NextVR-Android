@@ -332,16 +332,16 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             val isOutline = mesh.color[0] > .5f
             GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
             if (isOutline) {
-                val alpha = if (mesh.blueOutline) .98f else if (mesh.touching) .96f else minOf(.92f, mesh.color[3] * 1.28f)
-                val cr = if (mesh.blueOutline) .23f else mesh.color[0]
-                val cg = if (mesh.blueOutline) .62f else mesh.color[1]
-                val cb = if (mesh.blueOutline) 1.0f else mesh.color[2]
+                val alpha = if (mesh.touching) .84f else mesh.color[3]
+                val cr = mesh.color[0]
+                val cg = mesh.color[1]
+                val cb = mesh.color[2]
                 GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
             } else {
-                val r = if (mesh.touching) TOUCH_FILL_R else IDLE_FILL_R
-                val g = if (mesh.touching) TOUCH_FILL_G else IDLE_FILL_G
-                val b = if (mesh.touching) TOUCH_FILL_B else IDLE_FILL_B
-                val alpha = if (mesh.touching) .78f else .70f
+                val r = HAND_FILL_R
+                val g = HAND_FILL_G
+                val b = HAND_FILL_B
+                val alpha = if (mesh.touching) .42f else mesh.color[3]
                 GLES20.glUniform4f(color,r,g,b,alpha*fade)
             }
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
