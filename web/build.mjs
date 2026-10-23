@@ -13,7 +13,7 @@ await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
 await copyFile('web/assets/nextvr-chrome-n.png', new URL('icons/nextvr-chrome-n.png', out));
 await copyFile('web/assets/entry-bg-blue.jpg', new URL('icons/entry-bg-blue.jpg', out));
 await copyFile('web/assets/gorilla-tag-logo.jpg', new URL('icons/gorilla-tag-logo.jpg', out));
-for (const logo of ['gun-logo.jpg', 'nextvr-bolinha-logo.png', 'nextvr-bolinha-right.png', 'nextvr-bolinha-left.png', 'beat-saber-logo.jpg', 'hyper-dash-logo.jpg', 'roblox-logo.jpg', 'tiktok-logo.jpg', 'vrfs-logo.jpg']) {
+for (const logo of ['gun-logo.jpg', 'nextvr-bolinha-logo.png', 'nextvr-bolinha-right.png', 'nextvr-bolinha-left.png', 'beat-saber-logo.jpg', 'hyper-dash-logo.jpg', 'roblox-logo.jpg', 'tiktok-logo.jpg', 'vrfs-logo.jpg', 'shootthedie-logo.jpg']) {
   await copyFile(`web/assets/${logo}`, new URL(logo, out));
   await copyFile(`web/assets/${logo}`, new URL(`icons/${logo}`, out));
 }

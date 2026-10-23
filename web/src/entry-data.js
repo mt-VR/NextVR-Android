@@ -46,17 +46,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'mr-pistol',
-    tag: 'NOVO · JOGO EM MR',
+    tag: 'NOVO · SHOOTTHEDIE (MR)',
     time: 'Agora',
-    heading: 'G18 MR: Pistola Preta com Cano Cinza & Alvos 3D à Distância',
-    desc: 'Jogo em Realidade Mista (MR): pegue a G18 toda preta com cano cinza virada para a frente, faça o gesto de arminha para atirar nos 6 alvos em modelo 3D posicionados mais longe e reinicie no botão!',
+    heading: 'ShootTheDie: G18 Preta/Cano Cinza, Alvos 3D & Saída Rápida',
+    desc: 'Jogo MR ultra-otimizado com nova logo oficial: atire nos alvos 3D distantes com o gesto de arminha e saia fechando a mão esquerda ou pelo botão 3D atrás!',
   },
   {
     id: 'green-glove',
-    tag: 'NOVO · LUVA 3D NO JOGO',
+    tag: 'NOVO · LUVA 3D + BRILHO MAIOR',
     time: 'Agora',
-    heading: 'Luva Verde 3D com Abertura nos Dedos (Exclusiva no Jogo)',
-    desc: 'Dentro do jogo de tiro ao alvo, sua mão vira uma Luva Tática Verde em Modelo 3D com abertura nos dedos articulada pelos 21 pontos da mão!',
+    heading: 'Luva Verde 3D no ShootTheDie & Controle de Brilho Maior',
+    desc: 'Luva Tática Verde 3D com abertura nos dedos exclusiva do ShootTheDie e Centro de Controle de Brilho da mão esquerda ampliado!',
   },
   {
     id: 'sixdof',

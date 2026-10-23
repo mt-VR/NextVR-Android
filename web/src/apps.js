@@ -1235,11 +1235,11 @@ const GORILLA_TAG_ITEM = {
 };
 const MR_PISTOL_ITEM = {
   id: 'mr-pistol',
-  name: 'Pistola MR',
-  label: 'Pistola MR',
-  bg: '#062c1e',
-  imgUrl: './icons/gun-logo.jpg',
-  html: '<img class="lx-mr-pistol-logo" src="./icons/gun-logo.jpg" alt="Pistola MR" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
+  name: 'ShootTheDie',
+  label: 'ShootTheDie',
+  bg: '#080a0f',
+  imgUrl: './icons/shootthedie-logo.jpg',
+  html: '<img class="lx-mr-pistol-logo" src="./icons/shootthedie-logo.jpg" alt="ShootTheDie" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
   kind: 'app',
 };
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
@@ -1452,7 +1452,7 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
-  { id: 'mr-pistol', name: 'Pistola MR · Tiro ao Alvo', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · Pistola Flutuante & Alvos', badge: 'NOVO MR', img: './icons/gun-logo.jpg', bg: 'linear-gradient(135deg,#064e3b,#10b981)' },
+  { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
@@ -1885,7 +1885,7 @@ const SPATIAL_CORE_APPS = [
 ];
 
 const SPATIAL_GAME_ITEMS = [
-  { id:'mr-pistol',   name:'Pistola MR',     bg:'#062c1e', imgUrl:'./icons/gun-logo.jpg', isGame:true },
+  { id:'mr-pistol',   name:'ShootTheDie',    bg:'#080a0f', imgUrl:'./icons/shootthedie-logo.jpg', isGame:true },
   { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
   { id:'vrfs',        name:'VRFS Futebol VR', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', isGame:true },
   { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
@@ -2797,10 +2797,10 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
   contentRoot.updateMatrixWorld(true);
   const camWorldPos = camera.position.clone().applyMatrix4(camera.parent ? camera.parent.matrixWorld : camera.matrixWorld);
   const camFwd = camera.getWorldDirection(camWorldPos.clone().set(0, 0, -1));
-  const worldTarget = camera.getWorldPosition(camWorldPos.clone()).addScaledVector(camFwd, 0.78);
+  const worldTarget = camera.getWorldPosition(camWorldPos.clone()).addScaledVector(camFwd, 0.70);
   const localSpawn = contentRoot.worldToLocal(worldTarget);
   if (!Number.isFinite(localSpawn.x) || !Number.isFinite(localSpawn.y) || !Number.isFinite(localSpawn.z)) {
-    localSpawn.set(0, 1.46, -0.78);
+    localSpawn.set(0, 1.46, -0.70);
   }
   if (existing) {
     const host = winBody('left-quick-menu');
@@ -2810,12 +2810,12 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
     }
     existing.setHidden(false);
     existing.curve = 0;
-    existing.resizeScale = 1.15;
+    existing.resizeScale = 1.32;
     existing.target.copy(localSpawn);
     existing.obj.position.copy(localSpawn);
     existing.shell.dataset.attachedHand = 'left';
     existing.shell.dataset.attachedPos = `${localSpawn.x.toFixed(2)},${localSpawn.y.toFixed(2)},${localSpawn.z.toFixed(2)}`;
-    existing.shell.dataset.attachedDist = '0.78';
+    existing.shell.dataset.attachedDist = '0.70';
     existing.apply();
     focus(existing);
   } else {
@@ -2825,8 +2825,8 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       id: 'left-quick-menu',
       title: 'Controle de Brilho e Som',
       node: body,
-      w: 420,
-      h: 520,
+      w: 480,
+      h: 600,
       chrome: false,
       resizable: false,
       free: true,
@@ -2834,12 +2834,12 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
     });
     if (win) {
       win.curve = 0;
-      win.resizeScale = 1.15;
+      win.resizeScale = 1.32;
       win.target.copy(localSpawn);
       win.obj.position.copy(localSpawn);
       win.shell.dataset.attachedHand = 'left';
       win.shell.dataset.attachedPos = `${localSpawn.x.toFixed(2)},${localSpawn.y.toFixed(2)},${localSpawn.z.toFixed(2)}`;
-      win.shell.dataset.attachedDist = '0.78';
+      win.shell.dataset.attachedDist = '0.70';
       win.apply();
     }
   }

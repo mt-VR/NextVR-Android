@@ -60,7 +60,7 @@ const SVG_TIKTOK_VERIFIED = `
 </svg>`;
 
 const MENU_STORE_APPS = [
-  { id: 'mr-pistol', name: 'Pistola MR · Tiro ao Alvo', cat: 'MR · Pistola Flutuante & Alvos · 4.9 ★', bg: '#064e3b', img: './icons/gun-logo.jpg' },
+  { id: 'mr-pistol', name: 'ShootTheDie', cat: 'MR · G18 & Alvos 3D · 4.9 ★', bg: '#080a0f', img: './icons/shootthedie-logo.jpg' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'Chuteiras VR · Bola 3D · 4.9 ★', bg: '#052e16', img: './icons/vrfs-logo.jpg' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
