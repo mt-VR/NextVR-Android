@@ -191,17 +191,23 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     mrPistolSrc.includes('openMrPistolGame') &&
     mrPistolSrc.includes('PISTOL_HOME') &&
     mrPistolSrc.includes('resetTargets') &&
+    mrPistolSrc.includes('buildG18PistolModel') &&
+    mrPistolSrc.includes('build3DTargetModel') &&
+    mrPistolSrc.includes('aimForwardAt') &&
+    mrPistolSrc.includes('detectFingerGunGesture') &&
     appsSrc.includes('openMrPistolGame') &&
     handRendererKt.includes('GLOVE_FILL_R') &&
     handRendererKt.includes('GLOVE_CONTOUR_R') &&
     handRendererKt.includes('handCuffOpen') &&
+    handRendererKt.includes('if (mrGameMode)') &&
+    handRendererKt.includes('bone(base + 2, base + 3') &&
     fakeSixDofJava.includes('ptW') &&
     sixdofSrc.includes('_ptW') &&
     appsSrc.includes('readLiveBatteryPercent') &&
     entryDataSrc.includes('ENTRY_UPDATES') &&
     entryDataSrc.includes('mr-pistol') &&
     entryDataSrc.includes('green-glove'),
-    'Build 56 includes MR Pistol game, green fingerless glove hand tracking, IRLS 6DoF, live battery sync, and updated ENTRY_UPDATES feed'
+    'Build 57 includes G18 MR Pistol (all black + gray barrel, facing forward, finger-gun gesture trigger, 3D targets), green fingerless glove ONLY in MR game mode, IRLS 6DoF, live battery sync, and updated ENTRY_UPDATES feed'
   );
 });
 
@@ -1045,7 +1051,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.nextvrBattery?.({ level: 0.88, charging: false });
       const dockBat88 = document.querySelector('.dk-bat-percent')?.textContent;
 
-      // Abre o jogo Pistola MR
+      // Abre o jogo Pistola MR (G18 toda preta com cano cinza, virada para a frente, alvos 3D e gesto de arminha)
       window.openMrPistolGame?.();
       const overlay = document.getElementById('mr-pistol-overlay');
       const st = window.__mrPistolState;
@@ -1053,6 +1059,39 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         st.pistolDistance > 0 && st.pistolDistance < 1.65 &&
         st.maxTargetDistance > 0 && st.maxTargetDistance < 1.95 &&
         st.resetButtonDistance > 0 && st.resetButtonDistance < 1.65;
+      const pistolStyle = st?.pistolStyle;
+      const targetsAre3D = Boolean(st?.targetsAre3D);
+      const facingForward = (st?.pistolForwardZ ?? 0) < -0.5;
+
+      // Testa detecção do gesto de arminha (polegar levantado + indicador estendido pra frente + médio/anelar/mindinho dobrados)
+      const makePose = ({ indexExt = true, thumbUp = true, othersCurled = true, pinching = false, fist = false } = {}) => {
+        const pts = new Array(63).fill(0);
+        const set = (i, x, y, z = 0) => { pts[i * 3] = x; pts[i * 3 + 1] = y; pts[i * 3 + 2] = z; };
+        set(0, 0.50, 0.72, 0); // wrist
+        // Thumb (1..4)
+        set(1, 0.52, 0.64, 0);
+        set(2, 0.53, 0.55, 0);
+        set(3, 0.53, thumbUp ? 0.43 : 0.56, 0);
+        set(4, 0.53, thumbUp ? 0.32 : 0.58, 0);
+        // Index (5..8)
+        set(5, 0.46, 0.52, 0);
+        set(6, 0.41, 0.48, -0.02);
+        set(7, indexExt ? 0.35 : 0.45, indexExt ? 0.44 : 0.54, indexExt ? -0.05 : 0);
+        set(8, pinching ? 0.52 : (indexExt ? 0.29 : 0.47), pinching ? 0.33 : (indexExt ? 0.41 : 0.56), indexExt ? -0.08 : 0);
+        // Middle (9..12), Ring (13..16), Pinky (17..20)
+        const bases = [[9, 0.45, 0.58], [13, 0.45, 0.63], [17, 0.46, 0.68]];
+        for (const [b, bx, by] of bases) {
+          set(b, bx, by, 0);
+          set(b + 1, bx - 0.04, by, 0);
+          set(b + 2, othersCurled ? bx - 0.02 : bx - 0.11, othersCurled ? by + 0.01 : by - 0.06, 0);
+          set(b + 3, othersCurled ? bx - 0.01 : bx - 0.18, othersCurled ? by + 0.02 : by - 0.10, 0);
+        }
+        return { id: 'right', points: pts, palm: [0.5, 0.55, 0], pinching, fist };
+      };
+      const fingerGunDetected = Boolean(window.detectFingerGunGesture?.(makePose({ indexExt: true, thumbUp: true, othersCurled: true })));
+      const openHandRejected = !window.detectFingerGunGesture?.(makePose({ indexExt: true, thumbUp: true, othersCurled: false }));
+      const pinchRejected = !window.detectFingerGunGesture?.(makePose({ indexExt: true, thumbUp: true, othersCurled: true, pinching: true }));
+
       st?.grabPistol?.('right');
       const grabbed = Boolean(st?.grabbed);
       const hit0 = Boolean(st?.shootAtTarget?.(0));
@@ -1068,6 +1107,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         dockBat88,
         hasOverlay: Boolean(overlay),
         closeEnough,
+        pistolStyle,
+        targetsAre3D,
+        facingForward,
+        fingerGunDetected,
+        openHandRejected,
+        pinchRejected,
         grabbed,
         hit0,
         hit1,
@@ -1081,6 +1126,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
     assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');
     assert.equal(build56Check.closeEnough, true, 'Floating pistol, targets, and reset button are all positioned close to the player');
+    assert.equal(build56Check.pistolStyle, 'G18-black-gray-barrel', 'Pistol model is an all-black G18 with a gray barrel');
+    assert.equal(build56Check.targetsAre3D, true, 'All 6 targets are built as multi-layer 3D models');
+    assert.equal(build56Check.facingForward, true, 'G18 pistol faces forward (-Z) away from the player, never towards the player');
+    assert.equal(build56Check.fingerGunDetected, true, 'detectFingerGunGesture recognizes the photo finger-gun gesture');
+    assert.equal(build56Check.openHandRejected, true, 'detectFingerGunGesture does not fire on an open 5-finger palm');
+    assert.equal(build56Check.pinchRejected, true, 'detectFingerGunGesture does not fire on a standard pinch');
     assert.equal(build56Check.grabbed, true, 'Hand tracking grabs the floating pistol');
     assert.equal(build56Check.hit0 && build56Check.hit1, true, 'Shooting at targets hits and knocks them down');
     assert.equal(build56Check.activeAfter2Shots, 4, '2 targets knocked down leaves 4 active targets');
