@@ -193,6 +193,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     mrPistolSrc.includes('resetTargets') &&
     mrPistolSrc.includes('buildG18PistolModel') &&
     mrPistolSrc.includes('build3DTargetModel') &&
+    mrPistolSrc.includes('build3DGloveModel') &&
     mrPistolSrc.includes('aimForwardAt') &&
     mrPistolSrc.includes('detectFingerGunGesture') &&
     appsSrc.includes('openMrPistolGame') &&
@@ -1051,16 +1052,17 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.nextvrBattery?.({ level: 0.88, charging: false });
       const dockBat88 = document.querySelector('.dk-bat-percent')?.textContent;
 
-      // Abre o jogo Pistola MR (G18 toda preta com cano cinza, virada para a frente, alvos 3D e gesto de arminha)
+      // Abre o jogo Pistola MR (G18 toda preta com cano cinza, virada para a frente, luva 3D, alvos 3D mais longe e gesto de arminha)
       window.openMrPistolGame?.();
       const overlay = document.getElementById('mr-pistol-overlay');
       const st = window.__mrPistolState;
       const closeEnough = st &&
         st.pistolDistance > 0 && st.pistolDistance < 1.65 &&
-        st.maxTargetDistance > 0 && st.maxTargetDistance < 1.95 &&
+        st.minTargetDistance >= 2.0 && st.maxTargetDistance > 2.2 &&
         st.resetButtonDistance > 0 && st.resetButtonDistance < 1.65;
       const pistolStyle = st?.pistolStyle;
       const targetsAre3D = Boolean(st?.targetsAre3D);
+      const gloveIs3D = Boolean(st?.gloveIs3D);
       const facingForward = (st?.pistolForwardZ ?? 0) < -0.5;
 
       // Testa detecção do gesto de arminha (polegar levantado + indicador estendido pra frente + médio/anelar/mindinho dobrados)
@@ -1109,6 +1111,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         closeEnough,
         pistolStyle,
         targetsAre3D,
+        gloveIs3D,
         facingForward,
         fingerGunDetected,
         openHandRejected,
@@ -1125,9 +1128,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
     assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');
-    assert.equal(build56Check.closeEnough, true, 'Floating pistol, targets, and reset button are all positioned close to the player');
+    assert.equal(build56Check.closeEnough, true, 'Floating pistol and reset button are close while 3D targets are placed further away');
     assert.equal(build56Check.pistolStyle, 'G18-black-gray-barrel', 'Pistol model is an all-black G18 with a gray barrel');
     assert.equal(build56Check.targetsAre3D, true, 'All 6 targets are built as multi-layer 3D models');
+    assert.equal(build56Check.gloveIs3D, true, 'Green fingerless glove is built as an articulated 3D model with 5 open finger sleeves');
     assert.equal(build56Check.facingForward, true, 'G18 pistol faces forward (-Z) away from the player, never towards the player');
     assert.equal(build56Check.fingerGunDetected, true, 'detectFingerGunGesture recognizes the photo finger-gun gesture');
     assert.equal(build56Check.openHandRejected, true, 'detectFingerGunGesture does not fire on an open 5-finger palm');

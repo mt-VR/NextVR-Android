@@ -230,7 +230,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     return;
                 }
                 boolean inGame=gameHandMode;
-                if(r!=null)r.hands=(inGame && !r.handRenderer.mrGameMode)?null:frame;
+                if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
@@ -911,6 +911,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(r!=null) {
                 r.handRenderer.gameHandMode=enabled;
                 r.handRenderer.mrGameMode=enabled;
+                if(enabled) r.hands=null;
             }
         }
         @JavascriptInterface public void wideCamera(boolean enabled) {
