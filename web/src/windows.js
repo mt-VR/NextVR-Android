@@ -1579,13 +1579,30 @@ on('wins', syncDots);
 const deviceStatus = { time: '--:--', date: '', batteryLevel: null, charging: false, online: navigator.onLine };
 export const getDeviceStatus = () => ({ ...deviceStatus });
 function publishDeviceStatus() { emit('device-status', getDeviceStatus()); }
+let lastPaintedTime = '';
+let tickCounter = 0;
 function tick() {
   const c = dockEl.querySelector('.dk-time');
   const now = new Date();
-  deviceStatus.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const nextTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const timeChanged = nextTime !== lastPaintedTime;
+  lastPaintedTime = nextTime;
+  deviceStatus.time = nextTime;
   deviceStatus.date = now.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   if (c) c.textContent = deviceStatus.time;
-  publishDeviceStatus();
+  if (native && (++tickCounter % 3 === 0)) {
+    try {
+      const raw = window.NativeXR?.battery?.();
+      if (raw && raw !== 'null') {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed.level === 'number') batt = parsed;
+      }
+    } catch {}
+    paintBat();
+  } else {
+    publishDeviceStatus();
+  }
+  if (timeChanged) css3d.invalidate?.();
 }
 tick();
 setInterval(tick, 1000);
@@ -1595,13 +1612,22 @@ function refreshNet() {
   deviceStatus.online = navigator.onLine;
   if (w) w.style.opacity = deviceStatus.online ? '1' : '.35';
   publishDeviceStatus();
+  css3d.invalidate?.();
 }
 addEventListener('online', refreshNet);
 addEventListener('offline', refreshNet);
 
 let batt = null;
+let lastPaintedBatPct = -1;
+let lastPaintedCharging = null;
 function paintBat() {
   const el = dockEl.querySelector('.dk-bat');
+  if (!batt && native && window.NativeXR?.battery) {
+    try {
+      const raw = window.NativeXR.battery();
+      if (raw && raw !== 'null') batt = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {}
+  }
   if (!batt) {
     if (el) el.style.display = 'none';
     deviceStatus.batteryLevel = null;
@@ -1610,7 +1636,11 @@ function paintBat() {
     return;
   }
   const level = Math.max(0, Math.min(1, Number(batt.level) || 0));
+  const pct = Math.round(level * 100);
   const charging = !!batt.charging;
+  const changed = pct !== lastPaintedBatPct || charging !== lastPaintedCharging;
+  lastPaintedBatPct = pct;
+  lastPaintedCharging = charging;
   deviceStatus.batteryLevel = level;
   deviceStatus.charging = charging;
   if (el) {
@@ -1621,10 +1651,11 @@ function paintBat() {
       f.setAttribute('width', String(Math.max(1.6, 13 * level)));
       f.setAttribute('fill', charging ? '#8de6c8' : (level < .2 ? '#ff6b6b' : 'currentColor'));
     }
-    if (percent) percent.textContent = `${Math.round(level * 100)}%`;
-    el.title = `${Math.round(level * 100)}%${charging ? ' · carregando' : ''}`;
+    if (percent) percent.textContent = `${pct}%`;
+    el.title = `${pct}%${charging ? ' · carregando' : ''}`;
   }
   publishDeviceStatus();
+  if (changed) css3d.invalidate?.();
 }
 window.nextvrBattery = data => {
   try {

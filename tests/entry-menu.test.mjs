@@ -185,6 +185,24 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     vrfsSrc.includes('LinearMipmapLinearFilter'),
     'Build 55 includes 6DoF World Lock and zero-allocation optical flow, zero-delay hand tracking, and 1200x800 1:1 antialiased ACESFilmic VR games'
   );
+  const mrPistolSrc = readFileSync('web/src/mr-pistol-game.js', 'utf8');
+  const entryDataSrc = readFileSync('web/src/entry-data.js', 'utf8');
+  assert.ok(
+    mrPistolSrc.includes('openMrPistolGame') &&
+    mrPistolSrc.includes('PISTOL_HOME') &&
+    mrPistolSrc.includes('resetTargets') &&
+    appsSrc.includes('openMrPistolGame') &&
+    handRendererKt.includes('GLOVE_FILL_R') &&
+    handRendererKt.includes('GLOVE_CONTOUR_R') &&
+    handRendererKt.includes('handCuffOpen') &&
+    fakeSixDofJava.includes('ptW') &&
+    sixdofSrc.includes('_ptW') &&
+    appsSrc.includes('readLiveBatteryPercent') &&
+    entryDataSrc.includes('ENTRY_UPDATES') &&
+    entryDataSrc.includes('mr-pistol') &&
+    entryDataSrc.includes('green-glove'),
+    'Build 56 includes MR Pistol game, green fingerless glove hand tracking, IRLS 6DoF, live battery sync, and updated ENTRY_UPDATES feed'
+  );
 });
 
 test('entry menu interactive flow in browser: hand tracking toggle, colaboradores, sobre, configurações and iniciar', { timeout: 60000 }, async (t) => {
@@ -1018,6 +1036,57 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.leftQuickMenuOpened, true, 'Thumb+index pinch on left-hand bolinha opens the Left-Hand Quick Controls menu and follows hand depth');
     assert.equal(questAndFeatures.brightnessUpdated, true, 'Brightness slider updates screen brightness');
     assert.equal(questAndFeatures.cameraSoloWorks, true, 'Camera Solo mode hides all windows to let the camera refocus alone and restores them cleanly');
+
+    // 6j. Build 56: Pistola MR (pistola flutuante, alvos próximos e botão de reiniciar), Luva Verde com abertura nos dedos, 6DoF IRLS e Bateria sincronizada
+    const build56Check = await page.evaluate(() => {
+      // Testa sincronização de bateria ao vivo (nunca travada em 71%)
+      window.nextvrBattery?.({ level: 0.64, charging: true });
+      const dockBat64 = document.querySelector('.dk-bat-percent')?.textContent;
+      window.nextvrBattery?.({ level: 0.88, charging: false });
+      const dockBat88 = document.querySelector('.dk-bat-percent')?.textContent;
+
+      // Abre o jogo Pistola MR
+      window.openMrPistolGame?.();
+      const overlay = document.getElementById('mr-pistol-overlay');
+      const st = window.__mrPistolState;
+      const closeEnough = st &&
+        st.pistolDistance > 0 && st.pistolDistance < 1.65 &&
+        st.maxTargetDistance > 0 && st.maxTargetDistance < 1.95 &&
+        st.resetButtonDistance > 0 && st.resetButtonDistance < 1.65;
+      st?.grabPistol?.('right');
+      const grabbed = Boolean(st?.grabbed);
+      const hit0 = Boolean(st?.shootAtTarget?.(0));
+      const hit1 = Boolean(st?.shootAtTarget?.(1));
+      const activeAfter2Shots = st?.activeTargets ?? -1;
+      const scoreAfter2Shots = st?.score ?? 0;
+      overlay?.querySelector('[data-mr-pistol-reset]')?.click();
+      const activeAfterReset = st?.activeTargets ?? -1;
+      window.closeMrPistolGame?.();
+      const closedCleanly = !document.getElementById('mr-pistol-overlay');
+      return {
+        dockBat64,
+        dockBat88,
+        hasOverlay: Boolean(overlay),
+        closeEnough,
+        grabbed,
+        hit0,
+        hit1,
+        activeAfter2Shots,
+        scoreAfter2Shots,
+        activeAfterReset,
+        closedCleanly,
+      };
+    });
+    assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
+    assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
+    assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');
+    assert.equal(build56Check.closeEnough, true, 'Floating pistol, targets, and reset button are all positioned close to the player');
+    assert.equal(build56Check.grabbed, true, 'Hand tracking grabs the floating pistol');
+    assert.equal(build56Check.hit0 && build56Check.hit1, true, 'Shooting at targets hits and knocks them down');
+    assert.equal(build56Check.activeAfter2Shots, 4, '2 targets knocked down leaves 4 active targets');
+    assert.ok(build56Check.scoreAfter2Shots >= 100, 'Hitting targets awards score points');
+    assert.equal(build56Check.activeAfterReset, 6, 'Reset button restores all 6 targets');
+    assert.equal(build56Check.closedCleanly, true, 'closeMrPistolGame removes the MR overlay cleanly');
 
     // 7. Fullscreen mode (?fullscreen=1) on phone landscape viewport (844x390) with 5-second VR Box countdown
     await page.setViewportSize({ width: 844, height: 390 });

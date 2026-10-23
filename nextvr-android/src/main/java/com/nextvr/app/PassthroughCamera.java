@@ -130,6 +130,7 @@ final class PassthroughCamera {
     private volatile boolean destroyed;
     volatile boolean handsEnabled=true;
     volatile boolean gameHandMode=false;
+    volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -434,11 +435,11 @@ final class PassthroughCamera {
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if(!gameHandMode) {
+            if(!gameHandMode || mrGameMode) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
-            if(!gameHandMode || sessionFrames<=2) {
+            if(!gameHandMode || mrGameMode || sessionFrames<=2) {
                 upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
                 long handoffStart=SystemClock.elapsedRealtime();
                 listener.frame(upright);upright=null;

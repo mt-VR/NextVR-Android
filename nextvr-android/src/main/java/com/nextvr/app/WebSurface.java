@@ -212,6 +212,9 @@ final class WebSurface {
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
                 return !request.getUrl().toString().startsWith(HOME);
             }
+            @Override public void onPageFinished(WebView view,String address) {
+                if(owner!=null) owner.pushBatteryState(null);
+            }
         });
         entry.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onConsoleMessage(ConsoleMessage m) {

@@ -29,6 +29,12 @@ class PhoneXrHandRenderer {
         const val HAND_CONTOUR_R = .96f
         const val HAND_CONTOUR_G = .97f
         const val HAND_CONTOUR_B = 1f
+        const val GLOVE_FILL_R = .08f
+        const val GLOVE_FILL_G = .78f
+        const val GLOVE_FILL_B = .38f
+        const val GLOVE_CONTOUR_R = .36f
+        const val GLOVE_CONTOUR_G = 1f
+        const val GLOVE_CONTOUR_B = .64f
         const val HAND_FILL_ALPHA = .35f
         const val HAND_OUTLINE_ALPHA = .70f
         const val HAND_PINCH_ALPHA = .94f
@@ -96,6 +102,7 @@ class PhoneXrHandRenderer {
     @Volatile var showPointer=false
     @JvmField @Volatile var virtualEnv=false
     @JvmField @Volatile var gameHandMode=false
+    @JvmField @Volatile var mrGameMode=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.2 px at 640 px analysis width).
@@ -336,17 +343,11 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             val isOutline = mesh.color[0] > .5f
             GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
             if (isOutline) {
-                val alpha = if (mesh.touching) .84f else mesh.color[3]
-                val cr = mesh.color[0]
-                val cg = mesh.color[1]
-                val cb = mesh.color[2]
-                GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
+                val alpha = if (mesh.touching) .90f else mesh.color[3]
+                GLES20.glUniform4f(color,GLOVE_CONTOUR_R,GLOVE_CONTOUR_G,GLOVE_CONTOUR_B,alpha*fade)
             } else {
-                val r = HAND_FILL_R
-                val g = HAND_FILL_G
-                val b = HAND_FILL_B
-                val alpha = if (mesh.touching) .42f else mesh.color[3]
-                GLES20.glUniform4f(color,r,g,b,alpha*fade)
+                val alpha = if (mesh.touching) .52f else (mesh.color[3] + .10f)
+                GLES20.glUniform4f(color,GLOVE_FILL_R,GLOVE_FILL_G,GLOVE_FILL_B,alpha*fade)
             }
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
@@ -485,17 +486,28 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
                     chain(ulnarChain, r * .95f, wristHalf - eh)
                     chain(radialChain, wristHalf - eh, r * 1.12f)
-                    // Thumb and fingers, thinner towards the tips.
+                    // Estilo "luva verde leve com abertura nos dedos" (fingerless glove):
+                    // cobre apenas a palma + punho curto + manga curta da falange proximal (76%),
+                    // deixando os dedos abertos a partir da abertura da luva com anel de acabamento.
                     val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
                     for (finger in 0 until 5) {
                         val base = 1 + finger * 4
                         val f = scale[finger]
-                        if (finger == 0) {
-                            bone(1, 2, r * 1.15f, r * 1.02f); bone(2, 3, r * 1.02f, r * .95f); bone(3, 4, r * .95f, r * .82f)
+                        val j0 = if (finger == 0) 1 else base
+                        val j1 = if (finger == 0) 2 else (base + 1)
+                        val cut = if (finger == 0) 0.82f else 0.76f
+                        val sx = x(j0); val sy = y(j0)
+                        val ex = sx + (x(j1) - sx) * cut
+                        val ey = sy + (y(j1) - sy) * cut
+                        val r0 = (if (finger == 0) r * 1.12f else r * f) + grow
+                        val r1 = (if (finger == 0) r * 0.96f else r * 0.88f * f) + grow
+                        handBone(shape, sx, sy, ex, ey, r0, r1)
+                        handDisc(shape, sx, sy, r0)
+                        if (outline) {
+                            // Borda de abertura do dedo da luva ("abertura nos dedos").
+                            handCuffOpen(shape, sx, sy, ex, ey, r1 * 1.05f, edge * 1.35f)
                         } else {
-                            bone(base, base + 1, r * f, r * .92f * f)
-                            bone(base + 1, base + 2, r * .92f * f, r * .85f * f)
-                            bone(base + 2, base + 3, r * .85f * f, r * .76f * f)
+                            handDisc(shape, ex, ey, r1 * 0.86f)
                         }
                     }
                     val rgba=when {
@@ -512,7 +524,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
         }
 
 private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
-            val segments = 10
+            val segments = 6
             for (k in 0 until segments) {
                 val a0 = (k * 2 * Math.PI / segments).toFloat()
                 val a1 = ((k + 1) * 2 * Math.PI / segments).toFloat()
@@ -520,6 +532,18 @@ private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
                 out.vertex(x + kotlin.math.cos(a0) * r,y + kotlin.math.sin(a0) * r,-1f)
                 out.vertex(x + kotlin.math.cos(a1) * r,y + kotlin.math.sin(a1) * r,-1f)
             }
+        }
+
+private fun handCuffOpen(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Float, r: Float, band: Float) {
+            val length = hypot(x2 - x1, y2 - y1)
+            if (length < 1e-6f) return
+            val ux = (x2 - x1) / length
+            val uy = (y2 - y1) / length
+            val sx = x2 - ux * band
+            val sy = y2 - uy * band
+            val ex = x2 + ux * band
+            val ey = y2 + uy * band
+            handBone(out, sx, sy, ex, ey, r, r * 0.96f)
         }
 
 private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Float, r1: Float, r2: Float) {

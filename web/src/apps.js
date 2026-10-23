@@ -13,6 +13,7 @@ import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
+import { openMrPistolGame } from './mr-pistol-game.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -1218,6 +1219,7 @@ const LIB_APPS = [
   { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
   { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', imgUrl:'./icons/hz-facebook.png', slug:'facebook', color:'ffffff', iconOnly:true },
   { id:'vrfs', name:'VRFS', label:'VRFS', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', html:'<img class="lx-vrfs-logo" src="./icons/vrfs-logo.jpg" alt="VRFS" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">' },
+  { id:'mr-pistol', name:'Pistola MR', label:'Pistola MR', bg:'#062c1e', imgUrl:'./icons/gun-logo.jpg', html:'<img class="lx-mr-pistol-logo" src="./icons/gun-logo.jpg" alt="Pistola MR" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">' },
   { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
   { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
   { id:'store', name:'Store', bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
@@ -1427,6 +1429,7 @@ const LIB_ACTIONS = {
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
   vrfs:     () => openVrfsGame(),
+  'mr-pistol': () => openMrPistolGame(),
   'gorilla-tag': () => openGorillaTag(),
   'beat-vr': () => openBeatSaberVr(),
   'roblox-vr': () => openRobloxVr(),
@@ -1441,6 +1444,7 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
+  { id: 'mr-pistol', name: 'Pistola MR · Tiro ao Alvo', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · Pistola Flutuante & Alvos', badge: 'NOVO MR', img: './icons/gun-logo.jpg', bg: 'linear-gradient(135deg,#064e3b,#10b981)' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
@@ -1872,6 +1876,7 @@ const SPATIAL_CORE_APPS = [
 ];
 
 const SPATIAL_GAME_ITEMS = [
+  { id:'mr-pistol',   name:'Pistola MR',     bg:'#062c1e', imgUrl:'./icons/gun-logo.jpg', isGame:true },
   { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
   { id:'vrfs',        name:'VRFS Futebol VR', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', isGame:true },
   { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
@@ -1959,11 +1964,28 @@ function renderSpatialTile(item) {
   </button>`;
 }
 
+function readLiveBatteryPercent() {
+  try {
+    const raw = window.NativeXR?.battery?.();
+    if (raw && raw !== 'null') {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (parsed && typeof parsed.level === 'number') {
+        return Math.round(Math.max(0, Math.min(1, parsed.level)) * 100);
+      }
+    }
+  } catch {}
+  const st = getDeviceStatus();
+  if (st && typeof st.batteryLevel === 'number') {
+    return Math.round(Math.max(0, Math.min(1, st.batteryLevel)) * 100);
+  }
+  return 100;
+}
+
 function buildSpatialLauncherDom() {
   const items = buildSpatialMixedItems();
   const st = getDeviceStatus();
-  const batPct = Math.round(Math.max(0, Math.min(1, st.batteryLevel ?? 0.9)) * 100);
-  const clockStr = st.time && st.time !== '--:--' ? st.time : '9:48';
+  const batPct = readLiveBatteryPercent();
+  const clockStr = st.time && st.time !== '--:--' ? st.time : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const avatarHtml = S.profileAvatar
     ? `<img src="${escH(S.profileAvatar)}" alt="" class="spatial-hz-avatar-img" draggable="false" />`
     : icon('user');
@@ -2161,6 +2183,7 @@ function buildSpatialLauncherDom() {
       if (id === 'shizuku') { shizukuWindow(); return; }
       if (id === 'gorilla-tag') { openGorillaTag(); return; }
       if (id === 'vrfs') { openVrfsGame(); return; }
+      if (id === 'mr-pistol') { openMrPistolGame(); return; }
       if (id === 'beat-vr') { openBeatSaberVr(); return; }
       if (id === 'roblox-vr' || id === 'roblox') { openRobloxVr(); return; }
       if (bBuiltin.dataset.spatialUrl) {
@@ -2845,15 +2868,32 @@ on('spatialLauncher', enabled => setSpatialLauncherMode(enabled));
 on('device-status', status => {
   const host = winBody('spatial-launcher');
   if (!host) return;
-  const clk = host.querySelector('[data-spatial-clock]');
-  if (clk && status?.time && status.time !== '--:--') clk.textContent = status.time;
-  const bat = host.querySelector('[data-spatial-bat]');
-  const fill = host.querySelector('.spatial-hz-bat-pill i');
-  if (typeof status?.batteryLevel === 'number') {
-    const pct = Math.round(Math.max(0, Math.min(1, status.batteryLevel)) * 100);
-    if (bat) bat.textContent = `${pct}%`;
-    if (fill) fill.style.width = `${pct}%`;
+  let dirty = false;
+  if (status?.time && status.time !== '--:--') {
+    host.querySelectorAll('[data-spatial-clock], [data-spatial-clock-top]').forEach(el => {
+      if (el.textContent !== status.time) {
+        el.textContent = status.time;
+        dirty = true;
+      }
+    });
   }
+  const pct = typeof status?.batteryLevel === 'number'
+    ? Math.round(Math.max(0, Math.min(1, status.batteryLevel)) * 100)
+    : readLiveBatteryPercent();
+  const pctStr = `${pct}%`;
+  host.querySelectorAll('[data-spatial-bat], [data-spatial-bat-top]').forEach(el => {
+    if (el.textContent !== pctStr) {
+      el.textContent = pctStr;
+      dirty = true;
+    }
+  });
+  host.querySelectorAll('.spatial-hz-bat-pill i').forEach(fill => {
+    if (fill.style.width !== pctStr) {
+      fill.style.width = pctStr;
+      dirty = true;
+    }
+  });
+  if (dirty) css3d.invalidate?.();
 });
 
 /* ============ dock (compacta, com atalho de ambiente virtual) ============ */

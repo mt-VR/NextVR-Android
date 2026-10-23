@@ -42,3 +42,35 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 ]);
 
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
+
+export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'mr-pistol',
+    tag: 'NOVO · JOGO EM MR',
+    time: 'Agora',
+    heading: 'Pistola MR: Pistola Flutuante & Alvos Próximos',
+    desc: 'Novo jogo em Realidade Mista (MR) na câmera real: pegue a pistola flutuante perto de você com Hand Tracking, atire nos 6 alvos próximos e reinicie no botão!',
+  },
+  {
+    id: 'green-glove',
+    tag: 'NOVO · HAND TRACKING LEVE',
+    time: 'Agora',
+    heading: 'Luva Verde Leve com Abertura nos Dedos',
+    desc: 'Hand Tracking substituído por um estilo muito mais leve e rápido: luva tática verde translúcida com abertura nos dedos e zero delay.',
+  },
+  {
+    id: 'sixdof',
+    tag: 'ATUALIZADO · 6DOF ULTRA',
+    time: 'Agora',
+    heading: '6DoF Ainda Melhor (World Lock Ultra & IRLS 70 Hz)',
+    desc: 'Fluxo ótico ponderado por contraste a 70 Hz com trava imediata de âncora (World Lock) e interpolação adaptativa a 120 Hz sem drift.',
+  },
+  {
+    id: 'battery-sync',
+    tag: 'CORRIGIDO · SISTEMA',
+    time: 'Agora',
+    heading: 'Bateria 100% Sincronizada com o Celular',
+    desc: 'Porcentagem real da bateria e status de carregamento sincronizados ao vivo com o celular no Menu Inicial, Dock, Library e Controles.',
+  },
+]);
+

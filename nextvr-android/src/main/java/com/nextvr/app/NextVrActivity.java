@@ -230,7 +230,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     return;
                 }
                 boolean inGame=gameHandMode;
-                if(r!=null)r.hands=inGame?null:frame;
+                if(r!=null)r.hands=(inGame && !r.handRenderer.mrGameMode)?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
@@ -256,9 +256,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.2;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
+                float walkGain=(!hasWalkAccel || !moving)?1f:Math.min(1.28f,Math.max(0.96f,0.92f+walkEnergy*0.48f));
+                float adjSc=moving?(sc*walkGain):0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
                 });
             }
             @Override public void cameraDefocus(boolean defocused) {
@@ -528,20 +530,36 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });
     }
     private boolean batteryReceiverRegistered=false;
+    private volatile Intent lastBatteryIntent=null;
+    private final Runnable batterySyncTask=new Runnable() {
+        @Override public void run() {
+            if(closed || !resumed) return;
+            pushBatteryState(null);
+            main.postDelayed(this,5000L);
+        }
+    };
     private final android.content.BroadcastReceiver batteryReceiver=new android.content.BroadcastReceiver() {
         @Override public void onReceive(android.content.Context context,Intent intent) {
+            if(intent!=null) lastBatteryIntent=intent;
             pushBatteryState(intent);
         }
     };
     String readBatteryJson(Intent state) {
-        if(state==null) state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if(state!=null) lastBatteryIntent=state;
+        if(state==null) {
+            try { state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)); }
+            catch(Throwable ignored) {}
+            if(state!=null) lastBatteryIntent=state;
+            else state=lastBatteryIntent;
+        }
         float ratio=-1f;
+        int bmCap=-1;
         boolean charging=false;
         try {
             android.os.BatteryManager bm=getSystemService(android.os.BatteryManager.class);
             if(bm!=null) {
                 int cap=bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY);
-                if(cap>=0 && cap<=100) ratio=cap/100f;
+                if(cap>0 && cap<=100) { bmCap=cap; ratio=cap/100f; }
                 if(Build.VERSION.SDK_INT>=23) charging=bm.isCharging();
             }
         } catch(Throwable ignored) {}
@@ -550,7 +568,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             int scale=state.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,100);
             int status=state.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,0);
             int plugged=state.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0);
-            if(level>=0 && scale>0) ratio=Math.max(0f,Math.min(1f,(float)level/scale));
+            if(level>=0 && scale>0) {
+                float intentRatio=Math.max(0f,Math.min(1f,(float)level/scale));
+                if(bmCap<=0 || Math.abs(intentRatio*100f-bmCap)<=2f) ratio=intentRatio;
+            }
             charging=charging || status==android.os.BatteryManager.BATTERY_STATUS_CHARGING
                 || status==android.os.BatteryManager.BATTERY_STATUS_FULL || plugged!=0;
         }
@@ -642,6 +663,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 pushBatteryState(sticky);
             } catch(Throwable ignored) {}
         }
+        main.removeCallbacks(batterySyncTask);
+        main.postDelayed(batterySyncTask,2500L);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
         for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
         if(appWindows!=null) appWindows.onShellResumed();
@@ -665,6 +688,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             try { unregisterReceiver(batteryReceiver); } catch(Throwable ignored) {}
             batteryReceiverRegistered=false;
         }
+        main.removeCallbacks(batterySyncTask);
         // The windows are not being composited while the VR activity is paused: detaching the
         // displays' output surfaces stops the frame traffic without killing the app or its task.
         if(appSessions!=null) for(AppSession session:appSessions.sessions())
@@ -866,11 +890,27 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void setGameHandMode(boolean enabled) {
             gameHandMode=enabled;
-            if(!closed && camera!=null) camera.gameHandMode=enabled;
+            if(!closed && camera!=null) {
+                camera.gameHandMode=enabled;
+                camera.mrGameMode=false;
+            }
             SpatialRenderer r=renderer;
             if(r!=null) {
                 r.handRenderer.gameHandMode=enabled;
+                r.handRenderer.mrGameMode=false;
                 if(enabled) r.hands=null;
+            }
+        }
+        @JavascriptInterface public void setMrGameMode(boolean enabled) {
+            gameHandMode=enabled;
+            if(!closed && camera!=null) {
+                camera.gameHandMode=enabled;
+                camera.mrGameMode=enabled;
+            }
+            SpatialRenderer r=renderer;
+            if(r!=null) {
+                r.handRenderer.gameHandMode=enabled;
+                r.handRenderer.mrGameMode=enabled;
             }
         }
         @JavascriptInterface public void wideCamera(boolean enabled) {

@@ -306,13 +306,15 @@ final class SpatialRenderer {
         if(viewport[0]==0) {
             float dx = targetSixDofX - sixDofX;
             float dz = targetSixDofZ - sixDofZ;
-            if(worldLock && dx*dx + dz*dz < 0.0018f*0.0018f) {
+            float distSq = dx*dx + dz*dz;
+            if(worldLock && distSq < 0.0022f*0.0022f) {
                 sixDofX = targetSixDofX;
                 sixDofZ = targetSixDofZ;
                 worldLocked = true;
             } else {
-                sixDofX += dx * 0.54f;
-                sixDofZ += dz * 0.54f;
+                float alpha = Math.min(0.72f, Math.max(0.54f, 0.50f + (float)Math.sqrt(distSq) * 1.6f));
+                sixDofX += dx * alpha;
+                sixDofZ += dz * alpha;
                 worldLocked = false;
             }
             if(Math.abs(sixDofX)<1e-4f && targetSixDofX==0f) sixDofX=0f;
@@ -333,7 +335,7 @@ final class SpatialRenderer {
             float tEnv = elapsedEnv / 1200f;
             envReveal = 1f - (1f - tEnv) * (1f - tEnv) * (1f - tEnv);
         }
-        if(!blackEnv && !handRenderer.gameHandMode) {
+        if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
             if(sphere && envReveal >= 0.999f) {
                 drawEnvironment(projection, 1f);
             } else {

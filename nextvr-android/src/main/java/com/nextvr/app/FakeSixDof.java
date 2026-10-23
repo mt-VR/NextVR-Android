@@ -34,6 +34,7 @@ public final class FakeSixDof {
     private final float[] ptY = new float[64];
     private final float[] ptDx = new float[64];
     private final float[] ptDy = new float[64];
+    private final float[] ptW = new float[64];
     private final float[] res = new float[64];
     private final float[] resSorted = new float[64];
     private final int[] goodIdx = new int[64];
@@ -89,7 +90,7 @@ public final class FakeSixDof {
             PhoneXrHands.Frame handsFrame,
             long nowMs) {
         if (cameraPixels == null || outW < W || outH < H) return null;
-        if (lastMs != 0L && nowMs - lastMs < 22L) return null;
+        if (lastMs != 0L && nowMs - lastMs < 14L) return null;
         lastMs = nowMs;
 
         if (outW != cachedW || outH != cachedH) {
@@ -289,6 +290,7 @@ public final class FakeSixDof {
                     ptY[nPts] = by + 4f - H * 0.5f;
                     ptDx[nPts] = gx + bdx + fx;
                     ptDy[nPts] = gy + bdy + fy;
+                    ptW[nPts] = Math.min(3.0f, tex / 210f);
                     nPts++;
                 }
             }
@@ -296,24 +298,28 @@ public final class FakeSixDof {
 
         if (nPts < 5) return null;
 
-        // 3) Modelo radial: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
-        float mx = 0f, my = 0f, px = 0f, py = 0f;
+        // 3) Modelo radial ponderado por contraste (IRLS): d = t + s * p
+        float mx = 0f, my = 0f, px = 0f, py = 0f, wSum0 = 0f;
         for (int i = 0; i < nPts; i++) {
-            mx += ptDx[i];
-            my += ptDy[i];
-            px += ptX[i];
-            py += ptY[i];
+            float w = ptW[i];
+            mx += ptDx[i] * w;
+            my += ptDy[i] * w;
+            px += ptX[i] * w;
+            py += ptY[i] * w;
+            wSum0 += w;
         }
-        mx /= nPts;
-        my /= nPts;
-        px /= nPts;
-        py /= nPts;
+        if (wSum0 <= 1e-5f) return null;
+        mx /= wSum0;
+        my /= wSum0;
+        px /= wSum0;
+        py /= wSum0;
         float num = 0f, den = 0f;
         for (int i = 0; i < nPts; i++) {
+            float w = ptW[i];
             float X = ptX[i] - px;
             float Y = ptY[i] - py;
-            num += (ptDx[i] - mx) * X + (ptDy[i] - my) * Y;
-            den += X * X + Y * Y;
+            num += w * ((ptDx[i] - mx) * X + (ptDy[i] - my) * Y);
+            den += w * (X * X + Y * Y);
         }
         float sc = den > 0f ? num / den : 0f;
 
@@ -333,44 +339,48 @@ public final class FakeSixDof {
         float limit = Math.max(0.42f, med * 2.15f);
 
         int goodCount = 0;
-        float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f;
+        float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f, gwSum = 0f;
         for (int i = 0; i < nPts; i++) {
             if (res[i] <= limit) {
                 goodIdx[goodCount++] = i;
-                gmx += ptDx[i];
-                gmy += ptDy[i];
-                gpx += ptX[i];
-                gpy += ptY[i];
+                float w = ptW[i] / (0.14f + res[i]);
+                ptW[i] = w;
+                gmx += ptDx[i] * w;
+                gmy += ptDy[i] * w;
+                gpx += ptX[i] * w;
+                gpy += ptY[i] * w;
+                gwSum += w;
             }
         }
-        if (goodCount < 5 || goodCount < (nPts * 55) / 100) {
+        if (goodCount < 5 || goodCount < (nPts * 55) / 100 || gwSum <= 1e-5f) {
             prevValidSc = 0f;
             worldLocked = true;
             return null;
         }
-        gmx /= goodCount;
-        gmy /= goodCount;
-        gpx /= goodCount;
-        gpy /= goodCount;
+        gmx /= gwSum;
+        gmy /= gwSum;
+        gpx /= gwSum;
+        gpy /= gwSum;
         float gnum = 0f, gden = 0f;
         for (int k = 0; k < goodCount; k++) {
             int i = goodIdx[k];
+            float w = ptW[i];
             float X = ptX[i] - gpx;
             float Y = ptY[i] - gpy;
-            gnum += (ptDx[i] - gmx) * X + (ptDy[i] - gmy) * Y;
-            gden += X * X + Y * Y;
+            gnum += w * ((ptDx[i] - gmx) * X + (ptDy[i] - gmy) * Y);
+            gden += w * (X * X + Y * Y);
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
         float latFlow = gmx - gxSub;
 
-        // World Lock: se o movimento radial e lateral está abaixo do limiar de ancoragem ou há rotação pura,
-        // trava a âncora no mundo real (worldLocked = true) sem deriva residual.
-        boolean significantFlow = (Math.abs(finalSc) >= 0.0014f && Math.abs(finalSc) <= 0.18f)
-            || (Math.abs(latFlow) >= 0.14f && Math.abs(latFlow) <= 5.5f);
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.8) {
+        // World Lock Ultra: se o movimento radial e lateral está abaixo do limiar de ancoragem ou há rotação pura,
+        // trava a âncora no mundo real imediatamente (worldLocked = true) sem deriva residual.
+        boolean significantFlow = (Math.abs(finalSc) >= 0.0012f && Math.abs(finalSc) <= 0.18f)
+            || (Math.abs(latFlow) >= 0.12f && Math.abs(latFlow) <= 5.5f);
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.9) {
             stationaryFrames = 0;
-            if (Math.abs(finalSc) >= 0.0014f && Math.abs(finalSc) <= 0.18f) {
-                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 180L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+            if (Math.abs(finalSc) >= 0.0012f && Math.abs(finalSc) <= 0.18f) {
+                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 190L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
                     finalSc = finalSc * 0.72f + prevValidSc * 0.28f;
                     worldLocked = false;
                 }
@@ -384,7 +394,7 @@ public final class FakeSixDof {
             finalSc = 0f;
             prevValidSc = 0f;
             stationaryFrames++;
-            if (stationaryFrames >= 2) {
+            if (stationaryFrames >= 1) {
                 worldLocked = true;
                 System.arraycopy(g, 0, keyframe, 0, g.length);
                 hasKeyframe = true;

@@ -19,6 +19,7 @@ const _ptX = new Float32Array(64);
 const _ptY = new Float32Array(64);
 const _ptDx = new Float32Array(64);
 const _ptDy = new Float32Array(64);
+const _ptW = new Float32Array(64);
 const _res = new Float32Array(64);
 const _resSorted = new Float32Array(64);
 const _goodIdx = new Int32Array(64);
@@ -294,6 +295,7 @@ export const SixDof = {
           _ptY[nPts] = by + 4 - H * 0.5;
           _ptDx[nPts] = gx + bdx + fx;
           _ptDy[nPts] = gy + bdy + fy;
+          _ptW[nPts] = Math.min(3.0, tex / 210);
           nPts++;
         }
       }
@@ -301,17 +303,21 @@ export const SixDof = {
     this.prev.set(g);
     if (nPts < 10) return null;
 
-    // 3) Modelo: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
-    let mx = 0, my = 0, px = 0, py = 0;
+    // 3) Modelo IRLS ponderado por contraste: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
+    let mx = 0, my = 0, px = 0, py = 0, wSum = 0;
     for (let i = 0; i < nPts; i++) {
-      mx += _ptDx[i]; my += _ptDy[i]; px += _ptX[i]; py += _ptY[i];
+      const w = _ptW[i];
+      mx += _ptDx[i] * w; my += _ptDy[i] * w; px += _ptX[i] * w; py += _ptY[i] * w;
+      wSum += w;
     }
-    mx /= nPts; my /= nPts; px /= nPts; py /= nPts;
+    if (wSum <= 0) return null;
+    mx /= wSum; my /= wSum; px /= wSum; py /= wSum;
     let num = 0, den = 0;
     for (let i = 0; i < nPts; i++) {
+      const w = _ptW[i];
       const X = _ptX[i] - px, Y = _ptY[i] - py;
-      num += (_ptDx[i] - mx) * X + (_ptDy[i] - my) * Y;
-      den += X * X + Y * Y;
+      num += w * ((_ptDx[i] - mx) * X + (_ptDy[i] - my) * Y);
+      den += w * (X * X + Y * Y);
     }
     let sc = den > 0 ? num / den : 0;
 
@@ -325,21 +331,24 @@ export const SixDof = {
     if (med > 0.85) return null;
     const limit = Math.max(0.35, med * 2);
     let goodCount = 0;
-    let gmx = 0, gmy = 0, gpx = 0, gpy = 0;
+    let gmx = 0, gmy = 0, gpx = 0, gpy = 0, gwSum = 0;
     for (let i = 0; i < nPts; i++) {
       if (_res[i] <= limit) {
         _goodIdx[goodCount++] = i;
-        gmx += _ptDx[i]; gmy += _ptDy[i]; gpx += _ptX[i]; gpy += _ptY[i];
+        const w = _ptW[i] / (0.14 + _res[i]);
+        gmx += _ptDx[i] * w; gmy += _ptDy[i] * w; gpx += _ptX[i] * w; gpy += _ptY[i] * w;
+        gwSum += w;
       }
     }
-    if (goodCount < 8) return null;
-    gmx /= goodCount; gmy /= goodCount; gpx /= goodCount; gpy /= goodCount;
+    if (goodCount < 8 || gwSum <= 0) return null;
+    gmx /= gwSum; gmy /= gwSum; gpx /= gwSum; gpy /= gwSum;
     let gnum = 0, gden = 0;
     for (let k = 0; k < goodCount; k++) {
       const i = _goodIdx[k];
+      const w = _ptW[i] / (0.14 + _res[i]);
       const X = _ptX[i] - gpx, Y = _ptY[i] - gpy;
-      gnum += (_ptDx[i] - gmx) * X + (_ptDy[i] - gmy) * Y;
-      gden += X * X + Y * Y;
+      gnum += w * ((_ptDx[i] - gmx) * X + (_ptDy[i] - gmy) * Y);
+      gden += w * (X * X + Y * Y);
     }
     sc = gden > 0 ? gnum / gden : 0;
 
@@ -496,9 +505,9 @@ export const SixDof = {
       }
     }
 
-    // Se houver um elemento <video> HTML (modo web/preview), processa a ~22 Hz (45 ms)
+    // Se houver um elemento <video> HTML (modo web/preview), processa a ~30 Hz (33 ms)
     const vid = _getVideo();
-    if (!vid || vid.readyState < 2 || now - this.lastT < 45) return;
+    if (!vid || vid.readyState < 2 || now - this.lastT < 33) return;
     this.lastT = now;
     this.init();
     if (!this.ctx) return;

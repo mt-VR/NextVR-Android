@@ -12,6 +12,7 @@ import {
   ENTRY_ABOUT_TITLE,
   ENTRY_ABOUT_PARAGRAPHS,
   ENTRY_ABOUT_TEXT,
+  ENTRY_UPDATES,
 } from './entry-data.js';
 
 export {
@@ -25,6 +26,7 @@ export {
   ENTRY_ABOUT_TITLE,
   ENTRY_ABOUT_PARAGRAPHS,
   ENTRY_ABOUT_TEXT,
+  ENTRY_UPDATES,
 };
 
 const SVG_BACK_ARROW = `
@@ -58,6 +60,7 @@ const SVG_TIKTOK_VERIFIED = `
 </svg>`;
 
 const MENU_STORE_APPS = [
+  { id: 'mr-pistol', name: 'Pistola MR · Tiro ao Alvo', cat: 'MR · Pistola Flutuante & Alvos · 4.9 ★', bg: '#064e3b', img: './icons/gun-logo.jpg' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'Chuteiras VR · Bola 3D · 4.9 ★', bg: '#052e16', img: './icons/vrfs-logo.jpg' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
@@ -333,38 +336,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <span class="entry-updates-badge">v2.0.0</span>
           </div>
           <div class="entry-updates-list">
-            <article class="entry-notif-card" data-entry-notif="sixdof">
+            ${ENTRY_UPDATES.map(u => `
+            <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
               <div class="entry-notif-top">
-                <span class="entry-notif-tag">AGORA · 6DOF AR</span>
-                <span class="entry-notif-time">Novo</span>
+                <span class="entry-notif-tag">${escHtml(u.tag)}</span>
+                <span class="entry-notif-time">${escHtml(u.time)}</span>
               </div>
-              <strong class="entry-notif-heading">6DoF Estabilizado &amp; Verso Branco Translúcido</strong>
-              <p class="entry-notif-desc">Corrigido o avanço sozinho; travamento horizontal no chão e verso da Dock branco translúcido ao passar por trás.</p>
-            </article>
-            <article class="entry-notif-card" data-entry-notif="browser-hold">
-              <div class="entry-notif-top">
-                <span class="entry-notif-tag">NOVO · NAVEGADOR (2S)</span>
-                <span class="entry-notif-time">Novo</span>
-              </div>
-              <strong class="entry-notif-heading">+ Nova Guia &amp; + Guia Anônima</strong>
-              <p class="entry-notif-desc">Segure por 2 segundos no app do Navegador (com Hand Tracking de Pinça ou Toque) para escolher + Nova Guia ou + Guia Anônima.</p>
-            </article>
-            <article class="entry-notif-card" data-entry-notif="dock-pinch">
-              <div class="entry-notif-top">
-                <span class="entry-notif-tag">CORREÇÃO · HAND TRACKING</span>
-                <span class="entry-notif-time">Ativo</span>
-              </div>
-              <strong class="entry-notif-heading">Pinça Calibrada Perto da Dock (em Bar)</strong>
-              <p class="entry-notif-desc">Corrigida a seleção de apps com pinça ao aproximar-se da Dock em barra, com prioridade sobre janelas de fundo.</p>
-            </article>
-            <article class="entry-notif-card" data-entry-notif="spatial-library">
-              <div class="entry-notif-top">
-                <span class="entry-notif-tag">GORILLA TAG VR · UPDATE</span>
-                <span class="entry-notif-time">Novo</span>
-              </div>
-              <strong class="entry-notif-heading">Contador de Moedas no Braço Direito &amp; Mãos Corrigidas</strong>
-              <p class="entry-notif-desc">Nova logo amarela do Gorilla Tag, contador de moedas 3D no braço direito, mão direita/esquerda corrigidas e saída automática desativada.</p>
-            </article>
+              <strong class="entry-notif-heading">${escHtml(u.heading)}</strong>
+              <p class="entry-notif-desc">${escHtml(u.desc)}</p>
+            </article>`).join('')}
           </div>
         </div>
         <div class="entry-brand-store-dock">
@@ -894,6 +874,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         if (appId) emit('store-app-launch', appId);
       };
     });
+    const mrNotifCard = root.querySelector('[data-entry-notif="mr-pistol"]');
+    if (mrNotifCard) {
+      mrNotifCard.style.cursor = 'pointer';
+      mrNotifCard.onclick = () => emit('store-app-launch', 'mr-pistol');
+    }
 
     // Eventos do painel Login / Perfil
     const nameInput = root.querySelector('[data-profile-name-input]');
@@ -1152,6 +1137,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   };
 
   on('device-status', syncClockAndBatteryDom);
+  setInterval(syncClockAndBatteryDom, 2500);
+  const prevNextvrBattery = window.nextvrBattery;
+  window.nextvrBattery = data => {
+    try { prevNextvrBattery?.(data); } catch {}
+    syncClockAndBatteryDom();
+  };
 
   window.nextvrProfilePhoto = dataUrl => {
     if (!dataUrl) return;
