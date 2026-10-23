@@ -158,21 +158,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // para que caminhar ou inclinar o tronco funcione igual ao Meta Quest sem andar sozinho parado.
                     float stepImpact=Math.abs(mag-gravMag);
                     float linDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    if((stepImpact>0.085f || (linDelta>0.14f && gyroRate<0.72f)) && gyroRate<0.85f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.88f + Math.max(stepImpact, linDelta*0.75f)*1.15f);
-                        if(walkEnergy>0.14f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if((stepImpact>0.065f || (linDelta>0.10f && gyroRate<0.85f)) && gyroRate<1.05f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.90f + Math.max(stepImpact, linDelta*0.80f)*1.30f);
+                        if(walkEnergy>0.10f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else {
-                        walkEnergy*=0.90f;
+                        walkEnergy*=0.91f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.11f && gyroRate<0.82f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.88f + lmag*1.10f);
-                    if(walkEnergy>0.14f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.085f && gyroRate<0.95f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.90f + lmag*1.25f);
+                    if(walkEnergy>0.10f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 } else {
-                    walkEnergy*=0.90f;
+                    walkEnergy*=0.91f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -1057,9 +1057,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void sixDofOffset(float x, float y, float z) {
             SpatialRenderer target=renderer;
             if(target!=null && Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(z)) {
-                target.sixDofX=Math.max(-2.2f, Math.min(2.2f, x));
+                float cx=Math.max(-2.6f, Math.min(2.6f, x));
+                float cz=Math.max(-2.6f, Math.min(2.6f, z));
+                target.targetSixDofX=cx;
+                target.targetSixDofZ=cz;
+                if(target.sixDofX==0f && target.sixDofZ==0f) {
+                    target.sixDofX=cx*0.55f;
+                    target.sixDofZ=cz*0.55f;
+                }
                 target.sixDofY=0f;
-                target.sixDofZ=Math.max(-2.2f, Math.min(2.2f, z));
             }
         }
         @JavascriptInterface public void setSixDofEnabled(boolean enabled) {
@@ -1071,6 +1077,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void resetSixDof() {
             SpatialRenderer target=renderer;
             if(target!=null) {
+                target.targetSixDofX=0f;
+                target.targetSixDofZ=0f;
                 target.sixDofX=0f;
                 target.sixDofY=0f;
                 target.sixDofZ=0f;

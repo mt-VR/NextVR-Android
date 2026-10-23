@@ -18,6 +18,7 @@ public final class FakeSixDof {
 
     private final float[] g = new float[W * H];
     private float[] prev = null;
+    private final float[] globalSad = new float[225];
     private final float[] sad49 = new float[49];
     private final float[] ptX = new float[64];
     private final float[] ptY = new float[64];
@@ -53,7 +54,7 @@ public final class FakeSixDof {
             PhoneXrHands.Frame handsFrame,
             long nowMs) {
         if (cameraPixels == null || outW < W || outH < H) return null;
-        if (lastMs != 0L && nowMs - lastMs < 33L) return null;
+        if (lastMs != 0L && nowMs - lastMs < 24L) return null;
         lastMs = nowMs;
 
         // Downsampling 2x2 com filtro de caixa (box filter) para 96x72 em luminância:
@@ -85,25 +86,40 @@ public final class FakeSixDof {
 
         final float[] P = prev;
 
-        // 1) Deslocamento global (rotação da cabeça) na zona central (+-7 px)
+        // 1) Deslocamento global (rotação da cabeça) na zona central (+-7 px) com refinamento sub-pixel
         float best = 1e18f;
         int gx = 0, gy = 0;
+        int gsi = 0;
         for (int oy = -7; oy <= 7; oy++) {
             for (int ox = -7; ox <= 7; ox++) {
                 float sad = 0f;
-                for (int y = 22; y < 50 && sad < best; y += 2) {
+                for (int y = 22; y < 50; y += 2) {
                     int r = y * W;
                     int r2 = (y + oy) * W;
                     for (int x = 30; x < 66; x += 2) {
                         sad += Math.abs(g[r2 + x + ox] - P[r + x]);
                     }
                 }
+                globalSad[gsi++] = sad;
                 if (sad < best) {
                     best = sad;
                     gx = ox;
                     gy = oy;
                 }
             }
+        }
+        float gxSub = gx, gySub = gy;
+        if (Math.abs(gx) < 7) {
+            float a = globalSad[(gy + 7) * 15 + (gx - 1 + 7)];
+            float c = globalSad[(gy + 7) * 15 + (gx + 1 + 7)];
+            float den = a - 2f * best + c;
+            if (den > 0f) gxSub = gx + 0.5f * (a - c) / den;
+        }
+        if (Math.abs(gy) < 7) {
+            float a = globalSad[(gy - 1 + 7) * 15 + (gx + 7)];
+            float c = globalSad[(gy + 1 + 7) * 15 + (gx + 7)];
+            float den = a - 2f * best + c;
+            if (den > 0f) gySub = gy + 0.5f * (a - c) / den;
         }
 
         // Caixas das mãos (handBoxes +-0.08) com retenção de 400 ms (0.4 s)
@@ -135,7 +151,7 @@ public final class FakeSixDof {
             retainedHandCount = 0;
         }
 
-        // 2) Blocos 8x8 numa grelha, procura +-2 px à volta do deslocamento global (sub-pixel)
+        // 2) Blocos 8x8 numa grelha, procura +-3 px à volta do deslocamento global (sub-pixel)
         int nPts = 0;
         for (int by = 10; by <= H - 18; by += 10) {
             for (int bx = 10; bx <= W - 18; bx += 11) {
@@ -152,13 +168,14 @@ public final class FakeSixDof {
                 if (inHand) continue;
 
                 float tex = 0f;
-                for (int y = by; y < by + 8; y++) {
+                for (int y = by; y < by + 7; y++) {
                     int row = y * W;
+                    int nextRow = (y + 1) * W;
                     for (int x = bx; x < bx + 7; x++) {
-                        tex += Math.abs(P[row + x + 1] - P[row + x]);
+                        tex += Math.abs(P[row + x + 1] - P[row + x]) + Math.abs(P[nextRow + x] - P[row + x]);
                     }
                 }
-                if (tex < 95f) continue; // sem textura suficiente (parede lisa)
+                if (tex < 110f) continue; // sem textura suficiente (parede lisa)
 
                 int si = 0;
                 float bs = 1e18f;
@@ -279,6 +296,6 @@ public final class FakeSixDof {
         } else {
             prevValidSc = 0f;
         }
-        return new float[]{ finalSc, gx, gy, gmx };
+        return new float[]{ finalSc, gxSub, gySub, gmx };
     }
 }

@@ -2,7 +2,7 @@
 import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
+import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
@@ -2249,6 +2249,8 @@ on('mr-dim', () => {
   if (winBody('fist-menu')) paintFistQuickMenu();
 });
 
+let gestureHiddenWins = [];
+
 export function toggleSpatialAndDockFromGesture() {
   if (S.spatialLauncher || wins.some(w => w.id === 'spatial-launcher')) {
     let spWin = wins.find(w => w.id === 'spatial-launcher');
@@ -2256,13 +2258,25 @@ export function toggleSpatialAndDockFromGesture() {
       S.spatialLauncher = 1;
       spWin = spatialLauncherApp();
     }
-    const nextHidden = !spWin.hidden;
+    const otherVisible = wins.filter(w => w !== spWin && w.id !== 'entry-menu' && !w.hidden);
+    const nextHidden = !spWin.hidden || otherVisible.length > 0;
     spatialLauncherGestureSuppressed = nextHidden;
     spatialLauncherGestureForcedVisible = !nextHidden;
     spWin.setHidden(nextHidden);
+    if (nextHidden) {
+      gestureHiddenWins = otherVisible.map(w => w.id);
+      for (const w of otherVisible) w.setHidden(true);
+      setKeyboardHidden(true);
+    } else {
+      for (const id of gestureHiddenWins) {
+        const w = wins.find(x => x.id === id);
+        if (w) w.setHidden(false);
+      }
+      gestureHiddenWins = [];
+    }
     css3d.invalidate?.();
     css3d.render?.(scene, camera);
-    toast(nextHidden ? 'Spatial App ocultado' : 'Spatial App exibido');
+    toast(nextHidden ? 'Spatial App e janelas ocultados' : 'Spatial App exibido');
     return !nextHidden;
   }
   const dockNode = document.querySelector('.dock');
@@ -2270,11 +2284,20 @@ export function toggleSpatialAndDockFromGesture() {
   if (isDockHidden) {
     setDockHidden(false);
     setDockVisible(true);
-    toast('Dock exibida');
+    for (const id of gestureHiddenWins) {
+      const w = wins.find(x => x.id === id);
+      if (w) w.setHidden(false);
+    }
+    gestureHiddenWins = [];
+    toast('Dock e janelas exibidas');
   } else {
     setDockVisible(false);
     setDockHidden(true);
-    toast('Dock ocultada');
+    const otherVisible = wins.filter(w => w.id !== 'entry-menu' && !w.hidden);
+    gestureHiddenWins = otherVisible.map(w => w.id);
+    for (const w of otherVisible) w.setHidden(true);
+    setKeyboardHidden(true);
+    toast('Dock e janelas ocultadas');
   }
   css3d.invalidate?.();
   css3d.render?.(scene, camera);

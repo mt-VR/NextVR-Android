@@ -9,7 +9,7 @@ export const CARDBOARD_2015_LENS = Object.freeze({
   k1: 0.22,
   k2: 0.24,
   ipd: 0.064,
-  fov: 76,
+  fov: 80,
 });
 
 const SPAWN_HINT = [0, 2, 7];

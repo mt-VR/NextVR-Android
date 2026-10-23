@@ -114,7 +114,7 @@ export const SixDof = {
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.18, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest)
+  depth: 1.32, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -301,9 +301,9 @@ export const SixDof = {
 
     let movedAny = false;
     if (hasDepthFlow && prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
-        Math.abs(sc - prevSc) <= Math.max(0.068, Math.abs(sc) * 1.65)) {
+        Math.abs(sc - prevSc) <= Math.max(0.075, Math.abs(sc) * 1.75)) {
       const stepSc = (sc + prevSc) * 0.5;
-      const step = Math.max(-0.088, Math.min(0.088, stepSc * this.depth));
+      const step = Math.max(-0.095, Math.min(0.095, stepSc * this.depth));
       _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
       _sdFwd.y = 0;
       if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
@@ -318,7 +318,7 @@ export const SixDof = {
       if (_sdRight.lengthSq() > 1e-6) _sdRight.normalize();
       else _sdRight.set(1, 0, 0);
       const latAvg = (latDx + prevLat) * 0.5;
-      const latStep = Math.max(-0.052, Math.min(0.052, -latAvg * 0.017));
+      const latStep = Math.max(-0.060, Math.min(0.060, -latAvg * 0.020));
       this.pos.addScaledVector(_sdRight, latStep);
       movedAny = true;
     }
@@ -328,8 +328,8 @@ export const SixDof = {
 
     // Limites de segurança no plano horizontal
     const planarLen = Math.hypot(this.pos.x, this.pos.z);
-    if (planarLen > 2.4) {
-      const scale = 2.4 / planarLen;
+    if (planarLen > 2.6) {
+      const scale = 2.6 / planarLen;
       this.pos.x *= scale;
       this.pos.z *= scale;
     }
@@ -337,7 +337,7 @@ export const SixDof = {
 
     // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
     // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
-    this.out.lerp(this.pos, 0.68);
+    this.out.lerp(this.pos, 0.74);
     this.out.y = 0;
     cam.position.x = this.out.x;
     cam.position.z = this.out.z;

@@ -161,6 +161,7 @@ final class SpatialRenderer {
     volatile boolean wideCamera = false;
     volatile boolean mrDim = false;
     volatile float sixDofX = 0f, sixDofY = 0f, sixDofZ = 0f;
+    volatile float targetSixDofX = 0f, targetSixDofZ = 0f;
     /** Target vertical resolution: High = 1440p, Medium = 1280p, Low = 1080p (never pixelates below 1080p). */
     volatile float qualityHeight = 1280f;
     void setQuality(String q) {
@@ -300,6 +301,12 @@ final class SpatialRenderer {
         // samples the left view's rect in the first pass and the right view's rect in the second
         // one — the two half-images won't be split per-pass otherwise.
         eyeUniform=viewport[0]==0?0f:1f;
+        if(viewport[0]==0) {
+            sixDofX += (targetSixDofX - sixDofX) * 0.48f;
+            sixDofZ += (targetSixDofZ - sixDofZ) * 0.48f;
+            if(Math.abs(sixDofX)<1e-4f && targetSixDofX==0f) sixDofX=0f;
+            if(Math.abs(sixDofZ)<1e-4f && targetSixDofZ==0f) sixDofZ=0f;
+        }
         if(sixDofX!=0f || sixDofY!=0f || sixDofZ!=0f) Matrix.translateM(view,0,-sixDofX,-sixDofY,-sixDofZ);
         Matrix.invertM(viewInv,0,view,0);
         Matrix.multiplyMM(viewProj,0,projection,0,view,0);

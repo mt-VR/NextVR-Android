@@ -44,7 +44,7 @@ class PhoneXrHandRenderer {
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
-        "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float len2=max(dot(axis,axis),1e-6); float t=dot(vPos-uKnuckle,axis)/len2; if(uUseGrad>2.5){ float s=dot(vPos-uKnuckle,vec2(-axis.y,axis.x))/len2; float cyl=clamp(1.-abs(s)*1.25,0.,1.); float fade=1.-smoothstep(2.42,2.85,t); float sleeve=smoothstep(1.13,1.20,t); float seam=smoothstep(1.11,1.16,t)*(1.-smoothstep(1.16,1.23,t)); vec3 skinLit=mix(uColor.rgb*.82,uColor.rgb*1.08,cyl*.75+.25); vec3 sleeveCol=mix(vec3(.07,.15,.46),vec3(.15,.31,.76),cyl*.8+.2)-vec3(.05,.08,.18)*seam; vec3 fillCol=mix(skinLit,sleeveCol,sleeve); vec3 outCol=mix(uColor.rgb,vec3(.05,.10,.32),sleeve); vec3 col=uUseGrad>3.5?outCol:fillCol; gl_FragColor=vec4(col,uColor.a*fade); return; } float fade=uUseGrad>1.5?(1.-smoothstep(.82,1.02,t)):(1.-smoothstep(.34,.86,t)); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
+        "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=uUseGrad>1.5?(1.-smoothstep(.82,1.02,t)):(1.-smoothstep(.34,.86,t)); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
     private val matrixUniform=GLES20.glGetUniformLocation(colorProgram,"uMatrix")
     private val colorUniform=GLES20.glGetUniformLocation(colorProgram,"uColor")
     private val wristUniform=GLES20.glGetUniformLocation(colorProgram,"uWrist")
@@ -326,7 +326,6 @@ class PhoneXrHandRenderer {
     }
 private fun drawHandSkeletons(position: Int, fade: Float) {
         val color=colorUniform
-        val isVirt=virtualEnv
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
@@ -335,30 +334,19 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
             GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
             val isOutline = mesh.color[0] > .5f
-            if (isVirt) {
-                GLES20.glUniform1f(gradUniform,if(isOutline) 4f else 3f)
-                if (isOutline) {
-                    val alpha = (if (mesh.touching) .96f else .92f) * fade
-                    GLES20.glUniform4f(color,.66f*.94f,.48f*.94f,.36f*.94f,alpha)
-                } else {
-                    val alpha = (if (mesh.touching) .99f else .97f) * fade
-                    GLES20.glUniform4f(color,.88f,.70f,.56f,alpha)
-                }
+            GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
+            if (isOutline) {
+                val alpha = if (mesh.touching) .84f else mesh.color[3]
+                val cr = mesh.color[0]
+                val cg = mesh.color[1]
+                val cb = mesh.color[2]
+                GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
             } else {
-                GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
-                if (isOutline) {
-                    val alpha = if (mesh.touching) .84f else mesh.color[3]
-                    val cr = mesh.color[0]
-                    val cg = mesh.color[1]
-                    val cb = mesh.color[2]
-                    GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
-                } else {
-                    val r = HAND_FILL_R
-                    val g = HAND_FILL_G
-                    val b = HAND_FILL_B
-                    val alpha = if (mesh.touching) .42f else mesh.color[3]
-                    GLES20.glUniform4f(color,r,g,b,alpha*fade)
-                }
+                val r = HAND_FILL_R
+                val g = HAND_FILL_G
+                val b = HAND_FILL_B
+                val alpha = if (mesh.touching) .42f else mesh.color[3]
+                GLES20.glUniform4f(color,r,g,b,alpha*fade)
             }
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
@@ -497,28 +485,6 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
                     chain(ulnarChain, r * .95f, wristHalf - eh)
                     chain(radialChain, wristHalf - eh, r * 1.12f)
-                    if (virtualEnv) {
-                        val skinEndX = virtX + axX * axL * .24f
-                        val skinEndY = virtY + axY * axL * .24f
-                        val cuffStartX = virtX + axX * axL * .22f
-                        val cuffStartY = virtY + axY * axL * .22f
-                        val armMidX = virtX + axX * axL * 1.15f
-                        val armMidY = virtY + axY * axL * 1.15f
-                        val armEndX = virtX + axX * axL * 2.55f
-                        val armEndY = virtY + axY * axL * 2.55f
-                        val wR = wristHalf * 1.02f + grow
-                        val skinR = wristHalf * 1.05f + grow
-                        val cuffR = wristHalf * 1.20f + grow
-                        val midR = wristHalf * 1.34f + grow
-                        val endR = wristHalf * 1.48f + grow
-                        handDisc(shape, virtX, virtY, wR)
-                        handBone(shape, virtX, virtY, skinEndX, skinEndY, wR, skinR)
-                        handDisc(shape, cuffStartX, cuffStartY, cuffR)
-                        handBone(shape, cuffStartX, cuffStartY, armMidX, armMidY, cuffR, midR)
-                        handDisc(shape, armMidX, armMidY, midR)
-                        handBone(shape, armMidX, armMidY, armEndX, armEndY, midR, endR)
-                        handDisc(shape, armEndX, armEndY, endR)
-                    }
                     // Thumb and fingers, thinner towards the tips.
                     val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
                     for (finger in 0 until 5) {

@@ -40,7 +40,7 @@ export class AtlasRenderer {
     if (window.__gorillaStereoOverlay) {
       const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
       const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
-        .multiply(new THREE.Matrix4().makeScale(sy * 1.15, sy * 0.96, 1));
+        .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
       const panels = [{
         overlay: true,
         matrix: gHud.toArray(),
