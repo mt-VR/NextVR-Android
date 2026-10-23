@@ -93,8 +93,8 @@ class PhoneXrHandRenderer {
     private val hasStencil=true
     private var touching=false
     @Volatile var showPointer=false
-    @Volatile var virtualEnv=false
-    @Volatile var gameHandMode=false
+    @JvmField @Volatile var virtualEnv=false
+    @JvmField @Volatile var gameHandMode=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
