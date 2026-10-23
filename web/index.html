@@ -199,17 +199,14 @@
      para cada idioma, seja qual for a altura da janela — que, aliás, está presa em 660 px, porque o
      slot de textura de uma janela no atlas nativo tem 980 px de altura com 160 px de margem por
      lado. `line-height` é explícito em cada peça para o texto não crescer dentro da linha. */
-  /* ---------- espaço pré-definido ao mover janelas na Dock normal ---------- */
-  .win-drop-slot{pointer-events:none;border-radius:24px;background:rgba(4,6,12,.58);
-    border:2px dashed rgba(148,163,184,.48);
+  /* ---------- espaço pré-definido ao mover janelas na Dock normal (preto meio transparente, sem azul e sem texto) ---------- */
+  .win-drop-slot{pointer-events:none;border-radius:24px;background:rgba(0,0,0,.46);
+    border:1.5px solid rgba(255,255,255,.14);
     box-shadow:0 24px 64px rgba(0,0,0,.62),inset 0 0 36px rgba(0,0,0,.55);
     display:grid;place-items:center;transition:background .14s,border-color .14s,box-shadow .14s}
-  .win-drop-slot.is-ready{background:rgba(6,14,28,.72);border-style:solid;border-color:rgba(56,189,248,.92);
-    box-shadow:0 28px 72px rgba(0,0,0,.74),0 0 32px rgba(56,189,248,.42),inset 0 0 42px rgba(14,165,233,.22)}
-  .win-drop-slot-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-    padding:16px 24px;border-radius:16px;background:rgba(0,0,0,.52);border:1px solid rgba(255,255,255,.14)}
-  .win-drop-slot-badge{font-size:15px;font-weight:700;letter-spacing:.02em;color:rgba(226,232,240,.92);text-align:center}
-  .win-drop-slot.is-ready .win-drop-slot-badge{color:#7dd3fc}
+  .win-drop-slot.is-ready{background:rgba(0,0,0,.62);border-style:solid;border-color:rgba(255,255,255,.24);
+    box-shadow:0 28px 72px rgba(0,0,0,.76),inset 0 0 42px rgba(0,0,0,.68)}
+  .win-drop-slot-inner,.win-drop-slot-badge{display:none!important}
 
   /* ---------- escolher idioma / onboarding (retrato compacto) ---------- */
   .langwin{height:100%;width:100%;padding:14px 16px 12px;display:flex;flex-direction:column;
@@ -452,7 +449,19 @@
     border:1px solid rgba(214,224,242,.22);
     backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);
     box-shadow:0 16px 38px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.38);
-    pointer-events:auto}
+    pointer-events:auto;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
+  html[data-dock-color="black"] .dock,.dock[data-dock-color="black"]{
+    background:rgba(4,5,8,.84)!important;border-color:rgba(255,255,255,.16)!important}
+  html[data-dock-color="blue"] .dock,.dock[data-dock-color="blue"]{
+    background:linear-gradient(180deg,rgba(29,78,216,.84),rgba(15,23,42,.92))!important;border-color:rgba(96,165,250,.46)!important}
+  html[data-dock-color="purple"] .dock,.dock[data-dock-color="purple"]{
+    background:linear-gradient(180deg,rgba(109,40,217,.84),rgba(24,14,48,.92))!important;border-color:rgba(192,132,252,.46)!important}
+  html[data-dock-color="green"] .dock,.dock[data-dock-color="green"]{
+    background:linear-gradient(180deg,rgba(5,150,105,.82),rgba(10,30,24,.92))!important;border-color:rgba(52,211,153,.46)!important}
+  html[data-dock-color="red"] .dock,.dock[data-dock-color="red"]{
+    background:linear-gradient(180deg,rgba(185,28,28,.84),rgba(34,12,16,.92))!important;border-color:rgba(248,113,113,.46)!important}
+  html[data-dock-color="glass"] .dock,.dock[data-dock-color="glass"]{
+    background:rgba(12,15,22,.40)!important;border-color:rgba(255,255,255,.28)!important}
   .dock button{color:#e7e9ed}
   /* A área de arrasto mantém uma barrinha branca visível logo abaixo da dock. */
   .dock-grab{position:absolute;left:50%;top:calc(100% + 8px);bottom:auto;transform:translateX(-50%);z-index:5;
@@ -3061,7 +3070,7 @@
     gap:4px;
     padding:3px 6px;
     border-radius:999px;
-    background:rgba(20,24,33,.64);
+    background:rgba(0,0,0,.56);
     border:1px solid rgba(255,255,255,.14);
     pointer-events:auto;
     z-index:7;
@@ -3069,13 +3078,14 @@
   .win-shell.cinema-360 .win-predefined-slots{
     display:none !important;
   }
-  .win-slot-btn{
+  .win-slot-btn,
+  .win-predefined-slot{
     width:20px;
     height:16px;
     padding:0;
     border-radius:5px;
-    border:1px solid rgba(255,255,255,.24);
-    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(0,0,0,.52);
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -3083,17 +3093,24 @@
   }
   .win-slot-btn:hover,
   .win-slot-btn.finger-hover,
+  .win-predefined-slot:hover,
+  .win-predefined-slot.finger-hover,
   .win-shell[data-predefined-slot="left"] .win-slot-btn[data-predefined-slot="left"],
   .win-shell[data-predefined-slot="center"] .win-slot-btn[data-predefined-slot="center"],
-  .win-shell[data-predefined-slot="right"] .win-slot-btn[data-predefined-slot="right"]{
-    background:rgba(56,189,248,.36);
-    border-color:#38bdf8;
+  .win-shell[data-predefined-slot="right"] .win-slot-btn[data-predefined-slot="right"],
+  .win-shell[data-predefined-slot="left"] .win-predefined-slot[data-predefined-slot="left"],
+  .win-shell[data-predefined-slot="center"] .win-predefined-slot[data-predefined-slot="center"],
+  .win-shell[data-predefined-slot="right"] .win-predefined-slot[data-predefined-slot="right"]{
+    background:rgba(0,0,0,.78);
+    border-color:rgba(255,255,255,.32);
   }
-  .win-slot-glyph{
+  .win-slot-glyph,
+  .win-predefined-slot-frame{
     width:10px;
     height:7px;
     border-radius:2px;
-    border:1.2px solid rgba(255,255,255,.85);
+    border:1.2px solid rgba(255,255,255,.72);
+    background:rgba(0,0,0,.45);
     display:block;
   }
 
@@ -3120,7 +3137,7 @@
     box-shadow:0 0 18px rgba(255,255,255,.42),0 4px 14px rgba(0,0,0,.34) !important;
   }
 
-  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Aumentada um pouco) */
+  /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Tamanho exato da foto de referência) */
   .win-shell[data-window-id="left-quick-menu"],
   .win-shell[data-window-id="left-quick-menu"] .win,
   .win-shell[data-window-id="left-quick-menu"] .win-body,
@@ -3143,8 +3160,8 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding:10px 12px;
-    border-radius:24px;
+    padding:12px 16px;
+    border-radius:26px;
     background:transparent !important;
     border:0 !important;
     box-shadow:none !important;
@@ -3159,58 +3176,62 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:18px;
+    gap:20px;
     transform:none;
   }
   .lh-quick-cols{
     display:flex;
     align-items:flex-start;
     justify-content:center;
-    gap:20px;
+    gap:24px;
   }
   .lh-col{
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:11px;
+    gap:14px;
   }
   .lh-col-lbl{
-    font:700 13.5px/1.1 Inter,sans-serif;
-    color:rgba(248,250,252,.95);
-    text-shadow:0 1px 4px rgba(0,0,0,.85);
-    white-space:nowrap;
+    font:700 15.5px/1.15 Inter,sans-serif;
+    color:rgba(248,250,252,.98);
+    text-shadow:0 2px 6px rgba(0,0,0,.88);
+    text-align:center;
     letter-spacing:.01em;
     margin-bottom:4px;
+    min-height:34px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
   }
   .lh-apps-col{
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap:11px;
+    gap:14px;
   }
   .lh-app-tile{
-    width:66px;
-    height:66px;
-    border-radius:17px;
-    border:1.5px solid rgba(255,255,255,.26);
-    background:rgba(38,43,56,.88);
+    width:76px;
+    height:76px;
+    border-radius:20px;
+    border:1.5px solid rgba(255,255,255,.28);
+    background:rgba(48,54,68,.88);
     display:inline-flex;
     align-items:center;
     justify-content:center;
     padding:0;
     cursor:pointer;
     overflow:hidden;
-    box-shadow:0 6px 16px rgba(0,0,0,.44);
+    box-shadow:0 8px 20px rgba(0,0,0,.48);
     transition:transform .14s ease,border-color .14s ease;
   }
   .lh-app-tile:hover,
   .lh-app-tile.finger-hover{
     transform:scale(1.07);
-    border-color:#38bdf8;
+    border-color:#ffffff;
   }
   .lh-spotify-badge{
-    width:44px;
-    height:44px;
+    width:50px;
+    height:50px;
     border-radius:50%;
     background:#1db954;
     color:#0b0f14;
@@ -3226,29 +3247,29 @@
   }
   .lh-vslider-pill{
     position:relative;
-    width:58px;
-    height:276px;
+    width:68px;
+    height:344px;
     border-radius:999px;
-    background:rgba(42,46,58,.88);
+    background:rgba(68,74,88,.78);
     border:1.5px solid rgba(255,255,255,.26);
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:flex-end;
-    padding-bottom:12px;
+    padding-bottom:14px;
     overflow:hidden;
-    box-shadow:0 6px 16px rgba(0,0,0,.44);
+    box-shadow:0 8px 20px rgba(0,0,0,.48);
   }
   .lh-vslider-input{
     -webkit-appearance:none;
     appearance:none;
     position:absolute;
-    width:252px;
-    height:48px;
+    width:318px;
+    height:58px;
     left:50%;
-    top:47%;
+    top:48%;
     transform:translate(-50%,-50%) rotate(-90deg);
-    background:linear-gradient(90deg,rgba(255,255,255,.95) 0%,rgba(255,255,255,.95) var(--fill,70%),rgba(255,255,255,.20) var(--fill,70%),rgba(255,255,255,.20) 100%);
+    background:linear-gradient(90deg,rgba(255,255,255,.97) 0%,rgba(255,255,255,.97) var(--fill,70%),rgba(255,255,255,.18) var(--fill,70%),rgba(255,255,255,.18) 100%);
     border-radius:999px;
     outline:none;
     cursor:pointer;
@@ -3256,8 +3277,8 @@
   .lh-vslider-input::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
-    width:28px;
-    height:28px;
+    width:34px;
+    height:34px;
     border-radius:50%;
     background:#ffffff;
     box-shadow:0 2px 6px rgba(0,0,0,.55);
@@ -3265,82 +3286,109 @@
   .lh-vslider-ico{
     position:relative;
     z-index:2;
-    width:24px;
-    height:24px;
+    width:26px;
+    height:26px;
     color:#0f172a;
     pointer-events:none;
   }
   .lh-vslider-ico svg{
-    width:24px;
-    height:24px;
+    width:26px;
+    height:26px;
   }
   .lh-mini-round-btn{
-    width:46px;
-    height:46px;
+    width:52px;
+    height:52px;
     border-radius:50%;
     border:1.5px solid rgba(255,255,255,.26);
-    background:rgba(45,50,64,.88);
+    background:rgba(56,62,76,.88);
     color:#f8fafc;
-    font:700 17px/1 Inter,sans-serif;
+    font:700 18px/1 Inter,sans-serif;
     display:inline-flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
   }
   .lh-mini-round-btn.on{
-    background:linear-gradient(135deg,#0284c7,#2563eb);
-    border-color:#38bdf8;
+    background:rgba(255,255,255,.92);
+    color:#0f172a;
+    border-color:#ffffff;
+  }
+  .lh-home-card-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-top:2px;
+  }
+  .lh-home-btn{
+    width:98px !important;
+    height:98px !important;
+    border-radius:24px !important;
+    background:rgba(82,88,102,.84) !important;
+    color:#0f172a !important;
+    flex-direction:column !important;
+    gap:6px !important;
+  }
+  .lh-home-btn svg{
+    width:38px !important;
+    height:38px !important;
+    color:#0f172a;
+  }
+  .lh-home-sub{
+    font:700 10px/1.05 Inter,sans-serif;
+    color:rgba(15,23,42,.88);
+    text-align:center;
   }
   .lh-bottom-actions{
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:16px;
-    margin-top:6px;
+    gap:20px;
+    margin-top:4px;
   }
   .lh-sq-btn{
-    width:68px;
-    height:68px;
-    border-radius:18px;
-    border:1.5px solid rgba(255,255,255,.26);
-    background:rgba(148,163,184,.36);
-    color:#f8fafc;
+    width:80px;
+    height:80px;
+    border-radius:22px;
+    border:1.5px solid rgba(255,255,255,.32);
+    background:rgba(248,250,252,.94);
+    color:#0f172a;
     display:inline-flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
-    box-shadow:0 4px 12px rgba(0,0,0,.38);
+    box-shadow:0 6px 16px rgba(0,0,0,.44);
     transition:transform .14s ease,background .14s ease,border-color .14s ease;
   }
   .lh-sq-btn svg{
-    width:24px;
-    height:24px;
+    width:30px;
+    height:30px;
   }
   .lh-sq-btn.on,
   .lh-sq-btn:hover,
   .lh-sq-btn.finger-hover{
-    background:rgba(56,189,248,.48);
-    border-color:#38bdf8;
+    background:#ffffff;
+    color:#0f172a;
+    border-color:#ffffff;
     transform:scale(1.06);
   }
   .lh-round-btn{
-    width:36px;
-    height:36px;
+    width:58px;
+    height:58px;
     border-radius:50%;
-    border:1.5px solid rgba(255,255,255,.32);
+    border:1.5px solid rgba(255,255,255,.36);
     background:rgba(239,68,68,.92);
     color:#ffffff;
-    font:800 15px/1 Inter,sans-serif;
+    font:800 22px/1 Inter,sans-serif;
     display:inline-flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
-    box-shadow:0 4px 12px rgba(0,0,0,.45);
+    box-shadow:0 6px 16px rgba(0,0,0,.48);
     transition:transform .14s ease,background .14s ease,border-color .14s ease;
   }
   .lh-round-btn svg{
-    width:18px;
-    height:18px;
+    width:22px;
+    height:22px;
   }
   .lh-round-btn.on,
   .lh-round-btn:hover,

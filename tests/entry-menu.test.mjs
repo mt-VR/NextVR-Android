@@ -131,8 +131,8 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'windows.js auto-enables 6DoF on window drag, pulls/pushes window depth with hand distance, and makes left-quick-menu follow left-hand depth');
   assert.ok(appsSrc.includes('toggleCameraSoloMode') && appsSrc.includes('camera-solo') && activitySrc.includes('public void refocusCamera()') && cameraSrc.includes('triggerAutoFocus'),
     'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
-  assert.ok(appsSrc.includes('w: 480') && appsSrc.includes('h: 600') && appsSrc.includes('resizeScale = 1.32') && rendererSrc.includes('1440f'),
-    'apps.js sizes the left-hand quick menu larger (480x600, scale 1.32) and SpatialRenderer.java raises rendering quality to 1440p');
+  assert.ok(appsSrc.includes('w: 560') && appsSrc.includes('h: 740') && appsSrc.includes('resizeScale = 1.68') && rendererSrc.includes('1440f'),
+    'apps.js sizes the left-hand quick menu to match the reference screenshot (560x740, scale 1.68) and SpatialRenderer.java raises rendering quality to 1440p');
   assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
     'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
   const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');
@@ -1068,10 +1068,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const gameName = st?.gameName;
       const hasBackExitButton = Boolean(st?.hasBackExitButton && st?.backExitButtonZ > 0.3);
       const hasLeftHandExit = Boolean(st?.hasLeftHandExit);
+      const handStyle = st?.handStyle;
+      const hasWatchOnRightWrist = Boolean(st?.hasWatchOnRightWrist);
       const pistolStyle = st?.pistolStyle;
       const targetsAre3D = Boolean(st?.targetsAre3D);
       const gloveIs3D = Boolean(st?.gloveIs3D);
       const facingForward = (st?.pistolForwardZ ?? 0) < -0.5;
+      window.nextvrSetDockColor?.('blue');
+      const dockColorApplied = document.documentElement.dataset.dockColor;
+      window.nextvrSetDockColor?.('default');
 
       // Testa detecção do gesto de arminha (polegar levantado + indicador estendido pra frente + médio/anelar/mindinho dobrados)
       const makePose = ({ indexExt = true, thumbUp = true, othersCurled = true, pinching = false, fist = false } = {}) => {
@@ -1120,6 +1125,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         gameName,
         hasBackExitButton,
         hasLeftHandExit,
+        handStyle,
+        hasWatchOnRightWrist,
+        dockColorApplied,
         pistolStyle,
         targetsAre3D,
         gloveIs3D,
@@ -1142,7 +1150,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(build56Check.closeEnough, true, 'Floating pistol and reset button are close while 3D targets are placed further away');
     assert.equal(build56Check.gameName, 'ShootTheDie', 'Game is named ShootTheDie');
     assert.equal(build56Check.hasBackExitButton, true, 'ShootTheDie places a 3D exit button behind the player');
-    assert.equal(build56Check.hasLeftHandExit, true, 'ShootTheDie supports exiting by closing the left hand into a fist');
+    assert.equal(build56Check.hasLeftHandExit, false, 'ShootTheDie does not exit when closing the left hand');
+    assert.equal(build56Check.handStyle, 'black-fingerless-glove-skin-fingers', 'ShootTheDie uses 3D black fingerless tactical gloves with realistic skin fingers');
+    assert.equal(build56Check.hasWatchOnRightWrist, true, 'ShootTheDie right hand includes the 3D wrist smartwatch');
+    assert.equal(build56Check.dockColorApplied, 'blue', 'nextvrSetDockColor updates the dock color theme');
     assert.equal(build56Check.pistolStyle, 'G18-black-gray-barrel', 'Pistol model is an all-black G18 with a gray barrel');
     assert.equal(build56Check.targetsAre3D, true, 'All 6 targets are built as multi-layer 3D models');
     assert.equal(build56Check.gloveIs3D, true, 'Green fingerless glove is built as an articulated 3D model with 5 open finger sleeves');

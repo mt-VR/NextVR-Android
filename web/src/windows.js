@@ -480,6 +480,7 @@ export function open(spec) {
     if(w.predefinedSlotsBar)w.predefinedSlotsBar.hidden=true;
   }
   w.apply();
+  updateWindowsDepthLayering(w);
   scene.updateMatrixWorld(true);
   css3d.invalidate?.();
   emit('wins', wins);
@@ -609,6 +610,86 @@ export function setScreenBrightness(value) {
 }
 export const getScreenBrightness = () => Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
 
+const VALID_DOCK_COLORS = new Set(['default', 'black', 'blue', 'purple', 'green', 'red', 'glass']);
+export function setDockColor(colorId = 'default') {
+  const c = VALID_DOCK_COLORS.has(colorId) ? colorId : 'default';
+  S.dockColor = c;
+  save(S);
+  document.documentElement.dataset.dockColor = c;
+  if (dockEl) dockEl.dataset.dockColor = c;
+  emit('dockColor', c);
+  css3d.invalidate?.();
+  return c;
+}
+export const getDockColor = () => S.dockColor || 'default';
+
+export function updateWindowsDepthLayering(activeWin = null) {
+  const openWins = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
+  if (!openWins.length) return [];
+  if (S.depthLayerOrder === 0) {
+    openWins.forEach((w, idx) => {
+      const z = (w === focused ? 40 : 20 + idx);
+      w.shell.style.zIndex = String(z);
+      w.obj.renderOrder = z;
+      w.hit.renderOrder = z;
+      w.shell.dataset.depthLayer = w === focused ? 'top' : 'normal';
+    });
+    return openWins.map(w => w.id);
+  }
+  // Ordena da mais distante (atrás -> fica embaixo de todas) para a mais próxima (perto -> fica sobre todas)
+  const withDist = openWins.map(w => ({
+    w,
+    dist: Math.hypot(w.obj.position.x, w.obj.position.z) || 1,
+  }));
+  withDist.sort((a, b) => b.dist - a.dist); // maior distância primeiro (embaixo), menor distância por último (em cima)
+  withDist.forEach((item, idx) => {
+    const z = 20 + idx * 2;
+    item.w.shell.style.zIndex = String(z);
+    item.w.obj.renderOrder = z;
+    item.w.hit.renderOrder = z;
+    item.w.shell.dataset.depthRank = String(idx);
+    item.w.shell.dataset.depthDist = item.dist.toFixed(3);
+    item.w.shell.dataset.depthLayer = idx === withDist.length - 1 ? 'top' : (idx === 0 ? 'bottom' : 'middle');
+  });
+  if (activeWin && withDist.length > 1) {
+    const topWin = withDist[withDist.length - 1].w;
+    const bottomWin = withDist[0].w;
+    if (topWin === activeWin) {
+      focus(activeWin);
+    } else if (bottomWin === activeWin && focused === activeWin) {
+      focus(topWin);
+    }
+  }
+  css3d.invalidate?.();
+  return withDist.map(x => x.w.id);
+}
+
+export function setWindowDepth(winOrId, radiusMeters) {
+  const w = typeof winOrId === 'string'
+    ? wins.find(x => x.id === winOrId)
+    : (winOrId || focused || wins.find(x => !x.onboarding && !x.hidden));
+  if (!w || w.onboarding) return null;
+  const minD = WINDOW_LIMITS.minDistance ?? 0.38;
+  const maxD = WINDOW_LIMITS.maxDistance ?? 1.60;
+  const r = Math.max(minD, Math.min(maxD, Number(radiusMeters) || 0.85));
+  w.pinned = false;
+  w.shell.classList.add('free');
+  const limited = boundedPosition(w, w.obj.position.clone(), r);
+  w.target.copy(limited);
+  w.obj.position.copy(w.target);
+  w.apply();
+  updateWindowsDepthLayering(w);
+  scene.updateMatrixWorld(true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return {
+    id: w.id,
+    dist: Math.hypot(w.obj.position.x, w.obj.position.z),
+    layer: w.shell.dataset.depthLayer,
+    zIndex: Number(w.shell.style.zIndex) || 0,
+  };
+}
+
 export function snapWindowToSlot(winOrId, slotKey = 'center') {
   const w = typeof winOrId === 'string'
     ? wins.find(x => x.id === winOrId)
@@ -626,6 +707,7 @@ export function snapWindowToSlot(winOrId, slotKey = 'center') {
   w.target.copy(targetPos);
   w.obj.position.copy(w.target);
   w.apply();
+  updateWindowsDepthLayering(w);
   scene.updateMatrixWorld(true);
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
@@ -634,6 +716,10 @@ export function snapWindowToSlot(winOrId, slotKey = 'center') {
 if (typeof window !== 'undefined') {
   window.nextvrSetScreenBrightness = setScreenBrightness;
   window.nextvrGetScreenBrightness = getScreenBrightness;
+  window.nextvrSetDockColor = setDockColor;
+  window.nextvrGetDockColor = getDockColor;
+  window.nextvrUpdateDepthLayering = updateWindowsDepthLayering;
+  window.nextvrSetWindowDepth = setWindowDepth;
   window.nextvrSnapWindowToSlot = snapWindowToSlot;
 }
 
@@ -659,7 +745,7 @@ function updateDropSlot(w) {
   winDropSlotEl.style.width = w.w + 'px';
   winDropSlotEl.style.height = w.h + 'px';
   const badge = winDropSlotEl.querySelector('.win-drop-slot-badge');
-  if (badge) badge.textContent = t('dockSnapHint');
+  if (badge) badge.textContent = '';
   winDropSlotEl.classList.toggle('is-ready', dragSnapReady);
   winDropSlotEl.hidden = false;
 
@@ -793,17 +879,21 @@ function dragTo(nx, ny) {
   w.target.copy(limited);
   w.obj.position.copy(w.target);           // a mão e a janela permanecem alinhadas
   w.apply();
+  updateWindowsDepthLayering(w);
   updateDropSlot(w);
   return true;
 }
 function endDrag() {
   const w=drag.win;
   if(w){
-    if(dragSnapReady && dragSnapSlotPos){
+    const a = drag.anchor;
+    const depthChanged = a && Number.isFinite(a.currentRadius) && Number.isFinite(a.radius) && Math.abs(a.currentRadius - a.radius) > 0.05;
+    if(dragSnapReady && dragSnapSlotPos && !depthChanged){
       w.target.copy(dragSnapSlotPos);
       w.obj.position.copy(w.target);
       w.apply();
     }
+    updateWindowsDepthLayering(w);
     w.shell.classList.remove('moving');
   }
   hideDropSlot();
@@ -1491,6 +1581,7 @@ const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12"
 export function buildDock(items) {
   dockItems = items; dockBtns = []; dockWins.length = 0;
   dockEl.innerHTML = '';
+  setDockColor(S.dockColor || 'default');
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
@@ -3262,7 +3353,7 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   }
 }
 
-let leftQuickMenuDist = 0.88;
+let leftQuickMenuDist = 0.56;
 
 function updateLeftQuickMenuAttachment(packet) {
   const lhWin = wins.find(w => w.id === 'left-quick-menu' && !w.hidden);
@@ -3280,9 +3371,9 @@ function updateLeftQuickMenuAttachment(packet) {
   const normY = Math.max(0.46, Math.min(0.54, 0.5 + ((rawY - 0.5) * sy) * 0.12));
   const handSize = measureHandApparentSize(leftHand);
   if (handSize > 0.015) {
-    // Mão perto (handSize maior) -> menu vem para perto (até 0.42m); mão longe (handSize menor) -> menu vai para longe (até 1.65m)
+    // Mão perto (handSize maior) -> menu vem para perto (até 0.36m); mão longe (handSize menor) -> menu vai para longe (até 1.25m)
     const refSize = 0.145;
-    const targetDist = Math.max(0.42, Math.min(1.65, 0.74 * Math.pow(refSize / handSize, 1.45)));
+    const targetDist = Math.max(0.36, Math.min(1.25, 0.56 * Math.pow(refSize / handSize, 1.35)));
     leftQuickMenuDist += (targetDist - leftQuickMenuDist) * 0.52;
   }
   const r = phoneRay(normX, normY);

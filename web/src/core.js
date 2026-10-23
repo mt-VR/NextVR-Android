@@ -17,10 +17,10 @@ const DEF = {
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
-  dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
+  dockSize: 1, dockDist: 1, dockColor: 'default', dockApps: 'browser,youtube,gallery,env,settings,menu',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
-  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
+  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   mrDim: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,

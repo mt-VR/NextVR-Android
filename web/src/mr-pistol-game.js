@@ -214,7 +214,7 @@ export function openMrPistolGame() {
         SHOOTTHEDIE
       </span>
       <span data-mr-pistol-status style="font-size:11.5px;font-weight:700;color:#d1fae5;padding:3px 9px;border-radius:999px;background:rgba(16,185,129,.22);border:1px solid rgba(52,211,153,.38)">
-        Gesto de arminha (👉) atira · Feche a mão esquerda ou botão atrás para sair
+        Gesto de arminha (👉) atira · Botão 3D atrás para sair
       </span>
       <span data-mr-pistol-score style="font-size:12px;font-weight:800;color:#fde047;min-width:110px;text-align:center">
         ALVOS 3D: 0/6 · 0 PTS
@@ -308,18 +308,72 @@ function getSharedAssets() {
     headArmorGeo: new THREE.CylinderGeometry(0.038, 0.040, 0.024, 12),
     headCenterGeo: new THREE.CylinderGeometry(0.024, 0.024, 0.030, 12),
 
-    // Materiais compartilhados da Luva Verde 3D
-    gloveBodyMat: new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.40, metalness: 0.20 }),
-    gloveArmorMat: new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.30, metalness: 0.38 }),
+    // Materiais compartilhados das Mãos 3D (Luva Preta Fingerless + Dedos de Pele Realista + Smartwatch, igual à foto de referência)
+    gloveBodyMat: new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.52, metalness: 0.16 }),
+    gloveArmorMat: new THREE.MeshStandardMaterial({ color: 0x111419, roughness: 0.38, metalness: 0.32 }),
     gloveCuffRimMat: new THREE.MeshStandardMaterial({
-      color: 0x34d399,
-      emissive: 0x059669,
-      emissiveIntensity: 0.28,
-      roughness: 0.26,
-      metalness: 0.24,
+      color: 0xcbd5e1,
+      emissive: 0x475569,
+      emissiveIntensity: 0.14,
+      roughness: 0.30,
+      metalness: 0.48,
     }),
-    gloveStrapMat: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.62, metalness: 0.28 }),
-    gloveOpeningHoleMat: new THREE.MeshBasicMaterial({ color: 0x04130c }),
+    gloveStrapMat: new THREE.MeshStandardMaterial({ color: 0x0b0d12, roughness: 0.62, metalness: 0.28 }),
+    gloveOpeningHoleMat: new THREE.MeshBasicMaterial({ color: 0x090b0f }),
+    skinMat: new THREE.MeshStandardMaterial({
+      color: 0xdea47e,
+      roughness: 0.56,
+      metalness: 0.04,
+    }),
+    skinJointMat: new THREE.MeshStandardMaterial({
+      color: 0xcf916a,
+      roughness: 0.58,
+      metalness: 0.04,
+    }),
+    nailMat: new THREE.MeshStandardMaterial({
+      color: 0xf1c8ae,
+      roughness: 0.34,
+      metalness: 0.08,
+    }),
+    watchCaseMat: new THREE.MeshStandardMaterial({
+      color: 0x090b10,
+      roughness: 0.24,
+      metalness: 0.78,
+    }),
+    watchFaceTex: (() => {
+      const cv = document.createElement('canvas');
+      cv.width = 128;
+      cv.height = 128;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#05070b';
+      ctx.beginPath();
+      ctx.arc(64, 64, 60, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(64, 64, 50, -Math.PI * 0.4, Math.PI * 0.85);
+      ctx.stroke();
+      ctx.strokeStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(64, 64, 50, Math.PI * 0.92, Math.PI * 1.52);
+      ctx.stroke();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(64, 64, 39, -Math.PI * 0.2, Math.PI * 1.15);
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '900 22px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('14:08', 64, 68);
+      ctx.fillStyle = '#4ade80';
+      ctx.font = '800 13px Inter, sans-serif';
+      ctx.fillText('G18 MR', 64, 88);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    })(),
     exitRedMat: new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0xb91c1c,
@@ -330,14 +384,15 @@ function getSharedAssets() {
     // Texturas compartilhadas dos botões 3D
     resetLabelTex: makeLabelTexture('#064e3b', '#34d399', '↻ REINICIAR', 'ALVOS 3D'),
     exitBackLabelTex: makeLabelTexture('#450a0a', '#f87171', '✕ SAIR DO JOGO', 'SHOOTTHEDIE', '#fca5a5'),
-    leftWristExitTex: makeLabelTexture('#450a0a', '#f87171', '✕ SAIR', 'FECHE A MÃO ESQ.', '#fde047'),
   };
   return _sharedCache;
 }
 
 /**
- * Constrói o Modelo 3D da Luva Tática Verde com Abertura nos Dedos (build3DGloveModel).
- * Na mão esquerda (`isLeft = true`), inclui também o badge 3D "✕ SAIR · FECHE A MÃO ESQ."!
+ * Constrói o Modelo 3D da Mão Tática do ShootTheDie igual à foto enviada:
+ * - Luva preta/grafite com abertura nos dedos (fingerless) cobrindo palma, dorso e pulso + emblema prateado no dorso
+ * - 5 dedos inteiros em Pele 3D realista (falanges + juntas + pontas + unhas) saindo das aberturas da luva
+ * - Relógio Smartwatch 3D redondo com aro luminoso verde/rosa/ciano no pulso direito
  */
 export function build3DGloveModel(isLeft = false) {
   const sh = getSharedAssets();
@@ -345,9 +400,20 @@ export function build3DGloveModel(isLeft = false) {
   const palmCoreGroup = new THREE.Group();
   gloveRoot.add(palmCoreGroup);
 
-  const { gloveBodyMat, gloveArmorMat, gloveCuffRimMat, gloveStrapMat, gloveOpeningHoleMat } = sh;
+  const {
+    gloveBodyMat,
+    gloveArmorMat,
+    gloveCuffRimMat,
+    gloveStrapMat,
+    gloveOpeningHoleMat,
+    skinMat,
+    skinJointMat,
+    nailMat,
+    watchCaseMat,
+    watchFaceTex,
+  } = sh;
 
-  // 1. Corpo central 3D da palma + bordas laterais cilíndricas arredondadas
+  // 1. Corpo central 3D da luva preta + bordas laterais arredondadas
   const palmBox = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.074, 0.022), gloveBodyMat);
   palmCoreGroup.add(palmBox);
 
@@ -358,52 +424,62 @@ export function build3DGloveModel(isLeft = false) {
   sideBolsterR.position.set(0.034, 0, 0);
   palmCoreGroup.add(sideBolsterL, sideBolsterR);
 
-  // 2. Placa protetora 3D no dorso da luva + 4 protetores 3D nas juntas (knuckles)
-  const dorsalPlate = new THREE.Mesh(new THREE.BoxGeometry(0.054, 0.044, 0.008), gloveArmorMat);
-  dorsalPlate.position.set(0, 0.004, 0.012);
-  const dorsalAccent = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.007, 0.010), gloveCuffRimMat);
-  dorsalAccent.position.set(0, 0.006, 0.013);
-  palmCoreGroup.add(dorsalPlate, dorsalAccent);
+  // 2. Dorso da luva preta + emblema tático prateado/branco (igual à foto) + juntas discretas
+  const dorsalPlate = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.046, 0.008), gloveArmorMat);
+  dorsalPlate.position.set(0, 0.004, 0.011);
+  const dorsalEmblemA = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.0045, 0.009), gloveCuffRimMat);
+  dorsalEmblemA.position.set(-0.004, 0.004, 0.0125);
+  dorsalEmblemA.rotation.z = 0.22;
+  const dorsalEmblemB = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.004, 0.009), gloveCuffRimMat);
+  dorsalEmblemB.position.set(0.006, 0.001, 0.0125);
+  dorsalEmblemB.rotation.z = -0.18;
+  palmCoreGroup.add(dorsalPlate, dorsalEmblemA, dorsalEmblemB);
 
-  const knuckleGeo = new THREE.SphereGeometry(0.0095, 10, 8);
+  const knuckleGeo = new THREE.SphereGeometry(0.0092, 10, 8);
   for (let k = 0; k < 4; k++) {
     const knuckleGuard = new THREE.Mesh(knuckleGeo, gloveArmorMat);
-    knuckleGuard.scale.set(1.12, 0.86, 0.72);
-    knuckleGuard.position.set((-1.5 + k) * 0.0185, 0.036, 0.008);
+    knuckleGuard.scale.set(1.10, 0.84, 0.68);
+    knuckleGuard.position.set((-1.5 + k) * 0.0185, 0.036, 0.007);
     palmCoreGroup.add(knuckleGuard);
   }
 
-  // 3. Punho 3D da luva + faixa tática com fivela + anel 3D da abertura do punho
-  const wristCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.027, 0.034, 12), gloveBodyMat);
-  wristCuff.scale.set(1.18, 1.0, 0.76);
+  // 3. Punho 3D da luva preta + friso prateado na borda inferior (igual à mão esquerda da foto)
+  const wristCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.027, 0.036, 12), gloveBodyMat);
+  wristCuff.scale.set(1.18, 1.0, 0.78);
   wristCuff.position.set(0, -0.050, 0);
   palmCoreGroup.add(wristCuff);
 
-  const wristStrap = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.029, 0.014, 12), gloveStrapMat);
-  wristStrap.scale.set(1.20, 1.0, 0.78);
+  const wristStrap = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.029, 0.013, 12), gloveStrapMat);
+  wristStrap.scale.set(1.20, 1.0, 0.80);
   wristStrap.position.set(0, -0.048, 0);
-  const strapBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.014, 0.006), gloveCuffRimMat);
-  strapBuckle.position.set(0, -0.048, 0.024);
-  palmCoreGroup.add(wristStrap, strapBuckle);
+  palmCoreGroup.add(wristStrap);
 
-  const wristRim = new THREE.Mesh(new THREE.TorusGeometry(0.027, 0.0026, 8, 16), gloveCuffRimMat);
+  const wristRim = new THREE.Mesh(new THREE.TorusGeometry(0.027, 0.0024, 8, 16), gloveCuffRimMat);
   wristRim.rotation.x = Math.PI / 2;
-  wristRim.scale.set(1.18, 0.76, 1.0);
+  wristRim.scale.set(1.18, 0.78, 1.0);
   wristRim.position.set(0, -0.067, 0);
   palmCoreGroup.add(wristRim);
 
-  // Se for a luva da mão esquerda, acopla o botão/badge 3D "✕ SAIR · FECHE A MÃO ESQ." no punho!
-  let leftExitBadge = null;
-  if (isLeft) {
-    leftExitBadge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.072, 0.036, 0.008),
-      new THREE.MeshBasicMaterial({ map: sh.leftWristExitTex })
+  // Smartwatch 3D no pulso direito (igual à foto de referência)
+  let watchGroup = null;
+  if (!isLeft) {
+    watchGroup = new THREE.Group();
+    watchGroup.position.set(0, -0.056, 0);
+    const bandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.0315, 0.0305, 0.018, 14), watchCaseMat);
+    bandMesh.scale.set(1.22, 1.0, 0.84);
+    const caseMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.022, 0.009, 18), watchCaseMat);
+    caseMesh.rotation.x = Math.PI / 2;
+    caseMesh.position.set(0, 0, 0.024);
+    const dialMesh = new THREE.Mesh(
+      new THREE.CircleGeometry(0.0185, 18),
+      new THREE.MeshBasicMaterial({ map: watchFaceTex })
     );
-    leftExitBadge.position.set(0, -0.046, 0.030);
-    palmCoreGroup.add(leftExitBadge);
+    dialMesh.position.set(0, 0, 0.029);
+    watchGroup.add(bandMesh, caseMesh, dialMesh);
+    palmCoreGroup.add(watchGroup);
   }
 
-  // 4. Base 3D do polegar (músculo tenar 1 -> 2)
+  // 4. Base 3D do polegar coberta pela luva (1 -> 2)
   const thenarGroup = new THREE.Group();
   const thenarJoint = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 8), gloveBodyMat);
   const thenarCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0135, 1.0, 10), gloveBodyMat);
@@ -411,40 +487,73 @@ export function build3DGloveModel(isLeft = false) {
   thenarGroup.add(thenarJoint, thenarCyl);
   gloveRoot.add(thenarGroup);
 
-  // 5. Cinco mangas 3D curtas com ABERTURA NOS DEDOS
+  // 5. Cinco aberturas curtas da luva (fingerless) + Dedos 3D completos de PELE REALISTA saindo da luva!
   const sleeveRadii = [
-    { rBase: 0.0116, rTip: 0.0102 },
-    { rBase: 0.0108, rTip: 0.0095 },
-    { rBase: 0.0112, rTip: 0.0098 },
-    { rBase: 0.0105, rTip: 0.0092 },
-    { rBase: 0.0094, rTip: 0.0082 },
+    { rBase: 0.0114, rTip: 0.0100 },
+    { rBase: 0.0106, rTip: 0.0094 },
+    { rBase: 0.0110, rTip: 0.0097 },
+    { rBase: 0.0103, rTip: 0.0091 },
+    { rBase: 0.0092, rTip: 0.0081 },
   ];
 
-  const fingerSleeves = sleeveRadii.map(({ rBase, rTip }) => {
+  const fingerSleeves = [];
+  const skinFingers = [];
+
+  sleeveRadii.forEach(({ rBase, rTip }) => {
+    // Manga curta fingerless na base do dedo + Dedo 3D de pele realista saindo da abertura
     const sleeveGroup = new THREE.Group();
 
     const baseSphere = new THREE.Mesh(new THREE.SphereGeometry(rBase, 10, 8), gloveBodyMat);
     sleeveGroup.add(baseSphere);
 
-    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rTip, rBase, 1.0, 10), gloveBodyMat);
-    cyl.position.y = 0.5;
-    sleeveGroup.add(cyl);
+    // Parte coberta pela luva preta (0.0 -> 0.42 da falange base)
+    const gloveCyl = new THREE.Mesh(new THREE.CylinderGeometry(rTip * 1.02, rBase, 0.42, 10), gloveBodyMat);
+    gloveCyl.position.y = 0.21;
+    sleeveGroup.add(gloveCyl);
 
-    const dorsalPad = new THREE.Mesh(new THREE.BoxGeometry(rTip * 1.1, 0.62, 0.005), gloveArmorMat);
-    dorsalPad.position.set(0, 0.48, rBase * 0.85);
-    sleeveGroup.add(dorsalPad);
-
-    const openCuffRing = new THREE.Mesh(new THREE.TorusGeometry(rTip * 1.03, 0.0022, 8, 14), gloveCuffRimMat);
+    const openCuffRing = new THREE.Mesh(new THREE.TorusGeometry(rTip * 1.02, 0.0018, 8, 14), gloveCuffRimMat);
     openCuffRing.rotation.x = Math.PI / 2;
-    openCuffRing.position.y = 1.0;
+    openCuffRing.position.y = 0.42;
     sleeveGroup.add(openCuffRing);
 
-    const openHole = new THREE.Mesh(new THREE.CylinderGeometry(rTip * 0.90, rTip * 0.90, 0.004, 10), gloveOpeningHoleMat);
-    openHole.position.y = 1.002;
+    const openHole = new THREE.Mesh(new THREE.CylinderGeometry(rTip * 0.90, rTip * 0.90, 0.003, 10), gloveOpeningHoleMat);
+    openHole.position.y = 0.421;
     sleeveGroup.add(openHole);
 
+    // Parte exposta do dedo em PELE 3D REALISTA (0.42 -> 1.0) + junta + falange distal + unha
+    const skinShaft = new THREE.Mesh(new THREE.CylinderGeometry(rTip * 0.86, rTip * 0.96, 0.58, 10), skinMat);
+    skinShaft.position.y = 0.71;
+    sleeveGroup.add(skinShaft);
+
+    const midKnuckle = new THREE.Mesh(new THREE.SphereGeometry(rTip * 0.88, 9, 8), skinJointMat);
+    midKnuckle.position.y = 0.72;
+    sleeveGroup.add(midKnuckle);
+
+    const tipDome = new THREE.Mesh(new THREE.SphereGeometry(rTip * 0.84, 9, 8), skinMat);
+    tipDome.scale.set(0.96, 1.15, 0.92);
+    tipDome.position.y = 1.0;
+    sleeveGroup.add(tipDome);
+
+    const nailPlate = new THREE.Mesh(new THREE.BoxGeometry(rTip * 1.10, 0.14, 0.0025), nailMat);
+    nailPlate.position.set(0, 0.96, rTip * 0.76);
+    sleeveGroup.add(nailPlate);
+
     gloveRoot.add(sleeveGroup);
-    return sleeveGroup;
+    fingerSleeves.push(sleeveGroup);
+
+    // Segmento distal articulado em Pele 3D (para acompanhar a dobra real das falanges 6->8, 10->12, etc.)
+    const distalGroup = new THREE.Group();
+    const distalJoint = new THREE.Mesh(new THREE.SphereGeometry(rTip * 0.84, 8, 8), skinJointMat);
+    const distalCyl = new THREE.Mesh(new THREE.CylinderGeometry(rTip * 0.74, rTip * 0.84, 1.0, 10), skinMat);
+    distalCyl.position.y = 0.5;
+    const distalTip = new THREE.Mesh(new THREE.SphereGeometry(rTip * 0.74, 8, 8), skinMat);
+    distalTip.position.y = 1.0;
+    const distalNail = new THREE.Mesh(new THREE.BoxGeometry(rTip * 0.98, 0.24, 0.0025), nailMat);
+    distalNail.position.set(0, 0.86, rTip * 0.68);
+    distalGroup.add(distalJoint, distalCyl, distalTip, distalNail);
+    distalGroup.visible = false;
+    gloveRoot.add(distalGroup);
+    skinFingers.push(distalGroup);
   });
 
   const sign = isLeft ? -1 : 1;
@@ -453,11 +562,11 @@ export function build3DGloveModel(isLeft = false) {
   thenarGroup.scale.set(1, 0.034, 1);
 
   const defaultFingerPos = [
-    { x: -sign * 0.044, y: 0.006, z: 0.008, rx: -0.25, rz: sign * 0.42, len: 0.030 },
-    { x: -sign * 0.027, y: 0.037, z: 0.002, rx: -0.95, rz: sign * 0.06, len: 0.032 },
-    { x: -sign * 0.009, y: 0.039, z: 0.002, rx:  0.65, rz: 0.00,        len: 0.033 },
-    { x:  sign * 0.009, y: 0.037, z: 0.002, rx:  0.72, rz: -sign * 0.04, len: 0.031 },
-    { x:  sign * 0.027, y: 0.033, z: 0.002, rx:  0.78, rz: -sign * 0.08, len: 0.027 },
+    { x: -sign * 0.044, y: 0.006, z: 0.008, rx: -0.20, rz: sign * 0.42, len: 0.046 },
+    { x: -sign * 0.027, y: 0.037, z: 0.002, rx: -0.92, rz: sign * 0.06, len: 0.054 },
+    { x: -sign * 0.009, y: 0.039, z: 0.002, rx:  0.62, rz: 0.00,        len: 0.056 },
+    { x:  sign * 0.009, y: 0.037, z: 0.002, rx:  0.70, rz: -sign * 0.04, len: 0.052 },
+    { x:  sign * 0.027, y: 0.033, z: 0.002, rx:  0.76, rz: -sign * 0.08, len: 0.044 },
   ];
   defaultFingerPos.forEach((fp, idx) => {
     const s = fingerSleeves[idx];
@@ -474,7 +583,8 @@ export function build3DGloveModel(isLeft = false) {
     palmCoreGroup,
     thenarGroup,
     fingerSleeves,
-    leftExitBadge,
+    skinFingers,
+    watchGroup,
     is3DGlove: true,
     meshCount,
   };
@@ -483,6 +593,7 @@ export function build3DGloveModel(isLeft = false) {
 const _p0 = new THREE.Vector3();
 const _p1 = new THREE.Vector3();
 const _p2 = new THREE.Vector3();
+const _p3 = new THREE.Vector3();
 const _p5 = new THREE.Vector3();
 const _p9 = new THREE.Vector3();
 const _p13 = new THREE.Vector3();
@@ -493,21 +604,26 @@ const _palmUp = new THREE.Vector3();
 const _palmNorm = new THREE.Vector3();
 const _palmBasis = new THREE.Matrix4();
 const _fingerJoints = [
-  [2, 3, 0.80],
-  [5, 6, 0.78],
-  [9, 10, 0.78],
-  [13, 14, 0.78],
-  [17, 18, 0.76],
+  [2, 3, 4],
+  [5, 6, 8],
+  [9, 10, 12],
+  [13, 14, 16],
+  [17, 18, 20],
 ];
 
 function update3DGlovePose(gloveObj, hand, anchorWorldPos, basisQuat) {
-  const { gloveRoot, palmCoreGroup, thenarGroup, fingerSleeves } = gloveObj;
+  const { gloveRoot, palmCoreGroup, thenarGroup, fingerSleeves, skinFingers } = gloveObj;
   gloveRoot.position.copy(anchorWorldPos);
   gloveRoot.quaternion.copy(basisQuat);
   gloveRoot.visible = true;
 
   const pts = hand?.points;
-  if (!pts || pts.length < 63) return;
+  if (!pts || pts.length < 63) {
+    if (skinFingers) {
+      for (let i = 0; i < skinFingers.length; i++) skinFingers[i].visible = false;
+    }
+    return;
+  }
 
   const rawPalmSpan = Math.max(
     0.045,
@@ -564,15 +680,27 @@ function update3DGlovePose(gloveObj, hand, anchorWorldPos, basisQuat) {
   thenarGroup.scale.set(1, thenarLen, 1);
 
   for (let f = 0; f < 5; f++) {
-    const [j0, j1, cut] = _fingerJoints[f];
+    const [j0, j1, jTip] = _fingerJoints[f];
     readLocal(j0, _p1);
     readLocal(j1, _p2);
+    readLocal(jTip, _p3);
+
     _segDir.subVectors(_p2, _p1);
-    const segLen = Math.max(0.018, Math.min(0.038, _segDir.length() * cut));
+    const proxLen = Math.max(0.022, Math.min(0.046, _segDir.length()));
     const sleeve = fingerSleeves[f];
     sleeve.position.copy(_p1);
     sleeve.quaternion.setFromUnitVectors(_yAxis, _segDir.normalize());
-    sleeve.scale.set(1, segLen, 1);
+    sleeve.scale.set(1, proxLen, 1);
+
+    if (skinFingers && skinFingers[f]) {
+      _segDir.subVectors(_p3, _p2);
+      const distLen = Math.max(0.018, Math.min(0.044, _segDir.length()));
+      const df = skinFingers[f];
+      df.visible = true;
+      df.position.copy(_p2);
+      df.quaternion.setFromUnitVectors(_yAxis, _segDir.normalize());
+      df.scale.set(1, distLen, 1);
+    }
   }
 }
 
@@ -1012,10 +1140,12 @@ function bootMrPistolEngine(container) {
     grabbedByHandId: null,
     fingerGunActive: false,
     pistolStyle: 'G18-black-gray-barrel',
+    handStyle: 'black-fingerless-glove-skin-fingers',
+    hasWatchOnRightWrist: Boolean(rightGlove3D.watchGroup),
     targetsAre3D: targets.every(t => t.is3DModel && t.meshCount >= 10),
     gloveIs3D: Boolean(rightGlove3D.is3DGlove && rightGlove3D.meshCount >= 20 && rightGlove3D.fingerSleeves.length === 5),
     hasBackExitButton: Boolean(exitBackPedestal && exitBackPosCheck(EXIT_BACK_POS)),
-    hasLeftHandExit: Boolean(leftGlove3D.leftExitBadge),
+    hasLeftHandExit: false,
     pistolForwardZ: -1,
     shots: 0,
     hits: 0,
@@ -1030,7 +1160,6 @@ function bootMrPistolEngine(container) {
     flashAlpha: 0,
     tracerAlpha: 0,
     lastFingerGun: false,
-    leftFistFrames: 0,
     lastResetTouchMs: 0,
     lastShotMs: 0,
   };
@@ -1051,9 +1180,9 @@ function bootMrPistolEngine(container) {
       } else if (state.grabbed) {
         statusEl.textContent = state.fingerGunActive
           ? 'ShootTheDie · Gesto de arminha ativo · Atirando!'
-          : 'G18 na Luva 3D · Gesto de arminha (👉) atira · Feche mão esq. p/ sair';
+          : 'G18 na Mão 3D · Gesto de arminha (👉) atira · Botão 3D atrás p/ sair';
       } else {
-        statusEl.textContent = 'Gesto de arminha (👉) pega a G18 · Feche mão esq. ou botão atrás p/ sair';
+        statusEl.textContent = 'Gesto de arminha (👉) pega a G18 · Botão 3D atrás p/ sair';
       }
     }
     css3d?.invalidate?.();
@@ -1213,7 +1342,6 @@ function bootMrPistolEngine(container) {
     if (!Array.isArray(trackedHands) || trackedHands.length === 0) {
       state.fingerGunActive = false;
       state.lastFingerGun = false;
-      state.leftFistFrames = 0;
       leftGlove3D.gloveRoot.visible = false;
       if (state.grabbed) {
         gripAnchorWorld.set(0, -0.055, 0.048).applyQuaternion(pistolGroup.quaternion).add(pistolGroup.position);
@@ -1227,27 +1355,15 @@ function bootMrPistolEngine(container) {
       || trackedHands.find(h => detectFingerGunGesture(h));
     const rightH = gunHand || trackedHands.find(h => h.id === 'right' || h.left === false) || (leftH ? null : trackedHands[0]);
 
-    // MÃO ESQUERDA: renderiza a Luva 3D com badge "SAIR" e fecha o jogo ao fechar a mão esquerda!
+    // MÃO ESQUERDA: renderiza a Mão 3D (Luva Preta Fingerless + Dedos em Pele Realista), sem sair ao fechar a mão
     if (leftH) {
       const lp = leftH.palm || leftH.aim || [0.35, 0.55, 0];
       const lDepth = Math.max(0.36, Math.min(0.68, 0.48 - (Number(lp[2]) || 0) * 0.22));
       leftHandWorldPos.set((Number(lp[0]) - 0.5) * 0.82, (0.5 - Number(lp[1])) * 0.62 - 0.06, -lDepth)
         .applyMatrix4(playerRig.matrixWorld);
       update3DGlovePose(leftGlove3D, leftH, leftHandWorldPos, playerRig.quaternion);
-
-      if (detectClosedFist(leftH)) {
-        state.leftFistFrames++;
-        if (state.leftFistFrames >= 2) {
-          toast('Mão esquerda fechada · Saindo do ShootTheDie');
-          closeMrPistolGame();
-          return;
-        }
-      } else {
-        state.leftFistFrames = 0;
-      }
     } else {
       leftGlove3D.gloveRoot.visible = false;
-      state.leftFistFrames = 0;
     }
 
     // Verifica toque de qualquer mão no botão 3D de Reiniciar Alvos ou no botão 3D de Sair atrás
