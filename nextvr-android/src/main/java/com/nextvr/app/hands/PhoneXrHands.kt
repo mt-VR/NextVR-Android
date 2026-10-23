@@ -194,7 +194,7 @@ class PhoneXrHands {
         val landmarks = Array(63) { i ->
             when {
                 i % 3 == 2 -> HandGestures.OneEuro(minCutoff=2.2f, beta=9.5f, deadZone=.0008f)
-                i < 3 -> HandGestures.OneEuro(minCutoff=3.2f, beta=22.0f, deadZone=.0003f)
+                i < 3 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
                 else -> HandGestures.OneEuro(minCutoff=4.2f, beta=28.0f, deadZone=.0002f)
             }
         }
