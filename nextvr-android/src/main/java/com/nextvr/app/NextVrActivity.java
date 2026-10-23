@@ -138,6 +138,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile float gyroRate=0f;
     private volatile boolean sixDofEnabled=true;
     private volatile boolean sentZeroSixDof=false;
+    private volatile boolean gameHandMode=false;
     private final android.hardware.SensorEventListener walkSensorListener=new android.hardware.SensorEventListener() {
         @Override public void onSensorChanged(android.hardware.SensorEvent event) {
             if(event==null || event.values==null || event.values.length<3) return;
@@ -228,7 +229,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(r!=null) r.hands=null;
                     return;
                 }
-                if(r!=null)r.hands=frame;
+                boolean inGame=gameHandMode;
+                if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
@@ -236,7 +238,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")");
+                String payload=inGame?frame.gameJson():frame.json();
+                handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
@@ -846,12 +849,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
+        @JavascriptInterface public void setGameHandMode(boolean enabled) {
+            gameHandMode=enabled;
+            if(!closed && camera!=null) camera.gameHandMode=enabled;
+            SpatialRenderer r=renderer;
+            if(r!=null) {
+                r.handRenderer.gameHandMode=enabled;
+                if(enabled) r.hands=null;
+            }
+        }
         @JavascriptInterface public void wideCamera(boolean enabled) {
             SpatialRenderer r=renderer;if(r!=null)r.wideCamera=enabled;
             if(!closed && camera!=null)camera.setWideCamera(enabled);
         }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
-        @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
+        @JavascriptInterface public void click() { if(gameHandMode) return; main.post(()->{ if(!resumed || gameHandMode) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
         @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;

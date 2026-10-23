@@ -2100,53 +2100,40 @@
     position:absolute;
     left:50%;
     top:50%;
-    width:40px;
-    height:40px;
-    margin-left:-20px;
-    margin-top:-20px;
+    width:54px;
+    height:54px;
+    margin-left:-27px;
+    margin-top:-27px;
     border-radius:50%;
     overflow:hidden;
     z-index:9995;
     pointer-events:none;
-    border:1.8px solid rgba(255,255,255,.58);
-    box-shadow:0 4px 16px rgba(0,0,0,.38);
-    background:rgba(10,12,16,.32);
+    border:1.8px solid rgba(255,255,255,.46);
+    box-shadow:0 4px 16px rgba(0,0,0,.32);
+    background:rgba(10,12,16,.28);
     backdrop-filter:blur(6px);
+    opacity:.62;
     display:flex;
     align-items:center;
     justify-content:center;
-    transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease,background .14s ease;
+    transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease,opacity .14s ease;
   }
   .gun-logo-bubble[hidden]{display:none!important}
   .gun-logo-bubble .gun-logo-img{
-    display:none!important;
-    width:0!important;
-    height:0!important;
-    opacity:0!important;
-  }
-  .bolinha-bw-dot{
-    width:28px;
-    height:28px;
+    width:100%!important;
+    height:100%!important;
+    object-fit:cover;
+    display:block!important;
     border-radius:50%;
-    border:1.5px solid rgba(255,255,255,.68);
-    background:rgba(0,0,0,.28);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .bolinha-bw-core{
-    width:12px;
-    height:12px;
-    border-radius:50%;
-    background:rgba(255,255,255,.78);
-    box-shadow:0 0 8px rgba(255,255,255,.55);
+    opacity:.72!important;
+    filter:brightness(1.65) contrast(1.18);
   }
   .gun-logo-bubble.fired,
   .gun-logo-bubble.gun-triggered{
-    transform:scale(1.12);
-    border-color:rgba(255,255,255,.88);
-    background:rgba(255,255,255,.22);
-    box-shadow:0 0 18px rgba(255,255,255,.52);
+    transform:scale(1.10);
+    opacity:.78;
+    border-color:rgba(255,255,255,.78);
+    box-shadow:0 0 18px rgba(255,255,255,.42);
   }
 
   /* ---------- Transição de Carregamento do Ambiente Esfumaçada Subindo de Baixo (Estilo Meta Quest) ---------- */
@@ -3123,14 +3110,14 @@
     display:none !important;
   }
   .gun-logo-bubble.bolinha-menu-card{
-    width:40px !important;
-    height:40px !important;
+    width:54px !important;
+    height:54px !important;
     min-width:0 !important;
     padding:0 !important;
     border-radius:50% !important;
-    background:rgba(255,255,255,.22) !important;
-    border:2px solid rgba(255,255,255,.86) !important;
-    box-shadow:0 0 18px rgba(255,255,255,.48),0 4px 14px rgba(0,0,0,.38) !important;
+    background:rgba(10,12,16,.34) !important;
+    border:1.8px solid rgba(255,255,255,.72) !important;
+    box-shadow:0 0 18px rgba(255,255,255,.42),0 4px 14px rgba(0,0,0,.34) !important;
   }
 
   /* Janelinha Flutuante 3D de Brilho e Som da Mão Esquerda (Aumentada um pouco) */

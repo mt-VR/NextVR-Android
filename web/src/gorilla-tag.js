@@ -9,7 +9,7 @@ export const CARDBOARD_2015_LENS = Object.freeze({
   k1: 0.22,
   k2: 0.24,
   ipd: 0.064,
-  fov: 80,
+  fov: 94,
 });
 
 const SPAWN_HINT = [0, 2, 7];
@@ -868,34 +868,37 @@ function createRightArmCoinCounter() {
 
   rightArmCoinGroup = new THREE.Group();
   rightArmCoinGroup.name = 'gorilla-right-arm-coin-counter';
+  rightArmCoinGroup.renderOrder = 999;
 
-  // Pulseira escura envolta no antebraço direito
-  const strapMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
-  const strapMesh = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.044, 0.072), strapMat);
-  strapMesh.position.set(0, 0, -0.02);
-  rightArmCoinGroup.add(strapMesh);
-
-  // Moldura dourada do contador no braço direito
-  const bezelMat = new THREE.MeshBasicMaterial({ color: 0xeab308 });
-  const bezelMesh = new THREE.Mesh(new THREE.BoxGeometry(0.148, 0.068, 0.012), bezelMat);
+  // Moldura dourada flutuando por cima do braço direito (nunca dentro da malha do braço)
+  const bezelMat = new THREE.MeshBasicMaterial({
+    color: 0xeab308,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const bezelMesh = new THREE.Mesh(new THREE.BoxGeometry(0.154, 0.072, 0.010), bezelMat);
   bezelMesh.position.set(0, 0, -0.004);
+  bezelMesh.renderOrder = 998;
   rightArmCoinGroup.add(bezelMesh);
 
-  // Tela do contador de moedas
+  // Tela do contador de moedas posicionada por cima do braço direito
   const screenMat = new THREE.MeshBasicMaterial({
     map: rightArmCoinTex,
     transparent: true,
-    depthTest: true,
+    depthTest: false,
+    depthWrite: false,
     side: THREE.DoubleSide,
   });
-  const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.062), screenMat);
+  const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.144, 0.064), screenMat);
   screenMesh.position.set(0, 0, 0.004);
+  screenMesh.renderOrder = 999;
   rightArmCoinGroup.add(screenMesh);
 
   if (typeof window !== 'undefined') {
     window.__gorillaRightArmCoinCounter = {
       coins: gorillaCoins,
       attachedTo: 'right-arm',
+      placement: 'above-right-arm',
       side: 1,
       visible: true,
     };
@@ -911,18 +914,19 @@ function updateRightArmCoinCounterPose() {
   if (rightArm && rightArm.e && rightArm.h) {
     const ep = rightArm.e.getWorldPosition(V());
     const hp = rightArm.h.getWorldPosition(V());
-    // Posiciona no antebraço direito (72% entre o cotovelo direito e o pulso direito)
-    const forePos = ep.clone().lerp(hp, 0.72);
+    // Posiciona POR CIMA do antebraço direito (acima da superfície do braço, nunca dentro dele)
+    const forePos = ep.clone().lerp(hp, 0.68);
+    forePos.addScaledVector(camUp, 0.175);
     const toCam = camPos.clone().sub(forePos);
     if (toCam.lengthSq() > 1e-5) {
       toCam.normalize();
-      forePos.addScaledVector(toCam, 0.065);
+      forePos.addScaledVector(toCam, 0.125);
     }
     rightArmCoinGroup.position.copy(forePos);
     rightArmCoinGroup.up.copy(camUp);
     rightArmCoinGroup.lookAt(camPos);
   } else {
-    const fallbackRightArmW = C.localToWorld(new THREE.Vector3(0.24, -0.22, -0.44));
+    const fallbackRightArmW = C.localToWorld(new THREE.Vector3(0.24, -0.05, -0.44));
     rightArmCoinGroup.position.copy(fallbackRightArmW);
     rightArmCoinGroup.up.copy(camUp);
     rightArmCoinGroup.lookAt(camPos);
@@ -1615,14 +1619,18 @@ export function openGorillaTag() {
   if (entering || active) return;
   entering = true;
   window.__gorillaStereoOverlay = true;
+  window.__nextvrGameLightHandMode = true;
   window.__gorillaExit = exitGorillaTag;
   window.__gorillaOnHands = null;
   if (overlayEl) overlayEl.dataset.gorillaRightArmCoins = String(gorillaCoins);
 
-  // Ativa o rastreamento de mãos para os braços 3D do Gorila, mas deixa o esqueleto 2D/GL invisível
+  // Ativa o rastreamento de mãos leve dedicado aos jogos (sem a malha pesada do NextVR)
   settings.handsOn = true;
   startHands().catch(() => {});
-  try { window.NativeXR?.handVisuals?.(false); } catch {}
+  try {
+    window.NativeXR?.setGameHandMode?.(true);
+    window.NativeXR?.handVisuals?.(false);
+  } catch {}
 
   hiddenWinSnapshot = wins.map(w => ({ win: w, hidden: !!w.hidden }));
   for (const w of [...wins]) {
@@ -1659,6 +1667,7 @@ export function exitGorillaTag() {
   entering = false;
   active = false;
   window.__gorillaStereoOverlay = false;
+  window.__nextvrGameLightHandMode = false;
   window.__gorillaOnHands = null;
   gunArmedUntil[0] = 0;
   gunArmedUntil[1] = 0;
@@ -1672,7 +1681,10 @@ export function exitGorillaTag() {
     overlayEl.dataset.gorillaStage = 'idle';
     overlayEl.style.display = 'none';
   }
-  try { window.NativeXR?.handVisuals?.(!!settings.handDraw); } catch {}
+  try {
+    window.NativeXR?.setGameHandMode?.(false);
+    window.NativeXR?.handVisuals?.(!!settings.handDraw);
+  } catch {}
 
   for (const { win, hidden } of hiddenWinSnapshot) {
     if (wins.includes(win)) {

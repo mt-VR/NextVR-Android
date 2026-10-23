@@ -128,6 +128,7 @@ final class PassthroughCamera {
     private int sessionFrames;
     private volatile boolean destroyed;
     volatile boolean handsEnabled=true;
+    volatile boolean gameHandMode=false;
     volatile boolean wideCamera=false;
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -409,7 +410,8 @@ final class PassthroughCamera {
                 // stay off the thread whose cost caps the tracking rate (AnalysisGate).
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int width=Math.min(upright.getWidth(),Math.min(320,budget.width()*5/8));
+                    int maxAnalysisW=gameHandMode?192:256;
+                    int width=Math.min(upright.getWidth(),Math.min(maxAnalysisW,budget.width()*2/5));
                     int height=Math.max(1,width*upright.getHeight()/upright.getWidth());
                     Bitmap analysis=(width==upright.getWidth() && height==upright.getHeight())
                         ? upright.copy(Bitmap.Config.ARGB_8888,false)
@@ -432,8 +434,10 @@ final class PassthroughCamera {
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
             if(image!=null){image.close();image=null;}
-            float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
-            if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
+            if(!gameHandMode) {
+                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
+                if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
+            }
             long handoffStart=SystemClock.elapsedRealtime();
             listener.frame(upright);upright=null;
             PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);

@@ -341,12 +341,12 @@ function ensureScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x68a6e2);
 
-  camera = new THREE.PerspectiveCamera(72, 1, 0.05, 420);
+  camera = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
   camera.position.copy(SPAWN);
   scene.add(camera);
 
-  camL = new THREE.PerspectiveCamera(74, 1, 0.05, 420);
-  camR = new THREE.PerspectiveCamera(74, 1, 0.05, 420);
+  camL = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
+  camR = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.65));
   scene.add(new THREE.HemisphereLight(0xffffff, 0x3b6e38, 1.15));
@@ -922,10 +922,15 @@ export async function openVrfsGame() {
   window.__vrfsStereoOverlay = true;
   window.__vrfsExit = exitVrfsGame;
   window.__gorillaStereoOverlay = true;
+  window.__nextvrGameLightHandMode = true;
   window.__gorillaExit = exitVrfsGame;
   window.__gorillaOnHands = now => updateHandsToBoots(now);
 
   if (native) startHands();
+  try {
+    window.NativeXR?.setGameHandMode?.(true);
+    window.NativeXR?.handVisuals?.(false);
+  } catch {}
 
   hiddenWinSnapshot = wins.filter(w => !w.hidden).map(w => w.id);
   for (const w of wins) w.setHidden(true);
@@ -958,7 +963,12 @@ export function exitVrfsGame() {
   entering = false;
   window.__vrfsStereoOverlay = false;
   window.__gorillaStereoOverlay = false;
+  window.__nextvrGameLightHandMode = false;
   window.__gorillaOnHands = null;
+  try {
+    window.NativeXR?.setGameHandMode?.(false);
+    window.NativeXR?.handVisuals?.(!!settings.handDraw);
+  } catch {}
   if (rafId) {
     cancelAnimationFrame(rafId);
     rafId = 0;

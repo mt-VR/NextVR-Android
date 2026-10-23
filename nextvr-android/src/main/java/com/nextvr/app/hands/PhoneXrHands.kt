@@ -155,6 +155,27 @@ class PhoneXrHands {
                 .append('}').toString()
         }
 
+        /** Lightweight JSON payload for VR games (skips 63-float head array and menu pose math). */
+        fun gameJson(): String {
+            val sb = StringBuilder(512)
+            sb.append("{\"hands\":[")
+            for ((index, h) in hands.withIndex()) {
+                if (index > 0) sb.append(',')
+                sb.append("{\"id\":\"").append(if (h.left) "left" else "right").append('"')
+                    .append(",\"left\":").append(h.left)
+                    .append(",\"points\":")
+                appendFloats(sb, h.points)
+                sb.append(",\"palm\":[").append(h.shape.palmX).append(',').append(h.shape.palmY).append(']')
+                    .append(",\"palmWidth\":").append(h.shape.palmWidth)
+                    .append(",\"pinching\":").append(h.pinching)
+                    .append(",\"fist\":").append(h.shape.fist)
+                    .append('}')
+            }
+            return sb.append("],\"timestampNs\":").append(timestampNs)
+                .append(",\"validForMs\":").append(validForNs / 1_000_000L)
+                .append('}').toString()
+        }
+
         private fun appendFloats(sb: StringBuilder, values: FloatArray): StringBuilder {
             sb.append('[')
             for (i in values.indices) {
@@ -172,17 +193,17 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=1.35f, beta=4.5f, deadZone=.0012f)
-                i < 3 -> HandGestures.OneEuro(minCutoff=1.6f, beta=11.5f, deadZone=.0008f)
-                else -> HandGestures.OneEuro(minCutoff=2.8f, beta=18.5f, deadZone=.0005f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=2.2f, beta=9.5f, deadZone=.0008f)
+                i < 3 -> HandGestures.OneEuro(minCutoff=3.2f, beta=22.0f, deadZone=.0003f)
+                else -> HandGestures.OneEuro(minCutoff=4.2f, beta=28.0f, deadZone=.0002f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=2.4f, beta=14.0f, deadZone=.0005f)
-        val y = HandGestures.OneEuro(minCutoff=2.4f, beta=14.0f, deadZone=.0005f)
+        val x = HandGestures.OneEuro(minCutoff=3.8f, beta=24.0f, deadZone=.0002f)
+        val y = HandGestures.OneEuro(minCutoff=3.8f, beta=24.0f, deadZone=.0002f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=1.4f,beta=4.5f)
-        val grabY = HandGestures.OneEuro(minCutoff=1.4f,beta=4.5f)
+        val grabX = HandGestures.OneEuro(minCutoff=2.8f,beta=14.0f)
+        val grabY = HandGestures.OneEuro(minCutoff=2.8f,beta=14.0f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false

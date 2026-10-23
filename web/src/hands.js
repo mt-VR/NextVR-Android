@@ -97,11 +97,11 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
   validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
   hands.splice(0,hands.length,...(frame.hands || []));
-  emit('handframe',{...frame,hands});
-  if (window.__gorillaStereoOverlay) {
+  if (window.__gorillaStereoOverlay || window.__nextvrGameLightHandMode) {
     window.__gorillaOnHands?.(now);
     return;
   }
+  emit('handframe',{...frame,hands});
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };
   updateHandBoxesFromPacket(packet);

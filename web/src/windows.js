@@ -3112,8 +3112,7 @@ function showBolinhaBubble(h, packet, fired = false) {
     bolinhaBubbleEl.dataset.hand = 'right';
     bolinhaBubbleEl.innerHTML = `
       <div class="bolinha-card-inner">
-        <span class="bolinha-bw-dot"><span class="bolinha-bw-core"></span></span>
-        <img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false" style="display:none;width:0;height:0;opacity:0;pointer-events:none"/>
+        <img src="./icons/nextvr-bolinha-logo.png" alt="NextVR" class="gun-logo-img" draggable="false"/>
       </div>
     `;
     hud.appendChild(bolinhaBubbleEl);
@@ -3121,7 +3120,7 @@ function showBolinhaBubble(h, packet, fired = false) {
   const p = h.points;
   const sx = Number(packet?.scaleX) || 1;
   const sy = Number(packet?.scaleY) || 1;
-  // Posiciona a bolinha discreta preta e branca transparente entre o polegar e o indicador da mão direita
+  // Posiciona a bolinha com o ícone original transparente entre o polegar e o indicador da mão direita
   const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.55);
   const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
   const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
@@ -3172,8 +3171,7 @@ function showLeftBolinhaBubble(h, packet, fired = false) {
     leftBolinhaBubbleEl.dataset.hand = 'left';
     leftBolinhaBubbleEl.innerHTML = `
       <div class="bolinha-card-inner">
-        <span class="bolinha-bw-dot"><span class="bolinha-bw-core"></span></span>
-        <img src="./icons/nextvr-bolinha-left.png" alt="NextVR Control" class="gun-logo-img left-logo-img" draggable="false" style="display:none;width:0;height:0;opacity:0;pointer-events:none"/>
+        <img src="./icons/nextvr-bolinha-left.png" alt="NextVR Control" class="gun-logo-img left-logo-img" draggable="false"/>
       </div>
     `;
     hud.appendChild(leftBolinhaBubbleEl);
@@ -3547,6 +3545,9 @@ function endNear(cancel=false, packet=lastPhonePacket) {
 }
 on('phonehands', packet => {
   lastPhonePacket=packet;
+  if (window.__nextvrGameLightHandMode || window.__gorillaStereoOverlay) {
+    return;
+  }
   const ids=new Set(packet.hands.map(h=>h.id));
   if (!packet.hands.length) setFingerHoverEl(null);
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);

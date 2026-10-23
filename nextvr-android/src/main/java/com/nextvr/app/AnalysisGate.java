@@ -33,7 +33,7 @@ public final class AnalysisGate {
      * than the newest camera frame, while a callback that arrives one period after the pending
      * frame still skips its resample.
      */
-    public static final long DEFAULT_MAX_PENDING_AGE_MS = 34L;
+    public static final long DEFAULT_MAX_PENDING_AGE_MS = 16L;
 
     private final long maxPendingAgeMs;
 
