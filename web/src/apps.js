@@ -1219,7 +1219,6 @@ const LIB_APPS = [
   { id:'x', name:'X', label:'X', bg:'linear-gradient(145deg,#38383d,#070708)', slug:'x', color:'ffffff' },
   { id:'facebook', name:'Facebook', bg:'linear-gradient(145deg,#3b91ff,#1554ab)', imgUrl:'./icons/hz-facebook.png', slug:'facebook', color:'ffffff', iconOnly:true },
   { id:'vrfs', name:'VRFS', label:'VRFS', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', html:'<img class="lx-vrfs-logo" src="./icons/vrfs-logo.jpg" alt="VRFS" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">' },
-  { id:'mr-pistol', name:'Pistola MR', label:'Pistola MR', bg:'#062c1e', imgUrl:'./icons/gun-logo.jpg', html:'<img class="lx-mr-pistol-logo" src="./icons/gun-logo.jpg" alt="Pistola MR" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">' },
   { id:'spotify', name:'Spotify', bg:'linear-gradient(145deg,#267b50,#0b1911)', slug:'spotify', color:'1DB954' },
   { id:'browser', name:'Browser', bg:'linear-gradient(145deg,#8aa7ff,#5d62d5)', imgUrl:'./icons/hz-browser.png', icon:'compass' },
   { id:'store', name:'Store', bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
@@ -1232,6 +1231,15 @@ const GORILLA_TAG_ITEM = {
   label: 'Gorilla Tag',
   bg: '#0b141a',
   html: '<img class="lx-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
+  kind: 'app',
+};
+const MR_PISTOL_ITEM = {
+  id: 'mr-pistol',
+  name: 'Pistola MR',
+  label: 'Pistola MR',
+  bg: '#062c1e',
+  imgUrl: './icons/gun-logo.jpg',
+  html: '<img class="lx-mr-pistol-logo" src="./icons/gun-logo.jpg" alt="Pistola MR" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
   kind: 'app',
 };
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
@@ -1641,7 +1649,7 @@ function libItems() {
   if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
   const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : [])];
   let filtered = list;
-  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');
+  if (libFilter === 'games') filtered = [...filtered.filter(x => x.kind === 'xr'), MR_PISTOL_ITEM];
   if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
   if (libFilter === 'recent') filtered = filtered.filter(x => libRecent.includes(x.id));
