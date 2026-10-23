@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
@@ -2709,6 +2709,15 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
   }
   leftHandQuickMenuEl.hidden = false;
   syncLeftHandQuickMenuValues();
+  camera.updateMatrixWorld(true);
+  contentRoot.updateMatrixWorld(true);
+  const camWorldPos = camera.position.clone().applyMatrix4(camera.parent ? camera.parent.matrixWorld : camera.matrixWorld);
+  const camFwd = camera.getWorldDirection(camWorldPos.clone().set(0, 0, -1));
+  const worldTarget = camera.getWorldPosition(camWorldPos.clone()).addScaledVector(camFwd, 0.78);
+  const localSpawn = contentRoot.worldToLocal(worldTarget);
+  if (!Number.isFinite(localSpawn.x) || !Number.isFinite(localSpawn.y) || !Number.isFinite(localSpawn.z)) {
+    localSpawn.set(0, 1.46, -0.78);
+  }
   if (existing) {
     const host = winBody('left-quick-menu');
     if (host && !host.contains(leftHandQuickMenuEl)) {
@@ -2716,8 +2725,13 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       host.appendChild(leftHandQuickMenuEl);
     }
     existing.setHidden(false);
+    existing.curve = 0;
     existing.resizeScale = 1.15;
+    existing.target.copy(localSpawn);
+    existing.obj.position.copy(localSpawn);
     existing.shell.dataset.attachedHand = 'left';
+    existing.shell.dataset.attachedPos = `${localSpawn.x.toFixed(2)},${localSpawn.y.toFixed(2)},${localSpawn.z.toFixed(2)}`;
+    existing.shell.dataset.attachedDist = '0.78';
     existing.apply();
     focus(existing);
   } else {
@@ -2732,11 +2746,16 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
       chrome: false,
       resizable: false,
       free: true,
-      at: { x: -0.18, y: 1.44, z: -0.76 },
+      at: { x: localSpawn.x, y: localSpawn.y, z: localSpawn.z },
     });
     if (win) {
+      win.curve = 0;
       win.resizeScale = 1.15;
+      win.target.copy(localSpawn);
+      win.obj.position.copy(localSpawn);
       win.shell.dataset.attachedHand = 'left';
+      win.shell.dataset.attachedPos = `${localSpawn.x.toFixed(2)},${localSpawn.y.toFixed(2)},${localSpawn.z.toFixed(2)}`;
+      win.shell.dataset.attachedDist = '0.78';
       win.apply();
     }
   }

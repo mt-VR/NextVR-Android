@@ -7,6 +7,8 @@ import {
   ENTRY_TAGLINE_BOTTOM,
   ENTRY_COLLABORATORS,
   ENTRY_COLLABORATOR_BIOS,
+  ENTRY_VERIFIED_NAMES,
+  isVerifiedProfileName,
   ENTRY_ABOUT_TITLE,
   ENTRY_ABOUT_PARAGRAPHS,
   ENTRY_ABOUT_TEXT,
@@ -558,7 +560,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       <div class="entry-collab-list" role="list">
         ${ENTRY_COLLABORATORS.map(name => {
           const bio = ENTRY_COLLABORATOR_BIOS[name] || '';
-          const isBlue = name === 'colaboradores do nextVR';
+          const isBlue = name === 'NanyGata';
           return `
           <div class="entry-collab-item ${isBlue ? 'entry-collab-item--blue' : ''}" role="listitem" data-collaborator-name="${name}">
             <span class="entry-collab-name-row">
@@ -613,7 +615,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
           <div class="entry-login-right">
             <label class="entry-login-label">
-              <span>SEU NOME / NICK</span>
+              <span>SEU NOME / NICK <span class="entry-collab-verified entry-profile-verified-preview" data-profile-verified-preview="1" ${isVerifiedProfileName(currentName) ? '' : 'hidden'} title="Verificado">${SVG_TIKTOK_VERIFIED}</span></span>
               <input type="text" class="entry-login-input" data-profile-name-input maxlength="24" placeholder="Digite seu nome..." value="${escHtml(currentName)}" />
             </label>
             <div class="entry-login-presets-wrap">
@@ -761,7 +763,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-profile-box" data-entry-act="profile" role="button" tabindex="0" title="Clique para editar Nome e Foto de Perfil">
             <button type="button" class="entry-profile-q" data-entry-act="profile" title="Foto de Perfil / Login">${profileAvatarHtml}</button>
             <div class="entry-profile-info">
-              <div class="entry-profile-name"><span data-profile-display-name>${displayName}</span> <small class="entry-profile-edit-tag">PERFIL</small></div>
+              <div class="entry-profile-name"><span data-profile-display-name>${displayName}</span><span class="entry-collab-verified entry-profile-verified" data-profile-verified="1" ${isVerifiedProfileName(S.profileName) ? '' : 'hidden'} title="Verificado">${SVG_TIKTOK_VERIFIED}</span> <small class="entry-profile-edit-tag">PERFIL</small></div>
               <div class="entry-profile-meta">Hand: <span data-profile-hand>${handStyleText(S.handDraw)}</span></div>
               <div class="entry-profile-meta">Hora: <span data-entry-clock>${currentClock()}</span> · Bat: <span data-entry-battery>${batInfo.text}</span></div>
             </div>
@@ -901,6 +903,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         save(S);
         const disp = root.querySelector('[data-profile-display-name]');
         if (disp) disp.textContent = S.profileName || 'NextVR (Login)';
+        const verified = isVerifiedProfileName(S.profileName);
+        const badge = root.querySelector('[data-profile-verified]');
+        if (badge) badge.hidden = !verified;
+        const previewBadge = root.querySelector('[data-profile-verified-preview]');
+        if (previewBadge) previewBadge.hidden = !verified;
       };
     }
     const saveProfileBtn = root.querySelector('[data-profile-save]');

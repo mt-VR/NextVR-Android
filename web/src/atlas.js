@@ -184,7 +184,7 @@ export class AtlasRenderer {
       .multiply(new THREE.Matrix4().makeScale(sy * 1.5, sy, 1));
     if (window.__gorillaStereoOverlay) {
       const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
-        .multiply(new THREE.Matrix4().makeScale(sy * 1.15, sy * 0.96, 1));
+        .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
       panels.push({
         overlay: true,
         matrix: gHud.toArray(),

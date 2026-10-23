@@ -14,8 +14,8 @@ Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, se
 NextVR — Mais que um app, uma nova forma de ver.`;
 
 test('entry menu constants match the exact collaborators order and about text', () => {
-  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'colaboradores do nextVR', 'JocaVR']);
-  assert.ok(!ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is replaced by colaboradores do nextVR');
+  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
+  assert.ok(ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is restored in ENTRY_COLLABORATORS');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
   assert.equal(ENTRY_COLLABORATOR_BIOS.JocaVR, 'o portador de jogos mais importante do planeta aurudo 67');
@@ -44,11 +44,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     assert.ok(bundleSrc.includes(token), `bundled app.js includes ${token}`);
   }
 
-  for (const name of ['NeyVR', 'Faylan', 'colaboradores do nextVR', 'JocaVR']) {
+  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']) {
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
-  assert.ok(!entryMenuSrc.includes('NanyGata'), 'NanyGata is removed from entry-menu.js and entry-data.js');
+  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant red verified badge for NeyVR, Faylan, NanyGata, and JocaVR');
   assert.ok(entryMenuSrc.includes('data-entry-dof="3dof"') && entryMenuSrc.includes('data-entry-dof="6dof"'),
     'entry-menu.js includes 3DoF and 6DoF options in Settings');
   assert.ok(indexHtml.includes('nextvrClickPop') && indexHtml.includes('nextvrChoosePulse') && indexHtml.includes('nextvr-click-ripple'),
@@ -250,12 +250,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         color: getComputedStyle(el.querySelector('.entry-collab-name')).color,
       }));
     });
-    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'colaboradores do nextVR', 'JocaVR']);
+    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
     assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has a red TikTok-style verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');
     assert.equal(collabData.find(c => c.name === 'JocaVR')?.bio, 'o portador de jogos mais importante do planeta aurudo 67');
-    assert.equal(collabData.find(c => c.name === 'colaboradores do nextVR')?.isBlue, true, 'colaboradores do nextVR replaces NanyGata in blue');
+    assert.equal(collabData.find(c => c.name === 'NanyGata')?.isBlue, true, 'NanyGata is styled in blue');
     for (let i = 1; i < collabData.length; i++) {
       assert.ok(collabData[i].top > collabData[i - 1].top, `${collabData[i].name} must be below ${collabData[i - 1].name}`);
     }
@@ -298,6 +298,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     await page.evaluate(() => document.querySelector('[data-profile-preset]').click());
     await page.evaluate(() => document.querySelector('[data-profile-save]').click());
     assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'NeyVR');
+    assert.equal(await page.evaluate(() => {
+      const b = document.querySelector('[data-profile-verified="1"]');
+      return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
+    }), true, 'Profile displays red verified badge for NeyVR');
 
     // 5c. Bateria sincronizada em tempo real com o celular
     await page.evaluate(() => window.nextvrBattery({ level: 0.42, charging: true }));

@@ -238,21 +238,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                String payload=inGame?frame.gameJson():frame.json();
+                String payload=frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.16f) return;
-                if(Math.abs(sc)<0.0022f && Math.abs(mx-gx)<0.18f) {
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.18f) return;
+                if(Math.abs(sc)<0.0014f && Math.abs(mx-gx)<0.14f) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.14f && (nowMs-lastWalkStepMs)<550L);
-                boolean moving=accelMoving && gyroRate<0.82f && Math.hypot(gx,gy)<=1.65;
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.09f && (nowMs-lastWalkStepMs)<720L);
+                boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.2;
                 if(!moving && sentZeroSixDof) return;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;

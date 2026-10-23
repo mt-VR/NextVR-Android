@@ -346,7 +346,7 @@ final class SpatialRenderer {
         handRenderer.virtualEnv=sphere || blackEnv;
         // The ray target is in world space; the hand pass transforms it for each eye before
         // projection, keeping the pointer over the same icon in both Cardboard lenses.
-        if(handFrame!=null && !handRenderer.gameHandMode) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands);
+        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p);

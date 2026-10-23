@@ -9,7 +9,7 @@ export const CARDBOARD_2015_LENS = Object.freeze({
   k1: 0.22,
   k2: 0.24,
   ipd: 0.064,
-  fov: 94,
+  fov: 76,
 });
 
 const SPAWN_HINT = [0, 2, 7];
@@ -1619,16 +1619,14 @@ export function openGorillaTag() {
   if (entering || active) return;
   entering = true;
   window.__gorillaStereoOverlay = true;
-  window.__nextvrGameLightHandMode = true;
   window.__gorillaExit = exitGorillaTag;
   window.__gorillaOnHands = null;
   if (overlayEl) overlayEl.dataset.gorillaRightArmCoins = String(gorillaCoins);
 
-  // Ativa o rastreamento de mãos leve dedicado aos jogos (sem a malha pesada do NextVR)
+  // Ativa o rastreamento de mãos se ainda não estiver ligado e esconde o esqueleto 2D no jogo
   settings.handsOn = true;
   startHands().catch(() => {});
   try {
-    window.NativeXR?.setGameHandMode?.(true);
     window.NativeXR?.handVisuals?.(false);
   } catch {}
 
@@ -1667,7 +1665,6 @@ export function exitGorillaTag() {
   entering = false;
   active = false;
   window.__gorillaStereoOverlay = false;
-  window.__nextvrGameLightHandMode = false;
   window.__gorillaOnHands = null;
   gunArmedUntil[0] = 0;
   gunArmedUntil[1] = 0;
@@ -1682,7 +1679,6 @@ export function exitGorillaTag() {
     overlayEl.style.display = 'none';
   }
   try {
-    window.NativeXR?.setGameHandMode?.(false);
     window.NativeXR?.handVisuals?.(!!settings.handDraw);
   } catch {}
 

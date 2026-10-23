@@ -341,12 +341,12 @@ function ensureScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x68a6e2);
 
-  camera = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
+  camera = new THREE.PerspectiveCamera(74, (1200 / 2) / 800, 0.05, 420);
   camera.position.copy(SPAWN);
   scene.add(camera);
 
-  camL = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
-  camR = new THREE.PerspectiveCamera(92, (1200 / 2) / 800, 0.05, 420);
+  camL = new THREE.PerspectiveCamera(74, (1200 / 2) / 800, 0.05, 420);
+  camR = new THREE.PerspectiveCamera(74, (1200 / 2) / 800, 0.05, 420);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.65));
   scene.add(new THREE.HemisphereLight(0xffffff, 0x3b6e38, 1.15));
@@ -587,8 +587,35 @@ async function loadVrfsWorld() {
 
 const TAN = Math.tan(33 * Math.PI / 180);
 
+let ballSummonFrames = 0;
+let lastBallSummonAt = 0;
+function isBallSummonGesture(h) {
+  if (!h) return false;
+  if (h.pinching || h.fist || (Number(h.pinch) > 0 && Number(h.pinch) < 0.042)) return true;
+  const p = h.points;
+  if (p && p.length >= 63) {
+    const wristY = p[1];
+    const idxUp = p[25] < p[19] - 0.02 && p[25] < wristY - 0.05;
+    const midUp = p[37] < p[31] - 0.02 && p[37] < wristY - 0.05;
+    const ringCurled = p[49] > p[43] - 0.01;
+    const pinkyCurled = p[61] > p[55] - 0.01;
+    if (idxUp && midUp && ringCurled && pinkyCurled) return true;
+  }
+  return false;
+}
+
 function updateHandsToBoots(now) {
   const list = Array.isArray(trackedHands) ? trackedHands : [];
+  if (list.some(isBallSummonGesture)) {
+    ballSummonFrames++;
+    if (ballSummonFrames === 2 && now - lastBallSummonAt > 750) {
+      lastBallSummonAt = now;
+      resetBall();
+      toast('⚽ Bola na frente!');
+    }
+  } else {
+    ballSummonFrames = 0;
+  }
   const asp = 1.33;
   const hs = list.map(h => {
     const p = h?.points;
@@ -922,13 +949,11 @@ export async function openVrfsGame() {
   window.__vrfsStereoOverlay = true;
   window.__vrfsExit = exitVrfsGame;
   window.__gorillaStereoOverlay = true;
-  window.__nextvrGameLightHandMode = true;
   window.__gorillaExit = exitVrfsGame;
   window.__gorillaOnHands = now => updateHandsToBoots(now);
 
   if (native) startHands();
   try {
-    window.NativeXR?.setGameHandMode?.(true);
     window.NativeXR?.handVisuals?.(false);
   } catch {}
 
@@ -963,10 +988,8 @@ export function exitVrfsGame() {
   entering = false;
   window.__vrfsStereoOverlay = false;
   window.__gorillaStereoOverlay = false;
-  window.__nextvrGameLightHandMode = false;
   window.__gorillaOnHands = null;
   try {
-    window.NativeXR?.setGameHandMode?.(false);
     window.NativeXR?.handVisuals?.(!!settings.handDraw);
   } catch {}
   if (rafId) {

@@ -13,6 +13,7 @@ import { appHostPoint } from './display-fit.js';
 import { curveAngle, curveRadius, curveOffset } from './window-geometry.js';
 import { boxFromMesh, boxOfWindow, chooseSpawn, resolveSlot } from './spawn.js';
 import { TwoHandMenuChord, twoHandsPinching } from './two-hand-chord.js';
+import { isVerifiedProfileName } from './entry-data.js';
 
 const PX = 0.00105;                 // 1040 px ≈ 1.09 m at scale 1; default .75 keeps floating windows compact
 export const wins = [];
@@ -293,11 +294,21 @@ class Win {
     // e deixava a interface com cara de protótipo.
     o.position.copy(this.target);
 
-    // rotação sai SÓ da posição da janela — a câmera não entra na conta
-    const yaw = Math.atan2(-o.position.x, -o.position.z) * S.winCurve;
-    const flat = Math.hypot(o.position.x, o.position.z) || .001;
-    const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
-    o.rotation.set(pitch, yaw, 0, 'YXZ');
+    if (this.id === 'left-quick-menu') {
+      if (this.handle) this.handle.hidden = true;
+      if (this.grab) this.grab.visible = false;
+      const camWorld = new THREE.Vector3();
+      camera.getWorldPosition(camWorld);
+      const camLocal = contentRoot.worldToLocal(camWorld.clone());
+      const faceYaw = Math.atan2(camLocal.x - o.position.x, camLocal.z - o.position.z);
+      o.rotation.set(0, faceYaw, 0, 'YXZ');
+    } else {
+      // rotação sai SÓ da posição da janela — a câmera não entra na conta
+      const yaw = Math.atan2(-o.position.x, -o.position.z) * S.winCurve;
+      const flat = Math.hypot(o.position.x, o.position.z) || .001;
+      const pitch = Math.atan2(EYE - o.position.y, flat) * S.winTilt * -1;
+      o.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
     const scale=(this.onboarding ? COMFORT.welcomeScale : S.winScale) * this.resizeScale;
     o.scale.setScalar(PX * scale);
 
@@ -1492,9 +1503,13 @@ export function buildDock(items) {
 
     if (it.kind === 'avatar') {
       b.className = 'dock-av';
-      b.innerHTML = S.profileAvatar
+      const verifiedHtml = isVerifiedProfileName(S.profileName)
+        ? '<span class="dock-av-verified" data-dock-verified="1" title="Verificado" style="position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;display:inline-flex;pointer-events:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><circle cx="12" cy="12" r="10.5" fill="#fe2c55"/><path d="M7.6 12.3l2.9 2.9 5.9-6.2" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+        : '';
+      b.style.position = 'relative';
+      b.innerHTML = (S.profileAvatar
         ? `<img src="${S.profileAvatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
-        : AVATAR_SVG;
+        : AVATAR_SVG) + verifiedHtml;
       if (S.profileName) b.title = S.profileName;
     } else if (it.kind === 'status') {
       b.className = 'dock-status';
@@ -3230,8 +3245,8 @@ function updateLeftQuickMenuAttachment(packet) {
   const sy = Number(packet?.scaleY) || 1;
   const rawX = (p && p.length >= 26) ? (p[24] * 0.45 + p[12] * 0.35 + p[0] * 0.20) : (leftHand.palm?.[0] ?? 0.35);
   const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.06) : ((leftHand.palm?.[1] ?? 0.5) - 0.08);
-  const normX = Math.max(0.14, Math.min(0.86, (rawX - 0.5) * sx + 0.5));
-  const normY = Math.max(0.14, Math.min(0.84, (rawY - 0.5) * sy + 0.5));
+  const normX = Math.max(0.46, Math.min(0.54, 0.5 + ((rawX - 0.5) * sx) * 0.12));
+  const normY = Math.max(0.46, Math.min(0.54, 0.5 + ((rawY - 0.5) * sy) * 0.12));
   const handSize = measureHandApparentSize(leftHand);
   if (handSize > 0.015) {
     // Mão perto (handSize maior) -> menu vem para perto (até 0.42m); mão longe (handSize menor) -> menu vai para longe (até 1.65m)
@@ -3545,9 +3560,6 @@ function endNear(cancel=false, packet=lastPhonePacket) {
 }
 on('phonehands', packet => {
   lastPhonePacket=packet;
-  if (window.__nextvrGameLightHandMode || window.__gorillaStereoOverlay) {
-    return;
-  }
   const ids=new Set(packet.hands.map(h=>h.id));
   if (!packet.hands.length) setFingerHoverEl(null);
   for(const id of fistBefore.keys())if(!ids.has(id))fistBefore.delete(id);
@@ -3694,14 +3706,23 @@ on('phonehands', packet => {
   if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
   else runFingerPokes();
 });
-let lastTargetAt=0,lastTargets='';
+let lastTargetAt=0,lastTargets='',appOpenBlueUntil=0,lastWinCount=0;
+on('wins', () => {
+  const activeCount = wins.filter(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher').length;
+  if (activeCount > lastWinCount) {
+    appOpenBlueUntil = performance.now() + 2600;
+  }
+  lastWinCount = activeCount;
+});
 onFrame((dt,now)=>{
   // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
   if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
-  const packet=lastPhonePacket, targets=[], noBeam = S.fingerTouch !== 0;
+  const packet=lastPhonePacket, targets=[];
+  const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl);
+    const noBeam = fingerHover;
     const stick = (fSt?.targetEl && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
       ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
       : null;
@@ -3714,7 +3735,7 @@ onFrame((dt,now)=>{
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
@@ -3728,8 +3749,11 @@ onFrame((dt,now)=>{
     if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
+    const isHolding=Boolean(isDown || h.pinching || h.fist || (drag.win && (!drag.hand || drag.hand===h.id)) || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || dockArmed>=0);
+    const isPrimaryRay=(cursor.hand?.id===h.id) || packet.hands.length===1;
+    const blueRay=Boolean(isHolding || ((hasOpenApp || now<appOpenBlueUntil) && (isPrimaryRay || Boolean(hit))));
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

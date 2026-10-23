@@ -193,17 +193,17 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=2.2f, beta=9.5f, deadZone=.0008f)
-                i < 3 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
-                else -> HandGestures.OneEuro(minCutoff=4.2f, beta=28.0f, deadZone=.0002f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=3.2f, beta=16.0f, deadZone=.0006f)
+                i == 0 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
+                else -> HandGestures.OneEuro(minCutoff=5.6f, beta=38.0f, deadZone=.00015f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=3.8f, beta=24.0f, deadZone=.0002f)
-        val y = HandGestures.OneEuro(minCutoff=3.8f, beta=24.0f, deadZone=.0002f)
+        val x = HandGestures.OneEuro(minCutoff=5.2f, beta=34.0f, deadZone=.00015f)
+        val y = HandGestures.OneEuro(minCutoff=5.2f, beta=34.0f, deadZone=.00015f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=2.8f,beta=14.0f)
-        val grabY = HandGestures.OneEuro(minCutoff=2.8f,beta=14.0f)
+        val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)
+        val grabY = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false

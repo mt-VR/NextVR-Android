@@ -53,8 +53,8 @@ export function screenPoint(tangent) {
  * tracking. Decisões de gesto (pinchdown/pinchup, hit-test de clique, input no DOM) usam SEMPRE
  * a detecção real, nunca a posição predita. */
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
-const CURSOR_PREDICT_MAX_SPEED = 1.6;   // unidades normalizadas/s — um movimento rápido de mão
-const CURSOR_PREDICT_MAX_STEP = .06;    // nunca extrapolar mais que isso por eixo
+const CURSOR_PREDICT_MAX_SPEED = 2.4;   // unidades normalizadas/s — um movimento rápido de mão
+const CURSOR_PREDICT_MAX_STEP = .085;   // nunca extrapolar mais que isso por eixo
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 
 export function predictedCursor(nowMs = performance.now()) {
@@ -71,15 +71,15 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   // frame to frame — the drift-then-snap that read as the cursor "wandering until the next frame".
   const gap = stampNs > 0 && cursorStampNs > 0 ? (stampNs - cursorStampNs) / 1e9
     : (cursorAt > 0 ? (now - cursorAt) / 1000 : -1);
-  if (cursor.active && gap > .004 && gap < .3) {
+  if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
-    // Velocidade com low-pass: acompanha o movimento sem amplificar o jitter do landmark.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .35;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .35;
+    // Velocidade com low-pass rápido: acompanha o movimento imediatamente sem atraso.
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .58;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .58;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
-    if (Math.hypot(cursorVel.x, cursorVel.y) < .12) cursorVel.x = cursorVel.y = 0;
-  } else if (!(gap >= 0 && gap <= .004)) {
+    if (Math.hypot(cursorVel.x, cursorVel.y) < .08) cursorVel.x = cursorVel.y = 0;
+  } else if (!(gap >= 0 && gap <= .003)) {
     cursorVel.x = cursorVel.y = 0;   // mão parada, nova ou volta após lacuna: sem predição
   }
   // A burst of queued frames arriving in one drain keeps the estimate — only the base moves.
@@ -97,14 +97,14 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
   validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
   hands.splice(0,hands.length,...(frame.hands || []));
-  if (window.__gorillaStereoOverlay || window.__nextvrGameLightHandMode) {
-    window.__gorillaOnHands?.(now);
-    return;
-  }
   emit('handframe',{...frame,hands});
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };
   updateHandBoxesFromPacket(packet);
+  if (window.__gorillaStereoOverlay) {
+    window.__gorillaOnHands?.(now);
+    return;
+  }
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
   if(packet.blockFar){cancel();return;}

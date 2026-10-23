@@ -8,14 +8,27 @@ export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
 export const ENTRY_COLLABORATORS = Object.freeze([
   'NeyVR',
   'Faylan',
-  'colaboradores do nextVR',
+  'NanyGata',
   'JocaVR',
 ]);
+
+export const ENTRY_VERIFIED_NAMES = Object.freeze([
+  'NeyVR',
+  'Faylan',
+  'NanyGata',
+  'JocaVR',
+]);
+
+export function isVerifiedProfileName(name) {
+  const clean = String(name || '').trim().toLowerCase();
+  if (!clean) return false;
+  return ENTRY_VERIFIED_NAMES.some(v => v.toLowerCase() === clean);
+}
 
 export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   NeyVR: 'o Dono absoluto mais aurudo do planeta.',
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
-  'colaboradores do nextVR': '',
+  NanyGata: '',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
 });
 

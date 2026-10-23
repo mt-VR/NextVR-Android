@@ -113,7 +113,8 @@ export const SixDof = {
   lastScAt: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
-  depth: 0.95, // metros assumidos até aos objetos à frente (velocidade 6DoF normal e equilibrada)
+  lastLatDx: 0,
+  depth: 1.18, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -130,6 +131,7 @@ export const SixDof = {
     this.stepDelta.set(0, 0, 0);
     this.prev = null;
     this.lastSc = 0;
+    this.lastLatDx = 0;
     this.lastScAt = 0;
     this._lastSentX = 0;
     this._lastSentZ = 0;
@@ -268,61 +270,66 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0020 && Math.abs(sc) <= 0.16;
-    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.22 && Math.abs(latDx) <= 4.5;
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0014 && Math.abs(sc) <= 0.20;
+    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.14 && Math.abs(latDx) <= 5.5;
     if (!hasDepthFlow && !hasLatFlow) {
       this.lastSc = 0;
+      this.lastLatDx = 0;
       return;
     }
 
     // Cabeça a rodar: ignora o fluxo ótico e zera o acumulador para nunca causar drift
-    if (Math.hypot(gx, gy) > 2.8) {
+    if (Math.hypot(gx, gy) > 3.2) {
       this.lastSc = 0;
+      this.lastLatDx = 0;
       return;
     }
 
     const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
     if (!isMoving) {
       this.lastSc = 0;
+      this.lastLatDx = 0;
       return;
     }
 
     // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
     const prevSc = this.lastSc;
+    const prevLat = this.lastLatDx;
     this.lastSc = hasDepthFlow ? sc : 0;
+    this.lastLatDx = hasLatFlow ? latDx : 0;
     this.lastScAt = nowMs;
-    if (prevSc === 0 || !hasDepthFlow || Math.sign(prevSc) !== Math.sign(sc)) {
-      return;
+
+    let movedAny = false;
+    if (hasDepthFlow && prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
+        Math.abs(sc - prevSc) <= Math.max(0.068, Math.abs(sc) * 1.65)) {
+      const stepSc = (sc + prevSc) * 0.5;
+      const step = Math.max(-0.088, Math.min(0.088, stepSc * this.depth));
+      _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
+      _sdFwd.y = 0;
+      if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
+      else _sdFwd.set(0, 0, -1);
+      this.pos.addScaledVector(_sdFwd, step);
+      movedAny = true;
     }
-    if (Math.abs(sc - prevSc) > Math.max(0.055, Math.abs(sc) * 1.45)) {
-      return;
-    }
 
-    const stepSc = (sc + prevSc) * 0.5;
-    const step = Math.max(-0.065, Math.min(0.065, stepSc * this.depth));
-
-    // Direção de marcha estritamente no plano horizontal do chão (XZ):
-    // Impede que olhar para baixo (para a Dock) faça a posição Y descer e a Dock subir para o céu!
-    _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
-    _sdFwd.y = 0;
-    if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
-    else _sdFwd.set(0, 0, -1);
-
-    this.pos.addScaledVector(_sdFwd, step);
-    if (hasLatFlow) {
+    if (hasLatFlow && prevLat !== 0 && Math.sign(prevLat) === Math.sign(latDx)) {
       _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
       _sdRight.y = 0;
       if (_sdRight.lengthSq() > 1e-6) _sdRight.normalize();
       else _sdRight.set(1, 0, 0);
-      const latStep = Math.max(-0.035, Math.min(0.035, -latDx * 0.012));
+      const latAvg = (latDx + prevLat) * 0.5;
+      const latStep = Math.max(-0.052, Math.min(0.052, -latAvg * 0.017));
       this.pos.addScaledVector(_sdRight, latStep);
+      movedAny = true;
     }
+
+    if (!movedAny) return;
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal
     const planarLen = Math.hypot(this.pos.x, this.pos.z);
-    if (planarLen > 1.8) {
-      const scale = 1.8 / planarLen;
+    if (planarLen > 2.4) {
+      const scale = 2.4 / planarLen;
       this.pos.x *= scale;
       this.pos.z *= scale;
     }
@@ -330,7 +337,7 @@ export const SixDof = {
 
     // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
     // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
-    this.out.lerp(this.pos, 0.52);
+    this.out.lerp(this.pos, 0.68);
     this.out.y = 0;
     cam.position.x = this.out.x;
     cam.position.z = this.out.z;
@@ -354,7 +361,7 @@ export const SixDof = {
       return;
     }
 
-    const lerpK = Math.max(0.28, 1 - Math.exp(-Math.max(0.005, dt) * 16));
+    const lerpK = Math.max(0.38, 1 - Math.exp(-Math.max(0.005, dt) * 22));
     this.out.lerp(this.pos, lerpK);
     this.out.y = 0;
 
