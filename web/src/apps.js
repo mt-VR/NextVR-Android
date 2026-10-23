@@ -1647,10 +1647,11 @@ function touchLib(id, silent) {
 function libItems() {
   // PhoneXR games belong in the NextVR library; ordinary Android packages do not.
   if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : [])];
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
   let filtered = list;
-  if (libFilter === 'games') filtered = [...filtered.filter(x => x.kind === 'xr'), MR_PISTOL_ITEM];
+  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');
   if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
+  if (libFilter === 'games' && S.mrPistolInstalled) filtered = [...filtered, MR_PISTOL_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
   if (libFilter === 'recent') filtered = filtered.filter(x => libRecent.includes(x.id));
   const q = libQuery.trim().toLowerCase();
