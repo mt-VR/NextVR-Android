@@ -16,10 +16,20 @@ public final class FakeSixDof {
     public static final int W = 96;
     public static final int H = 72;
 
-    private final float[] g = new float[W * H];
-    private float[] prev = null;
+    private final float[] bufA = new float[W * H];
+    private final float[] bufB = new float[W * H];
+    private final float[] keyframe = new float[W * H];
+    private boolean useBufB = false;
+    private boolean hasPrev = false;
+    private boolean hasKeyframe = false;
+    private int cachedW = -1, cachedH = -1;
+    private final int[] row0Off = new int[H];
+    private final int[] row1Off = new int[H];
+    private final int[] col0Off = new int[W];
+    private final int[] col1Off = new int[W];
     private final float[] globalSad = new float[225];
     private final float[] sad49 = new float[49];
+    private final boolean[] sad49Full = new boolean[49];
     private final float[] ptX = new float[64];
     private final float[] ptY = new float[64];
     private final float[] ptDx = new float[64];
@@ -28,24 +38,49 @@ public final class FakeSixDof {
     private final float[] resSorted = new float[64];
     private final int[] goodIdx = new int[64];
     private final float[][] handBoxes = new float[4][4];
+    private final float[] outFlow = new float[5];
     private int retainedHandCount = 0;
     private long lastHandsMs = 0L;
     private long lastMs = 0L;
     private float prevValidSc = 0f;
     private long prevValidMs = 0L;
+    private boolean worldLocked = true;
+    private int stationaryFrames = 0;
 
     public synchronized void reset() {
-        prev = null;
+        hasPrev = false;
+        hasKeyframe = false;
+        useBufB = false;
         lastMs = 0L;
         retainedHandCount = 0;
         lastHandsMs = 0L;
         prevValidSc = 0f;
         prevValidMs = 0L;
+        worldLocked = true;
+        stationaryFrames = 0;
+    }
+
+    private static float blockSad8x8(float[] cur, float[] ref, int bx, int by, int X0, int Y0, float cutoff) {
+        float sad = 0f;
+        for (int y = 0; y < 8; y++) {
+            int r = (by + y) * W + bx;
+            int r2 = (Y0 + y) * W + X0;
+            sad += Math.abs(cur[r2] - ref[r])
+                + Math.abs(cur[r2 + 1] - ref[r + 1])
+                + Math.abs(cur[r2 + 2] - ref[r + 2])
+                + Math.abs(cur[r2 + 3] - ref[r + 3])
+                + Math.abs(cur[r2 + 4] - ref[r + 4])
+                + Math.abs(cur[r2 + 5] - ref[r + 5])
+                + Math.abs(cur[r2 + 6] - ref[r + 6])
+                + Math.abs(cur[r2 + 7] - ref[r + 7]);
+            if (sad >= cutoff) return sad;
+        }
+        return sad;
     }
 
     /**
-     * Processa um frame ARGB upright (outW x outH) a ~15 Hz (>= 60 ms).
-     * Retorna { sc, gx, gy } se um modelo radial válido foi estimado, ou null caso contrário.
+     * Processa um frame ARGB upright (outW x outH) com World Lock e otimização de CPU/memória (zero alocações).
+     * Retorna { sc, gx, gy, gmx, worldLocked } se um modelo radial válido foi estimado, ou null caso contrário.
      */
     public synchronized float[] onCameraFrame(
             int[] cameraPixels,
@@ -54,20 +89,37 @@ public final class FakeSixDof {
             PhoneXrHands.Frame handsFrame,
             long nowMs) {
         if (cameraPixels == null || outW < W || outH < H) return null;
-        if (lastMs != 0L && nowMs - lastMs < 24L) return null;
+        if (lastMs != 0L && nowMs - lastMs < 22L) return null;
         lastMs = nowMs;
 
-        // Downsampling 2x2 com filtro de caixa (box filter) para 96x72 em luminância:
-        // elimina o aliasing de amostragem de ponto único e suaviza a parábola sub-pixel.
-        for (int y = 0; y < H; y++) {
-            int sy0 = (y * outH) / H;
-            int sy1 = Math.min(outH - 1, sy0 + 2);
-            int row0 = sy0 * outW;
-            int row1 = sy1 * outW;
-            int dstRow = y * W;
+        if (outW != cachedW || outH != cachedH) {
+            cachedW = outW;
+            cachedH = outH;
+            for (int y = 0; y < H; y++) {
+                int sy0 = (y * outH) / H;
+                int sy1 = Math.min(outH - 1, sy0 + 2);
+                row0Off[y] = sy0 * outW;
+                row1Off[y] = sy1 * outW;
+            }
             for (int x = 0; x < W; x++) {
                 int sx0 = (x * outW) / W;
-                int sx1 = Math.min(outW - 1, sx0 + 2);
+                col0Off[x] = sx0;
+                col1Off[x] = Math.min(outW - 1, sx0 + 2);
+            }
+        }
+
+        final float[] g = useBufB ? bufB : bufA;
+        final float[] P = useBufB ? bufA : bufB;
+        useBufB = !useBufB;
+
+        // Downsampling 2x2 pré-indexado com filtro de caixa em luminância (zero divisões no loop interno)
+        for (int y = 0; y < H; y++) {
+            int row0 = row0Off[y];
+            int row1 = row1Off[y];
+            int dstRow = y * W;
+            for (int x = 0; x < W; x++) {
+                int sx0 = col0Off[x];
+                int sx1 = col1Off[x];
                 int p00 = cameraPixels[row0 + sx0];
                 int p01 = cameraPixels[row0 + sx1];
                 int p10 = cameraPixels[row1 + sx0];
@@ -75,16 +127,16 @@ public final class FakeSixDof {
                 int r = ((p00 >> 16) & 0xff) + ((p01 >> 16) & 0xff) + ((p10 >> 16) & 0xff) + ((p11 >> 16) & 0xff);
                 int gr = ((p00 >> 8) & 0xff) + ((p01 >> 8) & 0xff) + ((p10 >> 8) & 0xff) + ((p11 >> 8) & 0xff);
                 int b = (p00 & 0xff) + (p01 & 0xff) + (p10 & 0xff) + (p11 & 0xff);
-                g[dstRow + x] = (r * 0.3f + gr * 0.59f + b * 0.11f) * 0.25f;
+                g[dstRow + x] = (r * 77 + gr * 150 + b * 29) * 0.00390625f * 0.25f;
             }
         }
 
-        if (prev == null) {
-            prev = g.clone();
+        if (!hasPrev) {
+            hasPrev = true;
+            System.arraycopy(g, 0, keyframe, 0, g.length);
+            hasKeyframe = true;
             return null;
         }
-
-        final float[] P = prev;
 
         // 1) Deslocamento global (rotação da cabeça) na zona central (+-7 px) com refinamento sub-pixel
         float best = 1e18f;
@@ -95,9 +147,9 @@ public final class FakeSixDof {
                 float sad = 0f;
                 for (int y = 22; y < 50; y += 2) {
                     int r = y * W;
-                    int r2 = (y + oy) * W;
+                    int r2 = (y + oy) * W + ox;
                     for (int x = 30; x < 66; x += 2) {
-                        sad += Math.abs(g[r2 + x + ox] - P[r + x]);
+                        sad += Math.abs(g[r2 + x] - P[r + x]);
                     }
                 }
                 globalSad[gsi++] = sad;
@@ -122,7 +174,7 @@ public final class FakeSixDof {
             if (den > 0f) gySub = gy + 0.5f * (a - c) / den;
         }
 
-        // Caixas das mãos (handBoxes +-0.08) com retenção de 400 ms (0.4 s)
+        // Caixas das mãos (handBoxes +-0.16) com retenção de 650 ms
         int hbCount = 0;
         if (handsFrame != null && !handsFrame.getHands().isEmpty()) {
             List<PhoneXrHands.Hand> hands = handsFrame.getHands();
@@ -151,7 +203,7 @@ public final class FakeSixDof {
             retainedHandCount = 0;
         }
 
-        // 2) Blocos 8x8 numa grelha, procura +-3 px à volta do deslocamento global (sub-pixel)
+        // 2) Blocos 8x8 numa grelha com early-bailout SAD sem perda e refinamento parabólico sub-pixel
         int nPts = 0;
         for (int by = 10; by <= H - 18; by += 10) {
             for (int bx = 10; bx <= W - 18; bx += 11) {
@@ -175,45 +227,60 @@ public final class FakeSixDof {
                         tex += Math.abs(P[row + x + 1] - P[row + x]) + Math.abs(P[nextRow + x] - P[row + x]);
                     }
                 }
-                if (tex < 110f) continue; // sem textura suficiente (parede lisa)
+                if (tex < 110f) continue;
 
-                int si = 0;
+                // Avalia (0,0) primeiro para estabelecer uma cota superior apertada (bs) para early bailout
                 float bs = 1e18f;
                 int bdx = 0, bdy = 0;
+                int cX0 = bx + gx, cY0 = by + gy;
+                if (cX0 >= 0 && cY0 >= 0 && cX0 + 8 <= W && cY0 + 8 <= H) {
+                    bs = blockSad8x8(g, P, bx, by, cX0, cY0, 1e18f);
+                    sad49[24] = bs;
+                    sad49Full[24] = true;
+                } else {
+                    sad49[24] = 1e18f;
+                    sad49Full[24] = true;
+                }
+
+                int si = 0;
                 for (int oy = -3; oy <= 3; oy++) {
-                    for (int ox = -3; ox <= 3; ox++) {
+                    for (int ox = -3; ox <= 3; ox++, si++) {
+                        if (ox == 0 && oy == 0) continue;
                         int X0 = bx + gx + ox;
                         int Y0 = by + gy + oy;
                         if (X0 < 0 || Y0 < 0 || X0 + 8 > W || Y0 + 8 > H) {
-                            sad49[si++] = 1e18f;
+                            sad49[si] = 1e18f;
+                            sad49Full[si] = true;
                             continue;
                         }
-                        float sad = 0f;
-                        for (int y = 0; y < 8; y++) {
-                            int r = (by + y) * W + bx;
-                            int r2 = (Y0 + y) * W + X0;
-                            for (int x = 0; x < 8; x++) {
-                                sad += Math.abs(g[r2 + x] - P[r + x]);
-                            }
-                        }
-                        sad49[si++] = sad;
+                        float sad = blockSad8x8(g, P, bx, by, X0, Y0, bs);
+                        sad49[si] = sad;
                         if (sad < bs) {
                             bs = sad;
                             bdx = ox;
                             bdy = oy;
+                            sad49Full[si] = true;
+                        } else {
+                            sad49Full[si] = false;
                         }
                     }
                 }
                 float fx = 0f, fy = 0f;
                 if (Math.abs(bdx) < 3) {
-                    float a = sad49[(bdy + 3) * 7 + (bdx - 1 + 3)];
-                    float c = sad49[(bdy + 3) * 7 + (bdx + 1 + 3)];
+                    int idxL = (bdy + 3) * 7 + (bdx - 1 + 3);
+                    int idxR = (bdy + 3) * 7 + (bdx + 1 + 3);
+                    if (!sad49Full[idxL]) sad49[idxL] = blockSad8x8(g, P, bx, by, bx + gx + bdx - 1, by + gy + bdy, 1e18f);
+                    if (!sad49Full[idxR]) sad49[idxR] = blockSad8x8(g, P, bx, by, bx + gx + bdx + 1, by + gy + bdy, 1e18f);
+                    float a = sad49[idxL], c = sad49[idxR];
                     float den = a - 2f * bs + c;
                     if (den > 0f && a < 1e17f && c < 1e17f) fx = 0.5f * (a - c) / den;
                 }
                 if (Math.abs(bdy) < 3) {
-                    float a = sad49[(bdy - 1 + 3) * 7 + (bdx + 3)];
-                    float c = sad49[(bdy + 1 + 3) * 7 + (bdx + 3)];
+                    int idxU = (bdy - 1 + 3) * 7 + (bdx + 3);
+                    int idxD = (bdy + 1 + 3) * 7 + (bdx + 3);
+                    if (!sad49Full[idxU]) sad49[idxU] = blockSad8x8(g, P, bx, by, bx + gx + bdx, by + gy + bdy - 1, 1e18f);
+                    if (!sad49Full[idxD]) sad49[idxD] = blockSad8x8(g, P, bx, by, bx + gx + bdx, by + gy + bdy + 1, 1e18f);
+                    float a = sad49[idxU], c = sad49[idxD];
                     float den = a - 2f * bs + c;
                     if (den > 0f && a < 1e17f && c < 1e17f) fy = 0.5f * (a - c) / den;
                 }
@@ -227,7 +294,6 @@ public final class FakeSixDof {
             }
         }
 
-        System.arraycopy(g, 0, P, 0, g.length);
         if (nPts < 5) return null;
 
         // 3) Modelo radial: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
@@ -259,7 +325,11 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 1.12f || Math.hypot(gx, gy) > 4.2) return null;
+        if (med > 1.12f || Math.hypot(gxSub, gySub) > 4.0) {
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
         float limit = Math.max(0.42f, med * 2.15f);
 
         int goodCount = 0;
@@ -273,7 +343,11 @@ public final class FakeSixDof {
                 gpy += ptY[i];
             }
         }
-        if (goodCount < 5) return null;
+        if (goodCount < 5 || goodCount < (nPts * 55) / 100) {
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
         gmx /= goodCount;
         gmy /= goodCount;
         gpx /= goodCount;
@@ -287,15 +361,41 @@ public final class FakeSixDof {
             gden += X * X + Y * Y;
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
-        if (Math.abs(finalSc) >= 0.0014f && Math.abs(finalSc) <= 0.18f) {
-            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 180L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
-                finalSc = finalSc * 0.72f + prevValidSc * 0.28f;
+        float latFlow = gmx - gxSub;
+
+        // World Lock: se o movimento radial e lateral está abaixo do limiar de ancoragem ou há rotação pura,
+        // trava a âncora no mundo real (worldLocked = true) sem deriva residual.
+        boolean significantFlow = (Math.abs(finalSc) >= 0.0014f && Math.abs(finalSc) <= 0.18f)
+            || (Math.abs(latFlow) >= 0.14f && Math.abs(latFlow) <= 5.5f);
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.8) {
+            stationaryFrames = 0;
+            if (Math.abs(finalSc) >= 0.0014f && Math.abs(finalSc) <= 0.18f) {
+                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 180L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                    finalSc = finalSc * 0.72f + prevValidSc * 0.28f;
+                    worldLocked = false;
+                }
+                prevValidSc = finalSc;
+                prevValidMs = nowMs;
+            } else {
+                finalSc = 0f;
+                prevValidSc = 0f;
             }
-            prevValidSc = finalSc;
-            prevValidMs = nowMs;
         } else {
+            finalSc = 0f;
             prevValidSc = 0f;
+            stationaryFrames++;
+            if (stationaryFrames >= 2) {
+                worldLocked = true;
+                System.arraycopy(g, 0, keyframe, 0, g.length);
+                hasKeyframe = true;
+            }
         }
-        return new float[]{ finalSc, gxSub, gySub, gmx };
+
+        outFlow[0] = finalSc;
+        outFlow[1] = gxSub;
+        outFlow[2] = gySub;
+        outFlow[3] = gmx;
+        outFlow[4] = worldLocked ? 1f : 0f;
+        return outFlow;
     }
 }

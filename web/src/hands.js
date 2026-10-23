@@ -53,8 +53,8 @@ export function screenPoint(tangent) {
  * tracking. Decisões de gesto (pinchdown/pinchup, hit-test de clique, input no DOM) usam SEMPRE
  * a detecção real, nunca a posição predita. */
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
-const CURSOR_PREDICT_MAX_SPEED = 2.4;   // unidades normalizadas/s — um movimento rápido de mão
-const CURSOR_PREDICT_MAX_STEP = .085;   // nunca extrapolar mais que isso por eixo
+const CURSOR_PREDICT_MAX_SPEED = 3.0;   // unidades normalizadas/s — um movimento rápido de mão
+const CURSOR_PREDICT_MAX_STEP = .095;   // nunca extrapolar mais que isso por eixo
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 
 export function predictedCursor(nowMs = performance.now()) {
@@ -73,12 +73,12 @@ function updateCursorVelocity(point, now, stampNs = 0) {
     : (cursorAt > 0 ? (now - cursorAt) / 1000 : -1);
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
-    // Velocidade com low-pass rápido: acompanha o movimento imediatamente sem atraso.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .58;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .58;
+    // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .76;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .76;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
-    if (Math.hypot(cursorVel.x, cursorVel.y) < .08) cursorVel.x = cursorVel.y = 0;
+    if (Math.hypot(cursorVel.x, cursorVel.y) < .06) cursorVel.x = cursorVel.y = 0;
   } else if (!(gap >= 0 && gap <= .003)) {
     cursorVel.x = cursorVel.y = 0;   // mão parada, nova ou volta após lacuna: sem predição
   }
@@ -137,6 +137,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   }
   emitClickEvents(clickEvents);
   if (cursor.down) emit('pinchsample', cursor);
+  emit('handtargets_sync', now);
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');

@@ -168,6 +168,23 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     webSurfaceJava.includes('LAYER_TYPE_HARDWARE'),
     'Build 46 includes Horizon OS 2.7 (v207) icons, Google default browser URL with GPU hardware acceleration, and Horizon OS Quest 3S dock bar'
   );
+  const analysisGateJava = readFileSync('nextvr-android/src/main/java/com/nextvr/app/AnalysisGate.java', 'utf8');
+  assert.ok(
+    sixdofSrc.includes('worldLock') &&
+    sixdofSrc.includes('lockToWorldAnchor') &&
+    fakeSixDofJava.includes('worldLocked') &&
+    fakeSixDofJava.includes('blockSad8x8') &&
+    rendererSrc.includes('worldLock = true') &&
+    analysisGateJava.includes('DEFAULT_MAX_PENDING_AGE_MS = 0L') &&
+    windowsSrc.includes("on('handtargets_sync'") &&
+    gorillaSrc.includes('glRenderer.setPixelRatio(1)') &&
+    gorillaSrc.includes('glRenderer.setSize(1200, 800, false)') &&
+    gorillaSrc.includes('ACESFilmicToneMapping') &&
+    vrfsSrc.includes('glRenderer.setPixelRatio(1)') &&
+    vrfsSrc.includes('ACESFilmicToneMapping') &&
+    vrfsSrc.includes('LinearMipmapLinearFilter'),
+    'Build 55 includes 6DoF World Lock and zero-allocation optical flow, zero-delay hand tracking, and 1200x800 1:1 antialiased ACESFilmic VR games'
+  );
 });
 
 test('entry menu interactive flow in browser: hand tracking toggle, colaboradores, sobre, configurações and iniciar', { timeout: 60000 }, async (t) => {

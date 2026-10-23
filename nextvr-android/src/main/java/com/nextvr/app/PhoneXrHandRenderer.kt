@@ -100,9 +100,9 @@ class PhoneXrHandRenderer {
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.2 px at 640 px analysis width).
      * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
-    private val MESH_REBUILD_EPSILON=.00015f
+    private val MESH_REBUILD_EPSILON=.00008f
     /** Even a slowly drifting hand refreshes its silhouette at least this often. */
-    private val MESH_REBUILD_MAX_NS=16_000_000L
+    private val MESH_REBUILD_MAX_NS=8_000_000L
     private val RING_STEPS=40
     /** Reused per-frame scratch on the GL thread: the beam/ring path used to allocate a 720-float
      *  ring array plus ~30 small arrays per hand per eye per frame — GC churn exactly under load. */

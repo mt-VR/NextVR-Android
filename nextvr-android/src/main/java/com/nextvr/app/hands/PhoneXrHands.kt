@@ -66,7 +66,7 @@ class PhoneXrHands {
         private var predictBucket = -1L
         private var predictCache: Frame? = null
         fun predicted(nowNs: Long): Frame {
-            val bucket = nowNs / 2_000_000L
+            val bucket = nowNs / 1_000_000L
             if (bucket == predictBucket) return predictCache ?: this
             val result = predictedUncached(nowNs)
             predictBucket = bucket; predictCache = result
@@ -98,15 +98,6 @@ class PhoneXrHands {
         }
         private fun lerp(a: FloatArray, b: FloatArray, t: Float): FloatArray {
             if (a.size != b.size) return b
-            if (a.size == 63 && t > 1f) {
-                val dt = t - 1f
-                val dx = (b[0] - a[0]) * dt
-                val dy = (b[1] - a[1]) * dt
-                val dz = (b[2] - a[2]) * dt
-                return FloatArray(63) { i ->
-                    b[i] + when (i % 3) { 0 -> dx; 1 -> dy; else -> dz }
-                }
-            }
             val out = FloatArray(a.size)
             for (i in a.indices) out[i] = a[i] + (b[i] - a[i]) * t
             return out
@@ -193,13 +184,13 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=3.2f, beta=16.0f, deadZone=.0006f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=4.2f, beta=24.0f, deadZone=.0004f)
                 i == 0 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
-                else -> HandGestures.OneEuro(minCutoff=5.6f, beta=38.0f, deadZone=.00015f)
+                else -> HandGestures.OneEuro(minCutoff=8.5f, beta=65.0f, deadZone=.00008f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=5.2f, beta=34.0f, deadZone=.00015f)
-        val y = HandGestures.OneEuro(minCutoff=5.2f, beta=34.0f, deadZone=.00015f)
+        val x = HandGestures.OneEuro(minCutoff=8.0f, beta=60.0f, deadZone=.00008f)
+        val y = HandGestures.OneEuro(minCutoff=8.0f, beta=60.0f, deadZone=.00008f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)

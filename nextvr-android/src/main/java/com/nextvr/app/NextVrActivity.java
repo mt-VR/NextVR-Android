@@ -238,14 +238,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                String payload=frame.json();
+                String payload=inGame?frame.gameJson():frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
                 if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.18f) return;
-                if(Math.abs(sc)<0.0014f && Math.abs(mx-gx)<0.14f) {
+                boolean zeroFlow=Math.abs(sc)<0.0014f && Math.abs(mx-gx)<0.14f;
+                if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
@@ -253,10 +254,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
                 boolean accelMoving=!hasWalkAccel || (walkEnergy>0.09f && (nowMs-lastWalkStepMs)<720L);
                 boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.2;
+                boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+sc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
                 });
             }
             @Override public void cameraDefocus(boolean defocused) {
@@ -428,15 +430,28 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(shell!=null && resumed && !closed) {
                 StringBuilder scripts=new StringBuilder();
                 if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
-                for(HandFrameMailbox.FrameScript pending:batch.frames()) {
-                    com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
-                    if(frame.isFresh(SystemClock.elapsedRealtimeNanos())) {
-                        scripts.append(pending.script()).append(';');
+                long nowNs=SystemClock.elapsedRealtimeNanos();
+                if(gameHandMode && batch.frames().size()>1) {
+                    HandFrameMailbox.FrameScript newest=batch.frames().get(batch.frames().size()-1);
+                    com.nextvr.app.hands.PhoneXrHands.Frame frame=newest.frame();
+                    if(frame.isFresh(nowNs)) {
+                        scripts.append(newest.script()).append(';');
                         if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
                     } else {
-                        // A queued press that outlived its native validity must cancel, never click.
                         scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
                         stale++;
+                    }
+                } else {
+                    for(HandFrameMailbox.FrameScript pending:batch.frames()) {
+                        com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
+                        if(frame.isFresh(nowNs)) {
+                            scripts.append(pending.script()).append(';');
+                            if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
+                        } else {
+                            // A queued press that outlived its native validity must cancel, never click.
+                            scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
+                            stale++;
+                        }
                     }
                 }
                 // One WebView evaluation guarantees the ordered frame edges run in one JS task,
@@ -507,9 +522,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
         long now=SystemClock.uptimeMillis();
-        if(now-lastPose<16 || !posePending.compareAndSet(false,true)) return;
+        if(now-lastPose<10 || !posePending.compareAndSet(false,true)) return;
         lastPose=now;
-        StringBuilder json=new StringBuilder("["); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
+        StringBuilder json=new StringBuilder(192); json.append('['); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
         main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });
     }
     private boolean batteryReceiverRegistered=false;
@@ -1082,6 +1097,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 target.sixDofX=0f;
                 target.sixDofY=0f;
                 target.sixDofZ=0f;
+                target.worldLocked=true;
             }
             if(camera!=null) camera.resetSixDof();
         }

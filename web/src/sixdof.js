@@ -13,6 +13,16 @@ import * as THREE from 'three';
 const _sdFwd = new THREE.Vector3();
 const _sdRight = new THREE.Vector3();
 const _sdDelta = new THREE.Vector3();
+const _sad25 = new Float32Array(25);
+const _sad25Full = new Uint8Array(25);
+const _ptX = new Float32Array(64);
+const _ptY = new Float32Array(64);
+const _ptDx = new Float32Array(64);
+const _ptDy = new Float32Array(64);
+const _res = new Float32Array(64);
+const _resSorted = new Float32Array(64);
+const _goodIdx = new Int32Array(64);
+let _grayBuf = null;
 
 let _getCam = () => null;
 let _isEnabled = () => true;
@@ -107,14 +117,17 @@ export const SixDof = {
   pos: new THREE.Vector3(),
   out: new THREE.Vector3(),
   prevOut: new THREE.Vector3(),
+  anchorPos: new THREE.Vector3(),
   stepDelta: new THREE.Vector3(),
+  worldLock: true,
+  worldLocked: true,
   lastT: 0,
   lastSc: 0,
   lastScAt: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.32, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest)
+  depth: 1.32, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest com World Lock)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -124,12 +137,32 @@ export const SixDof = {
     this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
   },
 
+  setWorldLock(enabled) {
+    this.worldLock = enabled !== false;
+    if (this.worldLock) {
+      this.lockToWorldAnchor();
+    } else {
+      this.worldLocked = false;
+    }
+  },
+
+  lockToWorldAnchor() {
+    this.anchorPos.set(this.pos.x, 0, this.pos.z);
+    this.pos.copy(this.anchorPos);
+    this.out.copy(this.anchorPos);
+    this.worldLocked = true;
+    this.lastSc = 0;
+    this.lastLatDx = 0;
+  },
+
   reset() {
     this.pos.set(0, 0, 0);
     this.out.set(0, 0, 0);
     this.prevOut.set(0, 0, 0);
+    this.anchorPos.set(0, 0, 0);
     this.stepDelta.set(0, 0, 0);
     this.prev = null;
+    this.worldLocked = true;
     this.lastSc = 0;
     this.lastLatDx = 0;
     this.lastScAt = 0;
@@ -151,7 +184,7 @@ export const SixDof = {
   },
 
   /**
-   * Processa uma matriz de luminância `W x H` (Float32Array de 96x72) e aplica o deslocamento 6DoF.
+   * Processa uma matriz de luminância `W x H` (Float32Array de 96x72) com early-bailout SAD e zero alocações.
    */
   processGray(g, movingOverride) {
     const W = this.W, H = this.H;
@@ -168,23 +201,33 @@ export const SixDof = {
       for (let ox = -7; ox <= 7; ox++) {
         let s = 0;
         for (let y = 22; y < 50 && s < best; y += 2) {
-          const r = y * W, r2 = (y + oy) * W;
+          const r = y * W, r2 = (y + oy) * W + ox;
           for (let x = 30; x < 66; x += 2) {
-            s += Math.abs(g[r2 + x + ox] - P[r + x]);
+            s += Math.abs(g[r2 + x] - P[r + x]);
           }
         }
         if (s < best) { best = s; gx = ox; gy = oy; }
       }
     }
 
-    // 2) Blocos 8x8 numa grelha, procura +-2 px à volta do deslocamento global (sub-pixel)
-    const pts = [];
-    const sad = new Float32Array(25);
+    // 2) Blocos 8x8 numa grelha com early-bailout SAD e refinamento sub-pixel sem perda
+    let nPts = 0;
+    const evalBlock = (bx, by, X0, Y0, cutoff) => {
+      let s = 0;
+      for (let y = 0; y < 8; y++) {
+        const r = (by + y) * W + bx, r2 = (Y0 + y) * W + X0;
+        for (let x = 0; x < 8; x++) s += Math.abs(g[r2 + x] - P[r + x]);
+        if (s >= cutoff) return s;
+      }
+      return s;
+    };
+
     for (let by = 10; by <= H - 18; by += 10) {
       for (let bx = 10; bx <= W - 18; bx += 11) {
         const cxn = (bx + 4) / W, cyn = (by + 4) / H;
         let inHand = false;
-        for (const b of handBoxes) {
+        for (let hi = 0; hi < handBoxes.length; hi++) {
+          const b = handBoxes[hi];
           if (cxn > b.x0 && cxn < b.x1 && cyn > b.y0 && cyn < b.y1) { inHand = true; break; }
         }
         if (inHand) continue;
@@ -196,21 +239,47 @@ export const SixDof = {
         }
         if (tex < 200) continue; // sem textura (parede lisa)
 
-        let bs = 1e18, bdx = 0, bdy = 0, si = 0;
+        let bs = 1e18, bdx = 0, bdy = 0;
+        const cX0 = bx + gx, cY0 = by + gy;
+        if (cX0 >= 0 && cY0 >= 0 && cX0 + 8 <= W && cY0 + 8 <= H) {
+          bs = evalBlock(bx, by, cX0, cY0, 1e18);
+          _sad25[12] = bs;
+          _sad25Full[12] = 1;
+        } else {
+          _sad25[12] = 1e18;
+          _sad25Full[12] = 1;
+        }
+
+        let si = 0;
         for (let oy = -2; oy <= 2; oy++) {
-          for (let ox = -2; ox <= 2; ox++) {
+          for (let ox = -2; ox <= 2; ox++, si++) {
+            if (ox === 0 && oy === 0) continue;
             const X0 = bx + gx + ox, Y0 = by + gy + oy;
-            if (X0 < 0 || Y0 < 0 || X0 + 8 > W || Y0 + 8 > H) { sad[si++] = 1e18; continue; }
-            let s = 0;
-            for (let y = 0; y < 8; y++) {
-              const r = (by + y) * W + bx, r2 = (Y0 + y) * W + X0;
-              for (let x = 0; x < 8; x++) s += Math.abs(g[r2 + x] - P[r + x]);
+            if (X0 < 0 || Y0 < 0 || X0 + 8 > W || Y0 + 8 > H) {
+              _sad25[si] = 1e18;
+              _sad25Full[si] = 1;
+              continue;
             }
-            sad[si++] = s;
-            if (s < bs) { bs = s; bdx = ox; bdy = oy; }
+            const s = evalBlock(bx, by, X0, Y0, bs);
+            _sad25[si] = s;
+            if (s < bs) {
+              bs = s;
+              bdx = ox;
+              bdy = oy;
+              _sad25Full[si] = 1;
+            } else {
+              _sad25Full[si] = 0;
+            }
           }
         }
-        const at = (ox, oy) => sad[(oy + 2) * 5 + (ox + 2)];
+        const at = (ox, oy) => {
+          const idx = (oy + 2) * 5 + (ox + 2);
+          if (!_sad25Full[idx]) {
+            _sad25[idx] = evalBlock(bx, by, bx + gx + ox, by + gy + oy, 1e18);
+            _sad25Full[idx] = 1;
+          }
+          return _sad25[idx];
+        };
         let fx = 0, fy = 0;
         if (Math.abs(bdx) < 2) {
           const a = at(bdx - 1, bdy), c = at(bdx + 1, bdy), den = a - 2 * bs + c;
@@ -220,49 +289,68 @@ export const SixDof = {
           const a = at(bdx, bdy - 1), c = at(bdx, bdy + 1), den = a - 2 * bs + c;
           if (den > 0 && a < 1e17 && c < 1e17) fy = 0.5 * (a - c) / den;
         }
-        pts.push({
-          x: bx + 4 - W * 0.5,
-          y: by + 4 - H * 0.5,
-          dx: gx + bdx + fx,
-          dy: gy + bdy + fy
-        });
+        if (nPts < 64) {
+          _ptX[nPts] = bx + 4 - W * 0.5;
+          _ptY[nPts] = by + 4 - H * 0.5;
+          _ptDx[nPts] = gx + bdx + fx;
+          _ptDy[nPts] = gy + bdy + fy;
+          nPts++;
+        }
       }
     }
     this.prev.set(g);
-    if (pts.length < 10) return null;
+    if (nPts < 10) return null;
 
     // 3) Modelo: d = t + s * p (s > 0 = o ambiente aproxima-se = andou para a frente)
-    const fit = (arr) => {
-      let mx = 0, my = 0, px = 0, py = 0;
-      for (const p of arr) { mx += p.dx; my += p.dy; px += p.x; py += p.y; }
-      const n = arr.length; mx /= n; my /= n; px /= n; py /= n;
-      let num = 0, den = 0;
-      for (const p of arr) {
-        const X = p.x - px, Y = p.y - py;
-        num += (p.dx - mx) * X + (p.dy - my) * Y;
-        den += X * X + Y * Y;
-      }
-      return { sc: den > 0 ? num / den : 0, mx, my, px, py };
-    };
-    let f = fit(pts);
-    const res = pts.map(p => Math.hypot(
-      (p.dx - f.mx) - f.sc * (p.x - f.px),
-      (p.dy - f.my) - f.sc * (p.y - f.py)
-    ));
-    const sorted = [...res].sort((a, b) => a - b);
-    const med = sorted[sorted.length >> 1] || 0.5;
-    if (med > 0.85) return null;
-    const good = pts.filter((_, i) => res[i] <= Math.max(0.35, med * 2));
-    if (good.length < 8) return null;
-    f = fit(good);
+    let mx = 0, my = 0, px = 0, py = 0;
+    for (let i = 0; i < nPts; i++) {
+      mx += _ptDx[i]; my += _ptDy[i]; px += _ptX[i]; py += _ptY[i];
+    }
+    mx /= nPts; my /= nPts; px /= nPts; py /= nPts;
+    let num = 0, den = 0;
+    for (let i = 0; i < nPts; i++) {
+      const X = _ptX[i] - px, Y = _ptY[i] - py;
+      num += (_ptDx[i] - mx) * X + (_ptDy[i] - my) * Y;
+      den += X * X + Y * Y;
+    }
+    let sc = den > 0 ? num / den : 0;
 
-    this.applyFlowScale(f.sc, gx, gy, movingOverride, f.mx - gx);
-    return { sc: f.sc, gx, gy };
+    for (let i = 0; i < nPts; i++) {
+      const r = Math.hypot((_ptDx[i] - mx) - sc * (_ptX[i] - px), (_ptDy[i] - my) - sc * (_ptY[i] - py));
+      _res[i] = r;
+      _resSorted[i] = r;
+    }
+    _resSorted.subarray(0, nPts).sort();
+    const med = _resSorted[nPts >> 1] || 0.5;
+    if (med > 0.85) return null;
+    const limit = Math.max(0.35, med * 2);
+    let goodCount = 0;
+    let gmx = 0, gmy = 0, gpx = 0, gpy = 0;
+    for (let i = 0; i < nPts; i++) {
+      if (_res[i] <= limit) {
+        _goodIdx[goodCount++] = i;
+        gmx += _ptDx[i]; gmy += _ptDy[i]; gpx += _ptX[i]; gpy += _ptY[i];
+      }
+    }
+    if (goodCount < 8) return null;
+    gmx /= goodCount; gmy /= goodCount; gpx /= goodCount; gpy /= goodCount;
+    let gnum = 0, gden = 0;
+    for (let k = 0; k < goodCount; k++) {
+      const i = _goodIdx[k];
+      const X = _ptX[i] - gpx, Y = _ptY[i] - gpy;
+      gnum += (_ptDx[i] - gmx) * X + (_ptDy[i] - gmy) * Y;
+      gden += X * X + Y * Y;
+    }
+    sc = gden > 0 ? gnum / gden : 0;
+
+    this.applyFlowScale(sc, gx, gy, movingOverride, gmx - gx);
+    return { sc, gx, gy };
   },
 
   /**
-   * Aplica o fator de escala radial `sc` à posição 6DoF da câmara,
-   * seguindo exatamente o 6DOF_FALSO.js (2 frames concordantes, média, sem deriva autónoma).
+   * Aplica o fator de escala radial `sc` à posição 6DoF da câmara com World Lock:
+   * - Enquanto parado ou rodando apenas a cabeça, trava pos e out na âncora do mundo (`anchorPos`);
+   * - Ao caminhar/inclinar em 2 frames concordantes, atualiza a âncora no plano horizontal (pos.y = 0).
    */
   applyFlowScale(sc, gx = 0, gy = 0, movingOverride, latDx = 0) {
     if (!_isEnabled()) return;
@@ -275,13 +363,15 @@ export const SixDof = {
     if (!hasDepthFlow && !hasLatFlow) {
       this.lastSc = 0;
       this.lastLatDx = 0;
+      if (this.worldLock) this.worldLocked = true;
       return;
     }
 
-    // Cabeça a rodar: ignora o fluxo ótico e zera o acumulador para nunca causar drift
+    // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
     if (Math.hypot(gx, gy) > 3.2) {
       this.lastSc = 0;
       this.lastLatDx = 0;
+      if (this.worldLock) this.worldLocked = true;
       return;
     }
 
@@ -289,6 +379,10 @@ export const SixDof = {
     if (!isMoving) {
       this.lastSc = 0;
       this.lastLatDx = 0;
+      if (this.worldLock) {
+        this.pos.copy(this.anchorPos);
+        this.worldLocked = true;
+      }
       return;
     }
 
@@ -334,11 +428,17 @@ export const SixDof = {
       this.pos.z *= scale;
     }
     this.pos.y = 0;
+    this.anchorPos.set(this.pos.x, 0, this.pos.z);
+    this.worldLocked = false;
 
     // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
     // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
-    this.out.lerp(this.pos, 0.74);
+    this.out.lerp(this.pos, 0.78);
     this.out.y = 0;
+    if (this.worldLock && this.out.distanceToSquared(this.anchorPos) < 1e-6) {
+      this.out.copy(this.anchorPos);
+      this.worldLocked = true;
+    }
     cam.position.x = this.out.x;
     cam.position.z = this.out.z;
     if (Math.hypot(this.out.x - this._lastSentX, this.out.z - this._lastSentZ) > 1e-4) {
@@ -361,9 +461,18 @@ export const SixDof = {
       return;
     }
 
-    const lerpK = Math.max(0.38, 1 - Math.exp(-Math.max(0.005, dt) * 22));
+    if (this.worldLock && this.lastScAt > 0 && now - this.lastScAt > 160) {
+      this.anchorPos.set(this.pos.x, 0, this.pos.z);
+      this.pos.copy(this.anchorPos);
+    }
+
+    const lerpK = Math.max(0.42, 1 - Math.exp(-Math.max(0.005, dt) * 26));
     this.out.lerp(this.pos, lerpK);
     this.out.y = 0;
+    if (this.worldLock && this.out.distanceToSquared(this.pos) < 0.000004) {
+      this.out.copy(this.pos);
+      this.worldLocked = true;
+    }
 
     this.stepDelta.subVectors(this.out, this.prevOut);
     this.stepDelta.y = 0;
@@ -398,11 +507,11 @@ export const SixDof = {
     try {
       this.ctx.drawImage(vid, 0, 0, W, H);
       const d = this.ctx.getImageData(0, 0, W, H).data;
-      const g = new Float32Array(W * H);
-      for (let i = 0, j = 0; i < g.length; i++, j += 4) {
-        g[i] = d[j] * 0.3 + d[j + 1] * 0.59 + d[j + 2] * 0.11;
+      if (!_grayBuf || _grayBuf.length !== W * H) _grayBuf = new Float32Array(W * H);
+      for (let i = 0, j = 0; i < _grayBuf.length; i++, j += 4) {
+        _grayBuf[i] = d[j] * 0.3 + d[j + 1] * 0.59 + d[j + 2] * 0.11;
       }
-      this.processGray(g);
+      this.processGray(_grayBuf);
     } catch (_) {}
   },
 
@@ -434,6 +543,7 @@ if (typeof window !== 'undefined') {
    */
   window.nextvrSixDof = (payload, gxArg = 0, gyArg = 0) => {
     if (payload && typeof payload === 'object') {
+      if (payload.worldLock !== undefined) SixDof.worldLock = Boolean(payload.worldLock);
       if (payload.gray && payload.gray.length >= SixDof.W * SixDof.H) {
         return SixDof.processGray(payload.gray, payload.moving);
       }
@@ -441,11 +551,15 @@ if (typeof window !== 'undefined') {
       const gx = Number(payload.gx ?? 0);
       const gy = Number(payload.gy ?? 0);
       const mx = Number(payload.mx ?? 0);
+      if (payload.worldLocked === true && payload.moving === false) {
+        SixDof.lockToWorldAnchor();
+        return { sc, gx, gy, worldLocked: true };
+      }
       SixDof.applyFlowScale(sc, gx, gy, payload.moving, mx - gx);
-      return { sc, gx, gy };
+      return { sc, gx, gy, worldLocked: SixDof.worldLocked };
     }
     const sc = Number(payload ?? 0);
     SixDof.applyFlowScale(sc, Number(gxArg || 0), Number(gxArg ? gyArg : 0));
-    return { sc, gx: Number(gxArg || 0), gy: Number(gyArg || 0) };
+    return { sc, gx: Number(gxArg || 0), gy: Number(gyArg || 0), worldLocked: SixDof.worldLocked };
   };
 }

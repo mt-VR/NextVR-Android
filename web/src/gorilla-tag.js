@@ -41,18 +41,27 @@ let yawOff = 0;
 let hiddenWinSnapshot = [];
 const worldCoinNodes = [];
 
-const V = () => new THREE.Vector3();
-const vel = V();
+const _vPool = Array.from({ length: 128 }, () => new THREE.Vector3());
+let _vIdx = 0;
+const V = () => _vPool[(_vIdx++) & 127].set(0, 0, 0);
+const _qPool = Array.from({ length: 64 }, () => new THREE.Quaternion());
+let _qIdx = 0;
+const QPool = () => _qPool[(_qIdx++) & 63].identity();
+const _eulA = new THREE.Euler();
+const _eulB = new THREE.Euler();
+const _mat4Tmp = new THREE.Matrix4();
+
+const vel = new THREE.Vector3();
 const spawn = new THREE.Vector3(SPAWN_HINT[0], 0.90, SPAWN_HINT[2]);
 const arms = [];
 const hands = [null, null];
 const rawHands = [null, null];
 const trackFrames = [0, 0];
-const hW = [V(), V()];
-const hl = [V(), V()];
+const hW = [new THREE.Vector3(), new THREE.Vector3()];
+const hl = [new THREE.Vector3(), new THREE.Vector3()];
 const hlP = [null, null];
 const touch = [false, false];
-const anchor = [V(), V()];
+const anchor = [new THREE.Vector3(), new THREE.Vector3()];
 let dragPointer = null;
 
 /* === SUPORTE A JOY-CON PARA GORILLA TAG (O JOY-CON VIRA O HAND TRACKING E NUNCA DESGRUDA; BOTÃO + SAI DO JOGO) === */
@@ -449,10 +458,13 @@ function mergeSimple(l) {
 
 function optimizeTex(tex) {
   if (!tex) return null;
-  tex.generateMipmaps = false;
-  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
   tex.anisotropy = 4;
+  if ('colorSpace' in tex && THREE.SRGBColorSpace) {
+    tex.colorSpace = THREE.SRGBColorSpace;
+  }
   return tex;
 }
 
@@ -600,14 +612,14 @@ function setupRig(scene) {
       ch[k] = b ? [{
         b,
         bind: b.quaternion.clone(),
-        pos: b.getWorldPosition(V()),
+        pos: b.getWorldPosition(new THREE.Vector3()),
         wq: b.getWorldQuaternion(new THREE.Quaternion()),
-        Al: V(),
+        Al: new THREE.Vector3(),
         cur: 0,
       }] : [];
     }
     const hb = sd === 'r' ? B.hr : B.hl;
-    const hpos = hb.getWorldPosition(V());
+    const hpos = hb.getWorldPosition(new THREE.Vector3());
     const side = hpos.clone().sub(midS).dot(right) > 0 ? 1 : -1;
     RI[sd] = {
       hb,
@@ -671,10 +683,10 @@ function aim(b, bind, c, tW) {
   b.updateWorldMatrix(true, true);
   const p = b.getWorldPosition(V());
   const d1 = c.getWorldPosition(V()).sub(p).normalize();
-  const d2 = tW.clone().sub(p).normalize();
-  const wq = b.getWorldQuaternion(new THREE.Quaternion());
-  const dQ = new THREE.Quaternion().setFromUnitVectors(d1, d2);
-  const pq = b.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+  const d2 = V().copy(tW).sub(p).normalize();
+  const wq = b.getWorldQuaternion(QPool());
+  const dQ = QPool().setFromUnitVectors(d1, d2);
+  const pq = b.parent.getWorldQuaternion(QPool()).invert();
   b.quaternion.copy(pq.multiply(dQ).multiply(wq));
   b.updateWorldMatrix(false, true);
 }
@@ -685,19 +697,19 @@ function applyHand(info, ori) {
   hb.quaternion.copy(info.hbBind);
   if (ori) {
     hb.updateWorldMatrix(true, false);
-    const wq = hb.getWorldQuaternion(new THREE.Quaternion());
-    const wi = wq.clone().invert();
-    const qC = C.getWorldQuaternion(new THREE.Quaternion());
-    const fL = ori.f.clone().applyQuaternion(qC).applyQuaternion(wi).normalize();
-    const nL = ori.n.clone().applyQuaternion(qC).applyQuaternion(wi);
+    const wq = hb.getWorldQuaternion(QPool());
+    const wi = QPool().copy(wq).invert();
+    const qC = C.getWorldQuaternion(QPool());
+    const fL = V().copy(ori.f).applyQuaternion(qC).applyQuaternion(wi).normalize();
+    const nL = V().copy(ori.n).applyQuaternion(qC).applyQuaternion(wi);
     nL.addScaledVector(fL, -nL.dot(fL));
     if (nL.lengthSq() > 1e-4) {
       nL.normalize();
       if (info.nl && nL.dot(info.nl) < -0.15) nL.negate();
-      const Qt = new THREE.Quaternion().setFromRotationMatrix(
-        new THREE.Matrix4().makeBasis(fL, nL, new THREE.Vector3().crossVectors(fL, nL))
+      const Qt = QPool().setFromRotationMatrix(
+        _mat4Tmp.makeBasis(fL, nL, V().crossVectors(fL, nL))
       ).multiply(info.QlInv);
-      Qt.slerp(new THREE.Quaternion(), 0.35);
+      Qt.slerp(QPool(), 0.35);
       if (!info.qs) info.qs = Qt.clone();
       else info.qs.slerp(Qt, 0.22);
       hb.quaternion.multiply(info.qs);
@@ -706,14 +718,14 @@ function applyHand(info, ori) {
       const tgt = Math.max(0, Math.min(0.85, ori.c[k] ?? 0));
       info.ch[k].forEach(f => {
         f.cur = f.cur * 0.72 + tgt * 0.28;
-        f.b.quaternion.copy(f.bind).multiply(new THREE.Quaternion().setFromAxisAngle(f.Al, f.cur * 0.95));
+        f.b.quaternion.copy(f.bind).multiply(QPool().setFromAxisAngle(f.Al, f.cur * 0.95));
       });
     }
   } else {
     for (const k in info.ch) {
       info.ch[k].forEach(f => {
         f.cur *= 0.85;
-        f.b.quaternion.copy(f.bind).multiply(new THREE.Quaternion().setFromAxisAngle(f.Al, f.cur * 1.15));
+        f.b.quaternion.copy(f.bind).multiply(QPool().setFromAxisAngle(f.Al, f.cur * 1.15));
       });
     }
   }
@@ -727,25 +739,25 @@ function solveArm(a, tW, ori) {
   const sp = a.s.getWorldPosition(V());
   let ep = a.e.getWorldPosition(V()), hp = a.h.getWorldPosition(V());
   const l1 = sp.distanceTo(ep), l2 = ep.distanceTo(hp);
-  const dir = tW.clone().sub(sp);
+  const dir = V().copy(tW).sub(sp);
   const d = Math.min(Math.max(dir.length(), Math.abs(l1 - l2) + 0.01), (l1 + l2) * 0.995);
   dir.normalize();
   const c1 = Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)));
-  const r = C.getWorldQuaternion(new THREE.Quaternion());
-  const hint = new THREE.Vector3(a.side * 0.45, -1, 0.35).normalize().applyQuaternion(r);
-  const bend = hint.clone().addScaledVector(dir, -hint.dot(dir));
+  const r = C.getWorldQuaternion(QPool());
+  const hint = V().set(a.side * 0.45, -1, 0.35).normalize().applyQuaternion(r);
+  const bend = V().copy(hint).addScaledVector(dir, -hint.dot(dir));
   if (bend.lengthSq() < 1e-4) bend.set(0, -1, 0);
   bend.normalize();
-  const eT = sp.clone().addScaledVector(dir, l1 * c1).addScaledVector(bend, l1 * Math.sqrt(Math.max(0, 1 - c1 * c1)));
+  const eT = V().copy(sp).addScaledVector(dir, l1 * c1).addScaledVector(bend, l1 * Math.sqrt(Math.max(0, 1 - c1 * c1)));
   aim(a.s, a.bs, a.e, eT);
   aim(a.e, a.be, a.h, tW);
   ep = a.e.getWorldPosition(V());
   hp = a.h.getWorldPosition(V());
-  const err = tW.clone().sub(hp);
+  const err = V().copy(tW).sub(hp);
   if (err.lengthSq() > 1e-5) {
-    const pq = a.e.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-    const wq = a.e.getWorldQuaternion(new THREE.Quaternion());
-    const dQ = new THREE.Quaternion().setFromUnitVectors(hp.sub(ep).normalize(), tW.clone().sub(ep).normalize());
+    const pq = a.e.parent.getWorldQuaternion(QPool()).invert();
+    const wq = a.e.getWorldQuaternion(QPool());
+    const dQ = QPool().setFromUnitVectors(hp.sub(ep).normalize(), V().copy(tW).sub(ep).normalize());
     a.e.quaternion.copy(pq.multiply(dQ).multiply(wq));
     a.e.updateWorldMatrix(false, true);
   }
@@ -753,11 +765,11 @@ function solveArm(a, tW, ori) {
 }
 
 /* === ORIENTAÇÃO E CURL DOS DEDOS === */
-const MP = (lm, i) => new THREE.Vector3(lm[i].x - 0.5, 0.5 - lm[i].y, -(lm[i].z || 0));
+const MP = (lm, i) => V().set(lm[i].x - 0.5, 0.5 - lm[i].y, -(lm[i].z || 0));
 function handInfo(lm, isR) {
   const p0 = MP(lm, 0), p5 = MP(lm, 5), p9 = MP(lm, 9), p17 = MP(lm, 17);
-  const f = p9.clone().sub(p0).normalize();
-  const u = p5.clone().sub(p0), v = p17.clone().sub(p0);
+  const f = new THREE.Vector3().copy(p9).sub(p0).normalize();
+  const u = V().copy(p5).sub(p0), v = V().copy(p17).sub(p0);
   // Alinhado ao original gorilla-tag-mapa-gorila-handtracking: mão direita faz crossVectors(v, u)
   const n = (isR ? new THREE.Vector3().crossVectors(v, u) : new THREE.Vector3().crossVectors(u, v));
   n.addScaledVector(f, -n.dot(f)).normalize();
@@ -910,14 +922,14 @@ function updateRightArmCoinCounterPose() {
   if (!rightArmCoinGroup || !C) return;
   const rightArm = arms[0]; // arms[0] é o braço direito (B.ur -> B.lr -> B.hr, side = +1)
   const camPos = headW();
-  const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(C.getWorldQuaternion(new THREE.Quaternion()));
+  const camUp = V().set(0, 1, 0).applyQuaternion(C.getWorldQuaternion(QPool()));
   if (rightArm && rightArm.e && rightArm.h) {
     const ep = rightArm.e.getWorldPosition(V());
     const hp = rightArm.h.getWorldPosition(V());
     // Posiciona POR CIMA do antebraço direito (acima da superfície do braço, nunca dentro dele)
-    const forePos = ep.clone().lerp(hp, 0.68);
+    const forePos = V().copy(ep).lerp(hp, 0.68);
     forePos.addScaledVector(camUp, 0.175);
-    const toCam = camPos.clone().sub(forePos);
+    const toCam = V().copy(camPos).sub(forePos);
     if (toCam.lengthSq() > 1e-5) {
       toCam.normalize();
       forePos.addScaledVector(toCam, 0.125);
@@ -926,7 +938,7 @@ function updateRightArmCoinCounterPose() {
     rightArmCoinGroup.up.copy(camUp);
     rightArmCoinGroup.lookAt(camPos);
   } else {
-    const fallbackRightArmW = C.localToWorld(new THREE.Vector3(0.24, -0.05, -0.44));
+    const fallbackRightArmW = C.localToWorld(V().set(0.24, -0.05, -0.44));
     rightArmCoinGroup.position.copy(fallbackRightArmW);
     rightArmCoinGroup.up.copy(camUp);
     rightArmCoinGroup.lookAt(camPos);
@@ -1230,15 +1242,22 @@ function ensureScene() {
   try {
     glRenderer = new THREE.WebGLRenderer({
       canvas: glCanvas,
-      antialias: false,
+      antialias: true,
       alpha: false,
       stencil: false,
       depth: true,
       powerPreference: 'high-performance',
     });
-    glRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
-    glRenderer.setSize(896, 560, false);
+    glRenderer.setPixelRatio(1);
+    glRenderer.setSize(1200, 800, false);
     glRenderer.setScissorTest(true);
+    if ('outputColorSpace' in glRenderer && THREE.SRGBColorSpace) {
+      glRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    if ('toneMapping' in glRenderer && THREE.ACESFilmicToneMapping) {
+      glRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      glRenderer.toneMappingExposure = 1.06;
+    }
   } catch (e) {
     glRenderer = null;
   }
@@ -1322,8 +1341,8 @@ function ensureDom() {
 
   glCanvas = document.createElement('canvas');
   glCanvas.id = 'gorilla-canvas';
-  glCanvas.width = 896;
-  glCanvas.height = 560;
+  glCanvas.width = 1200;
+  glCanvas.height = 800;
   glCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1200px;height:800px;display:block;';
   overlayEl.appendChild(glCanvas);
 
@@ -1461,14 +1480,15 @@ function resolveHeadCollisions() {
 function tick(now) {
   if (!active) return;
   rafId = requestAnimationFrame(tick);
-  const dt = Math.min((now - (lastT || now)) / 1000, 0.04) || 0.016;
+  const dt = Math.min((now - (lastT || now)) / 1000, 0.036) || 0.016;
   lastT = now;
 
   if (!S || !player || !C) return;
 
-  // Orientação da cabeça via sensores do NextVR / Cardboard 2015
-  const eul = new THREE.Euler().setFromQuaternion(coreCamera.quaternion, 'YXZ');
-  C.quaternion.setFromEuler(new THREE.Euler(eul.x, eul.y - yawOff, eul.z, 'YXZ'));
+  // Orientação da cabeça via sensores do NextVR / Cardboard 2015 (zero alocações por frame)
+  _eulA.setFromQuaternion(coreCamera.quaternion, 'YXZ');
+  _eulB.set(_eulA.x, _eulA.y - yawOff, _eulA.z, 'YXZ');
+  C.quaternion.setFromEuler(_eulB);
 
   updateHandsFromNextVR(now);
 
@@ -1487,7 +1507,7 @@ function tick(now) {
   player.updateMatrixWorld(true);
   resolveHeadCollisions();
 
-  // Mãos: IK dos braços Gorilla + impulso suave ao empurrar o chão/árvores (Hand tracking 100% grudado no Joy-Con)
+  // Mãos: IK dos braços Gorilla + impulso suave ao empurrar o chão/árvores (Hand tracking zero delay)
   for (let i = 0; i < 2; i++) {
     if (hands[i] && !hands[i].joyconLocked && !gorillaJoycon.active && now - hands[i].t > 1800) hands[i] = null;
     const h = hands[i];
@@ -1497,7 +1517,7 @@ function tick(now) {
       hlP[i] = null;
       trackFrames[i] = 0;
       if (a) {
-        const restLocal = new THREE.Vector3(i ? 0.24 : -0.24, -0.26, -0.46);
+        const restLocal = V().set(i ? 0.24 : -0.24, -0.26, -0.46);
         solveArm(a, C.localToWorld(restLocal), null);
       }
       continue;
@@ -1510,21 +1530,17 @@ function tick(now) {
       (0.5 - h.y) * 1.8 - 0.34,
       -Math.min(0.95, Math.max(0.25, 0.09 / Math.max(h.s, 0.035)))
     );
-    // Sem clamp de distância nem atraso: o Hand tracking fica 100% grudado no Joy-Con/mão sem desgrudar!
-    if (hlP[i] && !h.joyconLocked && !gorillaJoycon.active) {
-      t.lerp(hlP[i], 0.12);
-    }
-    const off = t.clone().sub(sp);
+    const off = V().copy(t).sub(sp);
     if (off.length() > ARM_LEN * 0.97) {
       t.copy(sp).addScaledVector(off.setLength(ARM_LEN * 0.97), 1);
     }
     hl[i].copy(t);
-    if (!hlP[i]) hlP[i] = V();
+    if (!hlP[i]) hlP[i] = new THREE.Vector3();
     hlP[i].copy(t);
-    const desiredW = C.localToWorld(t.clone());
+    const desiredW = C.localToWorld(V().copy(t));
     const hit = trackFrames[i] >= 1 && sphereQ(desiredW.x, desiredW.y, desiredW.z, R_HAND);
     if (hit) {
-      const cW = new THREE.Vector3(
+      const cW = V().set(
         Q.x + Q.nx * R_HAND,
         Q.y + Q.ny * R_HAND,
         Q.z + Q.nz * R_HAND
@@ -1533,7 +1549,7 @@ function tick(now) {
         touch[i] = true;
         anchor[i].copy(cW);
       } else {
-        const push = anchor[i].clone().sub(desiredW);
+        const push = V().copy(anchor[i]).sub(desiredW);
         const pushLen = push.length();
         if (pushLen > 1e-3) {
           if (pushLen > 0.28) push.multiplyScalar(0.28 / pushLen);
@@ -1543,7 +1559,7 @@ function tick(now) {
             pushCoinProgress = 0;
             addGorillaCoins(1);
           }
-          const vImp = push.clone().multiplyScalar(BOOST / Math.max(dt, 0.010));
+          const vImp = V().copy(push).multiplyScalar(BOOST / Math.max(dt, 0.010));
           vel.lerp(vImp, 0.56);
           if (vel.length() > MAXV) vel.setLength(MAXV);
           player.updateMatrixWorld(true);
@@ -1551,13 +1567,13 @@ function tick(now) {
         }
       }
       // Mantém o braço visual 100% grudado na posição da mão/Joy-Con (desiredW) para nunca desgrudar no chão
-      hW[i].copy(C.localToWorld(t.clone()));
+      hW[i].copy(C.localToWorld(V().copy(t)));
     } else {
       touch[i] = false;
       hW[i].copy(desiredW);
     }
-    const tl = C.worldToLocal(hW[i].clone());
-    const o2 = tl.clone().sub(sp);
+    const tl = C.worldToLocal(V().copy(hW[i]));
+    const o2 = V().copy(tl).sub(sp);
     if (o2.length() > ARM_LEN * 0.97) {
       tl.copy(sp).addScaledVector(o2.setLength(ARM_LEN * 0.97), 1);
       hW[i].copy(C.localToWorld(tl));
@@ -1593,12 +1609,15 @@ function tick(now) {
   updateRightArmCoinCounterPose();
   drawHandTrackingOverlay();
 
-  // Renderização Estéreo (Olho Esquerdo e Olho Direito) para as Lentes Google Cardboard 2015
+  // Renderização Estéreo 1200x800 1:1 (Olho Esquerdo e Olho Direito) para as Lentes Google Cardboard 2015
   if (glRenderer && camL && camR) {
     player.updateMatrixWorld(true);
-    const W = glCanvas.width;
-    const H = glCanvas.height;
-    const halfW = W >> 1;
+    const W = 1200;
+    const H = 800;
+    const halfW = 600;
+    if (glCanvas.width !== W || glCanvas.height !== H) {
+      glRenderer.setSize(W, H, false);
+    }
 
     glRenderer.setViewport(0, 0, halfW, H);
     glRenderer.setScissor(0, 0, halfW, H);
@@ -1620,13 +1639,14 @@ export function openGorillaTag() {
   entering = true;
   window.__gorillaStereoOverlay = true;
   window.__gorillaExit = exitGorillaTag;
-  window.__gorillaOnHands = null;
+  window.__gorillaOnHands = now => updateHandsFromNextVR(now);
   if (overlayEl) overlayEl.dataset.gorillaRightArmCoins = String(gorillaCoins);
 
-  // Ativa o rastreamento de mãos se ainda não estiver ligado e esconde o esqueleto 2D no jogo
+  // Ativa o rastreamento de mãos em modo jogo (zero delay, JSON leve, sem overhead de fundo)
   settings.handsOn = true;
   startHands().catch(() => {});
   try {
+    window.NativeXR?.setGameHandMode?.(true);
     window.NativeXR?.handVisuals?.(false);
   } catch {}
 
@@ -1679,6 +1699,7 @@ export function exitGorillaTag() {
     overlayEl.style.display = 'none';
   }
   try {
+    window.NativeXR?.setGameHandMode?.(false);
     window.NativeXR?.handVisuals?.(!!settings.handDraw);
   } catch {}
 

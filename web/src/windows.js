@@ -3714,9 +3714,9 @@ on('wins', () => {
   }
   lastWinCount = activeCount;
 });
-onFrame((dt,now)=>{
-  // 60 Hz: o anel/ponta do raio acompanha a predição da mão em vez de degraus de 30 Hz.
-  if(!native || now-lastTargetAt<16)return;lastTargetAt=now;
+function syncHandTargets(now = performance.now()) {
+  if(!native)return;
+  lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
   const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
   for(const h of packet.hands) {
@@ -3757,4 +3757,10 @@ onFrame((dt,now)=>{
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
+}
+on('handtargets_sync', now => syncHandTargets(now));
+onFrame((dt,now)=>{
+  // 60–120 Hz: o anel/ponta do raio acompanha a predição da mão imediatamente sem atraso.
+  if(!native || now-lastTargetAt<8)return;
+  syncHandTargets(now);
 });

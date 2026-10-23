@@ -1315,13 +1315,14 @@ export function openBeatSaberVr() {
     </div>
     <div style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
       <canvas data-bs-canvas width="960" height="520" style="width:100%;height:100%;display:block"></canvas>
-      <iframe src="https://moonrider.xyz/?mode=ride&vr=1" allow="xr-spatial-tracking; fullscreen; autoplay" style="position:absolute;inset:0;width:100%;height:100%;border:0;opacity:.92;pointer-events:auto" title="Beat Saber VR"></iframe>
     </div>
   `;
   const cv = body.querySelector('[data-bs-canvas]');
+  const scoreEl = body.querySelector('[data-bs-score]');
   const ctx = cv?.getContext?.('2d');
   let animId = 0;
   let t0 = performance.now();
+  let bsScore = 1280, bsCombo = 4, lastSliceStep = -1;
   const drawFrame = now => {
     if (!ctx || !document.body.contains(body)) return;
     const dt = (now - t0) * 0.001;
@@ -1333,26 +1334,54 @@ export function openBeatSaberVr() {
     ctx.lineWidth = 2;
     for (let i = -3; i <= 3; i++) {
       ctx.beginPath();
-      ctx.moveTo(w * 0.5 + i * 26, h * 0.28);
-      ctx.lineTo(w * 0.5 + i * 155, h);
+      ctx.moveTo(w * 0.5 + i * 26, h * 0.24);
+      ctx.lineTo(w * 0.5 + i * 165, h);
       ctx.stroke();
     }
+    for (let ring = 0; ring < 5; ring++) {
+      const rz = ((dt * 1.35 + ring * 0.2) % 1);
+      const rw = 140 + rz * 720, rh = 80 + rz * 380;
+      ctx.strokeStyle = `rgba(14,165,233,${(1 - rz) * 0.32})`;
+      ctx.strokeRect((w - rw) * 0.5, h * 0.24 + rz * (h * 0.38) - rh * 0.5, rw, rh);
+    }
     // Cubos Beat Saber vermelho e azul vindo em direção ao jogador em VR
-    const z1 = ((dt * 1.4) % 1);
-    const s1 = 26 + z1 * 68;
-    const xRed = w * 0.5 - 50 - z1 * 120;
-    const yCube = h * 0.30 + z1 * (h * 0.52);
+    const stepIdx = Math.floor(dt * 1.45);
+    const z1 = ((dt * 1.45) % 1);
+    const s1 = 26 + z1 * 72;
+    const xRed = w * 0.5 - 48 - z1 * 125;
+    const yCube = h * 0.28 + z1 * (h * 0.54);
     ctx.fillStyle = '#ff1744';
     ctx.strokeStyle = '#ff8a80';
     ctx.lineWidth = 3;
     ctx.fillRect(xRed - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
     ctx.strokeRect(xRed - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
 
-    const xBlue = w * 0.5 + 50 + z1 * 120;
+    const xBlue = w * 0.5 + 48 + z1 * 125;
     ctx.fillStyle = '#00e5ff';
     ctx.strokeStyle = '#84ffff';
     ctx.fillRect(xBlue - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
     ctx.strokeRect(xBlue - s1 * 0.5, yCube - s1 * 0.5, s1, s1);
+
+    // Sabres Neon controlados pelas mãos em tempo real
+    const lHand = hands.find(x => x.left) || hands[0];
+    const rHand = hands.find(x => !x.left) || hands[1];
+    const lx = lHand?.palm ? lHand.palm[0] * w : w * 0.34;
+    const ly = lHand?.palm ? lHand.palm[1] * h : h * 0.72 + Math.sin(dt * 6) * 28;
+    const rx = rHand?.palm ? rHand.palm[0] * w : w * 0.66;
+    const ry = rHand?.palm ? rHand.palm[1] * h : h * 0.72 + Math.cos(dt * 6) * 28;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#ff1744';
+    ctx.beginPath(); ctx.moveTo(lx - 24, ly + 72); ctx.lineTo(lx + 42, ly - 68); ctx.stroke();
+    ctx.strokeStyle = '#00e5ff';
+    ctx.beginPath(); ctx.moveTo(rx + 24, ry + 72); ctx.lineTo(rx - 42, ry - 68); ctx.stroke();
+
+    if (z1 > 0.78 && stepIdx !== lastSliceStep) {
+      lastSliceStep = stepIdx;
+      bsCombo = Math.min(8, bsCombo + 1);
+      bsScore += 115 * bsCombo;
+      if (scoreEl) scoreEl.textContent = `${bsCombo}x · ${bsScore.toLocaleString('pt-BR')}`;
+    }
     animId = requestAnimationFrame(drawFrame);
   };
   animId = requestAnimationFrame(drawFrame);

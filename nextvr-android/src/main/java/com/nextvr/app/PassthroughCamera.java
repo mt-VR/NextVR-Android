@@ -89,6 +89,7 @@ final class PassthroughCamera {
     /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
     private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
     private int[] cameraPixels;
+    private int[] analysisPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
     private final FakeSixDof fakeSixDof=new FakeSixDof();
     private volatile PhoneXrHands.Frame latestHandsFrame;
@@ -400,23 +401,26 @@ final class PassthroughCamera {
             nativeYuvToArgb(cameraPixels,p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
                 image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
-            upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+            // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
+            image.close();image=null;
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
-                // While an inference outruns the camera the slot still holds an unread frame younger
-                // than the gate: this frame's analysis copy would be superseded without ever being
-                // tracked, so it is not produced at all - the resample and its multi-megabyte bitmap
-                // stay off the thread whose cost caps the tracking rate (AnalysisGate).
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=gameHandMode?192:256;
-                    int width=Math.min(upright.getWidth(),Math.min(maxAnalysisW,budget.width()*2/5));
-                    int height=Math.max(1,width*upright.getHeight()/upright.getWidth());
-                    Bitmap analysis=(width==upright.getWidth() && height==upright.getHeight())
-                        ? upright.copy(Bitmap.Config.ARGB_8888,false)
-                        : Bitmap.createScaledBitmap(upright,width,height,false);
-                    if(analysis==upright)analysis=upright.copy(Bitmap.Config.ARGB_8888,false);
+                    int maxAnalysisW=gameHandMode?192:224;
+                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
+                    int height=Math.max(1,width*outH/outW);
+                    int analysisLen=width*height;
+                    if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
+                    int dstIdx=0;
+                    for(int y=0;y<height;y++) {
+                        int srcRow=(y*outH/height)*outW;
+                        for(int x=0;x<width;x++) {
+                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(x*outW/width)];
+                        }
+                    }
+                    Bitmap analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     if(analysis!=null) {
                         long captureNs=timestampIsRealtime?sensorNs:-1L;
                         TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
@@ -428,19 +432,18 @@ final class PassthroughCamera {
                     PerfLog.analysisSkipped();
                 }
             }
-            // The pixels are already copied out, so the HAL buffer goes back BEFORE the display
-            // hand-off: holding it across the renderer's texture upload starves the camera at
-            // maxImages=2, which shows up as a lower landmark rate rather than as a slow picture.
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if(image!=null){image.close();image=null;}
             if(!gameHandMode) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
-            long handoffStart=SystemClock.elapsedRealtime();
-            listener.frame(upright);upright=null;
-            PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
+            if(!gameHandMode || sessionFrames<=2) {
+                upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                long handoffStart=SystemClock.elapsedRealtime();
+                listener.frame(upright);upright=null;
+                PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
+            }
             frameFailures.succeeded();
         }catch(Throwable e){
             // A frame that fails once is not an outage: the next camera frame arrives in ~33 ms and

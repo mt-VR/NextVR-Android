@@ -162,6 +162,8 @@ final class SpatialRenderer {
     volatile boolean mrDim = false;
     volatile float sixDofX = 0f, sixDofY = 0f, sixDofZ = 0f;
     volatile float targetSixDofX = 0f, targetSixDofZ = 0f;
+    volatile boolean worldLock = true;
+    volatile boolean worldLocked = true;
     /** Target vertical resolution: High = 1440p, Medium = 1280p, Low = 1080p (never pixelates below 1080p). */
     volatile float qualityHeight = 1280f;
     void setQuality(String q) {
@@ -302,8 +304,17 @@ final class SpatialRenderer {
         // one — the two half-images won't be split per-pass otherwise.
         eyeUniform=viewport[0]==0?0f:1f;
         if(viewport[0]==0) {
-            sixDofX += (targetSixDofX - sixDofX) * 0.48f;
-            sixDofZ += (targetSixDofZ - sixDofZ) * 0.48f;
+            float dx = targetSixDofX - sixDofX;
+            float dz = targetSixDofZ - sixDofZ;
+            if(worldLock && dx*dx + dz*dz < 0.0018f*0.0018f) {
+                sixDofX = targetSixDofX;
+                sixDofZ = targetSixDofZ;
+                worldLocked = true;
+            } else {
+                sixDofX += dx * 0.54f;
+                sixDofZ += dz * 0.54f;
+                worldLocked = false;
+            }
             if(Math.abs(sixDofX)<1e-4f && targetSixDofX==0f) sixDofX=0f;
             if(Math.abs(sixDofZ)<1e-4f && targetSixDofZ==0f) sixDofZ=0f;
         }
@@ -322,7 +333,7 @@ final class SpatialRenderer {
             float tEnv = elapsedEnv / 1200f;
             envReveal = 1f - (1f - tEnv) * (1f - tEnv) * (1f - tEnv);
         }
-        if(!blackEnv) {
+        if(!blackEnv && !handRenderer.gameHandMode) {
             if(sphere && envReveal >= 0.999f) {
                 drawEnvironment(projection, 1f);
             } else {

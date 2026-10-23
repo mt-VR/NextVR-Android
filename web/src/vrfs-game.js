@@ -187,6 +187,10 @@ function createVrfsSoccerBallTexture() {
   ctx.fillText('VRFS', 768, bandY + bandH / 2 + 3);
 
   const tex = new THREE.CanvasTexture(cv);
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 4;
   if ('colorSpace' in tex && THREE.SRGBColorSpace) {
     tex.colorSpace = THREE.SRGBColorSpace;
   }
@@ -340,6 +344,7 @@ function ensureScene() {
   if (scene) return;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x68a6e2);
+  scene.fog = new THREE.FogExp2(0x74b2eb, 0.0020);
 
   camera = new THREE.PerspectiveCamera(74, (1200 / 2) / 800, 0.05, 420);
   camera.position.copy(SPAWN);
@@ -467,8 +472,14 @@ async function loadVrfsWorld() {
           // Corrige DiffuseColor (0,0,0) exportado pelo Blender no FBX para mostrar a textura da grama e telão
           if (m.map || m.name === 'Malzeme.007' || m.name === 'Malzeme.005' || m.name === 'Malzeme.278') {
             m.color?.setHex?.(0xffffff);
-            if (m.map && 'colorSpace' in m.map && THREE.SRGBColorSpace) {
-              m.map.colorSpace = THREE.SRGBColorSpace;
+            if (m.map) {
+              m.map.generateMipmaps = true;
+              m.map.minFilter = THREE.LinearMipmapLinearFilter;
+              m.map.magFilter = THREE.LinearFilter;
+              m.map.anisotropy = 4;
+              if ('colorSpace' in m.map && THREE.SRGBColorSpace) {
+                m.map.colorSpace = THREE.SRGBColorSpace;
+              }
             }
           }
         });
@@ -679,33 +690,45 @@ function updateHandsToBoots(now) {
 }
 
 const tmpV = new THREE.Vector3();
+const _prevBootW = new THREE.Vector3();
+const _currBootW = new THREE.Vector3();
+const _diffV = new THREE.Vector3();
+const _relVelV = new THREE.Vector3();
+const _rollAxis = new THREE.Vector3();
+const _rightVec = new THREE.Vector3();
+const _axisY = new THREE.Vector3(0, 1, 0);
+const _axisX = new THREE.Vector3(1, 0, 0);
 const yQuat = new THREE.Quaternion();
 const pQuat = new THREE.Quaternion();
 const bootEuler = new THREE.Euler();
+const _camEuler = new THREE.Euler();
+const _adjEuler = new THREE.Euler();
 const PTS = [-0.15, 0, 0.14];
 
-function worldOfBoot(loc) {
-  const w = camera.localToWorld(loc.clone());
-  if (w.y < 0.06) w.y = 0.06;
-  return w;
+function worldOfBoot(loc, out = new THREE.Vector3()) {
+  out.copy(loc);
+  camera.localToWorld(out);
+  if (out.y < 0.06) out.y = 0.06;
+  return out;
 }
 
 function updateBootsAndPhysics(dt, now) {
   bootEuler.setFromQuaternion(camera.quaternion, 'YXZ');
-  yQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), bootEuler.y);
-  boots.forEach((b, i) => {
+  yQuat.setFromAxisAngle(_axisY, bootEuler.y);
+  for (let i = 0; i < boots.length; i++) {
+    const b = boots[i];
     const lost = now - b.seen > 450;
     if (lost) b.tgt.set(i ? 0.24 : -0.24, -0.78, -0.82);
-    const prevW = worldOfBoot(b.loc);
-    b.loc.lerp(b.tgt, lost ? 0.14 : 0.58);
-    const w = worldOfBoot(b.loc);
-    b.vel.copy(w).sub(prevW).divideScalar(Math.max(dt, 0.004));
+    worldOfBoot(b.loc, _prevBootW);
+    b.loc.lerp(b.tgt, lost ? 0.16 : 0.78);
+    worldOfBoot(b.loc, _currBootW);
+    b.vel.copy(_currBootW).sub(_prevBootW).divideScalar(Math.max(dt, 0.004));
     if (b.vel.length() > 24) b.vel.setLength(24);
     b.obj.visible = true;
-    b.obj.position.copy(w);
-    pQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), lost ? 0 : b.pitch);
+    b.obj.position.copy(_currBootW);
+    pQuat.setFromAxisAngle(_axisX, lost ? 0 : b.pitch);
     b.obj.quaternion.copy(yQuat).multiply(pQuat);
-  });
+  }
 
   if (!ball) return;
   const substeps = 4;
@@ -722,29 +745,30 @@ function updateBootsAndPhysics(dt, now) {
       ballV.x *= f;
       ballV.z *= f;
     }
-    boots.forEach(b => {
+    for (let bi = 0; bi < boots.length; bi++) {
+      const b = boots[bi];
       b.obj.updateMatrixWorld(true);
-      PTS.forEach(z => {
-        const c = b.obj.localToWorld(tmpV.set(0, 0.08, z));
-        const d = ball.position.clone().sub(c);
-        const dist = d.length();
+      for (let pi = 0; pi < PTS.length; pi++) {
+        const c = b.obj.localToWorld(tmpV.set(0, 0.08, PTS[pi]));
+        _diffV.copy(ball.position).sub(c);
+        const dist = _diffV.length();
         const rr = R_BALL + 0.11;
         if (dist < rr && dist > 1e-4) {
-          const n = d.divideScalar(dist);
+          const n = _diffV.divideScalar(dist);
           ball.position.addScaledVector(n, rr - dist);
-          const vr = ballV.clone().sub(b.vel).dot(n);
+          const vr = _relVelV.copy(ballV).sub(b.vel).dot(n);
           if (vr < 0) {
             ballV.addScaledVector(n, -(1 + 0.82) * vr);
             if (ballV.y < 1.2) ballV.y += 1.4;
           }
           if (ballV.length() > 30) ballV.setLength(30);
         }
-      });
-    });
+      }
+    }
     const sp = Math.hypot(ballV.x, ballV.z);
     if (sp > 0.01) {
-      const ax = new THREE.Vector3(ballV.z, 0, -ballV.x).normalize();
-      ball.rotateOnWorldAxis(ax, (sp * subDt) / R_BALL);
+      _rollAxis.set(ballV.z, 0, -ballV.x).normalize();
+      ball.rotateOnWorldAxis(_rollAxis, (sp * subDt) / R_BALL);
     }
   }
 
@@ -781,13 +805,13 @@ export function recenterVrfs() {
 function renderVrfsFrame(now) {
   if (!active) return;
   rafId = requestAnimationFrame(renderVrfsFrame);
-  const dt = Math.min(0.05, Math.max(0.004, (now - (lastT || now)) / 1000));
+  const dt = Math.min(0.036, Math.max(0.004, (now - (lastT || now)) / 1000));
   lastT = now;
 
   if (coreCamera && camera) {
-    const eu = new THREE.Euler().setFromQuaternion(coreCamera.quaternion, 'YXZ');
-    const adjEu = new THREE.Euler(eu.x + pitchBias, eu.y + yawOff, eu.z, 'YXZ');
-    camera.quaternion.setFromEuler(adjEu);
+    _camEuler.setFromQuaternion(coreCamera.quaternion, 'YXZ');
+    _adjEuler.set(_camEuler.x + pitchBias, _camEuler.y + yawOff, _camEuler.z, 'YXZ');
+    camera.quaternion.setFromEuler(_adjEuler);
     camera.position.set(
       SPAWN.x + (SixDof?.out?.x || 0),
       SPAWN.y + (SixDof?.out?.y || 0),
@@ -810,17 +834,21 @@ function renderVrfsFrame(now) {
     const halfW = W >> 1;
     const aspect = halfW / H;
     const ipdHalf = (CARDBOARD_2015_LENS.ipd || 0.064) * 0.5;
-    const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    _rightVec.set(1, 0, 0).applyQuaternion(camera.quaternion);
 
-    camL.aspect = aspect;
-    camL.updateProjectionMatrix();
+    if (camL.aspect !== aspect) {
+      camL.aspect = aspect;
+      camL.updateProjectionMatrix();
+    }
     camL.quaternion.copy(camera.quaternion);
-    camL.position.copy(camera.position).addScaledVector(rightVec, -ipdHalf);
+    camL.position.copy(camera.position).addScaledVector(_rightVec, -ipdHalf);
 
-    camR.aspect = aspect;
-    camR.updateProjectionMatrix();
+    if (camR.aspect !== aspect) {
+      camR.aspect = aspect;
+      camR.updateProjectionMatrix();
+    }
     camR.quaternion.copy(camera.quaternion);
-    camR.position.copy(camera.position).addScaledVector(rightVec, ipdHalf);
+    camR.position.copy(camera.position).addScaledVector(_rightVec, ipdHalf);
 
     glRenderer.setScissorTest(true);
     glRenderer.setViewport(0, 0, halfW, H);
@@ -832,8 +860,11 @@ function renderVrfsFrame(now) {
     glRenderer.render(scene, camR);
     glRenderer.setScissorTest(false);
   } else {
-    camera.aspect = W / H;
-    camera.updateProjectionMatrix();
+    const aspect = W / H;
+    if (camera.aspect !== aspect) {
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+    }
     glRenderer.setScissorTest(false);
     glRenderer.setViewport(0, 0, W, H);
     glRenderer.render(scene, camera);
@@ -876,12 +907,18 @@ function ensureDom() {
       canvas: glCanvas,
       antialias: true,
       alpha: false,
+      stencil: false,
+      depth: true,
       powerPreference: 'high-performance',
     });
-    glRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
+    glRenderer.setPixelRatio(1);
     glRenderer.setSize(1200, 800, false);
     if ('outputColorSpace' in glRenderer && THREE.SRGBColorSpace) {
       glRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    if ('toneMapping' in glRenderer && THREE.ACESFilmicToneMapping) {
+      glRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      glRenderer.toneMappingExposure = 1.08;
     }
   } catch (e) {
     console.warn('VRFS WebGL init warn:', e);
@@ -954,6 +991,7 @@ export async function openVrfsGame() {
 
   if (native) startHands();
   try {
+    window.NativeXR?.setGameHandMode?.(true);
     window.NativeXR?.handVisuals?.(false);
   } catch {}
 
@@ -990,6 +1028,7 @@ export function exitVrfsGame() {
   window.__gorillaStereoOverlay = false;
   window.__gorillaOnHands = null;
   try {
+    window.NativeXR?.setGameHandMode?.(false);
     window.NativeXR?.handVisuals?.(!!settings.handDraw);
   } catch {}
   if (rafId) {

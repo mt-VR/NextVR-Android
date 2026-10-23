@@ -30,24 +30,27 @@ export class AtlasRenderer {
     this.domElement = document.createElement('div');
     this.domElement.id = 'atlas';
     this.last = 0;
-  this.sent = null;
-  this.sentSpecs = null;
+    this.sent = null;
+    this.sentSpecs = null;
+    this.overlayJson = null;
     this.lastError = '';
     this.slots = new Map();
   }
   setSize() {}
   render(scene) {
     if (window.__gorillaStereoOverlay) {
-      const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
-      const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
-        .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
-      const panels = [{
-        overlay: true,
-        matrix: gHud.toArray(),
-        rect: [0, 0, VIEW.width / 2, VIEW.height],
-        uvR: [(VIEW.width / 2) / ATLAS_SIZE, 1 - VIEW.height / ATLAS_SIZE, (VIEW.width / 2) / ATLAS_SIZE, VIEW.height / ATLAS_SIZE],
-      }];
-      const sceneJson = JSON.stringify(panels), specsJson = '[]';
+      if (!this.overlayJson) {
+        const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
+        const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
+          .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
+        this.overlayJson = JSON.stringify([{
+          overlay: true,
+          matrix: gHud.toArray(),
+          rect: [0, 0, VIEW.width / 2, VIEW.height],
+          uvR: [(VIEW.width / 2) / ATLAS_SIZE, 1 - VIEW.height / ATLAS_SIZE, (VIEW.width / 2) / ATLAS_SIZE, VIEW.height / ATLAS_SIZE],
+        }]);
+      }
+      const sceneJson = this.overlayJson, specsJson = '[]';
       if (sceneJson !== this.sent || specsJson !== this.sentSpecs) {
         this.sent = sceneJson; this.sentSpecs = specsJson;
         window.NativeXR?.frame?.(sceneJson, specsJson);
