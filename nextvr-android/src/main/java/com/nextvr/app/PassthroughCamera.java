@@ -430,7 +430,7 @@ final class PassthroughCamera {
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=(gameHandMode || !"both".equals(singleHandMode))?160:160;
+                    int maxAnalysisW=128;
                     int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
                     int height=Math.max(1,width*outH/outW);
                     int analysisLen=width*height;
@@ -519,6 +519,7 @@ final class PassthroughCamera {
     private void track(TrackingFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); } catch(Throwable ignored) {}
             // The detector lives on this thread and is (re)built here: on first use, and when a
             // reopened camera left a GPU attempt unspent (see open() and MAX_GPU_ATTEMPTS).
             if(detector==null || (preferGpu && !gpuDetector && gpuAttempts<MAX_GPU_ATTEMPTS))buildDetector();

@@ -2067,53 +2067,7 @@ const QUEST_STORE_ITEMS = [
   { id: 'youtube', name: 'YouTube VR', cat: 'apps', rating: '4.8', reviews: '31 mil', tag: 'Vídeo 360° · 4K', badge: 'APP', img: './icons/youtube.svg', bg: 'linear-gradient(135deg,#450a0a,#dc2626)', isSvg: true },
   { id: 'discord', name: 'Discord', cat: 'apps', rating: '4.7', reviews: '19 mil', tag: 'Comunidade · Voz', badge: 'APP', img: './icons/discord.svg', bg: 'linear-gradient(135deg,#312e81,#4f46e5)', isSvg: true },
   { id: 'netflix', name: 'Netflix', cat: 'apps', rating: '4.8', reviews: '22 mil', tag: 'Cinema VR', badge: 'APP', img: '', bg: 'linear-gradient(135deg,#450a0a,#991b1b)', textLogo: 'N' },
-  { id: 'prime', name: 'Prime Video', cat: 'apps', rating: '4.7', reviews: '16 mil', tag: 'Filmes & Séries', badge: 'APP', img: '', bg: 'linear-gradient(135deg,#0c4a6e,#0284c7)', textLogo: 'P' },
-  { id: 'whatsapp', name: 'WhatsApp', cat: 'apps', rating: '4.9', reviews: '58 mil', tag: 'Mensagens · Voz', badge: 'APP', img: './icons/hz-whatsapp.png', bg: 'linear-gradient(135deg,#14532d,#22c55e)' },
-  { id: 'instagram', name: 'Instagram', cat: 'apps', rating: '4.8', reviews: '49 mil', tag: 'Reels · Fotos', badge: 'APP', img: './icons/hz-instagram.png', bg: 'linear-gradient(135deg,#831843,#db2777)' },
-  { id: 'facebook', name: 'Facebook', cat: 'apps', rating: '4.7', reviews: '41 mil', tag: 'Social · VR', badge: 'APP', img: './icons/hz-facebook.png', bg: 'linear-gradient(135deg,#1e3a8a,#2563eb)' },
-  { id: 'spotify', name: 'Spotify', cat: 'apps', rating: '4.9', reviews: '47 mil', tag: 'Música · Podcasts', badge: 'APP', img: './icons/spotify.svg', bg: 'linear-gradient(135deg,#064e3b,#10b981)', isSvg: true },
-  { id: 'twitch', name: 'Twitch', cat: 'apps', rating: '4.8', reviews: '21 mil', tag: 'Lives · Gaming', badge: 'APP', img: './icons/twitch.svg', bg: 'linear-gradient(135deg,#4c1d95,#9333ea)', isSvg: true },
-  { id: 'telegram', name: 'Telegram', cat: 'apps', rating: '4.8', reviews: '19 mil', tag: 'Chat · Canais', badge: 'APP', img: './icons/telegram.svg', bg: 'linear-gradient(135deg,#0c4a6e,#38bdf8)', isSvg: true },
-  { id: 'x', name: 'X', cat: 'apps', rating: '4.6', reviews: '27 mil', tag: 'Notícias · Social', badge: 'APP', img: './icons/x.svg', bg: 'linear-gradient(135deg,#09090b,#27272a)', isSvg: true },
-  { id: 'gallery', name: 'Gallery', cat: 'apps', rating: '4.8', reviews: '15 mil', tag: 'Fotos & Vídeos VR', badge: 'APP', img: './icons/hz-gallery.png', bg: 'linear-gradient(135deg,#701a75,#c084fc)' },
-  { id: 'shizuku', name: 'Files & Apps', cat: 'apps', rating: '4.8', reviews: '12 mil', tag: 'Apps Android · Shizuku', badge: 'APP', img: './icons/hz-files.png', bg: 'linear-gradient(135deg,#1e3a8a,#38bdf8)' },
 ];
-
-// Pré-instalados de fábrica: apenas Browser e Configurações (mais o próprio atalho da Store/Ambientes/Library para aceder à Loja).
-// Todos os restantes apps e jogos ficam na Store para baixar ("Obter" em azul -> "Abrir" em cinza estilo Apple Store).
-const PREINSTALLED_APP_IDS = new Set(['browser', 'settings', 'store', 'environments', 'library']);
-
-export function isStoreAppInstalled(id) {
-  if (!id || PREINSTALLED_APP_IDS.has(id)) return true;
-  if (id === 'gorilla-tag') return Boolean(S.gorillaInstalled || S.installedApps?.['gorilla-tag']);
-  if (id === 'mr-pistol') return Boolean(S.mrPistolInstalled || S.installedApps?.['mr-pistol']);
-  return Boolean(S.installedApps && S.installedApps[id]);
-}
-
-export function installStoreApp(id, silent = false) {
-  if (!id) return false;
-  if (!S.installedApps || typeof S.installedApps !== 'object') S.installedApps = {};
-  S.installedApps[id] = 1;
-  if (id === 'gorilla-tag') S.gorillaInstalled = 1;
-  if (id === 'mr-pistol') S.mrPistolInstalled = 1;
-  if (id === 'hand-draw') S.handDrawInstalled = 1;
-  save(S);
-  touchLib(id, true);
-  paintStore();
-  paintLibrary();
-  paintSpatialLauncher();
-  makeDock();
-  if (!silent) {
-    const item = QUEST_STORE_ITEMS.find(x => x.id === id);
-    toast(`${item?.name || id} baixado! Disponível no Spatial App e na Dock.`);
-  }
-  return true;
-}
-
-if (typeof window !== 'undefined') {
-  window.nextvrIsStoreAppInstalled = isStoreAppInstalled;
-  window.nextvrInstallStoreApp = installStoreApp;
-}
 
 function buildStore() {
   const root = el('div', 'st st-quest-store');
@@ -2143,6 +2097,16 @@ function buildStore() {
   if (storeTab === 'horizon') {
     html += `<p class="st-note">Esta loja não inclui uma assinatura Horizon+.</p>`;
   } else {
+    const installed = !!S.gorillaInstalled;
+    const gorillaActionHtml = gorillaFetchPct !== null
+      ? `<span class="st-quest-card-btn" style="background:rgba(251,146,60,.24);color:#fdba74">Baixando... ${gorillaFetchPct}%</span>`
+      : installed
+        ? `<div style="display:flex;gap:6px;align-items:center">
+             <span data-gorilla-installed="1" style="font-size:10px;font-weight:800;color:#4ade80;padding:3px 8px;border-radius:999px;background:rgba(34,197,94,.16);border:1px solid rgba(74,222,128,.35)">✓ Instalado</span>
+             <button class="st-btn st-quest-card-btn" data-launch-gorilla style="background:#2563eb;color:#fff">ABRIR</button>
+           </div>`
+        : `<button class="st-btn st-quest-card-btn" data-install-gorilla style="background:#2563eb;color:#fff">BAIXAR</button>`;
+
     const filteredItems = QUEST_STORE_ITEMS.filter(item => {
       if (storeQuestFilter === 'games') return item.cat === 'games';
       if (storeQuestFilter === 'apps') return item.cat === 'apps';
@@ -2151,22 +2115,18 @@ function buildStore() {
 
     const cardsHtml = filteredItems.map(item => {
       const isGorilla = item.id === 'gorilla-tag';
-      const itemInstalled = isStoreAppInstalled(item.id);
       const thumbInner = item.textLogo
         ? `<span style="font-size:38px;font-weight:900;color:#ef4444;letter-spacing:-.04em">${item.textLogo}</span>`
         : item.isSvg
           ? `<img src="${item.img}" alt="${item.name}" style="width:48px;height:48px;object-fit:contain">`
           : `<img class="${isGorilla ? 'st-gorilla-logo' : ''}" src="${item.img}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;display:block">`;
 
-      // Estilo Apple App Store: botão "Obter" em azul (#007aff) antes de baixar, e "Abrir" em cinza depois de baixado
-      const ctaHtml = (isGorilla && gorillaFetchPct !== null)
-        ? `<span class="st-quest-card-btn" style="background:rgba(251,146,60,.24);color:#fdba74;border-radius:999px;padding:6px 14px;font-weight:800">Baixando... ${gorillaFetchPct}%</span>`
-        : itemInstalled
-          ? `<button type="button" class="st-btn st-quest-card-btn st-btn-abrir" data-store-launch="${item.id}" ${isGorilla ? 'data-launch-gorilla data-gorilla-installed="1"' : ''} style="background:rgba(142,142,147,.28);color:#e5e7eb;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 16px;font-weight:800">Abrir</button>`
-          : `<button type="button" class="st-btn st-quest-card-btn st-btn-obter" data-store-install="${item.id}" ${isGorilla ? 'data-install-gorilla' : ''} style="background:#007aff;color:#ffffff;border:none;border-radius:999px;padding:6px 16px;font-weight:800">Obter</button>`;
+      const ctaHtml = isGorilla
+        ? gorillaActionHtml
+        : `<button type="button" class="st-btn st-quest-card-btn" data-store-launch="${item.id}" style="background:rgba(255,255,255,.12);color:#f8fafc">Abrir</button>`;
 
       return `
-        <article class="st-quest-card ${isGorilla ? 'st-gorilla-card' : ''}" ${isGorilla ? 'data-store-gorilla' : ''} data-store-card="${item.id}" data-store-installed="${itemInstalled ? '1' : '0'}">
+        <article class="st-quest-card ${isGorilla ? 'st-gorilla-card' : ''}" ${isGorilla ? 'data-store-gorilla' : ''} data-store-card="${item.id}">
           <div class="st-quest-card-art" style="background:${item.bg}" ${isGorilla ? '' : `data-store-launch="${item.id}"`}>
             ${thumbInner}
             <span class="st-quest-card-badge">${item.badge}</span>
@@ -2225,24 +2185,29 @@ function buildStore() {
     if (q('[data-x]')) { const w = wins.find(x => x.id === 'store'); if (w) close(w); return; }
     if (q('[data-ava]')) { toast('Perfil NextVR'); return; }
     if (q('[data-openlib]')) { libraryApp(); return; }
-    if ((m = q('[data-store-install]'))) {
-      const appId = m.dataset.storeInstall;
-      installStoreApp(appId);
-      return;
-    }
     if (q('[data-install-gorilla]')) {
-      installStoreApp('gorilla-tag');
+      S.gorillaInstalled = 1;
+      save();
+      touchLib('gorilla-tag', true);
+      paintLibrary();
+      gorillaFetchPct = 35;
+      paintStore();
+      setTimeout(() => { gorillaFetchPct = 80; paintStore(); }, 120);
+      setTimeout(() => {
+        gorillaFetchPct = null;
+        paintStore();
+        paintLibrary();
+        toast('Gorilla Tag baixado! Adicionado à Biblioteca de Apps.');
+      }, 260);
       return;
     }
     if (q('[data-launch-gorilla]')) {
-      installStoreApp('gorilla-tag', true);
       touchLib('gorilla-tag');
       openGorillaTag();
       return;
     }
     if ((m = q('[data-store-launch]'))) {
       const appId = m.dataset.storeLaunch;
-      installStoreApp(appId, true);
       touchLib(appId, true);
       const act = LIB_ACTIONS[appId];
       if (act) act();
@@ -2559,10 +2524,8 @@ const SVG_HZ_META = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke
 const SVG_HZ_LAYOUT = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="5" height="14" rx="1.5"/><rect x="10" y="5" width="5" height="14" rx="1.5"/><rect x="17" y="5" width="4" height="14" rx="1.2"/></svg>`;
 
 function buildSpatialMixedItems() {
-  // Apenas Browser e Configurações vêm pré-instalados (mais Store e Ambientes).
-  // Enquanto um app ou jogo não for baixado na Store, não aparece no Spatial App!
-  const core = SPATIAL_CORE_APPS.filter(a => isStoreAppInstalled(a.id)).map(a => ({ kind: 'builtin', ...a }));
-  const games = SPATIAL_GAME_ITEMS.filter(g => isStoreAppInstalled(g.id)).map(g => ({ kind: 'builtin', ...g }));
+  const core = SPATIAL_CORE_APPS.map(a => ({ kind: 'builtin', ...a }));
+  const games = SPATIAL_GAME_ITEMS.map(g => ({ kind: 'builtin', ...g }));
   const xrItems = (xrLibraryItems?.() || []).map(x => ({
     kind: 'xr',
     pkg: x.packageName,
@@ -3595,50 +3558,23 @@ function syncVirtualEnvironmentDock() {
   button.title = `${t('envVirtual')} · ${active ? t('on') : t('off')}`;
 }
 
-const DOCK_DOWNLOADABLE_ITEMS = [
-  { id: 'discord', win: 'discord', label: 'Discord', img: './icons/hz-whatsapp.png', svg: DK.people, bg: 'linear-gradient(145deg,#4ade80,#16a34a)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
-  { id: 'gallery', win: 'gallery', label: () => t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera, bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
-  { id: 'youtube', win: 'youtube', label: 'YouTube', img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
-  { id: 'shizuku', win: 'shizuku', label: () => t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
-  { id: 'mr-pistol', win: 'mr-pistol', label: 'ShootTheDie', img: './icons/shootthedie-logo.jpg', svg: DK.play, bg: '#080a0f', run: openMrPistolGame },
-  { id: 'hand-draw', win: 'hand-draw', label: 'paintdrawer', img: './icons/paintdrawer-logo.jpg', svg: DK.play, bg: '#09090b', run: openHandDrawGame },
-  { id: 'gorilla-tag', win: 'gorilla-tag', label: 'Gorilla Tag', img: './icons/gorilla-tag-logo.jpg', svg: DK.play, bg: '#0d1b12', run: openGorillaTag },
-  { id: 'vrfs', win: 'vrfs', label: 'VRFS', img: './icons/vrfs-logo.jpg', svg: DK.play, bg: '#0b1a10', run: openVrfsGame },
-  { id: 'beat-vr', win: 'beat-saber', label: 'Beat Saber', img: './beat-saber-logo.jpg', svg: DK.play, bg: '#070814', run: openBeatSaberVr },
-  { id: 'hyper-vr', win: 'browser', label: 'Hyper Dash VR', img: './hyper-dash-logo.jpg', svg: DK.play, bg: '#0a1426', run: () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/') },
-  { id: 'roblox-vr', win: 'roblox', label: 'Roblox', img: './roblox-logo.jpg', svg: DK.play, bg: '#090d16', run: openRobloxVr },
-  { id: 'tiktok', win: 'tiktok', label: 'TikTok', img: './tiktok-logo.jpg', svg: DK.play, bg: '#000000', run: () => webWindow('tiktok', 'TikTok', 'https://www.tiktok.com/') },
-  { id: 'netflix', win: 'netflix', label: 'Netflix', img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#e50914,#7f1d1d)', run: () => webWindow('netflix', 'Netflix', 'https://www.netflix.com/') },
-  { id: 'prime', win: 'prime', label: 'Prime Video', img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#00a8e1,#0369a1)', run: () => webWindow('prime', 'prime video', 'https://www.primevideo.com/') },
-  { id: 'whatsapp', win: 'whatsapp', label: 'WhatsApp', img: './icons/hz-whatsapp.png', svg: DK.people, bg: 'linear-gradient(145deg,#22c55e,#15803d)', run: () => webWindow('whatsapp', 'WhatsApp', 'https://web.whatsapp.com/') },
-  { id: 'instagram', win: 'instagram', label: 'Instagram', img: './icons/hz-instagram.png', svg: DK.camera, bg: 'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', run: () => webWindow('instagram', 'Instagram', 'https://www.instagram.com/') },
-  { id: 'facebook', win: 'facebook', label: 'Facebook', img: './icons/hz-facebook.png', svg: DK.people, bg: 'linear-gradient(145deg,#3b82f6,#1d4ed8)', run: () => webWindow('facebook', 'Facebook', 'https://www.facebook.com/') },
-  { id: 'spotify', win: 'spotify', label: 'Spotify', img: './icons/spotify.svg', svg: DK.play, bg: 'linear-gradient(145deg,#1db954,#0b3b1e)', run: () => webWindow('spotify', 'Spotify', 'https://open.spotify.com/') },
-  { id: 'twitch', win: 'twitch', label: 'Twitch', img: './icons/twitch.svg', svg: DK.play, bg: 'linear-gradient(145deg,#a855f7,#581c87)', run: () => webWindow('twitch', 'Twitch', 'https://www.twitch.tv/') },
-  { id: 'telegram', win: 'telegram', label: 'Telegram', img: './icons/telegram.svg', svg: DK.people, bg: 'linear-gradient(145deg,#38bdf8,#0284c7)', run: () => webWindow('telegram', 'Telegram', 'https://web.telegram.org/') },
-  { id: 'x', win: 'x', label: 'X', img: './icons/x.svg', svg: DK.people, bg: 'linear-gradient(145deg,#18181b,#050507)', run: () => webWindow('x', 'X', 'https://x.com/') },
-];
-
 function makeDock() {
-  const downloadedDockTiles = DOCK_DOWNLOADABLE_ITEMS
-    .filter(item => isStoreAppInstalled(item.id))
-    .map(item => ({
-      ...item,
-      label: typeof item.label === 'function' ? item.label() : item.label,
-    }));
   buildDock([
     // Perfil abre o menu de entrada NextVR, status do telefone e atalho do ambiente virtual.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: openEntryMenu },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
-    // O que vem pré-instalado: Browser e Configurações (mais a Store para baixar os apps e a Library).
-    // Enquanto um app não for baixado na Store, não aparece na Dock normal; quando baixado, aparece aqui e no Spatial App.
+    // apps principais com ícones Horizon OS 2.7 (v207)
     { id: 'browser', win: 'browser', label: t('browser'), img: './icons/hz-browser.png', svg: DK.compass, bg: 'linear-gradient(145deg,#8aa7ff,#5d62d5)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
     { id: 'store',   win: 'store',   label: t('store'),   img: './icons/hz-store.png',   svg: DK.store,   bg: 'linear-gradient(145deg,#fcd34d,#ea580c)', run: storeApp },
+    { id: 'discord', win: 'discord', label: 'Discord',    img: './icons/hz-whatsapp.png', svg: DK.people,  bg: 'linear-gradient(145deg,#4ade80,#16a34a)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
+    { id: 'gallery', win: 'gallery', label: t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera,  bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
     { kind: 'sep' },
     { id: 'settings', win: 'control-center', label: t('settings'), img: './icons/hz-settings.png', svg: DK.gear, bg: 'linear-gradient(145deg,#9ca8b8,#556170)', run: controlCenterApp },
-    ...downloadedDockTiles,
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
+    // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
+    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
   syncVirtualEnvironmentDock();

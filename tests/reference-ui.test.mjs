@@ -176,8 +176,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','settings','library'],
-      'the compact dock keeps phone status, the Vision-style virtual-environment shortcut, and only pre-installed apps until Store apps are downloaded');
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+      'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
     assert.equal(await page.locator('.dock .dock-spacer').count(),1,
       'a small gap separates status and the app tiles');
     assert.equal(await page.locator('.dock .dock-tool').count(),1,
@@ -526,7 +526,6 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
       'the NextVR library does not mix device apps into its own grid');
-    await page.evaluate(()=>window.nextvrInstallStoreApp?.('shizuku', true));
     await page.locator('.dock [data-id="shizuku"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.android-app-grid'));
     assert.equal(await page.locator('.android-app-grid .lib-tile.android').count(),2,

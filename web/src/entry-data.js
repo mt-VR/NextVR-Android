@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · PAINTDRAWER, STORE APPLE & 0 DELAY NAS 2 MÃOS',
+    tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
     time: 'Agora',
-    heading: 'paintdrawer, Store Obter/Abrir, 0 Delay nas 2 Mãos & Arco Invisível nas Janelas',
-    desc: 'Jogo paintdrawer com nova logo! Store estilo Apple (botão azul "Obter" e cinza "Abrir"; apenas Browser e Configurações vêm pré-instalados), Hand Tracking 0 delay nas 2 mãos, 6DoF contínuo sem parar, arco invisível nas bordas das janelas, Gorilla Tag aprimorado e VRFS sem reset de bola!',
+    heading: 'paintdrawer, 6DoF Sem Deriva Lateral/Frontal & Hand Tracking Ultra 0 Delay',
+    desc: 'Jogo paintdrawer com nova logo! Todos os apps já vêm prontos no Spatial App e na Dock sem precisar instalar, 6DoF corrigido para nunca andar para os lados ou pra frente do nada, Hand Tracking ainda mais sem delay nas 2 mãos e arco invisível nas bordas das janelas!',
   },
   {
     id: 'quest-browser-env-hand',

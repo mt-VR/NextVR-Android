@@ -70,26 +70,8 @@ const MENU_STORE_APPS = [
   { id: 'youtube', name: 'YouTube VR', cat: 'Vídeo · 360° · 4.8 ★', bg: '#dc2626', img: './icons/youtube.svg' },
   { id: 'discord', name: 'Discord', cat: 'Social · Voz · 4.7 ★', bg: '#4f46e5', img: './icons/discord.svg' },
   { id: 'netflix', name: 'Netflix', cat: 'Cinema · TV · 4.8 ★', bg: '#991b1b' },
-  { id: 'prime', name: 'Prime Video', cat: 'Filmes & Séries · 4.7 ★', bg: '#0284c7' },
-  { id: 'whatsapp', name: 'WhatsApp', cat: 'Mensagens · Voz · 4.9 ★', bg: '#16a34a', img: './icons/hz-whatsapp.png' },
-  { id: 'instagram', name: 'Instagram', cat: 'Reels · Fotos · 4.8 ★', bg: '#db2777', img: './icons/hz-instagram.png' },
-  { id: 'facebook', name: 'Facebook', cat: 'Social · VR · 4.7 ★', bg: '#2563eb', img: './icons/hz-facebook.png' },
   { id: 'spotify', name: 'Spotify', cat: 'Música · Áudio · 4.8 ★', bg: '#059669', img: './icons/spotify.svg' },
-  { id: 'twitch', name: 'Twitch', cat: 'Lives · Gaming · 4.8 ★', bg: '#9333ea', img: './icons/twitch.svg' },
-  { id: 'telegram', name: 'Telegram', cat: 'Chat · Canais · 4.8 ★', bg: '#0284c7', img: './icons/telegram.svg' },
-  { id: 'x', name: 'X', cat: 'Notícias · Social · 4.6 ★', bg: '#18181b', img: './icons/x.svg' },
-  { id: 'gallery', name: 'Gallery', cat: 'Fotos & Vídeos VR · 4.8 ★', bg: '#701a75', img: './icons/hz-gallery.png' },
-  { id: 'shizuku', name: 'Files & Apps', cat: 'Apps Android · Shizuku · 4.8 ★', bg: '#1e3a8a', img: './icons/hz-files.png' },
 ];
-
-function isEntryAppInstalled(id) {
-  if (typeof window !== 'undefined' && typeof window.nextvrIsStoreAppInstalled === 'function') {
-    return window.nextvrIsStoreAppInstalled(id);
-  }
-  if (id === 'gorilla-tag') return Boolean(S.gorillaInstalled || S.installedApps?.['gorilla-tag']);
-  if (id === 'mr-pistol') return Boolean(S.mrPistolInstalled || S.installedApps?.['mr-pistol']);
-  return Boolean(S.installedApps && S.installedApps[id]);
-}
 
 const PRESET_AVATARS = [
   { id: 'chrome', label: 'Chrome N', url: './icons/nextvr-chrome-n.png' },
@@ -385,14 +367,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   };
 
   const renderStorePanel = () => {
-    const installed = isEntryAppInstalled('gorilla-tag');
+    const installed = !!S.gorillaInstalled;
     const busy = storeGorillaPct !== null;
     const actionHtml = busy
       ? `<button type="button" class="entry-btn entry-btn--primary" disabled>Baixando... ${storeGorillaPct}%</button>`
       : installed
       ? `<span class="entry-store-badge-ok" data-entry-gorilla-installed>✓ Na Biblioteca</span>
-         <button type="button" class="entry-btn st-btn-abrir" data-entry-play-gorilla style="background:rgba(142,142,147,.28);color:#e5e7eb;border:1px solid rgba(255,255,255,.16);border-radius:999px;font-weight:800">Abrir</button>`
-      : `<button type="button" class="entry-btn entry-btn--primary st-btn-obter" data-entry-install-gorilla style="background:#007aff;color:#ffffff;border:none;border-radius:999px;font-weight:800">Obter</button>`;
+         <button type="button" class="entry-btn entry-btn--primary" data-entry-play-gorilla>Jogar Gorilla Tag</button>`
+      : `<button type="button" class="entry-btn entry-btn--primary" data-entry-install-gorilla>BAIXAR</button>`;
 
     return `
       <div class="entry-subpanel entry-subpanel--store" data-entry-panel="store">
@@ -418,7 +400,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <div class="entry-store-featured-info">
               <div class="entry-store-kicker">DESTAQUE VR · LENTES GOOGLE CARDBOARD 2015</div>
               <div class="entry-store-title">Gorilla Tag</div>
-              <div class="entry-store-desc">Mapa da floresta 3D com locomoção física pelas mãos e braços de gorila em Hand Tracking. Ao baixar, vai para o Spatial App e para a Dock.</div>
+              <div class="entry-store-desc">Mapa da floresta 3D com locomoção física pelas mãos e braços de gorila em Hand Tracking. Ao baixar, vai para a Biblioteca de Apps.</div>
               <div class="entry-store-actions">
                 ${actionHtml}
               </div>
@@ -428,21 +410,17 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-store-section-label">NAVEGAR POR TUDO · JOGOS &amp; APPS NEXTVR</div>
           <div class="entry-store-grid">
             ${MENU_STORE_APPS.map(app => {
-              const appInstalled = isEntryAppInstalled(app.id);
               const iconInner = app.img
                 ? `<img src="${app.img}" alt="${escHtml(app.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`
                 : app.name.slice(0, 2).toUpperCase();
-              const btnHtml = appInstalled
-                ? `<button type="button" class="entry-store-card-pill st-btn-abrir" data-entry-store-open="${app.id}" style="background:rgba(142,142,147,.28);color:#e5e7eb;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 14px;font-weight:800;cursor:pointer">Abrir</button>`
-                : `<button type="button" class="entry-store-card-pill st-btn-obter" data-entry-store-install="${app.id}" style="background:#007aff;color:#ffffff;border:none;border-radius:999px;padding:5px 14px;font-weight:800;cursor:pointer">Obter</button>`;
               return `
-              <div class="entry-store-card" data-entry-store-app="${app.id}" data-store-installed="${appInstalled ? '1' : '0'}">
+              <div class="entry-store-card" data-entry-store-app="${app.id}">
                 <div class="entry-store-card-dot" style="background:${app.bg};overflow:hidden;padding:0">${iconInner}</div>
                 <div class="entry-store-card-meta">
                   <div class="entry-store-card-name">${escHtml(app.name)}</div>
                   <div class="entry-store-card-cat">${escHtml(app.cat)}</div>
                 </div>
-                ${btnHtml}
+                <span class="entry-store-card-pill">Grátis</span>
               </div>`;
             }).join('')}
           </div>
@@ -895,7 +873,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     if (installGorillaBtn) {
       installGorillaBtn.onclick = () => {
         S.gorillaInstalled = 1;
-        window.nextvrInstallStoreApp?.('gorilla-tag');
         save(S);
         emit('gorilla-installed', true);
         if (window.__gorillaFastTest) {
@@ -920,7 +897,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     if (playGorillaBtn) {
       playGorillaBtn.onclick = () => {
         S.gorillaInstalled = 1;
-        window.nextvrInstallStoreApp?.('gorilla-tag', true);
         save(S);
         emit('gorilla-installed', true);
         if (typeof onLaunchGorilla === 'function') {
@@ -930,48 +906,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         }
       };
     }
-    root.querySelectorAll('[data-entry-store-install]').forEach(btn => {
-      btn.onclick = e => {
-        e.stopPropagation();
-        const appId = btn.dataset.entryStoreInstall;
-        if (appId) {
-          if (window.nextvrInstallStoreApp) {
-            window.nextvrInstallStoreApp(appId);
-          } else {
-            if (!S.installedApps || typeof S.installedApps !== 'object') S.installedApps = {};
-            S.installedApps[appId] = 1;
-            save(S);
-          }
-          paint();
-        }
-      };
-    });
-    root.querySelectorAll('[data-entry-store-open]').forEach(btn => {
-      btn.onclick = e => {
-        e.stopPropagation();
-        const appId = btn.dataset.entryStoreOpen;
-        if (appId) {
-          window.nextvrInstallStoreApp?.(appId, true);
-          emit('store-app-launch', appId);
-        }
-      };
-    });
     root.querySelectorAll('[data-entry-store-app]').forEach(card => {
       card.onclick = () => {
         const appId = card.dataset.entryStoreApp;
-        if (!appId) return;
-        if (!isEntryAppInstalled(appId)) {
-          if (window.nextvrInstallStoreApp) {
-            window.nextvrInstallStoreApp(appId);
-          } else {
-            if (!S.installedApps || typeof S.installedApps !== 'object') S.installedApps = {};
-            S.installedApps[appId] = 1;
-            save(S);
-          }
-          paint();
-          return;
-        }
-        emit('store-app-launch', appId);
+        if (appId) emit('store-app-launch', appId);
       };
     });
     const mrNotifCard = root.querySelector('[data-entry-notif="mr-pistol"]');

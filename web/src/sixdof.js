@@ -125,11 +125,10 @@ export const SixDof = {
   lastT: 0,
   lastSc: 0,
   lastScAt: 0,
-  _dropFrames: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.48, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest com World Lock)
+  depth: 1.25, // metros assumidos até aos objetos à frente (resposta 6DoF estável sem deriva espontânea)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -362,27 +361,22 @@ export const SixDof = {
    * - Enquanto parado ou rodando apenas a cabeça, trava pos e out na âncora do mundo (`anchorPos`);
    * - Ao caminhar/inclinar em 2 frames concordantes, atualiza a âncora no plano horizontal (pos.y = 0).
    */
-  applyFlowScale(sc, gx = 0, gy = 0, movingOverride, latDx = 0) {
+  applyFlowScale(sc, gx = 0, gy = 0, movingOverride) {
     if (!_isEnabled()) return;
     const cam = _getCam();
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0010 && Math.abs(sc) <= 0.22;
-    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.10 && Math.abs(latDx) <= 6.2;
-    if (!hasDepthFlow && !hasLatFlow) {
-      this._dropFrames = (this._dropFrames || 0) + 1;
-      if (this._dropFrames >= 2 || nowMs - this.lastScAt > 240) {
-        this.lastSc = 0;
-        this.lastLatDx = 0;
-        if (this.worldLock) this.worldLocked = true;
-      }
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0028 && Math.abs(sc) <= 0.14;
+    if (!hasDepthFlow) {
+      this.lastSc = 0;
+      this.lastLatDx = 0;
+      if (this.worldLock) this.worldLocked = true;
       return;
     }
-    this._dropFrames = 0;
 
     // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
-    if (Math.hypot(gx, gy) > 3.8) {
+    if (Math.hypot(gx, gy) > 1.8) {
       this.lastSc = 0;
       this.lastLatDx = 0;
       if (this.worldLock) this.worldLocked = true;
@@ -400,38 +394,23 @@ export const SixDof = {
       return;
     }
 
-    // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
+    // Só conta se duas medições seguidas concordam em sinal e magnitude próxima (elimina completamente saltos/drift espontâneo)
     const prevSc = this.lastSc;
-    const prevLat = this.lastLatDx;
-    if (hasDepthFlow) this.lastSc = sc;
-    if (hasLatFlow) this.lastLatDx = latDx;
+    this.lastSc = sc;
     this.lastScAt = nowMs;
 
-    let movedAny = false;
-    if (hasDepthFlow && prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
-        Math.abs(sc - prevSc) <= Math.max(0.095, Math.abs(sc) * 1.95)) {
-      const stepSc = (sc + prevSc) * 0.5;
-      const step = Math.max(-0.105, Math.min(0.105, stepSc * this.depth));
-      _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
-      _sdFwd.y = 0;
-      if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
-      else _sdFwd.set(0, 0, -1);
-      this.pos.addScaledVector(_sdFwd, step);
-      movedAny = true;
+    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc) ||
+        Math.abs(sc - prevSc) > Math.max(0.045, Math.abs(sc) * 1.25)) {
+      return;
     }
 
-    if (hasLatFlow && prevLat !== 0 && Math.sign(prevLat) === Math.sign(latDx)) {
-      _sdRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
-      _sdRight.y = 0;
-      if (_sdRight.lengthSq() > 1e-6) _sdRight.normalize();
-      else _sdRight.set(1, 0, 0);
-      const latAvg = (latDx + prevLat) * 0.5;
-      const latStep = Math.max(-0.068, Math.min(0.068, -latAvg * 0.022));
-      this.pos.addScaledVector(_sdRight, latStep);
-      movedAny = true;
-    }
-
-    if (!movedAny) return;
+    const stepSc = (sc + prevSc) * 0.5;
+    const step = Math.max(-0.085, Math.min(0.085, stepSc * this.depth));
+    _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    _sdFwd.y = 0;
+    if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
+    else _sdFwd.set(0, 0, -1);
+    this.pos.addScaledVector(_sdFwd, step);
     this.pos.y = 0;
 
     // Limites de segurança no plano horizontal

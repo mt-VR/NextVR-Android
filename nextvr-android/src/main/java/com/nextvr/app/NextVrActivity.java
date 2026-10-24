@@ -156,26 +156,25 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     gravY=0.88f*gravY + 0.12f*ay;
                     gravZ=0.88f*gravZ + 0.12f*az;
                     gravMag=0.92f*gravMag + 0.08f*mag;
-                    // Usa impacto escalar e aceleração linear translacional (filtrando rotação pura de giroscópio)
-                    // para que caminhar ou inclinar o tronco funcione igual ao Meta Quest sem andar sozinho parado.
+                    // Usa exclusivamente o impacto escalar invariante à rotação da cabeça (|mag - gravMag|):
+                    // rodar a cabeça NÃO altera a magnitude da gravidade, impedindo que o 6DoF ande sozinho para os lados ou para a frente.
                     float stepImpact=Math.abs(mag-gravMag);
-                    float linDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    if((stepImpact>0.035f || (linDelta>0.055f && gyroRate<1.65f)) && gyroRate<1.85f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.92f + Math.max(stepImpact, linDelta*0.85f)*1.45f);
-                        if(walkEnergy>0.045f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(stepImpact>0.22f && gyroRate<0.85f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.86f + stepImpact*1.35f);
+                        if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else if(!hasLinearAccel) {
-                        walkEnergy*=0.95f;
+                        walkEnergy*=0.84f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 hasLinearAccel=true;
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.045f && gyroRate<1.75f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.92f + lmag*1.40f);
-                    if(walkEnergy>0.045f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.24f && gyroRate<0.85f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.86f + lmag*1.30f);
+                    if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 } else {
-                    walkEnergy*=0.95f;
+                    walkEnergy*=0.84f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -255,30 +254,31 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                String payload=inGame?frame.gameJson():frame.json();
+                com.nextvr.app.hands.PhoneXrHands.Frame webFrame=frame.predicted(android.os.SystemClock.elapsedRealtimeNanos());
+                String payload=inGame?webFrame.gameJson():webFrame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.22f) return;
-                boolean zeroFlow=Math.abs(sc)<0.0009f && Math.abs(mx-gx)<0.09f;
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.12f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0028f;
                 if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                boolean strongVisualFlow=Math.abs(sc)>=0.0022f || Math.abs(mx-gx)>=0.18f;
-                boolean accelMoving=!hasWalkAccel || strongVisualFlow || (walkEnergy>0.04f && (nowMs-lastWalkStepMs)<1600L);
-                boolean moving=accelMoving && gyroRate<1.85f && Math.hypot(gx,gy)<=3.6;
+                // Exige caminhada física real no acelerômetro (walkEnergy > 0.16f nos últimos 650 ms) e cabeça estável:
+                // impede completamente que o 6DoF ande sozinho para a frente ou para os lados.
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && (nowMs-lastWalkStepMs)<650L);
+                boolean moving=accelMoving && gyroRate<0.85f && Math.hypot(gx,gy)<=1.8;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
-                float walkGain=(!hasWalkAccel || !moving)?1f:Math.min(1.42f,Math.max(1.02f,1.00f+walkEnergy*0.52f));
-                float adjSc=moving?(sc*walkGain):0f;
+                float adjSc=moving?sc:0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+mx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
                 });
             }
             @Override public void cameraDefocus(boolean defocused) {

@@ -139,6 +139,21 @@ public final class FakeSixDof {
             return null;
         }
 
+        // Quando as mãos estão visíveis na frente da câmera traseira (ou até 300 ms após saírem),
+        // congela o fluxo ótico do 6DoF e atualiza apenas o buffer de referência: o movimento das mãos/braços
+        // na frente da lente nunca deve empurrar o 6DoF para a frente ou para os lados!
+        if (handsFrame != null && !handsFrame.getHands().isEmpty()) {
+            lastHandsMs = nowMs;
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
+        if (lastHandsMs != 0L && nowMs - lastHandsMs <= 300L) {
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
+
         // 1) Deslocamento global (rotação da cabeça) na zona central (+-7 px) com refinamento sub-pixel
         float best = 1e18f;
         int gx = 0, gy = 0;
@@ -228,7 +243,7 @@ public final class FakeSixDof {
                         tex += Math.abs(P[row + x + 1] - P[row + x]) + Math.abs(P[nextRow + x] - P[row + x]);
                     }
                 }
-                if (tex < 65f) continue;
+                if (tex < 140f) continue;
 
                 // Avalia (0,0) primeiro para estabelecer uma cota superior apertada (bs) para early bailout
                 float bs = 1e18f;
@@ -296,7 +311,11 @@ public final class FakeSixDof {
             }
         }
 
-        if (nPts < 4) return null;
+        if (nPts < 8) {
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
 
         // 3) Modelo radial ponderado por contraste (IRLS): d = t + s * p
         float mx = 0f, my = 0f, px = 0f, py = 0f, wSum0 = 0f;
@@ -331,12 +350,12 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 1.45f || Math.hypot(gxSub, gySub) > 5.0) {
-            if (nowMs - prevValidMs > 260L) prevValidSc = 0f;
+        if (med > 0.85f || Math.hypot(gxSub, gySub) > 1.8) {
+            prevValidSc = 0f;
             worldLocked = true;
             return null;
         }
-        float limit = Math.max(0.45f, med * 2.35f);
+        float limit = Math.max(0.35f, med * 1.9f);
 
         int goodCount = 0;
         float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f, gwSum = 0f;
@@ -352,8 +371,8 @@ public final class FakeSixDof {
                 gwSum += w;
             }
         }
-        if (goodCount < 4 || goodCount < (nPts * 45) / 100 || gwSum <= 1e-5f) {
-            if (nowMs - prevValidMs > 260L) prevValidSc = 0f;
+        if (goodCount < 6 || goodCount < (nPts * 60) / 100 || gwSum <= 1e-5f) {
+            prevValidSc = 0f;
             worldLocked = true;
             return null;
         }
@@ -362,39 +381,45 @@ public final class FakeSixDof {
         gpx /= gwSum;
         gpy /= gwSum;
         float gnum = 0f, gden = 0f;
+        int posRadial = 0, negRadial = 0;
         for (int k = 0; k < goodCount; k++) {
             int i = goodIdx[k];
             float w = ptW[i];
             float X = ptX[i] - gpx;
             float Y = ptY[i] - gpy;
-            gnum += w * ((ptDx[i] - gmx) * X + (ptDy[i] - gmy) * Y);
+            float dot = (ptDx[i] - gmx) * X + (ptDy[i] - gmy) * Y;
+            if (dot > 0.35f) posRadial++;
+            else if (dot < -0.35f) negRadial++;
+            gnum += w * dot;
             gden += w * (X * X + Y * Y);
         }
         float finalSc = gden > 0f ? gnum / gden : 0f;
-        float latFlow = gmx - gxSub;
+        int radialAgree = finalSc >= 0f ? posRadial : negRadial;
 
-        // World Lock Ultra: se o movimento radial e lateral está abaixo do limiar de ancoragem ou há rotação pura,
-        // trava a âncora no mundo real imediatamente (worldLocked = true) sem deriva residual.
-        boolean significantFlow = (Math.abs(finalSc) >= 0.0009f && Math.abs(finalSc) <= 0.22f)
-            || (Math.abs(latFlow) >= 0.09f && Math.abs(latFlow) <= 6.2f);
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 3.8) {
+        // World Lock rigoroso: exige consenso radial real em múltiplos quadrantes da imagem e cabeça sem rotação rápida,
+        // eliminando qualquer avanço ou deriva lateral espontânea ("indo para os lados ou pra frente do nada").
+        boolean significantFlow = Math.abs(finalSc) >= 0.0028f && Math.abs(finalSc) <= 0.12f && radialAgree >= 5;
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 1.8) {
             stationaryFrames = 0;
             worldLocked = false;
-            if (Math.abs(finalSc) >= 0.0009f && Math.abs(finalSc) <= 0.22f) {
-                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 260L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
-                    finalSc = finalSc * 0.76f + prevValidSc * 0.24f;
-                }
+            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 220L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                finalSc = finalSc * 0.70f + prevValidSc * 0.30f;
+            } else {
                 prevValidSc = finalSc;
                 prevValidMs = nowMs;
-            } else {
                 finalSc = 0f;
+                worldLocked = true;
+            }
+            if (finalSc != 0f) {
+                prevValidSc = finalSc;
+                prevValidMs = nowMs;
             }
         } else {
             finalSc = 0f;
+            prevValidSc = 0f;
             stationaryFrames++;
+            worldLocked = true;
             if (stationaryFrames >= 2) {
-                prevValidSc = 0f;
-                worldLocked = true;
                 System.arraycopy(g, 0, keyframe, 0, g.length);
                 hasKeyframe = true;
             }
@@ -403,7 +428,7 @@ public final class FakeSixDof {
         outFlow[0] = finalSc;
         outFlow[1] = gxSub;
         outFlow[2] = gySub;
-        outFlow[3] = gmx;
+        outFlow[3] = gxSub;
         outFlow[4] = worldLocked ? 1f : 0f;
         return outFlow;
     }
