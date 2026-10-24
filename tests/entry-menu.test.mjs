@@ -424,14 +424,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(await page.locator('.spatial-app-tile[data-spatial-builtin="youtube"]').count(), 0, 'Un-downloaded apps do not appear in Spatial App before Store download');
     // Downloading apps in the Store makes them appear in both Spatial App and the normal Dock
     await page.evaluate(() => {
-      for (const id of ['youtube', 'discord', 'tiktok', 'netflix', 'prime', 'whatsapp', 'instagram', 'facebook', 'spotify', 'twitch', 'telegram', 'x', 'gallery', 'shizuku', 'mr-pistol', 'hand-draw', 'gorilla-tag', 'vrfs', 'beat-vr', 'hyper-vr', 'roblox-vr']) {
+      for (const id of ['youtube', 'discord', 'tiktok', 'netflix', 'prime', 'whatsapp', 'instagram', 'facebook', 'spotify', 'twitch', 'telegram', 'x', 'gallery', 'shizuku', 'mr-pistol', 'hand-draw', 'vrfs', 'beat-vr', 'hyper-vr', 'roblox-vr']) {
         window.nextvrInstallStoreApp?.(id, true);
       }
-      // Keep gorilla-tag uninstalled for step 6d Store download test
-      const s = JSON.parse(localStorage.getItem('nextvr.v1') || '{}');
-      delete s.gorillaInstalled;
-      if (s.installedApps) delete s.installedApps['gorilla-tag'];
-      localStorage.setItem('nextvr.v1', JSON.stringify(s));
     });
     await page.evaluate(() => {
       window.nextvrEnterWorkspace(JSON.stringify({ spatialLauncher: 1, wideCamera: 1, handDraw: 1, env: 'sunset', entryEnvChosen: 1 }));
