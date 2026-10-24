@@ -1,0 +1,3 @@
+Debug APK built by Android CI run 40065001532 from commit ad84526f733b56895135835cdd77d3a4a5e786be
+size: 78798317 bytes
+md5: f9b349f53fd7a2b502ed443e81e65df4
