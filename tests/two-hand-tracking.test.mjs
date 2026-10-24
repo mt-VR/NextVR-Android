@@ -48,19 +48,19 @@ test('two-hand silhouettes predict and fade independently, with per-hand pinch f
   assert.match(renderer, /for \(\(handIndex, hand\) in hands\.withIndex\(\)\)/);
   assert.match(renderer, /val pinching = handPose\?\.pinching == true/);
   assert.match(renderer, /handConfidence/);
-  // Keep the branch's cyan Quest hand treatment when integrating main's per-hand prediction.
-  assert.match(renderer, /HAND_FILL_R = \.04f/);
-  assert.match(renderer, /HAND_FILL_G = \.18f/);
-  assert.match(renderer, /HAND_FILL_B = \.24f/);
-  assert.match(renderer, /HAND_CONTOUR_R = \.153f/);
-  assert.match(renderer, /HAND_CONTOUR_G = \.91f/);
+  // Dark translucent hand treatment with thin white contour.
+  assert.match(renderer, /HAND_FILL_R = \.03f/);
+  assert.match(renderer, /HAND_FILL_G = \.03f/);
+  assert.match(renderer, /HAND_FILL_B = \.04f/);
+  assert.match(renderer, /HAND_CONTOUR_R = \.96f/);
+  assert.match(renderer, /HAND_CONTOUR_G = \.97f/);
   assert.match(renderer, /HAND_CONTOUR_B = 1f/);
-  assert.match(renderer, /HAND_FILL_ALPHA = \.55f/);
-  assert.match(renderer, /HAND_OUTLINE_ALPHA = \.9f/);
-  assert.match(renderer, /HAND_PINCH_ALPHA = 1f/);
-  assert.match(renderer, /POINTER_DROP_ALPHA = \.85f/);
+  assert.match(renderer, /HAND_FILL_ALPHA = \.35f/);
+  assert.match(renderer, /HAND_OUTLINE_ALPHA = \.70f/);
+  assert.match(renderer, /HAND_PINCH_ALPHA = \.94f/);
+  assert.match(renderer, /POINTER_DROP_ALPHA = \.82f/);
   assert.match(renderer, /POINTER_CLICK_ALPHA = \.95f/);
-  assert.match(renderer, /POINTER_RAY_ALPHA = \.85f/);
+  assert.match(renderer, /POINTER_RAY_ALPHA = \.82f/);
   assert.match(renderer, /ring3d\(b\[3\], b\[4\], b\[5\], outer, inner, position\)/);
   assert.match(renderer, /HAND_OUTLINE_ALPHA\*handConfidence/);
   assert.doesNotMatch(renderer, /frame\.hands\.any \{ it\.pinching \}/);

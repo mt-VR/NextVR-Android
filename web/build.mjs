@@ -10,15 +10,30 @@ await copyFile('web/src/typing.js', new URL('typing.js', out));
 await mkdir(new URL('icons/', out), { recursive: true });
 // O logo roxo quadrado do NextVR enviado pelo usuário é usado na interface e também como launcher icon do APK.
 await copyFile('web/assets/nextvr-n.png', new URL('icons/nextvr-n.png', out));
+await copyFile('web/assets/nextvr-chrome-n.png', new URL('icons/nextvr-chrome-n.png', out));
+await copyFile('web/assets/entry-bg-blue.jpg', new URL('icons/entry-bg-blue.jpg', out));
+await copyFile('web/assets/gorilla-tag-logo.jpg', new URL('icons/gorilla-tag-logo.jpg', out));
+for (const logo of ['gun-logo.jpg', 'nextvr-bolinha-logo.png', 'nextvr-bolinha-right.png', 'nextvr-bolinha-left.png', 'beat-saber-logo.jpg', 'hyper-dash-logo.jpg', 'roblox-logo.jpg', 'tiktok-logo.jpg', 'vrfs-logo.jpg', 'shootthedie-logo.jpg', 'paintdrawer-logo.jpg']) {
+  await copyFile(`web/assets/${logo}`, new URL(logo, out));
+  await copyFile(`web/assets/${logo}`, new URL(`icons/${logo}`, out));
+}
+for (const hz of ['browser', 'calculator', 'calendar', 'camera-share', 'clock', 'facebook', 'files', 'gallery', 'help-center', 'instagram', 'remote-desktop', 'settings', 'store', 'system-messenger', 'tv', 'whatsapp']) {
+  const file = `hz-${hz}.png`;
+  await copyFile(`web/assets/hz/${file}`, new URL(file, out));
+  await copyFile(`web/assets/hz/${file}`, new URL(`icons/${file}`, out));
+}
+await copyFile('web/assets/gorilla-map.task', new URL('gorilla-map.task', out));
+await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
+await copyFile('web/assets/vrfs-assets.task', new URL('vrfs-assets.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.
 await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
 await mkdir(new URL('env/', out), { recursive: true });
-for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside'])
+for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside','dark'])
   await copyFile(`web/env/${id}.jpg`, new URL(`env/${id}.jpg`, out));
 await writeFile(new URL('branding.json',out),JSON.stringify({
   source:'logo roxa quadrada fornecida pelo usuário',
   format:'png',asset:'icons/nextvr-n.png',icon:'res/drawable-*-xhdpi/nextvr_ic_launcher.png',
-  environments:['env/sunset.jpg','env/dusk.jpg','env/cinema.jpg','env/lagoon.jpg','env/virtual.jpg','env/palm.jpg','env/night.jpg','env/space.jpg','env/tropical.jpg','env/lakeside.jpg']
+  environments:['env/sunset.jpg','env/dusk.jpg','env/cinema.jpg','env/lagoon.jpg','env/virtual.jpg','env/palm.jpg','env/night.jpg','env/space.jpg','env/tropical.jpg','env/lakeside.jpg','env/dark.jpg']
 })+'\n','utf8');
 await mkdir(new URL('fonts/', out), { recursive: true });
 let css = '';

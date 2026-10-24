@@ -34,6 +34,8 @@ final class PassthroughCamera {
         /** Ownership of this upright bitmap transfers to the renderer. */
         void frame(Bitmap upright);
         void hands(PhoneXrHands.Frame frame);
+        default void sixDof(float sc, float gx, float gy, float mx) {}
+        default void cameraDefocus(boolean defocused) {}
         void error(String message);
         void stopped();
     }
@@ -63,7 +65,11 @@ final class PassthroughCamera {
     private final HandlerThread thread=new HandlerThread("NextVR Camera2");
     private final Handler handler;
     private final ExecutorService tracking=Executors.newSingleThreadExecutor(r-> {
-        Thread t=new Thread(r,"PhoneXR OrangeHanding");
+        Thread t=new Thread(()->{
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); }
+            catch(Throwable ignored) {}
+            r.run();
+        },"PhoneXR OrangeHanding");
         // The tracking thread owns the MediaPipe inference; keep it above the UI/GC threads so a
         // WebView reflow does not steal the core the landmarker is running on.
         t.setPriority(Thread.MAX_PRIORITY);
@@ -83,9 +89,20 @@ final class PassthroughCamera {
     /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
     private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
     private int[] cameraPixels;
+    private int[] analysisPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
+    private final FakeSixDof fakeSixDof=new FakeSixDof();
+    private volatile PhoneXrHands.Frame latestHandsFrame;
     private CameraDevice camera;
     private CameraCaptureSession session;
+    private CaptureRequest.Builder activeRequestBuilder;
+    private volatile long lastAfTriggerMs = 0L;
+    private volatile boolean cameraCurrentlyDefocused = false;
+    private final CameraCaptureSession.CaptureCallback afCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override public void onCaptureCompleted(CameraCaptureSession s, CaptureRequest req, android.hardware.camera2.TotalCaptureResult result) {
+            // Automatic focus hunting & defocus solo-camera trigger disabled per user request.
+        }
+    };
     private ImageReader reader;
     private boolean gpuDetector;
     /**
@@ -103,9 +120,30 @@ final class PassthroughCamera {
     private HandTracker detector; // Created, used and closed on the SAME thread (GPU delegate).
     private volatile int generation;
     private int rotation;
+    private int activeDisplayRotation=-1;
+    private boolean opening;
+    private boolean closing;
+    private boolean pendingOpen;
+    private int pendingDisplayRotation;
+    private int openRetries;
+    private int sessionFrames;
     private volatile boolean destroyed;
     volatile boolean handsEnabled=true;
+    volatile boolean gameHandMode=false;
+    volatile boolean mrGameMode=false;
+    volatile boolean wideCamera=false;
+    volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
+
+    void setSingleHandMode(String mode) {
+        String normalized = (mode != null && (mode.equals("right") || mode.equals("left") || mode.equals("one"))) ? mode : "both";
+        singleHandMode = normalized;
+        hands.singleHandMode = normalized;
+        HandTracker det = detector;
+        if (det != null) {
+            det.singleHandOnly = !"both".equals(normalized);
+        }
+    }
 
     PassthroughCamera(Context context,Listener listener) {
         this.context=context;this.listener=listener;thread.start();
@@ -114,12 +152,71 @@ final class PassthroughCamera {
         // before inference even begins. This is the cheapest latency win available here.
         thread.setPriority(Thread.MAX_PRIORITY);
         handler=new Handler(thread.getLooper());
+        handler.post(()->{
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); }
+            catch(Throwable ignored) {}
+        });
     }
+    void triggerAutoFocus() {
+        handler.post(()->{
+            if(destroyed || session==null || activeRequestBuilder==null) return;
+            try {
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_AUTO);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_START);
+                session.capture(activeRequestBuilder.build(),afCallback,handler);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+                activeRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
+            } catch(Throwable ignored) {}
+        });
+    }
+    void setWideCamera(boolean enabled) {
+        if(wideCamera==enabled) return;
+        wideCamera=enabled;
+        handler.post(()->{
+            if(destroyed || activeDisplayRotation<0) return;
+            int rot=activeDisplayRotation;
+            activeDisplayRotation=-1;
+            open(rot);
+        });
+    }
+    private static double horizontalFovScore(CameraCharacteristics c) {
+        android.util.SizeF sensor=c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+        float[] focals=c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+        if(sensor!=null && focals!=null && focals.length>0 && focals[0]>0f) {
+            return sensor.getWidth()/focals[0];
+        }
+        if(focals!=null && focals.length>0 && focals[0]>0f) {
+            return 1.0/focals[0];
+        }
+        return 0.0;
+    }
+    void resetSixDof() { fakeSixDof.reset(); }
     void start(int displayRotation) { handler.post(()->open(displayRotation)); }
     @SuppressLint("MissingPermission")
     private void open(int displayRotation) {
         if(destroyed)return;
-        closeCamera();final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
+        if((camera!=null && session!=null && reader!=null && !closing && activeDisplayRotation==displayRotation)
+                || (opening && activeDisplayRotation==displayRotation)) {
+            pendingOpen=false;
+            return;
+        }
+        if(opening || closing) {
+            pendingOpen=true;
+            pendingDisplayRotation=displayRotation;
+            return;
+        }
+        if(camera!=null || session!=null) {
+            pendingOpen=true;
+            pendingDisplayRotation=displayRotation;
+            closeCameraResources();
+            return;
+        }
+        closeCameraResources();
+        activeDisplayRotation=displayRotation;
+        opening=true;
+        sessionFrames=0;
+        final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
         // A reopened camera is a new session for the delegate too. The GPU is tried again while an
         // attempt is left (see MAX_GPU_ATTEMPTS): the previous session may have been the boot page
         // rasterizing, or a first-run install compiling the WebView's shaders, and the tracker paid
@@ -129,12 +226,18 @@ final class PassthroughCamera {
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
             String id=null;CameraCharacteristics chars=null;
+            double bestFov=-1.0;
             for(String candidate:manager.getCameraIdList()) {
                 CameraCharacteristics c=manager.getCameraCharacteristics(candidate);
                 Integer facing=c.get(CameraCharacteristics.LENS_FACING);
-                if(facing!=null && facing==CameraCharacteristics.LENS_FACING_BACK){id=candidate;chars=c;break;}
+                if(facing!=null && facing==CameraCharacteristics.LENS_FACING_BACK){
+                    if(!wideCamera) { id=candidate;chars=c;break; }
+                    double fov=horizontalFovScore(c);
+                    if(id==null || fov>bestFov) { id=candidate;chars=c;bestFov=fov; }
+                }
             }
             if(id==null)throw new IllegalStateException("Rear camera required");
+            final CameraCharacteristics selectedChars=chars;
             StreamConfigurationMap map=chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if(map==null)throw new IllegalStateException("No camera output sizes");
             Size selected=null;long best=Long.MAX_VALUE;
@@ -150,32 +253,145 @@ final class PassthroughCamera {
             // as SystemClock.elapsedRealtimeNanos() (REALTIME). Otherwise only acquire-to-landmark is reported.
             timestampIsRealtime=timestampSource!=null && timestampSource==CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
             rotation=CameraGeometry.uprightRotation(sensor==null?90:sensor,displayRotation);
-            android.util.Log.i("NextVR-Camera","rear="+id+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
-            reader=ImageReader.newInstance(selected.getWidth(),selected.getHeight(),ImageFormat.YUV_420_888,2);
+            android.util.Log.i("NextVR-Camera","rear="+id+" wide="+wideCamera+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
+            if(handsEnabled) {
+                try {
+                    tracking.execute(()->{
+                        if(detector==null && !destroyed) {
+                            try { buildDetector(); } catch(Throwable ignored) {}
+                        }
+                    });
+                } catch(Throwable ignored) {}
+            }
+            reader=ImageReader.newInstance(selected.getWidth(),selected.getHeight(),ImageFormat.YUV_420_888,4);
             reader.setOnImageAvailableListener(source->onFrame(source,token),handler);
             manager.openCamera(id,new CameraDevice.StateCallback(){
                 @Override public void onOpened(CameraDevice device) {
-                    if(token!=generation || destroyed){device.close();return;}
+                    opening=false;
+                    if(token!=generation || destroyed){
+                        closing=true;
+                        device.close();
+                        return;
+                    }
                     camera=device;
+                    if(pendingOpen && pendingDisplayRotation!=displayRotation) {
+                        closeCameraResources();
+                        return;
+                    }
                     try {
                         device.createCaptureSession(Collections.singletonList(reader.getSurface()),new CameraCaptureSession.StateCallback(){
                             @Override public void onConfigured(CameraCaptureSession configured) {
-                                if(token!=generation){configured.close();return;}session=configured;
+                                if(token!=generation || destroyed){configured.close();return;}
+                                session=configured;openRetries=0;
                                 try {
                                     CaptureRequest.Builder request=device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
                                     request.addTarget(reader.getSurface());
                                     request.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-                                    session.setRepeatingRequest(request.build(),null,handler);
-                                }catch(Exception e){fail("Camera preview failed",e);}
+                                    try {
+                                        request.set(CaptureRequest.EDGE_MODE,CaptureRequest.EDGE_MODE_FAST);
+                                        request.set(CaptureRequest.NOISE_REDUCTION_MODE,CaptureRequest.NOISE_REDUCTION_MODE_FAST);
+                                        if(android.os.Build.VERSION.SDK_INT>=28) {
+                                            request.set(CaptureRequest.DISTORTION_CORRECTION_MODE,CaptureRequest.DISTORTION_CORRECTION_MODE_FAST);
+                                        }
+                                    } catch(Throwable ignored) {}
+                                    // Keep camera exposure at 30-60 FPS even indoors so Hand Tracking never drops to 15 FPS.
+                                    android.util.Range<Integer>[] fpsRanges=selectedChars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+                                    if(fpsRanges!=null && fpsRanges.length>0) {
+                                        android.util.Range<Integer> bestRange=null;
+                                        for(android.util.Range<Integer> r:fpsRanges) {
+                                            if(r.getUpper()<24 || r.getUpper()>60) continue;
+                                            if(bestRange==null || r.getLower()>bestRange.getLower()
+                                                    || (r.getLower().equals(bestRange.getLower()) && r.getUpper()>bestRange.getUpper())) {
+                                                bestRange=r;
+                                            }
+                                        }
+                                        if(bestRange!=null) request.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,bestRange);
+                                    }
+                                    // Apply 0.5x ultra-wide zoom ratio when supported by Android 11+ logical camera.
+                                    boolean zoomApplied=false;
+                                    if(android.os.Build.VERSION.SDK_INT>=30) {
+                                        try {
+                                            android.util.Range<Float> zoomRange=selectedChars.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
+                                            if(zoomRange!=null) {
+                                                float targetZoom=wideCamera?Math.max(zoomRange.getLower(),0.5f):1.0f;
+                                                request.set(CaptureRequest.CONTROL_ZOOM_RATIO,targetZoom);
+                                                zoomApplied=true;
+                                            }
+                                        } catch(Throwable ignored) {}
+                                    }
+                                    if(!zoomApplied) {
+                                        try {
+                                            Rect activeRect=selectedChars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+                                            if(activeRect!=null && wideCamera) {
+                                                request.set(CaptureRequest.SCALER_CROP_REGION,activeRect);
+                                            }
+                                        } catch(Throwable ignored) {}
+                                    }
+                                    activeRequestBuilder=request;
+                                    session.setRepeatingRequest(request.build(),afCallback,handler);
+                                    scheduleRuntimeWatchdog(token,displayRotation,0);
+                                }catch(Exception e){retryOrFail("Camera preview failed",e,displayRotation,token);}
                             }
-                            @Override public void onConfigureFailed(CameraCaptureSession failed){if(token==generation)fail("Camera configuration failed",null);}
+                            @Override public void onConfigureFailed(CameraCaptureSession failed){
+                                retryOrFail("Camera configuration failed",null,displayRotation,token);
+                            }
                         },handler);
-                    }catch(Exception e){fail("Camera session failed",e);}
+                    }catch(Exception e){retryOrFail("Camera session failed",e,displayRotation,token);}
                 }
-                @Override public void onDisconnected(CameraDevice device){device.close();if(token==generation)fail("Camera disconnected",null);}
-                @Override public void onError(CameraDevice device,int code){device.close();if(token==generation)fail("Camera error "+code,null);}
+                @Override public void onClosed(CameraDevice device) {
+                    closing=false;
+                    if(pendingOpen && !destroyed) {
+                        pendingOpen=false;
+                        int rot=pendingDisplayRotation;
+                        handler.postDelayed(()->open(rot),60);
+                    }
+                }
+                @Override public void onDisconnected(CameraDevice device){
+                    opening=false;closing=true;device.close();
+                    retryOrFail("Camera disconnected",null,displayRotation,token);
+                }
+                @Override public void onError(CameraDevice device,int code){
+                    opening=false;closing=true;device.close();
+                    retryOrFail("Camera error "+code,null,displayRotation,token);
+                }
             },handler);
-        }catch(Exception e){fail("Cannot start passthrough",e);}
+        }catch(Exception e){
+            opening=false;
+            retryOrFail("Cannot start passthrough",e,displayRotation,token);
+        }
+    }
+    private void scheduleRuntimeWatchdog(int token,int displayRotation,int prevFrames) {
+        handler.postDelayed(()->{
+            if(token!=generation || destroyed) return;
+            if(session!=null && !opening && !closing && sessionFrames==prevFrames) {
+                android.util.Log.w("NextVR-Camera","Watchdog: camera stream stalled at "+sessionFrames+" frames, reopening camera");
+                if(sessionFrames>0) openRetries=0;
+                if(openRetries<4) {
+                    openRetries++;
+                    pendingOpen=true;
+                    pendingDisplayRotation=displayRotation;
+                    closeCameraResources();
+                }
+                return;
+            }
+            if(sessionFrames>prevFrames) openRetries=0;
+            scheduleRuntimeWatchdog(token,displayRotation,sessionFrames);
+        },prevFrames==0?1500L:2200L);
+    }
+    private void retryOrFail(String message,Throwable e,int displayRotation,int token) {
+        if(token!=generation || destroyed) return;
+        if(openRetries<3) {
+            openRetries++;
+            pendingOpen=true;
+            pendingDisplayRotation=displayRotation;
+            closeCameraResources();
+            if(!closing) {
+                pendingOpen=false;
+                handler.postDelayed(()->open(displayRotation),250);
+            }
+        } else {
+            fail(message,e);
+        }
     }
     /**
      * Camera callback: the ONE place the pixels of a frame are read, and the thread that both the
@@ -189,6 +405,7 @@ final class PassthroughCamera {
         long workStartMs=SystemClock.elapsedRealtime();
         try {
             image=source.acquireLatestImage();if(image==null || token!=generation)return;
+            sessionFrames++;
             PerfLog.cameraFrame();
             long acquiredNs=SystemClock.elapsedRealtimeNanos();
             long sensorNs=image.getTimestamp();
@@ -206,19 +423,26 @@ final class PassthroughCamera {
             nativeYuvToArgb(cameraPixels,p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
                 image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
-            upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+            // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
+            image.close();image=null;
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
-                // While an inference outruns the camera the slot still holds an unread frame younger
-                // than the gate: this frame's analysis copy would be superseded without ever being
-                // tracked, so it is not produced at all - the resample and its multi-megabyte bitmap
-                // stay off the thread whose cost caps the tracking rate (AnalysisGate).
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int width=budget.width(),height=Math.max(1,width*upright.getHeight()/upright.getWidth());
-                    Bitmap analysis=Bitmap.createScaledBitmap(upright,width,height,true);
-                    if(analysis==upright)analysis=upright.copy(Bitmap.Config.ARGB_8888,false);
+                    int maxAnalysisW=128;
+                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
+                    int height=Math.max(1,width*outH/outW);
+                    int analysisLen=width*height;
+                    if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
+                    int dstIdx=0;
+                    for(int y=0;y<height;y++) {
+                        int srcRow=(y*outH/height)*outW;
+                        for(int x=0;x<width;x++) {
+                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(x*outW/width)];
+                        }
+                    }
+                    Bitmap analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     if(analysis!=null) {
                         long captureNs=timestampIsRealtime?sensorNs:-1L;
                         TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
@@ -230,15 +454,18 @@ final class PassthroughCamera {
                     PerfLog.analysisSkipped();
                 }
             }
-            // The pixels are already copied out, so the HAL buffer goes back BEFORE the display
-            // hand-off: holding it across the renderer's texture upload starves the camera at
-            // maxImages=2, which shows up as a lower landmark rate rather than as a slow picture.
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if(image!=null){image.close();image=null;}
-            long handoffStart=SystemClock.elapsedRealtime();
-            listener.frame(upright);upright=null;
-            PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
+            if(!gameHandMode || mrGameMode) {
+                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
+                if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
+            }
+            if(!gameHandMode || mrGameMode || sessionFrames<=2) {
+                upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                long handoffStart=SystemClock.elapsedRealtime();
+                listener.frame(upright);upright=null;
+                PerfLog.cameraHandoff(SystemClock.elapsedRealtime()-handoffStart);
+            }
             frameFailures.succeeded();
         }catch(Throwable e){
             // A frame that fails once is not an outage: the next camera frame arrives in ~33 ms and
@@ -292,6 +519,7 @@ final class PassthroughCamera {
     private void track(TrackingFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); } catch(Throwable ignored) {}
             // The detector lives on this thread and is (re)built here: on first use, and when a
             // reopened camera left a GPU attempt unspent (see open() and MAX_GPU_ATTEMPTS).
             if(detector==null || (preferGpu && !gpuDetector && gpuAttempts<MAX_GPU_ATTEMPTS))buildDetector();
@@ -366,6 +594,7 @@ final class PassthroughCamera {
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
             PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
+            latestHandsFrame=result;
             // The processed (merged) hand count: what separates a real tracking loss from a slow
             // or skipping tracker in the perf log (see PerfLog.result).
             PerfLog.result(inferenceMs,frame.captureNs,frame.acquiredNs,completedNs,result.getHands().size());
@@ -396,6 +625,8 @@ final class PassthroughCamera {
         }
         // The brand-new graphs are about to face the delegate's warm-up, and the previous verdict
         // about a previous graph does not apply to them (see DelegateWatch.rebuilt).
+        detector.singleHandOnly = !"both".equals(singleHandMode);
+        hands.singleHandMode = singleHandMode;
         seenGraphs=detector.graphGenerations();
         delegateWatch.rebuilt();
         PerfLog.delegate(gpuDetector?"GPU":"CPU");
@@ -424,7 +655,13 @@ final class PassthroughCamera {
      */
     private void clearHands() {
         hands.reset();
+        latestHandsFrame=null;
         listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
+    }
+    void resetHandsState() {
+        discardWaitingFrame();
+        latestHandsFrame=null;
+        tracking.execute(this::clearHands);
     }
     void enableHands(boolean enabled) {
         handsEnabled=enabled;
@@ -437,12 +674,31 @@ final class PassthroughCamera {
             tracking.execute(this::clearHands);
         }
     }
-    private void fail(String message,Throwable e){closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
-    private void closeCamera(){
+    private void fail(String message,Throwable e){pendingOpen=false;closeCamera();listener.error(message+(e==null?"":": "+e.getMessage()));}
+    private void closeCameraResources(){
         ++generation;
-        if(session!=null){session.close();session=null;}
-        if(camera!=null){camera.close();camera=null;}
-        if(reader!=null){reader.close();reader=null;}
+        if(session!=null){try{session.close();}catch(Exception ignored){} session=null;}
+        if(camera!=null){
+            closing=true;
+            try{camera.close();}catch(Exception ignored){closing=false;}
+            camera=null;
+            final int closeGen=generation;
+            handler.postDelayed(()->{
+                if(closing && generation==closeGen) {
+                    closing=false;
+                    if(pendingOpen && !destroyed) {
+                        pendingOpen=false;
+                        open(pendingDisplayRotation);
+                    }
+                }
+            },350);
+        }
+        if(reader!=null){try{reader.close();}catch(Exception ignored){} reader=null;}
+    }
+    private void closeCamera(){
+        pendingOpen=false;
+        closeCameraResources();
+        activeDisplayRotation=-1;
         listener.stopped();
     }
     void stop(){handler.post(()->{closeCamera();discardWaitingFrame();tracking.execute(this::clearHands);});}
