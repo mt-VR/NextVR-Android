@@ -621,9 +621,10 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                             handDisc(s, x(i), y(i), rA)
                             handDisc(s, x(j), y(j), rB)
                         }
+                        val fingerScale = floatArrayOf(1.12f, 1f, 1.04f, .96f, .86f)
                         for (finger in 4 downTo 0) {
                             val base = 1 + finger * 4
-                            val f = scale[finger]
+                            val f = fingerScale[finger]
                             if (finger == 0) {
                                 fBone(1, 2, r * 1.06f, r * .90f)
                                 fBone(2, 3, r * .90f, r * .76f)
