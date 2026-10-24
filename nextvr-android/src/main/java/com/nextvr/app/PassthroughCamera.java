@@ -132,7 +132,18 @@ final class PassthroughCamera {
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
+    volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
+
+    void setSingleHandMode(String mode) {
+        String normalized = (mode != null && (mode.equals("right") || mode.equals("left") || mode.equals("one"))) ? mode : "both";
+        singleHandMode = normalized;
+        hands.singleHandMode = normalized;
+        HandTracker det = detector;
+        if (det != null) {
+            det.singleHandOnly = !"both".equals(normalized);
+        }
+    }
 
     PassthroughCamera(Context context,Listener listener) {
         this.context=context;this.listener=listener;thread.start();
@@ -409,7 +420,7 @@ final class PassthroughCamera {
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=gameHandMode?192:224;
+                    int maxAnalysisW=(gameHandMode || !"both".equals(singleHandMode))?176:192;
                     int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
                     int height=Math.max(1,width*outH/outW);
                     int analysisLen=width*height;
@@ -603,6 +614,8 @@ final class PassthroughCamera {
         }
         // The brand-new graphs are about to face the delegate's warm-up, and the previous verdict
         // about a previous graph does not apply to them (see DelegateWatch.rebuilt).
+        detector.singleHandOnly = !"both".equals(singleHandMode);
+        hands.singleHandMode = singleHandMode;
         seenGraphs=detector.graphGenerations();
         delegateWatch.rebuilt();
         PerfLog.delegate(gpuDetector?"GPU":"CPU");

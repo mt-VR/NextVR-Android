@@ -45,6 +45,20 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'internal-rec-hand-zero',
+    tag: 'NOVO · GRAVAÇÃO INTERNA & HAND ZERO DELAY',
+    time: 'Agora',
+    heading: 'Gravação Interna em Tela Cheia (1 Lente) & Hand Tracking Sem Delay',
+    desc: 'Grave vídeos em Tela Cheia 16:9 de dentro de 1 lente com alta qualidade mantendo as 2 lentes VR ativas no celular! Hand Tracking ultra melhorado sem delay, opção de Hand em 1 Mão Só e menu arrastável pro lado!',
+  },
+  {
+    id: 'quest-browser-env-hand',
+    tag: 'NOVO · NAVEGADOR QUEST & MÃO 3D AMBIENTE',
+    time: 'Agora',
+    heading: 'Interface Meta Quest Browser, Mão 3D nos Ambientes & Raio Longo Alcance',
+    desc: 'Navegador com a nova interface Meta Quest Browser (Populares, Continuar navegando e Entretenimento), mão 3D cinza-escuro contornada nos ambientes virtuais e raio com alcance de qualquer distância!',
+  },
+  {
     id: 'mr-pistol',
     tag: 'NOVO · SHOOTTHEDIE (MR)',
     time: 'Agora',
@@ -53,24 +67,10 @@ export const ENTRY_UPDATES = Object.freeze([
   },
   {
     id: 'green-glove',
-    tag: 'NOVO · DOCK, CAMADAS & CONTROLE',
+    tag: 'ATUALIZADO · DOCK, CAMADAS & 6DOF ULTRA',
     time: 'Agora',
-    heading: 'Cor da Dock, Tela Perto Sobre/Trás Embaixo & Controle Maior',
-    desc: 'Escolha a cor da Dock nas configurações, ative a opção de puxar a tela pra perto ficar sobre todas as outras (e pra trás embaixo), lugares pré-definidos pretos transparentes sem texto e Centro de Controle no tamanho ideal!',
-  },
-  {
-    id: 'sixdof',
-    tag: 'ATUALIZADO · 6DOF ULTRA',
-    time: 'Agora',
-    heading: '6DoF Ainda Melhor (World Lock Ultra & IRLS 70 Hz)',
-    desc: 'Fluxo ótico ponderado por contraste a 70 Hz com trava imediata de âncora (World Lock) e interpolação adaptativa a 120 Hz sem drift.',
-  },
-  {
-    id: 'battery-sync',
-    tag: 'CORRIGIDO · SISTEMA',
-    time: 'Agora',
-    heading: 'Bateria 100% Sincronizada com o Celular',
-    desc: 'Porcentagem real da bateria e status de carregamento sincronizados ao vivo com o celular no Menu Inicial, Dock, Library e Controles.',
+    heading: 'Cor da Dock, Tela Perto Sobre/Trás Embaixo, 6DoF Ultra & Bateria Real',
+    desc: 'Escolha a cor da Dock, tela puxada pra perto fica sobre as outras, 6DoF World Lock Ultra a 70 Hz e bateria sincronizada em tempo real com o celular.',
   },
 ]);
 

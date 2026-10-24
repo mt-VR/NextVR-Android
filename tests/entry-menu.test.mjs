@@ -211,9 +211,20 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     sixdofSrc.includes('_ptW') &&
     appsSrc.includes('readLiveBatteryPercent') &&
     entryDataSrc.includes('ENTRY_UPDATES') &&
+    entryDataSrc.includes('internal-rec-hand-zero') &&
+    entryDataSrc.includes('quest-browser-env-hand') &&
     entryDataSrc.includes('mr-pistol') &&
-    entryDataSrc.includes('green-glove'),
-    'Build 57 includes G18 MR Pistol (all black + gray barrel, facing forward, finger-gun gesture trigger, 3D targets), green fingerless glove ONLY in MR game mode, IRLS 6DoF, live battery sync, and updated ENTRY_UPDATES feed'
+    entryDataSrc.includes('green-glove') &&
+    appsSrc.includes('toggleInternalEyeRecording') &&
+    appsSrc.includes('setSingleHandModeChoice') &&
+    appsSrc.includes('data-cc-scroll') &&
+    appsSrc.includes('YouTube Music') &&
+    appsSrc.includes('Peacock TV') &&
+    windowsSrc.includes('viaRay: true') &&
+    activitySrc.includes('toggleInternalRecording') &&
+    activitySrc.includes('setSingleHandMode') &&
+    handRendererKt.includes('virtualEnv && !mrGameMode'),
+    'Build 61 includes InternalEyeRecorder 1-lens fullscreen recording, zero-delay hand tracking, single-hand mode, horizontally scrollable menu, Meta Quest Browser interface, long-range ray selection, and virtual environment 3D hand style'
   );
 });
 

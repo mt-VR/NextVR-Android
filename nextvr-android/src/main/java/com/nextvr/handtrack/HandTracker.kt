@@ -40,6 +40,8 @@ class HandTracker @JvmOverloads constructor(
     private val slots = HandSlotPolicy(WIDE_HANDS, PROBE_MS, PROBE_FRAMES)
     /** Which graph processed the last frame, for the perf log. */
     private var lastFrameNarrow = false
+    /** When true (Single-Hand Mode), always runs the 1-slot fast graph (2.47x faster, zero 2-hand probe cost). */
+    @JvmField @Volatile var singleHandOnly = false
 
     /** Detect without taking ownership; the caller keeps and reuses [bitmap]. */
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
@@ -72,7 +74,7 @@ class HandTracker @JvmOverloads constructor(
             // as by camera time: on a slow device the camera clock runs far ahead of the tracker,
             // and a camera-time probe alone would fire on every frame and never reach the one-slot
             // graph (the split's whole reason to exist).
-            val searching = slots.useWide(stamp)
+            val searching = if (singleHandOnly) false else slots.useWide(stamp)
             val active = if (searching) wide else narrowGraph()
             // The upright pipeline feeds rotation 0 every frame: the plain overload is the same graph
             // with an identity transform, without building ImageProcessingOptions per inference.

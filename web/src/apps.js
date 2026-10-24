@@ -29,39 +29,82 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  */
 
 const QB_POPULAR_SITES = [
-  { name:'Google',    url:'https://www.google.com/',    bg:'#ffffff', color:'#4285F4', badge:'G' },
-  { name:'YouTube',   url:'https://www.youtube.com/',   bg:'#ff0033', color:'#ffffff', badge:'▶' },
-  { name:'Roblox',    url:'https://www.roblox.com/',    bg:'#090d16', color:'#f8fafc', badge:'◈', img:'./roblox-logo.jpg' },
-  { name:'Discord',   url:'https://discord.com/app',    bg:'#5865F2', color:'#ffffff', badge:'D' },
-  { name:'Instagram', url:'https://www.instagram.com/', bg:'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', color:'#ffffff', badge:'◎' },
-  { name:'Facebook',  url:'https://www.facebook.com/',  bg:'#1877F2', color:'#ffffff', badge:'f' },
-  { name:'Beat Saber',url:'https://moonrider.xyz/?mode=ride&vr=1', bg:'#070814', color:'#ffffff', badge:'⚔', img:'./beat-saber-logo.jpg' },
-  { name:'TikTok',    url:'https://www.tiktok.com/',    bg:'#000000', color:'#25F4EE', badge:'♪', img:'./tiktok-logo.jpg' },
+  { name:'Google',      url:'https://www.google.com/',               bg:'#262932', color:'#4285F4', badge:'G', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#4285F4" d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.81-1.5 3.34-3.2 4.37v3.62h5.18c3.03-2.79 4.78-6.9 4.78-11.72 0-.8-.08-1.57-.22-2.3z"/><path fill="#34A853" d="M12.18 22c4.32 0 7.95-1.43 10.6-3.88l-5.18-3.62c-1.43.96-3.26 1.53-5.42 1.53-4.17 0-7.7-2.81-8.96-6.6H-2.1v3.73C.54 18.4 5.95 22 12.18 22z" transform="translate(2 0) scale(.86)"/><path fill="#FBBC05" d="M3.22 13.43A9.02 9.02 0 0 1 2.75 10.5c0-1.02.18-2.01.47-2.93V3.84H-2.1A14.96 14.96 0 0 0-3.7 10.5c0 2.42.58 4.71 1.6 6.66l5.32-3.73z" transform="translate(4 1.5) scale(.75)"/><path fill="#EA4335" d="M12.18 4.97c2.35 0 4.46.81 6.12 2.4l4.59-4.59C20.12.99 16.5 0 12.18 0 5.95 0 .54 3.6-2.1 8.84l5.32 3.73c1.26-3.79 4.79-6.6 8.96-6.6z" transform="translate(2 1) scale(.85)"/></svg>` },
+  { name:'YouTube',     url:'https://www.youtube.com/',              bg:'#262932', color:'#ffffff', badge:'▶', svg:`<svg viewBox="0 0 28 20" width="24" height="18"><rect width="28" height="20" rx="5" fill="#FF0033"/><path d="M11 6l8 4-8 4V6z" fill="#fff"/></svg>` },
+  { name:'Prime Video', url:'https://www.primevideo.com/',           bg:'#1c2536', color:'#00A8E1', badge:'prime' },
+  { name:'Discord',     url:'https://discord.com/app',               bg:'#262932', color:'#5865F2', badge:'D', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="10" fill="#5865F2"/><circle cx="9.2" cy="12" r="1.5" fill="#fff"/><circle cx="14.8" cy="12" r="1.5" fill="#fff"/><path d="M8 9.2c1.2-.7 2.5-1 4-1s2.8.3 4 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>` },
+  { name:'Instagram',   url:'https://www.instagram.com/',            bg:'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', color:'#ffffff', badge:'◎' },
+  { name:'Facebook',    url:'https://www.facebook.com/',             bg:'#1877F2', color:'#ffffff', badge:'f' },
+  { name:'Roblox',      url:'https://www.roblox.com/',               bg:'#090d16', color:'#f8fafc', badge:'◈', img:'./roblox-logo.jpg' },
+  { name:'Reddit',      url:'https://www.reddit.com/',               bg:'#FF4500', color:'#ffffff', badge:'r/' },
+  { name:'Xbox Cloud',  url:'https://www.xbox.com/play',             bg:'#107C10', color:'#ffffff', badge:'✕' },
+  { name:'TikTok',      url:'https://www.tiktok.com/',               bg:'#000000', color:'#25F4EE', badge:'♪', img:'./tiktok-logo.jpg' },
 ];
 
 const QB_CONTINUE_CARDS = [
-  { title:'YouTube · Vídeos 360° VR', domain:'youtube.com', url:'https://www.youtube.com/', bg:'linear-gradient(135deg,#7f1d1d,#ef4444)', badge:'▶ YouTube' },
-  { title:'Roblox · Mundos e Jogos',  domain:'roblox.com',  url:'https://www.roblox.com/',  bg:'linear-gradient(135deg,#0f172a,#334155)', badge:'◈ Roblox', img:'./roblox-logo.jpg' },
-  { title:'Beat Saber · VR Imediato', domain:'moonrider.xyz', url:'https://moonrider.xyz/?mode=ride&vr=1', bg:'linear-gradient(135deg,#1e1b4b,#dc2626)', badge:'⚔ Beat Saber', img:'./beat-saber-logo.jpg' },
-  { title:'Hyper Dash · Arena VR',    domain:'immersiveweb.dev', url:'https://immersiveweb.dev/', bg:'linear-gradient(135deg,#0c4a6e,#0284c7)', badge:'⚡ Hyper Dash', img:'./hyper-dash-logo.jpg' },
+  { title:'(1) Início - YouTube',        domain:'www.youtube.com',                    url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
+  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com',              url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
+  { title:'YouTube',                     domain:'accounts.google.com/v3/signin/...',  url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
+  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com/pt-br/watch',  url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
+  { title:'(1) Comprar o Meta Quest...', domain:'www.youtube.com/watch?v=meta',       url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
 ];
 
 const QB_ENTERTAINMENT_TILES = [
-  { name:'Spotify',    url:'https://open.spotify.com/',      bg:'#121316', logoBg:'#1ED760', logoColor:'#000000', logoText:'Spotify', pill:true },
-  { name:'Music',      url:'https://music.youtube.com/',     bg:'#121316', logoBg:'#FF0033', logoColor:'#ffffff', logoText:'◉ Music', pill:true },
-  { name:'Crunchyroll',url:'https://www.crunchyroll.com/',   bg:'#121316', logoBg:'#F47521', logoColor:'#ffffff', logoText:'crunchyroll', pill:false },
-  { name:'HBO Max',    url:'https://www.max.com/',           bg:'#121316', logoBg:'#002BE7', logoColor:'#ffffff', logoText:'HBO max', pill:false },
-  { name:'Hulu',       url:'https://www.hulu.com/',          bg:'#121316', logoBg:'#1CE783', logoColor:'#050709', logoText:'hulu', pill:false },
-  { name:'Tubi',       url:'https://tubitv.com/',            bg:'#121316', logoBg:'#FA382F', logoColor:'#ffffff', logoText:'tubi', pill:false },
-  { name:'Paramount+', url:'https://www.paramountplus.com/', bg:'#121316', logoBg:'#0064FF', logoColor:'#ffffff', logoText:'Paramount+', pill:false },
-  { name:'Peacock',    url:'https://www.peacocktv.com/',     bg:'#121316', logoBg:'#000000', logoColor:'#ffffff', logoText:'peacock', pill:false },
-  { name:'Twitch',     url:'https://www.twitch.tv/',         bg:'#121316', logoBg:'#9146FF', logoColor:'#ffffff', logoText:'twitch', pill:false },
-  { name:'ESPN',       url:'https://www.espn.com/',          bg:'#121316', logoBg:'#CC0000', logoColor:'#ffffff', logoText:'ESPN', pill:false },
+  {
+    name:'Spotify', url:'https://open.spotify.com/',
+    cardBg:'#090b0e',
+    art:`<div class="qb-ent-brand qb-ent-spotify"><span class="qb-ent-sp-dot"><svg viewBox="0 0 24 24" width="22" height="22" fill="#090b0e"><path d="M16.6 15.4c-.2.3-.6.4-.9.2-2.4-1.4-5.3-1.8-8.8-1-.3.1-.7-.1-.8-.5-.1-.3.1-.7.5-.8 3.8-.9 7.1-.5 9.7 1.1.3.2.4.6.3 1zm1.2-2.7c-.2.4-.7.5-1.1.3-2.7-1.6-6.8-2.1-10-1.2-.4.1-.8-.1-1-.5-.1-.4.1-.8.5-1 3.6-1.1 8.1-.6 11.2 1.3.4.2.5.7.4 1.1zm.1-2.8C14.7 8 9.4 7.8 6.3 8.7c-.5.2-1-.1-1.2-.6-.1-.5.1-1 .6-1.2 3.5-1.1 9.4-.9 13.1 1.3.4.3.6.8.3 1.3-.2.4-.8.6-1.2.4z"/></svg></span><span class="qb-ent-sp-txt">Spotify</span></div>`
+  },
+  {
+    name:'YouTube Music', url:'https://music.youtube.com/',
+    cardBg:'#ffffff',
+    art:`<div class="qb-ent-brand qb-ent-ytm"><span class="qb-ent-ytm-dot">▶</span><span class="qb-ent-ytm-txt">Music</span></div>`
+  },
+  {
+    name:'Crunchyroll', url:'https://www.crunchyroll.com/',
+    cardBg:'#F47521',
+    art:`<div class="qb-ent-brand qb-ent-cr"><span class="qb-ent-cr-dot">◉</span><span class="qb-ent-cr-txt">crunchyroll</span></div>`
+  },
+  {
+    name:'HBO Max', url:'https://www.max.com/',
+    cardBg:'#07080b',
+    art:`<div class="qb-ent-brand qb-ent-hbo"><span class="qb-ent-hbo-top">HBO</span><span class="qb-ent-hbo-sub">max</span></div>`
+  },
+  {
+    name:'Hulu', url:'https://www.hulu.com/',
+    cardBg:'#06080a',
+    art:`<div class="qb-ent-brand qb-ent-hulu">hulu</div>`
+  },
+  {
+    name:'Tubi', url:'https://tubitv.com/',
+    cardBg:'linear-gradient(135deg,#4c1d95 0%,#6d28d9 100%)',
+    art:`<div class="qb-ent-brand qb-ent-tubi">tubi</div>`
+  },
+  {
+    name:'Paramount+', url:'https://www.paramountplus.com/',
+    cardBg:'linear-gradient(135deg,#0051e6 0%,#0072ff 100%)',
+    art:`<div class="qb-ent-brand qb-ent-para"><span class="qb-ent-para-mtn">▲</span><span class="qb-ent-para-txt">Paramount+</span></div>`
+  },
+  {
+    name:'Peacock TV', url:'https://www.peacocktv.com/',
+    cardBg:'#050608',
+    art:`<div class="qb-ent-brand qb-ent-peacock"><span>peacock</span><span class="qb-ent-pk-dots"><i style="background:#facc15"></i><i style="background:#f97316"></i><i style="background:#ef4444"></i><i style="background:#a855f7"></i><i style="background:#3b82f6"></i><i style="background:#22c55e"></i></span></div>`
+  },
+  {
+    name:'Twitch', url:'https://www.twitch.tv/',
+    cardBg:'#9146FF',
+    art:`<div class="qb-ent-brand qb-ent-twitch">twitch</div>`
+  },
+  {
+    name:'ESPN', url:'https://www.espn.com/',
+    cardBg:'#CC0000',
+    art:`<div class="qb-ent-brand qb-ent-espn">ESPN</div>`
+  },
 ];
 
 const QB_IMMERSIVE_CARDS = [
   { title:'Acima das Nuvens 360°', sub:'Experiência WebXR Panorâmica', url:'https://immersiveweb.dev/', bg:'linear-gradient(135deg,#0284c7,#1e1b4b)' },
-  { title:'Exploração Espacial VR', sub:'Tour Orbital Interativo 3D', url:'https://eyes.nasa.gov/', bg:'linear-gradient(135deg,#311042,#090d16)' },
+  { title:'Beat Saber · WebXR', sub:'Ritmo VR com Sabres de Luz', url:'https://moonrider.xyz/?mode=ride&vr=1', bg:'linear-gradient(135deg,#991b1b,#1e1b4b)' },
   { title:'Jogos WebXR Imersivos', sub:'Catálogo VR no Navegador', url:'https://constructarcade.com/', bg:'linear-gradient(135deg,#065f46,#0f172a)' },
 ];
 
@@ -73,7 +116,7 @@ function buildQuestBrowserHomeHtml() {
         <div class="qb-pop-row">
           ${QB_POPULAR_SITES.map(s => `
             <button type="button" class="qb-pop-item" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
-              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color};overflow:hidden;padding:0">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">` : escH(s.badge)}</span>
+              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color};overflow:hidden;padding:0">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">` : (s.svg || escH(s.badge))}</span>
               <span class="qb-pop-lbl">${escH(s.name)}</span>
             </button>
           `).join('')}
@@ -81,11 +124,11 @@ function buildQuestBrowserHomeHtml() {
       </section>
 
       <section class="qb-sec">
-        <div class="qb-sec-head"><span class="qb-sec-title">Continuar navegando</span><span class="qb-sec-more">Ver mais</span></div>
+        <div class="qb-sec-head"><span class="qb-sec-title">Continuar navegando</span></div>
         <div class="qb-cont-grid">
           ${QB_CONTINUE_CARDS.map(c => `
             <button type="button" class="qb-cont-card" data-qb-url="${escH(c.url)}" title="${escH(c.title)}">
-              <div class="qb-cont-thumb" style="background:${c.bg};overflow:hidden">${c.img ? `<img src="${c.img}" alt="${escH(c.title)}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<span>${escH(c.badge)}</span>`}</div>
+              <span class="qb-cont-ico" style="background:${c.iconBg}">${escH(c.iconTxt)}</span>
               <div class="qb-cont-meta">
                 <div class="qb-cont-ttl">${escH(c.title)}</div>
                 <div class="qb-cont-dom">${escH(c.domain)}</div>
@@ -100,8 +143,8 @@ function buildQuestBrowserHomeHtml() {
         <div class="qb-ent-grid">
           ${QB_ENTERTAINMENT_TILES.map(e => `
             <button type="button" class="qb-ent-tile" data-qb-url="${escH(e.url)}" title="${escH(e.name)}">
-              <div class="qb-ent-card" style="background:${e.bg}">
-                <span class="qb-ent-logo" style="background:${e.logoBg};color:${e.logoColor}">${escH(e.logoText)}</span>
+              <div class="qb-ent-card" style="background:${e.cardBg}">
+                ${e.art}
               </div>
               <span class="qb-ent-lbl">${escH(e.name)}</span>
             </button>
@@ -153,16 +196,14 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
     const badgeEl = existing.el.querySelector('[data-browser-incognito]');
     if (badgeEl) {
       badgeEl.dataset.browserIncognito = isIncognito ? '1' : '0';
-      badgeEl.textContent = isIncognito ? '🕶️ GUIA ANÔNIMA' : '+ NOVA GUIA';
-      badgeEl.style.background = isIncognito ? 'rgba(139,92,246,0.28)' : 'rgba(59,130,246,0.22)';
-      badgeEl.style.borderColor = isIncognito ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.45)';
+      badgeEl.innerHTML = isIncognito ? '🕶️ Guia anônima <i class="qb-tab-x">⊗</i>' : '🌐 Nova guia <i class="qb-tab-x">⊗</i>';
     }
     const f = existing.el.querySelector('[data-native-browser], iframe');
     const homeOv = existing.el.querySelector('.qb-home-overlay');
-    const showHome = Boolean(options?.showHomeOverlay);
+    const showHome = options?.showHomeOverlay !== undefined ? Boolean(options.showHomeOverlay) : isDefaultGoogle;
     if (homeOv) homeOv.hidden = !showHome;
     const fld = existing.el.querySelector('.qb-urlfld');
-    if (fld) fld.value = resolvedUrl;
+    if (fld) fld.value = showHome ? '' : resolvedUrl;
     if (f) {
       f.dataset.homeOverlay = showHome ? '1' : '0';
       if (native) { f.dataset.url = resolvedUrl; window.NativeXR?.browserCmd?.('browser','go',resolvedUrl); }
@@ -173,34 +214,40 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
     css3d.render?.(scene, camera);
     return existing;
   }
-  const body = el('div');
-  body.style.cssText=`display:flex;flex-direction:column;height:100%;background:${isIncognito ? '#120e1e' : '#171a22'};color:#e9edf4`;
+  const body = el('div', 'qb-root');
+  body.style.cssText=`display:flex;flex-direction:column;height:100%;background:${isIncognito ? '#120e1e' : '#1b1d24'};color:#e9edf4`;
 
-  const top = el('div');
-  top.style.cssText=`display:flex;align-items:center;gap:4px;padding:3px 6px;background:${isIncognito ? '#0b0814' : '#0e1117'};border-bottom:1px solid rgba(255,255,255,.08)`;
+  const top = el('div', 'qb-top-chrome');
+  top.style.cssText=`display:flex;align-items:center;gap:5px;padding:3px 8px;background:${isIncognito ? '#0b0814' : '#14161c'};border-bottom:1px solid rgba(255,255,255,.07)`;
   const bk = el('button','qb-icn'); bk.innerHTML=icon('back');   bk.title='Voltar';
   const fw = el('button','qb-icn'); fw.innerHTML=icon('enter');  fw.style.transform='rotate(180deg)'; fw.title='Avançar';
   const rl = el('button','qb-icn'); rl.innerHTML=icon('refresh');rl.title='Recarregar';
   const modeBadge = el('span', 'qb-mode-badge');
   modeBadge.dataset.browserIncognito = isIncognito ? '1' : '0';
   modeBadge.dataset.qbAct = 'home';
-  modeBadge.title = 'Início do Navegador';
-  modeBadge.textContent = isIncognito ? '🕶️ GUIA ANÔNIMA' : '+ NOVA GUIA';
-  modeBadge.style.cssText = `cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap;color:#f8fafc;background:${isIncognito ? 'rgba(139,92,246,0.28)' : 'rgba(59,130,246,0.22)'};border:1px solid ${isIncognito ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.45)'}`;
+  modeBadge.title = 'Nova guia (Início Meta Quest Browser)';
+  modeBadge.innerHTML = isIncognito ? '🕶️ Guia anônima <i class="qb-tab-x">⊗</i>' : '🌐 Nova guia <i class="qb-tab-x">⊗</i>';
+  const plusTabBtn = el('button', 'qb-tab-plus');
+  plusTabBtn.type = 'button';
+  plusTabBtn.dataset.qbAct = 'home';
+  plusTabBtn.title = 'Nova guia';
+  plusTabBtn.textContent = '+';
   const fld = el('input','fld qb-urlfld');
-  fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada anônima no Google ou URL' : 'Pesquisar no Google ou inserir URL'; fld.value=resolvedUrl;
+  fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada ou endereço da web' : 'Pesquisar ou digitar endereço da web';
+  const showStartHome = options?.showHomeOverlay !== undefined ? Boolean(options.showHomeOverlay) : isDefaultGoogle;
+  fld.value = showStartHome ? '' : resolvedUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
-  top.append(bk,fw,rl,modeBadge,fld,st);
+  const extIco = el('span', 'qb-ext-pill', '🧩 ⋯');
+  top.append(bk,fw,rl,modeBadge,plusTabBtn,fld,st,extIco);
 
   const wrap = el('div');
-  wrap.style.cssText='flex:1;min-height:0;position:relative;background:#181a20';
-  const showStartHome = Boolean(options?.showHomeOverlay);
+  wrap.style.cssText='flex:1;min-height:0;position:relative;background:#1b1d24';
   const homeOverlay = el('div', 'qb-home-overlay', buildQuestBrowserHomeHtml());
   homeOverlay.hidden = !showStartHome;
   const frame = el(native ? 'div' : 'iframe');
   if (native) {
     frame.dataset.nativeBrowser = 'browser';
-    frame.style.cssText = 'width:100%;height:100%;background:#181a20;position:relative;overflow:hidden';
+    frame.style.cssText = 'width:100%;height:100%;background:#1b1d24;position:relative;overflow:hidden';
     frame.dataset.url = resolvedUrl;
     frame.dataset.homeOverlay = showStartHome ? '1' : '0';
     frame.appendChild(homeOverlay);
@@ -285,6 +332,12 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
   modeBadge.onclick = () => {
     homeOverlay.hidden = !homeOverlay.hidden;
     frame.dataset.homeOverlay = homeOverlay.hidden ? '0' : '1';
+    css3d.invalidate?.();
+  };
+  plusTabBtn.onclick = () => {
+    homeOverlay.hidden = false;
+    frame.dataset.homeOverlay = '1';
+    fld.value = '';
     css3d.invalidate?.();
   };
 
@@ -793,6 +846,108 @@ function buildXrPage(host) {
   }
 }
 
+/* ============ Gravação Interna (1 Lente em Tela Cheia) + Hand em 1 Mão Só ============ */
+const SINGLE_HAND_OPTIONS = [
+  ['both', 'Ambas as Mãos (2 Mãos)'],
+  ['right', 'Só Mão Direita (1 Mão)'],
+  ['left', 'Só Mão Esquerda (1 Mão)'],
+  ['one', '1 Mão Só (Automática)'],
+];
+export function singleHandModeLabel(mode = S.singleHandMode || 'both') {
+  const found = SINGLE_HAND_OPTIONS.find(([id]) => id === mode);
+  return found ? found[1] : SINGLE_HAND_OPTIONS[0][1];
+}
+export function setSingleHandModeChoice(mode) {
+  const valid = SINGLE_HAND_OPTIONS.some(([id]) => id === mode) ? mode : 'both';
+  S.singleHandMode = valid;
+  save(S);
+  window.NativeXR?.setSingleHandMode?.(valid);
+  emit('singleHandMode', valid);
+  document.querySelectorAll('[data-single-hand-label]').forEach(el => {
+    el.textContent = singleHandModeLabel(valid);
+  });
+  document.querySelectorAll('[data-single-hand-pick]').forEach(btn => {
+    const on = btn.dataset.singleHandPick === valid;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  css3d.invalidate?.();
+  return valid;
+}
+window.nextvrSetSingleHandMode = setSingleHandModeChoice;
+
+let internalRecState = { active: false, seconds: 0, saved: false, path: '' };
+let internalRecTimer = 0;
+function formatRecTime(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+function syncInternalRecUi() {
+  const active = !!internalRecState.active;
+  const label = active
+    ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)} (Toque p/ salvar)`
+    : 'Tela Cheia 1 Lente (Lentes ativas)';
+  document.querySelectorAll('[data-internal-rec-btn]').forEach(btn => {
+    btn.classList.toggle('is-active', active);
+    btn.classList.toggle('on', active);
+    btn.setAttribute('aria-pressed', String(active));
+    const sm = btn.querySelector('small, [data-internal-rec-sub]');
+    if (sm) sm.textContent = label;
+  });
+  css3d.invalidate?.();
+}
+export function toggleInternalEyeRecording() {
+  let nextActive = !internalRecState.active;
+  if (native && typeof window.NativeXR?.toggleInternalRecording === 'function') {
+    nextActive = !!window.NativeXR.toggleInternalRecording();
+  }
+  internalRecState.active = nextActive;
+  if (nextActive) {
+    internalRecState.seconds = 0;
+    toast('🔴 Gravação Interna iniciada (Tela Cheia 1 Lente · Lentes VR ativas)');
+    if (!internalRecTimer) {
+      internalRecTimer = setInterval(() => {
+        if (!internalRecState.active) {
+          clearInterval(internalRecTimer);
+          internalRecTimer = 0;
+          return;
+        }
+        if (native && typeof window.NativeXR?.internalRecordingSeconds === 'function') {
+          internalRecState.seconds = Number(window.NativeXR.internalRecordingSeconds()) || (internalRecState.seconds + 1);
+        } else {
+          internalRecState.seconds += 1;
+        }
+        syncInternalRecUi();
+      }, 1000);
+    }
+  } else {
+    if (internalRecTimer) { clearInterval(internalRecTimer); internalRecTimer = 0; }
+    toast('✅ Gravação Interna salva em Filmes/NextVR (Tela Cheia 16:9)');
+  }
+  syncInternalRecUi();
+  return nextActive;
+}
+window.nextvrToggleInternalRecording = toggleInternalEyeRecording;
+window.nextvrOnInternalRecordState = st => {
+  if (!st) return;
+  internalRecState = {
+    active: !!st.active,
+    seconds: Number(st.seconds) || 0,
+    saved: !!st.saved,
+    path: st.path || '',
+  };
+  if (!internalRecState.active && internalRecTimer) {
+    clearInterval(internalRecTimer);
+    internalRecTimer = 0;
+  }
+  if (st.saved) {
+    toast('✅ Vídeo em Tela Cheia (1 Lente) salvo na Galeria · Filmes/NextVR');
+  }
+  syncInternalRecUi();
+};
+
 /* ============ Central de controle (visão compacta inspirada no painel aprovado) ============ */
 function controlCenterApp() {
   const body = el('div', 'quick-center');
@@ -839,8 +994,33 @@ function controlCenterApp() {
   panel.append(status, quickTiles);
 
   const section = el('div', 'quick-section');
-  section.innerHTML = '<div class="quick-section-title"><b>Controles rápidos</b><span>Toque para ativar ou ajustar</span></div>';
+  section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos · Arraste pro lado ↔</b><div class="quick-scroll-nav"><button type="button" class="quick-scroll-btn" data-cc-scroll="prev" title="Arrastar para esquerda">◀</button><button type="button" class="quick-scroll-btn" data-cc-scroll="next" title="Arrastar para direita">▶</button></div></div>`;
   const controls = el('div', 'quick-controls');
+  controls.dataset.menuHscroll = '1';
+  section.querySelectorAll('[data-cc-scroll]').forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      const dir = btn.dataset.ccScroll === 'next' ? 1 : -1;
+      controls.scrollBy({ left: dir * 340, behavior: 'smooth' });
+      setTimeout(() => css3d.invalidate?.(), 180);
+    };
+  });
+  let ccDrag = null;
+  controls.addEventListener('pointerdown', e => {
+    ccDrag = { startX: e.clientX, scrollLeft: controls.scrollLeft, moved: false };
+  });
+  controls.addEventListener('pointermove', e => {
+    if (!ccDrag) return;
+    const dx = e.clientX - ccDrag.startX;
+    if (Math.abs(dx) > 6) {
+      ccDrag.moved = true;
+      controls.scrollLeft = ccDrag.scrollLeft - dx * 1.35;
+      css3d.invalidate?.();
+    }
+  });
+  const endCcDrag = () => { ccDrag = null; };
+  controls.addEventListener('pointerup', endCcDrag);
+  controls.addEventListener('pointercancel', endCcDrag);
   let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
   let isMuted = false, dndControl = null, sideMute = null;
   const syncMute = value => {
@@ -856,9 +1036,37 @@ function controlCenterApp() {
     const button = el('button', `quick-control${active ? ' is-active' : ''}`);
     button.type = 'button'; button.setAttribute('aria-pressed', String(active));
     button.innerHTML = `<span>${icon(name)}</span><b>${label}</b><small>${detail}</small>`;
-    button.onclick = () => { const value = action(button); button.classList.toggle('is-active', !!value); button.setAttribute('aria-pressed', String(!!value)); };
+    button.onclick = () => {
+      if (ccDrag?.moved) { ccDrag.moved = false; return; }
+      const value = action(button);
+      button.classList.toggle('is-active', !!value);
+      button.setAttribute('aria-pressed', String(!!value));
+    };
     controls.appendChild(button); return button;
   };
+  const recBtn = control(
+    'camera',
+    'Gravação Interna (1 Lente)',
+    internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Tela Cheia 1 Lente (Lentes ativas)',
+    () => toggleInternalEyeRecording(),
+    !!internalRecState.active
+  );
+  recBtn.dataset.internalRecBtn = '1';
+  const shBtn = control(
+    'hand',
+    'Hand em 1 Mão Só',
+    singleHandModeLabel(S.singleHandMode || 'both'),
+    button => {
+      const idx = Math.max(0, SINGLE_HAND_OPTIONS.findIndex(([id]) => id === (S.singleHandMode || 'both')));
+      const next = SINGLE_HAND_OPTIONS[(idx + 1) % SINGLE_HAND_OPTIONS.length];
+      setSingleHandModeChoice(next[0]);
+      button.querySelector('small').textContent = next[1];
+      toast('Hand Tracking: ' + next[1]);
+      return next[0] !== 'both';
+    },
+    (S.singleHandMode || 'both') !== 'both'
+  );
+  shBtn.querySelector('small').dataset.singleHandLabel = '1';
   control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
     const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
   }, S.env === 'passthrough');
@@ -1023,8 +1231,23 @@ function settingsApp() {
 
   // Mãos
   scroll.append(ytSection(t('hands')));
-  scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo · câmera traseira'));
-  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno ciano e cursor de pinça', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo Zero-Delay · câmera traseira'));
+  const shSeg = el('div', 'yt-seg');
+  shSeg.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+  for (const [id, lbl] of [['both', '2 Mãos'], ['right', 'Só Direita'], ['left', 'Só Esquerda'], ['one', '1 Mão Auto']]) {
+    const b = el('button', 'yt-seg-btn' + ((S.singleHandMode || 'both') === id ? ' on' : ''), lbl);
+    b.dataset.singleHandPick = id;
+    b.setAttribute('aria-pressed', String((S.singleHandMode || 'both') === id));
+    b.onclick = () => setSingleHandModeChoice(id);
+    shSeg.appendChild(b);
+  }
+  scroll.append(ytRow(icon('hand'), 'Hand em 1 Mão Só', 'Rastrear ambas as mãos ou focar 100% em apenas uma mão', shSeg));
+  const recToggleBtn = el('button', 'yt-seg-btn' + (internalRecState.active ? ' on' : ''));
+  recToggleBtn.dataset.internalRecBtn = '1';
+  recToggleBtn.innerHTML = `<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Iniciar Gravação 16:9'}</span>`;
+  recToggleBtn.onclick = () => toggleInternalEyeRecording();
+  scroll.append(ytRow(icon('camera'), 'Gravação Interna (1 Lente)', 'Grava tela cheia de 1 lente em HD mantendo as 2 lentes ativas no celular', recToggleBtn));
+  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno 3D no ambiente e cursor de pinça', ytToggle('handDraw')));
   scroll.append(ytRow(icon('crosshair'), t('fingerTouch'), t('fingerTouchDesc'), ytToggle('fingerTouch', v => {
     window.NativeXR?.setFingerTouch?.(!!v);
     emit('fingerTouch', !!v);
@@ -2514,6 +2737,12 @@ function buildFistQuickMenuDom() {
     </div>
 
     <div class="fist-menu-footer-row">
+      <button type="button" class="fist-menu-sec-btn ${internalRecState.active ? 'on' : ''}" data-fist-act="internal-record" data-internal-rec-btn="1">
+        ${icon('camera')}<span data-internal-rec-sub>${internalRecState.active ? 'Parar Gravação' : 'Gravar 1 Lente'}</span>
+      </button>
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="single-hand">
+        ${icon('hand')}<span>${(S.singleHandMode || 'both') === 'both' ? 'Hand: 2 Mãos' : 'Hand: 1 Mão'}</span>
+      </button>
       <button type="button" class="fist-menu-sec-btn" data-fist-act="camera-solo">
         ${icon('camera')}<span>Câmera Sozinha</span>
       </button>
@@ -2555,6 +2784,15 @@ function buildFistQuickMenuDom() {
       setMrDim(!S.mrDim);
       paintFistQuickMenu();
       toast(S.mrDim ? 'Ambiente MR: Escuro' : 'Ambiente MR: Normal');
+    } else if (act === 'internal-record') {
+      toggleInternalEyeRecording();
+      paintFistQuickMenu();
+    } else if (act === 'single-hand') {
+      const idx = Math.max(0, SINGLE_HAND_OPTIONS.findIndex(([id]) => id === (S.singleHandMode || 'both')));
+      const next = SINGLE_HAND_OPTIONS[(idx + 1) % SINGLE_HAND_OPTIONS.length];
+      setSingleHandModeChoice(next[0]);
+      paintFistQuickMenu();
+      toast('Hand Tracking: ' + next[1]);
     } else if (act === 'camera-solo') {
       close('fist-menu');
       toggleCameraSoloMode(true);
@@ -3289,6 +3527,7 @@ window.nextvrEnterWorkspace = rawSettings => {
       if (parsed.spatialLauncher !== undefined) S.spatialLauncher = parsed.spatialLauncher ? 1 : 0;
       if (parsed.dockSnapSlot !== undefined) S.dockSnapSlot = parsed.dockSnapSlot ? 1 : 0;
       if (parsed.fingerTouch !== undefined) S.fingerTouch = parsed.fingerTouch ? 1 : 0;
+      if (parsed.singleHandMode !== undefined) S.singleHandMode = parsed.singleHandMode || 'both';
       if (parsed.mrDim !== undefined) setMrDim(!!parsed.mrDim);
       if (parsed.sixdof !== undefined) {
         S.sixdof = parsed.sixdof ? 1 : 0;
@@ -3319,6 +3558,7 @@ window.nextvrEnterWorkspace = rawSettings => {
       window.NativeXR?.handVisuals?.(!!S.handDraw);
       window.NativeXR?.wideCamera?.(!!S.wideCamera);
       window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+      window.NativeXR?.setSingleHandMode?.(S.singleHandMode || 'both');
       if (shouldAutoGorilla) {
         setTimeout(() => openGorillaTag(), 120);
       }

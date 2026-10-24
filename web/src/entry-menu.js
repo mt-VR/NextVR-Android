@@ -515,10 +515,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
 
           <div class="entry-bento-cell entry-bento-cell--hand">
-            <div class="entry-bento-title">${emT('handCell')}</div>
-            <div class="entry-hand-col">
+            <div class="entry-bento-title">${emT('handCell')} · Arraste pro lado ↔</div>
+            <div class="entry-hand-col" data-menu-hscroll="1">
               <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
               <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
+              <button type="button" class="entry-seg-btn ${(S.singleHandMode || 'both') !== 'both' ? 'on' : ''}" data-entry-single-hand="${S.singleHandMode || 'both'}" title="Usar Hand Tracking em apenas uma mão ou ambas as mãos">Hand 1 Mão: ${(S.singleHandMode || 'both') === 'right' ? 'Só Direita' : (S.singleHandMode || 'both') === 'left' ? 'Só Esquerda' : (S.singleHandMode || 'both') === 'one' ? '1 Mão Auto' : '2 Mãos (Ambas)'}</button>
+              <button type="button" class="entry-seg-btn" data-entry-internal-rec="1" data-internal-rec-btn="1" title="Gravação Interna de 1 Lente em Tela Cheia mantendo as 2 lentes ativas no celular"><span data-internal-rec-sub>Gravação Interna (1 Lente Tela Cheia)</span></button>
               <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
               <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
               <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
@@ -1044,6 +1046,23 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         emit('depthLayerOrder', S.depthLayerOrder !== 0);
         window.nextvrUpdateDepthLayering?.();
         paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-single-hand]').forEach(btn => {
+      btn.onclick = () => {
+        const order = ['both', 'right', 'left', 'one'];
+        const cur = S.singleHandMode || 'both';
+        const next = order[(order.indexOf(cur) + 1) % order.length];
+        S.singleHandMode = next;
+        save(S);
+        window.NativeXR?.setSingleHandMode?.(next);
+        window.nextvrSetSingleHandMode?.(next);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-internal-rec]').forEach(btn => {
+      btn.onclick = () => {
+        window.nextvrToggleInternalRecording?.();
       };
     });
     root.querySelectorAll('[data-entry-wide-cam]').forEach(btn => {

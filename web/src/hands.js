@@ -74,8 +74,8 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
     // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .76;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .76;
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .92;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .92;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
     if (Math.hypot(cursorVel.x, cursorVel.y) < .06) cursorVel.x = cursorVel.y = 0;
@@ -96,7 +96,16 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
   validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
-  hands.splice(0,hands.length,...(frame.hands || []));
+  let incomingHands = frame.hands || [];
+  const shMode = S.singleHandMode || 'both';
+  if (shMode === 'right') {
+    incomingHands = incomingHands.filter(h => !h.left && h.id !== 'left');
+  } else if (shMode === 'left') {
+    incomingHands = incomingHands.filter(h => h.left || h.id === 'left');
+  } else if (shMode === 'one' && incomingHands.length > 1) {
+    incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
+  }
+  hands.splice(0,hands.length,...incomingHands);
   emit('handframe',{...frame,hands});
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };

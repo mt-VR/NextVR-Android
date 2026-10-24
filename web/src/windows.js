@@ -1245,7 +1245,16 @@ function resolveDirectPinchPoint(handArg = null) {
   if (Array.isArray(h.palm) && h.palm.length >= 2) {
     basePts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
   }
-  const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0]];
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
+      basePts.push([aimPt.x, aimPt.y]);
+    }
+  }
+  if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
+    basePts.push([cursor.x, cursor.y]);
+  }
+  const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0], [0, -0.028], [0, 0.028], [-0.028, 0], [0.028, 0]];
   for (const [bx, by] of basePts) {
     for (const [ox, oy] of offsets) {
       const found = findDirectAppPoint(bx + ox, by + oy);
@@ -1283,7 +1292,7 @@ function scrollDomContainerAt(win, u, v, dxNorm, dyNorm) {
     node = node.parentElement;
   }
   if (!scrolled) {
-    const track = win.el.querySelector('[data-spatial-scroll-track], .spatial-honeycomb, .st-quest-main, .st-main, .lib-grid, .set-body, .win-body');
+    const track = win.el.querySelector('[data-menu-hscroll], .quick-controls, [data-spatial-scroll-track], .spatial-honeycomb, .st-quest-main, .st-main, .lib-grid, .set-body, .win-body');
     if (track instanceof HTMLElement) {
       if (track.scrollHeight > track.clientHeight + 2 && Math.abs(dyNorm) > 1e-4) {
         track.scrollTop -= dyNorm * 1650;
@@ -1378,14 +1387,17 @@ on('pinchsample', () => {
     clickThrough(pendingPress.hit, 'down');
     pendingPress = null;
   }
-  if (cursor.mode === 'drag' && !pinchOverridePt?.el && !resizing.win && !drag.win && !dockDrag.start) {
+  if (cursor.mode === 'drag' && !resizing.win && !drag.win && !dockDrag.start) {
     const prev = lastDragScrollPt || { x: cursor.x, y: cursor.y };
     const dx = cursor.x - prev.x;
     const dy = cursor.y - prev.y;
     lastDragScrollPt = { x: cursor.x, y: cursor.y };
     const hit = hitAt(cursor.x, cursor.y);
     if (hit && !hit.handle && !hit.resize) {
-      scrollDomContainerAt(hit.win, hit.u, hit.v, dx, dy);
+      if (scrollDomContainerAt(hit.win, hit.u, hit.v, dx, dy)) {
+        pinchOverridePt = null;
+        pinchDirectConsumed = true;
+      }
     }
   }
 });
@@ -2613,23 +2625,26 @@ function resolveFingerTarget(h, packet) {
     const ty = (p[25] - 0.5) * sy + 0.5;
     for (const [ox, oy] of offsets) {
       const hit = resolvePointTarget(tx + ox, ty + oy);
-      if (hit) return hit;
+      if (hit) return { ...hit, viaRay: false };
     }
     if (Number.isFinite(p[12]) && Number.isFinite(p[13])) {
       const px = ((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5;
       const py = ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5;
       const pinchHit = resolvePointTarget(px, py);
-      if (pinchHit) return pinchHit;
+      if (pinchHit) return { ...pinchHit, viaRay: false };
     }
     const dx = (p[21] - 0.5) * sx + 0.5;
     const dy = (p[22] - 0.5) * sy + 0.5;
     const dipHit = resolvePointTarget(dx, dy);
-    if (dipHit) return dipHit;
+    if (dipHit) return { ...dipHit, viaRay: false };
   }
   if (Array.isArray(h.aim) && h.aim.length >= 2) {
     const aimPt = screenPoint(h.aim);
-    const aimHit = resolvePointTarget(aimPt.x, aimPt.y);
-    if (aimHit) return aimHit;
+    const rayOffsets = [[0, 0], [0, 0.015], [0, -0.015], [-0.015, 0], [0.015, 0], [0, 0.026], [0, -0.026]];
+    for (const [ox, oy] of rayOffsets) {
+      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
+      if (aimHit) return { ...aimHit, viaRay: true };
+    }
   }
   return null;
 }
@@ -3020,8 +3035,9 @@ function updateFingerPoke(h, packet, nowMs) {
       targetEl: target.el,
       tapX: target.x,
       tapY: target.y,
-      stickRawX: tipX,
-      stickRawY: tipY,
+      viaRay: Boolean(target.viaRay),
+      stickRawX: target.viaRay ? null : tipX,
+      stickRawY: target.viaRay ? null : tipY,
       wristX: p[0],
       wristY: p[1],
       maxIndexRatio: curIndexRatio,
@@ -3050,6 +3066,7 @@ function updateFingerPoke(h, packet, nowMs) {
     st.tapX = target.x;
     st.tapY = target.y;
     st.targetEl = target.el;
+    st.viaRay = Boolean(target.viaRay);
     st.wristX = p[0];
     st.wristY = p[1];
     st.lastSeenAt = nowMs;
@@ -3805,8 +3822,8 @@ on('phonehands', packet => {
     // A fingertip already behind the glass cannot press merely by entering the near zone.
     nearContact={...best,down:false,previousD:best.d,lastSeen:nowMs};
   } else {
-    nearContact.d+=(best.d-nearContact.d)*.45;
-    nearContact.u+=(best.u-nearContact.u)*.45;nearContact.v+=(best.v-nearContact.v)*.45;
+    nearContact.d+=(best.d-nearContact.d)*.88;
+    nearContact.u+=(best.u-nearContact.u)*.88;nearContact.v+=(best.v-nearContact.v)*.88;
     if(!best.held)nearContact.lastSeen=nowMs;
   }
   const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
@@ -3843,9 +3860,9 @@ function syncHandTargets(now = performance.now()) {
   const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
-    const fingerHover = Boolean(fSt?.targetEl);
+    const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
     const noBeam = fingerHover;
-    const stick = (fSt?.targetEl && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
+    const stick = (fSt?.targetEl && !fSt.viaRay && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
       ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
       : null;
     const isRightBolinha = isRightBolinhaHand(h);
@@ -3883,6 +3900,6 @@ function syncHandTargets(now = performance.now()) {
 on('handtargets_sync', now => syncHandTargets(now));
 onFrame((dt,now)=>{
   // 60–120 Hz: o anel/ponta do raio acompanha a predição da mão imediatamente sem atraso.
-  if(!native || now-lastTargetAt<8)return;
+  if(!native || now-lastTargetAt<2)return;
   syncHandTargets(now);
 });

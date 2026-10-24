@@ -139,6 +139,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile boolean sixDofEnabled=true;
     private volatile boolean sentZeroSixDof=false;
     private volatile boolean gameHandMode=false;
+    private InternalEyeRecorder internalRecorder;
     private final android.hardware.SensorEventListener walkSensorListener=new android.hardware.SensorEventListener() {
         @Override public void onSensorChanged(android.hardware.SensorEvent event) {
             if(event==null || event.values==null || event.values.length<3) return;
@@ -214,6 +215,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
         xrHands=new XrHandBridge();
         xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
+        internalRecorder=new InternalEyeRecorder(this,(rec,sec,msg,savedPath)->main.post(()->{
+            if(closed) return;
+            if(msg!=null && !msg.isEmpty()) Toast.makeText(NextVrActivity.this,msg,Toast.LENGTH_SHORT).show();
+            try {
+                JSONObject st=new JSONObject();
+                st.put("recording",rec);
+                st.put("seconds",sec);
+                st.put("message",msg==null?"":msg);
+                st.put("savedPath",savedPath==null?"":savedPath);
+                String js="window.nextvrOnInternalRecordState&&window.nextvrOnInternalRecordState("+st.toString()+")";
+                if(shell!=null && ready) shell.evaluate(js);
+                if(entryView!=null) entryView.evaluateJavascript(js,null);
+            } catch(Exception ignored) {}
+        }));
         // The icons are rendered in the background anyway; starting now means the first paint of the
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
@@ -282,7 +297,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             @Override public void onSurfaceCreated(GL10 gl,EGLConfig config) {
                 nativeOnSurfaceCreated(nativeApp);
                 SpatialRenderer previous=renderer;
-                SpatialRenderer fresh=new SpatialRenderer(); renderer=fresh;
+                if(internalRecorder!=null) internalRecorder.releaseGl();
+                SpatialRenderer fresh=new SpatialRenderer();
+                fresh.eyeRecorder=internalRecorder;
+                renderer=fresh;
                 main.post(()->{
                     if(closed || renderer!=fresh) return;
                     releaseWeb();
@@ -697,6 +715,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         // The hosted game follows the same rule as an app window: its display output detaches while
         // nothing composites it, and the hand feed stops with the camera (it has nothing new to
         // send — resume() restarts both, and the game's task never leaves its display).
+        if(internalRecorder!=null && internalRecorder.isRecording()) internalRecorder.stop();
         if(xrGames!=null) xrGames.onActivityPaused();
         if(entryView!=null) entryView.onPause();
         if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
@@ -1110,6 +1129,25 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.mrDim=enabled;
         }
+        @JavascriptInterface public void setSingleHandMode(String mode) {
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.setSingleHandMode(mode);
+        }
+        @JavascriptInterface public boolean startInternalRecording() {
+            return internalRecorder!=null && internalRecorder.start();
+        }
+        @JavascriptInterface public void stopInternalRecording() {
+            if(internalRecorder!=null) internalRecorder.stop();
+        }
+        @JavascriptInterface public boolean toggleInternalRecording() {
+            return internalRecorder!=null && internalRecorder.toggle();
+        }
+        @JavascriptInterface public boolean isInternalRecording() {
+            return internalRecorder!=null && internalRecorder.isRecording();
+        }
+        @JavascriptInterface public int internalRecordingSeconds() {
+            return internalRecorder==null?0:internalRecorder.elapsedSeconds();
+        }
         @JavascriptInterface public void sixDofOffset(float x, float y, float z) {
             SpatialRenderer target=renderer;
             if(target!=null && Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(z)) {
@@ -1180,6 +1218,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                             if(o.has("sixdof")) {
                                 sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
                                 if(!sixDofEnabled) resetSixDof();
+                            }
+                            if(o.has("singleHandMode") && camera!=null) {
+                                camera.setSingleHandMode(o.optString("singleHandMode","both"));
                             }
                         } catch(Exception ignored) {}
                     }

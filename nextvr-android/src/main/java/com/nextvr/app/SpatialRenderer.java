@@ -150,6 +150,7 @@ final class SpatialRenderer {
     volatile String environmentId = "passthrough";
     final Texture atlas = new Texture();
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
+    volatile InternalEyeRecorder eyeRecorder;
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
@@ -367,6 +368,54 @@ final class SpatialRenderer {
         // The ray target is in world space; the hand pass transforms it for each eye before
         // projection, keeping the pointer over the same icon in both Cardboard lenses.
         if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,projection,view,handTargets,showHands);
+        GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        renderPass=2;
+        for(Panel p:sorted) if(p.overlay) drawPanel(p);
+        GLES20.glDisable(GLES20.GL_BLEND);
+        if(eyeUniform == 0f) {
+            InternalEyeRecorder rec = eyeRecorder;
+            if(rec != null) {
+                long nowNs = android.os.SystemClock.elapsedRealtimeNanos();
+                if(rec.shouldCaptureFrame(nowNs) && rec.beginGlPass()) {
+                    float[] recProj = rec.buildFullscreenProjection(projection);
+                    drawFullscreenEyePass(view, recProj, blackEnv, envReveal, handFrame);
+                    rec.endGlPassAndCapture(nowNs);
+                    eyeProjection = projection;
+                    GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, viewport, 0);
+                    Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0);
+                }
+            }
+        }
+    }
+    private void drawFullscreenEyePass(float[] view, float[] recProj, boolean blackEnv, float envReveal,
+            com.nextvr.app.hands.PhoneXrHands.Frame handFrame) {
+        eyeProjection = recProj;
+        GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, viewport, 0);
+        eyeUniform = 0f;
+        Matrix.multiplyMM(viewProj, 0, recProj, 0, view, 0);
+        GLES20.glDisable(GLES20.GL_CULL_FACE); GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDisable(GLES20.GL_BLEND);
+        if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
+            if(sphere && envReveal >= 0.999f) {
+                drawEnvironment(recProj, 1f);
+            } else {
+                if(camera.ready) drawCamera(recProj);
+                if(sphere) {
+                    GLES20.glEnable(GLES20.GL_BLEND);
+                    GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                    drawEnvironment(recProj, envReveal);
+                    GLES20.glDisable(GLES20.GL_BLEND);
+                }
+            }
+        }
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST); GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        for(renderPass=0;renderPass<2;renderPass++) {
+            GLES20.glDepthMask(renderPass==0);
+            for(Panel p:sorted) if(!p.overlay) drawPanel(p);
+        }
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDepthMask(true);
+        if(handFrame!=null) handRenderer.draw(handFrame,spanX/2,spanY/2,recProj,view,handTargets,showHands);
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA);
         renderPass=2;
         for(Panel p:sorted) if(p.overlay) drawPanel(p);

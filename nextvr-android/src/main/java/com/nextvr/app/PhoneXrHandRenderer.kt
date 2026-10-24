@@ -87,6 +87,8 @@ class PhoneXrHandRenderer {
         val color=FloatArray(4)
         val wrist=FloatArray(2)
         val knuckle=FloatArray(2)
+        var handIndex=0
+        var passType=0
         var touching=false
         var blueOutline=false
     }
@@ -108,9 +110,9 @@ class PhoneXrHandRenderer {
     private val RAY_SHOWN=.55f
     /** Normalized landmark delta that forces a mesh rebuild (~0.2 px at 640 px analysis width).
      * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
-    private val MESH_REBUILD_EPSILON=.00008f
+    private val MESH_REBUILD_EPSILON=.00002f
     /** Even a slowly drifting hand refreshes its silhouette at least this often. */
-    private val MESH_REBUILD_MAX_NS=8_000_000L
+    private val MESH_REBUILD_MAX_NS=4_000_000L
     private val RING_STEPS=40
     /** Reused per-frame scratch on the GL thread: the beam/ring path used to allocate a 720-float
      *  ring array plus ~30 small arrays per hand per eye per frame — GC churn exactly under load. */
@@ -197,7 +199,7 @@ class PhoneXrHandRenderer {
             // detection rate drops (app open, GPU contention) — no stepping, no flicker.
             meshes=meshesFor(visual,sx,sy,now)
             for((idx, m) in meshes.withIndex()) {
-                val hPose=visual.hands.getOrNull(idx/2)
+                val hPose=visual.hands.getOrNull(m.handIndex) ?: visual.hands.getOrNull(idx/2)
                 val hId=if(hPose?.left==true) "left" else "right"
                 var tObj:JSONObject?=null
                 for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==hId){tObj=o;break} }
@@ -335,11 +337,13 @@ class PhoneXrHandRenderer {
 private fun drawHandSkeletons(position: Int, fade: Float) {
         val color=colorUniform
         val glove=mrGameMode
+        val envMode=virtualEnv && !glove
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
         GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
         for(mesh in meshes) {
+            if(mesh.passType>=2) continue
             GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
             GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
             val isOutline = mesh.color[0] > .5f
@@ -351,6 +355,20 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 } else {
                     val alpha = if (mesh.touching) .52f else (mesh.color[3] + .10f)
                     GLES20.glUniform4f(color,GLOVE_FILL_R,GLOVE_FILL_G,GLOVE_FILL_B,alpha*fade)
+                }
+            } else if (envMode) {
+                if (isOutline) {
+                    val alpha = if (mesh.touching) .92f else .86f
+                    val cr = if (mesh.blueOutline) .28f else .70f
+                    val cg = if (mesh.blueOutline) .68f else .73f
+                    val cb = if (mesh.blueOutline) 1f else .78f
+                    GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
+                } else {
+                    val r = if (mesh.touching) .07f else .045f
+                    val g = if (mesh.touching) .075f else .050f
+                    val b = if (mesh.touching) .09f else .060f
+                    val alpha = if (mesh.touching) .95f else .93f
+                    GLES20.glUniform4f(color,r,g,b,alpha*fade)
                 }
             } else {
                 if (isOutline) {
@@ -370,6 +388,16 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+        if (envMode) {
+            for(mesh in meshes) {
+                if(mesh.passType<2) continue
+                GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
+                GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
+                GLES20.glUniform1f(gradUniform,1f)
+                GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
+                drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
+            }
+        }
     }
 
     // Same PhoneXR tessellation and colors, refilled in place per detection, not per eye/frame.
@@ -550,9 +578,64 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         outline -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_OUTLINE_ALPHA*handConfidence)
                         else -> floatArrayOf(HAND_FILL_R,HAND_FILL_G,HAND_FILL_B,HAND_FILL_ALPHA*handConfidence)
                     }
+                    m.handIndex=handIndex
+                    m.passType=if(outline)1 else 0
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
                     result.add(m)
+                }
+                if (virtualEnv && !mrGameMode) {
+                    // Estilo 3D escuro com contorno prateado/branco suave por dedo e relevo palmar (Screenshot 2)
+                    // quando em um ambiente virtual 360: cada dedo dobrado ou estendido mantém contorno 3D próprio
+                    // e núcleo escuro profundo sobre a palma, além do brilho suave na crista do polegar.
+                    val thenarMesh = mesh()
+                    thenarMesh.handIndex = handIndex
+                    thenarMesh.passType = 5
+                    thenarMesh.wrist[0] = virtX; thenarMesh.wrist[1] = virtY
+                    thenarMesh.knuckle[0] = kcx; thenarMesh.knuckle[1] = kcy
+                    thenarMesh.color[0] = .27f; thenarMesh.color[1] = .29f; thenarMesh.color[2] = .33f
+                    thenarMesh.color[3] = .50f * handConfidence
+                    handBone(thenarMesh.vertices, x(2), y(2), x(1), y(1), r * .46f, r * .62f)
+                    handDisc(thenarMesh.vertices, x(2), y(2), r * .46f)
+                    handDisc(thenarMesh.vertices, x(1), y(1), r * .62f)
+                    handBone(thenarMesh.vertices, x(1), y(1), (x(0) + reX) * .5f, (y(0) + reY) * .5f, r * .58f, r * .36f)
+                    result.add(thenarMesh)
+
+                    val layerSpecs = arrayOf(
+                        floatArrayOf(2f, edge * .95f, .58f, .61f, .66f, .82f * handConfidence),
+                        floatArrayOf(3f, edge * .20f, .15f, .16f, .18f, .92f * handConfidence),
+                        floatArrayOf(4f, -edge * .85f, .022f, .025f, .032f, .96f * handConfidence)
+                    )
+                    for (spec in layerSpecs) {
+                        val fm = mesh()
+                        fm.handIndex = handIndex
+                        fm.passType = spec[0].toInt()
+                        val fg = spec[1]
+                        fm.color[0] = spec[2]; fm.color[1] = spec[3]; fm.color[2] = spec[4]; fm.color[3] = spec[5]
+                        fm.wrist[0] = virtX; fm.wrist[1] = virtY; fm.knuckle[0] = kcx; fm.knuckle[1] = kcy
+                        val s = fm.vertices
+                        fun fBone(i: Int, j: Int, ri: Float, rj: Float) {
+                            val rA = (ri + fg).coerceAtLeast(.0015f)
+                            val rB = (rj + fg).coerceAtLeast(.0015f)
+                            handBone(s, x(i), y(i), x(j), y(j), rA, rB)
+                            handDisc(s, x(i), y(i), rA)
+                            handDisc(s, x(j), y(j), rB)
+                        }
+                        for (finger in 4 downTo 0) {
+                            val base = 1 + finger * 4
+                            val f = scale[finger]
+                            if (finger == 0) {
+                                fBone(1, 2, r * 1.06f, r * .90f)
+                                fBone(2, 3, r * .90f, r * .76f)
+                                fBone(3, 4, r * .76f, r * .64f)
+                            } else {
+                                fBone(base, base + 1, r * .95f * f, r * .82f * f)
+                                fBone(base + 1, base + 2, r * .82f * f, r * .70f * f)
+                                fBone(base + 2, base + 3, r * .70f * f, r * .58f * f)
+                            }
+                        }
+                        result.add(fm)
+                    }
                 }
             }
             meshes = result
@@ -612,7 +695,11 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, 1f, 1f, 1f, POINTER_DROP_ALPHA*fade)
+                    if (virtualEnv && !mrGameMode) {
+                        GLES20.glUniform4f(color, .22f, .23f, .25f, POINTER_DROP_ALPHA*fade)
+                    } else {
+                        GLES20.glUniform4f(color, 1f, 1f, 1f, POINTER_DROP_ALPHA*fade)
+                    }
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {

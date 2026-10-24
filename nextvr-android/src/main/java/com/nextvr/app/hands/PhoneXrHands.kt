@@ -184,13 +184,13 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=4.2f, beta=24.0f, deadZone=.0004f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=7.5f, beta=48.0f, deadZone=.0002f)
                 i == 0 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
-                else -> HandGestures.OneEuro(minCutoff=8.5f, beta=65.0f, deadZone=.00008f)
+                else -> HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=8.0f, beta=60.0f, deadZone=.00008f)
-        val y = HandGestures.OneEuro(minCutoff=8.0f, beta=60.0f, deadZone=.00008f)
+        val x = HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
+        val y = HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)
@@ -256,8 +256,8 @@ class PhoneXrHands {
             if (since <= 0L || since > PREDICT_HORIZON_NS) return null
             val t = since / 1e9f
             fun step(velocity: Float) = (velocity * t).coerceIn(-MAX_PREDICT_STEP, MAX_PREDICT_STEP)
-            val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i % 3]) }
-            val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i % 3]) } }
+            val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i]) }
+            val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i]) } }
             val shape = hand.shape.copy(palmX = hand.shape.palmX + step(vPalm[0]),
                 palmY = hand.shape.palmY + step(vPalm[1]))
             return PhoneXrHands.Hand(hand.left, points, head, shape,
@@ -270,6 +270,8 @@ class PhoneXrHands {
     }
     private val states = HashMap<Boolean, State>()
     private var previous: Frame? = null
+    /** "both" (2 mãos), "right" (só mão direita), "left" (só mão esquerda), ou "one" (1 mão automática). */
+    @JvmField @Volatile var singleHandMode: String = "both"
     fun reset() { states.clear(); previous = null }
     @JvmOverloads fun process(result: HandLandmarkerResult, scaleX: Float, scaleY: Float,
         completedNs: Long = result.timestampMs() * 1_000_000L, frameAgeNs: Long? = null): Frame {
@@ -286,6 +288,16 @@ class PhoneXrHands {
             if(raw.size != 21) return@forEachIndexed
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
             var left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            val mode = singleHandMode
+            if (mode == "right") {
+                if (result.landmarks().size == 1) left = false
+                else if (left) return@forEachIndexed
+            } else if (mode == "left") {
+                if (result.landmarks().size == 1) left = true
+                else if (!left) return@forEachIndexed
+            } else if (mode == "one" && seen.isNotEmpty()) {
+                return@forEachIndexed
+            }
             if (result.landmarks().size == 1 && !states.containsKey(left)) {
                 val other = states[!left]
                 val lastH = other?.lastHand
@@ -361,6 +373,9 @@ class PhoneXrHands {
         while (iterator.hasNext()) {
             val entry = iterator.next()
             if (entry.key in detected) continue
+            if (singleHandMode == "right" && entry.key) { iterator.remove(); continue }
+            if (singleHandMode == "left" && !entry.key) { iterator.remove(); continue }
+            if (singleHandMode == "one" && seen.isNotEmpty()) continue
             val age = if (entry.value.sawDetection) stamp - entry.value.lastStampNs else Long.MAX_VALUE
             if (age > STATE_RETAIN_NS) {
                 // Prolonged loss: forget the filter/motion state so a returning hand starts fresh
