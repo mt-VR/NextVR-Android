@@ -29,6 +29,7 @@ final class SpatialRenderer {
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, id);
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0x84FE, 4.0f);
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
             surface = new SurfaceTexture(id);
@@ -77,6 +78,7 @@ final class SpatialRenderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,0x84FE,4.0f);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
         }
@@ -127,6 +129,7 @@ final class SpatialRenderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,0x84FE,4.0f);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
         }
@@ -211,7 +214,7 @@ final class SpatialRenderer {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform mat4 uTransform; uniform vec4 uRect; uniform vec4 uRectR; uniform float uEye; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vec4 rect=mix(uRect,uRectR,uEye);vUv=(uTransform*vec4(rect.xy+aUv*rect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.));}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; uniform float uCamDimDrop; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb*(1.-uCamDimDrop);} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); if(uBackface>.5){bool inG=all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw)); float ba=inG?max(c.a,.78):c.a*.78; vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 bg=uBackdrop?(envAt(ndc)*2.+envAt(ndc+vec2(.009,0.))+envAt(ndc-vec2(.009,0.))+envAt(ndc+vec2(0.,.009))+envAt(ndc-vec2(0.,.009)))/6.:vec3(.92,.95,.99); vec3 frost=mix(bg,vec3(.94,.96,.99),.76); c=vec4(frost*ba,ba);} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(c.rgb+blurred*(1.-c.a),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; uniform float uCamDimDrop; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){return texture2D(uCamera,clamp(p,0.,1.)).rgb*(1.-uCamDimDrop);} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); c.rgb=min(c.rgb,vec3(c.a)); if(uBackface>.5){bool inG=all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw)); float ba=inG?max(c.a,.78):c.a*.78; vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 bg=uBackdrop?(envAt(ndc)*2.+envAt(ndc+vec2(.009,0.))+envAt(ndc-vec2(.009,0.))+envAt(ndc+vec2(0.,.009))+envAt(ndc-vec2(0.,.009)))/6.:vec3(.92,.95,.99); vec3 frost=mix(bg,vec3(.94,.96,.99),.76); c=vec4(frost*ba,ba);} else if(uBackface<-.5 && c.a>.001){vec3 rgb=c.rgb/c.a; rgb=rgb*(.91/(1.+rgb*.09)); float lm=dot(rgb,vec3(.2126,.7152,.0722)); rgb=mix(vec3(lm),rgb,.88); c.rgb=rgb*c.a;} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(min(vec3(1.),c.rgb+blurred*(1.-c.a)*.52),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
@@ -439,7 +442,7 @@ final class SpatialRenderer {
         GLES20.glUniform1f(uPass,renderPass);
         float ex = viewInv[12], ez = viewInv[14];
         float facing = (ex - panel.flat[12]) * panel.flat[8] + (ez - panel.flat[14]) * panel.flat[10];
-        GLES20.glUniform1f(uBackface, !panel.overlay && facing < 0f ? 1f : 0f);
+        GLES20.glUniform1f(uBackface, !panel.overlay && facing < 0f ? 1f : (!panel.browser.isEmpty() ? -1f : 0f));
         GLES20.glUniform1i(uBackdrop,!"black".equals(environmentId) && (camera.ready||sphere) && qualityHeight>500f && !panel.overlay && panel.browser.isEmpty() && !"spatial-launcher".equals(panel.id) && !"left-quick-menu".equals(panel.id)?1:0);
         GLES20.glUniform1i(uEnvSphere,sphere?1:0);
         GLES20.glUniform1f(uCamDim,mrDim?0.68f:0.0f);

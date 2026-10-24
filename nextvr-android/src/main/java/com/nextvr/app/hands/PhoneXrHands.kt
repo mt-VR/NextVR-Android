@@ -82,7 +82,8 @@ class PhoneXrHands {
             // Never extrapolate across a long gap: a hand reappearing after a dropout must show
             // up exactly where it was detected, not drift along a stale velocity.
             if (gap <= 0L || gap > MAX_PREDICT_GAP_NS) return this
-            val dt = ((nowNs - completedNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
+            val inferLeadNs = if (completedNs > timestampNs) (completedNs - timestampNs).coerceAtMost(28_000_000L) else 0L
+            val dt = (((nowNs - completedNs) + inferLeadNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
             if (dt <= 0f) return this
             val t = 1f + dt
             val byId = prev.hands.associateBy { it.left }
@@ -184,17 +185,16 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=7.5f, beta=48.0f, deadZone=.0002f)
-                i == 0 -> HandGestures.OneEuro(minCutoff=1.9f, beta=12.0f, deadZone=.0003f)
-                else -> HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=18.0f, beta=120.0f, deadZone=.00005f)
+                else -> HandGestures.OneEuro(minCutoff=28.0f, beta=180.0f, deadZone=.00001f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
-        val y = HandGestures.OneEuro(minCutoff=16.0f, beta=130.0f, deadZone=.00002f)
+        val x = HandGestures.OneEuro(minCutoff=28.0f, beta=180.0f, deadZone=.00001f)
+        val y = HandGestures.OneEuro(minCutoff=28.0f, beta=180.0f, deadZone=.00001f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)
-        val grabY = HandGestures.OneEuro(minCutoff=4.0f,beta=22.0f)
+        val grabX = HandGestures.OneEuro(minCutoff=24.0f,beta=150.0f)
+        val grabY = HandGestures.OneEuro(minCutoff=24.0f,beta=150.0f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
@@ -322,7 +322,13 @@ class PhoneXrHands {
             val maxReach = (palmLen * 2.35f).coerceAtLeast(0.06f)
             val points = raw.mapIndexed { i,p ->
                 var px = p.x(); var py = p.y()
-                if (i > 0 && palmLen > 0.015f) {
+                if (i == 0 && state.consecutiveMisses > 0) {
+                    val prevPts = state.lastHand?.points
+                    if (prevPts != null && prevPts.size >= 2) {
+                        px = prevPts[0] + (px - prevPts[0]) * 0.84f
+                        py = prevPts[1] + (py - prevPts[1]) * 0.84f
+                    }
+                } else if (i > 0 && palmLen > 0.015f) {
                     val rx = px - w0x; val ry = py - w0y
                     val rd = kotlin.math.hypot(rx, ry)
                     if (rd > maxReach && rd > 1e-4f) {

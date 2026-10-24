@@ -206,7 +206,10 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     handRendererKt.includes('GLOVE_CONTOUR_R') &&
     handRendererKt.includes('handCuffOpen') &&
     handRendererKt.includes('if (mrGameMode)') &&
-    handRendererKt.includes('bone(base + 2, base + 3') &&
+    handRendererKt.includes('smoothSpan(') &&
+    handRendererKt.includes('MESH_REBUILD_EPSILON=0f') &&
+    handRendererKt.includes('MESH_REBUILD_MAX_NS=0L') &&
+    !handRendererKt.includes('fBone(') &&
     fakeSixDofJava.includes('ptW') &&
     sixdofSrc.includes('_ptW') &&
     appsSrc.includes('readLiveBatteryPercent') &&
@@ -216,15 +219,16 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     entryDataSrc.includes('mr-pistol') &&
     entryDataSrc.includes('green-glove') &&
     appsSrc.includes('toggleInternalEyeRecording') &&
-    appsSrc.includes('setSingleHandModeChoice') &&
-    appsSrc.includes('data-cc-scroll') &&
+    appsSrc.includes('openHandDrawGame') &&
+    appsSrc.includes('data-hand-draw-canvas') &&
     appsSrc.includes('YouTube Music') &&
     appsSrc.includes('Peacock TV') &&
     windowsSrc.includes('viaRay: true') &&
+    windowsSrc.includes('occupiedBoxes(w, true)') &&
     activitySrc.includes('toggleInternalRecording') &&
     activitySrc.includes('setSingleHandMode') &&
-    handRendererKt.includes('virtualEnv && !mrGameMode'),
-    'Build 61 includes InternalEyeRecorder 1-lens fullscreen recording, zero-delay hand tracking, single-hand mode, horizontally scrollable menu, Meta Quest Browser interface, long-range ray selection, and virtual environment 3D hand style'
+    handRendererKt.includes('virtualEnv && !glove'),
+    'Build 62 includes InternalEyeRecorder in in-game settings, 2nd tab with horizontal drag in 2D initial menu, 100% smooth virtual environment hand without joints, 0-delay hand tracking, aligned multitasking with natural colors, and Hand-Tracking Drawing Game on a white screen'
   );
 });
 
@@ -1128,6 +1132,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const activeAfterReset = st?.activeTargets ?? -1;
       window.closeMrPistolGame?.();
       const closedCleanly = !document.getElementById('mr-pistol-overlay');
+
+      // Testa também o Jogo de Desenho VR em Tela Branca (openHandDrawGame)
+      window.nextvrOpenHandDrawGame?.();
+      const drawWin = document.querySelector('.win-shell[data-window-id="hand-draw"]');
+      const drawCanvas = drawWin?.querySelector('[data-hand-draw-canvas="1"]');
+      const strokesAfterDraw = window.nextvrHandDrawStroke?.(120, 120, 320, 260, '#ef4444', 10) ?? 0;
+      drawWin?.querySelector('[data-hd-exit]')?.click();
+      const drawClosed = !document.querySelector('.win-shell[data-window-id="hand-draw"]');
+
       return {
         dockBat64,
         dockBat88,
@@ -1153,8 +1166,14 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         scoreAfter2Shots,
         activeAfterReset,
         closedCleanly,
+        hasDrawGame: Boolean(drawWin && drawCanvas),
+        strokesAfterDraw,
+        drawClosed,
       };
     });
+    assert.equal(build56Check.hasDrawGame, true, 'openHandDrawGame opens the white-canvas Hand Tracking drawing game');
+    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws on the white canvas');
+    assert.equal(build56Check.drawClosed, true, 'Hand Tracking drawing game closes cleanly');
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
     assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');

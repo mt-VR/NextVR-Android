@@ -40,15 +40,18 @@ final class WebSurface {
     private android.view.View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private long downTime;
-    final int width,height;
+    final int width,height,renderW,renderH;
     private final boolean shell;
     private boolean released;
     private static final String AUDIO_SCRIPT="(()=>{const contexts=[];for(const k of ['AudioContext','webkitAudioContext']){const C=window[k];if(C)window[k]=new Proxy(C,{construct(t,a){const c=Reflect.construct(t,a);contexts.push(c);return c;}});}window.__nextvrAudio=on=>{document.querySelectorAll('audio,video').forEach(e=>{if(!on){e.dataset.nextvrVolume=e.volume;e.volume=0;e.pause();}else if(e.dataset.nextvrVolume){e.volume=+e.dataset.nextvrVolume;delete e.dataset.nextvrVolume;}});contexts.forEach(c=>{try{on?c.resume():c.suspend();}catch{}});};})();";
     @SuppressLint("SetJavaScriptEnabled")
     WebSurface(NextVrActivity owner,SurfaceTexture texture,int width,int height,boolean shell,Object bridge,String url) {
         this.owner=owner; this.width=width; this.height=height; this.shell=shell;
-        texture.setDefaultBufferSize(width,height); surface=new Surface(texture);
-        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),width,height,160,surface,0);
+        this.renderW=shell?width:Math.min(2048,Math.round(width*1.35f));
+        this.renderH=shell?height:Math.min(1536,Math.round(height*1.35f));
+        int dpi=shell?160:216;
+        texture.setDefaultBufferSize(renderW,renderH); surface=new Surface(texture);
+        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),renderW,renderH,dpi,surface,0);
         if(display==null) throw new IllegalStateException("Cannot create HTML virtual display");
         presentation=new Presentation(owner,display.getDisplay());
         presentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -141,7 +144,7 @@ final class WebSurface {
         container.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         container.addView(web,new FrameLayout.LayoutParams(-1,-1)); presentation.setContentView(container);
         presentation.show();
-        presentation.getWindow().setLayout(width,height);
+        presentation.getWindow().setLayout(renderW,renderH);
         // A Presentation on a private virtual display never receives window focus, so nothing here
         // would ever claim it. The page still needs the WebView focused to keep its own focused
         // element (and its :focus styling and scroll-into-view) alive between keyboard strokes.
@@ -275,7 +278,8 @@ final class WebSurface {
         properties.id=0;
         properties.toolType=MotionEvent.TOOL_TYPE_FINGER;
         MotionEvent.PointerCoords coordinates=new MotionEvent.PointerCoords();
-        coordinates.x=x; coordinates.y=y;
+        coordinates.x=shell?x:(x*renderW/Math.max(1f,width));
+        coordinates.y=shell?y:(y*renderH/Math.max(1f,height));
         coordinates.pressure=(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL)?0f:1f;
         coordinates.size=1f;
         // WebView/Chromium classifies a default MotionEvent.obtain() as SOURCE_UNKNOWN. Give the

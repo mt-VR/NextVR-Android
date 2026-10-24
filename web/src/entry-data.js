@@ -46,17 +46,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · GRAVAÇÃO INTERNA & HAND ZERO DELAY',
+    tag: 'NOVO · DESENHO VR, 0 DELAY & MULTITAREFA',
     time: 'Agora',
-    heading: 'Gravação Interna em Tela Cheia (1 Lente) & Hand Tracking Sem Delay',
-    desc: 'Grave vídeos em Tela Cheia 16:9 de dentro de 1 lente com alta qualidade mantendo as 2 lentes VR ativas no celular! Hand Tracking ultra melhorado sem delay, opção de Hand em 1 Mão Só e menu arrastável pro lado!',
+    heading: 'Jogo Desenho VR em Tela Branca, Hand Tracking 0 Delay & Mão 100% Lisa',
+    desc: 'Novo jogo Desenho VR na Tela Branca com Hand Tracking! Mão dos ambientes 100% lisa sem juntas aparentes, Hand Tracking com 0 delay, Multitarefa alinhada com alta qualidade e cores naturais, 2ª aba nas Configurações do menu 2D e Gravação Interna nas configurações dentro do jogo!',
   },
   {
     id: 'quest-browser-env-hand',
-    tag: 'NOVO · NAVEGADOR QUEST & MÃO 3D AMBIENTE',
+    tag: 'NOVO · NAVEGADOR QUEST & GRAVAÇÃO INTERNA',
     time: 'Agora',
-    heading: 'Interface Meta Quest Browser, Mão 3D nos Ambientes & Raio Longo Alcance',
-    desc: 'Navegador com a nova interface Meta Quest Browser (Populares, Continuar navegando e Entretenimento), mão 3D cinza-escuro contornada nos ambientes virtuais e raio com alcance de qualquer distância!',
+    heading: 'Meta Quest Browser, Gravação Interna 1 Lente & Raio de Longo Alcance',
+    desc: 'Gravação Interna em Tela Cheia 16:9 de 1 lente (mantendo as 2 lentes ativas no celular) nas configurações dentro do jogo, interface Meta Quest Browser e raio com seleção de qualquer distância!',
   },
   {
     id: 'mr-pistol',

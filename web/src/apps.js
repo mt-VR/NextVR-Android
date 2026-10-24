@@ -994,33 +994,8 @@ function controlCenterApp() {
   panel.append(status, quickTiles);
 
   const section = el('div', 'quick-section');
-  section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos · Arraste pro lado ↔</b><div class="quick-scroll-nav"><button type="button" class="quick-scroll-btn" data-cc-scroll="prev" title="Arrastar para esquerda">◀</button><button type="button" class="quick-scroll-btn" data-cc-scroll="next" title="Arrastar para direita">▶</button></div></div>`;
+  section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos</b></div>`;
   const controls = el('div', 'quick-controls');
-  controls.dataset.menuHscroll = '1';
-  section.querySelectorAll('[data-cc-scroll]').forEach(btn => {
-    btn.onclick = e => {
-      e.stopPropagation();
-      const dir = btn.dataset.ccScroll === 'next' ? 1 : -1;
-      controls.scrollBy({ left: dir * 340, behavior: 'smooth' });
-      setTimeout(() => css3d.invalidate?.(), 180);
-    };
-  });
-  let ccDrag = null;
-  controls.addEventListener('pointerdown', e => {
-    ccDrag = { startX: e.clientX, scrollLeft: controls.scrollLeft, moved: false };
-  });
-  controls.addEventListener('pointermove', e => {
-    if (!ccDrag) return;
-    const dx = e.clientX - ccDrag.startX;
-    if (Math.abs(dx) > 6) {
-      ccDrag.moved = true;
-      controls.scrollLeft = ccDrag.scrollLeft - dx * 1.35;
-      css3d.invalidate?.();
-    }
-  });
-  const endCcDrag = () => { ccDrag = null; };
-  controls.addEventListener('pointerup', endCcDrag);
-  controls.addEventListener('pointercancel', endCcDrag);
   let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
   let isMuted = false, dndControl = null, sideMute = null;
   const syncMute = value => {
@@ -1037,7 +1012,6 @@ function controlCenterApp() {
     button.type = 'button'; button.setAttribute('aria-pressed', String(active));
     button.innerHTML = `<span>${icon(name)}</span><b>${label}</b><small>${detail}</small>`;
     button.onclick = () => {
-      if (ccDrag?.moved) { ccDrag.moved = false; return; }
       const value = action(button);
       button.classList.toggle('is-active', !!value);
       button.setAttribute('aria-pressed', String(!!value));
@@ -1052,21 +1026,6 @@ function controlCenterApp() {
     !!internalRecState.active
   );
   recBtn.dataset.internalRecBtn = '1';
-  const shBtn = control(
-    'hand',
-    'Hand em 1 Mão Só',
-    singleHandModeLabel(S.singleHandMode || 'both'),
-    button => {
-      const idx = Math.max(0, SINGLE_HAND_OPTIONS.findIndex(([id]) => id === (S.singleHandMode || 'both')));
-      const next = SINGLE_HAND_OPTIONS[(idx + 1) % SINGLE_HAND_OPTIONS.length];
-      setSingleHandModeChoice(next[0]);
-      button.querySelector('small').textContent = next[1];
-      toast('Hand Tracking: ' + next[1]);
-      return next[0] !== 'both';
-    },
-    (S.singleHandMode || 'both') !== 'both'
-  );
-  shBtn.querySelector('small').dataset.singleHandLabel = '1';
   control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
     const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
   }, S.env === 'passthrough');
@@ -1232,16 +1191,6 @@ function settingsApp() {
   // Mãos
   scroll.append(ytSection(t('hands')));
   scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo Zero-Delay · câmera traseira'));
-  const shSeg = el('div', 'yt-seg');
-  shSeg.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
-  for (const [id, lbl] of [['both', '2 Mãos'], ['right', 'Só Direita'], ['left', 'Só Esquerda'], ['one', '1 Mão Auto']]) {
-    const b = el('button', 'yt-seg-btn' + ((S.singleHandMode || 'both') === id ? ' on' : ''), lbl);
-    b.dataset.singleHandPick = id;
-    b.setAttribute('aria-pressed', String((S.singleHandMode || 'both') === id));
-    b.onclick = () => setSingleHandModeChoice(id);
-    shSeg.appendChild(b);
-  }
-  scroll.append(ytRow(icon('hand'), 'Hand em 1 Mão Só', 'Rastrear ambas as mãos ou focar 100% em apenas uma mão', shSeg));
   const recToggleBtn = el('button', 'yt-seg-btn' + (internalRecState.active ? ' on' : ''));
   recToggleBtn.dataset.internalRecBtn = '1';
   recToggleBtn.innerHTML = `<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Iniciar Gravação 16:9'}</span>`;
@@ -1384,7 +1333,7 @@ function quickSettingsApp() {
       <button class="qs-tool" data-q-recenter>${icon('move')}<span>Redefinir visualização</span></button>
       <button class="qs-tool" data-q-night aria-pressed="false">${icon('sun')}<span>Modo noturno</span></button>
       <button class="qs-tool" data-q-dnd aria-pressed="false">${icon('moon')}<span>Não perturbe</span></button>
-      <button class="qs-tool" disabled title="Espelhamento do sistema não disponível nesta tela">${icon('cast')}<span>Espelhar</span></button>
+      <button class="qs-tool" data-q-internal-rec data-internal-rec-btn="1" aria-pressed="${internalRecState.active ? 'true' : 'false'}">${icon('camera')}<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Gravação Interna (1 Lente)'}</span></button>
       <button class="qs-tool" disabled>${icon('bug')}<span>Relatar problema</span></button>
       <button class="qs-tool" disabled>${icon('lock')}<span>Modo viagem</span></button>
       <button class="qs-tool" disabled>${icon('device')}<span>Remote Desktop</span></button>
@@ -1452,6 +1401,7 @@ function quickSettingsApp() {
     if(c('[data-q-recenter]')){recenter();return;}
     if(c('[data-q-night]')){prefs.night=!prefs.night;syncPrefs();savePrefs();return;}
     if(c('[data-q-dnd]')){prefs.dnd=!prefs.dnd;syncPrefs();savePrefs();return;}
+    if(c('[data-q-internal-rec]')){toggleInternalEyeRecording();return;}
     if(c('[data-q-mute]')){
       prefs.muted=!prefs.muted;
       if(prefs.muted){if(volume>0)prefs.lastVolume=volume;setRange('volume',0);}
@@ -1521,6 +1471,14 @@ const MR_PISTOL_ITEM = {
   bg: '#080a0f',
   imgUrl: './icons/shootthedie-logo.jpg',
   html: '<img class="lx-mr-pistol-logo" src="./icons/shootthedie-logo.jpg" alt="ShootTheDie" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
+  kind: 'app',
+};
+const HAND_DRAW_ITEM = {
+  id: 'hand-draw',
+  name: 'Desenho VR',
+  label: 'Desenho VR',
+  bg: 'linear-gradient(135deg,#ffffff,#e0f2fe)',
+  html: '<span style="font-size:28px;font-weight:900;color:#2563eb;display:grid;place-items:center;width:100%;height:100%;background:#ffffff;border-radius:14px">🎨</span>',
   kind: 'app',
 };
 const winBody = id => { const w = wins.find(x => x.id === id); return w ? w.el.querySelector('.win-body') : null; };
@@ -1694,9 +1652,371 @@ export function openBeatSaberVr() {
   return win;
 }
 
+/* ============ Jogo de Desenho VR com Hand Tracking em Tela Branca ============ */
+const HAND_DRAW_CHALLENGES = [
+  'Desenhe uma Casa 🏠',
+  'Desenhe um Sol ☀️',
+  'Desenhe uma Estrela ⭐',
+  'Desenhe um Carro 🚗',
+  'Desenhe um Gato 🐱',
+  'Desenhe um Foguete 🚀',
+  'Desenhe uma Árvore 🌳',
+  'Desenhe um Coração ❤️',
+  'Modo Livre 🎨',
+];
+const HAND_DRAW_COLORS = [
+  ['#111827', 'Preto'],
+  ['#ef4444', 'Vermelho'],
+  ['#2563eb', 'Azul'],
+  ['#16a34a', 'Verde'],
+  ['#eab308', 'Amarelo'],
+  ['#f97316', 'Laranja'],
+  ['#9333ea', 'Roxo'],
+  ['#ec4899', 'Rosa'],
+  ['#06b6d4', 'Ciano'],
+  ['#78350f', 'Marrom'],
+];
+
+export function openHandDrawGame() {
+  const existing = wins.find(w => w.id === 'hand-draw');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+
+  let currentColor = '#111827';
+  let currentSize = 8;
+  let currentTool = 'pen'; // 'pen' | 'neon' | 'eraser' | 'circle' | 'rect'
+  let handDrawMode = 'auto'; // 'auto' (indicador esticado ou pinça) | 'pinch' (só na pinça)
+  let challengeIdx = 0;
+  let completedCount = 0;
+  let strokeCount = 0;
+  const undoStack = [];
+
+  const body = el('div', 'hand-draw-game');
+  body.dataset.handDrawGame = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#f8fafc;display:flex;flex-direction:column;overflow:hidden;user-select:none;font-family:Inter,system-ui,sans-serif;';
+
+  body.innerHTML = `
+    <div class="hd-toolbar" data-hd-toolbar style="display:flex;flex-direction:column;gap:6px;padding:8px 12px;background:#0f172a;color:#f8fafc;border-bottom:2px solid #cbd5e1;z-index:3">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:900;color:#38bdf8;letter-spacing:.03em">🎨 DESENHO VR · TELA BRANCA</span>
+          <span data-hd-challenge style="padding:3px 10px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:#e0f2fe;font-size:11px;font-weight:800">Desafio: ${HAND_DRAW_CHALLENGES[0]}</span>
+          <button type="button" data-hd-next-challenge style="padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">🎲 Sortear Desafio</button>
+          <button type="button" data-hd-done style="padding:3px 9px;border-radius:999px;border:1px solid rgba(74,222,128,.45);background:rgba(22,163,74,.25);color:#86efac;font-size:10.5px;font-weight:800;cursor:pointer">✓ Concluir (<b data-hd-score>0</b>)</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button type="button" data-hd-hand-mode="auto" style="padding:4px 9px;border-radius:7px;border:1px solid rgba(56,189,248,.5);background:#1d4ed8;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">🖐 Hand: Indicador / Pinça</button>
+          <button type="button" data-hd-undo style="padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">↩ Desfazer</button>
+          <button type="button" data-hd-clear style="padding:4px 9px;border-radius:7px;border:1px solid rgba(248,113,113,.45);background:rgba(185,28,28,.28);color:#fecaca;font-size:10.5px;font-weight:800;cursor:pointer">🗑 Limpar Tela Branca</button>
+          <button type="button" data-hd-exit style="padding:4px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.28);background:#334155;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">✕ Sair</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap" data-hd-palette>
+          ${HAND_DRAW_COLORS.map(([hex, name], i) => `
+            <button type="button" data-hd-color="${hex}" title="${name}" aria-label="${name}"
+              style="width:24px;height:24px;border-radius:50%;background:${hex};border:${i === 0 ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)'};cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.4)"></button>
+          `).join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+          <button type="button" data-hd-tool="pen" class="on" style="padding:3px 8px;border-radius:6px;border:1px solid #38bdf8;background:#2563eb;color:#fff;font-size:10px;font-weight:800;cursor:pointer">✏️ Pincel</button>
+          <button type="button" data-hd-tool="neon" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">✨ Neon</button>
+          <button type="button" data-hd-tool="eraser" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">🧽 Borracha</button>
+          <button type="button" data-hd-tool="circle" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">⭕ Círculo</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          ${[[4, 'Fino'], [8, 'Médio'], [16, 'Grosso'], [28, 'Super']].map(([sz, lbl]) => `
+            <button type="button" data-hd-size="${sz}" class="${sz === 8 ? 'on' : ''}"
+              style="padding:3px 7px;border-radius:6px;border:1px solid ${sz === 8 ? '#38bdf8' : 'rgba(255,255,255,.24)'};background:${sz === 8 ? '#2563eb' : '#1e293b'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">${lbl}</button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="hd-stage" style="position:relative;flex:1;min-height:0;width:100%;background:#ffffff;overflow:hidden;touch-action:none">
+      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1020" height="530"
+        style="width:100%;height:100%;display:block;background:#ffffff;cursor:crosshair"></canvas>
+      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1020" height="530"
+        style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
+      <div data-hd-status style="position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:999px;background:rgba(15,23,42,.78);color:#f8fafc;font-size:10.5px;font-weight:700;pointer-events:none">
+        Aponte o dedo indicador ou faça pinça para desenhar na tela branca · Traços: <b data-hd-strokes>0</b>
+      </div>
+    </div>
+  `;
+
+  const canvas = body.querySelector('[data-hand-draw-canvas]');
+  const overlay = body.querySelector('[data-hand-draw-overlay]');
+  const ctx = canvas.getContext('2d');
+  const octx = overlay.getContext('2d');
+  const strokesEl = body.querySelector('[data-hd-strokes]');
+  const challengeEl = body.querySelector('[data-hd-challenge]');
+  const scoreEl = body.querySelector('[data-hd-score]');
+  const handModeBtn = body.querySelector('[data-hd-hand-mode]');
+
+  const fillWhite = () => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
+  const saveSnapshot = () => {
+    try {
+      if (undoStack.length >= 20) undoStack.shift();
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    } catch {}
+  };
+  fillWhite();
+  saveSnapshot();
+
+  const applySegment = (x0, y0, x1, y1, color = currentColor, size = currentSize, tool = currentTool) => {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (tool === 'eraser') {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = size * 2.2;
+    } else if (tool === 'neon') {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = size * 1.8;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+    } else {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+    }
+    if (tool === 'circle') {
+      const r = Math.max(6, Math.hypot(x1 - x0, y1 - y0));
+      ctx.beginPath();
+      ctx.arc(x1, y1, r, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const toCanvasCoords = (clientX, clientY) => {
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(1, r.width || canvas.width);
+    const h = Math.max(1, r.height || canvas.height);
+    return {
+      x: Math.max(0, Math.min(canvas.width, ((clientX - r.left) / w) * canvas.width)),
+      y: Math.max(0, Math.min(canvas.height, ((clientY - r.top) / h) * canvas.height)),
+    };
+  };
+
+  let pointerDrawing = false;
+  let lastPt = null;
+  canvas.addEventListener('pointerdown', e => {
+    saveSnapshot();
+    pointerDrawing = true;
+    const pt = toCanvasCoords(e.clientX, e.clientY);
+    lastPt = pt;
+    applySegment(pt.x, pt.y, pt.x + 0.1, pt.y + 0.1);
+    strokeCount++;
+    if (strokesEl) strokesEl.textContent = String(strokeCount);
+    css3d.invalidate?.();
+  });
+  canvas.addEventListener('pointermove', e => {
+    const pt = toCanvasCoords(e.clientX, e.clientY);
+    if (!pointerDrawing || !lastPt) return;
+    applySegment(lastPt.x, lastPt.y, pt.x, pt.y);
+    lastPt = pt;
+    css3d.invalidate?.();
+  });
+  const finishPointerDraw = () => {
+    pointerDrawing = false;
+    lastPt = null;
+  };
+  canvas.addEventListener('pointerup', finishPointerDraw);
+  canvas.addEventListener('pointercancel', finishPointerDraw);
+
+  // Rastreamento direto de Hand Tracking (0 Delay): desenha apontando o indicador ou fazendo pinça!
+  const handLast = new Map();
+  let animId = 0;
+  const isIndexPointing = pts => {
+    if (!pts || pts.length < 63) return false;
+    const wx = pts[0], wy = pts[1];
+    const dIndex = Math.hypot(pts[24] - wx, pts[25] - wy);
+    const dPip = Math.hypot(pts[18] - wx, pts[19] - wy);
+    const dMid = Math.hypot(pts[36] - wx, pts[37] - wy);
+    const dRing = Math.hypot(pts[48] - wx, pts[49] - wy);
+    return dIndex > dPip * 1.16 && dIndex > Math.min(dMid, dRing) * 1.05;
+  };
+
+  const tickHandDraw = () => {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    let dirty = false;
+    const activeIds = new Set();
+    for (const h of hands) {
+      const id = h.id || (h.left ? 'left' : 'right');
+      activeIds.add(id);
+      let nx = 0.5, ny = 0.5;
+      if (h.points && h.points.length >= 26) {
+        if (h.pinching && h.points.length >= 14) {
+          nx = (h.points[12] + h.points[24]) * 0.5;
+          ny = (h.points[13] + h.points[25]) * 0.5;
+        } else {
+          nx = h.points[24];
+          ny = h.points[25];
+        }
+      } else if (Array.isArray(h.aim)) {
+        const sp = screenPoint(h.aim);
+        nx = sp.x; ny = sp.y;
+      }
+      const cx = Math.max(0, Math.min(canvas.width, nx * canvas.width));
+      const cy = Math.max(0, Math.min(canvas.height, ny * canvas.height));
+      const drawingNow = !h.fist && (h.pinching || (handDrawMode === 'auto' && isIndexPointing(h.points)));
+
+      // Desenha o anel guia da ponta do dedo na tela branca
+      octx.save();
+      octx.beginPath();
+      octx.arc(cx, cy, Math.max(6, currentSize * 0.75), 0, Math.PI * 2);
+      octx.strokeStyle = drawingNow ? currentColor : '#2563eb';
+      octx.lineWidth = drawingNow ? 3 : 2;
+      octx.stroke();
+      if (drawingNow) {
+        octx.fillStyle = currentTool === 'eraser' ? '#94a3b8' : currentColor;
+        octx.globalAlpha = 0.35;
+        octx.fill();
+      }
+      octx.restore();
+
+      const prev = handLast.get(id);
+      if (drawingNow) {
+        if (!prev) {
+          saveSnapshot();
+          applySegment(cx, cy, cx + 0.1, cy + 0.1);
+          strokeCount++;
+          if (strokesEl) strokesEl.textContent = String(strokeCount);
+        } else {
+          const mx = (prev.x + cx) * 0.5;
+          const my = (prev.y + cy) * 0.5;
+          applySegment(prev.x, prev.y, mx, my);
+          applySegment(mx, my, cx, cy);
+        }
+        handLast.set(id, { x: cx, y: cy });
+        dirty = true;
+      } else {
+        handLast.delete(id);
+      }
+    }
+    for (const k of [...handLast.keys()]) {
+      if (!activeIds.has(k)) handLast.delete(k);
+    }
+    if (dirty || hands.length > 0) css3d.invalidate?.();
+    animId = requestAnimationFrame(tickHandDraw);
+  };
+  animId = requestAnimationFrame(tickHandDraw);
+
+  body.querySelectorAll('[data-hd-color]').forEach(btn => {
+    btn.onclick = () => {
+      currentColor = btn.dataset.hdColor || '#111827';
+      if (currentTool === 'eraser') currentTool = 'pen';
+      body.querySelectorAll('[data-hd-color]').forEach(b => {
+        b.style.border = b === btn ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  body.querySelectorAll('[data-hd-tool]').forEach(btn => {
+    btn.onclick = () => {
+      currentTool = btn.dataset.hdTool || 'pen';
+      body.querySelectorAll('[data-hd-tool]').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('on', on);
+        b.style.background = on ? '#2563eb' : '#1e293b';
+        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  body.querySelectorAll('[data-hd-size]').forEach(btn => {
+    btn.onclick = () => {
+      currentSize = Number(btn.dataset.hdSize) || 8;
+      body.querySelectorAll('[data-hd-size]').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('on', on);
+        b.style.background = on ? '#2563eb' : '#1e293b';
+        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  if (handModeBtn) {
+    handModeBtn.onclick = () => {
+      handDrawMode = handDrawMode === 'auto' ? 'pinch' : 'auto';
+      handModeBtn.dataset.hdHandMode = handDrawMode;
+      handModeBtn.textContent = handDrawMode === 'auto' ? '🖐 Hand: Indicador / Pinça' : '🤏 Hand: Só na Pinça';
+      css3d.invalidate?.();
+    };
+  }
+  body.querySelector('[data-hd-next-challenge]')?.addEventListener('click', () => {
+    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
+    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-done]')?.addEventListener('click', () => {
+    completedCount++;
+    if (scoreEl) scoreEl.textContent = String(completedCount);
+    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
+    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
+    toast(`Arte #${completedCount} concluída! Próximo desafio!`);
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-undo]')?.addEventListener('click', () => {
+    if (undoStack.length > 0) {
+      const prevImg = undoStack.pop();
+      try { ctx.putImageData(prevImg, 0, 0); } catch {}
+    } else {
+      fillWhite();
+    }
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-clear]')?.addEventListener('click', () => {
+    saveSnapshot();
+    fillWhite();
+    strokeCount = 0;
+    if (strokesEl) strokesEl.textContent = '0';
+    css3d.invalidate?.();
+  });
+
+  const win = open({ id: 'hand-draw', title: 'Desenho VR · Tela Branca', node: body, w: 1020, h: 640 });
+  if (win?.shell) win.shell.dataset.handDrawVr = '1';
+  if (win?.el) win.el.dataset.handDrawVr = '1';
+  body.querySelector('[data-hd-exit]')?.addEventListener('click', () => {
+    cancelAnimationFrame(animId);
+    close(win);
+  });
+  window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = currentColor, size = currentSize) => {
+    saveSnapshot();
+    applySegment(x0, y0, x1, y1, color, size, 'pen');
+    strokeCount++;
+    if (strokesEl) strokesEl.textContent = String(strokeCount);
+    css3d.invalidate?.();
+    return strokeCount;
+  };
+  touchLib('hand-draw', true);
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
 if (typeof window !== 'undefined') {
   window.nextvrOpenRobloxVr = openRobloxVr;
   window.nextvrOpenBeatSaberVr = openBeatSaberVr;
+  window.nextvrOpenHandDrawGame = openHandDrawGame;
 }
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
@@ -1719,6 +2039,7 @@ const LIB_ACTIONS = {
   spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
   vrfs:     () => openVrfsGame(),
   'mr-pistol': () => openMrPistolGame(),
+  'hand-draw': () => openHandDrawGame(),
   'gorilla-tag': () => openGorillaTag(),
   'beat-vr': () => openBeatSaberVr(),
   'roblox-vr': () => openRobloxVr(),
@@ -1734,6 +2055,7 @@ const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
+  { id: 'hand-draw', name: 'Desenho VR · Tela Branca', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#38bdf8)', textLogo: '🎨' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
@@ -2167,6 +2489,7 @@ const SPATIAL_CORE_APPS = [
 
 const SPATIAL_GAME_ITEMS = [
   { id:'mr-pistol',   name:'ShootTheDie',    bg:'#080a0f', imgUrl:'./icons/shootthedie-logo.jpg', isGame:true },
+  { id:'hand-draw',   name:'Desenho VR',     bg:'linear-gradient(145deg,#2563eb,#0ea5e9)', icon:'edit3', isGame:true },
   { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
   { id:'vrfs',        name:'VRFS Futebol VR', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', isGame:true },
   { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
@@ -2474,6 +2797,7 @@ function buildSpatialLauncherDom() {
       if (id === 'gorilla-tag') { openGorillaTag(); return; }
       if (id === 'vrfs') { openVrfsGame(); return; }
       if (id === 'mr-pistol') { openMrPistolGame(); return; }
+      if (id === 'hand-draw') { openHandDrawGame(); return; }
       if (id === 'beat-vr') { openBeatSaberVr(); return; }
       if (id === 'roblox-vr' || id === 'roblox') { openRobloxVr(); return; }
       if (bBuiltin.dataset.spatialUrl) {

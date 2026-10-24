@@ -27,10 +27,11 @@ const dockAt = { y: EYE - .6, z: -1.7, h: .12 };
  * ESCOLHER lugares (nascimento de janela e ajuste de slot do arco) — nunca para empurrar uma
  * janela que o usuário posicionou à mão.
  */
-function occupiedBoxes(except = null) {
+function occupiedBoxes(except = null, excludePinned = false) {
   const boxes = [];
   for (const w of wins) {
     if (w === except || w.hidden || w.onboarding) continue;
+    if (excludePinned && w.pinned) continue;
     boxes.push(boxOfWindow(w));
   }
   // A malha de hit nasce 1x1 m: só entra na conta quando a dock/teclado já têm tamanho medido.
@@ -398,8 +399,10 @@ function layout() {
   // sobrepunham. O passo é limitado pelo yaw alcançável do workspace, então com janelas grandes a
   // folga é a que couber; o arco do preview (mouse) mantém o passo próprio, menor.
   const widest = Math.max(...pin.map(w => w.w * w.resizeScale)) * PX * S.winScale;
-  const step = native ? arcStep({ width: widest, dist, gap: .5, outerLimit: WINDOW_LIMITS.maxYaw - .06 })
-    : Math.min(.78, Math.max(.52, .5 + n * .05));
+  const minCleanStep = windowAngle(widest, dist) * 1.06;
+  const arcOuter = Math.max(WINDOW_LIMITS.maxYaw - .04, minCleanStep);
+  const step = native ? Math.max(minCleanStep, arcStep({ width: widest, dist, gap: .18, outerLimit: arcOuter }))
+    : Math.max(minCleanStep, Math.min(.92, Math.max(.56, .52 + n * .05)));
 
   arcSlots(n, step).forEach(({ angle, row }, i) => {
     const w = pin[i];
@@ -412,6 +415,7 @@ function layout() {
     const y = row === 0 ? lift
       : Math.min(lift + hh * 2 * (ARC_TOP_ROW_STEP - 1) + hh, EYE + WINDOW_LIMITS.upperEdgeFromEye - hh);
     w.target.set(x, y, z);
+    w.apply();
   });
 
   if (!native) return;
@@ -426,8 +430,8 @@ function layout() {
     const halfH = w.h * PX * S.winScale * w.resizeScale / 2;
     const spot = resolveSlot({
       desired: { x: w.target.x, y: w.target.y, z: w.target.z },
-      occupied: occupiedBoxes(w), eye: EYE, step: resolveStep, distance: dist,
-      halfWidth: halfW, halfHeight: halfH, outerLimit: WINDOW_LIMITS.maxYaw - .06, maxShift: 4,
+      occupied: occupiedBoxes(w, true), eye: EYE, step: resolveStep, distance: dist,
+      halfWidth: halfW, halfHeight: halfH, outerLimit: arcOuter, maxShift: 4,
     });
     w.target.set(spot.x, spot.y, spot.z);
     w.apply();
@@ -575,10 +579,11 @@ let dragSnapReady = false;
 
 function computePredefinedSlots(w) {
   const dist = native ? S.winDist : (-dockAt.z) + .5 + (S.winDist - 2.2);
+  const wWidth = w.w * PX * S.winScale * w.resizeScale;
   const hh = w.h * PX * S.winScale * w.resizeScale;
   const lift = dockAt.y + dockAt.h / 2 + .14 + hh / 2;
   const baseYaw = dockYaw || 0;
-  const step = 0.56;
+  const step = Math.max(0.96, windowAngle(wWidth, dist) * 1.08);
   return [0, -step, step].map(offset => {
     const a = baseYaw + offset;
     return new THREE.Vector3(Math.sin(a) * dist, lift, -Math.cos(a) * dist);

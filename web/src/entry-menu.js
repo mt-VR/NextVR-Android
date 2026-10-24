@@ -61,6 +61,7 @@ const SVG_TIKTOK_VERIFIED = `
 
 const MENU_STORE_APPS = [
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'MR · G18 & Alvos 3D · 4.9 ★', bg: '#080a0f', img: './icons/shootthedie-logo.jpg' },
+  { id: 'hand-draw', name: 'Desenho VR · Tela Branca', cat: 'Desenhar com Hand Tracking · 4.9 ★', bg: '#2563eb' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'Chuteiras VR · Bola 3D · 4.9 ★', bg: '#052e16', img: './icons/vrfs-logo.jpg' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
@@ -180,6 +181,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   if (fullscreen) root.dataset.entryFullscreen = '1';
 
   let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'loading'
+  let activeSettingsTab = 1; // 1 | 2 (Aba 1 e Aba 2 das configurações do menu inicial 2D, com arrasto pro lado)
   let countdownSec = 6;
   let loadingPct = 0;
   let countdownTimer = null;
@@ -447,88 +449,118 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     const curLang = S.lang || 'pt';
     const vol = Number.isFinite(S.mediaVolume) ? S.mediaVolume : 70;
     const bri = Number.isFinite(S.brightness) ? S.brightness : 75;
+    const shMode = S.singleHandMode || 'both';
     return `
       <div class="entry-subpanel entry-subpanel--settings" data-entry-panel="settings">
         <div class="entry-subpanel-head">
-          <h2 class="entry-subpanel-title">${emT('basicSettings')}</h2>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 class="entry-subpanel-title">${emT('basicSettings')}</h2>
+            <div class="entry-settings-tabs" role="tablist" aria-label="Abas de configurações">
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 1 ? 'on' : ''}" data-entry-settings-tab="1">Aba 1 · Básico</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Hand &amp; Tela ↔</button>
+            </div>
+          </div>
           <div class="entry-subpanel-actions">
             <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">${emT('back')}</button>
             <button type="button" class="entry-btn entry-btn--primary" data-entry-act="start">${emT('startVr')}</button>
           </div>
         </div>
-        <div class="entry-bento-grid">
-          <div class="entry-bento-cell entry-bento-cell--idioma">
-            <div class="entry-bento-title">${emT('langCell')}</div>
-            <div class="entry-seg-row entry-seg-row--compact">
-              <button type="button" class="entry-seg-btn ${curLang === 'pt' ? 'on' : ''}" data-entry-lang="pt">PT</button>
-              <button type="button" class="entry-seg-btn ${curLang === 'en' ? 'on' : ''}" data-entry-lang="en">EN</button>
-              <button type="button" class="entry-seg-btn ${curLang === 'es' ? 'on' : ''}" data-entry-lang="es">ES</button>
-              <button type="button" class="entry-seg-btn ${curLang === 'ja' ? 'on' : ''}" data-entry-lang="ja">JA</button>
-              <button type="button" class="entry-seg-btn ${curLang === 'ru' ? 'on' : ''}" data-entry-lang="ru">RU</button>
-              <button type="button" class="entry-seg-btn ${curLang === 'de' ? 'on' : ''}" data-entry-lang="de">DE</button>
+        <div class="entry-settings-carousel" data-entry-settings-carousel="1" data-menu-hscroll="1">
+          <div class="entry-bento-grid entry-settings-page" data-entry-settings-page="1">
+            <div class="entry-bento-cell entry-bento-cell--idioma">
+              <div class="entry-bento-title">${emT('langCell')}</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${curLang === 'pt' ? 'on' : ''}" data-entry-lang="pt">PT</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'en' ? 'on' : ''}" data-entry-lang="en">EN</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'es' ? 'on' : ''}" data-entry-lang="es">ES</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'ja' ? 'on' : ''}" data-entry-lang="ja">JA</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'ru' ? 'on' : ''}" data-entry-lang="ru">RU</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'de' ? 'on' : ''}" data-entry-lang="de">DE</button>
+              </div>
+            </div>
+
+            <div class="entry-bento-cell entry-bento-cell--spatial">
+              <div class="entry-bento-title">${emT('spatialCell')}</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${spatialMode ? 'on' : ''}" data-entry-spatial="1">${emT('on')}</button>
+                <button type="button" class="entry-seg-btn ${!spatialMode ? 'on' : ''}" data-entry-spatial="0">${emT('dock')}</button>
+                <button type="button" class="entry-seg-btn ${dockSnapOn ? 'on' : ''}" data-entry-dock-snap="${dockSnapOn ? '1' : '0'}" title="Espaço pré-definido ao mover janelas na Dock normal">${dockSnapOn ? emT('dockSnapOn') : emT('dockSnapOff')}</button>
+              </div>
+            </div>
+
+            <div class="entry-bento-cell entry-bento-cell--qualidade">
+              <div class="entry-bento-title">${emT('qualityCell')}</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                ${qualities.map(q => `<button type="button" class="entry-seg-btn ${activeQuality === q.id ? 'on' : ''}" data-entry-quality="${q.id}">${q.label}</button>`).join('')}
+              </div>
+            </div>
+
+            <div class="entry-bento-cell entry-bento-cell--ocular">
+              <div class="entry-bento-title">${emT('ocularCell')} · 3DoF / 6DoF</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">0.5x</button>
+                <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">1.0x</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="Modo 3DoF (rotação de cabeça)">3DoF</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="Modo 6DoF Falso (andar no espaço)">6DoF</button>
+              </div>
+            </div>
+
+            <div class="entry-bento-cell entry-bento-cell--volume">
+              <div class="entry-bento-slider-head">
+                <span class="entry-bento-big">${emT('volumeCell')}</span>
+                <span class="entry-bento-val" data-vol-val>${vol}%</span>
+              </div>
+              <input type="range" min="0" max="100" value="${vol}" class="entry-slider" data-entry-volume />
+            </div>
+
+            <div class="entry-bento-cell entry-bento-cell--brilho">
+              <div class="entry-bento-slider-head">
+                <span class="entry-bento-big">${emT('brightnessCell')}</span>
+                <span class="entry-bento-val" data-bri-val>${bri}%</span>
+              </div>
+              <input type="range" min="10" max="100" value="${bri}" class="entry-slider" data-entry-brightness />
             </div>
           </div>
 
-          <div class="entry-bento-cell entry-bento-cell--spatial">
-            <div class="entry-bento-title">${emT('spatialCell')} · Cor da Dock</div>
-            <div class="entry-seg-row entry-seg-row--compact">
-              <button type="button" class="entry-seg-btn ${spatialMode ? 'on' : ''}" data-entry-spatial="1">${emT('on')}</button>
-              <button type="button" class="entry-seg-btn ${!spatialMode ? 'on' : ''}" data-entry-spatial="0">${emT('dock')}</button>
-              <button type="button" class="entry-seg-btn ${dockSnapOn ? 'on' : ''}" data-entry-dock-snap="${dockSnapOn ? '1' : '0'}" title="Espaço pré-definido ao mover janelas na Dock normal">${dockSnapOn ? emT('dockSnapOn') : emT('dockSnapOff')}</button>
+          <div class="entry-bento-grid entry-bento-grid--tab2 entry-settings-page" data-entry-settings-page="2">
+            <div class="entry-bento-cell entry-bento-cell--singlehand">
+              <div class="entry-bento-title">HAND TRACKING EM 1 MÃO SÓ (0 DELAY)</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+                <button type="button" class="entry-seg-btn ${shMode === 'both' ? 'on' : ''}" data-entry-single-hand-set="both">2 Mãos (Ambas)</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'right' ? 'on' : ''}" data-entry-single-hand-set="right">Só Mão Direita</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'left' ? 'on' : ''}" data-entry-single-hand-set="left">Só Mão Esquerda</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'one' ? 'on' : ''}" data-entry-single-hand="${shMode}" data-entry-single-hand-set="one">1 Mão Automática</button>
+              </div>
             </div>
-            <div class="entry-seg-row entry-seg-row--compact" style="margin-top:6px;flex-wrap:wrap;gap:4px">
-              ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']].map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
-            </div>
-          </div>
 
-          <div class="entry-bento-cell entry-bento-cell--qualidade">
-            <div class="entry-bento-title">${emT('qualityCell')}</div>
-            <div class="entry-seg-row entry-seg-row--compact">
-              ${qualities.map(q => `<button type="button" class="entry-seg-btn ${activeQuality === q.id ? 'on' : ''}" data-entry-quality="${q.id}">${q.label}</button>`).join('')}
+            <div class="entry-bento-cell entry-bento-cell--hand">
+              <div class="entry-bento-title">${emT('handCell')} &amp; GESTOS</div>
+              <div class="entry-hand-col">
+                <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
+                <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
+                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
+                <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
+              </div>
             </div>
-          </div>
 
-          <div class="entry-bento-cell entry-bento-cell--ocular">
-            <div class="entry-bento-title">${emT('ocularCell')} · 3DoF / 6DoF</div>
-            <div class="entry-seg-row entry-seg-row--compact">
-              <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">0.5x</button>
-              <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">1.0x</button>
-              <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="Modo 3DoF (rotação de cabeça)">3DoF</button>
-              <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="Modo 6DoF Falso (andar no espaço)">6DoF</button>
+            <div class="entry-bento-cell entry-bento-cell--dockcolor">
+              <div class="entry-bento-title">COR DA DOCK &amp; MULTITAREFA</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:5px">
+                ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']].map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
+              </div>
+              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:8px;flex-wrap:wrap;gap:5px">
+                <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela Perto Sobre / Trás Embaixo: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
+                <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
+              </div>
             </div>
-          </div>
 
-          <div class="entry-bento-cell entry-bento-cell--volume">
-            <div class="entry-bento-slider-head">
-              <span class="entry-bento-big">${emT('volumeCell')}</span>
-              <span class="entry-bento-val" data-vol-val>${vol}%</span>
-            </div>
-            <input type="range" min="0" max="100" value="${vol}" class="entry-slider" data-entry-volume />
-          </div>
-
-          <div class="entry-bento-cell entry-bento-cell--brilho">
-            <div class="entry-bento-slider-head">
-              <span class="entry-bento-big">${emT('brightnessCell')}</span>
-              <span class="entry-bento-val" data-bri-val>${bri}%</span>
-            </div>
-            <input type="range" min="10" max="100" value="${bri}" class="entry-slider" data-entry-brightness />
-          </div>
-
-          <div class="entry-bento-cell entry-bento-cell--hand">
-            <div class="entry-bento-title">${emT('handCell')} · Arraste pro lado ↔</div>
-            <div class="entry-hand-col" data-menu-hscroll="1">
-              <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
-              <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
-              <button type="button" class="entry-seg-btn ${(S.singleHandMode || 'both') !== 'both' ? 'on' : ''}" data-entry-single-hand="${S.singleHandMode || 'both'}" title="Usar Hand Tracking em apenas uma mão ou ambas as mãos">Hand 1 Mão: ${(S.singleHandMode || 'both') === 'right' ? 'Só Direita' : (S.singleHandMode || 'both') === 'left' ? 'Só Esquerda' : (S.singleHandMode || 'both') === 'one' ? '1 Mão Auto' : '2 Mãos (Ambas)'}</button>
-              <button type="button" class="entry-seg-btn" data-entry-internal-rec="1" data-internal-rec-btn="1" title="Gravação Interna de 1 Lente em Tela Cheia mantendo as 2 lentes ativas no celular"><span data-internal-rec-sub>Gravação Interna (1 Lente Tela Cheia)</span></button>
-              <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
-              <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
-              <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
-              <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela Perto Sobre / Trás Embaixo: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
-              <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
-              <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
-              <div class="entry-hand-env-title">${emT('envTitle')}</div>
-              ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
+            <div class="entry-bento-cell entry-bento-cell--env">
+              <div class="entry-bento-title">${emT('envTitle')}</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+                ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
+              </div>
             </div>
           </div>
         </div>
@@ -1048,7 +1080,52 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
-    root.querySelectorAll('[data-entry-single-hand]').forEach(btn => {
+    const settingsCarousel = root.querySelector('[data-entry-settings-carousel]');
+    if (settingsCarousel) {
+      requestAnimationFrame(() => {
+        if (activeSettingsTab === 2 && settingsCarousel.clientWidth > 0) {
+          settingsCarousel.scrollLeft = settingsCarousel.clientWidth;
+        }
+      });
+      settingsCarousel.addEventListener('scroll', () => {
+        if (settingsCarousel.clientWidth <= 0) return;
+        const tab = settingsCarousel.scrollLeft > settingsCarousel.clientWidth * 0.45 ? 2 : 1;
+        if (tab !== activeSettingsTab) {
+          activeSettingsTab = tab;
+          root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
+            b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
+          });
+        }
+      }, { passive: true });
+    }
+    root.querySelectorAll('[data-entry-settings-tab]').forEach(btn => {
+      btn.onclick = () => {
+        const nextTab = Number(btn.dataset.entrySettingsTab) === 2 ? 2 : 1;
+        activeSettingsTab = nextTab;
+        root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
+          b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
+        });
+        if (settingsCarousel) {
+          const targetX = activeSettingsTab === 2 ? Math.max(320, settingsCarousel.clientWidth) : 0;
+          if (typeof settingsCarousel.scrollTo === 'function') {
+            settingsCarousel.scrollTo({ left: targetX, behavior: 'smooth' });
+          } else {
+            settingsCarousel.scrollLeft = targetX;
+          }
+        }
+      };
+    });
+    root.querySelectorAll('[data-entry-single-hand-set]').forEach(btn => {
+      btn.onclick = () => {
+        const next = btn.dataset.entrySingleHandSet || 'both';
+        S.singleHandMode = next;
+        save(S);
+        window.NativeXR?.setSingleHandMode?.(next);
+        window.nextvrSetSingleHandMode?.(next);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-single-hand]:not([data-entry-single-hand-set])').forEach(btn => {
       btn.onclick = () => {
         const order = ['both', 'right', 'left', 'one'];
         const cur = S.singleHandMode || 'both';
@@ -1058,11 +1135,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         window.NativeXR?.setSingleHandMode?.(next);
         window.nextvrSetSingleHandMode?.(next);
         paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-internal-rec]').forEach(btn => {
-      btn.onclick = () => {
-        window.nextvrToggleInternalRecording?.();
       };
     });
     root.querySelectorAll('[data-entry-wide-cam]').forEach(btn => {
