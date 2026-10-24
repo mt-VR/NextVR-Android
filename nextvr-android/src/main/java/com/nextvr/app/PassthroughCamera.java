@@ -329,15 +329,7 @@ final class PassthroughCamera {
                                     }
                                     activeRequestBuilder=request;
                                     session.setRepeatingRequest(request.build(),afCallback,handler);
-                                    handler.postDelayed(()->{
-                                        if(token==generation && !destroyed && sessionFrames==0 && openRetries<3) {
-                                            android.util.Log.w("NextVR-Camera","Watchdog: 0 frames after 1500ms, reopening camera");
-                                            openRetries++;
-                                            pendingOpen=true;
-                                            pendingDisplayRotation=displayRotation;
-                                            closeCameraResources();
-                                        }
-                                    },1500);
+                                    scheduleRuntimeWatchdog(token,displayRotation,0);
                                 }catch(Exception e){retryOrFail("Camera preview failed",e,displayRotation,token);}
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession failed){
@@ -367,6 +359,24 @@ final class PassthroughCamera {
             opening=false;
             retryOrFail("Cannot start passthrough",e,displayRotation,token);
         }
+    }
+    private void scheduleRuntimeWatchdog(int token,int displayRotation,int prevFrames) {
+        handler.postDelayed(()->{
+            if(token!=generation || destroyed) return;
+            if(session!=null && !opening && !closing && sessionFrames==prevFrames) {
+                android.util.Log.w("NextVR-Camera","Watchdog: camera stream stalled at "+sessionFrames+" frames, reopening camera");
+                if(sessionFrames>0) openRetries=0;
+                if(openRetries<4) {
+                    openRetries++;
+                    pendingOpen=true;
+                    pendingDisplayRotation=displayRotation;
+                    closeCameraResources();
+                }
+                return;
+            }
+            if(sessionFrames>prevFrames) openRetries=0;
+            scheduleRuntimeWatchdog(token,displayRotation,sessionFrames);
+        },prevFrames==0?1500L:2200L);
     }
     private void retryOrFail(String message,Throwable e,int displayRotation,int token) {
         if(token!=generation || destroyed) return;
@@ -420,7 +430,7 @@ final class PassthroughCamera {
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=(gameHandMode || !"both".equals(singleHandMode))?176:192;
+                    int maxAnalysisW=(gameHandMode || !"both".equals(singleHandMode))?160:160;
                     int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
                     int height=Math.max(1,width*outH/outW);
                     int analysisLen=width*height;

@@ -401,6 +401,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 return m
             }
             for ((handIndex, hand) in hands.withIndex()) {
+                if (mrGameMode && handIndex > 0) continue
                 val handPose = frame.hands.getOrNull(handIndex)
                 val pinching = handPose?.pinching == true
                 val handConfidence = (handPose?.confidence ?: 1f).coerceIn(0f, 1f)

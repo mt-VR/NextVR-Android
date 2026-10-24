@@ -1350,21 +1350,10 @@ function bootMrPistolEngine(container) {
       return;
     }
 
-    const leftH = trackedHands.find(h => h.id === 'left' || h.left === true);
-    const gunHand = trackedHands.find(h => h !== leftH && detectFingerGunGesture(h))
-      || trackedHands.find(h => detectFingerGunGesture(h));
-    const rightH = gunHand || trackedHands.find(h => h.id === 'right' || h.left === false) || (leftH ? null : trackedHands[0]);
-
-    // MÃO ESQUERDA: renderiza a Mão 3D (Luva Preta Fingerless + Dedos em Pele Realista), sem sair ao fechar a mão
-    if (leftH) {
-      const lp = leftH.palm || leftH.aim || [0.35, 0.55, 0];
-      const lDepth = Math.max(0.36, Math.min(0.68, 0.48 - (Number(lp[2]) || 0) * 0.22));
-      leftHandWorldPos.set((Number(lp[0]) - 0.5) * 0.82, (0.5 - Number(lp[1])) * 0.62 - 0.06, -lDepth)
-        .applyMatrix4(playerRig.matrixWorld);
-      update3DGlovePose(leftGlove3D, leftH, leftHandWorldPos, playerRig.quaternion);
-    } else {
-      leftGlove3D.gloveRoot.visible = false;
-    }
+    // Jogo com apenas 1 mão (segunda mão removida do ShootTheDie)
+    leftGlove3D.gloveRoot.visible = false;
+    const gunHand = trackedHands.find(h => detectFingerGunGesture(h));
+    const rightH = gunHand || trackedHands.find(h => h.id === 'right' || h.left === false) || trackedHands[0];
 
     // Verifica toque de qualquer mão no botão 3D de Reiniciar Alvos ou no botão 3D de Sair atrás
     const now = performance.now();

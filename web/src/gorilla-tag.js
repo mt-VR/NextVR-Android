@@ -14,10 +14,10 @@ export const CARDBOARD_2015_LENS = Object.freeze({
 
 const SPAWN_HINT = [0, 2, 7];
 const R_HEAD = 0.55;
-const R_HAND = 0.14;
-const MAXV = 11.4;
-const BOOST = 1.42;
-const ARM_LEN = 1.04;
+const R_HAND = 0.20;
+const MAXV = 11.8;
+const BOOST = 1.68;
+const ARM_LEN = 1.12;
 
 let active = false;
 let entering = false;
@@ -717,14 +717,14 @@ function applyHand(info, ori) {
     for (const k in info.ch) {
       const tgt = Math.max(0, Math.min(0.85, ori.c[k] ?? 0));
       info.ch[k].forEach(f => {
-        f.cur = f.cur * 0.72 + tgt * 0.28;
+        f.cur = f.cur * 0.32 + tgt * 0.68;
         f.b.quaternion.copy(f.bind).multiply(QPool().setFromAxisAngle(f.Al, f.cur * 0.95));
       });
     }
   } else {
     for (const k in info.ch) {
       info.ch[k].forEach(f => {
-        f.cur *= 0.85;
+        f.cur *= 0.65;
         f.b.quaternion.copy(f.bind).multiply(QPool().setFromAxisAngle(f.Al, f.cur * 1.15));
       });
     }
@@ -1006,6 +1006,39 @@ export function detectIsRightHand(th, lm) {
   return lm[9].x >= 0.5;
 }
 
+const handKinematics = [
+  { x: 0.32, y: 0.58, s: 0.12, vx: 0, vy: 0, vs: 0, t: 0 },
+  { x: 0.68, y: 0.58, s: 0.12, vx: 0, vy: 0, vs: 0, t: 0 },
+];
+
+function computeRobustHandScale(lm) {
+  const palmLen = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
+  const knuckleSpan = Math.hypot(lm[5].x - lm[17].x, lm[5].y - lm[17].y) * 1.18;
+  return Math.max(palmLen, knuckleSpan);
+}
+
+function recordGorillaHandSample(idx, lm, ori, now) {
+  const s = computeRobustHandScale(lm);
+  const cx = lm[9].x * 0.72 + lm[0].x * 0.28;
+  const cy = lm[9].y * 0.72 + lm[0].y * 0.28;
+  const hk = handKinematics[idx];
+  const dt = hk.t > 0 ? Math.max(0.008, Math.min(0.12, (now - hk.t) / 1000)) : 0.033;
+  if (hk.t > 0 && now - hk.t < 240) {
+    hk.vx = ((cx - hk.x) / dt) * 0.78 + hk.vx * 0.22;
+    hk.vy = ((cy - hk.y) / dt) * 0.78 + hk.vy * 0.22;
+    hk.vs = ((s - hk.s) / dt) * 0.65 + hk.vs * 0.35;
+  } else {
+    hk.vx = 0; hk.vy = 0; hk.vs = 0;
+  }
+  hk.x = cx; hk.y = cy; hk.s = s; hk.t = now;
+  gorillaJoycon.handX[idx] = cx;
+  gorillaJoycon.handY[idx] = cy;
+  gorillaJoycon.handS[idx] = s;
+  gorillaJoycon.ori[idx] = ori;
+  hands[idx] = { x: cx, y: cy, s, vx: hk.vx, vy: hk.vy, vs: hk.vs, ori, t: now, joyconLocked: true };
+  rawHands[idx] = lm;
+}
+
 function updateHandsFromNextVR(now) {
   rawHands[0] = null;
   rawHands[1] = null;
@@ -1029,28 +1062,16 @@ function updateHandsFromNextVR(now) {
     parsed.sort((a, b) => a.lm[9].x - b.lm[9].x);
     for (let idx = 0; idx < 2; idx++) {
       const { lm } = parsed[idx];
-      const s = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
       const ori = handInfo(lm, idx === 1);
-      gorillaJoycon.handX[idx] = lm[9].x;
-      gorillaJoycon.handY[idx] = lm[9].y;
-      gorillaJoycon.handS[idx] = s;
-      gorillaJoycon.ori[idx] = ori;
-      hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori, t: now, joyconLocked: true };
-      rawHands[idx] = lm;
+      recordGorillaHandSample(idx, lm, ori, now);
     }
   } else if (parsed.length === 1) {
     const { th, lm } = parsed[0];
     const isRight = detectIsRightHand(th, lm);
     const idx = isRight ? 1 : 0;
     const otherIdx = 1 - idx;
-    const s = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
     const ori = handInfo(lm, idx === 1);
-    gorillaJoycon.handX[idx] = lm[9].x;
-    gorillaJoycon.handY[idx] = lm[9].y;
-    gorillaJoycon.handS[idx] = s;
-    gorillaJoycon.ori[idx] = ori;
-    hands[idx] = { x: lm[9].x, y: lm[9].y, s, ori, t: now, joyconLocked: true };
-    rawHands[idx] = lm;
+    recordGorillaHandSample(idx, lm, ori, now);
     if (!gorillaJoycon.active) {
       // Limpa o outro braço apenas quando o modo Joy-Con não está ativo
       hands[otherIdx] = null;
@@ -1524,21 +1545,36 @@ function tick(now) {
     }
     trackFrames[i]++;
     const sp = a ? a.sp : V();
+    const ageSec = Math.max(0, Math.min(0.035, (now - (h.t || now)) / 1000));
+    const predX = Math.max(0.02, Math.min(0.98, h.x + (h.vx || 0) * ageSec * 0.65));
+    const predY = Math.max(0.02, Math.min(0.98, h.y + (h.vy || 0) * ageSec * 0.65));
+    const predS = Math.max(0.035, Math.min(0.45, h.s + (h.vs || 0) * ageSec * 0.45));
     const t = V();
     t.set(
-      (h.x - 0.5) * 1.65,
-      (0.5 - h.y) * 1.8 - 0.34,
-      -Math.min(0.95, Math.max(0.25, 0.09 / Math.max(h.s, 0.035)))
+      (predX - 0.5) * 1.78,
+      (0.5 - predY) * 1.92 - 0.32,
+      -Math.min(0.98, Math.max(0.22, 0.095 / Math.max(predS, 0.035)))
     );
     const off = V().copy(t).sub(sp);
-    if (off.length() > ARM_LEN * 0.97) {
-      t.copy(sp).addScaledVector(off.setLength(ARM_LEN * 0.97), 1);
+    if (off.length() > ARM_LEN * 0.98) {
+      t.copy(sp).addScaledVector(off.setLength(ARM_LEN * 0.98), 1);
     }
+    const prevLocalY = hlP[i] ? hlP[i].y : t.y;
+    const swingDy = t.y - prevLocalY;
     hl[i].copy(t);
     if (!hlP[i]) hlP[i] = new THREE.Vector3();
     hlP[i].copy(t);
     const desiredW = C.localToWorld(V().copy(t));
     const hit = trackFrames[i] >= 1 && sphereQ(desiredW.x, desiredW.y, desiredW.z, R_HAND);
+    // Impulso extra de remada rápida com as mãos para baixo no Gorilla Tag
+    if (!hit && swingDy < -0.024 && t.y < -0.22 && Math.abs(vel.y) < 3.5) {
+      const fwdPush = V().set(0, 0, -1).applyQuaternion(C.getWorldQuaternion(QPool()));
+      fwdPush.y = 0;
+      if (fwdPush.lengthSq() > 1e-4) fwdPush.normalize();
+      const swingBoost = Math.min(3.4, -swingDy * 32);
+      vel.addScaledVector(fwdPush, swingBoost);
+      vel.y = Math.max(vel.y, Math.min(2.8, -swingDy * 20));
+    }
     if (hit) {
       const cW = V().set(
         Q.x + Q.nx * R_HAND,

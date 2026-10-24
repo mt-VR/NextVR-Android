@@ -220,15 +220,26 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     entryDataSrc.includes('green-glove') &&
     appsSrc.includes('toggleInternalEyeRecording') &&
     appsSrc.includes('openHandDrawGame') &&
+    appsSrc.includes('paintdrawer') &&
+    appsSrc.includes('paintdrawer-logo.jpg') &&
+    appsSrc.includes('isStoreAppInstalled') &&
+    appsSrc.includes('installStoreApp') &&
+    appsSrc.includes('st-btn-obter') &&
+    appsSrc.includes('st-btn-abrir') &&
     appsSrc.includes('data-hand-draw-canvas') &&
     appsSrc.includes('YouTube Music') &&
     appsSrc.includes('Peacock TV') &&
     windowsSrc.includes('viaRay: true') &&
     windowsSrc.includes('occupiedBoxes(w, true)') &&
+    windowsSrc.includes('grabHandles') &&
+    windowsSrc.includes('win-grab-arc') &&
+    windowsSrc.includes('predictedHandScreenPoint') &&
+    !vrfsSrc.includes('data-vrfs-act="ball"') &&
+    handRendererKt.includes('if (mrGameMode && handIndex > 0) continue') &&
     activitySrc.includes('toggleInternalRecording') &&
     activitySrc.includes('setSingleHandMode') &&
     handRendererKt.includes('virtualEnv && !glove'),
-    'Build 62 includes InternalEyeRecorder in in-game settings, 2nd tab with horizontal drag in 2D initial menu, 100% smooth virtual environment hand without joints, 0-delay hand tracking, aligned multitasking with natural colors, and Hand-Tracking Drawing Game on a white screen'
+    'Build 63 includes paintdrawer logo, Apple Store Obter/Abrir download flow, single-hand ShootTheDie, zero-delay 2-hand tracking, invisible perimeter grab arc on floating windows, and VRFS without ball reset'
   );
 });
 
@@ -407,8 +418,26 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       'spatial-launcher window fits the native 1360x980 atlas cell and is published to NativeXR.frame');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.dock')).display), 'none', 'Spatial App mode hides the dock');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.win-shell[data-window-id="spatial-launcher"] .win-handle')).display), 'none', 'Spatial App has no white move bar');
-    assert.ok(await page.locator('.spatial-app-tile').count() >= 18, 'Spatial App renders the core squircle icons plus games inside the horizontally scrollable track');
-    assert.ok(await page.locator('.spatial-app-tile[data-spatial-game="1"]').count() >= 5, 'Spatial App includes games inside the launcher');
+    // Before downloading from the Store, only pre-installed items (Browser, Settings, Store, Environments) appear in Spatial App
+    assert.equal(await page.locator('.spatial-app-tile[data-spatial-builtin="browser"]').count(), 1, 'Browser comes pre-installed in Spatial App');
+    assert.equal(await page.locator('.spatial-app-tile[data-spatial-builtin="settings"]').count(), 1, 'Settings comes pre-installed in Spatial App');
+    assert.equal(await page.locator('.spatial-app-tile[data-spatial-builtin="youtube"]').count(), 0, 'Un-downloaded apps do not appear in Spatial App before Store download');
+    // Downloading apps in the Store makes them appear in both Spatial App and the normal Dock
+    await page.evaluate(() => {
+      for (const id of ['youtube', 'discord', 'tiktok', 'netflix', 'prime', 'whatsapp', 'instagram', 'facebook', 'spotify', 'twitch', 'telegram', 'x', 'gallery', 'shizuku', 'mr-pistol', 'hand-draw', 'gorilla-tag', 'vrfs', 'beat-vr', 'hyper-vr', 'roblox-vr']) {
+        window.nextvrInstallStoreApp?.(id, true);
+      }
+      // Keep gorilla-tag uninstalled for step 6d Store download test
+      const s = JSON.parse(localStorage.getItem('nextvr.v1') || '{}');
+      delete s.gorillaInstalled;
+      if (s.installedApps) delete s.installedApps['gorilla-tag'];
+      localStorage.setItem('nextvr.v1', JSON.stringify(s));
+    });
+    await page.evaluate(() => {
+      window.nextvrEnterWorkspace(JSON.stringify({ spatialLauncher: 1, wideCamera: 1, handDraw: 1, env: 'sunset', entryEnvChosen: 1 }));
+    });
+    assert.ok(await page.locator('.spatial-app-tile').count() >= 18, 'Spatial App renders the core squircle icons plus games once downloaded from the Store');
+    assert.ok(await page.locator('.spatial-app-tile[data-spatial-game="1"]').count() >= 5, 'Spatial App includes downloaded games inside the launcher');
     assert.equal(await page.locator('[data-spatial-scroll-track]').count(), 1, 'Spatial App uses a horizontally scrollable track');
     assert.equal(await page.locator('.spatial-hz-title').innerText(), 'Library', 'Spatial App displays the Horizon Library header');
     assert.equal(await page.locator('.spatial-hz-rail [data-spatial-nav]').count(), 5, 'Spatial App displays All, Apps, Worlds, Horizon+ and Downloads on the left rail');

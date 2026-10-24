@@ -53,9 +53,10 @@ export function screenPoint(tangent) {
  * tracking. Decisões de gesto (pinchdown/pinchup, hit-test de clique, input no DOM) usam SEMPRE
  * a detecção real, nunca a posição predita. */
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
-const CURSOR_PREDICT_MAX_SPEED = 3.0;   // unidades normalizadas/s — um movimento rápido de mão
-const CURSOR_PREDICT_MAX_STEP = .095;   // nunca extrapolar mais que isso por eixo
+const CURSOR_PREDICT_MAX_SPEED = 3.6;   // unidades normalizadas/s — um movimento rápido de mão
+const CURSOR_PREDICT_MAX_STEP = .11;    // nunca extrapolar mais que isso por eixo
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
+const _perHandCursorState = new Map();
 
 export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
@@ -65,6 +66,50 @@ export function predictedCursor(nowMs = performance.now()) {
   return { x: Math.min(1, Math.max(0, cursor.x + clamp(cursorVel.x * t))),
     y: Math.min(1, Math.max(0, cursor.y + clamp(cursorVel.y * t))) };
 }
+
+export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
+  if (!hand || !hand.aim) return { x: .5, y: .5 };
+  if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
+  const base = screenPoint(hand.aim);
+  const st = _perHandCursorState.get(hand.id);
+  if (!st) return base;
+  const age = nowMs - st.at;
+  if (!(age > 0) || age > CURSOR_PREDICT_MAX_MS) return base;
+  const t = age / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  return {
+    x: Math.min(1, Math.max(0, base.x + clamp(st.vx * t))),
+    y: Math.min(1, Math.max(0, base.y + clamp(st.vy * t))),
+  };
+}
+
+function updatePerHandVelocities(list, now, stampNs = 0) {
+  const seen = new Set();
+  const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
+  for (const h of list) {
+    if (!h || !h.id || !h.aim) continue;
+    seen.add(h.id);
+    const pt = screenPoint(h.aim);
+    const prev = _perHandCursorState.get(h.id);
+    if (prev) {
+      const gap = stampNs > 0 && prev.stampNs > 0 ? (stampNs - prev.stampNs) / 1e9
+        : (prev.at > 0 ? (now - prev.at) / 1000 : -1);
+      if (gap > .003 && gap < .3) {
+        prev.vx += (limit((pt.x - prev.x) / gap) - prev.vx) * .94;
+        prev.vy += (limit((pt.y - prev.y) / gap) - prev.vy) * .94;
+        if (Math.hypot(prev.vx, prev.vy) < .05) prev.vx = prev.vy = 0;
+      } else if (!(gap >= 0 && gap <= .003)) {
+        prev.vx = prev.vy = 0;
+      }
+      prev.x = pt.x; prev.y = pt.y; prev.at = now; prev.stampNs = stampNs > 0 ? stampNs : 0;
+    } else {
+      _perHandCursorState.set(h.id, { x: pt.x, y: pt.y, vx: 0, vy: 0, at: now, stampNs: stampNs > 0 ? stampNs : 0 });
+    }
+  }
+  for (const k of [..._perHandCursorState.keys()]) {
+    if (!seen.has(k)) _perHandCursorState.delete(k);
+  }
+}
+
 function updateCursorVelocity(point, now, stampNs = 0) {
   // Velocity on the CAPTURE timeline when the frame carries one (timestampNs): delivery gaps
   // jitter with the WebView drain cadence and made the same hand motion extrapolate differently
@@ -74,11 +119,11 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
     // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .92;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .92;
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .95;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .95;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
-    if (Math.hypot(cursorVel.x, cursorVel.y) < .06) cursorVel.x = cursorVel.y = 0;
+    if (Math.hypot(cursorVel.x, cursorVel.y) < .05) cursorVel.x = cursorVel.y = 0;
   } else if (!(gap >= 0 && gap <= .003)) {
     cursorVel.x = cursorVel.y = 0;   // mão parada, nova ou volta após lacuna: sem predição
   }
@@ -86,7 +131,7 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   cursorAt = now;
   cursorStampNs = stampNs > 0 ? stampNs : 0;
 }
-function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; }
+function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; _perHandCursorState.clear(); }
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   reportHandFrame();
@@ -106,6 +151,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
     incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
   }
   hands.splice(0,hands.length,...incomingHands);
+  updatePerHandVelocities(hands, now, Number(frame.timestampNs) || 0);
   emit('handframe',{...frame,hands});
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };

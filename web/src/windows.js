@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
-import { cursor, screenPoint, predictedCursor, cancelHandInput } from './hands.js';
+import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
@@ -166,10 +166,23 @@ class Win {
       snapWindowToSlot(this, slotBtn.dataset.predefinedSlot);
     });
 
-    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar);
+    // Arco invisível e barrinhas laterais invisíveis em volta da janela flutuante para segurar com pinça ou fechando a mão
+    const grabArc = document.createElement('div');
+    grabArc.className = 'win-grab-arc';
+    grabArc.dataset.winGrabArc = '1';
+    grabArc.hidden = onboarding;
+    grabArc.style.cssText = 'position:absolute;inset:-34px;border-radius:36px;pointer-events:none;opacity:0;';
+    grabArc.innerHTML = `
+      <span class="win-side-grab win-side-grab--left" data-win-side-grab="left" style="position:absolute;left:-28px;top:12%;bottom:12%;width:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
+      <span class="win-side-grab win-side-grab--right" data-win-side-grab="right" style="position:absolute;right:-28px;top:12%;bottom:12%;width:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
+      <span class="win-side-grab win-side-grab--top" data-win-side-grab="top" style="position:absolute;top:-28px;left:12%;right:12%;height:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
+    `;
+
+    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc);
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
     this.cinemaBar = cinemaBar; this.brightnessBar = brightnessBar; this.predefinedSlotsBar = predefinedSlotsBar;
+    this.grabArc = grabArc;
     shell.dataset.curve = String(this.curve);
     if (this.curve > 0 && !onboarding) shell.classList.add('cinema-360');
     // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
@@ -184,8 +197,17 @@ class Win {
     this.hitSegments = this.curve > 0 ? 32 : 1;
     this.hit = plane(w * PX, h * PX, this, this.hitSegments);
     this.bendHit();
-    this.grab = plane(260 * PX, 90 * PX, this);
+    // Arco invisível de 4 lados (baixo, cima, esquerda e direita) em volta da janela flutuante:
+    // permite segurar e mover a janela com pinça ou fechando toda a mão nas bordas/laterais, NUNCA no meio dela.
+    this.grab = plane(Math.max(260, w * 0.72) * PX, 90 * PX, this);
     this.grab.userData.isHandle = true;
+    this.grabTop = plane(Math.max(260, w * 0.72) * PX, 84 * PX, this);
+    this.grabTop.userData.isHandle = true;
+    this.grabLeft = plane(88 * PX, Math.max(200, h * 0.70) * PX, this);
+    this.grabLeft.userData.isHandle = true;
+    this.grabRight = plane(88 * PX, Math.max(200, h * 0.70) * PX, this);
+    this.grabRight.userData.isHandle = true;
+    this.grabHandles = [this.grab, this.grabTop, this.grabLeft, this.grabRight];
     this.resizeHit = plane(80 * PX, 80 * PX, this);
     this.resizeHit.userData.isResize = true;
 
@@ -200,6 +222,15 @@ class Win {
       handle.addEventListener('pointermove', e => { if (drag.win === this) { const p=point(e); dragTo(p.x,p.y); } });
       handle.addEventListener('pointerup', endDrag);
       handle.addEventListener('pointercancel', endDrag);
+      grabArc.querySelectorAll('[data-win-side-grab]').forEach(node => {
+        node.addEventListener('pointerdown', e => {
+          e.stopPropagation(); const p=point(e); startDrag(this,p.x,p.y,'desktop');
+          node.setPointerCapture?.(e.pointerId);
+        });
+        node.addEventListener('pointermove', e => { if (drag.win === this) { const p=point(e); dragTo(p.x,p.y); } });
+        node.addEventListener('pointerup', endDrag);
+        node.addEventListener('pointercancel', endDrag);
+      });
       resizeHandle.addEventListener('pointerdown', e => {
         e.stopPropagation(); const p=point(e); startResize(this,p.x,p.y);
         resizeHandle.setPointerCapture(e.pointerId);
@@ -297,7 +328,7 @@ class Win {
 
     if (this.id === 'left-quick-menu') {
       if (this.handle) this.handle.hidden = true;
-      if (this.grab) this.grab.visible = false;
+      if (this.grabHandles) for (const g of this.grabHandles) g.visible = false;
       const camWorld = new THREE.Vector3();
       camera.getWorldPosition(camWorld);
       const camLocal = contentRoot.worldToLocal(camWorld.clone());
@@ -316,12 +347,34 @@ class Win {
     this.hit.position.copy(o.position); this.hit.rotation.copy(o.rotation);
     this.hit.scale.setScalar(scale);
 
-    // A alça de movimento fica fora; a de tamanho ocupa o canto inferior direito.
+    // Arco invisível e barrinhas laterais invisíveis em volta da janela (baixo, cima, esquerda e direita);
+    // a alça de tamanho ocupa o canto inferior direito.
     const down = (this.h / 2 + 34) * PX * scale;
+    const up = (this.h / 2 + 34) * PX * scale;
+    const side = (this.w / 2 + 38) * PX * scale;
     this.grab.position.copy(o.position);
     this.grab.rotation.copy(o.rotation);
     this.grab.translateY(-down);
     this.grab.scale.setScalar(scale);
+
+    if (this.grabTop) {
+      this.grabTop.position.copy(o.position);
+      this.grabTop.rotation.copy(o.rotation);
+      this.grabTop.translateY(up);
+      this.grabTop.scale.setScalar(scale);
+    }
+    if (this.grabLeft) {
+      this.grabLeft.position.copy(o.position);
+      this.grabLeft.rotation.copy(o.rotation);
+      this.grabLeft.translateX(-side);
+      this.grabLeft.scale.setScalar(scale);
+    }
+    if (this.grabRight) {
+      this.grabRight.position.copy(o.position);
+      this.grabRight.rotation.copy(o.rotation);
+      this.grabRight.translateX(side);
+      this.grabRight.scale.setScalar(scale);
+    }
 
     this.resizeHit.position.copy(o.position);
     this.resizeHit.rotation.copy(o.rotation);
@@ -334,7 +387,11 @@ class Win {
 
     o.updateMatrixWorld(true);
     this.hit.updateMatrixWorld(true);
-    this.grab.updateMatrixWorld(true);
+    if (this.grabHandles) {
+      for (const g of this.grabHandles) g.updateMatrixWorld(true);
+    } else {
+      this.grab.updateMatrixWorld(true);
+    }
     this.resizeHit.updateMatrixWorld(true);
   }
 
@@ -351,7 +408,12 @@ class Win {
     this.shell.hidden = value;              // sem pixels: nem no atlas, nem no CSS3D
     this.obj.visible = !value;              // o renderer nem cria painel para ela
     this.hit.visible = !value;
-    this.grab.visible = !value && !this.onboarding;
+    const showGrab = !value && !this.onboarding && this.id !== 'left-quick-menu';
+    if (this.grabHandles) {
+      for (const g of this.grabHandles) g.visible = showGrab;
+    } else {
+      this.grab.visible = showGrab;
+    }
     this.resizeHit.visible = !value && !this.onboarding;
     if (value && drag.win === this) endDrag();
     if (value && resizing.win === this) endResize();
@@ -479,6 +541,8 @@ export function open(spec) {
   }
   if(w.onboarding){
     w.handle.hidden=true;w.resizeHandle.hidden=true;
+    if(w.grabArc)w.grabArc.hidden=true;
+    if(w.grabHandles)for(const g of w.grabHandles)g.visible=false;
     if(w.cinemaBar)w.cinemaBar.hidden=true;
     if(w.brightnessBar)w.brightnessBar.hidden=true;
     if(w.predefinedSlotsBar)w.predefinedSlotsBar.hidden=true;
@@ -528,7 +592,12 @@ export function close(w) {
   if (resizing.win === w) endResize();
   wins.splice(i, 1);
   w._cleanupQB?.();
-  contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.grab); contentRoot.remove(w.resizeHit);
+  contentRoot.remove(w.obj); contentRoot.remove(w.hit); contentRoot.remove(w.resizeHit);
+  if (w.grabHandles) {
+    for (const g of w.grabHandles) contentRoot.remove(g);
+  } else {
+    contentRoot.remove(w.grab);
+  }
   w.shell.remove();
   if (focused === w) focused = wins[wins.length - 1] || null;
   if (!wins.some(x => !x.hidden && !x.onboarding && x.curve > 0)) {
@@ -989,9 +1058,15 @@ function endResize() {
 function hitAt(x, y) {
   setRay(x,y);
   const list = [];
-  // Resize/drag ficam antes da superfície e alguns milímetros à frente para não disputar o canto.
+  // Resize/drag (arco invisível e barrinhas laterais invisíveis em volta da janela) ficam antes da superfície.
   // Janela escondida não existe para a mão: os planos ficam invisíveis e nem entram na lista.
-  for (const w of wins) { if(w.hidden)continue; if(!w.onboarding)list.push(w.resizeHit,w.grab);list.push(w.hit); }
+  for (const w of wins) {
+    if(w.hidden)continue;
+    if(!w.onboarding && w.id !== 'left-quick-menu') {
+      list.push(w.resizeHit, ...(w.grabHandles || [w.grab]));
+    }
+    list.push(w.hit);
+  }
   const h = ray.intersectObjects(list, false)[0];
   if (!h) return null;
   const w = h.object.userData.win;
@@ -3772,9 +3847,13 @@ on('phonehands', packet => {
   if(hoverWin&&nowMs-hoverAt<=NEAR_HOVER_HOLD_MS)hoverWin.shell.classList.add('phone-grab-hover');
   else hoverWin=null;
   for(const h of packet.hands) {
-    const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,h.fist);
-    if(!drag.win && !resizing.win && h.fist && !before) {
-      const p=palmScreen(h,packet,true),hit=fistHit(phoneRay(p.x,p.y));
+    const isFistGrabPose = Boolean(h.fist && !h.pinching && (Number(h.pinch) || 1) > 0.10);
+    const before=fistBefore.get(h.id)||false;fistBefore.set(h.id,isFistGrabPose);
+    if(!drag.win && !resizing.win && isFistGrabPose && !before) {
+      const p=palmScreen(h,packet,true);
+      const aimPt = Array.isArray(h.aim) ? screenPoint(h.aim) : p;
+      const arcHit = hitAt(aimPt.x, aimPt.y) || hitAt(p.x, p.y);
+      const hit = (arcHit?.handle ? { win: arcHit.win } : null) || fistHit(phoneRay(p.x,p.y));
       if(hit) {
         if(cursor.hand?.id===h.id) cancelHandInput();
         if(startDrag(hit.win,p.x,p.y,'fist',h.id))packet.consumed.add(h.id);
@@ -3882,10 +3961,10 @@ function syncHandTargets(now = performance.now()) {
       targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
-    // A mão do cursor usa a posição predita (só apresentação): o raio desliza na taxa do display.
-    const p=cursor.hand?.id===h.id?predictedCursor(now):screenPoint(h.aim);
+    // Ambas as mãos usam predição cinemática zero-delay na taxa do display (60-120 Hz).
+    const p=predictedHandScreenPoint(h,now);
     const r=phoneRay(p.x,p.y);
-    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,w.grab,w.hit]);
+    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,...(w.grabHandles||[w.grab]),w.hit]);
     if(dockVisible){
       if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
       list.push(dockMoveHit,dockHit);

@@ -228,7 +228,7 @@ public final class FakeSixDof {
                         tex += Math.abs(P[row + x + 1] - P[row + x]) + Math.abs(P[nextRow + x] - P[row + x]);
                     }
                 }
-                if (tex < 110f) continue;
+                if (tex < 65f) continue;
 
                 // Avalia (0,0) primeiro para estabelecer uma cota superior apertada (bs) para early bailout
                 float bs = 1e18f;
@@ -296,7 +296,7 @@ public final class FakeSixDof {
             }
         }
 
-        if (nPts < 5) return null;
+        if (nPts < 4) return null;
 
         // 3) Modelo radial ponderado por contraste (IRLS): d = t + s * p
         float mx = 0f, my = 0f, px = 0f, py = 0f, wSum0 = 0f;
@@ -331,12 +331,12 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 1.12f || Math.hypot(gxSub, gySub) > 4.0) {
-            prevValidSc = 0f;
+        if (med > 1.45f || Math.hypot(gxSub, gySub) > 5.0) {
+            if (nowMs - prevValidMs > 260L) prevValidSc = 0f;
             worldLocked = true;
             return null;
         }
-        float limit = Math.max(0.42f, med * 2.15f);
+        float limit = Math.max(0.45f, med * 2.35f);
 
         int goodCount = 0;
         float gmx = 0f, gmy = 0f, gpx = 0f, gpy = 0f, gwSum = 0f;
@@ -352,8 +352,8 @@ public final class FakeSixDof {
                 gwSum += w;
             }
         }
-        if (goodCount < 5 || goodCount < (nPts * 55) / 100 || gwSum <= 1e-5f) {
-            prevValidSc = 0f;
+        if (goodCount < 4 || goodCount < (nPts * 45) / 100 || gwSum <= 1e-5f) {
+            if (nowMs - prevValidMs > 260L) prevValidSc = 0f;
             worldLocked = true;
             return null;
         }
@@ -375,26 +375,25 @@ public final class FakeSixDof {
 
         // World Lock Ultra: se o movimento radial e lateral está abaixo do limiar de ancoragem ou há rotação pura,
         // trava a âncora no mundo real imediatamente (worldLocked = true) sem deriva residual.
-        boolean significantFlow = (Math.abs(finalSc) >= 0.0012f && Math.abs(finalSc) <= 0.18f)
-            || (Math.abs(latFlow) >= 0.12f && Math.abs(latFlow) <= 5.5f);
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.9) {
+        boolean significantFlow = (Math.abs(finalSc) >= 0.0009f && Math.abs(finalSc) <= 0.22f)
+            || (Math.abs(latFlow) >= 0.09f && Math.abs(latFlow) <= 6.2f);
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 3.8) {
             stationaryFrames = 0;
-            if (Math.abs(finalSc) >= 0.0012f && Math.abs(finalSc) <= 0.18f) {
-                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 190L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
-                    finalSc = finalSc * 0.72f + prevValidSc * 0.28f;
-                    worldLocked = false;
+            worldLocked = false;
+            if (Math.abs(finalSc) >= 0.0009f && Math.abs(finalSc) <= 0.22f) {
+                if (prevValidSc != 0f && (nowMs - prevValidMs) <= 260L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                    finalSc = finalSc * 0.76f + prevValidSc * 0.24f;
                 }
                 prevValidSc = finalSc;
                 prevValidMs = nowMs;
             } else {
                 finalSc = 0f;
-                prevValidSc = 0f;
             }
         } else {
             finalSc = 0f;
-            prevValidSc = 0f;
             stationaryFrames++;
-            if (stationaryFrames >= 1) {
+            if (stationaryFrames >= 2) {
+                prevValidSc = 0f;
                 worldLocked = true;
                 System.arraycopy(g, 0, keyframe, 0, g.length);
                 hasKeyframe = true;

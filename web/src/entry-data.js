@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · DESENHO VR, 0 DELAY & MULTITAREFA',
+    tag: 'NOVO · PAINTDRAWER, STORE APPLE & 0 DELAY NAS 2 MÃOS',
     time: 'Agora',
-    heading: 'Jogo Desenho VR em Tela Branca, Hand Tracking 0 Delay & Mão 100% Lisa',
-    desc: 'Novo jogo Desenho VR na Tela Branca com Hand Tracking! Mão dos ambientes 100% lisa sem juntas aparentes, Hand Tracking com 0 delay, Multitarefa alinhada com alta qualidade e cores naturais, 2ª aba nas Configurações do menu 2D e Gravação Interna nas configurações dentro do jogo!',
+    heading: 'paintdrawer, Store Obter/Abrir, 0 Delay nas 2 Mãos & Arco Invisível nas Janelas',
+    desc: 'Jogo paintdrawer com nova logo! Store estilo Apple (botão azul "Obter" e cinza "Abrir"; apenas Browser e Configurações vêm pré-instalados), Hand Tracking 0 delay nas 2 mãos, 6DoF contínuo sem parar, arco invisível nas bordas das janelas, Gorilla Tag aprimorado e VRFS sem reset de bola!',
   },
   {
     id: 'quest-browser-env-hand',
@@ -62,8 +62,8 @@ export const ENTRY_UPDATES = Object.freeze([
     id: 'mr-pistol',
     tag: 'NOVO · SHOOTTHEDIE (MR)',
     time: 'Agora',
-    heading: 'ShootTheDie: Mãos 3D com Luva Preta Fingerless, Dedos de Pele & Smartwatch',
-    desc: 'Novas mãos 3D com luva tática preta fingerless, dedos de pele realistas e relógio no pulso direito, G18 preta com cano cinza, 6 alvos 3D à distância e botão 3D atrás para sair!',
+    heading: 'ShootTheDie: Mão Única 3D com Luva Preta Fingerless, Dedos de Pele & Smartwatch',
+    desc: 'Mão única 3D com luva tática preta fingerless, dedos de pele realistas e relógio no pulso direito, G18 preta com cano cinza, 6 alvos 3D à distância e botão 3D atrás para sair!',
   },
   {
     id: 'green-glove',

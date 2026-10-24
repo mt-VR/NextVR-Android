@@ -131,6 +131,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private android.hardware.SensorManager sensorManager;
     private boolean walkSensorsRegistered=false;
     private volatile boolean hasWalkAccel=false;
+    private volatile boolean hasLinearAccel=false;
     private float gravX=Float.NaN, gravY=Float.NaN, gravZ=Float.NaN;
     private float gravMag=Float.NaN;
     private volatile float walkEnergy=0f;
@@ -159,21 +160,22 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // para que caminhar ou inclinar o tronco funcione igual ao Meta Quest sem andar sozinho parado.
                     float stepImpact=Math.abs(mag-gravMag);
                     float linDelta=(float)Math.sqrt((ax-gravX)*(ax-gravX)+(ay-gravY)*(ay-gravY)+(az-gravZ)*(az-gravZ));
-                    if((stepImpact>0.065f || (linDelta>0.10f && gyroRate<0.85f)) && gyroRate<1.05f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.90f + Math.max(stepImpact, linDelta*0.80f)*1.30f);
-                        if(walkEnergy>0.10f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
-                    } else {
-                        walkEnergy*=0.91f;
+                    if((stepImpact>0.035f || (linDelta>0.055f && gyroRate<1.65f)) && gyroRate<1.85f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.92f + Math.max(stepImpact, linDelta*0.85f)*1.45f);
+                        if(walkEnergy>0.045f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    } else if(!hasLinearAccel) {
+                        walkEnergy*=0.95f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
+                hasLinearAccel=true;
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.085f && gyroRate<0.95f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.90f + lmag*1.25f);
-                    if(walkEnergy>0.10f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.045f && gyroRate<1.75f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.92f + lmag*1.40f);
+                    if(walkEnergy>0.045f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 } else {
-                    walkEnergy*=0.91f;
+                    walkEnergy*=0.95f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -259,19 +261,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.18f) return;
-                boolean zeroFlow=Math.abs(sc)<0.0014f && Math.abs(mx-gx)<0.14f;
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.22f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0009f && Math.abs(mx-gx)<0.09f;
                 if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.09f && (nowMs-lastWalkStepMs)<720L);
-                boolean moving=accelMoving && gyroRate<0.95f && Math.hypot(gx,gy)<=2.2;
+                boolean strongVisualFlow=Math.abs(sc)>=0.0022f || Math.abs(mx-gx)>=0.18f;
+                boolean accelMoving=!hasWalkAccel || strongVisualFlow || (walkEnergy>0.04f && (nowMs-lastWalkStepMs)<1600L);
+                boolean moving=accelMoving && gyroRate<1.85f && Math.hypot(gx,gy)<=3.6;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
-                float walkGain=(!hasWalkAccel || !moving)?1f:Math.min(1.28f,Math.max(0.96f,0.92f+walkEnergy*0.48f));
+                float walkGain=(!hasWalkAccel || !moving)?1f:Math.min(1.42f,Math.max(1.02f,1.00f+walkEnergy*0.52f));
                 float adjSc=moving?(sc*walkGain):0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;

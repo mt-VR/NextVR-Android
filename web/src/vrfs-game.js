@@ -54,10 +54,6 @@ function handleVrfsJoyconKey(action, down) {
     exitVrfsGame();
     return true;
   }
-  if (action === 'reset' && down) {
-    resetBall();
-    return true;
-  }
   if (action === 'recenter' && down) {
     recenterVrfs();
     return true;
@@ -598,35 +594,8 @@ async function loadVrfsWorld() {
 
 const TAN = Math.tan(33 * Math.PI / 180);
 
-let ballSummonFrames = 0;
-let lastBallSummonAt = 0;
-function isBallSummonGesture(h) {
-  if (!h) return false;
-  if (h.pinching || h.fist || (Number(h.pinch) > 0 && Number(h.pinch) < 0.042)) return true;
-  const p = h.points;
-  if (p && p.length >= 63) {
-    const wristY = p[1];
-    const idxUp = p[25] < p[19] - 0.02 && p[25] < wristY - 0.05;
-    const midUp = p[37] < p[31] - 0.02 && p[37] < wristY - 0.05;
-    const ringCurled = p[49] > p[43] - 0.01;
-    const pinkyCurled = p[61] > p[55] - 0.01;
-    if (idxUp && midUp && ringCurled && pinkyCurled) return true;
-  }
-  return false;
-}
-
 function updateHandsToBoots(now) {
   const list = Array.isArray(trackedHands) ? trackedHands : [];
-  if (list.some(isBallSummonGesture)) {
-    ballSummonFrames++;
-    if (ballSummonFrames === 2 && now - lastBallSummonAt > 750) {
-      lastBallSummonAt = now;
-      resetBall();
-      toast('⚽ Bola na frente!');
-    }
-  } else {
-    ballSummonFrames = 0;
-  }
   const asp = 1.33;
   const hs = list.map(h => {
     const p = h?.points;
@@ -799,7 +768,6 @@ export function recenterVrfs() {
   if (!coreCamera) return;
   const eu = new THREE.Euler().setFromQuaternion(coreCamera.quaternion, 'YXZ');
   yawOff = -eu.y;
-  resetBall();
 }
 
 function renderVrfsFrame(now) {
@@ -931,7 +899,6 @@ function ensureDom() {
     bar.style.cssText = `position:absolute;top:12px;left:${leftPx + 90}px;width:420px;display:flex;align-items:center;justify-content:center;gap:6px;z-index:12;pointer-events:auto`;
     bar.innerHTML = `
       <span data-vrfs-score style="padding:4px 9px;border-radius:999px;background:rgba(22,101,52,.9);border:1px solid rgba(74,222,128,.55);color:#fff;font:800 10px Inter,sans-serif">⚽ ${scoreGoals}</span>
-      <button type="button" data-vrfs-act="ball" ${isLeft ? 'data-vrfs-ball="1"' : ''} style="padding:4px 9px;border-radius:999px;border:1px solid rgba(74,222,128,.55);background:rgba(22,163,74,.88);color:#fff;font:700 10px Inter,sans-serif;cursor:pointer">Bola</button>
       <button type="button" data-vrfs-act="kick" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(251,191,36,.45);background:rgba(180,83,9,.86);color:#fef08a;font:700 10px Inter,sans-serif;cursor:pointer">Chutar</button>
       <button type="button" data-vrfs-act="vr" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(15,23,42,.78);color:#e2e8f0;font:700 10px Inter,sans-serif;cursor:pointer">VR Box</button>
       <button type="button" data-vrfs-act="recenter" style="padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(15,23,42,.78);color:#e2e8f0;font:700 10px Inter,sans-serif;cursor:pointer">Recentrar</button>
@@ -964,8 +931,7 @@ function ensureDom() {
     if (!btn) return;
     e.stopPropagation();
     const act = btn.dataset.vrfsAct;
-    if (act === 'ball') resetBall();
-    else if (act === 'kick') kickBallForward(12.5);
+    if (act === 'kick') kickBallForward(12.5);
     else if (act === 'vr') useVR = !useVR;
     else if (act === 'recenter') recenterVrfs();
     else if (act === 'exit') exitVrfsGame();

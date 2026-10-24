@@ -125,10 +125,11 @@ export const SixDof = {
   lastT: 0,
   lastSc: 0,
   lastScAt: 0,
+  _dropFrames: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.32, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest com World Lock)
+  depth: 1.48, // metros assumidos até aos objetos à frente (resposta 6DoF rápida, suave e estilo Meta Quest com World Lock)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -367,17 +368,21 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0014 && Math.abs(sc) <= 0.20;
-    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.14 && Math.abs(latDx) <= 5.5;
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0010 && Math.abs(sc) <= 0.22;
+    const hasLatFlow = Number.isFinite(latDx) && Math.abs(latDx) >= 0.10 && Math.abs(latDx) <= 6.2;
     if (!hasDepthFlow && !hasLatFlow) {
-      this.lastSc = 0;
-      this.lastLatDx = 0;
-      if (this.worldLock) this.worldLocked = true;
+      this._dropFrames = (this._dropFrames || 0) + 1;
+      if (this._dropFrames >= 2 || nowMs - this.lastScAt > 240) {
+        this.lastSc = 0;
+        this.lastLatDx = 0;
+        if (this.worldLock) this.worldLocked = true;
+      }
       return;
     }
+    this._dropFrames = 0;
 
     // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
-    if (Math.hypot(gx, gy) > 3.2) {
+    if (Math.hypot(gx, gy) > 3.8) {
       this.lastSc = 0;
       this.lastLatDx = 0;
       if (this.worldLock) this.worldLocked = true;
@@ -398,15 +403,15 @@ export const SixDof = {
     // Só conta se duas medições seguidas concordam em sinal (tira o tremor e o drift de frame isolado)
     const prevSc = this.lastSc;
     const prevLat = this.lastLatDx;
-    this.lastSc = hasDepthFlow ? sc : 0;
-    this.lastLatDx = hasLatFlow ? latDx : 0;
+    if (hasDepthFlow) this.lastSc = sc;
+    if (hasLatFlow) this.lastLatDx = latDx;
     this.lastScAt = nowMs;
 
     let movedAny = false;
     if (hasDepthFlow && prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
-        Math.abs(sc - prevSc) <= Math.max(0.075, Math.abs(sc) * 1.75)) {
+        Math.abs(sc - prevSc) <= Math.max(0.095, Math.abs(sc) * 1.95)) {
       const stepSc = (sc + prevSc) * 0.5;
-      const step = Math.max(-0.095, Math.min(0.095, stepSc * this.depth));
+      const step = Math.max(-0.105, Math.min(0.105, stepSc * this.depth));
       _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
       _sdFwd.y = 0;
       if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
@@ -421,7 +426,7 @@ export const SixDof = {
       if (_sdRight.lengthSq() > 1e-6) _sdRight.normalize();
       else _sdRight.set(1, 0, 0);
       const latAvg = (latDx + prevLat) * 0.5;
-      const latStep = Math.max(-0.060, Math.min(0.060, -latAvg * 0.020));
+      const latStep = Math.max(-0.068, Math.min(0.068, -latAvg * 0.022));
       this.pos.addScaledVector(_sdRight, latStep);
       movedAny = true;
     }
