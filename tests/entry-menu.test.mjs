@@ -332,10 +332,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.deepEqual(aboutParagraphs, [...ENTRY_ABOUT_PARAGRAPHS]);
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
 
-    // 5. Configurações básicas (Bento Grid: IDIOMA, SPATIAL APP, qualidade, câmera grande ocular · 3DoF / 6DoF, VOLUME, BRILHO, Hand tracking)
+    // 5. Configurações básicas (2 Abas com arrasto lateral: Aba 1 · Básico + Aba 2 · Hand & Tela)
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
-    assert.equal(await page.locator('.entry-bento-cell').count(), 7);
+    assert.equal(await page.locator('.entry-bento-cell').count(), 10);
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 2, '2D Initial Menu settings has 2 tabs');
+    assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
     assert.equal(await page.locator('[data-entry-lang="ru"]').count(), 1, 'Russian language option (RU) replaces French');
     assert.equal(await page.locator('[data-entry-lang="fr"]').count(), 0, 'French language option (FR) is removed');
     assert.equal(await page.locator('[data-entry-finger-touch]').count(), 1, 'Hand tracking cell has direct index-finger touch toggle');

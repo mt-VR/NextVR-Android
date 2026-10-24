@@ -2371,7 +2371,16 @@ function buildLibrary() {
 function paintLibrary(keepFocus) {
   const host = winBody('library'); if (!host) return;
   const sc = host.querySelector('.lib-scroll')?.scrollTop || 0;
-  host.innerHTML = ''; host.appendChild(buildLibrary());
+  const oldGrid = host.querySelector('.lib-grid');
+  const nextLib = buildLibrary();
+  if (oldGrid) {
+    const nextGrid = nextLib.querySelector('.lib-grid');
+    if (nextGrid) {
+      oldGrid.innerHTML = nextGrid.innerHTML;
+      nextGrid.replaceWith(oldGrid);
+    }
+  }
+  host.innerHTML = ''; host.appendChild(nextLib);
   host.querySelector('.lib-scroll').scrollTop = sc;
   css3d.invalidate?.();
 }
