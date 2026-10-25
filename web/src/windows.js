@@ -1686,7 +1686,7 @@ const WIFI_SVG = icon('wifi');
 const BAT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
   + '<rect x="2" y="6.8" width="17.5" height="10.4" rx="3"/><rect x="21" y="10.4" width="1.7" height="3.2" rx=".85" fill="currentColor" stroke="none"/>'
   + '<rect class="fill" x="4.2" y="9" width="13" height="6" rx="1.4" fill="currentColor" stroke="none"/></svg>';
-const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3.4"/><path d="M6.2 19.2c1.2-2.8 3.3-4.2 5.8-4.2s4.6 1.4 5.8 4.2"/></svg>';
 
 /**
  * items: { kind:'avatar'|'status'|'tool'|'sep' } ou app { id, svg|icon, bg, win, launcher }.
@@ -1699,7 +1699,7 @@ export function buildDock(items) {
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
-    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '58px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
+    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; dockEl.appendChild(sp); continue; }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
@@ -1711,7 +1711,6 @@ export function buildDock(items) {
       const verifiedHtml = isVerifiedProfileName(S.profileName)
         ? '<span class="dock-av-verified" data-dock-verified="1" title="Verificado" style="position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;display:inline-flex;pointer-events:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><circle cx="12" cy="12" r="10.5" fill="#fe2c55"/><path d="M7.6 12.3l2.9 2.9 5.9-6.2" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
         : '';
-      b.style.position = 'relative';
       b.innerHTML = (S.profileAvatar
         ? `<img src="${S.profileAvatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
         : AVATAR_SVG) + verifiedHtml;

@@ -3489,117 +3489,152 @@
     filter:grayscale(1) brightness(.32) contrast(1.1);
   }
 
-  /* Dock estilo Pico 4 (Screenshot_2026-10-25-00-27-21-132_com.openai.chatgpt.jpg): Maior, com 4 ícones de apps em 100px */
+  /* Dock idêntica à referência enviada (IMG_20261025_140612.jpg): barra escura fosca, status 2x2 à esquerda, 4 apps + divisória + 2 apps + grade 3x3 */
   .dock{
-    background:linear-gradient(180deg,rgba(32,33,38,.96),rgba(20,21,25,.98)),linear-gradient(180deg,rgba(54,64,81,.78),rgba(29,37,52,.90));
-    border:1.5px solid rgba(255,255,255,.18);
+    background:linear-gradient(180deg,rgba(25,26,30,.97),rgba(19,20,24,.99)),linear-gradient(180deg,rgba(54,64,81,.78),rgba(29,37,52,.90));
+    border:1px solid rgba(255,255,255,.08);
     border-radius:16px;
-    padding:12px 18px;
-    gap:12px;
-    box-shadow:0 22px 48px rgba(0,0,0,.76),inset 0 1px 0 rgba(255,255,255,.14);
+    padding:14px 20px 14px 148px;
+    gap:14px;
+    box-shadow:0 22px 48px rgba(0,0,0,.78),inset 0 1px 0 rgba(255,255,255,.07);
   }
   .dock-status.dock-pico-status{
-    display:inline-flex;
-    flex-direction:column;
-    align-items:flex-start;
-    justify-content:center;
-    gap:5px;
-    height:84px;
-    padding:8px 16px;
-    border-radius:16px;
-    background:rgba(16,17,21,.82);
-    border:1px solid rgba(255,255,255,.13);
+    position:absolute!important;
+    left:20px!important;
+    top:16px!important;
+    bottom:16px!important;
+    width:74px!important;
+    height:auto!important;
+    padding:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:flex-start!important;
+    justify-content:space-between!important;
   }
   .dk-pico-top{
     display:inline-flex;
-    align-items:center;
-    gap:6px;
-    line-height:1.05;
+    align-items:baseline;
+    gap:0;
+    line-height:1;
   }
   .dock-pico-status .dk-status-dot{
-    width:7px;
-    height:7px;
+    display:none!important;
   }
   .dock-pico-status .dk-time{
-    font-size:24px;
-    font-weight:800;
-    color:#f8fafc;
-    letter-spacing:-.02em;
+    font-size:16px;
+    font-weight:600;
+    color:#b8bcc6;
+    letter-spacing:.01em;
   }
   .dk-pico-sub{
     display:inline-flex;
     align-items:center;
-    gap:8px;
+    gap:11px;
     line-height:1;
-    opacity:.94;
+    opacity:.96;
   }
   .dock-pico-status .dk-wifi svg,
   .dock-pico-status .dk-bat svg{
-    width:20px;
-    height:20px;
+    width:21px;
+    height:21px;
+    color:#e4e4e7;
   }
   .dock-pico-status .dk-bat{
-    font-size:14px;
-    gap:4px;
+    font-size:0;
+    gap:0;
+  }
+  .dock-pico-status .dk-bat-percent{
+    font-size:0!important;
+    width:0!important;
+    overflow:hidden!important;
+    opacity:0!important;
+    margin:0!important;
   }
   .dock-av{
-    width:62px;
-    height:62px;
-    border-radius:50%;
-    background:radial-gradient(circle at 35% 30%,#71717a,#27272a 68%,#18181b);
-    border:2px solid rgba(255,255,255,.32);
+    position:absolute!important;
+    left:98px!important;
+    top:14px!important;
+    width:28px!important;
+    height:28px!important;
+    border-radius:50%!important;
+    background:transparent!important;
+    border:1.6px solid rgba(184,188,198,.56)!important;
+    box-shadow:none!important;
+    color:rgba(184,188,198,.78)!important;
   }
   .dock-av svg{
-    width:32px;
-    height:32px;
+    width:17px!important;
+    height:17px!important;
   }
   .dock-bell-ind{
-    width:44px;
-    height:44px;
-    border-radius:14px;
+    position:absolute!important;
+    left:99px!important;
+    bottom:14px!important;
+    width:26px!important;
+    height:26px!important;
+    border-radius:50%!important;
+    background:transparent!important;
+    border:0!important;
+    color:#e4e4e7!important;
   }
   .dock-bell-ind svg{
-    width:24px;
-    height:24px;
+    width:19px!important;
+    height:19px!important;
+  }
+  .dock-bell-ind::after{
+    content:"";
+    position:absolute;
+    top:3px;
+    right:3px;
+    width:6.5px;
+    height:6.5px;
+    border-radius:50%;
+    background:#2563eb;
+    box-shadow:0 0 4px rgba(37,99,235,.9);
   }
   .dock-tool{
-    width:54px;
-    height:54px;
-    border-radius:16px;
-  }
-  .dock-tool svg{
-    width:26px;
-    height:26px;
+    position:absolute!important;
+    left:4px!important;
+    top:4px!important;
+    width:2px!important;
+    height:2px!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    opacity:.01!important;
+    overflow:hidden!important;
   }
   .dock-spacer{
-    width:2px;
-    height:72px;
-    background:rgba(255,255,255,.16);
-    margin:0 6px;
+    width:0!important;
+    height:0!important;
+    margin:0!important;
+    padding:0!important;
+    opacity:0!important;
   }
   .dock-sep{
-    display:none!important;
+    display:inline-block!important;
+    width:1.5px!important;
+    height:52px!important;
+    background:rgba(255,255,255,.15)!important;
+    margin:0 4px!important;
   }
   .dock-app{
-    width:100px;
-    height:100px;
-    border-radius:22px;
-    border:1.5px solid rgba(255,255,255,.18);
-    box-shadow:0 6px 18px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.24);
+    width:68px;
+    height:68px;
+    border-radius:14px;
+    border:0;
+    box-shadow:0 5px 14px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.22);
   }
   .dock-app svg{
-    width:52px;
-    height:52px;
+    width:46px;
+    height:46px;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.22));
   }
-  .dock-app .dock-hz-img{
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    border-radius:21px;
-  }
-  .dock-app[data-id="discord"],
-  .dock-app[data-id="youtube"],
-  .dock-app[data-id="shizuku"]{
+  .dock-app[data-id="youtube"]{
     position:absolute!important;
     right:4px!important;
     bottom:4px!important;
@@ -3613,30 +3648,44 @@
     pointer-events:auto!important;
     box-shadow:none!important;
   }
+  .dock-dot{
+    width:22px!important;
+    height:3.5px!important;
+    margin-left:-11px!important;
+    bottom:-8px!important;
+    border-radius:99px!important;
+    background:rgba(255,255,255,.45)!important;
+    box-shadow:none!important;
+  }
   .dock-launcher{
-    width:100px!important;
-    height:100px!important;
-    border-radius:22px!important;
-    background:rgba(255,255,255,.11)!important;
-    border:1.5px solid rgba(255,255,255,.18)!important;
+    width:54px!important;
+    height:68px!important;
+    border-radius:12px!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    margin-left:2px!important;
   }
   .dk-grid{
     display:grid;
-    grid-template-columns:repeat(3,9px);
-    gap:7px;
+    grid-template-columns:repeat(3,8px);
+    gap:5px;
   }
   .dk-grid i{
-    width:9px;
-    height:9px;
-    border-radius:2.5px;
-    background:#f4f4f5;
+    width:8px;
+    height:8px;
+    border-radius:2px;
+    background:#e4e4e7;
   }
   .dock-grab{
-    width:200px;
+    width:210px;
+    top:calc(100% + 10px);
   }
   .dock-grab::after{
-    width:128px;
-    height:5px;
+    width:170px;
+    height:6px;
+    border-radius:99px;
+    background:#e5e7eb;
   }
 
   /* Janelinhas flutuantes estilo Pico 4 / Screenshot_2026-10-25-00-27-21-132 */

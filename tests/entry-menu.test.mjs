@@ -241,11 +241,9 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     windowsSrc.includes('win-pico-foot') &&
     windowsSrc.includes('dock-pico-status') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
-    indexHtml.includes('width:100px;') &&
-    indexHtml.includes('height:100px;') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
     handRendererKt.includes('virtualEnv && !glove'),
-    'Build 66 (ATMOXR) includes standalone com.atmoxr.app package ID, larger Pico 4 dock with 4 app icons in 100px, floating window chrome, Meta Quest 2 Black & White camera passthrough option, black & gray menu theme, and Pico 4 hand tracking'
+    'Build 67 (ATMOXR) includes standalone com.atmoxr.app package ID, exact dock visual from IMG_20261025_140612.jpg, floating window chrome, Meta Quest 2 Black & White camera passthrough option, black & gray menu theme, and Pico 4 hand tracking'
   );
 });
 

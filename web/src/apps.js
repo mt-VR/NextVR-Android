@@ -3575,11 +3575,17 @@ on('device-status', status => {
   if (dirty) css3d.invalidate?.();
 });
 
-/* ============ dock (compacta, com atalho de ambiente virtual) ============ */
+/* ============ dock (estilo IMG_20261025_140612.jpg: 4 tiles + divisor + 2 tiles + grade 3x3) ============ */
+// Assets mantidos para referência: ./icons/hz-browser.png ./icons/hz-store.png
 const DK = Object.freeze({
-  compass:icon('compass'), store:icon('store'), people:icon('people'),
-  camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
-  vision:icon('vision'),
+  compass: '<svg viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="11.2" fill="#ffffff"/><path d="M18 10.2L20.2 15.8L25.8 18L20.2 20.2L18 25.8L15.8 20.2L10.2 18L15.8 15.8L18 10.2Z" fill="#0b7ad8"/><circle cx="18" cy="18" r="1.8" fill="#ffffff"/></svg>',
+  store: '<svg viewBox="0 0 36 36" fill="none"><path d="M13.5 14.2V12.5a4.5 4.5 0 0 1 9 0v1.7" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/><rect x="9.5" y="13.8" width="17" height="13.2" rx="2.8" fill="#ffffff"/><circle cx="14" cy="17.2" r="1.2" fill="#ea580c"/><circle cx="22" cy="17.2" r="1.2" fill="#ea580c"/></svg>',
+  people: '<svg viewBox="0 0 36 36" fill="none"><circle cx="14.5" cy="14" r="3.4" fill="#ffffff"/><path d="M8.8 25.5c0-3.1 2.5-5.5 5.7-5.5s5.7 2.4 5.7 5.5v1H8.8v-1Z" fill="#ffffff"/><circle cx="22.2" cy="15.2" r="2.7" fill="#ffffff" fill-opacity=".92"/><path d="M19.8 25.5c.2-2.4 1.9-4.3 4.3-4.3 2.5 0 4.4 2 4.4 4.5v.8h-8.7v-1Z" fill="#ffffff" fill-opacity=".92"/></svg>',
+  camera: '<svg viewBox="0 0 36 36" fill="none"><path d="M20.2 10.5L28 17.8L20.2 25.1V20.4C14.2 20.4 10.6 22.3 8.5 26C9.4 19.6 13.1 15.2 20.2 14.8V10.5Z" fill="#ffffff"/></svg>',
+  gear: '<svg viewBox="0 0 36 36" fill="none"><rect x="9" y="10.5" width="18" height="15" rx="2.8" fill="#ffffff"/><rect x="10.8" y="12.5" width="14.4" height="3.2" rx="1" fill="#5b6ef3"/><circle cx="21.5" cy="14.1" r=".9" fill="#ffffff"/><circle cx="23.6" cy="14.1" r=".9" fill="#ffffff"/></svg>',
+  play: icon('play'),
+  shizuku: '<svg viewBox="0 0 36 36" fill="none"><path d="M9 13.2A2.2 2.2 0 0 1 11.2 11h5.1l2.1 2.2h6.4A2.2 2.2 0 0 1 27 15.4v9.4A2.2 2.2 0 0 1 24.8 27H11.2A2.2 2.2 0 0 1 9 24.8V13.2Z" fill="#ffffff"/><rect x="9" y="15.2" width="18" height="1.5" fill="#109bb8"/></svg>',
+  vision: icon('vision'),
 });
 
 function toggleVirtualEnvironment() {
@@ -3596,21 +3602,20 @@ function syncVirtualEnvironmentDock() {
 
 function makeDock() {
   buildDock([
-    // Perfil abre o menu de entrada NextVR, status do telefone e atalho do ambiente virtual.
+    // Perfil abre o menu de entrada ATMOXR, status do telefone e atalho do ambiente virtual.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: openEntryMenu },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
-    // apps principais com ícones Horizon OS 2.7 (v207)
-    { id: 'browser', win: 'browser', label: t('browser'), img: './icons/hz-browser.png', svg: DK.compass, bg: 'linear-gradient(145deg,#8aa7ff,#5d62d5)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
-    { id: 'store',   win: 'store',   label: t('store'),   img: './icons/hz-store.png',   svg: DK.store,   bg: 'linear-gradient(145deg,#fcd34d,#ea580c)', run: storeApp },
-    { id: 'discord', win: 'discord', label: 'Discord',    img: './icons/hz-whatsapp.png', svg: DK.people,  bg: 'linear-gradient(145deg,#4ade80,#16a34a)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
-    { id: 'gallery', win: 'gallery', label: t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera,  bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
+    // 4 ícones à esquerda da divisória + 2 à direita + grade 3x3 (idêntico a IMG_20261025_140612.jpg)
+    { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(180deg,#1cb0f6 0%,#0062cc 100%)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
+    { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(180deg,#ff9c1a 0%,#e04f00 100%)', run: storeApp },
+    { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(180deg,#ec4899 0%,#7c3aed 100%)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
+    { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(180deg,#fb5678 0%,#e11d48 100%)', run: gallery },
     { kind: 'sep' },
-    { id: 'settings', win: 'control-center', label: t('settings'), img: './icons/hz-settings.png', svg: DK.gear, bg: 'linear-gradient(145deg,#9ca8b8,#556170)', run: controlCenterApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
-    // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
-    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
+    { id: 'settings', win: 'control-center', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(180deg,#a78bfa 0%,#2563eb 100%)', run: controlCenterApp },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(180deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
+    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(180deg,#2dd4bf 0%,#0284c7 100%)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
   ]);
   syncVirtualEnvironmentDock();
