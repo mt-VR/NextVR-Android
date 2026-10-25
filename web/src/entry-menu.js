@@ -1,4 +1,4 @@
-import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, native, SixDof } from './core.js';
+import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, native, SixDof } from './core.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -557,9 +557,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
 
             <div class="entry-bento-cell entry-bento-cell--env">
-              <div class="entry-bento-title">${emT('envTitle')}</div>
+              <div class="entry-bento-title">${emT('envTitle')} &amp; PASSTHROUGH</div>
               <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
                 ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
+                <button type="button" class="entry-seg-btn ${S.bwCamera ? 'on' : ''}" data-entry-bw-cam="${S.bwCamera ? '1' : '0'}" title="Deixar só a câmera passthrough preto e branco estilo Meta Quest 2 (janelinhas e dock continuam coloridas)">Câmera P&amp;B (Quest 2): ${S.bwCamera ? 'ON' : 'OFF'}</button>
               </div>
             </div>
           </div>
@@ -670,7 +671,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-hud-top-right">
             <div class="entry-hud-vdiv" aria-hidden="true"></div>
             <div class="entry-hud-rect" aria-hidden="true">
-              <span>NEXTVR</span>
+              <span>ATMOXR</span>
               <b data-entry-battery-top>${batInfo.text}</b>
             </div>
             <button type="button" class="entry-hud-rect entry-hud-rect--btn" data-entry-cancel-countdown title="Cancelar">
@@ -701,7 +702,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </svg>
 
             <div class="entry-hud-frame-content">
-              <div class="entry-hud-brand">NextVR</div>
+              <div class="entry-hud-brand">ATMOXR</div>
               <div class="entry-hud-pct-row">
                 <span class="entry-hud-pct" data-entry-load-pct>${loadingPct}%</span>
                 <span class="entry-hud-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
@@ -1189,6 +1190,13 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         save(S);
         window.NativeXR?.setMrDim?.(!!S.mrDim);
         emit('mr-dim', S.mrDim);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-bw-cam]').forEach(btn => {
+      btn.onclick = () => {
+        const next = S.bwCamera ? 0 : 1;
+        setBwCamera(next === 1);
         paint();
       };
     });

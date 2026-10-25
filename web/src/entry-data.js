@@ -46,17 +46,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
+    tag: 'NOVO · ATMOXR, DOCK PICO 4 & CÂMERA P&B QUEST 2',
     time: 'Agora',
-    heading: 'paintdrawer, 6DoF Sem Deriva Lateral/Frontal & Hand Tracking Ultra 0 Delay',
-    desc: 'Jogo paintdrawer com nova logo! Todos os apps já vêm prontos no Spatial App e na Dock sem precisar instalar, 6DoF corrigido para nunca andar para os lados ou pra frente do nada, Hand Tracking ainda mais sem delay nas 2 mãos e arco invisível nas bordas das janelas!',
+    heading: 'ATMOXR: Nova Dock e Janelas Pico 4, Câmera P&B (Meta Quest 2) & Menu Preto/Cinza',
+    desc: 'Bem-vindo ao ATMOXR! Nova interface da Dock e das janelinhas flutuantes estilo Pico 4, opção de Câmera Passthrough Preto e Branco (mantendo janelas e dock coloridas igual Meta Quest 2), Menu em cores Preta e Cinza e Hand Tracking estilo Pico 4!',
   },
   {
     id: 'quest-browser-env-hand',
-    tag: 'NOVO · NAVEGADOR QUEST & GRAVAÇÃO INTERNA',
+    tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
     time: 'Agora',
-    heading: 'Meta Quest Browser, Gravação Interna 1 Lente & Raio de Longo Alcance',
-    desc: 'Gravação Interna em Tela Cheia 16:9 de 1 lente (mantendo as 2 lentes ativas no celular) nas configurações dentro do jogo, interface Meta Quest Browser e raio com seleção de qualquer distância!',
+    heading: 'paintdrawer, 6DoF Sem Deriva Lateral/Frontal & Hand Tracking Ultra 0 Delay',
+    desc: 'Jogo paintdrawer com nova logo! Todos os apps já vêm prontos sem precisar instalar, 6DoF corrigido para nunca andar para os lados ou pra frente do nada e Hand Tracking ultra sem delay nas 2 mãos!',
   },
   {
     id: 'mr-pistol',

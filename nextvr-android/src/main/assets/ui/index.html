@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
-<title>Next VR</title>
+<title>ATMOXR</title>
 
 <link rel="stylesheet" href="./fonts.css">
 <style>
@@ -3479,6 +3479,373 @@
   .finger-sticky-dot[hidden]{
     display:none !important;
   }
+
+  /* ============ Build 65 (ATMOXR): Dock Pico 4, Janelas Flutuantes Pico 4, Câmera P&B (Meta Quest 2) e Menu Preto e Cinza ============ */
+  html:not(.native)[data-bw-camera="1"] #gl,
+  html[data-bw-camera="1"] #cam{
+    filter:grayscale(1) contrast(1.08);
+  }
+  html:not(.native)[data-mr-dim="1"][data-bw-camera="1"] #gl{
+    filter:grayscale(1) brightness(.32) contrast(1.1);
+  }
+
+  /* Dock estilo Pico 4 (Screenshot_2026-10-25-00-27-21-132_com.openai.chatgpt.jpg) */
+  .dock{
+    background:linear-gradient(180deg,rgba(32,33,38,.96),rgba(20,21,25,.98)),linear-gradient(180deg,rgba(54,64,81,.78),rgba(29,37,52,.90));
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:16px;
+    box-shadow:0 18px 42px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .dock-status.dock-pico-status{
+    display:inline-flex;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    gap:1px;
+    height:34px;
+    padding:2px 9px;
+    border-radius:10px;
+    background:rgba(16,17,21,.76);
+    border:1px solid rgba(255,255,255,.11);
+  }
+  .dk-pico-top{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    line-height:1.05;
+  }
+  .dock-pico-status .dk-time{
+    font-size:11.5px;
+    font-weight:800;
+    color:#f8fafc;
+    letter-spacing:-.01em;
+  }
+  .dk-pico-sub{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    line-height:1;
+    opacity:.92;
+  }
+  .dock-av{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#71717a,#27272a 68%,#18181b);
+    border:1.5px solid rgba(255,255,255,.28);
+  }
+  .dock-app{
+    width:35px;
+    height:35px;
+    border-radius:9px;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 3px 9px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22);
+  }
+  .dock-launcher{
+    border-radius:10px!important;
+    background:rgba(255,255,255,.10)!important;
+    border:1px solid rgba(255,255,255,.16)!important;
+  }
+  .dk-grid{
+    display:grid;
+    grid-template-columns:repeat(3,3.5px);
+    gap:2.5px;
+  }
+  .dk-grid i{
+    width:3.5px;
+    height:3.5px;
+    border-radius:1px;
+    background:#f4f4f5;
+  }
+
+  /* Janelinhas flutuantes estilo Pico 4 / Screenshot_2026-10-25-00-27-21-132 */
+  .win{
+    background:rgba(32,33,36,.96);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 40px 120px rgba(0,0,0,.68);
+  }
+  .qb-top-chrome{
+    background:#28292c!important;
+    border-bottom:1px solid rgba(255,255,255,.09)!important;
+    padding:4px 10px!important;
+  }
+  .qb-lock-ico{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;
+    height:18px;
+    flex:none;
+    margin-right:-2px;
+  }
+  .qb-urlfld{
+    background:#1b1c1f!important;
+    color:#f4f4f5!important;
+    border-radius:999px!important;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)!important;
+  }
+  .qb-ext-pill{
+    font-size:10.5px;
+    font-weight:700;
+    color:#d4d4d8;
+    letter-spacing:1px;
+    padding:0 6px;
+  }
+  .win-pico-foot,
+  .qb-dock.win-pico-foot--browser{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    height:26px;
+    padding:0 12px;
+    background:#1f2023;
+    border-top:1px solid rgba(255,255,255,.09);
+    color:#d4d4d8;
+    font:600 11px/1 Inter,system-ui,sans-serif;
+    box-sizing:border-box;
+  }
+  .win-pico-foot{
+    position:absolute;
+    left:1px;
+    right:1px;
+    bottom:1px;
+    z-index:6;
+    pointer-events:auto;
+  }
+  .win-pico-foot[hidden]{
+    display:none!important;
+  }
+  .win-pico-foot-left,
+  .win-pico-foot-right{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .win-pico-foot-btn{
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    border:0;
+    background:rgba(255,255,255,.07);
+    color:#e4e4e7;
+    font:700 10.5px/1 Inter,sans-serif;
+    display:inline-grid;
+    place-items:center;
+    cursor:pointer;
+    padding:0;
+    transition:background .14s,color .14s,transform .12s;
+  }
+  .win-pico-foot-btn:hover,
+  .win-pico-foot-btn.finger-hover{
+    background:rgba(255,255,255,.18);
+    color:#ffffff;
+    transform:scale(1.08);
+  }
+  .win-pico-foot-title{
+    font-size:11px;
+    font-weight:600;
+    color:#e4e4e7;
+    letter-spacing:.01em;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:240px;
+  }
+
+  /* Menu Principal e Subpainéis com cores Preta e Cinza (mantendo NanyGata azul) */
+  .entry-menu-root{
+    background:linear-gradient(145deg,#09090b 0%,#18181b 50%,#09090b 100%)!important;
+    border-color:rgba(161,161,170,.28)!important;
+  }
+  .entry-top-store-btn{
+    background:linear-gradient(135deg,#27272a,#18181b)!important;
+    border-color:#71717a!important;
+    color:#f4f4f5!important;
+    box-shadow:0 2px 10px rgba(0,0,0,.55)!important;
+  }
+  .entry-top-store-btn:hover,
+  .entry-top-store-btn.on{
+    background:linear-gradient(135deg,#3f3f46,#27272a)!important;
+    border-color:#e4e4e7!important;
+  }
+  .entry-top-battery{
+    background:rgba(15,15,18,.92)!important;
+    border-color:rgba(161,161,170,.42)!important;
+    box-shadow:none!important;
+  }
+  .entry-top-bat-bar{
+    border-color:#a1a1aa!important;
+  }
+  .entry-top-bat-bar::after{
+    background:#a1a1aa!important;
+  }
+  .entry-top-bat-bar i{
+    background:linear-gradient(90deg,#d4d4d8,#a1a1aa)!important;
+  }
+  .entry-card{
+    background:#0c0c0e!important;
+    border-color:#d4d4d8!important;
+    box-shadow:4px 4px 0 #3f3f46!important;
+    color:#f4f4f5!important;
+  }
+  .entry-card:hover,
+  .entry-card:focus-visible,
+  .entry-card--active{
+    border-color:#ffffff!important;
+    box-shadow:4px 4px 0 #71717a!important;
+    background:#18181b!important;
+  }
+  .entry-card--primary{
+    background:#e4e4e7!important;
+    color:#09090b!important;
+    border-color:#ffffff!important;
+    box-shadow:5px 5px 0 #52525b!important;
+  }
+  .entry-card--primary .entry-card-stripes i{
+    background:#3f3f46!important;
+  }
+  .entry-card-state{
+    color:#a1a1aa!important;
+  }
+  .entry-profile-q{
+    background:#09090b!important;
+    border-color:#3f3f46!important;
+  }
+  .entry-profile-info{
+    background:rgba(18,18,22,.95)!important;
+    border-color:rgba(161,161,170,.32)!important;
+  }
+  .entry-profile-name{
+    background:#09090b!important;
+  }
+  .entry-profile-edit-tag{
+    background:#3f3f46!important;
+    color:#f4f4f5!important;
+  }
+  .entry-updates-feed{
+    background:linear-gradient(155deg,rgba(18,18,22,.94),rgba(9,9,11,.96))!important;
+    border-color:rgba(161,161,170,.34)!important;
+    box-shadow:0 12px 30px rgba(0,0,0,.72)!important;
+  }
+  .entry-updates-head{
+    border-bottom-color:rgba(161,161,170,.24)!important;
+  }
+  .entry-updates-dot{
+    background:#d4d4d8!important;
+    box-shadow:0 0 8px rgba(212,212,216,.65)!important;
+  }
+  .entry-updates-title{
+    color:#d4d4d8!important;
+  }
+  .entry-updates-badge{
+    background:rgba(63,63,70,.48)!important;
+    border-color:rgba(161,161,170,.45)!important;
+    color:#f4f4f5!important;
+  }
+  .entry-notif-card{
+    background:rgba(24,24,27,.88)!important;
+    border-color:rgba(113,113,122,.34)!important;
+    border-left:3px solid #a1a1aa!important;
+  }
+  .entry-notif-tag{
+    color:#d4d4d8!important;
+  }
+  .entry-notif-time{
+    background:rgba(63,63,70,.45)!important;
+    border-color:rgba(161,161,170,.42)!important;
+    color:#e4e4e7!important;
+  }
+  .entry-brand-store-dock{
+    background:rgba(15,15,18,.95)!important;
+    border-color:rgba(161,161,170,.38)!important;
+  }
+  .entry-brand-store-tag{
+    color:#a1a1aa!important;
+  }
+  .entry-subpanel{
+    background:rgba(12,12,15,.97)!important;
+    border:1.5px solid #52525b!important;
+  }
+  .entry-subpanel-head{
+    border-bottom-color:rgba(161,161,170,.28)!important;
+  }
+  .entry-btn{
+    background:#18181b!important;
+    border-color:#a1a1aa!important;
+    color:#f4f4f5!important;
+    box-shadow:2px 2px 0 #3f3f46!important;
+  }
+  .entry-btn--primary{
+    background:#e4e4e7!important;
+    border-color:#ffffff!important;
+    color:#09090b!important;
+    box-shadow:2px 2px 0 #52525b!important;
+  }
+  .entry-settings-tabs{
+    background:#09090b!important;
+    border-color:rgba(161,161,170,.36)!important;
+  }
+  .entry-settings-tab.on{
+    background:#3f3f46!important;
+    color:#ffffff!important;
+    box-shadow:none!important;
+  }
+  .entry-bento-cell{
+    background:#121215!important;
+    border:1.5px solid rgba(113,113,122,.52)!important;
+  }
+  .entry-bento-val{
+    color:#d4d4d8!important;
+  }
+  .entry-seg-btn{
+    background:#1c1c21!important;
+    border-color:rgba(161,161,170,.36)!important;
+    color:#e4e4e7!important;
+  }
+  .entry-seg-btn.on{
+    background:#e4e4e7!important;
+    border-color:#ffffff!important;
+    color:#09090b!important;
+    box-shadow:1.5px 1.5px 0 #52525b!important;
+  }
+  .entry-slider{
+    accent-color:#d4d4d8!important;
+  }
+  .entry-store-card{
+    background:#121215!important;
+    border-color:rgba(113,113,122,.42)!important;
+  }
+  .entry-store-card-pill{
+    color:#e4e4e7!important;
+    background:rgba(82,82,91,.36)!important;
+    border-color:rgba(161,161,170,.42)!important;
+  }
+  .entry-collab-item:not(.entry-collab-item--blue){
+    background:#121215!important;
+    border-left-color:#71717a!important;
+  }
+  .entry-hud-screen{
+    background:radial-gradient(ellipse at 50% 50%,#1f1f23 0%,#121215 52%,#070709 100%)!important;
+    color:#f4f4f5!important;
+  }
+  .quick-panel{
+    background:linear-gradient(145deg,#141417,#0d0d10 72%,#121216)!important;
+    border-color:rgba(255,255,255,.12)!important;
+  }
+  .quick-tile,
+  .quick-control,
+  .quick-side{
+    background:#1c1c21!important;
+    border-color:rgba(255,255,255,.09)!important;
+  }
+  .quick-control.is-active{
+    background:#3f3f46!important;
+    border-color:rgba(255,255,255,.28)!important;
+  }
+  .quick-control.is-active>span{
+    background:#52525b!important;
+    color:#ffffff!important;
+  }
 </style>
 </head>
 <body>
@@ -3500,8 +3867,8 @@
 <!-- primeira execução: idioma -->
 <div id="boot">
   <div class="boot-c">
-    <div class="logo"><img src="./icons/nextvr-n.png" alt="NextVR"></div>
-    <div id="bootSub" style="color:var(--soft);font-size:16px">Next VR</div>
+    <div class="logo"><img src="./icons/nextvr-n.png" alt="ATMOXR"></div>
+    <div id="bootSub" style="color:var(--soft);font-size:16px">ATMOXR</div>
     <button id="bootGo" class="start">Entrar</button>
     <p class="hint" id="bootHint">
       Aponte o celular para a frente ao entrar. Use o controle Centralizar na dock a qualquer momento.

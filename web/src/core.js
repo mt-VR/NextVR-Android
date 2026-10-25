@@ -22,7 +22,7 @@ const DEF = {
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
-  mrDim: 0,
+  mrDim: 0, bwCamera: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -626,6 +626,25 @@ export function setMrDim(enabled) {
 if (typeof document !== 'undefined' && S.mrDim) {
   document.documentElement.dataset.mrDim = '1';
   window.NativeXR?.setMrDim?.(true);
+}
+
+/** Liga/desliga a câmera passthrough em Preto e Branco estilo Meta Quest 2 (só a câmera fica P&B, janelas e dock continuam coloridas). */
+export function setBwCamera(enabled) {
+  S.bwCamera = enabled ? 1 : 0;
+  save();
+  if (typeof document !== 'undefined') {
+    if (S.bwCamera) document.documentElement.dataset.bwCamera = '1';
+    else delete document.documentElement.dataset.bwCamera;
+  }
+  window.NativeXR?.setBwCamera?.(!!S.bwCamera);
+  emit('bw-camera', S.bwCamera);
+}
+if (typeof document !== 'undefined' && S.bwCamera) {
+  document.documentElement.dataset.bwCamera = '1';
+  window.NativeXR?.setBwCamera?.(true);
+}
+if (typeof window !== 'undefined') {
+  window.nextvrSetBwCamera = setBwCamera;
 }
 
 /* ============================ giroscópio ============================ */

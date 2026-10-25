@@ -2,12 +2,12 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name"
             description="Application name. [CHAR_LIMIT=30]">
-            NextVR</string>
+            ATMOXR</string>
 
     <!-- Strings present in the 'VR' activity -->
     <string name="title_activity_vr"
             description="VR activity title. [CHAR_LIMIT=30]">
-            NextVR</string>
+            ATMOXR</string>
     <string name="read_storage_permission"
             description="Text shown on Android Toast when permissions are not granted.
                          [CHAR_LIMIT=90]">

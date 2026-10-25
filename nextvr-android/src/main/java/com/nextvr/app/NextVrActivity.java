@@ -1132,6 +1132,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.mrDim=enabled;
         }
+        @JavascriptInterface public void setBwCamera(boolean enabled) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.bwCamera=enabled;
+        }
         @JavascriptInterface public void setSingleHandMode(String mode) {
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setSingleHandMode(mode);
@@ -1217,6 +1221,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                             }
                             if(o.has("mrDim")) {
                                 target.mrDim=o.optBoolean("mrDim",false) || o.optInt("mrDim",0)!=0;
+                            }
+                            if(o.has("bwCamera")) {
+                                target.bwCamera=o.optBoolean("bwCamera",false) || o.optInt("bwCamera",0)!=0;
                             }
                             if(o.has("sixdof")) {
                                 sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;

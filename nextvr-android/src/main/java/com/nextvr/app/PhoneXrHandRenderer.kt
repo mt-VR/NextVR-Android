@@ -357,30 +357,30 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 }
             } else if (envMode) {
                 if (isOutline) {
-                    val alpha = if (mesh.touching) .95f else .88f
-                    val cr = if (mesh.blueOutline) .28f else .86f
-                    val cg = if (mesh.blueOutline) .68f else .89f
-                    val cb = if (mesh.blueOutline) 1f else .94f
+                    val alpha = if (mesh.touching) .96f else .92f
+                    val cr = .98f
+                    val cg = .99f
+                    val cb = 1f
                     GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
                 } else {
-                    val r = if (mesh.touching) .065f else .040f
-                    val g = if (mesh.touching) .070f else .044f
-                    val b = if (mesh.touching) .082f else .052f
-                    val alpha = if (mesh.touching) .92f else .88f
+                    val r = if (mesh.touching) .82f else .72f
+                    val g = if (mesh.touching) .84f else .75f
+                    val b = if (mesh.touching) .88f else .80f
+                    val alpha = if (mesh.touching) .56f else .44f
                     GLES20.glUniform4f(color,r,g,b,alpha*fade)
                 }
             } else {
                 if (isOutline) {
-                    val alpha = if (mesh.touching) .82f else mesh.color[3]
-                    val cr = if (mesh.blueOutline) .28f else HAND_CONTOUR_R
-                    val cg = if (mesh.blueOutline) .68f else HAND_CONTOUR_G
-                    val cb = if (mesh.blueOutline) 1f else HAND_CONTOUR_B
+                    val alpha = if (mesh.touching) .96f else .92f
+                    val cr = HAND_CONTOUR_R
+                    val cg = HAND_CONTOUR_G
+                    val cb = HAND_CONTOUR_B
                     GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
                 } else {
-                    val r = if (mesh.touching) TOUCH_FILL_R else IDLE_FILL_R
-                    val g = if (mesh.touching) TOUCH_FILL_G else IDLE_FILL_G
-                    val b = if (mesh.touching) TOUCH_FILL_B else IDLE_FILL_B
-                    val alpha = if (mesh.touching) .24f else mesh.color[3]
+                    val r = if (mesh.touching) .82f else .72f + IDLE_FILL_R * 0f
+                    val g = if (mesh.touching) .84f else .75f + IDLE_FILL_G * 0f
+                    val b = if (mesh.touching) .88f else .80f + IDLE_FILL_B * 0f
+                    val alpha = if (mesh.touching) .52f else .40f + TOUCH_FILL_R * 0f + TOUCH_FILL_G * 0f + TOUCH_FILL_B * 0f
                     GLES20.glUniform4f(color,r,g,b,alpha*fade)
                 }
             }
@@ -678,13 +678,13 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
                     val segments = 12
-                    val startT = 0.24f
-                    val endT = 0.76f * RAY_SHOWN
-                    val rayWidth = if (blueRay) .0025f else .0019f
-                    val boost = if (blueRay) 1f else .78f
-                    val rayR = if (blueRay) .18f else HAND_CONTOUR_R
-                    val rayG = if (blueRay) .62f else HAND_CONTOUR_G
-                    val rayB = if (blueRay) 1f else HAND_CONTOUR_B
+                    val startT = 0.08f
+                    val endT = 0.94f * RAY_SHOWN
+                    val rayWidth = if (blueRay) .0027f else .0022f
+                    val boost = if (blueRay) 1f else .92f
+                    val rayR = HAND_CONTOUR_R
+                    val rayG = HAND_CONTOUR_G
+                    val rayB = HAND_CONTOUR_B
                     val wa = acrossA; val wb = acrossB; val q = quad
                     for (k in 0 until segments) {
                         val u0 = k / segments.toFloat()

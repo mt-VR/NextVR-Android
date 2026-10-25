@@ -234,8 +234,15 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     handRendererKt.includes('if (mrGameMode && handIndex > 0) continue') &&
     activitySrc.includes('toggleInternalRecording') &&
     activitySrc.includes('setSingleHandMode') &&
+    activitySrc.includes('setBwCamera') &&
+    rendererSrc.includes('uBwCamera') &&
+    coreSrc.includes('setBwCamera') &&
+    entryMenuSrc.includes('data-entry-bw-cam') &&
+    windowsSrc.includes('win-pico-foot') &&
+    windowsSrc.includes('dock-pico-status') &&
+    indexHtml.includes('<title>ATMOXR</title>') &&
     handRendererKt.includes('virtualEnv && !glove'),
-    'Build 64 includes paintdrawer logo, all apps ready without forced installation, rock-solid 6DoF without lateral/forward drift, ultra-zero-delay 2-hand tracking, single-hand ShootTheDie, invisible perimeter grab arc on floating windows, and VRFS without ball reset'
+    'Build 65 (ATMOXR) includes Pico 4 dock and floating window chrome, Meta Quest 2 Black & White camera passthrough option, black & gray menu theme, and Pico 4 hand tracking'
   );
 });
 

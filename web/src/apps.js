@@ -1,5 +1,5 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
@@ -232,13 +232,14 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
   plusTabBtn.dataset.qbAct = 'home';
   plusTabBtn.title = 'Nova guia';
   plusTabBtn.textContent = '+';
+  const lockIco = el('span', 'qb-lock-ico', '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2" fill="#34a853"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" stroke="#34a853" stroke-width="1.6" stroke-linecap="round"/></svg>');
   const fld = el('input','fld qb-urlfld');
   fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada ou endereço da web' : 'Pesquisar ou digitar endereço da web';
   const showStartHome = options?.showHomeOverlay !== undefined ? Boolean(options.showHomeOverlay) : isDefaultGoogle;
   fld.value = showStartHome ? '' : resolvedUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
-  const extIco = el('span', 'qb-ext-pill', '🧩 ⋯');
-  top.append(bk,fw,rl,modeBadge,plusTabBtn,fld,st,extIco);
+  const extIco = el('span', 'qb-ext-pill', '[|-|] ⋯');
+  top.append(bk,fw,rl,modeBadge,plusTabBtn,lockIco,fld,st,extIco);
 
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#1b1d24';
@@ -261,15 +262,34 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
     wrap.append(frame, homeOverlay);
   }
 
-  const dock = el('div','qb-dock');
+  const dock = el('div','qb-dock win-pico-foot--browser');
+  const footLeft = el('div', 'win-pico-foot-left');
+  const btnCloseFoot = el('button', 'win-pico-foot-btn', '✕');
+  btnCloseFoot.type = 'button'; btnCloseFoot.title = 'Fechar'; btnCloseFoot.dataset.qbFoot = 'close';
+  const btnMinFoot = el('button', 'win-pico-foot-btn', '—');
+  btnMinFoot.type = 'button'; btnMinFoot.title = 'Minimizar'; btnMinFoot.dataset.qbFoot = 'min';
+  footLeft.append(btnCloseFoot, btnMinFoot);
+  const footTitle = el('span', 'win-pico-foot-title', 'Browser');
+  const footRight = el('div', 'win-pico-foot-right');
   const av = document.createElement('button');
   av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
-  av.innerHTML = AVATAR_HTML; dock.appendChild(av);
+  av.innerHTML = AVATAR_HTML;
   const status = document.createElement('button');
   status.className = 'dock-status';
   status.title='Status';
   status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
-  dock.appendChild(status);
+  const btnMoreFoot = el('button', 'win-pico-foot-btn', '⋯');
+  btnMoreFoot.type = 'button'; btnMoreFoot.title = 'Opções'; btnMoreFoot.dataset.qbFoot = 'more';
+  footRight.append(av, status, btnMoreFoot);
+  dock.append(footLeft, footTitle, footRight);
+  dock.addEventListener('click', e => {
+    const fb = e.target.closest('[data-qb-foot]');
+    if (!fb) return;
+    e.stopPropagation();
+    const w = wins.find(x => x.id === 'browser');
+    if (!w) return;
+    if (fb.dataset.qbFoot === 'close' || fb.dataset.qbFoot === 'min') close(w);
+  });
   body.append(top, wrap, dock);
 
   function tick(){
@@ -1029,6 +1049,13 @@ function controlCenterApp() {
   control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
     const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
   }, S.env === 'passthrough');
+  const bwCtrlBtn = control('camera', 'Câmera P&B (Meta Quest 2)', S.bwCamera ? 'Preto e Branco (Janelas Coloridas)' : 'Câmera Colorida', button => {
+    const enabled = !S.bwCamera;
+    setBwCamera(enabled);
+    button.querySelector('small').textContent = enabled ? 'Preto e Branco (Janelas Coloridas)' : 'Câmera Colorida';
+    return enabled;
+  }, !!S.bwCamera);
+  bwCtrlBtn.dataset.bwCameraBtn = '1';
   dndControl = control('volumeoff', 'Não perturbe', 'Silenciar áudio do app', () => { syncMute(!isMuted); return isMuted; });
   control('crosshair', 'Recentralizar', 'Ajustar a visão', () => { recenter(); toast('Visão recentralizada'); return false; });
   control('moon', 'Modo noturno', S.env === 'night' ? 'Ativado' : 'Desativado', button => {
@@ -1163,6 +1190,15 @@ function settingsApp() {
   langBtn.onclick = openPicker;
   scroll.append(langBtn);
   scroll.append(ytRow(icon('gauge'), 'Contador de FPS', 'Mostrar taxa de quadros', ytToggle('showFps')));
+  const bwSw = el('button', 'yt-sw', '');
+  bwSw.dataset.on = S.bwCamera ? '1' : '0';
+  bwSw.dataset.settingsBwCamera = '1';
+  bwSw.onclick = () => {
+    const next = !S.bwCamera;
+    setBwCamera(next);
+    bwSw.dataset.on = next ? '1' : '0';
+  };
+  scroll.append(ytRow(icon('camera'), 'Câmera P&B (Meta Quest 2)', 'Passthrough preto e branco (janelas e dock continuam coloridas)', bwSw));
   const dofSeg = el('div');
   dofSeg.style.cssText = 'display:inline-flex;gap:6px;align-items:center;';
   const btn3Dof = el('button', 'entry-seg-btn' + (S.sixdof === 0 ? ' on' : ''), '3DoF');

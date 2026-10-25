@@ -178,11 +178,33 @@ class Win {
       <span class="win-side-grab win-side-grab--top" data-win-side-grab="top" style="position:absolute;top:-28px;left:12%;right:12%;height:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
     `;
 
-    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc);
+    // Barra inferior estilo Pico 4 nas janelas flutuantes (✕, —, título centralizado e ⋯)
+    const picoFoot = document.createElement('div');
+    picoFoot.className = 'win-pico-foot';
+    picoFoot.hidden = onboarding || !chrome || id === 'browser' || id === 'library' || id === 'quick-settings' || id === 'spatial-launcher' || id === 'left-quick-menu';
+    picoFoot.innerHTML = `
+      <div class="win-pico-foot-left">
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="close" title="Fechar" aria-label="Fechar">✕</button>
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="min" title="Minimizar" aria-label="Minimizar">—</button>
+      </div>
+      <span class="win-pico-foot-title" data-pico-foot-title>${title || 'Browser'}</span>
+      <div class="win-pico-foot-right">
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Opções" aria-label="Opções">⋯</button>
+      </div>
+    `;
+    picoFoot.addEventListener('click', e => {
+      const btn = e.target.closest('[data-pico-foot]');
+      if (!btn) return;
+      e.stopPropagation();
+      if (btn.dataset.picoFoot === 'close' || btn.dataset.picoFoot === 'min') close(this);
+      else if (btn.dataset.picoFoot === 'more') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
+    });
+
+    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc, picoFoot);
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
     this.cinemaBar = cinemaBar; this.brightnessBar = brightnessBar; this.predefinedSlotsBar = predefinedSlotsBar;
-    this.grabArc = grabArc;
+    this.grabArc = grabArc; this.picoFoot = picoFoot;
     shell.dataset.curve = String(this.curve);
     if (this.curve > 0 && !onboarding) shell.classList.add('cinema-360');
     // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
@@ -1695,9 +1717,9 @@ export function buildDock(items) {
         : AVATAR_SVG) + verifiedHtml;
       if (S.profileName) b.title = S.profileName;
     } else if (it.kind === 'status') {
-      b.className = 'dock-status';
-      b.innerHTML = `<i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
-        + `<span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span>`;
+      b.className = 'dock-status dock-pico-status';
+      b.innerHTML = `<span class="dk-pico-top"><i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span></span>`
+        + `<span class="dk-pico-sub"><span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span><span class="dk-wifi">${WIFI_SVG}</span></span>`;
     } else if (it.kind === 'tool') {
       const bell = document.createElement('span');
       bell.className = 'dock-bell-ind';
