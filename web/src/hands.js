@@ -140,7 +140,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Floor of 1 s: opening a floating window stalls the WebView/main thread briefly, delaying
   // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
-  validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
+  validForMs=Math.max(1000,Math.min(2500,Number(frame.validForMs)||1000));
   let incomingHands = frame.hands || [];
   const shMode = S.singleHandMode || 'both';
   if (shMode === 'right') {
@@ -162,11 +162,11 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   }
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
-  if(packet.blockFar){cancel();return;}
+  if(packet.blockFar){cancel();emit('handtargets_sync', now);return;}
   const available=hands.filter(h=>!packet.consumed.has(h.id));
   const chosen=(clickState.down && available.find(h=>h.id===clickState.handId))
     || available.find(h=>h.pinching) || [...available].sort((a,b)=>b.palmWidth-a.palmWidth)[0];
-  if (!chosen) { cancel(); return; }
+  if (!chosen) { cancel(); emit('handtargets_sync', now); return; }
   const point=screenPoint(chosen.aim);
   updateCursorVelocity(point, now, Number(frame.timestampNs) || 0);
   cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;

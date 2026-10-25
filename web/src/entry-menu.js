@@ -99,7 +99,7 @@ const EM_I18N = {
     start: 'Iniciar', startVr: 'Iniciar VR', settings: 'Configurações', basicSettings: 'Configurações básicas',
     handStyle: 'Hand tracking style', handDrawn: 'Mão desenhada', handInvisible: 'Invisível',
     collaborators: 'Colaboradores', about: 'Sobre', back: 'Voltar', store: 'Store',
-    storeTitle: 'Store NextVR — Jogos & Apps',
+    storeTitle: 'Store ATMOXR — Jogos & Apps',
     langCell: 'IDIOMA', spatialCell: 'SPATIAL APP', on: 'Ativado', dock: 'Dock',
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'qualidade', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Média (890p)', qLow: 'Baixa (390p)',
@@ -111,7 +111,7 @@ const EM_I18N = {
     start: 'Start', startVr: 'Start VR', settings: 'Settings', basicSettings: 'Basic Settings',
     handStyle: 'Hand tracking style', handDrawn: 'Drawn hand', handInvisible: 'Invisible',
     collaborators: 'Collaborators', about: 'About', back: 'Back', store: 'Store',
-    storeTitle: 'NextVR Store — Games & Apps',
+    storeTitle: 'ATMOXR Store — Games & Apps',
     langCell: 'LANGUAGE', spatialCell: 'SPATIAL APP', on: 'Enabled', dock: 'Dock',
     dockSnapOn: 'Dock Slot: ON', dockSnapOff: 'Dock Slot: OFF',
     qualityCell: 'quality', qAuto: 'Auto', qHigh: 'High (1080p)', qMed: 'Medium (890p)', qLow: 'Low (390p)',
@@ -123,7 +123,7 @@ const EM_I18N = {
     start: 'Iniciar', startVr: 'Iniciar VR', settings: 'Ajustes', basicSettings: 'Ajustes básicos',
     handStyle: 'Hand tracking style', handDrawn: 'Mano dibujada', handInvisible: 'Invisible',
     collaborators: 'Colaboradores', about: 'Acerca de', back: 'Volver', store: 'Tienda',
-    storeTitle: 'Tienda NextVR — Juegos y Apps',
+    storeTitle: 'Tienda ATMOXR — Juegos y Apps',
     langCell: 'IDIOMA', spatialCell: 'SPATIAL APP', on: 'Activado', dock: 'Dock',
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'calidad', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Media (890p)', qLow: 'Baja (390p)',
@@ -135,7 +135,7 @@ const EM_I18N = {
     start: '開始', startVr: 'VRを開始', settings: '設定', basicSettings: '基本設定',
     handStyle: 'Hand tracking style', handDrawn: '手を表示', handInvisible: '非表示',
     collaborators: 'コラボレーター', about: '概要', back: '戻る', store: 'ストア',
-    storeTitle: 'NextVR ストア — ゲーム＆アプリ',
+    storeTitle: 'ATMOXR ストア — ゲーム＆アプリ',
     langCell: '言語', spatialCell: 'SPATIAL APP', on: 'オン', dock: 'ドック',
     dockSnapOn: 'スロット: ON', dockSnapOff: 'スロット: OFF',
     qualityCell: '画質', qAuto: '自動', qHigh: '高 (1080p)', qMed: '中 (890p)', qLow: '低 (390p)',
@@ -147,7 +147,7 @@ const EM_I18N = {
     start: 'Начать', startVr: 'Запустить VR', settings: 'Настройки', basicSettings: 'Основные настройки',
     handStyle: 'Hand tracking style', handDrawn: 'Рисованная рука', handInvisible: 'Невидимая',
     collaborators: 'Участники', about: 'О приложении', back: 'Назад', store: 'Магазин',
-    storeTitle: 'Магазин NextVR — Игры и Приложения',
+    storeTitle: 'Магазин ATMOXR — Игры и Приложения',
     langCell: 'ЯЗЫК', spatialCell: 'SPATIAL APP', on: 'Вкл.', dock: 'Док',
     dockSnapOn: 'Слот дока: ON', dockSnapOff: 'Слот дока: OFF',
     qualityCell: 'качество', qAuto: 'Авто', qHigh: 'Высокое (1080p)', qMed: 'Среднее (890p)', qLow: 'Низкое (390p)',
@@ -159,7 +159,7 @@ const EM_I18N = {
     start: 'Starten', startVr: 'VR starten', settings: 'Einstellungen', basicSettings: 'Grundeinstellungen',
     handStyle: 'Hand tracking style', handDrawn: 'Gezeichnete Hand', handInvisible: 'Unsichtbar',
     collaborators: 'Mitwirkende', about: 'Über', back: 'Zurück', store: 'Store',
-    storeTitle: 'NextVR Store — Spiele & Apps',
+    storeTitle: 'ATMOXR Store — Spiele & Apps',
     langCell: 'SPRACHE', spatialCell: 'SPATIAL APP', on: 'Aktiviert', dock: 'Dock',
     dockSnapOn: 'Dock-Slot: ON', dockSnapOff: 'Dock-Slot: OFF',
     qualityCell: 'Qualität', qAuto: 'Auto', qHigh: 'Hoch (1080p)', qMed: 'Mittel (890p)', qLow: 'Niedrig (390p)',
@@ -193,7 +193,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     'Otimizando Hand tracking...',
     'Calibrando lentes 3D...',
     'Carregando aplicativos espaciais...',
-    'Iniciando NextVR...',
+    'Iniciando ATMOXR...',
   ];
 
   const loadingStatusForPct = pct => {
@@ -744,7 +744,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       activeView === 'store' ? renderStorePanel() :
       renderBrandStage();
 
-    const displayName = S.profileName ? escHtml(S.profileName) : 'NextVR (Login)';
+    const displayName = S.profileName ? escHtml(S.profileName) : 'ATMOXR (Login)';
     const profileAvatarHtml = S.profileAvatar
       ? `<img src="${escHtml(S.profileAvatar)}" alt="" class="entry-profile-q-img" />`
       : SVG_USER;
@@ -756,10 +756,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
       <header class="entry-top-header">
         <div class="entry-top-bars" aria-hidden="true"></div>
-        <h1 class="entry-main-title">MAIN MENU</h1>
+        <h1 class="entry-main-title">ATMOXR</h1>
         <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
         <div class="entry-top-right-cluster">
-          <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store NextVR">
+          <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store ATMOXR">
             ${SVG_STORE_BAG}
             <span>${emT('store')}</span>
           </button>
@@ -926,7 +926,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         S.profileName = nameInput.value.trim();
         save(S);
         const disp = root.querySelector('[data-profile-display-name]');
-        if (disp) disp.textContent = S.profileName || 'NextVR (Login)';
+        if (disp) disp.textContent = S.profileName || 'ATMOXR (Login)';
         const verified = isVerifiedProfileName(S.profileName);
         const badge = root.querySelector('[data-profile-verified]');
         if (badge) badge.hidden = !verified;

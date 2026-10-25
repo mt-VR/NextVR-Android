@@ -1325,7 +1325,7 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v1.0';
+  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.0.0';
   scroll.append(foot);
 
   body.append(head, scroll);
@@ -3701,8 +3701,8 @@ function languagePicker(pending, onPick, slim = false) {
   const paint = () => {
     const hero = slim ? '' :
       `<div class="lq-hero">
-         <img class="lq-logo" src="./icons/nextvr-n.png" alt="NextVR">
-         <h1 class="lq-welcome">Bem-vindo<br>ao NextVR</h1>
+         <img class="lq-logo" src="./icons/nextvr-n.png" alt="ATMOXR">
+         <h1 class="lq-welcome">Bem-vindo<br>ao ATMOXR</h1>
          <p class="lq-tag">Aponte e pinça<br>para escolher.</p>
        </div>`;
     body.innerHTML = `${slim ? `<img class="lq-logo-sm" src="./icons/nextvr-n.png" alt="NextVR"><div class="lq-pickrow"><span class="lq-pick">${label(pending)}</span></div>` : ''}
