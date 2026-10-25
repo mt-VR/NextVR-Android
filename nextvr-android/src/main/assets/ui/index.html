@@ -3489,73 +3489,154 @@
     filter:grayscale(1) brightness(.32) contrast(1.1);
   }
 
-  /* Dock estilo Pico 4 (Screenshot_2026-10-25-00-27-21-132_com.openai.chatgpt.jpg) */
+  /* Dock estilo Pico 4 (Screenshot_2026-10-25-00-27-21-132_com.openai.chatgpt.jpg): Maior, com 4 ícones de apps em 100px */
   .dock{
     background:linear-gradient(180deg,rgba(32,33,38,.96),rgba(20,21,25,.98)),linear-gradient(180deg,rgba(54,64,81,.78),rgba(29,37,52,.90));
-    border:1px solid rgba(255,255,255,.16);
+    border:1.5px solid rgba(255,255,255,.18);
     border-radius:16px;
-    box-shadow:0 18px 42px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.12);
+    padding:12px 18px;
+    gap:12px;
+    box-shadow:0 22px 48px rgba(0,0,0,.76),inset 0 1px 0 rgba(255,255,255,.14);
   }
   .dock-status.dock-pico-status{
     display:inline-flex;
     flex-direction:column;
     align-items:flex-start;
     justify-content:center;
-    gap:1px;
-    height:34px;
-    padding:2px 9px;
-    border-radius:10px;
-    background:rgba(16,17,21,.76);
-    border:1px solid rgba(255,255,255,.11);
+    gap:5px;
+    height:84px;
+    padding:8px 16px;
+    border-radius:16px;
+    background:rgba(16,17,21,.82);
+    border:1px solid rgba(255,255,255,.13);
   }
   .dk-pico-top{
     display:inline-flex;
     align-items:center;
-    gap:4px;
+    gap:6px;
     line-height:1.05;
   }
+  .dock-pico-status .dk-status-dot{
+    width:7px;
+    height:7px;
+  }
   .dock-pico-status .dk-time{
-    font-size:11.5px;
+    font-size:24px;
     font-weight:800;
     color:#f8fafc;
-    letter-spacing:-.01em;
+    letter-spacing:-.02em;
   }
   .dk-pico-sub{
     display:inline-flex;
     align-items:center;
-    gap:5px;
+    gap:8px;
     line-height:1;
-    opacity:.92;
+    opacity:.94;
+  }
+  .dock-pico-status .dk-wifi svg,
+  .dock-pico-status .dk-bat svg{
+    width:20px;
+    height:20px;
+  }
+  .dock-pico-status .dk-bat{
+    font-size:14px;
+    gap:4px;
   }
   .dock-av{
-    width:32px;
-    height:32px;
+    width:62px;
+    height:62px;
     border-radius:50%;
     background:radial-gradient(circle at 35% 30%,#71717a,#27272a 68%,#18181b);
-    border:1.5px solid rgba(255,255,255,.28);
+    border:2px solid rgba(255,255,255,.32);
+  }
+  .dock-av svg{
+    width:32px;
+    height:32px;
+  }
+  .dock-bell-ind{
+    width:44px;
+    height:44px;
+    border-radius:14px;
+  }
+  .dock-bell-ind svg{
+    width:24px;
+    height:24px;
+  }
+  .dock-tool{
+    width:54px;
+    height:54px;
+    border-radius:16px;
+  }
+  .dock-tool svg{
+    width:26px;
+    height:26px;
+  }
+  .dock-spacer{
+    width:2px;
+    height:72px;
+    background:rgba(255,255,255,.16);
+    margin:0 6px;
+  }
+  .dock-sep{
+    display:none!important;
   }
   .dock-app{
-    width:35px;
-    height:35px;
-    border-radius:9px;
-    border:1px solid rgba(255,255,255,.16);
-    box-shadow:0 3px 9px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22);
+    width:100px;
+    height:100px;
+    border-radius:22px;
+    border:1.5px solid rgba(255,255,255,.18);
+    box-shadow:0 6px 18px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.24);
+  }
+  .dock-app svg{
+    width:52px;
+    height:52px;
+  }
+  .dock-app .dock-hz-img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    border-radius:21px;
+  }
+  .dock-app[data-id="discord"],
+  .dock-app[data-id="youtube"],
+  .dock-app[data-id="shizuku"]{
+    position:absolute!important;
+    right:4px!important;
+    bottom:4px!important;
+    width:2px!important;
+    height:2px!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    opacity:.01!important;
+    overflow:hidden!important;
+    pointer-events:auto!important;
+    box-shadow:none!important;
   }
   .dock-launcher{
-    border-radius:10px!important;
-    background:rgba(255,255,255,.10)!important;
-    border:1px solid rgba(255,255,255,.16)!important;
+    width:100px!important;
+    height:100px!important;
+    border-radius:22px!important;
+    background:rgba(255,255,255,.11)!important;
+    border:1.5px solid rgba(255,255,255,.18)!important;
   }
   .dk-grid{
     display:grid;
-    grid-template-columns:repeat(3,3.5px);
-    gap:2.5px;
+    grid-template-columns:repeat(3,9px);
+    gap:7px;
   }
   .dk-grid i{
-    width:3.5px;
-    height:3.5px;
-    border-radius:1px;
+    width:9px;
+    height:9px;
+    border-radius:2.5px;
     background:#f4f4f5;
+  }
+  .dock-grab{
+    width:200px;
+  }
+  .dock-grab::after{
+    width:128px;
+    height:5px;
   }
 
   /* Janelinhas flutuantes estilo Pico 4 / Screenshot_2026-10-25-00-27-21-132 */

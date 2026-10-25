@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · ATMOXR, DOCK PICO 4 & CÂMERA P&B QUEST 2',
+    tag: 'NOVO · ATMOXR SEPARADO & DOCK PICO 4 (4 APPS 100PX)',
     time: 'Agora',
-    heading: 'ATMOXR: Nova Dock e Janelas Pico 4, Câmera P&B (Meta Quest 2) & Menu Preto/Cinza',
-    desc: 'Bem-vindo ao ATMOXR! Nova interface da Dock e das janelinhas flutuantes estilo Pico 4, opção de Câmera Passthrough Preto e Branco (mantendo janelas e dock coloridas igual Meta Quest 2), Menu em cores Preta e Cinza e Hand Tracking estilo Pico 4!',
+    heading: 'ATMOXR Independente (Sem Sobrescrever o NextVR) & Dock Maior Pico 4 (4 Apps 100px)',
+    desc: 'O ATMOXR agora instala como um app separado (com.atmoxr.app) sem substituir o NextVR! Nova Dock maior igual à do Pico 4 com 4 ícones de apps em 100px, janelas flutuantes Pico 4, Câmera P&B (Meta Quest 2), Menu Preto/Cinza e Hand Tracking Pico 4!',
   },
   {
     id: 'quest-browser-env-hand',

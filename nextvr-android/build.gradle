@@ -8,7 +8,7 @@ android {
         abortOnError = false
     }
     defaultConfig {
-        applicationId "com.nextvr.app"
+        applicationId "com.atmoxr.app"
         // #gles3 #vulkan - You can reduce minSdkVersion down to 16 depending
         // on rendering APIs supported:
         //
@@ -22,7 +22,7 @@ android {
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
         // 29 / 2.0.0: Nova interface flutuante Library (7e3d8ab40bd4dd3) 100% transparente sobre a câmera traseira real e selo verificado vermelho igual do TikTok para cada colaborador.
-        versionCode 65
+        versionCode 66
         versionName "2.0.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
