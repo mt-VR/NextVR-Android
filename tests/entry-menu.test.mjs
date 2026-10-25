@@ -239,11 +239,21 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     coreSrc.includes('setBwCamera') &&
     entryMenuSrc.includes('data-entry-bw-cam') &&
     windowsSrc.includes('win-pico-foot') &&
+    windowsSrc.includes('win-pico-grab-bar') &&
     windowsSrc.includes('dock-pico-status') &&
+    appsSrc.includes('openPicoMotionTracker') &&
+    appsSrc.includes('openPicoExplore') &&
+    appsSrc.includes('openTikTokVr') &&
+    appsSrc.includes('openSpotifyVr') &&
+    appsSrc.includes('openPhoneNotifications') &&
+    appsSrc.includes('PICO_BROWSER_SHORTCUTS') &&
+    appsSrc.includes('PICO_STORE_SEARCH_CARDS') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    handRendererKt.includes('virtualEnv && !glove'),
-    'Build 67 (ATMOXR) includes standalone com.atmoxr.app package ID, exact dock visual from IMG_20261025_140612.jpg, floating window chrome, Meta Quest 2 Black & White camera passthrough option, black & gray menu theme, and Pico 4 hand tracking'
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 68') &&
+    handRendererKt.includes('virtualEnv && !glove') &&
+    handRendererKt.includes('.024f,.0175f'),
+    'Build 68 (ATMOXR) includes new ATMO XR launcher icon, PICO Motion Tracker, PICO Explore 8K, PICO Browser Shortcuts+Popular, PICO Store Search, TikTok VR Vertical, Spotify VR, Phone Notifications 27°C, and floating white index-tip hand tracking rings'
   );
 });
 

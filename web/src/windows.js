@@ -186,10 +186,11 @@ class Win {
       <div class="win-pico-foot-left">
         <button type="button" class="win-pico-foot-btn" data-pico-foot="close" title="Fechar" aria-label="Fechar">✕</button>
         <button type="button" class="win-pico-foot-btn" data-pico-foot="min" title="Minimizar" aria-label="Minimizar">—</button>
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Opções" aria-label="Opções">⋯</button>
       </div>
       <span class="win-pico-foot-title" data-pico-foot-title>${title || 'Browser'}</span>
       <div class="win-pico-foot-right">
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Opções" aria-label="Opções">⋯</button>
+        <span class="win-pico-grab-bar" data-pico-grab-bar="1" style="display:inline-block;width:96px;height:4.5px;border-radius:999px;background:rgba(229,231,235,.86)"></span>
       </div>
     `;
     picoFoot.addEventListener('click', e => {

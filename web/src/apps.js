@@ -28,78 +28,46 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  * O YouTube tem app próprio abaixo: busca via API pública + player oficial embutido.
  */
 
-const QB_POPULAR_SITES = [
-  { name:'Google',      url:'https://www.google.com/',               bg:'#262932', color:'#4285F4', badge:'G', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#4285F4" d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.81-1.5 3.34-3.2 4.37v3.62h5.18c3.03-2.79 4.78-6.9 4.78-11.72 0-.8-.08-1.57-.22-2.3z"/><path fill="#34A853" d="M12.18 22c4.32 0 7.95-1.43 10.6-3.88l-5.18-3.62c-1.43.96-3.26 1.53-5.42 1.53-4.17 0-7.7-2.81-8.96-6.6H-2.1v3.73C.54 18.4 5.95 22 12.18 22z" transform="translate(2 0) scale(.86)"/><path fill="#FBBC05" d="M3.22 13.43A9.02 9.02 0 0 1 2.75 10.5c0-1.02.18-2.01.47-2.93V3.84H-2.1A14.96 14.96 0 0 0-3.7 10.5c0 2.42.58 4.71 1.6 6.66l5.32-3.73z" transform="translate(4 1.5) scale(.75)"/><path fill="#EA4335" d="M12.18 4.97c2.35 0 4.46.81 6.12 2.4l4.59-4.59C20.12.99 16.5 0 12.18 0 5.95 0 .54 3.6-2.1 8.84l5.32 3.73c1.26-3.79 4.79-6.6 8.96-6.6z" transform="translate(2 1) scale(.85)"/></svg>` },
-  { name:'YouTube',     url:'https://www.youtube.com/',              bg:'#262932', color:'#ffffff', badge:'▶', svg:`<svg viewBox="0 0 28 20" width="24" height="18"><rect width="28" height="20" rx="5" fill="#FF0033"/><path d="M11 6l8 4-8 4V6z" fill="#fff"/></svg>` },
-  { name:'Prime Video', url:'https://www.primevideo.com/',           bg:'#1c2536', color:'#00A8E1', badge:'prime' },
-  { name:'Discord',     url:'https://discord.com/app',               bg:'#262932', color:'#5865F2', badge:'D', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="10" fill="#5865F2"/><circle cx="9.2" cy="12" r="1.5" fill="#fff"/><circle cx="14.8" cy="12" r="1.5" fill="#fff"/><path d="M8 9.2c1.2-.7 2.5-1 4-1s2.8.3 4 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>` },
-  { name:'Instagram',   url:'https://www.instagram.com/',            bg:'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', color:'#ffffff', badge:'◎' },
-  { name:'Facebook',    url:'https://www.facebook.com/',             bg:'#1877F2', color:'#ffffff', badge:'f' },
-  { name:'Roblox',      url:'https://www.roblox.com/',               bg:'#090d16', color:'#f8fafc', badge:'◈', img:'./roblox-logo.jpg' },
-  { name:'Reddit',      url:'https://www.reddit.com/',               bg:'#FF4500', color:'#ffffff', badge:'r/' },
-  { name:'Xbox Cloud',  url:'https://www.xbox.com/play',             bg:'#107C10', color:'#ffffff', badge:'✕' },
-  { name:'TikTok',      url:'https://www.tiktok.com/',               bg:'#000000', color:'#25F4EE', badge:'♪', img:'./tiktok-logo.jpg' },
+const PICO_BROWSER_SHORTCUTS = [
+  { name:'PICO',      url:'pico://explore',                        bg:'#ffffff', color:'#111827', svg:`<svg viewBox="0 0 28 28" width="22" height="22"><circle cx="14" cy="14" r="10" fill="none" stroke="#111827" stroke-width="2.6"/><path d="M9.5 17.5L18.5 10.5" stroke="#111827" stroke-width="2.6" stroke-linecap="round"/></svg>` },
+  { name:'YouTube',   url:'https://www.youtube.com/',              bg:'#ffffff', color:'#FF0000', svg:`<svg viewBox="0 0 28 20" width="22" height="16"><rect width="28" height="20" rx="5" fill="#FF0033"/><path d="M11 6l8 4-8 4V6z" fill="#fff"/></svg>` },
+  { name:'Facebook',  url:'https://www.facebook.com/',             bg:'#1877F2', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M13.5 21v-7.5h2.6l.4-3h-3v-1.9c0-.9.3-1.5 1.6-1.5H16.7V4.4c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.2v2H7.7v3h2.6V21h3.2z"/></svg>` },
+  { name:'Twitter',   url:'https://x.com/',                        bg:'#1DA1F2', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M21 6.5a7.2 7.2 0 0 1-2.1.6 3.6 3.6 0 0 0 1.6-2 7.3 7.3 0 0 1-2.3.9 3.6 3.6 0 0 0-6.2 3.3A10.2 10.2 0 0 1 4.5 5.5a3.6 3.6 0 0 0 1.1 4.8 3.5 3.5 0 0 1-1.6-.4v.1a3.6 3.6 0 0 0 2.9 3.5 3.6 3.6 0 0 1-1.6.1 3.6 3.6 0 0 0 3.4 2.5A7.3 7.3 0 0 1 3 17.6 10.3 10.3 0 0 0 8.6 19.2c6.7 0 10.4-5.6 10.4-10.4v-.5A7.4 7.4 0 0 0 21 6.5z"/></svg>` },
+  { name:'Instagram', url:'https://www.instagram.com/',            bg:'#ffffff', color:'#d62976', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><defs><linearGradient id="igG" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="45%" stop-color="#d62976"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect x="3" y="3" width="18" height="18" rx="5" fill="url(#igG)"/><circle cx="12" cy="12" r="4" fill="none" stroke="#fff" stroke-width="2"/><circle cx="16.5" cy="7.5" r="1.1" fill="#fff"/></svg>` },
+  { name:'Wikipedia', url:'https://www.wikipedia.org/',            bg:'#ffffff', color:'#111827', badge:'W' },
+  { name:'Amazon',    url:'https://www.amazon.com/',               bg:'#f8fafc', color:'#111827', svg:`<svg viewBox="0 0 28 28" width="22" height="22"><circle cx="14" cy="14" r="12" fill="#fbbf24" opacity=".22"/><text x="14" y="16" text-anchor="middle" font-size="13" font-weight="900" fill="#111827" font-family="Inter,sans-serif">a</text><path d="M7.5 19c3.8 2.8 9.2 2.8 13 0" stroke="#d97706" stroke-width="2" fill="none" stroke-linecap="round"/></svg>` },
+  { name:'Twitch',    url:'https://www.twitch.tv/',                bg:'#9146FF', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M5 4h15v10.5l-4 4h-4l-2.5 2.5H7v-2.5H4V7l1-3zm2 2v9h3v2.5l2.5-2.5H16l2-2V6H7zm4 2.5h2v4h-2v-4zm4 0h2v4h-2v-4z"/></svg>` },
+  { name:'Add',       url:'pico://motion-tracker',                 bg:'rgba(255,255,255,.12)', color:'#e2e8f0', badge:'+' },
 ];
 
-const QB_CONTINUE_CARDS = [
-  { title:'(1) Início - YouTube',        domain:'www.youtube.com',                    url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
-  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com',              url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
-  { title:'YouTube',                     domain:'accounts.google.com/v3/signin/...',  url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
-  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com/pt-br/watch',  url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
-  { title:'(1) Comprar o Meta Quest...', domain:'www.youtube.com/watch?v=meta',       url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
+const PICO_BROWSER_POPULAR_CARDS = [
+  { name:'DeepSeek',           sub:'First AI Assistant powered by DeepSeek-V3',         cat:'recommended', url:'https://chat.deepseek.com/',       icoBg:'#ffffff', icoColor:'#2563eb', icoTxt:'🐳' },
+  { name:'ChatGPT',            sub:'Chat with OpenAI conversational AI assistant',      cat:'recommended', url:'https://chatgpt.com/',             icoBg:'#18181b', icoColor:'#ffffff', icoTxt:'✺' },
+  { name:'Netflix',            sub:'Watch TV Shows Online, Watch Movies Online',        cat:'entertainment', url:'https://www.netflix.com/',       icoBg:'#09090b', icoColor:'#e50914', icoTxt:'N' },
+  { name:'Steam',              sub:'Steam is the ultimate destination for playing...',  cat:'entertainment', url:'https://store.steampowered.com/', icoBg:'#171a21', icoColor:'#66c0f4', icoTxt:'⚙' },
+  { name:'Uptodown',           sub:'Download Android apps easily on Uptodown',          cat:'tools',         url:'https://en.uptodown.com/',       icoBg:'#0284c7', icoColor:'#ffffff', icoTxt:'⬇' },
+  { name:'Softonic',           sub:'Softonic is the place to discover the best ap...',  cat:'tools',         url:'https://en.softonic.com/',       icoBg:'#0ea5e9', icoColor:'#4ade80', icoTxt:'S' },
+  { name:'Discord',            sub:'Your Place to Talk and Hang Out',                   cat:'social',        url:'https://discord.com/app',        icoBg:'#5865F2', icoColor:'#ffffff', icoTxt:'D' },
+  { name:'Disney+',            sub:'The streaming home of Disney, Pixar, Marvel...',    cat:'entertainment', url:'https://www.disneyplus.com/',    icoBg:'#0c1e4a', icoColor:'#38bdf8', icoTxt:'D+' },
+  { name:'TikTok',             sub:'Make Your Day · Vertical VR Feed',                  cat:'videos',        url:'pico://tiktok',                  icoBg:'#09090b', icoColor:'#25F4EE', icoTxt:'♪' },
+  { name:'Apple TV+',          sub:'Stream all Apple Originals',                        cat:'videos',        url:'https://tv.apple.com/',          icoBg:'#09090b', icoColor:'#ffffff', icoTxt:'tv+' },
+  { name:'Amazon Prime Video', sub:'Watch movies, TV, and sports',                      cat:'videos',        url:'https://www.primevideo.com/',    icoBg:'#0ea5e9', icoColor:'#ffffff', icoTxt:'prime' },
+  { name:'Spotify',            sub:'Web Player: Music for everyone in VR',              cat:'media',         url:'pico://spotify',                 icoBg:'#1db954', icoColor:'#09090b', icoTxt:'🟢' },
 ];
+
+const QB_POPULAR_SITES = PICO_BROWSER_SHORTCUTS;
 
 const QB_ENTERTAINMENT_TILES = [
-  {
-    name:'Spotify', url:'https://open.spotify.com/',
-    cardBg:'#090b0e',
-    art:`<div class="qb-ent-brand qb-ent-spotify"><span class="qb-ent-sp-dot"><svg viewBox="0 0 24 24" width="22" height="22" fill="#090b0e"><path d="M16.6 15.4c-.2.3-.6.4-.9.2-2.4-1.4-5.3-1.8-8.8-1-.3.1-.7-.1-.8-.5-.1-.3.1-.7.5-.8 3.8-.9 7.1-.5 9.7 1.1.3.2.4.6.3 1zm1.2-2.7c-.2.4-.7.5-1.1.3-2.7-1.6-6.8-2.1-10-1.2-.4.1-.8-.1-1-.5-.1-.4.1-.8.5-1 3.6-1.1 8.1-.6 11.2 1.3.4.2.5.7.4 1.1zm.1-2.8C14.7 8 9.4 7.8 6.3 8.7c-.5.2-1-.1-1.2-.6-.1-.5.1-1 .6-1.2 3.5-1.1 9.4-.9 13.1 1.3.4.3.6.8.3 1.3-.2.4-.8.6-1.2.4z"/></svg></span><span class="qb-ent-sp-txt">Spotify</span></div>`
-  },
-  {
-    name:'YouTube Music', url:'https://music.youtube.com/',
-    cardBg:'#ffffff',
-    art:`<div class="qb-ent-brand qb-ent-ytm"><span class="qb-ent-ytm-dot">▶</span><span class="qb-ent-ytm-txt">Music</span></div>`
-  },
-  {
-    name:'Crunchyroll', url:'https://www.crunchyroll.com/',
-    cardBg:'#F47521',
-    art:`<div class="qb-ent-brand qb-ent-cr"><span class="qb-ent-cr-dot">◉</span><span class="qb-ent-cr-txt">crunchyroll</span></div>`
-  },
-  {
-    name:'HBO Max', url:'https://www.max.com/',
-    cardBg:'#07080b',
-    art:`<div class="qb-ent-brand qb-ent-hbo"><span class="qb-ent-hbo-top">HBO</span><span class="qb-ent-hbo-sub">max</span></div>`
-  },
-  {
-    name:'Hulu', url:'https://www.hulu.com/',
-    cardBg:'#06080a',
-    art:`<div class="qb-ent-brand qb-ent-hulu">hulu</div>`
-  },
-  {
-    name:'Tubi', url:'https://tubitv.com/',
-    cardBg:'linear-gradient(135deg,#4c1d95 0%,#6d28d9 100%)',
-    art:`<div class="qb-ent-brand qb-ent-tubi">tubi</div>`
-  },
-  {
-    name:'Paramount+', url:'https://www.paramountplus.com/',
-    cardBg:'linear-gradient(135deg,#0051e6 0%,#0072ff 100%)',
-    art:`<div class="qb-ent-brand qb-ent-para"><span class="qb-ent-para-mtn">▲</span><span class="qb-ent-para-txt">Paramount+</span></div>`
-  },
-  {
-    name:'Peacock TV', url:'https://www.peacocktv.com/',
-    cardBg:'#050608',
-    art:`<div class="qb-ent-brand qb-ent-peacock"><span>peacock</span><span class="qb-ent-pk-dots"><i style="background:#facc15"></i><i style="background:#f97316"></i><i style="background:#ef4444"></i><i style="background:#a855f7"></i><i style="background:#3b82f6"></i><i style="background:#22c55e"></i></span></div>`
-  },
-  {
-    name:'Twitch', url:'https://www.twitch.tv/',
-    cardBg:'#9146FF',
-    art:`<div class="qb-ent-brand qb-ent-twitch">twitch</div>`
-  },
-  {
-    name:'ESPN', url:'https://www.espn.com/',
-    cardBg:'#CC0000',
-    art:`<div class="qb-ent-brand qb-ent-espn">ESPN</div>`
-  },
+  { name:'Spotify', url:'pico://spotify', cardBg:'#090b0e', art:`<div class="qb-ent-brand qb-ent-spotify"><span class="qb-ent-sp-txt">Spotify</span></div>` },
+  { name:'YouTube Music', url:'https://music.youtube.com/', cardBg:'#ffffff', art:`<div class="qb-ent-brand qb-ent-ytm"><span class="qb-ent-ytm-dot">▶</span><span class="qb-ent-ytm-txt">Music</span></div>` },
+  { name:'Crunchyroll', url:'https://www.crunchyroll.com/', cardBg:'#F47521', art:`<div class="qb-ent-brand qb-ent-cr"><span class="qb-ent-cr-dot">◉</span><span class="qb-ent-cr-txt">crunchyroll</span></div>` },
+  { name:'HBO Max', url:'https://www.max.com/', cardBg:'#07080b', art:`<div class="qb-ent-brand qb-ent-hbo"><span class="qb-ent-hbo-top">HBO</span><span class="qb-ent-hbo-sub">max</span></div>` },
+  { name:'Hulu', url:'https://www.hulu.com/', cardBg:'#06080a', art:`<div class="qb-ent-brand qb-ent-hulu">hulu</div>` },
+  { name:'Tubi', url:'https://tubitv.com/', cardBg:'linear-gradient(135deg,#4c1d95 0%,#6d28d9 100%)', art:`<div class="qb-ent-brand qb-ent-tubi">tubi</div>` },
+  { name:'Paramount+', url:'https://www.paramountplus.com/', cardBg:'linear-gradient(135deg,#0051e6 0%,#0072ff 100%)', art:`<div class="qb-ent-brand qb-ent-para"><span class="qb-ent-para-mtn">▲</span><span class="qb-ent-para-txt">Paramount+</span></div>` },
+  { name:'Peacock TV', url:'https://www.peacocktv.com/', cardBg:'#050608', art:`<div class="qb-ent-brand qb-ent-peacock"><span>peacock</span></div>` },
+  { name:'Twitch', url:'https://www.twitch.tv/', cardBg:'#9146FF', art:`<div class="qb-ent-brand qb-ent-twitch">twitch</div>` },
+  { name:'ESPN', url:'https://www.espn.com/', cardBg:'#CC0000', art:`<div class="qb-ent-brand qb-ent-espn">ESPN</div>` },
 ];
 
 const QB_IMMERSIVE_CARDS = [
@@ -108,15 +76,24 @@ const QB_IMMERSIVE_CARDS = [
   { title:'Jogos WebXR Imersivos', sub:'Catálogo VR no Navegador', url:'https://constructarcade.com/', bg:'linear-gradient(135deg,#065f46,#0f172a)' },
 ];
 
-function buildQuestBrowserHomeHtml() {
+function buildQuestBrowserHomeHtml(activeCat = 'all') {
+  const cats = [
+    ['all', 'Recommended'],
+    ['videos', 'Videos'],
+    ['entertainment', 'Entertainment'],
+    ['social', 'Social'],
+    ['media', 'Media'],
+    ['tools', 'Tools'],
+  ];
+  const cards = PICO_BROWSER_POPULAR_CARDS.filter(c => activeCat === 'all' || c.cat === activeCat || c.cat === 'recommended');
   return `
-    <div class="qb-home-scroll">
+    <div class="qb-home-scroll qb-pico-home" data-pico-browser-home="1">
       <section class="qb-sec">
-        <div class="qb-sec-head"><span class="qb-sec-title">Populares</span></div>
-        <div class="qb-pop-row">
-          ${QB_POPULAR_SITES.map(s => `
-            <button type="button" class="qb-pop-item" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
-              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color};overflow:hidden;padding:0">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">` : (s.svg || escH(s.badge))}</span>
+        <div class="qb-sec-head"><span class="qb-sec-title">Shortcuts</span></div>
+        <div class="qb-pop-row qb-pico-shortcuts">
+          ${PICO_BROWSER_SHORTCUTS.map(s => `
+            <button type="button" class="qb-pop-item qb-pico-shortcut" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
+              <span class="qb-pop-icon qb-pico-sc-icon" style="background:${s.bg};color:${s.color};border-radius:50%;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;box-shadow:0 4px 12px rgba(0,0,0,.32)">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%">` : (s.svg || escH(s.badge))}</span>
               <span class="qb-pop-lbl">${escH(s.name)}</span>
             </button>
           `).join('')}
@@ -124,14 +101,26 @@ function buildQuestBrowserHomeHtml() {
       </section>
 
       <section class="qb-sec">
-        <div class="qb-sec-head"><span class="qb-sec-title">Continuar navegando</span></div>
-        <div class="qb-cont-grid">
-          ${QB_CONTINUE_CARDS.map(c => `
-            <button type="button" class="qb-cont-card" data-qb-url="${escH(c.url)}" title="${escH(c.title)}">
-              <span class="qb-cont-ico" style="background:${c.iconBg}">${escH(c.iconTxt)}</span>
-              <div class="qb-cont-meta">
-                <div class="qb-cont-ttl">${escH(c.title)}</div>
-                <div class="qb-cont-dom">${escH(c.domain)}</div>
+        <div class="qb-sec-head qb-pico-pop-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="qb-sec-title">Popular</span>
+            <div class="qb-pico-cat-tabs" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${cats.map(([cid, label]) => `
+                <button type="button" class="qb-pico-cat-btn ${activeCat === cid ? 'on' : ''}" data-qb-cat="${cid}"
+                  style="background:${activeCat === cid ? 'rgba(255,255,255,.14)' : 'transparent'};color:${activeCat === cid ? '#ffffff' : 'rgba(226,232,240,.62)'};border:0;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:${activeCat === cid ? '800' : '600'};cursor:pointer">${label}</button>
+              `).join('')}
+            </div>
+          </div>
+          <button type="button" class="qb-sec-more" data-qb-cat="all" style="background:transparent;border:0;color:#38bdf8;font-size:11px;font-weight:700;cursor:pointer">Show More ›</button>
+        </div>
+        <div class="qb-cont-grid qb-pico-pop-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+          ${cards.map(c => `
+            <button type="button" class="qb-cont-card qb-pico-pop-card" data-qb-url="${escH(c.url)}" title="${escH(c.name)}"
+              style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);text-align:left;cursor:pointer;color:#f8fafc">
+              <span class="qb-cont-ico" style="width:36px;height:36px;border-radius:50%;background:${c.icoBg};color:${c.icoColor};display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0">${escH(c.icoTxt)}</span>
+              <div class="qb-cont-meta" style="min-width:0;flex:1">
+                <div class="qb-cont-ttl" style="font-size:12px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.name)}</div>
+                <div class="qb-cont-dom" style="font-size:10px;color:rgba(226,232,240,.58);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.sub)}</div>
               </div>
             </button>
           `).join('')}
@@ -335,10 +324,21 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
   function bCmd(cmd,u){ if(native) window.NativeXR?.browserCmd?.('browser',cmd,u||''); }
 
   homeOverlay.addEventListener('click', e => {
+    const catBtn = e.target.closest('[data-qb-cat]');
+    if (catBtn) {
+      e.stopPropagation();
+      homeOverlay.innerHTML = buildQuestBrowserHomeHtml(catBtn.dataset.qbCat || 'all');
+      css3d.invalidate?.();
+      return;
+    }
     const tile = e.target.closest('[data-qb-url]');
     if (!tile) return;
     e.stopPropagation();
     const u = tile.dataset.qbUrl || '';
+    if (u === 'pico://explore') { openPicoExplore(); return; }
+    if (u === 'pico://motion-tracker') { openPicoMotionTracker(); return; }
+    if (u === 'pico://tiktok') { openTikTokVr(); return; }
+    if (u === 'pico://spotify') { openSpotifyVr(); return; }
     if (u.includes('roblox.com')) {
       openRobloxVr();
       return;
@@ -1370,9 +1370,9 @@ function quickSettingsApp() {
       <button class="qs-tool" data-q-night aria-pressed="false">${icon('sun')}<span>Modo noturno</span></button>
       <button class="qs-tool" data-q-dnd aria-pressed="false">${icon('moon')}<span>Não perturbe</span></button>
       <button class="qs-tool" data-q-internal-rec data-internal-rec-btn="1" aria-pressed="${internalRecState.active ? 'true' : 'false'}">${icon('camera')}<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Gravação Interna (1 Lente)'}</span></button>
-      <button class="qs-tool" disabled>${icon('bug')}<span>Relatar problema</span></button>
-      <button class="qs-tool" disabled>${icon('lock')}<span>Modo viagem</span></button>
-      <button class="qs-tool" disabled>${icon('device')}<span>Remote Desktop</span></button>
+      <button class="qs-tool" data-q-motion-tracker>${icon('device')}<span>PICO Motion Tracker</span></button>
+      <button class="qs-tool" data-q-notifications>${icon('sun')}<span>Notificações · 27°C</span></button>
+      <button class="qs-tool" data-q-pico-explore>${icon('compass')}<span>PICO Explore 8K</span></button>
     </div>
   </section>
   <aside class="qs-side" aria-label="Controles rápidos">
@@ -1438,6 +1438,9 @@ function quickSettingsApp() {
     if(c('[data-q-night]')){prefs.night=!prefs.night;syncPrefs();savePrefs();return;}
     if(c('[data-q-dnd]')){prefs.dnd=!prefs.dnd;syncPrefs();savePrefs();return;}
     if(c('[data-q-internal-rec]')){toggleInternalEyeRecording();return;}
+    if(c('[data-q-motion-tracker]')){openPicoMotionTracker();return;}
+    if(c('[data-q-notifications]')){openPhoneNotifications();return;}
+    if(c('[data-q-pico-explore]')){openPicoExplore();return;}
     if(c('[data-q-mute]')){
       prefs.muted=!prefs.muted;
       if(prefs.muted){if(volume>0)prefs.lastVolume=volume;setRange('volume',0);}
@@ -2051,10 +2054,742 @@ export function openHandDrawGame() {
   return win;
 }
 
+/* ============ PICO Motion Tracker (Screenshot_2026-10-25-19-28-52-726) ============ */
+export function openPicoMotionTracker() {
+  const existing = wins.find(w => w.id === 'motion-tracker');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+  const heights = [170, 175, 180, 183, 188];
+  let heightIdx = 3; // 183 cm default from screenshot
+  let calibrating = false;
+  let calibStatus = '2 Motion Trackers conectados. Tente conectar mais para uma melhor experiência.';
+
+  const body = el('div', 'pico-mt-win');
+  body.dataset.picoMotionTracker = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#1e2026;color:#f1f5f9;display:flex;flex-direction:column;padding:14px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="width:48px"></span>
+      <h2 style="margin:0;font-size:15px;font-weight:800;letter-spacing:.01em;color:#f8fafc">PICO Motion Tracker</h2>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button type="button" data-mt-gear title="Ajustes de Rastreamento" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;font-size:13px">⚙</button>
+        <button type="button" data-mt-help title="Ajuda Motion Tracker" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;font-size:13px">?</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:14px;flex:1;min-height:0">
+      <div style="background:linear-gradient(180deg,#2a2d35 0%,#343842 100%);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(255,255,255,.08);position:relative;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;z-index:2">
+          <button type="button" data-mt-floor style="background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Ajustar piso ›</button>
+          <button type="button" data-mt-height style="background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">183 cm ›</button>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0">
+          <canvas data-mt-avatar-canvas width="280" height="270" style="width:240px;height:230px;display:block"></canvas>
+        </div>
+        <p style="margin:0;font-size:10.5px;line-height:1.38;color:rgba(241,245,249,.78);text-align:center;z-index:2">
+          Levante a perna e mova o corpo para ver se o movimento do modelo corresponde ao seu. Caso contrário, recalibre.
+        </p>
+      </div>
+      <div style="background:#262931;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(255,255,255,.07)">
+        <div>
+          <h3 style="margin:0 0 4px;font-size:14px;font-weight:800;color:#f8fafc">Meus Motion Trackers</h3>
+          <p data-mt-status style="margin:0 0 12px;font-size:11px;line-height:1.35;color:rgba(226,232,240,.65)">${calibStatus}</p>
+          <div data-mt-list style="display:flex;flex-direction:column;gap:10px">
+            <div data-mt-tracker="271297" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:12px;background:#2f333d;border:1px solid rgba(255,255,255,.07)">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:34px;height:34px;border-radius:50%;border:2.5px solid #84cc16;display:inline-flex;align-items:center;justify-content:center;background:#1e2026">
+                  <span style="width:12px;height:18px;border-radius:6px;background:#f8fafc;display:inline-block"></span>
+                </span>
+                <div>
+                  <div style="font-size:12px;font-weight:800;color:#f8fafc">Motion Tracker 271297</div>
+                  <div data-mt-tstatus="1" style="font-size:10.5px;color:#a3e635;font-weight:600">Conectado · Tornozelo Dir. (98%)</div>
+                </div>
+              </div>
+              <button type="button" data-mt-info="271297" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:transparent;color:#cbd5e1;font-size:11px;cursor:pointer">i</button>
+            </div>
+            <div data-mt-tracker="271296" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:12px;background:#2f333d;border:1px solid rgba(255,255,255,.07)">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:34px;height:34px;border-radius:50%;border:2.5px solid #84cc16;display:inline-flex;align-items:center;justify-content:center;background:#1e2026">
+                  <span style="width:12px;height:18px;border-radius:6px;background:#f8fafc;display:inline-block"></span>
+                </span>
+                <div>
+                  <div style="font-size:12px;font-weight:800;color:#f8fafc">Motion Tracker 271296</div>
+                  <div data-mt-tstatus="2" style="font-size:10.5px;color:#a3e635;font-weight:600">Conectado · Tornozelo Esq. (95%)</div>
+                </div>
+              </div>
+              <button type="button" data-mt-info="271296" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:transparent;color:#cbd5e1;font-size:11px;cursor:pointer">i</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button type="button" data-mt-recalibrate style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#363a45;color:#f8fafc;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+            <span>⊕</span> <span data-mt-recal-label>Recalibrar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const cv = body.querySelector('[data-mt-avatar-canvas]');
+  const ctx = cv.getContext('2d');
+  let animId = 0;
+  const t0 = performance.now();
+  const drawAvatar = (now) => {
+    if (!body.isConnected) return;
+    const tSec = (now - t0) * 0.001;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const cx = cv.width * 0.5;
+    const legLift = Math.max(0, Math.sin(tSec * 2.6)) * 22;
+    const armSwing = Math.sin(tSec * 2.6) * 10;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(cx, 242, 36, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#1f232b';
+    ctx.lineWidth = 15;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 11, 146);
+    ctx.lineTo(cx - 12, 226);
+    ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.roundRect(cx - 21, 224, 18, 10, 5); ctx.fill();
+    ctx.fillStyle = '#84cc16';
+    ctx.beginPath(); ctx.arc(cx - 12, 214, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    const kneeY = 182 - legLift * 0.9;
+    const footY = 224 - legLift;
+    ctx.strokeStyle = '#252932';
+    ctx.lineWidth = 15;
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, 146);
+    ctx.lineTo(cx + 14, kneeY);
+    ctx.lineTo(cx + 12, footY);
+    ctx.stroke();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath(); ctx.roundRect(cx + 4, footY - 2, 18, 10, 5); ctx.fill();
+    ctx.fillStyle = '#84cc16';
+    ctx.beginPath(); ctx.arc(cx + 12, footY - 11, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#e5cf8e';
+    ctx.beginPath();
+    ctx.roundRect(cx - 24, 82, 48, 66, 14);
+    ctx.fill();
+
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(cx - 24, 92);
+    ctx.lineTo(cx - 34, 126 + armSwing * 0.5);
+    ctx.moveTo(cx + 24, 92);
+    ctx.lineTo(cx + 30, 116 - armSwing * 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f1c6a7';
+    ctx.beginPath();
+    ctx.arc(cx, 54, 21, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4a3222';
+    ctx.beginPath();
+    ctx.arc(cx, 46, 21, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.roundRect(cx - 19, 44, 38, 15, 7);
+    ctx.fill();
+    ctx.fillStyle = '#111827';
+    ctx.beginPath();
+    ctx.roundRect(cx - 16, 46, 32, 11, 5);
+    ctx.fill();
+
+    animId = requestAnimationFrame(drawAvatar);
+  };
+  animId = requestAnimationFrame(drawAvatar);
+
+  body.addEventListener('click', e => {
+    if (e.target.closest('[data-mt-height]')) {
+      heightIdx = (heightIdx + 1) % heights.length;
+      body.querySelector('[data-mt-height]').textContent = `${heights[heightIdx]} cm ›`;
+      toast(`Altura ajustada: ${heights[heightIdx]} cm`);
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-mt-floor]')) {
+      toast('Piso calibrado automaticamente com os sensores PICO Motion Tracker');
+      return;
+    }
+    if (e.target.closest('[data-mt-recalibrate]')) {
+      if (calibrating) return;
+      calibrating = true;
+      const lbl = body.querySelector('[data-mt-recal-label]');
+      const st = body.querySelector('[data-mt-status]');
+      if (lbl) lbl.textContent = 'Calibrando...';
+      if (st) st.textContent = 'Olhe para a frente e mantenha os pés alinhados...';
+      css3d.invalidate?.();
+      setTimeout(() => {
+        calibrating = false;
+        if (lbl) lbl.textContent = 'Recalibrar';
+        if (st) st.textContent = '✓ Calibração concluída! 2 Motion Trackers sincronizados em tempo real.';
+        toast('PICO Motion Trackers 271297 & 271296 recalibrados!');
+        css3d.invalidate?.();
+      }, 650);
+    }
+  });
+
+  const win = open({ id: 'motion-tracker', title: 'PICO Motion Tracker', node: body, w: 860, h: 540 });
+  win._cleanupMT = () => cancelAnimationFrame(animId);
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+/* ============ PICO Explore / Recomendado pelo PICO (Screenshot_2026-10-25-19-28-52-726) ============ */
+export function openPicoExplore() {
+  const existing = wins.find(w => w.id === 'pico-explore');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+  const panoramas = [
+    { id: 'idol', title: 'Dream of Becoming an Idol', sub: 'Strive for the dream of becoming an idol', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#831843,#db2777)', env: 'sunset' },
+    { id: 'fashion', title: 'Calming Stage & Studio 8K', sub: 'Immersive 180° 3D Live Performance', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#334155,#64748b)', env: 'lakeside' },
+    { id: 'blackhole', title: 'Black Hole Event Horizon', sub: 'Deep Space Gargantua 360° Simulation', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#451a03,#d97706)', env: 'dark' },
+    { id: 'ocean', title: 'Deep Ocean Scuba Coral 8K', sub: 'Underwater Reef & Marine Life 8K', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#083344,#06b6d4)', env: 'tropical' },
+  ];
+
+  const body = el('div', 'pico-explore-win');
+  body.dataset.picoExplore = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#181a20;color:#f8fafc;display:grid;grid-template-columns:1fr 250px;gap:16px;padding:16px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:auto;';
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(Anbefalt av PICO)</span></h2>
+        <button type="button" data-exp-picovideo style="padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:11px;font-weight:700;cursor:pointer">Ir para PICO VIDEO ›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+        ${panoramas.map(p => `
+          <div data-exp-pano="${p.env}" style="background:#242730;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column">
+            <div style="height:108px;background:${p.bg};padding:8px;display:flex;flex-direction:column;justify-content:space-between;position:relative">
+              <span style="align-self:flex-start;padding:2px 7px;border-radius:6px;background:rgba(6,182,212,.85);color:#fff;font-size:9.5px;font-weight:800">${p.badge}</span>
+              <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.88)">PICO VIDEO</span>
+            </div>
+            <div style="padding:9px 10px">
+              <div style="font-size:11.5px;font-weight:800;color:#f8fafc;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.title}</div>
+              <div style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sub}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+        <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07)">
+          <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:#f8fafc">Oferta Especial (Spesialtilbud)</div>
+          <div data-exp-amongus style="display:flex;align-items:center;gap:12px;background:#16181f;padding:10px;border-radius:12px;cursor:pointer;border:1px solid rgba(239,68,68,.35)">
+            <div style="width:84px;height:62px;border-radius:10px;background:linear-gradient(135deg,#7f1d1d,#1e3a8a);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:#f8fafc;text-align:center;line-height:1.1">AMONG US<br>3D VR</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:800;color:#f8fafc">Among Us 3D</div>
+              <div style="font-size:10.5px;color:#94a3b8;margin:2px 0 6px">Social, Casual, Space · ★ 3.7</div>
+              <span style="padding:3px 9px;border-radius:6px;background:#2563eb;color:#fff;font-size:10.5px;font-weight:800">Jogar Agora · Grátis</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:13px;font-weight:800;color:#f8fafc">Rastreamento Corporal PICO</div>
+          <p style="margin:4px 0 8px;font-size:11px;color:#94a3b8">2 Motion Trackers conectados (271297 & 271296). Calibre o piso e a altura para VRChat e jogos.</p>
+          <button type="button" data-exp-mt style="padding:8px 12px;border-radius:10px;border:1px solid rgba(132,204,22,.45);background:rgba(132,204,22,.16);color:#bef264;font-size:11.5px;font-weight:800;cursor:pointer">🦵 Abrir PICO Motion Tracker</button>
+        </div>
+      </div>
+    </div>
+    <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13.5px;font-weight:800;color:#f8fafc">Chat e jogos (Chat og spill)</div>
+      <button type="button" data-exp-party style="width:100%;padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:12px;font-weight:800;cursor:pointer;text-align:left">🎮 Grupo de jogo (Spillgruppe)</button>
+      <button type="button" data-exp-social style="width:100%;padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:12px;font-weight:800;cursor:pointer;text-align:left">👥 Social (Sosialt)</button>
+      <div data-exp-vrchat style="margin-top:4px;padding:10px;border-radius:12px;background:#181a20;border:1px solid rgba(255,255,255,.08);cursor:pointer">
+        <div style="height:78px;border-radius:8px;background:linear-gradient(135deg,#1e1b4b,#3b82f6);display:flex;align-items:flex-end;padding:8px;margin-bottom:8px">
+          <span style="padding:2px 7px;border-radius:5px;background:#09090b;color:#38bdf8;font-size:10px;font-weight:900">VRCHAT</span>
+        </div>
+        <div style="font-size:12px;font-weight:800;color:#f8fafc">VRChat · Kai the Robot</div>
+        <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">👥 1/16 na sala · Toque para entrar</div>
+      </div>
+    </div>
+  `;
+
+  body.addEventListener('click', e => {
+    const pano = e.target.closest('[data-exp-pano]');
+    if (pano) {
+      setEnvironment(pano.dataset.expPano);
+      toast(`Ambiente Panorama 8K ativado: ${pano.dataset.expPano}`);
+      return;
+    }
+    if (e.target.closest('[data-exp-mt]')) { openPicoMotionTracker(); return; }
+    if (e.target.closest('[data-exp-amongus]')) { openGorillaTag(); return; }
+    if (e.target.closest('[data-exp-picovideo]')) { openTikTokVr(); return; }
+    if (e.target.closest('[data-exp-vrchat]') || e.target.closest('[data-exp-party]') || e.target.closest('[data-exp-social]')) {
+      openPicoMotionTracker();
+    }
+  });
+
+  const win = open({ id: 'pico-explore', title: 'Recomendado pelo PICO', node: body, w: 1000, h: 580 });
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+/* ============ TikTok VR Vertical Window (Screenshots 19-11-24 & 19-11-03) ============ */
+export function openTikTokVr() {
+  const existing = wins.find(w => w.id === 'tiktok');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+  const reels = [
+    {
+      author: 'MrBeast',
+      verified: true,
+      date: '09-14',
+      caption: 'I just got punched by @Mike Tyson #CaneloCrawford #RiyadhSeason · Colaboración de pago',
+      likes: '1,1 mi',
+      comments: '43,5 mil',
+      saves: '78,2 mil',
+      shares: '86,1 mil',
+      kind: 'mrbeast',
+    },
+    {
+      author: 'DavePicoVr',
+      verified: false,
+      date: '08-19',
+      caption: 'Italia ✈️ Giappone Tokyo · TikTok em VR #fyp #tiktok #pico4ultra #chill',
+      likes: '15,4 mil',
+      comments: '842',
+      saves: '2,1 mil',
+      shares: '619',
+      kind: 'tokyo-map',
+    },
+    {
+      author: 'ミスターVR@VR解説',
+      verified: true,
+      date: '09-19',
+      caption: 'Com a realidade mista PICO 4 Ultra, você pode se teletransportar do céu para o lago #pico4ultra #mr',
+      likes: '2.738',
+      comments: '60',
+      saves: '438',
+      shares: '326',
+      kind: 'pico-mr',
+    },
+  ];
+  let reelIdx = 0;
+  let liked = false;
+
+  const body = el('div', 'pico-tiktok-win');
+  body.dataset.picoTiktok = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#09090b;color:#f8fafc;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+
+  const renderReel = () => {
+    const r = reels[reelIdx];
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(9,9,11,.86);border-bottom:1px solid rgba(255,255,255,.08);z-index:3">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:15px;font-weight:900;color:#25F4EE">♪ TikTok VR</span>
+          <span style="font-size:11.5px;color:rgba(255,255,255,.55);font-weight:700">Seguindo</span>
+          <span style="font-size:12px;color:#fff;font-weight:900;border-bottom:2px solid #fff;padding-bottom:2px">Para Você</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button type="button" data-tt-prev title="Vídeo Anterior" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:#18181b;color:#fff;font-size:11px;font-weight:800;cursor:pointer">▲</button>
+          <button type="button" data-tt-next title="Próximo Vídeo" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:#18181b;color:#fff;font-size:11px;font-weight:800;cursor:pointer">▼</button>
+          <button type="button" data-tt-web title="Abrir TikTok Web" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(37,244,238,.4);background:rgba(37,244,238,.12);color:#25F4EE;font-size:10.5px;font-weight:800;cursor:pointer">🌐 Web</button>
+        </div>
+      </div>
+      <div style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#111318">
+        <canvas data-tt-canvas width="520" height="460" style="width:100%;height:100%;display:block;object-fit:cover"></canvas>
+        <div style="position:absolute;right:12px;bottom:64px;display:flex;flex-direction:column;align-items:center;gap:12px;z-index:3">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#ec4899);border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;position:relative">
+            ${r.author.slice(0, 2).toUpperCase()}
+            <span style="position:absolute;bottom:-5px;width:16px;height:16px;border-radius:50%;background:#fe2c55;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:900">+</span>
+          </div>
+          <button type="button" data-tt-like style="background:transparent;border:0;color:${liked ? '#fe2c55' : '#fff'};display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:20px">
+            ♥ <span style="font-size:10.5px;font-weight:800;color:#fff">${r.likes}</span>
+          </button>
+          <button type="button" data-tt-comment style="background:transparent;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
+            💬 <span style="font-size:10.5px;font-weight:800">${r.comments}</span>
+          </button>
+          <button type="button" data-tt-save style="background:transparent;border:0;color:#facc15;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
+            🔖 <span style="font-size:10.5px;font-weight:800;color:#fff">${r.saves}</span>
+          </button>
+          <button type="button" data-tt-share style="background:transparent;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
+            ↗ <span style="font-size:10.5px;font-weight:800">${r.shares}</span>
+          </button>
+        </div>
+        <div style="position:absolute;left:14px;right:72px;bottom:58px;z-index:3;text-shadow:0 1px 4px rgba(0,0,0,.85)">
+          <div style="font-size:13.5px;font-weight:900;color:#fff;margin-bottom:4px;display:flex;align-items:center;gap:5px">
+            ${escH(r.author)} ${r.verified ? '<span style="color:#38bdf8">✔</span>' : ''} <span style="font-size:11px;color:rgba(255,255,255,.72);font-weight:600">· ${r.date}</span>
+          </div>
+          <div style="font-size:11.5px;line-height:1.36;color:#f1f5f9">${escH(r.caption)}</div>
+        </div>
+        <div style="position:absolute;left:12px;right:12px;bottom:10px;height:36px;border-radius:999px;background:rgba(24,24,27,.84);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:3">
+          <span style="font-size:11px;color:rgba(255,255,255,.65)">Añadir comentario...</span>
+          <div style="display:flex;align-items:center;gap:8px;font-size:15px">
+            <button type="button" data-tt-emoji="😂" style="background:transparent;border:0;cursor:pointer;font-size:15px">😂</button>
+            <button type="button" data-tt-emoji="😮" style="background:transparent;border:0;cursor:pointer;font-size:15px">😮</button>
+            <button type="button" data-tt-emoji="😢" style="background:transparent;border:0;cursor:pointer;font-size:15px">😢</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const cv = body.querySelector('[data-tt-canvas]');
+    const ctx = cv.getContext('2d');
+    if (r.kind === 'tokyo-map') {
+      ctx.fillStyle = '#bae6fd';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = '#f1f5f9';
+      ctx.beginPath();
+      ctx.moveTo(80, 340); ctx.lineTo(190, 250); ctx.lineTo(290, 220); ctx.lineTo(390, 140); ctx.lineTo(430, 190); ctx.lineTo(340, 310);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.roundRect(110, 42, 300, 38, 10); ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 18px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Italia Giappone Tokyo', 260, 67);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(140, 290); ctx.quadraticCurveTo(260, 160, 385, 210); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(385, 210, 9, 0, Math.PI * 2); ctx.fill();
+    } else if (r.kind === 'mrbeast') {
+      const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+      g.addColorStop(0, '#334155');
+      g.addColorStop(0.5, '#475569');
+      g.addColorStop(1, '#1e293b');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(28, 18, 150, 74);
+      ctx.fillStyle = '#d6c7b2';
+      ctx.beginPath(); ctx.roundRect(185, 95, 130, 160, 20); ctx.fill();
+      ctx.fillStyle = '#9a5b3e';
+      ctx.beginPath(); ctx.arc(250, 66, 28, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#374151';
+      ctx.beginPath(); ctx.roundRect(330, 102, 130, 210, 20); ctx.fill();
+      ctx.fillStyle = '#d4a373';
+      ctx.beginPath(); ctx.arc(395, 68, 27, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.roundRect(120, 185, 155, 175, 24); ctx.fill();
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath(); ctx.arc(215, 158, 30, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const g = ctx.createLinearGradient(0, 0, cv.width, cv.height);
+      g.addColorStop(0, '#1e1b4b');
+      g.addColorStop(1, '#0f172a');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(170, 140, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(350, 135, 14, 0, Math.PI * 2); ctx.stroke();
+    }
+  };
+  renderReel();
+
+  body.addEventListener('click', e => {
+    if (e.target.closest('[data-tt-next]')) {
+      reelIdx = (reelIdx + 1) % reels.length;
+      renderReel();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-tt-prev]')) {
+      reelIdx = (reelIdx - 1 + reels.length) % reels.length;
+      renderReel();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-tt-like]')) {
+      liked = !liked;
+      renderReel();
+      css3d.invalidate?.();
+      return;
+    }
+    const em = e.target.closest('[data-tt-emoji]');
+    if (em) {
+      toast(`Reação enviada no TikTok VR: ${em.dataset.ttEmoji}`);
+      return;
+    }
+    if (e.target.closest('[data-tt-web]')) {
+      webBrowserFor('browser', 'TikTok', 'https://www.tiktok.com/', { showHomeOverlay: false });
+    }
+  });
+
+  const win = open({ id: 'tiktok', title: 'TikTok', node: body, w: 540, h: 660 });
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+/* ============ Spotify VR Music Player (Screenshot_2026-10-25-19-11-03-772) ============ */
+export function openSpotifyVr() {
+  const existing = wins.find(w => w.id === 'spotify');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+  const tracks = [
+    { title: 'PICO 4 Ultra Spatial Horizon', artist: 'ATMO XR Audio Lab', dur: '3:42', freq: 220, bg: 'linear-gradient(135deg,#065f46,#10b981)' },
+    { title: 'Gorilla Tag Jungle Phonk', artist: 'Monke Beats VR', dur: '2:56', freq: 165, bg: 'linear-gradient(135deg,#7c2d12,#f97316)' },
+    { title: 'Neon Saber Synthwave 128 BPM', artist: 'CyberGrid XR', dur: '4:10', freq: 262, bg: 'linear-gradient(135deg,#1e1b4b,#ec4899)' },
+    { title: 'Midnight Flight Lo-Fi Beats', artist: 'Tokyo Panorama', dur: '3:18', freq: 196, bg: 'linear-gradient(135deg,#0f172a,#38bdf8)' },
+  ];
+  let trackIdx = 0;
+  let playing = false;
+  let audioCtx = null;
+  let oscTimer = 0;
+
+  const stopSynth = () => {
+    if (oscTimer) { clearInterval(oscTimer); oscTimer = 0; }
+  };
+  const startSynth = () => {
+    stopSynth();
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      let step = 0;
+      const notes = [1, 1.25, 1.5, 1.25, 1.33, 1.5, 2, 1.5];
+      oscTimer = setInterval(() => {
+        if (!playing || !audioCtx) return;
+        const base = tracks[trackIdx].freq;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = base * notes[step % notes.length];
+        gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.32);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.34);
+        step++;
+      }, 360);
+    } catch {}
+  };
+
+  const body = el('div', 'pico-spotify-win');
+  body.dataset.picoSpotify = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#121212;color:#ffffff;display:flex;flex-direction:column;justify-content:space-between;padding:16px 20px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+
+  const renderPlayer = () => {
+    const tr = tracks[trackIdx];
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:30px;height:30px;border-radius:50%;background:#1db954;color:#09090b;display:inline-flex;align-items:center;justify-content:center;font-weight:900">🟢</span>
+          <div>
+            <div style="font-size:15px;font-weight:900;color:#fff">Spotify · PICO 4 Ultra</div>
+            <div style="font-size:10.5px;color:#a1a1aa">Áudio Espacial em Segundo Plano Ativo</div>
+          </div>
+        </div>
+        <button type="button" data-sp-web style="padding:5px 12px;border-radius:999px;border:1px solid rgba(29,185,84,.45);background:rgba(29,185,84,.14);color:#4ade80;font-size:11px;font-weight:800;cursor:pointer">🌐 Spotify Web</button>
+      </div>
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:18px;margin:14px 0;flex:1;min-height:0">
+        <div style="background:${tr.bg};border-radius:16px;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;box-shadow:0 12px 28px rgba(0,0,0,.45)">
+          <span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.78);letter-spacing:.08em">TOCANDO AGORA</span>
+          <div style="font-size:16px;font-weight:900;color:#fff;margin-top:4px;line-height:1.2">${escH(tr.title)}</div>
+          <div style="font-size:11.5px;color:rgba(255,255,255,.82);margin-top:4px">${escH(tr.artist)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;overflow:auto">
+          <div style="font-size:12px;font-weight:800;color:#a1a1aa;margin-bottom:2px">PLAYLIST PICO XR & ATMOXR</div>
+          ${tracks.map((item, i) => `
+            <button type="button" data-sp-track="${i}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid ${i === trackIdx ? '#1db954' : 'rgba(255,255,255,.07)'};background:${i === trackIdx ? 'rgba(29,185,84,.16)' : '#18181b'};color:#fff;cursor:pointer;text-align:left">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:12px;font-weight:900;color:${i === trackIdx ? '#1db954' : '#71717a'}">${i === trackIdx && playing ? '▶' : i + 1}</span>
+                <div>
+                  <div style="font-size:12.5px;font-weight:800;color:${i === trackIdx ? '#4ade80' : '#f4f4f5'}">${escH(item.title)}</div>
+                  <div style="font-size:10.5px;color:#a1a1aa">${escH(item.artist)}</div>
+                </div>
+              </div>
+              <span style="font-size:11px;color:#a1a1aa">${item.dur}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:14px;background:#18181b;border:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:12px;font-weight:800;color:#e4e4e7">${escH(tr.title)} · <span style="color:#1db954">${playing ? 'Tocando' : 'Pausado'}</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" data-sp-prev style="width:34px;height:34px;border-radius:50%;border:0;background:#27272a;color:#fff;cursor:pointer;font-size:13px">⏮</button>
+          <button type="button" data-sp-play style="width:42px;height:42px;border-radius:50%;border:0;background:#1db954;color:#09090b;cursor:pointer;font-size:16px;font-weight:900">${playing ? '⏸' : '▶'}</button>
+          <button type="button" data-sp-next style="width:34px;height:34px;border-radius:50%;border:0;background:#27272a;color:#fff;cursor:pointer;font-size:13px">⏭</button>
+        </div>
+      </div>
+    `;
+  };
+  renderPlayer();
+
+  body.addEventListener('click', e => {
+    const trBtn = e.target.closest('[data-sp-track]');
+    if (trBtn) {
+      trackIdx = Number(trBtn.dataset.spTrack) || 0;
+      playing = true;
+      startSynth();
+      renderPlayer();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-sp-play]')) {
+      playing = !playing;
+      if (playing) startSynth(); else stopSynth();
+      renderPlayer();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-sp-next]')) {
+      trackIdx = (trackIdx + 1) % tracks.length;
+      if (playing) startSynth();
+      renderPlayer();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-sp-prev]')) {
+      trackIdx = (trackIdx - 1 + tracks.length) % tracks.length;
+      if (playing) startSynth();
+      renderPlayer();
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-sp-web]')) {
+      webBrowserFor('browser', 'Spotify', 'https://open.spotify.com/', { showHomeOverlay: false });
+    }
+  });
+
+  const win = open({ id: 'spotify', title: 'Spotify', node: body, w: 820, h: 520 });
+  win._cleanupSP = () => stopSynth();
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
+/* ============ Central de Notificações e Clima do Celular (Screenshot_2026-10-25-12-02-11-935) ============ */
+export function openPhoneNotifications() {
+  const existing = wins.find(w => w.id === 'phone-notifications');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const body = el('div', 'phone-notif-shade');
+  body.dataset.phoneNotifications = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:rgba(115,120,126,.94);backdrop-filter:blur(22px);color:#111827;display:flex;flex-direction:column;justify-content:space-between;padding:16px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:auto;';
+
+  body.innerHTML = `
+    <div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;color:#f8fafc;margin-bottom:12px">
+        <div>
+          <div style="font-size:34px;font-weight:300;line-height:1">${nowStr}</div>
+          <div style="font-size:12px;color:rgba(248,250,252,.82);margin-top:3px">Dom, 25/Out</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;font-weight:600;color:#f8fafc">Claro BR</div>
+          <div style="font-size:15px;margin-top:4px">🔔⚙</div>
+        </div>
+      </div>
+      <div data-notif-cards style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
+          <span style="width:38px;height:38px;border-radius:10px;background:#10b981;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🍃</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:800;color:#111827">Veja o Índice de Qualidade... · <span style="font-weight:500;color:#6b7280">5h</span></div>
+            <div style="font-size:11.5px;color:#4b5563">Clique para maiores detalhes</div>
+          </div>
+        </div>
+        <div style="background:rgba(226,232,240,.88);border-radius:18px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px">☁️</span>
+            <div>
+              <div style="font-size:12.5px;font-weight:700;color:#1f2937">Pouco Nub. 30~23°</div>
+              <div style="font-size:11px;color:#dc2626;font-weight:600">⚠️ Há 2 alertas de mau tempo hoje. Visu...</div>
+            </div>
+          </div>
+          <div style="font-size:26px;font-weight:300;color:#0f172a">27°C 🔄</div>
+        </div>
+        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
+          <span style="width:36px;height:36px;border-radius:10px;background:#820ad1;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0">nu</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#111827"><span>Transferência recebida</span><span style="font-size:11px;color:#6b7280;font-weight:500">11:24</span></div>
+            <div style="font-size:11.5px;color:#4b5563">Você recebeu uma transferência de R$ 5,00 de ANA PAULA MENDES LIANDRO.</div>
+          </div>
+        </div>
+        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
+          <span style="width:36px;height:36px;border-radius:10px;background:#22c55e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;flex-shrink:0">⬇</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:800;color:#111827">image.png</div>
+            <div style="font-size:11.5px;color:#4b5563">Download concluído · Ícone ATMO XR aplicado.</div>
+          </div>
+        </div>
+        <div data-notif-yt style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px;cursor:pointer">
+          <span style="width:36px;height:36px;border-radius:10px;background:#ef4444;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0">▶</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#111827"><span>🔴 Assistir CazéTV ao vivo em 30 min..</span><span style="font-size:11px;color:#6b7280;font-weight:500">09:35</span></div>
+            <div style="font-size:11.5px;color:#4b5563">AO VIVO: MANCHESTER UNITED X BOURNEMOUTH | PREMIER LEAGUE ...</div>
+          </div>
+        </div>
+        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:12.5px;font-weight:800;color:#111827">Hoje, 29.3°C~24.79°C</div>
+            <div style="font-size:11.5px;color:#4b5563">Salvador / Bahia | Hoje PARTLY_CLOUDY_DAY · 25°C</div>
+          </div>
+          <span style="font-size:11px;color:#6b7280">06:39</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;margin-top:12px">
+      <button type="button" data-notif-close title="Fechar Notificações" style="width:46px;height:46px;border-radius:50%;border:0;background:#ffffff;color:#1f2937;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.28)">✕</button>
+    </div>
+  `;
+
+  body.addEventListener('click', e => {
+    if (e.target.closest('[data-notif-close]')) {
+      close(wins.find(w => w.id === 'phone-notifications'));
+      return;
+    }
+    if (e.target.closest('[data-notif-yt]')) {
+      webWindow('youtube', 'YouTube', 'https://m.youtube.com/');
+    }
+  });
+
+  const win = open({ id: 'phone-notifications', title: 'Notificações · 27°C', node: body, w: 540, h: 660 });
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+
 if (typeof window !== 'undefined') {
   window.nextvrOpenRobloxVr = openRobloxVr;
   window.nextvrOpenBeatSaberVr = openBeatSaberVr;
   window.nextvrOpenHandDrawGame = openHandDrawGame;
+  window.nextvrOpenPicoMotionTracker = openPicoMotionTracker;
+  window.nextvrOpenPicoExplore = openPicoExplore;
+  window.nextvrOpenTikTokVr = openTikTokVr;
+  window.nextvrOpenSpotifyVr = openSpotifyVr;
+  window.nextvrOpenPhoneNotifications = openPhoneNotifications;
 }
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
@@ -2066,7 +2801,7 @@ const LIB_ACTIONS = {
   settings: () => controlCenterApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
-  tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
+  tiktok:   () => openTikTokVr(),
   twitch:   () => webWindow('twitch',    'Twitch',       'https://www.twitch.tv/'),
   prime:    () => webWindow('prime',     'prime video',  'https://www.primevideo.com/'),
   whatsapp: () => webWindow('whatsapp',  'WhatsApp',     'https://web.whatsapp.com/'),
@@ -2074,7 +2809,10 @@ const LIB_ACTIONS = {
   x:        () => webWindow('x',         'X',            'https://x.com/'),
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
-  spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
+  spotify:  () => openSpotifyVr(),
+  'motion-tracker': () => openPicoMotionTracker(),
+  'pico-explore': () => openPicoExplore(),
+  'phone-notifications': () => openPhoneNotifications(),
   vrfs:     () => openVrfsGame(),
   'mr-pistol': () => openMrPistolGame(),
   'hand-draw': () => openHandDrawGame(),
@@ -2097,16 +2835,33 @@ const QUEST_STORE_ITEMS = [
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
-  { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'VR', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
+  { id: 'hyper-vr', name: 'Hyper Dash INT', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'Purchased', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
   { id: 'roblox-vr', name: 'Roblox', cat: 'games', rating: '4.8', reviews: '64 mil', tag: 'Ambiente Preto · Hand Tracking', badge: 'NOVO', img: './roblox-logo.jpg', bg: 'linear-gradient(135deg,#090d16,#1e293b)' },
-  { id: 'tiktok', name: 'TikTok', cat: 'apps', rating: '4.9', reviews: '52 mil', tag: 'Vídeos · Social', badge: 'APP', img: './tiktok-logo.jpg', bg: 'linear-gradient(135deg,#09090b,#18181b)' },
+  { id: 'motion-tracker', name: 'PICO Motion Tracker', cat: 'apps', rating: '4.9', reviews: '19 mil', tag: '2 Trackers · 183 cm', badge: 'PICO 4', img: '', bg: 'linear-gradient(135deg,#1e293b,#84cc16)', textLogo: '🦵' },
+  { id: 'pico-explore', name: 'PICO VIDEO & Explore', cat: 'apps', rating: '4.9', reviews: '24 mil', tag: 'Panorama 8K · Among Us 3D', badge: 'Free', img: '', bg: 'linear-gradient(135deg,#3b0764,#06b6d4)', textLogo: '8K' },
+  { id: 'spotify', name: 'Spotify VR', cat: 'apps', rating: '4.9', reviews: '41 mil', tag: 'Música em 2º Plano', badge: 'Free', img: '', bg: 'linear-gradient(135deg,#064e3b,#1db954)', textLogo: '🟢' },
+  { id: 'tiktok', name: 'TikTok', cat: 'apps', rating: '4.9', reviews: '52 mil', tag: 'Vídeos Verticais VR', badge: 'APP', img: './tiktok-logo.jpg', bg: 'linear-gradient(135deg,#09090b,#18181b)' },
   { id: 'youtube', name: 'YouTube VR', cat: 'apps', rating: '4.8', reviews: '31 mil', tag: 'Vídeo 360° · 4K', badge: 'APP', img: './icons/youtube.svg', bg: 'linear-gradient(135deg,#450a0a,#dc2626)', isSvg: true },
   { id: 'discord', name: 'Discord', cat: 'apps', rating: '4.7', reviews: '19 mil', tag: 'Comunidade · Voz', badge: 'APP', img: './icons/discord.svg', bg: 'linear-gradient(135deg,#312e81,#4f46e5)', isSvg: true },
   { id: 'netflix', name: 'Netflix', cat: 'apps', rating: '4.8', reviews: '22 mil', tag: 'Cinema VR', badge: 'APP', img: '', bg: 'linear-gradient(135deg,#450a0a,#991b1b)', textLogo: 'N' },
 ];
 
+const PICO_STORE_SEARCH_CARDS = [
+  { id: 'beat-vr', title: 'Epic Roller Coasters', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#311042,#f59e0b)' },
+  { id: 'pico-explore', title: 'TRIPP Meditation VR', stars: '★★★★☆', status: '50%', bg: 'linear-gradient(135deg,#065f46,#38bdf8)' },
+  { id: 'hyper-vr', title: 'Hyper Dash INT', stars: '★★★★★', status: 'Purchased', bg: 'linear-gradient(135deg,#0284c7,#ef4444)' },
+  { id: 'roblox-vr', title: 'Rec Room', stars: '★★★★☆', status: 'Purchased', bg: 'linear-gradient(135deg,#9a3412,#f97316)' },
+  { id: 'youtube', title: 'DeoVR Video Player', stars: '★★★★☆', status: 'Purchased', bg: 'linear-gradient(135deg,#0f172a,#38bdf8)' },
+  { id: 'tiktok', title: 'PICO VIDEO 8K', stars: '★★★★★', status: 'Free', bg: 'linear-gradient(135deg,#09090b,#10b981)' },
+  { id: 'vrfs', title: 'FIT XR', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#0284c7,#a855f7)' },
+  { id: 'gorilla-tag', title: 'DREAMLAND', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#1e1b4b,#ec4899)' },
+  { id: 'mr-pistol', title: 'Gun Raiders: Pirate Bay', stars: '★★★★★', status: 'Free', bg: 'linear-gradient(135deg,#14532d,#eab308)' },
+];
+
+let storeSearchQuery = 'free';
+
 function buildStore() {
-  const root = el('div', 'st st-quest-store');
+  const root = el('div', 'st st-quest-store st-pico-store');
   // Mantém exatamente 2 elementos .st-tab para compatibilidade com os testes, mais as pílulas Quest 3 Store
   const hiddenCompatTabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}" style="position:absolute;opacity:.01;pointer-events:none;width:1px;height:1px;overflow:hidden">${n}</button>`).join('');
   const qTabs = [
@@ -2181,12 +2936,57 @@ function buildStore() {
         </article>`;
     }).join('');
 
+    const picoSearchGridHtml = PICO_STORE_SEARCH_CARDS.map(c => `
+      <div class="st-pico-search-card" data-store-launch="${c.id}" style="background:#23262f;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column">
+        <div style="height:78px;background:${c.bg};padding:8px 10px;display:flex;align-items:flex-end;justify-content:space-between">
+          <span style="font-size:12px;font-weight:900;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7)">${escH(c.title)}</span>
+        </div>
+        <div style="padding:8px 10px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px">
+          <div>
+            <div style="color:#f8fafc;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.title)}</div>
+            <div style="color:#94a3b8;font-size:9.5px">${c.stars}</div>
+          </div>
+          <span style="padding:2px 8px;border-radius:6px;background:${c.status === 'Free' ? 'rgba(37,99,235,.28)' : 'rgba(255,255,255,.1)'};color:${c.status === 'Free' ? '#60a5fa' : '#cbd5e1'};font-weight:800">${c.status}</span>
+        </div>
+      </div>
+    `).join('');
+
     html += `
+      <div class="st-pico-search-layout" data-pico-store-search="1" style="display:grid;grid-template-columns:210px 1fr;gap:14px;background:#181a20;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.08);margin-bottom:12px">
+        <aside style="display:flex;flex-direction:column;gap:10px;border-right:1px solid rgba(255,255,255,.07);padding-right:12px">
+          <span style="align-self:flex-start;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10.5px;font-weight:700">← Store</span>
+          <div style="font-size:16px;font-weight:900;color:#f8fafc">Search</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:999px;border:1.5px solid #3b82f6;background:#1e222d;color:#f8fafc;font-size:11.5px">
+            <span>${escH(storeSearchQuery)}</span>
+            <span style="color:#94a3b8;font-size:11px">⊗ 🔍</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:#94a3b8">
+            <button type="button" data-store-launch="pico-explore" style="text-align:left;background:transparent;border:0;color:#cbd5e1;cursor:pointer;padding:3px 0;font-weight:600">Free My Sight · Panorama 8K</button>
+            <button type="button" data-store-launch="motion-tracker" style="text-align:left;background:transparent;border:0;color:#a3e635;cursor:pointer;padding:3px 0;font-weight:700">🦵 PICO Motion Tracker</button>
+            <button type="button" data-store-launch="spotify" style="text-align:left;background:transparent;border:0;color:#4ade80;cursor:pointer;padding:3px 0;font-weight:700">🟢 Spotify PICO 4</button>
+            <button type="button" data-store-launch="tiktok" style="text-align:left;background:transparent;border:0;color:#25F4EE;cursor:pointer;padding:3px 0;font-weight:700">♪ TikTok VR Vertical</button>
+            <button type="button" data-store-launch="phone-notifications" style="text-align:left;background:transparent;border:0;color:#facc15;cursor:pointer;padding:3px 0;font-weight:700">🔔 Notificações & Clima 27°C</button>
+          </div>
+        </aside>
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:12px;font-weight:800;color:#e2e8f0">All search results for "${escH(storeSearchQuery)}"</span>
+            <div style="display:flex;gap:6px">
+              <span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10px;font-weight:700">All Genres ⌄</span>
+              <span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10px;font-weight:700">All Prices ⌄</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+            ${picoSearchGridHtml}
+          </div>
+        </div>
+      </div>
+
       <div class="st-quest-hero">
         <div class="st-quest-hero-copy">
-          <span class="st-quest-hero-kicker">META QUEST · NEXTVR STORE</span>
+          <span class="st-quest-hero-kicker">PICO 4 ULTRA · ATMO XR STORE</span>
           <h2 class="st-quest-hero-title">JOGOS E APPS EM DESTAQUE</h2>
-          <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), Beat Saber em modo VR imediato, Hyper Dash VR, Roblox com ambiente escuro e TikTok.</p>
+          <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), PICO Motion Tracker, Beat Saber VR, Hyper Dash INT, Roblox, Spotify e TikTok VR.</p>
           <div class="st-quest-hero-actions">
             <button type="button" class="st-btn st-quest-hero-cta" data-store-launch="beat-vr">Jogar Beat Saber VR</button>
             <button type="button" class="st-btn st-quest-hero-sec" data-openlib>Abrir Biblioteca</button>
@@ -2350,6 +3150,13 @@ function buildLibrary() {
         <button class="lib-repin" data-act="pin" aria-label="${escH(t('repin'))}" title="${escH(t('repin'))}">${icon('crosshair')}</button>
       </div>
       <div class="lib-scroll">
+        <div class="lib-pico-strip" data-pico-lib-strip="1" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 12px 8px">
+          <button type="button" data-lib-pico="motion-tracker" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(132,204,22,.4);background:rgba(132,204,22,.14);color:#bef264;font-size:10.5px;font-weight:800;cursor:pointer">🦵 PICO Motion Tracker</button>
+          <button type="button" data-lib-pico="pico-explore" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(168,85,247,.4);background:rgba(168,85,247,.14);color:#e9d5ff;font-size:10.5px;font-weight:800;cursor:pointer">🧭 PICO Explore 8K</button>
+          <button type="button" data-lib-pico="spotify" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(29,185,84,.4);background:rgba(29,185,84,.14);color:#86efac;font-size:10.5px;font-weight:800;cursor:pointer">🟢 Spotify VR</button>
+          <button type="button" data-lib-pico="tiktok" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(37,244,238,.4);background:rgba(37,244,238,.12);color:#67e8f9;font-size:10.5px;font-weight:800;cursor:pointer">♪ TikTok VR</button>
+          <button type="button" data-lib-pico="phone-notifications" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(250,204,21,.4);background:rgba(250,204,21,.14);color:#fde047;font-size:10.5px;font-weight:800;cursor:pointer">🔔 Notificações · 27°C</button>
+        </div>
         <div class="lib-grid">
           ${list.map(x => x.kind === 'xr' ? xrTileHtml(x)
             : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')}
@@ -2371,6 +3178,12 @@ function buildLibrary() {
     const c = s => e.target.closest(s);
     let m;
     if (c('[data-lib-close]')) { close(wins.find(w => w.id === 'library')); return; }
+    if ((m = c('[data-lib-pico]'))) {
+      const pid = m.dataset.libPico;
+      const run = LIB_ACTIONS[pid];
+      if (run) run();
+      return;
+    }
     if ((m = c('[data-lib-nav]'))) { libFilter = m.dataset.libNav; paintLibrary(); return; }
     if (c('[data-lib-curve]')) {
       const w = wins.find(x => x.id === 'library');

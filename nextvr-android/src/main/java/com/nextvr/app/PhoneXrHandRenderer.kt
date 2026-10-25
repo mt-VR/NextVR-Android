@@ -220,15 +220,21 @@ class PhoneXrHandRenderer {
                 var target:JSONObject?=null
                 for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
                 if(target?.optBoolean("hidden")==true) continue
-                if(target?.optBoolean("fingerHover")==true) {
-                    val pts=handPoints.getOrNull(hIdx) ?: hand.points
-                    if(pts.size>=26) {
-                        val hFade=fade*hand.confidence.coerceIn(0f,1f)
-                        val fx=(pts[24]-.5f)*2f*sx
-                        val fy=(.5f-pts[25])*2f*sy
-                        GLES20.glUniform1f(gradUniform,0f)
-                        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                        GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
+                val pts=handPoints.getOrNull(hIdx) ?: hand.points
+                if(!mrGameMode && pts.size>=26) {
+                    val hFade=fade*hand.confidence.coerceIn(0f,1f)
+                    val fx=(pts[24]-.5f)*2f*sx
+                    val fy=(.5f-pts[25])*2f*sy
+                    val dipX=(pts[21]-.5f)*2f*sx
+                    val dipY=(.5f-pts[22])*2f*sy
+                    val dLen=hypot(fx-dipX,fy-dipY).coerceAtLeast(1e-4f)
+                    val rx=fx+(fx-dipX)/dLen*.036f
+                    val ry=fy+(fy-dipY)/dLen*.036f
+                    GLES20.glUniform1f(gradUniform,0f)
+                    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                    GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.96f*hFade)
+                    ring3d(rx,ry,-1f,.024f,.0175f,position)
+                    if(target?.optBoolean("fingerHover")==true) {
                         ring3d(fx,fy,-1f,.022f,.0185f,position)
                     }
                 }
@@ -247,13 +253,21 @@ class PhoneXrHandRenderer {
             val fingerHover=target?.optBoolean("fingerHover")==true
             val direct=target?.optBoolean("direct")==true
             val hFade=fade*hand.confidence.coerceIn(0f,1f)
-            if(fingerHover && hand.points.size>=26) {
+            if(hand.points.size>=26) {
                 val fx=(hand.points[24]-.5f)*2f*sx
                 val fy=(.5f-hand.points[25])*2f*sy
+                val dipX=(hand.points[21]-.5f)*2f*sx
+                val dipY=(.5f-hand.points[22])*2f*sy
+                val dLen=hypot(fx-dipX,fy-dipY).coerceAtLeast(1e-4f)
+                val rx=fx+(fx-dipX)/dLen*.036f
+                val ry=fy+(fy-dipY)/dLen*.036f
                 GLES20.glUniform1f(gradUniform,0f)
                 GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
-                ring3d(fx,fy,-1f,.022f,.0185f,position)
+                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.96f*hFade)
+                ring3d(rx,ry,-1f,.024f,.0175f,position)
+                if(fingerHover) {
+                    ring3d(fx,fy,-1f,.022f,.0185f,position)
+                }
             }
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.

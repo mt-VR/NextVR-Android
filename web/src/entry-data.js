@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · ATMOXR SEPARADO & DOCK PICO 4 (4 APPS 100PX)',
+    tag: 'NOVO · ÍCONE ATMO XR & PICO 4 ULTRA COMPLETO (BUILD 68)',
     time: 'Agora',
-    heading: 'ATMOXR Independente (Sem Sobrescrever o NextVR) & Dock Maior Pico 4 (4 Apps 100px)',
-    desc: 'O ATMOXR agora instala como um app separado (com.atmoxr.app) sem substituir o NextVR! Nova Dock maior igual à do Pico 4 com 4 ícones de apps em 100px, janelas flutuantes Pico 4, Câmera P&B (Meta Quest 2), Menu Preto/Cinza e Hand Tracking Pico 4!',
+    heading: 'Novo Ícone ATMO XR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
+    desc: 'Novo ícone oficial ATMO XR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR com áudio real, Central de Notificações 27°C e círculos brancos de Hand Tracking acima dos dedos!',
   },
   {
     id: 'quest-browser-env-hand',
