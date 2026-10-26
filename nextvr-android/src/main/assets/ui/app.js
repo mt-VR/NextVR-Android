@@ -4479,6 +4479,7 @@ void main() {
         <span data-q-time>--:--</span><span class="qs-date" data-q-date></span>
       </div>
       <span class="qs-top-spacer"></span>
+      <button class="qs-top-action" data-q-main-menu aria-label="Menu Principal PICO 4 Pro">${ce("device")}<span>Menu Principal</span></button>
       <button class="qs-top-action" data-q-settings aria-label="Configura\xE7\xF5es NextVR">${ce("settings")}<span>Configura\xE7\xF5es</span></button>
       <button class="qs-repin" data-act="pin" aria-label="Voltar ao arco">${ce("crosshair")}</button>
       <button class="qs-close" data-q-close aria-label="Fechar">${ce("x")}</button>
@@ -4503,7 +4504,6 @@ void main() {
       <button class="qs-tool" data-q-motion-tracker>${ce("device")}<span>PICO Motion Tracker</span></button>
       <button class="qs-tool" data-q-notifications>${ce("sun")}<span>Notifica\xE7\xF5es \xB7 27\xB0C</span></button>
       <button class="qs-tool" data-q-pico-explore>${ce("compass")}<span>PICO Explore 8K</span></button>
-      <button class="qs-tool" data-q-main-menu>${ce("device")}<span>Menu Principal PICO 4 Pro</span></button>
     </div>
   </section>
   <aside class="qs-side" aria-label="Controles r\xE1pidos">

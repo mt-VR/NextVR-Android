@@ -1345,6 +1345,7 @@ function quickSettingsApp() {
         <span data-q-time>--:--</span><span class="qs-date" data-q-date></span>
       </div>
       <span class="qs-top-spacer"></span>
+      <button class="qs-top-action" data-q-main-menu aria-label="Menu Principal PICO 4 Pro">${icon('device')}<span>Menu Principal</span></button>
       <button class="qs-top-action" data-q-settings aria-label="Configurações NextVR">${icon('settings')}<span>Configurações</span></button>
       <button class="qs-repin" data-act="pin" aria-label="Voltar ao arco">${icon('crosshair')}</button>
       <button class="qs-close" data-q-close aria-label="Fechar">${icon('x')}</button>
@@ -1369,7 +1370,6 @@ function quickSettingsApp() {
       <button class="qs-tool" data-q-motion-tracker>${icon('device')}<span>PICO Motion Tracker</span></button>
       <button class="qs-tool" data-q-notifications>${icon('sun')}<span>Notificações · 27°C</span></button>
       <button class="qs-tool" data-q-pico-explore>${icon('compass')}<span>PICO Explore 8K</span></button>
-      <button class="qs-tool" data-q-main-menu>${icon('device')}<span>Menu Principal PICO 4 Pro</span></button>
     </div>
   </section>
   <aside class="qs-side" aria-label="Controles rápidos">
