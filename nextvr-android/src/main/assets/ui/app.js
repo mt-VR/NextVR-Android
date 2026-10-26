@@ -3933,7 +3933,7 @@ void main() {
               <span class="entry-updates-badge">v2.0.0</span>
             </div>
             <div class="entry-updates-list">
-              ${N1.map(R=>`
+              ${N1.slice(0,4).map(R=>`
               <article class="entry-notif-card" data-entry-notif="${_n(R.id)}">
                 <div class="entry-notif-top">
                   <span class="entry-notif-tag">${_n(R.tag)}</span>

@@ -466,7 +466,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <span class="entry-updates-badge">v2.0.0</span>
             </div>
             <div class="entry-updates-list">
-              ${ENTRY_UPDATES.map(u => `
+              ${ENTRY_UPDATES.slice(0, 4).map(u => `
               <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
                 <div class="entry-notif-top">
                   <span class="entry-notif-tag">${escHtml(u.tag)}</span>
