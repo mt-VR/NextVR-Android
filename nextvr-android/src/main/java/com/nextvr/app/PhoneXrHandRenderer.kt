@@ -106,6 +106,15 @@ class PhoneXrHandRenderer {
     @JvmField @Volatile var virtualEnv=false
     @JvmField @Volatile var gameHandMode=false
     @JvmField @Volatile var mrGameMode=false
+    @JvmField @Volatile var markerControllerMode=true
+    @JvmField @Volatile var markerDetected=false
+    @JvmField @Volatile var markerX=0.5f
+    @JvmField @Volatile var markerY=0.68f
+    @JvmField @Volatile var markerRadius=0.14f
+    @JvmField @Volatile var markerAimX=0f
+    @JvmField @Volatile var markerAimY=0f
+    @JvmField @Volatile var markerButtonA=false
+    @JvmField @Volatile var markerButtonB=false
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.98f // PICO 4 full laser ray (legacy RAY_SHOWN=.55f)
     /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
@@ -211,7 +220,36 @@ class PhoneXrHandRenderer {
                 m.blueOutline = (tObj?.optBoolean("blueOutline") == true)
             }
             drawHandSkeletons(position,fade)
+            if(markerControllerMode && !mrGameMode) {
+                for(hand in visual.hands) {
+                    val pts=hand.points
+                    if(pts.size<30) continue
+                    val wx=(pts[0]-.5f)*2f*sx
+                    val wy=(.5f-pts[1])*2f*sy
+                    val kx=(pts[27]-.5f)*2f*sx
+                    val ky=(.5f-pts[28])*2f*sy
+                    val hFade=fade*hand.confidence.coerceIn(0f,1f)
+                    val actA=markerButtonA || (live && !hand.predicted && hand.pinching)
+                    val actB=markerButtonB
+                    drawPicoController3D(wx,wy,kx,ky,hand.left,actA,actB,hFade,position)
+                }
+            }
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
+        if(markerControllerMode && markerDetected && !mrGameMode && (visual==null || visual.hands.isEmpty())) {
+            val mx=(markerX-.5f)*2f*sx
+            val my=(.5f-markerY)*2f*sy
+            val mr=(markerRadius*2f*minOf(sx,sy)).coerceIn(.13f,.26f)
+            val wx=mx+.018f
+            val wy=my-mr*1.05f
+            drawPicoController3D(wx,wy,mx,my,false,markerButtonA,markerButtonB,1f,position)
+            if(showPointer) {
+                val len=kotlin.math.sqrt(markerAimX*markerAimX+markerAimY*markerAimY+1f)
+                val b=beamLine
+                b[0]=mx;b[1]=my;b[2]=-1f
+                b[3]=markerAimX/len*1.2f;b[4]=markerAimY/len*1.2f;b[5]=-1.2f/len;b[6]=1f
+                drawBeam(b,markerButtonA,markerButtonA || markerButtonB,false,position,1f)
+            }
+        }
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
         if(!showPointer || mrGameMode) {
@@ -722,4 +760,143 @@ private fun ring3d(x: Float, y: Float, z: Float, outer: Float, inner: Float, pos
             }
             drawArray(data, GLES20.GL_TRIANGLES, position)
         }
+
+    /**
+     * Renders the 3D white ringless PICO 4 Ultra controller representation in stereo OpenGL ES 2.0
+     * (translucent side-strap wing, 3D shaded white handle + angled faceplate, dark thumbstick,
+     * A/B buttons with active glow, and bright green status LED bar at the base of the handle).
+     */
+    private fun drawPicoController3D(
+        wx: Float, wy: Float, kx: Float, ky: Float,
+        isLeft: Boolean, activeA: Boolean, activeB: Boolean,
+        alpha: Float, position: Int
+    ) {
+        val rawDx = kx - wx
+        val rawDy = ky - wy
+        val rawLen = hypot(rawDx, rawDy)
+        val scale = rawLen.coerceIn(.15f, .28f)
+        val ux = if (rawLen > 1e-4f) rawDx / rawLen else (if (isLeft) .12f else -.12f)
+        val uy = if (rawLen > 1e-4f) rawDy / rawLen else .99f
+        // Outward normal points left (-x) for left hand and right (+x) for right hand
+        val sign = if (isLeft) -1f else 1f
+        val ox = -uy * sign
+        val oy = ux * sign
+
+        // Anchor faceplate at knuckle/marker (kx, ky) and handle base at (bx, by)
+        val fx = kx
+        val fy = ky
+        val bx = fx - ux * scale * 1.12f - ox * scale * 0.08f
+        val by = fy - uy * scale * 1.12f - oy * scale * 0.08f
+        val mx = (fx + bx) * 0.5f - ox * scale * 0.03f
+        val my = (fy + by) * 0.5f - oy * scale * 0.03f
+
+        val color = colorUniform
+        val shape = beamShape
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glUniform1f(gradUniform, 0f)
+
+        // 1. Translucent white/frosted ergonomic hand-strap wing around outer side
+        shape.reset()
+        val wTopX = fx + ox * scale * 0.24f - ux * scale * 0.04f
+        val wTopY = fy + oy * scale * 0.24f - uy * scale * 0.04f
+        val wMidX = mx + ox * scale * 0.34f
+        val wMidY = my + oy * scale * 0.34f
+        val wBotX = bx + ox * scale * 0.16f + ux * scale * 0.12f
+        val wBotY = by + oy * scale * 0.16f + uy * scale * 0.12f
+        handBone(shape, wTopX, wTopY, wMidX, wMidY, scale * 0.085f, scale * 0.115f)
+        handDisc(shape, wMidX, wMidY, scale * 0.115f)
+        handBone(shape, wMidX, wMidY, wBotX, wBotY, scale * 0.115f, scale * 0.065f)
+        handDisc(shape, wBotX, wBotY, scale * 0.065f)
+        GLES20.glUniform4f(color, .88f, .92f, .99f, .34f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 2. 3D cool-gray lower bevel / underbody shadow
+        shape.reset()
+        val sOffX = ox * scale * 0.032f - ux * scale * 0.025f
+        val sOffY = oy * scale * 0.032f - uy * scale * 0.025f
+        handDisc(shape, fx + sOffX, fy + sOffY, scale * 0.295f)
+        handBone(shape, fx + sOffX, fy + sOffY, mx + sOffX, my + sOffY, scale * 0.26f, scale * 0.205f)
+        handDisc(shape, mx + sOffX, my + sOffY, scale * 0.205f)
+        handBone(shape, mx + sOffX, my + sOffY, bx + sOffX, by + sOffY, scale * 0.205f, scale * 0.155f)
+        handDisc(shape, bx + sOffX, by + sOffY, scale * 0.155f)
+        GLES20.glUniform4f(color, .62f, .66f, .73f, .92f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 3. Crisp matte-white ergonomic PICO 4 Ultra body & angled faceplate
+        shape.reset()
+        val fTipX = fx + ux * scale * 0.06f - ox * scale * 0.03f
+        val fTipY = fy + uy * scale * 0.06f - oy * scale * 0.03f
+        handDisc(shape, fTipX, fTipY, scale * 0.26f)
+        handBone(shape, fTipX, fTipY, fx, fy, scale * 0.26f, scale * 0.285f)
+        handDisc(shape, fx, fy, scale * 0.285f)
+        handBone(shape, fx, fy, mx, my, scale * 0.245f, scale * 0.195f)
+        handDisc(shape, mx, my, scale * 0.195f)
+        handBone(shape, mx, my, bx, by, scale * 0.195f, scale * 0.145f)
+        handDisc(shape, bx, by, scale * 0.145f)
+        GLES20.glUniform4f(color, .97f, .98f, 1.0f, .98f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 4. Light-gray recessed oval faceplate ring
+        shape.reset()
+        val rcx = fx + ux * scale * 0.02f
+        val rcy = fy + uy * scale * 0.02f
+        handDisc(shape, rcx, rcy, scale * 0.22f)
+        GLES20.glUniform4f(color, .85f, .88f, .93f, .96f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 5. Dark circular thumbstick / joystick on outer-top faceplate
+        shape.reset()
+        val jx = rcx + ox * scale * 0.095f + ux * scale * 0.045f
+        val jy = rcy + oy * scale * 0.095f + uy * scale * 0.045f
+        handDisc(shape, jx, jy, scale * 0.082f)
+        GLES20.glUniform4f(color, .09f, .10f, .13f, .99f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+        shape.reset()
+        handDisc(shape, jx, jy, scale * 0.056f)
+        GLES20.glUniform4f(color, .18f, .20f, .24f, .99f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 6. Upper button B (Exit Game) & Lower button A (Choose Option)
+        val bBx = rcx - ox * scale * 0.075f + ux * scale * 0.085f
+        val bBy = rcy - oy * scale * 0.075f + uy * scale * 0.085f
+        shape.reset()
+        handDisc(shape, bBx, bBy, scale * (if (activeB) 0.062f else 0.052f))
+        if (activeB) {
+            GLES20.glUniform4f(color, .96f, .25f, .37f, 1.0f * alpha)
+        } else {
+            GLES20.glUniform4f(color, .12f, .15f, .20f, .98f * alpha)
+        }
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        val bAx = rcx - ox * scale * 0.090f - ux * scale * 0.040f
+        val bAy = rcy - oy * scale * 0.090f - uy * scale * 0.040f
+        shape.reset()
+        handDisc(shape, bAx, bAy, scale * (if (activeA) 0.062f else 0.052f))
+        if (activeA) {
+            GLES20.glUniform4f(color, .14f, .68f, .98f, 1.0f * alpha)
+        } else {
+            GLES20.glUniform4f(color, .12f, .15f, .20f, .98f * alpha)
+        }
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // Small Home/System button
+        shape.reset()
+        val hmx = rcx + ox * scale * 0.02f - ux * scale * 0.135f
+        val hmy = rcy + oy * scale * 0.02f - uy * scale * 0.135f
+        handDisc(shape, hmx, hmy, scale * 0.032f)
+        GLES20.glUniform4f(color, .30f, .34f, .42f, .95f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+
+        // 7. Bright green horizontal status LED pill near the bottom of the handle
+        shape.reset()
+        val ledCx = bx + ux * scale * 0.22f
+        val ledCy = by + uy * scale * 0.22f
+        val ledSpan = scale * 0.048f
+        val ledR = scale * 0.018f
+        handBone(shape, ledCx - ox * ledSpan, ledCy - oy * ledSpan, ledCx + ox * ledSpan, ledCy + oy * ledSpan, ledR, ledR)
+        handDisc(shape, ledCx - ox * ledSpan, ledCy - oy * ledSpan, ledR)
+        handDisc(shape, ledCx + ox * ledSpan, ledCy + oy * ledSpan, ledR)
+        GLES20.glUniform4f(color, .13f, .78f, .37f, .99f * alpha)
+        drawArray(shape, GLES20.GL_TRIANGLES, position)
+    }
 }

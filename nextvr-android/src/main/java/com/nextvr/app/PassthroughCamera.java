@@ -133,7 +133,7 @@ final class PassthroughCamera {
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
-    volatile boolean markerTrackingEnabled=false;
+    volatile boolean markerTrackingEnabled=true;
     private final PicoMarkerDetector markerDetector=new PicoMarkerDetector();
     void setMarkerTrackingEnabled(boolean enabled) {
         markerTrackingEnabled=enabled;

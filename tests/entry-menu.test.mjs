@@ -274,22 +274,27 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     readFileSync('web/src/marker-tracking.js', 'utf8').includes('buildMarkerCalibrationPanel') &&
     readFileSync('web/src/marker-tracking.js', 'utf8').includes('renderMarkerDrawingSvg') &&
     readFileSync('web/src/marker-tracking.js', 'utf8').includes('renderPico4UltraControllerSvg') &&
+    readFileSync('web/src/marker-tracking.js', 'utf8').includes('picoStrapWingGrad') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/app/PicoMarkerDetector.java', 'utf8').includes('class PicoMarkerDetector') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/app/PicoMarkerDetector.java', 'utf8').includes('sampleWedgePaper') &&
+    handRendererKt.includes('drawPicoController3D') &&
+    handRendererKt.includes('markerControllerMode') &&
     activitySrc.includes('setMarkerTracking') &&
     activitySrc.includes('window.nextvrMarker(') &&
     appsSrc.includes('openMarkerCalibration') &&
     appsSrc.includes('exitActiveGameWithMarkerB') &&
+    appsSrc.includes('picoCcDevicesHero') &&
     !appsSrc.includes('data-exp-pano') &&
     !appsSrc.includes('envSection') &&
     entryMenuSrc.includes('data-entry-marker-tracking') &&
     entryMenuSrc.includes('data-entry-marker-calibrate') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 74') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 75') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 74 (ATMOXR) includes PICO 4 Ultra Marker Tracking for the circular 5-sector A|B drawing, synchronized calibration UI, B game exit, removed panorama chooser menu, and ATMOXR.apk output'
+    'Build 75 (ATMOXR) includes in-game 3D PICO 4 Ultra controller representation in OpenGL ES 2.0 stereo + HUD, 5-wedge marker tracking for the circular A|B drawing, synchronized calibration UI, B game exit, and ATMOXR.apk output'
   );
 });
 

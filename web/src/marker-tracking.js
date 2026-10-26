@@ -4,7 +4,7 @@
 //   - Tocar no A: Escolher / clicar em uma opção (sincroniza clique A na imagem do desenho e no controle PICO).
 //   - Tocar no B: Sair de algum jogo / voltar (sincroniza clique B na imagem do desenho e no controle PICO).
 
-import { settings as S, save, on, emit, toast, setMarkerTracking } from './core.js';
+import { settings as S, save, on, emit, toast, setMarkerTracking, css3d } from './core.js';
 import { cursor, screenPoint } from './hands.js';
 
 export const MARKER_DRAWING_SIGNATURE = Object.freeze({
@@ -136,71 +136,79 @@ export function renderMarkerDrawingSvg(activeBtn = null) {
   `;
 }
 
-/** Renderiza o Controle PICO 4 Ultra 3D com os botões A (Escolher Opção) e B (Sair do Jogo) sincronizados. */
+/** Renderiza a representação 3D do Controle PICO 4 Ultra branco sem anel (com alça translúcida lateral, LED verde na base e botões A/B sincronizados). */
 export function renderPico4UltraControllerSvg(activeBtn = null) {
   const aOn = activeBtn === 'A';
   const bOn = activeBtn === 'B';
   return `
     <svg viewBox="0 0 260 260" class="marker-pico-controller-svg" data-marker-pico-svg="1" style="width:100%;max-width:210px;height:auto;display:block;margin:0 auto;filter:drop-shadow(0 12px 24px rgba(0,0,0,.55));user-select:none">
       <defs>
-        <linearGradient id="picoRingGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#f8fafc"/>
-          <stop offset="55%" stop-color="#cbd5e1"/>
-          <stop offset="100%" stop-color="#64748b"/>
+        <linearGradient id="picoWhiteBodyGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="68%" stop-color="#f1f5f9"/>
+          <stop offset="100%" stop-color="#cbd5e1"/>
         </linearGradient>
-        <linearGradient id="picoBodyGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#27272a"/>
-          <stop offset="100%" stop-color="#09090b"/>
+        <linearGradient id="picoStrapWingGrad" x1="0" y1="0" x2="1" y2="0.6">
+          <stop offset="0%" stop-color="rgba(241,245,249,0.52)"/>
+          <stop offset="100%" stop-color="rgba(186,230,253,0.18)"/>
         </linearGradient>
       </defs>
 
-      <!-- Feixe de Raio Laser PICO 4 Ultra saindo do topo do controle -->
-      <line x1="130" y1="36" x2="130" y2="4" stroke="${aOn ? '#10b981' : (bOn ? '#38bdf8' : '#60a5fa')}" stroke-width="${aOn || bOn ? '4.5' : '2.8'}" stroke-linecap="round"/>
-      <circle cx="130" cy="8" r="${aOn || bOn ? '6.5' : '4.5'}" fill="${aOn ? '#10b981' : (bOn ? '#38bdf8' : '#60a5fa')}"/>
+      <!-- Feixe de Raio Laser PICO 4 Ultra saindo da ponta frontal do controle -->
+      <line x1="126" y1="42" x2="122" y2="4" stroke="${aOn ? '#10b981' : (bOn ? '#38bdf8' : '#e2e8f0')}" stroke-width="${aOn || bOn ? '4.2' : '2.6'}" stroke-linecap="round"/>
+      <circle cx="122" cy="7" r="${aOn || bOn ? '6.2' : '4.2'}" fill="${aOn ? '#10b981' : (bOn ? '#38bdf8' : '#ffffff')}"/>
 
-      <!-- Arco / Anel de Rastreamento PICO 4 Ultra -->
-      <ellipse cx="130" cy="86" rx="76" ry="44" fill="none" stroke="url(#picoRingGrad)" stroke-width="14"/>
-      <ellipse cx="130" cy="86" rx="76" ry="44" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+      <!-- Alça / Aba Lateral Translúcida do Controle PICO 4 Ultra (igual à foto de referência) -->
+      <path d="M 158 58 C 198 76, 212 134, 188 186 C 176 204, 160 202, 152 190 C 166 148, 168 96, 158 58 Z"
+        fill="url(#picoStrapWingGrad)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
 
-      <!-- Corpo Ergonômico e Empunhadura do Controle PICO 4 Ultra -->
-      <path d="M 88 78 C 84 128, 92 196, 106 236 C 114 248, 146 248, 154 236 C 168 196, 176 128, 172 78 C 158 62, 102 62, 88 78 Z"
-        fill="url(#picoBodyGrad)" stroke="#52525b" stroke-width="2.2"/>
+      <!-- Sombra 3D Inferior da Empunhadura -->
+      <path d="M 88 68 C 82 122, 92 186, 108 210 C 118 220, 146 218, 154 206 C 168 176, 174 114, 168 66 Z"
+        fill="#94a3b8" opacity="0.55" transform="translate(4, 5)"/>
 
-      <!-- Face Circular Superior do Controle PICO 4 Ultra -->
-      <circle cx="130" cy="108" r="44" fill="#18181b" stroke="#3f3f46" stroke-width="2.2"/>
+      <!-- Corpo Ergonômico Branco PICO 4 Ultra (Sem Anel) -->
+      <path d="M 84 66 C 78 122, 90 186, 108 210 C 118 220, 144 218, 154 206 C 168 174, 174 114, 168 64 C 154 42, 100 42, 84 66 Z"
+        fill="url(#picoWhiteBodyGrad)" stroke="#cbd5e1" stroke-width="2.2"/>
 
-      <!-- Analógico / Thumbstick PICO -->
-      <circle cx="106" cy="96" r="14" fill="#27272a" stroke="#71717a" stroke-width="1.8"/>
-      <circle cx="106" cy="96" r="9" fill="#09090b" stroke="#52525b" stroke-width="1.2"/>
+      <!-- Face Oval Superior Inclinada do Controle PICO 4 Ultra -->
+      <ellipse cx="126" cy="82" rx="44" ry="36" transform="rotate(-10 126 82)" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+      <ellipse cx="126" cy="82" rx="37" ry="29" transform="rotate(-10 126 82)" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.2"/>
 
-      <!-- Botão B (Superior Direito — Sair de Algum Jogo) -->
+      <!-- Analógico / Thumbstick Escuro PICO 4 Ultra -->
+      <circle cx="144" cy="72" r="13.5" fill="#18181b" stroke="#475569" stroke-width="1.8"/>
+      <circle cx="144" cy="72" r="8.5" fill="#27272a" stroke="#64748b" stroke-width="1.2"/>
+
+      <!-- Botão B (Superior — Sair de Algum Jogo) -->
       <g data-marker-pico-btn="B" style="cursor:pointer">
-        <circle cx="151" cy="88" r="${bOn ? '15.5' : '13.5'}"
-          fill="${bOn ? '#0284c7' : '#27272a'}"
-          stroke="${bOn ? '#7dd3fc' : '#a1a1aa'}"
-          stroke-width="${bOn ? '3.2' : '1.8'}"/>
-        <text x="151" y="93" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="900">B</text>
+        <circle cx="110" cy="66" r="${bOn ? '13.5' : '11.5'}"
+          fill="${bOn ? '#0284c7' : '#1e293b'}"
+          stroke="${bOn ? '#7dd3fc' : '#64748b'}"
+          stroke-width="${bOn ? '3' : '1.6'}"/>
+        <text x="110" y="70.5" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="900">B</text>
       </g>
 
-      <!-- Botão A (Inferior Direito — Escolher uma Opção) -->
+      <!-- Botão A (Inferior — Escolher uma Opção) -->
       <g data-marker-pico-btn="A" style="cursor:pointer">
-        <circle cx="144" cy="122" r="${aOn ? '15.5' : '13.5'}"
-          fill="${aOn ? '#059669' : '#27272a'}"
-          stroke="${aOn ? '#6ee7b7' : '#a1a1aa'}"
-          stroke-width="${aOn ? '3.2' : '1.8'}"/>
-        <text x="144" y="127" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="900">A</text>
+        <circle cx="104" cy="94" r="${aOn ? '13.5' : '11.5'}"
+          fill="${aOn ? '#059669' : '#1e293b'}"
+          stroke="${aOn ? '#6ee7b7' : '#64748b'}"
+          stroke-width="${aOn ? '3' : '1.6'}"/>
+        <text x="104" y="98.5" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="900">A</text>
       </g>
 
-      <!-- Botão Home PICO -->
-      <circle cx="116" cy="134" r="6.5" fill="#18181b" stroke="#71717a" stroke-width="1.4"/>
-      <circle cx="116" cy="134" r="2.5" fill="#e4e4e7"/>
+      <!-- Botão Home / Sistema PICO -->
+      <circle cx="132" cy="103" r="5.2" fill="#334155" stroke="#94a3b8" stroke-width="1.2"/>
+      <circle cx="132" cy="103" r="2.2" fill="#f8fafc"/>
+
+      <!-- LED Verde Horizontal de Status na Base da Empunhadura (igual à foto de referência) -->
+      <rect x="118" y="186" width="22" height="5.5" rx="2.75" fill="#22c55e" stroke="#86efac" stroke-width="0.9"/>
 
       <!-- Legenda de Ação Ativa no Controle -->
-      <rect x="30" y="216" width="200" height="28" rx="14"
+      <rect x="26" y="222" width="208" height="28" rx="14"
         fill="${aOn ? 'rgba(16,185,129,.22)' : (bOn ? 'rgba(56,189,248,.22)' : 'rgba(24,24,27,.88)')}"
         stroke="${aOn ? '#10b981' : (bOn ? '#38bdf8' : 'rgba(255,255,255,.15)')}" stroke-width="1.4"/>
-      <text x="130" y="234" text-anchor="middle" fill="#f8fafc" font-size="10.5" font-weight="800">
-        ${aOn ? 'PICO [A]: ESCOLHER OPÇÃO ✓' : (bOn ? 'PICO [B]: SAIR DO JOGO ✓' : 'CONTROLE PICO 4 ULTRA')}
+      <text x="130" y="240" text-anchor="middle" fill="#f8fafc" font-size="10.5" font-weight="800">
+        ${aOn ? 'PICO [A]: ESCOLHER OPÇÃO ✓' : (bOn ? 'PICO [B]: SAIR DO JOGO ✓' : 'CONTROLE PICO 4 ULTRA · ATIVO')}
       </text>
     </svg>
   `;
@@ -330,40 +338,46 @@ function refreshCalibrationViews(activeBtn = markerState.lastActiveBtn) {
   });
 }
 
-/** Cria o elemento HUD 3D do Controle PICO 4 Ultra que aparece quando o desenho é reconhecido pela câmera. */
+/** Cria o elemento HUD 3D do Controle PICO 4 Ultra que aparece dentro do jogo quando o desenho é reconhecido pela câmera. */
 function updateMarkerControllerHud() {
   if (typeof document === 'undefined') return;
   const shouldShow = !!S.markerTracking && (markerState.detected || !!S.markerCalibrated);
   if (!shouldShow) {
-    if (hudEl) hudEl.hidden = true;
+    if (hudEl) {
+      hudEl.hidden = true;
+      css3d?.invalidate?.();
+    }
     return;
   }
+  const hudRoot = document.getElementById('hud') || document.body;
   if (!hudEl) {
     hudEl = document.createElement('div');
     hudEl.id = 'pico-marker-controller-hud';
     hudEl.dataset.picoMarkerHud = '1';
-    hudEl.style.cssText = 'position:fixed;right:18px;bottom:18px;width:136px;padding:8px 10px;border-radius:16px;background:rgba(9,9,11,.86);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(12px);z-index:9200;pointer-events:auto;color:#f8fafc;font-family:Inter,system-ui,sans-serif;box-shadow:0 12px 28px rgba(0,0,0,.55);transition:transform .08s ease-out;';
+    hudEl.style.cssText = 'position:absolute;left:50%;bottom:14px;width:154px;padding:6px 8px;border-radius:18px;background:rgba(15,23,42,.42);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);z-index:9200;pointer-events:auto;color:#f8fafc;font-family:Inter,system-ui,sans-serif;box-shadow:0 12px 28px rgba(0,0,0,.45);transition:transform .06s ease-out;';
     hudEl.addEventListener('click', e => {
       const btnA = e.target.closest('[data-marker-pico-btn="A"], [data-marker-draw-btn="A"]');
       if (btnA) { triggerMarkerButton('A', 'hud'); return; }
       const btnB = e.target.closest('[data-marker-pico-btn="B"], [data-marker-draw-btn="B"]');
       if (btnB) { triggerMarkerButton('B', 'hud'); }
     });
-    document.body.appendChild(hudEl);
+    hudRoot.appendChild(hudEl);
+  } else if (hudEl.parentNode !== hudRoot) {
+    hudRoot.appendChild(hudEl);
   }
   hudEl.hidden = false;
   const active = markerState.buttonA ? 'A' : (markerState.buttonB ? 'B' : null);
-  const dx = Math.round((markerState.x - 0.5) * 80);
-  const dy = Math.round((markerState.y - 0.55) * 60);
+  const dx = Math.round((markerState.x - 0.5) * 260) - 77;
+  const dy = Math.round((markerState.y - 0.65) * 120);
   hudEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
   hudEl.innerHTML = `
-    <div style="font-size:9px;font-weight:900;letter-spacing:.05em;color:#38bdf8;text-align:center;margin-bottom:4px">MARKER · PICO 4 ULTRA</div>
-    <div style="width:104px;margin:0 auto">${renderPico4UltraControllerSvg(active)}</div>
+    <div style="width:126px;margin:0 auto">${renderPico4UltraControllerSvg(active)}</div>
     <div style="display:flex;justify-content:space-between;gap:4px;margin-top:4px">
       <button type="button" data-marker-pico-btn="A" style="flex:1;padding:3px 0;border-radius:6px;border:1px solid ${active === 'A' ? '#10b981' : 'rgba(255,255,255,.2)'};background:${active === 'A' ? '#059669' : '#18181b'};color:#fff;font-size:9px;font-weight:800;cursor:pointer">A · Escolher</button>
       <button type="button" data-marker-pico-btn="B" style="flex:1;padding:3px 0;border-radius:6px;border:1px solid ${active === 'B' ? '#38bdf8' : 'rgba(255,255,255,.2)'};background:${active === 'B' ? '#0284c7' : '#18181b'};color:#fff;font-size:9px;font-weight:800;cursor:pointer">B · Sair</button>
     </div>
   `;
+  css3d?.invalidate?.();
 }
 
 /** Constrói o painel de Calibragem do Marker Tracking (usado nas Configurações 2D e VR). */

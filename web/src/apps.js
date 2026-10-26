@@ -1015,6 +1015,29 @@ function controlCenterApp() {
   gear.onclick = () => settingsApp();
   status.appendChild(gear);
 
+  const picoDevicesHero = el('div', 'pico-cc-devices-hero');
+  picoDevicesHero.dataset.picoCcDevicesHero = '1';
+  picoDevicesHero.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:42px;padding:10px 16px 8px;margin-bottom:6px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer;';
+  const batPctNum = battery ? Math.round(battery.level * 100) : 88;
+  picoDevicesHero.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Controle PICO 4 Ultra Esquerdo · Marker Tracking">
+      <svg viewBox="0 0 44 56" width="32" height="40"><path d="M18 10 C12 20,14 38,20 48 C22 51,28 50,30 46 C34 36,34 20,30 10 C27 5,21 5,18 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="24" cy="15" r="6" fill="#1e293b"/><rect x="21" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
+      <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
+      <small style="font-size:9.5px;color:#cbd5e1;font-weight:800">L · PICO</small>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg viewBox="0 0 88 46" width="64" height="34"><rect x="10" y="10" width="68" height="28" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><rect x="16" y="14" width="56" height="20" rx="10" fill="#0f172a" stroke="#475569" stroke-width="1.5"/><path d="M26 10 Q44 2 62 10" fill="none" stroke="#cbd5e1" stroke-width="2.5"/></svg>
+      <span style="width:22px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
+      <small style="font-size:10px;color:#f8fafc;font-weight:900">${batPctNum}%</small>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Controle PICO 4 Ultra Direito · Desenho A | B">
+      <svg viewBox="0 0 44 56" width="32" height="40"><path d="M26 10 C32 20,30 38,24 48 C22 51,16 50,14 46 C10 36,10 20,14 10 C17 5,23 5,26 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="20" cy="15" r="6" fill="#1e293b"/><rect x="17" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
+      <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
+      <small style="font-size:9.5px;color:#6ee7b7;font-weight:800">R · A | B</small>
+    </div>
+  `;
+  picoDevicesHero.onclick = () => openMarkerCalibration();
+
   const quickTiles = el('div', 'quick-tiles');
   const systemTile = (name, title, subtitle, action, disabled=false) => {
     const button = el('button', `quick-tile${disabled ? ' is-disabled' : ''}`);
@@ -1025,7 +1048,7 @@ function controlCenterApp() {
   systemTile('bluetooth', 'Bluetooth', 'Dispositivos', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('bluetooth') : toast('Bluetooth disponível no Android'));
   systemTile('android', 'Apps Android', 'Abrir janela Shizuku', () => shizukuWindow());
   systemTile('lock', 'Limite', 'Movimento protegido', null, true);
-  panel.append(status, quickTiles);
+  panel.append(status, picoDevicesHero, quickTiles);
 
   const section = el('div', 'quick-section');
   section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos</b></div>`;

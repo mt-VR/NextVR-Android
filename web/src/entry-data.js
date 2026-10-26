@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · MARKER TRACKING CONTROLE PICO 4 ULTRA (DESENHO A | B) & CALIBRAGEM (BUILD 74)',
+    tag: 'NOVO · REPRESENTAÇÃO 3D CONTROLE PICO 4 ULTRA NO JOGO & MARKER TRACKING (BUILD 75)',
     time: 'Agora',
-    heading: 'Marker Tracking PICO 4 Ultra (Desenho Circular A | B), Calibragem Interativa (A Escolhe · B Sai) & Menu sem Panorama',
-    desc: 'Reconhecimento exclusivo do desenho circular com 5 linhas (A | B) como Controle PICO 4 Ultra: tocar no A escolhe uma opção, tocar no B sai de algum jogo, Calibragem interativa nas Configurações (clicou A/B no controle, na imagem do desenho também clica) e menu de escolher panorama removido!',
+    heading: 'Representação 3D do Controle PICO 4 Ultra no Jogo (Alça Translúcida + LED Verde + Botões A/B), Marker Tracking & Calibragem',
+    desc: 'Reconhecimento do desenho circular com 5 linhas (A | B) e representação 3D do Controle PICO 4 Ultra branco dentro do jogo (com aba lateral translúcida, analógico, botões A/B, LED verde na base e raio laser), tocar no A escolhe opção, tocar no B sai do jogo e Calibragem interativa!',
   },
   {
     id: 'quest-browser-env-hand',

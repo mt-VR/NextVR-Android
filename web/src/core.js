@@ -23,7 +23,7 @@ const DEF = {
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
   mrDim: 0, bwCamera: 0,
-  markerTracking: 0, markerCalibrated: 0,
+  markerTracking: 1, markerCalibrated: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -33,6 +33,10 @@ try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } cat
 let S = { ...DEF, ...saved, spatialLauncher: 0 };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
+if (!S.markerTrackingDefaultV2) {
+  S.markerTracking = 1;
+  S.markerTrackingDefaultV2 = 1;
+}
 if (!S.sunsetDefaultVersion) {
   if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
     S.env = 'sunset';

@@ -154,7 +154,8 @@ final class SpatialRenderer {
     final Texture atlas = new Texture();
     final PhoneXrHandRenderer handRenderer = new PhoneXrHandRenderer();
     volatile InternalEyeRecorder eyeRecorder;
-    volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
+    volatile com.nextvr.app.hands.PhoneXrHands.Frame hands =
+        new com.nextvr.app.hands.PhoneXrHands.Frame(java.util.Collections.emptyList(), 0L);
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
     final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();

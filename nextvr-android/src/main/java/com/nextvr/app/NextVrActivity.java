@@ -282,6 +282,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void marker(PicoMarkerDetector.Result result) {
                 if(result==null || closed || !resumed) return;
+                SpatialRenderer r=renderer;
+                if(r!=null) {
+                    PhoneXrHandRenderer hr=r.handRenderer;
+                    hr.markerDetected=result.detected;
+                    hr.markerX=result.x;
+                    hr.markerY=result.y;
+                    hr.markerRadius=result.radius;
+                    hr.markerAimX=result.aimX;
+                    hr.markerAimY=result.aimY;
+                    hr.markerButtonA=result.buttonA;
+                    hr.markerButtonB=result.buttonB;
+                }
                 final String json=result.toJson();
                 main.post(()->{
                     if(closed || !resumed) return;
@@ -1178,6 +1190,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void setMarkerTracking(boolean enabled) {
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setMarkerTrackingEnabled(enabled);
+            SpatialRenderer target=renderer;
+            if(target!=null) {
+                target.handRenderer.markerControllerMode=enabled;
+                if(!enabled) {
+                    target.handRenderer.markerDetected=false;
+                    target.handRenderer.markerButtonA=false;
+                    target.handRenderer.markerButtonB=false;
+                }
+            }
         }
         @JavascriptInterface public boolean startInternalRecording() {
             return internalRecorder!=null && internalRecorder.start();
@@ -1272,8 +1293,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                                 camera.setSingleHandMode(o.optString("singleHandMode","both"));
                             }
                             if(o.has("markerTracking") && camera!=null) {
-                                boolean mt=o.optBoolean("markerTracking",false) || o.optInt("markerTracking",0)!=0;
+                                boolean mt=o.optBoolean("markerTracking",true) || o.optInt("markerTracking",1)!=0;
                                 camera.setMarkerTrackingEnabled(mt);
+                                target.handRenderer.markerControllerMode=mt;
                             }
                         } catch(Exception ignored) {}
                     }
