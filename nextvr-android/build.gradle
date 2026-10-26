@@ -76,12 +76,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    applicationVariants.all { variant ->
-        variant.outputs.all {
-            outputFileName = "ATMOXR.apk"
-        }
-    }
 }
 
 tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {

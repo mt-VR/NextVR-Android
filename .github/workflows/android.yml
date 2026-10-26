@@ -244,6 +244,10 @@ jobs:
           # Caminho absoluto de proposito: o passo faz `cd /tmp/apk-dist` antes do cp.
           APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
           test -n "$APK"
+          if [ "$(basename "$APK")" != "ATMOXR.apk" ]; then
+            mv "$APK" "$(dirname "$APK")/ATMOXR.apk"
+            APK="$(dirname "$APK")/ATMOXR.apk"
+          fi
           rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
           git init -q -b apk-dist
           git config user.name "github-actions[bot]"
