@@ -1,6 +1,5 @@
-import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setMarkerTracking, native, SixDof } from './core.js';
+import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
-import { buildMarkerCalibrationPanel } from './marker-tracking.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -686,10 +685,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
 
             <div class="entry-bento-cell entry-bento-cell--env">
-              <div class="entry-bento-title">MARKER TRACKING (CONTROLE PICO 4 ULTRA · A / B) &amp; CÂMERA</div>
+              <div class="entry-bento-title">${emT('envTitle')} &amp; PASSTHROUGH</div>
               <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
-                <button type="button" class="entry-seg-btn ${S.markerTracking ? 'on' : ''}" data-entry-marker-tracking="${S.markerTracking ? '1' : '0'}" title="Reconhecer desenho circular A | B como Controle PICO 4 Ultra">Marker Tracking: ${S.markerTracking ? 'ON' : 'OFF'}</button>
-                <button type="button" class="entry-seg-btn ${S.markerCalibrated ? 'on' : ''}" data-entry-marker-calibrate="1" title="Mostrar o desenho circular A | B para a câmera e calibrar os botões A (Escolher) e B (Sair)">📷 Calibrar Desenho (A | B)</button>
+                ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
                 <button type="button" class="entry-seg-btn ${S.bwCamera ? 'on' : ''}" data-entry-bw-cam="${S.bwCamera ? '1' : '0'}" title="Deixar só a câmera passthrough preto e branco estilo Meta Quest 2 (janelinhas e dock continuam coloridas)">Câmera P&amp;B (Quest 2): ${S.bwCamera ? 'ON' : 'OFF'}</button>
               </div>
             </div>
@@ -906,7 +904,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
     const rightStageContent =
       activeView === 'settings' ? renderSettingsPanel() :
-      activeView === 'marker-calibrate' ? '<div class="entry-subpanel" data-entry-panel="marker-calibrate"><div data-entry-marker-cal-mount="1"></div></div>' :
       activeView === 'collaborators' ? renderCollaboratorsPanel() :
       activeView === 'about' ? renderAboutPanel() :
       activeView === 'profile' ? renderProfilePanel() :
@@ -1250,27 +1247,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
-    root.querySelectorAll('[data-entry-marker-tracking]').forEach(btn => {
-      btn.onclick = () => {
-        setMarkerTracking(!S.markerTracking);
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-marker-calibrate]').forEach(btn => {
-      btn.onclick = () => {
-        activeView = 'marker-calibrate';
-        paint();
-      };
-    });
-    const markerCalMount = root.querySelector('[data-entry-marker-cal-mount]');
-    if (markerCalMount) {
-      markerCalMount.appendChild(buildMarkerCalibrationPanel({
-        onClose: () => {
-          activeView = 'settings';
-          paint();
-        },
-      }));
-    }
     root.querySelectorAll('[data-entry-quality]').forEach(btn => {
       btn.onclick = () => {
         S.quality = btn.dataset.entryQuality === 'med' ? 'medium' : btn.dataset.entryQuality;

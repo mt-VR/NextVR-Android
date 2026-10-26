@@ -23,7 +23,6 @@ const DEF = {
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
   mrDim: 0, bwCamera: 0,
-  markerTracking: 1, markerCalibrated: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -33,10 +32,6 @@ try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } cat
 let S = { ...DEF, ...saved, spatialLauncher: 0 };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
-if (!S.markerTrackingDefaultV2) {
-  S.markerTracking = 1;
-  S.markerTrackingDefaultV2 = 1;
-}
 if (!S.sunsetDefaultVersion) {
   if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
     S.env = 'sunset';
@@ -650,45 +645,6 @@ if (typeof document !== 'undefined' && S.bwCamera) {
 }
 if (typeof window !== 'undefined') {
   window.nextvrSetBwCamera = setBwCamera;
-}
-
-/** Liga/desliga o Marker Tracking PICO 4 Ultra (reconhecimento exclusivo do desenho circular A | B).
- *  Quando ativado: deixa o Hand Tracking invisível e só renderiza o modelo 3D do controle PICO 4 Ultra.
- *  Quando desativado: restaura o Hand Tracking ao normal.
- */
-export function setMarkerTracking(enabled) {
-  S.markerTracking = enabled ? 1 : 0;
-  if (!S.markerTracking) {
-    S.handDraw = 1;
-  }
-  save();
-  if (typeof document !== 'undefined') {
-    if (S.markerTracking) {
-      document.documentElement.dataset.markerTracking = '1';
-      document.documentElement.dataset.handMeshHidden = '1';
-    } else {
-      delete document.documentElement.dataset.markerTracking;
-      document.documentElement.dataset.handMeshHidden = '0';
-    }
-  }
-  window.NativeXR?.setMarkerTracking?.(!!S.markerTracking);
-  if (!S.markerTracking) {
-    window.NativeXR?.handVisuals?.(true);
-    emit('handDraw', 1);
-  }
-  emit('marker-tracking', S.markerTracking);
-}
-if (typeof document !== 'undefined') {
-  if (S.markerTracking) {
-    document.documentElement.dataset.markerTracking = '1';
-    document.documentElement.dataset.handMeshHidden = '1';
-    window.NativeXR?.setMarkerTracking?.(true);
-  } else {
-    document.documentElement.dataset.handMeshHidden = '0';
-  }
-}
-if (typeof window !== 'undefined') {
-  window.nextvrSetMarkerTracking = setMarkerTracking;
 }
 
 /* ============================ giroscópio ============================ */

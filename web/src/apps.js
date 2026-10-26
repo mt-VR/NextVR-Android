@@ -1,9 +1,8 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, setMarkerTracking, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking, hands } from './hands.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
-import { buildMarkerCalibrationPanel, triggerMarkerButton, verifyPicoMarkerDrawing } from './marker-tracking.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
@@ -752,59 +751,20 @@ function gallery() {
   return open({ id: 'gallery', title: t('gallery'), node: body });
 }
 
-/* ============ Marker Tracking & Calibragem (Controle PICO 4 Ultra · Desenho A | B) ============ */
-export function openMarkerCalibration() {
-  const existing = wins.find(w => w.id === 'marker-calibration');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-  const body = buildMarkerCalibrationPanel({
-    onClose: () => close('marker-calibration'),
-  });
-  const win = open({
-    id: 'marker-calibration',
-    title: 'Calibragem Marker Tracking · Controle PICO 4 Ultra (A | B)',
-    node: body,
-    w: 940,
-    h: 590,
-  });
-  focus(win);
-  css3d.invalidate?.();
-  return win;
-}
-
-export function exitActiveGameWithMarkerB() {
-  let closedAny = false;
-  if (typeof window !== 'undefined' && window.__gorillaStereoOverlay && typeof window.__gorillaExitGame === 'function') {
-    window.__gorillaExitGame();
-    closedAny = true;
-  }
-  for (const gameWinId of ['vrfs-game', 'mr-pistol-game', 'hand-draw-game', 'gorilla-tag', 'roblox']) {
-    const w = wins.find(x => x.id === gameWinId && !x.hidden);
-    if (w) {
-      close(w);
-      closedAny = true;
-    }
-  }
-  const hostGame = xrGames?.find?.(g => g.running);
-  if (hostGame?.pkg) {
-    closeXrGame(hostGame.pkg);
-    closedAny = true;
-  }
-  return closedAny;
-}
-
-if (typeof window !== 'undefined') {
-  window.nextvrOpenMarkerCalibration = openMarkerCalibration;
-  window.nextvrExitActiveGame = exitActiveGameWithMarkerB;
-}
-
 function environments() {
-  setPassthrough(S.env !== 'passthrough');
-  return openMarkerCalibration();
+  const body = el('div', 'pad');
+  body.innerHTML = `<h2>${t('env')}</h2><p class="sub">Troque sem fechar nada.</p>`;
+  const g = el('div', 'grid3');
+  for (const e of envList()) {
+    const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+    b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
+    b.innerHTML = `<span>${e.name}</span>`;
+    b.setAttribute('aria-pressed', S.env === e.id);
+    b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); };
+    g.appendChild(b);
+  }
+  body.appendChild(g);
+  return open({ id: 'env', title: t('env'), node: body });
 }
 
 /* ============ Configurações ============ */
@@ -1020,7 +980,7 @@ function controlCenterApp() {
   picoDevicesHero.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:42px;padding:10px 16px 8px;margin-bottom:6px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer;';
   const batPctNum = battery ? Math.round(battery.level * 100) : 88;
   picoDevicesHero.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Controle PICO 4 Ultra Esquerdo · Marker Tracking">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Hand Tracking Esquerdo · PICO 4 Ultra">
       <svg viewBox="0 0 44 56" width="32" height="40"><path d="M18 10 C12 20,14 38,20 48 C22 51,28 50,30 46 C34 36,34 20,30 10 C27 5,21 5,18 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="24" cy="15" r="6" fill="#1e293b"/><rect x="21" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
       <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
       <small style="font-size:9.5px;color:#cbd5e1;font-weight:800">L · PICO</small>
@@ -1030,13 +990,13 @@ function controlCenterApp() {
       <span style="width:22px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
       <small style="font-size:10px;color:#f8fafc;font-weight:900">${batPctNum}%</small>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Controle PICO 4 Ultra Direito · Desenho A | B">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Hand Tracking Direito · PICO 4 Ultra">
       <svg viewBox="0 0 44 56" width="32" height="40"><path d="M26 10 C32 20,30 38,24 48 C22 51,16 50,14 46 C10 36,10 20,14 10 C17 5,23 5,26 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="20" cy="15" r="6" fill="#1e293b"/><rect x="17" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
       <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
-      <small style="font-size:9.5px;color:#6ee7b7;font-weight:800">R · A | B</small>
+      <small style="font-size:9.5px;color:#6ee7b7;font-weight:800">R · PICO</small>
     </div>
   `;
-  picoDevicesHero.onclick = () => openMarkerCalibration();
+  picoDevicesHero.onclick = () => openPicoMotionTracker();
 
   const quickTiles = el('div', 'quick-tiles');
   const systemTile = (name, title, subtitle, action, disabled=false) => {
@@ -1104,27 +1064,6 @@ function controlCenterApp() {
   control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
   control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
   control('user', 'Criar Personagem', 'Avatar 3D do Jogo · ATMOXR', () => { openAvatarCreator(); return false; }, false);
-  const markerCtrlBtn = control(
-    'controller',
-    'Marker Tracking (PICO 4 Ultra)',
-    S.markerTracking ? 'Ativado · Desenho A (Escolher) | B (Sair)' : 'Desativado · Reconhecer Desenho A | B',
-    button => {
-      const enabled = !S.markerTracking;
-      setMarkerTracking(enabled);
-      button.querySelector('small').textContent = enabled ? 'Ativado · Desenho A (Escolher) | B (Sair)' : 'Desativado · Reconhecer Desenho A | B';
-      return enabled;
-    },
-    !!S.markerTracking
-  );
-  markerCtrlBtn.dataset.markerTrackingBtn = '1';
-  const markerCalBtn = control(
-    'crosshair',
-    'Calibrar Marker Tracking (A | B)',
-    'Mostrar desenho p/ câmera · Testar clique A e B',
-    () => { openMarkerCalibration(); return false; },
-    !!S.markerCalibrated
-  );
-  markerCalBtn.dataset.markerCalibrateBtn = '1';
   control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
     S.wideCamera = S.wideCamera ? 0 : 1;
     save(S);
@@ -1272,20 +1211,6 @@ function settingsApp() {
   };
   dofSeg.append(btn3Dof, btn6Dof);
   scroll.append(ytRow(icon('move'), 'Modo 3DoF / 6DoF', 'Alternar entre 3DoF (rotação) e 6DoF (andar no espaço)', dofSeg));
-  const markerSw = el('button', 'yt-sw', '');
-  markerSw.dataset.on = S.markerTracking ? '1' : '0';
-  markerSw.dataset.settingsMarkerTracking = '1';
-  markerSw.onclick = () => {
-    const next = !S.markerTracking;
-    setMarkerTracking(next);
-    markerSw.dataset.on = next ? '1' : '0';
-  };
-  scroll.append(ytRow(icon('controller'), 'Marker Tracking (Controle PICO 4 Ultra)', 'Reconhece o desenho circular A | B como controle (A = Escolher, B = Sair de jogo)', markerSw));
-  const markerCalRowBtn = el('button', 'yt-link');
-  markerCalRowBtn.dataset.settingsMarkerCalibrate = '1';
-  markerCalRowBtn.append(ytRow(icon('crosshair'), 'Calibrar Marker Tracking (Desenho A | B)', 'Mostrar o desenho para a câmera e testar clique sincronizado no A e no B'));
-  markerCalRowBtn.onclick = () => { openMarkerCalibration(); };
-  scroll.append(markerCalRowBtn);
 
   // Mãos
   scroll.append(ytSection(t('hands')));
@@ -2483,16 +2408,8 @@ export function openPicoExplore() {
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(PICO 4 Ultra · Marker Tracking)</span></h2>
+        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(PICO 4 Ultra · Hand Tracking)</span></h2>
         <button type="button" data-exp-picovideo style="padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:11px;font-weight:700;cursor:pointer">Ir para PICO VIDEO ›</button>
-      </div>
-      <div data-exp-marker-cal style="background:linear-gradient(135deg,#18181b,#0f172a);border-radius:14px;padding:14px 16px;border:1px solid rgba(56,189,248,.35);display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer">
-        <div>
-          <span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(16,185,129,.22);color:#6ee7b7;font-size:10px;font-weight:900;margin-bottom:4px">NOVO · MARKER TRACKING PICO 4 ULTRA</span>
-          <div style="font-size:14px;font-weight:900;color:#ffffff">Controle PICO 4 Ultra por Desenho Circular (A | B)</div>
-          <div style="font-size:11px;color:#cbd5e1;margin-top:3px">Mostre o desenho circular com 5 linhas (A | B) para a câmera: toque no <b>A</b> para escolher opção e no <b>B</b> para sair de algum jogo.</div>
-        </div>
-        <button type="button" data-exp-open-marker-cal style="padding:9px 14px;border-radius:10px;border:1px solid #38bdf8;background:#0284c7;color:#fff;font-size:11.5px;font-weight:900;white-space:nowrap;cursor:pointer">📷 Calibrar Desenho A | B</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
         <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07)">
@@ -2528,10 +2445,6 @@ export function openPicoExplore() {
   `;
 
   body.addEventListener('click', e => {
-    if (e.target.closest('[data-exp-marker-cal]') || e.target.closest('[data-exp-open-marker-cal]')) {
-      openMarkerCalibration();
-      return;
-    }
     if (e.target.closest('[data-exp-mt]')) { openPicoMotionTracker(); return; }
     if (e.target.closest('[data-exp-amongus]')) { openGorillaTag(); return; }
     if (e.target.closest('[data-exp-picovideo]')) { openTikTokVr(); return; }

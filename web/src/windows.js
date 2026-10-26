@@ -4000,39 +4000,37 @@ on('wins', () => {
   }
   lastWinCount = activeCount;
 });
+const _rayTargetsList = [];
 function syncHandTargets(now = performance.now()) {
   if(!native)return;
   lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
-  const ms = typeof window !== 'undefined' ? window.__picoMarkerState : null;
-  const markerActive = Boolean(ms && ms.detected && S.markerTracking);
-  if (!packet.hands.length && !markerActive) {
+  if (!packet.hands.length) {
     if (lastTargets !== '[]') { lastTargets = '[]'; window.NativeXR.handTargets?.('[]'); }
     return;
   }
-  const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
+  let hasOpenApp = false;
+  const list = _rayTargetsList;
+  list.length = 0;
+  for (let i = 0; i < wins.length; i++) {
+    const w = wins[i];
+    if (w.hidden) continue;
+    if (!w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher') hasOpenApp = true;
+    if (w.resizeHit) list.push(w.resizeHit);
+    const handles = w.grabHandles;
+    if (handles) {
+      for (let j = 0; j < handles.length; j++) if (handles[j]) list.push(handles[j]);
+    } else if (w.grab) {
+      list.push(w.grab);
+    }
+    if (w.hit) list.push(w.hit);
+  }
   camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
-  const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,...(w.grabHandles||[w.grab]),w.hit]);
   if(dockVisible){
     if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
     list.push(dockMoveHit,dockHit);
   }
   if(kbHit && kbObj && !kbHidden)list.push(kbHit);
-  if (markerActive) {
-    const mPt = screenPoint([Number(ms.aimX) || 0, Number(ms.aimY) || 0]);
-    const r = phoneRay(mPt.x, mPt.y, true);
-    const hit = r.intersectObjects(list, false)[0];
-    targets.push({
-      id: 'marker',
-      ...(hit ? {
-        end: hit.point.toArray().map(v => Number(v.toFixed(4))),
-        aim: [Number((Number(ms.aimX) || 0).toFixed(4)), Number((Number(ms.aimY) || 0).toFixed(4))],
-      } : {}),
-      down: Boolean(ms.buttonA),
-      blueRay: Boolean(ms.buttonA || hit),
-      touching: Boolean(hit || ms.buttonA),
-    });
-  }
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
@@ -4060,84 +4058,14 @@ function syncHandTargets(now = performance.now()) {
     const blueRay=Boolean(isHolding || ((hasOpenApp || now<appOpenBlueUntil) && (isPrimaryRay || Boolean(hit))));
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
     const aimArr=Array.isArray(h.aim)&&h.aim.length>=2 ? [Number(h.aim[0].toFixed(4)),Number(h.aim[1].toFixed(4))] : undefined;
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray().map(v=>Number(v.toFixed(4))),...(aimArr?{aim:aimArr}:{})}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(hit?{end:[Number(hit.point.x.toFixed(4)),Number(hit.point.y.toFixed(4)),Number(hit.point.z.toFixed(4))],...(aimArr?{aim:aimArr}:{})}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 }
 on('handtargets_sync', now => syncHandTargets(now));
 onFrame((dt,now)=>{
-  // O GL thread extrapola ambos os cursores a 60–120 Hz; sincroniza alvos a ~60 Hz quando há mãos ou marker ativo.
-  const ms = typeof window !== 'undefined' ? window.__picoMarkerState : null;
-  const markerActive = Boolean(ms && ms.detected && S.markerTracking);
-  if(!native || (!lastPhonePacket.hands.length && !markerActive) || now-lastTargetAt<14)return;
+  // O GL thread extrapola ambos os cursores a 60–120 Hz; sincroniza alvos a ~60 Hz quando há mãos ativas.
+  if(!native || !lastPhonePacket.hands.length || now-lastTargetAt<14)return;
   syncHandTargets(now);
 });
-
-/**
- * Executa o clique do botão A do controle PICO 4 Ultra SOMENTE se o raio do controle estiver
- * apontando em cima de alguma opção válida (janela 3D, botão da Dock, tecla do teclado ou opção 2D).
- */
-if (typeof window !== 'undefined') {
-  window.nextvrMarkerRayClick = (rx, ry) => {
-    const px = Number.isFinite(rx) ? rx : (Number.isFinite(cursor.x) ? cursor.x : 0.5);
-    const py = Number.isFinite(ry) ? ry : (Number.isFinite(cursor.y) ? cursor.y : 0.5);
-    camera.updateMatrixWorld(true);
-    contentRoot.updateMatrixWorld(true);
-
-    const kb = kbProbe(px, py);
-    const dk = dockTest(px, py);
-    const h = hitAt(px, py);
-
-    // 1. Teclado virtual
-    if (kb && kb.button && (!h || kb.distance < h.distance)) {
-      kbPress(kb.button);
-      kbRelease();
-      return { clicked: true, target: 'keyboard' };
-    }
-
-    // 2. Botão na Dock
-    if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) {
-      const idx = dockPick(dk.u, dk.v);
-      if (idx >= 0 || dk.popupOpt) {
-        cursor.x = px;
-        cursor.y = py;
-        dockPinch('down');
-        dockPinch('up');
-        return { clicked: true, target: 'dock' };
-      }
-    }
-
-    // 3. Opção dentro de uma janela flutuante 3D sob o raio
-    if (h && !h.handle && !h.resize) {
-      const picked = pickInElement(h.win.el, h.u, h.v);
-      const optEl = picked?.closest?.(
-        'button, a, [role="button"], input, select, textarea, label, [data-id], [data-act], [data-app], [data-pkg], [data-xr], [data-lib-nav], [data-lib-pico], [data-filter], [data-sort], [data-lib-curve], [data-lib-close], [data-q-close], [data-q-settings], [data-install-gorilla], [data-marker-toggle-btn], [data-marker-calibrate-camera], [data-marker-test-btn], [data-marker-draw-btn], [data-marker-pico-btn], [data-pico-foot], [data-cinema-act]'
-      );
-      const hasNativeSurface = Boolean(
-        h.win.el.querySelector('[data-native-browser], [data-native-app], [data-native-xr]')
-      );
-      if (optEl || hasNativeSurface) {
-        focus(h.win);
-        clickThrough(h, 'down');
-        clickThrough(h, 'up');
-        return { clicked: true, target: 'window' };
-      }
-      return { clicked: false, reason: 'no-option-under-ray' };
-    }
-
-    // 4. Opção 2D sob a mira do raio (ex.: Menu de Entrada 2D)
-    if (typeof document !== 'undefined') {
-      const hitEl = document.elementFromPoint(px * innerWidth, py * innerHeight);
-      const clickable = hitEl?.closest?.(
-        'button, a, [role="button"], input, select, label, [data-entry-act], [data-id]'
-      );
-      if (clickable && !clickable.hasAttribute('data-marker-draw-btn') && !clickable.hasAttribute('data-marker-pico-btn')) {
-        clickable.click();
-        return { clicked: true, target: 'dom' };
-      }
-    }
-
-    return { clicked: false, reason: 'no-option-under-ray' };
-  };
-}

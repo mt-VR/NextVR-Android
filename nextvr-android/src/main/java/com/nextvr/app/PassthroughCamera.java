@@ -35,7 +35,6 @@ final class PassthroughCamera {
         void frame(Bitmap upright);
         void hands(PhoneXrHands.Frame frame);
         default void sixDof(float sc, float gx, float gy, float mx) {}
-        default void marker(PicoMarkerDetector.Result result) {}
         default void cameraDefocus(boolean defocused) {}
         void error(String message);
         void stopped();
@@ -133,12 +132,6 @@ final class PassthroughCamera {
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
-    volatile boolean markerTrackingEnabled=true;
-    private final PicoMarkerDetector markerDetector=new PicoMarkerDetector();
-    void setMarkerTrackingEnabled(boolean enabled) {
-        markerTrackingEnabled=enabled;
-        if(!enabled)markerDetector.reset();
-    }
     volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -480,10 +473,6 @@ final class PassthroughCamera {
             if((!gameHandMode || mrGameMode) && (sessionFrames & flowMask) == 0) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,curHands,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
-            }
-            if(markerTrackingEnabled && (sessionFrames & 1) == 0) {
-                PicoMarkerDetector.Result mRes=markerDetector.detect(cameraPixels,outW,outH,scaleX,scaleY,null,stamp);
-                listener.marker(mRes);
             }
             if(!gameHandMode || mrGameMode || sessionFrames<=2) {
                 upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);

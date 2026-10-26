@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · MARKER INDEPENDENTE DO HAND TRACKING, VOLTA AO DESENHO DA MÃO & CLIQUE A POR RAIO (BUILD 77)',
+    tag: 'NOVO · HAND TRACKING MAIS OTIMIZADO & REMOÇÃO TOTAL DO MARKER TRACKING (BUILD 78)',
     time: 'Agora',
-    heading: 'Marker 100% Independente do Hand Tracking, Volta ao Desenho da Mão ao Tirar o Marker & Clique A Só com Raio em Opção',
-    desc: 'Quando o marker é retirado ou desativado, o modelo 3D some e volta o desenho normal da mão; o Marker Tracking funciona de forma 100% independente do Hand Tracking; o botão A clica exatamente na opção onde o raio do controle está apontando e o B sai do jogo!',
+    heading: 'Hand Tracking PICO 4 Mais Otimizado, Zero-Lag e Remoção Completa do Marker Tracking',
+    desc: 'Marker Tracking completamente removido de todo o jogo para máxima performance; Hand Tracking PICO 4 otimizado com tabelas trigonométricas pré-computadas na GPU, raycast sem alocação por frame e rastreamento de 1 e 2 mãos ainda mais rápido e fluido!',
   },
   {
     id: 'quest-browser-env-hand',
