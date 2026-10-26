@@ -9,7 +9,7 @@ import { HandClickState, ClickDragArbiter } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
-const pressArbiter = new ClickDragArbiter({ decideMs: 180, dragOnPx: 28, dragOffPx: 12, sustainSamples: 3 });
+const pressArbiter = new ClickDragArbiter();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
