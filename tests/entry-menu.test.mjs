@@ -685,6 +685,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // - Avança a posição da câmara em dois frames consecutivos concordantes quando em movimento (moving: true)
     // - Mantém pos.y === 0 mesmo ao aproximar/afastar da Dock (sem subir para o céu) e marca data-backface="1" ao atravessar a Dock
     const sixDofCheck = await page.evaluate(async () => {
+      // World Lock é o padrão: nada de translação, mesmo com fluxo radial a mandar andar.
+      window.SixDof.setWorldLock(true);
+      window.SixDof.reset();
+      for (let i = 0; i < 10; i++) window.nextvrSixDof({ sc: 0.05, gx: 0, gy: 0, moving: true });
+      const lockedDrift = window.SixDof.pos.length();
+      // Agora o modo 6DoF livre (World Lock desligado), que é onde andar é esperado.
+      window.SixDof.setWorldLock(false);
       window.SixDof.reset();
       for (let i = 0; i < 8; i++) {
         window.nextvrSixDof({ sc: 0.05, gx: 0, gy: 0, moving: false });
@@ -699,7 +706,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const noCoastingDrift = window.SixDof.pos.distanceTo(posBeforeIdle) === 0;
       // Aproxima, afasta e aproxima novamente até atravessar a Dock (-1.24 m)
       for (let i = 0; i < 6; i++) window.nextvrSixDof({ sc: -0.04, gx: 0, gy: 0, moving: true });
-      for (let i = 0; i < 32; i++) window.nextvrSixDof({ sc: 0.06, gx: 0, gy: 0, moving: true });
+      // Passos validados são limitados a 5 cm (≈0,75 m/s a 15 Hz), então precisa de mais
+      // amostras do que o antigo passo de 15,5 cm para atravessar a Dock.
+      for (let i = 0; i < 64; i++) window.nextvrSixDof({ sc: 0.06, gx: 0, gy: 0, moving: true });
       for (let i = 0; i < 8; i++) window.SixDof.update(performance.now() + i * 30, 0.05);
       await new Promise(r => setTimeout(r, 50));
       const posYAfterCycles = window.SixDof.pos.y;
@@ -727,8 +736,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.SixDof.processGray(g0, true);
       const flowSubpixel = window.SixDof.processGray(g1, true);
       window.SixDof.reset();
-      return { stationaryDrift, afterFirst, afterSecond, noCoastingDrift, posYAfterCycles, outYAfterCycles, dockBackfaceWhenBehind, dockBackfaceWhenFront, afterReset, subpixelSc: flowSubpixel?.sc ?? 0 };
+      window.SixDof.setWorldLock(true);
+      return { lockedDrift, stationaryDrift, afterFirst, afterSecond, noCoastingDrift, posYAfterCycles, outYAfterCycles, dockBackfaceWhenBehind, dockBackfaceWhenFront, afterReset, subpixelSc: flowSubpixel?.sc ?? 0 };
     });
+    assert.equal(sixDofCheck.lockedDrift, 0, 'World Lock (padrão) mantém a translação 6DoF congelada: o mundo não vai para a frente nem para os lados sozinho');
     assert.equal(sixDofCheck.stationaryDrift, 0, '6DoF não anda para a frente sozinho quando o utilizador está parado (moving: false)');
     assert.equal(sixDofCheck.afterFirst, 0, '6DoF Falso ignora medição isolada de um único frame');
     assert.ok(sixDofCheck.afterSecond > 0.03, '6DoF Falso avança a posição da câmara quando dois frames seguidos concordam');
