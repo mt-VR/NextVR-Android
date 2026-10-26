@@ -201,40 +201,57 @@ class PhoneXrHandRenderer {
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glStencilMask(0xff);GLES20.glClearStencil(0);GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
-        if(markerControllerMode && !mrGameMode) {
-            // Marker Tracking ON: Hand Tracking mesh fica 100% invisível e só renderiza o modelo 3D do controle PICO 4 Ultra.
+        val activeMarker=markerControllerMode && markerDetected && !mrGameMode
+        if(activeMarker) {
+            // Marker presente e ativo: 100% independente do Hand Tracking — mão invisível, só o modelo 3D do controle PICO + raio.
             meshes=emptyList();meshPoints=emptyList();meshPool.clear()
-            if(visual!=null && visual.hands.isNotEmpty()) {
-                this.frame=visual
-                for(hand in visual.hands) {
-                    val pts=hand.points
-                    if(pts.size<30) continue
-                    val wx=(pts[0]-.5f)*2f*sx
-                    val wy=(.5f-pts[1])*2f*sy
-                    val kx=(pts[27]-.5f)*2f*sx
-                    val ky=(.5f-pts[28])*2f*sy
-                    val hFade=fade*hand.confidence.coerceIn(0f,1f)
-                    val actA=markerButtonA || (live && !hand.predicted && hand.pinching)
-                    val actB=markerButtonB
-                    drawPicoController3D(wx,wy,kx,ky,hand.left,actA,actB,hFade,position)
+            val mx=(markerX-.5f)*2f*sx
+            val my=(.5f-markerY)*2f*sy
+            val mr=(markerRadius*2f*minOf(sx,sy)).coerceIn(.13f,.26f)
+            val wx=mx+.018f
+            val wy=my-mr*1.05f
+            drawPicoController3D(wx,wy,mx,my,false,markerButtonA,markerButtonB,1f,position)
+            if(showPointer) {
+                var mTarget:JSONObject?=null
+                for(i in 0 until targets.length()) {
+                    val o=targets.optJSONObject(i)
+                    if(o!=null && o.optString("id")=="marker") { mTarget=o; break }
                 }
-            } else if(markerDetected) {
-                val mx=(markerX-.5f)*2f*sx
-                val my=(.5f-markerY)*2f*sy
-                val mr=(markerRadius*2f*minOf(sx,sy)).coerceIn(.13f,.26f)
-                val wx=mx+.018f
-                val wy=my-mr*1.05f
-                drawPicoController3D(wx,wy,mx,my,false,markerButtonA,markerButtonB,1f,position)
-                if(showPointer) {
-                    val len=kotlin.math.sqrt(markerAimX*markerAimX+markerAimY*markerAimY+1f)
-                    val b=beamLine
-                    b[0]=mx;b[1]=my;b[2]=-1f
+                val end=mTarget?.optJSONArray("end")
+                val len=kotlin.math.sqrt(markerAimX*markerAimX+markerAimY*markerAimY+1f)
+                val b=beamLine
+                b[0]=mx;b[1]=my;b[2]=-1f
+                var hitEnd=false
+                if(end!=null && end.length()==3) {
+                    val twx=end.optDouble(0,Double.NaN).toFloat()
+                    val twy=end.optDouble(1,Double.NaN).toFloat()
+                    val twz=end.optDouble(2,Double.NaN).toFloat()
+                    val ex=view[0]*twx+view[4]*twy+view[8]*twz+view[12]
+                    val ey=view[1]*twx+view[5]*twy+view[9]*twz+view[13]
+                    val ez=view[2]*twx+view[6]*twy+view[10]*twz+view[14]
+                    val ew=view[3]*twx+view[7]*twy+view[11]*twz+view[15]
+                    if(ew>1e-4f && ez<-.05f) {
+                        b[3]=ex/ew; b[4]=ey/ew; b[5]=ez/ew; b[6]=1f
+                        hitEnd=true
+                    }
+                }
+                if(!hitEnd) {
                     b[3]=markerAimX/len*1.2f;b[4]=markerAimY/len*1.2f;b[5]=-1.2f/len;b[6]=1f
-                    drawBeam(b,markerButtonA,markerButtonA || markerButtonB,false,position,1f)
+                }
+                val blueRay=markerButtonA || markerButtonB || hitEnd || (mTarget?.optBoolean("blueRay")==true)
+                drawBeam(b,markerButtonA,blueRay,false,position,1f)
+                if(hitEnd) {
+                    val z=b[5]
+                    val scale=(-z).coerceIn(.35f,3f)
+                    color(.96f,.99f,1f,.95f)
+                    ring3d(b[3],b[4],z,.022f*scale,.015f*scale,position)
                 }
             }
+            GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+            GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            return
         } else if(showSilhouette && visual!=null) {
-            // Marker Tracking OFF: Hand Tracking normal (malha PICO sem braço).
+            // Quando tirar o marker ou desativar o Marker Tracking: volta 100% ao Hand Tracking normal (desenho da mão, sem modelo 3D).
             this.frame=visual
             // Predicted to display time: the silhouette tracks the render rate even when the
             // detection rate drops (app open, GPU contention) — no stepping, no flicker.

@@ -207,17 +207,35 @@ export function renderPico4UltraControllerSvg(activeBtn = null) {
 }
 
 function selectCurrentOptionWithMarkerA() {
-  window.NativeXR?.click?.();
-  const cx = (Number.isFinite(cursor.x) ? cursor.x : 0.5) * innerWidth;
-  const cy = (Number.isFinite(cursor.y) ? cursor.y : 0.5) * innerHeight;
-  const hitEl = typeof document !== 'undefined' ? document.elementFromPoint(cx, cy) : null;
-  const clickable = hitEl?.closest?.('button, a, [role="button"], input, [data-entry-act], [data-id]');
-  if (clickable && !clickable.hasAttribute(' data-marker-draw-btn') && !clickable.hasAttribute('data-marker-pico-btn')) {
-    clickable.click();
+  const pt = markerState.detected
+    ? screenPoint([Number(markerState.aimX) || 0, Number(markerState.aimY) || 0])
+    : { x: Number.isFinite(cursor.x) ? cursor.x : 0.5, y: Number.isFinite(cursor.y) ? cursor.y : 0.5 };
+  const rx = Math.min(1, Math.max(0, Number.isFinite(pt.x) ? pt.x : 0.5));
+  const ry = Math.min(1, Math.max(0, Number.isFinite(pt.y) ? pt.y : 0.5));
+  cursor.x = rx;
+  cursor.y = ry;
+  cursor.active = true;
+
+  let clicked = false;
+  let target = null;
+  if (typeof window !== 'undefined' && typeof window.nextvrMarkerRayClick === 'function') {
+    const res = window.nextvrMarkerRayClick(rx, ry);
+    clicked = !!res?.clicked;
+    target = res?.target || null;
+  } else if (typeof document !== 'undefined') {
+    const hitEl = document.elementFromPoint(rx * innerWidth, ry * innerHeight);
+    const clickable = hitEl?.closest?.('button, a, [role="button"], input, [data-entry-act], [data-id]');
+    if (clickable && !clickable.hasAttribute('data-marker-draw-btn') && !clickable.hasAttribute('data-marker-pico-btn')) {
+      clickable.click();
+      clicked = true;
+      target = 'dom';
+    }
   }
-  emit('pinchdown', cursor);
-  emit('pinchup', cursor);
-  emit('marker-button-a', { x: cursor.x, y: cursor.y, at: performance.now() });
+  if (clicked) {
+    window.NativeXR?.click?.();
+  }
+  emit('marker-button-a', { x: rx, y: ry, clicked, target, at: performance.now() });
+  return clicked;
 }
 
 function exitCurrentGameWithMarkerB() {
@@ -236,11 +254,13 @@ function exitCurrentGameWithMarkerB() {
   return exited;
 }
 
-/** Aciona o botão A (Escolher Opção) ou B (Sair de Algum Jogo) sincronizando desenho + controle PICO 4 Ultra. */
+/** Aciona o botão A (Escolher Opção sob o Raio) ou B (Sair de Algum Jogo) sincronizando desenho + controle PICO 4 Ultra. */
 export function triggerMarkerButton(btn, source = 'calibration', executeAction = true) {
   const key = String(btn || '').toUpperCase() === 'B' ? 'B' : 'A';
   const now = performance.now();
-  markerState.detected = true;
+  if (source === 'camera') {
+    markerState.detected = true;
+  }
   markerState.lastActiveBtn = key;
   markerState.lastClickAt = now;
   markerState.buttonA = key === 'A';
@@ -248,11 +268,12 @@ export function triggerMarkerButton(btn, source = 'calibration', executeAction =
   if (key === 'A') markerState.clicksA++;
   else markerState.clicksB++;
 
+  let actionExecuted = false;
   if (executeAction) {
     if (key === 'A') {
-      selectCurrentOptionWithMarkerA();
+      actionExecuted = selectCurrentOptionWithMarkerA();
     } else {
-      exitCurrentGameWithMarkerB();
+      actionExecuted = exitCurrentGameWithMarkerB();
     }
   }
 
@@ -270,6 +291,7 @@ export function triggerMarkerButton(btn, source = 'calibration', executeAction =
   return {
     button: key,
     action: key === 'A' ? 'select-option' : 'exit-game',
+    actionExecuted,
     drawingClicked: key,
     controllerClicked: key,
     clicksA: markerState.clicksA,
@@ -483,12 +505,16 @@ if (typeof window !== 'undefined') {
     if (packet.detected && S.markerTracking) {
       S.markerCalibrated = 1;
       markerState.calibrated = true;
+      if (typeof document !== 'undefined') {
+        document.documentElement.dataset.handMeshHidden = '1';
+      }
       const pt = screenPoint([markerState.aimX, markerState.aimY]);
       if (Number.isFinite(pt.x) && Number.isFinite(pt.y)) {
         cursor.x = Math.min(1, Math.max(0, pt.x));
         cursor.y = Math.min(1, Math.max(0, pt.y));
         cursor.active = true;
       }
+      emit('handtargets_sync', performance.now());
       const nowA = !!packet.buttonA;
       const nowB = !!packet.buttonB;
       if (nowA && !prevCameraA) {
@@ -499,8 +525,16 @@ if (typeof window !== 'undefined') {
       prevCameraA = nowA;
       prevCameraB = nowB;
     } else {
+      markerState.detected = false;
+      markerState.buttonA = false;
+      markerState.buttonB = false;
       prevCameraA = false;
       prevCameraB = false;
+      if (typeof document !== 'undefined') {
+        document.documentElement.dataset.handMeshHidden = '0';
+      }
+      window.NativeXR?.handVisuals?.(true);
+      emit('handtargets_sync', performance.now());
     }
     updateMarkerControllerHud();
   };
@@ -512,5 +546,15 @@ if (typeof window !== 'undefined') {
 
 on('marker-tracking', () => {
   markerState.enabled = !!S.markerTracking;
+  if (!S.markerTracking) {
+    markerState.detected = false;
+    markerState.buttonA = false;
+    markerState.buttonB = false;
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.handMeshHidden = '0';
+    }
+    window.NativeXR?.handVisuals?.(true);
+    emit('handtargets_sync', performance.now());
+  }
   updateMarkerControllerHud();
 });

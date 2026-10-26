@@ -482,7 +482,7 @@ final class PassthroughCamera {
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
             if(markerTrackingEnabled && (sessionFrames & 1) == 0) {
-                PicoMarkerDetector.Result mRes=markerDetector.detect(cameraPixels,outW,outH,scaleX,scaleY,curHands,stamp);
+                PicoMarkerDetector.Result mRes=markerDetector.detect(cameraPixels,outW,outH,scaleX,scaleY,null,stamp);
                 listener.marker(mRes);
             }
             if(!gameHandMode || mrGameMode || sessionFrames<=2) {

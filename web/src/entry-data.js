@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · CONTROLE 3D PICO 4 ULTRA (SEM MÃO VISÍVEL), MODO 360 CORRIGIDO & BIBLIOTECA PICO 4 ULTRA (BUILD 76)',
+    tag: 'NOVO · MARKER INDEPENDENTE DO HAND TRACKING, VOLTA AO DESENHO DA MÃO & CLIQUE A POR RAIO (BUILD 77)',
     time: 'Agora',
-    heading: 'Marker Tracking Só com Modelo 3D do Controle PICO (Hand Tracking Invisível), Modo 360 nas Telas Corrigido & Biblioteca PICO 4 Ultra',
-    desc: 'Com Marker Tracking ativado, o Hand Tracking fica invisível e aparece apenas o modelo 3D do controle do PICO 4 Ultra (voltando ao Hand Tracking normal quando desativado); removido o menuzinho de botões; corrigido o bug de tela preta no modo 360 das janelas; e Biblioteca de Apps no estilo PICO 4 Ultra!',
+    heading: 'Marker 100% Independente do Hand Tracking, Volta ao Desenho da Mão ao Tirar o Marker & Clique A Só com Raio em Opção',
+    desc: 'Quando o marker é retirado ou desativado, o modelo 3D some e volta o desenho normal da mão; o Marker Tracking funciona de forma 100% independente do Hand Tracking; o botão A clica exatamente na opção onde o raio do controle está apontando e o B sai do jogo!',
   },
   {
     id: 'quest-browser-env-hand',

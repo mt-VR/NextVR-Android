@@ -161,15 +161,14 @@ public final class PicoMarkerDetector {
                         int wBot = sampleWedgePaper(argb, width, height, cx, cy, 0f, 1f, r);
                         if (wBot < 145 || wBot - centerMin < 11) continue;
                         int wTL = sampleWedgePaper(argb, width, height, cx, cy, -0.65f, -0.65f, r);
-                        if (wTL < 145) continue;
                         int wTR = sampleWedgePaper(argb, width, height, cx, cy, 0.65f, -0.65f, r);
-                        if (wTR < 145) continue;
+                        if (wTL < 145 && wTR < 145) continue;
                         int wML = sampleWedgePaper(argb, width, height, cx, cy, -0.92f, 0.25f, r);
                         if (wML < 145) continue;
                         int wMR = sampleWedgePaper(argb, width, height, cx, cy, 0.92f, 0.25f, r);
                         if (wMR < 145) continue;
 
-                        int paper = (wBot + wTL + wTR + wML + wMR) / 5;
+                        int paper = (wBot + Math.max(wTL, wTR) + wML + wMR) / 4;
                         if (paper - centerMin < 11) continue;
 
                         float score = evaluateCandidateWithPaper(argb, width, height, cx, cy, r, paper);
@@ -213,9 +212,21 @@ public final class PicoMarkerDetector {
             boolean skinB = sampleSkinOcclusion(argb, width, height, bx, ay, patchR, bestPaperLuma);
             if (skinA && !skinB) rawTouchA = true;
             else if (skinB && !skinA) rawTouchB = true;
-        } else if (lastValidMs > 0L && (nowMs - lastValidMs) <= 650L) {
+        } else if (lastValidMs > 0L && (nowMs - lastValidMs) <= 160L) {
             matched = true;
             confidence = 0.65f;
+            int lastCx = Math.round(smoothX * width);
+            int lastCy = Math.round(smoothY * height);
+            float lastR = smoothR * Math.min(width, height);
+            int paperLuma = samplePatchLuma(argb, width, height, lastCx, (int) (lastCy + lastR * 0.48f), 6);
+            int ax = (int) (lastCx - lastR * 0.40f);
+            int ay = (int) (lastCy - lastR * 0.38f);
+            int bx = (int) (lastCx + lastR * 0.40f);
+            int patchR = Math.max(6, (int) (lastR * 0.24f));
+            boolean skinA = sampleSkinOcclusion(argb, width, height, ax, ay, patchR, paperLuma);
+            boolean skinB = sampleSkinOcclusion(argb, width, height, bx, ay, patchR, paperLuma);
+            if (skinA && !skinB) rawTouchA = true;
+            else if (skinB && !skinA) rawTouchB = true;
         }
 
         // Check MediaPipe index/thumb fingertip touch on A (top-left) or B (top-right) sector of the marker
