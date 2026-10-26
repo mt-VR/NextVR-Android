@@ -2569,9 +2569,15 @@ let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
 /** Sticky feedback windows: hand noise must not flash outlines or swap FAR/NEAR pointers. */
 let hoverWin = null, hoverAt = 0;
 const NEAR_HOVER_HOLD_MS = 350, NEAR_HOLD_MS = 240;
-function phoneRay(x, y) {
-  camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
-  const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
+const _phoneRaycaster = new THREE.Raycaster();
+const _phoneNdc = new THREE.Vector2();
+function phoneRay(x, y, skipMatrixUpdate = false) {
+  if (!skipMatrixUpdate) {
+    camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
+  }
+  _phoneNdc.set(x * 2 - 1, 1 - y * 2);
+  _phoneRaycaster.setFromCamera(_phoneNdc, camera);
+  return _phoneRaycaster;
 }
 function palmScreen(h, packet, filtered=false) {
   const p=filtered?(h.grab||h.palm):h.palm;
@@ -4002,7 +4008,18 @@ function syncHandTargets(now = performance.now()) {
   if(!native)return;
   lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
+  if (!packet.hands.length) {
+    if (lastTargets !== '[]') { lastTargets = '[]'; window.NativeXR.handTargets?.('[]'); }
+    return;
+  }
   const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
+  camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
+  const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,...(w.grabHandles||[w.grab]),w.hit]);
+  if(dockVisible){
+    if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
+    list.push(dockMoveHit,dockHit);
+  }
+  if(kbHit && kbObj && !kbHidden)list.push(kbHit);
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
@@ -4017,32 +4034,27 @@ function syncHandTargets(now = performance.now()) {
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray().map(v=>Number(v.toFixed(4))),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // Ambas as mãos usam predição cinemática zero-delay na taxa do display (60-120 Hz).
     const p=predictedHandScreenPoint(h,now);
-    const r=phoneRay(p.x,p.y);
-    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,...(w.grabHandles||[w.grab]),w.hit]);
-    if(dockVisible){
-      if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
-      list.push(dockMoveHit,dockHit);
-    }
-    if(kbHit && kbObj && !kbHidden)list.push(kbHit);
+    const r=phoneRay(p.x,p.y,true);
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
     const isHolding=Boolean(isDown || h.pinching || h.fist || (drag.win && (!drag.hand || drag.hand===h.id)) || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || dockArmed>=0);
     const isPrimaryRay=(cursor.hand?.id===h.id) || packet.hands.length===1;
     const blueRay=Boolean(isHolding || ((hasOpenApp || now<appOpenBlueUntil) && (isPrimaryRay || Boolean(hit))));
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    const aimArr=Array.isArray(h.aim)&&h.aim.length>=2 ? [Number(h.aim[0].toFixed(4)),Number(h.aim[1].toFixed(4))] : undefined;
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray().map(v=>Number(v.toFixed(4))),...(aimArr?{aim:aimArr}:{})}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 }
 on('handtargets_sync', now => syncHandTargets(now));
 onFrame((dt,now)=>{
-  // 60–120 Hz: o anel/ponta do raio acompanha a predição da mão imediatamente sem atraso.
-  if(!native || now-lastTargetAt<2)return;
+  // O GL thread extrapola ambos os cursores a 60–120 Hz usando hand.aimX/Y; sincroniza alvos a ~60 Hz quando há mãos.
+  if(!native || !lastPhonePacket.hands.length || now-lastTargetAt<14)return;
   syncHandTargets(now);
 });

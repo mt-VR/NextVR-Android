@@ -366,4 +366,26 @@ class PhoneXrHandsTest {
         assertSame(a.hands,b.previous?.hands)
         assertNull(b.previous?.previous)
     }
+    @Test fun twoHandsKeepTheirAssignedSidesWhenMediaPipeSwapsOrderAndHandedness() {
+        val engine=PhoneXrHands()
+        val leftPts=points(.03f).map { NormalizedLandmark.create((it.x()-.22f).coerceIn(.05f,.95f),it.y(),it.z()) }
+        val rightPts=points(.22f).map { NormalizedLandmark.create((it.x()+.22f).coerceIn(.05f,.95f),it.y(),it.z()) }
+        // Frame 1: left hand at x~.28 (pinching, label Right -> left=true), right hand at x~.72 (open, label Left -> left=false)
+        val f1=engine.process(twoHandResult(leftPts,"Right",rightPts,"Left",1000L),1f,1f)
+        assertEquals(2,f1.hands.size)
+        val f1Left=f1.hands.single { it.left }
+        val f1Right=f1.hands.single { !it.left }
+        assertTrue(f1Left.pinching)
+        assertFalse(f1Right.pinching)
+        // Frame 2: MediaPipe swaps slot order AND mislabels both hands as "Left", while physical positions stay near x~.28 and x~.72
+        val f2=engine.process(twoHandResult(rightPts,"Left",leftPts,"Left",1033L),1f,1f)
+        assertEquals(2,f2.hands.size)
+        val f2Left=f2.hands.single { it.left }
+        val f2Right=f2.hands.single { !it.left }
+        assertTrue("Left hand must keep its pinch and side even when MediaPipe swaps order/labels",f2Left.pinching)
+        assertFalse("Right hand must stay open and not steal left hand state",f2Right.pinching)
+        assertTrue(kotlin.math.abs(f2Left.points[0]-f1Left.points[0])<.05f)
+        assertTrue(kotlin.math.abs(f2Right.points[0]-f1Right.points[0])<.05f)
+    }
 }
+

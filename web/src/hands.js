@@ -55,9 +55,17 @@ export function screenPoint(tangent) {
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
 const CURSOR_PREDICT_MAX_SPEED = 5.2;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
 const CURSOR_PREDICT_MAX_STEP = .15;    // alcance de extrapolação para compensar scanout do display
-let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
+let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0, cursorHandId = null;
 const _perHandCursorState = new Map();
 const _prePinchAimByHand = new Map();
+const _handPerfStats = {
+  frames1h: 0,
+  frames2h: 0,
+  lastCursorUpdateMs: 0,
+  avgCursorUpdate1hMs: 0,
+  avgCursorUpdate2hMs: 0,
+};
+if (typeof window !== 'undefined') window.__handPerfStats = _handPerfStats;
 
 function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
   if (!isLiveFrame) return;
@@ -65,19 +73,19 @@ function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
     if (!h || !h.id || !Array.isArray(h.aim) || h.aim.length < 2) continue;
     const pinchDist = Number.isFinite(h.pinch) ? h.pinch : 1;
     const st = _prePinchAimByHand.get(h.id);
-    if (!h.pinching && pinchDist > 0.48) {
+    if (!h.pinching && pinchDist > 0.42) {
       _prePinchAimByHand.set(h.id, {
-        aim0: st ? (st.aim0 * 0.30 + h.aim[0] * 0.70) : h.aim[0],
-        aim1: st ? (st.aim1 * 0.30 + h.aim[1] * 0.70) : h.aim[1],
+        aim0: h.aim[0],
+        aim1: h.aim[1],
         at: now,
         pinchStartAt: 0,
       });
-    } else if (st && (now - st.at <= 550)) {
+    } else if (st && (now - st.at <= 450)) {
       if (h.pinching && !st.pinchStartAt) st.pinchStartAt = now;
-      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 350 && cursor.mode !== 'drag');
+      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 240 && cursor.mode !== 'drag');
       const drift = Math.hypot(h.aim[0] - st.aim0, h.aim[1] - st.aim1);
-      if (inEarlyPinch && drift < 0.16) {
-        const lockWeight = h.pinching ? 0.90 : 0.84;
+      if (inEarlyPinch && drift < 0.11) {
+        const lockWeight = h.pinching ? 0.84 : 0.72;
         h.aim = [
           st.aim0 * lockWeight + h.aim[0] * (1 - lockWeight),
           st.aim1 * lockWeight + h.aim[1] * (1 - lockWeight),
@@ -104,11 +112,13 @@ export function predictedCursor(nowMs = performance.now()) {
 
 export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
   if (!hand || !hand.aim) return { x: .5, y: .5 };
-  if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
   const base = screenPoint(hand.aim);
-  if (hand.pinching || (Number.isFinite(hand.pinch) && hand.pinch < 0.48)) return base;
+  if (hand.pinching || (Number.isFinite(hand.pinch) && hand.pinch < 0.44)) return base;
   const st = _perHandCursorState.get(hand.id);
-  if (!st) return base;
+  if (!st) {
+    if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
+    return base;
+  }
   const rawAge = nowMs - st.at;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return base;
   const t = (rawAge * 0.85) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
@@ -130,8 +140,8 @@ function updatePerHandVelocities(list, now, stampNs = 0) {
       const gap = stampNs > 0 && prev.stampNs > 0 ? (stampNs - prev.stampNs) / 1e9
         : (prev.at > 0 ? (now - prev.at) / 1000 : -1);
       if (gap > .003 && gap < .3) {
-        prev.vx += (limit((pt.x - prev.x) / gap) - prev.vx) * .98;
-        prev.vy += (limit((pt.y - prev.y) / gap) - prev.vy) * .98;
+        prev.vx += (limit((pt.x - prev.x) / gap) - prev.vx) * .92;
+        prev.vy += (limit((pt.y - prev.y) / gap) - prev.vy) * .92;
         if (Math.hypot(prev.vx, prev.vy) < .04) prev.vx = prev.vy = 0;
       } else if (!(gap >= 0 && gap <= .003)) {
         prev.vx = prev.vy = 0;
@@ -146,7 +156,15 @@ function updatePerHandVelocities(list, now, stampNs = 0) {
   }
 }
 
-function updateCursorVelocity(point, now, stampNs = 0) {
+function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
+  if (handId && cursorHandId && handId !== cursorHandId) {
+    cursorVel.x = cursorVel.y = 0;
+    cursorAt = now;
+    cursorStampNs = stampNs > 0 ? stampNs : 0;
+    cursorHandId = handId;
+    return;
+  }
+  cursorHandId = handId;
   // Velocity on the CAPTURE timeline when the frame carries one (timestampNs): delivery gaps
   // jitter with the WebView drain cadence and made the same hand motion extrapolate differently
   // frame to frame — the drift-then-snap that read as the cursor "wandering until the next frame".
@@ -155,8 +173,8 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
     // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .95;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .95;
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .92;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .92;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
     if (Math.hypot(cursorVel.x, cursorVel.y) < .05) cursorVel.x = cursorVel.y = 0;
@@ -167,7 +185,7 @@ function updateCursorVelocity(point, now, stampNs = 0) {
   cursorAt = now;
   cursorStampNs = stampNs > 0 ? stampNs : 0;
 }
-function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; _perHandCursorState.clear(); }
+function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; cursorHandId = null; _perHandCursorState.clear(); }
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   reportHandFrame();
@@ -201,11 +219,16 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   emit('phonehands', packet);
   if(packet.blockFar){cancel();emit('handtargets_sync', now);return;}
   const available=hands.filter(h=>!packet.consumed.has(h.id));
+  const prevHand=cursor.active && cursor.hand ? available.find(h=>h.id===cursor.hand.id) : null;
+  const closingHand=available.find(h=>Number.isFinite(h.pinch) && h.pinch < 0.44);
   const chosen=(clickState.down && available.find(h=>h.id===clickState.handId))
-    || available.find(h=>h.pinching) || [...available].sort((a,b)=>b.palmWidth-a.palmWidth)[0];
+    || available.find(h=>h.pinching)
+    || closingHand
+    || (prevHand && available.every(h=>(h.palmWidth||0) <= (prevHand.palmWidth||0)*1.18) ? prevHand : null)
+    || [...available].sort((a,b)=>(b.palmWidth||0)-(a.palmWidth||0))[0];
   if (!chosen) { cancel(); emit('handtargets_sync', now); return; }
   const point=screenPoint(chosen.aim);
-  updateCursorVelocity(point, now, Number(frame.timestampNs) || 0);
+  updateCursorVelocity(point, now, Number(frame.timestampNs) || 0, chosen.id);
   cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;
   // A motion-model prediction keeps the cursor continuous across a missed detection but must
   // never touch the gesture machine: no press can START, RELEASE, or complete from predicted
@@ -230,6 +253,17 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   emitClickEvents(clickEvents);
   if (cursor.down) emit('pinchsample', cursor);
   emit('handtargets_sync', now);
+  const elapsedMs = performance.now() - now;
+  _handPerfStats.lastCursorUpdateMs = elapsedMs;
+  if (hands.length >= 2) {
+    _handPerfStats.frames2h++;
+    _handPerfStats.avgCursorUpdate2hMs = _handPerfStats.frames2h === 1
+      ? elapsedMs : (_handPerfStats.avgCursorUpdate2hMs * 0.9 + elapsedMs * 0.1);
+  } else if (hands.length === 1) {
+    _handPerfStats.frames1h++;
+    _handPerfStats.avgCursorUpdate1hMs = _handPerfStats.frames1h === 1
+      ? elapsedMs : (_handPerfStats.avgCursorUpdate1hMs * 0.9 + elapsedMs * 0.1);
+  }
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');

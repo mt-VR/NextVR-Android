@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · INTERAÇÃO 100% POR RAIO + PINÇA ESTABILIZADA + MEDIAPIPE TURBO (BUILD 72)',
+    tag: 'NOVO · HAND TRACKING ZERO-LAG 1 & 2 MÃOS + INTERAÇÃO POR RAIO (BUILD 73)',
     time: 'Agora',
-    heading: 'Pinça 100% por Raio (Sem Pinça Encima do App), Clique do Raio Corrigido & MediaPipe Mais Rápido',
-    desc: 'Interação exclusiva pelo Raio Laser com trava de mira pré-pinça e clique instantâneo, remoção da pinça encima do app e MediaPipe HandLandmarker otimizado para rastreamento mais rápido e fluido!',
+    heading: 'Hand Tracking Otimizado (1 e 2 Mãos Simultâneas), Zero Acúmulo de Frames & Cursores Independentes a 60–120 Hz',
+    desc: 'Rastreamento simultâneo de 2 mãos em única inferência sem troca de mãos (spatial wrist matching), zero cópia na captura da câmera, suavização adaptativa sem duplo filtro OneEuro e cursores independentes atualizados direto na thread GL!',
   },
   {
     id: 'quest-browser-env-hand',

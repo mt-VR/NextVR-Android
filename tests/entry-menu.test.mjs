@@ -264,16 +264,19 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     readFileSync('web/src/windows.js', 'utf8').includes('clickedSync') &&
     readFileSync('web/src/windows.js', 'utf8').includes("S.pinchOnApp !== 'force-legacy'") &&
     phoneXrHandsKt.includes('openAimX') &&
+    phoneXrHandsKt.includes('twoHandSides') &&
     phoneXrHandsKt.includes('appendFinite(sb, h.shape.pinchGap)') &&
+    activitySrc.includes('frameGestureSignature') &&
+    readFileSync('web/src/hands.js', 'utf8').includes('_handPerfStats') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('project3D') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('pushCapsule3D') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 72') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 73') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 72 (ATMOXR) includes Ray-Only pinch interaction without pinch-on-app, stabilized Ray Pinch aim/click, faster MediaPipe hand tracking, 3D Character Creator, PICO 4 hand-only mesh, and ATMOXR.apk output'
+    'Build 73 (ATMOXR) includes 1-hand and 2-hand zero-lag tracking optimization, spatial wrist matching without hand swapping, Ray-Only pinch interaction, 3D Character Creator, PICO 4 hand-only mesh, and ATMOXR.apk output'
   );
 });
 

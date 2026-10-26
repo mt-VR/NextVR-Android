@@ -442,6 +442,16 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         });
     }
 
+    private static int frameGestureSignature(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
+        if(frame==null) return 0;
+        int sig=1;
+        for(com.nextvr.app.hands.PhoneXrHands.Hand h:frame.getHands()) {
+            int shift=h.getLeft()?8:0;
+            int bits=4 | (h.getPinching()?1:0) | (h.getShape().getFist()?2:0);
+            sig |= (bits << shift);
+        }
+        return sig;
+    }
     private void scheduleHandFrameDrain() {
         if(handsPending.compareAndSet(false,true))main.post(this::drainHandFrames);
     }
@@ -449,12 +459,17 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         for(;;) {
             HandFrameMailbox.Batch batch=handFrames.drain();
             int stale=0;
+            int evaluated=0;
+            int extraCoalesced=0;
             if(shell!=null && resumed && !closed) {
                 StringBuilder scripts=new StringBuilder();
                 if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
                 long nowNs=SystemClock.elapsedRealtimeNanos();
-                if(gameHandMode && batch.frames().size()>1) {
-                    HandFrameMailbox.FrameScript newest=batch.frames().get(batch.frames().size()-1);
+                java.util.List<HandFrameMailbox.FrameScript> list=batch.frames();
+                if(gameHandMode && list.size()>1) {
+                    HandFrameMailbox.FrameScript newest=list.get(list.size()-1);
+                    extraCoalesced=list.size()-1;
+                    evaluated=1;
                     com.nextvr.app.hands.PhoneXrHands.Frame frame=newest.frame();
                     if(frame.isFresh(nowNs)) {
                         scripts.append(newest.script()).append(';');
@@ -464,8 +479,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                         stale++;
                     }
                 } else {
-                    for(HandFrameMailbox.FrameScript pending:batch.frames()) {
+                    for(int i=0,n=list.size();i<n;i++) {
+                        HandFrameMailbox.FrameScript pending=list.get(i);
                         com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
+                        if(i+1<n && frameGestureSignature(frame)==frameGestureSignature(list.get(i+1).frame())) {
+                            extraCoalesced++;
+                            continue;
+                        }
+                        evaluated++;
                         if(frame.isFresh(nowNs)) {
                             scripts.append(pending.script()).append(';');
                             if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
@@ -479,8 +500,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // One WebView evaluation guarantees the ordered frame edges run in one JS task,
                 // before a later batch can overtake them on Chromium's asynchronous evaluator.
                 if(scripts.length()>0)shell.evaluate(scripts.toString());
+            } else {
+                evaluated=batch.frames().size();
             }
-            PerfLog.handDrain(batch.frames().size(),stale,batch.coalesced());
+            PerfLog.handDrain(evaluated,stale,batch.coalesced()+extraCoalesced);
             handsPending.set(false);
             if(handFrames.isEmpty() || !handsPending.compareAndSet(false,true))return;
         }

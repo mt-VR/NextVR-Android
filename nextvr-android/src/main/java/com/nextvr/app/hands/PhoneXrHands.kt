@@ -186,16 +186,16 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=2.5f, beta=24.0f, deadZone=0.0006f)
-                else -> HandGestures.OneEuro(minCutoff=4.5f, beta=42.0f, deadZone=0.0006f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=1.6f, beta=12.0f, deadZone=0.0007f)
+                else -> HandGestures.OneEuro(minCutoff=1.8f, beta=15.0f, deadZone=0.0007f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=2.8f, beta=32.0f, deadZone=0.0014f)
-        val y = HandGestures.OneEuro(minCutoff=2.8f, beta=32.0f, deadZone=0.0014f)
+        val x = HandGestures.OneEuro(minCutoff=2.2f, beta=24.0f, derivativeCutoff=1.4f, deadZone=0.0010f)
+        val y = HandGestures.OneEuro(minCutoff=2.2f, beta=24.0f, derivativeCutoff=1.4f, deadZone=0.0010f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=3.2f, beta=32.0f, deadZone=0.0010f)
-        val grabY = HandGestures.OneEuro(minCutoff=3.2f, beta=32.0f, deadZone=0.0010f)
+        val grabX = HandGestures.OneEuro(minCutoff=2.2f, beta=22.0f, deadZone=0.0009f)
+        val grabY = HandGestures.OneEuro(minCutoff=2.2f, beta=22.0f, deadZone=0.0009f)
         var openAimX = Float.NaN
         var openAimY = Float.NaN
         var pinchStartStampNs = 0L
@@ -288,21 +288,54 @@ class PhoneXrHands {
         states.entries.removeAll { it.value.lastStampNs < stamp - STATE_RETAIN_NS }
         val seen = ArrayList<Hand>()
         val detected = HashSet<Boolean>()
-        result.landmarks().forEachIndexed { index, raw ->
+        val lmList = result.landmarks()
+        val twoHandSides: BooleanArray? = if (lmList.size == 2 && singleHandMode == "both"
+            && lmList[0].size == 21 && lmList[1].size == 21) {
+            val r0 = lmList[0]
+            val r1 = lmList[1]
+            val sepDx = r0[0].x() - r1[0].x()
+            val sepDy = r0[0].y() - r1[0].y()
+            val sepSq = sepDx * sepDx + sepDy * sepDy
+            val stL = states[true]?.takeIf { it.lastHand != null && stamp - it.lastStampNs in 1L..350_000_000L }?.lastHand
+            val stR = states[false]?.takeIf { it.lastHand != null && stamp - it.lastStampNs in 1L..350_000_000L }?.lastHand
+            if (sepSq > 0.001f && stL != null && stR != null) {
+                fun dSq(raw: List<NormalizedLandmark>, h: Hand): Float {
+                    val dx = raw[0].x() - h.points[0]
+                    val dy = raw[0].y() - h.points[1]
+                    return dx * dx + dy * dy
+                }
+                val cost0L1R = dSq(r0, stL) + dSq(r1, stR)
+                val cost0R1L = dSq(r0, stR) + dSq(r1, stL)
+                if (cost0L1R <= cost0R1L) booleanArrayOf(true, false) else booleanArrayOf(false, true)
+            } else if (sepSq > 0.001f && (stL != null || stR != null)) {
+                val knownLeft = stL != null
+                val knownHand = (stL ?: stR)!!
+                val d0 = (r0[0].x() - knownHand.points[0]) * (r0[0].x() - knownHand.points[0]) +
+                         (r0[0].y() - knownHand.points[1]) * (r0[0].y() - knownHand.points[1])
+                val d1 = (r1[0].x() - knownHand.points[0]) * (r1[0].x() - knownHand.points[0]) +
+                         (r1[0].y() - knownHand.points[1]) * (r1[0].y() - knownHand.points[1])
+                if (d0 <= d1) booleanArrayOf(knownLeft, !knownLeft) else booleanArrayOf(!knownLeft, knownLeft)
+            } else null
+        } else null
+        lmList.forEachIndexed { index, raw ->
             if(raw.size != 21) return@forEachIndexed
             // MediaPipe assumes mirrored selfie input. Our upright rear camera is NOT mirrored.
-            var left = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            var left = if (twoHandSides != null && index < twoHandSides.size) {
+                twoHandSides[index]
+            } else {
+                result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
+            }
             val mode = singleHandMode
             if (mode == "right") {
-                if (result.landmarks().size == 1) left = false
+                if (lmList.size == 1) left = false
                 else if (left) return@forEachIndexed
             } else if (mode == "left") {
-                if (result.landmarks().size == 1) left = true
+                if (lmList.size == 1) left = true
                 else if (!left) return@forEachIndexed
             } else if (mode == "one" && seen.isNotEmpty()) {
                 return@forEachIndexed
             }
-            if (result.landmarks().size == 1 && !states.containsKey(left)) {
+            if (lmList.size == 1 && !states.containsKey(left)) {
                 val other = states[!left]
                 val lastH = other?.lastHand
                 if (other != null && lastH != null && stamp - other.lastStampNs in 1L..280_000_000L) {
@@ -324,15 +357,12 @@ class PhoneXrHands {
             val m9x = raw[9].x(); val m9y = raw[9].y()
             val palmLen = kotlin.math.hypot(m9x - w0x, m9y - w0y)
             val maxReach = (palmLen * 2.35f).coerceAtLeast(0.06f)
-            val points = raw.mapIndexed { i,p ->
+            val ptsArray = FloatArray(63)
+            val points = ArrayList<NormalizedLandmark>(21)
+            for (i in 0 until 21) {
+                val p = raw[i]
                 var px = p.x(); var py = p.y()
-                if (i == 0 && state.consecutiveMisses > 0) {
-                    val prevPts = state.lastHand?.points
-                    if (prevPts != null && prevPts.size >= 2) {
-                        px = prevPts[0] + (px - prevPts[0]) * 0.55f
-                        py = prevPts[1] + (py - prevPts[1]) * 0.55f
-                    }
-                } else if (i > 0 && palmLen > 0.015f) {
+                if (i > 0 && palmLen > 0.015f) {
                     val rx = px - w0x; val ry = py - w0y
                     val rd = kotlin.math.hypot(rx, ry)
                     if (rd > maxReach && rd > 1e-4f) {
@@ -340,9 +370,13 @@ class PhoneXrHands {
                         px = w0x + rx * s; py = w0y + ry * s
                     }
                 }
-                NormalizedLandmark.create(
-                    state.landmarks[i*3].filter(px,stamp), state.landmarks[i*3+1].filter(py,stamp),
-                    state.landmarks[i*3+2].filter(p.z(),stamp))
+                val fx = state.landmarks[i*3].filter(px, stamp)
+                val fy = state.landmarks[i*3+1].filter(py, stamp)
+                val fz = state.landmarks[i*3+2].filter(p.z(), stamp)
+                ptsArray[i*3] = fx
+                ptsArray[i*3+1] = fy
+                ptsArray[i*3+2] = fz
+                points.add(NormalizedLandmark.create(fx, fy, fz))
             }
             val imageShape = HandGestures.shape(points,left)
             val world = result.worldLandmarks().getOrNull(index)
@@ -362,27 +396,29 @@ class PhoneXrHands {
                 pinch = !rawShape.fist && gap < .35f,
                 pinchStrength = ((.9f - gap) / .6f).coerceIn(0f, 1f),
                 pinchGap = gap,
+                aimX = rawShape.aimX,
+                aimY = rawShape.aimY,
             )
             if(!shape.fist || !state.fist){state.grabX.reset();state.grabY.reset()}
             state.fist=shape.fist
             val head = world?.let { HandGestures.headPoints(points,it,scaleX,scaleY) }
-            val bx = (shape.aimX-.5f)*2f*scaleX
-            val by = (.5f-shape.aimY)*2f*scaleY
+            val bx = (rawShape.aimX-.5f)*2f*scaleX
+            val by = (.5f-rawShape.aimY)*2f*scaleY
             val rightSide = head?.let { it[0]>0f } ?: (bx>0f)
             val shoulder = if(rightSide) .45f else -.45f
             var rawAimX = bx+(bx-shoulder)*.25f
             var rawAimY = by+(by+1f)*.25f
             val pinchingNow = state.pinch.update(shape)
-            if (!pinchingNow && shape.pinchGap >= .48f) {
-                state.openAimX = if (state.openAimX.isNaN()) rawAimX else (state.openAimX * .30f + rawAimX * .70f)
-                state.openAimY = if (state.openAimY.isNaN()) rawAimY else (state.openAimY * .30f + rawAimY * .70f)
+            if (!pinchingNow && shape.pinchGap >= .42f) {
+                state.openAimX = rawAimX
+                state.openAimY = rawAimY
                 state.pinchStartStampNs = 0L
             } else if (state.sawDetection && !state.openAimX.isNaN()) {
                 if (pinchingNow && state.pinchStartStampNs == 0L) state.pinchStartStampNs = stamp
-                val inPinchAnchorWindow = !pinchingNow || (stamp - state.pinchStartStampNs in 0L..350_000_000L)
+                val inPinchAnchorWindow = !pinchingNow || (stamp - state.pinchStartStampNs in 0L..220_000_000L)
                 val drift = kotlin.math.hypot(rawAimX - state.openAimX, rawAimY - state.openAimY)
-                if (inPinchAnchorWindow && drift < .14f) {
-                    val w = if (pinchingNow) .86f else .78f
+                if (inPinchAnchorWindow && drift < .09f) {
+                    val w = if (pinchingNow) .82f else .68f
                     rawAimX = state.openAimX * w + rawAimX * (1f - w)
                     rawAimY = state.openAimY * w + rawAimY * (1f - w)
                 } else {
@@ -390,7 +426,7 @@ class PhoneXrHands {
                     state.openAimY = rawAimY
                 }
             }
-            val hand = Hand(left,FloatArray(63) { i -> when(i%3) { 0->points[i/3].x();1->points[i/3].y();else->points[i/3].z() } },
+            val hand = Hand(left,ptsArray,
                 head,shape,bx,by,state.x.filter(rawAimX,stamp),
                 state.y.filter(rawAimY,stamp),pinchingNow,state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
             state.noteDetection(stamp,hand)

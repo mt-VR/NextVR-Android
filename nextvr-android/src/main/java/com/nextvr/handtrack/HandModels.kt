@@ -23,8 +23,8 @@ internal object HandModels {
             .setRunningMode(mode)
             .setNumHands(numHands)
             .setMinHandDetectionConfidence(confidence)
-            .setMinHandPresenceConfidence(minOf(confidence, .20f))
-            .setMinTrackingConfidence(.18f)
+            .setMinHandPresenceConfidence(minOf(confidence, .32f))
+            .setMinTrackingConfidence(.30f)
             .build()
         return HandLandmarker.createFromOptions(context, options)
     }

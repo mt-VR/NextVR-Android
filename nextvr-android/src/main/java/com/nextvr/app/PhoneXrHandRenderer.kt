@@ -247,7 +247,21 @@ class PhoneXrHandRenderer {
                 val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
                 val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
                 val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
-                if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez }
+                if(ew>1e-4f && ez<-.05f) {
+                    var rx=ex; var ry=ey
+                    val tAim=target?.optJSONArray("aim")
+                    if(tAim!=null && tAim.length()>=2) {
+                        val tx=tAim.optDouble(0,Double.NaN).toFloat()
+                        val ty=tAim.optDouble(1,Double.NaN).toFloat()
+                        if(tx.isFinite() && ty.isFinite()) {
+                            val depth=(-ez).coerceIn(.35f,2.6f)
+                            val dx=((hand.aimX-tx)*depth).coerceIn(-.28f,.28f)
+                            val dy=((hand.aimY-ty)*depth).coerceIn(-.28f,.28f)
+                            rx+=dx; ry+=dy
+                        }
+                    }
+                    e[0]=rx;e[1]=ry;e[2]=ez
+                }
                 else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
             } else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
             if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue

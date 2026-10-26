@@ -430,25 +430,30 @@ final class PassthroughCamera {
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=224;
-                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()/2));
+                    int width=Math.min(outW,budget.width());
                     int height=Math.max(1,width*outH/outW);
-                    int analysisLen=width*height;
-                    if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
-                    int dstIdx=0;
-                    int stepX=(outW<<16)/Math.max(1,width);
-                    int stepY=(outH<<16)/Math.max(1,height);
-                    int sy=0;
-                    for(int y=0;y<height;y++) {
-                        int srcRow=(sy>>>16)*outW;
-                        sy+=stepY;
-                        int sx=0;
-                        for(int x=0;x<width;x++) {
-                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(sx>>>16)];
-                            sx+=stepX;
+                    Bitmap analysis;
+                    if(width==outW && height==outH) {
+                        // Zero redundant Java resample/copy when the upright camera frame already matches budget width.
+                        analysis=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                    } else {
+                        int analysisLen=width*height;
+                        if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
+                        int dstIdx=0;
+                        int stepX=(outW<<16)/Math.max(1,width);
+                        int stepY=(outH<<16)/Math.max(1,height);
+                        int sy=0;
+                        for(int y=0;y<height;y++) {
+                            int srcRow=(sy>>>16)*outW;
+                            sy+=stepY;
+                            int sx=0;
+                            for(int x=0;x<width;x++) {
+                                analysisPixels[dstIdx++]=cameraPixels[srcRow+(sx>>>16)];
+                                sx+=stepX;
+                            }
                         }
+                        analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     }
-                    Bitmap analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     if(analysis!=null) {
                         long captureNs=timestampIsRealtime?sensorNs:-1L;
                         TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
@@ -462,8 +467,11 @@ final class PassthroughCamera {
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if((!gameHandMode || mrGameMode) && (sessionFrames & 1) == 0) {
-                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
+            PhoneXrHands.Frame curHands=latestHandsFrame;
+            int activeHandCount=curHands==null?0:curHands.getHands().size();
+            int flowMask=activeHandCount>=2?3:1;
+            if((!gameHandMode || mrGameMode) && (sessionFrames & flowMask) == 0) {
+                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,curHands,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
             if(!gameHandMode || mrGameMode || sessionFrames<=2) {
@@ -600,6 +608,8 @@ final class PassthroughCamera {
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
             PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
+            long afterPoseNs=SystemClock.elapsedRealtimeNanos();
+            PerfLog.poseWork((afterPoseNs-completedNs)/1e6);
             latestHandsFrame=result;
             // The processed (merged) hand count: what separates a real tracking loss from a slow
             // or skipping tracker in the perf log (see PerfLog.result).

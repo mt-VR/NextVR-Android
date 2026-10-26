@@ -65,3 +65,40 @@ test('two-hand silhouettes predict and fade independently, with per-hand pinch f
   assert.match(renderer, /HAND_OUTLINE_ALPHA\*handConfidence/);
   assert.doesNotMatch(renderer, /frame\.hands\.any \{ it\.pinching \}/);
 });
+
+test('two-hand pipeline prevents hand swapping, eliminates double filtering, and measures stage timings separately', async () => {
+  const handsKt = await readFile('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
+  const trackerKt = await readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandTracker.kt', 'utf8');
+  const cameraJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java', 'utf8');
+  const perfLogJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/PerfLog.java', 'utf8');
+  const activityJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java', 'utf8');
+  const rendererKt = await readFile('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8');
+  const handsJs = await readFile('web/src/hands.js', 'utf8');
+  const windowsJs = await readFile('web/src/windows.js', 'utf8');
+
+  // 1. Spatial 2x2 minimum-distance wrist assignment prevents left/right swapping when 2 hands are tracked
+  assert.match(handsKt, /val twoHandSides: BooleanArray\?/);
+  assert.match(handsKt, /cost0L1R <= cost0R1L/);
+
+  // 2. Single-pass OneEuro aim filtering from rawShape.aimX/aimY (no double OneEuro filtering)
+  assert.match(handsKt, /val bx = \(rawShape\.aimX-\.5f\)\*2f\*scaleX/);
+  assert.match(handsKt, /val by = \(\.5f-rawShape\.aimY\)\*2f\*scaleY/);
+
+  // 3. Lazy narrow detector avoids duplicate model initialization at startup
+  assert.match(trackerKt, /private var narrow: HandLandmarker\? = null/);
+
+  // 4. Zero-copy Bitmap creation when analysis dimensions match camera frame + stage timing
+  assert.match(cameraJava, /width==outW && height==outH/);
+  assert.match(cameraJava, /PerfLog\.poseWork\(/);
+  assert.match(perfLogJava, /infer_1h=%.1f infer_2h=%.1f pose_ms=%.2f/);
+
+  // 5. Consecutive same-gesture frames in the UI queue are collapsed so only gesture edges and the newest pose evaluate
+  assert.match(activityJava, /frameGestureSignature\(/);
+
+  // 6. Independent per-hand cursor velocity and GL-thread 60-120Hz aim delta extrapolation
+  assert.match(handsJs, /_perHandCursorState\.get\(hand\.id\)/);
+  assert.match(handsJs, /window\.__handPerfStats = _handPerfStats/);
+  assert.match(windowsJs, /phoneRay\(p\.x,p\.y,true\)/);
+  assert.match(rendererKt, /target\?\.optJSONArray\("aim"\)/);
+});
+
