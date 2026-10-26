@@ -280,6 +280,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
                 });
             }
+            @Override public void marker(PicoMarkerDetector.Result result) {
+                if(result==null || closed || !resumed) return;
+                final String json=result.toJson();
+                main.post(()->{
+                    if(closed || !resumed) return;
+                    if(entryVisible && entryView!=null) {
+                        entryView.evaluateJavascript("window.nextvrMarker&&window.nextvrMarker("+json+")", null);
+                    }
+                    if(shell!=null && ready) {
+                        shell.evaluate("window.nextvrMarker&&window.nextvrMarker("+json+")");
+                    }
+                });
+            }
             @Override public void cameraDefocus(boolean defocused) {
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready) return;
@@ -1162,6 +1175,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setSingleHandMode(mode);
         }
+        @JavascriptInterface public void setMarkerTracking(boolean enabled) {
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.setMarkerTrackingEnabled(enabled);
+        }
         @JavascriptInterface public boolean startInternalRecording() {
             return internalRecorder!=null && internalRecorder.start();
         }
@@ -1253,6 +1270,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                             }
                             if(o.has("singleHandMode") && camera!=null) {
                                 camera.setSingleHandMode(o.optString("singleHandMode","both"));
+                            }
+                            if(o.has("markerTracking") && camera!=null) {
+                                boolean mt=o.optBoolean("markerTracking",false) || o.optInt("markerTracking",0)!=0;
+                                camera.setMarkerTrackingEnabled(mt);
                             }
                         } catch(Exception ignored) {}
                     }

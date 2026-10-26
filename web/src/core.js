@@ -23,6 +23,7 @@ const DEF = {
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
   mrDim: 0, bwCamera: 0,
+  markerTracking: 0, markerCalibrated: 0,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -645,6 +646,25 @@ if (typeof document !== 'undefined' && S.bwCamera) {
 }
 if (typeof window !== 'undefined') {
   window.nextvrSetBwCamera = setBwCamera;
+}
+
+/** Liga/desliga o Marker Tracking PICO 4 Ultra (reconhecimento exclusivo do desenho circular A | B). */
+export function setMarkerTracking(enabled) {
+  S.markerTracking = enabled ? 1 : 0;
+  save();
+  if (typeof document !== 'undefined') {
+    if (S.markerTracking) document.documentElement.dataset.markerTracking = '1';
+    else delete document.documentElement.dataset.markerTracking;
+  }
+  window.NativeXR?.setMarkerTracking?.(!!S.markerTracking);
+  emit('marker-tracking', S.markerTracking);
+}
+if (typeof document !== 'undefined' && S.markerTracking) {
+  document.documentElement.dataset.markerTracking = '1';
+  window.NativeXR?.setMarkerTracking?.(true);
+}
+if (typeof window !== 'undefined') {
+  window.nextvrSetMarkerTracking = setMarkerTracking;
 }
 
 /* ============================ giroscópio ============================ */

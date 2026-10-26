@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · HAND TRACKING ZERO-LAG 1 & 2 MÃOS + INTERAÇÃO POR RAIO (BUILD 73)',
+    tag: 'NOVO · MARKER TRACKING CONTROLE PICO 4 ULTRA (DESENHO A | B) & CALIBRAGEM (BUILD 74)',
     time: 'Agora',
-    heading: 'Hand Tracking Otimizado (1 e 2 Mãos Simultâneas), Zero Acúmulo de Frames & Cursores Independentes a 60–120 Hz',
-    desc: 'Rastreamento simultâneo de 2 mãos em única inferência sem troca de mãos (spatial wrist matching), zero cópia na captura da câmera, suavização adaptativa sem duplo filtro OneEuro e cursores independentes atualizados direto na thread GL!',
+    heading: 'Marker Tracking PICO 4 Ultra (Desenho Circular A | B), Calibragem Interativa (A Escolhe · B Sai) & Menu sem Panorama',
+    desc: 'Reconhecimento exclusivo do desenho circular com 5 linhas (A | B) como Controle PICO 4 Ultra: tocar no A escolhe uma opção, tocar no B sai de algum jogo, Calibragem interativa nas Configurações (clicou A/B no controle, na imagem do desenho também clica) e menu de escolher panorama removido!',
   },
   {
     id: 'quest-browser-env-hand',

@@ -270,13 +270,26 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     readFileSync('web/src/hands.js', 'utf8').includes('_handPerfStats') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('project3D') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('pushCapsule3D') &&
+    readFileSync('web/src/marker-tracking.js', 'utf8').includes('verifyPicoMarkerDrawing') &&
+    readFileSync('web/src/marker-tracking.js', 'utf8').includes('buildMarkerCalibrationPanel') &&
+    readFileSync('web/src/marker-tracking.js', 'utf8').includes('renderMarkerDrawingSvg') &&
+    readFileSync('web/src/marker-tracking.js', 'utf8').includes('renderPico4UltraControllerSvg') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/app/PicoMarkerDetector.java', 'utf8').includes('class PicoMarkerDetector') &&
+    activitySrc.includes('setMarkerTracking') &&
+    activitySrc.includes('window.nextvrMarker(') &&
+    appsSrc.includes('openMarkerCalibration') &&
+    appsSrc.includes('exitActiveGameWithMarkerB') &&
+    !appsSrc.includes('data-exp-pano') &&
+    !appsSrc.includes('envSection') &&
+    entryMenuSrc.includes('data-entry-marker-tracking') &&
+    entryMenuSrc.includes('data-entry-marker-calibrate') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 73') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 74') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 73 (ATMOXR) includes 1-hand and 2-hand zero-lag tracking optimization, spatial wrist matching without hand swapping, Ray-Only pinch interaction, 3D Character Creator, PICO 4 hand-only mesh, and ATMOXR.apk output'
+    'Build 74 (ATMOXR) includes PICO 4 Ultra Marker Tracking for the circular 5-sector A|B drawing, synchronized calibration UI, B game exit, removed panorama chooser menu, and ATMOXR.apk output'
   );
 });
 

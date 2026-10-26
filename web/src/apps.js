@@ -1,8 +1,9 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, setMarkerTracking, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking, hands } from './hands.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
+import { buildMarkerCalibrationPanel, triggerMarkerButton, verifyPicoMarkerDrawing } from './marker-tracking.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
@@ -710,42 +711,16 @@ function youtube() {
   return win;
 }
 
-/* ============ Galeria (fotos + ambientes) ============ */
+/* ============ Galeria (fotos) ============ */
 let photos = [];
 function gallery() {
   const body = el('div', 'pad');
   const head = el('div');
-  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos e troque o ambiente do NextVR.</p>`;
-
-  // ---------- Ambientes ----------
-  const envSection = el('div');
-  envSection.style.marginTop = '22px';
-  envSection.innerHTML = `<h3 style="font-size:18px;margin:0 0 10px 0;font-weight:700">${t('env')}</h3>
-    <p class="sub" style="margin:0 0 12px 0">Escolha o fundo em que tudo flutua.</p>`;
-  const envGrid = el('div', 'grid3');
-  const paintEnvs = () => {
-    envGrid.innerHTML = '';
-    for (const e of envList()) {
-      const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
-      b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-      b.innerHTML = `<span>${e.name}</span>`;
-      b.setAttribute('aria-pressed', S.env === e.id ? 'true' : 'false');
-      b.onclick = () => {
-        setEnvironment(e.id);
-        [...envGrid.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
-        b.setAttribute('aria-pressed', 'true');
-        toast('Ambiente: ' + e.name);
-      };
-      envGrid.appendChild(b);
-    }
-  };
-  paintEnvs();
-  on('env', paintEnvs);
-  envSection.appendChild(envGrid);
+  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos no ATMOXR.</p>`;
 
   // ---------- Fotos ----------
   const photoHead = el('div');
-  photoHead.style.cssText = 'margin-top:26px;display:flex;align-items:center;gap:10px';
+  photoHead.style.cssText = 'margin-top:18px;display:flex;align-items:center;gap:10px';
   photoHead.innerHTML = `<h3 style="font-size:18px;margin:0;font-weight:700">${t('gallery')}</h3>`;
   const pick = el('button', 'go', t('pickPhotos'));
   const input = el('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.style.display = 'none';
@@ -773,25 +748,63 @@ function gallery() {
   };
   paint();
 
-  body.append(head, envSection, photoHead, input, grid, big);
+  body.append(head, photoHead, input, grid, big);
   return open({ id: 'gallery', title: t('gallery'), node: body });
 }
 
-/* ============ Ambientes ============ */
-function environments() {
-  const body = el('div', 'pad');
-  body.innerHTML = `<h2>${t('env')}</h2><p class="sub">Troque sem fechar nada.</p>`;
-  const g = el('div', 'grid3');
-  for (const e of envList()) {
-    const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
-    b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
-    b.innerHTML = `<span>${e.name}</span>`;
-    b.setAttribute('aria-pressed', S.env === e.id);
-    b.onclick = () => { setEnvironment(e.id); [...g.children].forEach(c => c.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); };
-    g.appendChild(b);
+/* ============ Marker Tracking & Calibragem (Controle PICO 4 Ultra · Desenho A | B) ============ */
+export function openMarkerCalibration() {
+  const existing = wins.find(w => w.id === 'marker-calibration');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
   }
-  body.appendChild(g);
-  return open({ id: 'env', title: t('env'), node: body });
+  const body = buildMarkerCalibrationPanel({
+    onClose: () => close('marker-calibration'),
+  });
+  const win = open({
+    id: 'marker-calibration',
+    title: 'Calibragem Marker Tracking · Controle PICO 4 Ultra (A | B)',
+    node: body,
+    w: 940,
+    h: 590,
+  });
+  focus(win);
+  css3d.invalidate?.();
+  return win;
+}
+
+export function exitActiveGameWithMarkerB() {
+  let closedAny = false;
+  if (typeof window !== 'undefined' && window.__gorillaStereoOverlay && typeof window.__gorillaExitGame === 'function') {
+    window.__gorillaExitGame();
+    closedAny = true;
+  }
+  for (const gameWinId of ['vrfs-game', 'mr-pistol-game', 'hand-draw-game', 'gorilla-tag', 'roblox']) {
+    const w = wins.find(x => x.id === gameWinId && !x.hidden);
+    if (w) {
+      close(w);
+      closedAny = true;
+    }
+  }
+  const hostGame = xrGames?.find?.(g => g.running);
+  if (hostGame?.pkg) {
+    closeXrGame(hostGame.pkg);
+    closedAny = true;
+  }
+  return closedAny;
+}
+
+if (typeof window !== 'undefined') {
+  window.nextvrOpenMarkerCalibration = openMarkerCalibration;
+  window.nextvrExitActiveGame = exitActiveGameWithMarkerB;
+}
+
+function environments() {
+  setPassthrough(S.env !== 'passthrough');
+  return openMarkerCalibration();
 }
 
 /* ============ Configurações ============ */
@@ -1068,6 +1081,27 @@ function controlCenterApp() {
   control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
   control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
   control('user', 'Criar Personagem', 'Avatar 3D do Jogo · ATMOXR', () => { openAvatarCreator(); return false; }, false);
+  const markerCtrlBtn = control(
+    'controller',
+    'Marker Tracking (PICO 4 Ultra)',
+    S.markerTracking ? 'Ativado · Desenho A (Escolher) | B (Sair)' : 'Desativado · Reconhecer Desenho A | B',
+    button => {
+      const enabled = !S.markerTracking;
+      setMarkerTracking(enabled);
+      button.querySelector('small').textContent = enabled ? 'Ativado · Desenho A (Escolher) | B (Sair)' : 'Desativado · Reconhecer Desenho A | B';
+      return enabled;
+    },
+    !!S.markerTracking
+  );
+  markerCtrlBtn.dataset.markerTrackingBtn = '1';
+  const markerCalBtn = control(
+    'crosshair',
+    'Calibrar Marker Tracking (A | B)',
+    'Mostrar desenho p/ câmera · Testar clique A e B',
+    () => { openMarkerCalibration(); return false; },
+    !!S.markerCalibrated
+  );
+  markerCalBtn.dataset.markerCalibrateBtn = '1';
   control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
     S.wideCamera = S.wideCamera ? 0 : 1;
     save(S);
@@ -1215,10 +1249,20 @@ function settingsApp() {
   };
   dofSeg.append(btn3Dof, btn6Dof);
   scroll.append(ytRow(icon('move'), 'Modo 3DoF / 6DoF', 'Alternar entre 3DoF (rotação) e 6DoF (andar no espaço)', dofSeg));
-  const envBtn = el('button','yt-link');
-  envBtn.append(ytRow(icon('image'), 'Ambiente', 'Trocar passthrough / panorama'));
-  envBtn.onclick = () => { const w=wins.find(x=>x.id==='settings');if(w)close(w);gallery(); };
-  scroll.append(envBtn);
+  const markerSw = el('button', 'yt-sw', '');
+  markerSw.dataset.on = S.markerTracking ? '1' : '0';
+  markerSw.dataset.settingsMarkerTracking = '1';
+  markerSw.onclick = () => {
+    const next = !S.markerTracking;
+    setMarkerTracking(next);
+    markerSw.dataset.on = next ? '1' : '0';
+  };
+  scroll.append(ytRow(icon('controller'), 'Marker Tracking (Controle PICO 4 Ultra)', 'Reconhece o desenho circular A | B como controle (A = Escolher, B = Sair de jogo)', markerSw));
+  const markerCalRowBtn = el('button', 'yt-link');
+  markerCalRowBtn.dataset.settingsMarkerCalibrate = '1';
+  markerCalRowBtn.append(ytRow(icon('crosshair'), 'Calibrar Marker Tracking (Desenho A | B)', 'Mostrar o desenho para a câmera e testar clique sincronizado no A e no B'));
+  markerCalRowBtn.onclick = () => { openMarkerCalibration(); };
+  scroll.append(markerCalRowBtn);
 
   // Mãos
   scroll.append(ytSection(t('hands')));
@@ -2408,12 +2452,6 @@ export function openPicoExplore() {
     css3d.invalidate?.();
     return existing;
   }
-  const panoramas = [
-    { id: 'idol', title: 'Dream of Becoming an Idol', sub: 'Strive for the dream of becoming an idol', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#831843,#db2777)', env: 'sunset' },
-    { id: 'fashion', title: 'Calming Stage & Studio 8K', sub: 'Immersive 180° 3D Live Performance', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#334155,#64748b)', env: 'lakeside' },
-    { id: 'blackhole', title: 'Black Hole Event Horizon', sub: 'Deep Space Gargantua 360° Simulation', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#451a03,#d97706)', env: 'dark' },
-    { id: 'ocean', title: 'Deep Ocean Scuba Coral 8K', sub: 'Underwater Reef & Marine Life 8K', badge: 'Panorama 8K', bg: 'linear-gradient(135deg,#083344,#06b6d4)', env: 'tropical' },
-  ];
 
   const body = el('div', 'pico-explore-win');
   body.dataset.picoExplore = '1';
@@ -2422,22 +2460,16 @@ export function openPicoExplore() {
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(Anbefalt av PICO)</span></h2>
+        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(PICO 4 Ultra · Marker Tracking)</span></h2>
         <button type="button" data-exp-picovideo style="padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:11px;font-weight:700;cursor:pointer">Ir para PICO VIDEO ›</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
-        ${panoramas.map(p => `
-          <div data-exp-pano="${p.env}" style="background:#242730;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column">
-            <div style="height:108px;background:${p.bg};padding:8px;display:flex;flex-direction:column;justify-content:space-between;position:relative">
-              <span style="align-self:flex-start;padding:2px 7px;border-radius:6px;background:rgba(6,182,212,.85);color:#fff;font-size:9.5px;font-weight:800">${p.badge}</span>
-              <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.88)">PICO VIDEO</span>
-            </div>
-            <div style="padding:9px 10px">
-              <div style="font-size:11.5px;font-weight:800;color:#f8fafc;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.title}</div>
-              <div style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sub}</div>
-            </div>
-          </div>
-        `).join('')}
+      <div data-exp-marker-cal style="background:linear-gradient(135deg,#18181b,#0f172a);border-radius:14px;padding:14px 16px;border:1px solid rgba(56,189,248,.35);display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer">
+        <div>
+          <span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(16,185,129,.22);color:#6ee7b7;font-size:10px;font-weight:900;margin-bottom:4px">NOVO · MARKER TRACKING PICO 4 ULTRA</span>
+          <div style="font-size:14px;font-weight:900;color:#ffffff">Controle PICO 4 Ultra por Desenho Circular (A | B)</div>
+          <div style="font-size:11px;color:#cbd5e1;margin-top:3px">Mostre o desenho circular com 5 linhas (A | B) para a câmera: toque no <b>A</b> para escolher opção e no <b>B</b> para sair de algum jogo.</div>
+        </div>
+        <button type="button" data-exp-open-marker-cal style="padding:9px 14px;border-radius:10px;border:1px solid #38bdf8;background:#0284c7;color:#fff;font-size:11.5px;font-weight:900;white-space:nowrap;cursor:pointer">📷 Calibrar Desenho A | B</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
         <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07)">
@@ -2473,10 +2505,8 @@ export function openPicoExplore() {
   `;
 
   body.addEventListener('click', e => {
-    const pano = e.target.closest('[data-exp-pano]');
-    if (pano) {
-      setEnvironment(pano.dataset.expPano);
-      toast(`Ambiente Panorama 8K ativado: ${pano.dataset.expPano}`);
+    if (e.target.closest('[data-exp-marker-cal]') || e.target.closest('[data-exp-open-marker-cal]')) {
+      openMarkerCalibration();
       return;
     }
     if (e.target.closest('[data-exp-mt]')) { openPicoMotionTracker(); return; }
