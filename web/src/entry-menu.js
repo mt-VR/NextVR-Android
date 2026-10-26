@@ -1,4 +1,5 @@
 import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, native, SixDof } from './core.js';
+import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -480,11 +481,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
 
             <div class="entry-bento-cell entry-bento-cell--spatial">
-              <div class="entry-bento-title">${emT('spatialCell')}</div>
+              <div class="entry-bento-title">DOCK &amp; PERSONAGEM</div>
               <div class="entry-seg-row entry-seg-row--compact">
-                <button type="button" class="entry-seg-btn ${spatialMode ? 'on' : ''}" data-entry-spatial="1">${emT('on')}</button>
-                <button type="button" class="entry-seg-btn ${!spatialMode ? 'on' : ''}" data-entry-spatial="0">${emT('dock')}</button>
+                <button type="button" class="entry-seg-btn on">${emT('dock')} PICO 4 Pro</button>
                 <button type="button" class="entry-seg-btn ${dockSnapOn ? 'on' : ''}" data-entry-dock-snap="${dockSnapOn ? '1' : '0'}" title="Espaço pré-definido ao mover janelas na Dock normal">${dockSnapOn ? emT('dockSnapOn') : emT('dockSnapOff')}</button>
+                <button type="button" class="entry-seg-btn" data-entry-act="profile">Criar Personagem</button>
               </div>
             </div>
 
@@ -610,6 +611,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   const renderProfilePanel = () => {
     const currentName = S.profileName || '';
     const currentAvatar = S.profileAvatar || '';
+    const charCfg = loadCharacter();
     const avatarInner = currentAvatar
       ? `<img src="${escHtml(currentAvatar)}" alt="Foto de perfil" class="entry-login-avatar-img" data-profile-avatar-img />`
       : SVG_USER;
@@ -619,10 +621,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <h2 class="entry-subpanel-title">Login / Perfil NextVR</h2>
           <div class="entry-subpanel-actions">
             <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">Voltar</button>
+            <button type="button" class="entry-btn entry-btn--primary" data-char-apply-avatar>Usar Personagem no Perfil</button>
             <button type="button" class="entry-btn entry-btn--primary" data-profile-save>Salvar Login</button>
           </div>
         </div>
-        <div class="entry-login-body">
+        <div class="entry-login-body" style="overflow-y:auto;max-height:100%">
           <div class="entry-login-left">
             <div class="entry-login-avatar-preview" data-profile-avatar-preview title="Toque para escolher foto da galeria">
               ${avatarInner}
@@ -631,14 +634,50 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               Escolher Foto da Galeria
             </button>
             <input type="file" accept="image/*" data-profile-file hidden />
+            <div style="margin-top:8px;padding:8px;border-radius:12px;background:rgba(9,9,11,.92);border:1px solid rgba(161,161,170,.28);text-align:center">
+              <div style="font-size:10px;font-weight:800;color:#d4d4d8;margin-bottom:4px">SEU PERSONAGEM 3D</div>
+              <canvas data-char-preview-canvas width="140" height="175" style="width:128px;height:160px;border-radius:10px;display:block;margin:0 auto;border:1px solid rgba(255,255,255,.12)"></canvas>
+            </div>
           </div>
           <div class="entry-login-right">
             <label class="entry-login-label">
               <span>SEU NOME / NICK <span class="entry-collab-verified entry-profile-verified-preview" data-profile-verified-preview="1" ${isVerifiedProfileName(currentName) ? '' : 'hidden'} title="Verificado">${SVG_TIKTOK_VERIFIED}</span></span>
               <input type="text" class="entry-login-input" data-profile-name-input maxlength="24" placeholder="Digite seu nome..." value="${escHtml(currentName)}" />
             </label>
-            <div class="entry-login-presets-wrap">
-              <span class="entry-login-presets-title">OU ESCOLHA UM AVATAR</span>
+
+            <div class="entry-char-studio" data-character-creator="1" style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <strong style="font-size:11.5px;letter-spacing:.04em;color:#f4f4f5">CRIAR PERSONAGEM DO JOGO · ATMOXR</strong>
+                <span style="font-size:10px;color:#38bdf8;font-weight:700">Sincronizado com Motion Tracker &amp; VR</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">PELE:</span>
+                ${CHARACTER_OPTIONS.skins.map(s => `<button type="button" data-char-set="skin:${s.id}" title="${escHtml(s.label)}" style="width:20px;height:20px;border-radius:50%;background:${s.id};border:${charCfg.skin === s.id ? '2.5px solid #fff' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;margin-left:8px">COR CABELO:</span>
+                ${CHARACTER_OPTIONS.hairColors.map(hc => `<button type="button" data-char-set="hairColor:${hc.id}" title="${escHtml(hc.label)}" style="width:18px;height:18px;border-radius:50%;background:${hc.id};border:${charCfg.hairColor === hc.id ? '2.5px solid #38bdf8' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">CABELO:</span>
+                ${CHARACTER_OPTIONS.hairStyles.map(hs => `<button type="button" class="entry-seg-btn ${charCfg.hairStyle === hs.id ? 'on' : ''}" data-char-set="hairStyle:${hs.id}" style="padding:3px 7px;font-size:10px">${escHtml(hs.label)}</button>`).join('')}
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">VISOR VR:</span>
+                ${CHARACTER_OPTIONS.visors.map(v => `<button type="button" class="entry-seg-btn ${charCfg.visor === v.id ? 'on' : ''}" data-char-set="visor:${v.id}" style="padding:3px 7px;font-size:10px">${escHtml(v.label)}</button>`).join('')}
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">TRAJE:</span>
+                ${CHARACTER_OPTIONS.outfits.map(o => `<button type="button" class="entry-seg-btn ${charCfg.outfit === o.id ? 'on' : ''}" data-char-set="outfit:${o.id}" style="padding:3px 7px;font-size:10px">${escHtml(o.label)}</button>`).join('')}
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">COR ROUPA:</span>
+                ${CHARACTER_OPTIONS.outfitColors.map(oc => `<button type="button" data-char-set="outfitColor:${oc.id}" title="${escHtml(oc.label)}" style="width:18px;height:18px;border-radius:50%;background:${oc.id};border:${charCfg.outfitColor === oc.id ? '2.5px solid #fff' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
+                <span style="font-size:10px;font-weight:800;color:#a1a1aa;margin-left:6px">ACESSÓRIO:</span>
+                ${CHARACTER_OPTIONS.accessories.map(ac => `<button type="button" class="entry-seg-btn ${charCfg.accessory === ac.id ? 'on' : ''}" data-char-set="accessory:${ac.id}" style="padding:3px 7px;font-size:10px">${escHtml(ac.label)}</button>`).join('')}
+              </div>
+            </div>
+
+            <div class="entry-login-presets-wrap" style="margin-top:6px">
+              <span class="entry-login-presets-title">OU ESCOLHA UM AVATAR PRONTO</span>
               <div class="entry-login-presets">
                 ${PRESET_AVATARS.map(a => `
                   <button type="button" class="entry-login-preset ${currentAvatar === a.url ? 'on' : ''}" data-profile-preset="${escHtml(a.url)}" title="${escHtml(a.label)}">
@@ -953,6 +992,33 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
+    const charCanvas = root.querySelector('[data-char-preview-canvas]');
+    if (charCanvas) {
+      const ctx = charCanvas.getContext('2d');
+      if (ctx) drawCharacter2D(ctx, charCanvas.width, charCanvas.height, loadCharacter(), { time: 0.4 });
+    }
+    root.querySelectorAll('[data-char-set]').forEach(btn => {
+      btn.onclick = () => {
+        const raw = btn.dataset.charSet || '';
+        const sep = raw.indexOf(':');
+        if (sep < 0) return;
+        const key = raw.slice(0, sep);
+        const val = raw.slice(sep + 1);
+        if (nameInput) S.profileName = nameInput.value.trim();
+        const cur = loadCharacter();
+        cur[key] = val;
+        saveCharacter(cur, { updateProfileAvatar: true });
+        paint();
+      };
+    });
+    const applyCharAvatarBtn = root.querySelector('[data-char-apply-avatar]');
+    if (applyCharAvatarBtn) {
+      applyCharAvatarBtn.onclick = () => {
+        if (nameInput) S.profileName = nameInput.value.trim();
+        saveCharacter(loadCharacter(), { updateProfileAvatar: true });
+        paint();
+      };
+    }
     const uploadBtn = root.querySelector('[data-profile-upload]');
     const avatarPreview = root.querySelector('[data-profile-avatar-preview]');
     const fileInput = root.querySelector('[data-profile-file]');
@@ -1155,18 +1221,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         if (!enableSixDof) SixDof.reset();
         window.NativeXR?.setSixDofEnabled?.(enableSixDof);
         emit('sixdof', enableSixDof);
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-spatial]').forEach(btn => {
-      btn.onclick = () => {
-        S.spatialLauncher = btn.dataset.entrySpatial === '1' ? 1 : 0;
-        if (S.spatialLauncher) {
-          S.env = 'passthrough';
-          setPassthrough(true);
-        }
-        save(S);
-        emit('spatialLauncher', !!S.spatialLauncher);
         paint();
       };
     });

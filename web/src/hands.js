@@ -53,8 +53,8 @@ export function screenPoint(tangent) {
  * tracking. Decisões de gesto (pinchdown/pinchup, hit-test de clique, input no DOM) usam SEMPRE
  * a detecção real, nunca a posição predita. */
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
-const CURSOR_PREDICT_MAX_SPEED = 4.5;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
-const CURSOR_PREDICT_MAX_STEP = .14;    // alcance de extrapolação para compensar scanout do display
+const CURSOR_PREDICT_MAX_SPEED = 5.2;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
+const CURSOR_PREDICT_MAX_STEP = .15;    // alcance de extrapolação para compensar scanout do display
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 const _perHandCursorState = new Map();
 
@@ -62,7 +62,7 @@ export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
   const rawAge = nowMs - cursorAt;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return { x: cursor.x, y: cursor.y };
-  const t = (rawAge * 1.35) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 1.42) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return { x: Math.min(1, Math.max(0, cursor.x + clamp(cursorVel.x * t))),
     y: Math.min(1, Math.max(0, cursor.y + clamp(cursorVel.y * t))) };
 }
@@ -75,7 +75,7 @@ export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
   if (!st) return base;
   const rawAge = nowMs - st.at;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return base;
-  const t = (rawAge * 1.35) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 1.42) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return {
     x: Math.min(1, Math.max(0, base.x + clamp(st.vx * t))),
     y: Math.min(1, Math.max(0, base.y + clamp(st.vy * t))),

@@ -1,7 +1,8 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
 import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
-import { startHands, stopHands, tracking } from './hands.js';
+import { startHands, stopHands, tracking, hands } from './hands.js';
+import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
@@ -1066,12 +1067,7 @@ function controlCenterApp() {
   }, S.env === 'night');
   control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
   control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
-  control('appGrid', 'Spatial App', S.spatialLauncher ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)', button => {
-    const enabled = !S.spatialLauncher;
-    setSpatialLauncherMode(enabled);
-    button.querySelector('small').textContent = enabled ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)';
-    return enabled;
-  }, !!S.spatialLauncher);
+  control('user', 'Criar Personagem', 'Avatar 3D do Jogo · ATMOXR', () => { openAvatarCreator(); return false; }, false);
   control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
     S.wideCamera = S.wideCamera ? 0 : 1;
     save(S);
@@ -2054,6 +2050,202 @@ export function openHandDrawGame() {
   return win;
 }
 
+/* ============ Criador de Personagem do Próprio Jogo (ATMOXR Avatar Studio 3D) ============ */
+export function openAvatarCreator() {
+  const existing = wins.find(w => w.id === 'avatar-creator');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+
+  let cfg = loadCharacter();
+  let yaw = 0;
+
+  const body = el('div', 'atmoxr-avatar-creator-win');
+  body.dataset.avatarCreator = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#14161c;color:#f4f4f5;display:grid;grid-template-columns:310px 1fr;gap:16px;padding:14px 18px 36px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+
+  const renderPanel = () => {
+    const nick = S.profileName || 'Jogador ATMOXR';
+    body.innerHTML = `
+      <div style="background:linear-gradient(180deg,#1d2029 0%,#12141a 100%);border-radius:18px;padding:12px 14px;border:1px solid rgba(255,255,255,.11);display:flex;flex-direction:column;justify-content:space-between;align-items:center">
+        <div style="width:100%;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">AVATAR 3D · ATMOXR</span>
+          <div style="display:inline-flex;gap:5px">
+            <button type="button" data-ac-rot="-0.35" style="padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10.5px;font-weight:700;cursor:pointer">⟲ Girar</button>
+            <button type="button" data-ac-rot="0.35" style="padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10.5px;font-weight:700;cursor:pointer">Girar ⟳</button>
+          </div>
+        </div>
+        <canvas data-ac-canvas width="280" height="330" style="width:255px;height:300px;border-radius:14px;border:1px solid rgba(255,255,255,.1);display:block"></canvas>
+        <div style="width:100%;display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
+          ${CHARACTER_OPTIONS.poses.map(p => `
+            <button type="button" data-ac-set="pose:${p.id}" style="padding:4px 9px;border-radius:999px;font-size:10.5px;font-weight:800;cursor:pointer;border:1px solid ${cfg.pose === p.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.pose === p.id ? 'rgba(56,189,248,.22)' : 'rgba(255,255,255,.06)'};color:#fff">${p.label}</button>
+          `).join('')}
+        </div>
+        <div style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+          <button type="button" data-ac-save-profile style="padding:9px 10px;border-radius:10px;background:#2563eb;border:1px solid #60a5fa;color:#fff;font-size:11px;font-weight:800;cursor:pointer">✓ Salvar no Perfil</button>
+          <button type="button" data-ac-open-mt style="padding:9px 10px;border-radius:10px;background:rgba(132,204,22,.18);border:1px solid rgba(132,204,22,.45);color:#bef264;font-size:11px;font-weight:800;cursor:pointer">🦵 Motion Tracker</button>
+        </div>
+      </div>
+
+      <div style="background:#1c1f27;border-radius:18px;padding:14px 16px;border:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;justify-content:space-between;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div>
+            <h2 style="margin:0;font-size:16px;font-weight:900;color:#fff">Criar Personagem do Jogo</h2>
+            <div style="font-size:11px;color:#94a3b8">Personalize seu personagem para o ATMOXR, Dock e PICO Motion Tracker · Nome: <b style="color:#fff">${escH(nick)}</b></div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button type="button" data-ac-random style="padding:6px 11px;border-radius:10px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#f4f4f5;font-size:11px;font-weight:800;cursor:pointer">🎲 Aleatório</button>
+            <button type="button" data-ac-entry-menu style="padding:6px 11px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:11px;font-weight:700;cursor:pointer">Menu 2D</button>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:6px">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">TOM DE PELE:</span>
+            ${CHARACTER_OPTIONS.skins.map(s => `
+              <button type="button" data-ac-set="skin:${s.id}" title="${s.label}" style="width:26px;height:26px;border-radius:50%;background:${s.id};border:${cfg.skin === s.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ESTILO CABELO:</span>
+            ${CHARACTER_OPTIONS.hairStyles.map(hs => `
+              <button type="button" data-ac-set="hairStyle:${hs.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.hairStyle === hs.id ? '#fff' : 'rgba(255,255,255,.14)'};background:${cfg.hairStyle === hs.id ? '#e4e4e7' : '#272a34'};color:${cfg.hairStyle === hs.id ? '#09090b' : '#f4f4f5'}">${hs.label}</button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">COR CABELO:</span>
+            ${CHARACTER_OPTIONS.hairColors.map(hc => `
+              <button type="button" data-ac-set="hairColor:${hc.id}" title="${hc.label}" style="width:24px;height:24px;border-radius:50%;background:${hc.id};border:${cfg.hairColor === hc.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ÓCULOS / VISOR:</span>
+            ${CHARACTER_OPTIONS.visors.map(v => `
+              <button type="button" data-ac-set="visor:${v.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.visor === v.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.visor === v.id ? 'rgba(56,189,248,.22)' : '#272a34'};color:#fff">${v.label}</button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ROUPA / TRAJE:</span>
+            ${CHARACTER_OPTIONS.outfits.map(o => `
+              <button type="button" data-ac-set="outfit:${o.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.outfit === o.id ? '#fff' : 'rgba(255,255,255,.14)'};background:${cfg.outfit === o.id ? '#e4e4e7' : '#272a34'};color:${cfg.outfit === o.id ? '#09090b' : '#f4f4f5'}">${o.label}</button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">COR DA ROUPA:</span>
+            ${CHARACTER_OPTIONS.outfitColors.map(oc => `
+              <button type="button" data-ac-set="outfitColor:${oc.id}" title="${oc.label}" style="width:24px;height:24px;border-radius:50%;background:${oc.id};border:${cfg.outfitColor === oc.id ? '3px solid #fff' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
+            `).join('')}
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;margin-left:8px">CALÇA:</span>
+            ${CHARACTER_OPTIONS.pantsColors.map(pc => `
+              <button type="button" data-ac-set="pantsColor:${pc.id}" title="${pc.label}" style="width:22px;height:22px;border-radius:50%;background:${pc.id};border:${cfg.pantsColor === pc.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ACESSÓRIO:</span>
+            ${CHARACTER_OPTIONS.accessories.map(ac => `
+              <button type="button" data-ac-set="accessory:${ac.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.accessory === ac.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.accessory === ac.id ? 'rgba(56,189,248,.22)' : '#272a34'};color:#fff">${ac.label}</button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  renderPanel();
+
+  let animId = 0;
+  const t0 = performance.now();
+  const tickPreview = now => {
+    if (!body.isConnected) return;
+    const cv = body.querySelector('[data-ac-canvas]');
+    if (cv) {
+      const ctx = cv.getContext('2d');
+      const lh = hands.find(h => h.left);
+      const rh = hands.find(h => !h.left);
+      drawCharacter2D(ctx, cv.width, cv.height, cfg, {
+        time: (now - t0) * 0.001,
+        yaw,
+        leftHand: lh,
+        rightHand: rh,
+      });
+    }
+    animId = requestAnimationFrame(tickPreview);
+  };
+  animId = requestAnimationFrame(tickPreview);
+
+  body.addEventListener('click', e => {
+    const setBtn = e.target.closest('[data-ac-set]');
+    if (setBtn) {
+      const raw = setBtn.dataset.acSet || '';
+      const sep = raw.indexOf(':');
+      if (sep > 0) {
+        const k = raw.slice(0, sep);
+        const v = raw.slice(sep + 1);
+        cfg[k] = v;
+        cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+        renderPanel();
+        css3d.invalidate?.();
+      }
+      return;
+    }
+    const rotBtn = e.target.closest('[data-ac-rot]');
+    if (rotBtn) {
+      yaw = Math.max(-1.2, Math.min(1.2, yaw + Number(rotBtn.dataset.acRot || 0)));
+      return;
+    }
+    if (e.target.closest('[data-ac-random]')) {
+      const pick = arr => arr[Math.floor(Math.random() * arr.length)].id;
+      cfg = {
+        skin: pick(CHARACTER_OPTIONS.skins),
+        hairStyle: pick(CHARACTER_OPTIONS.hairStyles),
+        hairColor: pick(CHARACTER_OPTIONS.hairColors),
+        visor: pick(CHARACTER_OPTIONS.visors),
+        outfit: pick(CHARACTER_OPTIONS.outfits),
+        outfitColor: pick(CHARACTER_OPTIONS.outfitColors),
+        pantsColor: pick(CHARACTER_OPTIONS.pantsColors),
+        accessory: pick(CHARACTER_OPTIONS.accessories),
+        pose: pick(CHARACTER_OPTIONS.poses),
+      };
+      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+      renderPanel();
+      toast('Novo personagem gerado e salvo!');
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-ac-save-profile]')) {
+      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+      toast('✓ Personagem salvo no seu Perfil e na Dock!');
+      css3d.invalidate?.();
+      return;
+    }
+    if (e.target.closest('[data-ac-open-mt]')) {
+      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+      openPicoMotionTracker();
+      return;
+    }
+    if (e.target.closest('[data-ac-entry-menu]')) {
+      openEntryMenu();
+    }
+  });
+
+  const win = open({ id: 'avatar-creator', title: 'Criar Personagem · ATMOXR', node: body, w: 940, h: 610 });
+  win._cleanupAC = () => cancelAnimationFrame(animId);
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+window.openAvatarCreator = openAvatarCreator;
+
 /* ============ PICO Motion Tracker (Screenshot_2026-10-25-19-28-52-726) ============ */
 export function openPicoMotionTracker() {
   const existing = wins.find(w => w.id === 'motion-tracker');
@@ -2126,6 +2318,9 @@ export function openPicoMotionTracker() {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
+          <button type="button" data-mt-customize style="width:100%;padding:9px 14px;border-radius:12px;border:1px solid rgba(56,189,248,.4);background:rgba(56,189,248,.16);color:#e0f2fe;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+            <span>🎨</span> <span>Criar / Editar Personagem</span>
+          </button>
           <button type="button" data-mt-recalibrate style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#363a45;color:#f8fafc;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
             <span>⊕</span> <span data-mt-recal-label>Recalibrar</span>
           </button>
@@ -2141,71 +2336,19 @@ export function openPicoMotionTracker() {
   const drawAvatar = (now) => {
     if (!body.isConnected) return;
     const tSec = (now - t0) * 0.001;
-    ctx.clearRect(0, 0, cv.width, cv.height);
+    const lh = hands.find(h => h.left);
+    const rh = hands.find(h => !h.left);
+    drawCharacter2D(ctx, cv.width, cv.height, loadCharacter(), {
+      time: tSec,
+      leftHand: lh,
+      rightHand: rh,
+    });
+    // PICO Motion Tracker green ankle sensors
     const cx = cv.width * 0.5;
-    const legLift = Math.max(0, Math.sin(tSec * 2.6)) * 22;
-    const armSwing = Math.sin(tSec * 2.6) * 10;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath();
-    ctx.ellipse(cx, 242, 36, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = '#1f232b';
-    ctx.lineWidth = 15;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - 11, 146);
-    ctx.lineTo(cx - 12, 226);
-    ctx.stroke();
-    ctx.fillStyle = '#e2e8f0';
-    ctx.beginPath(); ctx.roundRect(cx - 21, 224, 18, 10, 5); ctx.fill();
     ctx.fillStyle = '#84cc16';
-    ctx.beginPath(); ctx.arc(cx - 12, 214, 3.5, 0, Math.PI * 2); ctx.fill();
-
-    const kneeY = 182 - legLift * 0.9;
-    const footY = 224 - legLift;
-    ctx.strokeStyle = '#252932';
-    ctx.lineWidth = 15;
     ctx.beginPath();
-    ctx.moveTo(cx + 11, 146);
-    ctx.lineTo(cx + 14, kneeY);
-    ctx.lineTo(cx + 12, footY);
-    ctx.stroke();
-    ctx.fillStyle = '#f8fafc';
-    ctx.beginPath(); ctx.roundRect(cx + 4, footY - 2, 18, 10, 5); ctx.fill();
-    ctx.fillStyle = '#84cc16';
-    ctx.beginPath(); ctx.arc(cx + 12, footY - 11, 3.5, 0, Math.PI * 2); ctx.fill();
-
-    ctx.fillStyle = '#e5cf8e';
-    ctx.beginPath();
-    ctx.roundRect(cx - 24, 82, 48, 66, 14);
-    ctx.fill();
-
-    ctx.strokeStyle = '#f1f5f9';
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.moveTo(cx - 24, 92);
-    ctx.lineTo(cx - 34, 126 + armSwing * 0.5);
-    ctx.moveTo(cx + 24, 92);
-    ctx.lineTo(cx + 30, 116 - armSwing * 0.5);
-    ctx.stroke();
-
-    ctx.fillStyle = '#f1c6a7';
-    ctx.beginPath();
-    ctx.arc(cx, 54, 21, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#4a3222';
-    ctx.beginPath();
-    ctx.arc(cx, 46, 21, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f8fafc';
-    ctx.beginPath();
-    ctx.roundRect(cx - 19, 44, 38, 15, 7);
-    ctx.fill();
-    ctx.fillStyle = '#111827';
-    ctx.beginPath();
-    ctx.roundRect(cx - 16, 46, 32, 11, 5);
+    ctx.arc(cx - 12, 212, 4, 0, Math.PI * 2);
+    ctx.arc(cx + 12, 212, 4, 0, Math.PI * 2);
     ctx.fill();
 
     animId = requestAnimationFrame(drawAvatar);
@@ -2213,6 +2356,10 @@ export function openPicoMotionTracker() {
   animId = requestAnimationFrame(drawAvatar);
 
   body.addEventListener('click', e => {
+    if (e.target.closest('[data-mt-customize]')) {
+      openAvatarCreator();
+      return;
+    }
     if (e.target.closest('[data-mt-height]')) {
       heightIdx = (heightIdx + 1) % heights.length;
       body.querySelector('[data-mt-height]').textContent = `${heights[heightIdx]} cm ›`;
@@ -2785,6 +2932,7 @@ if (typeof window !== 'undefined') {
   window.nextvrOpenRobloxVr = openRobloxVr;
   window.nextvrOpenBeatSaberVr = openBeatSaberVr;
   window.nextvrOpenHandDrawGame = openHandDrawGame;
+  window.nextvrOpenAvatarCreator = openAvatarCreator;
   window.nextvrOpenPicoMotionTracker = openPicoMotionTracker;
   window.nextvrOpenPicoExplore = openPicoExplore;
   window.nextvrOpenTikTokVr = openTikTokVr;
@@ -2810,6 +2958,7 @@ const LIB_ACTIONS = {
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => openSpotifyVr(),
+  'avatar-creator': () => openAvatarCreator(),
   'motion-tracker': () => openPicoMotionTracker(),
   'pico-explore': () => openPicoExplore(),
   'phone-notifications': () => openPhoneNotifications(),
@@ -2830,6 +2979,7 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
+  { id: 'avatar-creator', name: 'Criar Personagem', cat: 'apps', rating: '5.0', reviews: '32 mil', tag: 'Avatar 3D do Jogo · ATMOXR', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#06b6d4)', textLogo: '🧑‍🚀' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
@@ -3933,8 +4083,8 @@ function buildFistQuickMenuDom() {
       <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-dock">
         ${icon('appGrid')}<span>Mostrar / Ocultar Dock</span>
       </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-spatial">
-        ${icon('maximize')}<span>${S.spatialLauncher ? 'Modo Dock' : 'Apps Flutuantes'}</span>
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="avatar-creator">
+        ${icon('user')}<span>Criar Personagem</span>
       </button>
       <button type="button" class="fist-menu-sec-btn" data-fist-act="settings">
         ${icon('settings')}<span>Ajustes</span>
@@ -3983,9 +4133,9 @@ function buildFistQuickMenuDom() {
     } else if (act === 'toggle-dock') {
       toggleSpatialAndDockFromGesture();
       close('fist-menu');
-    } else if (act === 'toggle-spatial') {
+    } else if (act === 'avatar-creator') {
       close('fist-menu');
-      setSpatialLauncherMode(!S.spatialLauncher);
+      openAvatarCreator();
     } else if (act === 'settings') {
       close('fist-menu');
       controlCenterApp();
@@ -4415,8 +4565,8 @@ function syncVirtualEnvironmentDock() {
 
 function makeDock() {
   buildDock([
-    // Perfil abre o menu de entrada ATMOXR, status do telefone e atalho do ambiente virtual.
-    { kind: 'avatar', id: 'profile', label: t('profile'),  run: openEntryMenu },
+    // Perfil abre o Criador de Personagem 3D ATMOXR, status do telefone e atalho do ambiente virtual.
+    { kind: 'avatar', id: 'profile', label: t('profile'),  run: openAvatarCreator },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },

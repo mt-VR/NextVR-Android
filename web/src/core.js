@@ -29,7 +29,7 @@ const DEF = {
 };
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
-let S = { ...DEF, ...saved };
+let S = { ...DEF, ...saved, spatialLauncher: 0 };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
 if (!S.sunsetDefaultVersion) {

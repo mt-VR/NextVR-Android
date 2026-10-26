@@ -178,19 +178,25 @@ class Win {
       <span class="win-side-grab win-side-grab--top" data-win-side-grab="top" style="position:absolute;top:-28px;left:12%;right:12%;height:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
     `;
 
-    // Barra inferior estilo Pico 4 nas janelas flutuantes (✕, —, título centralizado e ⋯)
+    // Barra inferior estilo PICO 4 Pro nas janelas flutuantes (✕, —, barra de arraste central PICO 4 Pro e controles ⤢ / ⊕)
+    shell.dataset.picoProWindow = '1';
     const picoFoot = document.createElement('div');
     picoFoot.className = 'win-pico-foot';
+    picoFoot.dataset.picoProFoot = '1';
     picoFoot.hidden = onboarding || !chrome || id === 'browser' || id === 'library' || id === 'quick-settings' || id === 'spatial-launcher' || id === 'left-quick-menu';
     picoFoot.innerHTML = `
       <div class="win-pico-foot-left">
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="close" title="Fechar" aria-label="Fechar">✕</button>
+        <button type="button" class="win-pico-foot-btn win-pico-foot-btn--close" data-pico-foot="close" title="Fechar" aria-label="Fechar">✕</button>
         <button type="button" class="win-pico-foot-btn" data-pico-foot="min" title="Minimizar" aria-label="Minimizar">—</button>
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Opções" aria-label="Opções">⋯</button>
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Curvar / Tela 2D" aria-label="Curvar">⤢</button>
       </div>
-      <span class="win-pico-foot-title" data-pico-foot-title>${title || 'Browser'}</span>
+      <div class="win-pico-foot-center" style="display:inline-flex;align-items:center;gap:10px">
+        <span class="win-pico-foot-title" data-pico-foot-title>${title || 'Browser'}</span>
+        <span class="win-pico-grab-bar" data-pico-grab-bar="1" style="display:inline-block;width:112px;height:5px;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,.72),#ffffff,rgba(255,255,255,.72));box-shadow:0 0 8px rgba(255,255,255,.35)"></span>
+      </div>
       <div class="win-pico-foot-right">
-        <span class="win-pico-grab-bar" data-pico-grab-bar="1" style="display:inline-block;width:96px;height:4.5px;border-radius:999px;background:rgba(229,231,235,.86)"></span>
+        <span class="win-pico-pro-tag" style="font-size:9.5px;font-weight:800;letter-spacing:.06em;color:rgba(228,228,231,.72);padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">PICO 4 PRO</span>
+        <button type="button" class="win-pico-foot-btn" data-pico-foot="center" title="Centralizar janela" aria-label="Centralizar">⊕</button>
       </div>
     `;
     picoFoot.addEventListener('click', e => {
@@ -199,6 +205,7 @@ class Win {
       e.stopPropagation();
       if (btn.dataset.picoFoot === 'close' || btn.dataset.picoFoot === 'min') close(this);
       else if (btn.dataset.picoFoot === 'more') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
+      else if (btn.dataset.picoFoot === 'center') this.placeInFront();
     });
 
     shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc, picoFoot);

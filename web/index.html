@@ -3741,18 +3741,42 @@
     letter-spacing:1px;
     padding:0 6px;
   }
+  /* ---------- Janelas Flutuantes estilo PICO 4 Pro (PICO OS 5) ---------- */
+  .win-shell[data-pico-pro-window="1"] > .win:not(.immersive){
+    background:linear-gradient(180deg,rgba(28,30,36,.94) 0%,rgba(19,21,26,.96) 100%);
+    border:1px solid rgba(255,255,255,.17);
+    border-radius:22px;
+    box-shadow:0 38px 110px rgba(0,0,0,.68),0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.14);
+    backdrop-filter:blur(24px);
+  }
+  .win-shell[data-pico-pro-window="1"] > .win.focus:not(.immersive){
+    border-color:rgba(212,212,216,.44);
+    box-shadow:0 42px 124px rgba(0,0,0,.74),0 0 0 2px rgba(228,228,231,.24),inset 0 1px 0 rgba(255,255,255,.22);
+  }
+  .win-shell[data-pico-pro-window="1"] > .win-handle{
+    height:9px;
+    border-radius:999px;
+    background:linear-gradient(90deg,rgba(255,255,255,.72),#ffffff,rgba(255,255,255,.72));
+    box-shadow:0 4px 18px rgba(0,0,0,.58),0 0 12px rgba(255,255,255,.26);
+  }
+  .win-shell[data-pico-pro-window="1"] > .win-resize{
+    border-right:3.5px solid rgba(244,244,245,.82);
+    border-bottom:3.5px solid rgba(244,244,245,.82);
+    border-bottom-right-radius:18px;
+  }
   .win-pico-foot,
   .qb-dock.win-pico-foot--browser{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    height:26px;
-    padding:0 12px;
-    background:#1f2023;
-    border-top:1px solid rgba(255,255,255,.09);
-    color:#d4d4d8;
+    height:30px;
+    padding:0 14px;
+    background:linear-gradient(180deg,rgba(36,38,44,.94),rgba(24,25,30,.97));
+    border-top:1px solid rgba(255,255,255,.12);
+    color:#e4e4e7;
     font:600 11px/1 Inter,system-ui,sans-serif;
     box-sizing:border-box;
+    backdrop-filter:blur(16px);
   }
   .win-pico-foot{
     position:absolute;
@@ -3760,6 +3784,8 @@
     right:1px;
     bottom:1px;
     z-index:6;
+    border-bottom-left-radius:21px;
+    border-bottom-right-radius:21px;
     pointer-events:auto;
   }
   .win-pico-foot[hidden]{
@@ -3769,37 +3795,44 @@
   .win-pico-foot-right{
     display:inline-flex;
     align-items:center;
-    gap:6px;
+    gap:7px;
   }
   .win-pico-foot-btn{
-    width:20px;
-    height:20px;
+    width:22px;
+    height:22px;
     border-radius:50%;
-    border:0;
-    background:rgba(255,255,255,.07);
-    color:#e4e4e7;
+    border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.08);
+    color:#f4f4f5;
     font:700 10.5px/1 Inter,sans-serif;
     display:inline-grid;
     place-items:center;
     cursor:pointer;
     padding:0;
-    transition:background .14s,color .14s,transform .12s;
+    transition:background .14s,color .14s,transform .12s,border-color .14s;
+  }
+  .win-pico-foot-btn--close:hover,
+  .win-pico-foot-btn--close.finger-hover{
+    background:#ef4444!important;
+    border-color:#fca5a5!important;
+    color:#ffffff!important;
   }
   .win-pico-foot-btn:hover,
   .win-pico-foot-btn.finger-hover{
-    background:rgba(255,255,255,.18);
+    background:rgba(255,255,255,.22);
+    border-color:rgba(255,255,255,.32);
     color:#ffffff;
     transform:scale(1.08);
   }
   .win-pico-foot-title{
     font-size:11px;
-    font-weight:600;
-    color:#e4e4e7;
-    letter-spacing:.01em;
+    font-weight:700;
+    color:#f4f4f5;
+    letter-spacing:.015em;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
-    max-width:240px;
+    max-width:220px;
   }
 
   /* Menu Principal e Subpainéis com cores Preta e Cinza (mantendo NanyGata azul) */

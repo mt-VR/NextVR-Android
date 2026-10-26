@@ -240,7 +240,9 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     entryMenuSrc.includes('data-entry-bw-cam') &&
     windowsSrc.includes('win-pico-foot') &&
     windowsSrc.includes('win-pico-grab-bar') &&
+    windowsSrc.includes('picoProWindow') &&
     windowsSrc.includes('dock-pico-status') &&
+    appsSrc.includes('openAvatarCreator') &&
     appsSrc.includes('openPicoMotionTracker') &&
     appsSrc.includes('openPicoExplore') &&
     appsSrc.includes('openTikTokVr') &&
@@ -248,12 +250,15 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('openPhoneNotifications') &&
     appsSrc.includes('PICO_BROWSER_SHORTCUTS') &&
     appsSrc.includes('PICO_STORE_SEARCH_CARDS') &&
+    entryMenuSrc.includes('data-character-creator="1"') &&
+    !entryMenuSrc.includes('data-entry-spatial') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 68') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 69') &&
+    readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 68 (ATMOXR) includes new ATMO XR launcher icon, PICO Motion Tracker, PICO Explore 8K, PICO Browser Shortcuts+Popular, PICO Store Search, TikTok VR Vertical, Spotify VR, Phone Notifications 27°C, and floating white index-tip hand tracking rings'
+    'Build 69 (ATMOXR) includes in-game 3D Character Creator, PICO 4 Pro floating windows, optimized hand tracking, Spatial Apps removed from UI, and ATMOXR.apk output'
   );
 });
 

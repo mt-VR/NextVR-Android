@@ -46,17 +46,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · ÍCONE ATMO XR & PICO 4 ULTRA COMPLETO (BUILD 68)',
+    tag: 'NOVO · CRIADOR DE PERSONAGEM 3D, JANELAS PICO 4 PRO & HAND ULTRA (BUILD 69)',
     time: 'Agora',
-    heading: 'Novo Ícone ATMO XR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
-    desc: 'Novo ícone oficial ATMO XR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR com áudio real, Central de Notificações 27°C e círculos brancos de Hand Tracking acima dos dedos!',
+    heading: 'Criar Personagem do Jogo, Janelinhas Flutuantes PICO 4 Pro, Hand Tracking Otimizado & APK ATMOXR',
+    desc: 'Crie seu próprio personagem 3D (pele, cabelo, visor ATMO XR / PICO 4 Pro, traje, calça e acessórios) sincronizado com seu Perfil, Dock e PICO Motion Tracker! Janelinhas flutuantes igual do PICO 4 Pro, Hand Tracking ainda mais otimizado, Spatial Apps removido e APK nomeado ATMOXR.apk!',
   },
   {
     id: 'quest-browser-env-hand',
-    tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
+    tag: 'NOVO · ÍCONE ATMO XR & PICO 4 ULTRA COMPLETO',
     time: 'Agora',
-    heading: 'paintdrawer, 6DoF Sem Deriva Lateral/Frontal & Hand Tracking Ultra 0 Delay',
-    desc: 'Jogo paintdrawer com nova logo! Todos os apps já vêm prontos sem precisar instalar, 6DoF corrigido para nunca andar para os lados ou pra frente do nada e Hand Tracking ultra sem delay nas 2 mãos!',
+    heading: 'Novo Ícone ATMO XR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
+    desc: 'Novo ícone oficial ATMO XR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR e Central de Notificações 27°C!',
   },
   {
     id: 'mr-pistol',

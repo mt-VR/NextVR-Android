@@ -436,10 +436,16 @@ final class PassthroughCamera {
                     int analysisLen=width*height;
                     if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
                     int dstIdx=0;
+                    int stepX=(outW<<16)/Math.max(1,width);
+                    int stepY=(outH<<16)/Math.max(1,height);
+                    int sy=0;
                     for(int y=0;y<height;y++) {
-                        int srcRow=(y*outH/height)*outW;
+                        int srcRow=(sy>>>16)*outW;
+                        sy+=stepY;
+                        int sx=0;
                         for(int x=0;x<width;x++) {
-                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(x*outW/width)];
+                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(sx>>>16)];
+                            sx+=stepX;
                         }
                     }
                     Bitmap analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);

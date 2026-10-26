@@ -248,17 +248,17 @@ jobs:
           git init -q -b apk-dist
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp "$APK" dist/app-debug.apk
+          cp "$APK" dist/ATMOXR.apk
           # O APK se identifica: o arquivo ao lado dele diz de que run e de que commit ele veio, com
           # tamanho e md5, para conferir o download sem depender de um número escrito na mão em lugar
           # nenhum (a documentação aponta para este arquivo).
           SIZE=$(stat -c %s "$APK")
           MD5=$(md5sum "$APK" | cut -d' ' -f1)
-          printf 'Debug APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+          printf 'ATMOXR APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
             "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
           cat dist/build.txt
           git add dist
-          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git commit -qm "ATMOXR APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           for attempt in 1 2 3 4; do
             if git push --force origin apk-dist; then
@@ -267,7 +267,7 @@ jobs:
             echo "apk-dist push failed (attempt $attempt); retrying"
             sleep $((attempt * 4))
           done
-          echo "APK published: branch apk-dist, path dist/app-debug.apk"
+          echo "APK published: branch apk-dist, path dist/ATMOXR.apk"
 
 
       - name: Upload native test reports
@@ -284,10 +284,9 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: nextvr-debug-apk
+          name: ATMOXR
           # O build nao configura ABI splits, entao sai um unico
-          # nextvr-android-debug.apk. O padrao anterior (*-universal-debug.apk)
-          # nao casava com nada e o upload era pulado.
+          # ATMOXR.apk.
           path: nextvr-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
