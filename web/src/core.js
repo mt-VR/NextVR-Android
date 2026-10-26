@@ -652,20 +652,40 @@ if (typeof window !== 'undefined') {
   window.nextvrSetBwCamera = setBwCamera;
 }
 
-/** Liga/desliga o Marker Tracking PICO 4 Ultra (reconhecimento exclusivo do desenho circular A | B). */
+/** Liga/desliga o Marker Tracking PICO 4 Ultra (reconhecimento exclusivo do desenho circular A | B).
+ *  Quando ativado: deixa o Hand Tracking invisível e só renderiza o modelo 3D do controle PICO 4 Ultra.
+ *  Quando desativado: restaura o Hand Tracking ao normal.
+ */
 export function setMarkerTracking(enabled) {
   S.markerTracking = enabled ? 1 : 0;
+  if (!S.markerTracking) {
+    S.handDraw = 1;
+  }
   save();
   if (typeof document !== 'undefined') {
-    if (S.markerTracking) document.documentElement.dataset.markerTracking = '1';
-    else delete document.documentElement.dataset.markerTracking;
+    if (S.markerTracking) {
+      document.documentElement.dataset.markerTracking = '1';
+      document.documentElement.dataset.handMeshHidden = '1';
+    } else {
+      delete document.documentElement.dataset.markerTracking;
+      document.documentElement.dataset.handMeshHidden = '0';
+    }
   }
   window.NativeXR?.setMarkerTracking?.(!!S.markerTracking);
+  if (!S.markerTracking) {
+    window.NativeXR?.handVisuals?.(true);
+    emit('handDraw', 1);
+  }
   emit('marker-tracking', S.markerTracking);
 }
-if (typeof document !== 'undefined' && S.markerTracking) {
-  document.documentElement.dataset.markerTracking = '1';
-  window.NativeXR?.setMarkerTracking?.(true);
+if (typeof document !== 'undefined') {
+  if (S.markerTracking) {
+    document.documentElement.dataset.markerTracking = '1';
+    document.documentElement.dataset.handMeshHidden = '1';
+    window.NativeXR?.setMarkerTracking?.(true);
+  } else {
+    document.documentElement.dataset.handMeshHidden = '0';
+  }
 }
 if (typeof window !== 'undefined') {
   window.nextvrSetMarkerTracking = setMarkerTracking;

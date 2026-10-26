@@ -279,22 +279,26 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     readFileSync('nextvr-android/src/main/java/com/nextvr/app/PicoMarkerDetector.java', 'utf8').includes('sampleWedgePaper') &&
     handRendererKt.includes('drawPicoController3D') &&
     handRendererKt.includes('markerControllerMode') &&
+    handRendererKt.includes('else if(showSilhouette && visual!=null)') &&
     activitySrc.includes('setMarkerTracking') &&
     activitySrc.includes('window.nextvrMarker(') &&
     appsSrc.includes('openMarkerCalibration') &&
     appsSrc.includes('exitActiveGameWithMarkerB') &&
     appsSrc.includes('picoCcDevicesHero') &&
+    appsSrc.includes('data-pico-lib-brand="1"') &&
+    appsSrc.includes('data-pico-lib-badge="1"') &&
+    !indexHtml.includes('html[data-cinema360="1"] body::before') &&
     !appsSrc.includes('data-exp-pano') &&
     !appsSrc.includes('envSection') &&
     entryMenuSrc.includes('data-entry-marker-tracking') &&
     entryMenuSrc.includes('data-entry-marker-calibrate') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 75') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 76') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 75 (ATMOXR) includes in-game 3D PICO 4 Ultra controller representation in OpenGL ES 2.0 stereo + HUD, 5-wedge marker tracking for the circular A|B drawing, synchronized calibration UI, B game exit, and ATMOXR.apk output'
+    'Build 76 (ATMOXR) hides Hand Tracking mesh when Marker Tracking is ON (leaving only the 3D PICO 4 Ultra controller) and restores Hand Tracking when OFF, removes the button-indicator mini-menu, fixes the 360° screen mode black-lens occlusion bug, and styles the App Library like PICO 4 Ultra'
   );
 });
 

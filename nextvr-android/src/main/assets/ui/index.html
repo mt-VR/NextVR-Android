@@ -275,67 +275,85 @@
   .st-btn:active{background:rgba(255,255,255,.24)}
   .st-note{margin:12px 2px;color:#9aa0ab;font-size:15px;line-height:1.65}
 
-  /* ---------- biblioteca: painel flutuante escuro e grade colorida de apps, como no print ---------- */
-  .lib{height:100%;display:flex;flex-direction:row;overflow:hidden;color:#f2f4f8;
-    background:linear-gradient(145deg,rgba(25,28,35,.98),rgba(14,16,21,.98));
-    border:1px solid rgba(255,255,255,.14);border-radius:18px;
-    box-shadow:0 18px 44px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04)}
-  .lib-rail{width:58px;flex:none;display:flex;flex-direction:column;align-items:center;gap:9px;
-    padding:13px 8px;background:rgba(0,0,0,.17);border-right:1px solid rgba(255,255,255,.08)}
-  .lib-rail-btn{width:38px;height:38px;flex:none;display:grid;place-items:center;border:1px solid transparent;
-    border-radius:12px;background:transparent;color:#aeb8c7;transition:background .14s,color .14s,transform .14s}
-  .lib-rail-btn .ui-icon{width:19px;height:19px}
-  .lib-rail-btn[aria-pressed="true"]{background:rgba(131,154,193,.28);border-color:rgba(207,221,244,.16);color:#fff;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
-  .lib-rail-btn:active{transform:scale(.94);background:rgba(255,255,255,.14)}
+  /* ---------- biblioteca: estilo Biblioteca de Apps do PICO 4 Ultra (PICO OS 5.11) ---------- */
+  .lib{height:100%;display:flex;flex-direction:row;overflow:hidden;color:#f4f7fb;
+    background:linear-gradient(155deg,rgba(28,33,44,.95) 0%,rgba(14,17,24,.97) 100%);
+    border:1px solid rgba(255,255,255,.16);border-radius:22px;
+    backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+    box-shadow:0 24px 56px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.1)}
+  .lib-rail{width:134px;flex:none;display:flex;flex-direction:column;align-items:stretch;gap:7px;
+    padding:14px 10px;background:linear-gradient(180deg,rgba(10,13,20,.46),rgba(6,8,14,.58));
+    border-right:1px solid rgba(255,255,255,.09)}
+  .lib-rail-brand{font-size:9.5px;font-weight:900;letter-spacing:.1em;color:#38bdf8;
+    padding:4px 8px 8px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:2px;
+    text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lib-rail-btn{height:40px;width:100%;flex:none;display:flex;align-items:center;gap:9px;
+    padding:0 11px;border:1px solid transparent;border-radius:12px;background:transparent;
+    color:#b2bdce;font-size:12px;font-weight:700;text-align:left;
+    transition:background .15s,color .15s,border-color .15s,transform .14s}
+  .lib-rail-btn .ui-icon{width:18px;height:18px;flex:none}
+  .lib-rail-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .lib-rail-btn:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+  .lib-rail-btn[aria-pressed="true"]{
+    background:linear-gradient(90deg,rgba(56,189,248,.24),rgba(99,102,241,.16));
+    border-color:rgba(125,211,252,.36);color:#fff;
+    box-shadow:inset 3px 0 0 #38bdf8,0 6px 16px rgba(0,0,0,.22)}
+  .lib-rail-btn:active{transform:scale(.96);background:rgba(255,255,255,.14)}
   .lib-rail-spacer{flex:1}
   .lib-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
-  .lib-head{height:70px;flex:none;display:flex;align-items:center;gap:9px;padding:12px 14px}
-  .lib-title{font-size:23px;font-weight:800;margin:0 5px 0 0;letter-spacing:-.35px;white-space:nowrap}
-  .lib-searchbox{height:40px;flex:0 1 270px;min-width:150px;display:flex;align-items:center;gap:8px;padding:0 11px;
-    background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.11);border-radius:11px}
-  .lib-searchbox>.ui-icon{width:18px;height:18px;flex:none;color:#aeb8c7}
+  .lib-head{height:70px;flex:none;display:flex;align-items:center;gap:9px;padding:12px 16px;
+    border-bottom:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.018)}
+  .lib-title{font-size:22px;font-weight:800;margin:0 2px 0 0;letter-spacing:-.35px;white-space:nowrap}
+  .lib-pico-badge{padding:3px 9px;border-radius:999px;background:rgba(56,189,248,.14);
+    border:1px solid rgba(56,189,248,.34);color:#7dd3fc;font-size:10px;font-weight:800;
+    letter-spacing:.04em;white-space:nowrap}
+  .lib-searchbox{height:38px;flex:0 1 250px;min-width:140px;display:flex;align-items:center;gap:8px;padding:0 13px;
+    background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.13);border-radius:999px}
+  .lib-searchbox>.ui-icon{width:17px;height:17px;flex:none;color:#aeb8c7}
   .lib-search{display:block;flex:1;min-width:0;background:transparent;border:0;padding:0;color:#fff;
     font:500 13px Inter,sans-serif;outline:none}
   .lib-search::placeholder{color:#9ca6b4}
   .lib-head-spacer{flex:1;min-width:3px}
-  .lib-pill{height:38px;max-width:166px;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.11);
-    border-radius:10px;padding:7px 10px;font-size:12px;font-weight:600;white-space:nowrap;
+  .lib-pill{height:36px;max-width:166px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.13);
+    border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap;
     display:inline-flex;align-items:center;gap:6px;color:#edf0f5}
   .lib-pill span{overflow:hidden;text-overflow:ellipsis}
   .lib-pill i{font-style:normal;color:#aeb7c4;font-size:11px}
   .lib-pill .ui-icon{width:14px;height:14px;flex:none;color:#bbc3cf}
   .lib-pill:active,.lib-close:active,.lib-curve:active{background:rgba(255,255,255,.2)}
-  .lib-curve{height:36px;min-width:48px;flex:none;padding:0 9px;border:1px solid rgba(255,255,255,.12);border-radius:9px;
-    background:rgba(255,255,255,.075);color:#edf0f5;font-size:12px;font-weight:700}
-  .lib-curve[aria-pressed="true"]{background:rgba(125,151,196,.32);border-color:rgba(211,225,248,.25);color:#fff}
-  .lib-close{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:9px;
-    background:rgba(255,255,255,.075);color:#f0f2f6}
-  .lib-close .ui-icon{width:19px;height:19px}
-  .lib-repin{display:none;width:34px;height:34px;flex:none;place-items:center;border-radius:9px;color:#d9e3ea;background:rgba(255,255,255,.075)}
+  .lib-curve{height:36px;min-width:48px;flex:none;padding:0 11px;border:1px solid rgba(255,255,255,.14);border-radius:999px;
+    background:rgba(255,255,255,.08);color:#edf0f5;font-size:12px;font-weight:700}
+  .lib-curve[aria-pressed="true"]{background:rgba(56,189,248,.28);border-color:rgba(125,211,252,.45);color:#fff}
+  .lib-close{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;
+    background:rgba(255,255,255,.085);border:1px solid rgba(255,255,255,.12);color:#f0f2f6}
+  .lib-close .ui-icon{width:18px;height:18px}
+  .lib-repin{display:none;width:34px;height:34px;flex:none;place-items:center;border-radius:50%;color:#d9e3ea;background:rgba(255,255,255,.085)}
   .lib-repin .ui-icon{width:18px;height:18px}
   .win-shell.free .lib-repin{display:grid}
-  .lib-scroll{flex:1;min-height:0;overflow-y:auto;padding:3px 15px 16px}
-  .lib-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px 10px}
-  .lib-tile{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:7px 7px 8px;
-    border:1px solid rgba(255,255,255,.06);border-radius:13px;background:rgba(255,255,255,.035);
-    text-align:left;color:#fff;transition:transform .14s,filter .14s,background .14s}
-  .lib-tile:hover{background:rgba(255,255,255,.075)}
-  .lib-tile:active{filter:brightness(1.18);transform:scale(.985)}
+  .lib-scroll{flex:1;min-height:0;overflow-y:auto;padding:8px 16px 18px}
+  .lib-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 11px}
+  .lib-tile{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:7px;padding:8px 8px 10px;
+    border:1px solid rgba(255,255,255,.09);border-radius:16px;
+    background:linear-gradient(180deg,rgba(255,255,255,.065) 0%,rgba(255,255,255,.025) 100%);
+    box-shadow:0 8px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.08);
+    text-align:left;color:#fff;transition:transform .15s,filter .15s,background .15s,border-color .15s}
+  .lib-tile:hover{background:linear-gradient(180deg,rgba(56,189,248,.14) 0%,rgba(255,255,255,.05) 100%);
+    border-color:rgba(125,211,252,.38);transform:translateY(-1px)}
+  .lib-tile:active{filter:brightness(1.18);transform:scale(.98)}
   .lib-cover{position:relative;isolation:isolate;width:100%;aspect-ratio:16/10;min-height:72px;overflow:hidden;
-    display:grid;place-items:center;border:1px solid rgba(255,255,255,.14);border-radius:10px;
-    background-color:#272b34;box-shadow:0 6px 14px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.12)}
+    display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);border-radius:12px;
+    background-color:#232834;box-shadow:0 6px 14px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.16)}
   .lib-cover:before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
-    background:linear-gradient(135deg,rgba(255,255,255,.14),transparent 48%),radial-gradient(ellipse at 50% 110%,rgba(0,0,0,.27),transparent 70%)}
+    background:linear-gradient(135deg,rgba(255,255,255,.18),transparent 48%),radial-gradient(ellipse at 50% 110%,rgba(0,0,0,.3),transparent 70%)}
   .lib-brand{position:relative;z-index:1;width:100%;height:100%;display:grid;place-items:center;padding:8px;text-align:center}
-  .lib-brand img.logo{width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 2px 7px rgba(0,0,0,.22))}
+  .lib-brand img.logo{width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.28))}
   .lib-brand .nm{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .lib-brand .fb{display:none}
   .lib-tile.nologo .lib-brand .fb{display:inline}
   .lib-icon{width:50px;height:50px;display:grid;place-items:center;color:#fff;filter:drop-shadow(0 3px 8px rgba(0,0,0,.22))}
   .lib-icon .ui-icon{width:100%;height:100%;stroke-width:1.65}
-  .lib-label{display:block;overflow:hidden;color:#dfe4ec;font-size:12px;font-weight:600;line-height:1.25;
-    text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+  .lib-label{display:block;overflow:hidden;color:#eef2f8;font-size:12.5px;font-weight:700;line-height:1.25;
+    text-overflow:ellipsis;white-space:nowrap;padding:0 3px;letter-spacing:-.01em}
   .lx-netflix{color:#e50914;font-family:Arial,sans-serif;font-weight:900;font-size:48px;line-height:1;
     letter-spacing:-.09em;transform:scaleX(.82);text-shadow:0 2px 8px #0009}
   .lx-prime{font-size:17px;font-weight:700;line-height:1.05;text-align:center;text-shadow:0 2px 6px #0005}
@@ -3165,14 +3183,6 @@
   .dock,
   .lh-quick-menu{
     filter:brightness(var(--nextvr-brightness,1));
-  }
-  html[data-cinema360="1"] body::before{
-    content:"";
-    position:fixed;
-    inset:0;
-    background:radial-gradient(circle at 50% 48%,rgba(14,18,26,.92) 0%,rgba(2,3,6,.99) 70%);
-    pointer-events:none;
-    z-index:0;
   }
   .win.cinema-360{
     border-radius:16px !important;

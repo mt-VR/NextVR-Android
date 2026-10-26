@@ -202,14 +202,6 @@ export function renderPico4UltraControllerSvg(activeBtn = null) {
 
       <!-- LED Verde Horizontal de Status na Base da Empunhadura (igual à foto de referência) -->
       <rect x="118" y="186" width="22" height="5.5" rx="2.75" fill="#22c55e" stroke="#86efac" stroke-width="0.9"/>
-
-      <!-- Legenda de Ação Ativa no Controle -->
-      <rect x="26" y="222" width="208" height="28" rx="14"
-        fill="${aOn ? 'rgba(16,185,129,.22)' : (bOn ? 'rgba(56,189,248,.22)' : 'rgba(24,24,27,.88)')}"
-        stroke="${aOn ? '#10b981' : (bOn ? '#38bdf8' : 'rgba(255,255,255,.15)')}" stroke-width="1.4"/>
-      <text x="130" y="240" text-anchor="middle" fill="#f8fafc" font-size="10.5" font-weight="800">
-        ${aOn ? 'PICO [A]: ESCOLHER OPÇÃO ✓' : (bOn ? 'PICO [B]: SAIR DO JOGO ✓' : 'CONTROLE PICO 4 ULTRA · ATIVO')}
-      </text>
     </svg>
   `;
 }
@@ -259,14 +251,8 @@ export function triggerMarkerButton(btn, source = 'calibration', executeAction =
   if (executeAction) {
     if (key === 'A') {
       selectCurrentOptionWithMarkerA();
-      if (source !== 'calibration-silent') {
-        toast('Controle PICO 4 Ultra · Botão A: Escolher opção');
-      }
     } else {
-      const exited = exitCurrentGameWithMarkerB();
-      if (source !== 'calibration-silent') {
-        toast(exited ? 'Controle PICO 4 Ultra · Botão B: Saiu do jogo' : 'Controle PICO 4 Ultra · Botão B (Sair do jogo)');
-      }
+      exitCurrentGameWithMarkerB();
     }
   }
 
@@ -338,46 +324,15 @@ function refreshCalibrationViews(activeBtn = markerState.lastActiveBtn) {
   });
 }
 
-/** Cria o elemento HUD 3D do Controle PICO 4 Ultra que aparece dentro do jogo quando o desenho é reconhecido pela câmera. */
+/** Menuzinho flutuante de botões removido: a representação do controle PICO 4 Ultra é exclusivamente 3D no mundo/lentes. */
 function updateMarkerControllerHud() {
   if (typeof document === 'undefined') return;
-  const shouldShow = !!S.markerTracking && (markerState.detected || !!S.markerCalibrated);
-  if (!shouldShow) {
-    if (hudEl) {
-      hudEl.hidden = true;
-      css3d?.invalidate?.();
-    }
-    return;
+  if (hudEl) {
+    hudEl.remove();
+    hudEl = null;
   }
-  const hudRoot = document.getElementById('hud') || document.body;
-  if (!hudEl) {
-    hudEl = document.createElement('div');
-    hudEl.id = 'pico-marker-controller-hud';
-    hudEl.dataset.picoMarkerHud = '1';
-    hudEl.style.cssText = 'position:absolute;left:50%;bottom:14px;width:154px;padding:6px 8px;border-radius:18px;background:rgba(15,23,42,.42);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);z-index:9200;pointer-events:auto;color:#f8fafc;font-family:Inter,system-ui,sans-serif;box-shadow:0 12px 28px rgba(0,0,0,.45);transition:transform .06s ease-out;';
-    hudEl.addEventListener('click', e => {
-      const btnA = e.target.closest('[data-marker-pico-btn="A"], [data-marker-draw-btn="A"]');
-      if (btnA) { triggerMarkerButton('A', 'hud'); return; }
-      const btnB = e.target.closest('[data-marker-pico-btn="B"], [data-marker-draw-btn="B"]');
-      if (btnB) { triggerMarkerButton('B', 'hud'); }
-    });
-    hudRoot.appendChild(hudEl);
-  } else if (hudEl.parentNode !== hudRoot) {
-    hudRoot.appendChild(hudEl);
-  }
-  hudEl.hidden = false;
-  const active = markerState.buttonA ? 'A' : (markerState.buttonB ? 'B' : null);
-  const dx = Math.round((markerState.x - 0.5) * 260) - 77;
-  const dy = Math.round((markerState.y - 0.65) * 120);
-  hudEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-  hudEl.innerHTML = `
-    <div style="width:126px;margin:0 auto">${renderPico4UltraControllerSvg(active)}</div>
-    <div style="display:flex;justify-content:space-between;gap:4px;margin-top:4px">
-      <button type="button" data-marker-pico-btn="A" style="flex:1;padding:3px 0;border-radius:6px;border:1px solid ${active === 'A' ? '#10b981' : 'rgba(255,255,255,.2)'};background:${active === 'A' ? '#059669' : '#18181b'};color:#fff;font-size:9px;font-weight:800;cursor:pointer">A · Escolher</button>
-      <button type="button" data-marker-pico-btn="B" style="flex:1;padding:3px 0;border-radius:6px;border:1px solid ${active === 'B' ? '#38bdf8' : 'rgba(255,255,255,.2)'};background:${active === 'B' ? '#0284c7' : '#18181b'};color:#fff;font-size:9px;font-weight:800;cursor:pointer">B · Sair</button>
-    </div>
-  `;
-  css3d?.invalidate?.();
+  const stale = document.getElementById('pico-marker-controller-hud');
+  if (stale) stale.remove();
 }
 
 /** Constrói o painel de Calibragem do Marker Tracking (usado nas Configurações 2D e VR). */

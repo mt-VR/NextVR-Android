@@ -1197,6 +1197,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     target.handRenderer.markerDetected=false;
                     target.handRenderer.markerButtonA=false;
                     target.handRenderer.markerButtonB=false;
+                    target.showHands=true;
                 }
             }
         }

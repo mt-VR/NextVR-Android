@@ -3327,8 +3327,10 @@ function buildLibrary() {
   const emptyText = libFilter === 'games' ? t('libGamesEmpty')
     : libFilter === 'recent' ? t('libRecentEmpty') : t('appNoResults');
   const navButton = (id, label, glyph) => `<button class="lib-rail-btn" data-lib-nav="${id}"
-    aria-label="${escH(label)}" title="${escH(label)}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
+    aria-label="${escH(label)}" title="${escH(label)}" aria-pressed="${libFilter === id}">${icon(glyph)}<span class="lib-rail-lbl">${escH(label)}</span></button>`;
+  root.dataset.picoUltraLibrary = '1';
   root.innerHTML = `<aside class="lib-rail" aria-label="${escH(t('apps'))}">
+      <div class="lib-rail-brand" data-pico-lib-brand="1">PICO 4 ULTRA</div>
       ${navButton('all', t('libAll'), 'appGrid')}
       ${navButton('games', t('libGames'), 'controller')}
       ${navButton('recent', t('recents'), 'timer')}
@@ -3338,6 +3340,7 @@ function buildLibrary() {
     <section class="lib-main">
       <div class="lib-head">
         <h2 class="lib-title">${escH(t('apps'))}</h2>
+        <span class="lib-pico-badge" data-pico-lib-badge="1">PICO OS · ${list.length}</span>
         <div class="lib-searchbox">${icon('search')}
           <input class="lib-search open" data-q aria-label="${escH(t('searchApps'))}"
             placeholder="${escH(t('searchApps'))}" value="${escH(libQuery)}">

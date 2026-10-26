@@ -314,12 +314,8 @@ class Win {
     if (button) button.setAttribute('aria-pressed', String(this.curve > 0));
     if (is360) {
       document.documentElement.dataset.cinema360 = '1';
-      window.NativeXR?.env?.('dark');
     } else if (!wins.some(w => w !== this && !w.hidden && !w.onboarding && w.curve > 0)) {
       delete document.documentElement.dataset.cinema360;
-      if (document.documentElement.dataset.robloxBlackEnv !== '1') {
-        window.NativeXR?.env?.(S.env || 'passthrough');
-      }
     }
     // A malha de hit só é curvada quando há curvatura: plana continua sendo 1 segmento.
     const segments = this.curve > 0 ? 32 : 1;

@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · REPRESENTAÇÃO 3D CONTROLE PICO 4 ULTRA NO JOGO & MARKER TRACKING (BUILD 75)',
+    tag: 'NOVO · CONTROLE 3D PICO 4 ULTRA (SEM MÃO VISÍVEL), MODO 360 CORRIGIDO & BIBLIOTECA PICO 4 ULTRA (BUILD 76)',
     time: 'Agora',
-    heading: 'Representação 3D do Controle PICO 4 Ultra no Jogo (Alça Translúcida + LED Verde + Botões A/B), Marker Tracking & Calibragem',
-    desc: 'Reconhecimento do desenho circular com 5 linhas (A | B) e representação 3D do Controle PICO 4 Ultra branco dentro do jogo (com aba lateral translúcida, analógico, botões A/B, LED verde na base e raio laser), tocar no A escolhe opção, tocar no B sai do jogo e Calibragem interativa!',
+    heading: 'Marker Tracking Só com Modelo 3D do Controle PICO (Hand Tracking Invisível), Modo 360 nas Telas Corrigido & Biblioteca PICO 4 Ultra',
+    desc: 'Com Marker Tracking ativado, o Hand Tracking fica invisível e aparece apenas o modelo 3D do controle do PICO 4 Ultra (voltando ao Hand Tracking normal quando desativado); removido o menuzinho de botões; corrigido o bug de tela preta no modo 360 das janelas; e Biblioteca de Apps no estilo PICO 4 Ultra!',
   },
   {
     id: 'quest-browser-env-hand',
