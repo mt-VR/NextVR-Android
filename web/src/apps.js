@@ -1,6 +1,6 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
 import * as THREE from 'three';
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, setWorldLock, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking, hands } from './hands.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
@@ -1150,6 +1150,21 @@ function controlCenterApp() {
   });
 
   makePicoTile({
+    iconSvg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/><circle cx="12" cy="15.2" r="1.5" fill="currentColor" stroke="none"/></svg>`,
+    sub: S.worldLock ? 'Travado no lugar' : '6DoF livre',
+    title: 'World Lock',
+    active: !!S.worldLock,
+    attr: { worldLockBtn: '1' },
+    onClick: (btn, syncStyle) => {
+      const on = S.worldLock === 0;
+      setWorldLock(on);
+      btn.querySelector('[data-tile-sub]').textContent = on ? 'Travado no lugar' : '6DoF livre';
+      syncStyle(on, false);
+      toast(on ? 'World Lock ligado: o mundo não anda sozinho' : 'World Lock desligado: 6DoF livre');
+    },
+  });
+
+  makePicoTile({
     iconSvg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>`,
     sub: internalRecState.active ? `🔴 ${formatRecTime(internalRecState.seconds)}` : '1 Lente HD',
     title: 'Screen Recording',
@@ -1408,6 +1423,43 @@ function settingsApp() {
   };
   dofSeg.append(btn3Dof, btn6Dof);
   scroll.append(ytRow(icon('move'), 'Modo 3DoF / 6DoF', 'Alternar entre 3DoF (rotação) e 6DoF (andar no espaço)', dofSeg));
+
+  // World Lock: o conserto do "6DoF indo pra frente e pros lados do nada".
+  const lockSw = el('button', 'yt-sw', '');
+  lockSw.dataset.on = S.worldLock ? '1' : '0';
+  lockSw.dataset.settingsWorldLock = '1';
+  lockSw.onclick = () => {
+    const on = !S.worldLock;
+    setWorldLock(on);
+    lockSw.dataset.on = on ? '1' : '0';
+  };
+  scroll.append(ytRow(icon('lock'), 'World Lock (travar mundo)', 'O mundo fica preso no lugar e só a cabeça gira — sem deriva de 6DoF', lockSw));
+  const recenterBtn = el('button', 'yt-seg-btn', 'Recentralizar agora');
+  recenterBtn.dataset.settingsRecenter = '1';
+  recenterBtn.onclick = () => {
+    SixDof.reset();
+    window.NativeXR?.resetSixDof?.();
+    setWorldLock(S.worldLock !== 0);
+    emit('recenter');
+    toast('Mundo recentralizado');
+  };
+  scroll.append(ytRow(icon('crosshair'), 'Recentralizar Mundo', 'Recoloca o mundo na frente e zera o deslocamento do 6DoF', recenterBtn));
+
+  // Câmera: P&B ou colorida, sem sair do jogo.
+  const camSeg = el('div');
+  camSeg.style.cssText = 'display:inline-flex;gap:6px;align-items:center;';
+  const camBwBtn = el('button', 'entry-seg-btn' + (S.bwCamera ? ' on' : ''), 'P&B');
+  camBwBtn.dataset.settingsCamera = 'bw';
+  const camColorBtn = el('button', 'entry-seg-btn' + (!S.bwCamera ? ' on' : ''), 'Colorida');
+  camColorBtn.dataset.settingsCamera = 'color';
+  const syncCamBtns = () => {
+    camBwBtn.classList.toggle('on', !!S.bwCamera);
+    camColorBtn.classList.toggle('on', !S.bwCamera);
+  };
+  camBwBtn.onclick = () => { setBwCamera(true); syncCamBtns(); };
+  camColorBtn.onclick = () => { setBwCamera(false); syncCamBtns(); };
+  camSeg.append(camBwBtn, camColorBtn);
+  scroll.append(ytRow(icon('camera'), 'Cor da Câmera Passthrough', 'Preto e branco (estilo Quest 2) ou colorida — janelas continuam coloridas', camSeg));
 
   // Mãos
   scroll.append(ytSection(t('hands')));
@@ -1959,6 +2011,9 @@ export function openHandDrawGame() {
       <button type="button" data-hd-tool="neon">✨ Tinta Neon</button>
       <button type="button" data-hd-tool="eraser">🧽 Borracha</button>
       <input type="range" data-hd-size-slider min="2" max="36" value="9" aria-label="Grossura da caneta">
+      <input type="range" data-hd-depth-slider min="0.30" max="1.05" step="0.01" value="0.55" aria-label="Distância do traço em metros">
+      <button type="button" data-hd-camera="1" aria-pressed="false">📷 Câmera P&amp;B / Colorida</button>
+      <button type="button" data-hd-worldlock="1" aria-pressed="true">🔒 World Lock</button>
       <button type="button" data-hd-undo>↩ Desfazer</button>
       <button type="button" data-hd-clear>🗑 Limpar Tudo</button>
       <button type="button" data-hd-save>💾 Salvar</button>
@@ -1973,7 +2028,10 @@ export function openHandDrawGame() {
   const paletteWin = hooks.querySelector('[data-mr-palette-win]');
   const strokesEl = hooks.querySelector('[data-hd-strokes]');
   const sliderEl = hooks.querySelector('[data-hd-size-slider]');
-  mrPaintHooks = { hooks, paletteBtn, paletteWin, strokes: strokesEl };
+  const depthEl = hooks.querySelector('[data-hd-depth-slider]');
+  const camBtn = hooks.querySelector('[data-hd-camera]');
+  const lockBtn = hooks.querySelector('[data-hd-worldlock]');
+  mrPaintHooks = { hooks, paletteBtn, paletteWin, strokes: strokesEl, camBtn, lockBtn, depthEl };
 
   paletteBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -2002,6 +2060,17 @@ export function openHandDrawGame() {
     });
   });
   if (sliderEl) sliderEl.addEventListener('input', () => api.setSize?.(Number(sliderEl.value)));
+  if (depthEl) depthEl.addEventListener('input', () => api.setDepth?.(Number(depthEl.value)));
+  camBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const on = api.setBwCamera?.();
+    camBtn.setAttribute('aria-pressed', String(!!on));
+  });
+  lockBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const on = api.setWorldLock?.();
+    lockBtn.setAttribute('aria-pressed', String(!!on));
+  });
   paletteWin?.querySelector('[data-hd-undo]')?.addEventListener('click', (e) => { e.stopPropagation(); api.undo?.(); });
   paletteWin?.querySelector('[data-hd-clear]')?.addEventListener('click', (e) => { e.stopPropagation(); api.clear?.(); });
   paletteWin?.querySelector('[data-hd-save]')?.addEventListener('click', (e) => { e.stopPropagation(); api.save?.(); });
@@ -2011,6 +2080,9 @@ export function openHandDrawGame() {
   window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = HAND_DRAW_COLORS[7][0], size = 9, tool = 'pen') =>
     addMrPaintScreenSegment(x0, y0, x1, y1, color, size, tool);
   window.nextvrToggleMrDrawPalette = (force) => setMrPaintPaletteOpen(force);
+  window.nextvrMrPaintCamera = (on) => (api.setBwCamera ? api.setBwCamera(on) : null);
+  window.nextvrMrPaintWorldLock = (on) => (api.setWorldLock ? api.setWorldLock(on) : null);
+  window.nextvrMrPaintDepth = (m) => (api.setDepth ? api.setDepth(m) : null);
   window.nextvrCloseHandDrawGame = closeHandDrawGame;
   window.nextvrMrPaintCanSelect = () => Boolean(document.querySelector(MR_PAINT_CANVAS_SELECTOR));
 

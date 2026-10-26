@@ -1,4 +1,4 @@
-import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, native, SixDof } from './core.js';
+import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import {
   ENTRY_VERSION,
@@ -632,6 +632,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
                 <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">1.0x</button>
                 <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="Modo 3DoF (rotação de cabeça)">3DoF</button>
                 <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="Modo 6DoF Falso (andar no espaço)">6DoF</button>
+                <button type="button" class="entry-seg-btn ${S.worldLock ? 'on' : ''}" data-entry-worldlock="${S.worldLock ? '1' : '0'}" title="World Lock: trava o mundo no lugar (sem derivar para a frente ou para os lados)">🔒 World Lock: ${S.worldLock ? 'ON' : 'OFF'}</button>
               </div>
             </div>
 
@@ -689,6 +690,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
                 ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
                 <button type="button" class="entry-seg-btn ${S.bwCamera ? 'on' : ''}" data-entry-bw-cam="${S.bwCamera ? '1' : '0'}" title="Deixar só a câmera passthrough preto e branco estilo Meta Quest 2 (janelinhas e dock continuam coloridas)">Câmera P&amp;B (Quest 2): ${S.bwCamera ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${!S.bwCamera ? 'on' : ''}" data-entry-camera="color" title="Câmera passthrough colorida (sem filtro P&amp;B)">📷 Câmera Colorida</button>
               </div>
             </div>
           </div>
@@ -1386,6 +1388,18 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       btn.onclick = () => {
         const next = S.bwCamera ? 0 : 1;
         setBwCamera(next === 1);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-camera]').forEach(btn => {
+      btn.onclick = () => {
+        setBwCamera(btn.dataset.entryCamera !== 'color');
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-worldlock]').forEach(btn => {
+      btn.onclick = () => {
+        setWorldLock(!S.worldLock);
         paint();
       };
     });

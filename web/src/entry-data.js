@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'worldlock-camera-paint',
+    tag: 'NOVO · WORLD LOCK, CÂMERA COLORIDA & PAINTMR 3D CONSERTADO (BUILD 82)',
+    time: 'Agora',
+    heading: '6DoF sem deriva: World Lock, Câmera P&B ou Colorida e o paintMR 3D Refinado',
+    desc: 'O mundo agora fica TRAVADO no lugar por padrão (World Lock): o 6DoF parou de ir para a frente e para os lados do nada, e tem botão de recentralizar. Escolha câmera P&B ou colorida dentro do jogo, no painel PICO 4 Ultra e nas configurações. O paintMR 3D foi consertado: ancoragem invertida, filtro One-Euro contra tremor, curvas suaves, borracha por direção, distância ajustável e botões de câmera/World Lock na paleta!',
+  },
+  {
     id: 'paint-mr-3d',
     tag: 'NOVO · PAINTDRAWER 3D EM MR — DESENHE NO AR COM AS MÃOS (BUILD 81)',
     time: 'Agora',

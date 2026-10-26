@@ -382,8 +382,9 @@ public final class FakeSixDof {
         int radialAgree = finalSc >= 0f ? posRadial : negRadial;
 
         // World Lock rápido e preciso: exige consenso radial real com resposta imediata no frame 1
-        boolean significantFlow = Math.abs(finalSc) >= 0.0022f && Math.abs(finalSc) <= 0.14f && radialAgree >= 4;
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.8) {
+        // World Lock precisa de consenso radial forte: ruído de câmera não pode virar passo.
+        boolean significantFlow = Math.abs(finalSc) >= 0.0045f && Math.abs(finalSc) <= 0.10f && radialAgree >= 6;
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.0f) {
             stationaryFrames = 0;
             worldLocked = false;
             if (prevValidSc != 0f && (nowMs - prevValidMs) <= 260L && Math.signum(prevValidSc) == Math.signum(finalSc)) {

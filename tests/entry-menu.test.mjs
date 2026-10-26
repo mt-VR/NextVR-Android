@@ -291,7 +291,14 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     mrPaint3dSrc.includes('InstancedMesh') &&
     mrPaint3dSrc.includes('intersectObjects') &&
     mrPaint3dSrc.includes('viewPointFromTangent') &&
-    mrPaint3dSrc.includes('content.quaternion.copy(q).multiply(P.q0Inv)') &&
+    // Ancoragem correta: view = q(t)⁻¹ · q(0) · paint (a versão anterior usava a matriz trocada)
+    mrPaint3dSrc.includes('_qInv.copy(q).invert()') &&
+    mrPaint3dSrc.includes('paintAnchorQuaternion(q, P.q0, P.content.quaternion)') &&
+    readFileSync('web/src/mr-paint-math.js', 'utf8').includes('export function paintAnchorQuaternion') &&
+    mrPaint3dSrc.includes('makeScreenFilter') &&
+    mrPaint3dSrc.includes('mrPaintSetBwCamera') &&
+    mrPaint3dSrc.includes('mrPaintSetWorldLock') &&
+    mrPaint3dSrc.includes('depthTarget') &&
     mrPaint3dSrc.includes('function eraseAt(') &&
     mrPaint3dSrc.includes('localStorage') &&
     mrPaint3dSrc.includes('renderStereo') &&
@@ -299,7 +306,16 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('openMrPaint3d') &&
     entryDataSrc.includes('paint-mr-3d') &&
     !appsSrc.includes('destination-out') &&
-    sixdofSrc.includes('depth: 2.35') &&
+    sixdofSrc.includes('depth: 1.85') &&
+    sixdofSrc.includes('setWorldLock') &&
+    sixdofSrc.includes('agreeCount') &&
+    coreSrc.includes('worldLock: 1') &&
+    coreSrc.includes('setWorldLock') &&
+    appsSrc.includes('settingsWorldLock') &&
+    appsSrc.includes('settingsCamera') &&
+    appsSrc.includes('data-hd-camera') &&
+    appsSrc.includes('data-hd-worldlock') &&
+    entryDataSrc.includes('worldlock-camera-paint') &&
     coreSrc.includes('bwCamera: 1') &&
     appsSrc.includes('data-pico-lib-brand="1"') &&
     appsSrc.includes('data-pico-lib-badge="1"') &&
@@ -312,11 +328,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 81') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 82') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 81 (ATMOXR) turns paintdrawer into a true 3D MR drawing game: world-anchored 3D strokes, pinch drawing, 3D eraser, floating palette with save/load, stereo render, no hand skeleton'
+    'Build 82 (ATMOXR) fixes the MR paint 3D anchoring (inverse head rotation), adds One-Euro smoothing + curved strokes + direction-based eraser + depth slider, and adds 6DoF World Lock plus a P&B/color camera switch in-game and in the PICO 4 Ultra panel'
   );
 });
 
@@ -1238,6 +1254,16 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const palColorsCount = drawWin?.querySelectorAll('[data-hd-color]')?.length ?? 0;
       const strokesAfterDraw = window.nextvrHandDrawStroke?.(120, 120, 320, 260, '#ef4444', 10) ?? 0;
       const mrPaintEngineState = window.nextvrMrPaint3d?.state?.() || null;
+      const mrPaintExtras = {
+        camHook: typeof window.nextvrMrPaintCamera === 'function',
+        lockHook: typeof window.nextvrMrPaintWorldLock === 'function',
+        depthHook: typeof window.nextvrMrPaintDepth === 'function',
+        camToggle: Boolean(drawWin?.querySelector('[data-hd-camera="1"]')),
+        lockToggle: Boolean(drawWin?.querySelector('[data-hd-worldlock="1"]')),
+        depthSlider: Boolean(drawWin?.querySelector('[data-hd-depth-slider]')),
+        worldLockDefault: window.nextvrMrPaint3d?.state?.().worldLock === true,
+        bwCameraDefault: window.nextvrMrPaint3d?.state?.().bwCamera === true,
+      };
       drawWin?.querySelector('[data-hd-exit]')?.click();
       const drawClosed = !document.getElementById('mr-paint-overlay') && !document.querySelector('.win-shell[data-window-id="hand-draw"]');
 
@@ -1274,6 +1300,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         palColorsCount,
         strokesAfterDraw,
         mrPaintEngineState,
+        mrPaintExtras,
         drawClosed,
       };
     });
@@ -1288,6 +1315,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       'the MR stroke is a real 3D object (multiple world-space points), not a 2D canvas line');
     assert.ok(build56Check.mrPaintEngineState && build56Check.mrPaintEngineState.active === true,
       'the 3D paint engine keeps running while the independent MR mode is open');
+    assert.equal(build56Check.mrPaintExtras.camHook, true, 'MR paint exposes the P&B/color camera bridge');
+    assert.equal(build56Check.mrPaintExtras.lockHook, true, 'MR paint exposes the World Lock bridge');
+    assert.equal(build56Check.mrPaintExtras.depthHook, true, 'MR paint exposes the drawing-distance bridge');
+    assert.equal(build56Check.mrPaintExtras.camToggle && build56Check.mrPaintExtras.lockToggle && build56Check.mrPaintExtras.depthSlider,
+      true, 'MR paint palette carries camera, World Lock and distance controls');
+    assert.equal(build56Check.mrPaintExtras.worldLockDefault, true, 'World Lock is ON by default in the MR paint game');
     assert.equal(build56Check.drawClosed, true, 'Independent MR drawing game closes cleanly');
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');

@@ -22,9 +22,11 @@
 // ferramentas, interface flutuante e efeitos.
 // ============================================================================
 import * as THREE from 'three';
-import { settings as S, camera as coreCamera, native, css3d, toast, setPassthrough } from './core.js';
+import { settings as S, camera as coreCamera, native, css3d, toast, setPassthrough,
+  setBwCamera, setWorldLock, SixDof } from './core.js';
 import { hands, screenPoint, screenSpan } from './hands.js';
 import { wins, setDockHidden, setDockVisible } from './windows.js';
+import { paintAnchorQuaternion } from './mr-paint-math.js';
 
 /* ---------------------------------------------------------------- constantes */
 const FULL_W = 1200;
@@ -49,7 +51,9 @@ const SEG_CAPACITY = 4200;     // segmentos de cilindro por pool (caneta / neon)
 const STORAGE_KEY = 'atmoxr.paint3d.v1';
 const DEPTH_MIN = 0.28;
 const DEPTH_MAX = 0.98;
-const DEPTH_HOME = 0.52;
+const DEPTH_HOME = 0.55;
+const DEPTH_SLIDER_MIN = 0.30;
+const DEPTH_SLIDER_MAX = 1.05;
 
 /* ------------------------------------------------------------------- estado */
 const P = {
@@ -68,7 +72,8 @@ const P = {
   stereo: false,
   savedWins: [],
   anchorQ: new THREE.Quaternion(),
-  q0Inv: new THREE.Quaternion(),
+  // q0 = orientação da cabeça no instante em que o jogo abriu (view→world).
+  q0: new THREE.Quaternion(),
   // ferramenta
   color: '#22c55e',
   colorName: 'Verde',
@@ -76,6 +81,12 @@ const P = {
   sizeLabel: 'Pincel M',
   tool: 'pen',             // 'pen' | 'neon' | 'eraser'
   paletteOpen: false,
+  // profundidade: alvo manual (paleta) + escala automática pelo tamanho da mão
+  depthTarget: DEPTH_HOME,
+  depthAuto: DEPTH_HOME,
+  // câmera e World Lock (espelham o shell, para os botões da paleta/HUD)
+  camBw: true,
+  worldLock: true,
   // traços
   strokes: [],
   activeStroke: null,
@@ -122,10 +133,11 @@ const _mat4 = new THREE.Matrix4();
 const GEO_CYL = new THREE.CylinderGeometry(1, 1, 1, 7, 1, true);
 const GEO_SPH = new THREE.SphereGeometry(1, 6, 4);
 
-const penMaterial = new THREE.MeshStandardMaterial({
-  roughness: 0.38,
-  metalness: 0.04,
+// Lambert (barato e bem iluminado pelo ambiente forte da cena) em vez de Standard: com a câmera
+// P&B de fundo o traço precisa de cor forte e contraste, não de reflexo especular.
+const penMaterial = new THREE.MeshLambertMaterial({
   vertexColors: false,
+  toneMapped: false,
 });
 const neonMaterial = new THREE.MeshBasicMaterial({
   toneMapped: false,
@@ -262,7 +274,8 @@ let lastStateJson = '';
 
 function emitState() {
   const st = getMrPaintState();
-  const json = JSON.stringify([st.strokes, st.points, st.tool, st.color, st.colorName, st.size, st.paletteOpen, st.tracking]);
+  const json = JSON.stringify([st.strokes, st.points, st.tool, st.color, st.colorName, st.size,
+    st.paletteOpen, st.tracking, st.depthTarget, st.bwCamera, st.worldLock]);
   if (json === lastStateJson) return;
   lastStateJson = json;
   try { P.onState?.(st); } catch {}
@@ -282,6 +295,9 @@ export function getMrPaintState() {
     paletteOpen: P.paletteOpen,
     tracking: P.tracking,
     depth: Number(P.lastDepth.toFixed(3)),
+    depthTarget: Number(P.depthTarget.toFixed(3)),
+    bwCamera: !!P.camBw,
+    worldLock: !!P.worldLock,
     fps: P.fps,
     stereo: P.stereo,
   };
@@ -335,12 +351,12 @@ const paletteUI = {
 
 function palRegions() {
   const regions = [];
-  const pad = 34;
+  const pad = 30;
   const inner = PAL_W - pad * 2;
-  // 10 cores: 5 colunas x 2 linhas
-  const cGap = 12;
+  // 10 cores: 5 colunas x 2 linhas (alvos de 68 px de altura para o raio não errar)
+  const cGap = 10;
   const cw = (inner - cGap * 4) / 5;
-  const ch = 78;
+  const ch = 70;
   P.colors.forEach((entry, i) => {
     const col = i % 5;
     const row = Math.floor(i / 5);
@@ -350,37 +366,36 @@ function palRegions() {
       hex: entry[0],
       name: entry[1],
       x: pad + col * (cw + cGap),
-      y: 128 + row * (ch + cGap),
+      y: 104 + row * (ch + cGap),
       w: cw,
       h: ch,
     });
   });
   // ferramentas
-  const tGap = 12;
+  const tGap = 10;
   const tw = (inner - tGap * 2) / 3;
-  const ty = 308;
   [
     ['pen', '✏️ Caneta 3D'],
-    ['neon', '✨ Tinta Neon'],
+    ['neon', '✨ Neon'],
     ['eraser', '🧽 Borracha'],
   ].forEach((t, i) => {
     regions.push({ id: 'tool:' + t[0], kind: 'tool', tool: t[0], label: t[1],
-      x: pad + i * (tw + tGap), y: ty, w: tw, h: 66 });
+      x: pad + i * (tw + tGap), y: 264, w: tw, h: 60 });
   });
   // grossuras
-  const sGap = 10;
+  const sGap = 8;
   const sw = (inner - sGap * 3) / 4;
-  const sy = 400;
   P.sizes.forEach((entry, i) => {
     regions.push({ id: 'size:' + entry[0], kind: 'size', size: entry[0], label: entry[1],
-      x: pad + i * (sw + sGap), y: sy, w: sw, h: 58 });
+      x: pad + i * (sw + sGap), y: 336, w: sw, h: 50 });
   });
-  // controle deslizante de grossura
-  regions.push({ id: 'slider', kind: 'slider', x: pad, y: 478, w: inner, h: 66 });
+  // grossura contínua + distância de desenho (profundidade)
+  regions.push({ id: 'slider', kind: 'slider', x: pad, y: 396, w: inner, h: 56 });
+  regions.push({ id: 'depth', kind: 'depth', x: pad, y: 458, w: inner - 92, h: 56 });
+  regions.push({ id: 'depth:value', kind: 'depthvalue', x: pad + inner - 86, y: 458, w: 86, h: 56 });
   // ações
   const aGap = 10;
   const aw = (inner - aGap * 4) / 5;
-  const ay = 566;
   [
     ['undo', '↩ Desfazer'],
     ['clear', '🗑 Limpar'],
@@ -389,10 +404,15 @@ function palRegions() {
     ['close', '✕ Fechar'],
   ].forEach((a, i) => {
     regions.push({ id: 'act:' + a[0], kind: 'act', act: a[0], label: a[1],
-      x: pad + i * (aw + aGap), y: ay, w: aw, h: 82 });
+      x: pad + i * (aw + aGap), y: 524, w: aw, h: 70 });
   });
+  // câmera (P&B / colorida) e World Lock — ficam na própria paleta para não ter de sair do jogo
+  const gGap = 12;
+  const gw = (inner - gGap) / 2;
+  regions.push({ id: 'cam', kind: 'toggle', act: 'cam', x: pad, y: 602, w: gw, h: 62 });
+  regions.push({ id: 'lock', kind: 'toggle', act: 'lock', x: pad + gw + gGap, y: 602, w: gw, h: 62 });
   // rodapé informativo (não clicável)
-  regions.push({ id: 'hint-slot', kind: 'hint', x: pad, y: 668, w: inner, h: 74 });
+  regions.push({ id: 'hint-slot', kind: 'hint', x: pad, y: 674, w: inner, h: 64 });
   return regions;
 }
 
@@ -425,7 +445,7 @@ function drawPalette() {
   ctx.fillText('🎨 Paleta 3D', 34, 58);
   ctx.fillStyle = '#7dd3fc';
   ctx.font = '700 20px Inter,system-ui,sans-serif';
-  ctx.fillText('paintMR · raio da mão direita escolhe · pinça desenha', 300, 60);
+  ctx.fillText('mão direita: raio escolhe · pinça desenha · mão esquerda abre/fecha', 300, 60);
   ctx.restore();
 
   const hover = paletteUI.hoverId;
@@ -440,7 +460,7 @@ function drawPalette() {
       ctx.font = '650 19px Inter,system-ui,sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(
-        `Pinça direita desenha · ${P.tool === 'eraser' ? 'pinça apaga (borracha 3D)' : 'traço 3D fixo no espaço'} · ${P.sizeLabel} · ${P.colorName}`,
+        `Pinça direita ${P.tool === 'eraser' ? 'apaga (borracha 3D)' : 'desenha no ar'} · ${P.sizeLabel} · ${P.colorName} · ${P.lastDepth.toFixed(2)} m`,
         r.x + 18, r.y + r.h / 2,
       );
       ctx.restore();
@@ -522,6 +542,66 @@ function drawPalette() {
       ctx.font = '700 18px Inter,system-ui,sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${P.size}px`, r.x + r.w - 74, r.y + r.h / 2);
+    } else if (r.kind === 'depth' || r.kind === 'depthvalue') {
+      if (r.kind === 'depthvalue') {
+        ctx.fillStyle = isHover ? 'rgba(56,189,248,.30)' : 'rgba(255,255,255,.07)';
+        roundRect(ctx, r.x, r.y, r.w, r.h, 12);
+        ctx.fill();
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '800 20px Inter,system-ui,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${P.depthTarget.toFixed(2)}m`, r.x + r.w / 2, r.y + r.h / 2);
+        ctx.textAlign = 'left';
+        ctx.restore();
+        continue;
+      }
+      ctx.fillStyle = isHover ? 'rgba(255,255,255,.13)' : 'rgba(255,255,255,.05)';
+      roundRect(ctx, r.x, r.y, r.w, r.h, 14);
+      ctx.fill();
+      const trackX = r.x + 24;
+      const trackW = r.w - 48;
+      const t = clamp((P.depthTarget - DEPTH_SLIDER_MIN) / (DEPTH_SLIDER_MAX - DEPTH_SLIDER_MIN), 0, 1);
+      ctx.strokeStyle = 'rgba(148,163,184,.45)';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(trackX, r.y + r.h / 2);
+      ctx.lineTo(trackX + trackW, r.y + r.h / 2);
+      ctx.stroke();
+      ctx.strokeStyle = '#34d399';
+      ctx.beginPath();
+      ctx.moveTo(trackX, r.y + r.h / 2);
+      ctx.lineTo(trackX + trackW * t, r.y + r.h / 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(trackX + trackW * t, r.y + r.h / 2, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#34d399';
+      ctx.stroke();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '700 16px Inter,system-ui,sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎯 distância', r.x + r.w - 190, r.y + r.h / 2 + 22);
+    } else if (r.kind === 'toggle') {
+      const isOn = r.act === 'cam' ? !!P.camBw : !!P.worldLock;
+      const onColor = r.act === 'cam' ? '#2563eb' : '#047857';
+      ctx.fillStyle = isHover ? 'rgba(255,255,255,.18)' : isOn ? onColor : 'rgba(255,255,255,.06)';
+      roundRect(ctx, r.x, r.y, r.w, r.h, 14);
+      ctx.fill();
+      ctx.lineWidth = isHover ? 3 : 1.5;
+      ctx.strokeStyle = isHover ? '#e2e8f0' : isOn ? '#38bdf8' : 'rgba(255,255,255,.22)';
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '750 21px Inter,system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = r.act === 'cam'
+        ? (P.camBw ? '📷 Câmera P&B' : '📷 Câmera Colorida')
+        : (P.worldLock ? '🔒 Mundo Travado' : '🔓 Mundo Solto');
+      ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2);
+      ctx.textAlign = 'left';
     } else if (r.kind === 'act') {
       const danger = r.act === 'clear';
       ctx.fillStyle = isHover
@@ -565,8 +645,9 @@ function drawHud() {
   ctx.restore();
 
   ctx.save();
+  const cx = 56;
   ctx.beginPath();
-  ctx.arc(64, HUD_H / 2, 30, 0, Math.PI * 2);
+  ctx.arc(cx, HUD_H / 2, 28, 0, Math.PI * 2);
   ctx.closePath();
   ctx.fillStyle = 'rgba(56,189,248,.18)';
   ctx.fill();
@@ -574,53 +655,76 @@ function drawHud() {
     // Logo oficial do painel recortado em círculo (o mesmo arquivo do menu/loja).
     ctx.save();
     ctx.clip();
-    ctx.drawImage(hudUI.logo, 34, HUD_H / 2 - 30, 60, 60);
+    ctx.drawImage(hudUI.logo, cx - 28, HUD_H / 2 - 28, 56, 56);
     ctx.restore();
   } else {
     ctx.fillStyle = '#38bdf8';
-    ctx.font = '800 30px Inter,system-ui,sans-serif';
+    ctx.font = '800 26px Inter,system-ui,sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('✎', 64, HUD_H / 2 + 1);
+    ctx.fillText('✎', cx, HUD_H / 2 + 1);
     ctx.textAlign = 'left';
   }
   ctx.beginPath();
-  ctx.arc(64, HUD_H / 2, 30, 0, Math.PI * 2);
+  ctx.arc(cx, HUD_H / 2, 28, 0, Math.PI * 2);
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#38bdf8';
   ctx.stroke();
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '820 34px Inter,system-ui,sans-serif';
-  ctx.fillText('paintMR', 108, 56);
+  ctx.font = '820 30px Inter,system-ui,sans-serif';
+  ctx.fillText('paintMR', 96, 46);
   ctx.fillStyle = '#38bdf8';
-  ctx.font = '700 20px Inter,system-ui,sans-serif';
-  ctx.fillText('3D', 250, 56);
+  ctx.font = '800 18px Inter,system-ui,sans-serif';
+  ctx.fillText('3D', 216, 46);
   ctx.fillStyle = '#94a3b8';
-  ctx.font = '700 21px Inter,system-ui,sans-serif';
-  ctx.fillText(`traços ${P.strokeCount} · ${P.pointCount} pontos · ${P.tracking}`, 108, 104);
+  ctx.font = '700 18px Inter,system-ui,sans-serif';
+  ctx.fillText(`${P.strokeCount} traços · ${P.tracking}`, 96, 84);
   ctx.fillStyle = P.tool === 'eraser' ? '#fca5a5' : '#cbd5e1';
-  ctx.font = '700 20px Inter,system-ui,sans-serif';
+  ctx.font = '700 18px Inter,system-ui,sans-serif';
   ctx.fillText(
-    P.tool === 'eraser' ? 'Borracha 3D ativa (pinça apaga)' : `${P.sizeLabel} · ${P.colorName}`,
-    108, 134,
+    P.tool === 'eraser' ? 'Borracha 3D (pinça apaga)' : `${P.sizeLabel} · ${P.colorName} · ${P.lastDepth.toFixed(2)} m`,
+    96, 118,
   );
+  ctx.fillStyle = P.worldLock ? '#34d399' : '#fbbf24';
+  ctx.font = '700 17px Inter,system-ui,sans-serif';
+  ctx.fillText(P.worldLock ? '🔒 mundo travado' : '🔓 6DoF solto', 96, 146);
   ctx.restore();
 
-  // botão Sair
+  // Botões do HUD: paleta, câmera e sair
   for (const r of hudUI.regions) {
     const isHover = hudUI.hoverId === r.id;
+    const isExit = r.act === 'exit';
+    const isCam = r.act === 'cam';
+    const isPal = r.act === 'palette';
     ctx.save();
-    ctx.fillStyle = isHover ? 'rgba(248,113,113,.9)' : 'rgba(185,28,28,.72)';
-    roundRect(ctx, r.x, r.y, r.w, r.h, 20);
+    if (isExit) {
+      ctx.fillStyle = isHover ? 'rgba(248,113,113,.9)' : 'rgba(185,28,28,.66)';
+      ctx.strokeStyle = isHover ? '#fff' : 'rgba(248,113,113,.62)';
+    } else if (isCam) {
+      const on = !!P.camBw;
+      ctx.fillStyle = isHover ? 'rgba(255,255,255,.20)' : on ? 'rgba(37,99,235,.72)' : 'rgba(255,255,255,.08)';
+      ctx.strokeStyle = isHover ? '#fff' : on ? 'rgba(56,189,248,.75)' : 'rgba(255,255,255,.22)';
+    } else {
+      ctx.fillStyle = isHover ? 'rgba(56,189,248,.42)' : 'rgba(255,255,255,.08)';
+      ctx.strokeStyle = isHover ? '#fff' : 'rgba(56,189,248,.6)';
+    }
+    roundRect(ctx, r.x, r.y, r.w, r.h, 18);
     ctx.fill();
     ctx.lineWidth = isHover ? 3 : 2;
-    ctx.strokeStyle = isHover ? '#fff' : 'rgba(248,113,113,.7)';
     ctx.stroke();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 24px Inter,system-ui,sans-serif';
+    ctx.font = '800 22px Inter,system-ui,sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('✕ Sair', r.x + r.w / 2, r.y + r.h / 2);
+    const label = isExit ? '✕ Sair'
+      : isCam ? (P.camBw ? '📷 P&B' : '📷 Cor')
+      : (P.paletteOpen ? '🎨 Fechar' : '🎨 Paleta');
+    ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 - (isPal || isCam ? 10 : 0));
+    if (isPal || isCam) {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '700 14px Inter,system-ui,sans-serif';
+      ctx.fillText(isCam ? 'toque p/ trocar' : 'mão esquerda', r.x + r.w / 2, r.y + r.h / 2 + 20);
+    }
     ctx.textAlign = 'left';
     ctx.restore();
   }
@@ -687,6 +791,54 @@ function pinchScreenPoint(hand) {
   return null;
 }
 
+/*
+ * One-Euro filter (Casiez et al.) na posição de tela da mão.
+ *
+ * Um passa-baixa fixo (alpha 0.55/0.92) sempre erra: ou deixa tremor quando a mão está parada,
+ * ou come o movimento quando ela anda rápido. O One-Euro adapta o corte à velocidade — o traço
+ * fica liso parado e não atrasa ao desenhar. A previsão de ~12 ms compensa o resto da latência
+ * (captura + inferência), sem inventar movimento quando a mão está parada.
+ */
+function makeScreenFilter() {
+  return { x: 0.5, y: 0.5, dx: 0, dy: 0, t: 0, ready: false };
+}
+// Dois filtros SEPARADOS: o raio da interface e o ponto do traço não podem dividir estado — ao
+// dividir, um puxava o outro e a mira ficava deslocada (foi um bug real do primeiro build).
+const rayFilter = makeScreenFilter();
+const drawFilter = makeScreenFilter();
+function resetScreenFilter() {
+  rayFilter.ready = false;
+  drawFilter.ready = false;
+}
+
+function smoothScreen(state, raw, now, predictSec = 0.012) {
+  if (!raw || !Number.isFinite(raw.x) || !Number.isFinite(raw.y)) return raw;
+  if (!state.ready) {
+    state.x = raw.x; state.y = raw.y;
+    state.dx = 0; state.dy = 0;
+    state.t = now; state.ready = true;
+    return { x: raw.x, y: raw.y };
+  }
+  const dt = clamp((now - state.t) / 1000, 0.004, 0.06);
+  state.t = now;
+  const minCut = 1.15, beta = 7.0, dCut = 1.0;
+  const alpha = cut => {
+    const tau = 1 / (2 * Math.PI * cut);
+    return 1 / (1 + tau / dt);
+  };
+  const ad = alpha(dCut);
+  state.dx += ad * ((raw.x - state.x) / dt - state.dx);
+  state.dy += ad * ((raw.y - state.y) / dt - state.dy);
+  const ax = alpha(minCut + beta * Math.abs(state.dx));
+  const ay = alpha(minCut + beta * Math.abs(state.dy));
+  state.x += ax * (raw.x - state.x);
+  state.y += ay * (raw.y - state.y);
+  return {
+    x: clamp(state.x + state.dx * predictSec, -0.05, 1.05),
+    y: clamp(state.y + state.dy * predictSec, -0.05, 1.05),
+  };
+}
+
 function rayScreenPoint(hand) {
   const aim = hand?.aim;
   if (Array.isArray(aim) && aim.length >= 2) {
@@ -697,7 +849,13 @@ function rayScreenPoint(hand) {
   return pinchScreenPoint(hand);
 }
 
-/** Tamanho aparente da mão (fração da largura da placa) → profundidade em metros. */
+/**
+ * Profundidade do traço.
+ *
+ * O tamanho aparente da mão dá uma estimativa (palma ≈ 0,10 m), mas ele sozinho treme e faz o
+ * traço saltar em Z. Então: (1) a estimativa é suavizada devagar; (2) o valor MANUAL da paleta
+ * manda (slider "distância"); (3) o tamanho da mão só ajeita ±25% em cima do alvo escolhido.
+ */
 function handDepth(hand) {
   const p = hand?.points;
   let span = 0;
@@ -713,14 +871,20 @@ function handDepth(hand) {
   // Meia-placa: tan_x total = 2*tan(36°)*1.5 = 2,18. Palma real ≈ 0,10 m.
   const tangent = Math.max(0.02, span * 2 * Math.tan(36 * Math.PI / 180) * 1.5);
   const raw = clamp(0.10 / tangent, DEPTH_MIN, DEPTH_MAX);
-  P.lastDepth = P.lastDepth * 0.78 + raw * 0.22;
+  const jump = Math.abs(raw - P.depthAuto);
+  P.depthAuto = clamp(P.depthAuto + (raw - P.depthAuto) * (jump > 0.16 ? 0.24 : 0.05), DEPTH_MIN, DEPTH_MAX);
+
+  const ratio = clamp(P.depthAuto / DEPTH_HOME, 0.65, 1.45);
+  const target = clamp(P.depthTarget * Math.pow(ratio, 0.4), DEPTH_MIN, DEPTH_MAX);
+  const dt = Math.abs(target - P.lastDepth);
+  P.lastDepth = clamp(P.lastDepth + (target - P.lastDepth) * (dt > 0.2 ? 0.3 : 0.1), DEPTH_MIN, DEPTH_MAX);
   return P.lastDepth;
 }
 
 /** View → frame da pintura (R⁻¹): é o que prende o traço no espaço. */
 function toPaintSpace(viewPoint, out) {
   _qInv.copy(P.content.quaternion).invert();
-  return out.copy(viewPoint).applyQuaternion(_qInv);
+  return out.copy(viewPoint).sub(P.content.position).applyQuaternion(_qInv);
 }
 
 /** Ponto 3D a partir de coordenadas da PLACA (0..1200 x 0..800) — usado pelos atalhos/testes. */
@@ -778,6 +942,7 @@ function beginStrokeAt(paintPos) {
   st.pts.push([paintPos.x, paintPos.y, paintPos.z]);
   P.strokes.push(st);
   P.activeStroke = st;
+  P.strokeCount = P.strokes.filter(x => x.pts.length > 1).length;
   // respeita o teto de instâncias: descarta os traços mais antigos
   let segs = 0;
   for (const s of P.strokes) segs += s.pts.length;
@@ -801,44 +966,86 @@ function addPointToStroke(paintPos) {
   const d = Math.hypot(dx, dy, dz);
   if (d < 0.0022) return false;           // jitter parado: não cria bolinhas
   if (d > 0.34) return false;             // salto de tracking: ignora em vez de riscar o mundo
-  const steps = d > 0.03 ? Math.min(4, Math.ceil(d / 0.02)) : 1;
+  // Muitos pontos no mesmo traço: fecha o traço em vez de estourar a memória do pool.
+  if (st.pts.length > 900) return false;
+
+  /*
+   * Curva em vez de polígono: com o ponto ANTERIOR-ANTERIOR como controle, cada amostra nova é
+   * ligada por um arco quadrático. Isso arredonda os cantos que o tracking cria entre frames de
+   * 15-30 Hz — o traço deixa de ter "quinas" e não precisa de mais latência para parecer liso.
+   */
+  const wasSinglePoint = st.pts.length <= 1;
+  const steps = d > 0.012 ? Math.min(6, Math.max(2, Math.ceil(d / 0.012))) : 1;
+  const n = st.pts.length;
+  const ctrl = n >= 2 ? st.pts[n - 2] : null;
   let lastIndex = st.pts.length - 1;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    st.pts.push([prev[0] + dx * t, prev[1] + dy * t, prev[2] + dz * t]);
+    let px, py, pz;
+    if (ctrl) {
+      const it = 1 - t;
+      px = it * it * ctrl[0] + 2 * it * t * prev[0] + t * t * paintPos.x;
+      py = it * it * ctrl[1] + 2 * it * t * prev[1] + t * t * paintPos.y;
+      pz = it * it * ctrl[2] + 2 * it * t * prev[2] + t * t * paintPos.z;
+    } else {
+      px = prev[0] + dx * t;
+      py = prev[1] + dy * t;
+      pz = prev[2] + dz * t;
+    }
+    st.pts.push([px, py, pz]);
     const idx = st.pts.length - 1;
     pushSegment(st, lastIndex, idx);
     lastIndex = idx;
   }
+  if (wasSinglePoint) P.strokeCount = P.strokes.filter(x => x.pts.length > 1).length;
   return true;
 }
 
-/** Borracha 3D: apaga por proximidade real (o cursor encosta e o segmento sai). */
+/**
+ * Borracha 3D: apaga o que está DEBAIXO do cursor.
+ *
+ * Comparar só distância em metros falhava quando a mão estava a outra profundidade (o cursor
+ * ficava "na frente" do traço e nunca encostava). Agora o teste é por DIREÇÃO — o mesmo raio que
+ * o olho vê — com uma tolerância de ~2,5° mais a grossura da borracha, e a distância em metros
+ * só ajuda para traços que estão exatamente no plano do cursor.
+ */
 function eraseAt(paintPos) {
-  const power = radiusFor(P.size) * 3.2 + 0.006;
+  const radius = radiusFor(P.size);
+  const power = radius * 3.2 + 0.006;
+  const angleTol = 0.026 + radius * 2.2;
+  const distTol = paintPos.length();
+  const cursorDir = _v.copy(paintPos);
+  if (cursorDir.lengthSq() < 1e-9) return 0;
+  cursorDir.normalize();
   let removed = 0;
   const items = [];
+  const hit = (x, y, z) => {
+    _v2.set(x, y, z);
+    const len = _v2.length();
+    if (len < 1e-6) return false;
+    const ang = Math.acos(clamp(_v2.dot(cursorDir) / len, -1, 1));
+    if (ang <= angleTol) return true;
+    return Math.abs(len - distTol) <= power && ang <= angleTol * 3;
+  };
   for (const st of P.strokes) {
-    const r = power + st.radius;
     for (let i = 1; i < st.pts.length; i++) {
       if (st.killed.has(i - 1)) continue;
       const a = st.pts[i - 1];
       const b = st.pts[i];
-      // distância ponto → segmento
-      _v.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-      const len2 = _v.lengthSq();
-      let t = 0;
-      if (len2 > 1e-9) {
-        _v2.copy(paintPos).sub(_v.set(a[0], a[1], a[2]));
-        t = clamp(_v2.dot(_v) / len2, 0, 1);
+      // 3 amostras por segmento: pega os pedaços curtos que o cursor atravessa.
+      const samples = [0, 0.5, 1];
+      let killed = false;
+      for (const t of samples) {
+        if (hit(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)) {
+          killed = true;
+          break;
+        }
       }
-      _v.set(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
-      if (_v.distanceTo(paintPos) <= r) {
-        st.killed.add(i - 1);
-        st.killed.add(i);
-        items.push({ stroke: st, seg: i - 1, points: [i - 1, i] });
-        removed++;
-      }
+      if (!killed) continue;
+      st.killed.add(i - 1);
+      st.killed.add(i);
+      items.push({ stroke: st, seg: i - 1, points: [i - 1, i] });
+      removed++;
     }
   }
   if (removed) {
@@ -971,6 +1178,38 @@ export function mrPaintSetSize(size) {
   return P.size;
 }
 
+/** Distância de desenho em metros (painel: 0,30 m … 1,05 m). */
+export function mrPaintSetDepth(meters) {
+  const v = Number(meters);
+  P.depthTarget = clamp(Number.isFinite(v) ? v : DEPTH_HOME, DEPTH_SLIDER_MIN, DEPTH_SLIDER_MAX);
+  drawPalette();
+  drawHud();
+  emitState();
+  return P.depthTarget;
+}
+
+/** Troca a câmera passthrough entre preto e branco e colorida, de dentro do jogo. */
+export function mrPaintSetBwCamera(enabled) {
+  const on = typeof enabled === 'boolean' ? enabled : !P.camBw;
+  P.camBw = on;
+  try { setBwCamera(on); } catch {}
+  drawPalette();
+  drawHud();
+  emitState();
+  return P.camBw;
+}
+
+/** World Lock do jogo: trava o mundo no lugar (sem translação 6DoF). */
+export function mrPaintSetWorldLock(enabled) {
+  const on = typeof enabled === 'boolean' ? enabled : !P.worldLock;
+  P.worldLock = on;
+  try { setWorldLock(on); } catch {}
+  drawPalette();
+  drawHud();
+  emitState();
+  return P.worldLock;
+}
+
 export function setMrPaintPaletteOpen(force) {
   P.paletteOpen = typeof force === 'boolean' ? force : !P.paletteOpen;
   if (paletteUI.mesh) {
@@ -979,6 +1218,7 @@ export function setMrPaintPaletteOpen(force) {
   }
   drawPalette();
   drawPaletteButton();
+  drawHud();
   try { P.onPaletteToggle?.(P.paletteOpen); } catch {}
   emitState();
   return P.paletteOpen;
@@ -1029,14 +1269,23 @@ function activateRegion(panel, region, now, hitUv) {
   // Botões só disparam na BORDA da pinça (pinchDown), então não precisam de debounce: um
   // debounce fixo fazia o botão seguinte a um clique ser engolido. O slider é o único caso
   // contínuo e tem um limite curto só para não redesenhar a textura a cada frame.
-  if (region.kind === 'slider') {
+  if (region.kind === 'slider' || region.kind === 'depth') {
     if (now - P.lastActivateMs < 70) return;
     const u = clamp((hitUv?.x ?? 0.5), 0, 1);
     // o slider ocupa a faixa x do painel: converte a fração da placa em fração do controle
     const localX = clamp((u * PAL_W - region.x) / region.w, 0, 1);
-    mrPaintSetSize(2 + Math.round(localX * 34));
+    if (region.kind === 'depth') mrPaintSetDepth(DEPTH_SLIDER_MIN + localX * (DEPTH_SLIDER_MAX - DEPTH_SLIDER_MIN));
+    else mrPaintSetSize(2 + Math.round(localX * 34));
     P.lastActivateMs = now;
     return;
+  }
+  if (region.kind === 'depthvalue') return;
+  if (region.kind === 'hudpalette') return setMrPaintPaletteOpen(!P.paletteOpen);
+  if (region.kind === 'hudcam') return mrPaintSetBwCamera();
+  if (region.kind === 'toggle') {
+    if (region.act === 'cam') return mrPaintSetBwCamera();
+    if (region.act === 'lock') return mrPaintSetWorldLock();
+    return undefined;
   }
   P.lastActivateMs = now;
   if (region.kind === 'color') return mrPaintSetColor(region.hex, region.name);
@@ -1155,10 +1404,10 @@ function buildScene() {
   paletteUI.texture = makePanelTexture(paletteUI.canvas);
   paletteUI.regions = palRegions();
   paletteUI.mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.46, 0.46 * PAL_H / PAL_W, 1, 1),
+    new THREE.PlaneGeometry(0.50, 0.50 * PAL_H / PAL_W, 1, 1),
     new THREE.MeshBasicMaterial({ map: paletteUI.texture, transparent: true, toneMapped: false }),
   );
-  paletteUI.mesh.position.set(0.055, -0.045, -0.50);
+  paletteUI.mesh.position.set(0.0, -0.02, -0.52);
   paletteUI.mesh.visible = false;
   paletteUI.mesh.name = 'mr-paint-palette';
   scene.add(paletteUI.mesh);
@@ -1168,10 +1417,10 @@ function buildScene() {
   buttonUI.ctx = buttonUI.canvas.getContext('2d');
   buttonUI.texture = makePanelTexture(buttonUI.canvas);
   buttonUI.mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.19, 0.19 * BTN_H / BTN_W, 1, 1),
+    new THREE.PlaneGeometry(0.23, 0.23 * BTN_H / BTN_W, 1, 1),
     new THREE.MeshBasicMaterial({ map: buttonUI.texture, transparent: true, toneMapped: false }),
   );
-  buttonUI.mesh.position.set(-0.20, -0.12, -0.48);
+  buttonUI.mesh.position.set(-0.185, -0.155, -0.46);
   buttonUI.mesh.name = 'mr-paint-palette-button';
   scene.add(buttonUI.mesh);
   buttonUI.region = { id: 'palette-btn', kind: 'palette-btn', x: 0, y: 0, w: BTN_W, h: BTN_H };
@@ -1180,10 +1429,11 @@ function buildScene() {
   hudUI.canvas = makeCanvas(HUD_W, HUD_H);
   hudUI.ctx = hudUI.canvas.getContext('2d');
   hudUI.texture = makePanelTexture(hudUI.canvas);
-  hudUI.regions = [{
-    id: 'exit', kind: 'act', act: 'exit',
-    x: HUD_W - 236, y: 24, w: 208, h: HUD_H - 48,
-  }];
+  hudUI.regions = [
+    { id: 'palette', kind: 'hudpalette', act: 'palette', x: 430, y: 20, w: 208, h: 128 },
+    { id: 'cam', kind: 'hudcam', act: 'cam', x: 650, y: 20, w: 190, h: 128 },
+    { id: 'exit', kind: 'act', act: 'exit', x: 852, y: 20, w: 156, h: 128 },
+  ];
   hudUI.mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(0.40, 0.40 * HUD_H / HUD_W, 1, 1),
     new THREE.MeshBasicMaterial({ map: hudUI.texture, transparent: true, toneMapped: false }),
@@ -1244,16 +1494,29 @@ function updateHead() {
   const q = coreCamera?.quaternion;
   if (!q) return;
   /*
-   * R = q_view(t) * q_view(0)⁻¹: o grupo dos traços gira AO CONTRÁRIO da cabeça, então um
-   * ponto guardado no frame da pintura reaparece sempre na mesma direção do mundo — girar a
-   * cabeça não arrasta o desenho (é o oposto do que aconteceria desenhando na tela).
+   * A cena do desenho tem câmeras próprias SEM rotação (é uma camada head-locked por cima do
+   * passthrough), então as coordenadas dela são as da CABEÇA. Para um traço ficar preso no mundo:
    *
-   * Ancoragem é rotacional, como em todo o shell do ATMO: o painel do #hud é preso na cabeça
-   * (o nativo o desenha só com a projeção), e o passthrough da câmera também é desenhado no
-   * frame da cabeça. Compensar também a translação do 6DoF aqui exigiria uma escala por
-   * profundidade do traço e transformaria o ruído do estimador de fluxo em tremor no desenho.
+   *     view(t) = q(t)⁻¹ · q(0) · paint
+   *
+   * Ou seja: a rotação INVERSA da cabeça aplicada ao grupo. (A versão anterior usava
+   * q(t)·q(0)⁻¹ — a matriz trocada. O desenho acompanhava a cabeça em vez de ficar parado, e
+   * era a maior razão de o jogo parecer "colado na cara".)
    */
-  P.content.quaternion.copy(q).multiply(P.q0Inv);
+  _qInv.copy(q).invert();
+  paintAnchorQuaternion(q, P.q0, P.content.quaternion);
+
+  /*
+   * Translação do 6DoF: com o World Lock ligado a cabeça não anda, então nada a compensar.
+   * Desligado, o mundo (janelas + passthrough) é deslocado pelo nativo em -t, logo o desenho
+   * precisa do mesmo deslocamento no frame da cabeça para não deslizar junto com você.
+   */
+  if (S.worldLock === 0) {
+    _v2.set(SixDof.out.x, 0, SixDof.out.z).applyQuaternion(_qInv).multiplyScalar(-1);
+    P.content.position.copy(_v2);
+  } else if (P.content.position.lengthSq() > 1e-9) {
+    P.content.position.set(0, 0, 0);
+  }
 }
 
 function leftHand() {
@@ -1278,6 +1541,14 @@ function isPinching(hand) {
 function updateButtonAnchor() {
   const mesh = buttonUI.mesh;
   if (!mesh) return;
+  // Com a paleta aberta o botão sai da frente dela (ficava sobre os botões de baixo e o raio
+  // acertava no botão em vez do controle). Também serve de "fechar" ao lado da paleta.
+  if (P.paletteOpen) {
+    mesh.visible = true;
+    mesh.position.set(-0.40, -0.02, -0.52);
+    mesh.updateMatrixWorld(true);
+    return;
+  }
   const lh = leftHand();
   const anchor = (lh && (pinchScreenPoint(lh) || rayScreenPoint(lh))) || null;
   if (anchor) {
@@ -1296,7 +1567,7 @@ function updateButtonAnchor() {
   } else {
     // Sem mão esquerda visível o botão continua acessível, parado à esquerda.
     mesh.visible = true;
-    mesh.position.set(-0.185, -0.115, -0.48);
+    mesh.position.set(-0.185, -0.155, -0.46);
   }
   // O raycast desta frame tem de ver a posição NOVA do botão (senão aponta 1 frame atrasado).
   mesh.updateMatrixWorld(true);
@@ -1314,6 +1585,7 @@ function processHands(now, dt) {
 
   const cursor = P.cursor;
   if (!rh) {
+    resetScreenFilter();
     cursor.group.visible = false;
     P.beam.visible = false;
     if (P.activeStroke) {
@@ -1333,10 +1605,13 @@ function processHands(now, dt) {
     return;
   }
 
-  const ray = rayScreenPoint(rh) || pinchScreenPoint(rh);
+  const rawRay = rayScreenPoint(rh) || pinchScreenPoint(rh);
+  // Interface: previsão curtíssima (o alvo tem de ficar debaixo do raio que se vê).
+  const ray = smoothScreen(rayFilter, rawRay, now, 0.008) || rawRay;
   const rayTan = handTangent(ray);
   const hovering = hitTestUi(rayTan);
-  const pinchPoint = pinchScreenPoint(rh) || ray;
+  // Desenho: previsão um pouco maior para o traço nascer onde a mão VAI estar.
+  const pinchPoint = smoothScreen(drawFilter, pinchScreenPoint(rh) || rawRay, now, 0.014) || rawRay;
   const depth = handDepth(rh);
 
   // Ponto do cursor: mesma projeção do traço, mas em coordenadas de cena (head-locked),
@@ -1408,7 +1683,8 @@ function processHands(now, dt) {
   P.pinchLostAt = 0;
   // pinça segurada sobre o slider continua ajustando a grossura
   if (P.uiConsumed) {
-    if (hovering?.region?.kind === 'slider') activateRegion('palette', hovering.region, now, hovering.uv);
+    const kind = hovering?.region?.kind;
+    if (kind === 'slider' || kind === 'depth') activateRegion('palette', hovering.region, now, hovering.uv);
     return;
   }
   if (hovering) {
@@ -1588,10 +1864,15 @@ export function openMrPaint3d(options = {}) {
   P.strokeCount = 0;
   P.pointCount = 0;
   P.lastDepth = DEPTH_HOME;
+  P.depthAuto = DEPTH_HOME;
+  P.depthTarget = DEPTH_HOME;
+  P.camBw = !!S.bwCamera;
+  P.worldLock = S.worldLock !== 0;
   P.tracking = 'aguardando mão';
+  resetScreenFilter();
   P.hoverKey = '';
   P.anchorQ.copy(coreCamera?.quaternion || _q.identity());
-  P.q0Inv.copy(P.anchorQ).invert();
+  P.q0.copy(P.anchorQ);
 
   P.active = true;
   S.mrPaintGame = true;
@@ -1696,6 +1977,9 @@ export function openMrPaint3d(options = {}) {
     save: mrPaintSave,
     load: mrPaintLoad,
     addScreenSegment: addMrPaintScreenSegment,
+    setDepth: mrPaintSetDepth,
+    setBwCamera: mrPaintSetBwCamera,
+    setWorldLock: mrPaintSetWorldLock,
     close: closeMrPaint3d,
   };
   return currentApi;
@@ -1712,5 +1996,8 @@ if (typeof window !== 'undefined') {
     clear: mrPaintClear,
     save: mrPaintSave,
     load: mrPaintLoad,
+    depth: mrPaintSetDepth,
+    camera: mrPaintSetBwCamera,
+    worldLock: mrPaintSetWorldLock,
   };
 }

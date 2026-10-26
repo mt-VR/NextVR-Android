@@ -138,6 +138,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile long lastWalkStepMs=0L;
     private volatile float gyroRate=0f;
     private volatile boolean sixDofEnabled=true;
+    // World Lock (padrão): sem translação. Só quando o usuário desliga o lock o fluxo ótico move.
+    private volatile boolean sixDofWalk=false;
     private volatile boolean sentZeroSixDof=false;
     private volatile boolean gameHandMode=false;
     private InternalEyeRecorder internalRecorder;
@@ -260,22 +262,23 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.14f) return;
-                boolean zeroFlow=Math.abs(sc)<0.0022f;
+                if(!sixDofEnabled || !sixDofWalk || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.10f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0045f;
                 if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.08f && (nowMs-lastWalkStepMs)<950L);
-                boolean moving=accelMoving && gyroRate<1.35f && Math.hypot(gx,gy)<=2.8;
+                // Sem acelerômetro não há confirmação de passo (antes `!hasWalkAccel` deixava passar).
+                boolean accelMoving=hasWalkAccel && walkEnergy>0.14f && (nowMs-lastWalkStepMs)<850L;
+                boolean moving=accelMoving && gyroRate<1.10f && Math.hypot(gx,gy)<=2.0f && Math.abs(sc)>=0.0045f;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
                 float adjSc=moving?sc:0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:"+(!sixDofWalk)+",worldLocked:"+worldLocked+"})");
                 });
             }
             @Override public void cameraDefocus(boolean defocused) {
@@ -1195,6 +1198,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 resetSixDof();
             }
         }
+        /**
+         * World Lock: com o mundo travado o renderer não recebe nenhuma translação do 6DoF — é o
+         * que impede o desenho (e as janelas) de ir para a frente ou para os lados do nada.
+         */
+        @JavascriptInterface public void setWorldLock(boolean locked) {
+            sixDofWalk=!locked;
+            if(locked) resetSixDof();
+        }
         @JavascriptInterface public void resetSixDof() {
             SpatialRenderer target=renderer;
             if(target!=null) {
@@ -1251,6 +1262,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                                 sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
                                 if(!sixDofEnabled) resetSixDof();
                             }
+                            sixDofWalk=!(o.optBoolean("worldLock",true) || o.optInt("worldLock",1)!=0);
+                            if(!sixDofWalk) resetSixDof();
                             if(o.has("singleHandMode") && camera!=null) {
                                 camera.setSingleHandMode(o.optString("singleHandMode","both"));
                             }

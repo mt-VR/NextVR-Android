@@ -24,6 +24,8 @@ const DEF = {
   singleHandMode: 'both',
   mrDim: 0, bwCamera: 1,
   sixdof: 1, lateLatch: 0,
+  // World Lock (padrão): o mundo fica preso no lugar e só a cabeça gira — zero deriva do 6DoF.
+  worldLock: 1,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
 };
@@ -646,6 +648,24 @@ export function setBwCamera(enabled) {
 if (typeof document !== 'undefined' && S.bwCamera) {
   document.documentElement.dataset.bwCamera = '1';
   window.NativeXR?.setBwCamera?.(true);
+}
+
+/**
+ * World Lock: trava a translação do mundo no ponto atual (o 6DoF para de "andar sozinho").
+ * Desligado, o 6DoF por fluxo ótico volta com os gates anti-deriva do `sixdof.js`.
+ */
+export function setWorldLock(enabled) {
+  S.worldLock = enabled ? 1 : 0;
+  save();
+  SixDof.setWorldLock(!!S.worldLock);
+  window.NativeXR?.setWorldLock?.(!!S.worldLock);
+  emit('world-lock', S.worldLock);
+  return S.worldLock;
+}
+if (typeof window !== 'undefined') {
+  window.nextvrSetWorldLock = setWorldLock;
+  SixDof.setWorldLock(S.worldLock !== 0);
+  window.NativeXR?.setWorldLock?.(S.worldLock !== 0);
 }
 if (typeof window !== 'undefined') {
   window.nextvrSetBwCamera = setBwCamera;
