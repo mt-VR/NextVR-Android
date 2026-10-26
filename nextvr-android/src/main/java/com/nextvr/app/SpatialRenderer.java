@@ -165,7 +165,7 @@ final class SpatialRenderer {
     volatile float mappingX = 1, mappingY = 1;
     volatile boolean wideCamera = false;
     volatile boolean mrDim = false;
-    volatile boolean bwCamera = false;
+    volatile boolean bwCamera = true;
     volatile float sixDofX = 0f, sixDofY = 0f, sixDofZ = 0f;
     volatile float targetSixDofX = 0f, targetSixDofZ = 0f;
     volatile boolean worldLock = true;
@@ -320,7 +320,7 @@ final class SpatialRenderer {
                 sixDofZ = targetSixDofZ;
                 worldLocked = true;
             } else {
-                float alpha = Math.min(0.72f, Math.max(0.54f, 0.50f + (float)Math.sqrt(distSq) * 1.6f));
+                float alpha = Math.min(0.88f, Math.max(0.72f, 0.68f + (float)Math.sqrt(distSq) * 2.2f));
                 sixDofX += dx * alpha;
                 sixDofZ += dz * alpha;
                 worldLocked = false;

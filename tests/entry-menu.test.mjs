@@ -280,7 +280,15 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     !activitySrc.includes('setMarkerTracking') &&
     !activitySrc.includes('window.nextvrMarker(') &&
     !appsSrc.includes('openMarkerCalibration') &&
+    appsSrc.includes('picoControlCenter') &&
     appsSrc.includes('picoCcDevicesHero') &&
+    appsSrc.includes('data-mr-left-palette-btn="1"') &&
+    appsSrc.includes('data-mr-palette-win="1"') &&
+    appsSrc.includes("'Violeta'") &&
+    appsSrc.includes("'Cinza'") &&
+    appsSrc.includes('destination-out') &&
+    sixdofSrc.includes('depth: 2.35') &&
+    coreSrc.includes('bwCamera: 1') &&
     appsSrc.includes('data-pico-lib-brand="1"') &&
     appsSrc.includes('data-pico-lib-badge="1"') &&
     !indexHtml.includes('html[data-cinema360="1"] body::before') &&
@@ -289,11 +297,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     !entryMenuSrc.includes('data-entry-marker-tracking') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 78') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 79') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 78 (ATMOXR) completely removes Marker Tracking from the entire game and further optimizes Hand Tracking across Android and WebView'
+    'Build 79 (ATMOXR) enables B&W camera by default, adds PICO 4 Ultra VR Control Center menu, speeds up 6DoF, and implements MR 3D Painting with left-hand palette button and right-hand pinch draw/erase'
   );
 });
 

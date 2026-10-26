@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · HAND TRACKING MAIS OTIMIZADO & REMOÇÃO TOTAL DO MARKER TRACKING (BUILD 78)',
+    tag: 'NOVO · CÂMERA P&B, PAINEL PICO 4 ULTRA VR, 6DOF RÁPIDO & PINTURA 3D EM MR (BUILD 79)',
     time: 'Agora',
-    heading: 'Hand Tracking PICO 4 Mais Otimizado, Zero-Lag e Remoção Completa do Marker Tracking',
-    desc: 'Marker Tracking completamente removido de todo o jogo para máxima performance; Hand Tracking PICO 4 otimizado com tabelas trigonométricas pré-computadas na GPU, raycast sem alocação por frame e rastreamento de 1 e 2 mãos ainda mais rápido e fluido!',
+    heading: 'Câmera P&B Ativa, Painel de Gestão VR PICO 4 Ultra, 6DoF Rápido & Pintura 3D em MR',
+    desc: 'Câmera passthrough preta e branca ativada por padrão, novo menuzinho de Configurações e Gestão de VR igual ao PICO 4 Ultra, 6DoF muito mais rápido e responsivo, e jogo de Pintura 3D em MR (mão esquerda abre/fecha a paleta flutuante de 10 cores + borracha + grossura, mão direita desenha/apaga com pinça)!',
   },
   {
     id: 'quest-browser-env-hand',

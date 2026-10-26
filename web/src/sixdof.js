@@ -128,7 +128,7 @@ export const SixDof = {
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.25, // metros assumidos até aos objetos à frente (resposta 6DoF estável sem deriva espontânea)
+  depth: 2.35, // metros assumidos até aos objetos à frente (6DoF rápido e responsivo sem deriva espontânea)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -367,7 +367,7 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0028 && Math.abs(sc) <= 0.14;
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0022 && Math.abs(sc) <= 0.14;
     if (!hasDepthFlow) {
       this.lastSc = 0;
       this.lastLatDx = 0;
@@ -375,8 +375,8 @@ export const SixDof = {
       return;
     }
 
-    // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
-    if (Math.hypot(gx, gy) > 1.8) {
+    // Cabeça a rodar rápido: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
+    if (Math.hypot(gx, gy) > 2.8) {
       this.lastSc = 0;
       this.lastLatDx = 0;
       if (this.worldLock) this.worldLocked = true;
@@ -400,12 +400,12 @@ export const SixDof = {
     this.lastScAt = nowMs;
 
     if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc) ||
-        Math.abs(sc - prevSc) > Math.max(0.045, Math.abs(sc) * 1.25)) {
+        Math.abs(sc - prevSc) > Math.max(0.055, Math.abs(sc) * 1.45)) {
       return;
     }
 
     const stepSc = (sc + prevSc) * 0.5;
-    const step = Math.max(-0.085, Math.min(0.085, stepSc * this.depth));
+    const step = Math.max(-0.155, Math.min(0.155, stepSc * this.depth));
     _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
     _sdFwd.y = 0;
     if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
@@ -426,7 +426,7 @@ export const SixDof = {
 
     // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
     // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
-    this.out.lerp(this.pos, 0.78);
+    this.out.lerp(this.pos, 0.90);
     this.out.y = 0;
     if (this.worldLock && this.out.distanceToSquared(this.anchorPos) < 1e-6) {
       this.out.copy(this.anchorPos);

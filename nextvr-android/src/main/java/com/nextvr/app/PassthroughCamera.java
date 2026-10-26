@@ -469,7 +469,7 @@ final class PassthroughCamera {
             PerfLog.cameraWork(workMs);
             PhoneXrHands.Frame curHands=latestHandsFrame;
             int activeHandCount=curHands==null?0:curHands.getHands().size();
-            int flowMask=activeHandCount>=2?3:1;
+            int flowMask=activeHandCount>=2?1:0;
             if((!gameHandMode || mrGameMode) && (sessionFrames & flowMask) == 0) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,curHands,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);

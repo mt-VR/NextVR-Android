@@ -22,7 +22,7 @@ const DEF = {
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
-  mrDim: 0, bwCamera: 0,
+  mrDim: 0, bwCamera: 1,
   sixdof: 1, lateLatch: 0,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
@@ -30,6 +30,10 @@ const DEF = {
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
 let S = { ...DEF, ...saved, spatialLauncher: 0 };
+if (!S.bwCameraDefaultV1) {
+  S.bwCamera = 1;
+  S.bwCameraDefaultV1 = 1;
+}
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
 if (!S.sunsetDefaultVersion) {

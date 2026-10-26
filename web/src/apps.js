@@ -942,12 +942,20 @@ window.nextvrOnInternalRecordState = st => {
   syncInternalRecUi();
 };
 
-/* ============ Central de controle (visão compacta inspirada no painel aprovado) ============ */
+/* ============ Central de controle PICO 4 Ultra (Configurações e Gestão de VR dentro do jogo) ============ */
 function controlCenterApp() {
-  const body = el('div', 'quick-center');
-  const panel = el('section', 'quick-panel');
-  const side = el('aside', 'quick-side');
-  const status = el('div', 'quick-status');
+  const existing = wins.find(w => w.id === 'control-center');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+
+  const body = el('div', 'quick-center pico-cc-shell');
+  body.dataset.picoControlCenter = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#24262c;border-radius:24px;padding:18px 22px 16px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;color:#f8fafc;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;border:1px solid rgba(255,255,255,.10);box-shadow:0 28px 70px rgba(0,0,0,.65);';
+
   const readBat = () => {
     try {
       const raw = window.NativeXR?.battery?.();
@@ -961,196 +969,367 @@ function controlCenterApp() {
     return null;
   };
   const battery = readBat();
-  const date = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  status.innerHTML = `<div><strong>Controles rápidos</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b data-cc-battery>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
-  const paintCcBat = () => {
-    const bEl = status.querySelector('[data-cc-battery]');
-    if (!bEl) return;
-    const b = readBat();
-    bEl.textContent = `${b ? Math.round(b.level * 100) : '—'}%`;
-  };
-  on('device-status', paintCcBat);
-  const gear = el('button', 'quick-gear', icon('settings'));
-  gear.type = 'button'; gear.title = 'Todas as configurações'; gear.setAttribute('aria-label', 'Todas as configurações');
-  gear.onclick = () => settingsApp();
-  status.appendChild(gear);
+  const batPctNum = battery ? Math.round(battery.level * 100) : 62;
+  const nowDate = new Date();
+  const timeStr = nowDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const shortDate = nowDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
 
+  // 1. Barra Superior PICO 4 Ultra (Avatar + Hora/Data | Microfone Central | Sino + Engrenagem)
+  const topBar = el('div', 'quick-status pico-cc-top');
+  topBar.dataset.picoCcTop = '1';
+  topBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px;';
+  const avatarImg = S.profileAvatar
+    ? `<img src="${S.profileAvatar}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.35)">`
+    : `<span style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ef4444);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)">P</span>`;
+  topBar.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      ${avatarImg}
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <strong data-cc-time style="font-size:13.5px;font-weight:800;color:#f8fafc;letter-spacing:.01em">${timeStr}</strong>
+        <span style="font-size:12px;color:#94a3b8;font-weight:600">${shortDate}</span>
+      </div>
+      <span class="quick-battery" style="display:none">${icon('battery')}<b data-cc-battery>${batPctNum}%</b></span>
+    </div>
+    <button type="button" data-cc-mic title="Comando de Voz PICO" style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:#e2e8f0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
+    </button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button type="button" data-cc-notif title="Notificações" style="width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <button type="button" class="quick-gear" data-cc-gear title="Todas as configurações e Gestão de VR" aria-label="Todas as configurações" style="width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
+        ${icon('settings')}
+      </button>
+    </div>
+  `;
+  topBar.querySelector('[data-cc-notif]')?.addEventListener('click', () => openPhoneNotifications());
+  topBar.querySelector('[data-cc-gear]')?.addEventListener('click', () => settingsApp());
+  topBar.querySelector('[data-cc-mic]')?.addEventListener('click', () => toast('Microfone PICO pronto'));
+
+  // 2. Hero Central com Headset PICO 4 Ultra + Controles L & R + Bateria Real (fiel à foto)
   const picoDevicesHero = el('div', 'pico-cc-devices-hero');
   picoDevicesHero.dataset.picoCcDevicesHero = '1';
-  picoDevicesHero.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:42px;padding:10px 16px 8px;margin-bottom:6px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer;';
-  const batPctNum = battery ? Math.round(battery.level * 100) : 88;
+  picoDevicesHero.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:64px;padding:12px 16px 8px;margin:2px 0;cursor:pointer;';
   picoDevicesHero.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Hand Tracking Esquerdo · PICO 4 Ultra">
-      <svg viewBox="0 0 44 56" width="32" height="40"><path d="M18 10 C12 20,14 38,20 48 C22 51,28 50,30 46 C34 36,34 20,30 10 C27 5,21 5,18 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="24" cy="15" r="6" fill="#1e293b"/><rect x="21" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
-      <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
-      <small style="font-size:9.5px;color:#cbd5e1;font-weight:800">L · PICO</small>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Controle PICO 4 Ultra Esquerdo">
+      <svg viewBox="0 0 54 68" width="46" height="58">
+        <path d="M22 10 C13 22,15 44,24 58 C27 62,34 61,36 55 C41 42,40 22,35 10 C31 4,25 4,22 10 Z" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+        <ellipse cx="29" cy="17" rx="8" ry="6.5" fill="#e2e8f0"/>
+        <circle cx="27" cy="16" r="3.2" fill="#1e293b"/>
+        <circle cx="33" cy="14.5" r="1.6" fill="#334155"/>
+        <circle cx="32" cy="19" r="1.6" fill="#334155"/>
+        <rect x="26" y="50" width="6" height="2.2" rx="1.1" fill="#22c55e"/>
+      </svg>
+      <span style="width:24px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
+      <span style="width:16px;height:16px;border-radius:50%;border:1.2px solid rgba(255,255,255,.35);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#cbd5e1;font-weight:800">L</span>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-      <svg viewBox="0 0 88 46" width="64" height="34"><rect x="10" y="10" width="68" height="28" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><rect x="16" y="14" width="56" height="20" rx="10" fill="#0f172a" stroke="#475569" stroke-width="1.5"/><path d="M26 10 Q44 2 62 10" fill="none" stroke="#cbd5e1" stroke-width="2.5"/></svg>
-      <span style="width:22px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
-      <small style="font-size:10px;color:#f8fafc;font-weight:900">${batPctNum}%</small>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Headset PICO 4 Ultra · Gestão de VR">
+      <svg viewBox="0 0 132 68" width="112" height="58">
+        <path d="M36 16 Q66 3 96 16" fill="none" stroke="#cbd5e1" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M14 26 Q14 14 34 14 L98 14 Q118 14 118 26 L118 42 Q118 54 98 54 L80 54 Q66 49 52 54 L34 54 Q14 54 14 42 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.8"/>
+        <rect x="22" y="19" width="88" height="30" rx="15" fill="#111827" stroke="#475569" stroke-width="1.6"/>
+        <ellipse cx="36" cy="34" rx="5.5" ry="3.8" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
+        <ellipse cx="96" cy="34" rx="5.5" ry="3.8" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
+        <path d="M44 25 Q66 22 88 25" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <span style="width:28px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
+      <small data-cc-hero-bat style="font-size:11px;color:#e2e8f0;font-weight:800">${batPctNum}%</small>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px" title="Hand Tracking Direito · PICO 4 Ultra">
-      <svg viewBox="0 0 44 56" width="32" height="40"><path d="M26 10 C32 20,30 38,24 48 C22 51,16 50,14 46 C10 36,10 20,14 10 C17 5,23 5,26 10 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/><circle cx="20" cy="15" r="6" fill="#1e293b"/><rect x="17" y="42" width="6" height="2" rx="1" fill="#22c55e"/></svg>
-      <span style="width:16px;height:4px;border-radius:2px;background:#22c55e;display:block"></span>
-      <small style="font-size:9.5px;color:#6ee7b7;font-weight:800">R · PICO</small>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Controle PICO 4 Ultra Direito">
+      <svg viewBox="0 0 54 68" width="46" height="58">
+        <path d="M32 10 C41 22,39 44,30 58 C27 62,20 61,18 55 C13 42,14 22,19 10 C23 4,29 4,32 10 Z" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+        <ellipse cx="25" cy="17" rx="8" ry="6.5" fill="#e2e8f0"/>
+        <circle cx="27" cy="16" r="3.2" fill="#1e293b"/>
+        <circle cx="21" cy="14.5" r="1.6" fill="#334155"/>
+        <circle cx="22" cy="19" r="1.6" fill="#334155"/>
+        <rect x="22" y="50" width="6" height="2.2" rx="1.1" fill="#22c55e"/>
+      </svg>
+      <span style="width:24px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
+      <span style="width:16px;height:16px;border-radius:50%;border:1.2px solid rgba(255,255,255,.35);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#cbd5e1;font-weight:800">R</span>
     </div>
   `;
   picoDevicesHero.onclick = () => openPicoMotionTracker();
 
-  const quickTiles = el('div', 'quick-tiles');
-  const systemTile = (name, title, subtitle, action, disabled=false) => {
-    const button = el('button', `quick-tile${disabled ? ' is-disabled' : ''}`);
-    button.type = 'button'; button.innerHTML = `<span class="quick-tile-icon">${icon(name)}</span><span><b>${title}</b><small>${subtitle}</small></span>`;
-    button.disabled = disabled; if (action) button.onclick = action; quickTiles.appendChild(button); return button;
+  const paintCcBat = () => {
+    const b = readBat();
+    const pct = `${b ? Math.round(b.level * 100) : batPctNum}%`;
+    const bEl = topBar.querySelector('[data-cc-battery]');
+    if (bEl) bEl.textContent = pct;
+    const hEl = picoDevicesHero.querySelector('[data-cc-hero-bat]');
+    if (hEl) hEl.textContent = pct;
   };
-  systemTile('wifi', 'Wi-Fi', 'Abrir conexões', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('internet') : toast('Conexões disponíveis no Android'));
-  systemTile('bluetooth', 'Bluetooth', 'Dispositivos', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('bluetooth') : toast('Bluetooth disponível no Android'));
-  systemTile('android', 'Apps Android', 'Abrir janela Shizuku', () => shizukuWindow());
-  systemTile('lock', 'Limite', 'Movimento protegido', null, true);
-  panel.append(status, picoDevicesHero, quickTiles);
+  on('device-status', paintCcBat);
 
-  const section = el('div', 'quick-section');
-  section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos</b></div>`;
-  const controls = el('div', 'quick-controls');
-  let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
-  let isMuted = false, dndControl = null, sideMute = null;
-  const syncMute = value => {
-    isMuted = !!value;
-    if (window.NativeXR?.audioEnabled) window.NativeXR.audioEnabled(!isMuted);
-    for (const button of [dndControl, sideMute]) if (button) {
-      button.classList.toggle('is-active', isMuted);
-      button.setAttribute('aria-pressed', String(isMuted));
-    }
-    if (dndControl) dndControl.querySelector('small').textContent = isMuted ? 'Áudio silenciado' : 'Som ativado';
-  };
-  const control = (name, label, detail, action, active=false) => {
-    const button = el('button', `quick-control${active ? ' is-active' : ''}`);
-    button.type = 'button'; button.setAttribute('aria-pressed', String(active));
-    button.innerHTML = `<span>${icon(name)}</span><b>${label}</b><small>${detail}</small>`;
-    button.onclick = () => {
-      const value = action(button);
-      button.classList.toggle('is-active', !!value);
-      button.setAttribute('aria-pressed', String(!!value));
+  // 3. Grade de 6 Blocos Retangulares PICO 4 Ultra (WLAN | Home Space | Performance | Screencast | Screen Recording Vermelho | Screenshot)
+  const tilesRow = el('div', 'quick-tiles pico-cc-tiles-grid');
+  tilesRow.dataset.picoCcTiles = '1';
+  tilesRow.style.cssText = 'display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:4px 0;';
+
+  const makePicoTile = ({ iconSvg, sub, title, active = false, red = false, onClick, attr = {} }) => {
+    const btn = el('button', `quick-tile pico-cc-tile${active ? ' is-active' : ''}`);
+    btn.type = 'button';
+    for (const [k, v] of Object.entries(attr)) btn.dataset[k] = v;
+    const syncStyle = (isAct, isRed) => {
+      const bg = isRed
+        ? 'linear-gradient(160deg,#f43f5e 0%,#e11d48 100%)'
+        : isAct
+          ? 'rgba(59,130,246,.32)'
+          : 'rgba(255,255,255,.07)';
+      const border = isRed
+        ? 'rgba(251,113,133,.55)'
+        : isAct
+          ? 'rgba(96,165,250,.55)'
+          : 'rgba(255,255,255,.07)';
+      btn.style.cssText = `height:96px;border-radius:16px;padding:12px 13px;border:1px solid ${border};background:${bg};color:#f8fafc;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;cursor:pointer;transition:transform .12s ease,background .15s ease;`;
     };
-    controls.appendChild(button); return button;
+    syncStyle(active, red);
+    btn.innerHTML = `
+      <span class="quick-tile-icon" style="color:#f8fafc;display:inline-flex">${iconSvg}</span>
+      <div style="width:100%;overflow:hidden">
+        <small data-tile-sub style="display:block;font-size:10px;color:${red ? '#ffe4e6' : '#94a3b8'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px">${sub}</small>
+        <b data-tile-title style="display:block;font-size:12px;font-weight:800;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</b>
+      </div>
+    `;
+    if (onClick) {
+      btn.onclick = () => onClick(btn, syncStyle);
+    }
+    tilesRow.appendChild(btn);
+    return btn;
   };
-  const recBtn = control(
-    'camera',
-    'Gravação Interna (1 Lente)',
-    internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Tela Cheia 1 Lente (Lentes ativas)',
-    () => toggleInternalEyeRecording(),
-    !!internalRecState.active
-  );
-  recBtn.dataset.internalRecBtn = '1';
-  control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
-    const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
-  }, S.env === 'passthrough');
-  const bwCtrlBtn = control('camera', 'Câmera P&B (Meta Quest 2)', S.bwCamera ? 'Preto e Branco (Janelas Coloridas)' : 'Câmera Colorida', button => {
-    const enabled = !S.bwCamera;
-    setBwCamera(enabled);
-    button.querySelector('small').textContent = enabled ? 'Preto e Branco (Janelas Coloridas)' : 'Câmera Colorida';
-    return enabled;
-  }, !!S.bwCamera);
-  bwCtrlBtn.dataset.bwCameraBtn = '1';
-  dndControl = control('volumeoff', 'Não perturbe', 'Silenciar áudio do app', () => { syncMute(!isMuted); return isMuted; });
-  control('crosshair', 'Recentralizar', 'Ajustar a visão', () => { recenter(); toast('Visão recentralizada'); return false; });
-  control('moon', 'Modo noturno', S.env === 'night' ? 'Ativado' : 'Desativado', button => {
-    const enabled = S.env !== 'night';
-    if (enabled) { previousEnvironment = S.env; setEnvironment('night'); }
-    else setEnvironment(previousEnvironment === 'night' ? 'passthrough' : previousEnvironment);
-    button.querySelector('small').textContent = enabled ? 'Ativado' : 'Desativado'; return enabled;
-  }, S.env === 'night');
-  control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
-  control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
-  control('user', 'Criar Personagem', 'Avatar 3D do Jogo · ATMOXR', () => { openAvatarCreator(); return false; }, false);
-  control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
-    S.wideCamera = S.wideCamera ? 0 : 1;
-    save(S);
-    window.NativeXR?.wideCamera?.(!!S.wideCamera);
-    button.querySelector('small').textContent = S.wideCamera ? 'Ativada' : 'Normal';
-    return !!S.wideCamera;
-  }, !!S.wideCamera);
-  control('move', t('dockSnapSlot'), S.dockSnapSlot !== 0 ? t('on') : t('off'), button => {
-    S.dockSnapSlot = S.dockSnapSlot === 0 ? 1 : 0;
-    save(S);
-    button.querySelector('small').textContent = S.dockSnapSlot !== 0 ? t('on') : t('off');
-    return S.dockSnapSlot !== 0;
-  }, S.dockSnapSlot !== 0);
-  control('crosshair', t('fingerTouch'), S.fingerTouch !== 0 ? t('on') : t('off'), button => {
-    S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
-    save(S);
-    window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
-    emit('fingerTouch', S.fingerTouch !== 0);
-    button.querySelector('small').textContent = S.fingerTouch !== 0 ? t('on') : t('off');
-    return S.fingerTouch !== 0;
-  }, S.fingerTouch !== 0);
-  control('crosshair', 'Pinça no App (Sem Raio)', S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado', button => {
-    S.pinchOnApp = S.pinchOnApp === 0 ? 1 : 0;
-    save(S);
-    emit('pinchOnApp', S.pinchOnApp !== 0);
-    button.querySelector('small').textContent = S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado';
-    return S.pinchOnApp !== 0;
-  }, S.pinchOnApp !== 0);
-  control('crosshair', 'Gesto de Soco 2s (Menu Rápido)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
-    S.gunGesture = S.gunGesture === 0 ? 1 : 0;
-    save(S);
-    emit('gunGesture', S.gunGesture !== 0);
-    button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
-    return S.gunGesture !== 0;
-  }, S.gunGesture !== 0);
-  control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
-    S.sixdof = S.sixdof === 0 ? 1 : 0;
-    save(S);
-    if (!S.sixdof) SixDof.reset();
-    window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
-    emit('sixdof', S.sixdof !== 0);
-    button.querySelector('small').textContent = S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado';
-    return S.sixdof !== 0;
-  }, S.sixdof !== 0);
-  control('move', 'Tela Perto Sobre / Trás Embaixo', S.depthLayerOrder !== 0 ? 'Ativado (Sobre/Embaixo)' : 'Desativado', button => {
-    S.depthLayerOrder = S.depthLayerOrder === 0 ? 1 : 0;
-    save(S);
-    emit('depthLayerOrder', S.depthLayerOrder !== 0);
-    window.nextvrUpdateDepthLayering?.();
-    button.querySelector('small').textContent = S.depthLayerOrder !== 0 ? 'Ativado (Sobre/Embaixo)' : 'Desativado';
-    return S.depthLayerOrder !== 0;
-  }, S.depthLayerOrder !== 0);
-  const dockColors = [
-    ['default', 'Padrão (Cinza Horizon)'],
-    ['black', 'Preto Transparente'],
-    ['blue', 'Azul Safira'],
-    ['purple', 'Roxo Neon'],
-    ['green', 'Verde Esmeralda'],
-    ['red', 'Vermelho Rubi'],
-    ['glass', 'Vidro Transparente'],
-  ];
-  const curDockColorLabel = () => (dockColors.find(([id]) => id === (S.dockColor || 'default')) || dockColors[0])[1];
-  control('appGrid', 'Cor da Dock', curDockColorLabel(), button => {
-    const curIdx = Math.max(0, dockColors.findIndex(([id]) => id === (S.dockColor || 'default')));
-    const next = dockColors[(curIdx + 1) % dockColors.length];
-    window.nextvrSetDockColor?.(next[0]);
-    button.querySelector('small').textContent = next[1];
-    return next[0] !== 'default';
-  }, (S.dockColor || 'default') !== 'default');
-  section.appendChild(controls);
-  panel.append(section);
 
-  const sideTitle = el('div', 'quick-side-title', 'Ajustes');
-  const volumeIcon = el('span', 'quick-side-icon', icon('volume'));
-  const volume = el('input', 'quick-vertical'); volume.type = 'range'; volume.min = '0'; volume.max = '100'; volume.value = window.NativeXR?.volume ? window.NativeXR.volume() : 65;
-  volume.setAttribute('aria-label', 'Volume'); volume.title = `Volume ${volume.value}%`;
-  volume.oninput = () => { window.NativeXR?.setVolume?.(+volume.value); volume.title = `Volume ${volume.value}%`; };
-  sideMute = el('button', 'quick-side-button', icon('volumeoff')); sideMute.type = 'button'; sideMute.title = 'Silenciar áudio'; sideMute.setAttribute('aria-label', 'Silenciar áudio'); sideMute.setAttribute('aria-pressed', 'false');
-  sideMute.onclick = () => syncMute(!isMuted);
-  const brightnessIcon = el('span', 'quick-side-icon', icon('sun'));
-  const brightness = el('input', 'quick-vertical'); brightness.type = 'range'; brightness.min = '10'; brightness.max = '100'; brightness.value = window.NativeXR?.brightness ? window.NativeXR.brightness() : 70;
-  brightness.setAttribute('aria-label', 'Brilho'); brightness.title = `Brilho ${brightness.value}%`;
-  brightness.oninput = () => { window.NativeXR?.setBrightness?.(+brightness.value); brightness.title = `Brilho ${brightness.value}%`; };
-  side.append(sideTitle, volumeIcon, volume, sideMute, brightnessIcon, brightness);
-  body.append(panel, side);
-  // É uma janela de conteúdo comum: tem barra, posição e curvatura do workspace, igual ao Shizuku.
-  // O tamanho contido evita que o painel pareça um HUD cobrindo o campo de visão.
+  makePicoTile({
+    iconSvg: icon('wifi'),
+    sub: '5GHz Conectado',
+    title: 'WLAN',
+    onClick: () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('internet') : toast('Conexões Wi-Fi disponíveis no Android'),
+  });
+
+  makePicoTile({
+    iconSvg: icon('scene'),
+    sub: S.env === 'passthrough' ? 'Passthrough MR' : 'On · Ambiente 360°',
+    title: 'Home Space...',
+    active: S.env !== 'passthrough',
+    onClick: (btn, syncStyle) => {
+      const enabled = S.env !== 'passthrough';
+      setPassthrough(enabled);
+      btn.querySelector('[data-tile-sub]').textContent = enabled ? 'Passthrough MR' : 'On · Ambiente 360°';
+      syncStyle(!enabled, false);
+    },
+  });
+
+  makePicoTile({
+    iconSvg: icon('gauge'),
+    sub: S.sixdof !== 0 ? 'High · 6DoF Rápido' : '3DoF · Padrão',
+    title: 'Performance',
+    active: S.sixdof !== 0,
+    onClick: (btn, syncStyle) => {
+      S.sixdof = S.sixdof === 0 ? 1 : 0;
+      save(S);
+      if (!S.sixdof) SixDof.reset();
+      window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
+      emit('sixdof', S.sixdof !== 0);
+      btn.querySelector('[data-tile-sub]').textContent = S.sixdof !== 0 ? 'High · 6DoF Rápido' : '3DoF · Padrão';
+      syncStyle(S.sixdof !== 0, false);
+    },
+  });
+
+  makePicoTile({
+    iconSvg: icon('camera'),
+    sub: S.bwCamera ? 'Câmera P&B Ativa' : 'Câmera Colorida',
+    title: 'Screencast',
+    active: !!S.bwCamera,
+    attr: { bwCameraBtn: '1' },
+    onClick: (btn, syncStyle) => {
+      const enabled = !S.bwCamera;
+      setBwCamera(enabled);
+      btn.querySelector('[data-tile-sub]').textContent = enabled ? 'Câmera P&B Ativa' : 'Câmera Colorida';
+      syncStyle(enabled, false);
+    },
+  });
+
+  makePicoTile({
+    iconSvg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>`,
+    sub: internalRecState.active ? `🔴 ${formatRecTime(internalRecState.seconds)}` : '1 Lente HD',
+    title: 'Screen Recording',
+    red: true,
+    active: !!internalRecState.active,
+    attr: { internalRecBtn: '1' },
+    onClick: () => toggleInternalEyeRecording(),
+  });
+
+  makePicoTile({
+    iconSvg: icon('maximize'),
+    sub: 'Ajustar Visão',
+    title: 'Screenshot',
+    onClick: () => {
+      recenter();
+      toast('Visão recentralizada & captura pronta');
+    },
+  });
+
+  // 4. Linha com as 2 Barras Horizontais de Brilho e Volume (fiel à foto)
+  const slidersRow = el('div', 'pico-cc-sliders');
+  slidersRow.dataset.picoCcSliders = '1';
+  slidersRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:2px 0;';
+
+  const curBright = window.NativeXR?.brightness ? window.NativeXR.brightness() : 70;
+  const curVol = window.NativeXR?.volume ? window.NativeXR.volume() : 65;
+
+  const makeSliderPill = (iconSvg, label, min, max, val, onInput) => {
+    const wrap = el('label', 'pico-cc-slider-pill');
+    wrap.style.cssText = 'position:relative;height:40px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.07);display:flex;align-items:center;padding:0 14px;gap:10px;overflow:hidden;cursor:pointer;';
+    const fill = el('div');
+    fill.style.cssText = `position:absolute;left:0;top:0;bottom:0;width:${val}%;background:rgba(255,255,255,.16);pointer-events:none;transition:width .08s linear;`;
+    const ic = el('span');
+    ic.style.cssText = 'position:relative;z-index:1;color:#e2e8f0;display:inline-flex;';
+    ic.innerHTML = iconSvg;
+    const input = el('input', 'quick-vertical');
+    input.type = 'range';
+    input.min = String(min);
+    input.max = String(max);
+    input.value = String(val);
+    input.setAttribute('aria-label', label);
+    input.title = `${label} ${val}%`;
+    input.style.cssText = 'position:relative;z-index:1;flex:1;accent-color:#f8fafc;cursor:pointer;background:transparent;';
+    input.oninput = () => {
+      const v = +input.value;
+      fill.style.width = `${v}%`;
+      input.title = `${label} ${v}%`;
+      onInput(v);
+    };
+    wrap.append(fill, ic, input);
+    return wrap;
+  };
+
+  slidersRow.append(
+    makeSliderPill(icon('sun'), 'Brilho', 10, 100, curBright, v => window.NativeXR?.setBrightness?.(v)),
+    makeSliderPill(icon('volume'), 'Volume', 0, 100, curVol, v => window.NativeXR?.setVolume?.(v))
+  );
+
+  // 5. Barra Inferior com os 8 Botões Pílula Arredondados (com o 3º botão azul destacado igual da foto)
+  const bottomRow = el('div', 'quick-controls pico-cc-bottom-pills');
+  bottomRow.dataset.picoCcBottomPills = '1';
+  bottomRow.style.cssText = 'display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:2px;';
+
+  let isMuted = false;
+  let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
+
+  const makeBottomPill = ({ iconSvg, title, blue = false, active = false, onClick }) => {
+    const btn = el('button', `quick-control pico-cc-pill${(blue || active) ? ' is-active' : ''}`);
+    btn.type = 'button';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    btn.setAttribute('aria-pressed', String(!!(blue || active)));
+    const applyPillStyle = (onBlue) => {
+      btn.style.cssText = `height:42px;border-radius:21px;border:1px solid ${onBlue ? 'rgba(96,165,250,.75)' : 'rgba(255,255,255,.08)'};background:${onBlue ? '#4f8ef7' : 'rgba(255,255,255,.07)'};color:#f8fafc;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s ease;`;
+    };
+    applyPillStyle(blue || active);
+    btn.innerHTML = `<span style="display:inline-flex">${iconSvg}</span><b style="display:none">${title}</b><small style="display:none">${title}</small>`;
+    btn.onclick = () => {
+      const next = onClick(btn, applyPillStyle);
+      if (typeof next === 'boolean') {
+        btn.classList.toggle('is-active', next);
+        btn.setAttribute('aria-pressed', String(next));
+        applyPillStyle(next);
+      }
+    };
+    bottomRow.appendChild(btn);
+    return btn;
+  };
+
+  // Pílula 1: Bluetooth
+  makeBottomPill({
+    iconSvg: icon('bluetooth'),
+    title: 'Bluetooth',
+    onClick: () => {
+      if (window.NativeXR?.systemPanel) window.NativeXR.systemPanel('bluetooth');
+      else toast('Bluetooth disponível no Android');
+      return false;
+    },
+  });
+
+  // Pílula 2: Não perturbe / Silenciar áudio
+  makeBottomPill({
+    iconSvg: icon('volumeoff'),
+    title: 'Não perturbe',
+    active: isMuted,
+    onClick: () => {
+      isMuted = !isMuted;
+      if (window.NativeXR?.audioEnabled) window.NativeXR.audioEnabled(!isMuted);
+      return isMuted;
+    },
+  });
+
+  // Pílula 3: Destaque Azul PICO (Visão do Ambiente / Passthrough MR)
+  makeBottomPill({
+    iconSvg: icon('sun'),
+    title: 'Visão do ambiente (Passthrough)',
+    blue: true,
+    active: S.env === 'passthrough',
+    onClick: () => {
+      const enabled = S.env !== 'passthrough';
+      setPassthrough(enabled);
+      return true;
+    },
+  });
+
+  // Pílula 4: Modo Curvo 360° / Centralizar
+  makeBottomPill({
+    iconSvg: icon('curve'),
+    title: 'Modo Curvo 360°',
+    active: !!S.win360,
+    onClick: () => {
+      S.win360 = S.win360 ? 0 : 1;
+      save(S);
+      emit('win360', !!S.win360);
+      return !!S.win360;
+    },
+  });
+
+  // Pílula 5: Criar Personagem 3D
+  makeBottomPill({
+    iconSvg: icon('user'),
+    title: 'Criar Personagem 3D',
+    onClick: () => {
+      openAvatarCreator();
+      return false;
+    },
+  });
+
+  // Pílula 6: Apps do Android (Shizuku)
+  makeBottomPill({
+    iconSvg: icon('android'),
+    title: 'Apps do Android',
+    onClick: () => {
+      shizukuWindow();
+      return false;
+    },
+  });
+
+  // Pílula 7: Modo Noturno
+  makeBottomPill({
+    iconSvg: icon('moon'),
+    title: 'Modo noturno',
+    active: S.env === 'night',
+    onClick: () => {
+      const enabled = S.env !== 'night';
+      if (enabled) { previousEnvironment = S.env; setEnvironment('night'); }
+      else setEnvironment(previousEnvironment === 'night' ? 'passthrough' : previousEnvironment);
+      return enabled;
+    },
+  });
+
+  // Pílula 8: Gestão de VR & Todas as Configurações
+  makeBottomPill({
+    iconSvg: icon('settings'),
+    title: 'Mais configurações e Gestão de VR',
+    onClick: () => {
+      settingsApp();
+      return false;
+    },
+  });
+
+  body.append(topBar, picoDevicesHero, tilesRow, slidersRow, bottomRow);
   return open({ id:'control-center', title:'Configurações', node:body, w:980, h:640 });
 }
 
@@ -1176,6 +1355,22 @@ function settingsApp() {
     node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
 
   // Geral
+  const picoVrMgmtCard = el('div', 'pico-vr-mgmt-card');
+  picoVrMgmtCard.dataset.settingsPicoCc = '1';
+  picoVrMgmtCard.style.cssText = 'margin:8px 16px 12px;padding:14px 18px;border-radius:18px;background:#24262c;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;';
+  picoVrMgmtCard.innerHTML = `
+    <div style="display:flex;align-items:center;gap:18px">
+      <svg viewBox="0 0 88 46" width="58" height="32"><rect x="10" y="10" width="68" height="28" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><rect x="16" y="14" width="56" height="20" rx="10" fill="#0f172a" stroke="#475569" stroke-width="1.5"/><path d="M26 10 Q44 2 62 10" fill="none" stroke="#cbd5e1" stroke-width="2.5"/></svg>
+      <div>
+        <div style="font-size:13.5px;font-weight:800;color:#f8fafc">Painel Rápido PICO 4 Ultra · Gestão de VR</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">WLAN · Home Space · Performance 6DoF · Screencast P&amp;B · Screen Recording</div>
+      </div>
+    </div>
+    <button type="button" style="padding:7px 14px;border-radius:999px;border:1px solid rgba(96,165,250,.65);background:#4f8ef7;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">Abrir Painel VR</button>
+  `;
+  picoVrMgmtCard.onclick = () => controlCenterApp();
+  scroll.append(picoVrMgmtCard);
+
   scroll.append(ytSection(t('general')));
   const langBtn = el('button','yt-link');
   langBtn.append(ytRow(icon('globe'), t('language'), langRow(S.lang||'pt').label));
@@ -1670,98 +1865,136 @@ export function openBeatSaberVr() {
   return win;
 }
 
-/* ============ Jogo de Desenho VR com Hand Tracking em Tela Branca ============ */
-const HAND_DRAW_CHALLENGES = [
-  'Desenhe uma Casa 🏠',
-  'Desenhe um Sol ☀️',
-  'Desenhe uma Estrela ⭐',
-  'Desenhe um Carro 🚗',
-  'Desenhe um Gato 🐱',
-  'Desenhe um Foguete 🚀',
-  'Desenhe uma Árvore 🌳',
-  'Desenhe um Coração ❤️',
-  'Modo Livre 🎨',
-];
+/* ============ Jogo de Desenho MR 3D com Hand Tracking (YorkMR Pintura 3D / paintdrawer) ============ */
 const HAND_DRAW_COLORS = [
-  ['#111827', 'Preto'],
-  ['#ef4444', 'Vermelho'],
   ['#2563eb', 'Azul'],
-  ['#16a34a', 'Verde'],
+  ['#ef4444', 'Vermelho'],
+  ['#111827', 'Preto'],
+  ['#ffffff', 'Branco'],
+  ['#7e22ce', 'Roxo'],
+  ['#a855f7', 'Violeta'],
   ['#eab308', 'Amarelo'],
-  ['#f97316', 'Laranja'],
-  ['#9333ea', 'Roxo'],
-  ['#ec4899', 'Rosa'],
-  ['#06b6d4', 'Ciano'],
+  ['#22c55e', 'Verde'],
+  ['#64748b', 'Cinza'],
   ['#78350f', 'Marrom'],
+];
+
+const HAND_DRAW_SIZES = [
+  [4, 'Pincel P', 'Fino (4px)'],
+  [9, 'Pincel M', 'Médio (9px)'],
+  [16, 'Pincel G', 'Grosso (16px)'],
+  [26, 'Pincel XG', 'Super (26px)'],
 ];
 
 export function openHandDrawGame() {
   const existing = wins.find(w => w.id === 'hand-draw');
   if (existing) {
+    setPassthrough(true);
     existing.setHidden(false);
     focus(existing);
     css3d.invalidate?.();
     return existing;
   }
 
-  let currentColor = '#111827';
-  let currentSize = 8;
-  let currentTool = 'pen'; // 'pen' | 'neon' | 'eraser' | 'circle' | 'rect'
-  let handDrawMode = 'auto'; // 'auto' (indicador esticado ou pinça) | 'pinch' (só na pinça)
-  let challengeIdx = 0;
-  let completedCount = 0;
+  // Ativa Passthrough MR automaticamente para desenhar no ar em Realidade Mista
+  setPassthrough(true);
+
+  let currentColor = '#22c55e';
+  let currentColorName = 'Verde';
+  let currentSize = 9;
+  let currentSizeLabel = 'Pincel M';
+  let currentTool = 'pen'; // 'pen' | 'neon' | 'eraser'
+  let paletteOpen = false;
   let strokeCount = 0;
   const undoStack = [];
 
-  const body = el('div', 'hand-draw-game');
+  const body = el('div', 'hand-draw-game mr-paint-3d');
   body.dataset.handDrawGame = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#f8fafc;display:flex;flex-direction:column;overflow:hidden;user-select:none;font-family:Inter,system-ui,sans-serif;';
+  body.dataset.mrPaint3d = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:transparent;display:flex;flex-direction:column;overflow:hidden;user-select:none;font-family:Inter,system-ui,sans-serif;';
 
   body.innerHTML = `
-    <div class="hd-toolbar" data-hd-toolbar style="display:flex;flex-direction:column;gap:6px;padding:8px 12px;background:#0f172a;color:#f8fafc;border-bottom:2px solid #cbd5e1;z-index:3">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <img src="./icons/paintdrawer-logo.jpg" alt="paintdrawer" style="width:24px;height:24px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,.25)">
-          <span style="font-size:13px;font-weight:900;color:#38bdf8;letter-spacing:.03em">paintdrawer</span>
-          <span data-hd-challenge style="padding:3px 10px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:#e0f2fe;font-size:11px;font-weight:800">Desafio: ${HAND_DRAW_CHALLENGES[0]}</span>
-          <button type="button" data-hd-next-challenge style="padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">🎲 Sortear Desafio</button>
-          <button type="button" data-hd-done style="padding:3px 9px;border-radius:999px;border:1px solid rgba(74,222,128,.45);background:rgba(22,163,74,.25);color:#86efac;font-size:10.5px;font-weight:800;cursor:pointer">✓ Concluir (<b data-hd-score>0</b>)</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button type="button" data-hd-hand-mode="auto" style="padding:4px 9px;border-radius:7px;border:1px solid rgba(56,189,248,.5);background:#1d4ed8;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">🖐 Hand: Indicador / Pinça</button>
-          <button type="button" data-hd-undo style="padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">↩ Desfazer</button>
-          <button type="button" data-hd-clear style="padding:4px 9px;border-radius:7px;border:1px solid rgba(248,113,113,.45);background:rgba(185,28,28,.28);color:#fecaca;font-size:10.5px;font-weight:800;cursor:pointer">🗑 Limpar Tela Branca</button>
-          <button type="button" data-hd-exit style="padding:4px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.28);background:#334155;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">✕ Sair</button>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap" data-hd-palette>
-          ${HAND_DRAW_COLORS.map(([hex, name], i) => `
-            <button type="button" data-hd-color="${hex}" title="${name}" aria-label="${name}"
-              style="width:24px;height:24px;border-radius:50%;background:${hex};border:${i === 0 ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)'};cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.4)"></button>
-          `).join('')}
-        </div>
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-          <button type="button" data-hd-tool="pen" class="on" style="padding:3px 8px;border-radius:6px;border:1px solid #38bdf8;background:#2563eb;color:#fff;font-size:10px;font-weight:800;cursor:pointer">✏️ Pincel</button>
-          <button type="button" data-hd-tool="neon" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">✨ Neon</button>
-          <button type="button" data-hd-tool="eraser" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">🧽 Borracha</button>
-          <button type="button" data-hd-tool="circle" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">⭕ Círculo</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          ${[[4, 'Fino'], [8, 'Médio'], [16, 'Grosso'], [28, 'Super']].map(([sz, lbl]) => `
-            <button type="button" data-hd-size="${sz}" class="${sz === 8 ? 'on' : ''}"
-              style="padding:3px 7px;border-radius:6px;border:1px solid ${sz === 8 ? '#38bdf8' : 'rgba(255,255,255,.24)'};background:${sz === 8 ? '#2563eb' : '#1e293b'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">${lbl}</button>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="hd-stage" style="position:relative;flex:1;min-height:0;width:100%;background:#ffffff;overflow:hidden;touch-action:none">
-      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1020" height="530"
-        style="width:100%;height:100%;display:block;background:#ffffff;cursor:crosshair"></canvas>
-      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1020" height="530"
+    <div class="hd-stage" style="position:relative;flex:1;min-height:0;width:100%;height:100%;background:transparent;overflow:hidden;touch-action:none">
+      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1020" height="600"
+        style="width:100%;height:100%;display:block;background:transparent;cursor:crosshair"></canvas>
+      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1020" height="600"
         style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
-      <div data-hd-status style="position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:999px;background:rgba(15,23,42,.78);color:#f8fafc;font-size:10.5px;font-weight:700;pointer-events:none">
-        Aponte o dedo indicador ou faça pinça para desenhar na tela branca · Traços: <b data-hd-strokes>0</b>
+
+      <!-- Badge Superior Esquerdo estilo YorkMR Pintura 3D -->
+      <div data-hd-hud-badge style="position:absolute;left:18px;top:14px;display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:16px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);z-index:5">
+        <img src="./icons/paintdrawer-logo.jpg" alt="paintdrawer" style="width:34px;height:34px;border-radius:9px;object-fit:cover;border:1.5px solid rgba(56,189,248,.65)">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:15px;font-weight:900;color:#ffffff;letter-spacing:.01em">paint<span style="color:#38bdf8">MR</span></span>
+            <span style="padding:1px 6px;border-radius:5px;background:rgba(56,189,248,.22);border:1px solid rgba(56,189,248,.5);color:#7dd3fc;font-size:9.5px;font-weight:900">VR · MR</span>
+          </div>
+          <div style="font-size:11.5px;font-weight:800;color:#f472b6;line-height:1.15">Pintura 3D</div>
+          <div data-hd-active-summary style="font-size:10.5px;font-weight:700;color:#e2e8f0;margin-top:1px">Pincel M · Verde (Pinça Direita)</div>
+        </div>
+        <button type="button" data-hd-exit style="margin-left:8px;padding:6px 12px;border-radius:10px;border:1px solid rgba(248,113,113,.5);background:rgba(185,28,28,.45);color:#fecaca;font-size:11px;font-weight:800;cursor:pointer">✕ Sair</button>
+      </div>
+
+      <!-- Botãozinho Flutuante de "Paleta" na Mão ESQUERDA (escolhido com o raio da mão direita para abrir/fechar a paleta) -->
+      <button type="button" data-mr-left-palette-btn="1" aria-expanded="false"
+        title="Mão Esquerda: Aponte o raio da mão direita aqui para abrir ou fechar a Paleta"
+        style="position:absolute;left:18%;top:62%;transform:translate(-50%,-50%);z-index:6;display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;border:2px solid rgba(255,255,255,.88);background:rgba(15,23,42,.86);color:#ffffff;font-size:12px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.55),0 0 16px rgba(56,189,248,.4);cursor:pointer;transition:left .06s linear,top .06s linear,transform .12s ease;">
+        <span data-mr-left-swatch style="width:18px;height:18px;border-radius:50%;background:#22c55e;border:2px solid #ffffff;display:inline-block;box-shadow:0 0 8px #22c55e"></span>
+        <span data-mr-left-label>🎨 Paleta (Mão Esq.)</span>
+      </button>
+
+      <!-- Janelinha Flutuante da Paleta (abre/fecha ao escolher o botão Paleta da mão esquerda com o raio da mão direita) -->
+      <div data-mr-palette-win="1" hidden
+        style="position:absolute;left:34%;top:52%;transform:translate(-50%,-50%);width:430px;padding:16px 18px;border-radius:22px;background:rgba(20,23,31,.94);border:1.5px solid rgba(255,255,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.72);color:#f8fafc;z-index:7;backdrop-filter:blur(12px);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <div style="font-size:13.5px;font-weight:900;color:#ffffff">🎨 Paleta Flutuante MR</div>
+            <div style="font-size:10.5px;color:#94a3b8">Escolha com o raio da mão direita · Desenhe/apague com pinça direita</div>
+          </div>
+          <button type="button" data-mr-palette-close="1" style="padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#f8fafc;font-size:11px;font-weight:800;cursor:pointer">✕ Fechar</button>
+        </div>
+
+        <!-- 10 Cores: Azul, Vermelho, Preto, Branco, Roxo, Violeta, Amarelo, Verde, Cinza e Marrom -->
+        <div style="font-size:10.5px;font-weight:800;color:#cbd5e1;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Cores da Tinta (10 Cores)</div>
+        <div data-hd-palette style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:12px">
+          ${HAND_DRAW_COLORS.map(([hex, name]) => `
+            <button type="button" data-hd-color="${hex}" data-hd-color-name="${name}" title="${name}" aria-label="${name}"
+              style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.07);border:${hex === '#22c55e' ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,.16)'};color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">
+              <span style="width:16px;height:16px;border-radius:50%;background:${hex};border:1.5px solid rgba(255,255,255,.75);flex-shrink:0"></span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- Ferramentas: Caneta/Tinta 3D, Tinta Neon, Borracha, Desfazer e Limpar -->
+        <div style="font-size:10.5px;font-weight:800;color:#cbd5e1;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Ferramenta &amp; Borracha</div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px">
+          <button type="button" data-hd-tool="pen" class="on" style="padding:8px 10px;border-radius:10px;border:1.5px solid #38bdf8;background:#2563eb;color:#fff;font-size:11px;font-weight:800;cursor:pointer">✏️ Caneta 3D</button>
+          <button type="button" data-hd-tool="neon" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#e2e8f0;font-size:11px;font-weight:800;cursor:pointer">✨ Tinta Neon</button>
+          <button type="button" data-hd-tool="eraser" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#e2e8f0;font-size:11px;font-weight:800;cursor:pointer">🧽 Borracha</button>
+        </div>
+
+        <!-- Grossura da Caneta ou da Tinta -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:10.5px;font-weight:800;color:#cbd5e1;text-transform:uppercase;letter-spacing:.05em">Grossura da Caneta / Tinta</span>
+          <strong data-hd-size-val style="font-size:11px;color:#38bdf8">9 px (Pincel M)</strong>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">
+          ${HAND_DRAW_SIZES.map(([sz, code, lbl]) => `
+            <button type="button" data-hd-size="${sz}" data-hd-size-code="${code}" title="${lbl}"
+              style="padding:6px 8px;border-radius:9px;border:${sz === 9 ? '1.5px solid #38bdf8' : '1px solid rgba(255,255,255,.18)'};background:${sz === 9 ? '#2563eb' : 'rgba(255,255,255,.07)'};color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">${code}</button>
+          `).join('')}
+        </div>
+        <input type="range" data-hd-size-slider min="2" max="36" value="9" aria-label="Grossura da caneta"
+          style="width:100%;accent-color:#38bdf8;cursor:pointer;margin-bottom:12px">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <button type="button" data-hd-undo style="flex:1;padding:7px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#f8fafc;font-size:11px;font-weight:800;cursor:pointer">↩ Desfazer</button>
+          <button type="button" data-hd-clear style="flex:1;padding:7px 10px;border-radius:10px;border:1px solid rgba(248,113,113,.45);background:rgba(185,28,28,.32);color:#fecaca;font-size:11px;font-weight:800;cursor:pointer">🗑 Limpar Tudo</button>
+        </div>
+      </div>
+
+      <div data-hd-status style="position:absolute;left:18px;bottom:12px;padding:5px 12px;border-radius:999px;background:rgba(15,23,42,.68);border:1px solid rgba(255,255,255,.14);color:#f8fafc;font-size:10.5px;font-weight:700;pointer-events:none">
+        Mão Direita (Pinça): Desenhar / Apagar em MR · Mão Esquerda: Botão Paleta (aponte o raio direito) · Traços: <b data-hd-strokes>0</b>
       </div>
     </div>
   `;
@@ -1771,16 +2004,44 @@ export function openHandDrawGame() {
   const ctx = canvas.getContext('2d');
   const octx = overlay.getContext('2d');
   const strokesEl = body.querySelector('[data-hd-strokes]');
-  const challengeEl = body.querySelector('[data-hd-challenge]');
-  const scoreEl = body.querySelector('[data-hd-score]');
-  const handModeBtn = body.querySelector('[data-hd-hand-mode]');
+  const summaryEl = body.querySelector('[data-hd-active-summary]');
+  const leftPaletteBtn = body.querySelector('[data-mr-left-palette-btn]');
+  const leftSwatchEl = body.querySelector('[data-mr-left-swatch]');
+  const leftLabelEl = body.querySelector('[data-mr-left-label]');
+  const paletteWinEl = body.querySelector('[data-mr-palette-win]');
+  const sizeValEl = body.querySelector('[data-hd-size-val]');
+  const sizeSliderEl = body.querySelector('[data-hd-size-slider]');
 
-  const fillWhite = () => {
+  const updateSummary = () => {
+    const toolLabel = currentTool === 'eraser' ? 'Borracha' : currentTool === 'neon' ? `${currentSizeLabel} Neon · ${currentColorName}` : `${currentSizeLabel} · ${currentColorName}`;
+    if (summaryEl) summaryEl.textContent = `${toolLabel} (Pinça Direita)`;
+    if (leftSwatchEl) {
+      const col = currentTool === 'eraser' ? '#94a3b8' : currentColor;
+      leftSwatchEl.style.background = col;
+      leftSwatchEl.style.boxShadow = `0 0 8px ${col}`;
+    }
+    if (leftLabelEl) {
+      leftLabelEl.textContent = paletteOpen ? '✕ Fechar Paleta' : '🎨 Paleta (Mão Esq.)';
+    }
+    if (leftPaletteBtn) {
+      leftPaletteBtn.setAttribute('aria-expanded', String(paletteOpen));
+    }
+    if (sizeValEl) {
+      sizeValEl.textContent = `${currentSize} px (${currentSizeLabel})`;
+    }
+  };
+
+  const setPaletteOpen = (openState) => {
+    paletteOpen = Boolean(openState);
+    if (paletteWinEl) paletteWinEl.hidden = !paletteOpen;
+    updateSummary();
+    css3d.invalidate?.();
+  };
+
+  const clearMrCanvas = () => {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   };
   const saveSnapshot = () => {
@@ -1789,7 +2050,7 @@ export function openHandDrawGame() {
       undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     } catch {}
   };
-  fillWhite();
+  clearMrCanvas();
   saveSnapshot();
 
   const applySegment = (x0, y0, x1, y1, color = currentColor, size = currentSize, tool = currentTool) => {
@@ -1797,25 +2058,37 @@ export function openHandDrawGame() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     if (tool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = size * 2.2;
-    } else if (tool === 'neon') {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = size * 1.8;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = size;
-    } else {
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = size;
-    }
-    if (tool === 'circle') {
-      const r = Math.max(6, Math.hypot(x1 - x0, y1 - y0));
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.lineWidth = Math.max(12, size * 2.4);
       ctx.beginPath();
-      ctx.arc(x1, y1, r, 0, Math.PI * 2);
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    } else if (tool === 'neon') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = size * 1.9;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
       ctx.stroke();
     } else {
+      // Traço 3D estilo YorkMR Pintura 3D: contorno escuro de profundidade + corpo de tinta + brilho central
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(15,23,42,0.72)';
+      ctx.lineWidth = size + 3;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
@@ -1834,9 +2107,23 @@ export function openHandDrawGame() {
     };
   };
 
+  const isClientPointOverUi = (clientX, clientY) => {
+    for (const elNode of [leftPaletteBtn, paletteOpen ? paletteWinEl : null, body.querySelector('[data-hd-hud-badge]')]) {
+      if (!elNode || elNode.hidden) continue;
+      const rect = elNode.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0 &&
+          clientX >= rect.left - 8 && clientX <= rect.right + 8 &&
+          clientY >= rect.top - 8 && clientY <= rect.bottom + 8) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   let pointerDrawing = false;
   let lastPt = null;
   canvas.addEventListener('pointerdown', e => {
+    if (isClientPointOverUi(e.clientX, e.clientY)) return;
     saveSnapshot();
     pointerDrawing = true;
     const pt = toCanvasCoords(e.clientX, e.clientY);
@@ -1860,151 +2147,185 @@ export function openHandDrawGame() {
   canvas.addEventListener('pointerup', finishPointerDraw);
   canvas.addEventListener('pointercancel', finishPointerDraw);
 
-  // Rastreamento direto de Hand Tracking (0 Delay): desenha apontando o indicador ou fazendo pinça!
-  const handLast = new Map();
+  // Rastreamento MR:
+  // - Mão ESQUERDA (h.left === true): carrega o botãozinho "Paleta" (NUNCA desenha nem apaga).
+  // - Mão DIREITA (!h.left): desenha e apaga fazendo PINÇA (h.pinching), e escolhe o botão Paleta / cores / borracha com o raio!
+  let rightHandLast = null;
   let animId = 0;
-  const isIndexPointing = pts => {
-    if (!pts || pts.length < 63) return false;
-    const wx = pts[0], wy = pts[1];
-    const dIndex = Math.hypot(pts[24] - wx, pts[25] - wy);
-    const dPip = Math.hypot(pts[18] - wx, pts[19] - wy);
-    const dMid = Math.hypot(pts[36] - wx, pts[37] - wy);
-    const dRing = Math.hypot(pts[48] - wx, pts[49] - wy);
-    return dIndex > dPip * 1.16 && dIndex > Math.min(dMid, dRing) * 1.05;
-  };
 
   const tickHandDraw = () => {
     octx.clearRect(0, 0, overlay.width, overlay.height);
     let dirty = false;
-    const activeIds = new Set();
-    for (const h of hands) {
-      const id = h.id || (h.left ? 'left' : 'right');
-      activeIds.add(id);
+
+    const lHand = hands.find(h => h.left === true || h.id === 'left');
+    if (lHand && leftPaletteBtn) {
+      let lnx = 0.20, lny = 0.62;
+      if (Array.isArray(lHand.palm) && lHand.palm.length >= 2) {
+        lnx = lHand.palm[0];
+        lny = lHand.palm[1];
+      } else if (lHand.points && lHand.points.length >= 26) {
+        lnx = (lHand.points[0] + lHand.points[27]) * 0.5;
+        lny = (lHand.points[1] + lHand.points[28]) * 0.5;
+      }
+      const clampedLx = Math.max(10, Math.min(82, lnx * 100));
+      const clampedLy = Math.max(18, Math.min(86, (lny - 0.08) * 100));
+      leftPaletteBtn.style.left = `${clampedLx.toFixed(1)}%`;
+      leftPaletteBtn.style.top = `${clampedLy.toFixed(1)}%`;
+      dirty = true;
+    }
+
+    const rHand = hands.find(h => !h.left && h.id !== 'left');
+    if (rHand) {
       let nx = 0.5, ny = 0.5;
-      if (h.points && h.points.length >= 26) {
-        if (h.pinching && h.points.length >= 14) {
-          nx = (h.points[12] + h.points[24]) * 0.5;
-          ny = (h.points[13] + h.points[25]) * 0.5;
+      if (rHand.points && rHand.points.length >= 26) {
+        if (rHand.pinching && rHand.points.length >= 14) {
+          nx = (rHand.points[12] + rHand.points[24]) * 0.5;
+          ny = (rHand.points[13] + rHand.points[25]) * 0.5;
         } else {
-          nx = h.points[24];
-          ny = h.points[25];
+          nx = rHand.points[24];
+          ny = rHand.points[25];
         }
-      } else if (Array.isArray(h.aim)) {
-        const sp = screenPoint(h.aim);
-        nx = sp.x; ny = sp.y;
+      } else if (Array.isArray(rHand.aim)) {
+        const sp = screenPoint(rHand.aim);
+        nx = sp.x;
+        ny = sp.y;
       }
       const cx = Math.max(0, Math.min(canvas.width, nx * canvas.width));
       const cy = Math.max(0, Math.min(canvas.height, ny * canvas.height));
-      const drawingNow = !h.fist && (h.pinching || (handDrawMode === 'auto' && isIndexPointing(h.points)));
 
-      // Desenha o anel guia da ponta do dedo na tela branca
+      const stageRect = canvas.getBoundingClientRect();
+      const clientX = stageRect.left + nx * (stageRect.width || canvas.width);
+      const clientY = stageRect.top + ny * (stageRect.height || canvas.height);
+      const overUi = isClientPointOverUi(clientX, clientY);
+
+      // Só a MÃO DIREITA fazendo PINÇA desenha ou apaga (e apenas quando não está clicando na Paleta)
+      const drawingNow = Boolean(rHand.pinching && !rHand.fist && !overUi);
+
+      // Indicador circular da cor/borracha na mão direita (igual à bolinha verde dentro da mão no YorkMR)
       octx.save();
+      const previewR = Math.max(9, currentSize * 0.85);
       octx.beginPath();
-      octx.arc(cx, cy, Math.max(6, currentSize * 0.75), 0, Math.PI * 2);
-      octx.strokeStyle = drawingNow ? currentColor : '#2563eb';
-      octx.lineWidth = drawingNow ? 3 : 2;
+      octx.arc(cx, cy, previewR, 0, Math.PI * 2);
+      octx.fillStyle = currentTool === 'eraser' ? 'rgba(148,163,184,0.45)' : currentColor;
+      octx.fill();
+      octx.lineWidth = drawingNow ? 3.5 : 2.5;
+      octx.strokeStyle = '#ffffff';
       octx.stroke();
-      if (drawingNow) {
-        octx.fillStyle = currentTool === 'eraser' ? '#94a3b8' : currentColor;
-        octx.globalAlpha = 0.35;
-        octx.fill();
-      }
       octx.restore();
 
-      const prev = handLast.get(id);
       if (drawingNow) {
-        if (!prev) {
+        if (!rightHandLast) {
           saveSnapshot();
           applySegment(cx, cy, cx + 0.1, cy + 0.1);
           strokeCount++;
           if (strokesEl) strokesEl.textContent = String(strokeCount);
         } else {
-          const mx = (prev.x + cx) * 0.5;
-          const my = (prev.y + cy) * 0.5;
-          applySegment(prev.x, prev.y, mx, my);
+          const mx = (rightHandLast.x + cx) * 0.5;
+          const my = (rightHandLast.y + cy) * 0.5;
+          applySegment(rightHandLast.x, rightHandLast.y, mx, my);
           applySegment(mx, my, cx, cy);
         }
-        handLast.set(id, { x: cx, y: cy });
+        rightHandLast = { x: cx, y: cy };
         dirty = true;
       } else {
-        handLast.delete(id);
+        rightHandLast = null;
       }
+    } else {
+      rightHandLast = null;
     }
-    for (const k of [...handLast.keys()]) {
-      if (!activeIds.has(k)) handLast.delete(k);
-    }
+
     if (dirty || hands.length > 0) css3d.invalidate?.();
     animId = requestAnimationFrame(tickHandDraw);
   };
   animId = requestAnimationFrame(tickHandDraw);
 
+  if (leftPaletteBtn) {
+    leftPaletteBtn.onclick = e => {
+      e.stopPropagation();
+      setPaletteOpen(!paletteOpen);
+    };
+  }
+  body.querySelector('[data-mr-palette-close]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    setPaletteOpen(false);
+  });
+
   body.querySelectorAll('[data-hd-color]').forEach(btn => {
-    btn.onclick = () => {
-      currentColor = btn.dataset.hdColor || '#111827';
-      if (currentTool === 'eraser') currentTool = 'pen';
+    btn.onclick = e => {
+      e.stopPropagation();
+      currentColor = btn.dataset.hdColor || '#22c55e';
+      currentColorName = btn.dataset.hdColorName || 'Cor';
+      if (currentTool === 'eraser') {
+        currentTool = 'pen';
+        body.querySelectorAll('[data-hd-tool]').forEach(b => {
+          const on = b.dataset.hdTool === 'pen';
+          b.classList.toggle('on', on);
+          b.style.background = on ? '#2563eb' : 'rgba(255,255,255,.07)';
+          b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.2)';
+        });
+      }
       body.querySelectorAll('[data-hd-color]').forEach(b => {
-        b.style.border = b === btn ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)';
+        b.style.border = b === btn ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,.16)';
       });
+      updateSummary();
       css3d.invalidate?.();
     };
   });
+
   body.querySelectorAll('[data-hd-tool]').forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = e => {
+      e.stopPropagation();
       currentTool = btn.dataset.hdTool || 'pen';
       body.querySelectorAll('[data-hd-tool]').forEach(b => {
         const on = b === btn;
         b.classList.toggle('on', on);
-        b.style.background = on ? '#2563eb' : '#1e293b';
-        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
+        b.style.background = on ? '#2563eb' : 'rgba(255,255,255,.07)';
+        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.2)';
       });
+      updateSummary();
       css3d.invalidate?.();
     };
   });
+
+  const syncSizeButtons = sz => {
+    currentSize = Math.max(2, Math.min(36, Number(sz) || 9));
+    const preset = HAND_DRAW_SIZES.find(([s]) => s === currentSize);
+    currentSizeLabel = preset ? preset[1] : `Pincel ${currentSize}px`;
+    if (sizeSliderEl) sizeSliderEl.value = String(currentSize);
+    body.querySelectorAll('[data-hd-size]').forEach(b => {
+      const on = Number(b.dataset.hdSize) === currentSize;
+      b.classList.toggle('on', on);
+      b.style.background = on ? '#2563eb' : 'rgba(255,255,255,.07)';
+      b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.18)';
+    });
+    updateSummary();
+    css3d.invalidate?.();
+  };
+
   body.querySelectorAll('[data-hd-size]').forEach(btn => {
-    btn.onclick = () => {
-      currentSize = Number(btn.dataset.hdSize) || 8;
-      body.querySelectorAll('[data-hd-size]').forEach(b => {
-        const on = b === btn;
-        b.classList.toggle('on', on);
-        b.style.background = on ? '#2563eb' : '#1e293b';
-        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
-      });
-      css3d.invalidate?.();
+    btn.onclick = e => {
+      e.stopPropagation();
+      syncSizeButtons(Number(btn.dataset.hdSize) || 9);
     };
   });
-  if (handModeBtn) {
-    handModeBtn.onclick = () => {
-      handDrawMode = handDrawMode === 'auto' ? 'pinch' : 'auto';
-      handModeBtn.dataset.hdHandMode = handDrawMode;
-      handModeBtn.textContent = handDrawMode === 'auto' ? '🖐 Hand: Indicador / Pinça' : '🤏 Hand: Só na Pinça';
-      css3d.invalidate?.();
-    };
+  if (sizeSliderEl) {
+    sizeSliderEl.oninput = () => syncSizeButtons(Number(sizeSliderEl.value) || 9);
   }
-  body.querySelector('[data-hd-next-challenge]')?.addEventListener('click', () => {
-    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
-    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
-    css3d.invalidate?.();
-  });
-  body.querySelector('[data-hd-done]')?.addEventListener('click', () => {
-    completedCount++;
-    if (scoreEl) scoreEl.textContent = String(completedCount);
-    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
-    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
-    toast(`Arte #${completedCount} concluída! Próximo desafio!`);
-    css3d.invalidate?.();
-  });
-  body.querySelector('[data-hd-undo]')?.addEventListener('click', () => {
+
+  body.querySelector('[data-hd-undo]')?.addEventListener('click', e => {
+    e.stopPropagation();
     if (undoStack.length > 0) {
       const prevImg = undoStack.pop();
       try { ctx.putImageData(prevImg, 0, 0); } catch {}
     } else {
-      fillWhite();
+      clearMrCanvas();
     }
     css3d.invalidate?.();
   });
-  body.querySelector('[data-hd-clear]')?.addEventListener('click', () => {
+  body.querySelector('[data-hd-clear]')?.addEventListener('click', e => {
+    e.stopPropagation();
     saveSnapshot();
-    fillWhite();
+    clearMrCanvas();
     strokeCount = 0;
     if (strokesEl) strokesEl.textContent = '0';
     css3d.invalidate?.();
@@ -2017,13 +2338,17 @@ export function openHandDrawGame() {
     cancelAnimationFrame(animId);
     close(win);
   });
-  window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = currentColor, size = currentSize) => {
+  window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = currentColor, size = currentSize, tool = 'pen') => {
     saveSnapshot();
-    applySegment(x0, y0, x1, y1, color, size, 'pen');
+    applySegment(x0, y0, x1, y1, color, size, tool);
     strokeCount++;
     if (strokesEl) strokesEl.textContent = String(strokeCount);
     css3d.invalidate?.();
     return strokeCount;
+  };
+  window.nextvrToggleMrDrawPalette = (force) => {
+    setPaletteOpen(typeof force === 'boolean' ? force : !paletteOpen);
+    return paletteOpen;
   };
   touchLib('hand-draw', true);
   focus(win);

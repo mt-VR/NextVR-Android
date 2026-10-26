@@ -159,22 +159,22 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // Usa exclusivamente o impacto escalar invariante à rotação da cabeça (|mag - gravMag|):
                     // rodar a cabeça NÃO altera a magnitude da gravidade, impedindo que o 6DoF ande sozinho para os lados ou para a frente.
                     float stepImpact=Math.abs(mag-gravMag);
-                    if(stepImpact>0.22f && gyroRate<0.85f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.86f + stepImpact*1.35f);
-                        if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(stepImpact>0.10f && gyroRate<1.35f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.88f + stepImpact*1.75f);
+                        if(walkEnergy>0.08f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else if(!hasLinearAccel) {
-                        walkEnergy*=0.84f;
+                        walkEnergy*=0.86f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 hasLinearAccel=true;
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.24f && gyroRate<0.85f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.86f + lmag*1.30f);
-                    if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.11f && gyroRate<1.35f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.88f + lmag*1.70f);
+                    if(walkEnergy>0.08f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 } else {
-                    walkEnergy*=0.84f;
+                    walkEnergy*=0.86f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -260,18 +260,16 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.12f) return;
-                boolean zeroFlow=Math.abs(sc)<0.0028f;
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.14f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0022f;
                 if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                // Exige caminhada física real no acelerômetro (walkEnergy > 0.16f nos últimos 650 ms) e cabeça estável:
-                // impede completamente que o 6DoF ande sozinho para a frente ou para os lados.
-                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && (nowMs-lastWalkStepMs)<650L);
-                boolean moving=accelMoving && gyroRate<0.85f && Math.hypot(gx,gy)<=1.8;
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.08f && (nowMs-lastWalkStepMs)<950L);
+                boolean moving=accelMoving && gyroRate<1.35f && Math.hypot(gx,gy)<=2.8;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
                 float adjSc=moving?sc:0f;
@@ -1185,8 +1183,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 target.targetSixDofX=cx;
                 target.targetSixDofZ=cz;
                 if(target.sixDofX==0f && target.sixDofZ==0f) {
-                    target.sixDofX=cx*0.55f;
-                    target.sixDofZ=cz*0.55f;
+                    target.sixDofX=cx*0.85f;
+                    target.sixDofZ=cz*0.85f;
                 }
                 target.sixDofY=0f;
             }
@@ -1245,7 +1243,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                                 target.mrDim=o.optBoolean("mrDim",false) || o.optInt("mrDim",0)!=0;
                             }
                             if(o.has("bwCamera")) {
-                                target.bwCamera=o.optBoolean("bwCamera",false) || o.optInt("bwCamera",0)!=0;
+                                target.bwCamera=o.optBoolean("bwCamera",true) || o.optInt("bwCamera",1)!=0;
+                            } else {
+                                target.bwCamera=true;
                             }
                             if(o.has("sixdof")) {
                                 sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
