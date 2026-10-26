@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.0.0.
-export const ENTRY_VERSION = 'v2.0.0';
-export const ENTRY_VERSION_ALPHA = 'v2.0.0 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.1.0.
+export const ENTRY_VERSION = 'v2.1.0';
+export const ENTRY_VERSION_ALPHA = 'v2.1.0 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
