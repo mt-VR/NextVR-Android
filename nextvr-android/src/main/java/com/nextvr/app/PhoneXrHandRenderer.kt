@@ -243,7 +243,7 @@ class PhoneXrHandRenderer {
                 if(hitEnd) {
                     val z=b[5]
                     val scale=(-z).coerceIn(.35f,3f)
-                    color(.96f,.99f,1f,.95f)
+                    GLES20.glUniform4f(colorUniform,.96f,.99f,1f,.95f)
                     ring3d(b[3],b[4],z,.022f*scale,.015f*scale,position)
                 }
             }
