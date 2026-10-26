@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'paint-mr-3d',
+    tag: 'NOVO · PAINTDRAWER 3D EM MR — DESENHE NO AR COM AS MÃOS (BUILD 81)',
+    time: 'Agora',
+    heading: 'paintdrawer 3D: Traços Reais no Espaço, Pinça para Desenhar, Borracha 3D e Paleta Flutuante',
+    desc: 'Reescrito do zero: cada traço é um objeto 3D preso no espaço (gira a cabeça e o desenho fica parado), a pinça da mão direita desenha e a borracha apaga pedaço por pedaço no ar; paleta flutuante com 10 cores, caneta/neon, grossura, desfazer, limpar, salvar e abrir; sem esqueleto de mão, só um cursor discreto!',
+  },
+  {
     id: 'internal-rec-hand-zero',
     tag: 'NOVO · PINTURA 3D MR INDEPENDENTE, CÂMERA P&B, PAINEL PICO 4 ULTRA & 6DOF RÁPIDO (BUILD 80)',
     time: 'Agora',

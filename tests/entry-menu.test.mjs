@@ -186,6 +186,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'Build 55 includes 6DoF World Lock and zero-allocation optical flow, zero-delay hand tracking, and 1200x800 1:1 antialiased ACESFilmic VR games'
   );
   const mrPistolSrc = readFileSync('web/src/mr-pistol-game.js', 'utf8');
+  const mrPaint3dSrc = readFileSync('web/src/mr-paint-3d.js', 'utf8');
   const entryDataSrc = readFileSync('web/src/entry-data.js', 'utf8');
   assert.ok(
     mrPistolSrc.includes('openMrPistolGame') &&
@@ -286,7 +287,18 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('data-mr-palette-win="1"') &&
     appsSrc.includes("'Violeta'") &&
     appsSrc.includes("'Cinza'") &&
-    appsSrc.includes('destination-out') &&
+    // paintdrawer é 3D de verdade: traços InstancedMesh presos no espaço (não pintura 2D no canvas).
+    mrPaint3dSrc.includes('InstancedMesh') &&
+    mrPaint3dSrc.includes('intersectObjects') &&
+    mrPaint3dSrc.includes('viewPointFromTangent') &&
+    mrPaint3dSrc.includes('content.quaternion.copy(q).multiply(P.q0Inv)') &&
+    mrPaint3dSrc.includes('function eraseAt(') &&
+    mrPaint3dSrc.includes('localStorage') &&
+    mrPaint3dSrc.includes('renderStereo') &&
+    mrPaint3dSrc.includes('screenSpan()') &&
+    appsSrc.includes('openMrPaint3d') &&
+    entryDataSrc.includes('paint-mr-3d') &&
+    !appsSrc.includes('destination-out') &&
     sixdofSrc.includes('depth: 2.35') &&
     coreSrc.includes('bwCamera: 1') &&
     appsSrc.includes('data-pico-lib-brand="1"') &&
@@ -300,11 +312,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 80') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 81') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 80 (ATMOXR) makes paintdrawer an independent MR game like ShootTheDie (never inside a floating window), keeps B&W camera by default, PICO 4 Ultra VR Control Center menu, and fast 6DoF'
+    'Build 81 (ATMOXR) turns paintdrawer into a true 3D MR drawing game: world-anchored 3D strokes, pinch drawing, 3D eraser, floating palette with save/load, stereo render, no hand skeleton'
   );
 });
 
@@ -1225,6 +1237,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const palOpenedByLeftBtn = Boolean(palWin && !palWin.hidden);
       const palColorsCount = drawWin?.querySelectorAll('[data-hd-color]')?.length ?? 0;
       const strokesAfterDraw = window.nextvrHandDrawStroke?.(120, 120, 320, 260, '#ef4444', 10) ?? 0;
+      const mrPaintEngineState = window.nextvrMrPaint3d?.state?.() || null;
       drawWin?.querySelector('[data-hd-exit]')?.click();
       const drawClosed = !document.getElementById('mr-paint-overlay') && !document.querySelector('.win-shell[data-window-id="hand-draw"]');
 
@@ -1260,6 +1273,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         palOpenedByLeftBtn,
         palColorsCount,
         strokesAfterDraw,
+        mrPaintEngineState,
         drawClosed,
       };
     });
@@ -1269,7 +1283,11 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(build56Check.palInitiallyHidden, true, 'Floating palette starts closed until left hand Paleta button is clicked');
     assert.equal(build56Check.palOpenedByLeftBtn, true, 'Left hand Paleta button opens the floating palette');
     assert.equal(build56Check.palColorsCount, 10, 'Floating palette has all 10 required colors');
-    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws in MR');
+    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws a 3D stroke in MR');
+    assert.ok(build56Check.mrPaintEngineState && build56Check.mrPaintEngineState.points >= 6,
+      'the MR stroke is a real 3D object (multiple world-space points), not a 2D canvas line');
+    assert.ok(build56Check.mrPaintEngineState && build56Check.mrPaintEngineState.active === true,
+      'the 3D paint engine keeps running while the independent MR mode is open');
     assert.equal(build56Check.drawClosed, true, 'Independent MR drawing game closes cleanly');
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');

@@ -565,7 +565,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
         long now=SystemClock.uptimeMillis();
-        if(now-lastPose<10 || !posePending.compareAndSet(false,true)) return;
+        if(now-lastPose<6 || !posePending.compareAndSet(false,true)) return;
         lastPose=now;
         StringBuilder json=new StringBuilder(192); json.append('['); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
         main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });

@@ -42,6 +42,12 @@ export function stopHands() {
  *  pro spanX relativo ao FOV de referência de 36°), então convertemos:
  *    spanX = mappingX * 2*TAN_X_REF,  spanY = mappingY * 2*TAN_Y_REF
  *  e mapeamos pra NDC [0,1] com divisão direta. Corrige o cursor deslocado/olhos diferentes. */
+/** Span (largura/altura em tangente) que o nativo usa para mapear landmarks na tela:
+ *  x = (px-.5)*w, y = (.5-py)*h, z = -1. É o mesmo mapeamento de PhoneXrHandRenderer,
+ *  então quem desenha em 3D no espaço segue exatamente a mão real. */
+export function screenSpan() {
+  return { w: scaleX * 2 * TAN_X, h: scaleY * 2 * TAN_Y };
+}
 export function screenPoint(tangent) {
   const sx = scaleX * 2*TAN_X, sy = scaleY * 2*TAN_Y;
   return { x: .5 + tangent[0] / sx, y: .5 - tangent[1] / sy };
@@ -244,7 +250,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   cursor.mode=pressArbiter.mode;
   cursor.down=clickState.down;cursor.phase=clickState.phase;
   if (!window.__gorillaStereoOverlay && native) {
-    const wantVisual = !!S.handDraw;
+    const wantVisual = !!S.handDraw && !S.mrPaintGame;
     if (visual !== wantVisual) {
       visual = wantVisual;
       window.NativeXR.handVisuals?.(wantVisual);
@@ -270,13 +276,13 @@ const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 on('handDraw', () => {
   if (!window.__gorillaStereoOverlay && native) {
-    visual = !!S.handDraw;
+    visual = !!S.handDraw && !S.mrPaintGame;
     window.NativeXR.handVisuals?.(visual);
   }
 });
 onFrame(()=>{
   if (!window.__gorillaStereoOverlay && native) {
-    const wantVisual = !!S.handDraw;
+    const wantVisual = !!S.handDraw && !S.mrPaintGame;
     if (visual !== wantVisual) {
       visual = wantVisual;
       window.NativeXR.handVisuals?.(wantVisual);
