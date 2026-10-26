@@ -1228,24 +1228,12 @@ function settingsApp() {
   recToggleBtn.innerHTML = `<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Iniciar Gravação 16:9'}</span>`;
   recToggleBtn.onclick = () => toggleInternalEyeRecording();
   scroll.append(ytRow(icon('camera'), 'Gravação Interna (1 Lente)', 'Grava tela cheia de 1 lente em HD mantendo as 2 lentes ativas no celular', recToggleBtn));
-  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno 3D no ambiente e cursor de pinça', ytToggle('handDraw')));
-  scroll.append(ytRow(icon('crosshair'), t('fingerTouch'), t('fingerTouchDesc'), ytToggle('fingerTouch', v => {
+  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos (PICO 4 · Só a Mão)', 'Malha 3D estilo PICO 4 sem braço com Raio Laser contínuo', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('crosshair'), 'Modo Raio Laser PICO 4', 'Interação direta por Raio Laser ao invés de toque por pinça', ytToggle('fingerTouch', v => {
     window.NativeXR?.setFingerTouch?.(!!v);
     emit('fingerTouch', !!v);
   })));
-  scroll.append(ytRow(
-    icon('crosshair'),
-    'Pinça no App (Sem Raio)',
-    'Fazer a pinça encima de um app abre o app na hora, sem precisar do raio',
-    ytToggle('pinchOnApp', v => emit('pinchOnApp', !!v))
-  ));
-  scroll.append(ytRow(
-    icon('crosshair'),
-    'Gesto de Soco 2s (Menu Rápido)',
-    'Fechar a mão toda por 2 segundos abre o menuzinho de recentrar dock e ambientes',
-    ytToggle('gunGesture', v => emit('gunGesture', !!v))
-  ));
-  scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
+  scroll.append(ytRow(icon('zap'), 'Estabilizador de Raio PICO 4', 'Trava o raio no botão sem desviar ao clicar'));
 
   // Janelas
   scroll.append(ytSection(t('windows')));
@@ -2063,7 +2051,8 @@ export function openAvatarCreator() {
   }
 
   let cfg = loadCharacter();
-  let yaw = 0;
+  let yaw = 0.22;
+  let autoSpin3D = false;
 
   const body = el('div', 'atmoxr-avatar-creator-win');
   body.dataset.avatarCreator = '1';
@@ -2074,10 +2063,11 @@ export function openAvatarCreator() {
     body.innerHTML = `
       <div style="background:linear-gradient(180deg,#1d2029 0%,#12141a 100%);border-radius:18px;padding:12px 14px;border:1px solid rgba(255,255,255,.11);display:flex;flex-direction:column;justify-content:space-between;align-items:center">
         <div style="width:100%;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">AVATAR 3D · ATMOXR</span>
-          <div style="display:inline-flex;gap:5px">
-            <button type="button" data-ac-rot="-0.35" style="padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10.5px;font-weight:700;cursor:pointer">⟲ Girar</button>
-            <button type="button" data-ac-rot="0.35" style="padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10.5px;font-weight:700;cursor:pointer">Girar ⟳</button>
+          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">PERSONAGEM 3D · ATMOXR</span>
+          <div style="display:inline-flex;gap:4px">
+            <button type="button" data-ac-rot="-0.45" style="padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10px;font-weight:700;cursor:pointer">⟲ 3D</button>
+            <button type="button" data-ac-autorot style="padding:3px 7px;border-radius:999px;background:${autoSpin3D ? 'rgba(56,189,248,.24)' : 'rgba(255,255,255,.08)'};border:1px solid ${autoSpin3D ? '#38bdf8' : 'rgba(255,255,255,.14)'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">360°</button>
+            <button type="button" data-ac-rot="0.45" style="padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10px;font-weight:700;cursor:pointer">3D ⟳</button>
           </div>
         </div>
         <canvas data-ac-canvas width="280" height="330" style="width:255px;height:300px;border-radius:14px;border:1px solid rgba(255,255,255,.1);display:block"></canvas>
@@ -2165,9 +2155,13 @@ export function openAvatarCreator() {
   renderPanel();
 
   let animId = 0;
+  let lastT = performance.now();
   const t0 = performance.now();
   const tickPreview = now => {
     if (!body.isConnected) return;
+    const dt = Math.min(0.05, Math.max(0, (now - lastT) * 0.001));
+    lastT = now;
+    if (autoSpin3D) yaw += dt * 1.15;
     const cv = body.querySelector('[data-ac-canvas]');
     if (cv) {
       const ctx = cv.getContext('2d');
@@ -2199,9 +2193,15 @@ export function openAvatarCreator() {
       }
       return;
     }
+    if (e.target.closest('[data-ac-autorot]')) {
+      autoSpin3D = !autoSpin3D;
+      renderPanel();
+      return;
+    }
     const rotBtn = e.target.closest('[data-ac-rot]');
     if (rotBtn) {
-      yaw = Math.max(-1.2, Math.min(1.2, yaw + Number(rotBtn.dataset.acRot || 0)));
+      autoSpin3D = false;
+      yaw += Number(rotBtn.dataset.acRot || 0);
       return;
     }
     if (e.target.closest('[data-ac-random]')) {

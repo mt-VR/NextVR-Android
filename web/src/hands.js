@@ -57,6 +57,40 @@ const CURSOR_PREDICT_MAX_SPEED = 5.2;   // unidades normalizadas/s — resposta 
 const CURSOR_PREDICT_MAX_STEP = .15;    // alcance de extrapolação para compensar scanout do display
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 const _perHandCursorState = new Map();
+const _prePinchAimByHand = new Map();
+
+function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
+  if (!isLiveFrame) return;
+  for (const h of list) {
+    if (!h || !h.id || !Array.isArray(h.aim) || h.aim.length < 2) continue;
+    const pinchDist = Number.isFinite(h.pinch) ? h.pinch : 1;
+    const st = _prePinchAimByHand.get(h.id);
+    if (!h.pinching && pinchDist > 0.22) {
+      _prePinchAimByHand.set(h.id, {
+        aim0: st ? (st.aim0 * 0.35 + h.aim[0] * 0.65) : h.aim[0],
+        aim1: st ? (st.aim1 * 0.35 + h.aim[1] * 0.65) : h.aim[1],
+        at: now,
+        pinchStartAt: 0,
+      });
+    } else if (st && (now - st.at <= 450)) {
+      if (h.pinching && !st.pinchStartAt) st.pinchStartAt = now;
+      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 260 && cursor.mode !== 'drag');
+      const drift = Math.hypot(h.aim[0] - st.aim0, h.aim[1] - st.aim1);
+      if (inEarlyPinch && drift < 0.16) {
+        const lockWeight = h.pinching ? 0.86 : 0.78;
+        h.aim = [
+          st.aim0 * lockWeight + h.aim[0] * (1 - lockWeight),
+          st.aim1 * lockWeight + h.aim[1] * (1 - lockWeight),
+        ];
+        st.at = now;
+      } else {
+        st.aim0 = h.aim[0];
+        st.aim1 = h.aim[1];
+        st.at = now;
+      }
+    }
+  }
+}
 
 export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
@@ -151,6 +185,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
     incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
   }
   hands.splice(0,hands.length,...incomingHands);
+  stabilizeRayAimDuringPinch(hands, now, Number(frame.timestampNs) > 0);
   updatePerHandVelocities(hands, now, Number(frame.timestampNs) || 0);
   emit('handframe',{...frame,hands});
   const consumed=new Set();

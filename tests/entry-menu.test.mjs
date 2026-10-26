@@ -258,9 +258,14 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     entryMenuSrc.includes('entry-p5-jagged-backing') &&
     entryMenuSrc.includes('PICO 4 PRO') &&
     !entryMenuSrc.includes('data-entry-spatial') &&
+    !entryMenuSrc.includes('Bolinha Mão Dir.') &&
+    handRendererKt.includes('WRIST_EXTEND=.06f') &&
+    readFileSync('web/src/hands.js', 'utf8').includes('stabilizeRayAimDuringPinch') &&
+    readFileSync('web/src/character-creator.js', 'utf8').includes('project3D') &&
+    readFileSync('web/src/character-creator.js', 'utf8').includes('pushCapsule3D') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 70') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 71') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),

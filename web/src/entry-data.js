@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · MENU PICO 4 PRO PRETO, CINZA & BRANCO + PERSONAGEM 3D (BUILD 70)',
+    tag: 'NOVO · HAND TRACKING PICO 4 (SÓ A MÃO · RAIO LASER) + PERSONAGEM 3D (BUILD 71)',
     time: 'Agora',
-    heading: 'Novo Menu Principal e Inicial PICO 4 Pro (Preto, Cinza e Branco), Criar Personagem do Jogo & APK ATMOXR',
-    desc: 'Novo Menu Principal e Menu Inicial angular em Preto, Cinza e Branco em Português com medalhão PICO 4 Pro! Crie seu próprio personagem 3D sincronizado com Perfil, Dock e PICO Motion Tracker, janelinhas flutuantes PICO 4 Pro, Hand Tracking otimizado e APK ATMOXR.apk!',
+    heading: 'Personagem em 3D Volumétrico 360°, Hand Tracking Estilo PICO 4 (Só a Mão, Sem Braço) & Raio Laser',
+    desc: 'Personagem em 3D real com rotação 360° e volumes 3D iluminados, Hand Tracking 3D cinza fosco com contorno branco idêntico ao PICO 4 (só a mão, sem braço), opções de bolinha removidas e interação direta por Raio Laser estabilizado!',
   },
   {
     id: 'quest-browser-env-hand',

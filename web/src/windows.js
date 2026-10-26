@@ -1343,6 +1343,15 @@ function resolveDirectPinchPoint(handArg = null) {
   const sx = Number(lastPhonePacket?.scaleX) || 1;
   const sy = Number(lastPhonePacket?.scaleY) || 1;
   const basePts = [];
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
+      basePts.push([aimPt.x, aimPt.y]);
+    }
+  }
+  if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
+    basePts.push([cursor.x, cursor.y]);
+  }
   if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     basePts.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
   }
@@ -1354,15 +1363,6 @@ function resolveDirectPinchPoint(handArg = null) {
   }
   if (Array.isArray(h.palm) && h.palm.length >= 2) {
     basePts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
-  }
-  if (Array.isArray(h.aim) && h.aim.length >= 2) {
-    const aimPt = screenPoint(h.aim);
-    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
-      basePts.push([aimPt.x, aimPt.y]);
-    }
-  }
-  if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
-    basePts.push([cursor.x, cursor.y]);
   }
   const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0], [0, -0.028], [0, 0.028], [-0.028, 0], [0.028, 0]];
   for (const [bx, by] of basePts) {
@@ -1437,7 +1437,7 @@ on('pinchdown', () => {
     (kb && kb.button) ||
     (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
   );
-  const alt = (S.fingerTouch !== 0 || !hasDirectHit) ? resolveDirectPinchPoint() : null;
+  const alt = !hasDirectHit ? resolveDirectPinchPoint() : null;
   if (alt) {
     pinchOverridePt = alt;
     px = alt.x;
@@ -2729,6 +2729,14 @@ function resolveFingerTarget(h, packet) {
     [0, 0.015],
     [0, -0.015],
   ];
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    const rayOffsets = [[0, 0], [0, 0.015], [0, -0.015], [-0.015, 0], [0.015, 0], [0, 0.026], [0, -0.026]];
+    for (const [ox, oy] of rayOffsets) {
+      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
+      if (aimHit) return { ...aimHit, viaRay: true };
+    }
+  }
   if (p && p.length >= 26 && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     const tx = (p[24] - 0.5) * sx + 0.5;
     const ty = (p[25] - 0.5) * sy + 0.5;
@@ -2746,14 +2754,6 @@ function resolveFingerTarget(h, packet) {
     const dy = (p[22] - 0.5) * sy + 0.5;
     const dipHit = resolvePointTarget(dx, dy);
     if (dipHit) return { ...dipHit, viaRay: false };
-  }
-  if (Array.isArray(h.aim) && h.aim.length >= 2) {
-    const aimPt = screenPoint(h.aim);
-    const rayOffsets = [[0, 0], [0, 0.015], [0, -0.015], [-0.015, 0], [0.015, 0], [0, 0.026], [0, -0.026]];
-    for (const [ox, oy] of rayOffsets) {
-      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
-      if (aimHit) return { ...aimHit, viaRay: true };
-    }
   }
   return null;
 }
@@ -3214,10 +3214,17 @@ function updateFingerPoke(h, packet, nowMs) {
   }
 
   const liftedFinger = checkFingerLift(st);
+  const rayAutoClick = Boolean(
+    st.viaRay &&
+    Number(packet?.timestampNs) > 0 &&
+    !isBrowserBtn &&
+    (nowMs - st.enterAt >= 420) &&
+    (nowMs - st.lastTapAt >= 520)
+  );
   st.lastTipX = tipX;
   st.lastTipY = tipY;
 
-  if (!st.latched && liftedFinger && (nowMs - st.lastTapAt >= 360)) {
+  if (!st.latched && (liftedFinger || rayAutoClick) && (nowMs - st.lastTapAt >= 360)) {
     if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0075 || (fingerLift - st.restFingerLift) >= 0.0075)) {
       st.pendingBrowserTap = true;
       st.latched = true;
@@ -3516,7 +3523,7 @@ function updateLeftQuickMenuAttachment(packet) {
 
 function updateRightHandBolinhaGesture(packet, nowMs) {
   updateLeftQuickMenuAttachment(packet);
-  if (S.gunGesture === 0) {
+  if (S.gunGesture === 0 || Number(packet?.timestampNs) > 0) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
     leftHandBolinhaState.frames = 0;
@@ -3974,10 +3981,8 @@ function syncHandTargets(now = performance.now()) {
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
-    const noBeam = fingerHover;
-    const stick = (fSt?.targetEl && !fSt.viaRay && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
-      ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
-      : null;
+    const noBeam = false;
+    const stick = null;
     const isRightBolinha = isRightBolinhaHand(h);
     const isLeftBolinha = isLeftBolinhaHand(h);
     const blueOutline = Boolean(

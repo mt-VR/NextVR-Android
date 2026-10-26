@@ -172,7 +172,7 @@ const EM_I18N = {
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'qualidade', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Média (890p)', qLow: 'Baixa (390p)',
     ocularCell: 'câmera grande ocular (0.5x)', volumeCell: 'VOLUME', brightnessCell: 'BRILHO',
-    handCell: 'Hand tracking', fingerTouchOn: 'Toque (Sem Pinça): ON', fingerTouchOff: 'Toque (Sem Pinça): OFF',
+    handCell: 'Hand tracking', fingerTouchOn: 'Raio Laser PICO 4: ON', fingerTouchOff: 'Raio Laser PICO 4: OFF',
     envTitle: 'Ambiente', envAr: 'Câmera (AR)', envSunset: 'Pôr do Sol', envNight: 'Noite',
   },
   en: {
@@ -664,13 +664,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
 
             <div class="entry-bento-cell entry-bento-cell--hand">
-              <div class="entry-bento-title">${emT('handCell')} &amp; GESTOS</div>
+              <div class="entry-bento-title">${emT('handCell')} PICO 4 (SÓ A MÃO · RAIO LASER)</div>
               <div class="entry-hand-col">
                 <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
                 <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
-                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
-                <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
-                <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
+                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Interação por Raio Laser estilo PICO 4 ao invés de pinça">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
               </div>
             </div>
 
