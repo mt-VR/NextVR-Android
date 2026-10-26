@@ -315,6 +315,9 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('settingsCamera') &&
     appsSrc.includes('data-hd-camera') &&
     appsSrc.includes('data-hd-worldlock') &&
+    // Ler 0/1 do JSON: sem isso a câmera voltava ao P&B e o World Lock religava a cada sessão.
+    activitySrc.includes('jsonFlag(o,"bwCamera",true)') &&
+    activitySrc.includes('jsonFlag(o,"worldLock",true)') &&
     entryDataSrc.includes('worldlock-camera-paint') &&
     coreSrc.includes('bwCamera: 1') &&
     appsSrc.includes('data-pico-lib-brand="1"') &&

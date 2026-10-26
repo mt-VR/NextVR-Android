@@ -1202,6 +1202,23 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * World Lock: com o mundo travado o renderer não recebe nenhuma translação do 6DoF — é o
          * que impede o desenho (e as janelas) de ir para a frente ou para os lados do nada.
          */
+        /**
+         * Lê um booleano do JSON de configurações vindo do shell, aceitando `true/false` mas
+         * também `1/0` — o shell grava flags como inteiros (`bwCamera: 0`). Usar `optBoolean`
+         * direto devolvia o default para inteiros, e a câmera voltava para P&B a cada sessão.
+         */
+        private boolean jsonFlag(org.json.JSONObject o, String key, boolean fallback) {
+            if(o==null || !o.has(key)) return fallback;
+            Object v=o.opt(key);
+            if(v instanceof Boolean) return (Boolean)v;
+            if(v instanceof Number) return ((Number)v).doubleValue()!=0d;
+            if(v instanceof String) {
+                String t=((String)v).trim();
+                return !("false".equalsIgnoreCase(t) || "0".equals(t) || t.isEmpty());
+            }
+            return fallback;
+        }
+
         @JavascriptInterface public void setWorldLock(boolean locked) {
             sixDofWalk=!locked;
             if(locked) resetSixDof();
@@ -1236,33 +1253,30 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(settingsJson!=null) {
                         try {
                             JSONObject o=new JSONObject(settingsJson);
-                            boolean spatial=o.optBoolean("spatialLauncher",false) || o.optInt("spatialLauncher",0)==1;
+                            boolean spatial=jsonFlag(o,"spatialLauncher",false);
                             customEnv=!spatial && o.optBoolean("entryEnvChosen",false) && !"passthrough".equals(o.optString("env","passthrough"));
-                            boolean wide=o.optBoolean("wideCamera",false) || o.optInt("wideCamera",0)==1;
+                            boolean wide=jsonFlag(o,"wideCamera",false);
                             target.wideCamera=wide;
                             if(camera!=null)camera.setWideCamera(wide);
                             if(o.has("quality")) target.setQuality(o.optString("quality","auto"));
                             if(o.has("handDraw")) {
-                                boolean hd=o.optBoolean("handDraw",false) || o.optInt("handDraw",1)!=0;
+                                boolean hd=jsonFlag(o,"handDraw",true);
                                 target.showHands=hd;
                             }
                             if(o.has("fingerTouch")) {
-                                boolean ft=o.optBoolean("fingerTouch",false) || o.optInt("fingerTouch",1)!=0;
+                                boolean ft=jsonFlag(o,"fingerTouch",true);
                                 target.handRenderer.setShowPointer(!ft);
                             }
                             if(o.has("mrDim")) {
-                                target.mrDim=o.optBoolean("mrDim",false) || o.optInt("mrDim",0)!=0;
+                                target.mrDim=jsonFlag(o,"mrDim",false);
                             }
-                            if(o.has("bwCamera")) {
-                                target.bwCamera=o.optBoolean("bwCamera",true) || o.optInt("bwCamera",1)!=0;
-                            } else {
-                                target.bwCamera=true;
-                            }
+                            // Câmera: respeita P&B (1) e colorida (0) sem voltar ao default a cada sessão.
+                            target.bwCamera=jsonFlag(o,"bwCamera",true);
                             if(o.has("sixdof")) {
-                                sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
+                                sixDofEnabled=jsonFlag(o,"sixdof",true);
                                 if(!sixDofEnabled) resetSixDof();
                             }
-                            sixDofWalk=!(o.optBoolean("worldLock",true) || o.optInt("worldLock",1)!=0);
+                            sixDofWalk=!jsonFlag(o,"worldLock",true);
                             if(!sixDofWalk) resetSixDof();
                             if(o.has("singleHandMode") && camera!=null) {
                                 camera.setSingleHandMode(o.optString("singleHandMode","both"));
