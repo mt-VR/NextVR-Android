@@ -200,20 +200,22 @@ public final class PicoMarkerDetector {
         }
 
         // Check MediaPipe index/thumb fingertip touch on A (top-left) or B (top-right) sector of the marker
-        if (matched && handFrame != null && handFrame.hands != null) {
-            for (PhoneXrHands.Hand h : handFrame.hands) {
-                if (h == null || h.points == null || h.points.length < 27) continue;
+        if (matched && handFrame != null && handFrame.getHands() != null) {
+            for (PhoneXrHands.Hand h : handFrame.getHands()) {
+                if (h == null || h.getPoints() == null || h.getPoints().length < 27) continue;
+                float[] pts = h.getPoints();
+                boolean pinching = h.getPinching();
                 // Index tip (landmark 8 -> indices 24, 25) and thumb tip (landmark 4 -> indices 12, 13)
-                float ix = h.points[24], iy = h.points[25];
-                float tx = h.points[12], ty = h.points[13];
+                float ix = pts[24], iy = pts[25];
+                float tx = pts[12], ty = pts[13];
                 if (isPointInSectorA(ix, iy, smoothX, smoothY, smoothR) ||
-                    (h.pinching && isPointInSectorA(tx, ty, smoothX, smoothY, smoothR))) {
+                    (pinching && isPointInSectorA(tx, ty, smoothX, smoothY, smoothR))) {
                     rawTouchA = true;
                     rawTouchB = false;
                     break;
                 }
                 if (isPointInSectorB(ix, iy, smoothX, smoothY, smoothR) ||
-                    (h.pinching && isPointInSectorB(tx, ty, smoothX, smoothY, smoothR))) {
+                    (pinching && isPointInSectorB(tx, ty, smoothX, smoothY, smoothR))) {
                     rawTouchB = true;
                     rawTouchA = false;
                     break;
