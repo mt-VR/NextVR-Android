@@ -82,8 +82,7 @@ class PhoneXrHands {
             // Never extrapolate across a long gap: a hand reappearing after a dropout must show
             // up exactly where it was detected, not drift along a stale velocity.
             if (gap <= 0L || gap > MAX_PREDICT_GAP_NS) return this
-            val inferLeadNs = if (completedNs > timestampNs) ((completedNs - timestampNs) + 18_000_000L).coerceAtMost(58_000_000L) else 0L
-            val dt = (((nowNs - completedNs) + inferLeadNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
+            val dt = ((nowNs - completedNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
             if (dt <= 0f) return this
             val t = 1f + dt
             val byId = prev.hands.associateBy { it.left }
@@ -129,7 +128,9 @@ class PhoneXrHands {
                 sb.append(",\"base\":[").append(h.baseX).append(',').append(h.baseY).append(']')
                     .append(",\"aim\":[").append(h.aimX).append(',').append(h.aimY).append(']')
                     .append(",\"pinching\":").append(h.pinching)
-                    .append(",\"fist\":").append(h.shape.fist)
+                    .append(",\"pinch\":")
+                appendFinite(sb, h.shape.pinchGap)
+                sb.append(",\"fist\":").append(h.shape.fist)
                     .append(",\"palm\":[").append(h.shape.palmX).append(',').append(h.shape.palmY).append(']')
                     .append(",\"grab\":[").append(h.grabX).append(',').append(h.grabY).append(']')
                     .append(",\"menuEligible\":").append(!h.shape.fist && (PalmMenuPose.eligible(head, h.left) || h.shape.palmToFace))
@@ -185,16 +186,19 @@ class PhoneXrHands {
     private class State {
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=110.0f, beta=480.0f, deadZone=0f)
-                else -> HandGestures.OneEuro(minCutoff=210.0f, beta=900.0f, deadZone=0f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=2.5f, beta=24.0f, deadZone=0.0006f)
+                else -> HandGestures.OneEuro(minCutoff=4.5f, beta=42.0f, deadZone=0.0006f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=210.0f, beta=900.0f, deadZone=0f)
-        val y = HandGestures.OneEuro(minCutoff=210.0f, beta=900.0f, deadZone=0f)
+        val x = HandGestures.OneEuro(minCutoff=2.8f, beta=32.0f, deadZone=0.0014f)
+        val y = HandGestures.OneEuro(minCutoff=2.8f, beta=32.0f, deadZone=0.0014f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=180.0f,beta=800.0f, deadZone=0f)
-        val grabY = HandGestures.OneEuro(minCutoff=180.0f,beta=800.0f, deadZone=0f)
+        val grabX = HandGestures.OneEuro(minCutoff=3.2f, beta=32.0f, deadZone=0.0010f)
+        val grabY = HandGestures.OneEuro(minCutoff=3.2f, beta=32.0f, deadZone=0.0010f)
+        var openAimX = Float.NaN
+        var openAimY = Float.NaN
+        var pinchStartStampNs = 0L
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
@@ -366,9 +370,29 @@ class PhoneXrHands {
             val by = (.5f-shape.aimY)*2f*scaleY
             val rightSide = head?.let { it[0]>0f } ?: (bx>0f)
             val shoulder = if(rightSide) .45f else -.45f
+            var rawAimX = bx+(bx-shoulder)*.25f
+            var rawAimY = by+(by+1f)*.25f
+            val pinchingNow = state.pinch.update(shape)
+            if (!pinchingNow && shape.pinchGap >= .48f) {
+                state.openAimX = if (state.openAimX.isNaN()) rawAimX else (state.openAimX * .30f + rawAimX * .70f)
+                state.openAimY = if (state.openAimY.isNaN()) rawAimY else (state.openAimY * .30f + rawAimY * .70f)
+                state.pinchStartStampNs = 0L
+            } else if (state.sawDetection && !state.openAimX.isNaN()) {
+                if (pinchingNow && state.pinchStartStampNs == 0L) state.pinchStartStampNs = stamp
+                val inPinchAnchorWindow = !pinchingNow || (stamp - state.pinchStartStampNs in 0L..350_000_000L)
+                val drift = kotlin.math.hypot(rawAimX - state.openAimX, rawAimY - state.openAimY)
+                if (inPinchAnchorWindow && drift < .14f) {
+                    val w = if (pinchingNow) .86f else .78f
+                    rawAimX = state.openAimX * w + rawAimX * (1f - w)
+                    rawAimY = state.openAimY * w + rawAimY * (1f - w)
+                } else {
+                    state.openAimX = rawAimX
+                    state.openAimY = rawAimY
+                }
+            }
             val hand = Hand(left,FloatArray(63) { i -> when(i%3) { 0->points[i/3].x();1->points[i/3].y();else->points[i/3].z() } },
-                head,shape,bx,by,state.x.filter(bx+(bx-shoulder)*.25f,stamp),
-                state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
+                head,shape,bx,by,state.x.filter(rawAimX,stamp),
+                state.y.filter(rawAimY,stamp),pinchingNow,state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
             state.noteDetection(stamp,hand)
             seen.add(hand)
         }

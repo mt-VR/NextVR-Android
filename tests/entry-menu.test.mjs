@@ -261,15 +261,19 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     !entryMenuSrc.includes('Bolinha Mão Dir.') &&
     handRendererKt.includes('WRIST_EXTEND=.06f') &&
     readFileSync('web/src/hands.js', 'utf8').includes('stabilizeRayAimDuringPinch') &&
+    readFileSync('web/src/windows.js', 'utf8').includes('clickedSync') &&
+    readFileSync('web/src/windows.js', 'utf8').includes("S.pinchOnApp !== 'force-legacy'") &&
+    phoneXrHandsKt.includes('openAimX') &&
+    phoneXrHandsKt.includes('appendFinite(sb, h.shape.pinchGap)') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('project3D') &&
     readFileSync('web/src/character-creator.js', 'utf8').includes('pushCapsule3D') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 71') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 72') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 70 (ATMOXR) includes angular Black/Gray/White PICO 4 Pro main & initial menu in Portuguese, in-game 3D Character Creator, PICO 4 Pro floating windows, optimized hand tracking, Spatial Apps removed from UI, and ATMOXR.apk output'
+    'Build 72 (ATMOXR) includes Ray-Only pinch interaction without pinch-on-app, stabilized Ray Pinch aim/click, faster MediaPipe hand tracking, 3D Character Creator, PICO 4 hand-only mesh, and ATMOXR.apk output'
   );
 });
 

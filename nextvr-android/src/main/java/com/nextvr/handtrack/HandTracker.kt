@@ -137,11 +137,10 @@ class HandTracker @JvmOverloads constructor(
         const val WIDE_HANDS = 2
         /** The tracking graph's slots: the hand being tracked, and nothing else. */
         const val NARROW_HANDS = 1
-        /** The graph used while a hand is tracked: MediaPipe's default-quality threshold. */
-        const val TRACK_CONFIDENCE = .50f
-        /** The graph used while NOTHING is tracked: lower bar for a hard-to-see hand, still high
-         * enough that noise is not promoted to a hand (the fork's crop rescue used .3 on a crop). */
-        const val SEARCH_CONFIDENCE = .38f
+        /** The graph used while a hand is tracked: tuned so the fast 1-slot ROI tracker stays locked. */
+        const val TRACK_CONFIDENCE = .42f
+        /** The graph used while NOTHING is tracked: lower bar for fast acquisition. */
+        const val SEARCH_CONFIDENCE = .34f
         /**
          * Find a second hand while keeping one-hand frames on the fast graph: at most one two-slot
          * frame in this many processed frames.

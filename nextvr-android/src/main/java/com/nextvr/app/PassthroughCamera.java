@@ -430,8 +430,8 @@ final class PassthroughCamera {
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int maxAnalysisW=128;
-                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
+                    int maxAnalysisW=224;
+                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()/2));
                     int height=Math.max(1,width*outH/outW);
                     int analysisLen=width*height;
                     if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
@@ -462,7 +462,7 @@ final class PassthroughCamera {
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if(!gameHandMode || mrGameMode) {
+            if((!gameHandMode || mrGameMode) && (sessionFrames & 1) == 0) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }

@@ -254,8 +254,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                com.nextvr.app.hands.PhoneXrHands.Frame webFrame=frame.predicted(android.os.SystemClock.elapsedRealtimeNanos());
-                String payload=inGame?webFrame.gameJson():webFrame.json();
+                String payload=inGame?frame.gameJson():frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }

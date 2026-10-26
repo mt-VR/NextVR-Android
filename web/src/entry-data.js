@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · HAND TRACKING PICO 4 (SÓ A MÃO · RAIO LASER) + PERSONAGEM 3D (BUILD 71)',
+    tag: 'NOVO · INTERAÇÃO 100% POR RAIO + PINÇA ESTABILIZADA + MEDIAPIPE TURBO (BUILD 72)',
     time: 'Agora',
-    heading: 'Personagem em 3D Volumétrico 360°, Hand Tracking Estilo PICO 4 (Só a Mão, Sem Braço) & Raio Laser',
-    desc: 'Personagem em 3D real com rotação 360° e volumes 3D iluminados, Hand Tracking 3D cinza fosco com contorno branco idêntico ao PICO 4 (só a mão, sem braço), opções de bolinha removidas e interação direta por Raio Laser estabilizado!',
+    heading: 'Pinça 100% por Raio (Sem Pinça Encima do App), Clique do Raio Corrigido & MediaPipe Mais Rápido',
+    desc: 'Interação exclusiva pelo Raio Laser com trava de mira pré-pinça e clique instantâneo, remoção da pinça encima do app e MediaPipe HandLandmarker otimizado para rastreamento mais rápido e fluido!',
   },
   {
     id: 'quest-browser-env-hand',

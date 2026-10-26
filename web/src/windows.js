@@ -1139,8 +1139,25 @@ function shellPointer(press, action, x, y, target) {
 function sendPress(press, action, x = press.x, y = press.y, target = null) {
   if (press.id === 'shell' && press.win?.onboarding) shellPointer(press, action, x, y, target);
   else {
+    const clickable = (press.id === 'shell' && action === 1 && target && !target.closest?.('[data-native-browser],[data-native-app],[data-native-xr]'))
+      ? (target.closest?.(DIRECT_PINCH_SEL) || activationTarget(target))
+      : null;
+    let clickedSync = false;
+    const onSyncClick = () => { clickedSync = true; };
+    clickable?.addEventListener?.('click', onSyncClick, { once: true });
     window.NativeXR.handTouch(press.id, action, x, y);
-    if (action === 1 && target) {
+    clickable?.removeEventListener?.('click', onSyncClick);
+    if (!clickedSync && clickable && typeof clickable.click === 'function') {
+      clickable.click();
+      if (clickable.matches?.('input,textarea')) clickable.focus();
+      const suppressDup = e => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      };
+      clickable.addEventListener?.('click', suppressDup, true);
+      setTimeout(() => clickable.removeEventListener?.('click', suppressDup, true), 220);
+      css3d.invalidate?.();
+    } else if (action === 1 && target) {
       const qbTile = target.closest?.('[data-qb-url],[data-qb-act]');
       if (qbTile) qbTile.click();
     }
@@ -1333,7 +1350,7 @@ function findDirectAppPoint(cx, cy) {
 }
 
 function resolveDirectPinchPoint(handArg = null) {
-  if (S.pinchOnApp === 0) return null;
+  if (S.pinchOnApp !== 'force-legacy') return null;
   const h = handArg || cursor.hand;
   const p = h?.points;
   if (!p || p.length < 26) return null;
@@ -1429,15 +1446,15 @@ on('pinchdown', () => {
   let kb = kbProbe(px, py);
   let dockGrab = dockGrabTest(px, py);
   let dk = dockTest(px, py);
-  const hasDirectHit = Boolean(
-    h?.resize ||
-    h?.handle ||
-    dockGrab ||
-    dk ||
-    (kb && kb.button) ||
-    (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
-  );
-  const alt = !hasDirectHit ? resolveDirectPinchPoint() : null;
+  if (!h && !kb && !dockGrab && !dk) {
+    for (const [ox, oy] of [[0, -0.014], [0, 0.014], [-0.014, 0], [0.014, 0]]) {
+      const dkTry = dockTest(px + ox, py + oy);
+      if (dkTry) { px += ox; py += oy; dk = dkTry; break; }
+      const hTry = hitAt(px + ox, py + oy);
+      if (hTry) { px += ox; py += oy; h = hTry; break; }
+    }
+  }
+  const alt = resolveDirectPinchPoint();
   if (alt) {
     pinchOverridePt = alt;
     px = alt.x;
@@ -1486,7 +1503,7 @@ on('pinchdown', () => {
       }, 2000);
     }
     // Content press: hold the DOWN until the click-vs-drag arbiter classifies the gesture.
-    pendingPress = { win: h.win, hit: h };
+    pendingPress = { win: h.win, hit: h, anchorX: px, anchorY: py };
     return;
   }
   dockPinch('down');
@@ -1549,7 +1566,8 @@ on('pinchup', () => {
   if (pendingPress) {
     // Click — or released before the decision window elapsed (a tap). DOWN and UP go out at the
     // SAME point so the page synthesizes a click, never a drag from between-sample movement.
-    const h = hitAt(px, py);
+    const moved = Math.hypot(px - (pendingPress.anchorX ?? px), py - (pendingPress.anchorY ?? py));
+    const h = moved > 0.055 ? hitAt(px, py) : null;
     const target = (h && !h.handle && !h.resize && h.win === pendingPress.win) ? h : pendingPress.hit;
     pendingPress = null;
     clickThrough(target, 'down');
@@ -1954,7 +1972,7 @@ function dockPinch(type) {
     let idx = (r && r.i === armed) ? r.i : -1;
     // Ao chegar perto da dock em bar, o movimento natural dos dedos ao soltar a pinça pode deslocar
     // ligeiramente o raio; se o utilizador soltou perto do ponto onde armou, confirma o clique no botão armado.
-    if (idx < 0 && armed >= 0 && Math.hypot(cursor.x - dockArmedPt.x, cursor.y - dockArmedPt.y) < 0.085) {
+    if (idx < 0 && armed >= 0 && Math.hypot(cursor.x - dockArmedPt.x, cursor.y - dockArmedPt.y) < 0.12) {
       idx = armed;
     }
     if (idx < 0) return;
@@ -3895,6 +3913,13 @@ on('phonehands', packet => {
         if(startDrag(hit.win,p.x,p.y,'fist',h.id))packet.consumed.add(h.id);
       }
     }
+  }
+  // No modo de rastreamento real da câmera (timestampNs > 0), desativa completamente o toque direto
+  // / pinça encima do app (nearContact e updateFingerPoke) para deixar 100% apenas a interação por Raio.
+  if (Number(packet?.timestampNs) > 0) {
+    endNear(true, packet);
+    setFingerHoverEl(null);
+    return;
   }
   // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
   // The near-touch zone has wide hysteresis and a short hold: a resting hand in front of an open

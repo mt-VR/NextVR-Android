@@ -9,7 +9,7 @@ import { HandClickState, ClickDragArbiter } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
-const pressArbiter = new ClickDragArbiter();
+const pressArbiter = new ClickDragArbiter({ decideMs: 180, dragOnPx: 28, dragOffPx: 12, sustainSamples: 3 });
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
@@ -65,19 +65,19 @@ function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
     if (!h || !h.id || !Array.isArray(h.aim) || h.aim.length < 2) continue;
     const pinchDist = Number.isFinite(h.pinch) ? h.pinch : 1;
     const st = _prePinchAimByHand.get(h.id);
-    if (!h.pinching && pinchDist > 0.22) {
+    if (!h.pinching && pinchDist > 0.48) {
       _prePinchAimByHand.set(h.id, {
-        aim0: st ? (st.aim0 * 0.35 + h.aim[0] * 0.65) : h.aim[0],
-        aim1: st ? (st.aim1 * 0.35 + h.aim[1] * 0.65) : h.aim[1],
+        aim0: st ? (st.aim0 * 0.30 + h.aim[0] * 0.70) : h.aim[0],
+        aim1: st ? (st.aim1 * 0.30 + h.aim[1] * 0.70) : h.aim[1],
         at: now,
         pinchStartAt: 0,
       });
-    } else if (st && (now - st.at <= 450)) {
+    } else if (st && (now - st.at <= 550)) {
       if (h.pinching && !st.pinchStartAt) st.pinchStartAt = now;
-      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 260 && cursor.mode !== 'drag');
+      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 350 && cursor.mode !== 'drag');
       const drift = Math.hypot(h.aim[0] - st.aim0, h.aim[1] - st.aim1);
       if (inEarlyPinch && drift < 0.16) {
-        const lockWeight = h.pinching ? 0.86 : 0.78;
+        const lockWeight = h.pinching ? 0.90 : 0.84;
         h.aim = [
           st.aim0 * lockWeight + h.aim[0] * (1 - lockWeight),
           st.aim1 * lockWeight + h.aim[1] * (1 - lockWeight),
@@ -94,9 +94,10 @@ function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
 
 export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
+  if (cursor.down && cursor.mode !== 'drag') return { x: cursor.x, y: cursor.y };
   const rawAge = nowMs - cursorAt;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return { x: cursor.x, y: cursor.y };
-  const t = (rawAge * 1.42) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 0.85) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return { x: Math.min(1, Math.max(0, cursor.x + clamp(cursorVel.x * t))),
     y: Math.min(1, Math.max(0, cursor.y + clamp(cursorVel.y * t))) };
 }
@@ -105,11 +106,12 @@ export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
   if (!hand || !hand.aim) return { x: .5, y: .5 };
   if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
   const base = screenPoint(hand.aim);
+  if (hand.pinching || (Number.isFinite(hand.pinch) && hand.pinch < 0.48)) return base;
   const st = _perHandCursorState.get(hand.id);
   if (!st) return base;
   const rawAge = nowMs - st.at;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return base;
-  const t = (rawAge * 1.42) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 0.85) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return {
     x: Math.min(1, Math.max(0, base.x + clamp(st.vx * t))),
     y: Math.min(1, Math.max(0, base.y + clamp(st.vy * t))),
@@ -189,7 +191,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   updatePerHandVelocities(hands, now, Number(frame.timestampNs) || 0);
   emit('handframe',{...frame,hands});
   const consumed=new Set();
-  const packet={ hands, consumed, scaleX, scaleY };
+  const packet={ hands, consumed, scaleX, scaleY, timestampNs: Number(frame.timestampNs) || 0 };
   updateHandBoxesFromPacket(packet);
   if (window.__gorillaStereoOverlay) {
     window.__gorillaOnHands?.(now);
