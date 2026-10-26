@@ -1369,6 +1369,7 @@ function quickSettingsApp() {
       <button class="qs-tool" data-q-motion-tracker>${icon('device')}<span>PICO Motion Tracker</span></button>
       <button class="qs-tool" data-q-notifications>${icon('sun')}<span>Notificações · 27°C</span></button>
       <button class="qs-tool" data-q-pico-explore>${icon('compass')}<span>PICO Explore 8K</span></button>
+      <button class="qs-tool" data-q-main-menu>${icon('device')}<span>Menu Principal PICO 4 Pro</span></button>
     </div>
   </section>
   <aside class="qs-side" aria-label="Controles rápidos">
@@ -1437,6 +1438,7 @@ function quickSettingsApp() {
     if(c('[data-q-motion-tracker]')){openPicoMotionTracker();return;}
     if(c('[data-q-notifications]')){openPhoneNotifications();return;}
     if(c('[data-q-pico-explore]')){openPicoExplore();return;}
+    if(c('[data-q-main-menu]')){entryMenuWindow();return;}
     if(c('[data-q-mute]')){
       prefs.muted=!prefs.muted;
       if(prefs.muted){if(volume>0)prefs.lastVolume=volume;setRange('volume',0);}

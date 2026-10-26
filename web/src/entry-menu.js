@@ -60,6 +60,73 @@ const SVG_TIKTOK_VERIFIED = `
   <path d="M7.6 12.4l3 3 5.8-6.2" fill="none" stroke="#ffffff" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
+const SVG_PICO4_PRO_MEDALLION = `
+<svg viewBox="0 0 260 260" class="entry-pico4pro-svg" aria-label="PICO 4 Pro">
+  <defs>
+    <linearGradient id="p4pVisor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="35%" stop-color="#d4d4d8"/>
+      <stop offset="70%" stop-color="#52525b"/>
+      <stop offset="100%" stop-color="#18181b"/>
+    </linearGradient>
+    <linearGradient id="p4pFrontGlass" x1="0" y1="0" x2="1" y2="0.8">
+      <stop offset="0%" stop-color="#3f3f46"/>
+      <stop offset="45%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="p4pStrap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4f4f5"/>
+      <stop offset="100%" stop-color="#a1a1aa"/>
+    </linearGradient>
+  </defs>
+  <!-- Estrela concêntrica de fundo dentro do medalhão -->
+  <polygon points="130,18 156,84 228,88 171,132 190,202 130,162 70,202 89,132 32,88 104,84" fill="#18181b" stroke="#52525b" stroke-width="3"/>
+  <!-- Alça superior e traseira do PICO 4 Pro -->
+  <path d="M58 102 C58 52, 202 52, 202 102" fill="none" stroke="url(#p4pStrap)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M130 48 L130 74" fill="none" stroke="#e4e4e7" stroke-width="10" stroke-linecap="round"/>
+  <!-- Hastes laterais brancas/cinzas do PICO 4 Pro -->
+  <rect x="30" y="92" width="28" height="22" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
+  <rect x="202" y="92" width="28" height="22" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
+  <!-- Carcaça principal do visor PICO 4 Pro -->
+  <rect x="44" y="68" width="172" height="74" rx="34" fill="url(#p4pVisor)" stroke="#09090b" stroke-width="4.5"/>
+  <!-- Lente frontal espelhada escura PICO 4 Pro -->
+  <rect x="54" y="76" width="152" height="58" rx="27" fill="url(#p4pFrontGlass)" stroke="#e4e4e7" stroke-width="2.2"/>
+  <!-- Reflexo diagonal prateado no visor -->
+  <path d="M76 80 L118 80 L94 130 L62 130 Z" fill="rgba(255,255,255,0.16)"/>
+  <path d="M130 80 L146 80 L122 130 L106 130 Z" fill="rgba(255,255,255,0.09)"/>
+  <!-- 4 câmeras de rastreamento óptico nos cantos do visor -->
+  <circle cx="68" cy="89" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
+  <circle cx="192" cy="89" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
+  <circle cx="68" cy="121" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
+  <circle cx="192" cy="121" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
+  <!-- LED central e logo PICO 4 PRO -->
+  <rect x="108" y="99" width="44" height="5" rx="2.5" fill="#ffffff"/>
+  <text x="130" y="118" text-anchor="middle" fill="#e4e4e7" font-family="Inter,sans-serif" font-weight="900" font-size="10" letter-spacing="1.8">PICO 4 PRO</text>
+  <!-- Controle Esquerdo PICO 4 Pro -->
+  <g transform="translate(46, 152) rotate(-14)">
+    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#e4e4e7" stroke-width="6"/>
+    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#09090b" stroke-width="1.8"/>
+    <rect x="22" y="16" width="18" height="44" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
+    <circle cx="31" cy="24" r="5" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/>
+  </g>
+  <!-- Controle Direito PICO 4 Pro -->
+  <g transform="translate(148, 138) rotate(14)">
+    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#e4e4e7" stroke-width="6"/>
+    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#09090b" stroke-width="1.8"/>
+    <rect x="22" y="16" width="18" height="44" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
+    <circle cx="31" cy="24" r="5" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/>
+  </g>
+</svg>`;
+
+const SVG_PICO4_PRO_MINI = `
+<svg viewBox="0 0 64 64" class="entry-pico4pro-mini-svg" aria-hidden="true">
+  <circle cx="32" cy="32" r="29" fill="#18181b" stroke="#ffffff" stroke-width="3"/>
+  <path d="M16 28 C16 14, 48 14, 48 28" fill="none" stroke="#d4d4d8" stroke-width="4" stroke-linecap="round"/>
+  <rect x="11" y="23" width="42" height="20" rx="10" fill="#e4e4e7" stroke="#09090b" stroke-width="2.5"/>
+  <rect x="15" y="26" width="34" height="14" rx="7" fill="#09090b" stroke="#a1a1aa" stroke-width="1.2"/>
+  <rect x="25" y="32" width="14" height="2.4" rx="1.2" fill="#ffffff"/>
+</svg>`;
+
 const MENU_STORE_APPS = [
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'MR · G18 & Alvos 3D · 4.9 ★', bg: '#080a0f', img: './icons/shootthedie-logo.jpg' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'Desenhar com Hand Tracking · 4.9 ★', bg: '#09090b', img: './icons/paintdrawer-logo.jpg' },
@@ -328,40 +395,102 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </nav>`;
   };
 
-  const renderBrandStage = () => {
+  const renderBrandStage = (batInfo) => {
+    const bText = batInfo ? batInfo.text : currentBattery().text;
     return `
-      <div class="entry-brand-stage" data-entry-panel="brand">
+      <div class="entry-brand-stage entry-p5-stage" data-entry-panel="brand">
         <div class="entry-brand-grid-bg" aria-hidden="true"></div>
-        <div class="entry-updates-feed" data-entry-updates role="region" aria-label="Atualizações NextVR">
-          <div class="entry-updates-head">
-            <span class="entry-updates-dot" aria-hidden="true"></span>
-            <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.0.0</span>
+
+        <!-- Estrelas concêntricas estilo quadrinhos (Preto, Cinza e Branco) -->
+        <svg class="entry-p5-stars-bg" viewBox="0 0 600 400" preserveAspectRatio="none" aria-hidden="true">
+          <g transform="translate(385, 62) rotate(-12) scale(0.85)">
+            <polygon points="0,-42 12,-12 44,-10 18,10 26,40 0,22 -26,40 -18,10 -44,-10 -12,-12" fill="#ffffff"/>
+            <polygon points="0,-31 9,-9 32,-8 13,7 19,30 0,16 -19,30 -13,7 -32,-8 -9,-9" fill="#52525b"/>
+            <polygon points="0,-20 6,-6 21,-5 8,5 12,19 0,10 -12,19 -8,5 -21,-5 -6,-6" fill="#09090b"/>
+          </g>
+          <g transform="translate(310, 290) rotate(14) scale(0.95)">
+            <polygon points="0,-44 13,-13 46,-11 19,11 27,42 0,23 -27,42 -19,11 -46,-11 -13,-13" fill="#d4d4d8"/>
+            <polygon points="0,-32 9,-9 33,-8 14,8 20,31 0,17 -20,31 -14,8 -33,-8 -9,-9" fill="#27272a"/>
+            <polygon points="0,-19 6,-6 20,-5 8,5 12,18 0,10 -12,18 -8,5 -20,-5 -6,-6" fill="#ffffff"/>
+          </g>
+          <g transform="translate(390, 250) rotate(-8) scale(0.58)">
+            <polygon points="0,-40 12,-12 42,-10 17,10 25,38 0,21 -25,38 -17,10 -42,-10 -12,-12" fill="#ffffff"/>
+            <polygon points="0,-26 8,-8 27,-6 11,6 16,25 0,14 -16,25 -11,6 -27,-6 -8,-8" fill="#18181b"/>
+          </g>
+        </svg>
+
+        <!-- Balão Angular Superior Direito (em Português + Mini PICO 4 Pro no lugar do mascote) -->
+        <div class="entry-p5-top-callout" data-pico4pro-callout="1">
+          <div class="entry-p5-callout-text">
+            <strong>SISTEMA PICO 4 PRO · ATMOXR</strong>
+            <span>Use o Hand Tracking otimizado, crie seu Personagem 3D e abra janelas flutuantes PICO 4 Pro!</span>
           </div>
-          <div class="entry-updates-list">
-            ${ENTRY_UPDATES.map(u => `
-            <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
-              <div class="entry-notif-top">
-                <span class="entry-notif-tag">${escHtml(u.tag)}</span>
-                <span class="entry-notif-time">${escHtml(u.time)}</span>
-              </div>
-              <strong class="entry-notif-heading">${escHtml(u.heading)}</strong>
-              <p class="entry-notif-desc">${escHtml(u.desc)}</p>
-            </article>`).join('')}
+          <div class="entry-p5-callout-mascot" data-entry-act="profile" title="Criar Personagem 3D / Perfil">
+            ${SVG_PICO4_PRO_MINI}
           </div>
         </div>
-        <div class="entry-brand-store-dock">
-          <div class="entry-brand-store-info" data-entry-act="store" role="button" tabindex="0">
-            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-brand-store-thumb" draggable="false" />
-            <div class="entry-brand-store-meta">
-              <span class="entry-brand-store-tag">STORE · EM DESTAQUE</span>
-              <strong class="entry-brand-store-name">Gorilla Tag VR</strong>
+
+        <!-- Feixe Gigante em Perspectiva 3D (estilo "SKILL" da foto, em Branco/Cinza/Preto e em Português) -->
+        <div class="entry-p5-wedge-wrap" data-entry-act="start" role="button" tabindex="0" title="Clique para Iniciar o ATMOXR">
+          <svg class="entry-p5-wedge-svg" viewBox="0 0 540 240" preserveAspectRatio="none" aria-hidden="true">
+            <polygon points="6,10 475,112 6,226" fill="#09090b" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+            <polygon points="14,22 458,112 14,212" fill="#f4f4f5"/>
+            <polygon points="14,22 458,112 440,122 14,56" fill="#d4d4d8" opacity="0.65"/>
+            <!-- Faixa preta inclinada na base da cunha -->
+            <polygon points="14,166 290,144 282,192 14,212" fill="#09090b"/>
+          </svg>
+          <div class="entry-p5-wedge-text">ATMOXR</div>
+          <div class="entry-p5-wedge-sub">INICIAR REALIDADE MISTA</div>
+          <span class="entry-p5-wedge-star" aria-hidden="true">★</span>
+        </div>
+
+        <!-- Medalhão Circular Direito com o PICO 4 Pro (no lugar do boneco da foto) -->
+        <div class="entry-p5-medallion" data-pico4pro-emblem="1" data-entry-act="store" role="button" tabindex="0" title="PICO 4 Pro · Abrir Store ATMOXR">
+          <div class="entry-p5-medallion-inner">
+            ${SVG_PICO4_PRO_MEDALLION}
+          </div>
+          <span class="entry-p5-medallion-tag">PICO 4 PRO · VR</span>
+        </div>
+
+        <!-- Barra Inferior de Atualizações + Store & Contador Angular (estilo ¥ 10,960 da foto) -->
+        <div class="entry-p5-bottom-bar">
+          <div class="entry-p5-currency-readout" title="Bateria e Relógio em Tempo Real">
+            <span class="entry-p5-currency-sym">⚡</span>
+            <span class="entry-p5-currency-val">${bText}</span>
+          </div>
+
+          <div class="entry-updates-feed entry-updates-feed--p5" data-entry-updates role="region" aria-label="Atualizações NextVR">
+            <div class="entry-updates-head">
+              <span class="entry-updates-dot" aria-hidden="true"></span>
+              <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
+              <span class="entry-updates-badge">v2.0.0</span>
+            </div>
+            <div class="entry-updates-list">
+              ${ENTRY_UPDATES.map(u => `
+              <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
+                <div class="entry-notif-top">
+                  <span class="entry-notif-tag">${escHtml(u.tag)}</span>
+                  <span class="entry-notif-time">${escHtml(u.time)}</span>
+                </div>
+                <strong class="entry-notif-heading">${escHtml(u.heading)}</strong>
+                <p class="entry-notif-desc">${escHtml(u.desc)}</p>
+              </article>`).join('')}
             </div>
           </div>
-          <div class="entry-brand-store-actions">
-            <button type="button" class="entry-btn entry-btn--primary entry-brand-store-open" data-entry-act="store">
-              ${SVG_STORE_BAG}<span>${emT('store')}</span>
-            </button>
+
+          <div class="entry-brand-store-dock entry-brand-store-dock--p5">
+            <div class="entry-brand-store-info" data-entry-act="store" role="button" tabindex="0">
+              <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-brand-store-thumb" draggable="false" />
+              <div class="entry-brand-store-meta">
+                <span class="entry-brand-store-tag">STORE · DESTAQUE</span>
+                <strong class="entry-brand-store-name">Gorilla Tag VR</strong>
+              </div>
+            </div>
+            <div class="entry-brand-store-actions">
+              <button type="button" class="entry-btn entry-btn--primary entry-brand-store-open" data-entry-act="store">
+                ${SVG_STORE_BAG}<span>${emT('store')}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -781,7 +910,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       activeView === 'about' ? renderAboutPanel() :
       activeView === 'profile' ? renderProfilePanel() :
       activeView === 'store' ? renderStorePanel() :
-      renderBrandStage();
+      renderBrandStage(batInfo);
 
     const displayName = S.profileName ? escHtml(S.profileName) : 'ATMOXR (Login)';
     const profileAvatarHtml = S.profileAvatar
@@ -797,6 +926,13 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         <div class="entry-top-bars" aria-hidden="true"></div>
         <h1 class="entry-main-title">ATMOXR</h1>
         <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
+        <div class="entry-p5-sys-banner" data-p5-sys-banner="1">
+          <span class="entry-p5-sys-tag">SISTEMA</span>
+          <div class="entry-p5-sys-box">
+            <span>"MENU PRINCIPAL" &amp; "PICO 4 PRO"</span>
+            <i class="entry-p5-sys-bang" aria-hidden="true">!</i>
+          </div>
+        </div>
         <div class="entry-top-right-cluster">
           <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store ATMOXR">
             ${SVG_STORE_BAG}
@@ -816,6 +952,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
       <div class="entry-layout">
         <aside class="entry-left-column">
+          <div class="entry-p5-jagged-backing" aria-hidden="true"></div>
           ${renderSlantedButtons()}
 
           <div class="entry-profile-box" data-entry-act="profile" role="button" tabindex="0" title="Clique para editar Nome e Foto de Perfil">

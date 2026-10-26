@@ -251,14 +251,20 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('PICO_BROWSER_SHORTCUTS') &&
     appsSrc.includes('PICO_STORE_SEARCH_CARDS') &&
     entryMenuSrc.includes('data-character-creator="1"') &&
+    entryMenuSrc.includes('data-pico4pro-emblem="1"') &&
+    entryMenuSrc.includes('data-pico4pro-callout="1"') &&
+    entryMenuSrc.includes('data-p5-sys-banner="1"') &&
+    entryMenuSrc.includes('entry-p5-wedge-wrap') &&
+    entryMenuSrc.includes('entry-p5-jagged-backing') &&
+    entryMenuSrc.includes('PICO 4 PRO') &&
     !entryMenuSrc.includes('data-entry-spatial') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 69') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 70') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 69 (ATMOXR) includes in-game 3D Character Creator, PICO 4 Pro floating windows, optimized hand tracking, Spatial Apps removed from UI, and ATMOXR.apk output'
+    'Build 70 (ATMOXR) includes angular Black/Gray/White PICO 4 Pro main & initial menu in Portuguese, in-game 3D Character Creator, PICO 4 Pro floating windows, optimized hand tracking, Spatial Apps removed from UI, and ATMOXR.apk output'
   );
 });
 

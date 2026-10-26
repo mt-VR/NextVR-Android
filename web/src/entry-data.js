@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · CRIADOR DE PERSONAGEM 3D, JANELAS PICO 4 PRO & HAND ULTRA (BUILD 69)',
+    tag: 'NOVO · MENU PICO 4 PRO PRETO, CINZA & BRANCO + PERSONAGEM 3D (BUILD 70)',
     time: 'Agora',
-    heading: 'Criar Personagem do Jogo, Janelinhas Flutuantes PICO 4 Pro, Hand Tracking Otimizado & APK ATMOXR',
-    desc: 'Crie seu próprio personagem 3D (pele, cabelo, visor ATMO XR / PICO 4 Pro, traje, calça e acessórios) sincronizado com seu Perfil, Dock e PICO Motion Tracker! Janelinhas flutuantes igual do PICO 4 Pro, Hand Tracking ainda mais otimizado, Spatial Apps removido e APK nomeado ATMOXR.apk!',
+    heading: 'Novo Menu Principal e Inicial PICO 4 Pro (Preto, Cinza e Branco), Criar Personagem do Jogo & APK ATMOXR',
+    desc: 'Novo Menu Principal e Menu Inicial angular em Preto, Cinza e Branco em Português com medalhão PICO 4 Pro! Crie seu próprio personagem 3D sincronizado com Perfil, Dock e PICO Motion Tracker, janelinhas flutuantes PICO 4 Pro, Hand Tracking otimizado e APK ATMOXR.apk!',
   },
   {
     id: 'quest-browser-env-hand',
