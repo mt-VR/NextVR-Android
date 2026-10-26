@@ -46,10 +46,10 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · CÂMERA P&B, PAINEL PICO 4 ULTRA VR, 6DOF RÁPIDO & PINTURA 3D EM MR (BUILD 79)',
+    tag: 'NOVO · PINTURA 3D MR INDEPENDENTE, CÂMERA P&B, PAINEL PICO 4 ULTRA & 6DOF RÁPIDO (BUILD 80)',
     time: 'Agora',
-    heading: 'Câmera P&B Ativa, Painel de Gestão VR PICO 4 Ultra, 6DoF Rápido & Pintura 3D em MR',
-    desc: 'Câmera passthrough preta e branca ativada por padrão, novo menuzinho de Configurações e Gestão de VR igual ao PICO 4 Ultra, 6DoF muito mais rápido e responsivo, e jogo de Pintura 3D em MR (mão esquerda abre/fecha a paleta flutuante de 10 cores + borracha + grossura, mão direita desenha/apaga com pinça)!',
+    heading: 'Pintura 3D MR Independente (Igual ShootTheDie), Câmera P&B, Gestão VR PICO 4 Ultra & 6DoF Rápido',
+    desc: 'Jogo paintMR de Pintura 3D em Realidade Mista 100% independente igual ao ShootTheDie (sem ser em janelinha flutuante: mão esquerda com botão Paleta para abrir/fechar a paleta de 10 cores + borracha + grossura, mão direita seleciona com o raio e desenha/apaga com pinça), câmera P&B padrão, painel PICO 4 Ultra e 6DoF rápido!',
   },
   {
     id: 'quest-browser-env-hand',

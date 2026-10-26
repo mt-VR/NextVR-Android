@@ -1886,18 +1886,59 @@ const HAND_DRAW_SIZES = [
   [26, 'Pincel XG', 'Super (26px)'],
 ];
 
+let mrPaintActive = false;
+let mrPaintOverlayEl = null;
+let savedMrPaintWins = [];
+let mrPaintAnimId = 0;
+
+export function closeHandDrawGame() {
+  if (!mrPaintActive && !mrPaintOverlayEl) return;
+  mrPaintActive = false;
+  S.mrPaintGame = false;
+  if (mrPaintAnimId) {
+    cancelAnimationFrame(mrPaintAnimId);
+    mrPaintAnimId = 0;
+  }
+  if (mrPaintOverlayEl) {
+    mrPaintOverlayEl.remove();
+    mrPaintOverlayEl = null;
+  }
+  for (const w of savedMrPaintWins) {
+    if (w && wins.includes(w)) w.setHidden(false);
+  }
+  savedMrPaintWins = [];
+  if (!S.spatialLauncher) {
+    setDockHidden(false);
+    setDockVisible(true);
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+}
+
 export function openHandDrawGame() {
-  const existing = wins.find(w => w.id === 'hand-draw');
-  if (existing) {
+  if (mrPaintActive && mrPaintOverlayEl) {
     setPassthrough(true);
-    existing.setHidden(false);
-    focus(existing);
     css3d.invalidate?.();
-    return existing;
+    return mrPaintOverlayEl;
   }
 
-  // Ativa Passthrough MR automaticamente para desenhar no ar em Realidade Mista
+  // Jogo MR independente (igual ao ShootTheDie, SEM ser em janelinha flutuante):
+  // esconde todas as janelas flutuantes e a Dock, ativa Passthrough MR e Hand Tracking.
+  mrPaintActive = true;
+  S.mrPaintGame = true;
   setPassthrough(true);
+  window.NativeXR?.handVisuals?.(true);
+  window.NativeXR?.setFingerTouch?.(false);
+
+  savedMrPaintWins = [];
+  for (const w of wins) {
+    if (!w.hidden) {
+      w.setHidden(true);
+      savedMrPaintWins.push(w);
+    }
+  }
+  setDockHidden(true);
+  setDockVisible(false);
 
   let currentColor = '#22c55e';
   let currentColorName = 'Verde';
@@ -1909,19 +1950,35 @@ export function openHandDrawGame() {
   const undoStack = [];
 
   const body = el('div', 'hand-draw-game mr-paint-3d');
+  body.id = 'mr-paint-overlay';
+  body.dataset.mrPaintOverlay = '1';
   body.dataset.handDrawGame = '1';
   body.dataset.mrPaint3d = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:transparent;display:flex;flex-direction:column;overflow:hidden;user-select:none;font-family:Inter,system-ui,sans-serif;';
+  body.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'top:0',
+    native ? 'width:1200px' : 'width:100vw',
+    native ? 'height:800px' : 'height:100vh',
+    'z-index:190',
+    'background:transparent',
+    'display:flex',
+    'flex-direction:column',
+    'overflow:hidden',
+    'pointer-events:auto',
+    'user-select:none',
+    'font-family:Inter,system-ui,sans-serif',
+  ].join(';');
 
   body.innerHTML = `
     <div class="hd-stage" style="position:relative;flex:1;min-height:0;width:100%;height:100%;background:transparent;overflow:hidden;touch-action:none">
-      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1020" height="600"
+      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1200" height="800"
         style="width:100%;height:100%;display:block;background:transparent;cursor:crosshair"></canvas>
-      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1020" height="600"
+      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1200" height="800"
         style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
 
-      <!-- Badge Superior Esquerdo estilo YorkMR Pintura 3D -->
-      <div data-hd-hud-badge style="position:absolute;left:18px;top:14px;display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:16px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);z-index:5">
+      <!-- Badge Superior Esquerdo estilo YorkMR Pintura 3D (em MR livre, sem janela flutuante) -->
+      <div data-hd-hud-badge style="position:absolute;left:22px;top:16px;display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:16px;background:rgba(15,23,42,.66);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(8px);z-index:5">
         <img src="./icons/paintdrawer-logo.jpg" alt="paintdrawer" style="width:34px;height:34px;border-radius:9px;object-fit:cover;border:1.5px solid rgba(56,189,248,.65)">
         <div>
           <div style="display:flex;align-items:center;gap:6px">
@@ -1931,20 +1988,20 @@ export function openHandDrawGame() {
           <div style="font-size:11.5px;font-weight:800;color:#f472b6;line-height:1.15">Pintura 3D</div>
           <div data-hd-active-summary style="font-size:10.5px;font-weight:700;color:#e2e8f0;margin-top:1px">Pincel M · Verde (Pinça Direita)</div>
         </div>
-        <button type="button" data-hd-exit style="margin-left:8px;padding:6px 12px;border-radius:10px;border:1px solid rgba(248,113,113,.5);background:rgba(185,28,28,.45);color:#fecaca;font-size:11px;font-weight:800;cursor:pointer">✕ Sair</button>
+        <button type="button" data-hd-exit style="margin-left:8px;padding:6px 12px;border-radius:10px;border:1px solid rgba(248,113,113,.55);background:rgba(220,38,38,.78);color:#ffffff;font-size:11px;font-weight:800;cursor:pointer">✕ Sair</button>
       </div>
 
       <!-- Botãozinho Flutuante de "Paleta" na Mão ESQUERDA (escolhido com o raio da mão direita para abrir/fechar a paleta) -->
       <button type="button" data-mr-left-palette-btn="1" aria-expanded="false"
         title="Mão Esquerda: Aponte o raio da mão direita aqui para abrir ou fechar a Paleta"
-        style="position:absolute;left:18%;top:62%;transform:translate(-50%,-50%);z-index:6;display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;border:2px solid rgba(255,255,255,.88);background:rgba(15,23,42,.86);color:#ffffff;font-size:12px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.55),0 0 16px rgba(56,189,248,.4);cursor:pointer;transition:left .06s linear,top .06s linear,transform .12s ease;">
+        style="position:absolute;left:22%;top:62%;transform:translate(-50%,-50%);z-index:6;display:flex;align-items:center;gap:9px;padding:10px 16px;border-radius:999px;border:2px solid rgba(255,255,255,.92);background:rgba(15,23,42,.88);color:#ffffff;font-size:12.5px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.55),0 0 16px rgba(56,189,248,.45);cursor:pointer;transition:left .05s linear,top .05s linear,transform .12s ease;">
         <span data-mr-left-swatch style="width:18px;height:18px;border-radius:50%;background:#22c55e;border:2px solid #ffffff;display:inline-block;box-shadow:0 0 8px #22c55e"></span>
         <span data-mr-left-label>🎨 Paleta (Mão Esq.)</span>
       </button>
 
-      <!-- Janelinha Flutuante da Paleta (abre/fecha ao escolher o botão Paleta da mão esquerda com o raio da mão direita) -->
+      <!-- Janelinha Flutuante da Paleta (só aparece quando escolhida pelo botão da mão esquerda com o raio da mão direita) -->
       <div data-mr-palette-win="1" hidden
-        style="position:absolute;left:34%;top:52%;transform:translate(-50%,-50%);width:430px;padding:16px 18px;border-radius:22px;background:rgba(20,23,31,.94);border:1.5px solid rgba(255,255,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.72);color:#f8fafc;z-index:7;backdrop-filter:blur(12px);">
+        style="position:absolute;left:36%;top:50%;transform:translate(-50%,-50%);width:436px;padding:16px 18px;border-radius:22px;background:rgba(20,23,31,.94);border:1.5px solid rgba(255,255,255,.20);box-shadow:0 24px 60px rgba(0,0,0,.75);color:#f8fafc;z-index:7;backdrop-filter:blur(12px);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div>
             <div style="font-size:13.5px;font-weight:900;color:#ffffff">🎨 Paleta Flutuante MR</div>
@@ -1965,7 +2022,7 @@ export function openHandDrawGame() {
           `).join('')}
         </div>
 
-        <!-- Ferramentas: Caneta/Tinta 3D, Tinta Neon, Borracha, Desfazer e Limpar -->
+        <!-- Ferramentas: Caneta/Tinta 3D, Tinta Neon, Borracha -->
         <div style="font-size:10.5px;font-weight:800;color:#cbd5e1;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Ferramenta &amp; Borracha</div>
         <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px">
           <button type="button" data-hd-tool="pen" class="on" style="padding:8px 10px;border-radius:10px;border:1.5px solid #38bdf8;background:#2563eb;color:#fff;font-size:11px;font-weight:800;cursor:pointer">✏️ Caneta 3D</button>
@@ -1993,11 +2050,15 @@ export function openHandDrawGame() {
         </div>
       </div>
 
-      <div data-hd-status style="position:absolute;left:18px;bottom:12px;padding:5px 12px;border-radius:999px;background:rgba(15,23,42,.68);border:1px solid rgba(255,255,255,.14);color:#f8fafc;font-size:10.5px;font-weight:700;pointer-events:none">
+      <div data-hd-status style="position:absolute;left:22px;bottom:16px;padding:6px 14px;border-radius:999px;background:rgba(15,23,42,.68);border:1px solid rgba(255,255,255,.16);color:#f8fafc;font-size:11px;font-weight:700;pointer-events:none">
         Mão Direita (Pinça): Desenhar / Apagar em MR · Mão Esquerda: Botão Paleta (aponte o raio direito) · Traços: <b data-hd-strokes>0</b>
       </div>
     </div>
   `;
+
+  const hudHost = document.getElementById('hud') || document.body;
+  hudHost.appendChild(body);
+  mrPaintOverlayEl = body;
 
   const canvas = body.querySelector('[data-hand-draw-canvas]');
   const overlay = body.querySelector('[data-hand-draw-overlay]');
@@ -2147,19 +2208,39 @@ export function openHandDrawGame() {
   canvas.addEventListener('pointerup', finishPointerDraw);
   canvas.addEventListener('pointercancel', finishPointerDraw);
 
-  // Rastreamento MR:
-  // - Mão ESQUERDA (h.left === true): carrega o botãozinho "Paleta" (NUNCA desenha nem apaga).
-  // - Mão DIREITA (!h.left): desenha e apaga fazendo PINÇA (h.pinching), e escolhe o botão Paleta / cores / borracha com o raio!
+  const findHitUiControl = (clientX, clientY) => {
+    const candidates = [
+      leftPaletteBtn,
+      body.querySelector('[data-hd-exit]'),
+      ...(paletteOpen && paletteWinEl ? paletteWinEl.querySelectorAll('button,input[type="range"]') : []),
+    ];
+    for (const ctrl of candidates) {
+      if (!ctrl || ctrl.hidden) continue;
+      const r = ctrl.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 &&
+          clientX >= r.left - 8 && clientX <= r.right + 8 &&
+          clientY >= r.top - 8 && clientY <= r.bottom + 8) {
+        return ctrl;
+      }
+    }
+    return null;
+  };
+
+  // Rastreamento MR Independente (sem janela flutuante para o jogo):
+  // - Mão ESQUERDA (h.left === true): carrega apenas o botãozinho "Paleta" (NUNCA desenha nem apaga).
+  // - Mão DIREITA (!h.left): escolhe o botão Paleta da mão esquerda e as opções da paleta com o RAIO, e desenha/apaga fazendo PINÇA!
   let rightHandLast = null;
-  let animId = 0;
+  let wasRightPinching = false;
+  let rightPinchConsumedByUi = false;
 
   const tickHandDraw = () => {
+    if (!mrPaintActive) return;
     octx.clearRect(0, 0, overlay.width, overlay.height);
     let dirty = false;
 
     const lHand = hands.find(h => h.left === true || h.id === 'left');
     if (lHand && leftPaletteBtn) {
-      let lnx = 0.20, lny = 0.62;
+      let lnx = 0.22, lny = 0.62;
       if (Array.isArray(lHand.palm) && lHand.palm.length >= 2) {
         lnx = lHand.palm[0];
         lny = lHand.palm[1];
@@ -2176,32 +2257,107 @@ export function openHandDrawGame() {
 
     const rHand = hands.find(h => !h.left && h.id !== 'left');
     if (rHand) {
-      let nx = 0.5, ny = 0.5;
+      let pinchNx = 0.5, pinchNy = 0.5;
+      let rayNx = 0.5, rayNy = 0.5;
+      let originNx = 0.55, originNy = 0.72;
+
       if (rHand.points && rHand.points.length >= 26) {
-        if (rHand.pinching && rHand.points.length >= 14) {
-          nx = (rHand.points[12] + rHand.points[24]) * 0.5;
-          ny = (rHand.points[13] + rHand.points[25]) * 0.5;
+        originNx = (rHand.points[0] + rHand.points[27]) * 0.5;
+        originNy = (rHand.points[1] + rHand.points[28]) * 0.5;
+        if (rHand.points.length >= 14) {
+          pinchNx = (rHand.points[12] + rHand.points[24]) * 0.5;
+          pinchNy = (rHand.points[13] + rHand.points[25]) * 0.5;
         } else {
-          nx = rHand.points[24];
-          ny = rHand.points[25];
+          pinchNx = rHand.points[24];
+          pinchNy = rHand.points[25];
         }
-      } else if (Array.isArray(rHand.aim)) {
-        const sp = screenPoint(rHand.aim);
-        nx = sp.x;
-        ny = sp.y;
+        rayNx = rHand.points[24];
+        rayNy = rHand.points[25];
       }
-      const cx = Math.max(0, Math.min(canvas.width, nx * canvas.width));
-      const cy = Math.max(0, Math.min(canvas.height, ny * canvas.height));
+      if (Array.isArray(rHand.aim)) {
+        const sp = screenPoint(rHand.aim);
+        rayNx = sp.x;
+        rayNy = sp.y;
+        if (!rHand.points || rHand.points.length < 26) {
+          pinchNx = sp.x;
+          pinchNy = sp.y;
+        }
+      }
 
       const stageRect = canvas.getBoundingClientRect();
-      const clientX = stageRect.left + nx * (stageRect.width || canvas.width);
-      const clientY = stageRect.top + ny * (stageRect.height || canvas.height);
-      const overUi = isClientPointOverUi(clientX, clientY);
+      const sw = stageRect.width || canvas.width;
+      const sh = stageRect.height || canvas.height;
+      const rayClientX = stageRect.left + rayNx * sw;
+      const rayClientY = stageRect.top + rayNy * sh;
+      const pinchClientX = stageRect.left + pinchNx * sw;
+      const pinchClientY = stageRect.top + pinchNy * sh;
 
-      // Só a MÃO DIREITA fazendo PINÇA desenha ou apaga (e apenas quando não está clicando na Paleta)
-      const drawingNow = Boolean(rHand.pinching && !rHand.fist && !overUi);
+      const hitCtrl = findHitUiControl(rayClientX, rayClientY) || findHitUiControl(pinchClientX, pinchClientY);
+      const overUi = Boolean(hitCtrl) || isClientPointOverUi(rayClientX, rayClientY) || isClientPointOverUi(pinchClientX, pinchClientY);
 
-      // Indicador circular da cor/borracha na mão direita (igual à bolinha verde dentro da mão no YorkMR)
+      const isPinching = Boolean(rHand.pinching && !rHand.fist);
+      const justPinched = isPinching && !wasRightPinching;
+      if (!isPinching) {
+        rightPinchConsumedByUi = false;
+      }
+
+      // Escolhe o botão Paleta da mão esquerda ou opções da janelinha flutuante com o RAIO da mão direita
+      if (justPinched && overUi) {
+        rightPinchConsumedByUi = true;
+        if (hitCtrl) {
+          if (hitCtrl.matches?.('input[type="range"]')) {
+            const r = hitCtrl.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, ((rayClientX - r.left) / Math.max(1, r.width))));
+            const val = Math.round(2 + ratio * 34);
+            syncSizeButtons(val);
+          } else {
+            hitCtrl.click();
+          }
+          dirty = true;
+        }
+      } else if (isPinching && rightPinchConsumedByUi && hitCtrl?.matches?.('input[type="range"]')) {
+        const r = hitCtrl.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, ((rayClientX - r.left) / Math.max(1, r.width))));
+        const val = Math.round(2 + ratio * 34);
+        syncSizeButtons(val);
+        dirty = true;
+      }
+
+      // Desenha o RAIO azul da mão direita quando aponta para o botão Paleta da mão esquerda ou quando a Paleta Flutuante está aberta
+      if (overUi || paletteOpen) {
+        const ox = Math.max(0, Math.min(canvas.width, originNx * canvas.width));
+        const oy = Math.max(0, Math.min(canvas.height, originNy * canvas.height));
+        const rx = Math.max(0, Math.min(canvas.width, rayNx * canvas.width));
+        const ry = Math.max(0, Math.min(canvas.height, rayNy * canvas.height));
+        octx.save();
+        const grad = octx.createLinearGradient(ox, oy, rx, ry);
+        grad.addColorStop(0, 'rgba(56,189,248,0.18)');
+        grad.addColorStop(1, hitCtrl ? 'rgba(56,189,248,0.95)' : 'rgba(255,255,255,0.75)');
+        octx.strokeStyle = grad;
+        octx.lineWidth = hitCtrl ? 3.2 : 2.2;
+        octx.beginPath();
+        octx.moveTo(ox, oy);
+        octx.lineTo(rx, ry);
+        octx.stroke();
+
+        octx.beginPath();
+        octx.arc(rx, ry, hitCtrl ? 9 : 6, 0, Math.PI * 2);
+        octx.fillStyle = hitCtrl ? '#38bdf8' : '#ffffff';
+        octx.fill();
+        octx.lineWidth = 2;
+        octx.strokeStyle = '#0f172a';
+        octx.stroke();
+        octx.restore();
+        dirty = true;
+      }
+
+      const cx = Math.max(0, Math.min(canvas.width, pinchNx * canvas.width));
+      const cy = Math.max(0, Math.min(canvas.height, pinchNy * canvas.height));
+
+      // Só a MÃO DIREITA fazendo PINÇA desenha ou apaga em MR (quando não está clicando na Paleta)
+      const drawingNow = Boolean(isPinching && !rightPinchConsumedByUi && !overUi);
+
+      // Indicador circular da cor/borracha na mão direita (igual à bolinha dentro da mão no YorkMR)
       octx.save();
       const previewR = Math.max(9, currentSize * 0.85);
       octx.beginPath();
@@ -2230,14 +2386,17 @@ export function openHandDrawGame() {
       } else {
         rightHandLast = null;
       }
+      wasRightPinching = isPinching;
     } else {
       rightHandLast = null;
+      wasRightPinching = false;
+      rightPinchConsumedByUi = false;
     }
 
     if (dirty || hands.length > 0) css3d.invalidate?.();
-    animId = requestAnimationFrame(tickHandDraw);
+    mrPaintAnimId = requestAnimationFrame(tickHandDraw);
   };
-  animId = requestAnimationFrame(tickHandDraw);
+  mrPaintAnimId = requestAnimationFrame(tickHandDraw);
 
   if (leftPaletteBtn) {
     leftPaletteBtn.onclick = e => {
@@ -2331,12 +2490,9 @@ export function openHandDrawGame() {
     css3d.invalidate?.();
   });
 
-  const win = open({ id: 'hand-draw', title: 'paintdrawer', node: body, w: 1020, h: 640 });
-  if (win?.shell) win.shell.dataset.handDrawVr = '1';
-  if (win?.el) win.el.dataset.handDrawVr = '1';
-  body.querySelector('[data-hd-exit]')?.addEventListener('click', () => {
-    cancelAnimationFrame(animId);
-    close(win);
+  body.querySelector('[data-hd-exit]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    closeHandDrawGame();
   });
   window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = currentColor, size = currentSize, tool = 'pen') => {
     saveSnapshot();
@@ -2350,11 +2506,11 @@ export function openHandDrawGame() {
     setPaletteOpen(typeof force === 'boolean' ? force : !paletteOpen);
     return paletteOpen;
   };
+  window.nextvrCloseHandDrawGame = closeHandDrawGame;
   touchLib('hand-draw', true);
-  focus(win);
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
-  return win;
+  return body;
 }
 
 /* ============ Criador de Personagem do Próprio Jogo (ATMOXR Avatar Studio 3D) ============ */
@@ -3274,7 +3430,7 @@ const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 const QUEST_STORE_ITEMS = [
   { id: 'avatar-creator', name: 'Criar Personagem', cat: 'apps', rating: '5.0', reviews: '32 mil', tag: 'Avatar 3D do Jogo · ATMOXR', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#06b6d4)', textLogo: '🧑‍🚀' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
-  { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
+  { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Pintura 3D MR', badge: 'NOVO MR', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },

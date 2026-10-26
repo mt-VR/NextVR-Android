@@ -296,12 +296,15 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     !appsSrc.includes('envSection') &&
     !entryMenuSrc.includes('data-entry-marker-tracking') &&
     indexHtml.includes('<title>ATMOXR</title>') &&
+    appsSrc.includes('mr-paint-overlay') &&
+    appsSrc.includes('closeHandDrawGame') &&
+    !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 79') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 80') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 79 (ATMOXR) enables B&W camera by default, adds PICO 4 Ultra VR Control Center menu, speeds up 6DoF, and implements MR 3D Painting with left-hand palette button and right-hand pinch draw/erase'
+    'Build 80 (ATMOXR) makes paintdrawer an independent MR game like ShootTheDie (never inside a floating window), keeps B&W camera by default, PICO 4 Ultra VR Control Center menu, and fast 6DoF'
   );
 });
 
@@ -1208,13 +1211,22 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.closeMrPistolGame?.();
       const closedCleanly = !document.getElementById('mr-pistol-overlay');
 
-      // Testa também o Jogo de Desenho VR em Tela Branca (openHandDrawGame)
+      // Testa também o Jogo de Desenho MR Independente (openHandDrawGame, tipo ShootTheDie sem ser janela flutuante)
       window.nextvrOpenHandDrawGame?.();
-      const drawWin = document.querySelector('.win-shell[data-window-id="hand-draw"]');
+      const drawWin = document.getElementById('mr-paint-overlay');
+      const noFloatingWinShell = !document.querySelector('.win-shell[data-window-id="hand-draw"]');
+      const dockEl = document.querySelector('.dock');
+      const dockHiddenDuringMrPaint = Boolean(dockEl?.hidden || dockEl?.dataset?.hidden === '1' || dockEl?.style?.display === 'none');
       const drawCanvas = drawWin?.querySelector('[data-hand-draw-canvas="1"]');
+      const leftPalBtn = drawWin?.querySelector('[data-mr-left-palette-btn="1"]');
+      const palWin = drawWin?.querySelector('[data-mr-palette-win="1"]');
+      const palInitiallyHidden = Boolean(palWin?.hidden);
+      leftPalBtn?.click();
+      const palOpenedByLeftBtn = Boolean(palWin && !palWin.hidden);
+      const palColorsCount = drawWin?.querySelectorAll('[data-hd-color]')?.length ?? 0;
       const strokesAfterDraw = window.nextvrHandDrawStroke?.(120, 120, 320, 260, '#ef4444', 10) ?? 0;
       drawWin?.querySelector('[data-hd-exit]')?.click();
-      const drawClosed = !document.querySelector('.win-shell[data-window-id="hand-draw"]');
+      const drawClosed = !document.getElementById('mr-paint-overlay') && !document.querySelector('.win-shell[data-window-id="hand-draw"]');
 
       return {
         dockBat64,
@@ -1242,13 +1254,23 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         activeAfterReset,
         closedCleanly,
         hasDrawGame: Boolean(drawWin && drawCanvas),
+        noFloatingWinShell,
+        dockHiddenDuringMrPaint,
+        palInitiallyHidden,
+        palOpenedByLeftBtn,
+        palColorsCount,
         strokesAfterDraw,
         drawClosed,
       };
     });
-    assert.equal(build56Check.hasDrawGame, true, 'openHandDrawGame opens the white-canvas Hand Tracking drawing game');
-    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws on the white canvas');
-    assert.equal(build56Check.drawClosed, true, 'Hand Tracking drawing game closes cleanly');
+    assert.equal(build56Check.hasDrawGame, true, 'openHandDrawGame opens the independent #mr-paint-overlay MR drawing game');
+    assert.equal(build56Check.noFloatingWinShell, true, 'paintdrawer is an independent MR game like ShootTheDie, NOT a floating window');
+    assert.equal(build56Check.dockHiddenDuringMrPaint, true, 'paintdrawer hides the Dock while active in MR');
+    assert.equal(build56Check.palInitiallyHidden, true, 'Floating palette starts closed until left hand Paleta button is clicked');
+    assert.equal(build56Check.palOpenedByLeftBtn, true, 'Left hand Paleta button opens the floating palette');
+    assert.equal(build56Check.palColorsCount, 10, 'Floating palette has all 10 required colors');
+    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws in MR');
+    assert.equal(build56Check.drawClosed, true, 'Independent MR drawing game closes cleanly');
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
     assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');
