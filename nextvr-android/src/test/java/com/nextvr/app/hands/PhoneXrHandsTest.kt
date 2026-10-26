@@ -368,17 +368,17 @@ class PhoneXrHandsTest {
     }
     @Test fun twoHandsKeepTheirAssignedSidesWhenMediaPipeSwapsOrderAndHandedness() {
         val engine=PhoneXrHands()
-        val leftPts=points(.03f).map { NormalizedLandmark.create((it.x()-.22f).coerceIn(.05f,.95f),it.y(),it.z()) }
-        val rightPts=points(.22f).map { NormalizedLandmark.create((it.x()+.22f).coerceIn(.05f,.95f),it.y(),it.z()) }
-        // Frame 1: left hand at x~.28 (pinching, label Right -> left=true), right hand at x~.72 (open, label Left -> left=false)
-        val f1=engine.process(twoHandResult(leftPts,"Right",rightPts,"Left",1000L),1f,1f)
+        val leftPts=points(.2f).map { NormalizedLandmark.create(it.x()-.20f,it.y(),it.z()) }
+        val rightPts=points(.9f).map { NormalizedLandmark.create(it.x()+.20f,it.y(),it.z()) }
+        // Frame 1: left hand at x=.30 (pinching, label Right -> left=true), right hand at x=.70 (open, label Left -> left=false)
+        val f1=engine.process(twoResults(listOf(leftPts,rightPts),listOf("Right","Left"),1000L),1f,1f)
         assertEquals(2,f1.hands.size)
         val f1Left=f1.hands.single { it.left }
         val f1Right=f1.hands.single { !it.left }
         assertTrue(f1Left.pinching)
         assertFalse(f1Right.pinching)
-        // Frame 2: MediaPipe swaps slot order AND mislabels both hands as "Left", while physical positions stay near x~.28 and x~.72
-        val f2=engine.process(twoHandResult(rightPts,"Left",leftPts,"Left",1033L),1f,1f)
+        // Frame 2: MediaPipe swaps slot order AND mislabels both hands as "Left", while physical positions stay at x=.30 and x=.70
+        val f2=engine.process(twoResults(listOf(rightPts,leftPts),listOf("Left","Left"),1033L),1f,1f)
         assertEquals(2,f2.hands.size)
         val f2Left=f2.hands.single { it.left }
         val f2Right=f2.hands.single { !it.left }
