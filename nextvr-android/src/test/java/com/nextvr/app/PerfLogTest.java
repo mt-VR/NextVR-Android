@@ -111,8 +111,9 @@ public class PerfLogTest {
         PerfLog.setStatusListener(status::set);
         try {
             PerfLog.result(40L, -1L, 0L, 0L, 1);
-            PerfLog.handGraph(true);
-            PerfLog.handGraph(false);
+            PerfLog.lightTrackSize(320, 240);
+            PerfLog.lightTrack(2L, 7680, 1);
+            PerfLog.lightTrack(1L, 0, 0);
             PerfLog.renderFrame();
             ShadowSystemClock.advanceBy(Duration.ofMillis(3100));
             PerfLog.renderFrame();
@@ -120,8 +121,9 @@ public class PerfLogTest {
             assertNotNull("a closed window must publish its status", status.get());
             assertTrue(status.get(), status.get().contains("\"track\":0.3"));
             assertTrue(status.get(), status.get().contains("\"infer\":40.0"));
-            assertTrue("the graph split must reach the screen: " + status.get(),
-                    status.get().contains("\"narrow\":1") && status.get().contains("\"wide\":1"));
+            assertTrue("the light tracker's own cost and skin share must reach the screen: " + status.get(),
+                    status.get().contains("\"light\":1.50") && status.get().contains("\"skin\":5.0")
+                        && status.get().contains("\"size\":\"320x240\""));
             assertTrue(status.get(), status.get().contains("\"delegate\":\"none\""));
         } finally { PerfLog.setStatusListener(null); }
     }

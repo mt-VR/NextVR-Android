@@ -331,7 +331,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 82') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 83') &&
+    // Build 83: o rastreamento de mãos virou segmentação de pele nativa (sem modelo/inferência).
+    entryDataSrc.includes('light-hand-tracking') &&
+    !readFileSync('nextvr-android/build.gradle', 'utf8').includes('mediapipe') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/SkinMask.kt', 'utf8').includes('LightHandConfig.MIN_CHROMA2') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),

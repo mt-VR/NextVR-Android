@@ -38,7 +38,11 @@ test('render path removes the room and uses Cardboard stereo with an upright 2D 
   assert.ok(/nativeYuvToArgb\(cameraPixels,[\s\S]*?rotation\)/.test(camera), 'The native conversion receives the quarter-turn rotation');
   const pixels=await readFile('nextvr-android/src/main/jni/camera_pixels.h','utf8');
   assert.ok(pixels.includes('ConvertYuvArgbRot<90>') && pixels.includes('ConvertYuvArgbRot<270>'), 'Quarter turns are fused write-index remaps in the converter');
-  assert.ok(camera.includes('detectOwned(frame.bitmap,frame.stamp,0)'), 'The already-upright, owned analysis frame is not rotated twice');
+  // Hand tracking now reads the camera's Y/U/V planes straight into a LightFrame, in the same pass
+  // that fuses the quarter turn, so the analysis image is upright too and no Bitmap is involved.
+  assert.ok(camera.includes('YuvSkinSampler.fill(target,'), 'The analysis frame is resampled from the camera planes, not from a rotated bitmap');
+  assert.ok(!camera.includes('detectOwned('), 'No model inference is left in the camera pipeline');
+  assert.ok(/YuvSkinSampler\.fill\(target,[\s\S]*?rotation\);/.test(camera), 'The resampler receives the same quarter-turn rotation as the native ARGB pass');
   assert.ok(camera.includes('image.getTimestamp()') && camera.includes('sensorNs/1_000_000L'), 'One Euro and MediaPipe use the capture timestamp');
   assert.ok(cpp.includes('GL_DEPTH24_STENCIL8') && cpp.includes('GL_STENCIL_ATTACHMENT'));
   const hands=await readFile('web/src/hands.js','utf8');

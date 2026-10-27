@@ -12,8 +12,9 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
 import com.nextvr.app.hands.PhoneXrHands;
-import com.nextvr.handtrack.HandTracker;
-import com.nextvr.handtrack.RetryableInferenceException;
+import com.nextvr.lighttrack.LightFrame;
+import com.nextvr.lighttrack.LightHandTracker;
+import com.nextvr.lighttrack.YuvSkinSampler;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Hand tracking hand-off: every camera callback publishes its newest analysis frame into a
  * one-slot [LatestFrameSlot]; the tracking thread drains the slot as soon as it is free. The
  * tracker is therefore never throttled to the camera callback cadence (see LatestFrameSlot).
+ *
+ * The analysis frame is a [LightFrame]: the camera's own Y/U/V planes resampled straight into
+ * three small byte arrays (no Bitmap, no ARGB round trip) and segmented by the light silhouette
+ * tracker (com.nextvr.lighttrack). There is no model, no delegate and no inference queue left in
+ * this class; the whole tracking step is a fraction of a millisecond on the same thread.
  */
 final class PassthroughCamera {
     interface Listener {
@@ -39,27 +45,6 @@ final class PassthroughCamera {
         void error(String message);
         void stopped();
     }
-    /**
-     * GPU landmarkers this process may build. Zero: the GPU delegate was measured at 500 ms per
-     * frame on this device (PR #29), against 85-100 ms for the CPU delegate, so it is not a
-     * fallback worth spending a frame on. The watchdog that judges a delegate (DelegateWatch) and
-     * the CPU fallback path stay in place for when that measurement changes.
-     */
-    private static final int MAX_GPU_ATTEMPTS=0;
-    /** A scaled analysis frame waiting for, or being processed by, hand tracking. */
-    private static final class TrackingFrame {
-        final Bitmap bitmap;
-        final long stamp;       // camera timestamp in ms: MediaPipe and One Euro time base
-        final long captureNs;   // sensor capture on the elapsedRealtime clock, or -1 if not comparable
-        final long acquiredNs;  // when the callback took the frame from the camera
-        final int token;        // camera generation the frame belongs to
-        final float scaleX, scaleY;
-        TrackingFrame(Bitmap bitmap,long stamp,long captureNs,long acquiredNs,int token,float scaleX,float scaleY) {
-            this.bitmap=bitmap;this.stamp=stamp;this.captureNs=captureNs;this.acquiredNs=acquiredNs;
-            this.token=token;this.scaleX=scaleX;this.scaleY=scaleY;
-        }
-        void release() { if(bitmap!=null && !bitmap.isRecycled())bitmap.recycle(); }
-    }
     private final Context context;
     private final Listener listener;
     private final HandlerThread thread=new HandlerThread("NextVR Camera2");
@@ -69,27 +54,30 @@ final class PassthroughCamera {
             try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); }
             catch(Throwable ignored) {}
             r.run();
-        },"PhoneXR OrangeHanding");
-        // The tracking thread owns the MediaPipe inference; keep it above the UI/GC threads so a
-        // WebView reflow does not steal the core the landmarker is running on.
+        },"NextVR LightHands");
+        // The tracking thread owns the segmentation and the palm fit; keep it above the UI/GC
+        // threads so a WebView reflow does not steal the core it is running on.
         t.setPriority(Thread.MAX_PRIORITY);
         return t;
     });
     /** Newest frame not yet taken by the tracker. Replaced, never queued. */
-    private final LatestFrameSlot<TrackingFrame> slot=new LatestFrameSlot<>();
+    private final LatestFrameSlot<LightFrame> slot=new LatestFrameSlot<>();
+    /**
+     * Analysis frames ready to be written again. A frame is filled on the camera thread, drained on
+     * the tracking thread and offered back here, so a steady session allocates none of them.
+     */
+    private final java.util.concurrent.ConcurrentLinkedQueue<LightFrame> framePool=
+        new java.util.concurrent.ConcurrentLinkedQueue<>();
     /** True while a drain task is queued or running on the tracking thread. */
     private final AtomicBoolean scheduled=new AtomicBoolean();
     private final TrackingBudget budget=new TrackingBudget();
     /** Skips analysis copies that would supersede an unread, still-fresh pending frame. */
     private final AnalysisGate analysisGate=new AnalysisGate(AnalysisGate.DEFAULT_MAX_PENDING_AGE_MS);
-    /** Judges the GPU delegate on measured inference cost, not on whether it threw (see DelegateWatch). */
-    private final DelegateWatch delegateWatch=new DelegateWatch();
     /** Tolerates a failed camera frame instead of tearing the camera down on the first one. */
     private final TrackingFailureGuard frameFailures=new TrackingFailureGuard();
     /** Tolerates a failed inference instead of ending hand tracking for the whole session. */
     private final TrackingFailureGuard trackFailures=new TrackingFailureGuard();
     private int[] cameraPixels;
-    private int[] analysisPixels;
     private final PhoneXrHands hands=new PhoneXrHands();
     private final FakeSixDof fakeSixDof=new FakeSixDof();
     private volatile PhoneXrHands.Frame latestHandsFrame;
@@ -104,20 +92,9 @@ final class PassthroughCamera {
         }
     };
     private ImageReader reader;
-    private boolean gpuDetector;
-    /**
-     * Whether the next detector should be created on the GPU delegate. Cleared when the GPU is
-     * dropped for measured slowness or for producing no output, and re-armed once by a reopened
-     * camera: a GPU abandoned while the WebView was still rasterizing the boot page is not the same
-     * GPU as the one that runs a steady session, and [MAX_GPU_ATTEMPTS] bounds the re-tries.
-     */
-    private volatile boolean preferGpu=true;
-    /** GPU landmarkers built in this process, so "try the GPU again" can never become a loop. */
-    private int gpuAttempts;
-    /** Landmarker graphs the current detector has built; a change re-arms the delegate's warm-up. */
-    private int seenGraphs;
     private boolean timestampIsRealtime;
-    private HandTracker detector; // Created, used and closed on the SAME thread (GPU delegate).
+    /** The tracker owns per-resolution buffers; created and used on the tracking thread only. */
+    private LightHandTracker tracker;
     private volatile int generation;
     private int rotation;
     private int activeDisplayRotation=-1;
@@ -139,10 +116,6 @@ final class PassthroughCamera {
         String normalized = (mode != null && (mode.equals("right") || mode.equals("left") || mode.equals("one"))) ? mode : "both";
         singleHandMode = normalized;
         hands.singleHandMode = normalized;
-        HandTracker det = detector;
-        if (det != null) {
-            det.singleHandOnly = !"both".equals(normalized);
-        }
     }
 
     PassthroughCamera(Context context,Listener listener) {
@@ -217,12 +190,6 @@ final class PassthroughCamera {
         opening=true;
         sessionFrames=0;
         final int token=++generation;frameFailures.reset();   // a reopened camera starts with a clean streak
-        // A reopened camera is a new session for the delegate too. The GPU is tried again while an
-        // attempt is left (see MAX_GPU_ATTEMPTS): the previous session may have been the boot page
-        // rasterizing, or a first-run install compiling the WebView's shaders, and the tracker paid
-        // for it on the CPU for the rest of the process. The attempt budget is what keeps this from
-        // becoming a loop on a device whose GPU delegate really is the slow one.
-        if(gpuAttempts<MAX_GPU_ATTEMPTS)preferGpu=true;
         try {
             CameraManager manager=context.getSystemService(CameraManager.class);
             String id=null;CameraCharacteristics chars=null;
@@ -254,15 +221,6 @@ final class PassthroughCamera {
             timestampIsRealtime=timestampSource!=null && timestampSource==CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
             rotation=CameraGeometry.uprightRotation(sensor==null?90:sensor,displayRotation);
             android.util.Log.i("NextVR-Camera","rear="+id+" wide="+wideCamera+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
-            if(handsEnabled) {
-                try {
-                    tracking.execute(()->{
-                        if(detector==null && !destroyed) {
-                            try { buildDetector(); } catch(Throwable ignored) {}
-                        }
-                    });
-                } catch(Throwable ignored) {}
-            }
             reader=ImageReader.newInstance(selected.getWidth(),selected.getHeight(),ImageFormat.YUV_420_888,4);
             reader.setOnImageAvailableListener(source->onFrame(source,token),handler);
             manager.openCamera(id,new CameraDevice.StateCallback(){
@@ -409,7 +367,7 @@ final class PassthroughCamera {
             PerfLog.cameraFrame();
             long acquiredNs=SystemClock.elapsedRealtimeNanos();
             long sensorNs=image.getTimestamp();
-            // MediaPipe and the One Euro filters use the camera's own frame time: processing time after
+            // The tracker and the One Euro filters use the camera's own frame time: processing time after
             // conversion/rotation varies under load and would inject timing jitter.
             long stamp=sensorNs/1_000_000L;
             Image.Plane[] p=image.getPlanes();
@@ -423,47 +381,45 @@ final class PassthroughCamera {
             nativeYuvToArgb(cameraPixels,p[0].getBuffer().slice(),p[1].getBuffer().slice(),p[2].getBuffer().slice(),
                 image.getWidth(),image.getHeight(),p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
-            // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
-            image.close();image=null;
-            if(handsEnabled) {
-                // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
-                // when it is free. A superseded frame is released here, so nothing accumulates.
-                TrackingFrame waiting=slot.peek();
-                if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
+            // Analysis for hand tracking: the camera's own Y/U/V planes straight into a LightFrame,
+            // produced while the image is still held and only when the slot is not already holding a
+            // frame young enough to make this one redundant (AnalysisGate).
+            LightFrame analysis=null;
+            if(handsEnabled && image!=null) {
+                LightFrame waiting=slot.peek();
+                if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stampMs)) {
                     int width=Math.min(outW,budget.width());
                     int height=Math.max(1,width*outH/outW);
-                    Bitmap analysis;
-                    if(width==outW && height==outH) {
-                        // Zero redundant Java resample/copy when the upright camera frame already matches budget width.
-                        analysis=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
-                    } else {
-                        int analysisLen=width*height;
-                        if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
-                        int dstIdx=0;
-                        int stepX=(outW<<16)/Math.max(1,width);
-                        int stepY=(outH<<16)/Math.max(1,height);
-                        int sy=0;
-                        for(int y=0;y<height;y++) {
-                            int srcRow=(sy>>>16)*outW;
-                            sy+=stepY;
-                            int sx=0;
-                            for(int x=0;x<width;x++) {
-                                analysisPixels[dstIdx++]=cameraPixels[srcRow+(sx>>>16)];
-                                sx+=stepX;
-                            }
+                    LightFrame target=takeFrame(width,height);
+                    if(target!=null) {
+                        target.stampMs=stamp;
+                        target.captureNs=timestampIsRealtime?sensorNs:-1L;
+                        target.acquiredNs=acquiredNs;
+                        target.token=token;
+                        target.scaleX=scaleX;
+                        target.scaleY=scaleY;
+                        boolean filled;
+                        try {
+                            filled=YuvSkinSampler.fill(target,p[0].getBuffer(),p[1].getBuffer(),p[2].getBuffer(),
+                                image.getWidth(),image.getHeight(),
+                                p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
+                                p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
+                        } catch(Throwable rejected) {
+                            filled=false;
                         }
-                        analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
-                    }
-                    if(analysis!=null) {
-                        long captureNs=timestampIsRealtime?sensorNs:-1L;
-                        TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
-                        TrackingFrame superseded=slot.offer(frame);
-                        if(superseded!=null){superseded.release();PerfLog.droppedFrame();}
-                        requestTracking();
+                        if(filled) analysis=target;
+                        else recycleFrame(target);
                     }
                 } else {
                     PerfLog.analysisSkipped();
                 }
+            }
+            // The HAL buffer is not needed once both consumers own their own copy.
+            image.close();image=null;
+            if(analysis!=null) {
+                LightFrame superseded=slot.offer(analysis);
+                if(superseded!=null){recycleFrame(superseded);PerfLog.droppedFrame();}
+                requestTracking();
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
@@ -504,14 +460,14 @@ final class PassthroughCamera {
         try { tracking.execute(this::drainTracking); }
         catch(RejectedExecutionException shutdown) {
             scheduled.set(false);
-            TrackingFrame frame=slot.clear();
-            if(frame!=null)frame.release();
+            LightFrame frame=slot.clear();
+            if(frame!=null)recycleFrame(frame);
         }
     }
     /** Tracking thread: process the newest waiting frame, then the next one, until the slot is empty. */
     private void drainTracking() {
         for(;;) {
-            TrackingFrame frame=slot.poll();
+            LightFrame frame=slot.poll();
             if(frame==null) {
                 scheduled.set(false);
                 // A frame may have been offered between poll() and the flag reset; take it here.
@@ -520,94 +476,43 @@ final class PassthroughCamera {
             }
             try { track(frame); }
             catch(Throwable unexpected) {
-                // track() already counts every Exception. An Error takes a different door: it would
-                // escape the executor task, kill the worker and leave `scheduled` stuck at true, so
-                // every later frame would be dropped with no error and no recovery. The realistic
-                // case here is an OutOfMemoryError from a bitmap allocation under memory pressure -
-                // a per-frame failure like any other, which the guard retries and eventually reports.
+                // An Error would escape the executor task, kill the worker and leave `scheduled`
+                // stuck at true, so every later frame would be dropped with no error and no
+                // recovery. Treat it as a failed frame like any other.
                 handleTrackingFailure(unexpected);
             }
-            finally { frame.release(); }
+            finally { recycleFrame(frame); }
         }
     }
-    private void track(TrackingFrame frame) {
+    /**
+     * Tracking thread: segment the frame and publish the hands.
+     *
+     * There is no inference and no delegate left here. The whole step is one chroma pass, one flood
+     * fill and a fixed 21-point geometry on a 320x240 (or 240x180) image, measured in fractions of
+     * a millisecond, which is why the frame is taken on every camera callback instead of being
+     * squeezed into an inference window.
+     */
+    private void track(LightFrame frame) {
         try {
             if(frame.token!=generation || destroyed || !handsEnabled)return;
             try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); } catch(Throwable ignored) {}
-            // The detector lives on this thread and is (re)built here: on first use, and when a
-            // reopened camera left a GPU attempt unspent (see open() and MAX_GPU_ATTEMPTS).
-            if(detector==null || (preferGpu && !gpuDetector && gpuAttempts<MAX_GPU_ATTEMPTS))buildDetector();
-            long inferenceStart=SystemClock.elapsedRealtime();
-            com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult detected;
-            try { detected=detector.detectOwned(frame.bitmap,frame.stamp,0); }
-            catch(RuntimeException inferenceFailure) {
-                RetryableInferenceException retryable = inferenceFailure instanceof RetryableInferenceException
-                    ? (RetryableInferenceException)inferenceFailure : null;
-                if(!gpuDetector || retryable==null) {
-                    if(retryable!=null && !retryable.getRetryBitmap().isRecycled())retryable.getRetryBitmap().recycle();
-                    throw inferenceFailure;
-                }
-                android.util.Log.w("NextVR-Hands","GPU inference failed; switching to CPU",inferenceFailure);
-                Bitmap retryFrame=retryable.getRetryBitmap();
-                try {
-                    detector.close();detector=null;gpuDetector=false;
-                    detector=new HandTracker(context,false,"hand_landmarker.task");
-                    seenGraphs=detector.graphGenerations();
-                    // The GPU has failed once in this session: it is not picked up again until a
-                    // reopened camera re-arms it (see preferGpu and MAX_GPU_ATTEMPTS), never on the
-                    // next frame - that would rebuild a GPU graph per frame while failing.
-                    preferGpu=false;
-                    PerfLog.delegate("CPU");
-                    hands.reset();
-                    // Borrowed input preserves the emergency retry bitmap if CPU inference also fails.
-                    detected=detector.detect(retryFrame,frame.stamp,0);
-                } finally { if(!retryFrame.isRecycled())retryFrame.recycle(); }
+            LightHandTracker current=tracker;
+            if(current==null || current.getWidth()!=frame.width || current.getHeight()!=frame.height) {
+                // The adaptive budget changed the analysis size: the per-resolution buffers (mask,
+                // labels, distance field) are rebuilt once and the filters start from the new scale.
+                current=new LightHandTracker(frame.width,frame.height);
+                tracker=current;
+                hands.reset();
+                PerfLog.lightTrackSize(frame.width,frame.height);
             }
+            long inferenceStart=SystemClock.elapsedRealtime();
+            current.process(frame);
             long inferenceMs=SystemClock.elapsedRealtime()-inferenceStart;
             budget.completed(inferenceMs);
-            // Which graph did the work: the one-slot tracking graph is the cheap path, and a log
-            // that cannot show whether it is being used cannot show whether the engine is paying two
-            // hand slots on every frame.
-            PerfLog.handGraph(detector.narrowFrame());
-            // The one-slot graph is built lazily, mid-session, so a new graph can appear at any
-            // frame: its first results are the delegate compiling shaders (hundreds of milliseconds
-            // for a GPU graph), and letting one into the timing mean makes a healthy delegate look
-            // contended for the next ten results. Every graph build restarts the delegate's window.
-            if(seenGraphs!=detector.graphGenerations()) {
-                seenGraphs=detector.graphGenerations();
-                delegateWatch.rebuilt();
-            }
-            // A GPU delegate that stays slow is not a failure: it is the tracker queueing behind the
-            // display path, and the measured cost of the inference is the only evidence of that
-            // available here. A GPU delegate that answers in a couple of milliseconds and never
-            // produces a hand is not slow at all - it is not running the graph (see DelegateWatch).
-            // Both verdicts come from what was measured, and both end on the CPU.
-            boolean slow=gpuDetector&&delegateWatch.shouldDrop(inferenceMs);
-            boolean silent=gpuDetector&&delegateWatch.noOutput(inferenceMs,detected.landmarks().size());
-            if(slow||silent) {
-                android.util.Log.i("NextVR-Perf",silent
-                    ? "GPU delegate returned "+delegateWatch.emptyRun()+" hands-less results of "+String.format(
-                        java.util.Locale.US,"%.1f ms mean",delegateWatch.emptyMeanMs())
-                        +" without ever producing a hand; switching the landmarker to CPU"
-                    : "GPU delegate held at "+String.format(java.util.Locale.US,"%.1f ms mean",delegateWatch.averageMs())
-                        +"; switching the landmarker to CPU");
-                try {
-                    detector.close();detector=null;gpuDetector=false;
-                    detector=new HandTracker(context,false,"hand_landmarker.task");
-                    seenGraphs=detector.graphGenerations();
-                    delegateWatch.rebuilt();
-                    preferGpu=false;
-                    PerfLog.delegate(silent?"CPU (after a silent GPU)":"CPU (after a slow GPU)");
-                    // The new graphs have no region-of-interest history, so the filters start fresh.
-                    hands.reset();budget.reset();
-                }catch(RuntimeException failure) {
-                    android.util.Log.w("NextVR-Hands","CPU fallback after a slow GPU delegate failed",failure);
-                    detector=null;   // rebuilt on the next frame; hands stay on the old path till then
-                }
-            }
+            PerfLog.lightTrack(inferenceMs,current.getSkinPixels(),current.getHands().size());
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
-            PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
+            PhoneXrHands.Frame result=hands.process(current.getHands(),frame.stampMs,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
             long afterPoseNs=SystemClock.elapsedRealtimeNanos();
             PerfLog.poseWork((afterPoseNs-completedNs)/1e6);
             latestHandsFrame=result;
@@ -618,34 +523,19 @@ final class PassthroughCamera {
             trackFailures.succeeded();
         }catch(Exception e){handleTrackingFailure(e);}
     }
-    /**
-     * Creates (or recreates) the detector on the tracking thread and reports the delegate in use.
-     * The GPU delegate is tried first, while an attempt is left in this process ([MAX_GPU_ATTEMPTS]);
-     * a creation failure, a measured-slow GPU or a GPU that produces no output (DelegateWatch)
-     * falls back to CPU. Closes whatever detector it replaces - the caller must not use the old one
-     * afterwards.
-     */
-    private void buildDetector() {
-        if(detector!=null) { detector.close(); detector=null; }
-        if(preferGpu && gpuAttempts<MAX_GPU_ATTEMPTS) {
-            gpuAttempts++;
-            try { detector=new HandTracker(context,true,"hand_landmarker.task");gpuDetector=true; }
-            catch(RuntimeException gpu) {
-                android.util.Log.w("NextVR-Hands","GPU landmarker could not be created; using CPU",gpu);
-                detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;preferGpu=false;
-            }
-        } else {
-            // The GPU delegate was already abandoned, or its attempts are spent (see DelegateWatch):
-            // do not pick it up again on the next creation, or a failed CPU rebuild would loop.
-            detector=new HandTracker(context,false,"hand_landmarker.task");gpuDetector=false;
+    /** A pooled analysis frame of exactly [width] x [height], or a fresh one. */
+    private LightFrame takeFrame(int width,int height) {
+        LightFrame frame;
+        while((frame=framePool.poll())!=null) {
+            if(frame.width==width && frame.height==height)return frame;
         }
-        // The brand-new graphs are about to face the delegate's warm-up, and the previous verdict
-        // about a previous graph does not apply to them (see DelegateWatch.rebuilt).
-        detector.singleHandOnly = !"both".equals(singleHandMode);
-        hands.singleHandMode = singleHandMode;
-        seenGraphs=detector.graphGenerations();
-        delegateWatch.rebuilt();
-        PerfLog.delegate(gpuDetector?"GPU":"CPU");
+        try { return new LightFrame(width,height); }
+        catch(OutOfMemoryError noRoom) { return null; }
+    }
+    /** Offers an analysis frame back for reuse; bounded, so a resize cannot keep old sizes alive. */
+    private void recycleFrame(LightFrame frame) {
+        if(frame==null)return;
+        if(framePool.size()<4)framePool.offer(frame);
     }
 
     /**
@@ -665,9 +555,8 @@ final class PassthroughCamera {
         handsEnabled=false;listener.error("PhoneXR hand tracking failed: "+failure.getMessage());clearHands();
     }
     /**
-     * Runs on the tracking thread, which is also the thread that owns the landmarker. Hands are gone,
-     * so the narrow/wide decision made against the frames that just expired is forgotten too: the next
-     * session searches both slots again until one hand proves the second slot idle.
+     * Runs on the tracking thread, which is also the thread that owns the tracker: the filters and
+     * the side of every hand are forgotten, and the next frame starts from a clean segmentation.
      */
     private void clearHands() {
         hands.reset();
@@ -685,8 +574,8 @@ final class PassthroughCamera {
         // count against the new one, or the very first hiccup would stop it again immediately.
         if(enabled)trackFailures.reset();
         else {
-            TrackingFrame waiting=slot.clear();
-            if(waiting!=null)waiting.release();
+            LightFrame waiting=slot.clear();
+            if(waiting!=null)recycleFrame(waiting);
             tracking.execute(this::clearHands);
         }
     }
@@ -719,13 +608,13 @@ final class PassthroughCamera {
     }
     void stop(){handler.post(()->{closeCamera();discardWaitingFrame();tracking.execute(this::clearHands);});}
     private void discardWaitingFrame() {
-        TrackingFrame waiting=slot.clear();
-        if(waiting!=null)waiting.release();
+        LightFrame waiting=slot.clear();
+        if(waiting!=null)recycleFrame(waiting);
     }
     void destroy(Runnable afterClose){
         handler.post(()->{
             destroyed=true;closeCamera();discardWaitingFrame();
-            tracking.execute(()->{if(detector!=null)detector.close();clearHands();});
+            tracking.execute(()->{tracker=null;clearHands();});
             tracking.shutdown();afterClose.run();thread.quitSafely();
         });
     }

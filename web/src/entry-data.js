@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.1.0.
-export const ENTRY_VERSION = 'v2.1.0';
-export const ENTRY_VERSION_ALPHA = 'v2.1.0 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.2.0.
+export const ENTRY_VERSION = 'v2.2.0';
+export const ENTRY_VERSION_ALPHA = 'v2.2.0 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,6 +44,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'light-hand-tracking',
+    tag: 'NOVO · HAND TRACKING ULTRA LEVE, SEM IA PESADA (BUILD 83)',
+    time: 'Agora',
+    heading: 'Rastreamento de Mãos Reescrito: Muito Mais Leve, Duas Mãos, Pinça, Punho e Dedo Apontando',
+    desc: 'O rastreamento do PhoneXR foi trocado por um motor nativo novo e MUITO mais leve: saiu o modelo de 7,5 MB e a inferência, entrou a segmentação de pele + palma + silhueta, tudo direto no processador do celular. Resultado: menos CPU, menos memória, menos bateria e menos latência, com o mesmo que você já usa — duas mãos, pinça para clicar/desenhar, punho para pegar/menu e dedo apontando para tocar direto.',
+  },
   {
     id: 'worldlock-camera-paint',
     tag: 'NOVO · WORLD LOCK, CÂMERA COLORIDA & PAINTMR 3D CONSERTADO (BUILD 82)',

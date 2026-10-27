@@ -2,44 +2,53 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('MediaPipe can track both hands and returns to the one-hand fast graph when possible', async () => {
-  const tracker = await readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandTracker.kt', 'utf8');
-  const policy = await readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandSlotPolicy.kt', 'utf8');
-  const camera = await readFile('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java', 'utf8');
-  assert.match(tracker, /const val WIDE_HANDS = 2/);
-  assert.match(tracker, /const val NARROW_HANDS = 1/);
-  assert.match(tracker, /const val PROBE_FRAMES = 4/);
-  assert.match(tracker, /const val PROBE_MS = 250L/);
-  assert.match(tracker, /slots\.useWide\(stamp\)/);
-  assert.match(tracker, /slots\.onResult\(searching, hands\)/);
-  assert.match(policy, /detectedHands in 1 until searchSlots/);
-  assert.match(policy, /framesSinceSearch >= minProbeFrames/);
-  assert.match(camera, /MAX_GPU_ATTEMPTS=0/,
-    'the GPU delegate measured 500 ms/frame on this device, so the CPU delegate is used');
-  assert.match(camera, /delegateWatch\.shouldDrop\(inferenceMs\)/,
-    'a measured slow GPU delegate is not kept blindly');
-  assert.match(camera, /delegateWatch\.noOutput\(inferenceMs,detected\.landmarks\(\)\.size\(\)\)/,
-    'a GPU delegate that returns no landmarks is detected');
-  assert.match(camera, /if\(slow\|\|silent\)/,
-    'both GPU watchdog failures fall back to CPU');
+test('the light tracker keeps two hands, two sides and every field the wire format carries', async () => {
+  const tracker = await readFile('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHandTracker.kt', 'utf8');
+  const config = await readFile('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHandConfig.kt', 'utf8');
+  const palm = await readFile('nextvr-android/src/main/java/com/nextvr/lighttrack/PalmFit.kt', 'utf8');
+  const skeleton = await readFile('nextvr-android/src/main/java/com/nextvr/lighttrack/HandSkeleton.kt', 'utf8');
+  const hand = await readFile('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHand.kt', 'utf8');
+  assert.match(config, /const val MAX_HANDS = 2/, 'two hands, like the web layer expects');
+  assert.match(tracker, /hands\.size == 2 && hands\[0\]\.left == hands\[1\]\.left/,
+    'two blobs can never be the same physical side');
+  assert.match(tracker, /hand\.left = fit\.cx < width \* 0\.5f/,
+    'a hand is labelled from the side of the (unmirrored, rear-camera) view it is on');
+  assert.match(tracker, /SIDE_HOLD_BAND/, 'a hand over the middle of the view keeps its identity');
+  assert.match(tracker, /hand\.fist = hand\.extended <= LightHandConfig\.FIST_FINGERS/,
+    'a fist needs folded fingers AND a compact blob');
+  assert.match(tracker, /hand\.pinchGap = if \(gapTips < CLOSE_TIPS\) min\(gapHole, gapTips\) else gapHole/,
+    'pinch is the thumb-index loop; the tips can only tighten a gap that is already nearly closed');
+  assert.match(tracker, /LightHandConfig\.HOLE_MIN_PIXELS/);
+  // The palm is the largest inscribed disc: that is the whole hand detector.
+  assert.match(palm, /fun fit\(blobs: BlobFinder, blob: SkinBlob\): Boolean/);
+  assert.match(palm, /LightHandConfig\.PALM_PER_RADIUS \* radius/);
+  assert.match(palm, /fun reachAt\(angle: Float\): Float/);
+  // ... and the landmarks are laid out on the 21-point grid the rest of the engine speaks.
+  assert.match(skeleton, /LightHandConfig\.FINGER_ANGLE/);
+  assert.match(skeleton, /for \(i in 1\.\.4\)/);
+  assert.match(skeleton, /out\.image\[i \* 3\] = u/);
+  assert.match(hand, /val image = FloatArray\(63\)/);
+  assert.match(hand, /val world = FloatArray\(63\)/);
 });
 
-test('the second-hand probe is bounded by processed frames as well as by camera time', async () => {
-  // The device measured "tracking 2 fps - cam 54 - infer 382ms - CPU - slots 2": a fast camera
-  // and a model-bound tracker, with the two-slot graph on every frame. A probe bounded by camera
-  // time ALONE fires on every processed frame there (the camera clock runs ahead of the tracker),
-  // so the one-slot fast path - 2.47x cheaper for a single hand - never ran. The frame bound
-  // keeps the two-slot share of the work bounded on every device.
-  const policy = await readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandSlotPolicy.kt', 'utf8');
-  assert.match(policy, /framesSinceSearch >= minProbeFrames/,
-    'the probe needs the frame bound to be met');
-  assert.match(policy, /timestampMs - lastSearchMs >= probeMs/,
-    'the probe also honours the camera-time bound, so a second hand is still found promptly');
-  assert.match(policy, /frameBoundMet && timeBoundMet/,
-    'both bounds must be met before the two-slot graph runs again');
-  const unit = await readFile('nextvr-android/src/test/java/com/nextvr/handtrack/HandSlotPolicyTest.kt', 'utf8');
-  assert.match(unit, /theProbeIsCountedInFramesSoASlowDeviceStillReachesTheOneSlotGraph/);
-  assert.match(unit, /aFastDeviceStillProbesOnTheCameraTimeBound/);
+test('no model, no delegate and no task file are left in the hand-tracking stack', async () => {
+  const gradle = await readFile('nextvr-android/build.gradle', 'utf8');
+  assert.doesNotMatch(gradle, /mediapipe|litert|protobuf/, 'the inference stack was removed with the model');
+  await assert.rejects(readFile('nextvr-android/src/main/assets/hand_landmarker.task'), 'the 7.5 MB task file is gone');
+  await assert.rejects(readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandTracker.kt'));
+  const camera = await readFile('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java', 'utf8');
+  assert.doesNotMatch(camera, /com\.nextvr\.handtrack|DelegateWatch|MAX_GPU_ATTEMPTS|detectOwned|landmarker/);
+  assert.match(camera, /new LightHandTracker\(frame\.width,frame\.height\)/);
+});
+
+test('the analysis size is the light tracker budget, not an inference window', async () => {
+  const budget = await readFile('nextvr-android/src/main/java/com/nextvr/app/TrackingBudget.java', 'utf8');
+  assert.match(budget, /WIDTHS = \{320, 240\}/, 'the analysis frame is small because the tracker is cheap');
+  assert.match(budget, /public synchronized int height\(int frameWidth, int frameHeight\)/,
+    'the aspect ratio of the camera frame is kept');
+  const unit = await readFile('nextvr-android/src/test/java/com/nextvr/app/TrackingBudgetTest.java', 'utf8');
+  assert.match(unit, /keepsTheCameraAspectRatioForTheAnalysisFrame/);
+  assert.match(unit, /assertEquals\(240, b\.width\(\)\)/);
 });
 
 test('two-hand silhouettes predict and fade independently, with per-hand pinch feedback', async () => {
@@ -68,7 +77,6 @@ test('two-hand silhouettes predict and fade independently, with per-hand pinch f
 
 test('two-hand pipeline prevents hand swapping, eliminates double filtering, and measures stage timings separately', async () => {
   const handsKt = await readFile('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
-  const trackerKt = await readFile('nextvr-android/src/main/java/com/nextvr/handtrack/HandTracker.kt', 'utf8');
   const cameraJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java', 'utf8');
   const perfLogJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/PerfLog.java', 'utf8');
   const activityJava = await readFile('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java', 'utf8');
@@ -81,14 +89,16 @@ test('two-hand pipeline prevents hand swapping, eliminates double filtering, and
   assert.match(handsKt, /cost0L1R <= cost0R1L/);
 
   // 2. Single-pass OneEuro aim filtering from rawShape.aimX/aimY (no double OneEuro filtering)
-  assert.match(handsKt, /val bx = \(rawShape\.aimX-\.5f\)\*2f\*scaleX/);
-  assert.match(handsKt, /val by = \(\.5f-rawShape\.aimY\)\*2f\*scaleY/);
+  assert.match(handsKt, /val bx = \(rawShape\.aimX - \.5f\) \* 2f \* scaleX/);
+  assert.match(handsKt, /val by = \(\.5f - rawShape\.aimY\) \* 2f \* scaleY/);
 
-  // 3. Lazy narrow detector avoids duplicate model initialization at startup
-  assert.match(trackerKt, /private var narrow: HandLandmarker\? = null/);
+  // 3. The analysis frame is pooled on both threads: the camera thread fills one, the tracking
+  // thread returns it, so a steady session allocates no analysis buffers at all.
+  assert.match(cameraJava, /private final java\.util\.concurrent\.ConcurrentLinkedQueue<LightFrame> framePool/);
+  assert.match(cameraJava, /recycleFrame\(frame\);/);
 
-  // 4. Zero-copy Bitmap creation when analysis dimensions match camera frame + stage timing
-  assert.match(cameraJava, /width==outW && height==outH/);
+  // 4. Stage timing: the tracker's own cost, then the merge, are measured separately
+  assert.match(cameraJava, /PerfLog\.lightTrack\(inferenceMs,current\.getSkinPixels\(\)/);
   assert.match(cameraJava, /PerfLog\.poseWork\(/);
   assert.match(perfLogJava, /infer_1h=%.1f infer_2h=%.1f pose_ms=%.2f/);
 

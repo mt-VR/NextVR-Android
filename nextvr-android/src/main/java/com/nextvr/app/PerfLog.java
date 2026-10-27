@@ -19,12 +19,15 @@ import android.util.Log;
  *                    the model, is what limits the landmark rate.
  * handoff          : ms the camera thread spent waiting to hand the frame to the renderer
  * track            : EFFECTIVE hand-landmark rate (results completed per second)
- * infer_*          : MediaPipe primary inference time on the tracking thread
- * narrow / wide    : frames the tracker processed on the one-slot tracking graph and on the
- *                    two-slot search graph. A two-slot graph costs 2.47x more for ONE tracked
- *                    hand, so `narrow` dominating while a hand is up is what says the engine is not
- *                    paying that tax; `wide` dominating says the frame that found nothing is what
- *                    the rate is made of
+ * infer_*          : time the TRACKING thread spends per result (segmentation, palm fit, gestures)
+ * light_ms         : the light tracker's own share of that - chroma mask, blobs, palm disc and the
+ *                    21-point geometry. There is no model and no delegate left, so this is the
+ *                    whole hand detector; if it ever rivals a millisecond, the analysis size is
+ *                    what to look at (see TrackingBudget).
+ * skin_pct         : share of the analysis frame that passed the chroma test, i.e. how much the
+ *                    segmentation had to work with. Near 0 in a dark room says the picture, not the
+ *                    tracker, is why hands are missing.
+ * light_size       : analysis size the tracker is currently segmenting
  * capture_to_landmark : sensor capture time to landmark result (only when the camera reports
  *                    REALTIME timestamps, so the clocks are comparable); acquire_to_landmark is
  *                    always available
@@ -63,8 +66,11 @@ public final class PerfLog {
     private static long cameraFrames, renderFrames, results, dropped;
     private static long replayedFrames, replayedBatches, staleFrames, coalescedFrames;
     private static long analysisSkips;
-    /** Frames the tracker ran on the one-slot tracking graph and on the two-slot search graph. */
-    private static long narrowFrames, wideFrames;
+    /** The light tracker's own cost and how much skin it found, for the summary line. */
+    private static double lightSum, lightMaxMs, skinSum;
+    private static long lightCount, skinSamples;
+    private static int lightPixels;
+    private static String lightSize = "none";
     /**
      * Where the compact status of each window goes, when someone wants it: the spatial shell shows
      * it in its counter (`window.nextvrDiag`), so a device run can be read off the screen instead of
@@ -87,7 +93,7 @@ public final class PerfLog {
     private static long lastResultMs = -1, gapMaxMs;
     private static double intervalSum, intervalSqSum;
     private static long intervalCount;
-    private static String delegate = "none";
+    private static String delegate = "light";
     private PerfLog() {}
 
     /** Camera callback delivered a frame (before any tracking work). */
@@ -138,12 +144,25 @@ public final class PerfLog {
      * session's hand tracking; five consecutive failures still stop the hands (TrackingFailureGuard). */
     public static synchronized void handRetry() { handRetries++; }
 
-    /** Which landmarker is doing the primary inference, for A/B runs ("GPU" or "CPU"). */
+    /** Which hand engine processed the window: "light" for the silhouette tracker. */
     public static synchronized void delegate(String name) { delegate = name; }
 
-    /** Which graph processed a frame: the one-slot tracking graph, or the two-slot search graph. */
-    public static synchronized void handGraph(boolean narrow) {
-        if (narrow) narrowFrames++; else wideFrames++;
+    /**
+     * The light tracker processed a frame: [ms] is its whole cost (mask, blobs, palm fit, geometry),
+     * [skinPixels] what the chroma test kept and [hands] what it published.
+     */
+    public static synchronized void lightTrack(long ms, int skinPixels, int hands) {
+        lightSum += ms;
+        lightMaxMs = Math.max(lightMaxMs, ms);
+        lightCount++;
+        skinSum += skinPixels;
+        skinSamples++;
+    }
+
+    /** The analysis size the tracker segments now; a resize comes from TrackingBudget. */
+    public static synchronized void lightTrackSize(int width, int height) {
+        lightSize = width + "x" + height;
+        lightPixels = Math.max(1, width * height);
     }
 
     /**
@@ -248,14 +267,17 @@ public final class PerfLog {
         listener.accept(String.format(java.util.Locale.US,
             "{\"camera\":%.1f,\"render\":%.1f,\"track\":%.1f,\"infer\":%.1f,\"infer1h\":%.1f,\"infer2h\":%.1f,"
                 + "\"poseMs\":%.2f,\"camWork\":%.1f,"
-                + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"narrow\":%d,\"wide\":%d,\"delegate\":\"%s\"}",
+                + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"light\":%.2f,\"skin\":%.1f,\"size\":\"%s\"}",
             cameraFrames / seconds, renderFrames / seconds, results / seconds,
             results == 0 ? -1.0 : inferSum / results,
             infer1Count == 0 ? -1.0 : infer1Sum / infer1Count,
             infer2Count == 0 ? -1.0 : infer2Sum / infer2Count,
             poseCount == 0 ? -1.0 : poseSum / poseCount,
             cameraFrames == 0 ? -1.0 : camWorkSum / cameraFrames,
-            dropped, analysisSkips, staleFrames, narrowFrames, wideFrames, quote(delegate)));
+            dropped, analysisSkips, staleFrames,
+            lightCount == 0 ? -1.0 : lightSum / lightCount,
+            lightPixels == 0 || skinSamples == 0 ? -1.0 : 100.0 * (skinSum / skinSamples) / lightPixels,
+            quote(lightSize)));
     }
 
     /**
@@ -283,7 +305,8 @@ public final class PerfLog {
         replayedFrames = replayedBatches = staleFrames = coalescedFrames = 0;
         cameraRetries = handRetries = 0;
         analysisSkips = 0;
-        narrowFrames = wideFrames = 0;
+        lightSum = lightMaxMs = skinSum = 0;
+        lightCount = skinSamples = 0;
         losses = 0; emptyMs = 0; gapMaxMs = 0;
         intervalSum = intervalSqSum = 0; intervalCount = 0;
         inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
@@ -314,7 +337,7 @@ public final class PerfLog {
                 + "infer_1h=%.1f infer_2h=%.1f pose_ms=%.2f "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
                 + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d "
-                + "camera_retries=%d hand_retries=%d narrow=%d wide=%d "
+                + "camera_retries=%d hand_retries=%d light_ms=%.2f light_max=%.2f skin_pct=%.1f light_size=%s "
                 + "loss=%d empty_ms=%.0f gap_max=%d track_jitter=%.1f "
                 + "cpu_pct=%.1f native_mb=%.1f java_mb=%.1f delegate=%s",
             seconds,
@@ -337,7 +360,10 @@ public final class PerfLog {
             staleFrames, coalescedFrames,
             dropped, analysisSkips,
             cameraRetries, handRetries,
-            narrowFrames, wideFrames,
+            lightCount == 0 ? -1.0 : lightSum / lightCount,
+            lightCount == 0 ? -1.0 : lightMaxMs,
+            lightPixels == 0 || skinSamples == 0 ? -1.0 : 100.0 * (skinSum / skinSamples) / lightPixels,
+            lightSize,
             losses, emptyMs, gapMaxMs, jitter,
             cpuPct, nativeMb, javaMb, delegate));
     }
