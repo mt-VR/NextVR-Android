@@ -64,3 +64,18 @@ rastreador.
   depende disso.
 - **Luz**: croma de pele em ambiente muito escuro perde saturação; `MIN_LUMA`/`MIN_CHROMA2`
   controlam o quanto.
+
+## Medido na Build 83
+
+| | Build 82 (MediaPipe) | Build 83 (lighttrack) |
+|---|---|---|
+| APK publicado | 79 133 357 B (75,5 MB) | **44 502 720 B (42,4 MB)** |
+| modelo no APK | `assets/hand_landmarker.task` (7,5 MB) | nenhum |
+| bibliotecas nativas do detector | `libmediapipe_tasks_jni.so`, `libtensorflowlite_jni.so` (armeabi-v7a + arm64-v8a) | nenhuma |
+
+O CI confere isso a cada build (passo *Verify native camera library and the absence of the detector
+runtimes*): se o modelo ou um dos runtimes do detector voltar para dentro do APK, a build falha.
+
+Testes: 156 testes JVM + a suíte node (150 casos) verdes; `LightHandTrackerTest` roda o motor
+inteiro — máscara de croma, blob, disco da palma, perfil radial e os 21 landmarks — contra cenas de
+mão sintéticas (aberta com 4 dedos, punho fechado, laço de pinça e duas mãos).
