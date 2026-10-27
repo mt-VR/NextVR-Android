@@ -145,7 +145,11 @@ jobs:
           ./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
         continue-on-error: true
 
-      - name: Verify native camera and detector libraries in both APK ABIs
+      # The hand tracker is the light silhouette one now: no MediaPipe graph, no TFLite runtime,
+      # no model asset. The APK check asserts BOTH halves of that - the camera JNI library is in
+      # both ABIs, and the detector libraries and the landmark model are GONE (they were what made
+      # the old APK heavy: a 7.5 MB task file plus two native runtimes).
+      - name: Verify native camera library and the absence of the detector runtimes
         id: verify
         if: steps.build.outcome == 'success'
         continue-on-error: true
@@ -156,13 +160,22 @@ jobs:
           NM="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
           unzip -Z1 "$APK" | grep '^lib/'
           for ABI in armeabi-v7a arm64-v8a; do
-            for LIB in libnextvr_jni.so libmediapipe_tasks_jni.so libtensorflowlite_jni.so; do
-              echo "Checking $ABI/$LIB"
-              unzip -Z1 "$APK" | grep -Fx "lib/$ABI/$LIB"
-            done
+            echo "Checking $ABI/libnextvr_jni.so"
+            unzip -Z1 "$APK" | grep -Fx "lib/$ABI/libnextvr_jni.so"
             unzip -p "$APK" "lib/$ABI/libnextvr_jni.so" > "/tmp/nextvr-$ABI.so"
             "$NM" -D "/tmp/nextvr-$ABI.so" | grep 'Java_com_nextvr_app_PassthroughCamera_nativeYuvToArgb'
+            for GONE in libmediapipe_tasks_jni.so libtensorflowlite_jni.so; do
+              if unzip -Z1 "$APK" | grep -Fx "lib/$ABI/$GONE"; then
+                echo "the light tracker must not ship $ABI/$GONE"
+                exit 1
+              fi
+            done
           done
+          if unzip -Z1 "$APK" | grep -E 'assets/hand_landmarker\.task$'; then
+            echo "the light tracker must not ship the landmark model"
+            exit 1
+          fi
+          echo "no detector runtime and no landmark model in the APK"
           ) 2>&1 | tee -a /tmp/build.log
 
       # A assinatura de depuração vem do repositório (signing/debug.keystore, declarado no
