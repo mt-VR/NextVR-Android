@@ -46,7 +46,7 @@ public class TrackingBudgetTest {
         TrackingBudget b = new TrackingBudget();
         for (int i = 0; i < 6; i++) b.completed(60);
         assertEquals(192, b.width());
-        for (int i = 0; i < 500; i++) b.completed(6);   // between RELIEF_MS and PRESSURE_MS
-        assertEquals("hysteresis band: neither worse nor better", 240, b.width());
+        for (int i = 0; i < 500; i++) b.completed(4);   // between RELIEF_MS (2.5) and PRESSURE_MS (5)
+        assertEquals("hysteresis band: neither worse nor better", 192, b.width());
     }
 }
