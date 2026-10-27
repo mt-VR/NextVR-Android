@@ -267,7 +267,8 @@ public final class PerfLog {
         listener.accept(String.format(java.util.Locale.US,
             "{\"camera\":%.1f,\"render\":%.1f,\"track\":%.1f,\"infer\":%.1f,\"infer1h\":%.1f,\"infer2h\":%.1f,"
                 + "\"poseMs\":%.2f,\"camWork\":%.1f,"
-                + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"light\":%.2f,\"skin\":%.1f,\"size\":\"%s\"}",
+                + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"light\":%.2f,\"skin\":%.1f,\"size\":\"%s\","
+                + "\"delegate\":\"%s\"}",
             cameraFrames / seconds, renderFrames / seconds, results / seconds,
             results == 0 ? -1.0 : inferSum / results,
             infer1Count == 0 ? -1.0 : infer1Sum / infer1Count,
@@ -277,7 +278,7 @@ public final class PerfLog {
             dropped, analysisSkips, staleFrames,
             lightCount == 0 ? -1.0 : lightSum / lightCount,
             lightPixels == 0 || skinSamples == 0 ? -1.0 : 100.0 * (skinSum / skinSamples) / lightPixels,
-            quote(lightSize)));
+            quote(lightSize), quote(delegate)));
     }
 
     /**
