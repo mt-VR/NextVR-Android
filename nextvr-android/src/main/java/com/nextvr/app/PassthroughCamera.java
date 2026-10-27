@@ -400,10 +400,12 @@ final class PassthroughCamera {
                         target.scaleY=scaleY;
                         boolean filled;
                         try {
+                            // The luma plane has no pixel stride to honour (YUV_420_888's Y is
+                            // one byte per pixel); only the chroma planes can be interleaved.
                             filled=YuvSkinSampler.fill(target,p[0].getBuffer(),p[1].getBuffer(),p[2].getBuffer(),
                                 image.getWidth(),image.getHeight(),
                                 p[0].getRowStride(),p[1].getRowStride(),p[2].getRowStride(),
-                                p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
+                                p[1].getPixelStride(),p[2].getPixelStride(),rotation);
                         } catch(Throwable rejected) {
                             filled=false;
                         }
