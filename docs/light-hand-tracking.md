@@ -13,7 +13,7 @@ nativo de ~600 linhas que não tem modelo, tensor, delegate nem inferência.
 | modelo no APK | 7,5 MB (`hand_landmarker.task`) | nenhum |
 | dependências | `tasks-vision`, `litert`, `protobuf-javalite` | nenhuma |
 | entrada | bitmap ARGB redimensionado (alocação por quadro) | `LightFrame` (Y/Cb/Cr) amostrado das planos da câmera |
-| custo por quadro | 85–100 ms | fração de milissegundo (~1–2 ms a 320 px de largura) |
+| custo por quadro | 85–100 ms | fração de milissegundo (~1–2 ms com 320 px no lado menor) |
 | threads/grafos | thread de inferência, 2 grafos, fila de slots | uma passada na thread de rastreamento |
 | memória | bitmap + tensores + intérpretes | 3 `ByteArray` + buffers por resolução |
 
