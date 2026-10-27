@@ -299,8 +299,9 @@ class PhoneXrHandsTest {
     @Test fun predictionExtendsTheLastVelocityAtMostOneInterval() {
         val engine=PhoneXrHands()
         val h0=engine.feed(result(points(.2f),1000)).hands.single()
-        val a=h0.copy(points=flat(.10f),baseX=.10f,aimX=.10f)
-        val b=h0.copy(points=flat(.20f),baseX=.20f,aimX=.20f)
+        // The fixture moves in x AND y, so the rigid translation is exercised on both axes.
+        val a=h0.copy(points=flat(.10f),baseX=.10f,baseY=.10f,aimX=.10f,aimY=.10f)
+        val b=h0.copy(points=flat(.20f),baseX=.20f,baseY=.20f,aimX=.20f,aimY=.20f)
         val first=PhoneXrHands.Frame(listOf(a),1_000_000_000L,1_000_000_000L)
         val second=PhoneXrHands.Frame(listOf(b),1_040_000_000L,1_040_000_000L,500_000_000L,0L,first)
         // At the detection instant: exactly the detection, zero added latency.
