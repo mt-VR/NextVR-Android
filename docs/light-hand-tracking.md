@@ -133,3 +133,28 @@ silhueta de uma detecção fraca já aparece esmaecida em vez de sólida.
 `LightHandTrackerTest` cobre: `theRoomIsNeverPublishedAsAHand` (armário saindo do quadro, parede à
 direita, painel no meio — todos 0 mãos), `aClosedHandIsAFist` (abre e fecha), e
 `aClosedHandWithItsForearmIsFoundFromCold`.
+
+## Build 86 — mão de palito, e mais FPS
+
+O rastreio ainda custava caro no lugar errado: **desenhar**. A silhueta preenchida escreve a
+poligonal da palma, duas cadeias de borda e duas passadas (contorno + preenchimento) a cada quadro
+de exibição, mais o trabalho de stencil — e, quando a silhueta errava a forma, aparecia como um
+borrão sobre o móvel.
+
+A Build 86 desenha **palito** (`PhoneXrHandRenderer.stickFigure`, ligado por padrão): 24 cápsulas
+finas + pontinhos nas 21 juntas, uma passada só, sem preenchimento e sem stencil extra. São ~1 300
+vértices contra milhares, e os traços caem exatamente sobre os landmarks — a mão ou está na mão ou
+não aparece, nunca "quase" na mão. A cor é a do contorno (branco), a pinça engrossa/clareia.
+
+No rastreio:
+
+- **análise menor** (`TrackingBudget` 256 → 192 px): ~55 mil pixels de croma + limpeza + flood fill
+  + ajuste de palma, abaixo de 1 ms; o rastreio acompanha o quadro da câmera em vez de limitá-lo;
+- **fast path de móvel** (`MAX_SKIN_SHARE` = 0.60): se a imagem é mais pele que não-pele é parede,
+  armário ou lençol — sai antes do flood fill;
+- **continuidade** (`LightHandTracker.nearer`): com dois blobs, o que está mais perto da palma do
+  quadro anterior é aquela mão, então filtro de orientação, latch de pinça e lado não trocam de
+  slot quando as áreas oscilam.
+
+Testes: `TrackingBudgetTest` atualizado para 256/192 e a suíte node ganhou pins do palito
+(`stickFigure=true`, `fun rod(`, `MAX_SKIN_SHARE`, `WIDTHS = {256, 192}`).

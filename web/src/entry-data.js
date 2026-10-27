@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.2.2.
-export const ENTRY_VERSION = 'v2.2.2';
-export const ENTRY_VERSION_ALPHA = 'v2.2.2 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.3.0.
+export const ENTRY_VERSION = 'v2.3.0';
+export const ENTRY_VERSION_ALPHA = 'v2.3.0 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,6 +44,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'stick-hand-fast',
+    tag: 'NOVO · MÃO DE PALITO E RASTREIO MUITO MAIS RÁPIDO (BUILD 86)',
+    time: 'Agora',
+    heading: 'Mão de Palito: Desenho Leve, Colado na Mão e com Muito Mais FPS',
+    desc: 'O hand tracking virou uma mão de PALITO: em vez da silhueta preenchida (que custava milhares de vértices por quadro e às vezes virava um borrão), agora são alguns traços finos que vão exatamente onde estão as 21 juntas — muito mais leve, muito mais rápido e impossível de "sair" da mão. O rastreio também ficou mais esperto: analisa um quadro menor (256 px) para acompanhar cada frame da câmera, descarta a imagem inteira na hora quando ela é só móvel/parede, e usa a continuidade para saber qual mão é qual (nada de trocar de lado).',
+  },
   {
     id: 'hand-no-false-positives',
     tag: 'CORRIGIDO · A MÃO FANTASMA SUMIU (BUILD 85)',

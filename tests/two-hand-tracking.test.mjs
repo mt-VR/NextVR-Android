@@ -43,12 +43,12 @@ test('no model, no delegate and no task file are left in the hand-tracking stack
 
 test('the analysis size is the light tracker budget, not an inference window', async () => {
   const budget = await readFile('nextvr-android/src/main/java/com/nextvr/app/TrackingBudget.java', 'utf8');
-  assert.match(budget, /WIDTHS = \{320, 240\}/, 'the analysis frame is small because the tracker is cheap');
+  assert.match(budget, /WIDTHS = \{256, 192\}/, 'the analysis frame is small because the tracker is cheap');
   assert.match(budget, /public synchronized int height\(int frameWidth, int frameHeight\)/,
     'the aspect ratio of the camera frame is kept');
   const unit = await readFile('nextvr-android/src/test/java/com/nextvr/app/TrackingBudgetTest.java', 'utf8');
   assert.match(unit, /keepsTheCameraAspectRatioForTheAnalysisFrame/);
-  assert.match(unit, /assertEquals\(240, b\.width\(\)\)/);
+  assert.match(unit, /assertEquals\(192, b\.width\(\)\)/);
 });
 
 test('two-hand silhouettes predict and fade independently, with per-hand pinch feedback', async () => {

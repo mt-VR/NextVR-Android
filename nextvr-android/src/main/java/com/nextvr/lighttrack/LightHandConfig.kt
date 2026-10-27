@@ -55,6 +55,13 @@ object LightHandConfig {
     /** A blob bigger than this share of the frame is background, not a hand. */
     const val MAX_BLOB_AREA_SHARE = 0.55f
     /**
+     * Share of the frame above which the picture is furniture: a wardrobe, a wall, a sheet. No hand
+     * covers more than half the view (the palm radius gate already rejects one that close), so the
+     * frame is dropped before the flood fill and the palm fit - the fast path for a phone pointed
+     * at a beige room.
+     */
+    const val MAX_SKIN_SHARE = 0.60f
+    /**
      * Widest angular run that still counts as ONE finger: 4 degrees per bin, so a finger (or two
      * touching ones) spans well under this, while a wall's profile is a broad arc with no narrow
      * protrusion at all. This is what tells a hand from every large beige surface in the room.

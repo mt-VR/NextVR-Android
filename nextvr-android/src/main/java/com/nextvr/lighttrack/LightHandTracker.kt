@@ -63,11 +63,29 @@ class LightHandTracker(val width: Int, val height: Int) {
         if (frame.width != width || frame.height != height) return 0
         skinPixels = mask.build(frame)
         if (skinPixels < LightHandConfig.MIN_AREA) return 0
+        // Fast path for a phone pointed at a beige room: more skin than not means furniture, and
+        // there is nothing to segment. Cheaper than the flood fill that would find only walls.
+        if (skinPixels > (width * height * LightHandConfig.MAX_SKIN_SHARE).toInt()) {
+            blobCount = 0
+            return 0
+        }
         blobCount = blobs.find(mask.clean, LightHandConfig.MIN_AREA)
         val minRadius = LightHandConfig.MIN_PALM_RADIUS * width
         val maxRadius = LightHandConfig.MAX_PALM_RADIUS * width
         val maxArea = (LightHandConfig.MAX_BLOB_AREA_SHARE * width * height).toInt()
         var found = 0
+        // Continuity first: with two blobs on screen, the one nearest the palm tracked a moment ago
+        // IS that hand. Slot 0 keeps one hand's orientation filter, pinch latch and side across
+        // frames, so letting the blobs swap places (which their areas do whenever an arm slides in
+        // or out) made a hand jump to the other side of the view for one frame.
+        if (blobs.blobs.size == 2 && lastHands > 0) {
+            val a = blobs.blobs[0]
+            val b = blobs.blobs[1]
+            if (nearer(b) < nearer(a)) {
+                blobs.blobs[0] = b
+                blobs.blobs[1] = a
+            }
+        }
         for (b in 0 until blobs.blobs.size) {
             if (found >= LightHandConfig.MAX_HANDS) break
             val blob = blobs.blobs[b]
@@ -120,6 +138,18 @@ class LightHandTracker(val width: Int, val height: Int) {
             hand.fist = hand.extended <= LightHandConfig.FIST_FINGERS && fit.fill >= LightHandConfig.FIST_FILL
         }
         return hands.size
+    }
+
+    /** Distance from [blob] to the nearest palm published on the previous frame, normalized. */
+    private fun nearer(blob: SkinBlob): Float {
+        val cx = blob.cx / width
+        val cy = blob.cy / height
+        var best = Float.MAX_VALUE
+        for (i in 0 until lastHands) {
+            val d = hypot(cx - lastX[i], cy - lastY[i])
+            if (d < best) best = d
+        }
+        return best
     }
 
     /**

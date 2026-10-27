@@ -106,6 +106,17 @@ class PhoneXrHandRenderer {
     @JvmField @Volatile var virtualEnv=false
     @JvmField @Volatile var gameHandMode=false
     @JvmField @Volatile var mrGameMode=false
+    /**
+     * Draw the hand as a STICK ("palito") instead of the filled silhouette.
+     *
+     * A stick is a dozen capsules and a few dots: a fraction of the vertices the silhouette
+     * tessellation writes every display frame (palm polygon, two border chains, two passes, stencil),
+     * so it costs almost nothing to keep up with 90 Hz, and it never covers the camera picture. It
+     * also cannot look "wrong" the way a silhouette can: the lines go exactly where the 21
+     * landmarks are, so the hand is either on the hand or absent, never a shapeless blob drifting
+     * over the furniture.
+     */
+    @JvmField @Volatile var stickFigure=true
     private val CURSOR_R=.016f
     private val RAY_SHOWN=.98f // PICO 4 full laser ray (legacy RAY_SHOWN=.55f)
     /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
@@ -410,6 +421,43 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 if (palm < 1e-4f) continue
                 val r = palm * .12f
                 val edge = if (pinching) maxOf(palm * .022f, .002f) else maxOf(palm * .012f, .0014f)
+                if (stickFigure) {
+                    // One mesh, one pass: bones, no fill, no contour growth, no stencil work.
+                    val m = mesh()
+                    val s = m.vertices
+                    val thin = maxOf(palm * .028f, .0012f)
+                    val thick = maxOf(palm * .050f, .0020f)
+                    fun rod(i: Int, j: Int, ri: Float, rj: Float) {
+                        handBone(s, x(i), y(i), x(j), y(j), ri, rj)
+                        handDisc(s, x(i), y(i), ri)
+                        handDisc(s, x(j), y(j), rj)
+                    }
+                    // Palm: the knuckle arch plus the two sides down to the wrist.
+                    rod(5, 9, thick, thick); rod(9, 13, thick, thick); rod(13, 17, thick, thick)
+                    rod(0, 5, thick, thick); rod(0, 17, thick, thick)
+                    // Four fingers, three bones each.
+                    for (f in 0 until 4) {
+                        val b = 5 + f * 4
+                        rod(b, b + 1, thin, thin); rod(b + 1, b + 2, thin, thin); rod(b + 2, b + 3, thin, thin)
+                    }
+                    // Thumb: four bones from the wrist side of the palm.
+                    rod(0, 1, thick, thin); rod(1, 2, thin, thin); rod(2, 3, thin, thin); rod(3, 4, thin, thin)
+                    m.handIndex = handIndex
+                    m.passType = 0
+                    // The draw pass decides the colour by color[0] > .5: bright, so the stick is
+                    // drawn in the contour colour (white) with no dark fill behind it.
+                    m.color[0] = HAND_CONTOUR_R; m.color[1] = HAND_CONTOUR_G; m.color[2] = HAND_CONTOUR_B
+                    m.color[3] = if (pinching) HAND_PINCH_ALPHA else HAND_OUTLINE_ALPHA
+                    // A stick has no wrist fade: the same point at both ends of the gradient axis
+                    // makes the fade constant, so no part of the line is dimmed away.
+                    val ccx = (x(5) + x(9) + x(13) + x(17)) / 4f
+                    val ccy = (y(5) + y(9) + y(13) + y(17)) / 4f
+                    m.wrist[0] = ccx; m.wrist[1] = ccy
+                    m.knuckle[0] = ccx; m.knuckle[1] = ccy
+                    m.touching = pinching
+                    result.add(m)
+                    continue
+                }
                 // Gradient axis = palm knuckles -> the VIRTUAL (estimated) wrist, not the landmark.
                 // MediaPipe gives a wrist point but no forearm, so the silhouette is carried a
                 // little past landmark 0 along the palm axis and dissolves there: the hand stays

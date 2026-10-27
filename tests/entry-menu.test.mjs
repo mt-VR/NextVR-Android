@@ -331,7 +331,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 85') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 86') &&
     // Build 83: o rastreamento de mãos virou segmentação de pele nativa (sem modelo/inferência).
     entryDataSrc.includes('light-hand-tracking') &&
     // Build 84: a silhueta parou de girar - o antebraço é identificado pela borda da imagem,
@@ -344,6 +344,12 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/PalmFit.kt', 'utf8').includes('fun handiness(') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/PalmFit.kt', 'utf8').includes('countHumps') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHandTracker.kt', 'utf8').includes('isHand(fit, frame.stampMs)') &&
+    // Build 86: mao de palito (desenho barato) e rastreio mais rapido (frame menor + fast path).
+    entryDataSrc.includes('stick-hand-fast') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8').includes('var stickFigure=true') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8').includes('fun rod(') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHandConfig.kt', 'utf8').includes('MAX_SKIN_SHARE') &&
+    readFileSync('nextvr-android/src/main/java/com/nextvr/app/TrackingBudget.java', 'utf8').includes('WIDTHS = {256, 192}') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/PalmFit.kt', 'utf8').includes('hasArm') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/PalmFit.kt', 'utf8').includes('fun arm(') &&
     readFileSync('nextvr-android/src/main/java/com/nextvr/lighttrack/LightHandTracker.kt', 'utf8').includes('FLIP_RAD') &&

@@ -4,27 +4,30 @@ package com.nextvr.app;
  * Adaptive hand-input resolution only. Frame cadence is owned by Camera2 and the single-flight
  * admission flag in PassthroughCamera; this class must never impose an independent FPS ceiling.
  *
- * The widths are the ANALYSIS sizes the light tracker segments (see com.nextvr.lighttrack): a
- * 320x240 frame is 76 800 pixels of chroma test, flood fill and palm fit, and 240x180 is 43 200.
- * The whole step is well under a millisecond on a mid-range phone, so the budget almost never
- * steps down — it exists because the camera thread also pays for the resample, and on a busy device
- * (a WebView app open, thermal throttling) the smaller frame is free accuracy-wise for a hand that
- * fills a good share of the view.
+ * The widths are the ANALYSIS sizes the light tracker segments (see com.nextvr.lighttrack): 256 px
+ * wide is ~55 000 pixels of chroma test, majority cleanup, flood fill and palm fit — under a
+ * millisecond on a mid-range phone, which is why the tracker now follows the camera frame rate
+ * instead of being the thing that limits it. 192 px is the fallback that a busy device (a WebView
+ * app open, thermal throttling) steps down to: a hand at arm's length still has fingers ~4 px wide
+ * there, which is what the profile needs.
  *
  * Stepping down needs a sustained mean above [PRESSURE_MS]; stepping back up needs a much longer
  * stretch of headroom, and the mean restarts after every step so the new size gets a fair chance.
  */
 public final class TrackingBudget {
-    /** 320 px first: the pinch loop needs the pixels, and the cost of them is small. */
-    private static final int[] WIDTHS = {320, 240};
+    /**
+     * 256 px first: fast enough to track every camera frame, and still wide enough for the
+     * thumb-index loop and the finger profile. 192 px is the relief step.
+     */
+    private static final int[] WIDTHS = {256, 192};
     /** Mean tracking cost above this is "the tracker is not keeping up with the camera". */
-    private static final double PRESSURE_MS = 8;
+    private static final double PRESSURE_MS = 5;
     /** Mean cost below this is headroom to spend on precision again. */
-    private static final double RELIEF_MS = 4;
+    private static final double RELIEF_MS = 2.5;
     /** Consecutive results required, so one slow frame (GC, app opening) never changes the input. */
     private static final int PRESSURE_FRAMES = 6, RELIEF_FRAMES = 90;
     /** The starting point of the mean, and where it returns after a step (see changeStep). */
-    private static final double SEED_AVERAGE_MS = 6;
+    private static final double SEED_AVERAGE_MS = 3;
 
     private int step, slow, fast;
     private double averageMs = SEED_AVERAGE_MS;

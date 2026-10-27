@@ -1550,7 +1550,7 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.2.2';
+  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.3.0';
   scroll.append(foot);
 
   body.append(head, scroll);
@@ -4952,7 +4952,7 @@ document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : s
 on('hands', v => { document.getElementById('dotHand').classList.toggle('on', !!v); });
 on('gyro', v => { document.getElementById('dotGyro').classList.toggle('on', !!v); });
 
-// Menu de entrada NextVR v2.2.2 abre sempre ao iniciar o app/jogo.
+// Menu de entrada NextVR v2.3.0 abre sempre ao iniciar o app/jogo.
 makeDock();
 const bootOnboarding = new URLSearchParams(location.search).get('onboarding') ||
   (location.hash.includes('onboarding=language') ? 'language' :
