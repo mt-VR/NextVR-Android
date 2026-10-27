@@ -82,6 +82,18 @@ object LightHandConfig {
     const val THUMB_REACH = 1.30f
     /** How far the profile is followed (palm radii): a splayed hand is ~2.6 palm radii across. */
     const val PROFILE_REACH = 3.2f
+    /**
+     * Hard ceiling on a drawn finger, in palm radii.
+     *
+     * The profile follows the silhouette up to [PROFILE_REACH], but a finger is never 3 palms long:
+     * when the blob includes a bit of forearm, a sleeve edge or a reflection, the "reach" in that
+     * direction is still long and used to be drawn as a spike shooting out of the hand. The
+     * skeleton clamps every finger to this, so a bad measurement can make a finger short, never a
+     * spear crossing the screen.
+     */
+    const val MAX_FINGER_REACH = 2.35f
+    /** ... and the thumb, which is shorter than the fingers. */
+    const val MAX_THUMB_REACH = 1.95f
 
     /**
      * Finger directions, thumb to pinky, relative to the fan direction of a RIGHT hand. The left
@@ -120,6 +132,15 @@ object LightHandConfig {
     const val MAX_ARM_RUN = 4.0f
     /** Below this the blob is not published as a hand at all, whatever else it looks like. */
     const val MIN_HANDINESS = 0.55f
+    /** Confidence below which the hand is tracked (gestures work) but not DRAWN: a weak fit is
+     *  never worth the ugly shape it makes on the picture. */
+    const val MIN_DRAW_CONFIDENCE = 0.62f
+    /**
+     * Two blobs whose palms are closer than this many radii of the larger one are the SAME hand:
+     * a dark shadow between the fingers, a ring, a watch strap or a sleeve splits the silhouette
+     * into pieces, and each piece used to become a hand of its own - two sticks over one hand.
+     */
+    const val SAME_HAND_RADII = 2.0f
     /**
      * A hand never fills its bounding box completely: fingers and the thumb leave corners of
      * background. Furniture and walls do fill theirs, so anything above this is not a hand - the

@@ -158,3 +158,27 @@ No rastreio:
 
 Testes: `TrackingBudgetTest` atualizado para 256/192 e a suíte node ganhou pins do palito
 (`stickFigure=true`, `fun rod(`, `MAX_SKIN_SHARE`, `WIDTHS = {256, 192}`).
+
+## Build 87 — o palito virava uma estrela
+
+O desenho de palito da Build 86 estava saindo como uma estrela torta, com **dois esqueletos sobre a
+mesma mão** e espetos atravessando a tela. Três causas, três consertos:
+
+1. **Um pedaço de mão virava outra mão.** Uma sombra entre os dedos, um relógio, um anel, a manga ou
+   um reflexo separam a silhueta em dois componentes — e cada um era publicado como uma mão. Agora
+   dois blobs cujas palmas estão a menos de `SAME_HAND_RADII` (2 raios) são a MESMA mão e o mais
+   fraco é descartado (`LightHandTracker.isSameHand`).
+2. **Dedo do tamanho de um espeto.** O perfil radial segue o blob até 3,2 raios de palma, e quando o
+   blob inclui manga/braço a "chegada" naquela direção era enorme. O esqueleto agora limita cada
+   dedo a `MAX_FINGER_REACH` (2,35 raios) e o polegar a `MAX_THUMB_REACH` (1,95): uma medida ruim
+   deixa o dedo curto, nunca um espeto cruzando a tela (`HandSkeleton`).
+3. **A mão crescia e encolhia sozinha.** O raio da palma é a ESCALA do esqueleto inteiro; oscilando
+   a cada quadro, a mão "voava" de si mesma. Agora é filtrado como a orientação
+   (`LightHandTracker.steady`, `RADIUS_GAIN`).
+
+No desenho: o pulso do palito é preso a 1,15 × a distância palma‑nó dos dedos (acabou o triângulo
+cruzado), as linhas ficaram finas (1,6 % / 3 % da palma em vez de 2,8 % / 5 %) e uma detecção com
+`handiness` abaixo de `MIN_DRAW_CONFIDENCE` (0,62) **não é desenhada** — o rastreio continua para os
+gestos, mas nada de garrancho em cima da mão.
+
+Testes JVM novos: `aSplitBlobIsStillOneHand` e `aFingerIsNeverDrawnLongerThanAFinger`.

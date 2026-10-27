@@ -54,6 +54,8 @@ class LightHandTracker(val width: Int, val height: Int) {
     /** Camera time of the last published hand, or -1 when there never was one. */
     private var lastSeenMs = -1L
     private val smoothFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
+    /** Palm radius (the skeleton's scale) per slot on the previous frame. */
+    private val smoothRadius = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
     /** A frame whose fan was too far from the last one to believe it, kept to see if it repeats. */
     private val pendingFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
 
@@ -102,6 +104,10 @@ class LightHandTracker(val width: Int, val height: Int) {
             // Skin leaving the picture for more than a forearm's width is background, not an arm.
             if (fit.armRun > fit.radius * LightHandConfig.MAX_ARM_RUN) continue
             if (!isHand(fit, frame.stampMs)) continue
+            // One hand, one hand: a shadow between the fingers, a ring or a sleeve splits the
+            // silhouette into pieces, and each piece used to be published as its own hand - two
+            // skeletons drawn over one hand, which is exactly what "the hand looks broken" was.
+            if (isSameHand(found, fit)) continue
             steady(found, fit)
             val hand = pool[found]
             // The rear camera looks forward, so the picture's right is the user's right.
@@ -138,6 +144,16 @@ class LightHandTracker(val width: Int, val height: Int) {
             hand.fist = hand.extended <= LightHandConfig.FIST_FINGERS && fit.fill >= LightHandConfig.FIST_FILL
         }
         return hands.size
+    }
+
+    /** True when [fit] sits on top of a hand already accepted in this frame. */
+    private fun isSameHand(found: Int, fit: PalmFit): Boolean {
+        for (i in 0 until found) {
+            val other = fits[i]
+            val d = hypot(fit.cx - other.cx, fit.cy - other.cy)
+            if (d < maxOf(other.radius, fit.radius) * LightHandConfig.SAME_HAND_RADII) return true
+        }
+        return false
     }
 
     /** Distance from [blob] to the nearest palm published on the previous frame, normalized. */
@@ -197,6 +213,14 @@ class LightHandTracker(val width: Int, val height: Int) {
      * is in frame, straight away from the fingers when it is not.
      */
     private fun steady(slot: Int, fit: PalmFit) {
+        // The palm radius is the SCALE of the whole skeleton: a wobbling radius made the hand grow
+        // and shrink every frame, which reads as the hand flying away from itself. Filtered the
+        // same way as the orientation (short lag, no freeze).
+        val previousRadius = smoothRadius[slot]
+        fit.radius = if (previousRadius.isNaN()) fit.radius
+            else previousRadius + (fit.radius - previousRadius) * RADIUS_GAIN
+        smoothRadius[slot] = fit.radius
+        fit.palmPx = LightHandConfig.PALM_PER_RADIUS * fit.radius
         val previous = smoothFan[slot]
         var fan = fit.fanAngle
         if (!previous.isNaN()) {
@@ -307,6 +331,7 @@ class LightHandTracker(val width: Int, val height: Int) {
         for (i in smoothFan.indices) {
             smoothFan[i] = Float.NaN
             pendingFan[i] = Float.NaN
+            smoothRadius[i] = Float.NaN
         }
     }
 
@@ -326,6 +351,8 @@ class LightHandTracker(val width: Int, val height: Int) {
         /** How close a repeat has to be to the rejected reading for it to be accepted. */
         const val FLIP_CONFIRM = 0.75f
         const val TWO_PI = 6.2831855f
+        /** Per-frame share of the way to the measured palm radius: kills the grow/shrink wobble. */
+        const val RADIUS_GAIN = 0.35f
         /** How far a fingerless blob may be from a hand of the previous frame to be that hand. */
         const val FOLLOW_RADIUS = 0.18f
         /** A closed hand is recognised this long after one was tracked. */

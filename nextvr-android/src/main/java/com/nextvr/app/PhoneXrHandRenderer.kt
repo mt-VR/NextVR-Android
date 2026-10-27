@@ -422,19 +422,40 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 val r = palm * .12f
                 val edge = if (pinching) maxOf(palm * .022f, .002f) else maxOf(palm * .012f, .0014f)
                 if (stickFigure) {
+                    // A weak fit is not drawn: a half-guessed skeleton is worse than none, and it
+                    // is what made the stick look broken over the hand.
+                    if (handConfidence < com.nextvr.lighttrack.LightHandConfig.MIN_DRAW_CONFIDENCE) continue
                     // One mesh, one pass: bones, no fill, no contour growth, no stencil work.
                     val m = mesh()
                     val s = m.vertices
-                    val thin = maxOf(palm * .028f, .0012f)
-                    val thick = maxOf(palm * .050f, .0020f)
+                    // Thin lines: a stick hand should read as a drawing, not as a tube of paint over
+                    // the picture. The widths scale with the palm so the hand keeps its proportions
+                    // at any distance, with a floor so a far hand still shows.
+                    val thin = maxOf(palm * .016f, .0011f)
+                    val thick = maxOf(palm * .030f, .0017f)
                     fun rod(i: Int, j: Int, ri: Float, rj: Float) {
                         handBone(s, x(i), y(i), x(j), y(j), ri, rj)
-                        handDisc(s, x(i), y(i), ri)
-                        handDisc(s, x(j), y(j), rj)
+                        handDisc(s, x(i), y(i), ri * .92f)
+                        handDisc(s, x(j), y(j), rj * .92f)
                     }
-                    // Palm: the knuckle arch plus the two sides down to the wrist.
+                    // Palm: the knuckle arch plus two short sides down to a CLAMPED wrist. The
+                    // landmark wrist is synthesized from the fan direction, and when that reading
+                    // is a bit off it sat far from the knuckles - the two long sides then crossed
+                    // the fingers and drew the triangle that looked like a broken hand.
                     rod(5, 9, thick, thick); rod(9, 13, thick, thick); rod(13, 17, thick, thick)
-                    rod(0, 5, thick, thick); rod(0, 17, thick, thick)
+                    val kx = (x(5) + x(9) + x(13) + x(17)) / 4f
+                    val ky = (y(5) + y(9) + y(13) + y(17)) / 4f
+                    var wx = x(0)
+                    var wy = y(0)
+                    val wLen = hypot(wx - kx, wy - ky)
+                    val wMax = palm * 1.15f
+                    if (wLen > wMax && wLen > 1e-5f) {
+                        wx = kx + (wx - kx) / wLen * wMax
+                        wy = ky + (wy - ky) / wLen * wMax
+                    }
+                    handBone(s, wx, wy, x(5), y(5), thick, thick)
+                    handBone(s, wx, wy, x(17), y(17), thick, thick)
+                    handDisc(s, wx, wy, thick)
                     // Four fingers, three bones each.
                     for (f in 0 until 4) {
                         val b = 5 + f * 4

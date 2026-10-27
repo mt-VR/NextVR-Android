@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.3.0.
-export const ENTRY_VERSION = 'v2.3.0';
-export const ENTRY_VERSION_ALPHA = 'v2.3.0 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.3.1.
+export const ENTRY_VERSION = 'v2.3.1';
+export const ENTRY_VERSION_ALPHA = 'v2.3.1 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,6 +44,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'stick-hand-tidy',
+    tag: 'CORRIGIDO · PALITO NÃO VIRA MAIS ESTRELA NA MÃO (BUILD 87)',
+    time: 'Agora',
+    heading: 'Mão de Palito Consertada: Uma Mão Só, Sem Espetos e Sem Tremida de Tamanho',
+    desc: 'O palito estava saindo como uma estrela torta, com dois esqueletos sobre a mesma mão e espetos atravessando a tela. Agora: pedaços separados da MESMA mão (sombra entre os dedos, relógio, anel, manga) são juntados em uma mão só; o dedo nunca é desenhado mais comprido do que um dedo pode ser; a escala da palma é filtrada (a mão parou de crescer e encolher sozinha); o pulso do desenho é preso perto dos nós dos dedos (acabou o triângulo cruzado); os traços ficaram finos; e uma detecção fraca simplesmente não é desenhada, em vez de virar um garrancho em cima da mão.',
+  },
   {
     id: 'stick-hand-fast',
     tag: 'NOVO · MÃO DE PALITO E RASTREIO MUITO MAIS RÁPIDO (BUILD 86)',

@@ -239,6 +239,57 @@ class LightHandTrackerTest {
         }
     }
 
+    /**
+     * A shadow between the fingers, a ring or a sleeve splits the silhouette in two. The two pieces
+     * are ONE hand, and used to be drawn as two skeletons over the same hand.
+     */
+    @Test fun aSplitBlobIsStillOneHand() {
+        val tracker = tracker()
+        val frame = scene { x, y ->
+            val dx = x - 44f
+            val dy = y - 52f
+            val d = hypot(dx, dy)
+            var on = d <= palmR
+            if (!on) {
+                val a = degrees(dx, dy)
+                for (f in fingerAngles) if (angleGap(a, f) <= 6f && d <= 30f) on = true
+                if (angleGap(a, thumbAngle) <= 9f && d <= 22f) on = true
+            }
+            // A second, separate patch of skin right beside the palm: a watch, a ring, a shadow gap.
+            if (!on && hypot(x - 68f, y - 52f) <= palmR * .55f) on = true
+            on
+        }
+        assertEquals("two near blobs are one hand", 1, tracker.process(frame))
+        assertEquals("and it is the palm that wins", true, tracker.hands[0].palmX < .6f)
+    }
+
+    /** A blob with a long thin spike (a sleeve edge, a reflection) must not draw a spear. */
+    @Test fun aFingerIsNeverDrawnLongerThanAFinger() {
+        val tracker = tracker()
+        val frame = scene { x, y ->
+            val dx = x - 52f
+            val dy = y - 52f
+            val d = hypot(dx, dy)
+            var on = d <= palmR
+            // One absurd protrusion: a 4-palm-long, 2 px wide spike straight up.
+            if (!on && kotlin.math.abs(x - 52f) <= 1.5f && y <= 52f) on = true
+            on
+        }
+        assertEquals(1, tracker.process(frame))
+        val hand = tracker.hands[0]
+        val palm = hand.palmWidth
+        var longest = 0f
+        for (i in 0 until 21) {
+            val dx = hand.image[i * 3] - hand.palmX
+            val dy = hand.image[i * 3 + 1] - hand.palmY
+            val d = hypot(dx, dy)
+            if (d > longest) longest = d
+        }
+        // palmWidth is 2.13 radii, and the longest finger is capped at MAX_FINGER_REACH radii.
+        val limit = palm / 2.13f * (LightHandConfig.MAX_FINGER_REACH + 1.4f)
+        assertTrue("no landmark may fly off the hand: $longest vs $limit", longest < limit)
+    }
+
     @Test fun aThumbTouchingTheIndexIsAPinch() {
         val tracker = tracker()
         assertEquals(1, tracker.process(hand(link = true)))

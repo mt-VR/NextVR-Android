@@ -24,8 +24,8 @@ android {
         // 29 / 2.0.0: Nova interface flutuante Library (7e3d8ab40bd4dd3) 100% transparente sobre a câmera traseira real e selo verificado vermelho igual do TikTok para cada colaborador.
         // 82 / 2.1.0: 6DoF World Lock (mundo travado por padrão, sem deriva), câmera P&B/colorida
         // no jogo e no painel, e o paintMR 3D reconstruído (ancoragem invertida corrigida).
-        versionCode 86
-        versionName "2.3.0"
+        versionCode 87
+        versionName "2.3.1"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

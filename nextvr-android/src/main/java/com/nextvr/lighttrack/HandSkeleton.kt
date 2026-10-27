@@ -1,6 +1,7 @@
 package com.nextvr.lighttrack
 
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 
 /**
@@ -37,8 +38,12 @@ object HandSkeleton {
         // reads as one wide hump there, and every one of them still counts as out; a folded finger
         // does not reach past the palm at all. No hump-to-finger matching is needed.
         val assigned = FloatArray(5) { -1f }
-        assigned[0] = fit.reachAt(mid + spread * angle[0])
-        for (i in 1..4) assigned[i] = fit.reachAt(mid + spread * angle[i])
+        // A finger is drawn no longer than a finger can be: the profile follows the blob up to
+        // PROFILE_REACH radii, and a blob that includes a sleeve or the arm would otherwise put a
+        // spike through the picture instead of a finger on the hand.
+        val maxFinger = r * LightHandConfig.MAX_FINGER_REACH
+        assigned[0] = min(fit.reachAt(mid + spread * angle[0]), r * LightHandConfig.MAX_THUMB_REACH)
+        for (i in 1..4) assigned[i] = min(fit.reachAt(mid + spread * angle[i]), maxFinger)
         var extended = 0
         for (i in 1..4) if (assigned[i] >= r * LightHandConfig.FINGER_REACH) extended++
         out.extended = extended
@@ -56,7 +61,8 @@ object HandSkeleton {
 
         // 1..4: thumb, base of the palm out to the tip.
         val thumbAngle = mid + spread * angle[0]
-        val thumbReach = if (assigned[0] > 0f) maxOf(assigned[0], r * 0.95f) else r * 0.80f
+        val thumbReach = if (assigned[0] > 0f) min(maxOf(assigned[0], r * 0.95f), r * LightHandConfig.MAX_THUMB_REACH)
+            else r * 0.80f
         setPolar(fit, px, py, 1, thumbAngle, r * 0.45f)
         setPolar(fit, px, py, 2, thumbAngle, r * 0.85f)
         setPolar(fit, px, py, 3, thumbAngle, thumbReach * 0.72f)
