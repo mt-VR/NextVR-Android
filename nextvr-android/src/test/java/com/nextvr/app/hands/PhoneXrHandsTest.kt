@@ -1,3 +1,5 @@
+package com.nextvr.app.hands
+
 import com.nextvr.lighttrack.LightHand
 import org.junit.Assert.*
 import org.junit.Test
