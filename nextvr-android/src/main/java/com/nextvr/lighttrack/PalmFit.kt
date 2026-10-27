@@ -80,7 +80,16 @@ class PalmFit {
         for (y in 0 until bh) {
             val row = (blob.minY + y) * blobs.width + blob.minX
             for (x in 0 until bw) {
-                dist[y * bw + x] = if (blobs.labels[row + x] == blob.id) far else 0
+                dist[y * bw + x] = when {
+                    blobs.labels[row + x] != blob.id -> 0
+                    // The bounding box is TIGHT, so a blob pixel on its border always has
+                    // background beside it: the distance transform starts at one pixel there.
+                    // Without this the "far" sentinel survived on the first row and column of a
+                    // solid blob (a wardrobe, a door) and the largest distance - the palm radius -
+                    // came back as thousands of pixels.
+                    x == 0 || y == 0 || x == bw - 1 || y == bh - 1 -> 3
+                    else -> far
+                }
             }
         }
         for (y in 0 until bh) {
@@ -258,7 +267,10 @@ class PalmFit {
      */
     private fun countHumps(threshold: Float): Int {
         val bins = LightHandConfig.BINS
-        for (b in 0 until bins) above[b] = smooth[b] >= threshold
+        // On the RAW profile: the ±2 bin smoothing deliberately bridges the gap between two
+        // fingers that are held together, and it would equally bridge four splayed ones into a
+        // single wide arc - the very shape this test has to tell apart from a wall.
+        for (b in 0 until bins) above[b] = reach[b] >= threshold
         var found = 0
         for (b in 0 until bins) {
             if (!above[b] || above[index(b - 1)]) continue
