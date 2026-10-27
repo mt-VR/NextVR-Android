@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.2.0.
-export const ENTRY_VERSION = 'v2.2.0';
-export const ENTRY_VERSION_ALPHA = 'v2.2.0 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.2.1.
+export const ENTRY_VERSION = 'v2.2.1';
+export const ENTRY_VERSION_ALPHA = 'v2.2.1 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,6 +44,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'hand-silhouette-fixed',
+    tag: 'CORRIGIDO · SILHUETA DA MÃO PAROU DE GIRAR (BUILD 84)',
+    time: 'Agora',
+    heading: 'Hand Tracking Estável: a silhueta Parou de Girar e de Sair Voando pela Tela',
+    desc: 'Conserto de raiz no rastreio leve: o antebraço (que também é pele e entrava na conta dos dedos) agora é identificado pelo contato com a borda da imagem e fica de fora da direção dos dedos — era ele que girava a mão inteira na tela. A direção da mão passou a ser filtrada (um quadro não consegue virar uma mão 180°), punho e dedos nunca ficam do mesmo lado da palma, e o movimento previsto entre detecções agora só desloca a mão, sem deformar os dedos — a silhueta não se dobra mais nem varre a tela quando a mão sai do quadro.',
+  },
   {
     id: 'light-hand-tracking',
     tag: 'NOVO · HAND TRACKING ULTRA LEVE, SEM IA PESADA (BUILD 83)',

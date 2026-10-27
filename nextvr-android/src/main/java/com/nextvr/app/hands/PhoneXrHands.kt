@@ -84,28 +84,32 @@ class PhoneXrHands {
             if (gap <= 0L || gap > MAX_PREDICT_GAP_NS) return this
             val dt = ((nowNs - completedNs).toDouble() / gap).toFloat().coerceIn(0f, 1f)
             if (dt <= 0f) return this
-            val t = 1f + dt
             val predicted = hands.map { h ->
                 val p = prev.hands.firstOrNull { it.left == h.left } ?: return@map h
-                Hand(h.left, lerp(p.points, h.points, t), lerpNullable(p.head, h.head, t), h.shape,
-                    lerp(p.baseX, h.baseX, t), lerp(p.baseY, h.baseY, t),
-                    lerp(p.aimX, h.aimX, t), lerp(p.aimY, h.aimY, t),
-                    h.pinching, lerp(p.grabX, h.grabX, t), lerp(p.grabY, h.grabY, t),
-                    h.predicted, h.confidence)
+                // Rigid: the hand is TRANSLATED along its palm's motion, never deformed. Scaling
+                // every landmark by its own velocity invented finger motion nobody measured - two
+                // landmarks of the same hand moving apart (which is what a few pixels of silhouette
+                // noise do) opened the fingers, and the silhouette folded over itself or swept
+                // across the screen while the hand was gone. A hand is a rigid body between two
+                // detections: it moves, it does not change shape.
+                val dx = (h.baseX - p.baseX) * dt
+                val dy = (h.baseY - p.baseY) * dt
+                Hand(h.left, translate(h.points, dx, dy), h.head?.let { translate(it, dx, dy) },
+                    h.shape, h.baseX + dx, h.baseY + dy, h.aimX + dx, h.aimY + dy,
+                    h.pinching, h.grabX + dx, h.grabY + dy, h.predicted, h.confidence)
             }
             return Frame(predicted, timestampNs, completedNs, validForNs, frameAgeNs)
         }
-        private fun lerp(a: FloatArray, b: FloatArray, t: Float): FloatArray {
-            if (a.size != b.size) return b
-            val out = FloatArray(a.size)
-            for (i in a.indices) out[i] = a[i] + (b[i] - a[i]) * t
+        /** [a] shifted by ([dx], [dy]) in the image plane; z is left alone. */
+        private fun translate(a: FloatArray, dx: Float, dy: Float): FloatArray {
+            if (dx == 0f && dy == 0f) return a
+            val out = a.copyOf()
+            for (i in out.indices) when (i % 3) {
+                0 -> out[i] += dx
+                1 -> out[i] += dy
+            }
             return out
         }
-        // Named separately: FloatArray and FloatArray? erase to the same JVM type, so two lerp
-        // overloads differing only in nullability would be a platform declaration clash.
-        private fun lerpNullable(a: FloatArray?, b: FloatArray?, t: Float): FloatArray? =
-            if (a == null || b == null) b else lerp(a, b, t)
-        private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
         fun json(): String {
             // Hand-rolled instead of org.json: this runs on the TRACKING thread between two
             // inferences, and JSONArray(listOf(...)) boxes every one of the 63+63 floats per hand

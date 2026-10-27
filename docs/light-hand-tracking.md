@@ -79,3 +79,31 @@ runtimes*): se o modelo ou um dos runtimes do detector voltar para dentro do APK
 Testes: 156 testes JVM + a suíte node (150 casos) verdes; `LightHandTrackerTest` roda o motor
 inteiro — máscara de croma, blob, disco da palma, perfil radial e os 21 landmarks — contra cenas de
 mão sintéticas (aberta com 4 dedos, punho fechado, laço de pinça e duas mãos).
+
+## Build 84 — por que a silhueta girava (e o que mudou)
+
+O motor da Build 83 acertava a posição da mão, mas a **orientação** saía errada e instável: a
+silhueta girava sem parar em cima da mão e, quando não havia mão, um "fantasma" atravessava a tela.
+Três causas, todas corrigidas:
+
+1. **O antebraço entrava na conta dos dedos.** Pele é pele: o braço é o maior bloco de pele da
+   imagem, e o perfil radial o lia como uma protrusão enorme. A média ponderada que definia "para
+   onde os dedos apontam" caía entre os dedos e o braço, então o esqueleto inteiro era desenhado
+   **rotacionado** — e como a área do braço no quadro muda, ele **girava** de quadro a quadro.
+   Agora o braço é identificado pelo **contato do blob com a borda da imagem** (com largura de
+   punho, não um dedo encostado) e o seu semicírculo fica fora do cálculo (`PalmFit.arm`).
+2. **A orientação não tinha filtro.** Alguns graus de ruído já faziam a mão tremer; uma leitura
+   errada de um quadro a virava. Agora a direção dos dedos é filtrada no arco mais curto
+   (`LightHandTracker.steady`) e **um quadro não consegue virar uma mão 180°**: uma leitura suspeita
+   é segurada até se repetir. O punho é sempre o lado oposto aos dedos, então ele nunca mais é
+   desenhado do mesmo lado da palma.
+3. **A previsão deformava a mão.** Entre duas detecções cada landmark era extrapolado com a própria
+   velocidade; dois pontos da mesma mão se afastando (o que ruído de silhueta faz) **abriam os
+   dedos** e a silhueta se dobrava/apagava pela tela — era o "bugado girando" quando a mão saía do
+   quadro. Agora a previsão é **rígida**: a mão é transladada pela velocidade da palma e a pose é
+   preservada (`PhoneXrHands.predicted` → `translate`).
+
+`LightHandTrackerTest` cobre os três: `theForearmIsNotMistakenForFingers` (com braço na borda
+inferior, dedos continuam sendo 4 e o punho fica abaixo da palma) e
+`oneFlippedFrameCannotTurnTheHandAround` (um quadro invertido é ignorado, dois seguidos são
+seguidos).

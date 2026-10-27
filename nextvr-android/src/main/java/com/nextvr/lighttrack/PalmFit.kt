@@ -3,6 +3,7 @@ package com.nextvr.lighttrack
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -16,10 +17,13 @@ import kotlin.math.sin
  *
  * From the disc centre the silhouette is then followed in 90 directions (4 degrees apart) to the
  * farthest blob pixel. That radial profile answers the three questions the gesture rules ask:
- *  - which way the fingers point ([fanAngle]): the weighted mean of the protrusions that are not
- *    the forearm;
- *  - which side the wrist is on ([wristAngle]): the forearm when it is in frame (its scan runs into
- *    the border), else straight away from the fingers;
+ *  - which side the wrist is on ([wristAngle]): the ARM. A forearm is skin too, and it is usually
+ *    the biggest thing in the picture, so it must be identified before anything else - it is the
+ *    part of the blob that leaves the frame ([armAngle], read off the blob's contact with the
+ *    picture border);
+ *  - which way the fingers point ([fanAngle]): the weighted mean of the protrusions in the half
+ *    plane OPPOSITE the arm. The arm is a long protrusion and used to drag the mean with it, which
+ *    rotated the whole skeleton (the silhouette spun on the hand);
  *  - how far each finger reaches ([reachAt]): sampled at the five canonical finger directions, so
  *    fingers that touch each other (one wide hump) still read as extended, and folded ones do not.
  *
@@ -40,14 +44,18 @@ class PalmFit {
     var fanAngle = 0f
     /** How much of the blob's bounding box is skin: a fist is compact, an open hand is not. */
     var fill = 0f
-    /** Farthest protrusion found, in pixels: 0 when the blob is a closed fist with no fingers out. */
+    /** Farthest protrusion found, in pixels (0 when the blob has no protrusion at all). */
     var maxReach = 0f
+    /** Direction of the forearm, when it is in the picture. */
+    var armAngle = 0f
+    /** True when the blob leaves the picture, i.e. the forearm is in frame. */
+    var hasArm = false
+    /** How much of the blob touches the picture border, in pixels: a hand alone reads 0. */
+    var armPixels = 0
 
     private var dist = IntArray(0)
     private val reach = FloatArray(LightHandConfig.BINS)
     private val smooth = FloatArray(LightHandConfig.BINS)
-    /** True where the scan left the picture while still on skin: the forearm, not a finger. */
-    private val clipped = BooleanArray(LightHandConfig.BINS)
 
     /** Fits [blob]; false when it is too small or shapeless to be a hand. */
     fun fit(blobs: BlobFinder, blob: SkinBlob): Boolean {
@@ -120,9 +128,81 @@ class PalmFit {
         cy = blob.minY + sumY / count
         palmPx = LightHandConfig.PALM_PER_RADIUS * radius
         fill = blob.area.toFloat() / (bw * bh)
+        arm(blobs, blob)
         profile(blobs, blob)
         directions()
         return radius >= 2f
+    }
+
+    /**
+     * Where the blob leaves the picture: the forearm.
+     *
+     * A forearm is skin, it is usually the largest skin thing in the picture, and every pixel test
+     * below treats it as part of the hand. What tells them apart is geometry the mask already has:
+     * the arm goes OUT of the frame (a hand in front of a phone is fully visible, the arm behind it
+     * is not). So the blob's contact with the picture border is the arm, and its direction is the
+     * mean direction of those pixels from the palm. When nothing touches the border there is no arm
+     * in frame and the fingers are all the evidence there is.
+     */
+    private fun arm(blobs: BlobFinder, blob: SkinBlob) {
+        hasArm = false
+        armPixels = 0
+        val w = blobs.width
+        val h = blobs.height
+        var sx = 0f
+        var sy = 0f
+        var n = 0
+        var far = 0f
+        var longest = 0
+        // Each edge of the picture the blob reaches: one contiguous run per row/column, and the
+        // longest run of the four decides. Fingers touching the edge are several NARROW runs; a
+        // forearm is one run at least as wide as the wrist.
+        fun row(row: Int) {
+            var run = 0
+            var lastEnd = -2
+            for (x in blob.minX..blob.maxX) {
+                if (blobs.labels[row * w + x] != blob.id) continue
+                if (x - 1 != lastEnd) run = 0
+                run++
+                lastEnd = x
+                if (run > longest) longest = run
+                val dx = x - cx
+                val dy = row - cy
+                sx += dx
+                sy += dy
+                n++
+                far = maxOf(far, hypot(dx, dy))
+            }
+        }
+        fun column(col: Int) {
+            var run = 0
+            var lastEnd = -2
+            for (y in blob.minY..blob.maxY) {
+                if (blobs.labels[y * w + col] != blob.id) continue
+                if (y - 1 != lastEnd) run = 0
+                run++
+                lastEnd = y
+                if (run > longest) longest = run
+                val dx = col - cx
+                val dy = y - cy
+                sx += dx
+                sy += dy
+                n++
+                far = maxOf(far, hypot(dx, dy))
+            }
+        }
+        if (blob.minY == 0) row(0)
+        if (blob.maxY == h - 1) row(h - 1)
+        if (blob.minX == 0) column(0)
+        if (blob.maxX == w - 1) column(w - 1)
+        armPixels = n
+        if (n < 3) return
+        // A single narrow run is a fingertip grazing the edge; the arm is at least wrist-wide.
+        if (longest < radius * 0.6f) return
+        if (hypot(sx, sy) / n < radius * 1.2f) return
+        if (far < radius * 1.4f) return
+        armAngle = atan2(sy, sx)
+        hasArm = true
     }
 
     /** Farthest blob pixel along each of the 90 directions, in pixels from the centre. */
@@ -138,19 +218,14 @@ class PalmFit {
             val dx = cos(a)
             val dy = sin(a)
             var last = 0f
-            var edge = false
             var t = start
             while (t <= end) {
                 val px = (cx + dx * t).toInt()
                 val py = (cy + dy * t).toInt()
-                if (px < 0 || py < 0 || px >= w || py >= h) {
-                    edge = true
-                    break
-                }
+                if (px < 0 || py < 0 || px >= w || py >= h) break
                 if (blobs.labels[py * w + px] == blob.id) last = t
                 t += step
             }
-            clipped[b] = edge && last > start
             reach[b] = last
             if (last > maxReach) maxReach = last
         }
@@ -163,43 +238,35 @@ class PalmFit {
     }
 
     /**
-     * The wrist side, and the direction the fingers point.
+     * Which way the fingers point, and which way the wrist is.
      *
-     * The wrist and the fingers are collinear with the forearm, so when the forearm is in the
-     * picture (its scan leaves the frame) the hand's axis is simply its opposite — that is stable
-     * whatever the fingers are doing, which matters for the pointing pose, where only one finger
-     * sticks out and a "mean of the protrusions" would land on that one finger. Without the forearm
-     * in frame the protrusions themselves are the best evidence there is.
+     * The protrusions are weighted by how far they reach past the palm, and CAP the reach so one
+     * long protrusion cannot outvote the rest; when the arm is in frame its half of the circle is
+     * left out entirely (see [arm]). Without that subtraction the mean sat between the fingers and
+     * the forearm, which drew the whole hand rotated and made it swing as the arm moved.
      */
     private fun directions() {
         val threshold = radius * LightHandConfig.FINGER_REACH
-        var armX = 0f
-        var armY = 0f
-        var armCount = 0
+        val cap = radius * 2.6f
+        val axis = armAngle + PI.toFloat()
+        var fx = 0f
+        var fy = 0f
         for (b in 0 until LightHandConfig.BINS) {
-            if (!clipped[b]) continue
             val a = angle(b)
-            armX += cos(a)
-            armY += sin(a)
-            armCount++
-        }
-        if (armCount > 0) {
-            wristAngle = atan2(armY, armX)
-            fanAngle = wristAngle + PI.toFloat()
-            return
-        }
-        // No forearm: the fingers are whatever sticks out past the palm.
-        var fanX = 0f
-        var fanY = 0f
-        for (b in 0 until LightHandConfig.BINS) {
-            val w = smooth[b] - threshold
+            if (hasArm && cos(a - axis) <= 0f) continue
+            val w = min(smooth[b], cap) - threshold
             if (w <= 0f) continue
-            val a = angle(b)
-            fanX += cos(a) * w
-            fanY += sin(a) * w
+            fx += cos(a) * w
+            fy += sin(a) * w
         }
-        fanAngle = if (fanX == 0f && fanY == 0f) -PI.toFloat() / 2f else atan2(fanY, fanX)
-        wristAngle = fanAngle + PI.toFloat()
+        fanAngle = when {
+            fx != 0f || fy != 0f -> atan2(fy, fx)
+            hasArm -> axis
+            // A closed hand with no arm in frame: keep the last plausible orientation instead of
+            // spinning to an arbitrary one.
+            else -> -PI.toFloat() / 2f
+        }
+        wristAngle = if (hasArm) armAngle else fanAngle + PI.toFloat()
     }
 
     private fun angle(bin: Int): Float = bin * (2f * PI.toFloat()) / LightHandConfig.BINS

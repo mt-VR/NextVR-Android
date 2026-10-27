@@ -38,6 +38,18 @@ class LightHandTracker(val width: Int, val height: Int) {
     /** Side of the last single hand, so a hand over the middle of the view keeps its identity. */
     private var lastLeft = false
     private var haveSide = false
+    /**
+     * The fan (finger) direction of each slot on the previous frame.
+     *
+     * The orientation is the one thing in this tracker that is inferred rather than measured, and a
+     * few degrees of jitter in it are enough for the silhouette to flutter; a wrong reading draws
+     * the whole hand rotated. So it is filtered: the shortest angular path to the new measurement,
+     * strong smoothing while it agrees, a fast catch-up when the hand really turns. The angle is
+     * what "the hand spins on screen" was: nothing else in the skeleton moves that way.
+     */
+    private val smoothFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
+    /** A frame whose fan was too far from the last one to believe it, kept to see if it repeats. */
+    private val pendingFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
 
     /** Segments [frame] and returns the number of hands written to [hands]. */
     fun process(frame: LightFrame): Int {
@@ -54,6 +66,7 @@ class LightHandTracker(val width: Int, val height: Int) {
             val fit = fits[found]
             if (!fit.fit(blobs, blob)) continue
             if (fit.radius < minRadius) continue
+            steady(found, fit)
             val hand = pool[found]
             // The rear camera looks forward, so the picture's right is the user's right.
             hand.left = fit.cx < width * 0.5f
@@ -88,6 +101,59 @@ class LightHandTracker(val width: Int, val height: Int) {
             hand.fist = hand.extended <= LightHandConfig.FIST_FINGERS && fit.fill >= LightHandConfig.FIST_FILL
         }
         return hands.size
+    }
+
+    /**
+     * Filters the fan direction of [slot] and keeps the wrist consistent with it: the arm when it
+     * is in frame, straight away from the fingers when it is not.
+     */
+    private fun steady(slot: Int, fit: PalmFit) {
+        val previous = smoothFan[slot]
+        var fan = fit.fanAngle
+        if (!previous.isNaN()) {
+            val delta = wrap(fan - previous)
+            if (abs(delta) > FLIP_RAD) {
+                val pending = pendingFan[slot]
+                if (!pending.isNaN() && abs(wrap(fan - pending)) < FLIP_CONFIRM) {
+                    // The hard reading repeated: the hand really is oriented that way now.
+                    pendingFan[slot] = Float.NaN
+                } else {
+                    // One frame cannot turn a hand around. A border-grazing finger or the arm
+                    // leaving the picture flips the reading for a frame or two; holding the last
+                    // orientation is the difference between a silhouette that stays on the hand
+                    // and one that spins.
+                    pendingFan[slot] = fan
+                    fan = previous
+                }
+            } else {
+                pendingFan[slot] = Float.NaN
+                fan = blend(previous, fan)
+            }
+        } else {
+            pendingFan[slot] = Float.NaN
+        }
+        smoothFan[slot] = fan
+        fit.fanAngle = fan
+        // The wrist is always the far side of the fingers: a filtered fan can then never draw the
+        // wrist and the fingertips on the same side of the palm.
+        fit.wristAngle = fan + PI.toFloat()
+    }
+
+    /** Signed angle wrapped to (-PI, PI]. */
+    private fun wrap(angle: Float): Float {
+        var v = angle
+        while (v > PI.toFloat()) v -= TWO_PI
+        while (v < -PI.toFloat()) v += TWO_PI
+        return v
+    }
+
+    /** Moves [prev] towards [next] along the shortest arc, faster when the hand really turned. */
+    private fun blend(prev: Float, next: Float): Float {
+        var delta = next - prev
+        while (delta > PI.toFloat()) delta -= TWO_PI
+        while (delta < -PI.toFloat()) delta += TWO_PI
+        val k = if (abs(delta) > TURN_RAD) FAST_TURN_GAIN else TURN_GAIN
+        return prev + delta * k
     }
 
     /** Pinch, confidence and side for one blob, before the landmarks are placed. */
@@ -147,6 +213,10 @@ class LightHandTracker(val width: Int, val height: Int) {
         skinPixels = 0
         blobCount = 0
         haveSide = false
+        for (i in smoothFan.indices) {
+            smoothFan[i] = Float.NaN
+            pendingFan[i] = Float.NaN
+        }
     }
 
     private companion object {
@@ -154,5 +224,16 @@ class LightHandTracker(val width: Int, val height: Int) {
         const val SIDE_HOLD_BAND = 0.10f
         /** Tip distance (palm widths) that only a closed pinch can produce. */
         const val CLOSE_TIPS = 0.30f
+        /** Per-frame share of the way to the measured fan direction while it agrees with the last. */
+        const val TURN_GAIN = 0.32f
+        /** ... and the share when the measurement jumped, i.e. the hand really changed orientation. */
+        const val FAST_TURN_GAIN = 0.65f
+        /** Jump (radians) above which a frame is treated as a real turn, not jitter. */
+        const val TURN_RAD = 0.9f
+        /** Jump (radians) that cannot be a hand turning between two frames: it must repeat. */
+        const val FLIP_RAD = 1.6f
+        /** How close a repeat has to be to the rejected reading for it to be accepted. */
+        const val FLIP_CONFIRM = 0.75f
+        const val TWO_PI = 6.2831855f
     }
 }

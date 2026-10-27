@@ -131,6 +131,60 @@ class LightHandTrackerTest {
         assertTrue("skin pixels cover the drawn hand: ${tracker.skinPixels}", tracker.skinPixels > 500)
     }
 
+    /**
+     * The same hand with a forearm: skin, attached, usually the biggest thing in the picture, and
+     * leaving the frame on the wrist side. It used to be averaged into the finger direction, which
+     * drew the whole skeleton rotated and made it swing as the arm moved.
+     */
+    private fun armed(rot: Float = 0f, armBelow: Boolean = true): LightFrame {
+        val cx = 52f
+        val cy = 52f
+        return scene { x, y ->
+            val dx = x - cx
+            val dy = y - cy
+            val d = hypot(dx, dy)
+            var on = d <= palmR
+            if (!on) {
+                val a = degrees(dx, dy) - rot
+                for (f in fingerAngles) if (angleGap(a, f) <= 6f && d <= 32f) on = true
+                if (angleGap(a, thumbAngle) <= 9f && d <= 24f) on = true
+            }
+            if (!on) {
+                // A wrist-wide column leaving the frame under (or above) the hand.
+                val along = if (armBelow) y > cy + 8f else y < cy - 8f
+                if (along && kotlin.math.abs(x - cx) <= 8f) on = true
+            }
+            on
+        }
+    }
+
+    @Test fun theForearmIsNotMistakenForFingers() {
+        val tracker = tracker()
+        assertEquals(1, tracker.process(armed()))
+        val hand = tracker.hands[0]
+        // The hand is drawn with the fingers up and the arm down: the fingertips must be ABOVE the
+        // wrist, whatever the arm is doing. This is the check the spinning silhouette failed.
+        assertTrue("wrist below the palm: ${hand.image[1]} vs ${hand.palmY}", hand.image[1] > hand.palmY)
+        assertTrue("fingertip above the palm: ${hand.image[25]} vs ${hand.palmY}", hand.image[25] < hand.palmY)
+        assertEquals("an arm in frame must not eat the fingers", 4, hand.extended)
+    }
+
+    @Test fun oneFlippedFrameCannotTurnTheHandAround() {
+        val tracker = tracker()
+        tracker.process(armed())
+        val first = tracker.hands[0]
+        assertTrue("fingers up, wrist down", first.image[25] < first.image[1])
+        // A hand cannot turn 180 degrees between two frames: a single contradictory reading (the
+        // arm sliding out, a finger grazing the border) must hold the orientation instead.
+        tracker.process(armed(rot = 180f, armBelow = false))
+        val held = tracker.hands[0]
+        assertTrue("one flipped frame is ignored", held.image[25] < held.image[1])
+        // Two frames in a row are a real turn, and are followed.
+        tracker.process(armed(rot = 180f, armBelow = false))
+        val turned = tracker.hands[0]
+        assertTrue("a confirmed turn is followed", turned.image[25] > turned.image[1])
+    }
+
     @Test fun aClosedHandIsAFist() {
         val tracker = tracker()
         assertEquals(1, tracker.process(fist()))
