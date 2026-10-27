@@ -480,14 +480,24 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5b. Login / Perfil: definir nome e foto de perfil
     await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
     assert.equal(await page.locator('[data-entry-panel="profile"] .entry-subpanel-title').innerText(), 'Login / Perfil NextVR');
+    // Build 89: o selo e' SO' do Apache. Digitar outro nome nao pode acender nada.
     await page.fill('[data-profile-name-input]', 'NeyVR');
     await page.evaluate(() => document.querySelector('[data-profile-preset]').click());
     await page.evaluate(() => document.querySelector('[data-profile-save]').click());
     assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'NeyVR');
     assert.equal(await page.evaluate(() => {
       const b = document.querySelector('[data-profile-verified="1"]');
+      return !b || b.hidden;
+    }), true, 'No verified badge for NeyVR: only Apache is verified');
+    // "quando botar o nome Apache aparece um verificado" — sem precisar salvar.
+    await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
+    await page.fill('[data-profile-name-input]', 'Apache');
+    assert.equal(await page.evaluate(() => {
+      const b = document.querySelector('[data-profile-verified="1"]');
       return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
-    }), true, 'Profile displays red verified badge for NeyVR');
+    }), true, 'Typing Apache in the profile field shows the red verified badge');
+    await page.evaluate(() => document.querySelector('[data-profile-save]').click());
+    assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'Apache');
 
     // 5c. Bateria sincronizada em tempo real com o celular
     await page.evaluate(() => window.nextvrBattery({ level: 0.42, charging: true }));
