@@ -43,6 +43,23 @@ object LightHandConfig {
     const val DISC_CORE = 0.72f
     /** Palm radius, in image widths, below which the hand is too small to measure. */
     const val MIN_PALM_RADIUS = 0.012f
+    /**
+     * Palm radius, in image widths, above which the "hand" is furniture.
+     *
+     * The palm disc is ~4 cm across, the analysis frame is ~65 degrees wide and the focal length is
+     * 0.85 widths, so a real hand at 15 cm gives 0.22 widths and at arm's length 0.05. Anything
+     * bigger than this is a wall, a wardrobe or a sheet - the shapes that pass a chroma skin test
+     * in a bedroom and used to be published as a hand (and drawn as a huge silhouette in mid-air).
+     */
+    const val MAX_PALM_RADIUS = 0.30f
+    /** A blob bigger than this share of the frame is background, not a hand. */
+    const val MAX_BLOB_AREA_SHARE = 0.55f
+    /**
+     * Widest angular run that still counts as ONE finger: 4 degrees per bin, so a finger (or two
+     * touching ones) spans well under this, while a wall's profile is a broad arc with no narrow
+     * protrusion at all. This is what tells a hand from every large beige surface in the room.
+     */
+    const val MAX_HUMP_BINS = 13
 
     /* ---- finger profile ------------------------------------------------------------------ */
 
@@ -88,6 +105,20 @@ object LightHandConfig {
     const val FIST_FINGERS = 1
     /** Fingers folded leaves a compact mass: skin over its bounding box this complete is a fist. */
     const val FIST_FILL = 0.52f
+    /**
+     * Longest run of blob pixels along the picture border that can still be a FOREARM, in palm
+     * radii. A wrist is 6-9 cm against a 4 cm palm radius, so 1.5-2.5 radii; a beige wall or a
+     * wardrobe leaving the frame covers the border for far longer than that.
+     */
+    const val MAX_ARM_RUN = 4.0f
+    /** Below this the blob is not published as a hand at all, whatever else it looks like. */
+    const val MIN_HANDINESS = 0.55f
+    /**
+     * A hand never fills its bounding box completely: fingers and the thumb leave corners of
+     * background. Furniture and walls do fill theirs, so anything above this is not a hand - the
+     * single cheapest test that rules out a lit door or a sheet.
+     */
+    const val MAX_HAND_FILL = 0.90f
 
     /* ---- depth --------------------------------------------------------------------------- */
 

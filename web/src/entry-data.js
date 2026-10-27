@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.2.1.
-export const ENTRY_VERSION = 'v2.2.1';
-export const ENTRY_VERSION_ALPHA = 'v2.2.1 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.2.2.
+export const ENTRY_VERSION = 'v2.2.2';
+export const ENTRY_VERSION_ALPHA = 'v2.2.2 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,6 +44,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'hand-no-false-positives',
+    tag: 'CORRIGIDO · A MÃO FANTASMA SUMIU (BUILD 85)',
+    time: 'Agora',
+    heading: 'Fim da Mão Fantasma: o Rastreio Não Confunde Mais Armário, Parede ou Porta com a Sua Mão',
+    desc: 'O teste de cor de pele aceita qualquer superfície bege — aí o armário, a parede e a porta do quarto viravam "mão" e uma silhueta gigante ficava girando no meio do ar. Agora o rastreador só publica o que tem FORMA de mão: dedo fino de verdade, palma de tamanho de mão, nada de bloco que preenche o próprio retângulo, e nada de pele que sai da imagem por mais de um antebraço. Punho fechado continua funcionando (com o braço aparecendo, ou logo depois de a mão ter sido vista).',
+  },
   {
     id: 'hand-silhouette-fixed',
     tag: 'CORRIGIDO · SILHUETA DA MÃO PAROU DE GIRAR (BUILD 84)',

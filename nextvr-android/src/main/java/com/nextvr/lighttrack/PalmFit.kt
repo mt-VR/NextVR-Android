@@ -52,10 +52,21 @@ class PalmFit {
     var hasArm = false
     /** How much of the blob touches the picture border, in pixels: a hand alone reads 0. */
     var armPixels = 0
+    /** Longest uninterrupted run of blob pixels along one border, in pixels. */
+    var armRun = 0
+    /**
+     * Narrow protrusions in the radial profile: how many fingers the silhouette really shows.
+     *
+     * A finger is a thin spike of skin — a run of at most a few tens of degrees past the palm. A
+     * wardrobe, a wall or a sheet also has protrusions (corners), but they are broad arcs: this
+     * count is 0 for them, and that is what stops the tracker publishing the room as a hand.
+     */
+    var humps = 0
 
     private var dist = IntArray(0)
     private val reach = FloatArray(LightHandConfig.BINS)
     private val smooth = FloatArray(LightHandConfig.BINS)
+    private val above = BooleanArray(LightHandConfig.BINS)
 
     /** Fits [blob]; false when it is too small or shapeless to be a hand. */
     fun fit(blobs: BlobFinder, blob: SkinBlob): Boolean {
@@ -147,6 +158,7 @@ class PalmFit {
     private fun arm(blobs: BlobFinder, blob: SkinBlob) {
         hasArm = false
         armPixels = 0
+        armRun = 0
         val w = blobs.width
         val h = blobs.height
         var sx = 0f
@@ -196,6 +208,7 @@ class PalmFit {
         if (blob.minX == 0) column(0)
         if (blob.maxX == w - 1) column(w - 1)
         armPixels = n
+        armRun = longest
         if (n < 3) return
         // A single narrow run is a fingertip grazing the edge; the arm is at least wrist-wide.
         if (longest < radius * 0.6f) return
@@ -235,6 +248,61 @@ class PalmFit {
             for (k in -2..2) sum += reach[index(b + k)]
             smooth[b] = sum / 5f
         }
+        humps = countHumps(radius * LightHandConfig.FINGER_REACH)
+    }
+
+    /**
+     * Narrow protrusions in the smoothed profile: [threshold] is passed by a finger and by a wall
+     * alike, so the width of the run decides. Each run of bins still above the threshold that is
+     * no wider than [LightHandConfig.MAX_HUMP_BINS] is one finger.
+     */
+    private fun countHumps(threshold: Float): Int {
+        val bins = LightHandConfig.BINS
+        for (b in 0 until bins) above[b] = smooth[b] >= threshold
+        var found = 0
+        for (b in 0 until bins) {
+            if (!above[b] || above[index(b - 1)]) continue
+            var len = 0
+            var i = b
+            while (len < bins && above[index(i)]) {
+                len++
+                i++
+            }
+            if (len <= LightHandConfig.MAX_HUMP_BINS) found++
+        }
+        return found
+    }
+
+    /**
+     * 0..1: how much this blob looks like a hand rather than like the room.
+     *
+     * Chroma alone cannot tell a lit wall from a palm — the classic skin window matches beige
+     * furniture — so the size of the palm, the width of the protrusions and the density of the
+     * blob are what separate the two. A hand shows thin fingers; a wall shows a broad arc.
+     */
+    fun handiness(width: Int): Float {
+        val share = if (width > 0) radius / width else 0f
+        val size = when {
+            share < LightHandConfig.MIN_PALM_RADIUS * .9f -> 0f
+            share < LightHandConfig.MIN_PALM_RADIUS * 1.6f -> .6f
+            share <= LightHandConfig.MAX_PALM_RADIUS -> 1f
+            share <= LightHandConfig.MAX_PALM_RADIUS * 1.2f -> .4f
+            else -> 0f
+        }
+        val fingers = when {
+            humps >= 3 -> 1f
+            humps == 2 -> .92f
+            humps == 1 -> .74f
+            // No finger out at all: only a closed hand, and only if it is dense enough to be one.
+            fill >= LightHandConfig.FIST_FILL -> .58f
+            else -> 0f
+        }
+        val density = when {
+            fill < .28f -> .4f
+            fill <= .90f -> 1f
+            else -> .6f
+        }
+        return (.5f * fingers + .3f * size + .2f * density).coerceIn(0f, 1f)
     }
 
     /**

@@ -47,6 +47,12 @@ class LightHandTracker(val width: Int, val height: Int) {
      * strong smoothing while it agrees, a fast catch-up when the hand really turns. The angle is
      * what "the hand spins on screen" was: nothing else in the skeleton moves that way.
      */
+    /** Palms published on the previous frame, normalized, for the fingerless-fist test. */
+    private val lastX = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
+    private val lastY = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
+    private var lastHands = 0
+    /** Camera time of the last published hand, or -1 when there never was one. */
+    private var lastSeenMs = -1L
     private val smoothFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
     /** A frame whose fan was too far from the last one to believe it, kept to see if it repeats. */
     private val pendingFan = FloatArray(LightHandConfig.MAX_HANDS) { Float.NaN }
@@ -59,22 +65,35 @@ class LightHandTracker(val width: Int, val height: Int) {
         if (skinPixels < LightHandConfig.MIN_AREA) return 0
         blobCount = blobs.find(mask.clean, LightHandConfig.MIN_AREA)
         val minRadius = LightHandConfig.MIN_PALM_RADIUS * width
+        val maxRadius = LightHandConfig.MAX_PALM_RADIUS * width
+        val maxArea = (LightHandConfig.MAX_BLOB_AREA_SHARE * width * height).toInt()
         var found = 0
         for (b in 0 until blobs.blobs.size) {
             if (found >= LightHandConfig.MAX_HANDS) break
             val blob = blobs.blobs[b]
+            // A hand is an object a few centimetres across in front of the phone. A beige wall, a
+            // wardrobe door or a sheet passes the chroma test just as well, and used to be drawn
+            // as a giant hand in mid-air; the size of the palm and of the blob is what rules it out.
+            if (blob.area > maxArea) continue
             val fit = fits[found]
             if (!fit.fit(blobs, blob)) continue
-            if (fit.radius < minRadius) continue
+            if (fit.radius < minRadius || fit.radius > maxRadius) continue
+            // A hand leaves the corners of its bounding box to the background; a wall, a door or a
+            // sheet does not.
+            if (fit.fill > LightHandConfig.MAX_HAND_FILL) continue
+            // Skin leaving the picture for more than a forearm's width is background, not an arm.
+            if (fit.armRun > fit.radius * LightHandConfig.MAX_ARM_RUN) continue
+            if (!isHand(fit, frame.stampMs)) continue
             steady(found, fit)
             val hand = pool[found]
             // The rear camera looks forward, so the picture's right is the user's right.
             hand.left = fit.cx < width * 0.5f
-            hand.confidence = (fit.radius / (width * LightHandConfig.MIN_PALM_RADIUS * 3f)).coerceIn(0f, 1f)
+            hand.confidence = fit.handiness(width)
             measure(hand, fit, blob)
             hands.add(hand)
             found++
         }
+        remember(found, frame.stampMs)
         // Two blobs can never be the same physical hand: when both fall on one side of the view, the
         // one nearer the middle is the other side. Without this the wire format would carry two
         // "left" hands and the web layer could not tell their presses apart.
@@ -101,6 +120,46 @@ class LightHandTracker(val width: Int, val height: Int) {
             hand.fist = hand.extended <= LightHandConfig.FIST_FINGERS && fit.fill >= LightHandConfig.FIST_FILL
         }
         return hands.size
+    }
+
+    /**
+     * Shape evidence: is this blob a hand at all?
+     *
+     * A hand shows at least one NARROW protrusion - a finger - and the tracker's hump count
+     * measures exactly that. A closed hand has none, so it is accepted only when its forearm is in
+     * the picture (a short contact with the border, not a wall's) or when it is where a hand was
+     * tracked a moment ago. Anything else is the room.
+     */
+    private fun isHand(fit: PalmFit, stampMs: Long): Boolean {
+        if (fit.humps >= 1) return fit.handiness(width) >= LightHandConfig.MIN_HANDINESS
+        if (fit.fill < LightHandConfig.FIST_FILL) return false
+        // A forearm in the picture is what a raised closed hand looks like from a phone: short
+        // contact with the border, palm-sized.
+        if (fit.hasArm) return true
+        // No fingers and no forearm: only believable next to where a hand was just tracked. A
+        // beige door, a sheet or a wardrobe front has exactly this shape, and one of them appears
+        // out of nowhere in a room where nobody has ever put a hand.
+        val age = stampMs - lastSeenMs
+        if (lastSeenMs < 0L || age > RECENT_HAND_MS) return false
+        val radius = FOLLOW_RADIUS + (FOLLOW_FAR_RADIUS - FOLLOW_RADIUS) * (age.toFloat() / RECENT_HAND_MS)
+        val cx = fit.cx / width
+        val cy = fit.cy / height
+        for (i in 0 until lastHands) {
+            if (hypot(cx - lastX[i], cy - lastY[i]) <= radius) return true
+        }
+        return false
+    }
+
+    /** Keeps the palms that were published, so the next frame can recognise a fingerless fist. */
+    private fun remember(count: Int, stampMs: Long) {
+        lastHands = count.coerceAtMost(LightHandConfig.MAX_HANDS)
+        for (i in 0 until lastHands) {
+            lastX[i] = hands[i].palmX
+            lastY[i] = hands[i].palmY
+        }
+        // The palms outlive the frame they were found in, so a closed hand keeps being recognised
+        // for as long as its owner could plausibly have turned one into a fist.
+        if (lastHands > 0) lastSeenMs = stampMs
     }
 
     /**
@@ -213,6 +272,8 @@ class LightHandTracker(val width: Int, val height: Int) {
         skinPixels = 0
         blobCount = 0
         haveSide = false
+        lastHands = 0
+        lastSeenMs = -1L
         for (i in smoothFan.indices) {
             smoothFan[i] = Float.NaN
             pendingFan[i] = Float.NaN
@@ -235,5 +296,11 @@ class LightHandTracker(val width: Int, val height: Int) {
         /** How close a repeat has to be to the rejected reading for it to be accepted. */
         const val FLIP_CONFIRM = 0.75f
         const val TWO_PI = 6.2831855f
+        /** How far a fingerless blob may be from a hand of the previous frame to be that hand. */
+        const val FOLLOW_RADIUS = 0.18f
+        /** A closed hand is recognised this long after one was tracked. */
+        const val RECENT_HAND_MS = 1500L
+        /** ... and it may be this far from where the hand was, which a fist can, a wall cannot. */
+        const val FOLLOW_FAR_RADIUS = 0.38f
     }
 }

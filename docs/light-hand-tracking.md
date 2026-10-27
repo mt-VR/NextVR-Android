@@ -107,3 +107,29 @@ Três causas, todas corrigidas:
 inferior, dedos continuam sendo 4 e o punho fica abaixo da palma) e
 `oneFlippedFrameCannotTurnTheHandAround` (um quadro invertido é ignorado, dois seguidos são
 seguidos).
+
+## Build 85 — a "mão fantasma" sobre o armário
+
+O teste de croma de pele (a janela Cb/Cr clássica) aceita **qualquer superfície bege** — parede,
+armário, porta, lençol. Num quarto iluminado isso significava que o rastreador publicava o móvel
+como mão: uma silhueta enorme, girada e flutuando no ar, exatamente o que aparecia na tela.
+
+A cor não distingue pele de móvel, então o rastreador passou a exigir **forma de mão**:
+
+- **Dedo fino de verdade** (`PalmFit.humps`): conta as protrusões do perfil radial que são
+  *estreitas* (≤ `MAX_HUMP_BINS`, ~52°). Uma mão tem dedos; uma parede tem arcos largos.
+- **Tamanho de mão** (`MAX_PALM_RADIUS`, `MAX_BLOB_AREA_SHARE`): a palma tem ~4 cm; um bloco que
+  ocupa meia tela não é uma mão.
+- **Nada de retângulo** (`MAX_HAND_FILL` = 0.90): a mão nunca preenche a própria caixa delimitadora
+  (dedos e polegar deixam cantos de fundo); um armário preenche.
+- **Pele que sai da imagem demais não é braço** (`MAX_ARM_RUN` = 4 raios de palma): um antebraço tem
+  largura de punho; uma parede encosta na borda por muito mais.
+- **Punho sem dedo** só é aceito com o antebraço no quadro ou logo depois de a mão ter sido vista
+  (`isHand`, `RECENT_HAND_MS`). Nada de "punho" nascendo do nada no meio da sala.
+
+A pontuação resultante (`PalmFit.handiness`, 0..1) virou também o `confidence` publicado, então a
+silhueta de uma detecção fraca já aparece esmaecida em vez de sólida.
+
+`LightHandTrackerTest` cobre: `theRoomIsNeverPublishedAsAHand` (armário saindo do quadro, parede à
+direita, painel no meio — todos 0 mãos), `aClosedHandIsAFist` (abre e fecha), e
+`aClosedHandWithItsForearmIsFoundFromCold`.

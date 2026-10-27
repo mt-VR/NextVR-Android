@@ -187,11 +187,56 @@ class LightHandTrackerTest {
 
     @Test fun aClosedHandIsAFist() {
         val tracker = tracker()
+        // A grab is a hand that closes: the tracker has just seen it open. (A closed hand alone,
+        // with no forearm in the picture, is deliberately not accepted from a cold start - see
+        // theRoomIsNeverPublishedAsAHand.)
+        assertEquals(1, tracker.process(hand()))
         assertEquals(1, tracker.process(fist()))
         val hand = tracker.hands[0]
         assertEquals("no finger reaches past the palm", 0, hand.extended)
         assertTrue("a compact closed hand is a fist", hand.fist)
-        assertTrue("a fist is not a pinch", hand.pinchGap >= .6f)
+        assertTrue("a fist is not a pinch: ${hand.pinchGap}", hand.pinchGap >= .6f)
+    }
+
+    @Test fun aClosedHandWithItsForearmIsFoundFromCold() {
+        val tracker = tracker()
+        // A closed hand raised in front of a phone brings the forearm into the picture.
+        val frame = scene { x, y ->
+            val dx = x - 52f
+            val dy = y - 46f
+            val d = hypot(dx, dy)
+            var on = d <= palmR
+            if (!on && d <= palmR * .55f) {
+                val a = degrees(dx, dy)
+                for (f in fingerAngles) if (angleGap(a, f) <= 6f) on = true
+                if (angleGap(a, thumbAngle) <= 9f) on = true
+            }
+            if (!on && y > 54f && kotlin.math.abs(x - 52f) <= 9f) on = true
+            on
+        }
+        assertEquals(1, tracker.process(frame))
+        assertTrue("a closed hand over its forearm is a fist", tracker.hands[0].fist)
+    }
+
+    /**
+     * The bug this guards: in a lit room a beige wardrobe, a door or a sheet passes the chroma
+     * skin window exactly like a hand does, and the tracker published the furniture - a huge
+     * silhouette, rotating, hanging in mid-air over the room.
+     */
+    private fun panel(x0: Float, y0: Float, x1: Float, y1: Float): LightFrame =
+        scene { x, y -> x in x0..x1 && y in y0..y1 }
+
+    @Test fun theRoomIsNeverPublishedAsAHand() {
+        val cases = listOf(
+            "a wardrobe leaving the frame" to panel(0f, 0f, w.toFloat(), h * .6f),
+            "a wall on the right" to panel(w * .55f, 0f, w.toFloat(), h.toFloat()),
+            "a door panel in the middle" to panel(w * .3f, h * .3f, w * .7f, h * .7f),
+        )
+        for ((name, frame) in cases) {
+            val tracker = tracker()
+            assertEquals("$name must not be a hand", 0, tracker.process(frame))
+            assertTrue(tracker.hands.isEmpty())
+        }
     }
 
     @Test fun aThumbTouchingTheIndexIsAPinch() {
