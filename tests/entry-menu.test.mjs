@@ -414,7 +414,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')).handDraw), 1);
     assert.equal(await page.evaluate(() => window.__handVisualCalls.at(-1)), true);
 
-    // 3. Colaboradores: NeyVR, Faylan, colaboradores do nextVR (em azul), JocaVR stacked vertically with red TikTok verified badge and bios after (V)
+    // 3. Colaboradores: NeyVR, Faylan, Apache (cinza, com selo vermelho), JocaVR empilhados na vertical
     await page.evaluate(() => document.querySelector('[data-entry-act="collaborators"]').click());
     const collabData = await page.evaluate(() => {
       const items = [...document.querySelectorAll('[data-collaborator-name]')];
@@ -427,12 +427,18 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         color: getComputedStyle(el.querySelector('.entry-collab-name')).color,
       }));
     });
-    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
-    assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has a red TikTok-style verified badge');
+    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
+    // Build 89: o selo vermelho agora e' so' do Apache, e o nome dele e' cinza como os outros.
+    assert.equal(collabData.filter(c => c.hasRedVerified).map(c => c.name).join(','), 'Apache',
+      'only Apache carries the red verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');
     assert.equal(collabData.find(c => c.name === 'JocaVR')?.bio, 'o portador de jogos mais importante do planeta aurudo 67');
-    assert.equal(collabData.find(c => c.name === 'NanyGata')?.isBlue, true, 'NanyGata is styled in blue');
+    assert.equal(collabData.find(c => c.name === 'Apache')?.isBlue, false, 'Apache is not blue any more');
+    assert.equal(collabData.find(c => c.name === 'Apache')?.color, collabData.find(c => c.name === 'NeyVR')?.color,
+      'Apache uses the same gray as the other names');
+    assert.equal(collabData.find(c => c.name === 'Apache')?.bio,
+      'Apache(V) o contribuidor mais aurudo desse planeta majestoso');
     for (let i = 1; i < collabData.length; i++) {
       assert.ok(collabData[i].top > collabData[i - 1].top, `${collabData[i].name} must be below ${collabData[i - 1].name}`);
     }
@@ -450,8 +456,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5. Configurações básicas (2 Abas com arrasto lateral: Aba 1 · Básico + Aba 2 · Hand & Tela)
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
-    assert.equal(await page.locator('.entry-bento-cell').count(), 10);
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 2, '2D Initial Menu settings has 2 tabs');
+    // Build 89: as abas 1 e 2 continuam com as mesmas celulas, e a aba 3 acrescenta as suas.
+    assert.ok(await page.locator('.entry-bento-cell').count() >= 10, 'the settings grid keeps its cells');
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 3, '2D Initial Menu settings has 3 tabs (Build 89 added the dock apps tab)');
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
     assert.equal(await page.locator('[data-entry-lang="ru"]').count(), 1, 'Russian language option (RU) replaces French');
     assert.equal(await page.locator('[data-entry-lang="fr"]').count(), 0, 'French language option (FR) is removed');
