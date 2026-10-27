@@ -128,8 +128,12 @@ class LightHandTracker(val width: Int, val height: Int) {
         val a1 = mid + spread * angle[1]
         val reachThumb = fit.reachAt(a0)
         val reachIndex = fit.reachAt(a1)
+        // ...and only for a hand that HAS the two fingers out: a fist also keeps five fingertips
+        // within a third of a palm of each other, and measuring that would read as a closed pinch.
         var gapTips = 1f
-        if (reachThumb > 0f && reachIndex > 0f && fit.palmPx > 1f) {
+        val tipsOut = reachThumb > r * LightHandConfig.THUMB_REACH &&
+            reachIndex > r * LightHandConfig.FINGER_REACH
+        if (tipsOut && fit.palmPx > 1f) {
             val dx = cos(a0) * reachThumb - cos(a1) * reachIndex
             val dy = sin(a0) * reachThumb - sin(a1) * reachIndex
             gapTips = (hypot(dx, dy) / fit.palmPx).coerceIn(0f, 1f)
