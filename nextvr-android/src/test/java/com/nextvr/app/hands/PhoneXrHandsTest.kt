@@ -294,22 +294,24 @@ class PhoneXrHandsTest {
         assertEquals(.5f,filter.filter(.5001f,1016000000),0f)
         assertTrue(filter.filter(.8f,1032000000)>.6f)
     }
+    /** A landmark set with every x/y at [v] and z untouched: the prediction moves no z. */
+    private fun flat(v:Float)=FloatArray(63){ i -> if(i%3==2) 0f else v }
     @Test fun predictionExtendsTheLastVelocityAtMostOneInterval() {
         val engine=PhoneXrHands()
         val h0=engine.feed(result(points(.2f),1000)).hands.single()
-        val a=h0.copy(points=FloatArray(63){.10f},baseX=.10f,aimX=.10f)
-        val b=h0.copy(points=FloatArray(63){.20f},baseX=.20f,aimX=.20f)
+        val a=h0.copy(points=flat(.10f),baseX=.10f,aimX=.10f)
+        val b=h0.copy(points=flat(.20f),baseX=.20f,aimX=.20f)
         val first=PhoneXrHands.Frame(listOf(a),1_000_000_000L,1_000_000_000L)
         val second=PhoneXrHands.Frame(listOf(b),1_040_000_000L,1_040_000_000L,500_000_000L,0L,first)
         // At the detection instant: exactly the detection, zero added latency.
         assertArrayEquals(b.points,second.predicted(1_040_000_000L).hands.single().points,0f)
         // Half an interval later: halfway along the velocity.
-        assertArrayEquals(FloatArray(63){.25f},second.predicted(1_060_000_000L).hands.single().points,1e-6f)
+        assertArrayEquals(flat(.25f),second.predicted(1_060_000_000L).hands.single().points,1e-6f)
         // One full interval: the velocity endpoint.
-        assertArrayEquals(FloatArray(63){.30f},second.predicted(1_080_000_000L).hands.single().points,1e-6f)
+        assertArrayEquals(flat(.30f),second.predicted(1_080_000_000L).hands.single().points,1e-6f)
         assertEquals(.30f,second.predicted(1_080_000_000L).hands.single().baseX,1e-6f)
         // Far beyond one interval: clamped, the hand never runs away on a stale velocity.
-        assertArrayEquals(FloatArray(63){.30f},second.predicted(1_500_000_000L).hands.single().points,1e-6f)
+        assertArrayEquals(flat(.30f),second.predicted(1_500_000_000L).hands.single().points,1e-6f)
     }
     @Test fun predictionKeepsGesturesFromTheNewestDetectionAndNeedsNoHistory() {
         val engine=PhoneXrHands()
