@@ -4,6 +4,7 @@ import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
+import { extraDockItems, catalogEntry, launchDockApp } from './dock-catalog.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
@@ -1485,7 +1486,11 @@ on('pinchdown', () => {
     if (pinchOverridePt) { cursor.x = px; cursor.y = py; }
     dockPinch('down'); return;
   }
-  if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
+  if (kb && (!h || kb.distance < h.distance)) {
+    // Teclado em pe', Build 89: a barrinha branca arrasta o teclado inteiro; o resto e' tecla.
+    if (kb.grab) { startKbDrag(px, py); return; }
+    kbPress(kb.button); return;
+  }
   if (h) {
     focus(h.win);
     const picked = pickInElement(h.win.el, h.u, h.v);
@@ -1505,6 +1510,7 @@ on('pinchdown', () => {
   dockPinch('down');
 });
 on('pinchsample', () => {
+  if (kbDrag.plane) kbDragTo(cursor.x, cursor.y);
   if (kbHeld) kbHold(performance.now());
   if (pendingPress && cursor.mode === 'drag' && !pinchOverridePt?.el) {
     clickThrough(pendingPress.hit, 'down');
@@ -1540,6 +1546,12 @@ on('pinchup', () => {
   if (winHoldConsumed) {
     winHoldConsumed = false;
     pendingPress = null;
+    return;
+  }
+  // A barrinha arrastada commita a posicao no ultimo ponto real da mao, como a dock.
+  if (kbDrag.plane) {
+    if (kbDrag.active) kbDragTo(px, py);
+    endKbDrag();
     return;
   }
   // The keyboard goes first: if it armed a key, this pinch belongs to it and nothing else sees the
@@ -1715,6 +1727,9 @@ const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
  * Tudo que tem `run` vira botão; só os botões entram no teste de toque da mão.
  */
 export function buildDock(items) {
+  // Build 89: os apps escolhidos na aba 3 das configuracoes entram no fim da Dock. O app real e'
+  // aberto por `launchDockApp`, que o apps.js registra — a Dock nao precisa saber o que e' cada um.
+  items = [...items, ...extraDockItems(S, dockExtraIcon)];
   dockItems = items; dockBtns = []; dockWins.length = 0;
   dockEl.innerHTML = '';
   setDockColor(S.dockColor || 'default');
@@ -1790,6 +1805,17 @@ export function buildDock(items) {
   tick(); refreshNet(); paintBat(); syncDots(); placeDock();
 }
 function sep() { const s = document.createElement('span'); s.className = 'dock-sep'; return s; }
+
+/** Ícone de verdade de um app Android (`app:<pacote>`), vindo do apps.js; catálogo não precisa. */
+function dockExtraIcon(id) {
+  if (!id.startsWith('app:')) return null;
+  const found = (typeof window.__nextvrDockAndroidApps === 'function' ? window.__nextvrDockAndroidApps() : [])
+    .find(item => item && item.id === id);
+  return found ? { img: found.img, label: found.label, bg: found.bg, glyph: found.glyph } : null;
+}
+
+/** Reabre a Dock com os apps extras atuais (a aba 3 chama isto ao ligar/desligar um app). */
+export function refreshDockExtras() { buildDock(dockItems.filter(it => !it.dockAppId)); return true; }
 
 /* ponto branco sob o app aberto, como na dock do print */
 function syncDots() {
@@ -2161,6 +2187,7 @@ export function keyboard(on_, field) {
     if (native) console.log('kb close; was serving', kbTarget?.nativeId || kbTarget?.tagName || 'nothing');
     // Solta a tecla segurada ANTES de esquecer o alvo: o keyup é o que faz um jogo parar de andar.
     kbRelease();
+    endKbDrag();
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
     kbTarget = null; kbOwner = null; kbShift = kbShiftLock = kbSym = false;
     kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
@@ -2211,6 +2238,17 @@ export function keyboard(on_, field) {
     const b = e.target.closest('[data-k]'); if (!b) return;
     kbPress(b); kbRelease();
   });
+
+  /* Build 89: a barrinha branca do lado. E' um elemento de verdade dentro do teclado (nao um
+   * pseudo-elemento) para que o raio da mao o encontre e o arraste — e' o que o usuario pediu:
+   * "uma barrinha branca do lado pra mover pra qualquer lugar". */
+  const grab = document.createElement('div');
+  grab.className = 'kb-grab';
+  grab.dataset.kbGrab = '1';
+  grab.title = 'Mover o teclado';
+  grab.setAttribute('aria-label', 'Mover o teclado');
+  grab.setAttribute('role', 'slider');
+  el.appendChild(grab);
 
   kbObj = new CSS3DObject(el);
   kbObj.scale.setScalar(PX * (native?COMFORT.keyboardScale:.9));
@@ -2302,10 +2340,25 @@ function paintShift() {
 }
 
 let kbKey = '';
-/** Inclinação do teclado deitado na direção do usuário (rad) — estilo Meta Quest. */
-const KB_TILT = .35;
+/* Build 89 — teclado EM PE', estilo Meta Quest 3S.
+ *
+ * O usuario: "o teclado, nao deixa ele deitado, deixa ele em pe e com uma barrinha branca do lado
+ * pra mover pra qualquer lugar, so estilo meta quest 3s". Deitado (rotacao -pi/2 + .35) o teclado
+ * ficava plano na altura da cintura, longe do olhar. Em pe' ele e' um painel vertical de frente para
+ * a pessoa, com uma pequena inclinacao para tras (KB_TILT) que e' o angulo de um teclado de verdade.
+ */
+const KB_TILT = -.12;                       // rad: para tras, o suficiente para ler sem distorcer
+const KB_STAND_DISTANCE = .85;              // m do olho — ~66 graus de largura, tamanho de teclado real
+const KB_STAND_DROP = .30;                  // m abaixo do olho (um teclado em pe' fica na altura do peito)
 /** Azimute para onde o teclado caminha. `ready=false` = o proximo quadro e um teleporte seco. */
 const kbPose = { yaw: 0, ready: false };
+/**
+ * Onde o usuario largou o teclado arrastando a barrinha branca, ou null enquanto ele nao arrastou.
+ * A partir dai o teclado PARA de seguir a janela dona: e' o que "mover pra qualquer lugar" significa.
+ */
+let kbFreePos = null;
+/** Arraste em andamento da barrinha: plano do gesto + deslocamento do centro do teclado. */
+const kbDrag = { active: false, plane: null, offset: null, distance: 1 };
 /** Diferença de angulo mais curta: −π..π, para o teclado nunca dar a volta completa no meio. */
 const shortAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -2326,18 +2379,27 @@ function kbAnchor() {
 
 function placeKb(dt = 0) {
   if (!kbObj) return;
-  const wanted = kbAnchor();
-  // O teleporte e curto, nao instantaneo: meio segundo e o teclado ja esta na frente da janela nova
-  // e o olhar ainda sabe onde ele estava.
-  if (!kbPose.ready) { kbPose.yaw = wanted; kbPose.ready = true; }
-  else kbPose.yaw += shortAngle(wanted - kbPose.yaw) * (1 - Math.exp(-dt * 7));
-  const yaw = kbPose.yaw;
-  const distance=native?COMFORT.keyboardDistance:-dockAt.z-.35;
-  kbObj.position.set(-Math.sin(yaw)*distance, EYE-(native?COMFORT.keyboardDrop:.68), -Math.cos(yaw)*distance);   // deitado como mesa, à frente do alvo
-  // Deitado igual Meta Quest: -π/2 é o plano horizontal (teclado "deitado"), KB_TILT inclina
-  // só o necessário na direção do usuário para ler e digitar. Aplicado a cada frame para
-  // acompanhar a janela dona depois de arrastá-la, recenter ou summon.
-  kbObj.rotation.set(-Math.PI / 2 + KB_TILT, yaw, 0, 'YXZ');
+  let yaw;
+  if (kbFreePos) {
+    // Arrastado pela barrinha branca: fica exatamente onde o usuario o largou e gira para encarar o
+    // olho, para o texto nunca ficar de lado nem de ponta-cabeca.
+    kbObj.position.copy(kbFreePos);
+    yaw = Math.atan2(-kbFreePos.x, -kbFreePos.z) || 0;
+    kbPose.yaw = yaw;
+    kbPose.ready = true;
+  } else {
+    const wanted = kbAnchor();
+    // O teleporte e curto, nao instantaneo: meio segundo e o teclado ja esta na frente da janela nova
+    // e o olhar ainda sabe onde ele estava.
+    if (!kbPose.ready) { kbPose.yaw = wanted; kbPose.ready = true; }
+    else kbPose.yaw += shortAngle(wanted - kbPose.yaw) * (1 - Math.exp(-dt * 7));
+    yaw = kbPose.yaw;
+    const distance = native ? KB_STAND_DISTANCE : -dockAt.z - .35;
+    // Em pe': na altura do peito, de frente para quem digita.
+    kbObj.position.set(-Math.sin(yaw) * distance, EYE - KB_STAND_DROP, -Math.cos(yaw) * distance);
+  }
+  // Painel vertical (KB_TILT e' uma inclinacao pequena, nao o -pi/2 deitado da versao anterior).
+  kbObj.rotation.set(KB_TILT, yaw, 0, 'YXZ');
   const w = kbObj.element.offsetWidth * kbObj.scale.x, h = kbObj.element.offsetHeight * kbObj.scale.x;
   const key = w.toFixed(3) + 'x' + h.toFixed(3);
   if (w > 0 && key !== kbKey) {
@@ -2374,7 +2436,51 @@ function kbProbe(x, y) {
   // A tecla e a ancora [data-k] do ponto, e nao o elemento mais fundo: as teclas de icone tem um
   // <svg> dentro, e apertar o icone de voltar/enter/shift tem de ser a mesma tecla que apertar o
   // fundo dela.
-  return { distance: hit.distance, button: deepPick(kbObj.element, px, py)?.closest?.('[data-k]') || null };
+  const el = deepPick(kbObj.element, px, py);
+  // A barrinha e' um alvo proprio: ela nao e' tecla, ela arrasta o teclado inteiro.
+  if (el?.closest?.('[data-kb-grab]')) return { distance: hit.distance, grab: true, button: null };
+  return { distance: hit.distance, grab: false, button: el?.closest?.('[data-k]') || null };
+}
+
+/* =================== arrastar o teclado pela barrinha =================== */
+/* Tres funcoes, o mesmo desenho do arraste da dock: arma no pinchdown (plano do gesto + a distancia
+ * entre o ponto pego e o centro do teclado), move a cada amostra e commita no pinchup. A posicao
+ * escolhida fica em `kbFreePos` e o teclado para de seguir a janela dona. */
+function startKbDrag(nx, ny) {
+  if (!kbObj) return false;
+  setRay(nx, ny);
+  const center = kbObj.getWorldPosition(new THREE.Vector3());
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(), center);
+  const hit = ray.ray.intersectPlane(plane, new THREE.Vector3());
+  if (!hit) return false;
+  Object.assign(kbDrag, { active: false, plane, offset: center.clone().sub(hit), distance: hit.distance() || 1 });
+  if (kbObj.element) kbObj.element.classList.add('dragging');
+  return true;
+}
+function kbDragTo(nx, ny) {
+  if (!kbDrag.plane || !kbObj) return false;
+  setRay(nx, ny);
+  const hit = ray.ray.intersectPlane(kbDrag.plane, new THREE.Vector3());
+  if (!hit) return false;
+  kbDrag.active = true;
+  const world = hit.clone().add(kbDrag.offset);
+  // Limites: perto o suficiente para digitar, longe o suficiente para sair da frente, e entre o
+  // peito e um pouco acima da cabeca — o teclado continua alcancavel com o braco.
+  const flat = Math.hypot(world.x, world.z);
+  if (flat > 1e-4) {
+    const clamped = Math.max(.32, Math.min(3.2, flat));
+    world.x *= clamped / flat; world.z *= clamped / flat;
+  }
+  world.y = Math.max(EYE - 1.25, Math.min(EYE + .75, world.y));
+  const local = contentRoot.worldToLocal(world.clone());
+  kbFreePos = local;
+  placeKb();
+  scene.updateMatrixWorld(true);
+  return true;
+}
+function endKbDrag() {
+  if (kbObj?.element) kbObj.element.classList.remove('dragging');
+  Object.assign(kbDrag, { active: false, plane: null, offset: null, distance: 1 });
 }
 
 /** O dedo desceu numa tecla: ela escreve na hora e fica segurada. */
@@ -2441,6 +2547,9 @@ onFrame((dt, now) => {
     const p = predictedCursor(now);
     if (resizing.win) resizeTo(p.x,p.y);
     if (drag.win && drag.source!=='fist') dragTo(p.x,p.y);
+  }
+  if (kbDrag.plane && cursor.active && cursor.down) {
+    const p = predictedCursor(now); kbDragTo(p.x, p.y);
   }
   if (dockDrag.start && cursor.active && cursor.down) {
     const p=predictedCursor(now); dockDragTo(p.x,p.y);

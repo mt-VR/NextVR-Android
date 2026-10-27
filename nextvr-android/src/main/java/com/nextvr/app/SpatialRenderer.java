@@ -166,6 +166,8 @@ final class SpatialRenderer {
     volatile boolean wideCamera = false;
     volatile boolean mrDim = false;
     volatile boolean bwCamera = true;
+    /** Camera noturna (Build 89): ganho no passthrough quando o ambiente escurece. */
+    volatile boolean nightCamera = false;
     volatile float sixDofX = 0f, sixDofY = 0f, sixDofZ = 0f;
     volatile float targetSixDofX = 0f, targetSixDofZ = 0f;
     volatile boolean worldLock = true;
@@ -197,9 +199,9 @@ final class SpatialRenderer {
     private final int aPosition, aUv, uTexture, uTransform, uRect;
     private final int uViewProj, uFlat, uScale, uCurveR, uViewInv, uEnvSphere;
     private final int uRectR, uEye;
-    private final int uPass, uBackface, uBackdrop, uGlass, uViewport, uProjection, uSpan, uCamera, uCamDim, uBwCamera;
+    private final int uPass, uBackface, uBackdrop, uGlass, uViewport, uProjection, uSpan, uCamera, uCamDim, uBwCamera, uNightCamera;
     private final int cameraProgram;
-    private final int camAPos, camUTex, camUProj, camUSpan, camUQual, camUDim, camUBw;
+    private final int camAPos, camUTex, camUProj, camUSpan, camUQual, camUDim, camUBw, camUNight;
     private final int envProgram;
     private final int envAPos, envUTex, envUProj, envUViewInv, envUQual, envUReveal;
     private volatile long envTransitionStartMs = 0L;
@@ -216,7 +218,7 @@ final class SpatialRenderer {
         Matrix.setIdentityM(identity, 0);
         program = link(
             "attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uViewProj; uniform mat4 uFlat; uniform vec3 uScale; uniform float uCurveR; uniform float uBackface; uniform mat4 uTransform; uniform vec4 uRect; uniform vec4 uRectR; uniform float uEye; varying vec2 vUv; varying vec2 vLocal; void main(){vLocal=aUv;vec4 rect=mix(uRect,uRectR,uEye);vUv=(uTransform*vec4(rect.xy+aUv*rect.zw,0.,1.)).xy;vec3 p=vec3(aPosition.x*uScale.x,aPosition.y*uScale.y,0.);if(uCurveR>0.){float rest=uCurveR*uCurveR-p.x*p.x;p.z=uCurveR-sqrt(max(rest,0.))+step(uBackface,-.5)*.003;}gl_Position=uViewProj*uFlat*vec4(p,1.);}",
-            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; uniform float uCamDimDrop; uniform float uBwCamera; varying vec2 vUv; varying vec2 vLocal; vec3 cameraAt(vec2 p){vec3 cam=texture2D(uCamera,clamp(p,0.,1.)).rgb; if(uBwCamera>.5){float luma=dot(cam,vec3(.299,.587,.114)); cam=vec3(luma);} return cam*(1.-uCamDimDrop);} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); c.rgb=min(c.rgb,vec3(c.a)); if(uBackface>.5){bool inG=all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw)); float ba=inG?max(c.a,.78):c.a*.78; vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 bg=uBackdrop?(envAt(ndc)*2.+envAt(ndc+vec2(.009,0.))+envAt(ndc-vec2(.009,0.))+envAt(ndc+vec2(0.,.009))+envAt(ndc-vec2(0.,.009)))/6.:vec3(.92,.95,.99); vec3 frost=mix(bg,vec3(.94,.96,.99),.76); c=vec4(frost*ba,ba);} else if(uBackface<-.5 && c.a>.001){vec3 rgb=c.rgb/c.a; rgb=rgb*(.91/(1.+rgb*.09)); float lm=dot(rgb,vec3(.2126,.7152,.0722)); rgb=mix(vec3(lm),rgb,.88); c.rgb=rgb*c.a;} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(min(vec3(1.),c.rgb+blurred*(1.-c.a)*.52),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; uniform samplerExternalOES uTexture; uniform sampler2D uCamera; uniform vec4 uViewport; uniform vec4 uProjection; uniform vec4 uGlass; uniform vec2 uSpan; uniform bool uBackdrop; uniform bool uEnvSphere; uniform mat4 uViewInv; uniform float uPass; uniform float uBackface; uniform float uCamDimDrop; uniform float uBwCamera; uniform float uNightCamera; varying vec2 vUv; varying vec2 vLocal; vec3 nightGain(vec3 c){return uNightCamera>.5?pow(clamp(c,0.,1.),vec3(.55))*1.28:c;} vec3 cameraAt(vec2 p){vec3 cam=texture2D(uCamera,clamp(p,0.,1.)).rgb; if(uBwCamera>.5){float luma=dot(cam,vec3(.299,.587,.114)); cam=vec3(luma);} return nightGain(cam)*(1.-uCamDimDrop);} vec3 envAt(vec2 ndc){vec2 tangent=(ndc+uProjection.zw)/uProjection.xy; if(uEnvSphere){vec3 d=normalize(vec3(tangent.x,tangent.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); return texture2D(uCamera,vec2(.5+lon*.15915494,.5-lat*.31830989)).rgb;} return cameraAt(vec2(.5+tangent.x/uSpan.x,.5-tangent.y/uSpan.y));} void main(){vec4 c=texture2D(uTexture,vUv); c.rgb=min(c.rgb,vec3(c.a)); if(uBackface>.5){bool inG=all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw)); float ba=inG?max(c.a,.78):c.a*.78; vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 bg=uBackdrop?(envAt(ndc)*2.+envAt(ndc+vec2(.009,0.))+envAt(ndc-vec2(.009,0.))+envAt(ndc+vec2(0.,.009))+envAt(ndc-vec2(0.,.009)))/6.:vec3(.92,.95,.99); vec3 frost=mix(bg,vec3(.94,.96,.99),.76); c=vec4(frost*ba,ba);} else if(uBackface<-.5 && c.a>.001){vec3 rgb=c.rgb/c.a; rgb=rgb*(.91/(1.+rgb*.09)); float lm=dot(rgb,vec3(.2126,.7152,.0722)); rgb=mix(vec3(lm),rgb,.88); c.rgb=rgb*c.a;} else if(uBackdrop && c.a>.75 && c.a<.999 && all(greaterThan(vLocal,uGlass.xy)) && all(lessThan(vLocal,uGlass.xy+uGlass.zw))){vec2 ndc=(gl_FragCoord.xy-uViewport.xy)/uViewport.zw*2.-1.; vec3 blurred=(envAt(ndc)*2.+envAt(ndc+vec2(.008,0.))+envAt(ndc-vec2(.008,0.))+envAt(ndc+vec2(0.,.008))+envAt(ndc-vec2(0.,.008)))/6.; c=vec4(min(vec3(1.),c.rgb+blurred*(1.-c.a)*.52),1.);} if(uPass<.5 && c.a<.999)discard; if(uPass>.5 && uPass<1.5 && c.a>=.999)discard; gl_FragColor=c;}");
         aPosition=GLES20.glGetAttribLocation(program,"aPosition"); aUv=GLES20.glGetAttribLocation(program,"aUv");
         uTexture=GLES20.glGetUniformLocation(program,"uTexture");
         uTransform=GLES20.glGetUniformLocation(program,"uTransform"); uRect=GLES20.glGetUniformLocation(program,"uRect");
@@ -230,10 +232,11 @@ final class SpatialRenderer {
         uSpan=GLES20.glGetUniformLocation(program,"uSpan"); uCamera=GLES20.glGetUniformLocation(program,"uCamera");
         uCamDim=GLES20.glGetUniformLocation(program,"uCamDimDrop");
         uBwCamera=GLES20.glGetUniformLocation(program,"uBwCamera");
+        uNightCamera=GLES20.glGetUniformLocation(program,"uNightCamera");
         // A full-screen camera pass before *any* world surfaces. Camera image is never world-locked.
         cameraProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
-            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform vec2 uSpan; uniform float uQualityHeight; uniform float uDimDrop; uniform float uBwCamera; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+ray.x/uSpan.x,.5-ray.y/uSpan.y); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*1.7778,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 col=texture2D(uTexture,clamp(uv,0.,1.)).rgb; if(uBwCamera>.5){float luma=dot(col,vec3(.299,.587,.114)); col=vec3(luma);} gl_FragColor=vec4(col*(1.-uDimDrop),1.);}");
+            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform vec2 uSpan; uniform float uQualityHeight; uniform float uDimDrop; uniform float uBwCamera; uniform float uNightCamera; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+ray.x/uSpan.x,.5-ray.y/uSpan.y); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*1.7778,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 col=texture2D(uTexture,clamp(uv,0.,1.)).rgb; if(uBwCamera>.5){float luma=dot(col,vec3(.299,.587,.114)); col=vec3(luma);} if(uNightCamera>.5){col=pow(clamp(col,0.,1.),vec3(.55))*1.28;} gl_FragColor=vec4(col*(1.-uDimDrop),1.);}");
         camAPos=GLES20.glGetAttribLocation(cameraProgram,"aPosition");
         camUTex=GLES20.glGetUniformLocation(cameraProgram,"uTexture");
         camUProj=GLES20.glGetUniformLocation(cameraProgram,"uProjection");
@@ -241,6 +244,7 @@ final class SpatialRenderer {
         camUQual=GLES20.glGetUniformLocation(cameraProgram,"uQualityHeight");
         camUDim=GLES20.glGetUniformLocation(cameraProgram,"uDimDrop");
         camUBw=GLES20.glGetUniformLocation(cameraProgram,"uBwCamera");
+        camUNight=GLES20.glGetUniformLocation(cameraProgram,"uNightCamera");
         // Fundo panoramico 360: a direcao do olhar sai da projecao do olho e e girada para o mundo
         // pelo inverso da view, entao o panorama gira com a cabeca. Sem uSpan: nada de aspect-fill.
         envProgram = link(
@@ -451,6 +455,7 @@ final class SpatialRenderer {
         GLES20.glUniform1i(uEnvSphere,sphere?1:0);
         GLES20.glUniform1f(uCamDim,mrDim?0.68f:0.0f);
         GLES20.glUniform1f(uBwCamera,bwCamera?1.0f:0.0f);
+        GLES20.glUniform1f(uNightCamera,nightCamera?1.0f:0.0f);
         GLES20.glUniformMatrix4fv(uViewInv,1,false,viewInv,0);
         GLES20.glUniform4fv(uGlass,1,panel.glass,0);
         GLES20.glUniform4f(uViewport,viewport[0],viewport[1],viewport[2],viewport[3]);
@@ -504,6 +509,7 @@ final class SpatialRenderer {
         GLES20.glUniform1f(camUQual,qualityHeight);
         GLES20.glUniform1f(camUDim,mrDim?0.68f:0.0f);
         GLES20.glUniform1f(camUBw,bwCamera?1.0f:0.0f);
+        GLES20.glUniform1f(camUNight,nightCamera?1.0f:0.0f);
         drawScreenQuad(camAPos);
     }
     /** Fundo panoramico 360: esfera inteira em volta do usuario, presa ao mundo (gira com a cabeca). */

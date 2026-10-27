@@ -1,0 +1,153 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+
+import {
+  DOCK_CATALOG, catalogEntry, extraDockIds, toggleExtraDockId, extraDockItems, launchDockApp,
+  registerDockLauncher, registerDockAndroidProvider, dockCatalogAll,
+} from '../web/src/dock-catalog.js';
+import { decideNightCamera } from '../web/src/night-camera-math.js';
+
+const read = path => readFileSync(path, 'utf8');
+const windowsSrc = () => read('web/src/windows.js');
+const appsSrc = () => read('web/src/apps.js');
+const entrySrc = () => read('web/src/entry-menu.js');
+const indexHtml = () => read('web/index.html');
+const bundle = () => read('nextvr-android/src/main/assets/ui/app.js');
+
+test('Build 89: dock catalog toggles any app and grows without a limit', () => {
+  const settings = { dockExtraApps: '' };
+  let next = toggleExtraDockId(settings, 'netflix');
+  assert.deepEqual(extraDockIds({ dockExtraApps: next }), ['netflix']);
+  next = toggleExtraDockId({ dockExtraApps: next }, 'tiktok');
+  assert.deepEqual(extraDockIds({ dockExtraApps: next }), ['netflix', 'tiktok']);
+  next = toggleExtraDockId({ dockExtraApps: next }, 'netflix');
+  assert.deepEqual(extraDockIds({ dockExtraApps: next }), ['tiktok']);
+
+  // "pode ficar gigante": 40 apps continuam sendo 40 tiles, sem corte.
+  const many = DOCK_CATALOG.slice(0, 40).map(item => item.id).join(',');
+  const ids = extraDockIds({ dockExtraApps: many });
+  assert.equal(ids.length, Math.min(40, DOCK_CATALOG.length));
+  assert.ok(extraDockIds({ dockExtraApps: many }).length > 20, 'the dock is not capped at nine tiles');
+
+  const items = extraDockItems({ dockExtraApps: 'netflix,tiktok' }, () => null);
+  assert.deepEqual(items.map(item => item.label), ['Netflix', 'TikTok']);
+  assert.equal(typeof items[0].run, 'function', 'every extra tile can launch its app');
+
+  // Apps Android entram pelo provider (id `app:<pkg>`) e o ícone vem do sistema.
+  registerDockAndroidProvider(() => [{ id: 'app:com.example.game', label: 'Example', img: 'data:x' }]);
+  assert.ok(dockCatalogAll().some(item => item.id === 'app:com.example.game'));
+  const withAndroid = extraDockItems({ dockExtraApps: 'app:com.example.game' },
+    id => (id === 'app:com.example.game' ? { img: 'data:x', label: 'Example' } : null));
+  assert.equal(withAndroid.length, 1);
+  assert.equal(withAndroid[0].label, 'Example');
+  assert.equal(withAndroid[0].img, 'data:x');
+  registerDockAndroidProvider(() => []);
+
+  let launched = null;
+  registerDockLauncher(id => { launched = id; });
+  launchDockApp('spotify');
+  assert.equal(launched, 'spotify');
+
+  assert.ok(catalogEntry('tiktok'), 'the catalog knows TikTok');
+});
+
+test('Build 89: the dock app tab is wired into settings, the dock and the bundle', () => {
+  const entry = entrySrc();
+  assert.ok(entry.includes('Aba 3 · Apps na Dock'), 'settings has a third tab');
+  assert.ok(entry.includes('data-entry-settings-tab="3"'), 'third tab button exists');
+  assert.ok(entry.includes('dockAppsPageHtml'), 'the third tab page is rendered');
+  assert.ok(entry.includes('data-dock-app='), 'each app has a toggle tile');
+  assert.ok(entry.includes("emit('dock-extras'"), 'toggling an app rebuilds the dock');
+  assert.ok(windowsSrc().includes('...extraDockItems(S, dockExtraIcon)'), 'the dock appends the chosen apps');
+  assert.ok(bundle().includes('Apps na Dock'), 'the bundle carries the new tab');
+  assert.ok(indexHtml().includes('.entry-dock-apps-grid'), 'the tab has its own grid styling');
+});
+
+test('Build 89: the keyboard stands up and moves by the white side bar', () => {
+  const src = windowsSrc();
+  assert.ok(src.includes('const KB_TILT = -.12'), 'the keyboard is tilted like a standing panel');
+  assert.ok(src.includes('KB_STAND_DISTANCE') && src.includes('KB_STAND_DROP'), 'it floats at eye level');
+  assert.ok(!src.includes('-Math.PI / 2 + KB_TILT'), 'the lying-down pose is gone');
+  assert.ok(src.includes('kbObj.rotation.set(KB_TILT, yaw, 0'), 'it stands upright facing the user');
+  assert.ok(src.includes("grab.dataset.kbGrab = '1'"), 'the white bar is a real element');
+  assert.ok(src.includes('function startKbDrag') && src.includes('function kbDragTo') && src.includes('function endKbDrag'),
+    'pinching the bar drags the whole keyboard');
+  assert.ok(src.includes('kbFree'), 'the chosen position persists');
+  assert.ok(src.includes('class="kb-grab"') || src.includes("grab.className = 'kb-grab'"));
+  assert.ok(indexHtml().includes('.kb-grab{'), 'the bar is styled on the side');
+  assert.ok(!indexHtml().includes('.kb::before{'), 'the old top pill is gone');
+});
+
+test('Build 89: the loading screen is the ATMO XR splash', () => {
+  const entry = entrySrc();
+  assert.ok(entry.includes('entry-atmo-load'), 'new splash markup');
+  // A arte e' a imagem que o usuario mandou ("poe essa"), copiada para o bundle.
+  assert.ok(entry.includes('atmo-load.jpg'), 'the supplied ATMO XR art is the splash');
+  assert.ok(existsSync('web/assets/atmo-load.jpg'), 'the art ships with the repository');
+  assert.ok(read('web/build.mjs').includes("atmo-load.jpg"), 'and is copied into the APK bundle');
+  // Os ganchos de progresso que os testes e o countdown usam continuam existindo.
+  for (const hook of ['data-entry-load-pct', 'data-entry-load-bar', 'data-entry-load-status',
+    'data-entry-countdown', 'data-entry-countdown-sub', 'data-entry-cancel-countdown']) {
+    assert.ok(entry.includes(hook), `${hook} survives the redesign`);
+  }
+  assert.ok(!entry.includes('entry-hud-frame-svg'), 'the old HUD frame is gone');
+  assert.ok(indexHtml().includes('.entry-atmo-load{'), 'the splash has its own styling');
+});
+
+test('Build 89: TikTok runs the real site in a 9:16 native webview', () => {
+  const apps = appsSrc();
+  assert.ok(apps.includes("frame.dataset.nativeBrowser = 'tiktok'"), 'own native browser surface');
+  assert.ok(apps.includes("frame.dataset.url = TIKTOK_URL") && apps.includes("https://www.tiktok.com/"),
+    'the real TikTok URL');
+  assert.ok(apps.includes('w: 405, h: 720'), '9:16 portrait window');
+  assert.ok(!apps.includes('data-tt-canvas'), 'the simulated canvas feed is gone');
+  assert.ok(!apps.includes('[data-tt-like]'), 'the fake like button is gone');
+  assert.ok(read('web/src/atlas.js').includes("[data-native-browser]"), 'the atlas turns it into a real surface');
+});
+
+test('Build 89: the 3D character viewer can be rotated and shows the accessories', () => {
+  const apps = appsSrc();
+  assert.ok(apps.includes('export function openCharacterViewer'), 'viewer exists');
+  assert.ok(apps.includes("data-cv-rot") && apps.includes('data-cv-spin'), 'rotation controls');
+  assert.ok(apps.includes('data-cv-set'), 'accessories can be changed from the viewer');
+  assert.ok(apps.includes('drawCharacter2D(ctx, cv.width, cv.height, cfg, {'), 'it draws the real avatar');
+  assert.ok(apps.includes('data-ac-view3d'), 'the avatar creator opens it');
+  assert.ok(indexHtml().includes('.cv-stage{'), 'viewer styling');
+  assert.ok(apps.includes('data-ac-view3d'), 'the avatar creator has a button to open it');
+});
+
+test('Build 89: night camera decision has hysteresis and is wired to native', () => {
+  assert.equal(decideNightCamera(0.10, -1, false).active, true, 'dark turns it on');
+  assert.equal(decideNightCamera(0.60, -1, false).active, false, 'bright keeps it off');
+  const on = decideNightCamera(0.12, 0.12, true);
+  assert.equal(on.active, true, 'a small light does not turn it off');
+  assert.equal(decideNightCamera(0.40, 0.30, true).active, false, 'a bright room turns it off');
+  assert.equal(decideNightCamera(-1, 0.2, true).changed, false, 'no reading changes nothing');
+
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+  assert.ok(activity.includes('setNightCamera(boolean enabled)'), 'bridge setter');
+  assert.ok(activity.includes('cameraLuma()'), 'bridge reader');
+  const camera = read('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java');
+  assert.ok(camera.includes('void setNightMode(boolean enabled)'), 'camera exposure control');
+  assert.ok(camera.includes('CONTROL_AE_EXPOSURE_COMPENSATION'), 'real exposure compensation');
+  assert.ok(camera.includes('lastLuma'), 'scene brightness is measured');
+  const renderer = read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
+  assert.ok(renderer.includes('uNightCamera'), 'shader night gain');
+  assert.ok(entrySrc().includes('data-entry-night-cam'), 'settings exposes auto/on/off');
+});
+
+test('Build 89: the shipped APK is the release variant signed with the repository key', () => {
+  const gradle = read('nextvr-android/build.gradle');
+  assert.ok(gradle.includes('versionCode 89'), 'version code bumped');
+  assert.ok(gradle.includes('signingConfigs.release'), 'release signing config exists');
+  assert.ok(gradle.includes('signingConfig signingConfigs.release'), 'release uses it');
+  assert.ok(gradle.includes('debuggable false'), 'the shipped build is not debuggable');
+  assert.ok(gradle.includes("storeFile rootProject.file('signing/debug.keystore')"),
+    'same certificate as the previous builds, so it installs over them');
+  const workflow = read('.github/workflows/android.yml');
+  assert.ok(workflow.includes('assembleRelease'), 'CI builds the release variant');
+  assert.ok(workflow.includes('build/outputs/apk/release'), 'CI publishes the release APK');
+  assert.ok(!workflow.includes('build/outputs/apk/debug'), 'CI no longer publishes the debug APK');
+  assert.ok(read('docs/PLAY-PROTECT.md').includes('Play Store'), 'the Play Protect limits are documented');
+});

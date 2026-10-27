@@ -1159,6 +1159,23 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.bwCamera=enabled;
         }
+        /**
+         * Camera noturna (Build 89). `on` levanta o ganho do passthrough no shader (SpatialRenderer)
+         * e manda +EV/reducao de ruido para o Camera2 (PassthroughCamera). Quem decide quando ligar
+         * e' o shell: ele mede a luz com `cameraLuma()` e aplica histerese.
+         */
+        @JavascriptInterface public void setNightCamera(boolean enabled) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.nightCamera=enabled;
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.setNightMode(enabled);
+        }
+        /** Luminosidade media da camera (0..1), ou -1 enquanto o sensor nao mediu nenhum quadro. */
+        @JavascriptInterface public String cameraLuma() {
+            PassthroughCamera cam=camera;
+            float level=cam==null?-1f:cam.luma();
+            return String.valueOf(level);
+        }
         @JavascriptInterface public void setSingleHandMode(String mode) {
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setSingleHandMode(mode);

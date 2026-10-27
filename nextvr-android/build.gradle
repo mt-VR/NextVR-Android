@@ -6,6 +6,9 @@ android {
     compileSdk = 35
     lintOptions {
         abortOnError = false
+        // O APK publicado sai da variante release (Build 89). Sem isto o `assembleRelease` roda o
+        // lint vital e pode falhar num aviso que nao tem nada a ver com o app rodar.
+        checkReleaseBuilds = false
     }
     defaultConfig {
         applicationId "com.atmoxr.app"
@@ -24,7 +27,11 @@ android {
         // 29 / 2.0.0: Nova interface flutuante Library (7e3d8ab40bd4dd3) 100% transparente sobre a câmera traseira real e selo verificado vermelho igual do TikTok para cada colaborador.
         // 82 / 2.1.0: 6DoF World Lock (mundo travado por padrão, sem deriva), câmera P&B/colorida
         // no jogo e no painel, e o paintMR 3D reconstruído (ancoragem invertida corrigida).
-        versionCode 88
+        // 89 / 2.1.0: Apache no lugar da NanyGata, teclado em pé com barra de arrastar, splash
+        // ATMO XR, janelas até 300%, TikTok real, personagem 3D giratório, aba 3 da Dock e câmera
+        // noturna. O APK passou a sair da variante release (assinado com a MESMA chave, então
+        // instala por cima sem apagar o perfil) em vez de debug.
+        versionCode 89
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
@@ -50,13 +57,28 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Build 89: o APK publicado passa a ser o release. A chave é a MESMA dos builds anteriores
+        // (signing/debug.keystore): trocar de chave faria o Android recusar a instalação por cima
+        // ("App not installed") e o usuário perderia o perfil. O que muda é a variante — release não
+        // é `debuggable`, sai zipalinhada e sem os restos de debug, que é o que o sistema (e o Play
+        // Protect) olha com menos desconfiança ao instalar um APK fora da Play Store.
+        release {
+            storeFile rootProject.file('signing/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            applicationIdSuffix ''
         }
         release {
+            signingConfig signingConfigs.release
+            debuggable false
             minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

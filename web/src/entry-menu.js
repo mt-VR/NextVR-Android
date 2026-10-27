@@ -1,5 +1,7 @@
 import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
+import { dockCatalogAll, extraDockIds, toggleExtraDockId } from './dock-catalog.js';
+import { nightCameraState, setNightCameraMode } from './night-camera.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -249,7 +251,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   if (fullscreen) root.dataset.entryFullscreen = '1';
 
   let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'loading'
-  let activeSettingsTab = 1; // 1 | 2 (Aba 1 e Aba 2 das configurações do menu inicial 2D, com arrasto pro lado)
+  // 1 | 2 | 3 — Aba 1 (básico), Aba 2 (mão & tela) e a Aba 3 da Build 89: os apps da Dock.
+  let activeSettingsTab = 1;
   let countdownSec = 6;
   let loadingPct = 0;
   let countdownTimer = null;
@@ -558,6 +561,75 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>`;
   };
 
+  /*
+   * Build 89 — Aba 3: "bote uma opcao nas configuracoes de botar mais apps na dock ... pode ficar
+   * gigante". Um tile por app do catalogo (e por app Android instalado, quando a lista chegou).
+   * Nao ha limite: a Dock cresce, o carrossel rola e a contagem mostra quantos estao ligados.
+   */
+  const dockAppsPageHtml = () => {
+    const enabled = extraDockIds(S);
+    const all = dockCatalogAll();
+    const groups = new Map();
+    for (const item of all) {
+      const key = item.group || 'Apps';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+    const tile = item => {
+      const on = enabled.includes(item.id);
+      return `<button type="button" class="entry-dock-app ${on ? 'on' : ''}" data-dock-app="${escHtml(item.id)}"
+        aria-pressed="${on ? 'true' : 'false'}" title="${escHtml(item.label)}">
+        <span class="entry-dock-app-ico" style="background:${item.bg || '#27272a'}">${item.img
+          ? `<img src="${escHtml(item.img)}" alt="" draggable="false">`
+          : `<span>${escHtml(item.glyph || (item.label || '?').slice(0, 1))}</span>`}</span>
+        <span class="entry-dock-app-name">${escHtml(item.label)}</span>
+        <span class="entry-dock-app-check">${on ? '✓' : '+'}</span>
+      </button>`;
+    };
+    return `
+      <div class="entry-bento-grid entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3">
+        <div class="entry-bento-cell entry-bento-cell--wide">
+          <div class="entry-bento-title">APPS NA DOCK · SEM LIMITE</div>
+          <p class="entry-dock-apps-hint">Toque num app para ele entrar (ou sair) da Dock. A Dock pode ficar
+            gigante: quanto mais apps, mais ela cresce para os lados.
+            <b data-dock-apps-count>${enabled.length}</b> app(s) adicionado(s).</p>
+          <div class="entry-seg-row">
+            <button type="button" class="entry-seg-btn" data-dock-apps-clear="1">Limpar tudo</button>
+            <button type="button" class="entry-seg-btn" data-dock-apps-scroll="1">Ver a Dock →</button>
+          </div>
+        </div>
+        <div class="entry-bento-cell entry-bento-cell--wide entry-play-protect">
+          <div class="entry-bento-title">SOBRE O AVISO DE "APP DESCONHECIDO" / PLAY PROTECT</div>
+          <p class="entry-play-protect-note">${playProtectNote()}</p>
+        </div>
+        ${[...groups].map(([group, items]) => `
+          <div class="entry-bento-cell entry-bento-cell--wide">
+            <div class="entry-bento-title">${escHtml(group)}</div>
+            <div class="entry-dock-apps-grid">${items.map(tile).join('')}</div>
+          </div>`).join('')}
+      </div>`;
+  };
+
+  /** Texto do estado da câmera noturna (a leitura da luz vem do lado nativo). */
+  const nightCamNote = () => {
+    const st = nightCameraState();
+    const level = st.level >= 0 ? `${Math.round(st.level * 100)}% de luz` : 'sem leitura da câmera agora';
+    const active = st.active ? 'ligada' : 'desligada';
+    return `Agora: ${active} · ${level}. A câmera mede o ambiente e sobe o ganho do passthrough (+EV e `
+      + `redução de ruído) quando escurece. Não grava nada e não acende luz nenhuma.`;
+  };
+
+  /* Build 89 — aviso honesto sobre o Play Protect. O APK sai fora da Play Store, então o Android
+     mostra "app desconhecido" na instalação. Isso NÃO é um problema do app e não dá para remover
+     por código: só publicando na Play Store. O que dá para fazer (e foi feito) é entregar um build
+     de release assinado, e explicar o caminho mais curto para instalar. */
+  const playProtectNote = () => `ATENÇÃO: o ATMO XR é instalado direto do GitHub, fora da Play Store.
+    Por isso o Android mostra "app desconhecido" na hora de instalar. Isso é o aviso padrão do
+    sistema para qualquer APK baixado, não um problema do ATMO XR — não existe código que o remova,
+    só publicar na Play Store. Para instalar: toque em "Mais detalhes" → "Instalar mesmo assim".
+    Nas versões novas do Android o Play Protect volta a perguntar; isso é do sistema, mas o APK
+    agora é assinado como release (não é mais um build de depuração), o que reduz os alertas.`;
+
   const renderSettingsPanel = () => {
     const envs = [
       { id: 'passthrough', label: emT('envAr') },
@@ -588,6 +660,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <div class="entry-settings-tabs" role="tablist" aria-label="Abas de configurações">
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 1 ? 'on' : ''}" data-entry-settings-tab="1">Aba 1 · Básico</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Hand &amp; Tela ↔</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Apps na Dock</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -685,6 +758,16 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
 
+            <div class="entry-bento-cell entry-bento-cell--night">
+              <div class="entry-bento-title">CÂMERA NOTURNA (ESCURO = MODO NOTURNO)</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+                <button type="button" class="entry-seg-btn ${(S.nightCamera || 'auto') === 'auto' ? 'on' : ''}" data-entry-night-cam="auto" title="Liga sozinha quando o ambiente escurece">Automática</button>
+                <button type="button" class="entry-seg-btn ${S.nightCamera === 'on' ? 'on' : ''}" data-entry-night-cam="on" title="Sempre ligada">Sempre ligada</button>
+                <button type="button" class="entry-seg-btn ${S.nightCamera === 'off' ? 'on' : ''}" data-entry-night-cam="off" title="Nunca ligar">Desligada</button>
+              </div>
+              <p class="entry-night-cam-note" data-night-cam-state>${nightCamNote()}</p>
+            </div>
+
             <div class="entry-bento-cell entry-bento-cell--env">
               <div class="entry-bento-title">${emT('envTitle')} &amp; PASSTHROUGH</div>
               <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
@@ -694,6 +777,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
           </div>
+
+          ${dockAppsPageHtml()}
         </div>
       </div>`;
   };
@@ -709,12 +794,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       <div class="entry-collab-list" role="list">
         ${ENTRY_COLLABORATORS.map(name => {
           const bio = ENTRY_COLLABORATOR_BIOS[name] || '';
-          const isBlue = name === 'NanyGata';
+          // Build 89: todos os nomes sao cinza do mesmo jeito; o selo vermelho e' so' de quem e'
+          // verificado (hoje, so' o Apache).
+          const verified = isVerifiedProfileName(name);
           return `
-          <div class="entry-collab-item ${isBlue ? 'entry-collab-item--blue' : ''}" role="listitem" data-collaborator-name="${name}">
+          <div class="entry-collab-item" role="listitem" data-collaborator-name="${name}">
             <span class="entry-collab-name-row">
-              <span class="entry-collab-name ${isBlue ? 'entry-collab-name--blue' : ''}" ${isBlue ? 'data-collab-blue="1"' : ''}>${name}</span>
-              <span class="entry-collab-verified" data-collab-verified="${name}" title="Verificado">${SVG_TIKTOK_VERIFIED}</span>
+              <span class="entry-collab-name" data-collab-name="${name}">${name}</span>
+              ${verified ? `<span class="entry-collab-verified" data-collab-verified="${name}" title="Verificado">${SVG_TIKTOK_VERIFIED}</span>` : ''}
               ${bio ? `<span class="entry-collab-bio" data-collab-bio="${name}">${escHtml(bio)}</span>` : ''}
             </span>
           </div>`;
@@ -820,71 +907,31 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>`;
   };
 
+  /*
+   * Build 89 — tela de carregamento ATMO XR.
+   *
+   * O usuario mandou o print da tela nova e pediu "substitui aquela e poe essa". A antiga era um
+   * HUD azul com moldura poligonal; a nova e' preta, com o wordmark ATMO gigante (o XR dentro de uma
+   * caixa), um selo de realidade virtual embaixo, a barra de progresso fina e o texto de status.
+   * Todos os ganchos que o countdown e os testes usam continuam aqui, com os mesmos nomes.
+   */
   const renderLoadingScreen = (batInfo) => {
     const statusText = loadingStatusForPct(loadingPct);
     return `
-      <div class="entry-hud-screen" data-entry-panel="loading" role="status" aria-live="polite">
-        <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
-
-        <header class="entry-hud-top">
-          <div class="entry-hud-top-left" aria-hidden="true">
-            <div class="entry-hud-sq-box"><div class="entry-hud-sq-inner"></div></div>
-            <div class="entry-hud-lines">
-              <span class="entry-hud-line-short"></span>
-              <span class="entry-hud-line-long"></span>
+      <div class="entry-atmo-load" data-entry-panel="loading" role="status" aria-live="polite">
+        <img class="entry-atmo-art" src="atmo-load.jpg" alt="ATMO XR" draggable="false">
+        <button type="button" class="entry-atmo-cancel" data-entry-cancel-countdown title="Cancelar">CANCELAR</button>
+        <span class="entry-atmo-bat" data-entry-battery-top>${batInfo.text}</span>
+        <footer class="entry-atmo-foot">
+          <div class="entry-atmo-status" data-entry-load-status>${statusText}</div>
+          <div class="entry-atmo-bar-row">
+            <div class="entry-atmo-bar-track">
+              <div class="entry-atmo-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
             </div>
-            <div class="entry-hud-vdiv"></div>
+            <span class="entry-atmo-pct" data-entry-load-pct>${loadingPct}%</span>
+            <span class="entry-atmo-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
           </div>
-
-          <div class="entry-hud-top-right">
-            <div class="entry-hud-vdiv" aria-hidden="true"></div>
-            <div class="entry-hud-rect" aria-hidden="true">
-              <span>ATMOXR</span>
-              <b data-entry-battery-top>${batInfo.text}</b>
-            </div>
-            <button type="button" class="entry-hud-rect entry-hud-rect--btn" data-entry-cancel-countdown title="Cancelar">
-              CANCELAR
-            </button>
-          </div>
-        </header>
-
-        <div class="entry-hud-center">
-          <div class="entry-hud-frame-wrap">
-            <svg class="entry-hud-frame-svg" viewBox="0 0 920 400" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <filter id="entryHudGlow" x="-15%" y="-15%" width="130%" height="130%">
-                  <feGaussianBlur stdDeviation="4" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              <polygon points="274,14 646,14 628,32 292,32" fill="#00f2fe" filter="url(#entryHudGlow)" />
-              <polygon points="292,368 628,368 646,386 274,386" fill="#00f2fe" filter="url(#entryHudGlow)" />
-              <path d="M 68,14 L 256,14 L 284,42 L 636,42 L 664,14 L 852,14 L 876,66 L 868,78 Q 906,200 868,322 L 876,334 L 852,386 L 664,386 L 636,358 L 284,358 L 256,386 L 68,386 L 44,334 L 52,322 Q 14,200 52,78 L 44,66 Z"
-                fill="rgba(4, 34, 58, 0.34)"
-                stroke="#38bdf8"
-                stroke-width="2.5"
-                stroke-linejoin="round" />
-            </svg>
-
-            <div class="entry-hud-frame-content">
-              <div class="entry-hud-brand">ATMOXR</div>
-              <div class="entry-hud-pct-row">
-                <span class="entry-hud-pct" data-entry-load-pct>${loadingPct}%</span>
-                <span class="entry-hud-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
-              </div>
-              <div class="entry-hud-status" data-entry-load-status>${statusText}</div>
-              <div class="entry-hud-hint" data-entry-countdown-sub>COLOQUE O CELULAR NO VR BOX · Iniciando em ${countdownSec}s...</div>
-            </div>
-          </div>
-        </div>
-
-        <footer class="entry-hud-bottom">
-          <div class="entry-hud-bar-track">
-            <div class="entry-hud-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
-          </div>
+          <div class="entry-atmo-hint" data-entry-countdown-sub>Coloque o celular no VR Box · Iniciando em ${countdownSec}s...</div>
         </footer>
       </div>`;
   };
@@ -1287,13 +1334,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     const settingsCarousel = root.querySelector('[data-entry-settings-carousel]');
     if (settingsCarousel) {
       requestAnimationFrame(() => {
-        if (activeSettingsTab === 2 && settingsCarousel.clientWidth > 0) {
-          settingsCarousel.scrollLeft = settingsCarousel.clientWidth;
+        if (settingsCarousel.clientWidth > 0 && activeSettingsTab > 1) {
+          settingsCarousel.scrollLeft = settingsCarousel.clientWidth * (activeSettingsTab - 1);
         }
       });
       settingsCarousel.addEventListener('scroll', () => {
         if (settingsCarousel.clientWidth <= 0) return;
-        const tab = settingsCarousel.scrollLeft > settingsCarousel.clientWidth * 0.45 ? 2 : 1;
+        const page = Math.round(settingsCarousel.scrollLeft / Math.max(1, settingsCarousel.clientWidth));
+        const tab = Math.min(3, Math.max(1, page + 1));
         if (tab !== activeSettingsTab) {
           activeSettingsTab = tab;
           root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
@@ -1304,13 +1352,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     }
     root.querySelectorAll('[data-entry-settings-tab]').forEach(btn => {
       btn.onclick = () => {
-        const nextTab = Number(btn.dataset.entrySettingsTab) === 2 ? 2 : 1;
+        const parsedTab = Number(btn.dataset.entrySettingsTab);
+        const nextTab = parsedTab === 3 ? 3 : (parsedTab === 2 ? 2 : 1);
         activeSettingsTab = nextTab;
         root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
           b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
         });
         if (settingsCarousel) {
-          const targetX = activeSettingsTab === 2 ? Math.max(320, settingsCarousel.clientWidth) : 0;
+          const targetX = Math.max(320, settingsCarousel.clientWidth) * (activeSettingsTab - 1);
           if (typeof settingsCarousel.scrollTo === 'function') {
             settingsCarousel.scrollTo({ left: targetX, behavior: 'smooth' });
           } else {
@@ -1319,6 +1368,56 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         }
       };
     });
+    // Aba 3: liga/desliga um app da Dock. Salva em `S.dockExtraApps` e avisa o shell, que
+    // reconstroi a Dock na hora (a Dock nao tem limite de tamanho).
+    const paintDockCount = () => {
+      const count = root.querySelector('[data-dock-apps-count]');
+      if (count) count.textContent = String(extraDockIds(S).length);
+    };
+    root.querySelectorAll('[data-dock-app]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.dockApp || '';
+        S.dockExtraApps = toggleExtraDockId(S, id);
+        save(S);
+        const on = extraDockIds(S).includes(id);
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const check = btn.querySelector('.entry-dock-app-check');
+        if (check) check.textContent = on ? '✓' : '+';
+        paintDockCount();
+        emit('dock-extras', S.dockExtraApps);
+      };
+    });
+    const dockClear = root.querySelector('[data-dock-apps-clear]');
+    if (dockClear) {
+      dockClear.onclick = () => {
+        S.dockExtraApps = '';
+        save(S);
+        root.querySelectorAll('[data-dock-app]').forEach(btn => {
+          btn.classList.remove('on');
+          btn.setAttribute('aria-pressed', 'false');
+          const check = btn.querySelector('.entry-dock-app-check');
+          if (check) check.textContent = '+';
+        });
+        paintDockCount();
+        emit('dock-extras', '');
+      };
+    }
+    const dockScroll = root.querySelector('[data-dock-apps-scroll]');
+    if (dockScroll) dockScroll.onclick = () => { emit('dock-scroll-to', true); };
+
+    // Câmera noturna (Build 89): auto quando escurece, ou fixa ligada/desligada.
+    root.querySelectorAll('[data-entry-night-cam]').forEach(btn => {
+      btn.onclick = () => {
+        const mode = btn.dataset.entryNightCam === 'on' ? 'on'
+          : (btn.dataset.entryNightCam === 'off' ? 'off' : 'auto');
+        S.nightCamera = mode;
+        save(S);
+        setNightCameraMode(mode);
+        paint();
+      };
+    });
+
     root.querySelectorAll('[data-entry-single-hand-set]').forEach(btn => {
       btn.onclick = () => {
         const next = btn.dataset.entrySingleHandSet || 'both';

@@ -5,20 +5,21 @@ export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
 
+// Build 89: a NanyGata virou Apache. O nome dele aparece cinza igual aos outros, com um selo
+// vermelho de verificado, e a bio e' a que o usuario escreveu (com o (V) do selo).
 export const ENTRY_COLLABORATORS = Object.freeze([
   'NeyVR',
   'Faylan',
-  'NanyGata',
+  'Apache',
   'JocaVR',
 ]);
 
+// Build 89: o verificado agora e' SO' do Apache. Quem digitar "Apache" no perfil ganha o selo.
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
-  'NeyVR',
-  'Faylan',
-  'NanyGata',
-  'JocaVR',
+  'Apache',
 ]);
 
+/** "Apache", "apache", " Apache " — todos contam. Nenhum outro nome ganha o selo. */
 export function isVerifiedProfileName(name) {
   const clean = String(name || '').trim().toLowerCase();
   if (!clean) return false;
@@ -28,7 +29,7 @@ export function isVerifiedProfileName(name) {
 export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   NeyVR: 'o Dono absoluto mais aurudo do planeta.',
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
-  NanyGata: '',
+  Apache: 'Apache(V) o contribuidor mais aurudo desse planeta majestoso',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
 });
 
@@ -44,6 +45,13 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'build-89-atmo',
+    tag: 'NOVO · BUILD 89 — ATMO XR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
+    time: 'Agora',
+    heading: 'Build 89: Apache no lugar da NanyGata, Teclado em Pe, TikTok Real, Janelas ate 300%, Personagem 3D Giratorio e Camera Noturna',
+    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado (aparece automaticamente quando o nome do perfil for Apache) e a bio "Apache(V) o contribuidor mais aurudo desse planeta majestoso". O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece. O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
+  },
   {
     id: 'worldlock-camera-paint',
     tag: 'NOVO · WORLD LOCK, CÂMERA COLORIDA & PAINTMR 3D CONSERTADO (BUILD 82)',

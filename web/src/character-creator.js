@@ -145,6 +145,9 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
   const portrait = !!opts.portrait;
   const lh = opts.leftHand;
   const rh = opts.rightHand;
+  // Build 89: zoom do visualizador 3D (1 = padrao). O avatar e' desenhado maior, nao esticado,
+  // porque a escala entra na projecao e nao num ctx.scale depois do desenho.
+  const zoom = Math.max(.4, Math.min(2.4, Number(opts.zoom) || 1));
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
@@ -169,7 +172,7 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
   // Câmera e projeção 3D
   const cx = w * 0.5;
   const cy = portrait ? h * 0.80 : h * 0.53;
-  const scale = portrait ? (w / 118) : (Math.min(w, h) / 235);
+  const scale = (portrait ? (w / 118) : (Math.min(w, h) / 235)) * zoom;
   const camDist = 340;
   const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
   const cosP = Math.cos(pitch), sinP = Math.sin(pitch);

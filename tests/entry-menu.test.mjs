@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT } from '../web/src/entry-data.js';
+import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT, ENTRY_VERIFIED_NAMES, isVerifiedProfileName } from '../web/src/entry-data.js';
 
 const EXPECTED_ABOUT_TEXT = `NextVR — realidade aumentada
 
@@ -14,8 +14,16 @@ Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, se
 NextVR — Mais que um app, uma nova forma de ver.`;
 
 test('entry menu constants match the exact collaborators order and about text', () => {
-  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
-  assert.ok(ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is restored in ENTRY_COLLABORATORS');
+  // Build 89: o usuario trocou a NanyGata pelo Apache ("troca o nome nanygata pelo Apache").
+  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
+  assert.ok(ENTRY_COLLABORATORS.includes('Apache'), 'Apache replaced NanyGata in ENTRY_COLLABORATORS');
+  assert.ok(!ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is gone');
+  assert.equal(ENTRY_COLLABORATOR_BIOS.Apache,
+    'Apache(V) o contribuidor mais aurudo desse planeta majestoso');
+  // Build 89: o verificado e' so' do Apache.
+  assert.deepEqual([...ENTRY_VERIFIED_NAMES], ['Apache']);
+  assert.ok(isVerifiedProfileName('Apache') && isVerifiedProfileName('  apache '));
+  assert.ok(!isVerifiedProfileName('NeyVR'), 'nem o dono ganha o selo: e so o Apache');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
   assert.equal(ENTRY_COLLABORATOR_BIOS.JocaVR, 'o portador de jogos mais importante do planeta aurudo 67');
@@ -44,11 +52,11 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     assert.ok(bundleSrc.includes(token), `bundled app.js includes ${token}`);
   }
 
-  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']) {
+  for (const name of ['NeyVR', 'Faylan', 'Apache', 'JocaVR']) {
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
-  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant red verified badge for NeyVR, Faylan, NanyGata, and JocaVR');
+  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant the red verified badge for the profile name Apache');
   assert.ok(entryMenuSrc.includes('data-entry-dof="3dof"') && entryMenuSrc.includes('data-entry-dof="6dof"'),
     'entry-menu.js includes 3DoF and 6DoF options in Settings');
   assert.ok(indexHtml.includes('nextvrClickPop') && indexHtml.includes('nextvrChoosePulse') && indexHtml.includes('nextvr-click-ripple'),
@@ -331,7 +339,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 88') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 89') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),

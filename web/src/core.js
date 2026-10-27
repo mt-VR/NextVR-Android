@@ -18,11 +18,16 @@ const DEF = {
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockColor: 'default', dockApps: 'browser,youtube,gallery,env,settings,menu',
+  // Build 89: apps extras escolhidos na aba 3 das configuracoes ("pode ficar gigante"). Lista de
+  // ids do catalogo da Dock e/ou `app:<pacote>` de um app Android instalado.
+  dockExtraApps: '',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
   mrDim: 0, bwCamera: 1,
+  // Camera noturna (Build 89): 'auto' liga sozinha quando o ambiente escurece; 'on'/'off' fixam.
+  nightCamera: 'auto',
   sixdof: 1, lateLatch: 0,
   // World Lock (padrão): o mundo fica preso no lugar e só a cabeça gira — zero deriva do 6DoF.
   worldLock: 1,

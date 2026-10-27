@@ -132,6 +132,11 @@ final class PassthroughCamera {
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
+    /** Camera noturna (Build 89): +EV e reducao de ruido de alta qualidade quando escurece. */
+    volatile boolean nightMode=false;
+    /** Luminosidade media do ultimo quadro medido (0..1), ou -1 enquanto nao houver leitura. */
+    private volatile float lastLuma=-1f;
+    private volatile android.util.Range<Integer> aeCompensationRange;
     volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -192,6 +197,54 @@ final class PassthroughCamera {
         return 0.0;
     }
     void resetSixDof() { fakeSixDof.reset(); }
+
+    /**
+     * Camera noturna (Build 89). Duas coisas reais, nao um filtro:
+     *  - exposicao: +EV no maximo que o sensor aceita (a cena escura clareia de verdade);
+     *  - ruido: NOISE_REDUCTION_MODE_HIGH_QUALITY no escuro (troca latencia por menos granulado) e
+     *    FAST de novo quando ha' luz.
+     * Quem decide e' o shell (web/src/night-camera.js), que compara `luma()` com dois limiares.
+     */
+    void setNightMode(boolean enabled) {
+        if(nightMode==enabled) return;
+        nightMode=enabled;
+        handler.post(()->{
+            if(destroyed || session==null || activeRequestBuilder==null) return;
+            try {
+                android.util.Range<Integer> range=aeCompensationRange;
+                if(range!=null) {
+                    int ev=enabled ? range.getUpper() : Math.min(0,range.getUpper());
+                    activeRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,ev);
+                }
+                activeRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE,
+                    enabled ? CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY : CaptureRequest.NOISE_REDUCTION_MODE_FAST);
+                session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
+                android.util.Log.i("NextVR-Camera","night camera "+(enabled?"on":"off"));
+            } catch(Throwable ignored) {}
+        });
+    }
+
+    /** Luminosidade media (0..1) do ultimo quadro medido, ou -1 antes da primeira medida. */
+    float luma() { return lastLuma; }
+
+    /**
+     * Mede a luz da cena nos pixels ja' convertidos (ARGB upright). Uma amostragem em passos
+     * (~512 pontos) custa quase nada e roda so' de 15 em 15 quadros, para nao competir com o
+     * hand tracking.
+     */
+    private void measureLuma(int[] pixels,int count) {
+        if(pixels==null || count<=0) return;
+        int step=Math.max(1,count/512);
+        float sum=0f; int n=0;
+        for(int i=0;i<count;i+=step) {
+            int c=pixels[i];
+            int r=(c>>16)&0xff, g=(c>>8)&0xff, b=c&0xff;
+            sum+=(0.2126f*r+0.7152f*g+0.0722f*b)/255f;
+            n++;
+        }
+        if(n>0) lastLuma=Math.max(0f,Math.min(1f,sum/n));
+    }
+
     void start(int displayRotation) { handler.post(()->open(displayRotation)); }
     @SuppressLint("MissingPermission")
     private void open(int displayRotation) {
@@ -253,6 +306,9 @@ final class PassthroughCamera {
             // as SystemClock.elapsedRealtimeNanos() (REALTIME). Otherwise only acquire-to-landmark is reported.
             timestampIsRealtime=timestampSource!=null && timestampSource==CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
             rotation=CameraGeometry.uprightRotation(sensor==null?90:sensor,displayRotation);
+            // Faixa de +EV disponivel neste sensor (usada pela camera noturna).
+            try { aeCompensationRange=chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE); }
+            catch(Throwable ignored) { aeCompensationRange=null; }
             android.util.Log.i("NextVR-Camera","rear="+id+" wide="+wideCamera+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
             if(handsEnabled) {
                 try {
@@ -328,6 +384,15 @@ final class PassthroughCamera {
                                         } catch(Throwable ignored) {}
                                     }
                                     activeRequestBuilder=request;
+                                    // Uma camera reaberta (troca de rotacao, 0.5x, watchdog) nasce com o
+                                    // request padrao: reaplica a camera noturna se ela estava ligada.
+                                    if(nightMode) {
+                                        try {
+                                            android.util.Range<Integer> evRange=aeCompensationRange;
+                                            if(evRange!=null) request.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,evRange.getUpper());
+                                            request.set(CaptureRequest.NOISE_REDUCTION_MODE,CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+                                        } catch(Throwable ignored) {}
+                                    }
                                     session.setRepeatingRequest(request.build(),afCallback,handler);
                                     scheduleRuntimeWatchdog(token,displayRotation,0);
                                 }catch(Exception e){retryOrFail("Camera preview failed",e,displayRotation,token);}
@@ -425,6 +490,8 @@ final class PassthroughCamera {
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
             // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
             image.close();image=null;
+            // Uma medida de luz a cada 15 quadros (~2x/s a 30 fps): e' o que a camera noturna le'.
+            if((sessionFrames % 15)==0) measureLuma(cameraPixels,outW*outH);
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.

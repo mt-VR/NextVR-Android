@@ -4,6 +4,10 @@ import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironm
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking, hands } from './hands.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
+import {
+  registerDockLauncher, registerDockAndroidProvider, extraDockIds, toggleExtraDockId, DOCK_CATALOG,
+} from './dock-catalog.js';
+import { installNightCamera, nightCameraState, setNightCameraMode } from './night-camera.js';
 import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
@@ -2130,6 +2134,7 @@ export function openAvatarCreator() {
         </div>
         <div style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:7px">
           <button type="button" data-ac-save-profile style="padding:9px 10px;border-radius:10px;background:#2563eb;border:1px solid #60a5fa;color:#fff;font-size:11px;font-weight:800;cursor:pointer">✓ Salvar no Perfil</button>
+          <button type="button" data-ac-view3d style="padding:9px 10px;border-radius:10px;background:rgba(56,189,248,.18);border:1px solid rgba(56,189,248,.45);color:#7dd3fc;font-size:11px;font-weight:800;cursor:pointer">🔄 Ver em 3D</button>
           <button type="button" data-ac-open-mt style="padding:9px 10px;border-radius:10px;background:rgba(132,204,22,.18);border:1px solid rgba(132,204,22,.45);color:#bef264;font-size:11px;font-weight:800;cursor:pointer">🦵 Motion Tracker</button>
         </div>
       </div>
@@ -2281,6 +2286,12 @@ export function openAvatarCreator() {
       css3d.invalidate?.();
       return;
     }
+    if (e.target.closest('[data-ac-view3d]')) {
+      // Build 89: abre o visualizador 3D — o personagem gira e os acessorios podem ser vistos.
+      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+      openCharacterViewer();
+      return;
+    }
     if (e.target.closest('[data-ac-open-mt]')) {
       cfg = saveCharacter(cfg, { updateProfileAvatar: true });
       openPicoMotionTracker();
@@ -2299,6 +2310,165 @@ export function openAvatarCreator() {
   return win;
 }
 window.openAvatarCreator = openAvatarCreator;
+
+/* ============ Visualizador 3D do personagem (Build 89) ============
+ *
+ * O usuario: "bota o personagem 3d que da pra girar ele e ve as coisas e os acessorios".
+ * A janela mostra o avatar grande, girando com o arraste (ou sozinho), com zoom, lista do que esta'
+ * equipado e os botoes para trocar cada acessorio ali mesmo — sem passar pelo editor.
+ */
+export function openCharacterViewer() {
+  const existing = wins.find(w => w.id === 'character-viewer');
+  if (existing) {
+    existing.setHidden(false);
+    focus(existing);
+    css3d.invalidate?.();
+    return existing;
+  }
+
+  let cfg = loadCharacter();
+  let yaw = 0;
+  let zoom = 1;
+  let spinning = true;
+  let lastX = null;
+
+  const body = el('div', 'cv-root');
+  body.style.cssText = 'position:relative;width:100%;height:100%;display:flex;background:linear-gradient(160deg,#101014,#08080a 70%);color:#f4f4f5;font-family:Inter,system-ui,sans-serif;overflow:hidden;';
+
+  const stageWrap = el('div', 'cv-stage');
+  stageWrap.style.cssText = 'flex:1;min-width:0;position:relative;display:grid;place-items:center;padding:14px;';
+  const cv = document.createElement('canvas');
+  cv.className = 'cv-canvas';
+  cv.dataset.cvCanvas = '1';
+  cv.width = 460;
+  cv.height = 620;
+  cv.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:100%;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:radial-gradient(circle at 50% 30%,rgba(148,163,184,.20),rgba(8,8,10,.95) 70%);box-shadow:0 24px 70px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.12);touch-action:none;cursor:grab;';
+  const hint = el('div', 'cv-hint', 'Arraste para girar · pinça afasta/aproxima');
+  hint.style.cssText = 'position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:10.5px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.55);text-transform:uppercase;pointer-events:none;';
+  stageWrap.append(cv, hint);
+
+  const side = el('div', 'cv-side');
+  side.style.cssText = 'width:300px;flex:none;display:flex;flex-direction:column;gap:10px;padding:14px 14px 12px 0;';
+
+  const title = el('div', 'cv-title', 'Seu personagem 3D');
+  title.style.cssText = 'font-size:17px;font-weight:900;letter-spacing:.01em;';
+  const equipped = el('div', 'cv-equipped');
+  equipped.dataset.cvEquipped = '1';
+  equipped.style.cssText = 'font-size:11.5px;line-height:1.5;color:#d4d4d8;padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);';
+
+  const row = el('div');
+  row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+  const mk = (label, data, bg) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label;
+    Object.entries(data).forEach(([k, v]) => { b.dataset[k] = v; });
+    b.style.cssText = `flex:1;min-width:64px;padding:8px 6px;border-radius:11px;font-size:11px;font-weight:800;cursor:pointer;color:#f4f4f5;background:${bg || 'rgba(255,255,255,.07)'};border:1px solid rgba(255,255,255,.14);`;
+    return b;
+  };
+  const spinBtn = mk('⥀ Girar sozinho', { cvSpin: '1' });
+  const zoomOut = mk('－', { cvZoom: '-1' });
+  const zoomIn = mk('＋', { cvZoom: '1' });
+  const rotL = mk('⟲', { cvRot: '-0.5' });
+  const rotR = mk('⟳', { cvRot: '0.5' });
+  row.append(rotL, spinBtn, rotR, zoomOut, zoomIn);
+
+  const accTitle = el('div', null, 'Acessórios');
+  accTitle.style.cssText = 'font-size:10.5px;font-weight:900;letter-spacing:.16em;color:#a1a1aa;text-transform:uppercase;margin-top:2px;';
+  const accWrap = el('div');
+  accWrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+
+  const saveBtn = el('button', 'cv-save', '✓ Usar no Perfil');
+  saveBtn.type = 'button';
+  saveBtn.dataset.cvSave = '1';
+  saveBtn.style.cssText = 'margin-top:auto;padding:11px;border-radius:13px;background:linear-gradient(135deg,#e4e4e7,#a1a1aa);color:#09090b;font-size:12px;font-weight:900;cursor:pointer;border:0;';
+  side.append(title, equipped, row, accTitle, accWrap, saveBtn);
+  body.append(stageWrap, side);
+
+  const paintEquipped = () => {
+    const acc = CHARACTER_OPTIONS.accessories.find(a => a.id === cfg.accessory);
+    const out = CHARACTER_OPTIONS.outfits.find(o => o.id === cfg.outfit);
+    const hair = CHARACTER_OPTIONS.hairStyles.find(h => h.id === cfg.hairStyle);
+    const visor = CHARACTER_OPTIONS.visors?.find(v => v.id === cfg.visor);
+    equipped.innerHTML = `
+      <b style="color:#fafafa">Equipado agora</b><br>
+      ${hair ? hair.label : '—'} · ${out ? out.label : '—'}${visor ? ' · ' + visor.label : ''}<br>
+      ${acc ? '🎒 ' + acc.label : 'Sem acessório'}`;
+    accWrap.innerHTML = '';
+    for (const a of CHARACTER_OPTIONS.accessories) {
+      const btn = mk(a.label, { cvSet: `accessory:${a.id}` }, cfg.accessory === a.id ? 'rgba(226,232,240,.22)' : null);
+      if (cfg.accessory === a.id) btn.style.borderColor = '#fafafa';
+      accWrap.appendChild(btn);
+    }
+    spinBtn.textContent = spinning ? '⏸ Parar giro' : '⥀ Girar sozinho';
+    spinBtn.style.borderColor = spinning ? '#fafafa' : 'rgba(255,255,255,.14)';
+  };
+  paintEquipped();
+
+  let animId = 0, lastT = performance.now();
+  const t0 = performance.now();
+  const tick = now => {
+    if (!body.isConnected) return;
+    const dt = Math.min(.05, Math.max(0, (now - lastT) * .001));
+    lastT = now;
+    if (spinning) yaw += dt * 1.0;
+    const ctx = cv.getContext('2d');
+    const lh = hands.find(h => h.left);
+    const rh = hands.find(h => !h.left);
+    drawCharacter2D(ctx, cv.width, cv.height, cfg, {
+      time: (now - t0) * .001,
+      yaw,
+      zoom,
+      leftHand: lh,
+      rightHand: rh,
+    });
+    animId = requestAnimationFrame(tick);
+  };
+  animId = requestAnimationFrame(tick);
+
+  // Arraste com o dedo/mouse para girar; pinça (dois dedos) ou a roda para o zoom.
+  cv.addEventListener('pointerdown', e => { lastX = e.clientX; cv.style.cursor = 'grabbing'; cv.setPointerCapture?.(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (lastX == null) return;
+    yaw += (e.clientX - lastX) * .012;
+    lastX = e.clientX;
+    spinning = false;
+  });
+  const stop = () => { lastX = null; cv.style.cursor = 'grab'; };
+  cv.addEventListener('pointerup', stop);
+  cv.addEventListener('pointercancel', stop);
+  cv.addEventListener('pointerleave', stop);
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.max(.55, Math.min(1.8, zoom - Math.sign(e.deltaY) * .08)); }, { passive: false });
+
+  body.addEventListener('click', e => {
+    const rot = e.target.closest('[data-cv-rot]');
+    if (rot) { spinning = false; yaw += Number(rot.dataset.cvRot || 0); return; }
+    if (e.target.closest('[data-cv-spin]')) { spinning = !spinning; paintEquipped(); return; }
+    const zm = e.target.closest('[data-cv-zoom]');
+    if (zm) { zoom = Math.max(.55, Math.min(1.8, zoom + Number(zm.dataset.cvZoom || 0) * .12)); return; }
+    const set = e.target.closest('[data-cv-set]');
+    if (set) {
+      const raw = set.dataset.cvSet || '';
+      const sep = raw.indexOf(':');
+      if (sep > 0) { cfg[raw.slice(0, sep)] = raw.slice(sep + 1); cfg = saveCharacter(cfg, { updateProfileAvatar: false }); paintEquipped(); css3d.invalidate?.(); }
+      return;
+    }
+    if (e.target.closest('[data-cv-save]')) {
+      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
+      toast('✓ Personagem 3D salvo no Perfil');
+      css3d.invalidate?.();
+      return;
+    }
+  });
+
+  const win = open({ id: 'character-viewer', title: 'Personagem 3D · ATMOXR', node: body, w: 900, h: 620 });
+  win._cleanupCV = () => cancelAnimationFrame(animId);
+  focus(win);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return win;
+}
+window.nextvrOpenCharacterViewer = openCharacterViewer;
+
 
 /* ============ PICO Motion Tracker (Screenshot_2026-10-25-19-28-52-726) ============ */
 export function openPicoMotionTracker() {
@@ -2520,195 +2690,74 @@ export function openPicoExplore() {
   return win;
 }
 
-/* ============ TikTok VR Vertical Window (Screenshots 19-11-24 & 19-11-03) ============ */
+/* ============ TikTok de verdade, em pe' (Build 89) ============
+ *
+ * O usuario: "o tiktok e pra ficar daquele tamanho mas rodando o Tiktok real com https://Tiktok".
+ * Antes esta janela era um feed FALSO desenhado em HTML (reels inventados, likes que nao existiam).
+ * Agora ela e' uma superficie nativa de verdade (data-native-browser) que abre https://www.tiktok.com/,
+ * no mesmo tamanho vertical do print: 9:16, 405x720.
+ */
+const TIKTOK_URL = 'https://www.tiktok.com/';
+
 export function openTikTokVr() {
   const existing = wins.find(w => w.id === 'tiktok');
   if (existing) {
     existing.setHidden(false);
     focus(existing);
+    // Reabrir recarrega o site de verdade: o feed do TikTok vive mudando e a janela pode ter ficado
+    // parada em segundo plano por um bom tempo.
+    window.NativeXR?.browserCmd?.('tiktok', 'reload');
     css3d.invalidate?.();
     return existing;
   }
-  const reels = [
-    {
-      author: 'MrBeast',
-      verified: true,
-      date: '09-14',
-      caption: 'I just got punched by @Mike Tyson #CaneloCrawford #RiyadhSeason · Colaboración de pago',
-      likes: '1,1 mi',
-      comments: '43,5 mil',
-      saves: '78,2 mil',
-      shares: '86,1 mil',
-      kind: 'mrbeast',
-    },
-    {
-      author: 'DavePicoVr',
-      verified: false,
-      date: '08-19',
-      caption: 'Italia ✈️ Giappone Tokyo · TikTok em VR #fyp #tiktok #pico4ultra #chill',
-      likes: '15,4 mil',
-      comments: '842',
-      saves: '2,1 mil',
-      shares: '619',
-      kind: 'tokyo-map',
-    },
-    {
-      author: 'ミスターVR@VR解説',
-      verified: true,
-      date: '09-19',
-      caption: 'Com a realidade mista PICO 4 Ultra, você pode se teletransportar do céu para o lago #pico4ultra #mr',
-      likes: '2.738',
-      comments: '60',
-      saves: '438',
-      shares: '326',
-      kind: 'pico-mr',
-    },
-  ];
-  let reelIdx = 0;
-  let liked = false;
 
   const body = el('div', 'pico-tiktok-win');
   body.dataset.picoTiktok = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#09090b;color:#f8fafc;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#000;color:#f8fafc;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;overflow:hidden;';
 
-  const renderReel = () => {
-    const r = reels[reelIdx];
-    body.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(9,9,11,.86);border-bottom:1px solid rgba(255,255,255,.08);z-index:3">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:15px;font-weight:900;color:#25F4EE">♪ TikTok VR</span>
-          <span style="font-size:11.5px;color:rgba(255,255,255,.55);font-weight:700">Seguindo</span>
-          <span style="font-size:12px;color:#fff;font-weight:900;border-bottom:2px solid #fff;padding-bottom:2px">Para Você</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button type="button" data-tt-prev title="Vídeo Anterior" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:#18181b;color:#fff;font-size:11px;font-weight:800;cursor:pointer">▲</button>
-          <button type="button" data-tt-next title="Próximo Vídeo" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:#18181b;color:#fff;font-size:11px;font-weight:800;cursor:pointer">▼</button>
-          <button type="button" data-tt-web title="Abrir TikTok Web" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(37,244,238,.4);background:rgba(37,244,238,.12);color:#25F4EE;font-size:10.5px;font-weight:800;cursor:pointer">🌐 Web</button>
-        </div>
-      </div>
-      <div style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#111318">
-        <canvas data-tt-canvas width="520" height="460" style="width:100%;height:100%;display:block;object-fit:cover"></canvas>
-        <div style="position:absolute;right:12px;bottom:64px;display:flex;flex-direction:column;align-items:center;gap:12px;z-index:3">
-          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#ec4899);border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;position:relative">
-            ${r.author.slice(0, 2).toUpperCase()}
-            <span style="position:absolute;bottom:-5px;width:16px;height:16px;border-radius:50%;background:#fe2c55;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:900">+</span>
-          </div>
-          <button type="button" data-tt-like style="background:transparent;border:0;color:${liked ? '#fe2c55' : '#fff'};display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:20px">
-            ♥ <span style="font-size:10.5px;font-weight:800;color:#fff">${r.likes}</span>
-          </button>
-          <button type="button" data-tt-comment style="background:transparent;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
-            💬 <span style="font-size:10.5px;font-weight:800">${r.comments}</span>
-          </button>
-          <button type="button" data-tt-save style="background:transparent;border:0;color:#facc15;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
-            🔖 <span style="font-size:10.5px;font-weight:800;color:#fff">${r.saves}</span>
-          </button>
-          <button type="button" data-tt-share style="background:transparent;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;cursor:pointer;font-size:18px">
-            ↗ <span style="font-size:10.5px;font-weight:800">${r.shares}</span>
-          </button>
-        </div>
-        <div style="position:absolute;left:14px;right:72px;bottom:58px;z-index:3;text-shadow:0 1px 4px rgba(0,0,0,.85)">
-          <div style="font-size:13.5px;font-weight:900;color:#fff;margin-bottom:4px;display:flex;align-items:center;gap:5px">
-            ${escH(r.author)} ${r.verified ? '<span style="color:#38bdf8">✔</span>' : ''} <span style="font-size:11px;color:rgba(255,255,255,.72);font-weight:600">· ${r.date}</span>
-          </div>
-          <div style="font-size:11.5px;line-height:1.36;color:#f1f5f9">${escH(r.caption)}</div>
-        </div>
-        <div style="position:absolute;left:12px;right:12px;bottom:10px;height:36px;border-radius:999px;background:rgba(24,24,27,.84);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:3">
-          <span style="font-size:11px;color:rgba(255,255,255,.65)">Añadir comentario...</span>
-          <div style="display:flex;align-items:center;gap:8px;font-size:15px">
-            <button type="button" data-tt-emoji="😂" style="background:transparent;border:0;cursor:pointer;font-size:15px">😂</button>
-            <button type="button" data-tt-emoji="😮" style="background:transparent;border:0;cursor:pointer;font-size:15px">😮</button>
-            <button type="button" data-tt-emoji="😢" style="background:transparent;border:0;cursor:pointer;font-size:15px">😢</button>
-          </div>
-        </div>
-      </div>
-    `;
-    const cv = body.querySelector('[data-tt-canvas]');
-    const ctx = cv.getContext('2d');
-    if (r.kind === 'tokyo-map') {
-      ctx.fillStyle = '#bae6fd';
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.fillStyle = '#f1f5f9';
-      ctx.beginPath();
-      ctx.moveTo(80, 340); ctx.lineTo(190, 250); ctx.lineTo(290, 220); ctx.lineTo(390, 140); ctx.lineTo(430, 190); ctx.lineTo(340, 310);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.beginPath(); ctx.roundRect(110, 42, 300, 38, 10); ctx.fill();
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 18px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Italia Giappone Tokyo', 260, 67);
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath(); ctx.moveTo(140, 290); ctx.quadraticCurveTo(260, 160, 385, 210); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath(); ctx.arc(385, 210, 9, 0, Math.PI * 2); ctx.fill();
-    } else if (r.kind === 'mrbeast') {
-      const g = ctx.createLinearGradient(0, 0, 0, cv.height);
-      g.addColorStop(0, '#334155');
-      g.addColorStop(0.5, '#475569');
-      g.addColorStop(1, '#1e293b');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.fillStyle = '#0284c7';
-      ctx.fillRect(28, 18, 150, 74);
-      ctx.fillStyle = '#d6c7b2';
-      ctx.beginPath(); ctx.roundRect(185, 95, 130, 160, 20); ctx.fill();
-      ctx.fillStyle = '#9a5b3e';
-      ctx.beginPath(); ctx.arc(250, 66, 28, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#374151';
-      ctx.beginPath(); ctx.roundRect(330, 102, 130, 210, 20); ctx.fill();
-      ctx.fillStyle = '#d4a373';
-      ctx.beginPath(); ctx.arc(395, 68, 27, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#f8fafc';
-      ctx.beginPath(); ctx.roundRect(120, 185, 155, 175, 24); ctx.fill();
-      ctx.fillStyle = '#b45309';
-      ctx.beginPath(); ctx.arc(215, 158, 30, 0, Math.PI * 2); ctx.fill();
-    } else {
-      const g = ctx.createLinearGradient(0, 0, cv.width, cv.height);
-      g.addColorStop(0, '#1e1b4b');
-      g.addColorStop(1, '#0f172a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(170, 140, 14, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(350, 135, 14, 0, Math.PI * 2); ctx.stroke();
-    }
+  // Barra enxuta: voltar, recarregar e o endereco. O resto da janela e' o site real.
+  const bar = el('div', 'tt-bar');
+  bar.style.cssText = 'flex:none;display:flex;align-items:center;gap:6px;padding:6px 9px;background:#0b0b0d;border-bottom:1px solid rgba(255,255,255,.09);';
+  const back = el('button', 'tt-btn'); back.type = 'button'; back.innerHTML = icon('back'); back.title = 'Voltar';
+  const reload = el('button', 'tt-btn'); reload.type = 'button'; reload.innerHTML = icon('refresh'); reload.title = 'Recarregar';
+  const urlPill = el('span', 'tt-url', 'tiktok.com');
+  urlPill.style.cssText = 'flex:1;min-width:0;padding:4px 10px;border-radius:9px;background:rgba(255,255,255,.07);color:#d4d4d8;font-size:11px;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  const openBrowser = el('button', 'tt-btn'); openBrowser.type = 'button'; openBrowser.textContent = '⋯'; openBrowser.title = 'Abrir no navegador';
+  [back, reload, openBrowser].forEach(b => { b.style.cssText = 'width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#f4f4f5;font-size:13px;display:grid;place-items:center;cursor:pointer;flex:none;'; });
+  bar.append(back, reload, urlPill, openBrowser);
+
+  const stage = el('div', 'tt-stage');
+  stage.style.cssText = 'flex:1;min-height:0;position:relative;background:#000;overflow:hidden;';
+
+  let frame;
+  if (native) {
+    frame = el('div', 'tt-native');
+    frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:#000;overflow:hidden;';
+    // A superficie nativa e' identificada por este atributo: o atlas a transforma num WebView de
+    // verdade e o Java recebe id/url/tamanho (ver NextVrActivity.syncBrowsers).
+    frame.dataset.nativeBrowser = 'tiktok';
+    frame.dataset.url = TIKTOK_URL;
+    frame.dataset.homeOverlay = '0';
+    stage.appendChild(frame);
+  } else {
+    // Preview no navegador (desenvolvimento): o TikTok real recusa embed, entao a tela deixa isso
+    // explicito em vez de fingir um feed.
+    frame = el('iframe', 'tt-native');
+    frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;';
+    frame.src = TIKTOK_URL;
+    frame.referrerPolicy = 'no-referrer';
+    stage.appendChild(frame);
+  }
+
+  body.append(bar, stage);
+
+  const win = open({ id: 'tiktok', title: 'TikTok', node: body, w: 405, h: 720 });
+  back.onclick = () => window.NativeXR?.browserCmd?.('tiktok', 'back');
+  reload.onclick = () => {
+    if (native) window.NativeXR?.browserCmd?.('tiktok', 'reload');
+    else frame.src = TIKTOK_URL;
   };
-  renderReel();
-
-  body.addEventListener('click', e => {
-    if (e.target.closest('[data-tt-next]')) {
-      reelIdx = (reelIdx + 1) % reels.length;
-      renderReel();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-tt-prev]')) {
-      reelIdx = (reelIdx - 1 + reels.length) % reels.length;
-      renderReel();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-tt-like]')) {
-      liked = !liked;
-      renderReel();
-      css3d.invalidate?.();
-      return;
-    }
-    const em = e.target.closest('[data-tt-emoji]');
-    if (em) {
-      toast(`Reação enviada no TikTok VR: ${em.dataset.ttEmoji}`);
-      return;
-    }
-    if (e.target.closest('[data-tt-web]')) {
-      webBrowserFor('browser', 'TikTok', 'https://www.tiktok.com/', { showHomeOverlay: false });
-    }
-  });
-
-  const win = open({ id: 'tiktok', title: 'TikTok', node: body, w: 540, h: 660 });
+  openBrowser.onclick = () => webBrowserFor('browser', 'TikTok', TIKTOK_URL, { showHomeOverlay: false });
   focus(win);
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
@@ -2987,6 +3036,7 @@ const LIB_ACTIONS = {
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
   spotify:  () => openSpotifyVr(),
   'avatar-creator': () => openAvatarCreator(),
+  'character-viewer': () => openCharacterViewer(),
   'motion-tracker': () => openPicoMotionTracker(),
   'pico-explore': () => openPicoExplore(),
   'phone-notifications': () => openPhoneNotifications(),
@@ -4636,6 +4686,38 @@ function paintWindowBadge() {
 installAndroidApps();
 installJoycon();
 installXrGames();
+installNightCamera();
+
+/* Build 89 — a Dock pode receber QUALQUER app (aba 3 das configuracoes).
+ *
+ * A lista de apps Android vem do lado nativo (android-apps.js). Este registro entrega para a Dock
+ * duas coisas: como desenhar o tile de um app Android instalado e como abrir um id qualquer —
+ * catálogo (`netflix`), app Android (`app:com.whatsapp`) ou jogo interno.
+ */
+const dockAndroidApps = () => androidApps()
+  .filter(app => app && app.pkg)
+  .map(app => ({
+    id: 'app:' + app.pkg,
+    label: app.label || app.pkg,
+    group: 'Android',
+    img: app.icon || '',
+    bg: 'linear-gradient(180deg,#3f3f46 0%,#18181b 100%)',
+  }));
+window.__nextvrDockAndroidApps = dockAndroidApps;
+registerDockAndroidProvider(dockAndroidApps);
+registerDockLauncher(id => {
+  const key = String(id || '');
+  if (key.startsWith('app:')) { openApp(key.slice(4)); return true; }
+  const action = LIB_ACTIONS[key];
+  if (action) { action(); return true; }
+  return false;
+});
+
+/* Abrir/fechar um app na Dock veio da aba 3 das configuracoes: salva a escolha e redesenha a Dock. */
+on('dock-extras', () => {
+  makeDock();                 // a Dock e' reconstruida com a lista nova de apps extras
+  css3d.invalidate?.();
+});
 on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
 /**
  * PhoneXR state/library changed: repaint the library (hosted badge, runtime row) and the PhoneXR
