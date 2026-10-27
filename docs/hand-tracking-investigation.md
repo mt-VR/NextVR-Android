@@ -1,11 +1,5 @@
 # Investigação do hand tracking (NextVR Android)
 
-> **Histórico (até a Build 82).** Este documento descreve a era MediaPipe/TFLite. A partir da
-> **Build 83** o rastreamento é o motor nativo de segmentação de pele descrito em
-> [light-hand-tracking.md](light-hand-tracking.md): sem modelo, sem TFLite, sem delegate. O que está
-> aqui continua valioso como medição (a admissão por slot, o custo do delegate, o orçamento adaptativo),
-> mas os arquivos `com/nextvr/handtrack/` citados não existem mais.
-
 ## Conclusão desta rodada
 
 - **Modelo: mantido MediaPipe.** Handtrack.js não substitui o MediaPipe nos gestos do app (ver "Avaliação de modelos"). Não há medição de eficiência que justifique a troca.

@@ -1,6 +1,6 @@
-// Dados estáticos do menu de entrada NextVR v2.3.1.
-export const ENTRY_VERSION = 'v2.3.1';
-export const ENTRY_VERSION_ALPHA = 'v2.3.1 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.1.0.
+export const ENTRY_VERSION = 'v2.1.0';
+export const ENTRY_VERSION_ALPHA = 'v2.1.0 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
@@ -44,41 +44,6 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
-  {
-    id: 'stick-hand-tidy',
-    tag: 'CORRIGIDO · PALITO NÃO VIRA MAIS ESTRELA NA MÃO (BUILD 87)',
-    time: 'Agora',
-    heading: 'Mão de Palito Consertada: Uma Mão Só, Sem Espetos e Sem Tremida de Tamanho',
-    desc: 'O palito estava saindo como uma estrela torta, com dois esqueletos sobre a mesma mão e espetos atravessando a tela. Agora: pedaços separados da MESMA mão (sombra entre os dedos, relógio, anel, manga) são juntados em uma mão só; o dedo nunca é desenhado mais comprido do que um dedo pode ser; a escala da palma é filtrada (a mão parou de crescer e encolher sozinha); o pulso do desenho é preso perto dos nós dos dedos (acabou o triângulo cruzado); os traços ficaram finos; e uma detecção fraca simplesmente não é desenhada, em vez de virar um garrancho em cima da mão.',
-  },
-  {
-    id: 'stick-hand-fast',
-    tag: 'NOVO · MÃO DE PALITO E RASTREIO MUITO MAIS RÁPIDO (BUILD 86)',
-    time: 'Agora',
-    heading: 'Mão de Palito: Desenho Leve, Colado na Mão e com Muito Mais FPS',
-    desc: 'O hand tracking virou uma mão de PALITO: em vez da silhueta preenchida (que custava milhares de vértices por quadro e às vezes virava um borrão), agora são alguns traços finos que vão exatamente onde estão as 21 juntas — muito mais leve, muito mais rápido e impossível de "sair" da mão. O rastreio também ficou mais esperto: analisa um quadro menor (256 px) para acompanhar cada frame da câmera, descarta a imagem inteira na hora quando ela é só móvel/parede, e usa a continuidade para saber qual mão é qual (nada de trocar de lado).',
-  },
-  {
-    id: 'hand-no-false-positives',
-    tag: 'CORRIGIDO · A MÃO FANTASMA SUMIU (BUILD 85)',
-    time: 'Agora',
-    heading: 'Fim da Mão Fantasma: o Rastreio Não Confunde Mais Armário, Parede ou Porta com a Sua Mão',
-    desc: 'O teste de cor de pele aceita qualquer superfície bege — aí o armário, a parede e a porta do quarto viravam "mão" e uma silhueta gigante ficava girando no meio do ar. Agora o rastreador só publica o que tem FORMA de mão: dedo fino de verdade, palma de tamanho de mão, nada de bloco que preenche o próprio retângulo, e nada de pele que sai da imagem por mais de um antebraço. Punho fechado continua funcionando (com o braço aparecendo, ou logo depois de a mão ter sido vista).',
-  },
-  {
-    id: 'hand-silhouette-fixed',
-    tag: 'CORRIGIDO · SILHUETA DA MÃO PAROU DE GIRAR (BUILD 84)',
-    time: 'Agora',
-    heading: 'Hand Tracking Estável: a silhueta Parou de Girar e de Sair Voando pela Tela',
-    desc: 'Conserto de raiz no rastreio leve: o antebraço (que também é pele e entrava na conta dos dedos) agora é identificado pelo contato com a borda da imagem e fica de fora da direção dos dedos — era ele que girava a mão inteira na tela. A direção da mão passou a ser filtrada (um quadro não consegue virar uma mão 180°), punho e dedos nunca ficam do mesmo lado da palma, e o movimento previsto entre detecções agora só desloca a mão, sem deformar os dedos — a silhueta não se dobra mais nem varre a tela quando a mão sai do quadro.',
-  },
-  {
-    id: 'light-hand-tracking',
-    tag: 'NOVO · HAND TRACKING ULTRA LEVE, SEM IA PESADA (BUILD 83)',
-    time: 'Agora',
-    heading: 'Rastreamento de Mãos Reescrito: Muito Mais Leve, Duas Mãos, Pinça, Punho e Dedo Apontando',
-    desc: 'O rastreamento do PhoneXR foi trocado por um motor nativo novo e MUITO mais leve: saiu o modelo de 7,5 MB e a inferência, entrou a segmentação de pele + palma + silhueta, tudo direto no processador do celular. Resultado: menos CPU, menos memória, menos bateria e menos latência, com o mesmo que você já usa — duas mãos, pinça para clicar/desenhar, punho para pegar/menu e dedo apontando para tocar direto.',
-  },
   {
     id: 'worldlock-camera-paint',
     tag: 'NOVO · WORLD LOCK, CÂMERA COLORIDA & PAINTMR 3D CONSERTADO (BUILD 82)',

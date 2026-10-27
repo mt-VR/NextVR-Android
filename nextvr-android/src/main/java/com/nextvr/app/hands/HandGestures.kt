@@ -1,17 +1,11 @@
 package com.nextvr.app.hands
 
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-/**
- * Quest-style hand gestures from 21 landmarks, and the filters that keep tracking calm.
- *
- * The landmarks now come from the light silhouette tracker (com.nextvr.lighttrack) instead of a
- * learned model, so they arrive as a flat 63-float array - x, y, z per landmark, image normalized -
- * rather than a list of landmark objects. The rules below are unchanged: they were always pure
- * geometry over those 21 points.
- */
+/** Quest-style hand gestures from MediaPipe landmarks, and a filter that keeps tracking calm. */
 object HandGestures {
     private val FOLDED_TIPS = intArrayOf(12, 16, 20)
     private val FOLDED_PIPS = intArrayOf(10, 14, 18)
@@ -26,9 +20,10 @@ object HandGestures {
     /**
      * Smallest palm (index to pinky base, in image widths) a landmark set may have and still be
      * measured. The pinch gap is a RATIO to the palm, so a collapsed or sub-pixel palm turns it into
-     * 0/0.02 = 0 and every threshold reads "fully closed": a glitch (or a hand the tracker returns
-     * as a single point) used to arrive at the web layer as a phantom pinch - a click with no hand.
-     * Real hands are far above this floor even at the detection limit, so nothing legitimate is lost.
+     * 0/0.02 = 0 and every threshold reads "fully closed": a model glitch (or a hand the detector
+     * returns as a single point) used to arrive at the web layer as a phantom pinch - a click with
+     * no hand. Real hands are far above this floor even at the detection limit (a hand filling 12 %
+     * of the frame height measures roughly .03-.05 here), so nothing legitimate is lost.
      */
     const val MIN_PALM = .008f
 
@@ -66,14 +61,13 @@ object HandGestures {
     )
 
     /**
-     * [physicalLeft] is the user's real hand. The tracker labels a hand from the side of the view it
-     * is on (the rear camera looks forward, so the picture's right is the user's right).
+     * [physicalLeft] is the user's real hand. MediaPipe's handedness assumes a mirrored selfie
+     * image; with the back camera it is swapped, which the caller has already undone.
      */
-    fun shape(p: FloatArray, physicalLeft: Boolean): Shape {
-        if (p.size < 63) return Shape(false, 0f, false, false, .5f, .5f, MIN_PALM)
+    fun shape(p: List<NormalizedLandmark>, physicalLeft: Boolean): Shape {
         fun d(a: Int, b: Int): Float {
-            val dx = p[a * 3] - p[b * 3]
-            val dy = p[a * 3 + 1] - p[b * 3 + 1]
+            val dx = p[a].x() - p[b].x()
+            val dy = p[a].y() - p[b].y()
             return sqrt(dx * dx + dy * dy)
         }
         val palmRaw = d(5, 17)
@@ -94,10 +88,8 @@ object HandGestures {
         val fist = indexCurled && others >= 2 && !sidewaysPinchPose
         // Winding of wrist -> index base -> pinky base: for the back camera, a right hand shows its
         // back (palm toward the user) when this turns clockwise in image space.
-        val ax = p[15] - p[0]
-        val ay = p[16] - p[1]
-        val bx = p[51] - p[0]
-        val by = p[52] - p[1]
+        val ax = p[5].x() - p[0].x(); val ay = p[5].y() - p[0].y()
+        val bx = p[17].x() - p[0].x(); val by = p[17].y() - p[0].y()
         val cross = ax * by - ay * bx
         val palmToFace = if (physicalLeft) cross < 0 else cross > 0
         return Shape(
@@ -105,48 +97,82 @@ object HandGestures {
             pinchStrength = strength,
             fist = fist,
             palmToFace = palmToFace && abs(cross) > palm * palm * .06f,
-            pinchX = (p[12] + p[24]) / 2,
-            pinchY = (p[13] + p[25]) / 2,
+            pinchX = (p[4].x() + p[8].x()) / 2,
+            pinchY = (p[4].y() + p[8].y()) / 2,
             palmWidth = palm,
-            aimX = p[6] * .3f + p[15] * .45f + (p[12] + p[24]) / 2 * .25f,
-            aimY = p[7] * .3f + p[16] * .45f + (p[13] + p[25]) / 2 * .25f,
+            aimX = p[2].x() * .3f + p[5].x() * .45f + (p[4].x() + p[8].x()) / 2 * .25f,
+            aimY = p[2].y() * .3f + p[5].y() * .45f + (p[4].y() + p[8].y()) / 2 * .25f,
             pinchGap = gap,
-            indexX = p[24],
-            indexY = p[25],
+            indexX = p[8].x(),
+            indexY = p[8].y(),
             indexExtended = d(0, 8) > d(0, 6) * 1.12f,
             pointing = d(0, 8) > d(0, 6) * 1.12f && d(0, 12) < d(0, 10) * 1.08f && d(0, 16) < d(0, 14) * 1.08f,
-            palmX = (p[0] + p[15] + p[27] + p[51]) / 4,
-            palmY = (p[1] + p[16] + p[28] + p[52]) / 4,
+            palmX = (p[0].x() + p[5].x() + p[9].x() + p[17].x()) / 4,
+            palmY = (p[0].y() + p[5].y() + p[9].y() + p[17].y()) / 4,
         )
     }
 
     /**
-     * The hand in 3D around the head, in metres (x right, y up, -z ahead), for WebXR pages:
-     * the hand's shape from the tracker's metric landmarks, placed at the distance its size on the
-     * picture says, along the ray through the middle knuckle. 63 floats, or null.
+     * Thumb–index gap in palm widths from MediaPipe's metric landmarks: the same whichever way the
+     * hand is turned. Scaled to match [Shape.pinchGap] (fingertips touching ≈ 0.2).
      */
-    fun headPoints(image: FloatArray, world: FloatArray?, scaleX: Float, scaleY: Float): FloatArray? {
-        if (image.size < 63 || world == null || world.size < 63) return null
+    fun pinchGap3d(world: List<com.google.mediapipe.tasks.components.containers.Landmark>): Float? {
+        if (world.size < 21) return null
+        fun d(a: Int, b: Int): Float {
+            val x = world[a].x() - world[b].x(); val y = world[a].y() - world[b].y(); val z = world[a].z() - world[b].z()
+            return sqrt(x * x + y * y + z * z)
+        }
+        val palm = d(5, 17)
+        if (palm < 1e-3f) return null
+        return d(4, 8) / palm * .8f
+    }
+
+    /**
+     * How far the index fingertip is from the eyes, from the hand's size: MediaPipe gives the hand
+     * in metres ([world]) and on the picture ([image], mapped to view tangents by [scaleX] and
+     * [scaleY]); their ratio is the distance. Several bones are summed so a turned hand still
+     * measures right. The unit follows the view mapping, so it is compared with a reach measured
+     * the same way rather than with real centimetres.
+     */
+    fun tipDepth(image: List<NormalizedLandmark>, world: List<com.google.mediapipe.tasks.components.containers.Landmark>, scaleX: Float, scaleY: Float): Float {
+        if (image.size < 21 || world.size < 21) return 0f
         var metres = 0f
         var tangent = 0f
         for (k in DEPTH_BONES.indices step 2) {
-            val a = DEPTH_BONES[k]
-            val b = DEPTH_BONES[k + 1]
-            metres += kotlin.math.hypot(world[a * 3] - world[b * 3], world[a * 3 + 1] - world[b * 3 + 1])
-            tangent += kotlin.math.hypot(
-                (image[a * 3] - image[b * 3]) * 2f * scaleX,
-                (image[a * 3 + 1] - image[b * 3 + 1]) * 2f * scaleY,
-            )
+            val a = DEPTH_BONES[k]; val b = DEPTH_BONES[k + 1]
+            metres += kotlin.math.hypot(world[a].x() - world[b].x(), world[a].y() - world[b].y())
+            tangent += kotlin.math.hypot((image[a].x() - image[b].x()) * 2f * scaleX, (image[a].y() - image[b].y()) * 2f * scaleY)
+        }
+        if (tangent < 1e-4f) return 0f
+        val palm = metres / tangent
+        val centre = (world[0].z() + world[5].z() + world[9].z() + world[13].z() + world[17].z()) / 5f
+        // MediaPipe's z grows away from the camera, so a finger pushed forward adds to the palm's distance.
+        return palm + (world[8].z() - centre)
+    }
+
+    /**
+     * The hand in 3D around the head, in metres (x right, y up, −z ahead), for WebXR pages:
+     * the hand's shape from MediaPipe's metric landmarks, placed at the distance its size on the
+     * picture says, along the ray through the middle knuckle. 63 floats, or null.
+     */
+    fun headPoints(image: List<NormalizedLandmark>, world: List<com.google.mediapipe.tasks.components.containers.Landmark>, scaleX: Float, scaleY: Float): FloatArray? {
+        if (image.size < 21 || world.size < 21) return null
+        var metres = 0f
+        var tangent = 0f
+        for (k in DEPTH_BONES.indices step 2) {
+            val a = DEPTH_BONES[k]; val b = DEPTH_BONES[k + 1]
+            metres += kotlin.math.hypot(world[a].x() - world[b].x(), world[a].y() - world[b].y())
+            tangent += kotlin.math.hypot((image[a].x() - image[b].x()) * 2f * scaleX, (image[a].y() - image[b].y()) * 2f * scaleY)
         }
         if (tangent < 1e-4f) return null
         val distance = (metres / tangent).coerceIn(.12f, 1.2f)
-        val ax = (image[27] - .5f) * 2f * scaleX * distance
-        val ay = (.5f - image[28]) * 2f * scaleY * distance
+        val ax = (image[9].x() - .5f) * 2f * scaleX * distance
+        val ay = (.5f - image[9].y()) * 2f * scaleY * distance
         val out = FloatArray(63)
         for (i in 0 until 21) {
-            out[i * 3] = ax + (world[i * 3] - world[27])
-            out[i * 3 + 1] = ay - (world[i * 3 + 1] - world[28])
-            out[i * 3 + 2] = -distance - (world[i * 3 + 2] - world[29])
+            out[i * 3] = ax + (world[i].x() - world[9].x())
+            out[i * 3 + 1] = ay - (world[i].y() - world[9].y())
+            out[i * 3 + 2] = -distance - (world[i].z() - world[9].z())
         }
         return out
     }

@@ -1463,7 +1463,7 @@ function settingsApp() {
 
   // Mãos
   scroll.append(ytSection(t('hands')));
-  scroll.append(ytRow(icon('user'), 'Rastreamento', 'Silhueta nativa Zero-Delay · câmera traseira'));
+  scroll.append(ytRow(icon('user'), 'Rastreamento', 'MediaPipe nativo Zero-Delay · câmera traseira'));
   const recToggleBtn = el('button', 'yt-seg-btn' + (internalRecState.active ? ' on' : ''));
   recToggleBtn.dataset.internalRecBtn = '1';
   recToggleBtn.innerHTML = `<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Iniciar Gravação 16:9'}</span>`;
@@ -1550,7 +1550,7 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.3.1';
+  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.1.0';
   scroll.append(foot);
 
   body.append(head, scroll);
@@ -4952,7 +4952,7 @@ document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : s
 on('hands', v => { document.getElementById('dotHand').classList.toggle('on', !!v); });
 on('gyro', v => { document.getElementById('dotGyro').classList.toggle('on', !!v); });
 
-// Menu de entrada NextVR v2.3.1 abre sempre ao iniciar o app/jogo.
+// Menu de entrada NextVR v2.1.0 abre sempre ao iniciar o app/jogo.
 makeDock();
 const bootOnboarding = new URLSearchParams(location.search).get('onboarding') ||
   (location.hash.includes('onboarding=language') ? 'language' :
