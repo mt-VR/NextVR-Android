@@ -347,7 +347,7 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 93') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 94') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
@@ -406,17 +406,33 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         licenseStatus() { return JSON.stringify({ active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 }); },
         activateKey(key) { return JSON.stringify({ ok: true, reason: 'ja-ativa', status: { active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 } }); },
         deviceCode() { return 'CD-0001'; },
+        // Build 94: as contas Google que estão neste "celular" de teste (AccountManager do Android).
+        googleAccounts() {
+          return JSON.stringify({ permission: 'granted', accounts: [
+            { email: 'levajjooi@gmail.com' }, { email: 'adarcos87@gmail.com' }] });
+        },
+        googleChooseAccount() { window.__googleChooseCalls = (window.__googleChooseCalls || 0) + 1; },
       };
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForSelector('.entry-menu-root');
 
-    // 0. Build 93: o cartão "Entrar com Google" aparece ao entrar no app; aqui ele é dispensado
-    //    para testar o menu por baixo.
+    // 0. Build 93/94: o cartão de login com Google aparece ao entrar no app e mostra as contas do
+    //    celular (como no Kwai). Aqui a primeira conta é escolhida e conecta o perfil.
     assert.equal(await page.locator('[data-entry-signin] [data-entry-google-signin]').count(), 1,
       'o login com Google aparece ao entrar no app');
-    await page.evaluate(() => document.querySelector('[data-entry-signin-skip]').click());
+    assert.equal(await page.locator('[data-entry-signin] [data-entry-google-account]').count(), 2,
+      'o cartão lista as contas Google do celular');
+    assert.match(await page.locator('[data-entry-signin]').innerText(), /Escolha uma conta[\s\S]*para continuar no ATMO XR/,
+      'mesma tela do Kwai/TikTok');
+    assert.match(await page.locator('[data-entry-google-account]').first().innerText(), /levajjooi@gmail\.com/,
+      'o e-mail aparece inteiro na linha da conta');
+    await page.evaluate(() => document.querySelector('[data-entry-google-account]').click());
     await page.waitForSelector('[data-entry-signin]', { state: 'detached' });
+    const signedInState = await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')));
+    assert.equal(signedInState.accountEmail, 'levajjooi@gmail.com', 'a conta escolhida fica no perfil');
+    assert.equal(signedInState.googleSignedIn, 1, 'e a sessão Google fica marcada');
+    assert.ok(String(signedInState.accountLinks || '').includes('google'), 'o Google fica vinculado');
 
     // 1. Verify initial state: 6 cards visible (Key entrou na Build 90), dock hidden
     assert.equal(await page.locator('.entry-card').count(), 6);

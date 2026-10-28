@@ -43,7 +43,10 @@ android {
         // conta Google/YouTube abrindo a escolha de conta real ("Continuar como") no navegador.
         // 93 / 2.1.0: Configurações organizadas (opção embaixo da outra, em pé), World Lock dentro
         // do 6DoF e o cartão "Entrar com Google" aparecendo ao abrir o app.
-        versionCode 93
+        // 94 / 2.1.0: a conta Google se conecta no app de verdade — o cartão mostra as contas do
+        // próprio celular ("Escolha uma conta … para continuar no ATMO XR") e a escolhida fica ligada
+        // ao perfil, como no Kwai/TikTok.
+        versionCode 94
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the

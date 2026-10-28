@@ -1,6 +1,8 @@
 package com.nextvr.app;
 
 import android.Manifest;
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -636,6 +638,60 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(entryView!=null) entryView.evaluateJavascript(js,null);
         });
     }
+    /**
+     * Contas Google que realmente estão neste aparelho (Build 94). Sem o acesso concedido a lista
+     * vem vazia e `permission` diz por quê — a página nunca inventa uma conta.
+     */
+    private String googleAccountsJson() {
+        try {
+            if(checkSelfPermission(Manifest.permission.GET_ACCOUNTS)!=PackageManager.PERMISSION_GRANTED)
+                return "{\"permission\":\"denied\",\"accounts\":[]}";
+            AccountManager manager=AccountManager.get(this);
+            Account[] accounts=manager.getAccountsByType("com.google");
+            JSONArray list=new JSONArray();
+            Set<String> seen=new HashSet<>();
+            for(Account account:accounts) {
+                if(account==null || account.name==null) continue;
+                String email=account.name.trim();
+                if(email.length()<5 || email.length()>120 || email.indexOf('@')<1) continue;
+                if(!seen.add(email.toLowerCase(java.util.Locale.US))) continue;
+                JSONObject item=new JSONObject();
+                item.put("email",email);
+                list.put(item);
+            }
+            JSONObject result=new JSONObject();
+            result.put("permission","granted");
+            result.put("accounts",list);
+            return result.toString();
+        } catch(Throwable unavailable) {
+            return "{\"permission\":\"unavailable\",\"accounts\":[]}";
+        }
+    }
+    private void pushGoogleAccounts() {
+        final String json=googleAccountsJson();
+        main.post(()->{
+            if(closed) return;
+            String js="window.nextvrGoogleAccounts&&window.nextvrGoogleAccounts("+JSONObject.quote(json)+")";
+            if(entryView!=null) entryView.evaluateJavascript(js,null);
+            if(shell!=null && ready) shell.evaluate(js);
+        });
+    }
+    /** Resultado da escolha de conta: status connected/cancelled/unavailable + e-mail. */
+    private void pushGoogleAccountResult(String status,String email,String message) {
+        try {
+            JSONObject result=new JSONObject();
+            result.put("status",status);
+            result.put("email",email==null?"":email);
+            result.put("message",message==null?"":message);
+            final String json=result.toString();
+            main.post(()->{
+                if(closed) return;
+                String js="window.nextvrGoogleAccount&&window.nextvrGoogleAccount("+JSONObject.quote(json)+")";
+                if(entryView!=null) entryView.evaluateJavascript(js,null);
+                if(shell!=null && ready) shell.evaluate(js);
+            });
+        } catch(Throwable ignored) {}
+    }
     void shellReady() {
         ready=true;
         if(shell!=null) {
@@ -656,6 +712,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
+        if(code==23) { pushGoogleAccounts(); return; }
         if(code==10) {
             if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
             else new AlertDialog.Builder(this).setTitle("Camera passthrough requires permission")
@@ -807,6 +864,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 else if(data.getData()!=null) values.add(data.getData());
             }
             fileCallback.onReceiveValue(values.isEmpty()?null:values.toArray(new Uri[0])); fileCallback=null;
+        }
+        if(request==22) {
+            // Build 94: "Escolha uma conta" do Android devolve o e-mail Google escolhido.
+            String email=null;
+            if(result==RESULT_OK && data!=null) email=data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
+            if(email==null || email.indexOf('@')<1) pushGoogleAccountResult("cancelled","","");
+            else pushGoogleAccountResult("connected",email.trim(),"");
         }
         if(request==21 && result==RESULT_OK && data!=null && data.getData()!=null) {
             final Uri uri=data.getData();
@@ -1084,6 +1148,46 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * verdade aparece a lista de contas do aparelho — "Continuar como (sua conta)" — e o login
          * funciona. Só http/https, para nunca abrir um intent arbitrário vindo da página.
          */
+        /**
+         * Build 94 — a conta Google de verdade, do jeito que o Kwai e o TikTok fazem.
+         *
+         * O usuário: "era pra a conta do Gmail se conectar com o app, tipo que a do Kwai se conecta
+         * com o app". No Kwai o toque em entrar abre a lista das CONTAS DO APARELHO ("Escolha uma
+         * conta / para continuar no ...", com "Adicionar outra conta") e a conta escolhida fica
+         * ligada ao app. Isto é o AccountManager do Android: os e-mails vêm do celular — nada é
+         * digitado nem inventado pela página.
+         *
+         * Devolve JSON (texto): {"permission":"granted"|"denied"|"unavailable","accounts":[{email}]}
+         */
+        @JavascriptInterface public String googleAccounts() { return googleAccountsJson(); }
+
+        /** Pede o acesso às contas (Android 6+) e devolve a lista por [`pushGoogleAccounts`]. */
+        @JavascriptInterface public void requestGoogleAccounts() {
+            main.post(()->{
+                if(closed) return;
+                if(checkSelfPermission(Manifest.permission.GET_ACCOUNTS)==PackageManager.PERMISSION_GRANTED) { pushGoogleAccounts(); return; }
+                try { requestPermissions(new String[]{Manifest.permission.GET_ACCOUNTS},23); }
+                catch(Throwable ignored) { pushGoogleAccounts(); }
+            });
+        }
+
+        /**
+         * Abre a tela do próprio Android "Escolha uma conta" (a mesma que o Kwai abre), filtrada nas
+         * contas Google, com "Adicionar conta". Ela devolve o e-mail em [`onActivityResult`].
+         */
+        @JavascriptInterface public void googleChooseAccount() {
+            main.post(()->{
+                if(closed) return;
+                try {
+                    Intent intent=AccountManager.newChooseAccountIntent(null,null,new String[]{"com.google"},true,
+                        "para continuar no ATMO XR","oauth2:email profile",null,null);
+                    startActivityForResult(intent,22);
+                } catch(Throwable unavailable) {
+                    pushGoogleAccountResult("unavailable","","A tela de contas do Google não abriu neste aparelho");
+                }
+            });
+        }
+
         @JavascriptInterface public void openExternal(String url) {
             if(url==null) return;
             final String target=url.trim();

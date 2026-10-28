@@ -190,7 +190,7 @@ test('Build 89: the flashlight is real: Camera2 flash mode on the owned session'
 
 test('Build 89: the shipped APK is the release variant signed with the repository key', () => {
   const gradle = read('nextvr-android/build.gradle');
-  assert.ok(gradle.includes('versionCode 93'), 'version code bumped');
+  assert.ok(gradle.includes('versionCode 94'), 'version code bumped');
   assert.ok(gradle.includes('signingConfigs.release'), 'release signing config exists');
   assert.ok(gradle.includes('signingConfig signingConfigs.release'), 'release uses it');
   assert.ok(gradle.includes('debuggable false'), 'the shipped build is not debuggable');

@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-94-conta-google',
+    tag: 'NOVO · BUILD 94 — A CONTA DO GMAIL CONECTA NO APP (COMO NO KWAI E NO TIKTOK)',
+    time: 'Agora',
+    heading: 'Build 94: o cartão de login mostra as contas Google do próprio celular — "Escolha uma conta, para continuar no ATMO XR" — e a conta escolhida fica conectada no perfil',
+    desc: 'Agora é igual ao login do Kwai e do TikTok: ao entrar no app aparece "Escolha uma conta / para continuar no ATMO XR" com a lista das contas Google que já estão no seu celular (cada uma com avatar, nome e e-mail), o botão "Adicionar outra conta" abre a tela de contas do próprio Android e, ao escolher uma conta, ela fica conectada no app — o e-mail entra no perfil, marca o Google como vinculado e vale para o YouTube. O acesso às contas é pedido só na hora em que você toca em conectar, e o app não lê nada além do endereço de e-mail da conta Google.',
+  },
+  {
     id: 'build-93-organizacao',
     tag: 'NOVO · BUILD 93 — ORGANIZAÇÃO, WORLD LOCK NO 6DOF E LOGIN COM GOOGLE AO ENTRAR',
     time: 'Agora',

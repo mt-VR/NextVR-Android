@@ -74,6 +74,7 @@ test('Build 93: the browser E2E closes the sign-in card before pinching', () => 
     'e faz isso antes de mirar o botão Iniciar');
 });
 
-test('Build 93: the shipped APK is version 93', () => {
-  assert.ok(read('nextvr-android/build.gradle').includes('versionCode 93'));
+test('Build 93: the shipped APK is at least version 93', () => {
+  const code = Number((read('nextvr-android/build.gradle').match(/versionCode (\d+)/) || [])[1]);
+  assert.ok(code >= 93, `versionCode ${code}`);
 });

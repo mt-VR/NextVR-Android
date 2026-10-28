@@ -1105,11 +1105,111 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   const signedIn = () => S.googleSignedIn === 1;
   let signInOpen = !signedIn();
 
+  /*
+   * Build 94 — a conta Google que CONECTA no app, como no Kwai e no TikTok.
+   *
+   * O usuário: "era pra a conta do Gmail se conectar com o app, tipo que a do Kwai se conecta com o
+   * app". No Kwai o toque em entrar mostra as CONTAS DO APARELHO ("Escolha uma conta — para continuar
+   * no Kwai", com "Adicionar outra conta") e a escolhida fica ligada ao app. É o que este cartão faz,
+   * com uma diferença importante: a lista não é desenhada de mentira. Os e-mails vêm do AccountManager
+   * do Android (`NativeXR.googleAccounts()`, permissão GET_ACCOUNTS pedida na hora) e a escolha de
+   * "outra conta" abre a tela do próprio sistema (`NativeXR.googleChooseAccount()`). Sem a ponte
+   * nativa (PC/teste) sobra o caminho do navegador, que continua existindo como alternativa.
+   */
+  const GOOGLE_AVATAR_COLORS = ['#1a73e8', '#d93025', '#188038', '#9334e6', '#e37400', '#12b5cb'];
+  const googleInitial = email => (String(email || '').trim()[0] || 'G').toUpperCase();
+  const googleLabel = email => {
+    const local = String(email || '').split('@')[0] || 'Conta Google';
+    return local.charAt(0).toUpperCase() + local.slice(1);
+  };
+  const googleAvatarColor = email => {
+    let hash = 0;
+    for (const ch of String(email || '')) hash = (hash * 31 + ch.codePointAt(0)) % 9973;
+    return GOOGLE_AVATAR_COLORS[hash % GOOGLE_AVATAR_COLORS.length];
+  };
+  /** null = ainda não perguntou; 'loading'; ou a lista real de e-mails do aparelho. */
+  let googleAccounts = null;
+  let googlePermission = ''; // granted | denied | unavailable
+  let googleStatus = '';     // mensagem curta mostrada no cartão
+  const nativeGoogleAccounts = () =>
+    (typeof window.NativeXR?.googleAccounts === 'function' ? window.NativeXR : null);
+  const readGoogleAccounts = raw => {
+    let data = null;
+    try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { data = null; }
+    googlePermission = String(data?.permission || 'unavailable');
+    googleAccounts = Array.isArray(data?.accounts)
+      ? data.accounts
+        .map(a => String(typeof a === 'string' ? a : a?.email || '').trim())
+        .filter(email => email.includes('@'))
+      : [];
+    return googleAccounts;
+  };
+  const loadGoogleAccounts = () => {
+    if (googleAccounts !== null) return googleAccounts;
+    if (!nativeGoogleAccounts()) {
+      googleAccounts = [];
+      googlePermission = 'unavailable';
+      return googleAccounts;
+    }
+    googleAccounts = 'loading';
+    let raw = null;
+    try { raw = window.NativeXR.googleAccounts(); } catch { raw = null; }
+    return readGoogleAccounts(raw);
+  };
+  const connectGoogleAccount = email => {
+    const mail = String(email || '').trim();
+    if (!mail.includes('@')) return;
+    S.googleSignedIn = 1;
+    S.accountEmail = mail;
+    S.accountLinks = [...new Set([...accountLinkedIds(), 'google'])].join(',');
+    if (!String(S.profileName || '').trim()) S.profileName = googleLabel(mail);
+    save(S);
+    signInOpen = false;
+    googleStatus = '';
+    emit('account-linked', { id: 'google', email: mail });
+    emit('profile-updated', { name: S.profileName, avatar: S.profileAvatar });
+    paint();
+  };
+  const openGoogleBrowserFallback = () => {
+    const url = googleSignInUrl();
+    let opened = false;
+    try {
+      if (typeof window.NativeXR?.openExternal === 'function') {
+        window.NativeXR.openExternal(url);
+        opened = true;
+      }
+    } catch { opened = false; }
+    googleStatus = opened
+      ? 'A escolha de conta abriu no navegador do celular. Toque em “Continuar como (você)” e depois em JÁ ENTREI.'
+      : 'Abra a escolha de conta no navegador e toque em JÁ ENTREI depois de escolher a sua conta.';
+    emit('account-link', { id: 'google', url, email: S.accountEmail || '', browser: opened });
+    if (!opened) return false;
+    paint();
+    return true;
+  };
+
   const signInOverlayHtml = () => {
     if (!signInOpen) return '';
+    loadGoogleAccounts();
+    const list = Array.isArray(googleAccounts) ? googleAccounts : [];
+    const loading = googleAccounts === 'loading';
+    const needsPermission = googlePermission === 'denied';
+    const rows = list.length ? `
+          <div class="entry-signin-accounts" data-entry-google-accounts="1">
+            ${list.map(email => `
+              <button type="button" class="entry-signin-account" data-entry-google-account="${escHtml(email)}"
+                title="Entrar no ATMO XR com ${escHtml(email)}">
+                <span class="entry-signin-avatar" style="background:${googleAvatarColor(email)}">${escHtml(googleInitial(email))}</span>
+                <span class="entry-signin-id">
+                  <b class="entry-signin-account-name">${escHtml(googleLabel(email))}</b>
+                  <span class="entry-signin-account-mail">${escHtml(email)}</span>
+                </span>
+                <span class="entry-signin-account-check" aria-hidden="true">›</span>
+              </button>`).join('')}
+          </div>` : '';
     return `
       <div class="entry-signin-backdrop" data-entry-signin="1">
-        <div class="entry-signin-card" role="dialog" aria-modal="true" aria-label="Entrar no ATMO XR">
+        <div class="entry-signin-card" role="dialog" aria-modal="true" aria-label="Escolha uma conta">
           <div class="entry-signin-logo" aria-hidden="true">
             <svg viewBox="0 0 48 48" width="34" height="34" role="img" aria-label="Google">
               <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
@@ -1118,21 +1218,41 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
             </svg>
           </div>
-          <h2 class="entry-signin-title">Entrar no ATMO XR</h2>
-          <p class="entry-signin-sub">Entre com a sua conta Google para o jogo já vir com o perfil,
-            o YouTube e a sua conta vinculados.</p>
-          <button type="button" class="entry-signin-google" data-entry-google-signin>
-            <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
-              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
-              <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
-              <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
-              <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
+          <h2 class="entry-signin-title">Escolha uma conta</h2>
+          <p class="entry-signin-sub">para continuar no ATMO XR</p>
+          ${rows}
+          ${needsPermission ? `
+            <button type="button" class="entry-signin-permission" data-entry-google-permission>
+              Ver as contas Google deste celular
+            </button>` : ''}
+          ${loading ? '<p class="entry-signin-state" data-entry-signin-msg>Lendo as contas deste celular...</p>' : ''}
+          ${!rows && !loading && !needsPermission ? `
+            <p class="entry-signin-state" data-entry-signin-msg>${googlePermission === 'unavailable'
+              ? 'Neste aparelho a lista de contas é montada pelo app (Android). Toque em <b>Adicionar outra conta</b> ou em <b>Usar o navegador do Google</b>.'
+              : 'Nenhuma conta Google neste celular. Toque em <b>Adicionar outra conta</b> para entrar com a sua no próprio Android.'}</p>` : ''}
+          <button type="button" class="entry-signin-add" data-entry-google-choose>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="9" cy="8" r="3.4"/><path d="M3.2 19c.5-3.2 3-5.1 5.8-5.1s5.3 1.9 5.8 5.1"/>
+              <path d="M18 7.5v5M15.5 10h5"/>
             </svg>
-            <span>Entrar com Google</span>
+            <span>Adicionar outra conta</span>
           </button>
-          <p class="entry-signin-state" data-entry-signin-msg>Escolha a sua conta na tela do Google e
-            toque em <b>"Continuar como (você)"</b>. A conta entra de verdade.</p>
+          <p class="entry-signin-legal">Para continuar, o Google vai compartilhar o seu nome e o seu
+            endereço de e-mail com o ATMO XR. Antes de usar, leia a política de privacidade e os termos
+            de serviço do app.</p>
+          <p class="entry-signin-state" data-entry-signin-msg>${escHtml(googleStatus ||
+            'Toque na sua conta acima: ela fica conectada no perfil, no Google e no YouTube.')}</p>
           <div class="entry-signin-actions">
+            <button type="button" class="entry-signin-google" data-entry-google-signin>
+              <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
+                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
+                <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
+                <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
+                <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
+              </svg>
+              <span>Usar o navegador do Google</span>
+            </button>
             <button type="button" class="entry-signin-confirm" data-entry-signin-done>JÁ ENTREI</button>
             <button type="button" class="entry-signin-skip" data-entry-signin-skip>Agora não</button>
           </div>
@@ -1232,21 +1352,30 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
     const googleBtn = root.querySelector('[data-entry-google-signin]');
     if (googleBtn) {
-      googleBtn.onclick = () => {
-        const url = googleSignInUrl();
-        const msg = root.querySelector('[data-entry-signin-msg]');
-        let opened = false;
-        try {
-          if (typeof window.NativeXR?.openExternal === 'function') {
-            window.NativeXR.openExternal(url);
-            opened = true;
-          }
-        } catch {}
-        emit('account-link', { id: 'google', url, email: S.accountEmail || '', browser: opened });
-        if (msg) {
-          msg.innerHTML = opened
-            ? 'Abrimos a tela de contas do Google no navegador. Entre, volte para cá e toque em <b>JÁ ENTREI</b>.'
-            : 'Abra a tela de contas do Google na janela ao lado e toque em <b>JÁ ENTREI</b> quando terminar.';
+      // Alternativa: a escolha de conta no navegador (funciona também no PC/teste, sem ponte nativa).
+      googleBtn.onclick = () => openGoogleBrowserFallback();
+    }
+    // Build 94: tocar numa conta do celular CONECTA aquela conta no app.
+    root.querySelectorAll('[data-entry-google-account]').forEach(btn => {
+      btn.onclick = () => connectGoogleAccount(btn.dataset.entryGoogleAccount || '');
+    });
+    const googlePermissionBtn = root.querySelector('[data-entry-google-permission]');
+    if (googlePermissionBtn) {
+      googlePermissionBtn.onclick = () => {
+        googleAccounts = 'loading';
+        try { window.NativeXR?.requestGoogleAccounts?.(); } catch {}
+        paint();
+      };
+    }
+    const googleChooseBtn = root.querySelector('[data-entry-google-choose]');
+    if (googleChooseBtn) {
+      googleChooseBtn.onclick = () => {
+        if (typeof window.NativeXR?.googleChooseAccount === 'function') {
+          googleStatus = 'Abrindo a tela de contas do Android...';
+          try { window.NativeXR.googleChooseAccount(); } catch { openGoogleBrowserFallback(); }
+          paint();
+        } else {
+          openGoogleBrowserFallback();
         }
       };
     }
@@ -1260,6 +1389,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         save(S);
         signInOpen = false;
         emit('account-linked', { id: 'google', email: S.accountEmail || '' });
+        emit('profile-updated', { name: S.profileName, avatar: S.profileAvatar });
         paint();
       };
     }
@@ -1465,7 +1595,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         // Build 92: Google/YouTube (e os outros logins) abrem no navegador de verdade — o Google
         // bloqueia login dentro de WebView, e é lá que aparece o "Continuar como (sua conta)".
         let openedInBrowser = false;
-        if (link.browser) {
+        // Build 94: "Google" e "YouTube" agora abrem a tela de contas do próprio Android (a mesma do
+        // Kwai/TikTok) e conectam a conta escolhida neste perfil; o navegador fica como alternativa.
+        if ((id === 'google' || id === 'youtube') && typeof window.NativeXR?.googleChooseAccount === 'function') {
+          try { window.NativeXR.googleChooseAccount(); openedInBrowser = true; } catch { openedInBrowser = false; }
+        }
+        if (!openedInBrowser && link.browser) {
           try {
             if (typeof window.NativeXR?.openExternal === 'function') {
               window.NativeXR.openExternal(link.url);
@@ -1896,6 +2031,29 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   window.nextvrBattery = data => {
     try { prevNextvrBattery?.(data); } catch {}
     syncClockAndBatteryDom();
+  };
+
+  /* Build 94 — respostas do lado nativo da conta Google (AccountManager do Android).
+   * `nextvrGoogleAccounts` chega depois do "Ver as contas Google deste celular" (ou de conceder o
+   * acesso); `nextvrGoogleAccount` é o resultado da tela "Escolha uma conta" do sistema. Ambos vêm
+   * como texto JSON e nunca como uma conta inventada pela página. */
+  window.nextvrGoogleAccounts = raw => {
+    readGoogleAccounts(raw);
+    googleStatus = '';
+    if (signInOpen) paint();
+  };
+  window.nextvrGoogleAccount = raw => {
+    let data = null;
+    try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { data = null; }
+    const status = String(data?.status || '');
+    if (status === 'connected') { connectGoogleAccount(data?.email || ''); return; }
+    if (status === 'unavailable') {
+      googleStatus = String(data?.message || 'A tela de contas do Android não abriu.');
+      openGoogleBrowserFallback();
+      return;
+    }
+    googleStatus = '';
+    if (signInOpen) paint();
   };
 
   window.nextvrProfilePhoto = dataUrl => {
