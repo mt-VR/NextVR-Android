@@ -711,47 +711,45 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
         </div>
         <div class="entry-settings-carousel" data-entry-settings-carousel="1" data-menu-hscroll="1">
-          <div class="entry-bento-grid entry-settings-page" data-entry-settings-page="1">
-            <div class="entry-bento-cell entry-bento-cell--idioma">
-              <div class="entry-bento-title">${emT('langCell')}</div>
-              <div class="entry-seg-row entry-seg-row--compact">
-                <button type="button" class="entry-seg-btn ${curLang === 'pt' ? 'on' : ''}" data-entry-lang="pt">PT</button>
-                <button type="button" class="entry-seg-btn ${curLang === 'en' ? 'on' : ''}" data-entry-lang="en">EN</button>
-                <button type="button" class="entry-seg-btn ${curLang === 'es' ? 'on' : ''}" data-entry-lang="es">ES</button>
-                <button type="button" class="entry-seg-btn ${curLang === 'ja' ? 'on' : ''}" data-entry-lang="ja">JA</button>
-                <button type="button" class="entry-seg-btn ${curLang === 'ru' ? 'on' : ''}" data-entry-lang="ru">RU</button>
-                <button type="button" class="entry-seg-btn ${curLang === 'de' ? 'on' : ''}" data-entry-lang="de">DE</button>
+          <!-- Build 93 — organização: uma coluna, cartões com título e opções EMPILHADAS (em pé),
+               nada de várias pastilhas espremidas numa linha só. -->
+          <div class="entry-bento-grid entry-bento-grid--list entry-settings-page" data-entry-settings-page="1">
+            <div class="entry-bento-cell">
+              <div class="entry-bento-title">IDIOMA DO MENU</div>
+              <div class="entry-opt-list">
+                ${[['pt','Português (PT)'],['en','English (EN)'],['es','Español (ES)'],['ja','日本語 (JA)'],['ru','Русский (RU)'],['de','Deutsch (DE)']]
+                  .map(([id, label]) => `<button type="button" class="entry-seg-btn ${curLang === id ? 'on' : ''}" data-entry-lang="${id}">${label}</button>`).join('')}
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--spatial">
+            <div class="entry-bento-cell">
               <div class="entry-bento-title">DOCK &amp; PERSONAGEM</div>
-              <div class="entry-seg-row entry-seg-row--compact">
+              <div class="entry-opt-list">
                 <button type="button" class="entry-seg-btn on">${emT('dock')} PICO 4 Pro</button>
                 <button type="button" class="entry-seg-btn ${dockSnapOn ? 'on' : ''}" data-entry-dock-snap="${dockSnapOn ? '1' : '0'}" title="Espaço pré-definido ao mover janelas na Dock normal">${dockSnapOn ? emT('dockSnapOn') : emT('dockSnapOff')}</button>
                 <button type="button" class="entry-seg-btn" data-entry-act="profile">Criar Personagem</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--qualidade">
+            <div class="entry-bento-cell">
               <div class="entry-bento-title">${emT('qualityCell')}</div>
-              <div class="entry-seg-row entry-seg-row--compact">
+              <div class="entry-opt-list">
                 ${qualities.map(q => `<button type="button" class="entry-seg-btn ${activeQuality === q.id ? 'on' : ''}" data-entry-quality="${q.id}">${q.label}</button>`).join('')}
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--ocular">
-              <div class="entry-bento-title">${emT('ocularCell')} · 3DoF / 6DoF</div>
-              <div class="entry-seg-row entry-seg-row--compact">
-                <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">0.5x</button>
-                <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">1.0x</button>
-                <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="Modo 3DoF (rotação de cabeça)">3DoF</button>
-                <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="Modo 6DoF Falso (andar no espaço)">6DoF</button>
-                <button type="button" class="entry-seg-btn ${S.worldLock ? 'on' : ''}" data-entry-worldlock="${S.worldLock ? '1' : '0'}" title="World Lock: trava o mundo no lugar (sem derivar para a frente ou para os lados)">🔒 World Lock: ${S.worldLock ? 'ON' : 'OFF'}</button>
+            <div class="entry-bento-cell">
+              <div class="entry-bento-title">CÂMERA &amp; MOVIMENTO · 3DoF / 6DoF</div>
+              <div class="entry-opt-list">
+                <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">Câmera 0.5x (grande angular)</button>
+                <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">Câmera 1.0x (normal)</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="3DoF: só gira a cabeça, o mundo fica parado">3DoF (só girar a cabeça)</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="6DoF: anda no espaço com o World Lock embutido (o mundo não escorrega)">6DoF + World Lock (andar no espaço)</button>
               </div>
+              <p class="entry-opt-note">O 6DoF já vem com o <b>World Lock</b> ligado — era um botão separado e agora é parte do modo: escolheu 6DoF, o mundo fica travado no lugar.</p>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--volume">
+            <div class="entry-bento-cell">
               <div class="entry-bento-slider-head">
                 <span class="entry-bento-big">${emT('volumeCell')}</span>
                 <span class="entry-bento-val" data-vol-val>${vol}%</span>
@@ -759,7 +757,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <input type="range" min="0" max="100" value="${vol}" class="entry-slider" data-entry-volume />
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--brilho">
+            <div class="entry-bento-cell">
               <div class="entry-bento-slider-head">
                 <span class="entry-bento-big">${emT('brightnessCell')}</span>
                 <span class="entry-bento-val" data-bri-val>${bri}%</span>
@@ -768,57 +766,60 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
           </div>
 
-          <div class="entry-bento-grid entry-bento-grid--tab2 entry-settings-page" data-entry-settings-page="2">
-            <div class="entry-bento-cell entry-bento-cell--singlehand">
+          <div class="entry-bento-grid entry-bento-grid--list entry-settings-page" data-entry-settings-page="2">
+            <div class="entry-bento-cell">
               <div class="entry-bento-title">HAND TRACKING EM 1 MÃO SÓ (0 DELAY)</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
-                <button type="button" class="entry-seg-btn ${shMode === 'both' ? 'on' : ''}" data-entry-single-hand-set="both">2 Mãos (Ambas)</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'right' ? 'on' : ''}" data-entry-single-hand-set="right">Só Mão Direita</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'left' ? 'on' : ''}" data-entry-single-hand-set="left">Só Mão Esquerda</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'one' ? 'on' : ''}" data-entry-single-hand="${shMode}" data-entry-single-hand-set="one">1 Mão Automática</button>
+              <div class="entry-opt-list">
+                <button type="button" class="entry-seg-btn ${shMode === 'both' ? 'on' : ''}" data-entry-single-hand-set="both">2 Mãos (ambas)</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'right' ? 'on' : ''}" data-entry-single-hand-set="right">Só a mão direita</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'left' ? 'on' : ''}" data-entry-single-hand-set="left">Só a mão esquerda</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'one' ? 'on' : ''}" data-entry-single-hand="${shMode}" data-entry-single-hand-set="one">1 mão automática</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--hand">
-              <div class="entry-bento-title">${emT('handCell')} PICO 4 (SÓ A MÃO · RAIO LASER)</div>
-              <div class="entry-hand-col">
+            <div class="entry-bento-cell">
+              <div class="entry-bento-title">${emT('handCell')} · PICO 4 (SÓ A MÃO · RAIO LASER)</div>
+              <div class="entry-opt-list">
                 <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
                 <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
-                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Interação por Raio Laser estilo PICO 4 ao invés de pinça">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
+                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Interação por raio laser estilo PICO 4 ao invés de pinça">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--dockcolor">
-              <div class="entry-bento-title">COR DA DOCK &amp; MULTITAREFA</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:5px">
-                ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']].map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
+            <div class="entry-bento-cell">
+              <div class="entry-bento-title">COR DA DOCK</div>
+              <div class="entry-opt-list">
+                ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']]
+                  .map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
               </div>
-              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:8px;flex-wrap:wrap;gap:5px">
-                <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela Perto Sobre / Trás Embaixo: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
+            </div>
+
+            <div class="entry-bento-cell">
+              <div class="entry-bento-title">JANELAS &amp; MULTITAREFA</div>
+              <div class="entry-opt-list">
+                <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela perto passa na frente: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
                 <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
-                <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">Mostrar FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--night">
+            <div class="entry-bento-cell">
               <div class="entry-bento-title">CÂMERA NOTURNA (ESCURO = MODO NOTURNO)</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+              <div class="entry-opt-list">
                 <button type="button" class="entry-seg-btn ${(S.nightCamera || 'auto') === 'auto' ? 'on' : ''}" data-entry-night-cam="auto" title="Liga sozinha quando o ambiente escurece">Automática</button>
                 <button type="button" class="entry-seg-btn ${S.nightCamera === 'on' ? 'on' : ''}" data-entry-night-cam="on" title="Sempre ligada">Sempre ligada</button>
                 <button type="button" class="entry-seg-btn ${S.nightCamera === 'off' ? 'on' : ''}" data-entry-night-cam="off" title="Nunca ligar">Desligada</button>
-              </div>
-              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:6px;flex-wrap:wrap;gap:6px">
                 <button type="button" class="entry-seg-btn ${S.torchAuto !== 0 ? 'on' : ''}" data-entry-torch-auto="${S.torchAuto !== 0 ? '1' : '0'}" title="Sem luz nenhuma o celular acende a lanterna; quando a luz volta, apaga">🔦 Lanterna automática: ${S.torchAuto !== 0 ? 'ON' : 'OFF'}</button>
               </div>
               <p class="entry-night-cam-note" data-night-cam-state>${nightCamNote()}</p>
             </div>
 
-            <div class="entry-bento-cell entry-bento-cell--env">
+            <div class="entry-bento-cell">
               <div class="entry-bento-title">${emT('envTitle')} &amp; PASSTHROUGH</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+              <div class="entry-opt-list">
                 ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
                 <button type="button" class="entry-seg-btn ${S.bwCamera ? 'on' : ''}" data-entry-bw-cam="${S.bwCamera ? '1' : '0'}" title="Deixar só a câmera passthrough preto e branco estilo Meta Quest 2 (janelinhas e dock continuam coloridas)">Câmera P&amp;B (Quest 2): ${S.bwCamera ? 'ON' : 'OFF'}</button>
-                <button type="button" class="entry-seg-btn ${!S.bwCamera ? 'on' : ''}" data-entry-camera="color" title="Câmera passthrough colorida (sem filtro P&amp;B)">📷 Câmera Colorida</button>
+                <button type="button" class="entry-seg-btn ${!S.bwCamera ? 'on' : ''}" data-entry-camera="color" title="Câmera passthrough colorida (sem filtro P&amp;B)">📷 Câmera colorida</button>
               </div>
             </div>
           </div>
@@ -1091,6 +1092,54 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>`;
   };
 
+  /*
+   * Build 93 — "quero que quando entrar no app aparece o negócio de fazer login com Google".
+   *
+   * Um cartão de login com o botão do Google aparece assim que o menu carrega (por cima do menu),
+   * até a conta ser vinculada. O botão usa a mesma tela de escolha de conta do Google
+   * (`/AccountChooser`, a que o Firebase usa) aberta no navegador do celular, onde aparece
+   * "Continuar como (sua conta)". Sem a ponte nativa (PC/teste) abre na janela interna.
+   */
+  const googleSignInUrl = () =>
+    `${googleChooser('https://myaccount.google.com/')}`;
+  const signedIn = () => S.googleSignedIn === 1;
+  let signInOpen = !signedIn();
+
+  const signInOverlayHtml = () => {
+    if (!signInOpen) return '';
+    return `
+      <div class="entry-signin-backdrop" data-entry-signin="1">
+        <div class="entry-signin-card" role="dialog" aria-modal="true" aria-label="Entrar no ATMO XR">
+          <div class="entry-signin-logo" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="34" height="34" role="img" aria-label="Google">
+              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
+              <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
+              <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
+              <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
+            </svg>
+          </div>
+          <h2 class="entry-signin-title">Entrar no ATMO XR</h2>
+          <p class="entry-signin-sub">Entre com a sua conta Google para o jogo já vir com o perfil,
+            o YouTube e a sua conta vinculados.</p>
+          <button type="button" class="entry-signin-google" data-entry-google-signin>
+            <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
+              <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
+              <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
+              <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
+            </svg>
+            <span>Entrar com Google</span>
+          </button>
+          <p class="entry-signin-state" data-entry-signin-msg>Escolha a sua conta na tela do Google e
+            toque em <b>"Continuar como (você)"</b>. A conta entra de verdade.</p>
+          <div class="entry-signin-actions">
+            <button type="button" class="entry-signin-confirm" data-entry-signin-done>JÁ ENTREI</button>
+            <button type="button" class="entry-signin-skip" data-entry-signin-skip>Agora não</button>
+          </div>
+        </div>
+      </div>`;
+  };
+
   const paint = () => {
     const batInfo = currentBattery();
     if (activeView === 'loading') {
@@ -1178,8 +1227,49 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           ` : ''}
         </main>
       </div>
+      ${signInOverlayHtml()}
     `;
 
+    const googleBtn = root.querySelector('[data-entry-google-signin]');
+    if (googleBtn) {
+      googleBtn.onclick = () => {
+        const url = googleSignInUrl();
+        const msg = root.querySelector('[data-entry-signin-msg]');
+        let opened = false;
+        try {
+          if (typeof window.NativeXR?.openExternal === 'function') {
+            window.NativeXR.openExternal(url);
+            opened = true;
+          }
+        } catch {}
+        emit('account-link', { id: 'google', url, email: S.accountEmail || '', browser: opened });
+        if (msg) {
+          msg.innerHTML = opened
+            ? 'Abrimos a tela de contas do Google no navegador. Entre, volte para cá e toque em <b>JÁ ENTREI</b>.'
+            : 'Abra a tela de contas do Google na janela ao lado e toque em <b>JÁ ENTREI</b> quando terminar.';
+        }
+      };
+    }
+    const signInDone = root.querySelector('[data-entry-signin-done]');
+    if (signInDone) {
+      signInDone.onclick = () => {
+        S.googleSignedIn = 1;
+        S.accountLinks = String(S.accountLinks || '').includes('google')
+          ? S.accountLinks
+          : [...String(S.accountLinks || '').split(',').map(v => v.trim()).filter(Boolean), 'google'].join(',');
+        save(S);
+        signInOpen = false;
+        emit('account-linked', { id: 'google', email: S.accountEmail || '' });
+        paint();
+      };
+    }
+    const signInSkip = root.querySelector('[data-entry-signin-skip]');
+    if (signInSkip) {
+      signInSkip.onclick = () => {
+        signInOpen = false;
+        paint();
+      };
+    }
     root.querySelectorAll('[data-entry-act="start"]').forEach(btn => {
       btn.onclick = () => {
         if (!licenseAllowsPlay()) return;
@@ -1364,6 +1454,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         if (!link) return;
         const current = accountLinkedIds();
         S.accountLinks = current.includes(id) ? current.filter(v => v !== id) : [...current, id];
+        if (id === 'google' && accountLinkedIds().includes('google')) S.googleSignedIn = 1;
         save(S);
         const on = accountLinkedIds().includes(id);
         btn.classList.toggle('on', on);
@@ -1690,6 +1781,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       btn.onclick = () => {
         const enableSixDof = btn.dataset.entryDof === '6dof';
         S.sixdof = enableSixDof ? 1 : 0;
+        // Build 93: o World Lock faz parte do 6DoF ("era pra tá no 6dof, não ser separado").
+        // 6DoF → World Lock ligado; 3DoF → desligado (o mundo nem se move sem 6DoF).
+        setWorldLock(enableSixDof);
         save(S);
         if (!enableSixDof) SixDof.reset();
         window.NativeXR?.setSixDofEnabled?.(enableSixDof);

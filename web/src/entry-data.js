@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-93-organizacao',
+    tag: 'NOVO · BUILD 93 — ORGANIZAÇÃO, WORLD LOCK NO 6DOF E LOGIN COM GOOGLE AO ENTRAR',
+    time: 'Agora',
+    heading: 'Build 93: Configurações organizadas (opções em pé, uma embaixo da outra), World Lock dentro do 6DoF e o cartão "Entrar com Google" aparecendo ao abrir o app',
+    desc: 'As Configurações viraram uma coluna organizada: cada grupo tem um título e as opções ficam uma embaixo da outra, com o nome inteiro (nada de texto deitado, cortado ou espremido em fileira), e a aba rola quando precisa. O World Lock deixou de ser um botão separado: escolher 6DoF já liga o World Lock, e o 3DoF desliga. E ao entrar no app aparece um cartão de login com o botão "Entrar com Google", que abre a escolha de conta do Google (a mesma do Firebase) no navegador do celular — toque em "Continuar como (sua conta)" e a conta real entra; depois é só tocar em "JÁ ENTREI". Quem não quiser entra com "Agora não".',
+  },
+  {
     id: 'build-92-avatar',
     tag: 'NOVO · BUILD 92 — AVATAR 3D HUMANO, CONFIGURAÇÕES ESPAÇADAS E CONTA GOOGLE DE VERDADE',
     time: 'Agora',

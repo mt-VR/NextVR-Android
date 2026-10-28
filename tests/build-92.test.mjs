@@ -93,6 +93,8 @@ test('Build 92: the Google button opens the real account chooser (Continuar como
   assert.ok(apps.includes('if (payload?.browser) return;'), 'não abre duas janelas do mesmo login');
 });
 
-test('Build 92: the shipped APK is version 92', () => {
-  assert.ok(read('nextvr-android/build.gradle').includes('versionCode 92'));
+test('Build 92: the shipped APK is at least version 92', () => {
+  const gradle = read('nextvr-android/build.gradle');
+  const code = Number((gradle.match(/versionCode (\d+)/) || [])[1]);
+  assert.ok(code >= 92, `versionCode ${code}`);
 });

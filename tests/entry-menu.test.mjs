@@ -347,7 +347,7 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 92') &&
+    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 93') &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
@@ -410,6 +410,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForSelector('.entry-menu-root');
+
+    // 0. Build 93: o cartão "Entrar com Google" aparece ao entrar no app; aqui ele é dispensado
+    //    para testar o menu por baixo.
+    assert.equal(await page.locator('[data-entry-signin] [data-entry-google-signin]').count(), 1,
+      'o login com Google aparece ao entrar no app');
+    await page.evaluate(() => document.querySelector('[data-entry-signin-skip]').click());
+    await page.waitForSelector('[data-entry-signin]', { state: 'detached' });
 
     // 1. Verify initial state: 6 cards visible (Key entrou na Build 90), dock hidden
     assert.equal(await page.locator('.entry-card').count(), 6);

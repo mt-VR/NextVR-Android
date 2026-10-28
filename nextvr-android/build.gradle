@@ -41,7 +41,9 @@ android {
         // 92 / 2.1.0: avatar 3D refeito com proporções humanas (≈7 cabeças, camiseta amarela e
         // headset branco como o do PICO), Configurações com espaçamento de verdade nas 3 abas e a
         // conta Google/YouTube abrindo a escolha de conta real ("Continuar como") no navegador.
-        versionCode 92
+        // 93 / 2.1.0: Configurações organizadas (opção embaixo da outra, em pé), World Lock dentro
+        // do 6DoF e o cartão "Entrar com Google" aparecendo ao abrir o app.
+        versionCode 93
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the

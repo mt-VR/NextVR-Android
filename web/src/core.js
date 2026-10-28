@@ -36,7 +36,8 @@ const DEF = {
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
   // Build 90: conta ATMOXR (e-mail do perfil) e os servicos vinculados (lista por virgula).
-  accountEmail: '', accountLinks: '',
+  accountEmail: '',
+  googleSignedIn: 0, accountLinks: '',
 };
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
