@@ -401,6 +401,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         mediaVolumePercent() { return 70; },
         brightnessPercent() { return 75; },
         startVrSession(json) { window.__startedVrWith = json; },
+        // Build 90: a Key já está ativada neste "celular" de teste, então o Iniciar libera.
+        licenseStatus() { return JSON.stringify({ active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 }); },
+        activateKey(key) { return JSON.stringify({ ok: true, reason: 'ja-ativa', status: { active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 } }); },
+        deviceCode() { return 'CD-0001'; },
       };
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);

@@ -24,6 +24,13 @@ APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (ver
 * **`tools/gen-key.mjs`** (novo) — gerador do dono do jogo: `node tools/gen-key.mjs 4`. Usa o mesmo
   segredo/prefixo do `License.java` (um teste garante que os dois continuam iguais).
 
+### A Key é obrigatória para jogar (com trava de segurança)
+
+O botão **Iniciar** passa por `licenseAllowsPlay()`: sem licença ativa o app abre o painel da Key e
+diz “Ative a sua Key de 22 caracteres para jogar”. Duas proteções para não trancar ninguém fora por
+engano: se a ponte nativa não existir (navegador, teste) o jogo abre; e se o lado nativo responder
+com erro interno (`reason: "erro"`), também abre — só barra com resposta de verdade dizendo “sem key”.
+
 ### Limite honesto
 Sem servidor de licenças o app não consegue saber que a **mesma** chave foi ativada em dois celulares
 diferentes (cada instalação só enxerga a si mesma). O que ele garante no uso normal — e é o que o

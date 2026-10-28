@@ -251,7 +251,30 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   root.dataset.entryMenu = '2.0.0';
   if (fullscreen) root.dataset.entryFullscreen = '1';
 
-  let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'loading'
+  let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'license' | 'loading'
+  // Build 90 — aviso mostrado no painel da Key quando o jogador tenta iniciar sem licença.
+  let licensePrompt = '';
+
+  /*
+   * Build 90 — a Key libera o jogo.
+   *
+   * "botou a Key pronto, não precisa por denovo" — então o app só insiste enquanto não houver
+   * licença ATIVA neste aparelho. Duas proteções para nunca trancar ninguém fora por engano:
+   *   1) se a ponte nativa não existir (navegador, teste, versão antiga do shell), libera;
+   *   2) se o lado nativo respondeu com erro interno ("erro"), libera também — só barra quando
+   *      ele deu uma resposta de verdade dizendo "sem key".
+   */
+  const licenseAllowsPlay = () => {
+    if (typeof window.NativeXR?.licenseStatus !== 'function') return true;
+    const st = licenseStatus(true);
+    if (st.active || st.reason === 'erro' || st.reason === 'indisponivel') return true;
+    licensePrompt = 'Ative a sua Key de 22 caracteres para jogar. Ela é digitada uma vez só e fica presa a este celular.';
+    activeView = 'license';
+    paint();
+    const msg = root.querySelector('[data-entry-key-msg]');
+    if (msg) { msg.textContent = licensePrompt; msg.dataset.state = 'error'; }
+    return false;
+  };
   // 1 | 2 | 3 — Aba 1 (básico), Aba 2 (mão & tela) e a Aba 3 da Build 89: os apps da Dock.
   let activeSettingsTab = 1;
   let countdownSec = 6;
@@ -1010,7 +1033,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <span class="entry-key-count" data-entry-key-count>0/${KEY_LENGTH}</span>
               <button type="button" class="entry-btn entry-btn--primary" data-entry-key-activate>Ativar Key</button>
             </div>
-            <p class="entry-key-msg" data-entry-key-msg></p>
+            <p class="entry-key-msg" data-entry-key-msg>${escHtml(licensePrompt)}</p>
             <p class="entry-key-device">Aparelho: <b>${escHtml(deviceCode())}</b> · a Key ativada aqui não funciona em outro celular.</p>
           `}
         </div>
@@ -1137,6 +1160,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
     root.querySelectorAll('[data-entry-act="start"]').forEach(btn => {
       btn.onclick = () => {
+        if (!licenseAllowsPlay()) return;
         if (fullscreen) {
           startCountdown();
         } else {

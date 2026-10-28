@@ -79,6 +79,17 @@ test('Build 90: the Key panel takes 22 characters and reports what went wrong', 
   assert.match(licenseMessage('invalida'), /inválida/i);
 });
 
+test('Build 90: Iniciar is gated by the Key, but never locks the player out by accident', () => {
+  const entry = entrySrc();
+  assert.ok(entry.includes('const licenseAllowsPlay = () =>'), 'there is a gate');
+  assert.ok(entry.includes("if (!licenseAllowsPlay()) return;"), 'the Iniciar button goes through it');
+  assert.ok(entry.includes("if (typeof window.NativeXR?.licenseStatus !== 'function') return true;"),
+    'no native bridge (browser/test) = no lockout');
+  assert.ok(entry.includes("st.reason === 'erro'"), 'a native error opens the gate instead of locking the player out');
+  assert.ok(entry.includes('Ative a sua Key de 22 caracteres para jogar'),
+    'and the panel says exactly why it stopped');
+});
+
 test('Build 90: the flashlight retries until the camera reports a flash, and dark hands are boosted', () => {
   const night = nightSrc();
   assert.ok(night.includes('if (torchAvailable) return true;'),
