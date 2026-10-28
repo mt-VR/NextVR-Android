@@ -18,8 +18,10 @@ test('entry menu constants match the exact collaborators order and about text', 
   assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
   assert.ok(ENTRY_COLLABORATORS.includes('Apache'), 'Apache replaced NanyGata in ENTRY_COLLABORATORS');
   assert.ok(!ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is gone');
+  // O "(V)" era só a representação do selo; a bio agora é só o texto.
   assert.equal(ENTRY_COLLABORATOR_BIOS.Apache,
-    'Apache(V) o contribuidor mais aurudo desse planeta majestoso');
+    'o contribuidor mais aurudo desse planeta majestoso');
+  assert.ok(!ENTRY_COLLABORATOR_BIOS.Apache.includes('(V)'), 'the (V) placeholder is gone');
   // O verificado e' de TODOS os colaboradores (correcao do usuario: "ter em todos da colaboracao").
   assert.deepEqual([...ENTRY_VERIFIED_NAMES], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
   for (const name of ENTRY_COLLABORATORS) {
@@ -440,7 +442,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(collabData.find(c => c.name === 'Apache')?.color, collabData.find(c => c.name === 'NeyVR')?.color,
       'Apache uses the same gray as the other names');
     assert.equal(collabData.find(c => c.name === 'Apache')?.bio,
-      'Apache(V) o contribuidor mais aurudo desse planeta majestoso');
+      'o contribuidor mais aurudo desse planeta majestoso');
     for (let i = 1; i < collabData.length; i++) {
       assert.ok(collabData[i].top > collabData[i - 1].top, `${collabData[i].name} must be below ${collabData[i - 1].name}`);
     }

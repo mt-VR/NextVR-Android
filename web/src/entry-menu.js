@@ -1,7 +1,7 @@
 import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import { dockCatalogAll, extraDockIds, toggleExtraDockId } from './dock-catalog.js';
-import { nightCameraState, setNightCameraMode } from './night-camera.js';
+import { nightCameraState, setNightCameraMode, setTorchAuto } from './night-camera.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -615,8 +615,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     const st = nightCameraState();
     const level = st.level >= 0 ? `${Math.round(st.level * 100)}% de luz` : 'sem leitura da câmera agora';
     const active = st.active ? 'ligada' : 'desligada';
-    return `Agora: ${active} · ${level}. A câmera mede o ambiente e sobe o ganho do passthrough (+EV e `
-      + `redução de ruído) quando escurece. Não grava nada e não acende luz nenhuma.`;
+    const torch = st.torchAvailable === false
+      ? 'lanterna não disponível neste aparelho'
+      : (st.torch ? 'lanterna ACESA' : 'lanterna apagada');
+    return `Agora: ${active} · ${level} · ${torch}. A câmera mede o ambiente e sobe o ganho do `
+      + `passthrough (+EV e redução de ruído) quando escurece. Sem luz nenhuma, o flash do celular `
+      + `acende; quando a luz volta, apaga. Não grava nada.`;
   };
 
   /* Build 89 — aviso honesto sobre o Play Protect. O APK sai fora da Play Store, então o Android
@@ -764,6 +768,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
                 <button type="button" class="entry-seg-btn ${(S.nightCamera || 'auto') === 'auto' ? 'on' : ''}" data-entry-night-cam="auto" title="Liga sozinha quando o ambiente escurece">Automática</button>
                 <button type="button" class="entry-seg-btn ${S.nightCamera === 'on' ? 'on' : ''}" data-entry-night-cam="on" title="Sempre ligada">Sempre ligada</button>
                 <button type="button" class="entry-seg-btn ${S.nightCamera === 'off' ? 'on' : ''}" data-entry-night-cam="off" title="Nunca ligar">Desligada</button>
+              </div>
+              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:6px;flex-wrap:wrap;gap:6px">
+                <button type="button" class="entry-seg-btn ${S.torchAuto !== 0 ? 'on' : ''}" data-entry-torch-auto="${S.torchAuto !== 0 ? '1' : '0'}" title="Sem luz nenhuma o celular acende a lanterna; quando a luz volta, apaga">🔦 Lanterna automática: ${S.torchAuto !== 0 ? 'ON' : 'OFF'}</button>
               </div>
               <p class="entry-night-cam-note" data-night-cam-state>${nightCamNote()}</p>
             </div>
@@ -1405,6 +1412,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     }
     const dockScroll = root.querySelector('[data-dock-apps-scroll]');
     if (dockScroll) dockScroll.onclick = () => { emit('dock-scroll-to', true); };
+
+    // Lanterna (Build 89): "sem luz nenhuma o celular acende a lanterna; quando reconhece luz,
+    // a lanterna apaga". O botão só liga/desliga a automação.
+    root.querySelectorAll('[data-entry-torch-auto]').forEach(btn => {
+      btn.onclick = () => {
+        setTorchAuto(S.torchAuto === 0);
+        paint();
+      };
+    });
 
     // Câmera noturna (Build 89): auto quando escurece, ou fixa ligada/desligada.
     root.querySelectorAll('[data-entry-night-cam]').forEach(btn => {

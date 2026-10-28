@@ -6,7 +6,7 @@ import {
   DOCK_CATALOG, catalogEntry, extraDockIds, toggleExtraDockId, extraDockItems, launchDockApp,
   registerDockLauncher, registerDockAndroidProvider, dockCatalogAll,
 } from '../web/src/dock-catalog.js';
-import { decideNightCamera } from '../web/src/night-camera-math.js';
+import { decideNightCamera, decideTorch, NO_LIGHT, ENOUGH_LIGHT, MIN_ON_MS, MIN_OFF_MS } from '../web/src/night-camera-math.js';
 
 const read = path => readFileSync(path, 'utf8');
 const windowsSrc = () => read('web/src/windows.js');
@@ -135,6 +135,57 @@ test('Build 89: night camera decision has hysteresis and is wired to native', ()
   const renderer = read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
   assert.ok(renderer.includes('uNightCamera'), 'shader night gain');
   assert.ok(entrySrc().includes('data-entry-night-cam'), 'settings exposes auto/on/off');
+});
+
+test('Build 89: no light turns the flashlight on, light coming back turns it off', () => {
+  // Escuro: precisa confirmar (2 leituras) antes de acender.
+  const first = decideTorch(0.04, false, { offSince: -1, dark: 0, bright: 0 }, 1000);
+  assert.equal(first.torchOn, false, 'one dark reading is not enough');
+  const second = decideTorch(0.04, false, { ...first, offSince: -1 }, 2200);
+  assert.equal(second.torchOn, true, 'confirmed darkness turns the flashlight on');
+  assert.equal(second.reason, 'no-light');
+
+  // Com luz, nem pensa em acender.
+  assert.equal(decideTorch(0.62, false, { offSince: -1, dark: 0 }, 1000).torchOn, false);
+
+  // Acesa: nao apaga antes do tempo minimo, nem com uma leitura clara solta.
+  const early = decideTorch(ENOUGH_LIGHT + .1, true, { onSince: 0, bright: 0 }, MIN_ON_MS / 2);
+  assert.equal(early.torchOn, true, 'the flashlight does not blink: minimum on time');
+  const flicker = decideTorch(ENOUGH_LIGHT + .1, true, { onSince: 0, bright: 0 }, MIN_ON_MS + 10);
+  assert.equal(flicker.torchOn, true, 'one bright reading is not "the light came back"');
+
+  // Luz de verdade: 3 leituras claras depois do tempo minimo -> apaga.
+  let state = { onSince: 0, bright: 2 };
+  const back = decideTorch(0.72, true, state, MIN_ON_MS + 500);
+  assert.equal(back.torchOn, false, 'real light turns it off');
+  assert.equal(back.reason, 'light-back');
+
+  // E nao reacende imediatamente (tempo minimo apagada).
+  const tooSoon = decideTorch(0.02, false, { offSince: MIN_ON_MS + 500, dark: 1 }, MIN_ON_MS + 600);
+  assert.equal(tooSoon.torchOn, false, 'it waits before turning on again');
+  const later = decideTorch(0.02, false, { offSince: MIN_ON_MS + 500, dark: 1 }, MIN_ON_MS + 500 + MIN_OFF_MS + 1);
+  assert.equal(later.torchOn, true, 'after the cooldown a dark room lights it again');
+
+  // Sem leitura (preview no PC) nada muda.
+  assert.equal(decideTorch(-1, true, { onSince: 0 }, 9e9).changed, false);
+  assert.equal(decideTorch(-1, false, {}, 9e9).changed, false);
+  assert.equal(decideTorch(NO_LIGHT - .02, false, { dark: 1 }, 1e6).torchOn, true);
+});
+
+test('Build 89: the flashlight is real: Camera2 flash mode on the owned session', () => {
+  const camera = read('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java');
+  assert.ok(camera.includes('void setTorch(boolean enabled)'), 'the camera can drive the flash');
+  assert.ok(camera.includes('CaptureRequest.FLASH_MODE_TORCH'), 'torch mode on the repeating request');
+  assert.ok(camera.includes('CaptureRequest.FLASH_MODE_OFF'), 'and it turns off');
+  assert.ok(camera.includes('FLASH_INFO_AVAILABLE'), 'only on a device that has a flash');
+  assert.ok(camera.includes('setTorchMode'), 'fallback through CameraManager');
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+  assert.ok(activity.includes('setTorch(boolean enabled)'), 'bridge setter');
+  assert.ok(activity.includes('torchAvailable()'), 'bridge capability check');
+  const shell = read('web/src/night-camera.js');
+  assert.ok(shell.includes('decideTorch('), 'the shell decides with hysteresis');
+  assert.ok(shell.includes("window.NativeXR?.setTorch?.(value)"), 'and drives the native flash');
+  assert.ok(entrySrc().includes('data-entry-torch-auto'), 'settings can turn the automation off');
 });
 
 test('Build 89: the shipped APK is the release variant signed with the repository key', () => {

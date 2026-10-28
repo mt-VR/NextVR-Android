@@ -1176,6 +1176,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             float level=cam==null?-1f:cam.luma();
             return String.valueOf(level);
         }
+        /**
+         * Lanterna (Build 89): acende quando a cena nao tem luz nenhuma e apaga quando a luz volta.
+         * Quem decide e' o shell (web/src/night-camera.js, com histerese e tempo minimo), porque a
+         * leitura de luz tambem vem de la' — aqui so' existe o controle do flash.
+         */
+        @JavascriptInterface public void setTorch(boolean enabled) {
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.setTorch(enabled);
+        }
+        /** O aparelho tem lanterna? (falso = o app nao mostra o controle) */
+        @JavascriptInterface public boolean torchAvailable() {
+            PassthroughCamera cam=camera;
+            return cam!=null && cam.torchAvailable();
+        }
         @JavascriptInterface public void setSingleHandMode(String mode) {
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setSingleHandMode(mode);

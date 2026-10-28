@@ -137,6 +137,12 @@ final class PassthroughCamera {
     /** Luminosidade media do ultimo quadro medido (0..1), ou -1 enquanto nao houver leitura. */
     private volatile float lastLuma=-1f;
     private volatile android.util.Range<Integer> aeCompensationRange;
+    /** Lanterna (Build 89): ligada quando a cena nao tem luz nenhuma. */
+    volatile boolean torchOn=false;
+    /** A camera escolhida tem flash? (quase todo celular com camera traseira tem) */
+    private volatile boolean flashAvailable=false;
+    /** Id da camera aberta (o manager precisa dele para o caminho de reserva da lanterna). */
+    private volatile String activeCameraId=null;
     volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -227,6 +233,42 @@ final class PassthroughCamera {
     /** Luminosidade media (0..1) do ultimo quadro medido, ou -1 antes da primeira medida. */
     float luma() { return lastLuma; }
 
+    /** O aparelho tem lanterna? O shell usa isto para nao mostrar um controle que nao funciona. */
+    boolean torchAvailable() { return flashAvailable; }
+
+    /**
+     * Lanterna (Build 89) — "quando identificar nenhuma luz, o celular ativa a lanterna, e quando
+     * reconhece luz, a lanterna apaga".
+     *
+     * Com a sessao aberta, a forma correta de acender a lanterna e' `FLASH_MODE_TORCH` no proprio
+     * request repetido: quem manda na camera e' este app, e o CameraManager.setTorchMode
+     * (`CONTROL_AE_MODE_ON_ALWAYS_FLASH`) falharia com "camera in use". O caminho do manager fica
+     * como reserva para quando nao existe sessao (antes do primeiro quadro).
+     */
+    void setTorch(boolean enabled) {
+        if(torchOn==enabled) return;
+        torchOn=enabled;
+        handler.post(()->{
+            if(destroyed || !flashAvailable) return;
+            boolean applied=false;
+            try {
+                if(session!=null && activeRequestBuilder!=null) {
+                    activeRequestBuilder.set(CaptureRequest.FLASH_MODE,
+                        enabled ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_OFF);
+                    session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
+                    applied=true;
+                }
+            } catch(Throwable ignored) { applied=false; }
+            if(!applied) {
+                try {
+                    String id=activeCameraId;
+                    if(id!=null) context.getSystemService(CameraManager.class).setTorchMode(id,enabled);
+                } catch(Throwable ignored) {}
+            }
+            android.util.Log.i("NextVR-Camera","torch "+(enabled?"on":"off"));
+        });
+    }
+
     /**
      * Mede a luz da cena nos pixels ja' convertidos (ARGB upright). Uma amostragem em passos
      * (~512 pontos) custa quase nada e roda so' de 15 em 15 quadros, para nao competir com o
@@ -309,6 +351,12 @@ final class PassthroughCamera {
             // Faixa de +EV disponivel neste sensor (usada pela camera noturna).
             try { aeCompensationRange=chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE); }
             catch(Throwable ignored) { aeCompensationRange=null; }
+            // Lanterna: o sensor precisa ter flash e o id e' necessario para o caminho de reserva.
+            try {
+                Boolean flash=chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                flashAvailable=flash!=null && flash;
+            } catch(Throwable ignored) { flashAvailable=false; }
+            activeCameraId=id;
             android.util.Log.i("NextVR-Camera","rear="+id+" wide="+wideCamera+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
             if(handsEnabled) {
                 try {
@@ -386,6 +434,10 @@ final class PassthroughCamera {
                                     activeRequestBuilder=request;
                                     // Uma camera reaberta (troca de rotacao, 0.5x, watchdog) nasce com o
                                     // request padrao: reaplica a camera noturna se ela estava ligada.
+                                    if(torchOn && flashAvailable) {
+                                        try { request.set(CaptureRequest.FLASH_MODE,CaptureRequest.FLASH_MODE_TORCH); }
+                                        catch(Throwable ignored) {}
+                                    }
                                     if(nightMode) {
                                         try {
                                             android.util.Range<Integer> evRange=aeCompensationRange;

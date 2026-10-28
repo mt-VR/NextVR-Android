@@ -33,7 +33,9 @@ export function isVerifiedProfileName(name) {
 export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   NeyVR: 'o Dono absoluto mais aurudo do planeta.',
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
-  Apache: 'Apache(V) o contribuidor mais aurudo desse planeta majestoso',
+  // O "(V)" era só uma representação do selo. O selo é desenhado ao lado do nome, então a bio é
+  // só o texto — nome cinza + selo vermelho + esta frase, igual aos outros colaboradores.
+  Apache: 'o contribuidor mais aurudo desse planeta majestoso',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
 });
 
@@ -54,7 +56,7 @@ export const ENTRY_UPDATES = Object.freeze([
     tag: 'NOVO · BUILD 89 — ATMO XR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
     time: 'Agora',
     heading: 'Build 89: Apache no lugar da NanyGata, Teclado em Pe, TikTok Real, Janelas ate 300%, Personagem 3D Giratorio e Camera Noturna',
-    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "Apache(V) o contribuidor mais aurudo desse planeta majestoso". O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece. O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
+    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "o contribuidor mais aurudo desse planeta majestoso" (o selo é o desenho ao lado do nome). O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece (e a lanterna do celular acende quando nao ha luz nenhuma, apagando quando a luz volta). O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
   },
   {
     id: 'worldlock-camera-paint',

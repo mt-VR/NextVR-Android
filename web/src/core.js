@@ -28,6 +28,8 @@ const DEF = {
   mrDim: 0, bwCamera: 1,
   // Camera noturna (Build 89): 'auto' liga sozinha quando o ambiente escurece; 'on'/'off' fixam.
   nightCamera: 'auto',
+  // Lanterna (Build 89): sem luz nenhuma o celular acende o flash; quando a luz volta, apaga.
+  torchAuto: 1,
   sixdof: 1, lateLatch: 0,
   // World Lock (padrão): o mundo fica preso no lugar e só a cabeça gira — zero deriva do 6DoF.
   worldLock: 1,

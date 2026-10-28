@@ -6,8 +6,9 @@ Pedido do usuário, item por item, e onde cada coisa foi implementada. Tudo é v
 ## 1. Apache no lugar da NanyGata, nome cinza e selo vermelho
 
 * `web/src/entry-data.js` — `ENTRY_COLLABORATORS` agora é `NeyVR`, `Faylan`, **`Apache`**, `JocaVR`;
-  a bio é `o contribuidor mais aurudo desse planeta majestoso` (o `(V)` que aparece na tela é o selo
-  verificado, que é um SVG ao lado do nome, como nos outros).
+  a bio é **só** `o contribuidor mais aurudo desse planeta majestoso` — o `(V)` que existia dentro do
+  texto era só uma representação do selo e saiu (o usuário pediu): na tela ficam **o nome cinza + o
+  selo vermelho desenhado (SVG) + a frase**, igual aos outros colaboradores.
 * `web/src/entry-menu.js` — a lista de colaboradores não tem mais o destaque azul: todos usam
   `.entry-collab-name` cinza (`#d4d4d8`) e **todos** têm o selo vermelho `#fe2c55` (o usuário pediu
   "ter em todos da colaboração").
@@ -85,6 +86,25 @@ cabelo, pele — tudo salvo no perfil na hora.
 * `web/src/night-camera.js` (novo) — lê `NativeXR.cameraLuma()` a cada 1,2 s, suaviza e liga com
   histerese (liga abaixo de 0,20, desliga acima de 0,30). Modo em Configurações → Aba 2:
   **Automática / Ligada / Desligada**.
+
+## 9b. Lanterna automática (sem luz = flash aceso)
+
+Pedido: “quando identificar nenhuma luz, o celular ativa a lanterna, e quando reconhece luz, a
+lanterna apaga”. Isso é o flash de verdade, não um filtro:
+
+* `PassthroughCamera.java` — `setTorch()` põe `FLASH_MODE_TORCH` no próprio request repetido da
+  sessão (é o app que manda na câmera; `CameraManager.setTorchMode` falharia com “camera in use”), com
+  `CameraManager.setTorchMode` como reserva antes da primeira sessão. Só faz alguma coisa se
+  `FLASH_INFO_AVAILABLE` for verdadeiro, e reacende sozinha se a câmera reabrir.
+* `NextVrActivity` — ponte `setTorch(boolean)` e `torchAvailable()`.
+* `web/src/night-camera-math.js` — `decideTorch()` é a regra pura, com três travas contra o pisca-pisca:
+  limiar de “sem luz” baixo (`NO_LIGHT = 0.12`) exigindo **2** leituras escuras seguidas; mínimo de
+  **4 s ligada** e **2,5 s desligada**; e só apaga quando a cena clareia de verdade
+  (`ENOUGH_LIGHT = 0.50` em **3** leituras seguidas). Sem essas travas a própria luz da lanterna
+  desligaria a lanterna e ela ficaria piscando para sempre.
+* Configurações → Aba 2: **🔦 Lanterna automática: ON/OFF** e a nota ao vivo mostra
+  `ligada/desligada · % de luz · lanterna ACESA/apagada` (ou “lanterna não disponível” em aparelho sem
+  flash). Desligar a automação apaga o flash na hora.
 
 ## 10. Play Protect
 
