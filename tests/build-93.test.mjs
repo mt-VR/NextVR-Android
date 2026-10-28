@@ -62,6 +62,18 @@ test('Build 93: the Google sign-in card shows up when the app opens', () => {
   assert.ok(indexHtml().includes('.entry-signin-backdrop{'), 'por cima do menu');
 });
 
+// O cartão cobre o menu enquanto está aberto (é isso que o jogador vê ao abrir o app), então o teste
+// de ponta a ponta em Chromium precisa fechá-lo em "Agora não" antes de pinçar o Iniciar. Sem isso o
+// botão do Google intercepta o toque e o menu não fecha — foi assim que a validação do CI caiu.
+test('Build 93: the browser E2E closes the sign-in card before pinching', () => {
+  const e2e = read('tests/reference-ui.test.mjs');
+  assert.ok(e2e.includes('.entry-signin-card'), 'o E2E confere que o cartão aparece ao abrir');
+  assert.ok(e2e.includes("document.querySelector('[data-entry-signin-skip]').click()"),
+    'o E2E fecha o cartão em "Agora não"');
+  assert.ok(e2e.indexOf('data-entry-signin-skip') < e2e.indexOf('entryStart='),
+    'e faz isso antes de mirar o botão Iniciar');
+});
+
 test('Build 93: the shipped APK is version 93', () => {
   assert.ok(read('nextvr-android/build.gradle').includes('versionCode 93'));
 });

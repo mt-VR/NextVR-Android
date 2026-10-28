@@ -50,7 +50,16 @@ O botão separado do World Lock saiu. Agora:
 
 ## Testes
 
-`tests/build-93.test.mjs` (4 testes): opções empilhadas e sem corte de texto, World Lock embutido no
+`tests/build-93.test.mjs` (5 testes): opções empilhadas e sem corte de texto, World Lock embutido no
 6DoF (e o botão separado ausente), cartão de login presente com `AccountChooser` + `openExternal` +
-`JÁ ENTREI`, e versionCode 93. O teste de navegador (Playwright) agora também confere que o cartão
-aparece ao entrar e o dispensa antes de testar o menu. Suíte: **183 testes, 0 falhas**.
+`JÁ ENTREI`, o teste de navegador fechando o cartão antes de pinçar o Iniciar, e versionCode 93.
+Suíte: **184 testes, 0 falhas**.
+
+### Correção da validação (mesma Build 93, sem mudar o APK)
+
+O teste de navegador (Playwright, só roda no CI) falhou na primeira rodada: o cartão do Google cobre
+o menu de entrada — de propósito, é o que o jogador vê ao abrir o app — e o toque simulado que aperta
+**Iniciar** caía no cartão, então o menu nunca fechava (`waitForFunction` estourava em 30 s). O teste
+agora confere que o cartão aparece ao entrar, toca em **“Agora não”** e só então pinça o Iniciar. Um
+teste estático em `tests/build-93.test.mjs` garante que o E2E continua fechando o cartão antes de
+mirar o botão — é a regressão que derrubou a rodada `40633284996`.

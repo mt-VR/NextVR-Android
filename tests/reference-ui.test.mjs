@@ -134,6 +134,16 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.dock').count(),0,'entry menu onboarding shows only the entry menu');
     assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden while entry menu is open');
     assert.equal(await page.locator('.entry-subtitle').innerText(),'ENTRE EM OUTRO MUNDO');
+    // Build 93: o cartão de login com Google abre junto com o menu de entrada ("quando entrar no app
+    // aparece o negócio de fazer login com Google"). Aqui ele existe e é fechado em "Agora não", que
+    // é o caminho de quem não quer vincular a conta agora — o botão do Google abre o navegador do
+    // celular (AccountChooser), que não existe neste teste.
+    assert.equal(await page.locator('.entry-signin-card').count(),1,'o cartão de login com Google abre junto com o app');
+    assert.equal(await page.locator('[data-entry-google-signin]').count(),1,'o botão do Google está no cartão');
+    assert.equal(await page.locator('[data-entry-signin-skip]').count(),1,'o cartão pode ser fechado sem entrar');
+    await page.evaluate(()=>document.querySelector('[data-entry-signin-skip]').click());
+    await page.waitForFunction(()=>!document.querySelector('.entry-signin-backdrop'),null,{timeout:5000});
+    assert.equal(await page.locator('.entry-menu-root').count(),1,'fechar o cartão não fecha o menu de entrada');
     // Switch language to English in the entry menu basic settings so subsequent assertions run in English.
     await page.evaluate(()=>{
       document.querySelector('[data-entry-act="settings"]').click();
