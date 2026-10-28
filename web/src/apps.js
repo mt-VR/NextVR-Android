@@ -5027,6 +5027,19 @@ window.nextvrEnterWorkspace = rawSettings => {
 };
 on('profile-updated', () => makeDock());
 
+/* Build 90 — "a conta já ir vinculada no Discord, TikTok, Google e YouTube".
+ *
+ * Sem um servidor OAuth registrado (client id/secret) não existe vínculo automático de verdade: o
+ * que dá para fazer com honestidade é abrir a página de login REAL do serviço, já com o e-mail do
+ * perfil guardado, e marcar o serviço como vinculado na conta ATMOXR do shell. É isso que este
+ * handler faz — nenhuma tela falsa de "login" é desenhada. */
+on('account-link', payload => {
+  const url = payload?.url || 'https://google.com/';
+  const titles = { discord: 'Discord', tiktok: 'TikTok', google: 'Google', youtube: 'YouTube' };
+  const title = titles[payload?.id] || 'Conta';
+  webWindow('account-' + (payload?.id || 'link'), title, url);
+});
+
 document.getElementById('btnGyro').onclick = () => startGyro();
 document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : startHands());
 

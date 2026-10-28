@@ -32,9 +32,17 @@ let torchTimes = { onSince: -1, offSince: -1, dark: 0, bright: 0 };
 
 const mode = () => (S.nightCamera === 'on' || S.nightCamera === 'off') ? S.nightCamera : 'auto';
 
-/** O aparelho tem lanterna? Sem camera (preview de desktop) o resultado nunca importa. */
+/**
+ * O aparelho tem lanterna? Sem camera (preview de desktop) o resultado nunca importa.
+ *
+ * Importante (Build 90): a resposta so' fica boa DEPOIS que a camera abriu — antes disso o lado
+ * nativo ainda nao leu `FLASH_INFO_AVAILABLE`. A versao anterior perguntava uma vez no boot e
+ * guardava "nao tem flash" para sempre, e era por isso que a lanterna nao acendia no escuro.
+ * Agora a pergunta e' repetida enquanto a resposta for "nao".
+ */
 let torchAvailable = false;
 function detectTorch() {
+  if (torchAvailable) return true;
   try {
     const has = window.NativeXR?.torchAvailable?.();
     torchAvailable = has === true || has === 'true';

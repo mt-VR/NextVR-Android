@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-90-key',
+    tag: 'NOVO · BUILD 90 — KEY DE 22 CARACTERES, CONTA POR E-MAIL E LANTERNA NO ESCURO',
+    time: 'Agora',
+    heading: 'Build 90: Sistema de Key, Conta vinculada (Discord, TikTok, Google, YouTube), Lanterna quando não há luz e Mão reconhecida no escuro',
+    desc: 'Sistema de Key: a chave tem 22 caracteres, funciona uma vez, fica presa a ESTE celular e não precisa ser digitada de novo (só se desinstalar e instalar outra vez). A conta agora tem e-mail no Login/Perfil e um toque vincula Discord, TikTok, Google e YouTube abrindo a página de login real de cada um. A câmera noturna ficou de verdade: sem luz nenhuma o flash do celular acende e apaga quando a luz volta (com travas para não piscar), e o hand tracking recebe um ganho no quadro escuro para reconhecer a mão no breu. O teclado ganhou uma bolinha ao lado da barrinha branca: arrastar move, tocar fecha. E a barra de aumentar/diminuir brilho embaixo das janelinhas flutuantes saiu.',
+  },
+  {
     id: 'build-89-atmo',
     tag: 'NOVO · BUILD 89 — ATMO XR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
     time: 'Agora',

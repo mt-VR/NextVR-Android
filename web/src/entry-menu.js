@@ -1,6 +1,7 @@
 import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import { dockCatalogAll, extraDockIds, toggleExtraDockId } from './dock-catalog.js';
+import { licenseStatus, activateKey, deviceCode, formatKey, licenseMessage, normalizeKey, KEY_LENGTH } from './license.js';
 import { nightCameraState, setNightCameraMode, setTorchAuto } from './night-camera.js';
 import {
   ENTRY_VERSION,
@@ -385,6 +386,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         <button type="button" class="entry-card ${activeView === 'collaborators' ? 'entry-card--active' : ''}" data-entry-act="collaborators">
           <span class="entry-card-body">
             <span class="entry-card-title">${emT('collaborators')}</span>
+          </span>
+          <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
+        </button>
+
+        <button type="button" class="entry-card entry-card--key ${activeView === 'license' ? 'entry-card--active' : ''} ${licenseStatus().active ? 'entry-card--activated' : ''}" data-entry-act="license">
+          <span class="entry-card-body">
+            <span class="entry-card-title">🔑 KEY</span>
+            <span class="entry-card-state" data-entry-key-state>${licenseStatus().active ? 'ATIVADA' : 'ATIVAR'}</span>
           </span>
           <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
         </button>
@@ -831,6 +840,21 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>
     </div>`;
 
+  /* Build 90 — conta ATMOXR por e-mail.
+   *
+   * O usuário: "quando entrar, bota a opção de e-mail pra a conta já ir vinculada no discord, tiktok
+   * Google e YouTube". O e-mail é guardado no perfil e cada botão abre a página de login REAL do
+   * serviço (é o que dá para fazer sem servidor OAuth registrado); o vínculo fica marcado aqui.
+   */
+  const ACCOUNT_LINKS = [
+    { id: 'discord', label: 'Discord', glyph: 'D', url: 'https://discord.com/login', bg: 'linear-gradient(180deg,#5865f2,#3b45c9)' },
+    { id: 'tiktok', label: 'TikTok', glyph: '♪', url: 'https://www.tiktok.com/login', bg: 'linear-gradient(180deg,#25f4ee,#fe2c55)' },
+    { id: 'google', label: 'Google', glyph: 'G', url: 'https://accounts.google.com/', bg: 'linear-gradient(180deg,#4285f4,#1a73e8)' },
+    { id: 'youtube', label: 'YouTube', glyph: '▶', url: 'https://accounts.google.com/ServiceLogin?service=youtube', bg: 'linear-gradient(180deg,#ff0033,#c4302b)' },
+  ];
+  const accountLinkedIds = () => String(S.accountLinks || '').split(',').map(v => v.trim()).filter(Boolean);
+  const accountLinked = id => accountLinkedIds().includes(id);
+
   const renderProfilePanel = () => {
     const currentName = S.profileName || '';
     const currentAvatar = S.profileAvatar || '';
@@ -867,6 +891,31 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <span>SEU NOME / NICK <span class="entry-collab-verified entry-profile-verified-preview" data-profile-verified-preview="1" ${isVerifiedProfileName(currentName) ? '' : 'hidden'} title="Verificado">${SVG_TIKTOK_VERIFIED}</span></span>
               <input type="text" class="entry-login-input" data-profile-name-input maxlength="24" placeholder="Digite seu nome..." value="${escHtml(currentName)}" />
             </label>
+
+            <div class="entry-account" data-entry-account="1">
+              <div class="entry-account-title">CONTA ATMOXR · E-MAIL E VÍNCULOS</div>
+              <label class="entry-login-label">
+                <span>SEU E-MAIL (a conta fica vinculada)</span>
+                <input type="email" class="entry-login-input" data-account-email maxlength="80"
+                  autocomplete="email" spellcheck="false" placeholder="voce@email.com"
+                  value="${escHtml(S.accountEmail || '')}" />
+              </label>
+              <div class="entry-account-links">
+                ${ACCOUNT_LINKS.map(link => {
+                  const on = accountLinked(link.id);
+                  return `<button type="button" class="entry-account-link ${on ? 'on' : ''}"
+                    data-account-link="${link.id}" aria-pressed="${on ? 'true' : 'false'}"
+                    title="${on ? 'Vinculado — toque para abrir' : 'Vincular ' + link.label}">
+                    <span class="entry-account-ico" style="background:${link.bg}">${link.glyph}</span>
+                    <span class="entry-account-name">${link.label}</span>
+                    <span class="entry-account-state">${on ? '✓ VINCULADO' : 'VINCULAR'}</span>
+                  </button>`;
+                }).join('')}
+              </div>
+              <p class="entry-account-note">Digite o e-mail e toque em cada serviço para vincular: o app
+                abre a página de login real do serviço (Discord, TikTok, Google, YouTube) e guarda o
+                vínculo na sua conta ATMOXR deste perfil.</p>
+            </div>
 
             <div class="entry-char-studio" data-character-creator="1" style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);display:flex;flex-direction:column;gap:7px">
               <div style="display:flex;align-items:center;justify-content:space-between">
@@ -910,6 +959,60 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
           </div>
+        </div>
+      </div>`;
+  };
+
+  /*
+   * Build 90 — painel da Key.
+   *
+   * "bota um sistema de Key… a Key tem que ter 22 caracteres… essas keys só funciona uma vez…
+   *  botou a Key pronto, não precisa por denovo, só se desinstalar e instalar denovo… e a Key só
+   *  e pra esse celular".
+   *
+   * A tela é deliberadamente simples: uma caixa de 22 caracteres, o botão ATIVAR, o estado e o
+   * código do aparelho. Quem manda é o lado nativo (License.java) — aqui só desenhamos.
+   */
+  const renderLicensePanel = () => {
+    const st = licenseStatus(true);
+    const active = !!st.active;
+    return `
+      <div class="entry-subpanel entry-subpanel--license" data-entry-panel="license">
+        <div class="entry-subpanel-head">
+          <h2 class="entry-subpanel-title">Key de ativação</h2>
+          <div class="entry-subpanel-actions">
+            <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">Voltar</button>
+          </div>
+        </div>
+        <div class="entry-key-body">
+          <div class="entry-key-status ${active ? 'on' : ''}" data-entry-key-status>
+            <span class="entry-key-dot" aria-hidden="true"></span>
+            <span data-entry-key-status-text>${active ? 'KEY ATIVADA NESTE CELULAR' : 'SEM KEY ATIVA'}</span>
+          </div>
+          <p class="entry-key-help">
+            A Key tem <b>22 caracteres</b>, funciona <b>uma vez</b> e fica presa a <b>este celular</b>.
+            Digitou e ativou, não precisa digitar de novo — só se desinstalar e instalar o app outra vez.
+          </p>
+          ${active ? `
+            <div class="entry-key-activated">
+              <div><span>Key</span><b data-entry-key-mask>${escHtml(st.key || '—')}</b></div>
+              <div><span>Aparelho</span><b>${escHtml(deviceCode())}</b></div>
+              <div><span>Ativada</span><b>${st.since ? new Date(st.since).toLocaleDateString('pt-BR') : '—'}</b></div>
+            </div>
+          ` : `
+            <label class="entry-login-label">
+              <span>SUA KEY (22 CARACTERES)</span>
+              <input type="text" class="entry-login-input entry-key-input" data-entry-key-input
+                maxlength="${KEY_LENGTH + 6}" autocomplete="off" spellcheck="false"
+                placeholder="XXXX XXXX XXXX XXXX XXXX XX" />
+            </label>
+            <div class="entry-key-row">
+              <span class="entry-key-count" data-entry-key-count>0/${KEY_LENGTH}</span>
+              <button type="button" class="entry-btn entry-btn--primary" data-entry-key-activate>Ativar Key</button>
+            </div>
+            <p class="entry-key-msg" data-entry-key-msg></p>
+            <p class="entry-key-device">Aparelho: <b>${escHtml(deviceCode())}</b> · a Key ativada aqui não funciona em outro celular.</p>
+          `}
         </div>
       </div>`;
   };
@@ -963,6 +1066,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       activeView === 'collaborators' ? renderCollaboratorsPanel() :
       activeView === 'about' ? renderAboutPanel() :
       activeView === 'profile' ? renderProfilePanel() :
+      activeView === 'license' ? renderLicensePanel() :
       activeView === 'store' ? renderStorePanel() :
       renderBrandStage(batInfo);
 
@@ -1076,6 +1180,42 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
+    root.querySelectorAll('[data-entry-act="license"]').forEach(btn => {
+      btn.onclick = () => {
+        activeView = 'license';
+        paint();
+      };
+    });
+    const keyInput = root.querySelector('[data-entry-key-input]');
+    if (keyInput) {
+      const paintKeyCount = () => {
+        const count = root.querySelector('[data-entry-key-count]');
+        const clean = normalizeKey(keyInput.value);
+        if (count) count.textContent = `${clean.length}/${KEY_LENGTH}`;
+        // A caixa mostra a chave em grupos de 4 para caber na tela do celular.
+        keyInput.value = formatKey(keyInput.value);
+      };
+      keyInput.addEventListener('input', paintKeyCount);
+      paintKeyCount();
+    }
+    const keyActivate = root.querySelector('[data-entry-key-activate]');
+    if (keyActivate) {
+      keyActivate.onclick = () => {
+        const raw = keyInput ? keyInput.value : '';
+        const result = activateKey(raw);
+        const msg = root.querySelector('[data-entry-key-msg]');
+        if (msg) {
+          msg.textContent = licenseMessage(result.reason);
+          msg.dataset.state = result.ok ? 'ok' : 'error';
+        }
+        if (result.ok) {
+          emit('license', result.status);
+          activeView = 'license';
+          paint();
+        }
+        return false;
+      };
+    }
     root.querySelectorAll('[data-entry-act="about"]').forEach(btn => {
       btn.onclick = () => {
         stopCountdown();
@@ -1164,6 +1304,30 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         if (previewBadge) previewBadge.hidden = !verified;
       };
     }
+    const accountEmail = root.querySelector('[data-account-email]');
+    if (accountEmail) {
+      accountEmail.oninput = () => {
+        S.accountEmail = accountEmail.value.trim();
+        save(S);
+      };
+    }
+    root.querySelectorAll('[data-account-link]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.accountLink || '';
+        const link = ACCOUNT_LINKS.find(l => l.id === id);
+        if (!link) return;
+        const current = accountLinkedIds();
+        S.accountLinks = current.includes(id) ? current.filter(v => v !== id) : [...current, id];
+        save(S);
+        const on = accountLinkedIds().includes(id);
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const state = btn.querySelector('.entry-account-state');
+        if (state) state.textContent = on ? '✓ VINCULADO' : 'VINCULAR';
+        // Abre a página de login real do serviço na janela do navegador.
+        emit('account-link', { id, url: link.url, email: S.accountEmail || '' });
+      };
+    });
     const saveProfileBtn = root.querySelector('[data-profile-save]');
     if (saveProfileBtn) {
       saveProfileBtn.onclick = () => {

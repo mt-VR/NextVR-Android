@@ -43,10 +43,10 @@ export function decideNightCamera(level, previousSmooth = -1, currentActive = fa
  *   3. `armed`: depois de acender, as leituras so' voltam a valer para desligar quando a cena
  *      realmente clarear (>= ENOUGH_LIGHT por OFF_CONFIRM leituras seguidas).
  * ------------------------------------------------------------------------------------------- */
-export const NO_LIGHT = 0.12;        // abaixo disto: "nenhuma luz"
-export const ENOUGH_LIGHT = 0.50;    // acima disto, com a lanterna ligada: a luz voltou
-export const MIN_ON_MS = 4000;       // tempo minimo ligada (anti-pisca)
-export const MIN_OFF_MS = 2500;      // tempo minimo desligada antes de acender de novo
+export const NO_LIGHT = 0.16;        // abaixo disto: "nenhuma luz" (quarto escuro de verdade)
+export const ENOUGH_LIGHT = 0.42;    // acima disto, com a lanterna ligada: a luz voltou
+export const MIN_ON_MS = 3500;       // tempo minimo ligada (anti-pisca)
+export const MIN_OFF_MS = 2000;      // tempo minimo desligada antes de acender de novo
 export const ON_CONFIRM = 2;         // leituras escuras seguidas para acender
 export const OFF_CONFIRM = 3;        // leituras claras seguidas para apagar
 

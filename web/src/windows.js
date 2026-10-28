@@ -128,22 +128,13 @@ class Win {
       else if (btn.dataset.cinemaAct === 'min') close(this);
     });
 
-    // Barra de controlo de brilho sob a janela (IMG_20261021_144045.jpg): aumenta e diminui o brilho
+    /* Build 90 — a barra de diminuir/aumentar brilho embaixo de cada janelinha flutuante saiu
+     * ("tira aquele negócio de diminuir e aumentar brilho nas janelinhas flutuantes"). O brilho
+     * continua existindo uma vez só, no painel de configurações do sistema.
+     * Fica um elemento vazio para os seletores antigos não quebrarem. */
     const brightnessBar = document.createElement('div');
-    brightnessBar.className = 'win-brightness-bar';
-    brightnessBar.hidden = onboarding || id === 'left-quick-menu';
-    const initBri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
-    brightnessBar.innerHTML = `<span class="win-bri-icon">${icon('sun')}</span>`
-      + `<input type="range" class="win-bri-range" data-win-brightness min="10" max="100" step="1" value="${initBri}" style="--bri-fill:${initBri}%" aria-label="Brilho"/>`;
-    const briInput = brightnessBar.querySelector('[data-win-brightness]');
-    if (briInput) {
-      const onBri = e => {
-        e.stopPropagation();
-        setScreenBrightness(Number(briInput.value));
-      };
-      briInput.addEventListener('input', onBri);
-      briInput.addEventListener('change', onBri);
-    }
+    brightnessBar.className = 'win-brightness-bar win-brightness-off';
+    brightnessBar.hidden = true;
 
     // Telinhas pré-definidas nas laterais para posicionar as janelinhas flutuantes (IMG_20261021_143929.jpg)
     const predefinedSlotsBar = document.createElement('div');
@@ -1489,6 +1480,8 @@ on('pinchdown', () => {
   if (kb && (!h || kb.distance < h.distance)) {
     // Teclado em pe', Build 89: a barrinha branca arrasta o teclado inteiro; o resto e' tecla.
     if (kb.grab) { startKbDrag(px, py); return; }
+    // Bolinha (Build 90): arrasta como a barrinha e, se ninguem mover, o toque fecha o teclado.
+    if (kb.ball) { kbBallTap = true; startKbDrag(px, py); return; }
     kbPress(kb.button); return;
   }
   if (h) {
@@ -1550,8 +1543,11 @@ on('pinchup', () => {
   }
   // A barrinha arrastada commita a posicao no ultimo ponto real da mao, como a dock.
   if (kbDrag.plane) {
+    const wasTap = kbBallTap && !kbDrag.active;
+    kbBallTap = false;
     if (kbDrag.active) kbDragTo(px, py);
     endKbDrag();
+    if (wasTap) keyboard(false);          // toque na bolinha: fecha o teclado flutuante
     return;
   }
   // The keyboard goes first: if it armed a key, this pinch belongs to it and nothing else sees the
@@ -2188,6 +2184,7 @@ export function keyboard(on_, field) {
     // Solta a tecla segurada ANTES de esquecer o alvo: o keyup é o que faz um jogo parar de andar.
     kbRelease();
     endKbDrag();
+    kbBallTap = false;
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
     kbTarget = null; kbOwner = null; kbShift = kbShiftLock = kbSym = false;
     kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
@@ -2249,6 +2246,17 @@ export function keyboard(on_, field) {
   grab.setAttribute('aria-label', 'Mover o teclado');
   grab.setAttribute('role', 'slider');
   el.appendChild(grab);
+
+  /* Build 90 — "bota uma bolinha pequena do lado da barrinha branca pra movimentar de ativar
+   * teclado flutuante". A bolinha fica logo acima da barrinha: arrastar nela move o teclado
+   * (mesmo arrasto da barrinha) e um toque curto fecha o teclado flutuante. */
+  const ball = document.createElement('div');
+  ball.className = 'kb-ball';
+  ball.dataset.kbBall = '1';
+  ball.title = 'Fechar o teclado (arraste para mover)';
+  ball.setAttribute('aria-label', 'Fechar o teclado flutuante');
+  ball.setAttribute('role', 'button');
+  el.appendChild(ball);
 
   kbObj = new CSS3DObject(el);
   kbObj.scale.setScalar(PX * (native?COMFORT.keyboardScale:.9));
@@ -2357,6 +2365,8 @@ const kbPose = { yaw: 0, ready: false };
  * A partir dai o teclado PARA de seguir a janela dona: e' o que "mover pra qualquer lugar" significa.
  */
 let kbFreePos = null;
+/** Toque na bolinha (Build 90): um toque fecha o teclado, um arrasto move. */
+let kbBallTap = false;
 /** Arraste em andamento da barrinha: plano do gesto + deslocamento do centro do teclado. */
 const kbDrag = { active: false, plane: null, offset: null, distance: 1 };
 /** Diferença de angulo mais curta: −π..π, para o teclado nunca dar a volta completa no meio. */
@@ -2439,6 +2449,7 @@ function kbProbe(x, y) {
   const el = deepPick(kbObj.element, px, py);
   // A barrinha e' um alvo proprio: ela nao e' tecla, ela arrasta o teclado inteiro.
   if (el?.closest?.('[data-kb-grab]')) return { distance: hit.distance, grab: true, button: null };
+  if (el?.closest?.('[data-kb-ball]')) return { distance: hit.distance, ball: true, button: null };
   return { distance: hit.distance, grab: false, button: el?.closest?.('[data-k]') || null };
 }
 

@@ -72,6 +72,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile SpatialRenderer renderer;
     private final Handler main=new Handler(Looper.getMainLooper());
     private PassthroughCamera camera;
+    /** Chaves de ativação (Build 90). Ver License.java. */
+    private License license;
     private WebSurface shell;
     private final Map<String,WebSurface> browsers=new HashMap<>();
     /** Campos que aceitam digitacao. Botoes e os controles nao textuais ficam de fora de proposito:
@@ -236,6 +238,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
         shizuku.start(appWindows::onShizukuChanged);
+        license=new License(this);
         camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
             @Override public void frame(android.graphics.Bitmap bitmap) {
                 SpatialRenderer r=renderer;
@@ -1189,6 +1192,29 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public boolean torchAvailable() {
             PassthroughCamera cam=camera;
             return cam!=null && cam.torchAvailable();
+        }
+
+        /* ---------------- Build 90: chaves de ativação ---------------- */
+
+        /** Estado da licença em JSON: {active, key, device, since, reason}. */
+        @JavascriptInterface public String licenseStatus() {
+            License l=license;
+            if(l==null) { l=new License(NextVrActivity.this); license=l; }
+            return l.status().toString();
+        }
+
+        /** Tenta ativar uma chave de 22 caracteres. Devolve {ok, reason, status}. */
+        @JavascriptInterface public String activateKey(String key) {
+            License l=license;
+            if(l==null) { l=new License(NextVrActivity.this); license=l; }
+            return l.activate(key).toString();
+        }
+
+        /** Código curto do aparelho (para suporte), ex.: "A1B2-C3D4". */
+        @JavascriptInterface public String deviceCode() {
+            License l=license;
+            if(l==null) { l=new License(NextVrActivity.this); license=l; }
+            return l.deviceCode();
         }
         @JavascriptInterface public void setSingleHandMode(String mode) {
             PassthroughCamera cam=camera;

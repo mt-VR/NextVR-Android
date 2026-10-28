@@ -31,7 +31,11 @@ android {
         // ATMO XR, janelas até 300%, TikTok real, personagem 3D giratório, aba 3 da Dock e câmera
         // noturna. O APK passou a sair da variante release (assinado com a MESMA chave, então
         // instala por cima sem apagar o perfil) em vez de debug.
-        versionCode 89
+        // 90 / 2.1.0: sistema de Key (22 caracteres, uma vez, presa ao aparelho), conta por e-mail
+        // com vínculos (Discord/TikTok/Google/YouTube), lanterna quando não há luz nenhuma, mão
+        // reconhecida no escuro, bolinha ao lado da barrinha do teclado e a barra de brilho das
+        // janelinhas removida.
+        versionCode 90
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the

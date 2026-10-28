@@ -466,6 +466,15 @@
   .kb-grab:hover,.kb.dragging .kb-grab{background:#fff;transform:scaleX(1.12);
     box-shadow:0 0 22px rgba(255,255,255,.8),inset 0 1px 0 #fff;cursor:grabbing}
   .kb.dragging{border-color:rgba(255,255,255,.6);box-shadow:0 44px 130px rgba(0,0,0,.72),0 0 0 3px rgba(255,255,255,.35)}
+  /* Build 90 — bolinha pequena ao lado da barrinha: arrastar move, tocar fecha o teclado. */
+  .kb-ball{position:absolute;right:2px;top:-6px;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 32% 28%,#ffffff,#d4d4d8 62%,#a1a1aa);
+    box-shadow:0 3px 12px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.95);
+    display:block;pointer-events:auto;cursor:grab;transition:transform .15s ease,box-shadow .15s ease}
+  .kb-ball::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+    border-radius:50%;background:rgba(24,24,27,.55)}
+  .kb-ball:hover{transform:scale(1.12);box-shadow:0 0 18px rgba(255,255,255,.8),inset 0 1px 0 #fff}
+  .kb.dragging .kb-ball{cursor:grabbing}
   .kb-row{display:flex;gap:10px;flex-wrap:nowrap}
   .key{position:relative;flex:1 1 0;min-width:0;height:84px;border-radius:14px;background:#2c3038;color:#f3f5f9;
     display:grid;place-items:center;font-size:29px;font-weight:500;border:1px solid rgba(255,255,255,.06);box-shadow:0 3px 0 rgba(0,0,0,.38)}
@@ -1938,6 +1947,75 @@
   /* A arte e' a imagem que o usuario mandou ("substitui aquela e poe essa"): headset + dois
      controles, wordmark ATMO XR e o selo REALIDADE VIRTUAL. Por cima dela ficam so' o progresso,
      o status, o tempo e o botao de cancelar, para a tela continuar contando o carregamento. */
+  /* ---------- Build 90: painel da Key ---------- */
+  .entry-subpanel--license{display:flex;flex-direction:column;min-height:0}
+  .entry-key-body{
+    flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;
+    padding:6px 2px 4px;
+  }
+  .entry-key-status{
+    display:inline-flex;align-items:center;gap:9px;align-self:flex-start;
+    padding:9px 15px;border-radius:99px;font-size:12.5px;font-weight:900;letter-spacing:.08em;
+    color:#e4e4e7;background:#18181b;border:1.5px solid rgba(228,228,231,.24);
+  }
+  .entry-key-status.on{color:#09090b;background:linear-gradient(135deg,#fafafa,#d4d4d8);border-color:#fafafa}
+  .entry-key-dot{width:9px;height:9px;border-radius:50%;background:#71717a;flex:none}
+  .entry-key-status.on .entry-key-dot{background:#16a34a;box-shadow:0 0 10px rgba(22,163,74,.9)}
+  .entry-key-help{
+    margin:0;font-size:11.5px;line-height:1.5;color:#a1a1aa;font-weight:600;max-width:640px;
+  }
+  .entry-key-help b{color:#f4f4f5}
+  .entry-key-input{
+    font-family:ui-monospace,Menlo,Consolas,monospace!important;
+    letter-spacing:.18em!important;font-size:17px!important;text-transform:uppercase;
+    padding:13px 15px!important;
+  }
+  .entry-key-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .entry-key-count{
+    font-size:12px;font-weight:900;color:#a1a1aa;font-variant-numeric:tabular-nums;
+    letter-spacing:.06em;min-width:58px;
+  }
+  .entry-key-msg{margin:0;font-size:12px;font-weight:800;line-height:1.45;min-height:18px;color:#a1a1aa}
+  .entry-key-msg[data-state="ok"]{color:#4ade80}
+  .entry-key-msg[data-state="error"]{color:#f87171}
+  .entry-key-device{margin:0;font-size:10.5px;font-weight:700;color:#71717a;letter-spacing:.04em}
+  .entry-key-device b{color:#d4d4d8;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .entry-key-activated{
+    display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:14px;
+    background:rgba(24,24,27,.92);border:1px solid rgba(228,228,231,.18);max-width:420px;
+  }
+  .entry-key-activated div{display:flex;justify-content:space-between;gap:14px;font-size:11.5px}
+  .entry-key-activated span{color:#a1a1aa;font-weight:700}
+  .entry-key-activated b{color:#fafafa;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em}
+  .entry-card--key .entry-card-state{
+    font-size:10px;font-weight:900;letter-spacing:.12em;color:#a1a1aa;
+  }
+  .entry-card--activated .entry-card-state{color:#4ade80}
+
+  /* ---------- Build 90: conta ATMOXR (e-mail + vínculos) ---------- */
+  .entry-account{
+    margin-top:8px;padding:10px 12px;border-radius:12px;
+    background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .entry-account-title{font-size:11.5px;letter-spacing:.04em;color:#f4f4f5;font-weight:800}
+  .entry-account-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .entry-account-link{
+    display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:10px;cursor:pointer;
+    background:#18181b;border:1.5px solid rgba(228,228,231,.16);color:#e4e4e7;font-family:inherit;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .entry-account-link:hover{border-color:#e4e4e7}
+  .entry-account-link.on{border-color:#4ade80;background:#14251a}
+  .entry-account-ico{
+    width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;
+    font-size:12px;font-weight:900;color:#fff
+  }
+  .entry-account-name{font-size:11px;font-weight:800;flex:1;text-align:left}
+  .entry-account-state{font-size:9px;font-weight:900;letter-spacing:.08em;color:#71717a}
+  .entry-account-link.on .entry-account-state{color:#4ade80}
+  .entry-account-note{margin:0;font-size:10px;line-height:1.4;color:#71717a;font-weight:600}
+
   /* ---------- Build 89: visualizador 3D do personagem ---------- */
   .cv-root{border-radius:20px}
   .cv-stage{background:radial-gradient(circle at 50% 32%,rgba(148,163,184,.16),rgba(6,6,8,.96) 72%)}
@@ -3370,6 +3448,8 @@
   .win-cinema-btn.finger-hover{
     background:rgba(56,189,248,.35);
   }
+  /* Build 90: a barra de brilho embaixo das janelinhas saiu; o brilho fica so' nas configuracoes. */
+  .win-brightness-off{display:none!important}
   .win-brightness-bar{
     position:absolute;
     left:50%;

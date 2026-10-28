@@ -137,6 +137,13 @@ final class PassthroughCamera {
     /** Luminosidade media do ultimo quadro medido (0..1), ou -1 enquanto nao houver leitura. */
     private volatile float lastLuma=-1f;
     private volatile android.util.Range<Integer> aeCompensationRange;
+    /**
+     * Ganho aplicado SO' no quadro entregue ao hand tracking quando o ambiente esta' escuro (Build
+     * 90). O passthrough continua recebendo o quadro original (a camera noturna ja' levanta o ganho
+     * no shader); este ganho existe para o detector de mao "enxergar" no escuro, que era o pedido
+     * do usuario ("o jogo reconhecer a mao mesmo no escuro").
+     */
+    private volatile float analysisGain=1f;
     /** Lanterna (Build 89): ligada quando a cena nao tem luz nenhuma. */
     volatile boolean torchOn=false;
     /** A camera escolhida tem flash? (quase todo celular com camera traseira tem) */
@@ -267,6 +274,31 @@ final class PassthroughCamera {
             }
             android.util.Log.i("NextVR-Camera","torch "+(enabled?"on":"off"));
         });
+    }
+
+    /**
+     * Ganho de brilho do quadro de analise, derivado da ultima medida de luz. Escuro de verdade
+     * (10% de luz) chega a 3x; com luz normal fica em 1x (nada muda). O ganho e' por canal, com
+     * saturacao em 255, e nao mexe em alfa.
+     */
+    private static float gainForLuma(float luma) {
+        if(luma < 0f) return 1f;
+        if(luma >= 0.26f) return 1f;
+        float target=0.30f;
+        return Math.min(3.2f, Math.max(1f, target / Math.max(0.05f, luma)));
+    }
+
+    /** Aplica o ganho em um array ARGB in-place (usado so' no caminho escuro). */
+    private static void boost(int[] pixels,int count,float gain) {
+        if(pixels==null || gain<=1.001f) return;
+        for(int i=0;i<count;i++) {
+            int c=pixels[i];
+            int a=c & 0xff000000;
+            int r=Math.min(255,(int)(((c>>16)&0xff)*gain));
+            int g=Math.min(255,(int)(((c>>8)&0xff)*gain));
+            int b=Math.min(255,(int)((c&0xff)*gain));
+            pixels[i]=a | (r<<16) | (g<<8) | b;
+        }
     }
 
     /**
@@ -543,7 +575,10 @@ final class PassthroughCamera {
             // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
             image.close();image=null;
             // Uma medida de luz a cada 15 quadros (~2x/s a 30 fps): e' o que a camera noturna le'.
-            if((sessionFrames % 15)==0) measureLuma(cameraPixels,outW*outH);
+            if((sessionFrames % 15)==0) {
+                measureLuma(cameraPixels,outW*outH);
+                analysisGain=gainForLuma(lastLuma);
+            }
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
@@ -551,10 +586,21 @@ final class PassthroughCamera {
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
                     int width=Math.min(outW,budget.width());
                     int height=Math.max(1,width*outH/outW);
+                    // Ganho da camera noturna: so' no escuro, e so' no quadro de analise.
+                    float gain=analysisGain;
                     Bitmap analysis;
                     if(width==outW && height==outH) {
-                        // Zero redundant Java resample/copy when the upright camera frame already matches budget width.
-                        analysis=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                        if(gain>1.001f) {
+                            // Escuro: precisa de uma copia para clarear sem estragar o passthrough.
+                            int analysisLen=outW*outH;
+                            if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
+                            System.arraycopy(cameraPixels,0,analysisPixels,0,analysisLen);
+                            boost(analysisPixels,analysisLen,gain);
+                            analysis=Bitmap.createBitmap(analysisPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                        } else {
+                            // Zero redundant Java resample/copy when the upright camera frame already matches budget width.
+                            analysis=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                        }
                     } else {
                         int analysisLen=width*height;
                         if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
@@ -571,6 +617,7 @@ final class PassthroughCamera {
                                 sx+=stepX;
                             }
                         }
+                        if(gain>1.001f) boost(analysisPixels,analysisLen,gain);
                         analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     }
                     if(analysis!=null) {
