@@ -650,9 +650,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     const torch = st.torchAvailable === false
       ? 'lanterna não disponível neste aparelho'
       : (st.torch ? 'lanterna ACESA' : 'lanterna apagada');
-    return `Agora: ${active} · ${level} · ${torch}. A câmera mede o ambiente e sobe o ganho do `
-      + `passthrough (+EV e redução de ruído) quando escurece. Sem luz nenhuma, o flash do celular `
-      + `acende; quando a luz volta, apaga. Não grava nada.`;
+    // Build 91: mostra a luz do ambiente já descontando a luz da própria lanterna. É esse número
+    // (e não a leitura crua) que decide se a lanterna apaga.
+    const ambient = Number.isFinite(st.torchAmbient)
+      ? ` · ambiente ${Math.round(st.torchAmbient * 100)}% (já sem a luz da lanterna)`
+      : '';
+    return `Agora: ${active} · ${level}${ambient} · ${torch}. A câmera mede o ambiente e sobe o ganho `
+      + `do passthrough (+EV e redução de ruído) quando escurece. Sem luz nenhuma, o flash do celular `
+      + `acende; quando a luz do ambiente volta, apaga — a luz da própria lanterna não conta. `
+      + `Não grava nada.`;
   };
 
   /* Build 89 — aviso honesto sobre o Play Protect. O APK sai fora da Play Store, então o Android

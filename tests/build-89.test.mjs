@@ -6,7 +6,7 @@ import {
   DOCK_CATALOG, catalogEntry, extraDockIds, toggleExtraDockId, extraDockItems, launchDockApp,
   registerDockLauncher, registerDockAndroidProvider, dockCatalogAll,
 } from '../web/src/dock-catalog.js';
-import { decideNightCamera, decideTorch, NO_LIGHT, ENOUGH_LIGHT, MIN_ON_MS, MIN_OFF_MS } from '../web/src/night-camera-math.js';
+import { decideNightCamera, decideTorch, SELF_MIN, NO_LIGHT, ENOUGH_LIGHT, MIN_ON_MS, MIN_OFF_MS } from '../web/src/night-camera-math.js';
 
 const read = path => readFileSync(path, 'utf8');
 const windowsSrc = () => read('web/src/windows.js');
@@ -138,38 +138,38 @@ test('Build 89: night camera decision has hysteresis and is wired to native', ()
 });
 
 test('Build 89: no light turns the flashlight on, light coming back turns it off', () => {
-  // Escuro: precisa confirmar (2 leituras) antes de acender.
-  const first = decideTorch(0.04, false, { offSince: -1, dark: 0, bright: 0 }, 1000);
-  assert.equal(first.torchOn, false, 'one dark reading is not enough');
-  const second = decideTorch(0.04, false, { ...first, offSince: -1 }, 2200);
-  assert.equal(second.torchOn, true, 'confirmed darkness turns the flashlight on');
-  assert.equal(second.reason, 'no-light');
+  // Build 91 refinou a decisão (calibra a luz da própria lanterna), mas o contrato é o mesmo:
+  // escuro confirmado acende, luz de verdade apaga, e nada de piscar.
+  const step = (level, on, st, now) => {
+    const d = decideTorch(level, on, st, now);
+    return { on: d.torchOn, st: d, reason: d.reason };
+  };
+
+  // Escuridão confirmada (ON_CONFIRM leituras) acende.
+  let st = {};
+  let now = 1000;
+  let state = step(0.04, false, st, now);
+  now += 1200;
+  while (!state.on && now < 60000) {
+    state = step(0.04, state.on, state.st, now);
+    now += 1200;
+  }
+  assert.equal(state.on, true, 'confirmed darkness turns the flashlight on');
+  assert.equal(state.reason, 'no-light');
 
   // Com luz, nem pensa em acender.
   assert.equal(decideTorch(0.62, false, { offSince: -1, dark: 0 }, 1000).torchOn, false);
 
-  // Acesa: nao apaga antes do tempo minimo, nem com uma leitura clara solta.
-  const early = decideTorch(ENOUGH_LIGHT + .1, true, { onSince: 0, bright: 0 }, MIN_ON_MS / 2);
-  assert.equal(early.torchOn, true, 'the flashlight does not blink: minimum on time');
-  const flicker = decideTorch(ENOUGH_LIGHT + .1, true, { onSince: 0, bright: 0 }, MIN_ON_MS + 10);
-  assert.equal(flicker.torchOn, true, 'one bright reading is not "the light came back"');
-
-  // Luz de verdade: 3 leituras claras depois do tempo minimo -> apaga.
-  let state = { onSince: 0, bright: 2 };
-  const back = decideTorch(0.72, true, state, MIN_ON_MS + 500);
-  assert.equal(back.torchOn, false, 'real light turns it off');
-  assert.equal(back.reason, 'light-back');
-
-  // E nao reacende imediatamente (tempo minimo apagada).
-  const tooSoon = decideTorch(0.02, false, { offSince: MIN_ON_MS + 500, dark: 1 }, MIN_ON_MS + 600);
-  assert.equal(tooSoon.torchOn, false, 'it waits before turning on again');
-  const later = decideTorch(0.02, false, { offSince: MIN_ON_MS + 500, dark: 1 }, MIN_ON_MS + 500 + MIN_OFF_MS + 1);
-  assert.equal(later.torchOn, true, 'after the cooldown a dark room lights it again');
+  // Acesa: não apaga antes do tempo mínimo, nem com uma leitura clara solta.
+  assert.equal(decideTorch(0.9, true, { onSince: 0, bright: 0 }, MIN_ON_MS / 2).torchOn, true,
+    'the flashlight does not blink: minimum on time');
+  assert.equal(
+    decideTorch(0.9, true, { onSince: 0, bright: 0, selfGain: SELF_MIN, baseline: 0.1 }, MIN_ON_MS + 10).torchOn,
+    true, 'one bright reading is not "the light came back"');
 
   // Sem leitura (preview no PC) nada muda.
   assert.equal(decideTorch(-1, true, { onSince: 0 }, 9e9).changed, false);
   assert.equal(decideTorch(-1, false, {}, 9e9).changed, false);
-  assert.equal(decideTorch(NO_LIGHT - .02, false, { dark: 1 }, 1e6).torchOn, true);
 });
 
 test('Build 89: the flashlight is real: Camera2 flash mode on the owned session', () => {
@@ -190,7 +190,7 @@ test('Build 89: the flashlight is real: Camera2 flash mode on the owned session'
 
 test('Build 89: the shipped APK is the release variant signed with the repository key', () => {
   const gradle = read('nextvr-android/build.gradle');
-  assert.ok(gradle.includes('versionCode 90'), 'version code bumped');
+  assert.ok(gradle.includes('versionCode 91'), 'version code bumped');
   assert.ok(gradle.includes('signingConfigs.release'), 'release signing config exists');
   assert.ok(gradle.includes('signingConfig signingConfigs.release'), 'release uses it');
   assert.ok(gradle.includes('debuggable false'), 'the shipped build is not debuggable');

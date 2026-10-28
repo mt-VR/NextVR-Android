@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-91-flash',
+    tag: 'CORREÇÃO · BUILD 91 — LANTERNA QUE PISCAVA',
+    time: 'Agora',
+    heading: 'Build 91: a lanterna automática parou de piscar (ela não confunde mais a própria luz com luz do ambiente)',
+    desc: 'A lanterna acendia no escuro, a luz dela mesma subia a leitura da câmera, ela achava que tinha luz e apagava — e ficava nesse vai e vem. Agora o app espera o sensor estabilizar, mede quanto a PRÓPRIA lanterna soma na imagem e desconta isso antes de decidir: só apaga quando a luz do ambiente realmente volta, com confirmação de vários segundos. Tem também tempo mínimo ligada/desligada e, se ela ainda assim apagar cedo demais três vezes, para de tentar por 2 minutos em vez de piscar na sua cara. O modo noturno não briga mais com a lanterna, e as Configurações mostram a luz do ambiente já sem a luz da própria lanterna.',
+  },
+  {
     id: 'build-90-key',
     tag: 'NOVO · BUILD 90 — KEY DE 22 CARACTERES, CONTA POR E-MAIL E LANTERNA NO ESCURO',
     time: 'Agora',

@@ -28,7 +28,21 @@ let lastLevel = -1;
 /* Lanterna (Build 89). O estado e os contadores vivem aqui; quem acende de verdade e' o lado
  * nativo (NativeXR.setTorch). Ver `decideTorch` em night-camera-math.js para as travas anti-pisca. */
 let torchOn = false;
-let torchTimes = { onSince: -1, offSince: -1, dark: 0, bright: 0 };
+// Estado completo da decisão (inclui a calibração da luz da própria lanterna — Build 91).
+let torchTimes = { onSince: -1, offSince: -1, dark: 0, bright: 0, baseline: -1, selfGain: -1, cycles: 0, parkUntil: -1 };
+
+let torchAmbient = null;
+let torchReason = '';
+// Leitura própria da lanterna, com suavização mais rápida que a do modo noturno: a decisão do
+// flash precisa reagir em poucos segundos, não em dezenas.
+let torchSmooth = -1;
+const torchIdle = () => ({ onSince: -1, offSince: -1, dark: 0, bright: 0, baseline: -1, selfGain: -1, cycles: 0, parkUntil: -1 });
+const resetTorchState = () => {
+  torchTimes = torchIdle();
+  torchSmooth = -1;
+  torchAmbient = null;
+  torchReason = '';
+};
 
 const mode = () => (S.nightCamera === 'on' || S.nightCamera === 'off') ? S.nightCamera : 'auto';
 
@@ -72,6 +86,9 @@ export const nightCameraState = () => ({
   torch: torchOn,
   torchAuto: S.torchAuto !== 0,
   torchAvailable,
+  // Build 91: luz do ambiente já descontando a luz da própria lanterna, e o motivo da última decisão.
+  torchAmbient,
+  torchReason,
 });
 
 function apply(next) {
@@ -104,6 +121,7 @@ function sample() {
   if (wanted === 'off') {
     apply(false);
     setTorch(false);
+    resetTorchState();
     return;
   }
   const level = readLevel();
@@ -115,22 +133,40 @@ function sample() {
     // Modo automatico da camera noturna (ganho do passthrough), com histerese.
     const result = decideNightCamera(level, smooth, active);
     smooth = result.smooth;
-    if (result.changed) apply(result.active);
+    // Build 91: com a lanterna acesa a leitura alta é da PRÓPRIA lanterna. Se o modo noturno
+    // reagisse a ela, ele desligaria o +EV, o escuro voltaria e os dois ficariam brigando (mais
+    // um motivo de piscada). Então, enquanto o flash estiver aceso, o modo noturno fica travado
+    // onde estava e só volta a decidir quando o flash apagar.
+    if (result.changed && !torchOn) apply(result.active);
   }
+
+  // Build 91: com a lanterna acesa o ganho noturno sai de cena. Somar +EV ao flash estoura a
+  // imagem, atrapalha o hand tracking e — pior — cega a própria medição que decide se a luz do
+  // ambiente voltou. A luz, ali, já vem do flash.
+  if (torchOn && active && wanted === 'auto') apply(false);
 
   // Lanterna: independe do ganho do passthrough. So' acende quando nao ha luz nenhuma e apaga
   // quando a luz volta — com as travas de tempo do `decideTorch` para nunca piscar.
-  if (S.torchAuto === 0) { setTorch(false); return; }
+  if (S.torchAuto === 0) { setTorch(false); resetTorchState(); return; }
   if (level < 0) return;                       // sem leitura: nao mexe no flash
-  if (!detectTorch()) { setTorch(false); return; }
+  if (!detectTorch()) { setTorch(false); resetTorchState(); return; }
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const decision = decideTorch(smooth >= 0 ? smooth : level, torchOn, torchTimes, now);
+  torchSmooth = torchSmooth < 0 ? level : torchSmooth * 0.5 + level * 0.5;
+  const decision = decideTorch(torchSmooth, torchOn, torchTimes, now);
+  // Guarda TODO o estado: sem `baseline`/`selfGain`/`cycles` a calibração e o anti-pisca por
+  // histórico se perderiam a cada leitura.
   torchTimes = {
     onSince: decision.onSince,
     offSince: decision.offSince,
     dark: decision.dark,
     bright: decision.bright,
+    baseline: decision.baseline,
+    selfGain: decision.selfGain,
+    cycles: decision.cycles,
+    parkUntil: decision.parkUntil,
   };
+  torchAmbient = decision.ambient;
+  torchReason = decision.reason;
   if (decision.changed) setTorch(decision.torchOn);
 }
 
@@ -149,7 +185,7 @@ export function installNightCamera() {
   on('night-camera-mode', () => {
     smooth = -1;
     lastLevel = -1;
-    torchTimes = { onSince: -1, offSince: -1, dark: 0, bright: 0 };
+    resetTorchState();
     sample();
     if (mode() === 'off') { apply(false); setTorch(false); }
   });

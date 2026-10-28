@@ -35,7 +35,10 @@ android {
         // com vínculos (Discord/TikTok/Google/YouTube), lanterna quando não há luz nenhuma, mão
         // reconhecida no escuro, bolinha ao lado da barrinha do teclado e a barra de brilho das
         // janelinhas removida.
-        versionCode 90
+        // 91 / 2.1.0: correção da lanterna que piscava. A decisão agora desconta a luz da PRÓPRIA
+        // lanterna (calibrada depois do AE estabilizar), exige luz de ambiente confirmada para
+        // apagar, e depois de 3 ciclos curtos "estaciona" em vez de continuar piscando.
+        versionCode 91
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
