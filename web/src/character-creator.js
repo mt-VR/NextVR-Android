@@ -72,13 +72,14 @@ export const CHARACTER_OPTIONS = Object.freeze({
 
 export const DEFAULT_CHARACTER = Object.freeze({
   skin: '#e2a982',
-  hairStyle: 'spiky',
+  hairStyle: 'short',
   hairColor: '#18181b',
   visor: 'pico4',
-  outfit: 'jacket',
-  outfitColor: '#2563eb',
-  pantsColor: '#09090b',
-  accessory: 'headphones',
+  // Build 92 — padrão igual ao avatar do PICO: camiseta amarela, calça escura e headset branco.
+  outfit: 'tshirt',
+  outfitColor: '#f2d64b',
+  pantsColor: '#2b3040',
+  accessory: 'none',
   pose: 'idle',
 });
 
@@ -141,104 +142,147 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
   const c = { ...DEFAULT_CHARACTER, ...(charCfg || {}) };
   const t = Number(opts.time) || 0;
   const yaw = Number(opts.yaw) || 0;
-  const pitch = Number(opts.pitch) || 0.08;
+  const pitch = Number(opts.pitch) || 0.05;
   const portrait = !!opts.portrait;
   const lh = opts.leftHand;
   const rh = opts.rightHand;
-  // Build 89: zoom do visualizador 3D (1 = padrao). O avatar e' desenhado maior, nao esticado,
-  // porque a escala entra na projecao e nao num ctx.scale depois do desenho.
+  // Build 89: zoom do visualizador 3D (1 = padrão) — a escala entra na projeção, não num
+  // ctx.scale depois do desenho (senão o corpo estica).
   const zoom = Math.max(.4, Math.min(2.4, Number(opts.zoom) || 1));
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
+  drawStudioBackdrop(ctx, w, h, portrait);
 
-  // Fundo 3D Studio com iluminação volumétrica
-  if (portrait) {
-    const bg = ctx.createRadialGradient(w * 0.5, h * 0.42, w * 0.06, w * 0.5, h * 0.5, w * 0.68);
-    bg.addColorStop(0, '#2a3346');
-    bg.addColorStop(0.65, '#131722');
-    bg.addColorStop(1, '#090b10');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, w, h);
-  } else {
-    const bg = ctx.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, '#161922');
-    bg.addColorStop(0.58, '#1f2430');
-    bg.addColorStop(1, '#10131a');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, w, h);
-  }
+  /*
+   * Build 92 — o avatar virou uma pessoa de verdade.
+   *
+   * Antes a cabeça tinha 21,5 de raio para um corpo de 161 de altura: um boneco de ~3,7 cabeças,
+   * com contorno preto em tudo. O usuário mandou o print do avatar do PICO ("o boneco em 3D é
+   * desse jeito, não aquele feio") e pediu um corpo humano: ~7,5 cabeças, ombros na largura certa,
+   * braços caídos ao lado do corpo, camiseta amarela, calça escura e headset branco.
+   *
+   * Unidades: y para cima, chão em GROUND = -96, cabeça no topo (headY = 57). Altura total ≈ 163,
+   * cabeça ≈ 22 de diâmetro → 7,4 cabeças. A projeção em perspectiva continua a mesma.
+   */
+  /* Esqueleto (unidades): chão -96, quadril -14, ombro 26, topo da cabeça ~57.
+     Altura ≈ 153 com cabeça de 21,8 de diâmetro → 7 cabeças, como uma pessoa de verdade. */
+  const GROUND = -96;
+  const breathe = Math.sin(t * 2.6) * 0.7;
+  const hipY = -14 + breathe * 0.3;
+  const chestY = 30 + breathe;
+  const headY = 46.5 + breathe;
+  const headR = 11.4;
 
-  // Câmera e projeção 3D
   const cx = w * 0.5;
-  const cy = portrait ? h * 0.80 : h * 0.53;
-  const scale = (portrait ? (w / 118) : (Math.min(w, h) / 235)) * zoom;
-  const camDist = 340;
+  const scale = portrait
+    ? (h / 104) * zoom
+    : Math.min(w / 92, h / 178) * zoom;
+  const cy = portrait ? (h * 0.30 + headY * scale) : (h * 0.5 - 19.5 * scale);
+  const camDist = 430;
   const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
   const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
 
   const project3D = (x, y, z) => {
-    // Rotação Y (yaw 360°)
     const rx = x * cosY + z * sinY;
     const rz0 = -x * sinY + z * cosY;
-    // Rotação X (pitch leve de câmara 3D)
     const ry = y * cosP - rz0 * sinP;
     const rz = y * sinP + rz0 * cosP;
-    const fov = camDist / Math.max(90, camDist - rz);
-    return {
-      x: cx + rx * scale * fov,
-      y: cy - ry * scale * fov,
-      z: rz,
-      s: scale * fov,
-    };
+    const fov = camDist / Math.max(120, camDist - rz);
+    return { x: cx + rx * scale * fov, y: cy - ry * scale * fov, z: rz, s: scale * fov };
   };
 
-  // Pedestal 3D com grade em perspectiva
-  if (!portrait) {
-    const baseP = project3D(0, -96, 0);
-    // Grade circular 3D no chão
-    for (const ringR of [48, 34, 20]) {
-      ctx.beginPath();
-      for (let i = 0; i <= 40; i++) {
-        const a = (i / 40) * Math.PI * 2;
-        const p = project3D(Math.cos(a) * ringR, -96, Math.sin(a) * ringR);
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+  /*
+   * Corpo em "silhueta varrida" (Build 92).
+   *
+   * Empilhar cápsulas deixava o boneco com cara de peças soltas: bolas nos ombros, cintura do
+   * tamanho do peito. Aqui cada parte do corpo é uma tabela de perfis (y → meia-largura e
+   * meia-profundidade) e o contorno é uma curva contínua. Como cada seção é uma elipse, a
+   * meia-largura na tela é `hypot(w·cos(yaw), d·sin(yaw))` — o corpo gira 360° mantendo volume,
+   * e o desenho fica com a silhueta redonda de gente de verdade, como no avatar do PICO.
+   */
+  const profileAt = (table, y) => {
+    if (y <= table[0][0]) return { w: table[0][1], d: table[0][2] };
+    const last = table[table.length - 1];
+    if (y >= last[0]) return { w: last[1], d: last[2] };
+    for (let i = 1; i < table.length; i++) {
+      const [y1, w1, d1] = table[i];
+      if (y <= y1) {
+        const [y0, w0, d0] = table[i - 1];
+        const k = (y - y0) / (y1 - y0 || 1);
+        return { w: w0 + (w1 - w0) * k, d: d0 + (d1 - d0) * k };
       }
-      ctx.strokeStyle = ringR === 48 ? 'rgba(56, 189, 248, 0.45)' : 'rgba(148, 163, 184, 0.16)';
-      ctx.lineWidth = ringR === 48 ? 2.2 : 1;
-      ctx.stroke();
     }
-    // Raios do piso 3D
-    for (let i = 0; i < 8; i++) {
-      const a = yaw + (i / 8) * Math.PI * 2;
-      const p0 = project3D(0, -96, 0);
-      const p1 = project3D(Math.cos(a) * 48, -96, Math.sin(a) * 48);
+    return { w: last[1], d: last[2] };
+  };
+
+  /** Desenha uma parte do corpo como contorno contínuo, com luz vindo da esquerda. */
+  const sweepBody = (table, colorHex, opts2 = {}) => {
+    const y0 = table[0][0];
+    const y1 = table[table.length - 1][0];
+    const steps = Math.max(8, Math.min(30, Math.round((y1 - y0) / 2)));
+    const center = opts2.centerX || 0;
+    const left = [], right = [];
+    let maxW = 0;
+    for (let i = 0; i <= steps; i++) {
+      const y = y0 + ((y1 - y0) * i) / steps;
+      const pr = profileAt(table, y);
+      const half = Math.hypot(pr.w * cosY, pr.d * sinY);
+      maxW = Math.max(maxW, half);
+      const a = project3D(center - pr.w, y, 0);
+      const b = project3D(center + pr.w, y, 0);
+      const mx = (a.x + b.x) * 0.5;
+      left.push([mx - half * a.s, a.y]);
+      right.push([mx + half * b.s, b.y]);
+    }
+    const tracePath = () => {
       ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-    // Sombra 3D suave sob os pés
-    const shGrad = ctx.createRadialGradient(baseP.x, baseP.y, 2, baseP.x, baseP.y, 44 * scale);
-    shGrad.addColorStop(0, 'rgba(0, 0, 0, 0.58)');
-    shGrad.addColorStop(0.65, 'rgba(56, 189, 248, 0.14)');
-    shGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = shGrad;
+      ctx.moveTo(left[0][0], left[0][1]);
+      for (let i = 1; i < left.length; i++) ctx.lineTo(left[i][0], left[i][1]);
+      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+      ctx.closePath();
+    };
+
+    const mid = project3D(center, (y0 + y1) * 0.5, 0);
+    const halfPx = Math.max(3, maxW * mid.s);
+    const shift = (opts2.lightShift ?? 1) * (cosY >= 0 ? 1 : -1);
+    const g = ctx.createLinearGradient(mid.x - halfPx * shift, mid.y - halfPx * 0.5, mid.x + halfPx * shift, mid.y + halfPx * 0.35);
+    g.addColorStop(0, shadeHex(colorHex, opts2.hi ?? 26));
+    g.addColorStop(0.28, shadeHex(colorHex, 8));
+    g.addColorStop(0.62, colorHex);
+    g.addColorStop(1, shadeHex(colorHex, opts2.lo ?? -40));
+    ctx.save();
+    tracePath();
+    ctx.fillStyle = g;
+    ctx.fill();
+    // Luz de recorte bem discreta no lado iluminado (sem contorno preto).
+    tracePath();
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.lineWidth = Math.max(0.5, 0.7 * scale);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // Sombra de estúdio no chão (sem grade neon: o avatar do PICO é limpo).
+  if (!portrait) {
+    const base = project3D(0, GROUND, 0);
+    const shadow = ctx.createRadialGradient(base.x, base.y, 1, base.x, base.y, 34 * scale);
+    shadow.addColorStop(0, 'rgba(0,0,0,.52)');
+    shadow.addColorStop(0.62, 'rgba(0,0,0,.20)');
+    shadow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadow;
     ctx.beginPath();
-    ctx.ellipse(baseP.x, baseP.y, 44 * scale, 13 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(base.x, base.y, 34 * scale, 9.5 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Aura Neon 3D
+  // Aura Neon (opcional)
   if (c.accessory === 'aura') {
-    const auraP = project3D(0, 8, -10);
-    const auraR = (68 + Math.sin(t * 4) * 4) * scale;
+    const auraP = project3D(0, 12, -14);
+    const auraR = (58 + Math.sin(t * 4) * 3) * scale;
     const ag = ctx.createRadialGradient(auraP.x, auraP.y, auraR * 0.15, auraP.x, auraP.y, auraR);
-    ag.addColorStop(0, 'rgba(56, 189, 248, 0.34)');
-    ag.addColorStop(0.55, 'rgba(168, 85, 247, 0.18)');
+    ag.addColorStop(0, 'rgba(125, 211, 252, 0.30)');
+    ag.addColorStop(0.55, 'rgba(168, 85, 247, 0.16)');
     ag.addColorStop(1, 'rgba(56, 189, 248, 0)');
     ctx.fillStyle = ag;
     ctx.beginPath();
@@ -246,40 +290,40 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
     ctx.fill();
   }
 
-  const breathe = Math.sin(t * 2.6) * 1.4;
   const drawQueue = [];
 
-  // Primitiva 1: Esfera 3D com iluminação especular, difusa e rim light
+  // Primitiva 1: esfera 3D com luz difusa e brilho especular (sem contorno preto).
   const pushSphere3D = (x, y, z, r, colorHex, opts3d = {}) => {
     const p = project3D(x, y, z);
     drawQueue.push({
       z: p.z + (opts3d.zBias || 0),
       draw: () => {
-        const rad = Math.max(1.5, r * p.s);
+        const rad = Math.max(1.2, r * p.s);
         const sx = opts3d.scaleX || 1;
         const sy = opts3d.scaleY || 1;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.scale(sx, sy);
-        const g = ctx.createRadialGradient(-rad * 0.32, -rad * 0.34, rad * 0.08, 0, 0, rad);
-        g.addColorStop(0, shadeHex(colorHex, opts3d.specDelta ?? 48));
-        g.addColorStop(0.45, colorHex);
-        g.addColorStop(0.84, shadeHex(colorHex, -34));
-        g.addColorStop(1, shadeHex(colorHex, -58));
+        const g = ctx.createRadialGradient(-rad * 0.34, -rad * 0.38, rad * 0.06, 0, 0, rad);
+        g.addColorStop(0, shadeHex(colorHex, opts3d.specDelta ?? 34));
+        g.addColorStop(0.5, colorHex);
+        g.addColorStop(0.88, shadeHex(colorHex, -26));
+        g.addColorStop(1, shadeHex(colorHex, -48));
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(0, 0, rad, 0, Math.PI * 2);
         ctx.fill();
-        // Rim light 3D
-        ctx.strokeStyle = opts3d.rimColor || 'rgba(255, 255, 255, 0.22)';
-        ctx.lineWidth = Math.max(0.8, 1.15 * scale);
-        ctx.stroke();
+        if (opts3d.rimColor) {
+          ctx.strokeStyle = opts3d.rimColor;
+          ctx.lineWidth = Math.max(0.6, 0.9 * scale);
+          ctx.stroke();
+        }
         ctx.restore();
       },
     });
   };
 
-  // Primitiva 2: Cápsula/Cilindro 3D sombreado lateralmente
+  // Primitiva 2: cápsula/cilindro 3D com sombreado lateral.
   const pushCapsule3D = (x0, y0, z0, x1, y1, z1, r0, r1, colorHex, opts3d = {}) => {
     const p0 = project3D(x0, y0, z0);
     const p1 = project3D(x1, y1, z1);
@@ -290,25 +334,20 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
         const dx = p1.x - p0.x;
         const dy = p1.y - p0.y;
         const len = Math.hypot(dx, dy);
-        const rad0 = Math.max(1.5, r0 * p0.s);
-        const rad1 = Math.max(1.5, r1 * p1.s);
+        const rad0 = Math.max(1.2, r0 * p0.s);
+        const rad1 = Math.max(1.2, r1 * p1.s);
         const nx = len > 1e-3 ? -dy / len : -1;
         const ny = len > 1e-3 ? dx / len : 0;
         const mx = (p0.x + p1.x) * 0.5;
         const my = (p0.y + p1.y) * 0.5;
         const maxR = Math.max(rad0, rad1);
-
         const grad = ctx.createLinearGradient(
-          mx - nx * maxR,
-          my - ny * maxR,
-          mx + nx * maxR,
-          my + ny * maxR
+          mx - nx * maxR, my - ny * maxR, mx + nx * maxR, my + ny * maxR
         );
-        grad.addColorStop(0, shadeHex(colorHex, 38));
-        grad.addColorStop(0.32, shadeHex(colorHex, 14));
-        grad.addColorStop(0.72, colorHex);
-        grad.addColorStop(1, shadeHex(colorHex, -46));
-
+        grad.addColorStop(0, shadeHex(colorHex, 28));
+        grad.addColorStop(0.34, shadeHex(colorHex, 10));
+        grad.addColorStop(0.74, colorHex);
+        grad.addColorStop(1, shadeHex(colorHex, -38));
         const ang = Math.atan2(dy, dx);
         ctx.save();
         ctx.beginPath();
@@ -317,308 +356,376 @@ export function drawCharacter2D(ctx, w, h, charCfg, opts = {}) {
         ctx.closePath();
         ctx.fillStyle = grad;
         ctx.fill();
-        ctx.strokeStyle = opts3d.rimColor || 'rgba(255, 255, 255, 0.18)';
-        ctx.lineWidth = Math.max(0.75, 1.0 * scale);
-        ctx.stroke();
+        if (opts3d.rimColor) {
+          ctx.strokeStyle = opts3d.rimColor;
+          ctx.lineWidth = Math.max(0.6, 0.9 * scale);
+          ctx.stroke();
+        }
         ctx.restore();
       },
     });
   };
 
-  // Pernas 3D (com suporte a Motion Tracker)
-  if (!portrait) {
-    const lLegLift = lh?.palm ? Math.max(0, (0.55 - lh.palm[1]) * 18) : 0;
-    const rLegLift = rh?.palm ? Math.max(0, (0.55 - rh.palm[1]) * 18) : 0;
+  const isShirt = c.outfit === 'tshirt';
+  const skin = c.skin;
+  const shirt = c.outfitColor;
+  const pants = c.pantsColor;
+  const shoeColor = '#edeef2';
 
-    for (const side of [-1, 1]) {
-      const lift = side < 0 ? lLegLift : rLegLift;
-      const hipX = side * 10.5, hipY = -20 + breathe * 0.3, hipZ = 0;
-      const kneeX = side * 11.2, kneeY = -55 + lift * 0.65, kneeZ = 4 + lift * 0.35;
-      const ankleX = side * 11.5, ankleY = -88 + lift, ankleZ = 1 + lift * 0.15;
-      const toeX = side * 12.2, toeY = -92 + lift, toeZ = 14 + lift * 0.15;
+  /* ------------------------------------------------------------------ pernas */
+  const lLegLift = lh?.palm ? Math.max(0, (0.55 - lh.palm[1]) * 14) : 0;
+  const rLegLift = rh?.palm ? Math.max(0, (0.55 - rh.palm[1]) * 14) : 0;
 
-      // Coxa 3D
-      pushCapsule3D(hipX, hipY, hipZ, kneeX, kneeY, kneeZ, 8.2, 6.8, c.pantsColor);
-      // Joelho 3D
-      pushSphere3D(kneeX, kneeY, kneeZ, 6.5, shadeHex(c.pantsColor, 10));
-      // Canela 3D
-      pushCapsule3D(kneeX, kneeY, kneeZ, ankleX, ankleY, ankleZ, 6.6, 5.4, shadeHex(c.pantsColor, -8));
-      // Bota/Tênis 3D volumétrico
-      pushCapsule3D(ankleX, ankleY, ankleZ - 2, toeX, toeY, toeZ, 6.2, 5.8, '#e2e8f0', {
-        rimColor: 'rgba(56, 189, 248, 0.45)',
-      });
+  // Bacia: uma peça só, de calça, ligando as duas pernas.
+  sweepBody([
+    [hipY + 7, 8.8, 7.0],
+    [hipY - 2, 9.0, 7.1],
+    [hipY - 9, 8.0, 6.6],
+  ], pants, { hi: 26, lo: -36 });
+
+  // Pernas: coxa cheia, joelho, panturrilha e tornozelo fino.
+  const legTables = [];
+  for (const side of [-1, 1]) {
+    const lift = side < 0 ? lLegLift : rLegLift;
+    const table = [
+      [hipY - 6, 5.2, 6.0],
+      [-30, 4.9, 5.4],
+      [-52 + lift * 0.35, 4.6, 4.9],
+      [-66 + lift * 0.6, 4.5, 4.7],
+      [-80 + lift, 3.6, 3.6],
+      [-86 + lift, 3.0, 3.0],
+    ];
+    legTables.push({ side, lift, table });
+    sweepBody(table, pants, { centerX: side * 5.7, hi: 26, lo: -38 });
+  }
+
+  // Costura central: sem ela as duas pernas viram um bloco só no escuro.
+  drawQueue.push({
+    z: project3D(0, -44, 3).z + 1,
+    draw: () => {
+      const top = project3D(0, hipY - 12, 4.0);
+      const bot = project3D(0, -78, 3.6);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,.55)';
+      ctx.lineWidth = Math.max(1.2, 1.9 * scale);
+      ctx.beginPath();
+      ctx.moveTo(top.x, top.y);
+      ctx.lineTo(bot.x, bot.y);
+      ctx.stroke();
+      ctx.restore();
+    },
+  });
+
+  // Tênis (branco com sola escura) + sensor do Motion Tracker quando ligado.
+  for (const { side, lift } of legTables) {
+    const ankle = [side * 6.0, -85 + lift, 0];
+    const toe = [side * 6.2, -92.5 + lift, 9];
+    pushCapsule3D(ankle[0], ankle[1] + 2.2, ankle[2], toe[0], toe[1], toe[2], 3.5, 2.9, shoeColor);
+    pushSphere3D(toe[0], toe[1] - 0.2, toe[2] + 1.2, 2.7, '#dfe1e6');
+    pushCapsule3D(ankle[0], ankle[1] - 2.6, ankle[2] + 0.8, toe[0], toe[1] - 2.2, toe[2], 2.1, 1.9, '#3f3f46');
+    if (opts.motionPads) {
+      pushSphere3D(ankle[0], ankle[1] + 3.2, ankle[2] + 3.2, 2.2, '#84c400', { zBias: 8 });
     }
   }
 
-  // Pelve e Torso 3D (com volumetria real)
-  const pelvisY = -18 + breathe * 0.4;
-  const chestY = 18 + breathe;
-  pushCapsule3D(0, pelvisY, 0, 0, chestY, 0, 16.5, 20.5, c.outfitColor);
-  // Ombros 3D esféricos
-  pushSphere3D(-20.5, chestY - 2, 0, 7.8, shadeHex(c.outfitColor, 12));
-  pushSphere3D(20.5, chestY - 2, 0, 7.8, shadeHex(c.outfitColor, 12));
+  /* ------------------------------------------------------------------- tronco */
+  // Bacia, cintura, peito e ombros num contorno só: é o que dá a leitura de pessoa.
+  const torsoTable = [
+    [hipY - 2, 9.4, 7.3],
+    [hipY + 6, 8.9, 7.0],
+    [2, 8.6, 6.9],
+    [9, 9.7, 7.5],
+    [16, 10.9, 8.0],
+    [22, 11.7, 7.9],
+    [26, 11.2, 7.5],
+    [28.5, 8.6, 6.4],
+    [30.5, 5.6, 4.9],
+  ];
+  sweepBody(torsoTable, shirt, { hi: 30, lo: -44 });
 
-  // Detalhes 3D do traje na frente do peito (ordenados por Z da superfície frontal)
-  const frontChest = project3D(0, (pelvisY + chestY) * 0.5, 18.5);
+  // Mangas curtas: a camiseta cobre o ombro e o começo do braço.
+  const armJoints = side => {
+    const sh = [side * 10.6, chestY - 4, 0];
+    const handTrack = side < 0 ? lh : rh;
+    if (handTrack?.palm) {
+      const hx = side * (11 + (handTrack.palm[0] - 0.5) * 28);
+      const hy = chestY - (handTrack.palm[1] - 0.35) * 50;
+      const hz = 8;
+      return { sh, el: [side * 17, (sh[1] + hy) * 0.5 - 3, 4], wr: [hx, hy, hz] };
+    }
+    if (c.pose === 'wave' && side > 0) {
+      const wv = Math.sin(t * 6.5) * 5;
+      return { sh, el: [side * 17.5, chestY - 2, 3], wr: [side * (19 + wv * 0.5), chestY + 15, 7] };
+    }
+    if (c.pose === 'hero') {
+      return { sh, el: [side * 17.5, chestY - 14, 2], wr: [side * 8.5, hipY + 6, 5] };
+    }
+    if (c.pose === 'peace' && side > 0) {
+      return { sh, el: [side * 16.5, chestY - 5, 5], wr: [side * 13, chestY + 9, 9] };
+    }
+    const sw = Math.sin(t * 2.2 + side) * 1.6;
+    return { sh, el: [side * 15.2, 4, 1.2 + sw * 0.4], wr: [side * 15.4, -20, 3 + sw] };
+  };
+
+  for (const side of [-1, 1]) {
+    const j = armJoints(side);
+    // Manga curta: só o começo do braço é camiseta, o resto é pele (como no avatar do PICO).
+    const sleeveT = 0.46;
+    const sleeveEnd = [
+      j.sh[0] + (j.el[0] - j.sh[0]) * sleeveT,
+      j.sh[1] + (j.el[1] - j.sh[1]) * sleeveT,
+      j.sh[2] + (j.el[2] - j.sh[2]) * sleeveT,
+    ];
+    if (isShirt) {
+      pushCapsule3D(j.sh[0] * 0.92, j.sh[1] + 2.2, j.sh[2], sleeveEnd[0], sleeveEnd[1], sleeveEnd[2], 4.1, 3.7, shirt);
+      pushCapsule3D(sleeveEnd[0], sleeveEnd[1], sleeveEnd[2], j.el[0], j.el[1], j.el[2], 3.5, 3.2, skin);
+    } else {
+      pushCapsule3D(j.sh[0] * 0.92, j.sh[1] + 2.2, j.sh[2], j.el[0], j.el[1], j.el[2], 4.1, 3.7, shadeHex(shirt, -4));
+    }
+    pushCapsule3D(j.el[0], j.el[1], j.el[2], j.wr[0], j.wr[1], j.wr[2], 3.5, 2.9, skin);
+    pushSphere3D(j.wr[0], j.wr[1], j.wr[2], 3.4, skin);
+  }
+
+  // Detalhes do traje na frente do peito
+  const torsoFront = project3D(0, (hipY + chestY) * 0.5, 10.5);
   drawQueue.push({
-    z: frontChest.z + 1.5,
+    z: torsoFront.z + 2,
     draw: () => {
-      if (cosY <= -0.25) return; // de costas não mostra detalhe frontal
+      if (cosY <= -0.2) return;
       ctx.save();
+      const face = Math.max(0.25, cosY);
       if (c.outfit === 'jacket') {
-        const topP = project3D(0, chestY + 2, 18);
-        const botP = project3D(0, pelvisY + 2, 16.5);
-        ctx.strokeStyle = '#09090b';
-        ctx.lineWidth = Math.max(2, 4.5 * scale * Math.max(0.2, cosY));
+        const top = project3D(0, chestY + 1, 10.2);
+        const bot = project3D(0, hipY + 4, 9.6);
+        ctx.strokeStyle = 'rgba(9,9,11,.75)';
+        ctx.lineWidth = Math.max(1.2, 1.6 * scale * face);
         ctx.beginPath();
-        ctx.moveTo(topP.x, topP.y);
-        ctx.lineTo(botP.x, botP.y);
-        ctx.stroke();
-        // Zíper metálico 3D
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = Math.max(1, 1.4 * scale);
+        ctx.moveTo(top.x, top.y);
+        ctx.lineTo(bot.x, bot.y);
         ctx.stroke();
       } else if (c.outfit === 'armor') {
-        const coreP = project3D(0, chestY - 6, 19.5);
-        const rCore = Math.max(3, 7.5 * coreP.s);
-        const cg = ctx.createRadialGradient(coreP.x, coreP.y, 1, coreP.x, coreP.y, rCore);
+        const coreP = project3D(0, chestY - 8, 11.5);
+        const rCore = Math.max(2, 4.6 * coreP.s);
+        const cg = ctx.createRadialGradient(coreP.x, coreP.y, 0.5, coreP.x, coreP.y, rCore);
         cg.addColorStop(0, '#ffffff');
-        cg.addColorStop(0.45, '#38bdf8');
+        cg.addColorStop(0.4, '#7dd3fc');
         cg.addColorStop(1, 'rgba(56, 189, 248, 0)');
         ctx.fillStyle = cg;
         ctx.beginPath();
         ctx.arc(coreP.x, coreP.y, rCore, 0, Math.PI * 2);
         ctx.fill();
       } else if (c.outfit === 'hoodie') {
-        const pocketP = project3D(0, pelvisY + 9, 17.5);
-        ctx.fillStyle = shadeHex(c.outfitColor, -24);
+        const pocketP = project3D(0, hipY + 11, 10.2);
+        ctx.fillStyle = shadeHex(shirt, -22);
         ctx.beginPath();
-        ctx.roundRect(pocketP.x - 11 * pocketP.s * Math.max(0.3, cosY), pocketP.y - 4 * pocketP.s, 22 * pocketP.s * Math.max(0.3, cosY), 9 * pocketP.s, 4 * pocketP.s);
+        ctx.roundRect(pocketP.x - 6.4 * pocketP.s, pocketP.y - 2.6 * pocketP.s,
+          12.8 * pocketP.s, 5.4 * pocketP.s, 2.2 * pocketP.s);
         ctx.fill();
+      } else if (isShirt) {
+        // Gola redonda + barra da camiseta: o que dá a leitura de "camiseta" de longe.
+        const collar = project3D(0, chestY - 1.2, 9.6);
+        ctx.strokeStyle = shadeHex(shirt, -26);
+        ctx.lineWidth = Math.max(0.8, 1.0 * scale * face);
+        ctx.beginPath();
+        ctx.ellipse(collar.x, collar.y, 4.2 * collar.s * face, 1.5 * collar.s, 0, 0, Math.PI);
+        ctx.stroke();
       }
       ctx.restore();
     },
   });
 
-  // Mochila Jet 3D nas costas (quando gira o personagem 3D ela aparece na frente!)
   if (c.accessory === 'backpack') {
-    pushCapsule3D(-8, pelvisY + 6, -16, -8, chestY - 2, -16, 6.2, 6.8, '#334155', {
-      rimColor: 'rgba(56, 189, 248, 0.5)',
-    });
-    pushCapsule3D(8, pelvisY + 6, -16, 8, chestY - 2, -16, 6.2, 6.8, '#334155', {
-      rimColor: 'rgba(56, 189, 248, 0.5)',
-    });
-    pushSphere3D(-8, pelvisY + 2, -17, 4.2, '#38bdf8', { specDelta: 65 });
-    pushSphere3D(8, pelvisY + 2, -17, 4.2, '#38bdf8', { specDelta: 65 });
+    pushCapsule3D(-6, hipY + 8, -9.5, -6, chestY - 4, -9.5, 4.2, 4.6, '#334155');
+    pushCapsule3D(6, hipY + 8, -9.5, 6, chestY - 4, -9.5, 4.2, 4.6, '#334155');
   }
 
-  // Braços 3D articulados (ombro -> cotovelo -> pulso -> mão 3D)
-  const calcArmJoints3D = (side) => {
-    const shX = side * 21.5, shY = chestY - 2, shZ = 0;
-    const handTrack = side < 0 ? lh : rh;
-    if (handTrack?.palm) {
-      const hx = side * (16 + (handTrack.palm[0] - 0.5) * 38);
-      const hy = chestY - (handTrack.palm[1] - 0.35) * 65;
-      const hz = 18;
-      return {
-        sh: [shX, shY, shZ],
-        el: [side * 25, (shY + hy) * 0.5 - 6, 8],
-        wr: [hx, hy, hz],
-      };
-    }
-    if (c.pose === 'wave' && side > 0) {
-      const wv = Math.sin(t * 6.5) * 8;
-      return {
-        sh: [shX, shY, shZ],
-        el: [side * 31, shY + 8, 6],
-        wr: [side * (35 + wv * 0.6), shY + 28, 12],
-      };
-    }
-    if (c.pose === 'hero') {
-      return {
-        sh: [shX, shY, shZ],
-        el: [side * 30, shY - 12, 4],
-        wr: [side * 17, pelvisY + 6, 10],
-      };
-    }
-    if (c.pose === 'peace' && side > 0) {
-      return {
-        sh: [shX, shY, shZ],
-        el: [side * 28, shY - 4, 10],
-        wr: [side * 24, shY + 20, 18],
-      };
-    }
-    const sw = Math.sin(t * 2.2 + side) * 2.5;
-    return {
-      sh: [shX, shY, shZ],
-      el: [side * 25, shY - 18, sw],
-      wr: [side * 24, pelvisY - 4, 5 + sw],
-    };
-  };
+  /* --------------------------------------------------------------------- cabeça */
+  // Pescoço: curto e encaixado no tronco (nada de cano aparecendo).
+  pushCapsule3D(0, chestY - 2, 0, 0, headY - headR + 1.5, 0, 4.0, 3.7, skin, { rimColor: 'rgba(255,255,255,.10)' });
+  pushSphere3D(0, headY, 1, headR, skin, { scaleY: 1.05 });
+  pushSphere3D(-(headR - 0.5), headY - 0.6, 0.6, 2.3, shadeHex(skin, -10));
+  pushSphere3D(headR - 0.5, headY - 0.6, 0.6, 2.3, shadeHex(skin, -10));
 
-  for (const side of [-1, 1]) {
-    const j = calcArmJoints3D(side);
-    const sleeveHex = c.outfit === 'tshirt' ? c.skin : shadeHex(c.outfitColor, -6);
-    pushCapsule3D(j.sh[0], j.sh[1], j.sh[2], j.el[0], j.el[1], j.el[2], 6.4, 5.5, sleeveHex);
-    pushSphere3D(j.el[0], j.el[1], j.el[2], 5.2, sleeveHex);
-    pushCapsule3D(j.el[0], j.el[1], j.el[2], j.wr[0], j.wr[1], j.wr[2], 5.2, 4.4, c.outfit === 'tshirt' ? c.skin : shadeHex(c.outfitColor, 4));
-    // Mão 3D esférica
-    pushSphere3D(j.wr[0], j.wr[1], j.wr[2], 5.4, c.skin);
-  }
-
-  // Pescoço 3D
-  const neckY = chestY + 6;
-  const headY = chestY + 26;
-  pushCapsule3D(0, chestY + 1, 0, 0, neckY + 5, 0, 6.2, 5.8, shadeHex(c.skin, -14));
-
-  // Cabeça 3D volumétrica
-  pushSphere3D(0, headY, 2, 21.5, c.skin, { scaleY: 1.06 });
-
-  // Orelhas 3D
-  pushSphere3D(-20.8, headY - 1, 1, 4.2, shadeHex(c.skin, -10));
-  pushSphere3D(20.8, headY - 1, 1, 4.2, shadeHex(c.skin, -10));
-
-  // Rosto 3D (olhos, sobrancelhas, nariz 3D e sorriso na superfície da esfera da cabeça)
-  const faceCenter = project3D(0, headY, 22.5);
+  // Rosto (só quando o visor não cobre)
+  const faceZ = headR * 0.94;
+  const faceCenter = project3D(0, headY, faceZ);
   drawQueue.push({
-    z: faceCenter.z + 1.2,
+    z: faceCenter.z + 1.4,
     draw: () => {
-      if (cosY <= -0.15) return; // rosto oculto quando de costas
+      if (cosY <= -0.1) return;
+      if (!(c.visor === 'none' || c.visor === 'glasses')) return;
       ctx.save();
-      // Nariz 3D
-      const noseP = project3D(0, headY - 2.5, 23.8);
-      ctx.fillStyle = shadeHex(c.skin, -24);
-      ctx.beginPath();
-      ctx.arc(noseP.x, noseP.y, Math.max(1.5, 2.3 * noseP.s), 0, Math.PI * 2);
-      ctx.fill();
-
-      // Boca 3D
-      const mouthL = project3D(-4.8, headY - 8.5, 21.5);
-      const mouthC = project3D(0, headY - 10.2, 22.4);
-      const mouthR = project3D(4.8, headY - 8.5, 21.5);
-      ctx.strokeStyle = '#7c2d12';
-      ctx.lineWidth = Math.max(1.4, 2.1 * scale);
+      const face = Math.max(0.3, cosY);
+      // Olhos
+      for (const ex of [-4.2, 4.2]) {
+        const eyeP = project3D(ex, headY + 1.4, faceZ);
+        ctx.fillStyle = '#1c1917';
+        ctx.beginPath();
+        ctx.ellipse(eyeP.x, eyeP.y, Math.max(0.9, 1.25 * eyeP.s * face), Math.max(0.9, 1.5 * eyeP.s), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Sobrancelhas
+      ctx.strokeStyle = shadeHex(c.hairColor, 6);
+      ctx.lineWidth = Math.max(0.8, 0.9 * scale);
       ctx.lineCap = 'round';
+      for (const ex of [-3.9, 3.9]) {
+        const b = project3D(ex, headY + 3.3, faceZ - 0.2);
+        ctx.beginPath();
+        ctx.moveTo(b.x - 1.5 * b.s, b.y + 0.2 * b.s);
+        ctx.lineTo(b.x + 1.5 * b.s, b.y - 0.2 * b.s);
+        ctx.stroke();
+      }
+      // Nariz
+      const noseP = project3D(0, headY - 0.8, faceZ + 0.9);
+      ctx.fillStyle = shadeHex(skin, -20);
+      ctx.beginPath();
+      ctx.ellipse(noseP.x, noseP.y, Math.max(0.7, 1.0 * noseP.s), Math.max(1, 1.4 * noseP.s), 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Boca discreta
+      const mouthL = project3D(-2.1, headY - 4.4, faceZ - 0.3);
+      const mouthC = project3D(0, headY - 5.1, faceZ + 0.1);
+      const mouthR = project3D(2.1, headY - 4.4, faceZ - 0.3);
+      ctx.strokeStyle = 'rgba(120, 53, 15, .85)';
+      ctx.lineWidth = Math.max(0.9, 1.05 * scale);
       ctx.beginPath();
       ctx.moveTo(mouthL.x, mouthL.y);
       ctx.quadraticCurveTo(mouthC.x, mouthC.y, mouthR.x, mouthR.y);
       ctx.stroke();
-
-      // Olhos 3D (quando sem visor fechado)
-      if (c.visor === 'none' || c.visor === 'glasses') {
-        for (const ex of [-7.5, 7.5]) {
-          const eyeP = project3D(ex, headY + 2.5, 21.6);
-          ctx.fillStyle = '#09090b';
-          ctx.beginPath();
-          ctx.arc(eyeP.x, eyeP.y, Math.max(1.5, 2.7 * eyeP.s), 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(eyeP.x - 0.8 * eyeP.s, eyeP.y - 0.8 * eyeP.s, Math.max(0.7, 1.0 * eyeP.s), 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
       ctx.restore();
     },
   });
 
-  // Cabelo 3D volumétrico (cúpula 3D + mechas 3D ao redor do crânio)
+  /* --------------------------------------------------------------------- cabelo */
+  const hair = c.hairColor;
   if (c.hairStyle !== 'none') {
-    // Cúpula superior e traseira do cabelo em 3D
-    pushSphere3D(0, headY + 6.5, -1.5, 21.2, c.hairColor, { scaleY: 0.92, zBias: 0.8 });
-    pushSphere3D(0, headY + 2, -6.5, 19.5, shadeHex(c.hairColor, -14));
-
+    // Touca + franja: de frente aparece o topo do cabelo, atrás desce até a nuca.
+    pushSphere3D(0, headY + 4.4, -0.6, headR * 1.0, hair, { scaleY: 0.72 });
+    pushSphere3D(0, headY + 2.0, -4.6, headR * 0.92, hair, { scaleY: 0.92 });
+    pushSphere3D(0, headY + 6.6, -3.0, headR * 0.86, hair, { scaleY: 0.55, zBias: 0.5 });
+    // Franja na testa (só na frente, some quando o personagem vira de costas)
+    if (c.hairStyle !== 'none' && c.visor === 'pico4') {
+      drawQueue.push({
+        z: project3D(0, headY + 6, headR).z + 2,
+        draw: () => {
+          if (cosY <= 0.05) return;
+          const a = project3D(-headR * 0.62, headY + 5.2, headR * 0.72);
+          const b = project3D(headR * 0.62, headY + 5.2, headR * 0.72);
+          const t2 = project3D(0, headY + headR * 0.95, headR * 0.4);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.quadraticCurveTo(t2.x, t2.y - 2 * a.s, b.x, b.y);
+          ctx.quadraticCurveTo((a.x + b.x) * 0.5, (a.y + b.y) * 0.5 - 1.6 * a.s, a.x, a.y);
+          ctx.closePath();
+          ctx.fillStyle = hair;
+          ctx.fill();
+          ctx.restore();
+        },
+      });
+    }
     if (c.hairStyle === 'spiky') {
-      const spikes = [
-        [-13, headY + 22, 6, 7.5],
-        [-5, headY + 25, 8, 8.2],
-        [4, headY + 25, 8, 8.2],
-        [13, headY + 21, 6, 7.5],
-        [0, headY + 23, -6, 8.0],
-      ];
-      for (const [sx, sy, sz, sr] of spikes) {
-        pushCapsule3D(sx * 0.55, headY + 13, sz * 0.5, sx, sy, sz, sr, 2.4, c.hairColor);
+      for (const [sx, sy, sz, sr] of [
+        [-6.4, headY + 11, 3, 3.4], [-2.4, headY + 12.5, 4, 3.8],
+        [2.4, headY + 12.5, 4, 3.8], [6.4, headY + 10.5, 3, 3.4], [0, headY + 11.5, -3, 3.6],
+      ]) {
+        pushCapsule3D(sx * 0.5, headY + 6.5, sz * 0.5, sx, sy, sz, sr, 1.1, hair);
       }
     } else if (c.hairStyle === 'curly') {
-      const curls = [
-        [-16, headY + 13, 6], [-9, headY + 19, 9], [0, headY + 21, 10],
-        [9, headY + 19, 9], [16, headY + 13, 6], [-15, headY + 12, -8],
-        [15, headY + 12, -8], [0, headY + 16, -13],
-      ];
-      for (const [cx0, cy0, cz0] of curls) {
-        pushSphere3D(cx0, cy0, cz0, 7.8, c.hairColor);
+      for (const [dx, dy, dz] of [
+        [-7.6, headY + 6.4, 3], [-4.2, headY + 9.2, 4.4], [0, headY + 10.2, 4.8],
+        [4.2, headY + 9.2, 4.4], [7.6, headY + 6.4, 3], [-7.2, headY + 5.8, -4],
+        [7.2, headY + 5.8, -4], [0, headY + 8, -6.4],
+      ]) {
+        pushSphere3D(dx, dy, dz, 3.9, hair);
       }
     } else if (c.hairStyle === 'long') {
-      pushCapsule3D(-18.5, headY + 6, -2, -20.5, headY - 22, -4, 6.8, 5.2, c.hairColor);
-      pushCapsule3D(18.5, headY + 6, -2, 20.5, headY - 22, -4, 6.8, 5.2, c.hairColor);
-      pushCapsule3D(0, headY + 4, -15, 0, headY - 24, -17, 13.5, 10.5, shadeHex(c.hairColor, -12));
+      pushCapsule3D(-9.6, headY + 3, -1, -10.6, headY - 12, -2, 3.4, 2.6, hair);
+      pushCapsule3D(9.6, headY + 3, -1, 10.6, headY - 12, -2, 3.4, 2.6, hair);
+      pushCapsule3D(0, headY + 2, -7.8, 0, headY - 13, -8.8, 7.0, 5.4, shadeHex(hair, -10));
     } else if (c.hairStyle === 'ponytail') {
-      pushSphere3D(0, headY + 10, -18, 6.8, c.hairColor);
-      pushCapsule3D(0, headY + 10, -18, 0, headY - 12, -26, 6.5, 4.0, shadeHex(c.hairColor, -10));
+      pushSphere3D(0, headY + 5, -9, 3.4, hair);
+      pushCapsule3D(0, headY + 5, -9, 0, headY - 6, -13, 3.2, 2.0, shadeHex(hair, -8));
     }
   }
 
-  // Visor / Headset 3D (PICO 4 Pro com cinta lateral e traseira 3D completa!)
+  /* --------------------------------------------------------------- visor/headset */
   if (c.visor === 'pico4') {
-    // Cinta 3D lateral esquerda, direita e bateria traseira PICO 4 Pro
-    pushCapsule3D(-20.5, headY + 2.5, 12, -21, headY + 2.5, -16, 3.4, 3.2, '#e4e4e7');
-    pushCapsule3D(20.5, headY + 2.5, 12, 21, headY + 2.5, -16, 3.4, 3.2, '#e4e4e7');
-    pushCapsule3D(-14, headY + 2.5, -18.5, 14, headY + 2.5, -18.5, 4.8, 4.8, '#d4d4d8');
-    // Visor frontal 3D curvo PICO 4 Pro
-    pushCapsule3D(-13.5, headY + 2.5, 19.5, 13.5, headY + 2.5, 19.5, 8.2, 8.2, '#18181b', {
-      rimColor: '#f4f4f5',
-      zBias: 3.5,
-    });
-    const vFront = project3D(0, headY + 2.5, 24.5);
+    // Headset branco do PICO: cinta na cabeça, bateria atrás e a frente escura.
+    pushCapsule3D(-(headR - 0.4), headY + 2, 4.2, -(headR + 0.2), headY + 2, -6.8, 1.3, 1.2, '#eceef1');
+    pushCapsule3D(headR - 0.4, headY + 2, 4.2, headR + 0.2, headY + 2, -6.8, 1.3, 1.2, '#eceef1');
+    pushCapsule3D(-6.2, headY + 2, -8.2, 6.2, headY + 2, -8.2, 1.9, 1.9, '#e2e4e8');
+    pushCapsule3D(-6.2, headY + 2, 8.0, 6.2, headY + 2, 8.0, 3.5, 3.5, '#f4f5f7', { zBias: 3 });
+    const vFront = project3D(0, headY + 1.4, 12.4);
     drawQueue.push({
       z: vFront.z + 4,
       draw: () => {
         if (cosY <= -0.1) return;
-        const vw = 28 * vFront.s * Math.max(0.25, cosY);
-        const vh = 12.5 * vFront.s;
+        const face = Math.max(0.25, cosY);
+        const vw = 13.8 * vFront.s * face;
+        const vh = 6.8 * vFront.s;
         const g = ctx.createLinearGradient(vFront.x - vw * 0.5, vFront.y - vh * 0.5, vFront.x + vw * 0.5, vFront.y + vh * 0.5);
-        g.addColorStop(0, '#38bdf8');
-        g.addColorStop(0.28, '#1e293b');
-        g.addColorStop(0.68, '#09090b');
-        g.addColorStop(1, '#334155');
+        g.addColorStop(0, '#2b2f3a');
+        g.addColorStop(0.5, '#0b0d12');
+        g.addColorStop(1, '#23262f');
         ctx.save();
         ctx.fillStyle = g;
-        ctx.strokeStyle = '#f8fafc';
-        ctx.lineWidth = Math.max(1.2, 2.0 * scale);
         ctx.beginPath();
-        ctx.roundRect(vFront.x - vw * 0.5, vFront.y - vh * 0.5, vw, vh, 6 * vFront.s);
+        ctx.roundRect(vFront.x - vw * 0.5, vFront.y - vh * 0.5, vw, vh, 2.4 * vFront.s);
         ctx.fill();
+        // Reflexo suave do vidro
+        ctx.strokeStyle = 'rgba(255,255,255,.22)';
+        ctx.lineWidth = Math.max(0.6, 0.8 * scale);
         ctx.stroke();
         ctx.restore();
       },
     });
   } else if (c.visor === 'cyber') {
-    pushCapsule3D(-13, headY + 2.5, 20.2, 13, headY + 2.5, 20.2, 5.2, 5.2, '#06b6d4', {
-      rimColor: '#a5f3fc',
-      zBias: 3.5,
-    });
+    pushCapsule3D(-6.4, headY + 1.4, 9.6, 6.4, headY + 1.4, 9.6, 2.8, 2.8, '#06b6d4', { zBias: 3 });
   } else if (c.visor === 'glasses') {
-    pushSphere3D(-7.5, headY + 2.5, 21.5, 5.2, '#09090b', { rimColor: '#e2e8f0', zBias: 3 });
-    pushSphere3D(7.5, headY + 2.5, 21.5, 5.2, '#09090b', { rimColor: '#e2e8f0', zBias: 3 });
+    pushSphere3D(-3.9, headY + 1.4, 10, 2.7, '#101014', { zBias: 3 });
+    pushSphere3D(3.9, headY + 1.4, 10, 2.7, '#101014', { zBias: 3 });
   }
 
-  // Acessórios de cabeça 3D
+  /* ----------------------------------------------------------------- acessórios */
   if (c.accessory === 'headphones') {
-    pushSphere3D(-22.5, headY + 1, 1, 6.2, '#18181b', { rimColor: '#38bdf8' });
-    pushSphere3D(22.5, headY + 1, 1, 6.2, '#18181b', { rimColor: '#38bdf8' });
-    pushCapsule3D(-19, headY + 15, 0, 19, headY + 15, 0, 3.2, 3.2, '#27272a', { rimColor: '#38bdf8' });
+    pushSphere3D(-(headR + 0.4), headY + 0.4, 0.4, 3.0, '#1b1b1f');
+    pushSphere3D(headR + 0.4, headY + 0.4, 0.4, 3.0, '#1b1b1f');
+    pushCapsule3D(-(headR - 1.2), headY + 5.6, 0, headR - 1.2, headY + 5.6, 0, 1.5, 1.5, '#2a2a30');
   } else if (c.accessory === 'crown') {
-    pushCapsule3D(-11, headY + 22, 3, 11, headY + 22, 3, 5.2, 5.2, '#facc15', { rimColor: '#fef08a', zBias: 2 });
-    pushSphere3D(0, headY + 26, 5, 3.5, '#ef4444', { zBias: 3 });
+    pushCapsule3D(-5.6, headY + 11.2, 1.4, 5.6, headY + 11.2, 1.4, 2.6, 2.6, '#facc15', { zBias: 2 });
+    pushSphere3D(0, headY + 13.2, 2.4, 1.8, '#ef4444', { zBias: 3 });
   }
 
-  // Ordena todas as partes 3D de trás para frente (Painter's Algorithm 3D) e desenha
+  // Ordena tudo de trás para frente (pintor) e desenha.
   drawQueue.sort((a, b) => a.z - b.z);
-  for (const item of drawQueue) {
-    item.draw();
-  }
+  for (const item of drawQueue) item.draw();
 
   ctx.restore();
+}
+
+/** Fundo do estúdio: parede escura com luz suave vinda de cima. */
+function drawStudioBackdrop(ctx, w, h, portrait) {
+  if (portrait) {
+    const bg = ctx.createRadialGradient(w * 0.5, h * 0.34, w * 0.05, w * 0.5, h * 0.55, w * 0.85);
+    bg.addColorStop(0, '#3a4152');
+    bg.addColorStop(0.62, '#1b1f29');
+    bg.addColorStop(1, '#0b0d12');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#262b36');
+  bg.addColorStop(0.55, '#1a1e27');
+  bg.addColorStop(0.78, '#141821');
+  bg.addColorStop(1, '#0d1016');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  const glow = ctx.createRadialGradient(w * 0.5, h * 0.22, 4, w * 0.5, h * 0.3, w * 0.7);
+  glow.addColorStop(0, 'rgba(190, 205, 235, .16)');
+  glow.addColorStop(1, 'rgba(190, 205, 235, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
 }
 
 export const drawCharacter3D = drawCharacter2D;

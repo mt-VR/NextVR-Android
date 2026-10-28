@@ -1076,6 +1076,34 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
             });
         }
+        /**
+         * Build 92 — abrir uma página no NAVEGADOR do celular.
+         *
+         * O Google (e o login do YouTube) recusa entrar dentro de WebView: a página responde
+         * "este navegador ou app pode não ser seguro" e a conta real nunca entra. No navegador de
+         * verdade aparece a lista de contas do aparelho — "Continuar como (sua conta)" — e o login
+         * funciona. Só http/https, para nunca abrir um intent arbitrário vindo da página.
+         */
+        @JavascriptInterface public void openExternal(String url) {
+            if(url==null) return;
+            final String target=url.trim();
+            Uri parsed=Uri.parse(target);
+            String scheme=parsed.getScheme();
+            if(scheme==null) return;
+            scheme=scheme.toLowerCase(java.util.Locale.US);
+            if(!"https".equals(scheme) && !"http".equals(scheme)) return;
+            main.post(()->{
+                if(closed) return;
+                try {
+                    Intent intent=new Intent(Intent.ACTION_VIEW, parsed);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch(Exception unavailable) {
+                    Toast.makeText(NextVrActivity.this,"Nenhum navegador instalado",Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
         @JavascriptInterface public String battery() {
             return readBatteryJson(null);
         }

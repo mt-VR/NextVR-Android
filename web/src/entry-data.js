@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-92-avatar',
+    tag: 'NOVO · BUILD 92 — AVATAR 3D HUMANO, CONFIGURAÇÕES ESPAÇADAS E CONTA GOOGLE DE VERDADE',
+    time: 'Agora',
+    heading: 'Build 92: o boneco 3D virou gente (como o do PICO), as Configurações ficaram espaçadas e a conta Google abre a escolha de conta real',
+    desc: 'O avatar do jogo foi refeito com proporções humanas de verdade: cerca de 7 cabeças de altura, ombros e cintura no lugar, braços caídos, camiseta amarela de manga curta, calça escura, tênis branco e o headset branco do PICO — corpo em silhueta contínua, sem contorno preto e sem bolas soltas. As Configurações ganharam espaçamento nas três abas: cartões mais altos, títulos que quebram linha em vez de cortar e botões maiores. E o botão do Google/YouTube agora abre a escolha de conta do Google (a mesma do login do Firebase) no navegador do celular, onde aparece "Continuar como (sua conta)" e a sua conta real entra — dentro da janela o Google recusa o login.',
+  },
+  {
     id: 'build-91-flash',
     tag: 'CORREÇÃO · BUILD 91 — LANTERNA QUE PISCAVA',
     time: 'Agora',

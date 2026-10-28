@@ -5034,6 +5034,9 @@ on('profile-updated', () => makeDock());
  * perfil guardado, e marcar o serviço como vinculado na conta ATMOXR do shell. É isso que este
  * handler faz — nenhuma tela falsa de "login" é desenhada. */
 on('account-link', payload => {
+  // Build 92: quando o login já foi aberto no navegador do celular (Google/YouTube, que recusam
+  // WebView), não abre uma segunda janela aqui. No PC/teste — sem a ponte nativa — cai na janela.
+  if (payload?.browser) return;
   const url = payload?.url || 'https://google.com/';
   const titles = { discord: 'Discord', tiktok: 'TikTok', google: 'Google', youtube: 'YouTube' };
   const title = titles[payload?.id] || 'Conta';

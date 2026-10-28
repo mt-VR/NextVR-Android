@@ -38,7 +38,10 @@ android {
         // 91 / 2.1.0: correção da lanterna que piscava. A decisão agora desconta a luz da PRÓPRIA
         // lanterna (calibrada depois do AE estabilizar), exige luz de ambiente confirmada para
         // apagar, e depois de 3 ciclos curtos "estaciona" em vez de continuar piscando.
-        versionCode 91
+        // 92 / 2.1.0: avatar 3D refeito com proporções humanas (≈7 cabeças, camiseta amarela e
+        // headset branco como o do PICO), Configurações com espaçamento de verdade nas 3 abas e a
+        // conta Google/YouTube abrindo a escolha de conta real ("Continuar como") no navegador.
+        versionCode 92
         versionName "2.1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the

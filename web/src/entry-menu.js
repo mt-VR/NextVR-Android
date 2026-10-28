@@ -875,11 +875,25 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
    * Google e YouTube". O e-mail é guardado no perfil e cada botão abre a página de login REAL do
    * serviço (é o que dá para fazer sem servidor OAuth registrado); o vínculo fica marcado aqui.
    */
+  /*
+   * Build 92 — a conta de verdade.
+   *
+   * O usuário: "o do Google é pra abrir aquela firebase algo assim que dá acesso às contas do
+   * Google, e você clica em continuar como (sua conta), aí a sua conta real entra".
+   *
+   * É a tela de escolha de conta do Google (`/AccountChooser`) — a mesma que o login do Firebase
+   * usa por baixo dos panos: lista as contas que já estão no celular e mostra o botão
+   * "Continuar como (você)". O Google RECUSA esse login dentro de WebView ("este navegador pode
+   * não ser seguro"), então ela abre no navegador DE VERDADE pelo lado nativo
+   * (`NativeXR.openExternal`, um intent ACTION_VIEW). No PC/teste cai na janela interna.
+   */
+  const googleChooser = continueTo =>
+    `https://accounts.google.com/AccountChooser?continue=${encodeURIComponent(continueTo)}`;
   const ACCOUNT_LINKS = [
-    { id: 'discord', label: 'Discord', glyph: 'D', url: 'https://discord.com/login', bg: 'linear-gradient(180deg,#5865f2,#3b45c9)' },
-    { id: 'tiktok', label: 'TikTok', glyph: '♪', url: 'https://www.tiktok.com/login', bg: 'linear-gradient(180deg,#25f4ee,#fe2c55)' },
-    { id: 'google', label: 'Google', glyph: 'G', url: 'https://accounts.google.com/', bg: 'linear-gradient(180deg,#4285f4,#1a73e8)' },
-    { id: 'youtube', label: 'YouTube', glyph: '▶', url: 'https://accounts.google.com/ServiceLogin?service=youtube', bg: 'linear-gradient(180deg,#ff0033,#c4302b)' },
+    { id: 'discord', label: 'Discord', glyph: 'D', url: 'https://discord.com/login', browser: true, bg: 'linear-gradient(180deg,#5865f2,#3b45c9)' },
+    { id: 'tiktok', label: 'TikTok', glyph: '♪', url: 'https://www.tiktok.com/login', browser: true, bg: 'linear-gradient(180deg,#25f4ee,#fe2c55)' },
+    { id: 'google', label: 'Google', glyph: 'G', url: googleChooser('https://myaccount.google.com/'), browser: true, bg: 'linear-gradient(180deg,#4285f4,#1a73e8)' },
+    { id: 'youtube', label: 'YouTube', glyph: '▶', url: googleChooser('https://www.youtube.com/'), browser: true, bg: 'linear-gradient(180deg,#ff0033,#c4302b)' },
   ];
   const accountLinkedIds = () => String(S.accountLinks || '').split(',').map(v => v.trim()).filter(Boolean);
   const accountLinked = id => accountLinkedIds().includes(id);
@@ -933,17 +947,19 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
                 ${ACCOUNT_LINKS.map(link => {
                   const on = accountLinked(link.id);
                   return `<button type="button" class="entry-account-link ${on ? 'on' : ''}"
-                    data-account-link="${link.id}" aria-pressed="${on ? 'true' : 'false'}"
-                    title="${on ? 'Vinculado — toque para abrir' : 'Vincular ' + link.label}">
+                    data-account-link="${link.id}" data-account-browser="${link.browser ? '1' : '0'}"
+                    aria-pressed="${on ? 'true' : 'false'}"
+                    title="${on ? 'Vinculado — toque para abrir ' : 'Abrir a escolha de conta do '}${link.label}">
                     <span class="entry-account-ico" style="background:${link.bg}">${link.glyph}</span>
                     <span class="entry-account-name">${link.label}</span>
                     <span class="entry-account-state">${on ? '✓ VINCULADO' : 'VINCULAR'}</span>
                   </button>`;
                 }).join('')}
               </div>
-              <p class="entry-account-note">Digite o e-mail e toque em cada serviço para vincular: o app
-                abre a página de login real do serviço (Discord, TikTok, Google, YouTube) e guarda o
-                vínculo na sua conta ATMOXR deste perfil.</p>
+              <p class="entry-account-note">Digite o e-mail e toque em cada serviço: o app abre a
+                página de login real. No Google e no YouTube abre a <b>escolha de conta do Google</b>
+                (a mesma que o login do Firebase usa) — toque em <b>"Continuar como (sua conta)"</b>
+                e a sua conta real entra. O vínculo fica guardado na sua conta ATMOXR deste perfil.</p>
             </div>
 
             <div class="entry-char-studio" data-character-creator="1" style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);display:flex;flex-direction:column;gap:7px">
@@ -1355,7 +1371,18 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         const state = btn.querySelector('.entry-account-state');
         if (state) state.textContent = on ? '✓ VINCULADO' : 'VINCULAR';
         // Abre a página de login real do serviço na janela do navegador.
-        emit('account-link', { id, url: link.url, email: S.accountEmail || '' });
+        // Build 92: Google/YouTube (e os outros logins) abrem no navegador de verdade — o Google
+        // bloqueia login dentro de WebView, e é lá que aparece o "Continuar como (sua conta)".
+        let openedInBrowser = false;
+        if (link.browser) {
+          try {
+            if (typeof window.NativeXR?.openExternal === 'function') {
+              window.NativeXR.openExternal(link.url);
+              openedInBrowser = true;
+            }
+          } catch {}
+        }
+        emit('account-link', { id, url: link.url, email: S.accountEmail || '', browser: openedInBrowser });
       };
     });
     const saveProfileBtn = root.querySelector('[data-profile-save]');
