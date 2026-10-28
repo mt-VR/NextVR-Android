@@ -38,7 +38,7 @@ test('entry menu constants match the exact collaborators order and about text', 
   assert.equal(ENTRY_ABOUT_TEXT, EXPECTED_ABOUT_TEXT);
 });
 
-test('entry menu source and bundle include all five cards, hand style toggle, collaborators and about text', () => {
+test('entry menu source and bundle include all six cards, hand style toggle, collaborators and about text', () => {
   const entryMenuSrc = readFileSync('web/src/entry-menu.js', 'utf8') + '\n' + readFileSync('web/src/entry-data.js', 'utf8');
   const appsSrc = readFileSync('web/src/apps.js', 'utf8');
   const bundleSrc = readFileSync('nextvr-android/src/main/assets/ui/app.js', 'utf8');
@@ -51,6 +51,8 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'collaborators are stacked vertically one below another');
 
   for (const label of ['Iniciar', 'Configurações', 'Hand tracking', 'Colaboradores', 'Sobre']) {
+    // Key (Build 90) é a sexta: `data-entry-act="license"`.
+    assert.ok(entryMenuSrc.includes('data-entry-act="license"'), 'the Key card is in the source');
     assert.ok(entryMenuSrc.includes(label), `entry-menu.js includes ${label}`);
   }
   for (const token of ['Iniciar', 'Hand tracking', 'Colaboradores', 'Sobre']) {
@@ -404,8 +406,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForSelector('.entry-menu-root');
 
-    // 1. Verify initial state: 5 cards visible, dock hidden
-    assert.equal(await page.locator('.entry-card').count(), 5);
+    // 1. Verify initial state: 6 cards visible (Key entrou na Build 90), dock hidden
+    assert.equal(await page.locator('.entry-card').count(), 6);
     assert.equal(await page.locator('[data-hand-style-label]').innerText(), 'Mão desenhada');
 
     // 2. Toggle Hand tracking style: Mão desenhada -> Invisível -> Mão desenhada
