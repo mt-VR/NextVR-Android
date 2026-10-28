@@ -794,8 +794,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       <div class="entry-collab-list" role="list">
         ${ENTRY_COLLABORATORS.map(name => {
           const bio = ENTRY_COLLABORATOR_BIOS[name] || '';
-          // Build 89: todos os nomes sao cinza do mesmo jeito; o selo vermelho e' so' de quem e'
-          // verificado (hoje, so' o Apache).
+          // Todos os nomes sao cinza do mesmo jeito e TODOS os colaboradores tem o selo vermelho
+          // (Build 89: "ter em todos da colaboracao", inclusive o Apache).
           const verified = isVerifiedProfileName(name);
           return `
           <div class="entry-collab-item" role="listitem" data-collaborator-name="${name}">

@@ -20,10 +20,13 @@ test('entry menu constants match the exact collaborators order and about text', 
   assert.ok(!ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is gone');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Apache,
     'Apache(V) o contribuidor mais aurudo desse planeta majestoso');
-  // Build 89: o verificado e' so' do Apache.
-  assert.deepEqual([...ENTRY_VERIFIED_NAMES], ['Apache']);
-  assert.ok(isVerifiedProfileName('Apache') && isVerifiedProfileName('  apache '));
-  assert.ok(!isVerifiedProfileName('NeyVR'), 'nem o dono ganha o selo: e so o Apache');
+  // O verificado e' de TODOS os colaboradores (correcao do usuario: "ter em todos da colaboracao").
+  assert.deepEqual([...ENTRY_VERIFIED_NAMES], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
+  for (const name of ENTRY_COLLABORATORS) {
+    assert.ok(isVerifiedProfileName(name), `${name} grants the verified badge`);
+    assert.ok(isVerifiedProfileName('  ' + name.toUpperCase() + ' '), `${name} ignores case and spaces`);
+  }
+  assert.ok(!isVerifiedProfileName('OutroNome'), 'a name outside the collaborators gets nothing');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
   assert.equal(ENTRY_COLLABORATOR_BIOS.JocaVR, 'o portador de jogos mais importante do planeta aurudo 67');
@@ -56,7 +59,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
-  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant the red verified badge for the profile name Apache');
+  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant the red verified badge for the collaborators names');
   assert.ok(entryMenuSrc.includes('data-entry-dof="3dof"') && entryMenuSrc.includes('data-entry-dof="6dof"'),
     'entry-menu.js includes 3DoF and 6DoF options in Settings');
   assert.ok(indexHtml.includes('nextvrClickPop') && indexHtml.includes('nextvrChoosePulse') && indexHtml.includes('nextvr-click-ripple'),
@@ -428,9 +431,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       }));
     });
     assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
-    // Build 89: o selo vermelho agora e' so' do Apache, e o nome dele e' cinza como os outros.
-    assert.equal(collabData.filter(c => c.hasRedVerified).map(c => c.name).join(','), 'Apache',
-      'only Apache carries the red verified badge');
+    // Todos os colaboradores tem o selo vermelho (igual sempre foi), inclusive o Apache.
+    assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has the red verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');
     assert.equal(collabData.find(c => c.name === 'JocaVR')?.bio, 'o portador de jogos mais importante do planeta aurudo 67');
@@ -480,15 +482,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5b. Login / Perfil: definir nome e foto de perfil
     await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
     assert.equal(await page.locator('[data-entry-panel="profile"] .entry-subpanel-title').innerText(), 'Login / Perfil NextVR');
-    // Build 89: o selo e' SO' do Apache. Digitar outro nome nao pode acender nada.
+    // O selo do perfil vale para qualquer nome da colaboracao.
     await page.fill('[data-profile-name-input]', 'NeyVR');
     await page.evaluate(() => document.querySelector('[data-profile-preset]').click());
     await page.evaluate(() => document.querySelector('[data-profile-save]').click());
     assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'NeyVR');
     assert.equal(await page.evaluate(() => {
       const b = document.querySelector('[data-profile-verified="1"]');
-      return !b || b.hidden;
-    }), true, 'No verified badge for NeyVR: only Apache is verified');
+      return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
+    }), true, 'Profile displays red verified badge for NeyVR');
     // "quando botar o nome Apache aparece um verificado" — sem precisar salvar.
     await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
     await page.fill('[data-profile-name-input]', 'Apache');
@@ -496,6 +498,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const b = document.querySelector('[data-profile-verified="1"]');
       return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
     }), true, 'Typing Apache in the profile field shows the red verified badge');
+    // E o mesmo vale para os outros colaboradores.
+    await page.fill('[data-profile-name-input]', 'JocaVR');
+    assert.equal(await page.evaluate(() => {
+      const b = document.querySelector('[data-profile-verified="1"]');
+      return !!b && !b.hidden;
+    }), true, 'Typing JocaVR also shows the badge');
+    await page.fill('[data-profile-name-input]', 'Apache');
     await page.evaluate(() => document.querySelector('[data-profile-save]').click());
     assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'Apache');
 

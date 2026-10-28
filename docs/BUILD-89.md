@@ -9,14 +9,16 @@ Pedido do usuário, item por item, e onde cada coisa foi implementada. Tudo é v
   a bio é `o contribuidor mais aurudo desse planeta majestoso` (o `(V)` que aparece na tela é o selo
   verificado, que é um SVG ao lado do nome, como nos outros).
 * `web/src/entry-menu.js` — a lista de colaboradores não tem mais o destaque azul: todos usam
-  `.entry-collab-name` cinza (`#d4d4d8`) e o selo vermelho `#fe2c55`.
+  `.entry-collab-name` cinza (`#d4d4d8`) e **todos** têm o selo vermelho `#fe2c55` (o usuário pediu
+  "ter em todos da colaboração").
 * `web/index.html` — `.entry-collab-name` virou cinza e `.entry-collab-item--blue` perdeu a cor.
 
-## 2. Verificado só com o nome Apache no perfil
+## 2. Verificado com o nome de qualquer colaborador no perfil
 
-`ENTRY_VERIFIED_NAMES` passou a ser `['Apache']` e `isVerifiedProfileName()` compara sem diferenciar
-maiúsculas/espaços. O selo do Login/Perfil acende no `input` do campo (sem salvar), na dock e no
-cartão do perfil. Qualquer outro nome (inclusive `NeyVR`, `Faylan`, `JocaVR`) não acende nada.
+`ENTRY_VERIFIED_NAMES` é `['NeyVR', 'Faylan', 'Apache', 'JocaVR']` — os quatro da colaboração, como
+sempre foi — e `isVerifiedProfileName()` compara sem diferenciar maiúsculas/espaços. O selo do
+Login/Perfil acende no `input` do campo (sem precisar salvar), na dock e no cartão do perfil. Um nome
+que não é de colaborador não acende nada.
 
 ## 3. Teclado em pé, com a barrinha branca para mover
 

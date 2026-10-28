@@ -5,8 +5,8 @@ export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
 
-// Build 89: a NanyGata virou Apache. O nome dele aparece cinza igual aos outros, com um selo
-// vermelho de verificado, e a bio e' a que o usuario escreveu (com o (V) do selo).
+// Build 89: a NanyGata virou Apache. O nome dele aparece cinza igual aos outros, com o mesmo selo
+// vermelho de verificado dos outros colaboradores, e a bio e' a que o usuario escreveu (com o (V)).
 export const ENTRY_COLLABORATORS = Object.freeze([
   'NeyVR',
   'Faylan',
@@ -14,12 +14,16 @@ export const ENTRY_COLLABORATORS = Object.freeze([
   'JocaVR',
 ]);
 
-// Build 89: o verificado agora e' SO' do Apache. Quem digitar "Apache" no perfil ganha o selo.
+// O verificado e' de TODOS os colaboradores, igual sempre foi: quem digitar o nome de qualquer um
+// deles no perfil (NeyVR, Faylan, Apache ou JocaVR) ganha o selo vermelho na hora.
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
+  'NeyVR',
+  'Faylan',
   'Apache',
+  'JocaVR',
 ]);
 
-/** "Apache", "apache", " Apache " — todos contam. Nenhum outro nome ganha o selo. */
+/** "Apache", "apache", " Apache " — maiúsculas e espaços não importam. Qualquer colaborador conta. */
 export function isVerifiedProfileName(name) {
   const clean = String(name || '').trim().toLowerCase();
   if (!clean) return false;
@@ -50,7 +54,7 @@ export const ENTRY_UPDATES = Object.freeze([
     tag: 'NOVO · BUILD 89 — ATMO XR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
     time: 'Agora',
     heading: 'Build 89: Apache no lugar da NanyGata, Teclado em Pe, TikTok Real, Janelas ate 300%, Personagem 3D Giratorio e Camera Noturna',
-    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado (aparece automaticamente quando o nome do perfil for Apache) e a bio "Apache(V) o contribuidor mais aurudo desse planeta majestoso". O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece. O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
+    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "Apache(V) o contribuidor mais aurudo desse planeta majestoso". O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece. O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
   },
   {
     id: 'worldlock-camera-paint',
