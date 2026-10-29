@@ -166,7 +166,10 @@ test('Build 96: a web aplica o estabilizador no ponteiro e mede o clique no pont
 test('Build 96: o nativo escala as zonas mortas pelo tamanho da mão', () => {
   const source = handsKt();
   assert.ok(source.includes('setLandmarkDeadZone'), 'os landmarks têm zona morta por quadro');
-  assert.ok(source.includes('setAimDeadZone'), 'o ponteiro também');
+  assert.ok(source.includes('updateAimDeadZone'), 'o ponteiro também');
+  // `aimDeadZone` é um `var`: um `setAimDeadZone(Float)` ao lado dele colidiria no bytecode com o
+  // setter que o Kotlin gera (foi exatamente o erro de compilação desta build na primeira rodada).
+  assert.ok(!/fun setAimDeadZone\(/.test(source), 'o nome da função não colide com o setter do var');
   assert.ok(/palmLen \* \.014f/.test(source) || /palmLen\s*\*\s*\.014f/.test(source),
     'a zona morta dos landmarks sai do tamanho da palma');
   // O One Euro precisa aceitar a zona morta mudar: é o que permite escalar por distância.

@@ -204,14 +204,19 @@ class PhoneXrHands {
          * alvo de 34 px da Dock escapava do raio). Agora a dead zone de cada eixo sai do tamanho da
          * palma NESTE quadro — mesma sensação nas duas pontas da sala. */
         var aimDeadZone = 0.0010f
+            private set
 
         /** A dead zone da mão toda (landmarks) segue o tamanho aparente da palma. */
         fun setLandmarkDeadZone(value: Float) {
             for (filter in landmarks) filter.deadZone = value
         }
 
-        /** A dead zone do ponteiro: maior no pinça segurado, para o ponto do clique não escorregar. */
-        fun setAimDeadZone(value: Float) {
+        /**
+         * A dead zone do ponteiro: maior no pinça segurado, para o ponto do clique não escorregar.
+         * (Nome diferente do setter que o Kotlin gera para [aimDeadZone]: os dois virariam o mesmo
+         * `setAimDeadZone(F)V` no bytecode e o compilador recusa a classe.)
+         */
+        fun updateAimDeadZone(value: Float) {
             aimDeadZone = value
             x.deadZone = value
             y.deadZone = value
@@ -504,7 +509,7 @@ class PhoneXrHands {
             // Pinça segurado: o ponto do clique fica mais firme (dead zone maior). Solto, ele volta
             // a ser o mais responsivo possível — o ponteiro tem que chegar no alvo, não morar nele.
             val aimBase = (palmLen * .020f).coerceIn(.0008f, .0032f)
-            state.setAimDeadZone(if (pinchingNow) (aimBase * 2.2f).coerceIn(.0008f, .005f) else aimBase)
+            state.updateAimDeadZone(if (pinchingNow) (aimBase * 2.2f).coerceIn(.0008f, .005f) else aimBase)
             val hand = Hand(left,ptsArray,
                 head,shape,bx,by,state.x.filter(aim[0],stamp),
                 state.y.filter(aim[1],stamp),pinchingNow,state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
