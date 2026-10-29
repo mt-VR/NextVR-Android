@@ -95,6 +95,26 @@ test('Build 95: o que o iPhone não tem responde vazio e honesto (nada de tela f
   assert.ok(source.includes("reason: 'pendente'") || source.includes("reason: 'pendente'"), 'a Key responde assíncrona');
 });
 
+test('Build 95: cada arquivo Swift importa o framework que usa (erro que já custou uma rodada)', () => {
+  // O compilador só reclama disso no macOS — e cada rodada do macOS é fila de minutos. A regra é
+  // chata de propósito: quem toca em UIDevice/UIApplication/UIView precisa de UIKit, e assim por diante.
+  const needs = [
+    ['UIKit', /\b(UIDevice|UIApplication|UIView|UIImage|UIColor|UIScreen|UIImageView|UIViewController|UIGraphicsImageRenderer|CGRect|CGSize)\b/],
+    ['WebKit', /\bWKWebView\b/],
+    ['AVFoundation', /\bAVCaptureDevice\b/],
+    ['CoreMotion', /\bCMMotionManager\b/],
+    ['CryptoKit', /\bHMAC<SHA256>|\bSHA256\.hash/],
+    ['simd', /\bsimd_float4x4\b/]
+  ];
+  for (const file of readdirSync('ios/ATMOXR/Sources').filter(name => name.endsWith('.swift'))) {
+    const source = read(`ios/ATMOXR/Sources/${file}`);
+    for (const [framework, usage] of needs) {
+      if (!usage.test(source)) continue;
+      assert.ok(source.includes(`import ${framework}`), `${file} usa ${framework} e não importa`);
+    }
+  }
+});
+
 test('Build 95: o Info.plist declara câmera, fotos e nada além disso', () => {
   const plist = read('ios/ATMOXR/Info.plist');
   assert.ok(plist.includes('<key>NSCameraUsageDescription</key>'), 'câmera explicada ao usuário');

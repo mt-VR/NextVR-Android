@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import UIKit
 
 /**
  * Build 95 — a Key do ATMO XR no iPhone.
