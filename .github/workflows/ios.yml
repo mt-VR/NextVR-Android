@@ -47,6 +47,16 @@ jobs:
       - name: Validate the iOS project
         run: node --test tests/build-95-ios.test.mjs
 
+      # O runner muda de imagem com o tempo: usar o Xcode mais novo disponível evita "Unable to read
+      # project" por diferença de formato do project.pbxproj.
+      - name: Select Xcode
+        run: |
+          ls /Applications | grep -i "^Xcode" || true
+          XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+          echo "::notice::xcodebuild $(xcodebuild -version | tr '\n' ' ')"
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -54,17 +64,22 @@ jobs:
         run: |
           set +e
           cd ios
-          xcodegen --version
+          echo "::notice::xcodegen $(xcodegen --version 2>&1 | tr '\n' ' ')"
           xcodegen generate
-          echo "::notice::xcodegen status $?"
+          echo "::notice::projeto gerado: $(grep -m1 objectVersion ATMOXR.xcodeproj/project.pbxproj)"
           ls -la . | head -20
           ls -la ATMOXR.xcodeproj || echo "::error::ATMOXR.xcodeproj nao existe"
           ls -la ATMOXR.xcodeproj/project.pbxproj || echo "::error::project.pbxproj nao existe"
           head -c 400 ATMOXR.xcodeproj/project.pbxproj
           echo ""
           xcodebuild -version
-          xcodebuild -list -project ATMOXR.xcodeproj 2>&1 | head -40
-          echo "::notice::xcodebuild -list status $?"
+          xcodebuild -list -project ATMOXR.xcodeproj > /tmp/xclist.log 2>&1
+          LIST=$?
+          head -20 /tmp/xclist.log
+          echo "::notice::xcodebuild -list status $LIST"
+          if [ $LIST -ne 0 ]; then
+            tail -3 /tmp/xclist.log | while IFS= read -r line; do echo "::error::[list] $(printf '%s' "$line" | cut -c1-400)"; done
+          fi
 
       # O log do runner do macOS não é legível pela API (o results-receiver devolve EOF), então os
       # erros saem como ANOTAÇÕES do check — e só eles: o GitHub corta em 10 anotações por check, e um

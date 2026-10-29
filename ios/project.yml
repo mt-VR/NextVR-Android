@@ -3,6 +3,10 @@ options:
   bundleIdPrefix: com.nextvr
   deploymentTarget:
     iOS: "15.0"
+  # Formato do project.pbxproj. Versões novas do xcodegen escrevem o formato do Xcode 16+, que o
+  # Xcode 15 do runner recusa com "Unable to read project". 55 = Xcode 13+ e é lido por todos.
+  objectVersion: 55
+  xcodeVersion: "15.4"
   createIntermediateGroups: true
   groupSortPosition: top
 
