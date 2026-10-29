@@ -186,7 +186,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library','orb'],
       'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
     assert.equal(await page.locator('.dock .dock-spacer').count(),1,
       'a small gap separates status and the app tiles');

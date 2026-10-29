@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-96-anel-e-precisao',
+    tag: 'NOVO · BUILD 96 — A BOLINHA COM 10 APPS, TELA PERTO/LONGE E MÃO MAIS PRECISA',
+    time: 'Agora',
+    heading: 'Build 96: uma bolinha na Dock com 10 bolinhas dentro abre um anel de apps gigantes (3 em cima, 4 no meio, 3 embaixo), com os apps do Android E os do app; a tela agora vai para perto e para longe; e o rastreio de mão ficou bem mais preciso',
+    desc: 'A Dock normal ganhou uma opção em bolinha: ela mostra as mesmas 10 bolinhas do menu que abre (3 em cima, 4 no meio, 3 embaixo) e, ao tocar, abre um anel de apps grandes em círculo com os apps do celular (com o ícone real de cada um) e os apps do ATMO XR: Navegador, YouTube, Store, Galeria, Biblioteca e Configurações. O centro do anel abre a lista completa. Embaixo do anel ficam os botões PERTO e LONGE: eles levam a tela inteira — janelas e Dock juntas — para perto ou para longe, deslizando em vez de pular, do mesmo jeito que no ATMO. E o rastreio de mão ficou mais preciso: o ponteiro parou de tremer com a mão parada, um quadro ruim do detector não joga mais o cursor para o outro lado da tela, o ponto do clique não escorrega durante a pinça e a suavização agora segue o tamanho da mão (mais firme de longe, mais responsiva de perto).',
+  },
+  {
     id: 'build-95-ios',
     tag: 'NOVO · BUILD 95 — O ATMO XR NO IPHONE (.IPA)',
     time: 'Agora',

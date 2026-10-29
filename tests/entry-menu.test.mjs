@@ -347,7 +347,7 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('versionCode 95') &&
+    Number((readFileSync('nextvr-android/build.gradle', 'utf8').match(/versionCode (\d+)/) || [])[1]) >= 96 &&
     readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),

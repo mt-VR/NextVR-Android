@@ -271,6 +271,78 @@ class PhoneXrHandsTest {
         assertSame(frame,presentation.silhouette(frame,3_100_000_000L))
         assertNull(presentation.silhouette(frame,3_501_000_000L))
     }
+    /** The same hand fixture, shifted in the image: the way a real hand moves. */
+    private fun shifted(hand:List<NormalizedLandmark>,dx:Float,dy:Float=0f)=
+        hand.map{NormalizedLandmark.create(it.x()+dx,it.y()+dy,it.z())}
+    @Test fun aSingleFrameLandmarkGlitchNeverMovesTheCursor() {
+        // Build 96: a detector glitch on ONE frame (an occluded hand, two hands crossing) used to
+        // pull the pointer a few per cent of the screen and snap it back on the next frame - the
+        // jump that makes people miss the target mid-reach. The aim must hold through it.
+        val engine=PhoneXrHands()
+        val steady=points(.2f)
+        var settled=0f
+        repeat(6){ i -> settled=engine.process(result(steady,1000+i*33L),1f,1f).hands.single().aimX }
+        val glitch=engine.process(result(shifted(steady,.5f),1000+6*33L),1f,1f).hands.single()
+        assertEquals(settled,glitch.aimX,.05f)
+        // ...and the frame after it (the hand is back) stays where it was, no hop either.
+        val back=engine.process(result(steady,1000+7*33L),1f,1f).hands.single()
+        assertEquals(settled,back.aimX,.05f)
+    }
+    @Test fun aRealFastMoveIsFollowedInsteadOfBeingSwallowed() {
+        // The glitch guard must not turn into an anchor: a jump that PERSISTS is a real move and
+        // has to arrive - it may cost one confirmation frame, never the gesture.
+        val engine=PhoneXrHands()
+        val steady=points(.2f)
+        var before=0f
+        repeat(6){ i -> before=engine.process(result(steady,1000+i*33L),1f,1f).hands.single().aimX }
+        val moved=shifted(steady,.4f)
+        engine.process(result(moved,1000+6*33L),1f,1f)                 // held, waiting for confirmation
+        engine.process(result(moved,1000+7*33L),1f,1f)                 // confirmed: the move is real
+        val after=engine.process(result(moved,1000+8*33L),1f,1f).hands.single().aimX
+        assertTrue("mão que anda de verdade não pode ficar parada: $before -> $after", after-before > .25f)
+    }
+    @Test fun aHandThatReappearsIsNotHeldByTheGlitchGuard() {
+        // A hand lost for a while comes back somewhere else entirely; comparing it with where it
+        // vanished would hold the cursor for a frame for no reason.
+        val engine=PhoneXrHands()
+        val steady=points(.2f)
+        var before=0f
+        repeat(4){ i -> before=engine.process(result(steady,1000+i*33L),1f,1f).hands.single().aimX }
+        engine.process(result(null,1100),1f,1f)
+        val far=engine.process(result(shifted(steady,.4f),1_400),1f,1f).hands.single()
+        assertTrue(far.aimX>before+.1f)
+    }
+    @Test fun theAimDeadZoneFollowsTheHandSizeOnBothEndsOfTheRoom() {
+        // Build 96: the jitter of a landmark is a fixed number of detector PIXELS, so in image
+        // units a hand at arm's length is far noisier than the same hand up close. The dead zones
+        // are scaled from the palm, which means a small far hand is smoothed MORE than before (it
+        // needs it) and a big near hand LESS (so the cursor does not drag behind the fingers).
+        fun deadZoneFor(palm: Float) = (palm * .014f).coerceIn(.0006f, .0028f)
+        val farPalm = .03f      // arm's length
+        val nearPalm = .15f     // hand right in front of the camera
+        assertTrue(deadZoneFor(nearPalm) > deadZoneFor(farPalm))
+        val far = HandGestures.OneEuro(minCutoff = 2.2f, beta = 24f, deadZone = deadZoneFor(farPalm))
+        val near = HandGestures.OneEuro(minCutoff = 2.2f, beta = 24f, deadZone = deadZoneFor(nearPalm))
+        assertEquals(0f, far.filter(.5f, 1000000000), 0f)
+        assertEquals(0f, near.filter(.5f, 1000000000), 0f)
+        // The same wobble (0.3 % of the image, a few pixels of the detector): the big near hand
+        // ignores it completely, the small far hand still follows it - exactly the trade the
+        // scaling is there to make.
+        assertEquals(.5f, near.filter(.503f, 1016000000), 0f)
+        assertTrue(far.filter(.503f, 1016000000) > .5f)
+    }
+    @Test fun aHeldPinchMultipliesTheAimDeadZoneAndReleasingRestoresIt() {
+        // While the fingers are together the cursor must sit still on the target (larger dead zone);
+        // releasing goes straight back to the responsive value, with no leftover from the pinch.
+        val aimBase = (.05f * .020f).coerceIn(.0008f, .0032f)
+        val pinched = (aimBase * 2.2f).coerceIn(.0008f, .005f)
+        assertTrue(pinched > aimBase)
+        // The clamp is what keeps a very large near hand from becoming an anchor.
+        val nearBase = (.40f * .020f).coerceIn(.0008f, .0032f)
+        val nearPinched = (nearBase * 2.2f).coerceIn(.0008f, .005f)
+        assertTrue(nearPinched <= .005f)
+        assertEquals(.0032f, nearBase, 0f)
+    }
     @Test fun nativeFilterHasRestingDeadZone() {
         val filter=HandGestures.OneEuro(minCutoff=1.2f,beta=8f,deadZone=.0012f)
         assertEquals(.5f,filter.filter(.5f,1000000000),0f)

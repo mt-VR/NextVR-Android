@@ -572,6 +572,57 @@
   .dock-dot{position:absolute;left:50%;bottom:-5px;width:3px;height:3px;margin-left:-1.5px;border-radius:50%;
     background:#fff;opacity:0;transform:scale(.4);transition:opacity .16s,transform .16s;pointer-events:none}
   .dock-dot.on{opacity:.9;transform:scale(1)}
+  /* Build 96 — a bolinha da Dock com as 10 bolinhas dentro (3 em cima, 4 no meio, 3 embaixo).
+     É o mesmo mapa do anel que ela abre: quem olha a Dock já sabe o que vai encontrar. */
+  .dock-orb{border-radius:50%!important;background:radial-gradient(circle at 32% 28%,#4b5563 0%,#111827 78%)!important;
+    border:1px solid rgba(255,255,255,.30);box-shadow:inset 0 1px 0 rgba(255,255,255,.30),0 2px 8px rgba(0,0,0,.40)}
+  .dock-orb-dots{display:flex;flex-direction:column;gap:2.2px;align-items:center;justify-content:center}
+  .dock-orb-dots b{display:flex;gap:2.2px;align-items:center;justify-content:center}
+  .dock-orb-dots i{width:3.4px;height:3.4px;border-radius:50%;background:rgba(255,255,255,.92);
+    box-shadow:0 0 3px rgba(160,190,255,.65);display:block}
+  .dock-orb:hover{filter:brightness(1.16)}
+
+  /* Build 96 — o anel de apps (janela `orb-menu`): 10 apps grandes, o centro e o controle de
+     distância da tela. Fundo escuro em vidro para os apps aparecerem como ícones flutuantes. */
+  .orb-root{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:14px 18px 10px;box-sizing:border-box;
+    background:radial-gradient(circle at 50% 46%,rgba(30,41,59,.92) 0%,rgba(8,10,15,.96) 70%);
+    color:#f4f4f5;font-family:Inter,system-ui,sans-serif;border-radius:18px;overflow:hidden}
+  .orb-head{display:flex;align-items:center;gap:10px;flex:none}
+  .orb-title{font-size:16px;letter-spacing:.16em;font-weight:800;color:#e4e4e7}
+  .orb-count{font-size:12px;color:#a1a1aa;font-weight:600}
+  .orb-close{margin-left:auto;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;
+    color:#e4e4e7;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18)}
+  .orb-ring{position:relative;flex:1;min-height:0;margin:0 auto;width:100%;max-width:880px}
+  .orb-app{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;
+    gap:6px;background:none;border:0;padding:0;cursor:pointer;font-family:inherit;color:#f4f4f5}
+  .orb-app-bubble{width:104px;height:104px;border-radius:28px;display:grid;place-items:center;overflow:hidden;
+    border:1px solid rgba(255,255,255,.20);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 10px 22px rgba(0,0,0,.45);
+    transition:transform .14s,box-shadow .16s,filter .16s}
+  .orb-app-bubble img{width:100%;height:100%;object-fit:cover;display:block}
+  .orb-glyph{font-size:42px;line-height:1}
+  .orb-app-label{font-size:13.5px;font-weight:700;letter-spacing:.01em;max-width:118px;text-align:center;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  .orb-app--android .orb-app-bubble{border-color:rgba(56,189,248,.45)}
+  .orb-app:hover .orb-app-bubble,.orb-app:focus-visible .orb-app-bubble{transform:translateY(-3px) scale(1.07);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 14px 28px rgba(0,0,0,.5),0 0 0 2px rgba(160,190,255,.5)}
+  .orb-app:active .orb-app-bubble{transform:scale(.95)}
+  .orb-depth-btn:disabled{opacity:.34;cursor:default}
+  .orb-hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:138px;height:138px;
+    border-radius:50%;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:#dbeafe;background:radial-gradient(circle at 40% 32%,rgba(59,130,246,.42) 0%,rgba(15,23,42,.92) 72%);
+    border:1px solid rgba(147,197,253,.42);box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25);
+    font-family:inherit;transition:transform .14s,box-shadow .16s}
+  .orb-hub:hover{transform:translate(-50%,-50%) scale(1.05);box-shadow:0 14px 30px rgba(0,0,0,.55),0 0 0 2px rgba(147,197,253,.4)}
+  .orb-hub-icon{font-size:30px;line-height:1}
+  .orb-hub-label{font-size:10.5px;font-weight:800;letter-spacing:.08em}
+  .orb-depth{flex:none;display:flex;align-items:center;justify-content:center;gap:10px}
+  .orb-depth-btn{padding:9px 22px;border-radius:999px;cursor:pointer;font-family:inherit;font-size:12.5px;
+    font-weight:800;letter-spacing:.08em;color:#e4e4e7;background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.22)}
+  .orb-depth-btn:hover{background:rgba(255,255,255,.18)}
+  .orb-depth-read{font-size:12.5px;font-weight:700;color:#a5b4c8;min-width:52px;text-align:center}
+  .orb-note{margin:0;flex:none;font-size:12px;line-height:1.45;color:#a1a1aa;text-align:center;max-width:520px;align-self:center}
+
 
   /* Browser chrome remains a compact Quest-style toolbar above the page. */
   /* ---- Quest Browser UI ---- */

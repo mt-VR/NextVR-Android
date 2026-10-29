@@ -48,8 +48,8 @@ android {
         // ao perfil, como no Kwai/TikTok.
         // 95 / 2.1.1: versão para iPhone (projeto ios/, .ipa no CI). O APK do Android é o da 94 —
         // só o número muda, para os dois aparelhos contarem a mesma build.
-        versionCode 95
-        versionName "2.1.1"
+        versionCode 96
+        versionName "2.2.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

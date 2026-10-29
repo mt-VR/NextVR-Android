@@ -259,8 +259,17 @@ object HandGestures {
         private val minCutoff: Float = 1.2f,
         private val beta: Float = .6f,
         private val derivativeCutoff: Float = 1f,
-        /** Changes smaller than this are ignored while the hand rests: no tremor at all when still. */
-        private val deadZone: Float = 0f,
+        /**
+         * Changes smaller than this are ignored while the hand rests: no tremor at all when still.
+         *
+         * Build 96: it is a `var` on purpose. The jitter of a landmark in IMAGE units is not a
+         * constant — it is a roughly fixed number of PIXELS of the detector, so a hand that fills
+         * 12 % of the frame has a hundredth of the noise a hand at arm's length has, relative to
+         * its own palm. A fixed dead zone therefore over-smoothed near hands and under-smoothed far
+         * ones. `PhoneXrHands` now sets this per frame from the palm size, and tightens it while a
+         * pinch is held (the click point must not creep under the finger).
+         */
+        var deadZone: Float = 0f,
     ) {
         private var value = Float.NaN
         private var shown = Float.NaN

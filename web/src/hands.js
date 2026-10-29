@@ -5,11 +5,15 @@
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 import { bindSixDofContext, updateHandBoxesFromPacket } from './sixdof.js';
-import { HandClickState, ClickDragArbiter } from './hand-input.js';
+import { HandClickState, ClickDragArbiter, CursorStabilizer } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
 const pressArbiter = new ClickDragArbiter();
+/* Build 96 — precisão do ponteiro: mata o tremor de 1-3 px com a mão parada sem atrasar o movimento
+ * rápido (ver CursorStabilizer em hand-input.js). É o "hand tracking mais preciso" no que a mão vê:
+ * o ponteiro para de tremer em cima do alvo, e o clique deixa de virar arrasto por ruído. */
+const pointerStabilizer = new CursorStabilizer();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
@@ -22,6 +26,7 @@ function emitClickEvents(events) {
   for (const event of events) emit(`pinch${event}`, cursor);
 }
 function cancel() {
+  pointerStabilizer.reset();
   const events = clickState.cancel();
   pressArbiter.reset();
   cursor.down = cursor.active = false; cursor.phase = clickState.phase; cursor.hand = null; cursor.mode = 'idle';
@@ -62,6 +67,8 @@ const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tra
 const CURSOR_PREDICT_MAX_SPEED = 5.2;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
 const CURSOR_PREDICT_MAX_STEP = .15;    // alcance de extrapolação para compensar scanout do display
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0, cursorHandId = null;
+/** Último ponto CRU da mão (o `cursor` publicado é o estabilizado): base da velocidade. */
+const cursorRaw = { x: .5, y: .5 };
 const _perHandCursorState = new Map();
 const _prePinchAimByHand = new Map();
 const _handPerfStats = {
@@ -168,6 +175,7 @@ function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
     cursorAt = now;
     cursorStampNs = stampNs > 0 ? stampNs : 0;
     cursorHandId = handId;
+    cursorRaw.x = point.x; cursorRaw.y = point.y;
     return;
   }
   cursorHandId = handId;
@@ -179,8 +187,11 @@ function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
     // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
-    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .92;
-    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .92;
+    // Build 96: a velocidade é medida no ponto CRU da mão, não no ponto publicado. O estabilizador
+    // segura o ponteiro com a mão parada; medir o movimento contra a posição segurada faria um
+    // tremor de 2 px parecer um swipe e a extrapolação dispararia.
+    cursorVel.x += (limit((point.x - cursorRaw.x) / gap) - cursorVel.x) * .92;
+    cursorVel.y += (limit((point.y - cursorRaw.y) / gap) - cursorVel.y) * .92;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
     if (Math.hypot(cursorVel.x, cursorVel.y) < .05) cursorVel.x = cursorVel.y = 0;
@@ -190,8 +201,13 @@ function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
   // A burst of queued frames arriving in one drain keeps the estimate — only the base moves.
   cursorAt = now;
   cursorStampNs = stampNs > 0 ? stampNs : 0;
+  cursorRaw.x = point.x; cursorRaw.y = point.y;
 }
-function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; cursorHandId = null; _perHandCursorState.clear(); }
+function resetCursorVelocity() {
+  cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; cursorHandId = null;
+  cursorRaw.x = cursorRaw.y = .5;
+  _perHandCursorState.clear();
+}
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   reportHandFrame();
@@ -235,18 +251,23 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!chosen) { cancel(); emit('handtargets_sync', now); return; }
   const point=screenPoint(chosen.aim);
   updateCursorVelocity(point, now, Number(frame.timestampNs) || 0, chosen.id);
-  cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;
+  const pointer=pointerStabilizer.update(point.x, point.y, {
+    nowMs: now,
+    speed: Math.hypot(cursorVel.x, cursorVel.y),
+    pressing: clickState.down || !!chosen.pinching,
+  });
+  cursor.x=pointer.x;cursor.y=pointer.y;cursor.active=true;cursor.hand=chosen;
   // A motion-model prediction keeps the cursor continuous across a missed detection but must
   // never touch the gesture machine: no press can START, RELEASE, or complete from predicted
   // samples. Gesture edges come only from real detections (or a real empty frame, which cancels).
   const clickEvents=chosen.predicted?[]:clickState.update(chosen.id, chosen.pinching);
   if (clickEvents.includes('down'))
-    pressArbiter.begin(chosen.id,point.x*viewport.width,point.y*viewport.height,now);
+    pressArbiter.begin(chosen.id,cursor.x*viewport.width,cursor.y*viewport.height,now);
   else if (clickEvents.includes('up')) pressArbiter.end();
   else if (clickEvents.includes('cancel')) pressArbiter.reset();
   // Only real detections classify click-versus-drag: a prediction gliding on would fake movement.
   if (clickState.down && !chosen.predicted)
-    pressArbiter.sample(chosen.id,point.x*viewport.width,point.y*viewport.height,now);
+    pressArbiter.sample(chosen.id,cursor.x*viewport.width,cursor.y*viewport.height,now);
   cursor.mode=pressArbiter.mode;
   cursor.down=clickState.down;cursor.phase=clickState.phase;
   if (!window.__gorillaStereoOverlay && native) {

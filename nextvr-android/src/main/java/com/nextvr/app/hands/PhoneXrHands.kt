@@ -195,6 +195,67 @@ class PhoneXrHands {
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=2.2f, beta=22.0f, deadZone=0.0009f)
         val grabY = HandGestures.OneEuro(minCutoff=2.2f, beta=22.0f, deadZone=0.0009f)
+        /* ---- Build 96: precisão relativa ao tamanho da mão ----
+         *
+         * O ruído de um landmark, em unidades da IMAGEM, não é constante: ele é mais ou menos um
+         * número fixo de PIXELS do detector. Para uma mão que ocupa 12 % do quadro isso é um
+         * centésimo do ruído relativo de uma mão esticada a um braço de distância. Com dead zones
+         * fixas, a mão perto ficava lisa demais (o cursor "arrastava") e a mão longe tremia (o
+         * alvo de 34 px da Dock escapava do raio). Agora a dead zone de cada eixo sai do tamanho da
+         * palma NESTE quadro — mesma sensação nas duas pontas da sala. */
+        var aimDeadZone = 0.0010f
+
+        /** A dead zone da mão toda (landmarks) segue o tamanho aparente da palma. */
+        fun setLandmarkDeadZone(value: Float) {
+            for (filter in landmarks) filter.deadZone = value
+        }
+
+        /** A dead zone do ponteiro: maior no pinça segurado, para o ponto do clique não escorregar. */
+        fun setAimDeadZone(value: Float) {
+            aimDeadZone = value
+            x.deadZone = value
+            y.deadZone = value
+        }
+
+        /* ---- Build 96: um landmark "glitchado" não pode cruzar a tela ----
+         *
+         * De vez em quando o detector devolve UM quadro com um landmark fora de lugar (mão
+         * parcialmente ocluída, movimento rápido, duas mãos cruzando). Filtrado, isso puxa o
+         * ponteiro alguns por cento da tela e volta no quadro seguinte — o "pulo" que faz a pessoa
+         * errar o alvo. Aqui um salto absurdo de um quadro não é publicado: fica PENDENTE. Se o
+         * quadro seguinte confirmar (o landmark continua onde estava), era movimento de verdade e
+         * entra na hora, sem atraso acumulado; se voltar para perto do anterior, era glitch e é
+         * descartado. Custa no máximo um quadro, e só quando o salto é grande. */
+        var lastAimX = Float.NaN
+        var lastAimY = Float.NaN
+        var lastAimStampNs = 0L
+        var pendingAimX = Float.NaN
+        var pendingAimY = Float.NaN
+
+        fun stableAim(rawX: Float, rawY: Float, stampNs: Long, limit: Float): FloatArray {
+            if (lastAimX.isNaN() || stampNs - lastAimStampNs > 150_000_000L) {
+                // Primeira amostra, ou a mão voltou depois de uma pausa: nada a comparar.
+                lastAimX = rawX; lastAimY = rawY; lastAimStampNs = stampNs
+                pendingAimX = Float.NaN; pendingAimY = Float.NaN
+                return floatArrayOf(rawX, rawY)
+            }
+            val jump = kotlin.math.hypot(rawX - lastAimX, rawY - lastAimY)
+            if (jump <= limit) {
+                lastAimX = rawX; lastAimY = rawY; lastAimStampNs = stampNs
+                pendingAimX = Float.NaN; pendingAimY = Float.NaN
+                return floatArrayOf(rawX, rawY)
+            }
+            val confirmed = !pendingAimX.isNaN() &&
+                kotlin.math.hypot(rawX - pendingAimX, rawY - pendingAimY) <= limit * .5f
+            if (confirmed) {
+                lastAimX = rawX; lastAimY = rawY; lastAimStampNs = stampNs
+                pendingAimX = Float.NaN; pendingAimY = Float.NaN
+                return floatArrayOf(rawX, rawY)
+            }
+            // Salto ainda não confirmado: segura este quadro no lugar conhecido e espera o próximo.
+            pendingAimX = rawX; pendingAimY = rawY
+            return floatArrayOf(lastAimX, lastAimY)
+        }
         var openAimX = Float.NaN
         var openAimY = Float.NaN
         var pinchStartStampNs = 0L
@@ -258,7 +319,12 @@ class PhoneXrHands {
             val since = stampNs - lastStampNs
             if (since <= 0L || since > PREDICT_HORIZON_NS) return null
             val t = since / 1e9f
-            fun step(velocity: Float) = (velocity * t).coerceIn(-MAX_PREDICT_STEP, MAX_PREDICT_STEP)
+            // Build 96: o alcance de uma previsão nunca passa de alguns tamanhos de palma. O limite
+            // absoluto de MAX_PREDICT_STEP (35 % da imagem) só existe para pegar velocidade mal
+            // medida; para uma mão pequena e longe ele permitia que um erro de velocidade jogasse o
+            // cursor para o outro lado da tela entre dois quadros.
+            val reach = (hand.shape.palmWidth * 4f).coerceIn(.02f, MAX_PREDICT_STEP)
+            fun step(velocity: Float) = (velocity * t).coerceIn(-reach, reach)
             val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i]) }
             val head = hand.head?.let { old -> FloatArray(old.size) { i -> old[i] + step(vHead[i]) } }
             val shape = hand.shape.copy(palmX = hand.shape.palmX + step(vPalm[0]),
@@ -356,6 +422,10 @@ class PhoneXrHands {
             val m9x = raw[9].x(); val m9y = raw[9].y()
             val palmLen = kotlin.math.hypot(m9x - w0x, m9y - w0y)
             val maxReach = (palmLen * 2.35f).coerceAtLeast(0.06f)
+            // Build 96 — as dead zones deste quadro, medidas no tamanho real da mão. Os fatores
+            // (.014 e .020) são os que reproduzem os valores antigos com uma palma de ~5 % da
+            // imagem, ou seja: nada muda na distância de uso normal, e as pontas ficam certas.
+            state.setLandmarkDeadZone((palmLen * .014f).coerceIn(.0006f, .0028f))
             val ptsArray = FloatArray(63)
             val points = ArrayList<NormalizedLandmark>(21)
             for (i in 0 until 21) {
@@ -425,9 +495,19 @@ class PhoneXrHands {
                     state.openAimY = rawAimY
                 }
             }
+            // Um salto absurdo de um único quadro não vira cursor (ver `stableAim`): o limite é de
+            // quatro palmas por quadro, generoso para qualquer gesto humano e apertado para glitch.
+            // Uma mão grande (perto) ganha um limite maior, mas nunca acima de 35 % da tela num só
+            // quadro: isso já seria uma tela inteira em 100 ms, mais rápido do que um dedo anda.
+            val aimLimit = (palmLen * 4f).coerceIn(.12f, .35f)
+            val aim = state.stableAim(rawAimX, rawAimY, stamp, aimLimit)
+            // Pinça segurado: o ponto do clique fica mais firme (dead zone maior). Solto, ele volta
+            // a ser o mais responsivo possível — o ponteiro tem que chegar no alvo, não morar nele.
+            val aimBase = (palmLen * .020f).coerceIn(.0008f, .0032f)
+            state.setAimDeadZone(if (pinchingNow) (aimBase * 2.2f).coerceIn(.0008f, .005f) else aimBase)
             val hand = Hand(left,ptsArray,
-                head,shape,bx,by,state.x.filter(rawAimX,stamp),
-                state.y.filter(rawAimY,stamp),pinchingNow,state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
+                head,shape,bx,by,state.x.filter(aim[0],stamp),
+                state.y.filter(aim[1],stamp),pinchingNow,state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
             state.noteDetection(stamp,hand)
             seen.add(hand)
         }

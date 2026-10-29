@@ -8,7 +8,8 @@ import {
   registerDockLauncher, registerDockAndroidProvider, extraDockIds, toggleExtraDockId, DOCK_CATALOG,
 } from './dock-catalog.js';
 import { installNightCamera, nightCameraState, setNightCameraMode } from './night-camera.js';
-import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
+import { open, close, wins, buildDock, dockButton, screenDepth, screenDepthLimits, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
+import { openOrbMenu, refreshOrbIfOpen } from './orb-menu.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
@@ -3048,6 +3049,10 @@ const LIB_ACTIONS = {
   'roblox-vr': () => openRobloxVr(),
   roblox: () => openRobloxVr(),
   'hyper-vr': () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/'),
+  // Build 96: o centro do anel de apps abre a lista completa (a mesma Biblioteca da Dock). Sem esta
+  // entrada, `launchDockApp('library')` não achava ninguém e o botão do meio ficava morto.
+  library:  () => libraryApp(),
+  shizuku:  () => libraryApp(),
 };
 
 /* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */
@@ -4661,6 +4666,8 @@ function makeDock() {
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(180deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(180deg,#2dd4bf 0%,#0284c7 100%)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
+    // Build 96: a bolinha com 10 bolinhas (3/4/3) que abre o anel de apps grandes — Android + do app.
+    { kind: 'orb', id: 'orb', label: 'Apps em anel (10)', run: openOrbMenu },
   ]);
   syncVirtualEnvironmentDock();
 }
@@ -4703,6 +4710,12 @@ const dockAndroidApps = () => androidApps()
     img: app.icon || '',
     bg: 'linear-gradient(180deg,#3f3f46 0%,#18181b 100%)',
   }));
+// Build 96 — o botão "tela perto / longe" (do anel de apps e dos Ajustes rápidos) é o mesmo do ATMO:
+// janelas e dock deslizam juntas na profundidade. A implementação vive em windows.js, que é quem
+// calcula o arco; aqui só publicamos os dois ganchos que a UI usa.
+window.nextvrScreenDepth = dir => screenDepth(dir);
+window.nextvrScreenDepthLimits = () => screenDepthLimits();
+
 window.__nextvrDockAndroidApps = dockAndroidApps;
 registerDockAndroidProvider(dockAndroidApps);
 registerDockLauncher(id => {
@@ -4718,7 +4731,7 @@ on('dock-extras', () => {
   makeDock();                 // a Dock e' reconstruida com a lista nova de apps extras
   css3d.invalidate?.();
 });
-on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
+on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); refreshOrbIfOpen(); });
 /**
  * PhoneXR state/library changed: repaint the library (hosted badge, runtime row) and the PhoneXR
  * settings page when it is open. The XR game mode itself is handled by xr-games.js; this side only

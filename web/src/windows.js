@@ -756,6 +756,74 @@ export function updateWindowsDepthLayering(activeWin = null) {
   return withDist.map(x => x.w.id);
 }
 
+/**
+ * Build 96 — "bota o negócio da tela ficar perto e longe também igual do ATMO".
+ *
+ * No ATMO esse controle é um só: o workspace INTEIRO (janelas e deck) desliza no eixo da
+ * profundidade, sem mudar o tamanho aparente nem o ângulo — a tela vem para perto de você, ou
+ * recua para você ver mais coisa. Aqui sai do mesmo jeito, e de graça, porque todo o arco já é
+ * calculado a partir de dois números: `S.winDist` (distância das janelas) e `S.dockDist` (a dock,
+ * em múltiplo da distância de conforto). Então perto/longe é só ANIMAR esses dois juntos:
+ *
+ *   - os dois andam na mesma proporção, então a dock nunca descola do arco de janelas;
+ *   - os limites são os mesmos dos controles de Ajustes (`winDist` .6–1.8 nativo / 1.5–3.4 preview,
+ *     `dockDist` .7–1.5): o botão nunca leva a tela para um lugar onde o slider não iria;
+ *   - a animação é de 260 ms com saída suave, e um toque novo durante a animação pega o valor
+ *     exato de onde ela está (nada de acumular toques perdidos);
+ *   - o resultado é salvo e emitido, então Ajustes, o anel de apps e o HUD mostram o mesmo número.
+ */
+const SCREEN_DEPTH_MS = 260;
+let screenDepthAnim = 0;
+const depthRange = () => (native ? { min: .6, max: 1.8 } : { min: 1.5, max: 3.4 });
+const clampNum = (v, a, b) => Math.max(a, Math.min(b, v));
+
+export function screenDepthTargets(step) {
+  const { min, max } = depthRange();
+  const from = clampNum(Number(S.winDist) || COMFORT.windowDistance, min, max);
+  const fromDock = clampNum(Number(S.dockDist) || 1, .7, 1.5);
+  const to = clampNum(from + step, min, max);
+  // A dock anda na mesma proporção da tela: se a tela fica 10% mais perto, a dock também.
+  const ratio = to / (from || 1);
+  return { from, to, fromDock, toDock: clampNum(fromDock * ratio, .7, 1.5) };
+}
+
+export function screenDepth(dir = 0) {
+  const sign = Math.sign(Number(dir) || 0);
+  if (!sign) return Number(S.winDist) || COMFORT.windowDistance;
+  const step = -0.2 * sign;                 // dir > 0 = PERTO (menos metros)
+  const targets = screenDepthTargets(step);
+  if (Math.abs(targets.to - targets.from) < 1e-4) return targets.from;
+  cancelAnimationFrame(screenDepthAnim);
+  const started = performance.now();
+  const apply = t => {
+    const eased = 1 - Math.pow(1 - t, 3);
+    S.winDist = targets.from + (targets.to - targets.from) * eased;
+    S.dockDist = targets.fromDock + (targets.toDock - targets.fromDock) * eased;
+    emit('winDist', S.winDist);
+    emit('dockDist', S.dockDist);
+  };
+  const tick = now => {
+    const t = Math.min(1, (now - started) / SCREEN_DEPTH_MS);
+    apply(t);
+    if (t < 1) { screenDepthAnim = requestAnimationFrame(tick); return; }
+    S.winDist = targets.to;
+    S.dockDist = targets.toDock;
+    save(S);
+    layout();
+    placeDock();
+    screenDepthAnim = 0;
+  };
+  screenDepthAnim = requestAnimationFrame(tick);
+  return targets.to;
+}
+
+/** Quanto falta (em metros) para o limite mais próximo — o anel usa isso para apagar o botão morto. */
+export function screenDepthLimits() {
+  const { min, max } = depthRange();
+  const cur = Number(S.winDist) || COMFORT.windowDistance;
+  return { near: cur - min < 1e-3, far: max - cur < 1e-3, value: cur, min, max };
+}
+
 export function setWindowDepth(winOrId, radiusMeters) {
   const w = typeof winOrId === 'string'
     ? wins.find(x => x.id === winOrId)
@@ -1752,6 +1820,16 @@ export function buildDock(items) {
       b.className = 'dock-status dock-pico-status';
       b.innerHTML = `<span class="dk-pico-top"><i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span></span>`
         + `<span class="dk-pico-sub"><span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span><span class="dk-wifi">${WIFI_SVG}</span></span>`;
+    } else if (it.kind === 'orb') {
+      // Build 96: a bolinha da Dock com as 10 bolinhas dentro (3 em cima, 4 no meio, 3 embaixo).
+      // Ela abre o anel de apps (`orb-menu.js`); o desenho é o próprio mapa do menu, então a
+      // bolinha já anuncia o que vai abrir.
+      b.className = 'dock-app dock-orb';
+      b.dataset.orb = '1';
+      b.innerHTML = '<span class="dock-orb-dots" aria-hidden="true">'
+        + '<b><i></i><i></i><i></i></b>'
+        + '<b><i></i><i></i><i></i><i></i></b>'
+        + '<b><i></i><i></i><i></i></b></span>';
     } else if (it.kind === 'tool') {
       const bell = document.createElement('span');
       bell.className = 'dock-bell-ind';
