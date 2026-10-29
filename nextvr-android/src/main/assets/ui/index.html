@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
-<title>ATMOXR</title>
+<title>NextVR</title>
 
 <link rel="stylesheet" href="./fonts.css">
 <style>
@@ -2113,9 +2113,9 @@
   }
 
 
-  /* ---------- Build 89: tela de carregamento ATMO XR ---------- */
+  /* ---------- Build 89: tela de carregamento NextVR ---------- */
   /* A arte e' a imagem que o usuario mandou ("substitui aquela e poe essa"): headset + dois
-     controles, wordmark ATMO XR e o selo REALIDADE VIRTUAL. Por cima dela ficam so' o progresso,
+     controles, wordmark NextVR e o selo REALIDADE VIRTUAL. Por cima dela ficam so' o progresso,
      o status, o tempo e o botao de cancelar, para a tela continuar contando o carregamento. */
   /* ---------- Build 90: painel da Key ---------- */
   .entry-subpanel--license{display:flex;flex-direction:column;min-height:0}
@@ -2162,7 +2162,7 @@
   }
   .entry-card--activated .entry-card-state{color:#4ade80}
 
-  /* ---------- Build 90: conta ATMOXR (e-mail + vínculos) ---------- */
+  /* ---------- Build 90: conta NextVR (e-mail + vínculos) ---------- */
   .entry-account{
     margin-top:8px;padding:10px 12px;border-radius:12px;
     background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);
@@ -2195,55 +2195,55 @@
   .cv-equipped{}
   .cv-save:active{transform:scale(.98)}
 
-  .entry-atmo-load{
+  .entry-nextvr-load{
     position:absolute;inset:0;z-index:20;width:100%;height:100%;box-sizing:border-box;
     display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;
     background:#050507;color:#f4f4f5;
   }
-  .entry-atmo-art{
+  .entry-nextvr-art{
     position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;
     user-select:none;-webkit-user-drag:none;pointer-events:none;
   }
-  .entry-atmo-load::after{
+  .entry-nextvr-load::after{
     content:"";position:absolute;left:0;right:0;bottom:0;height:32%;pointer-events:none;
     background:linear-gradient(180deg,transparent 0%,rgba(5,5,7,.72) 58%,rgba(5,5,7,.96) 100%);
   }
-  .entry-atmo-cancel{
+  .entry-nextvr-cancel{
     position:absolute;right:18px;top:16px;z-index:3;cursor:pointer;font-family:inherit;
     padding:7px 14px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.12em;
     color:#e4e4e7;background:rgba(24,24,27,.86);border:1px solid rgba(228,228,231,.24);
     transition:background .15s ease,border-color .15s ease;
   }
-  .entry-atmo-cancel:hover{background:#3f3f46;border-color:#fafafa}
-  .entry-atmo-bat{
+  .entry-nextvr-cancel:hover{background:#3f3f46;border-color:#fafafa}
+  .entry-nextvr-bat{
     position:absolute;left:18px;top:16px;z-index:3;
     padding:7px 14px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.1em;
     color:#a1a1aa;background:rgba(15,15,18,.72);border:1px solid rgba(161,161,170,.22);
   }
-  .entry-atmo-foot{
+  .entry-nextvr-foot{
     position:relative;z-index:2;width:100%;flex:none;display:flex;flex-direction:column;gap:8px;
     padding:0 24px 18px;
   }
-  .entry-atmo-status{
+  .entry-nextvr-status{
     font-size:12.5px;font-weight:700;letter-spacing:.08em;color:#d4d4d8;min-height:17px;
     text-shadow:0 2px 10px rgba(0,0,0,.9);
   }
-  .entry-atmo-bar-row{display:flex;align-items:center;gap:12px;width:100%}
-  .entry-atmo-bar-track{
+  .entry-nextvr-bar-row{display:flex;align-items:center;gap:12px;width:100%}
+  .entry-nextvr-bar-track{
     position:relative;flex:1;height:5px;border-radius:99px;overflow:hidden;
     background:rgba(148,163,184,.20);box-shadow:inset 0 1px 2px rgba(0,0,0,.7);
   }
-  .entry-atmo-bar-fill{
+  .entry-nextvr-bar-fill{
     height:100%;border-radius:99px;transition:width .18s linear;
     background:linear-gradient(90deg,#71717a,#d4d4d8 55%,#ffffff);
     box-shadow:0 0 14px rgba(255,255,255,.55);
   }
-  .entry-atmo-pct{
+  .entry-nextvr-pct{
     font-size:13px;font-weight:900;color:#fafafa;letter-spacing:.04em;min-width:46px;text-align:right;
     font-variant-numeric:tabular-nums;
   }
-  .entry-atmo-sec{font-size:11px;font-weight:700;color:#a1a1aa;letter-spacing:.06em;font-variant-numeric:tabular-nums}
-  .entry-atmo-hint{
+  .entry-nextvr-sec{font-size:11px;font-weight:700;color:#a1a1aa;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .entry-nextvr-hint{
     font-size:10.5px;font-weight:700;letter-spacing:.16em;color:#a1a1aa;text-transform:uppercase;
   }
   .entry-hud-screen{
@@ -4030,7 +4030,7 @@
     display:none !important;
   }
 
-  /* ============ Build 65 (ATMOXR): Dock Pico 4, Janelas Flutuantes Pico 4, Câmera P&B (Meta Quest 2) e Menu Preto e Cinza ============ */
+  /* ============ Build 65 (NextVR): Dock Pico 4, Janelas Flutuantes Pico 4, Câmera P&B (Meta Quest 2) e Menu Preto e Cinza ============ */
   html:not(.native)[data-bw-camera="1"] #gl,
   html[data-bw-camera="1"] #cam{
     filter:grayscale(1) contrast(1.08);
@@ -4600,8 +4600,8 @@
 <!-- primeira execução: idioma -->
 <div id="boot">
   <div class="boot-c">
-    <div class="logo"><img src="./icons/nextvr-n.png" alt="ATMOXR"></div>
-    <div id="bootSub" style="color:var(--soft);font-size:16px">ATMOXR</div>
+    <div class="logo"><img src="./icons/nextvr-n.png" alt="NextVR"></div>
+    <div id="bootSub" style="color:var(--soft);font-size:16px">NextVR</div>
     <button id="bootGo" class="start">Entrar</button>
     <p class="hint" id="bootHint">
       Aponte o celular para a frente ao entrar. Use o controle Centralizar na dock a qualquer momento.

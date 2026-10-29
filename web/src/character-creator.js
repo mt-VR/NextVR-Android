@@ -1,4 +1,4 @@
-// Criador de Personagem 3D do Jogo (ATMOXR Avatar Studio 3D)
+// Criador de Personagem 3D do Jogo (NextVR Avatar Studio 3D)
 import { settings as S, save, emit } from './core.js';
 
 export const CHARACTER_KEY = 'atmoxr.character.v1';

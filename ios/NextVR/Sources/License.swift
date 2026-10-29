@@ -3,7 +3,7 @@ import CryptoKit
 import UIKit
 
 /**
- * Build 95 — a Key do ATMO XR no iPhone.
+ * Build 95 — a Key do NextVR no iPhone.
  *
  * Porte fiel de `nextvr-android/.../License.java`: mesmo alfabeto Crockford base32 (sem I, L, O e U),
  * 22 caracteres (16 de identificador + 6 de MAC), mesmo prefixo (`ATMOXR-KEY-V1:`) e mesmo segredo —

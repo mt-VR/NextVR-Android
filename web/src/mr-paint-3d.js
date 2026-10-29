@@ -1,7 +1,7 @@
 // ============================================================================
-// ATMOXR — paintMR 3D (paintdrawer): desenho em Realidade Mista com as mãos.
+// NextVR — paintMR 3D (paintdrawer): desenho em Realidade Mista com as mãos.
 //
-// O que este módulo faz de verdade (sem simular nada que o ATMO não tenha):
+// O que este módulo faz de verdade (sem simular nada que o NextVR não tenha):
 //  - usa o Hand Tracking NATIVO que já existe (OrangeHanding / MediaPipe + PhoneXrHands),
 //    recebendo os 21 landmarks normalizados por `hands.js` — nada de detector web;
 //  - a PINÇA (polegar + indicador) da MÃO DIREITA cria um traço TRIDIMENSIONAL: cada amostra

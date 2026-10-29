@@ -8,7 +8,7 @@ Três pedidos nesta rodada:
    também”*;
 3. *“o boneco em 3D é desse jeito, não aquele feio”* (print do avatar do PICO Motion Tracker).
 
-APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **92**).
+APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **92**).
 
 ## 1. Conta Google / YouTube com “Continuar como (sua conta)”
 

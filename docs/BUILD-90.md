@@ -1,7 +1,7 @@
 # Build 90 — Key, conta por e-mail, lanterna no escuro e bolinha do teclado
 
 Tudo o que o usuário pediu nesta rodada, item por item, e onde está no código.
-APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **90**).
+APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **90**).
 
 ## 1. Key de ativação (22 caracteres, uma vez, presa ao celular)
 
@@ -38,12 +38,12 @@ usuário pediu — é: chave de 22 caracteres, assinada, uma ativação por apar
 
 ## 2. Conta por e-mail com vínculos (Discord, TikTok, Google, YouTube)
 
-* Login/Perfil ganhou o bloco **CONTA ATMOXR · E-MAIL E VÍNCULOS**: campo de e-mail (guardado no
+* Login/Perfil ganhou o bloco **CONTA NextVR · E-MAIL E VÍNCULOS**: campo de e-mail (guardado no
   perfil) e quatro botões — Discord, TikTok, Google e YouTube — que marcam o serviço como vinculado e
   abrem a página de **login real** de cada um numa janela do navegador (`on('account-link')` em
   `apps.js`).
 * Limite honesto: vínculo OAuth “de verdade” exige um aplicativo registrado em cada serviço
-  (client id/secret e servidor de callback). O que existe aqui é o e-mail na conta ATMOXR + o login
+  (client id/secret e servidor de callback). O que existe aqui é o e-mail na conta NextVR + o login
   real aberto pelo app, sem inventar uma tela de login falsa.
 
 ## 3. Câmera noturna e lanterna no escuro total

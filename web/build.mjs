@@ -27,9 +27,9 @@ await copyFile('web/assets/gorilla-rig.task', new URL('gorilla-rig.task', out));
 await copyFile('web/assets/vrfs-assets.task', new URL('vrfs-assets.task', out));
 // Ilustração (mão com o controle) da tela de escolha de idioma.
 await copyFile('web/assets/hand-controller.png', new URL('hand-controller.png', out));
-// Build 89: a arte da nova tela de carregamento ATMO XR (headset + dois controles).
-await copyFile('web/assets/atmo-load.jpg', new URL('atmo-load.jpg', out));
-await copyFile('web/assets/atmo-load.jpg', new URL('icons/atmo-load.jpg', out));
+// Build 89: a arte da nova tela de carregamento NextVR (headset + dois controles).
+await copyFile('web/assets/nextvr-load.jpg', new URL('nextvr-load.jpg', out));
+await copyFile('web/assets/nextvr-load.jpg', new URL('icons/nextvr-load.jpg', out));
 await mkdir(new URL('env/', out), { recursive: true });
 for (const id of ['sunset','dusk','cinema','lagoon','virtual','palm','night','space','tropical','lakeside','dark'])
   await copyFile(`web/env/${id}.jpg`, new URL(`env/${id}.jpg`, out));

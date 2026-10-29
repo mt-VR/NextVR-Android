@@ -52,25 +52,32 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-97-marca-nextvr',
+    tag: 'CORREÇÃO · BUILD 97 — O APP SE CHAMA NEXTVR',
+    time: 'Agora',
+    heading: 'Build 97: o nome embaixo do ícone, a tela de carregamento, o menu, a Store, a tela de boas-vindas e o arquivo do APK voltaram a ser NextVR',
+    desc: 'O NextVR tinha ficado com a marca de um projeto que é OUTRO app: o nome embaixo do ícone era o de lá, a tela de carregamento mostrava o wordmark de lá, e o menu de entrada, a Store, a tela de boas-vindas e até o nome do arquivo que você baixa também. Agora tudo isso é NextVR: o app aparece como NextVR no celular, a arte de carregamento é a nova com o wordmark NextVR (headset e controles iguais), o menu diz "Bem-vindo ao NextVR", a loja é "Store NextVR" e o download passou a ser NextVR.apk. A sua Key continua a mesma, as 4 chaves continuam valendo — o sistema de Key não foi tocado.',
+  },
+  {
     id: 'build-96-anel-e-precisao',
     tag: 'NOVO · BUILD 96 — A BOLINHA COM 10 APPS, TELA PERTO/LONGE E MÃO MAIS PRECISA',
     time: 'Agora',
     heading: 'Build 96: uma bolinha na Dock com 10 bolinhas dentro abre um anel de apps gigantes (3 em cima, 4 no meio, 3 embaixo), com os apps do Android E os do app; a tela agora vai para perto e para longe; e o rastreio de mão ficou bem mais preciso',
-    desc: 'A Dock normal ganhou uma opção em bolinha: ela mostra as mesmas 10 bolinhas do menu que abre (3 em cima, 4 no meio, 3 embaixo) e, ao tocar, abre um anel de apps grandes em círculo com os apps do celular (com o ícone real de cada um) e os apps do ATMO XR: Navegador, YouTube, Store, Galeria, Biblioteca e Configurações. O centro do anel abre a lista completa. Embaixo do anel ficam os botões PERTO e LONGE: eles levam a tela inteira — janelas e Dock juntas — para perto ou para longe, deslizando em vez de pular, do mesmo jeito que no ATMO. E o rastreio de mão ficou mais preciso: o ponteiro parou de tremer com a mão parada, um quadro ruim do detector não joga mais o cursor para o outro lado da tela, o ponto do clique não escorrega durante a pinça e a suavização agora segue o tamanho da mão (mais firme de longe, mais responsiva de perto).',
+    desc: 'A Dock normal ganhou uma opção em bolinha: ela mostra as mesmas 10 bolinhas do menu que abre (3 em cima, 4 no meio, 3 embaixo) e, ao tocar, abre um anel de apps grandes em círculo com os apps do celular (com o ícone real de cada um) e os apps do NextVR: Navegador, YouTube, Store, Galeria, Biblioteca e Configurações. O centro do anel abre a lista completa. Embaixo do anel ficam os botões PERTO e LONGE: eles levam a tela inteira — janelas e Dock juntas — para perto ou para longe, deslizando em vez de pular, do mesmo jeito que no NextVR. E o rastreio de mão ficou mais preciso: o ponteiro parou de tremer com a mão parada, um quadro ruim do detector não joga mais o cursor para o outro lado da tela, o ponto do clique não escorrega durante a pinça e a suavização agora segue o tamanho da mão (mais firme de longe, mais responsiva de perto).',
   },
   {
     id: 'build-95-ios',
-    tag: 'NOVO · BUILD 95 — O ATMO XR NO IPHONE (.IPA)',
+    tag: 'NOVO · BUILD 95 — O NextVR NO IPHONE (.IPA)',
     time: 'Agora',
     heading: 'Build 95: versão para iPhone — o mesmo menu, o mesmo passthrough e a mesma Key, agora em .ipa',
-    desc: 'O ATMO XR ganhou uma versão para iPhone: o mesmo menu de entrada, as mesmas Configurações e a mesma Key de 22 caracteres (as suas 4 chaves valem nos dois aparelhos), com o mundo real atrás da interface pela câmera traseira, olhar em volta pelo giroscópio, lanterna e câmera noturna, brilho da tela e foto de perfil das suas fotos. O arquivo .ipa sai pronto para instalar com o seu Apple ID. O que é do Android — janelas de apps, Shizuku, espelhar a tela, rastreio de mãos — não existe no iPhone e a interface mostra isso em vez de fingir.',
+    desc: 'O NextVR ganhou uma versão para iPhone: o mesmo menu de entrada, as mesmas Configurações e a mesma Key de 22 caracteres (as suas 4 chaves valem nos dois aparelhos), com o mundo real atrás da interface pela câmera traseira, olhar em volta pelo giroscópio, lanterna e câmera noturna, brilho da tela e foto de perfil das suas fotos. O arquivo .ipa sai pronto para instalar com o seu Apple ID. O que é do Android — janelas de apps, Shizuku, espelhar a tela, rastreio de mãos — não existe no iPhone e a interface mostra isso em vez de fingir.',
   },
   {
     id: 'build-94-conta-google',
     tag: 'NOVO · BUILD 94 — A CONTA DO GMAIL CONECTA NO APP (COMO NO KWAI E NO TIKTOK)',
     time: 'Agora',
-    heading: 'Build 94: o cartão de login mostra as contas Google do próprio celular — "Escolha uma conta, para continuar no ATMO XR" — e a conta escolhida fica conectada no perfil',
-    desc: 'Agora é igual ao login do Kwai e do TikTok: ao entrar no app aparece "Escolha uma conta / para continuar no ATMO XR" com a lista das contas Google que já estão no seu celular (cada uma com avatar, nome e e-mail), o botão "Adicionar outra conta" abre a tela de contas do próprio Android e, ao escolher uma conta, ela fica conectada no app — o e-mail entra no perfil, marca o Google como vinculado e vale para o YouTube. O acesso às contas é pedido só na hora em que você toca em conectar, e o app não lê nada além do endereço de e-mail da conta Google.',
+    heading: 'Build 94: o cartão de login mostra as contas Google do próprio celular — "Escolha uma conta, para continuar no NextVR" — e a conta escolhida fica conectada no perfil',
+    desc: 'Agora é igual ao login do Kwai e do TikTok: ao entrar no app aparece "Escolha uma conta / para continuar no NextVR" com a lista das contas Google que já estão no seu celular (cada uma com avatar, nome e e-mail), o botão "Adicionar outra conta" abre a tela de contas do próprio Android e, ao escolher uma conta, ela fica conectada no app — o e-mail entra no perfil, marca o Google como vinculado e vale para o YouTube. O acesso às contas é pedido só na hora em que você toca em conectar, e o app não lê nada além do endereço de e-mail da conta Google.',
   },
   {
     id: 'build-93-organizacao',
@@ -101,11 +108,11 @@ export const ENTRY_UPDATES = Object.freeze([
     desc: 'Sistema de Key: a chave tem 22 caracteres, funciona uma vez, fica presa a ESTE celular e não precisa ser digitada de novo (só se desinstalar e instalar outra vez). A conta agora tem e-mail no Login/Perfil e um toque vincula Discord, TikTok, Google e YouTube abrindo a página de login real de cada um. A câmera noturna ficou de verdade: sem luz nenhuma o flash do celular acende e apaga quando a luz volta (com travas para não piscar), e o hand tracking recebe um ganho no quadro escuro para reconhecer a mão no breu. O teclado ganhou uma bolinha ao lado da barrinha branca: arrastar move, tocar fecha. E a barra de aumentar/diminuir brilho embaixo das janelinhas flutuantes saiu.',
   },
   {
-    id: 'build-89-atmo',
-    tag: 'NOVO · BUILD 89 — ATMO XR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
+    id: 'build-89-carregamento',
+    tag: 'NOVO · BUILD 89 — NextVR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
     time: 'Agora',
     heading: 'Build 89: Apache no lugar da NanyGata, Teclado em Pe, TikTok Real, Janelas ate 300%, Personagem 3D Giratorio e Camera Noturna',
-    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "o contribuidor mais aurudo desse planeta majestoso" (o selo é o desenho ao lado do nome). O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento ATMO XR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece (e a lanterna do celular acende quando nao ha luz nenhuma, apagando quando a luz volta). O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
+    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "o contribuidor mais aurudo desse planeta majestoso" (o selo é o desenho ao lado do nome). O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento NextVR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece (e a lanterna do celular acende quando nao ha luz nenhuma, apagando quando a luz volta). O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
   },
   {
     id: 'worldlock-camera-paint',
@@ -130,10 +137,10 @@ export const ENTRY_UPDATES = Object.freeze([
   },
   {
     id: 'quest-browser-env-hand',
-    tag: 'NOVO · ÍCONE ATMO XR & PICO 4 ULTRA COMPLETO',
+    tag: 'NOVO · ÍCONE NextVR & PICO 4 ULTRA COMPLETO',
     time: 'Agora',
-    heading: 'Novo Ícone ATMO XR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
-    desc: 'Novo ícone oficial ATMO XR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR e Central de Notificações 27°C!',
+    heading: 'Novo Ícone NextVR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
+    desc: 'Novo ícone oficial NextVR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR e Central de Notificações 27°C!',
   },
   {
     id: 'mr-pistol',

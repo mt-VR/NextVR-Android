@@ -3,7 +3,7 @@ import WebKit
 import AVFoundation
 
 /**
- * Build 95 — o ATMO XR rodando no iPhone.
+ * Build 95 — o NextVR rodando no iPhone.
  *
  * A arquitetura é a mesma do Android, em três camadas:
  *
@@ -99,7 +99,7 @@ final class ShellViewController: UIViewController, WKScriptMessageHandler, WKNav
            let source = try? String(contentsOf: bridgeURL, encoding: .utf8) {
             controller.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         } else {
-            NSLog("ATMOXR: bridge.js não está no pacote — a página vai abrir sem a ponte nativa")
+            NSLog("NextVR: bridge.js não está no pacote — a página vai abrir sem a ponte nativa")
         }
         configuration.userContentController = controller
 
@@ -120,7 +120,7 @@ final class ShellViewController: UIViewController, WKScriptMessageHandler, WKNav
         ])
 
         guard let index = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "ui") else {
-            NSLog("ATMOXR: ui/index.html não está no pacote")
+            NSLog("NextVR: ui/index.html não está no pacote")
             return
         }
         webView.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
@@ -317,7 +317,7 @@ final class ShellViewController: UIViewController, WKScriptMessageHandler, WKNav
             break
 
         default:
-            NSLog("ATMOXR: comando sem equivalente no iOS: %@", method)
+            NSLog("NextVR: comando sem equivalente no iOS: %@", method)
         }
     }
 

@@ -1,4 +1,4 @@
-// Build 95 — o ATMO XR no iPhone.
+// Build 95 — o NextVR no iPhone.
 //
 // O usuário: "Arena, consegue fazer uma versão pra ipa?". O que dá para garantir sem um Mac nesta
 // máquina é que o projeto esteja COMPLETO e coerente: a ponte nativa tem todos os nomes que a
@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const read = p => readFileSync(p, 'utf8');
-const bridge = () => read('ios/ATMOXR/Resources/bridge.js');
-const shell = () => read('ios/ATMOXR/Sources/ShellViewController.swift');
-const licenseSwift = () => read('ios/ATMOXR/Sources/License.swift');
+const bridge = () => read('ios/NextVR/Resources/bridge.js');
+const shell = () => read('ios/NextVR/Sources/ShellViewController.swift');
+const licenseSwift = () => read('ios/NextVR/Sources/License.swift');
 const licenseJava = () => read('nextvr-android/src/main/java/com/nextvr/app/License.java');
 
 /** Todos os métodos de `window.NativeXR` que a interface web chama. */
@@ -74,8 +74,8 @@ test('Build 95: o app carrega a mesma interface do Android, transparente, por ci
   assert.ok(code.includes('webView.isOpaque = false'), 'a página é transparente para o mundo aparecer');
   assert.ok(code.includes('loadFileURL(index, allowingReadAccessTo:'), 'carrega a interface do pacote');
   assert.ok(code.includes('subdirectory: "ui"'), 'de ui/index.html, igual ao Android');
-  const camera = read('ios/ATMOXR/Sources/CameraFeed.swift');
-  const motion = read('ios/ATMOXR/Sources/MotionPose.swift');
+  const camera = read('ios/NextVR/Sources/CameraFeed.swift');
+  const motion = read('ios/NextVR/Sources/MotionPose.swift');
   assert.ok(camera.includes('AVCaptureVideoPreviewLayer'), 'passthrough pela câmera do iPhone');
   assert.ok(camera.includes('AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back'),
     'câmera traseira, a que aponta para o mundo');
@@ -106,8 +106,8 @@ test('Build 95: cada arquivo Swift importa o framework que usa (erro que já cus
     ['CryptoKit', /\bHMAC<SHA256>|\bSHA256\.hash/],
     ['simd', /\bsimd_float4x4\b/]
   ];
-  for (const file of readdirSync('ios/ATMOXR/Sources').filter(name => name.endsWith('.swift'))) {
-    const source = read(`ios/ATMOXR/Sources/${file}`);
+  for (const file of readdirSync('ios/NextVR/Sources').filter(name => name.endsWith('.swift'))) {
+    const source = read(`ios/NextVR/Sources/${file}`);
     for (const [framework, usage] of needs) {
       if (!usage.test(source)) continue;
       assert.ok(source.includes(`import ${framework}`), `${file} usa ${framework} e não importa`);
@@ -116,7 +116,7 @@ test('Build 95: cada arquivo Swift importa o framework que usa (erro que já cus
 });
 
 test('Build 95: o Info.plist declara câmera, fotos e nada além disso', () => {
-  const plist = read('ios/ATMOXR/Info.plist');
+  const plist = read('ios/NextVR/Info.plist');
   assert.ok(plist.includes('<key>NSCameraUsageDescription</key>'), 'câmera explicada ao usuário');
   assert.ok(plist.includes('<key>NSPhotoLibraryUsageDescription</key>'), 'foto de perfil');
   assert.ok(plist.includes('<key>ITSAppUsesNonExemptEncryption</key>'), 'isenção de criptografia declarada');
@@ -127,13 +127,13 @@ test('Build 95: o Info.plist declara câmera, fotos e nada além disso', () => {
 
 test('Build 95: o projeto Xcode é gerado por xcodegen e empacota a pasta ui', () => {
   const project = read('ios/project.yml');
-  assert.ok(project.includes('name: ATMOXR'));
+  assert.ok(project.includes('name: NextVR'));
   assert.ok(project.includes('PRODUCT_BUNDLE_IDENTIFIER: com.nextvr.atmoxr'));
   assert.ok(project.includes('platform: iOS'));
-  assert.ok(project.includes('path: ATMOXR/Resources/ui'), 'a interface entra no pacote');
+  assert.ok(project.includes('path: NextVR/Resources/ui'), 'a interface entra no pacote');
   assert.ok(project.includes('type: folder'), 'como pasta, igual a assets/ui no Android');
-  assert.ok(project.includes('path: ATMOXR/Resources/bridge.js'), 'a ponte também');
-  assert.ok(project.includes('INFOPLIST_FILE: ATMOXR/Info.plist'));
+  assert.ok(project.includes('path: NextVR/Resources/bridge.js'), 'a ponte também');
+  assert.ok(project.includes('INFOPLIST_FILE: NextVR/Info.plist'));
 });
 
 test('Build 95: o CI do macOS monta o .ipa e publica na branch ipa-dist', () => {
@@ -142,7 +142,7 @@ test('Build 95: o CI do macOS monta o .ipa e publica na branch ipa-dist', () => 
   assert.ok(workflow.includes('brew install xcodegen'));
   assert.ok(workflow.includes('xcodebuild'));
   assert.ok(workflow.includes('CODE_SIGNING_ALLOWED=NO'), 'build sem assinatura (o usuário assina ao instalar)');
-  assert.ok(workflow.includes('zip -qry ATMOXR.ipa Payload'), 'o .ipa é um zip com Payload/');
+  assert.ok(workflow.includes('zip -qry NextVR.ipa Payload'), 'o .ipa é um zip com Payload/');
   assert.ok(workflow.includes('branch ipa-dist') || workflow.includes('origin ipa-dist'), 'publica em ipa-dist');
   assert.ok(workflow.includes('bash ios/Scripts/sync-ui.sh'), 'copia a interface antes de compilar');
 });
@@ -150,10 +150,10 @@ test('Build 95: o CI do macOS monta o .ipa e publica na branch ipa-dist', () => 
 test('Build 95: a interface do iOS sai do MESMO build do Android', () => {
   const script = read('ios/Scripts/sync-ui.sh');
   assert.ok(script.includes('nextvr-android/src/main/assets/ui'), 'mesma origem');
-  assert.ok(script.includes('ios/ATMOXR/Resources/ui'), 'mesmo destino do projeto');
+  assert.ok(script.includes('ios/NextVR/Resources/ui'), 'mesmo destino do projeto');
   assert.ok(script.includes('npm run build:ui'), 'monta antes de copiar');
   // A pasta copiada não é versionada: 19 MB de imagens não entram no git.
-  assert.ok(read('.gitignore').includes('ios/ATMOXR/Resources/ui/'), 'cópia fora do git');
+  assert.ok(read('.gitignore').includes('ios/NextVR/Resources/ui/'), 'cópia fora do git');
 });
 
 test('Build 95: a licença responde também de forma assíncrona (iOS) sem quebrar o Android', () => {

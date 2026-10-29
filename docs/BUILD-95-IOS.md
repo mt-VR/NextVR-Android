@@ -1,4 +1,4 @@
-# Build 95 — o ATMO XR no iPhone (.ipa)
+# Build 95 — o NextVR no iPhone (.ipa)
 
 O pedido: *“Arena, consegue fazer uma versão pra ipa?”*
 
@@ -6,7 +6,7 @@ Dá, e está feito — com a diferença que o iPhone **não** é o Android com o
 nativa, e essa metade foi escrita de novo em Swift. O que é igual nos dois é a interface (a mesma
 página, o mesmo menu, os mesmos apps web) e a Key (as mesmas 4 chaves valem nos dois aparelhos).
 
-**Download:** `https://github.com/mt-VR/NextVR-Android/raw/ipa-dist/dist/ATMOXR.ipa`
+**Download:** `https://github.com/mt-VR/NextVR-Android/raw/ipa-dist/dist/NextVR.ipa`
 (Build 95, `CURRENT_PROJECT_VERSION = 95`, **sem assinatura** — veja “Como instalar no iPhone”.)
 
 ---
@@ -40,7 +40,7 @@ Nada acima é “meia-boca escondido”: quando o recurso não existe, a ponte r
 ios/
   project.yml                        # o projeto Xcode é GERADO por xcodegen (nada de .pbxproj à mão)
   Scripts/sync-ui.sh                 # copia assets/ui do Android para o pacote do iOS
-  ATMOXR/
+  NextVR/
     Info.plist                       # câmera, fotos, tela cheia, sem áudio, sem criptografia própria
     Sources/AppDelegate.swift        # janela + tela cheia
     Sources/ShellViewController.swift # WKWebView transparente + camada do mundo + a ponte
@@ -81,7 +81,7 @@ respondendo na hora.
 3. `node --test tests/build-95-ios.test.mjs` → as checagens de contrato;
 4. `xcodegen generate` → o `.xcodeproj`;
 5. `xcodebuild -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO`;
-6. empacota `Payload/ATMOXR.app` em `ATMOXR.ipa` e publica na branch **`ipa-dist`** (com tamanho e md5
+6. empacota `Payload/NextVR.app` em `NextVR.ipa` e publica na branch **`ipa-dist`** (com tamanho e md5
    em `dist/build.txt`, igual ao APK).
 
 ## Estado do build (leia antes de baixar)
@@ -92,7 +92,7 @@ was not acquired by Runner of type hosted”), então o arquivo ainda não está
 
 * rodar o workflow na mão: `gh workflow run "iOS CI"` (ou Actions → iOS CI → Run workflow), ou
   simplesmente dar um push seu — ele dispara sozinho quando algo em `ios/` ou em `web/src` muda;
-* ou compilar em qualquer Mac com Xcode: `cd ios && xcodegen generate && open ATMOXR.xcodeproj`
+* ou compilar em qualquer Mac com Xcode: `cd ios && xcodegen generate && open NextVR.xcodeproj`
   (o `xcodegen` instala com `brew install xcodegen`; para o app abrir no aparelho é preciso escolher o
   seu time em *Signing & Capabilities*).
 
@@ -103,7 +103,7 @@ O `.ipa` é publicado com tamanho e md5 em `dist/build.txt`, do mesmo jeito que 
 O arquivo **não é assinado** — nenhum repositório público pode assinar por você (a assinatura é a sua
 conta Apple). Três caminhos, do mais fácil ao definitivo:
 
-1. **Sideloadly** (Windows/Mac) — arraste o `ATMOXR.ipa`, entre com o seu Apple ID, instale. O app
+1. **Sideloadly** (Windows/Mac) — arraste o `NextVR.ipa`, entre com o seu Apple ID, instale. O app
    funciona por **7 dias** e depois é só reinstalar (é a regra do Apple ID gratuito).
 2. **AltStore / SideStore** — a mesma coisa, com renovação automática semanal no próprio iPhone.
 3. **Xcode** (Mac) — abra `ios/`, escolha o seu time em *Signing*, e Rode no aparelho.

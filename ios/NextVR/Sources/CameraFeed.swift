@@ -43,7 +43,7 @@ final class CameraFeed: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             output.setSampleBufferDelegate(self, queue: queue)
             if session.canAddOutput(output) { session.addOutput(output) }
         } catch {
-            NSLog("ATMOXR: camera indisponível (\(error.localizedDescription))")
+            NSLog("NextVR: camera indisponível (\(error.localizedDescription))")
             return
         }
         let layer = AVCaptureVideoPreviewLayer(session: session)
@@ -64,7 +64,7 @@ final class CameraFeed: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 DispatchQueue.main.async { self?.run() }
             }
         default:
-            NSLog("ATMOXR: câmera sem permissão — o passthrough fica desligado")
+            NSLog("NextVR: câmera sem permissão — o passthrough fica desligado")
         }
     }
 
@@ -95,7 +95,7 @@ final class CameraFeed: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             }
             device.unlockForConfiguration()
         } catch {
-            NSLog("ATMOXR: não consegui mexer na lanterna (\(error.localizedDescription))")
+            NSLog("NextVR: não consegui mexer na lanterna (\(error.localizedDescription))")
         }
     }
 

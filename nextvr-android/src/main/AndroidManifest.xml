@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Build 94: as contas Google do aparelho. É o que faz o login do app ser o mesmo do Kwai/TikTok:
          a tela "Escolha uma conta" lista os e-mails que já estão no celular e a conta escolhida fica
-         ligada ao perfil ATMO XR. Nada é lido além do endereço de e-mail da conta Google; a permissão
+         ligada ao perfil NextVR. Nada é lido além do endereço de e-mail da conta Google; a permissão
          é pedida na hora em que o jogador toca em entrar com o Google, nunca na abertura do app. -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <!-- The phone mirror is a MediaProjection capture, and Android 10+ refuses to construct one

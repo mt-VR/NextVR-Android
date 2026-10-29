@@ -3,7 +3,7 @@
 Correção do bug: *“a lanterna fica piscando, ela ativa e desativa do nada”*. Nada mais do app mudou —
 o sistema de Key, a conta por e-mail, a bolinha do teclado e as janelas continuam iguais à Build 90.
 
-APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **91**).
+APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **91**).
 
 ## Por que piscava
 

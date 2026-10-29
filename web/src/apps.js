@@ -722,7 +722,7 @@ let photos = [];
 function gallery() {
   const body = el('div', 'pad');
   const head = el('div');
-  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos no ATMOXR.</p>`;
+  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos no NextVR.</p>`;
 
   // ---------- Fotos ----------
   const photoHead = el('div');
@@ -1555,7 +1555,7 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'ATMOXR · shell XR para Android · v2.1.0';
+  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v2.1.0';
   scroll.append(foot);
 
   body.append(head, scroll);
@@ -2097,7 +2097,7 @@ export function openHandDrawGame() {
   return api.root;
 }
 
-/* ============ Criador de Personagem do Próprio Jogo (ATMOXR Avatar Studio 3D) ============ */
+/* ============ Criador de Personagem do Próprio Jogo (NextVR Avatar Studio 3D) ============ */
 export function openAvatarCreator() {
   const existing = wins.find(w => w.id === 'avatar-creator');
   if (existing) {
@@ -2111,16 +2111,16 @@ export function openAvatarCreator() {
   let yaw = 0.22;
   let autoSpin3D = false;
 
-  const body = el('div', 'atmoxr-avatar-creator-win');
+  const body = el('div', 'nextvr-avatar-creator-win');
   body.dataset.avatarCreator = '1';
   body.style.cssText = 'position:relative;width:100%;height:100%;background:#14161c;color:#f4f4f5;display:grid;grid-template-columns:310px 1fr;gap:16px;padding:14px 18px 36px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
 
   const renderPanel = () => {
-    const nick = S.profileName || 'Jogador ATMOXR';
+    const nick = S.profileName || 'Jogador NextVR';
     body.innerHTML = `
       <div style="background:linear-gradient(180deg,#1d2029 0%,#12141a 100%);border-radius:18px;padding:12px 14px;border:1px solid rgba(255,255,255,.11);display:flex;flex-direction:column;justify-content:space-between;align-items:center">
         <div style="width:100%;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">PERSONAGEM 3D · ATMOXR</span>
+          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">PERSONAGEM 3D · NextVR</span>
           <div style="display:inline-flex;gap:4px">
             <button type="button" data-ac-rot="-0.45" style="padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10px;font-weight:700;cursor:pointer">⟲ 3D</button>
             <button type="button" data-ac-autorot style="padding:3px 7px;border-radius:999px;background:${autoSpin3D ? 'rgba(56,189,248,.24)' : 'rgba(255,255,255,.08)'};border:1px solid ${autoSpin3D ? '#38bdf8' : 'rgba(255,255,255,.14)'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">360°</button>
@@ -2144,7 +2144,7 @@ export function openAvatarCreator() {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)">
           <div>
             <h2 style="margin:0;font-size:16px;font-weight:900;color:#fff">Criar Personagem do Jogo</h2>
-            <div style="font-size:11px;color:#94a3b8">Personalize seu personagem para o ATMOXR, Dock e PICO Motion Tracker · Nome: <b style="color:#fff">${escH(nick)}</b></div>
+            <div style="font-size:11px;color:#94a3b8">Personalize seu personagem para o NextVR, Dock e PICO Motion Tracker · Nome: <b style="color:#fff">${escH(nick)}</b></div>
           </div>
           <div style="display:flex;gap:6px">
             <button type="button" data-ac-random style="padding:6px 11px;border-radius:10px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#f4f4f5;font-size:11px;font-weight:800;cursor:pointer">🎲 Aleatório</button>
@@ -2303,7 +2303,7 @@ export function openAvatarCreator() {
     }
   });
 
-  const win = open({ id: 'avatar-creator', title: 'Criar Personagem · ATMOXR', node: body, w: 940, h: 610 });
+  const win = open({ id: 'avatar-creator', title: 'Criar Personagem · NextVR', node: body, w: 940, h: 610 });
   win._cleanupAC = () => cancelAnimationFrame(animId);
   focus(win);
   css3d.invalidate?.();
@@ -2461,7 +2461,7 @@ export function openCharacterViewer() {
     }
   });
 
-  const win = open({ id: 'character-viewer', title: 'Personagem 3D · ATMOXR', node: body, w: 900, h: 620 });
+  const win = open({ id: 'character-viewer', title: 'Personagem 3D · NextVR', node: body, w: 900, h: 620 });
   win._cleanupCV = () => cancelAnimationFrame(animId);
   focus(win);
   css3d.invalidate?.();
@@ -2775,7 +2775,7 @@ export function openSpotifyVr() {
     return existing;
   }
   const tracks = [
-    { title: 'PICO 4 Ultra Spatial Horizon', artist: 'ATMO XR Audio Lab', dur: '3:42', freq: 220, bg: 'linear-gradient(135deg,#065f46,#10b981)' },
+    { title: 'PICO 4 Ultra Spatial Horizon', artist: 'NextVR Audio Lab', dur: '3:42', freq: 220, bg: 'linear-gradient(135deg,#065f46,#10b981)' },
     { title: 'Gorilla Tag Jungle Phonk', artist: 'Monke Beats VR', dur: '2:56', freq: 165, bg: 'linear-gradient(135deg,#7c2d12,#f97316)' },
     { title: 'Neon Saber Synthwave 128 BPM', artist: 'CyberGrid XR', dur: '4:10', freq: 262, bg: 'linear-gradient(135deg,#1e1b4b,#ec4899)' },
     { title: 'Midnight Flight Lo-Fi Beats', artist: 'Tokyo Panorama', dur: '3:18', freq: 196, bg: 'linear-gradient(135deg,#0f172a,#38bdf8)' },
@@ -2839,7 +2839,7 @@ export function openSpotifyVr() {
           <div style="font-size:11.5px;color:rgba(255,255,255,.82);margin-top:4px">${escH(tr.artist)}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;overflow:auto">
-          <div style="font-size:12px;font-weight:800;color:#a1a1aa;margin-bottom:2px">PLAYLIST PICO XR & ATMOXR</div>
+          <div style="font-size:12px;font-weight:800;color:#a1a1aa;margin-bottom:2px">PLAYLIST PICO XR & NextVR</div>
           ${tracks.map((item, i) => `
             <button type="button" data-sp-track="${i}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid ${i === trackIdx ? '#1db954' : 'rgba(255,255,255,.07)'};background:${i === trackIdx ? 'rgba(29,185,84,.16)' : '#18181b'};color:#fff;cursor:pointer;text-align:left">
               <div style="display:flex;align-items:center;gap:10px">
@@ -2965,7 +2965,7 @@ export function openPhoneNotifications() {
           <span style="width:36px;height:36px;border-radius:10px;background:#22c55e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;flex-shrink:0">⬇</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;font-weight:800;color:#111827">image.png</div>
-            <div style="font-size:11.5px;color:#4b5563">Download concluído · Ícone ATMO XR aplicado.</div>
+            <div style="font-size:11.5px;color:#4b5563">Download concluído · Ícone NextVR aplicado.</div>
           </div>
         </div>
         <div data-notif-yt style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px;cursor:pointer">
@@ -3062,7 +3062,7 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
-  { id: 'avatar-creator', name: 'Criar Personagem', cat: 'apps', rating: '5.0', reviews: '32 mil', tag: 'Avatar 3D do Jogo · ATMOXR', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#06b6d4)', textLogo: '🧑‍🚀' },
+  { id: 'avatar-creator', name: 'Criar Personagem', cat: 'apps', rating: '5.0', reviews: '32 mil', tag: 'Avatar 3D do Jogo · NextVR', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#06b6d4)', textLogo: '🧑‍🚀' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Desenho 3D no Espaço', badge: 'NOVO 3D', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
@@ -3217,7 +3217,7 @@ function buildStore() {
 
       <div class="st-quest-hero">
         <div class="st-quest-hero-copy">
-          <span class="st-quest-hero-kicker">PICO 4 ULTRA · ATMO XR STORE</span>
+          <span class="st-quest-hero-kicker">PICO 4 ULTRA · NextVR STORE</span>
           <h2 class="st-quest-hero-title">JOGOS E APPS EM DESTAQUE</h2>
           <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), PICO Motion Tracker, Beat Saber VR, Hyper Dash INT, Roblox, Spotify e TikTok VR.</p>
           <div class="st-quest-hero-actions">
@@ -4651,7 +4651,7 @@ function syncVirtualEnvironmentDock() {
 
 function makeDock() {
   buildDock([
-    // Perfil abre o Criador de Personagem 3D ATMOXR, status do telefone e atalho do ambiente virtual.
+    // Perfil abre o Criador de Personagem 3D NextVR, status do telefone e atalho do ambiente virtual.
     { kind: 'avatar', id: 'profile', label: t('profile'),  run: openAvatarCreator },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
@@ -4710,7 +4710,7 @@ const dockAndroidApps = () => androidApps()
     img: app.icon || '',
     bg: 'linear-gradient(180deg,#3f3f46 0%,#18181b 100%)',
   }));
-// Build 96 — o botão "tela perto / longe" (do anel de apps e dos Ajustes rápidos) é o mesmo do ATMO:
+// Build 96 — o botão "tela perto / longe" (do anel de apps e dos Ajustes rápidos) é o mesmo do NextVR:
 // janelas e dock deslizam juntas na profundidade. A implementação vive em windows.js, que é quem
 // calcula o arco; aqui só publicamos os dois ganchos que a UI usa.
 window.nextvrScreenDepth = dir => screenDepth(dir);
@@ -4795,8 +4795,8 @@ function languagePicker(pending, onPick, slim = false) {
   const paint = () => {
     const hero = slim ? '' :
       `<div class="lq-hero">
-         <img class="lq-logo" src="./icons/nextvr-n.png" alt="ATMOXR">
-         <h1 class="lq-welcome">Bem-vindo<br>ao ATMOXR</h1>
+         <img class="lq-logo" src="./icons/nextvr-n.png" alt="NextVR">
+         <h1 class="lq-welcome">Bem-vindo<br>ao NextVR</h1>
          <p class="lq-tag">Aponte e pinça<br>para escolher.</p>
        </div>`;
     body.innerHTML = `${slim ? `<img class="lq-logo-sm" src="./icons/nextvr-n.png" alt="NextVR"><div class="lq-pickrow"><span class="lq-pick">${label(pending)}</span></div>` : ''}
@@ -5044,7 +5044,7 @@ on('profile-updated', () => makeDock());
  *
  * Sem um servidor OAuth registrado (client id/secret) não existe vínculo automático de verdade: o
  * que dá para fazer com honestidade é abrir a página de login REAL do serviço, já com o e-mail do
- * perfil guardado, e marcar o serviço como vinculado na conta ATMOXR do shell. É isso que este
+ * perfil guardado, e marcar o serviço como vinculado na conta NextVR do shell. É isso que este
  * handler faz — nenhuma tela falsa de "login" é desenhada. */
 on('account-link', payload => {
   // Build 92: quando o login já foi aberto no navegador do celular (Google/YouTube, que recusam

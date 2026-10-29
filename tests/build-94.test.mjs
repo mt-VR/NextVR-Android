@@ -47,7 +47,7 @@ test('Build 94: the app declares the accounts permission and keeps it request-ti
 test('Build 94: the card lists the real accounts like the Kwai screen', () => {
   const entry = entrySrc();
   assert.ok(entry.includes('Escolha uma conta'), 'mesmo título da tela do Kwai');
-  assert.ok(entry.includes('para continuar no ATMO XR'), 'e o mesmo subtítulo, com o nome do app');
+  assert.ok(entry.includes('para continuar no NextVR'), 'e o mesmo subtítulo, com o nome do app');
   assert.ok(entry.includes('data-entry-google-accounts'), 'a lista de contas do celular');
   assert.ok(entry.includes('data-entry-google-account='), 'cada conta é um botão');
   assert.ok(entry.includes('data-entry-google-choose'), '"Adicionar outra conta"');

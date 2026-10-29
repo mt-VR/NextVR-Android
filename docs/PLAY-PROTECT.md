@@ -5,7 +5,7 @@
 > “Este app pode ser perigoso” / “App não verificado” / “O Play Protect bloqueou um app não
 > verificado” e o pedido de desativar a verificação.
 
-Isso não é o Android avisando que o ATMOXR faz alguma coisa: é o **Google Play Protect** avisando que
+Isso não é o Android avisando que o NextVR faz alguma coisa: é o **Google Play Protect** avisando que
 ele não conhece o app. Qualquer APK instalado fora da Play Store passa por isso, inclusive apps
 legítimos. O veredito vem dos servidores do Google (reputação do pacote + do certificado + análise de
 comportamento) e **não pode ser alterado por código do app**: nenhuma permissão, nenhuma API e nenhum

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Brazilian Portuguese strings. -->
-    <string name="app_name">ATMOXR</string>
-    <string name="title_activity_vr">ATMOXR</string>
+    <string name="app_name">NextVR</string>
+    <string name="title_activity_vr">NextVR</string>
     <string name="read_storage_permission">O NextVR precisa ler o armazenamento externo para carregar os parâmetros do visor Cardboard.</string>
     <string name="switch_viewer">Trocar visor Cardboard</string>
     <string name="about_nextvr">Sobre o NextVR</string>

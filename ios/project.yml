@@ -1,4 +1,4 @@
-name: ATMOXR
+name: NextVR
 options:
   bundleIdPrefix: com.nextvr
   deploymentTarget:
@@ -18,34 +18,34 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
 
 schemes:
-  ATMOXR:
+  NextVR:
     build:
       targets:
-        ATMOXR: all
+        NextVR: all
     run:
       config: Debug
     archive:
       config: Release
 
 targets:
-  ATMOXR:
+  NextVR:
     type: application
     platform: iOS
     sources:
-      - path: ATMOXR/Sources
+      - path: NextVR/Sources
       # A ponte JS: uma referência de arquivo comum, então ela fica na raiz do pacote (bridge.js).
-      - path: ATMOXR/Resources/bridge.js
+      - path: NextVR/Resources/bridge.js
         buildPhase: resources
       # A interface é a MESMA do Android (assets/ui), copiada por ios/Scripts/sync-ui.sh. Referência
-      # de PASTA para o pacote ficar igual ao Android: ATMOXR.app/ui/index.html, ui/app.js, ui/env/…
-      - path: ATMOXR/Resources/ui
+      # de PASTA para o pacote ficar igual ao Android: NextVR.app/ui/index.html, ui/app.js, ui/env/…
+      - path: NextVR/Resources/ui
         type: folder
         buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nextvr.atmoxr
-        PRODUCT_NAME: ATMOXR
-        INFOPLIST_FILE: ATMOXR/Info.plist
+        PRODUCT_NAME: NextVR
+        INFOPLIST_FILE: NextVR/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         MARKETING_VERSION: "2.1.1"
         CURRENT_PROJECT_VERSION: "95"

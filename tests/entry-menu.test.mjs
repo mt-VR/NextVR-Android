@@ -342,16 +342,16 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     !appsSrc.includes('data-exp-pano') &&
     !appsSrc.includes('envSection') &&
     !entryMenuSrc.includes('data-entry-marker-tracking') &&
-    indexHtml.includes('<title>ATMOXR</title>') &&
+    indexHtml.includes('<title>NextVR</title>') &&
     appsSrc.includes('mr-paint-overlay') &&
     appsSrc.includes('closeHandDrawGame') &&
     !appsSrc.includes("open({ id: 'hand-draw'") &&
     readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
     Number((readFileSync('nextvr-android/build.gradle', 'utf8').match(/versionCode (\d+)/) || [])[1]) >= 96 &&
-    readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/ATMOXR.apk') &&
+    readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/NextVR.apk') &&
     handRendererKt.includes('virtualEnv && !glove') &&
     handRendererKt.includes('.024f,.0175f'),
-    'Build 82 (ATMOXR) fixes the MR paint 3D anchoring (inverse head rotation), adds One-Euro smoothing + curved strokes + direction-based eraser + depth slider, and adds 6DoF World Lock plus a P&B/color camera switch in-game and in the PICO 4 Ultra panel'
+    'Build 82 (NextVR) fixes the MR paint 3D anchoring (inverse head rotation), adds One-Euro smoothing + curved strokes + direction-based eraser + depth slider, and adds 6DoF World Lock plus a P&B/color camera switch in-game and in the PICO 4 Ultra panel'
   );
 });
 
@@ -423,7 +423,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       'o login com Google aparece ao entrar no app');
     assert.equal(await page.locator('[data-entry-signin] [data-entry-google-account]').count(), 2,
       'o cartão lista as contas Google do celular');
-    assert.match(await page.locator('[data-entry-signin]').innerText(), /Escolha uma conta[\s\S]*para continuar no ATMO XR/,
+    assert.match(await page.locator('[data-entry-signin]').innerText(), /Escolha uma conta[\s\S]*para continuar no NextVR/,
       'mesma tela do Kwai/TikTok');
     assert.match(await page.locator('[data-entry-google-account]').first().innerText(), /levajjooi@gmail\.com/,
       'o e-mail aparece inteiro na linha da conta');

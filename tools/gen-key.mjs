@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Gerador de Keys do ATMO XR (Build 90) — só o dono do jogo roda isto.
+// Gerador de Keys do NextVR (Build 90) — só o dono do jogo roda isto.
 //
 //   node tools/gen-key.mjs          -> 1 chave
 //   node tools/gen-key.mjs 4        -> 4 chaves

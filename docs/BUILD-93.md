@@ -7,7 +7,7 @@ Três correções pedidas:
 3. *“não consigo ver o negócio do Google, quero que quando entrar no app apareça o negócio de fazer
    login com Google”*.
 
-APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **93**).
+APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **93**).
 
 ## 1. Configurações organizadas (opções em pé)
 
@@ -39,7 +39,7 @@ O botão separado do World Lock saiu. Agora:
 ## 3. Login com Google ao abrir o app
 
 * Assim que o menu carrega aparece um **cartão branco de login** por cima: logo do Google, “Entrar no
-  ATMO XR” e o botão **“Entrar com Google”**;
+  NextVR” e o botão **“Entrar com Google”**;
 * o botão abre `accounts.google.com/AccountChooser?continue=…` — a mesma escolha de conta que o login
   do Firebase usa — **no navegador do celular** (`NativeXR.openExternal`), onde aparecem as contas do
   aparelho e o **“Continuar como (você)”**;

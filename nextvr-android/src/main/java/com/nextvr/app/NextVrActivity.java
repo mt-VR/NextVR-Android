@@ -1180,7 +1180,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(closed) return;
                 try {
                     Intent intent=AccountManager.newChooseAccountIntent(null,null,new String[]{"com.google"},true,
-                        "para continuar no ATMO XR","oauth2:email profile",null,null);
+                        "para continuar no NextVR","oauth2:email profile",null,null);
                     startActivityForResult(intent,22);
                 } catch(Throwable unavailable) {
                     pushGoogleAccountResult("unavailable","","A tela de contas do Google não abriu neste aparelho");

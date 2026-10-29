@@ -15,7 +15,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Build 90 — chaves de ativação (Key) do ATMO XR.
+ * Build 90 — chaves de ativação (Key) do NextVR.
  *
  * O que o usuário pediu:
  *  - "bota um sistema de Key… a Key tem que ter 22 caracteres";

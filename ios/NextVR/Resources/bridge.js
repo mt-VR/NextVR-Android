@@ -1,5 +1,5 @@
 /*
- * ATMO XR no iPhone — a ponte `window.NativeXR` (Build 95).
+ * NextVR no iPhone — a ponte `window.NativeXR` (Build 95).
  *
  * O Android expõe o `NativeXR` por `@JavascriptInterface`; no iOS a única ponte que existe é o
  * `window.webkit.messageHandlers`, que é assíncrona. Para o código web não precisar saber em qual

@@ -1,4 +1,4 @@
-// Chaves de ativação do ATMO XR (Build 90) — lado web.
+// Chaves de ativação do NextVR (Build 90) — lado web.
 //
 // A verificação de verdade é nativa (License.java): o segredo do MAC mora só lá, então o JavaScript
 // não consegue "inventar" uma chave válida nem ser enganado por uma. Aqui ficam só três coisas:

@@ -15,7 +15,7 @@
 //     ou para longe — o mesmo movimento suave do arco, só que num toque.
 //
 // Este módulo não desenha ícones de mentira: quando a lista de apps Android ainda não chegou (o
-// Shizuku precisa do serviço do aparelho), o anel mostra só os apps do ATMO XR e um aviso honesto.
+// Shizuku precisa do serviço do aparelho), o anel mostra só os apps do NextVR e um aviso honesto.
 
 import { settings as S, emit, native } from './core.js';
 import { open, close, wins, focus, screenDepth, screenDepthLimits } from './windows.js';
@@ -41,7 +41,7 @@ export const ORB_LAYOUT = Object.freeze([
 export const ORB_OWN_SLOTS = 5;
 export const ORB_ANDROID_SLOTS = 5;
 
-/** Apps do próprio ATMO XR, na ordem em que entram no anel. */
+/** Apps do próprio NextVR, na ordem em que entram no anel. */
 export const ORB_OWN_IDS = Object.freeze([
   'browser', 'youtube', 'store', 'gallery', 'library', 'settings', 'tiktok', 'discord',
 ]);
@@ -59,12 +59,12 @@ export function orbAndroidApps() {
 
 /**
  * Os 10 apps do anel, alternando os dois lados:
- *   - até 5 apps do Android e até 5 do ATMO XR quando os dois existem;
- *   - sem apps Android (aparelho sem a lista), o anel fica com os apps do ATMO XR — nada de buraco.
+ *   - até 5 apps do Android e até 5 do NextVR quando os dois existem;
+ *   - sem apps Android (aparelho sem a lista), o anel fica com os apps do NextVR — nada de buraco.
  * O que não couber fica na lista completa (o centro do anel).
  */
 /**
- * Os apps do ATMO XR do anel: os da lista fixa primeiro e, se eles não bastarem para encher os
+ * Os apps do NextVR do anel: os da lista fixa primeiro e, se eles não bastarem para encher os
  * lugares que os apps do Android não ocuparam, entram os JOGOS do catálogo (que são apps do app
  * também). Assim o anel fica cheio num aparelho sem a lista de apps Android em vez de mostrar 8 e
  * deixar dois buracos.
@@ -83,8 +83,8 @@ export function orbOwnApps(count = 10) {
 
 /**
  * Os 10 apps do anel, alternando os dois lados:
- *   - até 5 apps do Android e até 5 do ATMO XR quando os dois existem;
- *   - sem apps Android (aparelho sem a lista), o anel fica cheio com os apps do ATMO XR.
+ *   - até 5 apps do Android e até 5 do NextVR quando os dois existem;
+ *   - sem apps Android (aparelho sem a lista), o anel fica cheio com os apps do NextVR.
  * O que não couber fica na lista completa (o centro do anel).
  */
 export function orbEntries(android = orbAndroidApps()) {
@@ -195,7 +195,7 @@ function wireOrb(host) {
   host.querySelectorAll('[data-orb-depth]').forEach(button => {
     button.onclick = () => {
       const dir = Number(button.dataset.orbDepth) || 0;
-      // Perto/longe do ATMO: janelas e dock deslizam juntas (ver `screenDepth` em windows.js).
+      // Perto/longe do NextVR: janelas e dock deslizam juntas (ver `screenDepth` em windows.js).
       screenDepth(dir);
       syncDepthPanel(host);
     };

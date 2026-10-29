@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build 95 — copia a interface do ATMO XR para dentro do app do iPhone.
+# Build 95 — copia a interface do NextVR para dentro do app do iPhone.
 #
 # A página é UMA só: a mesma que o Android empacota em
 # nextvr-android/src/main/assets/ui. Este script garante que o pacote do iOS tenha exatamente aquele
@@ -8,7 +8,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC="$ROOT/nextvr-android/src/main/assets/ui"
-DST="$ROOT/ios/ATMOXR/Resources/ui"
+DST="$ROOT/ios/NextVR/Resources/ui"
 
 if [ ! -f "$SRC/index.html" ]; then
   echo "ios: a interface ainda não foi montada; rodando npm run build:ui"
@@ -26,4 +26,4 @@ test -f "$DST/index.html"
 test -f "$DST/app.js"
 test -f "$DST/env/sunset.jpg"
 
-echo "ios: interface copiada para ios/ATMOXR/Resources/ui ($(find "$DST" -type f | wc -l | tr -d ' ') arquivos)"
+echo "ios: interface copiada para ios/NextVR/Resources/ui ($(find "$DST" -type f | wc -l | tr -d ' ') arquivos)"

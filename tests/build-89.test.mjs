@@ -79,20 +79,20 @@ test('Build 89: the keyboard stands up and moves by the white side bar', () => {
   assert.ok(!indexHtml().includes('.kb::before{'), 'the old top pill is gone');
 });
 
-test('Build 89: the loading screen is the ATMO XR splash', () => {
+test('Build 89: the loading screen is the NextVR splash', () => {
   const entry = entrySrc();
-  assert.ok(entry.includes('entry-atmo-load'), 'new splash markup');
+  assert.ok(entry.includes('entry-nextvr-load'), 'new splash markup');
   // A arte e' a imagem que o usuario mandou ("poe essa"), copiada para o bundle.
-  assert.ok(entry.includes('atmo-load.jpg'), 'the supplied ATMO XR art is the splash');
-  assert.ok(existsSync('web/assets/atmo-load.jpg'), 'the art ships with the repository');
-  assert.ok(read('web/build.mjs').includes("atmo-load.jpg"), 'and is copied into the APK bundle');
+  assert.ok(entry.includes('nextvr-load.jpg'), 'the NextVR art is the splash (o wordmark ATMO saiu de cena)');
+  assert.ok(existsSync('web/assets/nextvr-load.jpg'), 'the art ships with the repository');
+  assert.ok(read('web/build.mjs').includes('nextvr-load.jpg'), 'and is copied into the APK bundle');
   // Os ganchos de progresso que os testes e o countdown usam continuam existindo.
   for (const hook of ['data-entry-load-pct', 'data-entry-load-bar', 'data-entry-load-status',
     'data-entry-countdown', 'data-entry-countdown-sub', 'data-entry-cancel-countdown']) {
     assert.ok(entry.includes(hook), `${hook} survives the redesign`);
   }
   assert.ok(!entry.includes('entry-hud-frame-svg'), 'the old HUD frame is gone');
-  assert.ok(indexHtml().includes('.entry-atmo-load{'), 'the splash has its own styling');
+  assert.ok(indexHtml().includes('.entry-nextvr-load{'), 'the splash has its own styling');
 });
 
 test('Build 89: TikTok runs the real site in a 9:16 native webview', () => {

@@ -757,9 +757,9 @@ export function updateWindowsDepthLayering(activeWin = null) {
 }
 
 /**
- * Build 96 — "bota o negócio da tela ficar perto e longe também igual do ATMO".
+ * Build 96 — "bota o negócio da tela ficar perto e longe também igual do NextVR".
  *
- * No ATMO esse controle é um só: o workspace INTEIRO (janelas e deck) desliza no eixo da
+ * No NextVR esse controle é um só: o workspace INTEIRO (janelas e deck) desliza no eixo da
  * profundidade, sem mudar o tamanho aparente nem o ângulo — a tela vem para perto de você, ou
  * recua para você ver mais coisa. Aqui sai do mesmo jeito, e de graça, porque todo o arco já é
  * calculado a partir de dois números: `S.winDist` (distância das janelas) e `S.dockDist` (a dock,

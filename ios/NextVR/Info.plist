@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  ATMO XR no iPhone (Build 95).
+  NextVR no iPhone (Build 95).
 
   Só o necessário, e nada de permissão escondida:
     * NSCameraUsageDescription — a câmera traseira é o passthrough (o mundo real atrás da interface)
@@ -16,7 +16,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>pt_BR</string>
     <key>CFBundleDisplayName</key>
-    <string>ATMO XR</string>
+    <string>NextVR</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -24,7 +24,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ATMO XR</string>
+    <string>NextVR</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -32,9 +32,9 @@
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NSCameraUsageDescription</key>
-    <string>O ATMO XR usa a câmera traseira para o modo passthrough: você vê o mundo real atrás das janelas e dos desenhos, e dela vem a leitura de luz da câmera noturna.</string>
+    <string>O NextVR usa a câmera traseira para o modo passthrough: você vê o mundo real atrás das janelas e dos desenhos, e dela vem a leitura de luz da câmera noturna.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Para escolher a sua foto de perfil do ATMO XR.</string>
+    <string>Para escolher a sua foto de perfil do NextVR.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>UIApplicationSupportsIndirectInputEvents</key>

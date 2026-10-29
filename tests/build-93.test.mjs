@@ -49,7 +49,7 @@ test('Build 93: the Google sign-in card shows up when the app opens', () => {
   assert.ok(entry.includes('let signInOpen = !signedIn();'), 'abre no primeiro carregamento');
   assert.ok(entry.includes('data-entry-signin="1"'), 'cartão de login no menu');
   assert.ok(entry.includes('data-entry-google-signin'), 'com o botão Entrar com Google');
-  assert.ok(entry.includes('Entrar no ATMO XR'), 'título do cartão');
+  assert.ok(entry.includes('Entrar no NextVR'), 'título do cartão');
   assert.ok(entry.includes("googleChooser('https://myaccount.google.com/')"),
     'usa a escolha de conta do Google (Continuar como)');
   assert.ok(entry.includes("window.NativeXR.openExternal(url)"), 'abre no navegador do celular');

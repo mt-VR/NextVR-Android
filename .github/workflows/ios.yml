@@ -1,6 +1,6 @@
 name: iOS CI
 
-# Build 95 — o .ipa do ATMO XR.
+# Build 95 — o .ipa do NextVR.
 #
 # Este workflow NÃO assina o app: não há certificado Apple no repositório, e um .ipa assinado à mão
 # por um robô não instalaria em ninguém. O que ele entrega é o pacote COMPILADO (arm64, Release), que
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   ipa:
-    name: Build the ATMO XR iPhone app
+    name: Build the NextVR iPhone app
     runs-on: macos-13
     timeout-minutes: 60
     steps:
@@ -41,7 +41,7 @@ jobs:
           npm ci
           npm run build:ui
           bash ios/Scripts/sync-ui.sh
-          ls ios/ATMOXR/Resources/ui | head -20
+          ls ios/NextVR/Resources/ui | head -20
 
       # A mesma checagem estática que roda no Android: os nomes da ponte, o segredo da Key, o plist.
       - name: Validate the iOS project
@@ -66,14 +66,14 @@ jobs:
           cd ios
           echo "::notice::xcodegen $(xcodegen --version 2>&1 | tr '\n' ' ')"
           xcodegen generate
-          echo "::notice::projeto gerado: $(grep -m1 objectVersion ATMOXR.xcodeproj/project.pbxproj)"
+          echo "::notice::projeto gerado: $(grep -m1 objectVersion NextVR.xcodeproj/project.pbxproj)"
           ls -la . | head -20
-          ls -la ATMOXR.xcodeproj || echo "::error::ATMOXR.xcodeproj nao existe"
-          ls -la ATMOXR.xcodeproj/project.pbxproj || echo "::error::project.pbxproj nao existe"
-          head -c 400 ATMOXR.xcodeproj/project.pbxproj
+          ls -la NextVR.xcodeproj || echo "::error::NextVR.xcodeproj nao existe"
+          ls -la NextVR.xcodeproj/project.pbxproj || echo "::error::project.pbxproj nao existe"
+          head -c 400 NextVR.xcodeproj/project.pbxproj
           echo ""
           xcodebuild -version
-          xcodebuild -list -project ATMOXR.xcodeproj > /tmp/xclist.log 2>&1
+          xcodebuild -list -project NextVR.xcodeproj > /tmp/xclist.log 2>&1
           LIST=$?
           head -20 /tmp/xclist.log
           echo "::notice::xcodebuild -list status $LIST"
@@ -95,7 +95,7 @@ jobs:
           }
           # 1) Compilar primeiro para o simulador: não tem assinatura nenhuma no caminho, então o que
           #    aparecer aqui é erro de código (Swift/plist), não de assinatura.
-          xcodebuild -project ATMOXR.xcodeproj -scheme ATMOXR -configuration Release \
+          xcodebuild -project NextVR.xcodeproj -scheme NextVR -configuration Release \
             -sdk iphonesimulator -destination "generic/platform=iOS Simulator" \
             -derivedDataPath build-sim build > /tmp/sim.log 2>&1
           SIM=$?
@@ -108,7 +108,7 @@ jobs:
           fi
           echo "::notice::compilou para o simulador (iOS $(xcrun --sdk iphonesimulator --show-sdk-version))"
           # 2) Agora o pacote de verdade (arm64, iphoneos), sem assinatura.
-          xcodebuild -project ATMOXR.xcodeproj -scheme ATMOXR -configuration Release \
+          xcodebuild -project NextVR.xcodeproj -scheme NextVR -configuration Release \
             -sdk iphoneos -destination "generic/platform=iOS" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -133,10 +133,10 @@ jobs:
           rm -rf dist && mkdir -p dist/Payload
           cp -R "$APP" dist/Payload/
           cd dist
-          zip -qry ATMOXR.ipa Payload
-          SIZE=$(stat -f %z ATMOXR.ipa)
-          MD5=$(md5 -q ATMOXR.ipa)
-          printf 'ATMOXR IPA built by iOS CI run %s from commit %s\nsize: %s bytes\nmd5: %s\nsigned: no (install with Sideloadly/AltStore using your Apple ID)\n' \
+          zip -qry NextVR.ipa Payload
+          SIZE=$(stat -f %z NextVR.ipa)
+          MD5=$(md5 -q NextVR.ipa)
+          printf 'NextVR IPA built by iOS CI run %s from commit %s\nsize: %s bytes\nmd5: %s\nsigned: no (install with Sideloadly/AltStore using your Apple ID)\n' \
             "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > build.txt
           cat build.txt
 
@@ -150,17 +150,17 @@ jobs:
           git init -q -b ipa-dist
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp "$GITHUB_WORKSPACE/dist/ATMOXR.ipa" dist/ATMOXR.ipa
+          cp "$GITHUB_WORKSPACE/dist/NextVR.ipa" dist/NextVR.ipa
           cp "$GITHUB_WORKSPACE/dist/build.txt" dist/build.txt
           git add dist
-          git commit -qm "ATMOXR IPA from iOS CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git commit -qm "NextVR IPA from iOS CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           for attempt in 1 2 3 4; do
             if git push --force origin ipa-dist; then break; fi
             echo "ipa-dist push failed (attempt $attempt); retrying"
             sleep $((attempt * 4))
           done
-          echo "IPA published: branch ipa-dist, path dist/ATMOXR.ipa"
+          echo "IPA published: branch ipa-dist, path dist/NextVR.ipa"
 
       # Canal de diagnóstico: o log do runner do macOS não é legível pela API (o results-receiver
       # devolve EOF), então numa falha o log vai para a branch ipa-debug — de onde ele pode ser lido
@@ -199,7 +199,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: ATMOXR-ipa
-          path: dist/ATMOXR.ipa
+          name: NextVR-ipa
+          path: dist/NextVR.ipa
           if-no-files-found: error
           retention-days: 30

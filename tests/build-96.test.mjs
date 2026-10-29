@@ -2,14 +2,14 @@
 //
 //   "volta pro next, deixa por enquanto o ipa de lado, vamos focar no next"
 //   1. hand tracking mais preciso;
-//   2. o do ATMO ("bem melhor, bem otimizado") aplicado no Next;
-//   3. "bota o negócio da tela ficar perto e longe também igual do ATMO";
+//   2. o do NextVR ("bem melhor, bem otimizado") aplicado no Next;
+//   3. "bota o negócio da tela ficar perto e longe também igual do NextVR";
 //   4. "na dock normal, consegue por uma opção em bolinha que aparece 10 bolinhas dentro dela, aí
 //      quando clicar, ela abre um menu com uns apps gigantes, tipo assim, aparece, 3 encima, 4 no
 //      meio e 3 embaixo, tipo um círculo, e é pra aparecer os apps do Android e do aplicativo".
 //
 // O que dá para provar sem um headset: a geometria do anel é a 3/4/3 pedida, os 10 lugares existem,
-// a lista mistura os apps do ATMO XR com os do Android, a bolinha da Dock desenha 10 bolinhas, o
+// a lista mistura os apps do NextVR com os do Android, a bolinha da Dock desenha 10 bolinhas, o
 // perto/longe move janelas E dock, e os dois lados (web e nativo) têm as defesas de precisão.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,12 +56,12 @@ test('Build 96: o anel mostra apps do Android E apps do próprio aplicativo', ()
   assert.ok(source.includes('dockCatalogAll()'), 'o anel lê o catálogo em vez de uma lista fixa');
   assert.ok(/ORB_ANDROID_SLOTS/.test(source) && /startsWith\('app:'\)/.test(source),
     'os apps Android entram pelos ids `app:<pacote>` que o lado nativo entrega');
-  assert.ok(/ORB_OWN_IDS/.test(source) && source.includes("'browser'"), 'e os apps do ATMO XR entram por id');
+  assert.ok(/ORB_OWN_IDS/.test(source) && source.includes("'browser'"), 'e os apps do NextVR entram por id');
   // Nada de ícone inventado: o app Android aparece com o ícone real, ou não aparece.
   assert.ok(source.includes('entry.img'), 'o app Android usa o ícone real que veio do aparelho');
   const ownBlock = source.slice(source.indexOf('ORB_OWN_IDS'), source.indexOf('const isAndroidId'));
   for (const id of ['browser', 'youtube', 'store', 'gallery', 'library', 'settings']) {
-    assert.ok(ownBlock.includes(`'${id}'`), `o app do ATMO XR "${id}" está na fila do anel`);
+    assert.ok(ownBlock.includes(`'${id}'`), `o app do NextVR "${id}" está na fila do anel`);
   }
   // Sem a lista do aparelho o anel não fica com buracos: os apps do app ocupam os 10 lugares
   // (a lista fixa primeiro e, se faltar, os jogos do catálogo completam).
@@ -69,7 +69,7 @@ test('Build 96: o anel mostra apps do Android E apps do próprio aplicativo', ()
   assert.ok(/DOCK_CATALOG/.test(source), 'o catálogo completa os lugares que sobrarem');
   assert.ok(/slice\(0, ORB_LAYOUT\.length\)/.test(source), 'o anel nunca passa de 10');
   assert.ok(/ORB_LAYOUT\.length - phones\.length/.test(source),
-    'os apps do ATMO XR ocupam exatamente os lugares que os apps Android não pegaram');
+    'os apps do NextVR ocupam exatamente os lugares que os apps Android não pegaram');
 });
 
 test('Build 96: a bolinha da Dock desenha as mesmas 10 bolinhas (3/4/3)', () => {
@@ -193,7 +193,7 @@ test('Build 96: um glitch de um quadro não cruza a tela, mas um movimento real 
 
 /* ===================== build ===================== */
 
-test('Build 96: o APK é a versão 96', () => {
-  const source = gradle();
-  assert.ok(/versionCode\s+96/.test(source), 'versionCode 96');
+test('Build 96: o APK é a versão 96 ou mais nova', () => {
+  const code = Number((gradle().match(/versionCode\s+(\d+)/) || [])[1]);
+  assert.ok(code >= 96, `versionCode ${code}`);
 });

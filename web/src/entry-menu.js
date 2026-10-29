@@ -170,7 +170,7 @@ const EM_I18N = {
     start: 'Iniciar', startVr: 'Iniciar VR', settings: 'Configurações', basicSettings: 'Configurações básicas',
     handStyle: 'Hand tracking style', handDrawn: 'Mão desenhada', handInvisible: 'Invisível',
     collaborators: 'Colaboradores', about: 'Sobre', back: 'Voltar', store: 'Store',
-    storeTitle: 'Store ATMOXR — Jogos & Apps',
+    storeTitle: 'Store NextVR — Jogos & Apps',
     langCell: 'IDIOMA', spatialCell: 'SPATIAL APP', on: 'Ativado', dock: 'Dock',
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'qualidade', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Média (890p)', qLow: 'Baixa (390p)',
@@ -182,7 +182,7 @@ const EM_I18N = {
     start: 'Start', startVr: 'Start VR', settings: 'Settings', basicSettings: 'Basic Settings',
     handStyle: 'Hand tracking style', handDrawn: 'Drawn hand', handInvisible: 'Invisible',
     collaborators: 'Collaborators', about: 'About', back: 'Back', store: 'Store',
-    storeTitle: 'ATMOXR Store — Games & Apps',
+    storeTitle: 'NextVR Store — Games & Apps',
     langCell: 'LANGUAGE', spatialCell: 'SPATIAL APP', on: 'Enabled', dock: 'Dock',
     dockSnapOn: 'Dock Slot: ON', dockSnapOff: 'Dock Slot: OFF',
     qualityCell: 'quality', qAuto: 'Auto', qHigh: 'High (1080p)', qMed: 'Medium (890p)', qLow: 'Low (390p)',
@@ -194,7 +194,7 @@ const EM_I18N = {
     start: 'Iniciar', startVr: 'Iniciar VR', settings: 'Ajustes', basicSettings: 'Ajustes básicos',
     handStyle: 'Hand tracking style', handDrawn: 'Mano dibujada', handInvisible: 'Invisible',
     collaborators: 'Colaboradores', about: 'Acerca de', back: 'Volver', store: 'Tienda',
-    storeTitle: 'Tienda ATMOXR — Juegos y Apps',
+    storeTitle: 'Tienda NextVR — Juegos y Apps',
     langCell: 'IDIOMA', spatialCell: 'SPATIAL APP', on: 'Activado', dock: 'Dock',
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'calidad', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Media (890p)', qLow: 'Baja (390p)',
@@ -206,7 +206,7 @@ const EM_I18N = {
     start: '開始', startVr: 'VRを開始', settings: '設定', basicSettings: '基本設定',
     handStyle: 'Hand tracking style', handDrawn: '手を表示', handInvisible: '非表示',
     collaborators: 'コラボレーター', about: '概要', back: '戻る', store: 'ストア',
-    storeTitle: 'ATMOXR ストア — ゲーム＆アプリ',
+    storeTitle: 'NextVR ストア — ゲーム＆アプリ',
     langCell: '言語', spatialCell: 'SPATIAL APP', on: 'オン', dock: 'ドック',
     dockSnapOn: 'スロット: ON', dockSnapOff: 'スロット: OFF',
     qualityCell: '画質', qAuto: '自動', qHigh: '高 (1080p)', qMed: '中 (890p)', qLow: '低 (390p)',
@@ -218,7 +218,7 @@ const EM_I18N = {
     start: 'Начать', startVr: 'Запустить VR', settings: 'Настройки', basicSettings: 'Основные настройки',
     handStyle: 'Hand tracking style', handDrawn: 'Рисованная рука', handInvisible: 'Невидимая',
     collaborators: 'Участники', about: 'О приложении', back: 'Назад', store: 'Магазин',
-    storeTitle: 'Магазин ATMOXR — Игры и Приложения',
+    storeTitle: 'Магазин NextVR — Игры и Приложения',
     langCell: 'ЯЗЫК', spatialCell: 'SPATIAL APP', on: 'Вкл.', dock: 'Док',
     dockSnapOn: 'Слот дока: ON', dockSnapOff: 'Слот дока: OFF',
     qualityCell: 'качество', qAuto: 'Авто', qHigh: 'Высокое (1080p)', qMed: 'Среднее (890p)', qLow: 'Низкое (390p)',
@@ -230,7 +230,7 @@ const EM_I18N = {
     start: 'Starten', startVr: 'VR starten', settings: 'Einstellungen', basicSettings: 'Grundeinstellungen',
     handStyle: 'Hand tracking style', handDrawn: 'Gezeichnete Hand', handInvisible: 'Unsichtbar',
     collaborators: 'Mitwirkende', about: 'Über', back: 'Zurück', store: 'Store',
-    storeTitle: 'ATMOXR Store — Spiele & Apps',
+    storeTitle: 'NextVR Store — Spiele & Apps',
     langCell: 'SPRACHE', spatialCell: 'SPATIAL APP', on: 'Aktiviert', dock: 'Dock',
     dockSnapOn: 'Dock-Slot: ON', dockSnapOff: 'Dock-Slot: OFF',
     qualityCell: 'Qualität', qAuto: 'Auto', qHigh: 'Hoch (1080p)', qMed: 'Mittel (890p)', qLow: 'Niedrig (390p)',
@@ -288,7 +288,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     'Otimizando Hand tracking...',
     'Calibrando lentes 3D...',
     'Carregando aplicativos espaciais...',
-    'Iniciando ATMOXR...',
+    'Iniciando NextVR...',
   ];
 
   const loadingStatusForPct = pct => {
@@ -457,7 +457,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         <!-- Balão Angular Superior Direito (em Português + Mini PICO 4 Pro no lugar do mascote) -->
         <div class="entry-p5-top-callout" data-pico4pro-callout="1">
           <div class="entry-p5-callout-text">
-            <strong>SISTEMA PICO 4 PRO · ATMOXR</strong>
+            <strong>SISTEMA PICO 4 PRO · NextVR</strong>
             <span>Use o Hand Tracking otimizado, crie seu Personagem 3D e abra janelas flutuantes PICO 4 Pro!</span>
           </div>
           <div class="entry-p5-callout-mascot" data-entry-act="profile" title="Criar Personagem 3D / Perfil">
@@ -466,7 +466,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         </div>
 
         <!-- Feixe Gigante em Perspectiva 3D (estilo "SKILL" da foto, em Branco/Cinza/Preto e em Português) -->
-        <div class="entry-p5-wedge-wrap" data-entry-act="start" role="button" tabindex="0" title="Clique para Iniciar o ATMOXR">
+        <div class="entry-p5-wedge-wrap" data-entry-act="start" role="button" tabindex="0" title="Clique para Iniciar o NextVR">
           <svg class="entry-p5-wedge-svg" viewBox="0 0 540 240" preserveAspectRatio="none" aria-hidden="true">
             <polygon points="6,10 475,112 6,226" fill="#09090b" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
             <polygon points="14,22 458,112 14,212" fill="#f4f4f5"/>
@@ -474,13 +474,13 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <!-- Faixa preta inclinada na base da cunha -->
             <polygon points="14,166 290,144 282,192 14,212" fill="#09090b"/>
           </svg>
-          <div class="entry-p5-wedge-text">ATMOXR</div>
+          <div class="entry-p5-wedge-text">NextVR</div>
           <div class="entry-p5-wedge-sub">INICIAR REALIDADE MISTA</div>
           <span class="entry-p5-wedge-star" aria-hidden="true">★</span>
         </div>
 
         <!-- Medalhão Circular Direito com o PICO 4 Pro (no lugar do boneco da foto) -->
-        <div class="entry-p5-medallion" data-pico4pro-emblem="1" data-entry-act="store" role="button" tabindex="0" title="PICO 4 Pro · Abrir Store ATMOXR">
+        <div class="entry-p5-medallion" data-pico4pro-emblem="1" data-entry-act="store" role="button" tabindex="0" title="PICO 4 Pro · Abrir Store NextVR">
           <div class="entry-p5-medallion-inner">
             ${SVG_PICO4_PRO_MEDALLION}
           </div>
@@ -665,9 +665,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
      mostra "app desconhecido" na instalação. Isso NÃO é um problema do app e não dá para remover
      por código: só publicando na Play Store. O que dá para fazer (e foi feito) é entregar um build
      de release assinado, e explicar o caminho mais curto para instalar. */
-  const playProtectNote = () => `ATENÇÃO: o ATMO XR é instalado direto do GitHub, fora da Play Store.
+  const playProtectNote = () => `ATENÇÃO: o NextVR é instalado direto do GitHub, fora da Play Store.
     Por isso o Android mostra "app desconhecido" na hora de instalar. Isso é o aviso padrão do
-    sistema para qualquer APK baixado, não um problema do ATMO XR — não existe código que o remova,
+    sistema para qualquer APK baixado, não um problema do NextVR — não existe código que o remova,
     só publicar na Play Store. Para instalar: toque em "Mais detalhes" → "Instalar mesmo assim".
     Nas versões novas do Android o Play Protect volta a perguntar; isso é do sistema, mas o APK
     agora é assinado como release (não é mais um build de depuração), o que reduz os alertas.`;
@@ -870,7 +870,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>
     </div>`;
 
-  /* Build 90 — conta ATMOXR por e-mail.
+  /* Build 90 — conta NextVR por e-mail.
    *
    * O usuário: "quando entrar, bota a opção de e-mail pra a conta já ir vinculada no discord, tiktok
    * Google e YouTube". O e-mail é guardado no perfil e cada botão abre a página de login REAL do
@@ -937,7 +937,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </label>
 
             <div class="entry-account" data-entry-account="1">
-              <div class="entry-account-title">CONTA ATMOXR · E-MAIL E VÍNCULOS</div>
+              <div class="entry-account-title">CONTA NextVR · E-MAIL E VÍNCULOS</div>
               <label class="entry-login-label">
                 <span>SEU E-MAIL (a conta fica vinculada)</span>
                 <input type="email" class="entry-login-input" data-account-email maxlength="80"
@@ -960,12 +960,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <p class="entry-account-note">Digite o e-mail e toque em cada serviço: o app abre a
                 página de login real. No Google e no YouTube abre a <b>escolha de conta do Google</b>
                 (a mesma que o login do Firebase usa) — toque em <b>"Continuar como (sua conta)"</b>
-                e a sua conta real entra. O vínculo fica guardado na sua conta ATMOXR deste perfil.</p>
+                e a sua conta real entra. O vínculo fica guardado na sua conta NextVR deste perfil.</p>
             </div>
 
             <div class="entry-char-studio" data-character-creator="1" style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);display:flex;flex-direction:column;gap:7px">
               <div style="display:flex;align-items:center;justify-content:space-between">
-                <strong style="font-size:11.5px;letter-spacing:.04em;color:#f4f4f5">CRIAR PERSONAGEM DO JOGO · ATMOXR</strong>
+                <strong style="font-size:11.5px;letter-spacing:.04em;color:#f4f4f5">CRIAR PERSONAGEM DO JOGO · NextVR</strong>
                 <span style="font-size:10px;color:#38bdf8;font-weight:700">Sincronizado com Motion Tracker &amp; VR</span>
               </div>
               <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
@@ -1064,30 +1064,30 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   };
 
   /*
-   * Build 89 — tela de carregamento ATMO XR.
+   * Build 89 — tela de carregamento NextVR.
    *
    * O usuario mandou o print da tela nova e pediu "substitui aquela e poe essa". A antiga era um
-   * HUD azul com moldura poligonal; a nova e' preta, com o wordmark ATMO gigante (o XR dentro de uma
+   * HUD azul com moldura poligonal; a nova e' preta, com o wordmark NextVR gigante (o XR dentro de uma
    * caixa), um selo de realidade virtual embaixo, a barra de progresso fina e o texto de status.
    * Todos os ganchos que o countdown e os testes usam continuam aqui, com os mesmos nomes.
    */
   const renderLoadingScreen = (batInfo) => {
     const statusText = loadingStatusForPct(loadingPct);
     return `
-      <div class="entry-atmo-load" data-entry-panel="loading" role="status" aria-live="polite">
-        <img class="entry-atmo-art" src="atmo-load.jpg" alt="ATMO XR" draggable="false">
-        <button type="button" class="entry-atmo-cancel" data-entry-cancel-countdown title="Cancelar">CANCELAR</button>
-        <span class="entry-atmo-bat" data-entry-battery-top>${batInfo.text}</span>
-        <footer class="entry-atmo-foot">
-          <div class="entry-atmo-status" data-entry-load-status>${statusText}</div>
-          <div class="entry-atmo-bar-row">
-            <div class="entry-atmo-bar-track">
-              <div class="entry-atmo-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
+      <div class="entry-nextvr-load" data-entry-panel="loading" role="status" aria-live="polite">
+        <img class="entry-nextvr-art" src="nextvr-load.jpg" alt="NextVR" draggable="false">
+        <button type="button" class="entry-nextvr-cancel" data-entry-cancel-countdown title="Cancelar">CANCELAR</button>
+        <span class="entry-nextvr-bat" data-entry-battery-top>${batInfo.text}</span>
+        <footer class="entry-nextvr-foot">
+          <div class="entry-nextvr-status" data-entry-load-status>${statusText}</div>
+          <div class="entry-nextvr-bar-row">
+            <div class="entry-nextvr-bar-track">
+              <div class="entry-nextvr-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
             </div>
-            <span class="entry-atmo-pct" data-entry-load-pct>${loadingPct}%</span>
-            <span class="entry-atmo-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
+            <span class="entry-nextvr-pct" data-entry-load-pct>${loadingPct}%</span>
+            <span class="entry-nextvr-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
           </div>
-          <div class="entry-atmo-hint" data-entry-countdown-sub>Coloque o celular no VR Box · Iniciando em ${countdownSec}s...</div>
+          <div class="entry-nextvr-hint" data-entry-countdown-sub>Coloque o celular no VR Box · Iniciando em ${countdownSec}s...</div>
         </footer>
       </div>`;
   };
@@ -1198,7 +1198,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-signin-accounts" data-entry-google-accounts="1">
             ${list.map(email => `
               <button type="button" class="entry-signin-account" data-entry-google-account="${escHtml(email)}"
-                title="Entrar no ATMO XR com ${escHtml(email)}">
+                title="Entrar no NextVR com ${escHtml(email)}">
                 <span class="entry-signin-avatar" style="background:${googleAvatarColor(email)}">${escHtml(googleInitial(email))}</span>
                 <span class="entry-signin-id">
                   <b class="entry-signin-account-name">${escHtml(googleLabel(email))}</b>
@@ -1219,7 +1219,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </svg>
           </div>
           <h2 class="entry-signin-title">Escolha uma conta</h2>
-          <p class="entry-signin-sub">para continuar no ATMO XR</p>
+          <p class="entry-signin-sub">para continuar no NextVR</p>
           ${rows}
           ${needsPermission ? `
             <button type="button" class="entry-signin-permission" data-entry-google-permission>
@@ -1239,7 +1239,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <span>Adicionar outra conta</span>
           </button>
           <p class="entry-signin-legal">Para continuar, o Google vai compartilhar o seu nome e o seu
-            endereço de e-mail com o ATMO XR. Antes de usar, leia a política de privacidade e os termos
+            endereço de e-mail com o NextVR. Antes de usar, leia a política de privacidade e os termos
             de serviço do app.</p>
           <p class="entry-signin-state" data-entry-signin-msg>${escHtml(googleStatus ||
             'Toque na sua conta acima: ela fica conectada no perfil, no Google e no YouTube.')}</p>
@@ -1284,7 +1284,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       activeView === 'store' ? renderStorePanel() :
       renderBrandStage(batInfo);
 
-    const displayName = S.profileName ? escHtml(S.profileName) : 'ATMOXR (Login)';
+    const displayName = S.profileName ? escHtml(S.profileName) : 'NextVR (Login)';
     const profileAvatarHtml = S.profileAvatar
       ? `<img src="${escHtml(S.profileAvatar)}" alt="" class="entry-profile-q-img" />`
       : SVG_USER;
@@ -1296,7 +1296,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
       <header class="entry-top-header">
         <div class="entry-top-bars" aria-hidden="true"></div>
-        <h1 class="entry-main-title">ATMOXR</h1>
+        <h1 class="entry-main-title">NextVR</h1>
         <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
         <div class="entry-p5-sys-banner" data-p5-sys-banner="1">
           <span class="entry-p5-sys-tag">SISTEMA</span>
@@ -1306,7 +1306,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
         </div>
         <div class="entry-top-right-cluster">
-          <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store ATMOXR">
+          <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store NextVR">
             ${SVG_STORE_BAG}
             <span>${emT('store')}</span>
           </button>
@@ -1578,7 +1578,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         S.profileName = nameInput.value.trim();
         save(S);
         const disp = root.querySelector('[data-profile-display-name]');
-        if (disp) disp.textContent = S.profileName || 'ATMOXR (Login)';
+        if (disp) disp.textContent = S.profileName || 'NextVR (Login)';
         const verified = isVerifiedProfileName(S.profileName);
         const badge = root.querySelector('[data-profile-verified]');
         if (badge) badge.hidden = !verified;

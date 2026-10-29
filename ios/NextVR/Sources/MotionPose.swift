@@ -5,7 +5,7 @@ import simd
 /**
  * Build 95 — o giroscópio do iPhone como "olhar em volta" (3DoF/6DoF do Cardboard, sem Cardboard).
  *
- * O web do ATMO XR já sabe receber a pose: `window.nextvrPose([16 números])` faz
+ * O web do NextVR já sabe receber a pose: `window.nextvrPose([16 números])` faz
  * `Matrix4.fromArray(values).invert()` e aplica na câmera. Ou seja, o array é a matriz de VISÃO
  * (mundo → câmera). Mandamos a transposta da rotação do aparelho (a inversa, para uma rotação pura),
  * em ordem de coluna — exatamente o que o `THREE.Matrix4.fromArray` espera.

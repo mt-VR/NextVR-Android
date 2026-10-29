@@ -1,7 +1,7 @@
-# Build 89 — teclado em pé, tela ATMO XR, Dock sem limite e câmera noturna
+# Build 89 — teclado em pé, tela NextVR, Dock sem limite e câmera noturna
 
 Pedido do usuário, item por item, e onde cada coisa foi implementada. Tudo é verificável no APK:
-`https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **89**).
+`https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **89**).
 
 ## 1. Apache no lugar da NanyGata, nome cinza e selo vermelho
 
@@ -34,12 +34,12 @@ que não é de colaborador não acende nada.
   `keyboardScale`/`keyboardDistance`/`keyboardDrop` de `web/src/comfort.js` foram para 0.80 / 0.85 /
   0.30 para o teclado não nascer mais colado na cintura.
 
-## 4. Tela de carregamento ATMO XR
+## 4. Tela de carregamento NextVR
 
 `renderLoadingScreen()` foi reescrita com **a própria arte da referência** (`image-4.png`): ela foi
 recortada (sem a barra de rolagem do print), reduzida para 1200 px e virou `web/assets/atmo-load.jpg`
 → `atmo-load.jpg` dentro do APK (`web/build.mjs`), usada como fundo da tela. O headset, os dois
-controles, o wordmark **ATMO XR** e a pílula **REALIDADE VIRTUAL** são exatamente os do print. Por
+controles, o wordmark **NextVR** e a pílula **REALIDADE VIRTUAL** são exatamente os do print. Por
 cima da arte ficam a porcentagem, o status, a contagem regressiva, o CANCELAR e a barrinha de
 progresso — os `data-entry-*` que os testes e o countdown usam foram mantidos.
 

@@ -11,7 +11,7 @@ nome, **“Adicionar outra conta”** e o texto legal do Google. Era isso que fa
 cartão só mandava para o navegador e o jogador tinha que voltar e tocar em **JÁ ENTREI** — nada ficava
 conectado de verdade.
 
-APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/ATMOXR.apk` (versionCode **94**).
+APK: `https://github.com/mt-VR/NextVR-Android/raw/apk-dist/dist/NextVR.apk` (versionCode **94**).
 
 ## O que mudou
 
@@ -22,7 +22,7 @@ O app lê as contas Google pelo `AccountManager` do Android
 toque**, nunca na abertura. Nada além do endereço de e-mail da conta Google é lido.
 
 **2. O cartão virou a tela “Escolha uma conta”.**
-Título **“Escolha uma conta”** + **“para continuar no ATMO XR”**, uma linha por conta com avatar
+Título **“Escolha uma conta”** + **“para continuar no NextVR”**, uma linha por conta com avatar
 redondo colorido, nome, e-mail e seta; **“Adicionar outra conta”** com o ícone de pessoa; o texto legal
 do Google; e o rodapé com **Usar o navegador do Google**, **JÁ ENTREI** e **Agora não**.
 
@@ -30,10 +30,10 @@ do Google; e o rodapé com **Usar o navegador do Google**, **JÁ ENTREI** e **Ag
 `connectGoogleAccount()` grava o e-mail escolhido (`accountEmail`), marca `googleSignedIn = 1`, põe
 **google** nos vínculos do perfil (aparece **✓ VINCULADO** no Login/Perfil), preenche o nome do perfil
 se estiver vazio, fecha o cartão e avisa o shell (`account-linked` + `profile-updated`). A conta Google
-fica ligada ao perfil ATMO XR — como no Kwai.
+fica ligada ao perfil NextVR — como no Kwai.
 
 **4. “Adicionar outra conta” abre a tela do próprio Android.**
-`AccountManager.newChooseAccountIntent(..., new String[]{"com.google"}, true, "para continuar no ATMO
+`AccountManager.newChooseAccountIntent(..., new String[]{"com.google"}, true, "para continuar no NextVR
 XR", ...)` — a mesma tela do sistema que o Kwai usa, já com “Adicionar conta”. O e-mail escolhido volta
 em `onActivityResult` (request 22) e conecta sozinho (`nextvrGoogleAccount`).
 
@@ -50,7 +50,7 @@ PC/teste, onde não há ponte nativa. Nenhum vínculo falso: quem não tem conta
   lista real, o `connectGoogleAccount` gravando e-mail + vínculo + sessão, o CSS das linhas e o
   versionCode 94.
 * `tests/entry-menu.test.mjs` (Playwright, roda no CI): o cartão abre com **2 contas** simuladas do
-  aparelho, mostra “Escolha uma conta / para continuar no ATMO XR”, o e-mail inteiro na linha, e ao
+  aparelho, mostra “Escolha uma conta / para continuar no NextVR”, o e-mail inteiro na linha, e ao
   tocar na conta o cartão fecha com `accountEmail` e `googleSignedIn` gravados.
 * `tests/reference-ui.test.mjs` continua conferindo o cartão ao entrar e o “Agora não”.
 

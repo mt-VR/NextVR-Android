@@ -25,5 +25,5 @@ test-results/
 __pycache__/
 
 # Build 95: a interface do iOS é copiada do Android por ios/Scripts/sync-ui.sh (nunca versionada)
-ios/ATMOXR/Resources/ui/
+ios/NextVR/Resources/ui/
 ios/build/

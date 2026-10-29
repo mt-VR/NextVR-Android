@@ -1,5 +1,5 @@
 // ============================================================================
-// ATMOXR — matemática pura do paintMR 3D (sem DOM, testável em Node).
+// NextVR — matemática pura do paintMR 3D (sem DOM, testável em Node).
 //
 // A cena do desenho é desenhada com câmeras SEM rotação (camada head-locked por cima do
 // passthrough), então as coordenadas dela são as da cabeça. Para um ponto `p` guardado no
