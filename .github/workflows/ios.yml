@@ -52,10 +52,19 @@ jobs:
 
       - name: Generate the Xcode project
         run: |
-          set -e
+          set +e
           cd ios
+          xcodegen --version
           xcodegen generate
-          ls -la ATMOXR.xcodeproj
+          echo "::notice::xcodegen status $?"
+          ls -la . | head -20
+          ls -la ATMOXR.xcodeproj || echo "::error::ATMOXR.xcodeproj nao existe"
+          ls -la ATMOXR.xcodeproj/project.pbxproj || echo "::error::project.pbxproj nao existe"
+          head -c 400 ATMOXR.xcodeproj/project.pbxproj
+          echo ""
+          xcodebuild -version
+          xcodebuild -list -project ATMOXR.xcodeproj 2>&1 | head -40
+          echo "::notice::xcodebuild -list status $?"
 
       # O log do runner do macOS não é legível pela API (o results-receiver devolve EOF), então os
       # erros de compilação são publicados como ANOTAÇÕES do check — que dá para ler de fora e é o que
