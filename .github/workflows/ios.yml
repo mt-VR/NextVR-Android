@@ -138,6 +138,28 @@ jobs:
           done
           echo "IPA published: branch ipa-dist, path dist/ATMOXR.ipa"
 
+      # Canal de diagnóstico: o log do runner do macOS não é legível pela API (o results-receiver
+      # devolve EOF), então numa falha o log vai para a branch ipa-debug — de onde ele pode ser lido
+      # pelo conteúdo do repositório, sem depender do serviço de logs.
+      - name: Publish the build log on failure
+        if: failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          test -f /tmp/xcodebuild.log || echo "(sem log)" > /tmp/xcodebuild.log
+          rm -rf /tmp/ipa-debug && mkdir -p /tmp/ipa-debug && cd /tmp/ipa-debug
+          git init -q -b ipa-debug
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp /tmp/xcodebuild.log xcodebuild.log
+          printf 'run %s commit %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > status.txt
+          git add .
+          git commit -qm "iOS build log from run $GITHUB_RUN_ID"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin ipa-debug || echo "push do log falhou"
+
       - name: Upload the build log
         if: always()
         continue-on-error: true
