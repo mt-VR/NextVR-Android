@@ -138,7 +138,7 @@ test('Build 95: o projeto Xcode é gerado por xcodegen e empacota a pasta ui', (
 
 test('Build 95: o CI do macOS monta o .ipa e publica na branch ipa-dist', () => {
   const workflow = read('.github/workflows/ios.yml');
-  assert.ok(workflow.includes('runs-on: macos-14'), 'precisa de macOS');
+  assert.ok(/runs-on: macos-\d+/.test(workflow), 'precisa de macOS');
   assert.ok(workflow.includes('brew install xcodegen'));
   assert.ok(workflow.includes('xcodebuild'));
   assert.ok(workflow.includes('CODE_SIGNING_ALLOWED=NO'), 'build sem assinatura (o usuário assina ao instalar)');

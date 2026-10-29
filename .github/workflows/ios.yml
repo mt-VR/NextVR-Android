@@ -23,7 +23,7 @@ permissions:
 jobs:
   ipa:
     name: Build the ATMO XR iPhone app
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 60
     steps:
       - name: Checkout
