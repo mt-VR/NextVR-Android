@@ -6,12 +6,9 @@ android {
     compileSdk = 35
     lintOptions {
         abortOnError = false
-        // O APK publicado sai da variante release (Build 89). Sem isto o `assembleRelease` roda o
-        // lint vital e pode falhar num aviso que nao tem nada a ver com o app rodar.
-        checkReleaseBuilds = false
     }
     defaultConfig {
-        applicationId "com.atmoxr.app"
+        applicationId "com.nextvr.app"
         // #gles3 #vulkan - You can reduce minSdkVersion down to 16 depending
         // on rendering APIs supported:
         //
@@ -25,31 +22,8 @@ android {
         // Must match the NDK used by the vendored Cardboard SDK module.
         ndkVersion = "29.0.14206865"
         // 29 / 2.0.0: Nova interface flutuante Library (7e3d8ab40bd4dd3) 100% transparente sobre a câmera traseira real e selo verificado vermelho igual do TikTok para cada colaborador.
-        // 82 / 2.1.0: 6DoF World Lock (mundo travado por padrão, sem deriva), câmera P&B/colorida
-        // no jogo e no painel, e o paintMR 3D reconstruído (ancoragem invertida corrigida).
-        // 89 / 2.1.0: Apache no lugar da NanyGata, teclado em pé com barra de arrastar, splash
-        // ATMO XR, janelas até 300%, TikTok real, personagem 3D giratório, aba 3 da Dock e câmera
-        // noturna. O APK passou a sair da variante release (assinado com a MESMA chave, então
-        // instala por cima sem apagar o perfil) em vez de debug.
-        // 90 / 2.1.0: sistema de Key (22 caracteres, uma vez, presa ao aparelho), conta por e-mail
-        // com vínculos (Discord/TikTok/Google/YouTube), lanterna quando não há luz nenhuma, mão
-        // reconhecida no escuro, bolinha ao lado da barrinha do teclado e a barra de brilho das
-        // janelinhas removida.
-        // 91 / 2.1.0: correção da lanterna que piscava. A decisão agora desconta a luz da PRÓPRIA
-        // lanterna (calibrada depois do AE estabilizar), exige luz de ambiente confirmada para
-        // apagar, e depois de 3 ciclos curtos "estaciona" em vez de continuar piscando.
-        // 92 / 2.1.0: avatar 3D refeito com proporções humanas (≈7 cabeças, camiseta amarela e
-        // headset branco como o do PICO), Configurações com espaçamento de verdade nas 3 abas e a
-        // conta Google/YouTube abrindo a escolha de conta real ("Continuar como") no navegador.
-        // 93 / 2.1.0: Configurações organizadas (opção embaixo da outra, em pé), World Lock dentro
-        // do 6DoF e o cartão "Entrar com Google" aparecendo ao abrir o app.
-        // 94 / 2.1.0: a conta Google se conecta no app de verdade — o cartão mostra as contas do
-        // próprio celular ("Escolha uma conta … para continuar no ATMO XR") e a escolhida fica ligada
-        // ao perfil, como no Kwai/TikTok.
-        // 95 / 2.1.1: versão para iPhone (projeto ios/, .ipa no CI). O APK do Android é o da 94 —
-        // só o número muda, para os dois aparelhos contarem a mesma build.
-        versionCode 97
-        versionName "2.2.1"
+        versionCode 98
+        versionName "2.0.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is
@@ -74,28 +48,13 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        // Build 89: o APK publicado passa a ser o release. A chave é a MESMA dos builds anteriores
-        // (signing/debug.keystore): trocar de chave faria o Android recusar a instalação por cima
-        // ("App not installed") e o usuário perderia o perfil. O que muda é a variante — release não
-        // é `debuggable`, sai zipalinhada e sem os restos de debug, que é o que o sistema (e o Play
-        // Protect) olha com menos desconfiança ao instalar um APK fora da Play Store.
-        release {
-            storeFile rootProject.file('signing/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            applicationIdSuffix ''
         }
         release {
-            signingConfig signingConfigs.release
-            debuggable false
             minifyEnabled false
-            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

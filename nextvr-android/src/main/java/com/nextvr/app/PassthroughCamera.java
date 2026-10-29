@@ -132,24 +132,6 @@ final class PassthroughCamera {
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
     volatile boolean wideCamera=false;
-    /** Camera noturna (Build 89): +EV e reducao de ruido de alta qualidade quando escurece. */
-    volatile boolean nightMode=false;
-    /** Luminosidade media do ultimo quadro medido (0..1), ou -1 enquanto nao houver leitura. */
-    private volatile float lastLuma=-1f;
-    private volatile android.util.Range<Integer> aeCompensationRange;
-    /**
-     * Ganho aplicado SO' no quadro entregue ao hand tracking quando o ambiente esta' escuro (Build
-     * 90). O passthrough continua recebendo o quadro original (a camera noturna ja' levanta o ganho
-     * no shader); este ganho existe para o detector de mao "enxergar" no escuro, que era o pedido
-     * do usuario ("o jogo reconhecer a mao mesmo no escuro").
-     */
-    private volatile float analysisGain=1f;
-    /** Lanterna (Build 89): ligada quando a cena nao tem luz nenhuma. */
-    volatile boolean torchOn=false;
-    /** A camera escolhida tem flash? (quase todo celular com camera traseira tem) */
-    private volatile boolean flashAvailable=false;
-    /** Id da camera aberta (o manager precisa dele para o caminho de reserva da lanterna). */
-    private volatile String activeCameraId=null;
     volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
 
@@ -210,115 +192,6 @@ final class PassthroughCamera {
         return 0.0;
     }
     void resetSixDof() { fakeSixDof.reset(); }
-
-    /**
-     * Camera noturna (Build 89). Duas coisas reais, nao um filtro:
-     *  - exposicao: +EV no maximo que o sensor aceita (a cena escura clareia de verdade);
-     *  - ruido: NOISE_REDUCTION_MODE_HIGH_QUALITY no escuro (troca latencia por menos granulado) e
-     *    FAST de novo quando ha' luz.
-     * Quem decide e' o shell (web/src/night-camera.js), que compara `luma()` com dois limiares.
-     */
-    void setNightMode(boolean enabled) {
-        if(nightMode==enabled) return;
-        nightMode=enabled;
-        handler.post(()->{
-            if(destroyed || session==null || activeRequestBuilder==null) return;
-            try {
-                android.util.Range<Integer> range=aeCompensationRange;
-                if(range!=null) {
-                    int ev=enabled ? range.getUpper() : Math.min(0,range.getUpper());
-                    activeRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,ev);
-                }
-                activeRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE,
-                    enabled ? CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY : CaptureRequest.NOISE_REDUCTION_MODE_FAST);
-                session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
-                android.util.Log.i("NextVR-Camera","night camera "+(enabled?"on":"off"));
-            } catch(Throwable ignored) {}
-        });
-    }
-
-    /** Luminosidade media (0..1) do ultimo quadro medido, ou -1 antes da primeira medida. */
-    float luma() { return lastLuma; }
-
-    /** O aparelho tem lanterna? O shell usa isto para nao mostrar um controle que nao funciona. */
-    boolean torchAvailable() { return flashAvailable; }
-
-    /**
-     * Lanterna (Build 89) — "quando identificar nenhuma luz, o celular ativa a lanterna, e quando
-     * reconhece luz, a lanterna apaga".
-     *
-     * Com a sessao aberta, a forma correta de acender a lanterna e' `FLASH_MODE_TORCH` no proprio
-     * request repetido: quem manda na camera e' este app, e o CameraManager.setTorchMode
-     * (`CONTROL_AE_MODE_ON_ALWAYS_FLASH`) falharia com "camera in use". O caminho do manager fica
-     * como reserva para quando nao existe sessao (antes do primeiro quadro).
-     */
-    void setTorch(boolean enabled) {
-        if(torchOn==enabled) return;
-        torchOn=enabled;
-        handler.post(()->{
-            if(destroyed || !flashAvailable) return;
-            boolean applied=false;
-            try {
-                if(session!=null && activeRequestBuilder!=null) {
-                    activeRequestBuilder.set(CaptureRequest.FLASH_MODE,
-                        enabled ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_OFF);
-                    session.setRepeatingRequest(activeRequestBuilder.build(),afCallback,handler);
-                    applied=true;
-                }
-            } catch(Throwable ignored) { applied=false; }
-            if(!applied) {
-                try {
-                    String id=activeCameraId;
-                    if(id!=null) context.getSystemService(CameraManager.class).setTorchMode(id,enabled);
-                } catch(Throwable ignored) {}
-            }
-            android.util.Log.i("NextVR-Camera","torch "+(enabled?"on":"off"));
-        });
-    }
-
-    /**
-     * Ganho de brilho do quadro de analise, derivado da ultima medida de luz. Escuro de verdade
-     * (10% de luz) chega a 3x; com luz normal fica em 1x (nada muda). O ganho e' por canal, com
-     * saturacao em 255, e nao mexe em alfa.
-     */
-    private static float gainForLuma(float luma) {
-        if(luma < 0f) return 1f;
-        if(luma >= 0.26f) return 1f;
-        float target=0.30f;
-        return Math.min(3.2f, Math.max(1f, target / Math.max(0.05f, luma)));
-    }
-
-    /** Aplica o ganho em um array ARGB in-place (usado so' no caminho escuro). */
-    private static void boost(int[] pixels,int count,float gain) {
-        if(pixels==null || gain<=1.001f) return;
-        for(int i=0;i<count;i++) {
-            int c=pixels[i];
-            int a=c & 0xff000000;
-            int r=Math.min(255,(int)(((c>>16)&0xff)*gain));
-            int g=Math.min(255,(int)(((c>>8)&0xff)*gain));
-            int b=Math.min(255,(int)((c&0xff)*gain));
-            pixels[i]=a | (r<<16) | (g<<8) | b;
-        }
-    }
-
-    /**
-     * Mede a luz da cena nos pixels ja' convertidos (ARGB upright). Uma amostragem em passos
-     * (~512 pontos) custa quase nada e roda so' de 15 em 15 quadros, para nao competir com o
-     * hand tracking.
-     */
-    private void measureLuma(int[] pixels,int count) {
-        if(pixels==null || count<=0) return;
-        int step=Math.max(1,count/512);
-        float sum=0f; int n=0;
-        for(int i=0;i<count;i+=step) {
-            int c=pixels[i];
-            int r=(c>>16)&0xff, g=(c>>8)&0xff, b=c&0xff;
-            sum+=(0.2126f*r+0.7152f*g+0.0722f*b)/255f;
-            n++;
-        }
-        if(n>0) lastLuma=Math.max(0f,Math.min(1f,sum/n));
-    }
-
     void start(int displayRotation) { handler.post(()->open(displayRotation)); }
     @SuppressLint("MissingPermission")
     private void open(int displayRotation) {
@@ -380,15 +253,6 @@ final class PassthroughCamera {
             // as SystemClock.elapsedRealtimeNanos() (REALTIME). Otherwise only acquire-to-landmark is reported.
             timestampIsRealtime=timestampSource!=null && timestampSource==CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
             rotation=CameraGeometry.uprightRotation(sensor==null?90:sensor,displayRotation);
-            // Faixa de +EV disponivel neste sensor (usada pela camera noturna).
-            try { aeCompensationRange=chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE); }
-            catch(Throwable ignored) { aeCompensationRange=null; }
-            // Lanterna: o sensor precisa ter flash e o id e' necessario para o caminho de reserva.
-            try {
-                Boolean flash=chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-                flashAvailable=flash!=null && flash;
-            } catch(Throwable ignored) { flashAvailable=false; }
-            activeCameraId=id;
             android.util.Log.i("NextVR-Camera","rear="+id+" wide="+wideCamera+" sensor="+sensor+" display="+(displayRotation*90)+" upright="+rotation+" frame="+selected+" mirror=false timestamps="+(timestampIsRealtime?"realtime":"unknown"));
             if(handsEnabled) {
                 try {
@@ -464,19 +328,6 @@ final class PassthroughCamera {
                                         } catch(Throwable ignored) {}
                                     }
                                     activeRequestBuilder=request;
-                                    // Uma camera reaberta (troca de rotacao, 0.5x, watchdog) nasce com o
-                                    // request padrao: reaplica a camera noturna se ela estava ligada.
-                                    if(torchOn && flashAvailable) {
-                                        try { request.set(CaptureRequest.FLASH_MODE,CaptureRequest.FLASH_MODE_TORCH); }
-                                        catch(Throwable ignored) {}
-                                    }
-                                    if(nightMode) {
-                                        try {
-                                            android.util.Range<Integer> evRange=aeCompensationRange;
-                                            if(evRange!=null) request.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,evRange.getUpper());
-                                            request.set(CaptureRequest.NOISE_REDUCTION_MODE,CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
-                                        } catch(Throwable ignored) {}
-                                    }
                                     session.setRepeatingRequest(request.build(),afCallback,handler);
                                     scheduleRuntimeWatchdog(token,displayRotation,0);
                                 }catch(Exception e){retryOrFail("Camera preview failed",e,displayRotation,token);}
@@ -574,52 +425,24 @@ final class PassthroughCamera {
                 p[0].getPixelStride(),p[1].getPixelStride(),p[2].getPixelStride(),rotation);
             // Return the HAL camera buffer immediately after YUV conversion so the sensor never stalls.
             image.close();image=null;
-            // Uma medida de luz a cada 15 quadros (~2x/s a 30 fps): e' o que a camera noturna le'.
-            if((sessionFrames % 15)==0) {
-                measureLuma(cameraPixels,outW*outH);
-                analysisGain=gainForLuma(lastLuma);
-            }
             if(handsEnabled) {
                 // Every camera frame publishes its newest analysis copy; the tracker takes the latest one
                 // when it is free. A superseded frame is released here, so nothing accumulates.
                 TrackingFrame waiting=slot.peek();
                 if(analysisGate.shouldProduce(stamp,waiting==null?-1L:waiting.stamp)) {
-                    int width=Math.min(outW,budget.width());
+                    int maxAnalysisW=128;
+                    int width=Math.min(outW,Math.min(maxAnalysisW,budget.width()*2/5));
                     int height=Math.max(1,width*outH/outW);
-                    // Ganho da camera noturna: so' no escuro, e so' no quadro de analise.
-                    float gain=analysisGain;
-                    Bitmap analysis;
-                    if(width==outW && height==outH) {
-                        if(gain>1.001f) {
-                            // Escuro: precisa de uma copia para clarear sem estragar o passthrough.
-                            int analysisLen=outW*outH;
-                            if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
-                            System.arraycopy(cameraPixels,0,analysisPixels,0,analysisLen);
-                            boost(analysisPixels,analysisLen,gain);
-                            analysis=Bitmap.createBitmap(analysisPixels,outW,outH,Bitmap.Config.ARGB_8888);
-                        } else {
-                            // Zero redundant Java resample/copy when the upright camera frame already matches budget width.
-                            analysis=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
+                    int analysisLen=width*height;
+                    if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
+                    int dstIdx=0;
+                    for(int y=0;y<height;y++) {
+                        int srcRow=(y*outH/height)*outW;
+                        for(int x=0;x<width;x++) {
+                            analysisPixels[dstIdx++]=cameraPixels[srcRow+(x*outW/width)];
                         }
-                    } else {
-                        int analysisLen=width*height;
-                        if(analysisPixels==null || analysisPixels.length!=analysisLen)analysisPixels=new int[analysisLen];
-                        int dstIdx=0;
-                        int stepX=(outW<<16)/Math.max(1,width);
-                        int stepY=(outH<<16)/Math.max(1,height);
-                        int sy=0;
-                        for(int y=0;y<height;y++) {
-                            int srcRow=(sy>>>16)*outW;
-                            sy+=stepY;
-                            int sx=0;
-                            for(int x=0;x<width;x++) {
-                                analysisPixels[dstIdx++]=cameraPixels[srcRow+(sx>>>16)];
-                                sx+=stepX;
-                            }
-                        }
-                        if(gain>1.001f) boost(analysisPixels,analysisLen,gain);
-                        analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     }
+                    Bitmap analysis=Bitmap.createBitmap(analysisPixels,width,height,Bitmap.Config.ARGB_8888);
                     if(analysis!=null) {
                         long captureNs=timestampIsRealtime?sensorNs:-1L;
                         TrackingFrame frame=new TrackingFrame(analysis,stamp,captureNs,acquiredNs,token,scaleX,scaleY);
@@ -633,11 +456,8 @@ final class PassthroughCamera {
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            PhoneXrHands.Frame curHands=latestHandsFrame;
-            int activeHandCount=curHands==null?0:curHands.getHands().size();
-            int flowMask=activeHandCount>=2?1:0;
-            if((!gameHandMode || mrGameMode) && (sessionFrames & flowMask) == 0) {
-                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,curHands,stamp);
+            if(!gameHandMode || mrGameMode) {
+                float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
             if(!gameHandMode || mrGameMode || sessionFrames<=2) {
@@ -774,8 +594,6 @@ final class PassthroughCamera {
             long completedNs=SystemClock.elapsedRealtimeNanos();
             long frameAgeNs=Math.max(0L,completedNs-frame.acquiredNs);
             PhoneXrHands.Frame result=hands.process(detected,frame.scaleX,frame.scaleY,completedNs,frameAgeNs);
-            long afterPoseNs=SystemClock.elapsedRealtimeNanos();
-            PerfLog.poseWork((afterPoseNs-completedNs)/1e6);
             latestHandsFrame=result;
             // The processed (merged) hand count: what separates a real tracking loss from a slow
             // or skipping tracker in the perf log (see PerfLog.result).

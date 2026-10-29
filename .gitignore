@@ -23,7 +23,3 @@ test-results/
 
 # Python tooling scratch (tools/bench, tools/perf)
 __pycache__/
-
-# Build 95: a interface do iOS é copiada do Android por ios/Scripts/sync-ui.sh (nunca versionada)
-ios/NextVR/Resources/ui/
-ios/build/

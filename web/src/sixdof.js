@@ -10,7 +10,6 @@ import * as THREE from 'three';
  * 5. Projeção horizontal no chão (XZ, pos.y = 0, out.y = 0) para a Dock não subir.
  * ============================================================================ */
 
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const _sdFwd = new THREE.Vector3();
 const _sdRight = new THREE.Vector3();
 const _sdDelta = new THREE.Vector3();
@@ -94,9 +93,9 @@ export const Walk = {
     if (this.lastA) {
       // Usa a diferença da magnitude escalar (invariante à rotação da cabeça) para detetar aproximação/afastamento imediato
       const d = Math.abs(mag - this.lastA.mag);
-      if (d > 0.12 && rotRate < 85) {
-        this.energy = Math.min(3.5, this.energy * 0.84 + d * 1.15);
-        if (this.energy > 0.12) this.lastStepT = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (d > 0.07 && rotRate < 85) {
+        this.energy = Math.min(4, this.energy * 0.86 + d * 1.35);
+        if (this.energy > 0.09) this.lastStepT = typeof performance !== 'undefined' ? performance.now() : Date.now();
       } else {
         this.energy *= 0.88;
       }
@@ -104,11 +103,9 @@ export const Walk = {
     this.lastA = { x: a.x, y: a.y, z: a.z, mag: this.lastA ? (0.92 * this.lastA.mag + 0.08 * mag) : mag };
   },
   moving() {
-    // Sem acelerômetro NÃO há confirmação de passo: antes devolvia `true`, e era isso que fazia
-    // o mundo andar sozinho em aparelhos que não entregam `devicemotion`.
-    if (!this.lastA) return false;
+    if (!this.lastA) return true;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    return this.energy > 0.12 && (now - this.lastStepT) < 900;
+    return this.energy > 0.08 && (now - this.lastStepT) < 1050;
   }
 };
 
@@ -125,17 +122,13 @@ export const SixDof = {
   stepDelta: new THREE.Vector3(),
   worldLock: true,
   worldLocked: true,
-  // Consenso de amostras: o fluxo radial só move o mundo depois de leituras concordantes.
-  agreeCount: 0,
-  stepSum: 0,
-  lastCommitMs: 0,
   lastT: 0,
   lastSc: 0,
   lastScAt: 0,
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
-  depth: 1.85, // profundidade média da cena (menor = passos menores / menos deriva visível)
+  depth: 1.25, // metros assumidos até aos objetos à frente (resposta 6DoF estável sem deriva espontânea)
 
   init() {
     if (this.cv || typeof document === 'undefined') return;
@@ -145,24 +138,12 @@ export const SixDof = {
     this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
   },
 
-  /**
-   * World Lock é o modo padrão: a translação fica CONGELADA no ponto onde o mundo já estava, então
-   * nada de andar para a frente/lados do nada. Só o giroscópio (3DoF) continua a mexer a cabeça.
-   * Desligado, o 6DoF por fluxo ótico fica disponível com os gates anti-deriva.
-   */
   setWorldLock(enabled) {
-    const on = enabled !== false;
-    if (on === this.worldLock) {
-      if (on) this.worldLocked = true;
-      return;
-    }
-    this.worldLock = on;
-    if (on) {
+    this.worldLock = enabled !== false;
+    if (this.worldLock) {
       this.lockToWorldAnchor();
     } else {
       this.worldLocked = false;
-      this.agreeCount = 0;
-      this.stepSum = 0;
     }
   },
 
@@ -173,8 +154,6 @@ export const SixDof = {
     this.worldLocked = true;
     this.lastSc = 0;
     this.lastLatDx = 0;
-    this.agreeCount = 0;
-    this.stepSum = 0;
   },
 
   reset() {
@@ -187,9 +166,6 @@ export const SixDof = {
     this.worldLocked = true;
     this.lastSc = 0;
     this.lastLatDx = 0;
-    this.agreeCount = 0;
-    this.stepSum = 0;
-    this.lastCommitMs = 0;
     this.lastScAt = 0;
     this._lastSentX = 0;
     this._lastSentZ = 0;
@@ -391,91 +367,71 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-    /* WORLD LOCK: nada de translação. É o modo padrão e o que impede o mundo de "andar sozinho"
-     * quando o estimador de fluxo lê ruído da câmera ou o movimento das mãos. */
-    if (this.worldLock) {
-      this.pos.copy(this.anchorPos);
-      this.out.copy(this.anchorPos);
-      this.worldLocked = true;
+    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0028 && Math.abs(sc) <= 0.14;
+    if (!hasDepthFlow) {
       this.lastSc = 0;
-      this.agreeCount = 0;
-      this.stepSum = 0;
+      this.lastLatDx = 0;
+      if (this.worldLock) this.worldLocked = true;
       return;
     }
 
-    // Deadzone maior + teto menor: ruído pequeno não vira passo, fluxo absurdo é descartado.
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0045 && Math.abs(sc) <= 0.10;
-    const rotFast = Math.hypot(gx, gy) > 2.0;
-    const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
-
-    if (!hasDepthFlow || rotFast || !isMoving) {
+    // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
+    if (Math.hypot(gx, gy) > 1.8) {
       this.lastSc = 0;
       this.lastLatDx = 0;
-      this.agreeCount = 0;
-      this.stepSum = 0;
-      // Volta suavemente para a âncora (que é onde o mundo ficou da última vez que andou).
-      this.pos.lerp(this.anchorPos, 0.35);
-      this.out.lerp(this.pos, 0.55);
-      cam.position.x = this.out.x;
-      cam.position.z = this.out.z;
-      this.worldLocked = true;
-      if (Math.hypot(this.out.x - this._lastSentX, this.out.z - this._lastSentZ) > 1e-4) {
-        this._lastSentX = this.out.x;
-        this._lastSentZ = this.out.z;
-        if (typeof _onNativeOffset === 'function') _onNativeOffset(this.out.x, 0, this.out.z);
-        else if (typeof window !== 'undefined') window.NativeXR?.sixDofOffset?.(this.out.x, 0, this.out.z);
+      if (this.worldLock) this.worldLocked = true;
+      return;
+    }
+
+    const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
+    if (!isMoving) {
+      this.lastSc = 0;
+      this.lastLatDx = 0;
+      if (this.worldLock) {
+        this.pos.copy(this.anchorPos);
+        this.worldLocked = true;
       }
       return;
     }
 
-    /* Consenso: 2 leituras seguidas com o MESMO sinal e magnitude parecida. Antes bastava 1
-     * amostra válida alternada com zero para integrar passo a passo — era a deriva. */
+    // Só conta se duas medições seguidas concordam em sinal e magnitude próxima (elimina completamente saltos/drift espontâneo)
     const prevSc = this.lastSc;
     this.lastSc = sc;
     this.lastScAt = nowMs;
-    const sameSign = prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc);
-    const near = prevSc === 0 ||
-      Math.abs(Math.abs(prevSc) - Math.abs(sc)) <= Math.max(0.012, Math.abs(sc) * 0.75);
-    if (!sameSign || !near) {
-      this.agreeCount = 1;
-      this.stepSum = sc;
+
+    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc) ||
+        Math.abs(sc - prevSc) > Math.max(0.045, Math.abs(sc) * 1.25)) {
       return;
     }
-    this.agreeCount = Math.min(4, this.agreeCount + 1);
-    this.stepSum += sc;
-    if (this.agreeCount < 2) return;
 
-    const avgSc = this.stepSum / this.agreeCount;
-    this.agreeCount = 0;
-    this.stepSum = 0;
-
-    // Passo por frame limitado: 0,05 m a ~15 Hz dá no máximo ~0,75 m/s de caminhada.
-    const step = clamp(avgSc * this.depth, -0.05, 0.05);
-    if (Math.abs(step) < 1e-4) return;
-
+    const stepSc = (sc + prevSc) * 0.5;
+    const step = Math.max(-0.085, Math.min(0.085, stepSc * this.depth));
     _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
     _sdFwd.y = 0;
     if (_sdFwd.lengthSq() > 1e-6) _sdFwd.normalize();
     else _sdFwd.set(0, 0, -1);
-
     this.pos.addScaledVector(_sdFwd, step);
     this.pos.y = 0;
 
-    // Limite de segurança no plano horizontal (não anda para fora da sala).
+    // Limites de segurança no plano horizontal
     const planarLen = Math.hypot(this.pos.x, this.pos.z);
     if (planarLen > 2.6) {
-      this.pos.x *= 2.6 / planarLen;
-      this.pos.z *= 2.6 / planarLen;
+      const scale = 2.6 / planarLen;
+      this.pos.x *= scale;
+      this.pos.z *= scale;
     }
-
-    // A âncora só anda com passo validado: ruído nunca é promovido a "novo mundo".
-    this.anchorPos.copy(this.pos);
-    this.lastCommitMs = nowMs;
+    this.pos.y = 0;
+    this.anchorPos.set(this.pos.x, 0, this.pos.z);
     this.worldLocked = false;
 
-    this.out.copy(this.pos);
+    // Sincroniza imediatamente com a câmara e o renderer nativo (SpatialRenderer) mesmo quando
+    // apenas 1 página estática está aberta e requestAnimationFrame desacelera na WebView virtual.
+    this.out.lerp(this.pos, 0.78);
     this.out.y = 0;
+    if (this.worldLock && this.out.distanceToSquared(this.anchorPos) < 1e-6) {
+      this.out.copy(this.anchorPos);
+      this.worldLocked = true;
+    }
     cam.position.x = this.out.x;
     cam.position.z = this.out.z;
     if (Math.hypot(this.out.x - this._lastSentX, this.out.z - this._lastSentZ) > 1e-4) {
@@ -486,7 +442,9 @@ export const SixDof = {
       } else if (typeof window !== 'undefined') {
         window.NativeXR?.sixDofOffset?.(this.out.x, 0, this.out.z);
       }
-      if (typeof window !== 'undefined') window.__updateBackfaceStates?.();
+      if (typeof window !== 'undefined') {
+        window.__updateBackfaceStates?.();
+      }
     }
   },
 
@@ -496,14 +454,9 @@ export const SixDof = {
       return;
     }
 
-    if (this.worldLock) {
-      // Congelado: qualquer resíduo volta à âncora antes de ir para a câmera.
+    if (this.worldLock && this.lastScAt > 0 && now - this.lastScAt > 160) {
+      this.anchorPos.set(this.pos.x, 0, this.pos.z);
       this.pos.copy(this.anchorPos);
-      this.out.copy(this.anchorPos);
-      this.out.y = 0;
-    } else if (now - this.lastScAt > 700 && now - this.lastCommitMs > 700) {
-      // Parado há mais de 0,7 s: aproxima da âncora (mata deriva lenta sem puxão visível).
-      this.pos.lerp(this.anchorPos, Math.min(0.35, Math.max(0.05, dt * 6)));
     }
 
     const lerpK = Math.max(0.42, 1 - Math.exp(-Math.max(0.005, dt) * 26));
@@ -577,20 +530,13 @@ if (typeof window !== 'undefined') {
   window.addEventListener('devicemotion', e => Walk.onMotion(e), { passive: true });
   window.SixDof = SixDof;
   window.Walk = Walk;
-  /** Liga/desliga o World Lock sem passar pelo shell (usado pelo menu e pelos testes). */
-  window.nextvrSetSixDofWorldLock = enabled => {
-    SixDof.setWorldLock(enabled !== false);
-    window.NativeXR?.setWorldLock?.(SixDof.worldLock);
-    return SixDof.worldLock;
-  };
   /**
    * Bridge chamada pelo Android nativo (`FakeSixDof.java`) ou por testes:
    * `window.nextvrSixDof({ sc, gx, gy, moving })` ou `window.nextvrSixDof(sc, gx, gy)`
    */
   window.nextvrSixDof = (payload, gxArg = 0, gyArg = 0) => {
     if (payload && typeof payload === 'object') {
-      // `payload.worldLock` NÃO mexe no World Lock: quem manda é o usuário (setWorldLock do
-      // shell). Um pacote em voo logo depois do toque reativaria o lock e engoliria a escolha.
+      if (payload.worldLock !== undefined) SixDof.worldLock = Boolean(payload.worldLock);
       if (payload.gray && payload.gray.length >= SixDof.W * SixDof.H) {
         return SixDof.processGray(payload.gray, payload.moving);
       }
@@ -602,12 +548,11 @@ if (typeof window !== 'undefined') {
         SixDof.lockToWorldAnchor();
         return { sc, gx, gy, worldLocked: true };
       }
-      // O 5º argumento era ignorado pela assinatura (bug): agora só moving manda no gate.
-      SixDof.applyFlowScale(sc, gx, gy, payload.moving);
+      SixDof.applyFlowScale(sc, gx, gy, payload.moving, mx - gx);
       return { sc, gx, gy, worldLocked: SixDof.worldLocked };
     }
     const sc = Number(payload ?? 0);
-    SixDof.applyFlowScale(sc, Number(gxArg || 0), Number(gyArg || 0));
+    SixDof.applyFlowScale(sc, Number(gxArg || 0), Number(gxArg ? gyArg : 0));
     return { sc, gx: Number(gxArg || 0), gy: Number(gyArg || 0), worldLocked: SixDof.worldLocked };
   };
 }

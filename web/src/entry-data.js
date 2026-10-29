@@ -1,29 +1,24 @@
-// Dados estáticos do menu de entrada NextVR v2.1.0.
-export const ENTRY_VERSION = 'v2.1.0';
-export const ENTRY_VERSION_ALPHA = 'v2.1.0 (Alpha)';
+// Dados estáticos do menu de entrada NextVR v2.0.0.
+export const ENTRY_VERSION = 'v2.0.0';
+export const ENTRY_VERSION_ALPHA = 'v2.0.0 (Alpha)';
 export const ENTRY_SUBTITLE = 'ENTRE EM OUTRO MUNDO';
 export const ENTRY_TAGLINE_TOP = 'MAIS QUE UM APP';
 export const ENTRY_TAGLINE_BOTTOM = 'UMA NOVA FORMA DE VER';
 
-// Build 89: a NanyGata virou Apache. O nome dele aparece cinza igual aos outros, com o mesmo selo
-// vermelho de verificado dos outros colaboradores, e a bio e' a que o usuario escreveu (com o (V)).
 export const ENTRY_COLLABORATORS = Object.freeze([
   'NeyVR',
   'Faylan',
-  'Apache',
+  'NanyGata',
   'JocaVR',
 ]);
 
-// O verificado e' de TODOS os colaboradores, igual sempre foi: quem digitar o nome de qualquer um
-// deles no perfil (NeyVR, Faylan, Apache ou JocaVR) ganha o selo vermelho na hora.
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
   'NeyVR',
   'Faylan',
-  'Apache',
+  'NanyGata',
   'JocaVR',
 ]);
 
-/** "Apache", "apache", " Apache " — maiúsculas e espaços não importam. Qualquer colaborador conta. */
 export function isVerifiedProfileName(name) {
   const clean = String(name || '').trim().toLowerCase();
   if (!clean) return false;
@@ -33,9 +28,7 @@ export function isVerifiedProfileName(name) {
 export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   NeyVR: 'o Dono absoluto mais aurudo do planeta.',
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
-  // O "(V)" era só uma representação do selo. O selo é desenhado ao lado do nome, então a bio é
-  // só o texto — nome cinza + selo vermelho + esta frase, igual aos outros colaboradores.
-  Apache: 'o contribuidor mais aurudo desse planeta majestoso',
+  NanyGata: '',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
 });
 
@@ -52,95 +45,18 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
-    id: 'build-97-marca-nextvr',
-    tag: 'CORREÇÃO · BUILD 97 — O APP SE CHAMA NEXTVR',
-    time: 'Agora',
-    heading: 'Build 97: o nome embaixo do ícone, a tela de carregamento, o menu, a Store, a tela de boas-vindas e o arquivo do APK voltaram a ser NextVR',
-    desc: 'O NextVR tinha ficado com a marca de um projeto que é OUTRO app: o nome embaixo do ícone era o de lá, a tela de carregamento mostrava o wordmark de lá, e o menu de entrada, a Store, a tela de boas-vindas e até o nome do arquivo que você baixa também. Agora tudo isso é NextVR: o app aparece como NextVR no celular, a arte de carregamento é a nova com o wordmark NextVR (headset e controles iguais), o menu diz "Bem-vindo ao NextVR", a loja é "Store NextVR" e o download passou a ser NextVR.apk. A sua Key continua a mesma, as 4 chaves continuam valendo — o sistema de Key não foi tocado.',
-  },
-  {
-    id: 'build-96-anel-e-precisao',
-    tag: 'NOVO · BUILD 96 — A BOLINHA COM 10 APPS, TELA PERTO/LONGE E MÃO MAIS PRECISA',
-    time: 'Agora',
-    heading: 'Build 96: uma bolinha na Dock com 10 bolinhas dentro abre um anel de apps gigantes (3 em cima, 4 no meio, 3 embaixo), com os apps do Android E os do app; a tela agora vai para perto e para longe; e o rastreio de mão ficou bem mais preciso',
-    desc: 'A Dock normal ganhou uma opção em bolinha: ela mostra as mesmas 10 bolinhas do menu que abre (3 em cima, 4 no meio, 3 embaixo) e, ao tocar, abre um anel de apps grandes em círculo com os apps do celular (com o ícone real de cada um) e os apps do NextVR: Navegador, YouTube, Store, Galeria, Biblioteca e Configurações. O centro do anel abre a lista completa. Embaixo do anel ficam os botões PERTO e LONGE: eles levam a tela inteira — janelas e Dock juntas — para perto ou para longe, deslizando em vez de pular, do mesmo jeito que no NextVR. E o rastreio de mão ficou mais preciso: o ponteiro parou de tremer com a mão parada, um quadro ruim do detector não joga mais o cursor para o outro lado da tela, o ponto do clique não escorrega durante a pinça e a suavização agora segue o tamanho da mão (mais firme de longe, mais responsiva de perto).',
-  },
-  {
-    id: 'build-95-ios',
-    tag: 'NOVO · BUILD 95 — O NextVR NO IPHONE (.IPA)',
-    time: 'Agora',
-    heading: 'Build 95: versão para iPhone — o mesmo menu, o mesmo passthrough e a mesma Key, agora em .ipa',
-    desc: 'O NextVR ganhou uma versão para iPhone: o mesmo menu de entrada, as mesmas Configurações e a mesma Key de 22 caracteres (as suas 4 chaves valem nos dois aparelhos), com o mundo real atrás da interface pela câmera traseira, olhar em volta pelo giroscópio, lanterna e câmera noturna, brilho da tela e foto de perfil das suas fotos. O arquivo .ipa sai pronto para instalar com o seu Apple ID. O que é do Android — janelas de apps, Shizuku, espelhar a tela, rastreio de mãos — não existe no iPhone e a interface mostra isso em vez de fingir.',
-  },
-  {
-    id: 'build-94-conta-google',
-    tag: 'NOVO · BUILD 94 — A CONTA DO GMAIL CONECTA NO APP (COMO NO KWAI E NO TIKTOK)',
-    time: 'Agora',
-    heading: 'Build 94: o cartão de login mostra as contas Google do próprio celular — "Escolha uma conta, para continuar no NextVR" — e a conta escolhida fica conectada no perfil',
-    desc: 'Agora é igual ao login do Kwai e do TikTok: ao entrar no app aparece "Escolha uma conta / para continuar no NextVR" com a lista das contas Google que já estão no seu celular (cada uma com avatar, nome e e-mail), o botão "Adicionar outra conta" abre a tela de contas do próprio Android e, ao escolher uma conta, ela fica conectada no app — o e-mail entra no perfil, marca o Google como vinculado e vale para o YouTube. O acesso às contas é pedido só na hora em que você toca em conectar, e o app não lê nada além do endereço de e-mail da conta Google.',
-  },
-  {
-    id: 'build-93-organizacao',
-    tag: 'NOVO · BUILD 93 — ORGANIZAÇÃO, WORLD LOCK NO 6DOF E LOGIN COM GOOGLE AO ENTRAR',
-    time: 'Agora',
-    heading: 'Build 93: Configurações organizadas (opções em pé, uma embaixo da outra), World Lock dentro do 6DoF e o cartão "Entrar com Google" aparecendo ao abrir o app',
-    desc: 'As Configurações viraram uma coluna organizada: cada grupo tem um título e as opções ficam uma embaixo da outra, com o nome inteiro (nada de texto deitado, cortado ou espremido em fileira), e a aba rola quando precisa. O World Lock deixou de ser um botão separado: escolher 6DoF já liga o World Lock, e o 3DoF desliga. E ao entrar no app aparece um cartão de login com o botão "Entrar com Google", que abre a escolha de conta do Google (a mesma do Firebase) no navegador do celular — toque em "Continuar como (sua conta)" e a conta real entra; depois é só tocar em "JÁ ENTREI". Quem não quiser entra com "Agora não".',
-  },
-  {
-    id: 'build-92-avatar',
-    tag: 'NOVO · BUILD 92 — AVATAR 3D HUMANO, CONFIGURAÇÕES ESPAÇADAS E CONTA GOOGLE DE VERDADE',
-    time: 'Agora',
-    heading: 'Build 92: o boneco 3D virou gente (como o do PICO), as Configurações ficaram espaçadas e a conta Google abre a escolha de conta real',
-    desc: 'O avatar do jogo foi refeito com proporções humanas de verdade: cerca de 7 cabeças de altura, ombros e cintura no lugar, braços caídos, camiseta amarela de manga curta, calça escura, tênis branco e o headset branco do PICO — corpo em silhueta contínua, sem contorno preto e sem bolas soltas. As Configurações ganharam espaçamento nas três abas: cartões mais altos, títulos que quebram linha em vez de cortar e botões maiores. E o botão do Google/YouTube agora abre a escolha de conta do Google (a mesma do login do Firebase) no navegador do celular, onde aparece "Continuar como (sua conta)" e a sua conta real entra — dentro da janela o Google recusa o login.',
-  },
-  {
-    id: 'build-91-flash',
-    tag: 'CORREÇÃO · BUILD 91 — LANTERNA QUE PISCAVA',
-    time: 'Agora',
-    heading: 'Build 91: a lanterna automática parou de piscar (ela não confunde mais a própria luz com luz do ambiente)',
-    desc: 'A lanterna acendia no escuro, a luz dela mesma subia a leitura da câmera, ela achava que tinha luz e apagava — e ficava nesse vai e vem. Agora o app espera o sensor estabilizar, mede quanto a PRÓPRIA lanterna soma na imagem e desconta isso antes de decidir: só apaga quando a luz do ambiente realmente volta, com confirmação de vários segundos. Tem também tempo mínimo ligada/desligada e, se ela ainda assim apagar cedo demais três vezes, para de tentar por 2 minutos em vez de piscar na sua cara. O modo noturno não briga mais com a lanterna, e as Configurações mostram a luz do ambiente já sem a luz da própria lanterna.',
-  },
-  {
-    id: 'build-90-key',
-    tag: 'NOVO · BUILD 90 — KEY DE 22 CARACTERES, CONTA POR E-MAIL E LANTERNA NO ESCURO',
-    time: 'Agora',
-    heading: 'Build 90: Sistema de Key, Conta vinculada (Discord, TikTok, Google, YouTube), Lanterna quando não há luz e Mão reconhecida no escuro',
-    desc: 'Sistema de Key: a chave tem 22 caracteres, funciona uma vez, fica presa a ESTE celular e não precisa ser digitada de novo (só se desinstalar e instalar outra vez). A conta agora tem e-mail no Login/Perfil e um toque vincula Discord, TikTok, Google e YouTube abrindo a página de login real de cada um. A câmera noturna ficou de verdade: sem luz nenhuma o flash do celular acende e apaga quando a luz volta (com travas para não piscar), e o hand tracking recebe um ganho no quadro escuro para reconhecer a mão no breu. O teclado ganhou uma bolinha ao lado da barrinha branca: arrastar move, tocar fecha. E a barra de aumentar/diminuir brilho embaixo das janelinhas flutuantes saiu.',
-  },
-  {
-    id: 'build-89-carregamento',
-    tag: 'NOVO · BUILD 89 — NextVR, TECLADO EM PE, TIKTOK REAL, JANELAS 300% E CAMERA NOTURNA',
-    time: 'Agora',
-    heading: 'Build 89: Apache no lugar da NanyGata, Teclado em Pe, TikTok Real, Janelas ate 300%, Personagem 3D Giratorio e Camera Noturna',
-    desc: 'A NanyGata virou Apache: nome cinza igual aos outros, selo vermelho de verificado em todos os colaboradores (digite NeyVR, Faylan, Apache ou JocaVR no perfil e o selo aparece) e a bio "o contribuidor mais aurudo desse planeta majestoso" (o selo é o desenho ao lado do nome). O teclado parou de ficar deitado: agora fica em PE, estilo Meta Quest 3S, com uma barrinha branca do lado para arrastar para qualquer lugar. Nova tela de carregamento NextVR. As janelas flutuantes aumentam ate 300% (perfeito para ver filme), ficaram encurvadas e brilhantes como no print, e o TikTok abre do tamanho certo rodando o TikTok de verdade. Personagem 3D que gira para ver os acessorios, terceira aba nas configuracoes para por QUALQUER app na Dock (sem limite) e camera noturna automatica quando o ambiente escurece (e a lanterna do celular acende quando nao ha luz nenhuma, apagando quando a luz volta). O APK agora sai assinado em release: instala por cima sem apagar o perfil.',
-  },
-  {
-    id: 'worldlock-camera-paint',
-    tag: 'NOVO · WORLD LOCK, CÂMERA COLORIDA & PAINTMR 3D CONSERTADO (BUILD 82)',
-    time: 'Agora',
-    heading: '6DoF sem deriva: World Lock, Câmera P&B ou Colorida e o paintMR 3D Refinado',
-    desc: 'O mundo agora fica TRAVADO no lugar por padrão (World Lock): o 6DoF parou de ir para a frente e para os lados do nada, e tem botão de recentralizar. Escolha câmera P&B ou colorida dentro do jogo, no painel PICO 4 Ultra e nas configurações. O paintMR 3D foi consertado: ancoragem invertida, filtro One-Euro contra tremor, curvas suaves, borracha por direção, distância ajustável e botões de câmera/World Lock na paleta!',
-  },
-  {
-    id: 'paint-mr-3d',
-    tag: 'NOVO · PAINTDRAWER 3D EM MR — DESENHE NO AR COM AS MÃOS (BUILD 81)',
-    time: 'Agora',
-    heading: 'paintdrawer 3D: Traços Reais no Espaço, Pinça para Desenhar, Borracha 3D e Paleta Flutuante',
-    desc: 'Reescrito do zero: cada traço é um objeto 3D preso no espaço (gira a cabeça e o desenho fica parado), a pinça da mão direita desenha e a borracha apaga pedaço por pedaço no ar; paleta flutuante com 10 cores, caneta/neon, grossura, desfazer, limpar, salvar e abrir; sem esqueleto de mão, só um cursor discreto!',
-  },
-  {
     id: 'internal-rec-hand-zero',
-    tag: 'NOVO · PINTURA 3D MR INDEPENDENTE, CÂMERA P&B, PAINEL PICO 4 ULTRA & 6DOF RÁPIDO (BUILD 80)',
+    tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
     time: 'Agora',
-    heading: 'Pintura 3D MR Independente (Igual ShootTheDie), Câmera P&B, Gestão VR PICO 4 Ultra & 6DoF Rápido',
-    desc: 'Jogo paintMR de Pintura 3D em Realidade Mista 100% independente igual ao ShootTheDie (sem ser em janelinha flutuante: mão esquerda com botão Paleta para abrir/fechar a paleta de 10 cores + borracha + grossura, mão direita seleciona com o raio e desenha/apaga com pinça), câmera P&B padrão, painel PICO 4 Ultra e 6DoF rápido!',
+    heading: 'paintdrawer, 6DoF Sem Deriva Lateral/Frontal & Hand Tracking Ultra 0 Delay',
+    desc: 'Jogo paintdrawer com nova logo! Todos os apps já vêm prontos no Spatial App e na Dock sem precisar instalar, 6DoF corrigido para nunca andar para os lados ou pra frente do nada, Hand Tracking ainda mais sem delay nas 2 mãos e arco invisível nas bordas das janelas!',
   },
   {
     id: 'quest-browser-env-hand',
-    tag: 'NOVO · ÍCONE NextVR & PICO 4 ULTRA COMPLETO',
+    tag: 'NOVO · NAVEGADOR QUEST & GRAVAÇÃO INTERNA',
     time: 'Agora',
-    heading: 'Novo Ícone NextVR, PICO Motion Tracker, TikTok VR Vertical, Spotify VR, PICO Browser & Store',
-    desc: 'Novo ícone oficial NextVR! Adicionados PICO Motion Tracker (2 trackers 271297/271296 + avatar 183cm), PICO Explore Panorama 8K + Among Us 3D, PICO Browser (Shortcuts + Popular), PICO Store Search, TikTok VR Vertical, Spotify VR e Central de Notificações 27°C!',
+    heading: 'Meta Quest Browser, Gravação Interna 1 Lente & Raio de Longo Alcance',
+    desc: 'Gravação Interna em Tela Cheia 16:9 de 1 lente (mantendo as 2 lentes ativas no celular) nas configurações dentro do jogo, interface Meta Quest Browser e raio com seleção de qualquer distância!',
   },
   {
     id: 'mr-pistol',

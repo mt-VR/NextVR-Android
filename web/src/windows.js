@@ -4,7 +4,6 @@ import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
-import { extraDockItems, catalogEntry, launchDockApp } from './dock-catalog.js';
 import { icon } from './reference-icons.js';
 import { clampWindowPosition, dragGestureActivated, resizeGestureActivated,
   stepDragDelta, clampResize, maxResizeAtHeight, resizeFromPointer,
@@ -128,13 +127,22 @@ class Win {
       else if (btn.dataset.cinemaAct === 'min') close(this);
     });
 
-    /* Build 90 — a barra de diminuir/aumentar brilho embaixo de cada janelinha flutuante saiu
-     * ("tira aquele negócio de diminuir e aumentar brilho nas janelinhas flutuantes"). O brilho
-     * continua existindo uma vez só, no painel de configurações do sistema.
-     * Fica um elemento vazio para os seletores antigos não quebrarem. */
+    // Barra de controlo de brilho sob a janela (IMG_20261021_144045.jpg): aumenta e diminui o brilho
     const brightnessBar = document.createElement('div');
-    brightnessBar.className = 'win-brightness-bar win-brightness-off';
-    brightnessBar.hidden = true;
+    brightnessBar.className = 'win-brightness-bar';
+    brightnessBar.hidden = onboarding || id === 'left-quick-menu';
+    const initBri = Math.max(10, Math.min(100, Number(S.brightness ?? 80) || 80));
+    brightnessBar.innerHTML = `<span class="win-bri-icon">${icon('sun')}</span>`
+      + `<input type="range" class="win-bri-range" data-win-brightness min="10" max="100" step="1" value="${initBri}" style="--bri-fill:${initBri}%" aria-label="Brilho"/>`;
+    const briInput = brightnessBar.querySelector('[data-win-brightness]');
+    if (briInput) {
+      const onBri = e => {
+        e.stopPropagation();
+        setScreenBrightness(Number(briInput.value));
+      };
+      briInput.addEventListener('input', onBri);
+      briInput.addEventListener('change', onBri);
+    }
 
     // Telinhas pré-definidas nas laterais para posicionar as janelinhas flutuantes (IMG_20261021_143929.jpg)
     const predefinedSlotsBar = document.createElement('div');
@@ -170,41 +178,11 @@ class Win {
       <span class="win-side-grab win-side-grab--top" data-win-side-grab="top" style="position:absolute;top:-28px;left:12%;right:12%;height:22px;border-radius:999px;background:rgba(255,255,255,0.01);pointer-events:auto"></span>
     `;
 
-    // Barra inferior estilo PICO 4 Pro nas janelas flutuantes (✕, —, barra de arraste central PICO 4 Pro e controles ⤢ / ⊕)
-    shell.dataset.picoProWindow = '1';
-    const picoFoot = document.createElement('div');
-    picoFoot.className = 'win-pico-foot';
-    picoFoot.dataset.picoProFoot = '1';
-    picoFoot.hidden = onboarding || !chrome || id === 'browser' || id === 'library' || id === 'quick-settings' || id === 'spatial-launcher' || id === 'left-quick-menu';
-    picoFoot.innerHTML = `
-      <div class="win-pico-foot-left">
-        <button type="button" class="win-pico-foot-btn win-pico-foot-btn--close" data-pico-foot="close" title="Fechar" aria-label="Fechar">✕</button>
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="min" title="Minimizar" aria-label="Minimizar">—</button>
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="more" title="Curvar / Tela 2D" aria-label="Curvar">⤢</button>
-      </div>
-      <div class="win-pico-foot-center" style="display:inline-flex;align-items:center;gap:10px">
-        <span class="win-pico-foot-title" data-pico-foot-title>${title || 'Browser'}</span>
-        <span class="win-pico-grab-bar" data-pico-grab-bar="1" style="display:inline-block;width:112px;height:5px;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,.72),#ffffff,rgba(255,255,255,.72));box-shadow:0 0 8px rgba(255,255,255,.35)"></span>
-      </div>
-      <div class="win-pico-foot-right">
-        <span class="win-pico-pro-tag" style="font-size:9.5px;font-weight:800;letter-spacing:.06em;color:rgba(228,228,231,.72);padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">PICO 4 PRO</span>
-        <button type="button" class="win-pico-foot-btn" data-pico-foot="center" title="Centralizar janela" aria-label="Centralizar">⊕</button>
-      </div>
-    `;
-    picoFoot.addEventListener('click', e => {
-      const btn = e.target.closest('[data-pico-foot]');
-      if (!btn) return;
-      e.stopPropagation();
-      if (btn.dataset.picoFoot === 'close' || btn.dataset.picoFoot === 'min') close(this);
-      else if (btn.dataset.picoFoot === 'more') this.setCurve(this.curve > 0 ? 0 : curveAngle(S.win360K));
-      else if (btn.dataset.picoFoot === 'center') this.placeInFront();
-    });
-
-    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc, picoFoot);
+    shell.append(el, handle, resizeHandle, cinemaBar, brightnessBar, predefinedSlotsBar, grabArc);
 
     this.el = el; this.shell = shell; this.handle = handle; this.resizeHandle = resizeHandle;
     this.cinemaBar = cinemaBar; this.brightnessBar = brightnessBar; this.predefinedSlotsBar = predefinedSlotsBar;
-    this.grabArc = grabArc; this.picoFoot = picoFoot;
+    this.grabArc = grabArc;
     shell.dataset.curve = String(this.curve);
     if (this.curve > 0 && !onboarding) shell.classList.add('cinema-360');
     // Algumas superfícies são a própria janela (biblioteca/central rápida) e desenham seus
@@ -306,8 +284,12 @@ class Win {
     if (button) button.setAttribute('aria-pressed', String(this.curve > 0));
     if (is360) {
       document.documentElement.dataset.cinema360 = '1';
+      window.NativeXR?.env?.('dark');
     } else if (!wins.some(w => w !== this && !w.hidden && !w.onboarding && w.curve > 0)) {
       delete document.documentElement.dataset.cinema360;
+      if (document.documentElement.dataset.robloxBlackEnv !== '1') {
+        window.NativeXR?.env?.(S.env || 'passthrough');
+      }
     }
     // A malha de hit só é curvada quando há curvatura: plana continua sendo 1 segmento.
     const segments = this.curve > 0 ? 32 : 1;
@@ -756,74 +738,6 @@ export function updateWindowsDepthLayering(activeWin = null) {
   return withDist.map(x => x.w.id);
 }
 
-/**
- * Build 96 — "bota o negócio da tela ficar perto e longe também igual do NextVR".
- *
- * No NextVR esse controle é um só: o workspace INTEIRO (janelas e deck) desliza no eixo da
- * profundidade, sem mudar o tamanho aparente nem o ângulo — a tela vem para perto de você, ou
- * recua para você ver mais coisa. Aqui sai do mesmo jeito, e de graça, porque todo o arco já é
- * calculado a partir de dois números: `S.winDist` (distância das janelas) e `S.dockDist` (a dock,
- * em múltiplo da distância de conforto). Então perto/longe é só ANIMAR esses dois juntos:
- *
- *   - os dois andam na mesma proporção, então a dock nunca descola do arco de janelas;
- *   - os limites são os mesmos dos controles de Ajustes (`winDist` .6–1.8 nativo / 1.5–3.4 preview,
- *     `dockDist` .7–1.5): o botão nunca leva a tela para um lugar onde o slider não iria;
- *   - a animação é de 260 ms com saída suave, e um toque novo durante a animação pega o valor
- *     exato de onde ela está (nada de acumular toques perdidos);
- *   - o resultado é salvo e emitido, então Ajustes, o anel de apps e o HUD mostram o mesmo número.
- */
-const SCREEN_DEPTH_MS = 260;
-let screenDepthAnim = 0;
-const depthRange = () => (native ? { min: .6, max: 1.8 } : { min: 1.5, max: 3.4 });
-const clampNum = (v, a, b) => Math.max(a, Math.min(b, v));
-
-export function screenDepthTargets(step) {
-  const { min, max } = depthRange();
-  const from = clampNum(Number(S.winDist) || COMFORT.windowDistance, min, max);
-  const fromDock = clampNum(Number(S.dockDist) || 1, .7, 1.5);
-  const to = clampNum(from + step, min, max);
-  // A dock anda na mesma proporção da tela: se a tela fica 10% mais perto, a dock também.
-  const ratio = to / (from || 1);
-  return { from, to, fromDock, toDock: clampNum(fromDock * ratio, .7, 1.5) };
-}
-
-export function screenDepth(dir = 0) {
-  const sign = Math.sign(Number(dir) || 0);
-  if (!sign) return Number(S.winDist) || COMFORT.windowDistance;
-  const step = -0.2 * sign;                 // dir > 0 = PERTO (menos metros)
-  const targets = screenDepthTargets(step);
-  if (Math.abs(targets.to - targets.from) < 1e-4) return targets.from;
-  cancelAnimationFrame(screenDepthAnim);
-  const started = performance.now();
-  const apply = t => {
-    const eased = 1 - Math.pow(1 - t, 3);
-    S.winDist = targets.from + (targets.to - targets.from) * eased;
-    S.dockDist = targets.fromDock + (targets.toDock - targets.fromDock) * eased;
-    emit('winDist', S.winDist);
-    emit('dockDist', S.dockDist);
-  };
-  const tick = now => {
-    const t = Math.min(1, (now - started) / SCREEN_DEPTH_MS);
-    apply(t);
-    if (t < 1) { screenDepthAnim = requestAnimationFrame(tick); return; }
-    S.winDist = targets.to;
-    S.dockDist = targets.toDock;
-    save(S);
-    layout();
-    placeDock();
-    screenDepthAnim = 0;
-  };
-  screenDepthAnim = requestAnimationFrame(tick);
-  return targets.to;
-}
-
-/** Quanto falta (em metros) para o limite mais próximo — o anel usa isso para apagar o botão morto. */
-export function screenDepthLimits() {
-  const { min, max } = depthRange();
-  const cur = Number(S.winDist) || COMFORT.windowDistance;
-  return { near: cur - min < 1e-3, far: max - cur < 1e-3, value: cur, min, max };
-}
-
 export function setWindowDepth(winOrId, radiusMeters) {
   const w = typeof winOrId === 'string'
     ? wins.find(x => x.id === winOrId)
@@ -1195,25 +1109,8 @@ function shellPointer(press, action, x, y, target) {
 function sendPress(press, action, x = press.x, y = press.y, target = null) {
   if (press.id === 'shell' && press.win?.onboarding) shellPointer(press, action, x, y, target);
   else {
-    const clickable = (press.id === 'shell' && action === 1 && target && !target.closest?.('[data-native-browser],[data-native-app],[data-native-xr]'))
-      ? (target.closest?.(DIRECT_PINCH_SEL) || activationTarget(target))
-      : null;
-    let clickedSync = false;
-    const onSyncClick = () => { clickedSync = true; };
-    clickable?.addEventListener?.('click', onSyncClick, { once: true });
     window.NativeXR.handTouch(press.id, action, x, y);
-    clickable?.removeEventListener?.('click', onSyncClick);
-    if (!clickedSync && clickable && typeof clickable.click === 'function') {
-      clickable.click();
-      if (clickable.matches?.('input,textarea')) clickable.focus();
-      const suppressDup = e => {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      };
-      clickable.addEventListener?.('click', suppressDup, true);
-      setTimeout(() => clickable.removeEventListener?.('click', suppressDup, true), 220);
-      css3d.invalidate?.();
-    } else if (action === 1 && target) {
+    if (action === 1 && target) {
       const qbTile = target.closest?.('[data-qb-url],[data-qb-act]');
       if (qbTile) qbTile.click();
     }
@@ -1406,7 +1303,7 @@ function findDirectAppPoint(cx, cy) {
 }
 
 function resolveDirectPinchPoint(handArg = null) {
-  if (S.pinchOnApp !== 'force-legacy') return null;
+  if (S.pinchOnApp === 0) return null;
   const h = handArg || cursor.hand;
   const p = h?.points;
   if (!p || p.length < 26) return null;
@@ -1416,15 +1313,6 @@ function resolveDirectPinchPoint(handArg = null) {
   const sx = Number(lastPhonePacket?.scaleX) || 1;
   const sy = Number(lastPhonePacket?.scaleY) || 1;
   const basePts = [];
-  if (Array.isArray(h.aim) && h.aim.length >= 2) {
-    const aimPt = screenPoint(h.aim);
-    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
-      basePts.push([aimPt.x, aimPt.y]);
-    }
-  }
-  if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
-    basePts.push([cursor.x, cursor.y]);
-  }
   if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     basePts.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
   }
@@ -1436,6 +1324,15 @@ function resolveDirectPinchPoint(handArg = null) {
   }
   if (Array.isArray(h.palm) && h.palm.length >= 2) {
     basePts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
+  }
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
+      basePts.push([aimPt.x, aimPt.y]);
+    }
+  }
+  if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
+    basePts.push([cursor.x, cursor.y]);
   }
   const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0], [0, -0.028], [0, 0.028], [-0.028, 0], [0.028, 0]];
   for (const [bx, by] of basePts) {
@@ -1502,15 +1399,15 @@ on('pinchdown', () => {
   let kb = kbProbe(px, py);
   let dockGrab = dockGrabTest(px, py);
   let dk = dockTest(px, py);
-  if (!h && !kb && !dockGrab && !dk) {
-    for (const [ox, oy] of [[0, -0.014], [0, 0.014], [-0.014, 0], [0.014, 0]]) {
-      const dkTry = dockTest(px + ox, py + oy);
-      if (dkTry) { px += ox; py += oy; dk = dkTry; break; }
-      const hTry = hitAt(px + ox, py + oy);
-      if (hTry) { px += ox; py += oy; h = hTry; break; }
-    }
-  }
-  const alt = resolveDirectPinchPoint();
+  const hasDirectHit = Boolean(
+    h?.resize ||
+    h?.handle ||
+    dockGrab ||
+    dk ||
+    (kb && kb.button) ||
+    (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
+  );
+  const alt = (S.fingerTouch !== 0 || !hasDirectHit) ? resolveDirectPinchPoint() : null;
   if (alt) {
     pinchOverridePt = alt;
     px = alt.x;
@@ -1545,13 +1442,7 @@ on('pinchdown', () => {
     if (pinchOverridePt) { cursor.x = px; cursor.y = py; }
     dockPinch('down'); return;
   }
-  if (kb && (!h || kb.distance < h.distance)) {
-    // Teclado em pe', Build 89: a barrinha branca arrasta o teclado inteiro; o resto e' tecla.
-    if (kb.grab) { startKbDrag(px, py); return; }
-    // Bolinha (Build 90): arrasta como a barrinha e, se ninguem mover, o toque fecha o teclado.
-    if (kb.ball) { kbBallTap = true; startKbDrag(px, py); return; }
-    kbPress(kb.button); return;
-  }
+  if (kb && (!h || kb.distance < h.distance)) { kbPress(kb.button); return; }
   if (h) {
     focus(h.win);
     const picked = pickInElement(h.win.el, h.u, h.v);
@@ -1565,13 +1456,12 @@ on('pinchdown', () => {
       }, 2000);
     }
     // Content press: hold the DOWN until the click-vs-drag arbiter classifies the gesture.
-    pendingPress = { win: h.win, hit: h, anchorX: px, anchorY: py };
+    pendingPress = { win: h.win, hit: h };
     return;
   }
   dockPinch('down');
 });
 on('pinchsample', () => {
-  if (kbDrag.plane) kbDragTo(cursor.x, cursor.y);
   if (kbHeld) kbHold(performance.now());
   if (pendingPress && cursor.mode === 'drag' && !pinchOverridePt?.el) {
     clickThrough(pendingPress.hit, 'down');
@@ -1609,15 +1499,6 @@ on('pinchup', () => {
     pendingPress = null;
     return;
   }
-  // A barrinha arrastada commita a posicao no ultimo ponto real da mao, como a dock.
-  if (kbDrag.plane) {
-    const wasTap = kbBallTap && !kbDrag.active;
-    kbBallTap = false;
-    if (kbDrag.active) kbDragTo(px, py);
-    endKbDrag();
-    if (wasTap) keyboard(false);          // toque na bolinha: fecha o teclado flutuante
-    return;
-  }
   // The keyboard goes first: if it armed a key, this pinch belongs to it and nothing else sees the
   // release. Otherwise letting go of a key also clicked whatever window was behind it.
   if (kbHeld) { kbRelease(); return; }
@@ -1638,8 +1519,7 @@ on('pinchup', () => {
   if (pendingPress) {
     // Click — or released before the decision window elapsed (a tap). DOWN and UP go out at the
     // SAME point so the page synthesizes a click, never a drag from between-sample movement.
-    const moved = Math.hypot(px - (pendingPress.anchorX ?? px), py - (pendingPress.anchorY ?? py));
-    const h = moved > 0.055 ? hitAt(px, py) : null;
+    const h = hitAt(px, py);
     const target = (h && !h.handle && !h.resize && h.win === pendingPress.win) ? h : pendingPress.hit;
     pendingPress = null;
     clickThrough(target, 'down');
@@ -1784,23 +1664,20 @@ const WIFI_SVG = icon('wifi');
 const BAT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
   + '<rect x="2" y="6.8" width="17.5" height="10.4" rx="3"/><rect x="21" y="10.4" width="1.7" height="3.2" rx=".85" fill="currentColor" stroke="none"/>'
   + '<rect class="fill" x="4.2" y="9" width="13" height="6" rx="1.4" fill="currentColor" stroke="none"/></svg>';
-const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3.4"/><path d="M6.2 19.2c1.2-2.8 3.3-4.2 5.8-4.2s4.6 1.4 5.8 4.2"/></svg>';
+const AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.6" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
 
 /**
  * items: { kind:'avatar'|'status'|'tool'|'sep' } ou app { id, svg|icon, bg, win, launcher }.
  * Tudo que tem `run` vira botão; só os botões entram no teste de toque da mão.
  */
 export function buildDock(items) {
-  // Build 89: os apps escolhidos na aba 3 das configuracoes entram no fim da Dock. O app real e'
-  // aberto por `launchDockApp`, que o apps.js registra — a Dock nao precisa saber o que e' cada um.
-  items = [...items, ...extraDockItems(S, dockExtraIcon)];
   dockItems = items; dockBtns = []; dockWins.length = 0;
   dockEl.innerHTML = '';
   setDockColor(S.dockColor || 'default');
 
   for (const it of items) {
     if (it.kind === 'sep') { dockEl.appendChild(sep()); continue; }
-    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; dockEl.appendChild(sp); continue; }
+    if (it.kind === 'spacer') { const sp = document.createElement('span'); sp.className = 'dock-spacer'; sp.style.width = '58px'; sp.style.display = 'inline-block'; dockEl.appendChild(sp); continue; }
 
     const b = document.createElement('button');
     b.dataset.id = it.id;
@@ -1812,24 +1689,15 @@ export function buildDock(items) {
       const verifiedHtml = isVerifiedProfileName(S.profileName)
         ? '<span class="dock-av-verified" data-dock-verified="1" title="Verificado" style="position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;display:inline-flex;pointer-events:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><circle cx="12" cy="12" r="10.5" fill="#fe2c55"/><path d="M7.6 12.3l2.9 2.9 5.9-6.2" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
         : '';
+      b.style.position = 'relative';
       b.innerHTML = (S.profileAvatar
         ? `<img src="${S.profileAvatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
         : AVATAR_SVG) + verifiedHtml;
       if (S.profileName) b.title = S.profileName;
     } else if (it.kind === 'status') {
-      b.className = 'dock-status dock-pico-status';
-      b.innerHTML = `<span class="dk-pico-top"><i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span></span>`
-        + `<span class="dk-pico-sub"><span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span><span class="dk-wifi">${WIFI_SVG}</span></span>`;
-    } else if (it.kind === 'orb') {
-      // Build 96: a bolinha da Dock com as 10 bolinhas dentro (3 em cima, 4 no meio, 3 embaixo).
-      // Ela abre o anel de apps (`orb-menu.js`); o desenho é o próprio mapa do menu, então a
-      // bolinha já anuncia o que vai abrir.
-      b.className = 'dock-app dock-orb';
-      b.dataset.orb = '1';
-      b.innerHTML = '<span class="dock-orb-dots" aria-hidden="true">'
-        + '<b><i></i><i></i><i></i></b>'
-        + '<b><i></i><i></i><i></i><i></i></b>'
-        + '<b><i></i><i></i><i></i></b></span>';
+      b.className = 'dock-status';
+      b.innerHTML = `<i class="dk-status-dot" aria-hidden="true"></i><span class="dk-time">--:--</span><span class="dk-wifi">${WIFI_SVG}</span>`
+        + `<span class="dk-bat">${BAT_SVG}<span class="dk-bat-percent"></span></span>`;
     } else if (it.kind === 'tool') {
       const bell = document.createElement('span');
       bell.className = 'dock-bell-ind';
@@ -1879,17 +1747,6 @@ export function buildDock(items) {
   tick(); refreshNet(); paintBat(); syncDots(); placeDock();
 }
 function sep() { const s = document.createElement('span'); s.className = 'dock-sep'; return s; }
-
-/** Ícone de verdade de um app Android (`app:<pacote>`), vindo do apps.js; catálogo não precisa. */
-function dockExtraIcon(id) {
-  if (!id.startsWith('app:')) return null;
-  const found = (typeof window.__nextvrDockAndroidApps === 'function' ? window.__nextvrDockAndroidApps() : [])
-    .find(item => item && item.id === id);
-  return found ? { img: found.img, label: found.label, bg: found.bg, glyph: found.glyph } : null;
-}
-
-/** Reabre a Dock com os apps extras atuais (a aba 3 chama isto ao ligar/desligar um app). */
-export function refreshDockExtras() { buildDock(dockItems.filter(it => !it.dockAppId)); return true; }
 
 /* ponto branco sob o app aberto, como na dock do print */
 function syncDots() {
@@ -2068,7 +1925,7 @@ function dockPinch(type) {
     let idx = (r && r.i === armed) ? r.i : -1;
     // Ao chegar perto da dock em bar, o movimento natural dos dedos ao soltar a pinça pode deslocar
     // ligeiramente o raio; se o utilizador soltou perto do ponto onde armou, confirma o clique no botão armado.
-    if (idx < 0 && armed >= 0 && Math.hypot(cursor.x - dockArmedPt.x, cursor.y - dockArmedPt.y) < 0.12) {
+    if (idx < 0 && armed >= 0 && Math.hypot(cursor.x - dockArmedPt.x, cursor.y - dockArmedPt.y) < 0.085) {
       idx = armed;
     }
     if (idx < 0) return;
@@ -2261,8 +2118,6 @@ export function keyboard(on_, field) {
     if (native) console.log('kb close; was serving', kbTarget?.nativeId || kbTarget?.tagName || 'nothing');
     // Solta a tecla segurada ANTES de esquecer o alvo: o keyup é o que faz um jogo parar de andar.
     kbRelease();
-    endKbDrag();
-    kbBallTap = false;
     if (kbObj) { contentRoot.remove(kbObj); contentRoot.remove(kbHit); kbObj.element.remove(); kbObj = null; }
     kbTarget = null; kbOwner = null; kbShift = kbShiftLock = kbSym = false;
     kbPose.ready = false;              // reabrir comecna do lugar da janela dona, sem correr de um lado
@@ -2313,28 +2168,6 @@ export function keyboard(on_, field) {
     const b = e.target.closest('[data-k]'); if (!b) return;
     kbPress(b); kbRelease();
   });
-
-  /* Build 89: a barrinha branca do lado. E' um elemento de verdade dentro do teclado (nao um
-   * pseudo-elemento) para que o raio da mao o encontre e o arraste — e' o que o usuario pediu:
-   * "uma barrinha branca do lado pra mover pra qualquer lugar". */
-  const grab = document.createElement('div');
-  grab.className = 'kb-grab';
-  grab.dataset.kbGrab = '1';
-  grab.title = 'Mover o teclado';
-  grab.setAttribute('aria-label', 'Mover o teclado');
-  grab.setAttribute('role', 'slider');
-  el.appendChild(grab);
-
-  /* Build 90 — "bota uma bolinha pequena do lado da barrinha branca pra movimentar de ativar
-   * teclado flutuante". A bolinha fica logo acima da barrinha: arrastar nela move o teclado
-   * (mesmo arrasto da barrinha) e um toque curto fecha o teclado flutuante. */
-  const ball = document.createElement('div');
-  ball.className = 'kb-ball';
-  ball.dataset.kbBall = '1';
-  ball.title = 'Fechar o teclado (arraste para mover)';
-  ball.setAttribute('aria-label', 'Fechar o teclado flutuante');
-  ball.setAttribute('role', 'button');
-  el.appendChild(ball);
 
   kbObj = new CSS3DObject(el);
   kbObj.scale.setScalar(PX * (native?COMFORT.keyboardScale:.9));
@@ -2426,27 +2259,10 @@ function paintShift() {
 }
 
 let kbKey = '';
-/* Build 89 — teclado EM PE', estilo Meta Quest 3S.
- *
- * O usuario: "o teclado, nao deixa ele deitado, deixa ele em pe e com uma barrinha branca do lado
- * pra mover pra qualquer lugar, so estilo meta quest 3s". Deitado (rotacao -pi/2 + .35) o teclado
- * ficava plano na altura da cintura, longe do olhar. Em pe' ele e' um painel vertical de frente para
- * a pessoa, com uma pequena inclinacao para tras (KB_TILT) que e' o angulo de um teclado de verdade.
- */
-const KB_TILT = -.12;                       // rad: para tras, o suficiente para ler sem distorcer
-const KB_STAND_DISTANCE = .85;              // m do olho — ~66 graus de largura, tamanho de teclado real
-const KB_STAND_DROP = .30;                  // m abaixo do olho (um teclado em pe' fica na altura do peito)
+/** Inclinação do teclado deitado na direção do usuário (rad) — estilo Meta Quest. */
+const KB_TILT = .35;
 /** Azimute para onde o teclado caminha. `ready=false` = o proximo quadro e um teleporte seco. */
 const kbPose = { yaw: 0, ready: false };
-/**
- * Onde o usuario largou o teclado arrastando a barrinha branca, ou null enquanto ele nao arrastou.
- * A partir dai o teclado PARA de seguir a janela dona: e' o que "mover pra qualquer lugar" significa.
- */
-let kbFreePos = null;
-/** Toque na bolinha (Build 90): um toque fecha o teclado, um arrasto move. */
-let kbBallTap = false;
-/** Arraste em andamento da barrinha: plano do gesto + deslocamento do centro do teclado. */
-const kbDrag = { active: false, plane: null, offset: null, distance: 1 };
 /** Diferença de angulo mais curta: −π..π, para o teclado nunca dar a volta completa no meio. */
 const shortAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -2467,27 +2283,18 @@ function kbAnchor() {
 
 function placeKb(dt = 0) {
   if (!kbObj) return;
-  let yaw;
-  if (kbFreePos) {
-    // Arrastado pela barrinha branca: fica exatamente onde o usuario o largou e gira para encarar o
-    // olho, para o texto nunca ficar de lado nem de ponta-cabeca.
-    kbObj.position.copy(kbFreePos);
-    yaw = Math.atan2(-kbFreePos.x, -kbFreePos.z) || 0;
-    kbPose.yaw = yaw;
-    kbPose.ready = true;
-  } else {
-    const wanted = kbAnchor();
-    // O teleporte e curto, nao instantaneo: meio segundo e o teclado ja esta na frente da janela nova
-    // e o olhar ainda sabe onde ele estava.
-    if (!kbPose.ready) { kbPose.yaw = wanted; kbPose.ready = true; }
-    else kbPose.yaw += shortAngle(wanted - kbPose.yaw) * (1 - Math.exp(-dt * 7));
-    yaw = kbPose.yaw;
-    const distance = native ? KB_STAND_DISTANCE : -dockAt.z - .35;
-    // Em pe': na altura do peito, de frente para quem digita.
-    kbObj.position.set(-Math.sin(yaw) * distance, EYE - KB_STAND_DROP, -Math.cos(yaw) * distance);
-  }
-  // Painel vertical (KB_TILT e' uma inclinacao pequena, nao o -pi/2 deitado da versao anterior).
-  kbObj.rotation.set(KB_TILT, yaw, 0, 'YXZ');
+  const wanted = kbAnchor();
+  // O teleporte e curto, nao instantaneo: meio segundo e o teclado ja esta na frente da janela nova
+  // e o olhar ainda sabe onde ele estava.
+  if (!kbPose.ready) { kbPose.yaw = wanted; kbPose.ready = true; }
+  else kbPose.yaw += shortAngle(wanted - kbPose.yaw) * (1 - Math.exp(-dt * 7));
+  const yaw = kbPose.yaw;
+  const distance=native?COMFORT.keyboardDistance:-dockAt.z-.35;
+  kbObj.position.set(-Math.sin(yaw)*distance, EYE-(native?COMFORT.keyboardDrop:.68), -Math.cos(yaw)*distance);   // deitado como mesa, à frente do alvo
+  // Deitado igual Meta Quest: -π/2 é o plano horizontal (teclado "deitado"), KB_TILT inclina
+  // só o necessário na direção do usuário para ler e digitar. Aplicado a cada frame para
+  // acompanhar a janela dona depois de arrastá-la, recenter ou summon.
+  kbObj.rotation.set(-Math.PI / 2 + KB_TILT, yaw, 0, 'YXZ');
   const w = kbObj.element.offsetWidth * kbObj.scale.x, h = kbObj.element.offsetHeight * kbObj.scale.x;
   const key = w.toFixed(3) + 'x' + h.toFixed(3);
   if (w > 0 && key !== kbKey) {
@@ -2524,52 +2331,7 @@ function kbProbe(x, y) {
   // A tecla e a ancora [data-k] do ponto, e nao o elemento mais fundo: as teclas de icone tem um
   // <svg> dentro, e apertar o icone de voltar/enter/shift tem de ser a mesma tecla que apertar o
   // fundo dela.
-  const el = deepPick(kbObj.element, px, py);
-  // A barrinha e' um alvo proprio: ela nao e' tecla, ela arrasta o teclado inteiro.
-  if (el?.closest?.('[data-kb-grab]')) return { distance: hit.distance, grab: true, button: null };
-  if (el?.closest?.('[data-kb-ball]')) return { distance: hit.distance, ball: true, button: null };
-  return { distance: hit.distance, grab: false, button: el?.closest?.('[data-k]') || null };
-}
-
-/* =================== arrastar o teclado pela barrinha =================== */
-/* Tres funcoes, o mesmo desenho do arraste da dock: arma no pinchdown (plano do gesto + a distancia
- * entre o ponto pego e o centro do teclado), move a cada amostra e commita no pinchup. A posicao
- * escolhida fica em `kbFreePos` e o teclado para de seguir a janela dona. */
-function startKbDrag(nx, ny) {
-  if (!kbObj) return false;
-  setRay(nx, ny);
-  const center = kbObj.getWorldPosition(new THREE.Vector3());
-  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(), center);
-  const hit = ray.ray.intersectPlane(plane, new THREE.Vector3());
-  if (!hit) return false;
-  Object.assign(kbDrag, { active: false, plane, offset: center.clone().sub(hit), distance: hit.distance() || 1 });
-  if (kbObj.element) kbObj.element.classList.add('dragging');
-  return true;
-}
-function kbDragTo(nx, ny) {
-  if (!kbDrag.plane || !kbObj) return false;
-  setRay(nx, ny);
-  const hit = ray.ray.intersectPlane(kbDrag.plane, new THREE.Vector3());
-  if (!hit) return false;
-  kbDrag.active = true;
-  const world = hit.clone().add(kbDrag.offset);
-  // Limites: perto o suficiente para digitar, longe o suficiente para sair da frente, e entre o
-  // peito e um pouco acima da cabeca — o teclado continua alcancavel com o braco.
-  const flat = Math.hypot(world.x, world.z);
-  if (flat > 1e-4) {
-    const clamped = Math.max(.32, Math.min(3.2, flat));
-    world.x *= clamped / flat; world.z *= clamped / flat;
-  }
-  world.y = Math.max(EYE - 1.25, Math.min(EYE + .75, world.y));
-  const local = contentRoot.worldToLocal(world.clone());
-  kbFreePos = local;
-  placeKb();
-  scene.updateMatrixWorld(true);
-  return true;
-}
-function endKbDrag() {
-  if (kbObj?.element) kbObj.element.classList.remove('dragging');
-  Object.assign(kbDrag, { active: false, plane: null, offset: null, distance: 1 });
+  return { distance: hit.distance, button: deepPick(kbObj.element, px, py)?.closest?.('[data-k]') || null };
 }
 
 /** O dedo desceu numa tecla: ela escreve na hora e fica segurada. */
@@ -2636,9 +2398,6 @@ onFrame((dt, now) => {
     const p = predictedCursor(now);
     if (resizing.win) resizeTo(p.x,p.y);
     if (drag.win && drag.source!=='fist') dragTo(p.x,p.y);
-  }
-  if (kbDrag.plane && cursor.active && cursor.down) {
-    const p = predictedCursor(now); kbDragTo(p.x, p.y);
   }
   if (dockDrag.start && cursor.active && cursor.down) {
     const p=predictedCursor(now); dockDragTo(p.x,p.y);
@@ -2763,15 +2522,9 @@ let lastPhonePacket = { hands: [], consumed: new Set(), scaleX: 1, scaleY: 1 };
 /** Sticky feedback windows: hand noise must not flash outlines or swap FAR/NEAR pointers. */
 let hoverWin = null, hoverAt = 0;
 const NEAR_HOVER_HOLD_MS = 350, NEAR_HOLD_MS = 240;
-const _phoneRaycaster = new THREE.Raycaster();
-const _phoneNdc = new THREE.Vector2();
-function phoneRay(x, y, skipMatrixUpdate = false) {
-  if (!skipMatrixUpdate) {
-    camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
-  }
-  _phoneNdc.set(x * 2 - 1, 1 - y * 2);
-  _phoneRaycaster.setFromCamera(_phoneNdc, camera);
-  return _phoneRaycaster;
+function phoneRay(x, y) {
+  camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
+  const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera); return r;
 }
 function palmScreen(h, packet, filtered=false) {
   const p=filtered?(h.grab||h.palm):h.palm;
@@ -2947,14 +2700,6 @@ function resolveFingerTarget(h, packet) {
     [0, 0.015],
     [0, -0.015],
   ];
-  if (Array.isArray(h.aim) && h.aim.length >= 2) {
-    const aimPt = screenPoint(h.aim);
-    const rayOffsets = [[0, 0], [0, 0.015], [0, -0.015], [-0.015, 0], [0.015, 0], [0, 0.026], [0, -0.026]];
-    for (const [ox, oy] of rayOffsets) {
-      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
-      if (aimHit) return { ...aimHit, viaRay: true };
-    }
-  }
   if (p && p.length >= 26 && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
     const tx = (p[24] - 0.5) * sx + 0.5;
     const ty = (p[25] - 0.5) * sy + 0.5;
@@ -2972,6 +2717,14 @@ function resolveFingerTarget(h, packet) {
     const dy = (p[22] - 0.5) * sy + 0.5;
     const dipHit = resolvePointTarget(dx, dy);
     if (dipHit) return { ...dipHit, viaRay: false };
+  }
+  if (Array.isArray(h.aim) && h.aim.length >= 2) {
+    const aimPt = screenPoint(h.aim);
+    const rayOffsets = [[0, 0], [0, 0.015], [0, -0.015], [-0.015, 0], [0.015, 0], [0, 0.026], [0, -0.026]];
+    for (const [ox, oy] of rayOffsets) {
+      const aimHit = resolvePointTarget(aimPt.x + ox, aimPt.y + oy);
+      if (aimHit) return { ...aimHit, viaRay: true };
+    }
   }
   return null;
 }
@@ -3432,17 +3185,10 @@ function updateFingerPoke(h, packet, nowMs) {
   }
 
   const liftedFinger = checkFingerLift(st);
-  const rayAutoClick = Boolean(
-    st.viaRay &&
-    Number(packet?.timestampNs) > 0 &&
-    !isBrowserBtn &&
-    (nowMs - st.enterAt >= 420) &&
-    (nowMs - st.lastTapAt >= 520)
-  );
   st.lastTipX = tipX;
   st.lastTipY = tipY;
 
-  if (!st.latched && (liftedFinger || rayAutoClick) && (nowMs - st.lastTapAt >= 360)) {
+  if (!st.latched && liftedFinger && (nowMs - st.lastTapAt >= 360)) {
     if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0075 || (fingerLift - st.restFingerLift) >= 0.0075)) {
       st.pendingBrowserTap = true;
       st.latched = true;
@@ -3741,7 +3487,7 @@ function updateLeftQuickMenuAttachment(packet) {
 
 function updateRightHandBolinhaGesture(packet, nowMs) {
   updateLeftQuickMenuAttachment(packet);
-  if (S.gunGesture === 0 || Number(packet?.timestampNs) > 0) {
+  if (S.gunGesture === 0) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
     leftHandBolinhaState.frames = 0;
@@ -4114,13 +3860,6 @@ on('phonehands', packet => {
       }
     }
   }
-  // No modo de rastreamento real da câmera (timestampNs > 0), desativa completamente o toque direto
-  // / pinça encima do app (nearContact e updateFingerPoke) para deixar 100% apenas a interação por Raio.
-  if (Number(packet?.timestampNs) > 0) {
-    endNear(true, packet);
-    setFingerHoverEl(null);
-    return;
-  }
   // Metric hand landmarks are hand pose, not a head/room 6 DoF tracker.
   // The near-touch zone has wide hysteresis and a short hold: a resting hand in front of an open
   // window jitters across a naive depth threshold and used to blink the pointer between the FAR
@@ -4198,42 +3937,18 @@ on('wins', () => {
   }
   lastWinCount = activeCount;
 });
-const _rayTargetsList = [];
 function syncHandTargets(now = performance.now()) {
   if(!native)return;
   lastTargetAt=now;
   const packet=lastPhonePacket, targets=[];
-  if (!packet.hands.length) {
-    if (lastTargets !== '[]') { lastTargets = '[]'; window.NativeXR.handTargets?.('[]'); }
-    return;
-  }
-  let hasOpenApp = false;
-  const list = _rayTargetsList;
-  list.length = 0;
-  for (let i = 0; i < wins.length; i++) {
-    const w = wins[i];
-    if (w.hidden) continue;
-    if (!w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher') hasOpenApp = true;
-    if (w.resizeHit) list.push(w.resizeHit);
-    const handles = w.grabHandles;
-    if (handles) {
-      for (let j = 0; j < handles.length; j++) if (handles[j]) list.push(handles[j]);
-    } else if (w.grab) {
-      list.push(w.grab);
-    }
-    if (w.hit) list.push(w.hit);
-  }
-  camera.updateMatrixWorld(true); contentRoot.updateMatrixWorld(true);
-  if(dockVisible){
-    if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
-    list.push(dockMoveHit,dockHit);
-  }
-  if(kbHit && kbObj && !kbHidden)list.push(kbHit);
+  const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
     const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
-    const noBeam = false;
-    const stick = null;
+    const noBeam = fingerHover;
+    const stick = (fSt?.targetEl && !fSt.viaRay && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
+      ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
+      : null;
     const isRightBolinha = isRightBolinhaHand(h);
     const isLeftBolinha = isLeftBolinhaHand(h);
     const blueOutline = Boolean(
@@ -4243,27 +3958,32 @@ function syncHandTargets(now = performance.now()) {
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray().map(v=>Number(v.toFixed(4))),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
     // Ambas as mãos usam predição cinemática zero-delay na taxa do display (60-120 Hz).
     const p=predictedHandScreenPoint(h,now);
-    const r=phoneRay(p.x,p.y,true);
+    const r=phoneRay(p.x,p.y);
+    const list=wins.filter(w=>!w.hidden).flatMap(w=>[w.resizeHit,...(w.grabHandles||[w.grab]),w.hit]);
+    if(dockVisible){
+      if(!dockBrowserPopup.hidden)list.push(dockPopupHit);
+      list.push(dockMoveHit,dockHit);
+    }
+    if(kbHit && kbObj && !kbHidden)list.push(kbHit);
     const hit=r.intersectObjects(list,false)[0];
     const isDown=(cursor.hand?.id===h.id&&cursor.down) || now < fingerPokeFlashUntil;
     const isHolding=Boolean(isDown || h.pinching || h.fist || (drag.win && (!drag.hand || drag.hand===h.id)) || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || dockArmed>=0);
     const isPrimaryRay=(cursor.hand?.id===h.id) || packet.hands.length===1;
     const blueRay=Boolean(isHolding || ((hasOpenApp || now<appOpenBlueUntil) && (isPrimaryRay || Boolean(hit))));
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    const aimArr=Array.isArray(h.aim)&&h.aim.length>=2 ? [Number(h.aim[0].toFixed(4)),Number(h.aim[1].toFixed(4))] : undefined;
-    targets.push({id:h.id,...(hit?{end:[Number(hit.point.x.toFixed(4)),Number(hit.point.y.toFixed(4)),Number(hit.point.z.toFixed(4))],...(aimArr?{aim:aimArr}:{})}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}
 }
 on('handtargets_sync', now => syncHandTargets(now));
 onFrame((dt,now)=>{
-  // O GL thread extrapola ambos os cursores a 60–120 Hz; sincroniza alvos a ~60 Hz quando há mãos ativas.
-  if(!native || !lastPhonePacket.hands.length || now-lastTargetAt<14)return;
+  // 60–120 Hz: o anel/ponta do raio acompanha a predição da mão imediatamente sem atraso.
+  if(!native || now-lastTargetAt<2)return;
   syncHandTargets(now);
 });

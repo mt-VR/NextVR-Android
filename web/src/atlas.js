@@ -13,7 +13,7 @@ export function pack(sizes, limit = ATLAS_SIZE) {
     const w = Math.ceil(width) + PAD * 2, h = Math.ceil(height) + PAD * 2;
     const x = kind === 'window' ? (slot % 3) * 1360 : kind === 'slot' ? 1360 : 0;
     const y = kind === 'dock' ? 800 : kind === 'keyboard' ? 3160 : kind === 'slot' ? 0 : 1200 + Math.floor(slot / 3) * 980;
-    const capacity = kind === 'dock' ? 460 : kind === 'keyboard' ? 936 : 980;
+    const capacity = kind === 'dock' ? 400 : kind === 'keyboard' ? 936 : 980;
     if (slot > 5 || w > (kind === 'window' || kind === 'slot' ? 1360 : limit) || h > capacity || x + w > limit || y + h > limit)
       throw new Error('Workspace texture is full; close a window first.');
     return [x, y, w, h];
@@ -75,7 +75,7 @@ export class AtlasRenderer {
         this.slots.set(o.id, slot);
       }
       const maxW = (kind === 'window' || kind === 'slot') ? 1040 : ATLAS_SIZE - PAD * 2;
-      const maxH = (kind === 'dock' ? 460 : kind === 'keyboard' ? 936 : 980) - PAD * 2;
+      const maxH = (kind === 'dock' ? 400 : kind === 'keyboard' ? 936 : 980) - PAD * 2;
       return {
         width: Math.min(o.element.offsetWidth, maxW),
         height: Math.min(o.element.offsetHeight, maxH),

@@ -72,8 +72,6 @@ public final class PerfLog {
      */
     private static volatile java.util.function.Consumer<String> statusListener;
     private static double inferSum, inferMax, camWorkSum, camWorkMax, handoffSum, handoffMax;
-    private static double poseSum, poseMax, infer1Sum, infer2Sum;
-    private static long poseCount, infer1Count, infer2Count;
     private static double captureSum, acquireSum, publishSum;
     private static long captureCount, acquireCount, publishCount;
     /** Tracking-loss separation: results that OBSERVED no hand after a result that had one are
@@ -104,13 +102,6 @@ public final class PerfLog {
     public static synchronized void cameraHandoff(double ms) {
         handoffSum += ms;
         handoffMax = Math.max(handoffMax, ms);
-    }
-
-    /** Time spent computing 2D/3D hand positions, gestures, and adaptive filters per result. */
-    public static synchronized void poseWork(double ms) {
-        poseSum += ms;
-        poseMax = Math.max(poseMax, ms);
-        poseCount++;
     }
 
     /** The GL thread drew a frame. Also emits the summary when the window is complete. */
@@ -179,13 +170,6 @@ public final class PerfLog {
         results++;
         inferSum += inferenceMs;
         inferMax = Math.max(inferMax, inferenceMs);
-        if (hands == 1) {
-            infer1Sum += inferenceMs;
-            infer1Count++;
-        } else if (hands >= 2) {
-            infer2Sum += inferenceMs;
-            infer2Count++;
-        }
         acquireSum += (completedNs - acquiredNs) / 1e6;
         acquireCount++;
         if (captureNs > 0) {
@@ -246,14 +230,10 @@ public final class PerfLog {
         if (listener == null) return;
         double seconds = Math.max(.001, (now - windowStartMs) / 1000.0);
         listener.accept(String.format(java.util.Locale.US,
-            "{\"camera\":%.1f,\"render\":%.1f,\"track\":%.1f,\"infer\":%.1f,\"infer1h\":%.1f,\"infer2h\":%.1f,"
-                + "\"poseMs\":%.2f,\"camWork\":%.1f,"
+            "{\"camera\":%.1f,\"render\":%.1f,\"track\":%.1f,\"infer\":%.1f,\"camWork\":%.1f,"
                 + "\"dropped\":%d,\"skips\":%d,\"stale\":%d,\"narrow\":%d,\"wide\":%d,\"delegate\":\"%s\"}",
             cameraFrames / seconds, renderFrames / seconds, results / seconds,
             results == 0 ? -1.0 : inferSum / results,
-            infer1Count == 0 ? -1.0 : infer1Sum / infer1Count,
-            infer2Count == 0 ? -1.0 : infer2Sum / infer2Count,
-            poseCount == 0 ? -1.0 : poseSum / poseCount,
             cameraFrames == 0 ? -1.0 : camWorkSum / cameraFrames,
             dropped, analysisSkips, staleFrames, narrowFrames, wideFrames, quote(delegate)));
     }
@@ -287,8 +267,6 @@ public final class PerfLog {
         losses = 0; emptyMs = 0; gapMaxMs = 0;
         intervalSum = intervalSqSum = 0; intervalCount = 0;
         inferSum = inferMax = camWorkSum = camWorkMax = handoffSum = handoffMax = 0;
-        poseSum = poseMax = infer1Sum = infer2Sum = 0;
-        poseCount = infer1Count = infer2Count = 0;
         captureSum = acquireSum = publishSum = 0;
         captureCount = acquireCount = publishCount = 0;
     }
@@ -311,7 +289,6 @@ public final class PerfLog {
         Log.i(TAG, String.format(java.util.Locale.US,
             "window=%.1fs camera=%.1f render=%.1f track=%.1f cam_work=%.1f cam_work_max=%.1f "
                 + "handoff=%.1f handoff_max=%.1f infer_mean=%.1f infer_max=%.1f "
-                + "infer_1h=%.1f infer_2h=%.1f pose_ms=%.2f "
                 + "capture_to_landmark=%.1f acquire_to_landmark=%.1f publish=%.1f "
                 + "replayed=%.2f stale=%d coalesced=%d dropped=%d skips=%d "
                 + "camera_retries=%d hand_retries=%d narrow=%d wide=%d "
@@ -327,9 +304,6 @@ public final class PerfLog {
             cameraFrames == 0 ? -1.0 : handoffMax,
             results == 0 ? -1.0 : inferSum / results,
             results == 0 ? -1.0 : inferMax,
-            infer1Count == 0 ? -1.0 : infer1Sum / infer1Count,
-            infer2Count == 0 ? -1.0 : infer2Sum / infer2Count,
-            poseCount == 0 ? -1.0 : poseSum / poseCount,
             captureCount == 0 ? -1.0 : captureSum / captureCount,
             acquireCount == 0 ? -1.0 : acquireSum / acquireCount,
             publishCount == 0 ? -1.0 : publishSum / publishCount,

@@ -139,6 +139,21 @@ public final class FakeSixDof {
             return null;
         }
 
+        // Quando as mãos estão visíveis na frente da câmera traseira (ou até 300 ms após saírem),
+        // congela o fluxo ótico do 6DoF e atualiza apenas o buffer de referência: o movimento das mãos/braços
+        // na frente da lente nunca deve empurrar o 6DoF para a frente ou para os lados!
+        if (handsFrame != null && !handsFrame.getHands().isEmpty()) {
+            lastHandsMs = nowMs;
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
+        if (lastHandsMs != 0L && nowMs - lastHandsMs <= 300L) {
+            prevValidSc = 0f;
+            worldLocked = true;
+            return null;
+        }
+
         // 1) Deslocamento global (rotação da cabeça) na zona central (+-7 px) com refinamento sub-pixel
         float best = 1e18f;
         int gx = 0, gy = 0;
@@ -335,7 +350,7 @@ public final class FakeSixDof {
         }
         Arrays.sort(resSorted, 0, nPts);
         float med = resSorted[nPts >> 1];
-        if (med > 0.95f || Math.hypot(gxSub, gySub) > 2.8) {
+        if (med > 0.85f || Math.hypot(gxSub, gySub) > 1.8) {
             prevValidSc = 0f;
             worldLocked = true;
             return null;
@@ -381,17 +396,24 @@ public final class FakeSixDof {
         float finalSc = gden > 0f ? gnum / gden : 0f;
         int radialAgree = finalSc >= 0f ? posRadial : negRadial;
 
-        // World Lock rápido e preciso: exige consenso radial real com resposta imediata no frame 1
-        // World Lock precisa de consenso radial forte: ruído de câmera não pode virar passo.
-        boolean significantFlow = Math.abs(finalSc) >= 0.0045f && Math.abs(finalSc) <= 0.10f && radialAgree >= 6;
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 2.0f) {
+        // World Lock rigoroso: exige consenso radial real em múltiplos quadrantes da imagem e cabeça sem rotação rápida,
+        // eliminando qualquer avanço ou deriva lateral espontânea ("indo para os lados ou pra frente do nada").
+        boolean significantFlow = Math.abs(finalSc) >= 0.0028f && Math.abs(finalSc) <= 0.12f && radialAgree >= 5;
+        if (significantFlow && Math.hypot(gxSub, gySub) <= 1.8) {
             stationaryFrames = 0;
             worldLocked = false;
-            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 260L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
-                finalSc = finalSc * 0.78f + prevValidSc * 0.22f;
+            if (prevValidSc != 0f && (nowMs - prevValidMs) <= 220L && Math.signum(prevValidSc) == Math.signum(finalSc)) {
+                finalSc = finalSc * 0.70f + prevValidSc * 0.30f;
+            } else {
+                prevValidSc = finalSc;
+                prevValidMs = nowMs;
+                finalSc = 0f;
+                worldLocked = true;
             }
-            prevValidSc = finalSc;
-            prevValidMs = nowMs;
+            if (finalSc != 0f) {
+                prevValidSc = finalSc;
+                prevValidMs = nowMs;
+            }
         } else {
             finalSc = 0f;
             prevValidSc = 0f;

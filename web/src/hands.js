@@ -5,15 +5,11 @@
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 import { bindSixDofContext, updateHandBoxesFromPacket } from './sixdof.js';
-import { HandClickState, ClickDragArbiter, CursorStabilizer } from './hand-input.js';
+import { HandClickState, ClickDragArbiter } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
 const pressArbiter = new ClickDragArbiter();
-/* Build 96 — precisão do ponteiro: mata o tremor de 1-3 px com a mão parada sem atrasar o movimento
- * rápido (ver CursorStabilizer em hand-input.js). É o "hand tracking mais preciso" no que a mão vê:
- * o ponteiro para de tremer em cima do alvo, e o clique deixa de virar arrasto por ruído. */
-const pointerStabilizer = new CursorStabilizer();
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
@@ -26,7 +22,6 @@ function emitClickEvents(events) {
   for (const event of events) emit(`pinch${event}`, cursor);
 }
 function cancel() {
-  pointerStabilizer.reset();
   const events = clickState.cancel();
   pressArbiter.reset();
   cursor.down = cursor.active = false; cursor.phase = clickState.phase; cursor.hand = null; cursor.mode = 'idle';
@@ -47,12 +42,6 @@ export function stopHands() {
  *  pro spanX relativo ao FOV de referência de 36°), então convertemos:
  *    spanX = mappingX * 2*TAN_X_REF,  spanY = mappingY * 2*TAN_Y_REF
  *  e mapeamos pra NDC [0,1] com divisão direta. Corrige o cursor deslocado/olhos diferentes. */
-/** Span (largura/altura em tangente) que o nativo usa para mapear landmarks na tela:
- *  x = (px-.5)*w, y = (.5-py)*h, z = -1. É o mesmo mapeamento de PhoneXrHandRenderer,
- *  então quem desenha em 3D no espaço segue exatamente a mão real. */
-export function screenSpan() {
-  return { w: scaleX * 2 * TAN_X, h: scaleY * 2 * TAN_Y };
-}
 export function screenPoint(tangent) {
   const sx = scaleX * 2*TAN_X, sy = scaleY * 2*TAN_Y;
   return { x: .5 + tangent[0] / sx, y: .5 - tangent[1] / sy };
@@ -64,77 +53,29 @@ export function screenPoint(tangent) {
  * tracking. Decisões de gesto (pinchdown/pinchup, hit-test de clique, input no DOM) usam SEMPRE
  * a detecção real, nunca a posição predita. */
 const CURSOR_PREDICT_MAX_MS = 250;      // no máximo um intervalo normal de tracking
-const CURSOR_PREDICT_MAX_SPEED = 5.2;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
-const CURSOR_PREDICT_MAX_STEP = .15;    // alcance de extrapolação para compensar scanout do display
-let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0, cursorHandId = null;
-/** Último ponto CRU da mão (o `cursor` publicado é o estabilizado): base da velocidade. */
-const cursorRaw = { x: .5, y: .5 };
+const CURSOR_PREDICT_MAX_SPEED = 4.5;   // unidades normalizadas/s — resposta imediata a movimentos rápidos
+const CURSOR_PREDICT_MAX_STEP = .14;    // alcance de extrapolação para compensar scanout do display
+let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 const _perHandCursorState = new Map();
-const _prePinchAimByHand = new Map();
-const _handPerfStats = {
-  frames1h: 0,
-  frames2h: 0,
-  lastCursorUpdateMs: 0,
-  avgCursorUpdate1hMs: 0,
-  avgCursorUpdate2hMs: 0,
-};
-if (typeof window !== 'undefined') window.__handPerfStats = _handPerfStats;
-
-function stabilizeRayAimDuringPinch(list, now, isLiveFrame) {
-  if (!isLiveFrame) return;
-  for (const h of list) {
-    if (!h || !h.id || !Array.isArray(h.aim) || h.aim.length < 2) continue;
-    const pinchDist = Number.isFinite(h.pinch) ? h.pinch : 1;
-    const st = _prePinchAimByHand.get(h.id);
-    if (!h.pinching && pinchDist > 0.42) {
-      _prePinchAimByHand.set(h.id, {
-        aim0: h.aim[0],
-        aim1: h.aim[1],
-        at: now,
-        pinchStartAt: 0,
-      });
-    } else if (st && (now - st.at <= 450)) {
-      if (h.pinching && !st.pinchStartAt) st.pinchStartAt = now;
-      const inEarlyPinch = !h.pinching || (now - st.pinchStartAt <= 240 && cursor.mode !== 'drag');
-      const drift = Math.hypot(h.aim[0] - st.aim0, h.aim[1] - st.aim1);
-      if (inEarlyPinch && drift < 0.11) {
-        const lockWeight = h.pinching ? 0.84 : 0.72;
-        h.aim = [
-          st.aim0 * lockWeight + h.aim[0] * (1 - lockWeight),
-          st.aim1 * lockWeight + h.aim[1] * (1 - lockWeight),
-        ];
-        st.at = now;
-      } else {
-        st.aim0 = h.aim[0];
-        st.aim1 = h.aim[1];
-        st.at = now;
-      }
-    }
-  }
-}
 
 export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
-  if (cursor.down && cursor.mode !== 'drag') return { x: cursor.x, y: cursor.y };
   const rawAge = nowMs - cursorAt;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return { x: cursor.x, y: cursor.y };
-  const t = (rawAge * 0.85) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 1.35) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return { x: Math.min(1, Math.max(0, cursor.x + clamp(cursorVel.x * t))),
     y: Math.min(1, Math.max(0, cursor.y + clamp(cursorVel.y * t))) };
 }
 
 export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
   if (!hand || !hand.aim) return { x: .5, y: .5 };
+  if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
   const base = screenPoint(hand.aim);
-  if (hand.pinching || (Number.isFinite(hand.pinch) && hand.pinch < 0.44)) return base;
   const st = _perHandCursorState.get(hand.id);
-  if (!st) {
-    if (cursor.hand?.id === hand.id && cursor.active) return predictedCursor(nowMs);
-    return base;
-  }
+  if (!st) return base;
   const rawAge = nowMs - st.at;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return base;
-  const t = (rawAge * 0.85) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
+  const t = (rawAge * 1.35) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return {
     x: Math.min(1, Math.max(0, base.x + clamp(st.vx * t))),
     y: Math.min(1, Math.max(0, base.y + clamp(st.vy * t))),
@@ -153,8 +94,8 @@ function updatePerHandVelocities(list, now, stampNs = 0) {
       const gap = stampNs > 0 && prev.stampNs > 0 ? (stampNs - prev.stampNs) / 1e9
         : (prev.at > 0 ? (now - prev.at) / 1000 : -1);
       if (gap > .003 && gap < .3) {
-        prev.vx += (limit((pt.x - prev.x) / gap) - prev.vx) * .92;
-        prev.vy += (limit((pt.y - prev.y) / gap) - prev.vy) * .92;
+        prev.vx += (limit((pt.x - prev.x) / gap) - prev.vx) * .98;
+        prev.vy += (limit((pt.y - prev.y) / gap) - prev.vy) * .98;
         if (Math.hypot(prev.vx, prev.vy) < .04) prev.vx = prev.vy = 0;
       } else if (!(gap >= 0 && gap <= .003)) {
         prev.vx = prev.vy = 0;
@@ -169,16 +110,7 @@ function updatePerHandVelocities(list, now, stampNs = 0) {
   }
 }
 
-function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
-  if (handId && cursorHandId && handId !== cursorHandId) {
-    cursorVel.x = cursorVel.y = 0;
-    cursorAt = now;
-    cursorStampNs = stampNs > 0 ? stampNs : 0;
-    cursorHandId = handId;
-    cursorRaw.x = point.x; cursorRaw.y = point.y;
-    return;
-  }
-  cursorHandId = handId;
+function updateCursorVelocity(point, now, stampNs = 0) {
   // Velocity on the CAPTURE timeline when the frame carries one (timestampNs): delivery gaps
   // jitter with the WebView drain cadence and made the same hand motion extrapolate differently
   // frame to frame — the drift-then-snap that read as the cursor "wandering until the next frame".
@@ -187,11 +119,8 @@ function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
   if (cursor.active && gap > .003 && gap < .3) {
     const limit = v => Math.max(-CURSOR_PREDICT_MAX_SPEED, Math.min(CURSOR_PREDICT_MAX_SPEED, v));
     // Velocidade com low-pass ultra-rápido: acompanha o movimento imediatamente com zero delay.
-    // Build 96: a velocidade é medida no ponto CRU da mão, não no ponto publicado. O estabilizador
-    // segura o ponteiro com a mão parada; medir o movimento contra a posição segurada faria um
-    // tremor de 2 px parecer um swipe e a extrapolação dispararia.
-    cursorVel.x += (limit((point.x - cursorRaw.x) / gap) - cursorVel.x) * .92;
-    cursorVel.y += (limit((point.y - cursorRaw.y) / gap) - cursorVel.y) * .92;
+    cursorVel.x += (limit((point.x - cursor.x) / gap) - cursorVel.x) * .95;
+    cursorVel.y += (limit((point.y - cursor.y) / gap) - cursorVel.y) * .95;
     // A resting hand gets no extrapolation: a sub-noise velocity would drift the display between
     // frames while the hand is perfectly still.
     if (Math.hypot(cursorVel.x, cursorVel.y) < .05) cursorVel.x = cursorVel.y = 0;
@@ -201,13 +130,8 @@ function updateCursorVelocity(point, now, stampNs = 0, handId = null) {
   // A burst of queued frames arriving in one drain keeps the estimate — only the base moves.
   cursorAt = now;
   cursorStampNs = stampNs > 0 ? stampNs : 0;
-  cursorRaw.x = point.x; cursorRaw.y = point.y;
 }
-function resetCursorVelocity() {
-  cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; cursorHandId = null;
-  cursorRaw.x = cursorRaw.y = .5;
-  _perHandCursorState.clear();
-}
+function resetCursorVelocity() { cursorVel.x = cursorVel.y = 0; cursorAt = 0; cursorStampNs = 0; _perHandCursorState.clear(); }
 if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   reportHandFrame();
@@ -216,7 +140,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   // Floor of 1 s: opening a floating window stalls the WebView/main thread briefly, delaying
   // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
   // Real tracking loss is still signalled explicitly (empty frames / stopHands), not by this timer.
-  validForMs=Math.max(1000,Math.min(2500,Number(frame.validForMs)||1000));
+  validForMs=Math.max(220,Math.min(400,Number(frame.validForMs)||260));
   let incomingHands = frame.hands || [];
   const shMode = S.singleHandMode || 'both';
   if (shMode === 'right') {
@@ -227,11 +151,10 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
     incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
   }
   hands.splice(0,hands.length,...incomingHands);
-  stabilizeRayAimDuringPinch(hands, now, Number(frame.timestampNs) > 0);
   updatePerHandVelocities(hands, now, Number(frame.timestampNs) || 0);
   emit('handframe',{...frame,hands});
   const consumed=new Set();
-  const packet={ hands, consumed, scaleX, scaleY, timestampNs: Number(frame.timestampNs) || 0 };
+  const packet={ hands, consumed, scaleX, scaleY };
   updateHandBoxesFromPacket(packet);
   if (window.__gorillaStereoOverlay) {
     window.__gorillaOnHands?.(now);
@@ -239,39 +162,29 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   }
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
-  if(packet.blockFar){cancel();emit('handtargets_sync', now);return;}
+  if(packet.blockFar){cancel();return;}
   const available=hands.filter(h=>!packet.consumed.has(h.id));
-  const prevHand=cursor.active && cursor.hand ? available.find(h=>h.id===cursor.hand.id) : null;
-  const closingHand=available.find(h=>Number.isFinite(h.pinch) && h.pinch < 0.44);
   const chosen=(clickState.down && available.find(h=>h.id===clickState.handId))
-    || available.find(h=>h.pinching)
-    || closingHand
-    || (prevHand && available.every(h=>(h.palmWidth||0) <= (prevHand.palmWidth||0)*1.18) ? prevHand : null)
-    || [...available].sort((a,b)=>(b.palmWidth||0)-(a.palmWidth||0))[0];
-  if (!chosen) { cancel(); emit('handtargets_sync', now); return; }
+    || available.find(h=>h.pinching) || [...available].sort((a,b)=>b.palmWidth-a.palmWidth)[0];
+  if (!chosen) { cancel(); return; }
   const point=screenPoint(chosen.aim);
-  updateCursorVelocity(point, now, Number(frame.timestampNs) || 0, chosen.id);
-  const pointer=pointerStabilizer.update(point.x, point.y, {
-    nowMs: now,
-    speed: Math.hypot(cursorVel.x, cursorVel.y),
-    pressing: clickState.down || !!chosen.pinching,
-  });
-  cursor.x=pointer.x;cursor.y=pointer.y;cursor.active=true;cursor.hand=chosen;
+  updateCursorVelocity(point, now, Number(frame.timestampNs) || 0);
+  cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;
   // A motion-model prediction keeps the cursor continuous across a missed detection but must
   // never touch the gesture machine: no press can START, RELEASE, or complete from predicted
   // samples. Gesture edges come only from real detections (or a real empty frame, which cancels).
   const clickEvents=chosen.predicted?[]:clickState.update(chosen.id, chosen.pinching);
   if (clickEvents.includes('down'))
-    pressArbiter.begin(chosen.id,cursor.x*viewport.width,cursor.y*viewport.height,now);
+    pressArbiter.begin(chosen.id,point.x*viewport.width,point.y*viewport.height,now);
   else if (clickEvents.includes('up')) pressArbiter.end();
   else if (clickEvents.includes('cancel')) pressArbiter.reset();
   // Only real detections classify click-versus-drag: a prediction gliding on would fake movement.
   if (clickState.down && !chosen.predicted)
-    pressArbiter.sample(chosen.id,cursor.x*viewport.width,cursor.y*viewport.height,now);
+    pressArbiter.sample(chosen.id,point.x*viewport.width,point.y*viewport.height,now);
   cursor.mode=pressArbiter.mode;
   cursor.down=clickState.down;cursor.phase=clickState.phase;
   if (!window.__gorillaStereoOverlay && native) {
-    const wantVisual = !!S.handDraw && !S.mrPaintGame;
+    const wantVisual = !!S.handDraw;
     if (visual !== wantVisual) {
       visual = wantVisual;
       window.NativeXR.handVisuals?.(wantVisual);
@@ -280,30 +193,19 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   emitClickEvents(clickEvents);
   if (cursor.down) emit('pinchsample', cursor);
   emit('handtargets_sync', now);
-  const elapsedMs = performance.now() - now;
-  _handPerfStats.lastCursorUpdateMs = elapsedMs;
-  if (hands.length >= 2) {
-    _handPerfStats.frames2h++;
-    _handPerfStats.avgCursorUpdate2hMs = _handPerfStats.frames2h === 1
-      ? elapsedMs : (_handPerfStats.avgCursorUpdate2hMs * 0.9 + elapsedMs * 0.1);
-  } else if (hands.length === 1) {
-    _handPerfStats.frames1h++;
-    _handPerfStats.avgCursorUpdate1hMs = _handPerfStats.frames1h === 1
-      ? elapsedMs : (_handPerfStats.avgCursorUpdate1hMs * 0.9 + elapsedMs * 0.1);
-  }
 };
 // Clear the old reference canvas. Native silhouettes / drop / beam / target ring are rendered in GL.
 const canvas=document.getElementById('overlay');
 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 on('handDraw', () => {
   if (!window.__gorillaStereoOverlay && native) {
-    visual = !!S.handDraw && !S.mrPaintGame;
+    visual = !!S.handDraw;
     window.NativeXR.handVisuals?.(visual);
   }
 });
 onFrame(()=>{
   if (!window.__gorillaStereoOverlay && native) {
-    const wantVisual = !!S.handDraw && !S.mrPaintGame;
+    const wantVisual = !!S.handDraw;
     if (visual !== wantVisual) {
       visual = wantVisual;
       window.NativeXR.handVisuals?.(wantVisual);

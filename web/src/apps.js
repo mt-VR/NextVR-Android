@@ -1,15 +1,8 @@
 // NextVR — aplicativos, menu flutuante, ambientes, idiomas e ligação geral.
-import * as THREE from 'three';
-import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, setBwCamera, setWorldLock, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
+import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
-import { startHands, stopHands, tracking, hands } from './hands.js';
-import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
-import {
-  registerDockLauncher, registerDockAndroidProvider, extraDockIds, toggleExtraDockId, DOCK_CATALOG,
-} from './dock-catalog.js';
-import { installNightCamera, nightCameraState, setNightCameraMode } from './night-camera.js';
-import { open, close, wins, buildDock, dockButton, screenDepth, screenDepthLimits, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
-import { openOrbMenu, refreshOrbIfOpen } from './orb-menu.js';
+import { startHands, stopHands, tracking } from './hands.js';
+import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
@@ -21,7 +14,6 @@ import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
-import { openMrPaint3d, closeMrPaint3d, isMrPaint3dActive, addMrPaintScreenSegment, setMrPaintPaletteOpen } from './mr-paint-3d.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -36,46 +28,78 @@ const openOut = url => { if (native) return webWindow('browser-extra', t('browse
  * O YouTube tem app próprio abaixo: busca via API pública + player oficial embutido.
  */
 
-const PICO_BROWSER_SHORTCUTS = [
-  { name:'PICO',      url:'pico://explore',                        bg:'#ffffff', color:'#111827', svg:`<svg viewBox="0 0 28 28" width="22" height="22"><circle cx="14" cy="14" r="10" fill="none" stroke="#111827" stroke-width="2.6"/><path d="M9.5 17.5L18.5 10.5" stroke="#111827" stroke-width="2.6" stroke-linecap="round"/></svg>` },
-  { name:'YouTube',   url:'https://www.youtube.com/',              bg:'#ffffff', color:'#FF0000', svg:`<svg viewBox="0 0 28 20" width="22" height="16"><rect width="28" height="20" rx="5" fill="#FF0033"/><path d="M11 6l8 4-8 4V6z" fill="#fff"/></svg>` },
-  { name:'Facebook',  url:'https://www.facebook.com/',             bg:'#1877F2', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M13.5 21v-7.5h2.6l.4-3h-3v-1.9c0-.9.3-1.5 1.6-1.5H16.7V4.4c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.2v2H7.7v3h2.6V21h3.2z"/></svg>` },
-  { name:'Twitter',   url:'https://x.com/',                        bg:'#1DA1F2', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M21 6.5a7.2 7.2 0 0 1-2.1.6 3.6 3.6 0 0 0 1.6-2 7.3 7.3 0 0 1-2.3.9 3.6 3.6 0 0 0-6.2 3.3A10.2 10.2 0 0 1 4.5 5.5a3.6 3.6 0 0 0 1.1 4.8 3.5 3.5 0 0 1-1.6-.4v.1a3.6 3.6 0 0 0 2.9 3.5 3.6 3.6 0 0 1-1.6.1 3.6 3.6 0 0 0 3.4 2.5A7.3 7.3 0 0 1 3 17.6 10.3 10.3 0 0 0 8.6 19.2c6.7 0 10.4-5.6 10.4-10.4v-.5A7.4 7.4 0 0 0 21 6.5z"/></svg>` },
-  { name:'Instagram', url:'https://www.instagram.com/',            bg:'#ffffff', color:'#d62976', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><defs><linearGradient id="igG" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="45%" stop-color="#d62976"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect x="3" y="3" width="18" height="18" rx="5" fill="url(#igG)"/><circle cx="12" cy="12" r="4" fill="none" stroke="#fff" stroke-width="2"/><circle cx="16.5" cy="7.5" r="1.1" fill="#fff"/></svg>` },
-  { name:'Wikipedia', url:'https://www.wikipedia.org/',            bg:'#ffffff', color:'#111827', badge:'W' },
-  { name:'Amazon',    url:'https://www.amazon.com/',               bg:'#f8fafc', color:'#111827', svg:`<svg viewBox="0 0 28 28" width="22" height="22"><circle cx="14" cy="14" r="12" fill="#fbbf24" opacity=".22"/><text x="14" y="16" text-anchor="middle" font-size="13" font-weight="900" fill="#111827" font-family="Inter,sans-serif">a</text><path d="M7.5 19c3.8 2.8 9.2 2.8 13 0" stroke="#d97706" stroke-width="2" fill="none" stroke-linecap="round"/></svg>` },
-  { name:'Twitch',    url:'https://www.twitch.tv/',                bg:'#9146FF', color:'#ffffff', svg:`<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M5 4h15v10.5l-4 4h-4l-2.5 2.5H7v-2.5H4V7l1-3zm2 2v9h3v2.5l2.5-2.5H16l2-2V6H7zm4 2.5h2v4h-2v-4zm4 0h2v4h-2v-4z"/></svg>` },
-  { name:'Add',       url:'pico://motion-tracker',                 bg:'rgba(255,255,255,.12)', color:'#e2e8f0', badge:'+' },
+const QB_POPULAR_SITES = [
+  { name:'Google',      url:'https://www.google.com/',               bg:'#262932', color:'#4285F4', badge:'G', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#4285F4" d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.81-1.5 3.34-3.2 4.37v3.62h5.18c3.03-2.79 4.78-6.9 4.78-11.72 0-.8-.08-1.57-.22-2.3z"/><path fill="#34A853" d="M12.18 22c4.32 0 7.95-1.43 10.6-3.88l-5.18-3.62c-1.43.96-3.26 1.53-5.42 1.53-4.17 0-7.7-2.81-8.96-6.6H-2.1v3.73C.54 18.4 5.95 22 12.18 22z" transform="translate(2 0) scale(.86)"/><path fill="#FBBC05" d="M3.22 13.43A9.02 9.02 0 0 1 2.75 10.5c0-1.02.18-2.01.47-2.93V3.84H-2.1A14.96 14.96 0 0 0-3.7 10.5c0 2.42.58 4.71 1.6 6.66l5.32-3.73z" transform="translate(4 1.5) scale(.75)"/><path fill="#EA4335" d="M12.18 4.97c2.35 0 4.46.81 6.12 2.4l4.59-4.59C20.12.99 16.5 0 12.18 0 5.95 0 .54 3.6-2.1 8.84l5.32 3.73c1.26-3.79 4.79-6.6 8.96-6.6z" transform="translate(2 1) scale(.85)"/></svg>` },
+  { name:'YouTube',     url:'https://www.youtube.com/',              bg:'#262932', color:'#ffffff', badge:'▶', svg:`<svg viewBox="0 0 28 20" width="24" height="18"><rect width="28" height="20" rx="5" fill="#FF0033"/><path d="M11 6l8 4-8 4V6z" fill="#fff"/></svg>` },
+  { name:'Prime Video', url:'https://www.primevideo.com/',           bg:'#1c2536', color:'#00A8E1', badge:'prime' },
+  { name:'Discord',     url:'https://discord.com/app',               bg:'#262932', color:'#5865F2', badge:'D', svg:`<svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="10" fill="#5865F2"/><circle cx="9.2" cy="12" r="1.5" fill="#fff"/><circle cx="14.8" cy="12" r="1.5" fill="#fff"/><path d="M8 9.2c1.2-.7 2.5-1 4-1s2.8.3 4 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>` },
+  { name:'Instagram',   url:'https://www.instagram.com/',            bg:'linear-gradient(135deg,#feda75,#d62976,#4f5bd5)', color:'#ffffff', badge:'◎' },
+  { name:'Facebook',    url:'https://www.facebook.com/',             bg:'#1877F2', color:'#ffffff', badge:'f' },
+  { name:'Roblox',      url:'https://www.roblox.com/',               bg:'#090d16', color:'#f8fafc', badge:'◈', img:'./roblox-logo.jpg' },
+  { name:'Reddit',      url:'https://www.reddit.com/',               bg:'#FF4500', color:'#ffffff', badge:'r/' },
+  { name:'Xbox Cloud',  url:'https://www.xbox.com/play',             bg:'#107C10', color:'#ffffff', badge:'✕' },
+  { name:'TikTok',      url:'https://www.tiktok.com/',               bg:'#000000', color:'#25F4EE', badge:'♪', img:'./tiktok-logo.jpg' },
 ];
 
-const PICO_BROWSER_POPULAR_CARDS = [
-  { name:'DeepSeek',           sub:'First AI Assistant powered by DeepSeek-V3',         cat:'recommended', url:'https://chat.deepseek.com/',       icoBg:'#ffffff', icoColor:'#2563eb', icoTxt:'🐳' },
-  { name:'ChatGPT',            sub:'Chat with OpenAI conversational AI assistant',      cat:'recommended', url:'https://chatgpt.com/',             icoBg:'#18181b', icoColor:'#ffffff', icoTxt:'✺' },
-  { name:'Netflix',            sub:'Watch TV Shows Online, Watch Movies Online',        cat:'entertainment', url:'https://www.netflix.com/',       icoBg:'#09090b', icoColor:'#e50914', icoTxt:'N' },
-  { name:'Steam',              sub:'Steam is the ultimate destination for playing...',  cat:'entertainment', url:'https://store.steampowered.com/', icoBg:'#171a21', icoColor:'#66c0f4', icoTxt:'⚙' },
-  { name:'Uptodown',           sub:'Download Android apps easily on Uptodown',          cat:'tools',         url:'https://en.uptodown.com/',       icoBg:'#0284c7', icoColor:'#ffffff', icoTxt:'⬇' },
-  { name:'Softonic',           sub:'Softonic is the place to discover the best ap...',  cat:'tools',         url:'https://en.softonic.com/',       icoBg:'#0ea5e9', icoColor:'#4ade80', icoTxt:'S' },
-  { name:'Discord',            sub:'Your Place to Talk and Hang Out',                   cat:'social',        url:'https://discord.com/app',        icoBg:'#5865F2', icoColor:'#ffffff', icoTxt:'D' },
-  { name:'Disney+',            sub:'The streaming home of Disney, Pixar, Marvel...',    cat:'entertainment', url:'https://www.disneyplus.com/',    icoBg:'#0c1e4a', icoColor:'#38bdf8', icoTxt:'D+' },
-  { name:'TikTok',             sub:'Make Your Day · Vertical VR Feed',                  cat:'videos',        url:'pico://tiktok',                  icoBg:'#09090b', icoColor:'#25F4EE', icoTxt:'♪' },
-  { name:'Apple TV+',          sub:'Stream all Apple Originals',                        cat:'videos',        url:'https://tv.apple.com/',          icoBg:'#09090b', icoColor:'#ffffff', icoTxt:'tv+' },
-  { name:'Amazon Prime Video', sub:'Watch movies, TV, and sports',                      cat:'videos',        url:'https://www.primevideo.com/',    icoBg:'#0ea5e9', icoColor:'#ffffff', icoTxt:'prime' },
-  { name:'Spotify',            sub:'Web Player: Music for everyone in VR',              cat:'media',         url:'pico://spotify',                 icoBg:'#1db954', icoColor:'#09090b', icoTxt:'🟢' },
+const QB_CONTINUE_CARDS = [
+  { title:'(1) Início - YouTube',        domain:'www.youtube.com',                    url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
+  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com',              url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
+  { title:'YouTube',                     domain:'accounts.google.com/v3/signin/...',  url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
+  { title:'Crunchyroll - Assista a An...', domain:'www.crunchyroll.com/pt-br/watch',  url:'https://www.crunchyroll.com/',    iconBg:'#F47521', iconTxt:'◉' },
+  { title:'(1) Comprar o Meta Quest...', domain:'www.youtube.com/watch?v=meta',       url:'https://www.youtube.com/',        iconBg:'#FF0033', iconTxt:'▶' },
 ];
-
-const QB_POPULAR_SITES = PICO_BROWSER_SHORTCUTS;
 
 const QB_ENTERTAINMENT_TILES = [
-  { name:'Spotify', url:'pico://spotify', cardBg:'#090b0e', art:`<div class="qb-ent-brand qb-ent-spotify"><span class="qb-ent-sp-txt">Spotify</span></div>` },
-  { name:'YouTube Music', url:'https://music.youtube.com/', cardBg:'#ffffff', art:`<div class="qb-ent-brand qb-ent-ytm"><span class="qb-ent-ytm-dot">▶</span><span class="qb-ent-ytm-txt">Music</span></div>` },
-  { name:'Crunchyroll', url:'https://www.crunchyroll.com/', cardBg:'#F47521', art:`<div class="qb-ent-brand qb-ent-cr"><span class="qb-ent-cr-dot">◉</span><span class="qb-ent-cr-txt">crunchyroll</span></div>` },
-  { name:'HBO Max', url:'https://www.max.com/', cardBg:'#07080b', art:`<div class="qb-ent-brand qb-ent-hbo"><span class="qb-ent-hbo-top">HBO</span><span class="qb-ent-hbo-sub">max</span></div>` },
-  { name:'Hulu', url:'https://www.hulu.com/', cardBg:'#06080a', art:`<div class="qb-ent-brand qb-ent-hulu">hulu</div>` },
-  { name:'Tubi', url:'https://tubitv.com/', cardBg:'linear-gradient(135deg,#4c1d95 0%,#6d28d9 100%)', art:`<div class="qb-ent-brand qb-ent-tubi">tubi</div>` },
-  { name:'Paramount+', url:'https://www.paramountplus.com/', cardBg:'linear-gradient(135deg,#0051e6 0%,#0072ff 100%)', art:`<div class="qb-ent-brand qb-ent-para"><span class="qb-ent-para-mtn">▲</span><span class="qb-ent-para-txt">Paramount+</span></div>` },
-  { name:'Peacock TV', url:'https://www.peacocktv.com/', cardBg:'#050608', art:`<div class="qb-ent-brand qb-ent-peacock"><span>peacock</span></div>` },
-  { name:'Twitch', url:'https://www.twitch.tv/', cardBg:'#9146FF', art:`<div class="qb-ent-brand qb-ent-twitch">twitch</div>` },
-  { name:'ESPN', url:'https://www.espn.com/', cardBg:'#CC0000', art:`<div class="qb-ent-brand qb-ent-espn">ESPN</div>` },
+  {
+    name:'Spotify', url:'https://open.spotify.com/',
+    cardBg:'#090b0e',
+    art:`<div class="qb-ent-brand qb-ent-spotify"><span class="qb-ent-sp-dot"><svg viewBox="0 0 24 24" width="22" height="22" fill="#090b0e"><path d="M16.6 15.4c-.2.3-.6.4-.9.2-2.4-1.4-5.3-1.8-8.8-1-.3.1-.7-.1-.8-.5-.1-.3.1-.7.5-.8 3.8-.9 7.1-.5 9.7 1.1.3.2.4.6.3 1zm1.2-2.7c-.2.4-.7.5-1.1.3-2.7-1.6-6.8-2.1-10-1.2-.4.1-.8-.1-1-.5-.1-.4.1-.8.5-1 3.6-1.1 8.1-.6 11.2 1.3.4.2.5.7.4 1.1zm.1-2.8C14.7 8 9.4 7.8 6.3 8.7c-.5.2-1-.1-1.2-.6-.1-.5.1-1 .6-1.2 3.5-1.1 9.4-.9 13.1 1.3.4.3.6.8.3 1.3-.2.4-.8.6-1.2.4z"/></svg></span><span class="qb-ent-sp-txt">Spotify</span></div>`
+  },
+  {
+    name:'YouTube Music', url:'https://music.youtube.com/',
+    cardBg:'#ffffff',
+    art:`<div class="qb-ent-brand qb-ent-ytm"><span class="qb-ent-ytm-dot">▶</span><span class="qb-ent-ytm-txt">Music</span></div>`
+  },
+  {
+    name:'Crunchyroll', url:'https://www.crunchyroll.com/',
+    cardBg:'#F47521',
+    art:`<div class="qb-ent-brand qb-ent-cr"><span class="qb-ent-cr-dot">◉</span><span class="qb-ent-cr-txt">crunchyroll</span></div>`
+  },
+  {
+    name:'HBO Max', url:'https://www.max.com/',
+    cardBg:'#07080b',
+    art:`<div class="qb-ent-brand qb-ent-hbo"><span class="qb-ent-hbo-top">HBO</span><span class="qb-ent-hbo-sub">max</span></div>`
+  },
+  {
+    name:'Hulu', url:'https://www.hulu.com/',
+    cardBg:'#06080a',
+    art:`<div class="qb-ent-brand qb-ent-hulu">hulu</div>`
+  },
+  {
+    name:'Tubi', url:'https://tubitv.com/',
+    cardBg:'linear-gradient(135deg,#4c1d95 0%,#6d28d9 100%)',
+    art:`<div class="qb-ent-brand qb-ent-tubi">tubi</div>`
+  },
+  {
+    name:'Paramount+', url:'https://www.paramountplus.com/',
+    cardBg:'linear-gradient(135deg,#0051e6 0%,#0072ff 100%)',
+    art:`<div class="qb-ent-brand qb-ent-para"><span class="qb-ent-para-mtn">▲</span><span class="qb-ent-para-txt">Paramount+</span></div>`
+  },
+  {
+    name:'Peacock TV', url:'https://www.peacocktv.com/',
+    cardBg:'#050608',
+    art:`<div class="qb-ent-brand qb-ent-peacock"><span>peacock</span><span class="qb-ent-pk-dots"><i style="background:#facc15"></i><i style="background:#f97316"></i><i style="background:#ef4444"></i><i style="background:#a855f7"></i><i style="background:#3b82f6"></i><i style="background:#22c55e"></i></span></div>`
+  },
+  {
+    name:'Twitch', url:'https://www.twitch.tv/',
+    cardBg:'#9146FF',
+    art:`<div class="qb-ent-brand qb-ent-twitch">twitch</div>`
+  },
+  {
+    name:'ESPN', url:'https://www.espn.com/',
+    cardBg:'#CC0000',
+    art:`<div class="qb-ent-brand qb-ent-espn">ESPN</div>`
+  },
 ];
 
 const QB_IMMERSIVE_CARDS = [
@@ -84,24 +108,15 @@ const QB_IMMERSIVE_CARDS = [
   { title:'Jogos WebXR Imersivos', sub:'Catálogo VR no Navegador', url:'https://constructarcade.com/', bg:'linear-gradient(135deg,#065f46,#0f172a)' },
 ];
 
-function buildQuestBrowserHomeHtml(activeCat = 'all') {
-  const cats = [
-    ['all', 'Recommended'],
-    ['videos', 'Videos'],
-    ['entertainment', 'Entertainment'],
-    ['social', 'Social'],
-    ['media', 'Media'],
-    ['tools', 'Tools'],
-  ];
-  const cards = PICO_BROWSER_POPULAR_CARDS.filter(c => activeCat === 'all' || c.cat === activeCat || c.cat === 'recommended');
+function buildQuestBrowserHomeHtml() {
   return `
-    <div class="qb-home-scroll qb-pico-home" data-pico-browser-home="1">
+    <div class="qb-home-scroll">
       <section class="qb-sec">
-        <div class="qb-sec-head"><span class="qb-sec-title">Shortcuts</span></div>
-        <div class="qb-pop-row qb-pico-shortcuts">
-          ${PICO_BROWSER_SHORTCUTS.map(s => `
-            <button type="button" class="qb-pop-item qb-pico-shortcut" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
-              <span class="qb-pop-icon qb-pico-sc-icon" style="background:${s.bg};color:${s.color};border-radius:50%;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;box-shadow:0 4px 12px rgba(0,0,0,.32)">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%">` : (s.svg || escH(s.badge))}</span>
+        <div class="qb-sec-head"><span class="qb-sec-title">Populares</span></div>
+        <div class="qb-pop-row">
+          ${QB_POPULAR_SITES.map(s => `
+            <button type="button" class="qb-pop-item" data-qb-url="${escH(s.url)}" title="${escH(s.name)}">
+              <span class="qb-pop-icon" style="background:${s.bg};color:${s.color};overflow:hidden;padding:0">${s.img ? `<img src="${s.img}" alt="${escH(s.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">` : (s.svg || escH(s.badge))}</span>
               <span class="qb-pop-lbl">${escH(s.name)}</span>
             </button>
           `).join('')}
@@ -109,26 +124,14 @@ function buildQuestBrowserHomeHtml(activeCat = 'all') {
       </section>
 
       <section class="qb-sec">
-        <div class="qb-sec-head qb-pico-pop-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <span class="qb-sec-title">Popular</span>
-            <div class="qb-pico-cat-tabs" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              ${cats.map(([cid, label]) => `
-                <button type="button" class="qb-pico-cat-btn ${activeCat === cid ? 'on' : ''}" data-qb-cat="${cid}"
-                  style="background:${activeCat === cid ? 'rgba(255,255,255,.14)' : 'transparent'};color:${activeCat === cid ? '#ffffff' : 'rgba(226,232,240,.62)'};border:0;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:${activeCat === cid ? '800' : '600'};cursor:pointer">${label}</button>
-              `).join('')}
-            </div>
-          </div>
-          <button type="button" class="qb-sec-more" data-qb-cat="all" style="background:transparent;border:0;color:#38bdf8;font-size:11px;font-weight:700;cursor:pointer">Show More ›</button>
-        </div>
-        <div class="qb-cont-grid qb-pico-pop-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
-          ${cards.map(c => `
-            <button type="button" class="qb-cont-card qb-pico-pop-card" data-qb-url="${escH(c.url)}" title="${escH(c.name)}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);text-align:left;cursor:pointer;color:#f8fafc">
-              <span class="qb-cont-ico" style="width:36px;height:36px;border-radius:50%;background:${c.icoBg};color:${c.icoColor};display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0">${escH(c.icoTxt)}</span>
-              <div class="qb-cont-meta" style="min-width:0;flex:1">
-                <div class="qb-cont-ttl" style="font-size:12px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.name)}</div>
-                <div class="qb-cont-dom" style="font-size:10px;color:rgba(226,232,240,.58);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.sub)}</div>
+        <div class="qb-sec-head"><span class="qb-sec-title">Continuar navegando</span></div>
+        <div class="qb-cont-grid">
+          ${QB_CONTINUE_CARDS.map(c => `
+            <button type="button" class="qb-cont-card" data-qb-url="${escH(c.url)}" title="${escH(c.title)}">
+              <span class="qb-cont-ico" style="background:${c.iconBg}">${escH(c.iconTxt)}</span>
+              <div class="qb-cont-meta">
+                <div class="qb-cont-ttl">${escH(c.title)}</div>
+                <div class="qb-cont-dom">${escH(c.domain)}</div>
               </div>
             </button>
           `).join('')}
@@ -229,14 +232,13 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
   plusTabBtn.dataset.qbAct = 'home';
   plusTabBtn.title = 'Nova guia';
   plusTabBtn.textContent = '+';
-  const lockIco = el('span', 'qb-lock-ico', '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2" fill="#34a853"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" stroke="#34a853" stroke-width="1.6" stroke-linecap="round"/></svg>');
   const fld = el('input','fld qb-urlfld');
   fld.type='text'; fld.placeholder=isIncognito ? 'Pesquisa privada ou endereço da web' : 'Pesquisar ou digitar endereço da web';
   const showStartHome = options?.showHomeOverlay !== undefined ? Boolean(options.showHomeOverlay) : isDefaultGoogle;
   fld.value = showStartHome ? '' : resolvedUrl;
   const st = el('button','qb-icn'); st.innerHTML=icon('star');   st.title='Favorito';
-  const extIco = el('span', 'qb-ext-pill', '[|-|] ⋯');
-  top.append(bk,fw,rl,modeBadge,plusTabBtn,lockIco,fld,st,extIco);
+  const extIco = el('span', 'qb-ext-pill', '🧩 ⋯');
+  top.append(bk,fw,rl,modeBadge,plusTabBtn,fld,st,extIco);
 
   const wrap = el('div');
   wrap.style.cssText='flex:1;min-height:0;position:relative;background:#1b1d24';
@@ -259,34 +261,15 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
     wrap.append(frame, homeOverlay);
   }
 
-  const dock = el('div','qb-dock win-pico-foot--browser');
-  const footLeft = el('div', 'win-pico-foot-left');
-  const btnCloseFoot = el('button', 'win-pico-foot-btn', '✕');
-  btnCloseFoot.type = 'button'; btnCloseFoot.title = 'Fechar'; btnCloseFoot.dataset.qbFoot = 'close';
-  const btnMinFoot = el('button', 'win-pico-foot-btn', '—');
-  btnMinFoot.type = 'button'; btnMinFoot.title = 'Minimizar'; btnMinFoot.dataset.qbFoot = 'min';
-  footLeft.append(btnCloseFoot, btnMinFoot);
-  const footTitle = el('span', 'win-pico-foot-title', 'Browser');
-  const footRight = el('div', 'win-pico-foot-right');
+  const dock = el('div','qb-dock');
   const av = document.createElement('button');
   av.className = 'dock-av'; av.title='Perfil'; av.setAttribute('aria-label','Perfil');
-  av.innerHTML = AVATAR_HTML;
+  av.innerHTML = AVATAR_HTML; dock.appendChild(av);
   const status = document.createElement('button');
   status.className = 'dock-status';
   status.title='Status';
   status.innerHTML = `<span class="dock-time">--:--</span><span class="dock-wifi">${icon('wifi')}</span><span class="dock-bat">${BAT_HTML}</span>`;
-  const btnMoreFoot = el('button', 'win-pico-foot-btn', '⋯');
-  btnMoreFoot.type = 'button'; btnMoreFoot.title = 'Opções'; btnMoreFoot.dataset.qbFoot = 'more';
-  footRight.append(av, status, btnMoreFoot);
-  dock.append(footLeft, footTitle, footRight);
-  dock.addEventListener('click', e => {
-    const fb = e.target.closest('[data-qb-foot]');
-    if (!fb) return;
-    e.stopPropagation();
-    const w = wins.find(x => x.id === 'browser');
-    if (!w) return;
-    if (fb.dataset.qbFoot === 'close' || fb.dataset.qbFoot === 'min') close(w);
-  });
+  dock.appendChild(status);
   body.append(top, wrap, dock);
 
   function tick(){
@@ -332,21 +315,10 @@ function webBrowserFor(id, title, initialUrl='https://google.com/', options = {}
   function bCmd(cmd,u){ if(native) window.NativeXR?.browserCmd?.('browser',cmd,u||''); }
 
   homeOverlay.addEventListener('click', e => {
-    const catBtn = e.target.closest('[data-qb-cat]');
-    if (catBtn) {
-      e.stopPropagation();
-      homeOverlay.innerHTML = buildQuestBrowserHomeHtml(catBtn.dataset.qbCat || 'all');
-      css3d.invalidate?.();
-      return;
-    }
     const tile = e.target.closest('[data-qb-url]');
     if (!tile) return;
     e.stopPropagation();
     const u = tile.dataset.qbUrl || '';
-    if (u === 'pico://explore') { openPicoExplore(); return; }
-    if (u === 'pico://motion-tracker') { openPicoMotionTracker(); return; }
-    if (u === 'pico://tiktok') { openTikTokVr(); return; }
-    if (u === 'pico://spotify') { openSpotifyVr(); return; }
     if (u.includes('roblox.com')) {
       openRobloxVr();
       return;
@@ -717,16 +689,42 @@ function youtube() {
   return win;
 }
 
-/* ============ Galeria (fotos) ============ */
+/* ============ Galeria (fotos + ambientes) ============ */
 let photos = [];
 function gallery() {
   const body = el('div', 'pad');
   const head = el('div');
-  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos no NextVR.</p>`;
+  head.innerHTML = `<h2>${t('gallery')}</h2><p class="sub">Veja suas fotos e troque o ambiente do NextVR.</p>`;
+
+  // ---------- Ambientes ----------
+  const envSection = el('div');
+  envSection.style.marginTop = '22px';
+  envSection.innerHTML = `<h3 style="font-size:18px;margin:0 0 10px 0;font-weight:700">${t('env')}</h3>
+    <p class="sub" style="margin:0 0 12px 0">Escolha o fundo em que tudo flutua.</p>`;
+  const envGrid = el('div', 'grid3');
+  const paintEnvs = () => {
+    envGrid.innerHTML = '';
+    for (const e of envList()) {
+      const b = el('button', 'env' + (e.thumb ? ' env-pano' : ''));
+      b.style.background = e.thumb ? `url('${e.thumb}') center/cover` : 'linear-gradient(160deg,#253244,#11151d)';
+      b.innerHTML = `<span>${e.name}</span>`;
+      b.setAttribute('aria-pressed', S.env === e.id ? 'true' : 'false');
+      b.onclick = () => {
+        setEnvironment(e.id);
+        [...envGrid.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
+        b.setAttribute('aria-pressed', 'true');
+        toast('Ambiente: ' + e.name);
+      };
+      envGrid.appendChild(b);
+    }
+  };
+  paintEnvs();
+  on('env', paintEnvs);
+  envSection.appendChild(envGrid);
 
   // ---------- Fotos ----------
   const photoHead = el('div');
-  photoHead.style.cssText = 'margin-top:18px;display:flex;align-items:center;gap:10px';
+  photoHead.style.cssText = 'margin-top:26px;display:flex;align-items:center;gap:10px';
   photoHead.innerHTML = `<h3 style="font-size:18px;margin:0;font-weight:700">${t('gallery')}</h3>`;
   const pick = el('button', 'go', t('pickPhotos'));
   const input = el('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.style.display = 'none';
@@ -754,10 +752,11 @@ function gallery() {
   };
   paint();
 
-  body.append(head, photoHead, input, grid, big);
+  body.append(head, envSection, photoHead, input, grid, big);
   return open({ id: 'gallery', title: t('gallery'), node: body });
 }
 
+/* ============ Ambientes ============ */
 function environments() {
   const body = el('div', 'pad');
   body.innerHTML = `<h2>${t('env')}</h2><p class="sub">Troque sem fechar nada.</p>`;
@@ -949,20 +948,12 @@ window.nextvrOnInternalRecordState = st => {
   syncInternalRecUi();
 };
 
-/* ============ Central de controle PICO 4 Ultra (Configurações e Gestão de VR dentro do jogo) ============ */
+/* ============ Central de controle (visão compacta inspirada no painel aprovado) ============ */
 function controlCenterApp() {
-  const existing = wins.find(w => w.id === 'control-center');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-
-  const body = el('div', 'quick-center pico-cc-shell');
-  body.dataset.picoControlCenter = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#24262c;border-radius:24px;padding:18px 22px 16px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;color:#f8fafc;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;border:1px solid rgba(255,255,255,.10);box-shadow:0 28px 70px rgba(0,0,0,.65);';
-
+  const body = el('div', 'quick-center');
+  const panel = el('section', 'quick-panel');
+  const side = el('aside', 'quick-side');
+  const status = el('div', 'quick-status');
   const readBat = () => {
     try {
       const raw = window.NativeXR?.battery?.();
@@ -976,382 +967,171 @@ function controlCenterApp() {
     return null;
   };
   const battery = readBat();
-  const batPctNum = battery ? Math.round(battery.level * 100) : 62;
-  const nowDate = new Date();
-  const timeStr = nowDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const shortDate = nowDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
-
-  // 1. Barra Superior PICO 4 Ultra (Avatar + Hora/Data | Microfone Central | Sino + Engrenagem)
-  const topBar = el('div', 'quick-status pico-cc-top');
-  topBar.dataset.picoCcTop = '1';
-  topBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px;';
-  const avatarImg = S.profileAvatar
-    ? `<img src="${S.profileAvatar}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.35)">`
-    : `<span style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ef4444);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)">P</span>`;
-  topBar.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px">
-      ${avatarImg}
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <strong data-cc-time style="font-size:13.5px;font-weight:800;color:#f8fafc;letter-spacing:.01em">${timeStr}</strong>
-        <span style="font-size:12px;color:#94a3b8;font-weight:600">${shortDate}</span>
-      </div>
-      <span class="quick-battery" style="display:none">${icon('battery')}<b data-cc-battery>${batPctNum}%</b></span>
-    </div>
-    <button type="button" data-cc-mic title="Comando de Voz PICO" style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:#e2e8f0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
-    </button>
-    <div style="display:flex;align-items:center;gap:8px">
-      <button type="button" data-cc-notif title="Notificações" style="width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      </button>
-      <button type="button" class="quick-gear" data-cc-gear title="Todas as configurações e Gestão de VR" aria-label="Todas as configurações" style="width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-        ${icon('settings')}
-      </button>
-    </div>
-  `;
-  topBar.querySelector('[data-cc-notif]')?.addEventListener('click', () => openPhoneNotifications());
-  topBar.querySelector('[data-cc-gear]')?.addEventListener('click', () => settingsApp());
-  topBar.querySelector('[data-cc-mic]')?.addEventListener('click', () => toast('Microfone PICO pronto'));
-
-  // 2. Hero Central com Headset PICO 4 Ultra + Controles L & R + Bateria Real (fiel à foto)
-  const picoDevicesHero = el('div', 'pico-cc-devices-hero');
-  picoDevicesHero.dataset.picoCcDevicesHero = '1';
-  picoDevicesHero.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:64px;padding:12px 16px 8px;margin:2px 0;cursor:pointer;';
-  picoDevicesHero.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Controle PICO 4 Ultra Esquerdo">
-      <svg viewBox="0 0 54 68" width="46" height="58">
-        <path d="M22 10 C13 22,15 44,24 58 C27 62,34 61,36 55 C41 42,40 22,35 10 C31 4,25 4,22 10 Z" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
-        <ellipse cx="29" cy="17" rx="8" ry="6.5" fill="#e2e8f0"/>
-        <circle cx="27" cy="16" r="3.2" fill="#1e293b"/>
-        <circle cx="33" cy="14.5" r="1.6" fill="#334155"/>
-        <circle cx="32" cy="19" r="1.6" fill="#334155"/>
-        <rect x="26" y="50" width="6" height="2.2" rx="1.1" fill="#22c55e"/>
-      </svg>
-      <span style="width:24px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
-      <span style="width:16px;height:16px;border-radius:50%;border:1.2px solid rgba(255,255,255,.35);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#cbd5e1;font-weight:800">L</span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Headset PICO 4 Ultra · Gestão de VR">
-      <svg viewBox="0 0 132 68" width="112" height="58">
-        <path d="M36 16 Q66 3 96 16" fill="none" stroke="#cbd5e1" stroke-width="3.5" stroke-linecap="round"/>
-        <path d="M14 26 Q14 14 34 14 L98 14 Q118 14 118 26 L118 42 Q118 54 98 54 L80 54 Q66 49 52 54 L34 54 Q14 54 14 42 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.8"/>
-        <rect x="22" y="19" width="88" height="30" rx="15" fill="#111827" stroke="#475569" stroke-width="1.6"/>
-        <ellipse cx="36" cy="34" rx="5.5" ry="3.8" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
-        <ellipse cx="96" cy="34" rx="5.5" ry="3.8" fill="#1e293b" stroke="#64748b" stroke-width="1.2"/>
-        <path d="M44 25 Q66 22 88 25" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-      <span style="width:28px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
-      <small data-cc-hero-bat style="font-size:11px;color:#e2e8f0;font-weight:800">${batPctNum}%</small>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="Controle PICO 4 Ultra Direito">
-      <svg viewBox="0 0 54 68" width="46" height="58">
-        <path d="M32 10 C41 22,39 44,30 58 C27 62,20 61,18 55 C13 42,14 22,19 10 C23 4,29 4,32 10 Z" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
-        <ellipse cx="25" cy="17" rx="8" ry="6.5" fill="#e2e8f0"/>
-        <circle cx="27" cy="16" r="3.2" fill="#1e293b"/>
-        <circle cx="21" cy="14.5" r="1.6" fill="#334155"/>
-        <circle cx="22" cy="19" r="1.6" fill="#334155"/>
-        <rect x="22" y="50" width="6" height="2.2" rx="1.1" fill="#22c55e"/>
-      </svg>
-      <span style="width:24px;height:4px;border-radius:2px;background:#4ade80;display:block"></span>
-      <span style="width:16px;height:16px;border-radius:50%;border:1.2px solid rgba(255,255,255,.35);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#cbd5e1;font-weight:800">R</span>
-    </div>
-  `;
-  picoDevicesHero.onclick = () => openPicoMotionTracker();
-
+  const date = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  status.innerHTML = `<div><strong>Controles rápidos</strong><span>${date}</span></div><div class="quick-battery">${icon('battery')}<b data-cc-battery>${battery ? Math.round(battery.level * 100) : '—'}%</b></div>`;
   const paintCcBat = () => {
+    const bEl = status.querySelector('[data-cc-battery]');
+    if (!bEl) return;
     const b = readBat();
-    const pct = `${b ? Math.round(b.level * 100) : batPctNum}%`;
-    const bEl = topBar.querySelector('[data-cc-battery]');
-    if (bEl) bEl.textContent = pct;
-    const hEl = picoDevicesHero.querySelector('[data-cc-hero-bat]');
-    if (hEl) hEl.textContent = pct;
+    bEl.textContent = `${b ? Math.round(b.level * 100) : '—'}%`;
   };
   on('device-status', paintCcBat);
+  const gear = el('button', 'quick-gear', icon('settings'));
+  gear.type = 'button'; gear.title = 'Todas as configurações'; gear.setAttribute('aria-label', 'Todas as configurações');
+  gear.onclick = () => settingsApp();
+  status.appendChild(gear);
 
-  // 3. Grade de 6 Blocos Retangulares PICO 4 Ultra (WLAN | Home Space | Performance | Screencast | Screen Recording Vermelho | Screenshot)
-  const tilesRow = el('div', 'quick-tiles pico-cc-tiles-grid');
-  tilesRow.dataset.picoCcTiles = '1';
-  tilesRow.style.cssText = 'display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:4px 0;';
-
-  const makePicoTile = ({ iconSvg, sub, title, active = false, red = false, onClick, attr = {} }) => {
-    const btn = el('button', `quick-tile pico-cc-tile${active ? ' is-active' : ''}`);
-    btn.type = 'button';
-    for (const [k, v] of Object.entries(attr)) btn.dataset[k] = v;
-    const syncStyle = (isAct, isRed) => {
-      const bg = isRed
-        ? 'linear-gradient(160deg,#f43f5e 0%,#e11d48 100%)'
-        : isAct
-          ? 'rgba(59,130,246,.32)'
-          : 'rgba(255,255,255,.07)';
-      const border = isRed
-        ? 'rgba(251,113,133,.55)'
-        : isAct
-          ? 'rgba(96,165,250,.55)'
-          : 'rgba(255,255,255,.07)';
-      btn.style.cssText = `height:96px;border-radius:16px;padding:12px 13px;border:1px solid ${border};background:${bg};color:#f8fafc;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;cursor:pointer;transition:transform .12s ease,background .15s ease;`;
-    };
-    syncStyle(active, red);
-    btn.innerHTML = `
-      <span class="quick-tile-icon" style="color:#f8fafc;display:inline-flex">${iconSvg}</span>
-      <div style="width:100%;overflow:hidden">
-        <small data-tile-sub style="display:block;font-size:10px;color:${red ? '#ffe4e6' : '#94a3b8'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px">${sub}</small>
-        <b data-tile-title style="display:block;font-size:12px;font-weight:800;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</b>
-      </div>
-    `;
-    if (onClick) {
-      btn.onclick = () => onClick(btn, syncStyle);
-    }
-    tilesRow.appendChild(btn);
-    return btn;
+  const quickTiles = el('div', 'quick-tiles');
+  const systemTile = (name, title, subtitle, action, disabled=false) => {
+    const button = el('button', `quick-tile${disabled ? ' is-disabled' : ''}`);
+    button.type = 'button'; button.innerHTML = `<span class="quick-tile-icon">${icon(name)}</span><span><b>${title}</b><small>${subtitle}</small></span>`;
+    button.disabled = disabled; if (action) button.onclick = action; quickTiles.appendChild(button); return button;
   };
+  systemTile('wifi', 'Wi-Fi', 'Abrir conexões', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('internet') : toast('Conexões disponíveis no Android'));
+  systemTile('bluetooth', 'Bluetooth', 'Dispositivos', () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('bluetooth') : toast('Bluetooth disponível no Android'));
+  systemTile('android', 'Apps Android', 'Abrir janela Shizuku', () => shizukuWindow());
+  systemTile('lock', 'Limite', 'Movimento protegido', null, true);
+  panel.append(status, quickTiles);
 
-  makePicoTile({
-    iconSvg: icon('wifi'),
-    sub: '5GHz Conectado',
-    title: 'WLAN',
-    onClick: () => window.NativeXR?.systemPanel ? window.NativeXR.systemPanel('internet') : toast('Conexões Wi-Fi disponíveis no Android'),
-  });
-
-  makePicoTile({
-    iconSvg: icon('scene'),
-    sub: S.env === 'passthrough' ? 'Passthrough MR' : 'On · Ambiente 360°',
-    title: 'Home Space...',
-    active: S.env !== 'passthrough',
-    onClick: (btn, syncStyle) => {
-      const enabled = S.env !== 'passthrough';
-      setPassthrough(enabled);
-      btn.querySelector('[data-tile-sub]').textContent = enabled ? 'Passthrough MR' : 'On · Ambiente 360°';
-      syncStyle(!enabled, false);
-    },
-  });
-
-  makePicoTile({
-    iconSvg: icon('gauge'),
-    sub: S.sixdof !== 0 ? 'High · 6DoF Rápido' : '3DoF · Padrão',
-    title: 'Performance',
-    active: S.sixdof !== 0,
-    onClick: (btn, syncStyle) => {
-      S.sixdof = S.sixdof === 0 ? 1 : 0;
-      save(S);
-      if (!S.sixdof) SixDof.reset();
-      window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
-      emit('sixdof', S.sixdof !== 0);
-      btn.querySelector('[data-tile-sub]').textContent = S.sixdof !== 0 ? 'High · 6DoF Rápido' : '3DoF · Padrão';
-      syncStyle(S.sixdof !== 0, false);
-    },
-  });
-
-  makePicoTile({
-    iconSvg: icon('camera'),
-    sub: S.bwCamera ? 'Câmera P&B Ativa' : 'Câmera Colorida',
-    title: 'Screencast',
-    active: !!S.bwCamera,
-    attr: { bwCameraBtn: '1' },
-    onClick: (btn, syncStyle) => {
-      const enabled = !S.bwCamera;
-      setBwCamera(enabled);
-      btn.querySelector('[data-tile-sub]').textContent = enabled ? 'Câmera P&B Ativa' : 'Câmera Colorida';
-      syncStyle(enabled, false);
-    },
-  });
-
-  makePicoTile({
-    iconSvg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/><circle cx="12" cy="15.2" r="1.5" fill="currentColor" stroke="none"/></svg>`,
-    sub: S.worldLock ? 'Travado no lugar' : '6DoF livre',
-    title: 'World Lock',
-    active: !!S.worldLock,
-    attr: { worldLockBtn: '1' },
-    onClick: (btn, syncStyle) => {
-      const on = S.worldLock === 0;
-      setWorldLock(on);
-      btn.querySelector('[data-tile-sub]').textContent = on ? 'Travado no lugar' : '6DoF livre';
-      syncStyle(on, false);
-      toast(on ? 'World Lock ligado: o mundo não anda sozinho' : 'World Lock desligado: 6DoF livre');
-    },
-  });
-
-  makePicoTile({
-    iconSvg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>`,
-    sub: internalRecState.active ? `🔴 ${formatRecTime(internalRecState.seconds)}` : '1 Lente HD',
-    title: 'Screen Recording',
-    red: true,
-    active: !!internalRecState.active,
-    attr: { internalRecBtn: '1' },
-    onClick: () => toggleInternalEyeRecording(),
-  });
-
-  makePicoTile({
-    iconSvg: icon('maximize'),
-    sub: 'Ajustar Visão',
-    title: 'Screenshot',
-    onClick: () => {
-      recenter();
-      toast('Visão recentralizada & captura pronta');
-    },
-  });
-
-  // 4. Linha com as 2 Barras Horizontais de Brilho e Volume (fiel à foto)
-  const slidersRow = el('div', 'pico-cc-sliders');
-  slidersRow.dataset.picoCcSliders = '1';
-  slidersRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:2px 0;';
-
-  const curBright = window.NativeXR?.brightness ? window.NativeXR.brightness() : 70;
-  const curVol = window.NativeXR?.volume ? window.NativeXR.volume() : 65;
-
-  const makeSliderPill = (iconSvg, label, min, max, val, onInput) => {
-    const wrap = el('label', 'pico-cc-slider-pill');
-    wrap.style.cssText = 'position:relative;height:40px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.07);display:flex;align-items:center;padding:0 14px;gap:10px;overflow:hidden;cursor:pointer;';
-    const fill = el('div');
-    fill.style.cssText = `position:absolute;left:0;top:0;bottom:0;width:${val}%;background:rgba(255,255,255,.16);pointer-events:none;transition:width .08s linear;`;
-    const ic = el('span');
-    ic.style.cssText = 'position:relative;z-index:1;color:#e2e8f0;display:inline-flex;';
-    ic.innerHTML = iconSvg;
-    const input = el('input', 'quick-vertical');
-    input.type = 'range';
-    input.min = String(min);
-    input.max = String(max);
-    input.value = String(val);
-    input.setAttribute('aria-label', label);
-    input.title = `${label} ${val}%`;
-    input.style.cssText = 'position:relative;z-index:1;flex:1;accent-color:#f8fafc;cursor:pointer;background:transparent;';
-    input.oninput = () => {
-      const v = +input.value;
-      fill.style.width = `${v}%`;
-      input.title = `${label} ${v}%`;
-      onInput(v);
-    };
-    wrap.append(fill, ic, input);
-    return wrap;
-  };
-
-  slidersRow.append(
-    makeSliderPill(icon('sun'), 'Brilho', 10, 100, curBright, v => window.NativeXR?.setBrightness?.(v)),
-    makeSliderPill(icon('volume'), 'Volume', 0, 100, curVol, v => window.NativeXR?.setVolume?.(v))
-  );
-
-  // 5. Barra Inferior com os 8 Botões Pílula Arredondados (com o 3º botão azul destacado igual da foto)
-  const bottomRow = el('div', 'quick-controls pico-cc-bottom-pills');
-  bottomRow.dataset.picoCcBottomPills = '1';
-  bottomRow.style.cssText = 'display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:2px;';
-
-  let isMuted = false;
+  const section = el('div', 'quick-section');
+  section.innerHTML = `<div class="quick-section-title"><b>Controles rápidos</b></div>`;
+  const controls = el('div', 'quick-controls');
   let previousEnvironment = S.env === 'night' ? 'passthrough' : S.env;
-
-  const makeBottomPill = ({ iconSvg, title, blue = false, active = false, onClick }) => {
-    const btn = el('button', `quick-control pico-cc-pill${(blue || active) ? ' is-active' : ''}`);
-    btn.type = 'button';
-    btn.title = title;
-    btn.setAttribute('aria-label', title);
-    btn.setAttribute('aria-pressed', String(!!(blue || active)));
-    const applyPillStyle = (onBlue) => {
-      btn.style.cssText = `height:42px;border-radius:21px;border:1px solid ${onBlue ? 'rgba(96,165,250,.75)' : 'rgba(255,255,255,.08)'};background:${onBlue ? '#4f8ef7' : 'rgba(255,255,255,.07)'};color:#f8fafc;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s ease;`;
-    };
-    applyPillStyle(blue || active);
-    btn.innerHTML = `<span style="display:inline-flex">${iconSvg}</span><b style="display:none">${title}</b><small style="display:none">${title}</small>`;
-    btn.onclick = () => {
-      const next = onClick(btn, applyPillStyle);
-      if (typeof next === 'boolean') {
-        btn.classList.toggle('is-active', next);
-        btn.setAttribute('aria-pressed', String(next));
-        applyPillStyle(next);
-      }
-    };
-    bottomRow.appendChild(btn);
-    return btn;
+  let isMuted = false, dndControl = null, sideMute = null;
+  const syncMute = value => {
+    isMuted = !!value;
+    if (window.NativeXR?.audioEnabled) window.NativeXR.audioEnabled(!isMuted);
+    for (const button of [dndControl, sideMute]) if (button) {
+      button.classList.toggle('is-active', isMuted);
+      button.setAttribute('aria-pressed', String(isMuted));
+    }
+    if (dndControl) dndControl.querySelector('small').textContent = isMuted ? 'Áudio silenciado' : 'Som ativado';
   };
+  const control = (name, label, detail, action, active=false) => {
+    const button = el('button', `quick-control${active ? ' is-active' : ''}`);
+    button.type = 'button'; button.setAttribute('aria-pressed', String(active));
+    button.innerHTML = `<span>${icon(name)}</span><b>${label}</b><small>${detail}</small>`;
+    button.onclick = () => {
+      const value = action(button);
+      button.classList.toggle('is-active', !!value);
+      button.setAttribute('aria-pressed', String(!!value));
+    };
+    controls.appendChild(button); return button;
+  };
+  const recBtn = control(
+    'camera',
+    'Gravação Interna (1 Lente)',
+    internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Tela Cheia 1 Lente (Lentes ativas)',
+    () => toggleInternalEyeRecording(),
+    !!internalRecState.active
+  );
+  recBtn.dataset.internalRecBtn = '1';
+  control('camera', 'Visão do ambiente', S.env === 'passthrough' ? 'Câmera ativa' : 'Câmera desligada', button => {
+    const enabled = S.env !== 'passthrough'; setPassthrough(enabled); button.querySelector('small').textContent = enabled ? 'Câmera ativa' : 'Câmera desligada'; return enabled;
+  }, S.env === 'passthrough');
+  dndControl = control('volumeoff', 'Não perturbe', 'Silenciar áudio do app', () => { syncMute(!isMuted); return isMuted; });
+  control('crosshair', 'Recentralizar', 'Ajustar a visão', () => { recenter(); toast('Visão recentralizada'); return false; });
+  control('moon', 'Modo noturno', S.env === 'night' ? 'Ativado' : 'Desativado', button => {
+    const enabled = S.env !== 'night';
+    if (enabled) { previousEnvironment = S.env; setEnvironment('night'); }
+    else setEnvironment(previousEnvironment === 'night' ? 'passthrough' : previousEnvironment);
+    button.querySelector('small').textContent = enabled ? 'Ativado' : 'Desativado'; return enabled;
+  }, S.env === 'night');
+  control('settings', 'Mais configurações', 'Imagem, janelas e idioma', () => { settingsApp(); return false; });
+  control('android', 'Apps do Android', 'Abrir launcher Shizuku', () => { shizukuWindow(); return false; });
+  control('appGrid', 'Spatial App', S.spatialLauncher ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)', button => {
+    const enabled = !S.spatialLauncher;
+    setSpatialLauncherMode(enabled);
+    button.querySelector('small').textContent = enabled ? 'Ativado (Sem Dock)' : 'Desativado (Dock normal)';
+    return enabled;
+  }, !!S.spatialLauncher);
+  control('vision', 'Câmera Grande Ocular', S.wideCamera ? 'Ativada' : 'Normal', button => {
+    S.wideCamera = S.wideCamera ? 0 : 1;
+    save(S);
+    window.NativeXR?.wideCamera?.(!!S.wideCamera);
+    button.querySelector('small').textContent = S.wideCamera ? 'Ativada' : 'Normal';
+    return !!S.wideCamera;
+  }, !!S.wideCamera);
+  control('move', t('dockSnapSlot'), S.dockSnapSlot !== 0 ? t('on') : t('off'), button => {
+    S.dockSnapSlot = S.dockSnapSlot === 0 ? 1 : 0;
+    save(S);
+    button.querySelector('small').textContent = S.dockSnapSlot !== 0 ? t('on') : t('off');
+    return S.dockSnapSlot !== 0;
+  }, S.dockSnapSlot !== 0);
+  control('crosshair', t('fingerTouch'), S.fingerTouch !== 0 ? t('on') : t('off'), button => {
+    S.fingerTouch = S.fingerTouch === 0 ? 1 : 0;
+    save(S);
+    window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
+    emit('fingerTouch', S.fingerTouch !== 0);
+    button.querySelector('small').textContent = S.fingerTouch !== 0 ? t('on') : t('off');
+    return S.fingerTouch !== 0;
+  }, S.fingerTouch !== 0);
+  control('crosshair', 'Pinça no App (Sem Raio)', S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado', button => {
+    S.pinchOnApp = S.pinchOnApp === 0 ? 1 : 0;
+    save(S);
+    emit('pinchOnApp', S.pinchOnApp !== 0);
+    button.querySelector('small').textContent = S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado';
+    return S.pinchOnApp !== 0;
+  }, S.pinchOnApp !== 0);
+  control('crosshair', 'Gesto de Soco 2s (Menu Rápido)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
+    S.gunGesture = S.gunGesture === 0 ? 1 : 0;
+    save(S);
+    emit('gunGesture', S.gunGesture !== 0);
+    button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
+    return S.gunGesture !== 0;
+  }, S.gunGesture !== 0);
+  control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
+    S.sixdof = S.sixdof === 0 ? 1 : 0;
+    save(S);
+    if (!S.sixdof) SixDof.reset();
+    window.NativeXR?.setSixDofEnabled?.(S.sixdof !== 0);
+    emit('sixdof', S.sixdof !== 0);
+    button.querySelector('small').textContent = S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado';
+    return S.sixdof !== 0;
+  }, S.sixdof !== 0);
+  control('move', 'Tela Perto Sobre / Trás Embaixo', S.depthLayerOrder !== 0 ? 'Ativado (Sobre/Embaixo)' : 'Desativado', button => {
+    S.depthLayerOrder = S.depthLayerOrder === 0 ? 1 : 0;
+    save(S);
+    emit('depthLayerOrder', S.depthLayerOrder !== 0);
+    window.nextvrUpdateDepthLayering?.();
+    button.querySelector('small').textContent = S.depthLayerOrder !== 0 ? 'Ativado (Sobre/Embaixo)' : 'Desativado';
+    return S.depthLayerOrder !== 0;
+  }, S.depthLayerOrder !== 0);
+  const dockColors = [
+    ['default', 'Padrão (Cinza Horizon)'],
+    ['black', 'Preto Transparente'],
+    ['blue', 'Azul Safira'],
+    ['purple', 'Roxo Neon'],
+    ['green', 'Verde Esmeralda'],
+    ['red', 'Vermelho Rubi'],
+    ['glass', 'Vidro Transparente'],
+  ];
+  const curDockColorLabel = () => (dockColors.find(([id]) => id === (S.dockColor || 'default')) || dockColors[0])[1];
+  control('appGrid', 'Cor da Dock', curDockColorLabel(), button => {
+    const curIdx = Math.max(0, dockColors.findIndex(([id]) => id === (S.dockColor || 'default')));
+    const next = dockColors[(curIdx + 1) % dockColors.length];
+    window.nextvrSetDockColor?.(next[0]);
+    button.querySelector('small').textContent = next[1];
+    return next[0] !== 'default';
+  }, (S.dockColor || 'default') !== 'default');
+  section.appendChild(controls);
+  panel.append(section);
 
-  // Pílula 1: Bluetooth
-  makeBottomPill({
-    iconSvg: icon('bluetooth'),
-    title: 'Bluetooth',
-    onClick: () => {
-      if (window.NativeXR?.systemPanel) window.NativeXR.systemPanel('bluetooth');
-      else toast('Bluetooth disponível no Android');
-      return false;
-    },
-  });
-
-  // Pílula 2: Não perturbe / Silenciar áudio
-  makeBottomPill({
-    iconSvg: icon('volumeoff'),
-    title: 'Não perturbe',
-    active: isMuted,
-    onClick: () => {
-      isMuted = !isMuted;
-      if (window.NativeXR?.audioEnabled) window.NativeXR.audioEnabled(!isMuted);
-      return isMuted;
-    },
-  });
-
-  // Pílula 3: Destaque Azul PICO (Visão do Ambiente / Passthrough MR)
-  makeBottomPill({
-    iconSvg: icon('sun'),
-    title: 'Visão do ambiente (Passthrough)',
-    blue: true,
-    active: S.env === 'passthrough',
-    onClick: () => {
-      const enabled = S.env !== 'passthrough';
-      setPassthrough(enabled);
-      return true;
-    },
-  });
-
-  // Pílula 4: Modo Curvo 360° / Centralizar
-  makeBottomPill({
-    iconSvg: icon('curve'),
-    title: 'Modo Curvo 360°',
-    active: !!S.win360,
-    onClick: () => {
-      S.win360 = S.win360 ? 0 : 1;
-      save(S);
-      emit('win360', !!S.win360);
-      return !!S.win360;
-    },
-  });
-
-  // Pílula 5: Criar Personagem 3D
-  makeBottomPill({
-    iconSvg: icon('user'),
-    title: 'Criar Personagem 3D',
-    onClick: () => {
-      openAvatarCreator();
-      return false;
-    },
-  });
-
-  // Pílula 6: Apps do Android (Shizuku)
-  makeBottomPill({
-    iconSvg: icon('android'),
-    title: 'Apps do Android',
-    onClick: () => {
-      shizukuWindow();
-      return false;
-    },
-  });
-
-  // Pílula 7: Modo Noturno
-  makeBottomPill({
-    iconSvg: icon('moon'),
-    title: 'Modo noturno',
-    active: S.env === 'night',
-    onClick: () => {
-      const enabled = S.env !== 'night';
-      if (enabled) { previousEnvironment = S.env; setEnvironment('night'); }
-      else setEnvironment(previousEnvironment === 'night' ? 'passthrough' : previousEnvironment);
-      return enabled;
-    },
-  });
-
-  // Pílula 8: Gestão de VR & Todas as Configurações
-  makeBottomPill({
-    iconSvg: icon('settings'),
-    title: 'Mais configurações e Gestão de VR',
-    onClick: () => {
-      settingsApp();
-      return false;
-    },
-  });
-
-  body.append(topBar, picoDevicesHero, tilesRow, slidersRow, bottomRow);
+  const sideTitle = el('div', 'quick-side-title', 'Ajustes');
+  const volumeIcon = el('span', 'quick-side-icon', icon('volume'));
+  const volume = el('input', 'quick-vertical'); volume.type = 'range'; volume.min = '0'; volume.max = '100'; volume.value = window.NativeXR?.volume ? window.NativeXR.volume() : 65;
+  volume.setAttribute('aria-label', 'Volume'); volume.title = `Volume ${volume.value}%`;
+  volume.oninput = () => { window.NativeXR?.setVolume?.(+volume.value); volume.title = `Volume ${volume.value}%`; };
+  sideMute = el('button', 'quick-side-button', icon('volumeoff')); sideMute.type = 'button'; sideMute.title = 'Silenciar áudio'; sideMute.setAttribute('aria-label', 'Silenciar áudio'); sideMute.setAttribute('aria-pressed', 'false');
+  sideMute.onclick = () => syncMute(!isMuted);
+  const brightnessIcon = el('span', 'quick-side-icon', icon('sun'));
+  const brightness = el('input', 'quick-vertical'); brightness.type = 'range'; brightness.min = '10'; brightness.max = '100'; brightness.value = window.NativeXR?.brightness ? window.NativeXR.brightness() : 70;
+  brightness.setAttribute('aria-label', 'Brilho'); brightness.title = `Brilho ${brightness.value}%`;
+  brightness.oninput = () => { window.NativeXR?.setBrightness?.(+brightness.value); brightness.title = `Brilho ${brightness.value}%`; };
+  side.append(sideTitle, volumeIcon, volume, sideMute, brightnessIcon, brightness);
+  body.append(panel, side);
+  // É uma janela de conteúdo comum: tem barra, posição e curvatura do workspace, igual ao Shizuku.
+  // O tamanho contido evita que o painel pareça um HUD cobrindo o campo de visão.
   return open({ id:'control-center', title:'Configurações', node:body, w:980, h:640 });
 }
 
@@ -1377,37 +1157,12 @@ function settingsApp() {
     node:languagePicker(S.lang||'pt', id=>{setLang(id);toast(t('langChanged'));close(picker);const s=wins.find(x=>x.id==='settings');if(s)close(s);settingsApp();},true) }); };
 
   // Geral
-  const picoVrMgmtCard = el('div', 'pico-vr-mgmt-card');
-  picoVrMgmtCard.dataset.settingsPicoCc = '1';
-  picoVrMgmtCard.style.cssText = 'margin:8px 16px 12px;padding:14px 18px;border-radius:18px;background:#24262c;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;';
-  picoVrMgmtCard.innerHTML = `
-    <div style="display:flex;align-items:center;gap:18px">
-      <svg viewBox="0 0 88 46" width="58" height="32"><rect x="10" y="10" width="68" height="28" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><rect x="16" y="14" width="56" height="20" rx="10" fill="#0f172a" stroke="#475569" stroke-width="1.5"/><path d="M26 10 Q44 2 62 10" fill="none" stroke="#cbd5e1" stroke-width="2.5"/></svg>
-      <div>
-        <div style="font-size:13.5px;font-weight:800;color:#f8fafc">Painel Rápido PICO 4 Ultra · Gestão de VR</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px">WLAN · Home Space · Performance 6DoF · Screencast P&amp;B · Screen Recording</div>
-      </div>
-    </div>
-    <button type="button" style="padding:7px 14px;border-radius:999px;border:1px solid rgba(96,165,250,.65);background:#4f8ef7;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">Abrir Painel VR</button>
-  `;
-  picoVrMgmtCard.onclick = () => controlCenterApp();
-  scroll.append(picoVrMgmtCard);
-
   scroll.append(ytSection(t('general')));
   const langBtn = el('button','yt-link');
   langBtn.append(ytRow(icon('globe'), t('language'), langRow(S.lang||'pt').label));
   langBtn.onclick = openPicker;
   scroll.append(langBtn);
   scroll.append(ytRow(icon('gauge'), 'Contador de FPS', 'Mostrar taxa de quadros', ytToggle('showFps')));
-  const bwSw = el('button', 'yt-sw', '');
-  bwSw.dataset.on = S.bwCamera ? '1' : '0';
-  bwSw.dataset.settingsBwCamera = '1';
-  bwSw.onclick = () => {
-    const next = !S.bwCamera;
-    setBwCamera(next);
-    bwSw.dataset.on = next ? '1' : '0';
-  };
-  scroll.append(ytRow(icon('camera'), 'Câmera P&B (Meta Quest 2)', 'Passthrough preto e branco (janelas e dock continuam coloridas)', bwSw));
   const dofSeg = el('div');
   dofSeg.style.cssText = 'display:inline-flex;gap:6px;align-items:center;';
   const btn3Dof = el('button', 'entry-seg-btn' + (S.sixdof === 0 ? ' on' : ''), '3DoF');
@@ -1428,43 +1183,10 @@ function settingsApp() {
   };
   dofSeg.append(btn3Dof, btn6Dof);
   scroll.append(ytRow(icon('move'), 'Modo 3DoF / 6DoF', 'Alternar entre 3DoF (rotação) e 6DoF (andar no espaço)', dofSeg));
-
-  // World Lock: o conserto do "6DoF indo pra frente e pros lados do nada".
-  const lockSw = el('button', 'yt-sw', '');
-  lockSw.dataset.on = S.worldLock ? '1' : '0';
-  lockSw.dataset.settingsWorldLock = '1';
-  lockSw.onclick = () => {
-    const on = !S.worldLock;
-    setWorldLock(on);
-    lockSw.dataset.on = on ? '1' : '0';
-  };
-  scroll.append(ytRow(icon('lock'), 'World Lock (travar mundo)', 'O mundo fica preso no lugar e só a cabeça gira — sem deriva de 6DoF', lockSw));
-  const recenterBtn = el('button', 'yt-seg-btn', 'Recentralizar agora');
-  recenterBtn.dataset.settingsRecenter = '1';
-  recenterBtn.onclick = () => {
-    SixDof.reset();
-    window.NativeXR?.resetSixDof?.();
-    setWorldLock(S.worldLock !== 0);
-    emit('recenter');
-    toast('Mundo recentralizado');
-  };
-  scroll.append(ytRow(icon('crosshair'), 'Recentralizar Mundo', 'Recoloca o mundo na frente e zera o deslocamento do 6DoF', recenterBtn));
-
-  // Câmera: P&B ou colorida, sem sair do jogo.
-  const camSeg = el('div');
-  camSeg.style.cssText = 'display:inline-flex;gap:6px;align-items:center;';
-  const camBwBtn = el('button', 'entry-seg-btn' + (S.bwCamera ? ' on' : ''), 'P&B');
-  camBwBtn.dataset.settingsCamera = 'bw';
-  const camColorBtn = el('button', 'entry-seg-btn' + (!S.bwCamera ? ' on' : ''), 'Colorida');
-  camColorBtn.dataset.settingsCamera = 'color';
-  const syncCamBtns = () => {
-    camBwBtn.classList.toggle('on', !!S.bwCamera);
-    camColorBtn.classList.toggle('on', !S.bwCamera);
-  };
-  camBwBtn.onclick = () => { setBwCamera(true); syncCamBtns(); };
-  camColorBtn.onclick = () => { setBwCamera(false); syncCamBtns(); };
-  camSeg.append(camBwBtn, camColorBtn);
-  scroll.append(ytRow(icon('camera'), 'Cor da Câmera Passthrough', 'Preto e branco (estilo Quest 2) ou colorida — janelas continuam coloridas', camSeg));
+  const envBtn = el('button','yt-link');
+  envBtn.append(ytRow(icon('image'), 'Ambiente', 'Trocar passthrough / panorama'));
+  envBtn.onclick = () => { const w=wins.find(x=>x.id==='settings');if(w)close(w);gallery(); };
+  scroll.append(envBtn);
 
   // Mãos
   scroll.append(ytSection(t('hands')));
@@ -1474,12 +1196,24 @@ function settingsApp() {
   recToggleBtn.innerHTML = `<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Iniciar Gravação 16:9'}</span>`;
   recToggleBtn.onclick = () => toggleInternalEyeRecording();
   scroll.append(ytRow(icon('camera'), 'Gravação Interna (1 Lente)', 'Grava tela cheia de 1 lente em HD mantendo as 2 lentes ativas no celular', recToggleBtn));
-  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos (PICO 4 · Só a Mão)', 'Malha 3D estilo PICO 4 sem braço com Raio Laser contínuo', ytToggle('handDraw')));
-  scroll.append(ytRow(icon('crosshair'), 'Modo Raio Laser PICO 4', 'Interação direta por Raio Laser ao invés de toque por pinça', ytToggle('fingerTouch', v => {
+  scroll.append(ytRow(icon('edit3'), 'Desenhar mãos', 'Contorno 3D no ambiente e cursor de pinça', ytToggle('handDraw')));
+  scroll.append(ytRow(icon('crosshair'), t('fingerTouch'), t('fingerTouchDesc'), ytToggle('fingerTouch', v => {
     window.NativeXR?.setFingerTouch?.(!!v);
     emit('fingerTouch', !!v);
   })));
-  scroll.append(ytRow(icon('zap'), 'Estabilizador de Raio PICO 4', 'Trava o raio no botão sem desviar ao clicar'));
+  scroll.append(ytRow(
+    icon('crosshair'),
+    'Pinça no App (Sem Raio)',
+    'Fazer a pinça encima de um app abre o app na hora, sem precisar do raio',
+    ytToggle('pinchOnApp', v => emit('pinchOnApp', !!v))
+  ));
+  scroll.append(ytRow(
+    icon('crosshair'),
+    'Gesto de Soco 2s (Menu Rápido)',
+    'Fechar a mão toda por 2 segundos abre o menuzinho de recentrar dock e ambientes',
+    ytToggle('gunGesture', v => emit('gunGesture', !!v))
+  ));
+  scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
 
   // Janelas
   scroll.append(ytSection(t('windows')));
@@ -1555,7 +1289,7 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v2.1.0';
+  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v1.0';
   scroll.append(foot);
 
   body.append(head, scroll);
@@ -1579,7 +1313,6 @@ function quickSettingsApp() {
         <span data-q-time>--:--</span><span class="qs-date" data-q-date></span>
       </div>
       <span class="qs-top-spacer"></span>
-      <button class="qs-top-action" data-q-main-menu aria-label="Menu Principal PICO 4 Pro">${icon('device')}<span>Menu Principal</span></button>
       <button class="qs-top-action" data-q-settings aria-label="Configurações NextVR">${icon('settings')}<span>Configurações</span></button>
       <button class="qs-repin" data-act="pin" aria-label="Voltar ao arco">${icon('crosshair')}</button>
       <button class="qs-close" data-q-close aria-label="Fechar">${icon('x')}</button>
@@ -1601,9 +1334,9 @@ function quickSettingsApp() {
       <button class="qs-tool" data-q-night aria-pressed="false">${icon('sun')}<span>Modo noturno</span></button>
       <button class="qs-tool" data-q-dnd aria-pressed="false">${icon('moon')}<span>Não perturbe</span></button>
       <button class="qs-tool" data-q-internal-rec data-internal-rec-btn="1" aria-pressed="${internalRecState.active ? 'true' : 'false'}">${icon('camera')}<span data-internal-rec-sub>${internalRecState.active ? `🔴 Gravando ${formatRecTime(internalRecState.seconds)}` : 'Gravação Interna (1 Lente)'}</span></button>
-      <button class="qs-tool" data-q-motion-tracker>${icon('device')}<span>PICO Motion Tracker</span></button>
-      <button class="qs-tool" data-q-notifications>${icon('sun')}<span>Notificações · 27°C</span></button>
-      <button class="qs-tool" data-q-pico-explore>${icon('compass')}<span>PICO Explore 8K</span></button>
+      <button class="qs-tool" disabled>${icon('bug')}<span>Relatar problema</span></button>
+      <button class="qs-tool" disabled>${icon('lock')}<span>Modo viagem</span></button>
+      <button class="qs-tool" disabled>${icon('device')}<span>Remote Desktop</span></button>
     </div>
   </section>
   <aside class="qs-side" aria-label="Controles rápidos">
@@ -1669,10 +1402,6 @@ function quickSettingsApp() {
     if(c('[data-q-night]')){prefs.night=!prefs.night;syncPrefs();savePrefs();return;}
     if(c('[data-q-dnd]')){prefs.dnd=!prefs.dnd;syncPrefs();savePrefs();return;}
     if(c('[data-q-internal-rec]')){toggleInternalEyeRecording();return;}
-    if(c('[data-q-motion-tracker]')){openPicoMotionTracker();return;}
-    if(c('[data-q-notifications]')){openPhoneNotifications();return;}
-    if(c('[data-q-pico-explore]')){openPicoExplore();return;}
-    if(c('[data-q-main-menu]')){entryMenuWindow();return;}
     if(c('[data-q-mute]')){
       prefs.muted=!prefs.muted;
       if(prefs.muted){if(volume>0)prefs.lastVolume=volume;setRange('volume',0);}
@@ -1924,182 +1653,33 @@ export function openBeatSaberVr() {
   return win;
 }
 
-/* ============ paintdrawer — Jogo de Desenho MR 3D (mãos, pinça e traços 3D no ar) ============ */
-// A mecânica 3D (traços InstancedMesh presos no espaço, pinça, borracha, paleta flutuante e
-// render estéreo) vive em ./mr-paint-3d.js. Aqui ficam só as cores/grossuras, os ganchos
-// acessíveis (DOM de teste/atalho) e o ciclo de vida do modo MR independente.
+/* ============ Jogo de Desenho VR com Hand Tracking em Tela Branca ============ */
+const HAND_DRAW_CHALLENGES = [
+  'Desenhe uma Casa 🏠',
+  'Desenhe um Sol ☀️',
+  'Desenhe uma Estrela ⭐',
+  'Desenhe um Carro 🚗',
+  'Desenhe um Gato 🐱',
+  'Desenhe um Foguete 🚀',
+  'Desenhe uma Árvore 🌳',
+  'Desenhe um Coração ❤️',
+  'Modo Livre 🎨',
+];
 const HAND_DRAW_COLORS = [
-  ['#2563eb', 'Azul'],
-  ['#ef4444', 'Vermelho'],
   ['#111827', 'Preto'],
-  ['#ffffff', 'Branco'],
-  ['#7e22ce', 'Roxo'],
-  ['#a855f7', 'Violeta'],
+  ['#ef4444', 'Vermelho'],
+  ['#2563eb', 'Azul'],
+  ['#16a34a', 'Verde'],
   ['#eab308', 'Amarelo'],
-  ['#22c55e', 'Verde'],
-  ['#64748b', 'Cinza'],
+  ['#f97316', 'Laranja'],
+  ['#9333ea', 'Roxo'],
+  ['#ec4899', 'Rosa'],
+  ['#06b6d4', 'Ciano'],
   ['#78350f', 'Marrom'],
 ];
 
-const HAND_DRAW_SIZES = [
-  [4, 'Pincel P', 'Fino (4px)'],
-  [9, 'Pincel M', 'Médio (9px)'],
-  [16, 'Pincel G', 'Grosso (16px)'],
-  [26, 'Pincel XG', 'Super (26px)'],
-];
-
-// Seletor do canvas do jogo (o WebGL do motor 3D): usado pelos testes e pelo foco de teclado.
-const MR_PAINT_CANVAS_SELECTOR = '[data-hand-draw-canvas="1"]';
-
-let mrPaintApi = null;
-let mrPaintHooks = null;
-
-export function closeHandDrawGame() {
-  closeMrPaint3d();
-  mrPaintApi = null;
-  mrPaintHooks = null;
-}
-
 export function openHandDrawGame() {
-  // O jogo NÃO é janela flutuante (tipo ShootTheDie): é um modo MR independente, com o
-  // canvas do motor 3D em tela cheia dentro de #mr-paint-overlay.
-  const existingOverlay = document.getElementById('mr-paint-overlay');
-  if (mrPaintApi && isMrPaint3dActive()) {
-    setPassthrough(true);
-    mrPaintApi.setPaletteOpen?.(false);
-    css3d.invalidate?.();
-    return mrPaintApi.root || existingOverlay;
-  }
-  if (existingOverlay && !mrPaintApi) existingOverlay.remove();
-
-  const api = openMrPaint3d({
-    colors: HAND_DRAW_COLORS,
-    sizes: HAND_DRAW_SIZES,
-    logo: './icons/paintdrawer-logo.jpg',
-    onExit: () => closeHandDrawGame(),
-    onPaletteToggle: (openState) => {
-      const win = mrPaintHooks?.paletteWin;
-      if (win) win.hidden = !openState;
-      mrPaintHooks?.paletteBtn?.setAttribute('aria-expanded', String(openState));
-    },
-    onState: (state) => {
-      if (mrPaintHooks?.strokes) mrPaintHooks.strokes.textContent = String(state.strokes);
-    },
-    onClosed: () => {
-      // O jogo pode fechar por dentro (botão 3D "Sair"): solta as referências daqui também.
-      mrPaintApi = null;
-      mrPaintHooks = null;
-    },
-  });
-  mrPaintApi = api;
-  if (!api || !api.root) return null;
-
-  /*
-   * Ganchos invisíveis: o jogo é 3D e a interface real é a paleta flutuante desenhada no
-   * espaço. Estes elementos existem para acessibilidade, atalhos e para a suíte de testes
-   * (abrir/fechar paleta, 10 cores, sair e o canvas do motor). Ficam fora da tela e sem
-   * captura de toque, então nunca aparecem nos óculos.
-   */
-  const hooks = el('div', 'mr-paint-hooks');
-  hooks.style.cssText = 'position:absolute;left:-8000px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
-  hooks.innerHTML = `
-    <button type="button" data-mr-left-palette-btn="1" aria-expanded="false" aria-label="Paleta (mão esquerda)">🎨 Paleta (Mão Esq.)</button>
-    <div data-mr-palette-win="1" hidden>
-      <span data-mr-paint-hud-badge="1">paintMR · Pintura 3D · <b data-hd-strokes>0</b> traços</span>
-      ${HAND_DRAW_COLORS.map(([hex, name]) => `
-        <button type="button" data-hd-color="${hex}" data-hd-color-name="${name}" title="${name}">${name}</button>
-      `).join('')}
-      ${HAND_DRAW_SIZES.map(([sz, code, lbl]) => `
-        <button type="button" data-hd-size="${sz}" data-hd-size-code="${code}" title="${lbl}">${code}</button>
-      `).join('')}
-      <button type="button" data-hd-tool="pen">✏️ Caneta 3D</button>
-      <button type="button" data-hd-tool="neon">✨ Tinta Neon</button>
-      <button type="button" data-hd-tool="eraser">🧽 Borracha</button>
-      <input type="range" data-hd-size-slider min="2" max="36" value="9" aria-label="Grossura da caneta">
-      <input type="range" data-hd-depth-slider min="0.30" max="1.05" step="0.01" value="0.55" aria-label="Distância do traço em metros">
-      <button type="button" data-hd-camera="1" aria-pressed="false">📷 Câmera P&amp;B / Colorida</button>
-      <button type="button" data-hd-worldlock="1" aria-pressed="true">🔒 World Lock</button>
-      <button type="button" data-hd-undo>↩ Desfazer</button>
-      <button type="button" data-hd-clear>🗑 Limpar Tudo</button>
-      <button type="button" data-hd-save>💾 Salvar</button>
-      <button type="button" data-hd-load>📂 Abrir</button>
-      <button type="button" data-hd-exit>✕ Sair</button>
-      <canvas data-hand-draw-canvas="1" data-mr-paint-engine="1" width="1200" height="800"></canvas>
-    </div>
-  `;
-  api.root.appendChild(hooks);
-
-  const paletteBtn = hooks.querySelector('[data-mr-left-palette-btn]');
-  const paletteWin = hooks.querySelector('[data-mr-palette-win]');
-  const strokesEl = hooks.querySelector('[data-hd-strokes]');
-  const sliderEl = hooks.querySelector('[data-hd-size-slider]');
-  const depthEl = hooks.querySelector('[data-hd-depth-slider]');
-  const camBtn = hooks.querySelector('[data-hd-camera]');
-  const lockBtn = hooks.querySelector('[data-hd-worldlock]');
-  mrPaintHooks = { hooks, paletteBtn, paletteWin, strokes: strokesEl, camBtn, lockBtn, depthEl };
-
-  paletteBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    api.togglePalette?.();
-  });
-  paletteWin?.querySelector('[data-hd-exit]')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    closeHandDrawGame();
-  });
-  paletteWin?.querySelectorAll('[data-hd-color]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      api.setColor?.(btn.dataset.hdColor, btn.dataset.hdColorName);
-    });
-  });
-  paletteWin?.querySelectorAll('[data-hd-size]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      api.setSize?.(Number(btn.dataset.hdSize));
-    });
-  });
-  paletteWin?.querySelectorAll('[data-hd-tool]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      api.setTool?.(btn.dataset.hdTool);
-    });
-  });
-  if (sliderEl) sliderEl.addEventListener('input', () => api.setSize?.(Number(sliderEl.value)));
-  if (depthEl) depthEl.addEventListener('input', () => api.setDepth?.(Number(depthEl.value)));
-  camBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const on = api.setBwCamera?.();
-    camBtn.setAttribute('aria-pressed', String(!!on));
-  });
-  lockBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const on = api.setWorldLock?.();
-    lockBtn.setAttribute('aria-pressed', String(!!on));
-  });
-  paletteWin?.querySelector('[data-hd-undo]')?.addEventListener('click', (e) => { e.stopPropagation(); api.undo?.(); });
-  paletteWin?.querySelector('[data-hd-clear]')?.addEventListener('click', (e) => { e.stopPropagation(); api.clear?.(); });
-  paletteWin?.querySelector('[data-hd-save]')?.addEventListener('click', (e) => { e.stopPropagation(); api.save?.(); });
-  paletteWin?.querySelector('[data-hd-load]')?.addEventListener('click', (e) => { e.stopPropagation(); api.load?.(); });
-
-  // Atalhos / ponte usada pela suíte de testes: traço em coordenadas da placa 1200x800.
-  window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = HAND_DRAW_COLORS[7][0], size = 9, tool = 'pen') =>
-    addMrPaintScreenSegment(x0, y0, x1, y1, color, size, tool);
-  window.nextvrToggleMrDrawPalette = (force) => setMrPaintPaletteOpen(force);
-  window.nextvrMrPaintCamera = (on) => (api.setBwCamera ? api.setBwCamera(on) : null);
-  window.nextvrMrPaintWorldLock = (on) => (api.setWorldLock ? api.setWorldLock(on) : null);
-  window.nextvrMrPaintDepth = (m) => (api.setDepth ? api.setDepth(m) : null);
-  window.nextvrCloseHandDrawGame = closeHandDrawGame;
-  window.nextvrMrPaintCanSelect = () => Boolean(document.querySelector(MR_PAINT_CANVAS_SELECTOR));
-
-  touchLib('hand-draw', true);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return api.root;
-}
-
-/* ============ Criador de Personagem do Próprio Jogo (NextVR Avatar Studio 3D) ============ */
-export function openAvatarCreator() {
-  const existing = wins.find(w => w.id === 'avatar-creator');
+  const existing = wins.find(w => w.id === 'hand-draw');
   if (existing) {
     existing.setHidden(false);
     focus(existing);
@@ -2107,899 +1687,328 @@ export function openAvatarCreator() {
     return existing;
   }
 
-  let cfg = loadCharacter();
-  let yaw = 0.22;
-  let autoSpin3D = false;
+  let currentColor = '#111827';
+  let currentSize = 8;
+  let currentTool = 'pen'; // 'pen' | 'neon' | 'eraser' | 'circle' | 'rect'
+  let handDrawMode = 'auto'; // 'auto' (indicador esticado ou pinça) | 'pinch' (só na pinça)
+  let challengeIdx = 0;
+  let completedCount = 0;
+  let strokeCount = 0;
+  const undoStack = [];
 
-  const body = el('div', 'nextvr-avatar-creator-win');
-  body.dataset.avatarCreator = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#14161c;color:#f4f4f5;display:grid;grid-template-columns:310px 1fr;gap:16px;padding:14px 18px 36px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
+  const body = el('div', 'hand-draw-game');
+  body.dataset.handDrawGame = '1';
+  body.style.cssText = 'position:relative;width:100%;height:100%;background:#f8fafc;display:flex;flex-direction:column;overflow:hidden;user-select:none;font-family:Inter,system-ui,sans-serif;';
 
-  const renderPanel = () => {
-    const nick = S.profileName || 'Jogador NextVR';
-    body.innerHTML = `
-      <div style="background:linear-gradient(180deg,#1d2029 0%,#12141a 100%);border-radius:18px;padding:12px 14px;border:1px solid rgba(255,255,255,.11);display:flex;flex-direction:column;justify-content:space-between;align-items:center">
-        <div style="width:100%;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:11px;font-weight:800;color:#38bdf8;letter-spacing:.05em">PERSONAGEM 3D · NextVR</span>
-          <div style="display:inline-flex;gap:4px">
-            <button type="button" data-ac-rot="-0.45" style="padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10px;font-weight:700;cursor:pointer">⟲ 3D</button>
-            <button type="button" data-ac-autorot style="padding:3px 7px;border-radius:999px;background:${autoSpin3D ? 'rgba(56,189,248,.24)' : 'rgba(255,255,255,.08)'};border:1px solid ${autoSpin3D ? '#38bdf8' : 'rgba(255,255,255,.14)'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">360°</button>
-            <button type="button" data-ac-rot="0.45" style="padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e4e4e7;font-size:10px;font-weight:700;cursor:pointer">3D ⟳</button>
-          </div>
+  body.innerHTML = `
+    <div class="hd-toolbar" data-hd-toolbar style="display:flex;flex-direction:column;gap:6px;padding:8px 12px;background:#0f172a;color:#f8fafc;border-bottom:2px solid #cbd5e1;z-index:3">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <img src="./icons/paintdrawer-logo.jpg" alt="paintdrawer" style="width:24px;height:24px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,.25)">
+          <span style="font-size:13px;font-weight:900;color:#38bdf8;letter-spacing:.03em">paintdrawer</span>
+          <span data-hd-challenge style="padding:3px 10px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:#e0f2fe;font-size:11px;font-weight:800">Desafio: ${HAND_DRAW_CHALLENGES[0]}</span>
+          <button type="button" data-hd-next-challenge style="padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">🎲 Sortear Desafio</button>
+          <button type="button" data-hd-done style="padding:3px 9px;border-radius:999px;border:1px solid rgba(74,222,128,.45);background:rgba(22,163,74,.25);color:#86efac;font-size:10.5px;font-weight:800;cursor:pointer">✓ Concluir (<b data-hd-score>0</b>)</button>
         </div>
-        <canvas data-ac-canvas width="280" height="330" style="width:255px;height:300px;border-radius:14px;border:1px solid rgba(255,255,255,.1);display:block"></canvas>
-        <div style="width:100%;display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
-          ${CHARACTER_OPTIONS.poses.map(p => `
-            <button type="button" data-ac-set="pose:${p.id}" style="padding:4px 9px;border-radius:999px;font-size:10.5px;font-weight:800;cursor:pointer;border:1px solid ${cfg.pose === p.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.pose === p.id ? 'rgba(56,189,248,.22)' : 'rgba(255,255,255,.06)'};color:#fff">${p.label}</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button type="button" data-hd-hand-mode="auto" style="padding:4px 9px;border-radius:7px;border:1px solid rgba(56,189,248,.5);background:#1d4ed8;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">🖐 Hand: Indicador / Pinça</button>
+          <button type="button" data-hd-undo style="padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#f8fafc;font-size:10.5px;font-weight:800;cursor:pointer">↩ Desfazer</button>
+          <button type="button" data-hd-clear style="padding:4px 9px;border-radius:7px;border:1px solid rgba(248,113,113,.45);background:rgba(185,28,28,.28);color:#fecaca;font-size:10.5px;font-weight:800;cursor:pointer">🗑 Limpar Tela Branca</button>
+          <button type="button" data-hd-exit style="padding:4px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.28);background:#334155;color:#fff;font-size:10.5px;font-weight:800;cursor:pointer">✕ Sair</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap" data-hd-palette>
+          ${HAND_DRAW_COLORS.map(([hex, name], i) => `
+            <button type="button" data-hd-color="${hex}" title="${name}" aria-label="${name}"
+              style="width:24px;height:24px;border-radius:50%;background:${hex};border:${i === 0 ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)'};cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.4)"></button>
           `).join('')}
         </div>
-        <div style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:7px">
-          <button type="button" data-ac-save-profile style="padding:9px 10px;border-radius:10px;background:#2563eb;border:1px solid #60a5fa;color:#fff;font-size:11px;font-weight:800;cursor:pointer">✓ Salvar no Perfil</button>
-          <button type="button" data-ac-view3d style="padding:9px 10px;border-radius:10px;background:rgba(56,189,248,.18);border:1px solid rgba(56,189,248,.45);color:#7dd3fc;font-size:11px;font-weight:800;cursor:pointer">🔄 Ver em 3D</button>
-          <button type="button" data-ac-open-mt style="padding:9px 10px;border-radius:10px;background:rgba(132,204,22,.18);border:1px solid rgba(132,204,22,.45);color:#bef264;font-size:11px;font-weight:800;cursor:pointer">🦵 Motion Tracker</button>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+          <button type="button" data-hd-tool="pen" class="on" style="padding:3px 8px;border-radius:6px;border:1px solid #38bdf8;background:#2563eb;color:#fff;font-size:10px;font-weight:800;cursor:pointer">✏️ Pincel</button>
+          <button type="button" data-hd-tool="neon" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">✨ Neon</button>
+          <button type="button" data-hd-tool="eraser" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">🧽 Borracha</button>
+          <button type="button" data-hd-tool="circle" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.24);background:#1e293b;color:#e2e8f0;font-size:10px;font-weight:800;cursor:pointer">⭕ Círculo</button>
         </div>
-      </div>
-
-      <div style="background:#1c1f27;border-radius:18px;padding:14px 16px;border:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;justify-content:space-between;overflow-y:auto">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)">
-          <div>
-            <h2 style="margin:0;font-size:16px;font-weight:900;color:#fff">Criar Personagem do Jogo</h2>
-            <div style="font-size:11px;color:#94a3b8">Personalize seu personagem para o NextVR, Dock e PICO Motion Tracker · Nome: <b style="color:#fff">${escH(nick)}</b></div>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button type="button" data-ac-random style="padding:6px 11px;border-radius:10px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#f4f4f5;font-size:11px;font-weight:800;cursor:pointer">🎲 Aleatório</button>
-            <button type="button" data-ac-entry-menu style="padding:6px 11px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:11px;font-weight:700;cursor:pointer">Menu 2D</button>
-          </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          ${[[4, 'Fino'], [8, 'Médio'], [16, 'Grosso'], [28, 'Super']].map(([sz, lbl]) => `
+            <button type="button" data-hd-size="${sz}" class="${sz === 8 ? 'on' : ''}"
+              style="padding:3px 7px;border-radius:6px;border:1px solid ${sz === 8 ? '#38bdf8' : 'rgba(255,255,255,.24)'};background:${sz === 8 ? '#2563eb' : '#1e293b'};color:#fff;font-size:10px;font-weight:800;cursor:pointer">${lbl}</button>
+          `).join('')}
         </div>
-
-        <div style="display:flex;flex-direction:column;gap:9px;margin-top:6px">
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">TOM DE PELE:</span>
-            ${CHARACTER_OPTIONS.skins.map(s => `
-              <button type="button" data-ac-set="skin:${s.id}" title="${s.label}" style="width:26px;height:26px;border-radius:50%;background:${s.id};border:${cfg.skin === s.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ESTILO CABELO:</span>
-            ${CHARACTER_OPTIONS.hairStyles.map(hs => `
-              <button type="button" data-ac-set="hairStyle:${hs.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.hairStyle === hs.id ? '#fff' : 'rgba(255,255,255,.14)'};background:${cfg.hairStyle === hs.id ? '#e4e4e7' : '#272a34'};color:${cfg.hairStyle === hs.id ? '#09090b' : '#f4f4f5'}">${hs.label}</button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">COR CABELO:</span>
-            ${CHARACTER_OPTIONS.hairColors.map(hc => `
-              <button type="button" data-ac-set="hairColor:${hc.id}" title="${hc.label}" style="width:24px;height:24px;border-radius:50%;background:${hc.id};border:${cfg.hairColor === hc.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ÓCULOS / VISOR:</span>
-            ${CHARACTER_OPTIONS.visors.map(v => `
-              <button type="button" data-ac-set="visor:${v.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.visor === v.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.visor === v.id ? 'rgba(56,189,248,.22)' : '#272a34'};color:#fff">${v.label}</button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ROUPA / TRAJE:</span>
-            ${CHARACTER_OPTIONS.outfits.map(o => `
-              <button type="button" data-ac-set="outfit:${o.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.outfit === o.id ? '#fff' : 'rgba(255,255,255,.14)'};background:${cfg.outfit === o.id ? '#e4e4e7' : '#272a34'};color:${cfg.outfit === o.id ? '#09090b' : '#f4f4f5'}">${o.label}</button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">COR DA ROUPA:</span>
-            ${CHARACTER_OPTIONS.outfitColors.map(oc => `
-              <button type="button" data-ac-set="outfitColor:${oc.id}" title="${oc.label}" style="width:24px;height:24px;border-radius:50%;background:${oc.id};border:${cfg.outfitColor === oc.id ? '3px solid #fff' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
-            `).join('')}
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;margin-left:8px">CALÇA:</span>
-            ${CHARACTER_OPTIONS.pantsColors.map(pc => `
-              <button type="button" data-ac-set="pantsColor:${pc.id}" title="${pc.label}" style="width:22px;height:22px;border-radius:50%;background:${pc.id};border:${cfg.pantsColor === pc.id ? '3px solid #38bdf8' : '1.5px solid rgba(255,255,255,.3)'};cursor:pointer"></button>
-            `).join('')}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:800;color:#a1a1aa;min-width:92px">ACESSÓRIO:</span>
-            ${CHARACTER_OPTIONS.accessories.map(ac => `
-              <button type="button" data-ac-set="accessory:${ac.id}" style="padding:5px 10px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid ${cfg.accessory === ac.id ? '#38bdf8' : 'rgba(255,255,255,.14)'};background:${cfg.accessory === ac.id ? 'rgba(56,189,248,.22)' : '#272a34'};color:#fff">${ac.label}</button>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-  };
-
-  renderPanel();
-
-  let animId = 0;
-  let lastT = performance.now();
-  const t0 = performance.now();
-  const tickPreview = now => {
-    if (!body.isConnected) return;
-    const dt = Math.min(0.05, Math.max(0, (now - lastT) * 0.001));
-    lastT = now;
-    if (autoSpin3D) yaw += dt * 1.15;
-    const cv = body.querySelector('[data-ac-canvas]');
-    if (cv) {
-      const ctx = cv.getContext('2d');
-      const lh = hands.find(h => h.left);
-      const rh = hands.find(h => !h.left);
-      drawCharacter2D(ctx, cv.width, cv.height, cfg, {
-        time: (now - t0) * 0.001,
-        yaw,
-        leftHand: lh,
-        rightHand: rh,
-      });
-    }
-    animId = requestAnimationFrame(tickPreview);
-  };
-  animId = requestAnimationFrame(tickPreview);
-
-  body.addEventListener('click', e => {
-    const setBtn = e.target.closest('[data-ac-set]');
-    if (setBtn) {
-      const raw = setBtn.dataset.acSet || '';
-      const sep = raw.indexOf(':');
-      if (sep > 0) {
-        const k = raw.slice(0, sep);
-        const v = raw.slice(sep + 1);
-        cfg[k] = v;
-        cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-        renderPanel();
-        css3d.invalidate?.();
-      }
-      return;
-    }
-    if (e.target.closest('[data-ac-autorot]')) {
-      autoSpin3D = !autoSpin3D;
-      renderPanel();
-      return;
-    }
-    const rotBtn = e.target.closest('[data-ac-rot]');
-    if (rotBtn) {
-      autoSpin3D = false;
-      yaw += Number(rotBtn.dataset.acRot || 0);
-      return;
-    }
-    if (e.target.closest('[data-ac-random]')) {
-      const pick = arr => arr[Math.floor(Math.random() * arr.length)].id;
-      cfg = {
-        skin: pick(CHARACTER_OPTIONS.skins),
-        hairStyle: pick(CHARACTER_OPTIONS.hairStyles),
-        hairColor: pick(CHARACTER_OPTIONS.hairColors),
-        visor: pick(CHARACTER_OPTIONS.visors),
-        outfit: pick(CHARACTER_OPTIONS.outfits),
-        outfitColor: pick(CHARACTER_OPTIONS.outfitColors),
-        pantsColor: pick(CHARACTER_OPTIONS.pantsColors),
-        accessory: pick(CHARACTER_OPTIONS.accessories),
-        pose: pick(CHARACTER_OPTIONS.poses),
-      };
-      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-      renderPanel();
-      toast('Novo personagem gerado e salvo!');
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-ac-save-profile]')) {
-      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-      toast('✓ Personagem salvo no seu Perfil e na Dock!');
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-ac-view3d]')) {
-      // Build 89: abre o visualizador 3D — o personagem gira e os acessorios podem ser vistos.
-      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-      openCharacterViewer();
-      return;
-    }
-    if (e.target.closest('[data-ac-open-mt]')) {
-      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-      openPicoMotionTracker();
-      return;
-    }
-    if (e.target.closest('[data-ac-entry-menu]')) {
-      openEntryMenu();
-    }
-  });
-
-  const win = open({ id: 'avatar-creator', title: 'Criar Personagem · NextVR', node: body, w: 940, h: 610 });
-  win._cleanupAC = () => cancelAnimationFrame(animId);
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-window.openAvatarCreator = openAvatarCreator;
-
-/* ============ Visualizador 3D do personagem (Build 89) ============
- *
- * O usuario: "bota o personagem 3d que da pra girar ele e ve as coisas e os acessorios".
- * A janela mostra o avatar grande, girando com o arraste (ou sozinho), com zoom, lista do que esta'
- * equipado e os botoes para trocar cada acessorio ali mesmo — sem passar pelo editor.
- */
-export function openCharacterViewer() {
-  const existing = wins.find(w => w.id === 'character-viewer');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-
-  let cfg = loadCharacter();
-  let yaw = 0;
-  let zoom = 1;
-  let spinning = true;
-  let lastX = null;
-
-  const body = el('div', 'cv-root');
-  body.style.cssText = 'position:relative;width:100%;height:100%;display:flex;background:linear-gradient(160deg,#101014,#08080a 70%);color:#f4f4f5;font-family:Inter,system-ui,sans-serif;overflow:hidden;';
-
-  const stageWrap = el('div', 'cv-stage');
-  stageWrap.style.cssText = 'flex:1;min-width:0;position:relative;display:grid;place-items:center;padding:14px;';
-  const cv = document.createElement('canvas');
-  cv.className = 'cv-canvas';
-  cv.dataset.cvCanvas = '1';
-  cv.width = 460;
-  cv.height = 620;
-  cv.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:100%;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:radial-gradient(circle at 50% 30%,rgba(148,163,184,.20),rgba(8,8,10,.95) 70%);box-shadow:0 24px 70px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.12);touch-action:none;cursor:grab;';
-  const hint = el('div', 'cv-hint', 'Arraste para girar · pinça afasta/aproxima');
-  hint.style.cssText = 'position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:10.5px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.55);text-transform:uppercase;pointer-events:none;';
-  stageWrap.append(cv, hint);
-
-  const side = el('div', 'cv-side');
-  side.style.cssText = 'width:300px;flex:none;display:flex;flex-direction:column;gap:10px;padding:14px 14px 12px 0;';
-
-  const title = el('div', 'cv-title', 'Seu personagem 3D');
-  title.style.cssText = 'font-size:17px;font-weight:900;letter-spacing:.01em;';
-  const equipped = el('div', 'cv-equipped');
-  equipped.dataset.cvEquipped = '1';
-  equipped.style.cssText = 'font-size:11.5px;line-height:1.5;color:#d4d4d8;padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);';
-
-  const row = el('div');
-  row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-  const mk = (label, data, bg) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.textContent = label;
-    Object.entries(data).forEach(([k, v]) => { b.dataset[k] = v; });
-    b.style.cssText = `flex:1;min-width:64px;padding:8px 6px;border-radius:11px;font-size:11px;font-weight:800;cursor:pointer;color:#f4f4f5;background:${bg || 'rgba(255,255,255,.07)'};border:1px solid rgba(255,255,255,.14);`;
-    return b;
-  };
-  const spinBtn = mk('⥀ Girar sozinho', { cvSpin: '1' });
-  const zoomOut = mk('－', { cvZoom: '-1' });
-  const zoomIn = mk('＋', { cvZoom: '1' });
-  const rotL = mk('⟲', { cvRot: '-0.5' });
-  const rotR = mk('⟳', { cvRot: '0.5' });
-  row.append(rotL, spinBtn, rotR, zoomOut, zoomIn);
-
-  const accTitle = el('div', null, 'Acessórios');
-  accTitle.style.cssText = 'font-size:10.5px;font-weight:900;letter-spacing:.16em;color:#a1a1aa;text-transform:uppercase;margin-top:2px;';
-  const accWrap = el('div');
-  accWrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-
-  const saveBtn = el('button', 'cv-save', '✓ Usar no Perfil');
-  saveBtn.type = 'button';
-  saveBtn.dataset.cvSave = '1';
-  saveBtn.style.cssText = 'margin-top:auto;padding:11px;border-radius:13px;background:linear-gradient(135deg,#e4e4e7,#a1a1aa);color:#09090b;font-size:12px;font-weight:900;cursor:pointer;border:0;';
-  side.append(title, equipped, row, accTitle, accWrap, saveBtn);
-  body.append(stageWrap, side);
-
-  const paintEquipped = () => {
-    const acc = CHARACTER_OPTIONS.accessories.find(a => a.id === cfg.accessory);
-    const out = CHARACTER_OPTIONS.outfits.find(o => o.id === cfg.outfit);
-    const hair = CHARACTER_OPTIONS.hairStyles.find(h => h.id === cfg.hairStyle);
-    const visor = CHARACTER_OPTIONS.visors?.find(v => v.id === cfg.visor);
-    equipped.innerHTML = `
-      <b style="color:#fafafa">Equipado agora</b><br>
-      ${hair ? hair.label : '—'} · ${out ? out.label : '—'}${visor ? ' · ' + visor.label : ''}<br>
-      ${acc ? '🎒 ' + acc.label : 'Sem acessório'}`;
-    accWrap.innerHTML = '';
-    for (const a of CHARACTER_OPTIONS.accessories) {
-      const btn = mk(a.label, { cvSet: `accessory:${a.id}` }, cfg.accessory === a.id ? 'rgba(226,232,240,.22)' : null);
-      if (cfg.accessory === a.id) btn.style.borderColor = '#fafafa';
-      accWrap.appendChild(btn);
-    }
-    spinBtn.textContent = spinning ? '⏸ Parar giro' : '⥀ Girar sozinho';
-    spinBtn.style.borderColor = spinning ? '#fafafa' : 'rgba(255,255,255,.14)';
-  };
-  paintEquipped();
-
-  let animId = 0, lastT = performance.now();
-  const t0 = performance.now();
-  const tick = now => {
-    if (!body.isConnected) return;
-    const dt = Math.min(.05, Math.max(0, (now - lastT) * .001));
-    lastT = now;
-    if (spinning) yaw += dt * 1.0;
-    const ctx = cv.getContext('2d');
-    const lh = hands.find(h => h.left);
-    const rh = hands.find(h => !h.left);
-    drawCharacter2D(ctx, cv.width, cv.height, cfg, {
-      time: (now - t0) * .001,
-      yaw,
-      zoom,
-      leftHand: lh,
-      rightHand: rh,
-    });
-    animId = requestAnimationFrame(tick);
-  };
-  animId = requestAnimationFrame(tick);
-
-  // Arraste com o dedo/mouse para girar; pinça (dois dedos) ou a roda para o zoom.
-  cv.addEventListener('pointerdown', e => { lastX = e.clientX; cv.style.cursor = 'grabbing'; cv.setPointerCapture?.(e.pointerId); });
-  cv.addEventListener('pointermove', e => {
-    if (lastX == null) return;
-    yaw += (e.clientX - lastX) * .012;
-    lastX = e.clientX;
-    spinning = false;
-  });
-  const stop = () => { lastX = null; cv.style.cursor = 'grab'; };
-  cv.addEventListener('pointerup', stop);
-  cv.addEventListener('pointercancel', stop);
-  cv.addEventListener('pointerleave', stop);
-  cv.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.max(.55, Math.min(1.8, zoom - Math.sign(e.deltaY) * .08)); }, { passive: false });
-
-  body.addEventListener('click', e => {
-    const rot = e.target.closest('[data-cv-rot]');
-    if (rot) { spinning = false; yaw += Number(rot.dataset.cvRot || 0); return; }
-    if (e.target.closest('[data-cv-spin]')) { spinning = !spinning; paintEquipped(); return; }
-    const zm = e.target.closest('[data-cv-zoom]');
-    if (zm) { zoom = Math.max(.55, Math.min(1.8, zoom + Number(zm.dataset.cvZoom || 0) * .12)); return; }
-    const set = e.target.closest('[data-cv-set]');
-    if (set) {
-      const raw = set.dataset.cvSet || '';
-      const sep = raw.indexOf(':');
-      if (sep > 0) { cfg[raw.slice(0, sep)] = raw.slice(sep + 1); cfg = saveCharacter(cfg, { updateProfileAvatar: false }); paintEquipped(); css3d.invalidate?.(); }
-      return;
-    }
-    if (e.target.closest('[data-cv-save]')) {
-      cfg = saveCharacter(cfg, { updateProfileAvatar: true });
-      toast('✓ Personagem 3D salvo no Perfil');
-      css3d.invalidate?.();
-      return;
-    }
-  });
-
-  const win = open({ id: 'character-viewer', title: 'Personagem 3D · NextVR', node: body, w: 900, h: 620 });
-  win._cleanupCV = () => cancelAnimationFrame(animId);
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-window.nextvrOpenCharacterViewer = openCharacterViewer;
-
-
-/* ============ PICO Motion Tracker (Screenshot_2026-10-25-19-28-52-726) ============ */
-export function openPicoMotionTracker() {
-  const existing = wins.find(w => w.id === 'motion-tracker');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-  const heights = [170, 175, 180, 183, 188];
-  let heightIdx = 3; // 183 cm default from screenshot
-  let calibrating = false;
-  let calibStatus = '2 Motion Trackers conectados. Tente conectar mais para uma melhor experiência.';
-
-  const body = el('div', 'pico-mt-win');
-  body.dataset.picoMotionTracker = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#1e2026;color:#f1f5f9;display:flex;flex-direction:column;padding:14px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
-
-  body.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <span style="width:48px"></span>
-      <h2 style="margin:0;font-size:15px;font-weight:800;letter-spacing:.01em;color:#f8fafc">PICO Motion Tracker</h2>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button type="button" data-mt-gear title="Ajustes de Rastreamento" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;font-size:13px">⚙</button>
-        <button type="button" data-mt-help title="Ajuda Motion Tracker" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;font-size:13px">?</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:14px;flex:1;min-height:0">
-      <div style="background:linear-gradient(180deg,#2a2d35 0%,#343842 100%);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(255,255,255,.08);position:relative;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;z-index:2">
-          <button type="button" data-mt-floor style="background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Ajustar piso ›</button>
-          <button type="button" data-mt-height style="background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">183 cm ›</button>
-        </div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0">
-          <canvas data-mt-avatar-canvas width="280" height="270" style="width:240px;height:230px;display:block"></canvas>
-        </div>
-        <p style="margin:0;font-size:10.5px;line-height:1.38;color:rgba(241,245,249,.78);text-align:center;z-index:2">
-          Levante a perna e mova o corpo para ver se o movimento do modelo corresponde ao seu. Caso contrário, recalibre.
-        </p>
-      </div>
-      <div style="background:#262931;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(255,255,255,.07)">
-        <div>
-          <h3 style="margin:0 0 4px;font-size:14px;font-weight:800;color:#f8fafc">Meus Motion Trackers</h3>
-          <p data-mt-status style="margin:0 0 12px;font-size:11px;line-height:1.35;color:rgba(226,232,240,.65)">${calibStatus}</p>
-          <div data-mt-list style="display:flex;flex-direction:column;gap:10px">
-            <div data-mt-tracker="271297" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:12px;background:#2f333d;border:1px solid rgba(255,255,255,.07)">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span style="width:34px;height:34px;border-radius:50%;border:2.5px solid #84cc16;display:inline-flex;align-items:center;justify-content:center;background:#1e2026">
-                  <span style="width:12px;height:18px;border-radius:6px;background:#f8fafc;display:inline-block"></span>
-                </span>
-                <div>
-                  <div style="font-size:12px;font-weight:800;color:#f8fafc">Motion Tracker 271297</div>
-                  <div data-mt-tstatus="1" style="font-size:10.5px;color:#a3e635;font-weight:600">Conectado · Tornozelo Dir. (98%)</div>
-                </div>
-              </div>
-              <button type="button" data-mt-info="271297" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:transparent;color:#cbd5e1;font-size:11px;cursor:pointer">i</button>
-            </div>
-            <div data-mt-tracker="271296" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:12px;background:#2f333d;border:1px solid rgba(255,255,255,.07)">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span style="width:34px;height:34px;border-radius:50%;border:2.5px solid #84cc16;display:inline-flex;align-items:center;justify-content:center;background:#1e2026">
-                  <span style="width:12px;height:18px;border-radius:6px;background:#f8fafc;display:inline-block"></span>
-                </span>
-                <div>
-                  <div style="font-size:12px;font-weight:800;color:#f8fafc">Motion Tracker 271296</div>
-                  <div data-mt-tstatus="2" style="font-size:10.5px;color:#a3e635;font-weight:600">Conectado · Tornozelo Esq. (95%)</div>
-                </div>
-              </div>
-              <button type="button" data-mt-info="271296" style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:transparent;color:#cbd5e1;font-size:11px;cursor:pointer">i</button>
-            </div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <button type="button" data-mt-customize style="width:100%;padding:9px 14px;border-radius:12px;border:1px solid rgba(56,189,248,.4);background:rgba(56,189,248,.16);color:#e0f2fe;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <span>🎨</span> <span>Criar / Editar Personagem</span>
-          </button>
-          <button type="button" data-mt-recalibrate style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#363a45;color:#f8fafc;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <span>⊕</span> <span data-mt-recal-label>Recalibrar</span>
-          </button>
-        </div>
+    <div class="hd-stage" style="position:relative;flex:1;min-height:0;width:100%;background:#ffffff;overflow:hidden;touch-action:none">
+      <canvas class="hand-draw-canvas" data-hand-draw-canvas="1" width="1020" height="530"
+        style="width:100%;height:100%;display:block;background:#ffffff;cursor:crosshair"></canvas>
+      <canvas class="hand-draw-overlay" data-hand-draw-overlay="1" width="1020" height="530"
+        style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
+      <div data-hd-status style="position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:999px;background:rgba(15,23,42,.78);color:#f8fafc;font-size:10.5px;font-weight:700;pointer-events:none">
+        Aponte o dedo indicador ou faça pinça para desenhar na tela branca · Traços: <b data-hd-strokes>0</b>
       </div>
     </div>
   `;
 
-  const cv = body.querySelector('[data-mt-avatar-canvas]');
-  const ctx = cv.getContext('2d');
-  let animId = 0;
-  const t0 = performance.now();
-  const drawAvatar = (now) => {
-    if (!body.isConnected) return;
-    const tSec = (now - t0) * 0.001;
-    const lh = hands.find(h => h.left);
-    const rh = hands.find(h => !h.left);
-    drawCharacter2D(ctx, cv.width, cv.height, loadCharacter(), {
-      time: tSec,
-      leftHand: lh,
-      rightHand: rh,
-    });
-    // PICO Motion Tracker green ankle sensors
-    const cx = cv.width * 0.5;
-    ctx.fillStyle = '#84cc16';
-    ctx.beginPath();
-    ctx.arc(cx - 12, 212, 4, 0, Math.PI * 2);
-    ctx.arc(cx + 12, 212, 4, 0, Math.PI * 2);
-    ctx.fill();
+  const canvas = body.querySelector('[data-hand-draw-canvas]');
+  const overlay = body.querySelector('[data-hand-draw-overlay]');
+  const ctx = canvas.getContext('2d');
+  const octx = overlay.getContext('2d');
+  const strokesEl = body.querySelector('[data-hd-strokes]');
+  const challengeEl = body.querySelector('[data-hd-challenge]');
+  const scoreEl = body.querySelector('[data-hd-score]');
+  const handModeBtn = body.querySelector('[data-hd-hand-mode]');
 
-    animId = requestAnimationFrame(drawAvatar);
+  const fillWhite = () => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
   };
-  animId = requestAnimationFrame(drawAvatar);
-
-  body.addEventListener('click', e => {
-    if (e.target.closest('[data-mt-customize]')) {
-      openAvatarCreator();
-      return;
-    }
-    if (e.target.closest('[data-mt-height]')) {
-      heightIdx = (heightIdx + 1) % heights.length;
-      body.querySelector('[data-mt-height]').textContent = `${heights[heightIdx]} cm ›`;
-      toast(`Altura ajustada: ${heights[heightIdx]} cm`);
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-mt-floor]')) {
-      toast('Piso calibrado automaticamente com os sensores PICO Motion Tracker');
-      return;
-    }
-    if (e.target.closest('[data-mt-recalibrate]')) {
-      if (calibrating) return;
-      calibrating = true;
-      const lbl = body.querySelector('[data-mt-recal-label]');
-      const st = body.querySelector('[data-mt-status]');
-      if (lbl) lbl.textContent = 'Calibrando...';
-      if (st) st.textContent = 'Olhe para a frente e mantenha os pés alinhados...';
-      css3d.invalidate?.();
-      setTimeout(() => {
-        calibrating = false;
-        if (lbl) lbl.textContent = 'Recalibrar';
-        if (st) st.textContent = '✓ Calibração concluída! 2 Motion Trackers sincronizados em tempo real.';
-        toast('PICO Motion Trackers 271297 & 271296 recalibrados!');
-        css3d.invalidate?.();
-      }, 650);
-    }
-  });
-
-  const win = open({ id: 'motion-tracker', title: 'PICO Motion Tracker', node: body, w: 860, h: 540 });
-  win._cleanupMT = () => cancelAnimationFrame(animId);
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-
-/* ============ PICO Explore / Recomendado pelo PICO (Screenshot_2026-10-25-19-28-52-726) ============ */
-export function openPicoExplore() {
-  const existing = wins.find(w => w.id === 'pico-explore');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-
-  const body = el('div', 'pico-explore-win');
-  body.dataset.picoExplore = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#181a20;color:#f8fafc;display:grid;grid-template-columns:1fr 250px;gap:16px;padding:16px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:auto;';
-
-  body.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <h2 style="margin:0;font-size:16px;font-weight:800;color:#f8fafc">Recomendado pelo PICO <span style="font-size:11px;color:#94a3b8;font-weight:600">(PICO 4 Ultra · Hand Tracking)</span></h2>
-        <button type="button" data-exp-picovideo style="padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:11px;font-weight:700;cursor:pointer">Ir para PICO VIDEO ›</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
-        <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07)">
-          <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:#f8fafc">Oferta Especial (Spesialtilbud)</div>
-          <div data-exp-amongus style="display:flex;align-items:center;gap:12px;background:#16181f;padding:10px;border-radius:12px;cursor:pointer;border:1px solid rgba(239,68,68,.35)">
-            <div style="width:84px;height:62px;border-radius:10px;background:linear-gradient(135deg,#7f1d1d,#1e3a8a);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:#f8fafc;text-align:center;line-height:1.1">AMONG US<br>3D VR</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:800;color:#f8fafc">Among Us 3D</div>
-              <div style="font-size:10.5px;color:#94a3b8;margin:2px 0 6px">Social, Casual, Space · ★ 3.7</div>
-              <span style="padding:3px 9px;border-radius:6px;background:#2563eb;color:#fff;font-size:10.5px;font-weight:800">Jogar Agora · Grátis</span>
-            </div>
-          </div>
-        </div>
-        <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:space-between">
-          <div style="font-size:13px;font-weight:800;color:#f8fafc">Rastreamento Corporal PICO</div>
-          <p style="margin:4px 0 8px;font-size:11px;color:#94a3b8">2 Motion Trackers conectados (271297 & 271296). Calibre o piso e a altura para VRChat e jogos.</p>
-          <button type="button" data-exp-mt style="padding:8px 12px;border-radius:10px;border:1px solid rgba(132,204,22,.45);background:rgba(132,204,22,.16);color:#bef264;font-size:11.5px;font-weight:800;cursor:pointer">🦵 Abrir PICO Motion Tracker</button>
-        </div>
-      </div>
-    </div>
-    <div style="background:#22252e;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
-      <div style="font-size:13.5px;font-weight:800;color:#f8fafc">Chat e jogos (Chat og spill)</div>
-      <button type="button" data-exp-party style="width:100%;padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:12px;font-weight:800;cursor:pointer;text-align:left">🎮 Grupo de jogo (Spillgruppe)</button>
-      <button type="button" data-exp-social style="width:100%;padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:12px;font-weight:800;cursor:pointer;text-align:left">👥 Social (Sosialt)</button>
-      <div data-exp-vrchat style="margin-top:4px;padding:10px;border-radius:12px;background:#181a20;border:1px solid rgba(255,255,255,.08);cursor:pointer">
-        <div style="height:78px;border-radius:8px;background:linear-gradient(135deg,#1e1b4b,#3b82f6);display:flex;align-items:flex-end;padding:8px;margin-bottom:8px">
-          <span style="padding:2px 7px;border-radius:5px;background:#09090b;color:#38bdf8;font-size:10px;font-weight:900">VRCHAT</span>
-        </div>
-        <div style="font-size:12px;font-weight:800;color:#f8fafc">VRChat · Kai the Robot</div>
-        <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">👥 1/16 na sala · Toque para entrar</div>
-      </div>
-    </div>
-  `;
-
-  body.addEventListener('click', e => {
-    if (e.target.closest('[data-exp-mt]')) { openPicoMotionTracker(); return; }
-    if (e.target.closest('[data-exp-amongus]')) { openGorillaTag(); return; }
-    if (e.target.closest('[data-exp-picovideo]')) { openTikTokVr(); return; }
-    if (e.target.closest('[data-exp-vrchat]') || e.target.closest('[data-exp-party]') || e.target.closest('[data-exp-social]')) {
-      openPicoMotionTracker();
-    }
-  });
-
-  const win = open({ id: 'pico-explore', title: 'Recomendado pelo PICO', node: body, w: 1000, h: 580 });
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-
-/* ============ TikTok de verdade, em pe' (Build 89) ============
- *
- * O usuario: "o tiktok e pra ficar daquele tamanho mas rodando o Tiktok real com https://Tiktok".
- * Antes esta janela era um feed FALSO desenhado em HTML (reels inventados, likes que nao existiam).
- * Agora ela e' uma superficie nativa de verdade (data-native-browser) que abre https://www.tiktok.com/,
- * no mesmo tamanho vertical do print: 9:16, 405x720.
- */
-const TIKTOK_URL = 'https://www.tiktok.com/';
-
-export function openTikTokVr() {
-  const existing = wins.find(w => w.id === 'tiktok');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    // Reabrir recarrega o site de verdade: o feed do TikTok vive mudando e a janela pode ter ficado
-    // parada em segundo plano por um bom tempo.
-    window.NativeXR?.browserCmd?.('tiktok', 'reload');
-    css3d.invalidate?.();
-    return existing;
-  }
-
-  const body = el('div', 'pico-tiktok-win');
-  body.dataset.picoTiktok = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#000;color:#f8fafc;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;overflow:hidden;';
-
-  // Barra enxuta: voltar, recarregar e o endereco. O resto da janela e' o site real.
-  const bar = el('div', 'tt-bar');
-  bar.style.cssText = 'flex:none;display:flex;align-items:center;gap:6px;padding:6px 9px;background:#0b0b0d;border-bottom:1px solid rgba(255,255,255,.09);';
-  const back = el('button', 'tt-btn'); back.type = 'button'; back.innerHTML = icon('back'); back.title = 'Voltar';
-  const reload = el('button', 'tt-btn'); reload.type = 'button'; reload.innerHTML = icon('refresh'); reload.title = 'Recarregar';
-  const urlPill = el('span', 'tt-url', 'tiktok.com');
-  urlPill.style.cssText = 'flex:1;min-width:0;padding:4px 10px;border-radius:9px;background:rgba(255,255,255,.07);color:#d4d4d8;font-size:11px;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-  const openBrowser = el('button', 'tt-btn'); openBrowser.type = 'button'; openBrowser.textContent = '⋯'; openBrowser.title = 'Abrir no navegador';
-  [back, reload, openBrowser].forEach(b => { b.style.cssText = 'width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#f4f4f5;font-size:13px;display:grid;place-items:center;cursor:pointer;flex:none;'; });
-  bar.append(back, reload, urlPill, openBrowser);
-
-  const stage = el('div', 'tt-stage');
-  stage.style.cssText = 'flex:1;min-height:0;position:relative;background:#000;overflow:hidden;';
-
-  let frame;
-  if (native) {
-    frame = el('div', 'tt-native');
-    frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:#000;overflow:hidden;';
-    // A superficie nativa e' identificada por este atributo: o atlas a transforma num WebView de
-    // verdade e o Java recebe id/url/tamanho (ver NextVrActivity.syncBrowsers).
-    frame.dataset.nativeBrowser = 'tiktok';
-    frame.dataset.url = TIKTOK_URL;
-    frame.dataset.homeOverlay = '0';
-    stage.appendChild(frame);
-  } else {
-    // Preview no navegador (desenvolvimento): o TikTok real recusa embed, entao a tela deixa isso
-    // explicito em vez de fingir um feed.
-    frame = el('iframe', 'tt-native');
-    frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;';
-    frame.src = TIKTOK_URL;
-    frame.referrerPolicy = 'no-referrer';
-    stage.appendChild(frame);
-  }
-
-  body.append(bar, stage);
-
-  const win = open({ id: 'tiktok', title: 'TikTok', node: body, w: 405, h: 720 });
-  back.onclick = () => window.NativeXR?.browserCmd?.('tiktok', 'back');
-  reload.onclick = () => {
-    if (native) window.NativeXR?.browserCmd?.('tiktok', 'reload');
-    else frame.src = TIKTOK_URL;
-  };
-  openBrowser.onclick = () => webBrowserFor('browser', 'TikTok', TIKTOK_URL, { showHomeOverlay: false });
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-
-/* ============ Spotify VR Music Player (Screenshot_2026-10-25-19-11-03-772) ============ */
-export function openSpotifyVr() {
-  const existing = wins.find(w => w.id === 'spotify');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
-    css3d.invalidate?.();
-    return existing;
-  }
-  const tracks = [
-    { title: 'PICO 4 Ultra Spatial Horizon', artist: 'NextVR Audio Lab', dur: '3:42', freq: 220, bg: 'linear-gradient(135deg,#065f46,#10b981)' },
-    { title: 'Gorilla Tag Jungle Phonk', artist: 'Monke Beats VR', dur: '2:56', freq: 165, bg: 'linear-gradient(135deg,#7c2d12,#f97316)' },
-    { title: 'Neon Saber Synthwave 128 BPM', artist: 'CyberGrid XR', dur: '4:10', freq: 262, bg: 'linear-gradient(135deg,#1e1b4b,#ec4899)' },
-    { title: 'Midnight Flight Lo-Fi Beats', artist: 'Tokyo Panorama', dur: '3:18', freq: 196, bg: 'linear-gradient(135deg,#0f172a,#38bdf8)' },
-  ];
-  let trackIdx = 0;
-  let playing = false;
-  let audioCtx = null;
-  let oscTimer = 0;
-
-  const stopSynth = () => {
-    if (oscTimer) { clearInterval(oscTimer); oscTimer = 0; }
-  };
-  const startSynth = () => {
-    stopSynth();
+  const saveSnapshot = () => {
     try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      if (!audioCtx) audioCtx = new AC();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      let step = 0;
-      const notes = [1, 1.25, 1.5, 1.25, 1.33, 1.5, 2, 1.5];
-      oscTimer = setInterval(() => {
-        if (!playing || !audioCtx) return;
-        const base = tracks[trackIdx].freq;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = base * notes[step % notes.length];
-        gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.32);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.34);
-        step++;
-      }, 360);
+      if (undoStack.length >= 20) undoStack.shift();
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     } catch {}
   };
+  fillWhite();
+  saveSnapshot();
 
-  const body = el('div', 'pico-spotify-win');
-  body.dataset.picoSpotify = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:#121212;color:#ffffff;display:flex;flex-direction:column;justify-content:space-between;padding:16px 20px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:hidden;';
-
-  const renderPlayer = () => {
-    const tr = tracks[trackIdx];
-    body.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="width:30px;height:30px;border-radius:50%;background:#1db954;color:#09090b;display:inline-flex;align-items:center;justify-content:center;font-weight:900">🟢</span>
-          <div>
-            <div style="font-size:15px;font-weight:900;color:#fff">Spotify · PICO 4 Ultra</div>
-            <div style="font-size:10.5px;color:#a1a1aa">Áudio Espacial em Segundo Plano Ativo</div>
-          </div>
-        </div>
-        <button type="button" data-sp-web style="padding:5px 12px;border-radius:999px;border:1px solid rgba(29,185,84,.45);background:rgba(29,185,84,.14);color:#4ade80;font-size:11px;font-weight:800;cursor:pointer">🌐 Spotify Web</button>
-      </div>
-      <div style="display:grid;grid-template-columns:220px 1fr;gap:18px;margin:14px 0;flex:1;min-height:0">
-        <div style="background:${tr.bg};border-radius:16px;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;box-shadow:0 12px 28px rgba(0,0,0,.45)">
-          <span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.78);letter-spacing:.08em">TOCANDO AGORA</span>
-          <div style="font-size:16px;font-weight:900;color:#fff;margin-top:4px;line-height:1.2">${escH(tr.title)}</div>
-          <div style="font-size:11.5px;color:rgba(255,255,255,.82);margin-top:4px">${escH(tr.artist)}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;overflow:auto">
-          <div style="font-size:12px;font-weight:800;color:#a1a1aa;margin-bottom:2px">PLAYLIST PICO XR & NextVR</div>
-          ${tracks.map((item, i) => `
-            <button type="button" data-sp-track="${i}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid ${i === trackIdx ? '#1db954' : 'rgba(255,255,255,.07)'};background:${i === trackIdx ? 'rgba(29,185,84,.16)' : '#18181b'};color:#fff;cursor:pointer;text-align:left">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span style="font-size:12px;font-weight:900;color:${i === trackIdx ? '#1db954' : '#71717a'}">${i === trackIdx && playing ? '▶' : i + 1}</span>
-                <div>
-                  <div style="font-size:12.5px;font-weight:800;color:${i === trackIdx ? '#4ade80' : '#f4f4f5'}">${escH(item.title)}</div>
-                  <div style="font-size:10.5px;color:#a1a1aa">${escH(item.artist)}</div>
-                </div>
-              </div>
-              <span style="font-size:11px;color:#a1a1aa">${item.dur}</span>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:14px;background:#18181b;border:1px solid rgba(255,255,255,.08)">
-        <div style="font-size:12px;font-weight:800;color:#e4e4e7">${escH(tr.title)} · <span style="color:#1db954">${playing ? 'Tocando' : 'Pausado'}</span></div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <button type="button" data-sp-prev style="width:34px;height:34px;border-radius:50%;border:0;background:#27272a;color:#fff;cursor:pointer;font-size:13px">⏮</button>
-          <button type="button" data-sp-play style="width:42px;height:42px;border-radius:50%;border:0;background:#1db954;color:#09090b;cursor:pointer;font-size:16px;font-weight:900">${playing ? '⏸' : '▶'}</button>
-          <button type="button" data-sp-next style="width:34px;height:34px;border-radius:50%;border:0;background:#27272a;color:#fff;cursor:pointer;font-size:13px">⏭</button>
-        </div>
-      </div>
-    `;
+  const applySegment = (x0, y0, x1, y1, color = currentColor, size = currentSize, tool = currentTool) => {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (tool === 'eraser') {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = size * 2.2;
+    } else if (tool === 'neon') {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = size * 1.8;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+    } else {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+    }
+    if (tool === 'circle') {
+      const r = Math.max(6, Math.hypot(x1 - x0, y1 - y0));
+      ctx.beginPath();
+      ctx.arc(x1, y1, r, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+    ctx.restore();
   };
-  renderPlayer();
 
-  body.addEventListener('click', e => {
-    const trBtn = e.target.closest('[data-sp-track]');
-    if (trBtn) {
-      trackIdx = Number(trBtn.dataset.spTrack) || 0;
-      playing = true;
-      startSynth();
-      renderPlayer();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-sp-play]')) {
-      playing = !playing;
-      if (playing) startSynth(); else stopSynth();
-      renderPlayer();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-sp-next]')) {
-      trackIdx = (trackIdx + 1) % tracks.length;
-      if (playing) startSynth();
-      renderPlayer();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-sp-prev]')) {
-      trackIdx = (trackIdx - 1 + tracks.length) % tracks.length;
-      if (playing) startSynth();
-      renderPlayer();
-      css3d.invalidate?.();
-      return;
-    }
-    if (e.target.closest('[data-sp-web]')) {
-      webBrowserFor('browser', 'Spotify', 'https://open.spotify.com/', { showHomeOverlay: false });
-    }
-  });
+  const toCanvasCoords = (clientX, clientY) => {
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(1, r.width || canvas.width);
+    const h = Math.max(1, r.height || canvas.height);
+    return {
+      x: Math.max(0, Math.min(canvas.width, ((clientX - r.left) / w) * canvas.width)),
+      y: Math.max(0, Math.min(canvas.height, ((clientY - r.top) / h) * canvas.height)),
+    };
+  };
 
-  const win = open({ id: 'spotify', title: 'Spotify', node: body, w: 820, h: 520 });
-  win._cleanupSP = () => stopSynth();
-  focus(win);
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-
-/* ============ Central de Notificações e Clima do Celular (Screenshot_2026-10-25-12-02-11-935) ============ */
-export function openPhoneNotifications() {
-  const existing = wins.find(w => w.id === 'phone-notifications');
-  if (existing) {
-    existing.setHidden(false);
-    focus(existing);
+  let pointerDrawing = false;
+  let lastPt = null;
+  canvas.addEventListener('pointerdown', e => {
+    saveSnapshot();
+    pointerDrawing = true;
+    const pt = toCanvasCoords(e.clientX, e.clientY);
+    lastPt = pt;
+    applySegment(pt.x, pt.y, pt.x + 0.1, pt.y + 0.1);
+    strokeCount++;
+    if (strokesEl) strokesEl.textContent = String(strokeCount);
     css3d.invalidate?.();
-    return existing;
+  });
+  canvas.addEventListener('pointermove', e => {
+    const pt = toCanvasCoords(e.clientX, e.clientY);
+    if (!pointerDrawing || !lastPt) return;
+    applySegment(lastPt.x, lastPt.y, pt.x, pt.y);
+    lastPt = pt;
+    css3d.invalidate?.();
+  });
+  const finishPointerDraw = () => {
+    pointerDrawing = false;
+    lastPt = null;
+  };
+  canvas.addEventListener('pointerup', finishPointerDraw);
+  canvas.addEventListener('pointercancel', finishPointerDraw);
+
+  // Rastreamento direto de Hand Tracking (0 Delay): desenha apontando o indicador ou fazendo pinça!
+  const handLast = new Map();
+  let animId = 0;
+  const isIndexPointing = pts => {
+    if (!pts || pts.length < 63) return false;
+    const wx = pts[0], wy = pts[1];
+    const dIndex = Math.hypot(pts[24] - wx, pts[25] - wy);
+    const dPip = Math.hypot(pts[18] - wx, pts[19] - wy);
+    const dMid = Math.hypot(pts[36] - wx, pts[37] - wy);
+    const dRing = Math.hypot(pts[48] - wx, pts[49] - wy);
+    return dIndex > dPip * 1.16 && dIndex > Math.min(dMid, dRing) * 1.05;
+  };
+
+  const tickHandDraw = () => {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    let dirty = false;
+    const activeIds = new Set();
+    for (const h of hands) {
+      const id = h.id || (h.left ? 'left' : 'right');
+      activeIds.add(id);
+      let nx = 0.5, ny = 0.5;
+      if (h.points && h.points.length >= 26) {
+        if (h.pinching && h.points.length >= 14) {
+          nx = (h.points[12] + h.points[24]) * 0.5;
+          ny = (h.points[13] + h.points[25]) * 0.5;
+        } else {
+          nx = h.points[24];
+          ny = h.points[25];
+        }
+      } else if (Array.isArray(h.aim)) {
+        const sp = screenPoint(h.aim);
+        nx = sp.x; ny = sp.y;
+      }
+      const cx = Math.max(0, Math.min(canvas.width, nx * canvas.width));
+      const cy = Math.max(0, Math.min(canvas.height, ny * canvas.height));
+      const drawingNow = !h.fist && (h.pinching || (handDrawMode === 'auto' && isIndexPointing(h.points)));
+
+      // Desenha o anel guia da ponta do dedo na tela branca
+      octx.save();
+      octx.beginPath();
+      octx.arc(cx, cy, Math.max(6, currentSize * 0.75), 0, Math.PI * 2);
+      octx.strokeStyle = drawingNow ? currentColor : '#2563eb';
+      octx.lineWidth = drawingNow ? 3 : 2;
+      octx.stroke();
+      if (drawingNow) {
+        octx.fillStyle = currentTool === 'eraser' ? '#94a3b8' : currentColor;
+        octx.globalAlpha = 0.35;
+        octx.fill();
+      }
+      octx.restore();
+
+      const prev = handLast.get(id);
+      if (drawingNow) {
+        if (!prev) {
+          saveSnapshot();
+          applySegment(cx, cy, cx + 0.1, cy + 0.1);
+          strokeCount++;
+          if (strokesEl) strokesEl.textContent = String(strokeCount);
+        } else {
+          const mx = (prev.x + cx) * 0.5;
+          const my = (prev.y + cy) * 0.5;
+          applySegment(prev.x, prev.y, mx, my);
+          applySegment(mx, my, cx, cy);
+        }
+        handLast.set(id, { x: cx, y: cy });
+        dirty = true;
+      } else {
+        handLast.delete(id);
+      }
+    }
+    for (const k of [...handLast.keys()]) {
+      if (!activeIds.has(k)) handLast.delete(k);
+    }
+    if (dirty || hands.length > 0) css3d.invalidate?.();
+    animId = requestAnimationFrame(tickHandDraw);
+  };
+  animId = requestAnimationFrame(tickHandDraw);
+
+  body.querySelectorAll('[data-hd-color]').forEach(btn => {
+    btn.onclick = () => {
+      currentColor = btn.dataset.hdColor || '#111827';
+      if (currentTool === 'eraser') currentTool = 'pen';
+      body.querySelectorAll('[data-hd-color]').forEach(b => {
+        b.style.border = b === btn ? '3px solid #38bdf8' : '2px solid rgba(255,255,255,.55)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  body.querySelectorAll('[data-hd-tool]').forEach(btn => {
+    btn.onclick = () => {
+      currentTool = btn.dataset.hdTool || 'pen';
+      body.querySelectorAll('[data-hd-tool]').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('on', on);
+        b.style.background = on ? '#2563eb' : '#1e293b';
+        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  body.querySelectorAll('[data-hd-size]').forEach(btn => {
+    btn.onclick = () => {
+      currentSize = Number(btn.dataset.hdSize) || 8;
+      body.querySelectorAll('[data-hd-size]').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('on', on);
+        b.style.background = on ? '#2563eb' : '#1e293b';
+        b.style.borderColor = on ? '#38bdf8' : 'rgba(255,255,255,.24)';
+      });
+      css3d.invalidate?.();
+    };
+  });
+  if (handModeBtn) {
+    handModeBtn.onclick = () => {
+      handDrawMode = handDrawMode === 'auto' ? 'pinch' : 'auto';
+      handModeBtn.dataset.hdHandMode = handDrawMode;
+      handModeBtn.textContent = handDrawMode === 'auto' ? '🖐 Hand: Indicador / Pinça' : '🤏 Hand: Só na Pinça';
+      css3d.invalidate?.();
+    };
   }
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const body = el('div', 'phone-notif-shade');
-  body.dataset.phoneNotifications = '1';
-  body.style.cssText = 'position:relative;width:100%;height:100%;background:rgba(115,120,126,.94);backdrop-filter:blur(22px);color:#111827;display:flex;flex-direction:column;justify-content:space-between;padding:16px 18px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;user-select:none;overflow:auto;';
-
-  body.innerHTML = `
-    <div>
-      <div style="display:flex;align-items:flex-end;justify-content:space-between;color:#f8fafc;margin-bottom:12px">
-        <div>
-          <div style="font-size:34px;font-weight:300;line-height:1">${nowStr}</div>
-          <div style="font-size:12px;color:rgba(248,250,252,.82);margin-top:3px">Dom, 25/Out</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:12px;font-weight:600;color:#f8fafc">Claro BR</div>
-          <div style="font-size:15px;margin-top:4px">🔔⚙</div>
-        </div>
-      </div>
-      <div data-notif-cards style="display:flex;flex-direction:column;gap:8px">
-        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
-          <span style="width:38px;height:38px;border-radius:10px;background:#10b981;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🍃</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12.5px;font-weight:800;color:#111827">Veja o Índice de Qualidade... · <span style="font-weight:500;color:#6b7280">5h</span></div>
-            <div style="font-size:11.5px;color:#4b5563">Clique para maiores detalhes</div>
-          </div>
-        </div>
-        <div style="background:rgba(226,232,240,.88);border-radius:18px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:22px">☁️</span>
-            <div>
-              <div style="font-size:12.5px;font-weight:700;color:#1f2937">Pouco Nub. 30~23°</div>
-              <div style="font-size:11px;color:#dc2626;font-weight:600">⚠️ Há 2 alertas de mau tempo hoje. Visu...</div>
-            </div>
-          </div>
-          <div style="font-size:26px;font-weight:300;color:#0f172a">27°C 🔄</div>
-        </div>
-        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
-          <span style="width:36px;height:36px;border-radius:10px;background:#820ad1;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0">nu</span>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#111827"><span>Transferência recebida</span><span style="font-size:11px;color:#6b7280;font-weight:500">11:24</span></div>
-            <div style="font-size:11.5px;color:#4b5563">Você recebeu uma transferência de R$ 5,00 de ANA PAULA MENDES LIANDRO.</div>
-          </div>
-        </div>
-        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px">
-          <span style="width:36px;height:36px;border-radius:10px;background:#22c55e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;flex-shrink:0">⬇</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12.5px;font-weight:800;color:#111827">image.png</div>
-            <div style="font-size:11.5px;color:#4b5563">Download concluído · Ícone NextVR aplicado.</div>
-          </div>
-        </div>
-        <div data-notif-yt style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:12px;cursor:pointer">
-          <span style="width:36px;height:36px;border-radius:10px;background:#ef4444;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0">▶</span>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#111827"><span>🔴 Assistir CazéTV ao vivo em 30 min..</span><span style="font-size:11px;color:#6b7280;font-weight:500">09:35</span></div>
-            <div style="font-size:11.5px;color:#4b5563">AO VIVO: MANCHESTER UNITED X BOURNEMOUTH | PREMIER LEAGUE ...</div>
-          </div>
-        </div>
-        <div style="background:rgba(248,250,252,.94);border-radius:18px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:12.5px;font-weight:800;color:#111827">Hoje, 29.3°C~24.79°C</div>
-            <div style="font-size:11.5px;color:#4b5563">Salvador / Bahia | Hoje PARTLY_CLOUDY_DAY · 25°C</div>
-          </div>
-          <span style="font-size:11px;color:#6b7280">06:39</span>
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;justify-content:center;margin-top:12px">
-      <button type="button" data-notif-close title="Fechar Notificações" style="width:46px;height:46px;border-radius:50%;border:0;background:#ffffff;color:#1f2937;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.28)">✕</button>
-    </div>
-  `;
-
-  body.addEventListener('click', e => {
-    if (e.target.closest('[data-notif-close]')) {
-      close(wins.find(w => w.id === 'phone-notifications'));
-      return;
+  body.querySelector('[data-hd-next-challenge]')?.addEventListener('click', () => {
+    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
+    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-done]')?.addEventListener('click', () => {
+    completedCount++;
+    if (scoreEl) scoreEl.textContent = String(completedCount);
+    challengeIdx = (challengeIdx + 1) % HAND_DRAW_CHALLENGES.length;
+    if (challengeEl) challengeEl.textContent = `Desafio: ${HAND_DRAW_CHALLENGES[challengeIdx]}`;
+    toast(`Arte #${completedCount} concluída! Próximo desafio!`);
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-undo]')?.addEventListener('click', () => {
+    if (undoStack.length > 0) {
+      const prevImg = undoStack.pop();
+      try { ctx.putImageData(prevImg, 0, 0); } catch {}
+    } else {
+      fillWhite();
     }
-    if (e.target.closest('[data-notif-yt]')) {
-      webWindow('youtube', 'YouTube', 'https://m.youtube.com/');
-    }
+    css3d.invalidate?.();
+  });
+  body.querySelector('[data-hd-clear]')?.addEventListener('click', () => {
+    saveSnapshot();
+    fillWhite();
+    strokeCount = 0;
+    if (strokesEl) strokesEl.textContent = '0';
+    css3d.invalidate?.();
   });
 
-  const win = open({ id: 'phone-notifications', title: 'Notificações · 27°C', node: body, w: 540, h: 660 });
+  const win = open({ id: 'hand-draw', title: 'paintdrawer', node: body, w: 1020, h: 640 });
+  if (win?.shell) win.shell.dataset.handDrawVr = '1';
+  if (win?.el) win.el.dataset.handDrawVr = '1';
+  body.querySelector('[data-hd-exit]')?.addEventListener('click', () => {
+    cancelAnimationFrame(animId);
+    close(win);
+  });
+  window.nextvrHandDrawStroke = (x0, y0, x1, y1, color = currentColor, size = currentSize) => {
+    saveSnapshot();
+    applySegment(x0, y0, x1, y1, color, size, 'pen');
+    strokeCount++;
+    if (strokesEl) strokesEl.textContent = String(strokeCount);
+    css3d.invalidate?.();
+    return strokeCount;
+  };
+  touchLib('hand-draw', true);
   focus(win);
   css3d.invalidate?.();
   css3d.render?.(scene, camera);
@@ -3010,12 +2019,6 @@ if (typeof window !== 'undefined') {
   window.nextvrOpenRobloxVr = openRobloxVr;
   window.nextvrOpenBeatSaberVr = openBeatSaberVr;
   window.nextvrOpenHandDrawGame = openHandDrawGame;
-  window.nextvrOpenAvatarCreator = openAvatarCreator;
-  window.nextvrOpenPicoMotionTracker = openPicoMotionTracker;
-  window.nextvrOpenPicoExplore = openPicoExplore;
-  window.nextvrOpenTikTokVr = openTikTokVr;
-  window.nextvrOpenSpotifyVr = openSpotifyVr;
-  window.nextvrOpenPhoneNotifications = openPhoneNotifications;
 }
 
 /* cada tile da biblioteca abre o app de verdade (o mesmo da dock) */
@@ -3027,7 +2030,7 @@ const LIB_ACTIONS = {
   settings: () => controlCenterApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
-  tiktok:   () => openTikTokVr(),
+  tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
   twitch:   () => webWindow('twitch',    'Twitch',       'https://www.twitch.tv/'),
   prime:    () => webWindow('prime',     'prime video',  'https://www.primevideo.com/'),
   whatsapp: () => webWindow('whatsapp',  'WhatsApp',     'https://web.whatsapp.com/'),
@@ -3035,12 +2038,7 @@ const LIB_ACTIONS = {
   x:        () => webWindow('x',         'X',            'https://x.com/'),
   facebook: () => webWindow('facebook',  'Facebook',     'https://www.facebook.com/'),
   telegram: () => webWindow('telegram',  'Telegram',     'https://web.telegram.org/'),
-  spotify:  () => openSpotifyVr(),
-  'avatar-creator': () => openAvatarCreator(),
-  'character-viewer': () => openCharacterViewer(),
-  'motion-tracker': () => openPicoMotionTracker(),
-  'pico-explore': () => openPicoExplore(),
-  'phone-notifications': () => openPhoneNotifications(),
+  spotify:  () => webWindow('spotify',   'Spotify',      'https://open.spotify.com/'),
   vrfs:     () => openVrfsGame(),
   'mr-pistol': () => openMrPistolGame(),
   'hand-draw': () => openHandDrawGame(),
@@ -3049,10 +2047,6 @@ const LIB_ACTIONS = {
   'roblox-vr': () => openRobloxVr(),
   roblox: () => openRobloxVr(),
   'hyper-vr': () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/'),
-  // Build 96: o centro do anel de apps abre a lista completa (a mesma Biblioteca da Dock). Sem esta
-  // entrada, `launchDockApp('library')` não achava ninguém e o botão do meio ficava morto.
-  library:  () => libraryApp(),
-  shizuku:  () => libraryApp(),
 };
 
 /* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */
@@ -3062,39 +2056,21 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
-  { id: 'avatar-creator', name: 'Criar Personagem', cat: 'apps', rating: '5.0', reviews: '32 mil', tag: 'Avatar 3D do Jogo · NextVR', badge: 'NOVO', img: '', bg: 'linear-gradient(135deg,#1d4ed8,#06b6d4)', textLogo: '🧑‍🚀' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
-  { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Desenho 3D no Espaço', badge: 'NOVO 3D', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
+  { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
-  { id: 'hyper-vr', name: 'Hyper Dash INT', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'Purchased', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
+  { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'VR', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
   { id: 'roblox-vr', name: 'Roblox', cat: 'games', rating: '4.8', reviews: '64 mil', tag: 'Ambiente Preto · Hand Tracking', badge: 'NOVO', img: './roblox-logo.jpg', bg: 'linear-gradient(135deg,#090d16,#1e293b)' },
-  { id: 'motion-tracker', name: 'PICO Motion Tracker', cat: 'apps', rating: '4.9', reviews: '19 mil', tag: '2 Trackers · 183 cm', badge: 'PICO 4', img: '', bg: 'linear-gradient(135deg,#1e293b,#84cc16)', textLogo: '🦵' },
-  { id: 'pico-explore', name: 'PICO VIDEO & Explore', cat: 'apps', rating: '4.9', reviews: '24 mil', tag: 'Panorama 8K · Among Us 3D', badge: 'Free', img: '', bg: 'linear-gradient(135deg,#3b0764,#06b6d4)', textLogo: '8K' },
-  { id: 'spotify', name: 'Spotify VR', cat: 'apps', rating: '4.9', reviews: '41 mil', tag: 'Música em 2º Plano', badge: 'Free', img: '', bg: 'linear-gradient(135deg,#064e3b,#1db954)', textLogo: '🟢' },
-  { id: 'tiktok', name: 'TikTok', cat: 'apps', rating: '4.9', reviews: '52 mil', tag: 'Vídeos Verticais VR', badge: 'APP', img: './tiktok-logo.jpg', bg: 'linear-gradient(135deg,#09090b,#18181b)' },
+  { id: 'tiktok', name: 'TikTok', cat: 'apps', rating: '4.9', reviews: '52 mil', tag: 'Vídeos · Social', badge: 'APP', img: './tiktok-logo.jpg', bg: 'linear-gradient(135deg,#09090b,#18181b)' },
   { id: 'youtube', name: 'YouTube VR', cat: 'apps', rating: '4.8', reviews: '31 mil', tag: 'Vídeo 360° · 4K', badge: 'APP', img: './icons/youtube.svg', bg: 'linear-gradient(135deg,#450a0a,#dc2626)', isSvg: true },
   { id: 'discord', name: 'Discord', cat: 'apps', rating: '4.7', reviews: '19 mil', tag: 'Comunidade · Voz', badge: 'APP', img: './icons/discord.svg', bg: 'linear-gradient(135deg,#312e81,#4f46e5)', isSvg: true },
   { id: 'netflix', name: 'Netflix', cat: 'apps', rating: '4.8', reviews: '22 mil', tag: 'Cinema VR', badge: 'APP', img: '', bg: 'linear-gradient(135deg,#450a0a,#991b1b)', textLogo: 'N' },
 ];
 
-const PICO_STORE_SEARCH_CARDS = [
-  { id: 'beat-vr', title: 'Epic Roller Coasters', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#311042,#f59e0b)' },
-  { id: 'pico-explore', title: 'TRIPP Meditation VR', stars: '★★★★☆', status: '50%', bg: 'linear-gradient(135deg,#065f46,#38bdf8)' },
-  { id: 'hyper-vr', title: 'Hyper Dash INT', stars: '★★★★★', status: 'Purchased', bg: 'linear-gradient(135deg,#0284c7,#ef4444)' },
-  { id: 'roblox-vr', title: 'Rec Room', stars: '★★★★☆', status: 'Purchased', bg: 'linear-gradient(135deg,#9a3412,#f97316)' },
-  { id: 'youtube', title: 'DeoVR Video Player', stars: '★★★★☆', status: 'Purchased', bg: 'linear-gradient(135deg,#0f172a,#38bdf8)' },
-  { id: 'tiktok', title: 'PICO VIDEO 8K', stars: '★★★★★', status: 'Free', bg: 'linear-gradient(135deg,#09090b,#10b981)' },
-  { id: 'vrfs', title: 'FIT XR', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#0284c7,#a855f7)' },
-  { id: 'gorilla-tag', title: 'DREAMLAND', stars: '★★★★☆', status: 'Free', bg: 'linear-gradient(135deg,#1e1b4b,#ec4899)' },
-  { id: 'mr-pistol', title: 'Gun Raiders: Pirate Bay', stars: '★★★★★', status: 'Free', bg: 'linear-gradient(135deg,#14532d,#eab308)' },
-];
-
-let storeSearchQuery = 'free';
-
 function buildStore() {
-  const root = el('div', 'st st-quest-store st-pico-store');
+  const root = el('div', 'st st-quest-store');
   // Mantém exatamente 2 elementos .st-tab para compatibilidade com os testes, mais as pílulas Quest 3 Store
   const hiddenCompatTabs = STORE_TABS.map(([id, n]) => `<button class="st-tab" data-tab="${id}" aria-selected="${storeTab === id}" style="position:absolute;opacity:.01;pointer-events:none;width:1px;height:1px;overflow:hidden">${n}</button>`).join('');
   const qTabs = [
@@ -3169,57 +2145,12 @@ function buildStore() {
         </article>`;
     }).join('');
 
-    const picoSearchGridHtml = PICO_STORE_SEARCH_CARDS.map(c => `
-      <div class="st-pico-search-card" data-store-launch="${c.id}" style="background:#23262f;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column">
-        <div style="height:78px;background:${c.bg};padding:8px 10px;display:flex;align-items:flex-end;justify-content:space-between">
-          <span style="font-size:12px;font-weight:900;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7)">${escH(c.title)}</span>
-        </div>
-        <div style="padding:8px 10px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px">
-          <div>
-            <div style="color:#f8fafc;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(c.title)}</div>
-            <div style="color:#94a3b8;font-size:9.5px">${c.stars}</div>
-          </div>
-          <span style="padding:2px 8px;border-radius:6px;background:${c.status === 'Free' ? 'rgba(37,99,235,.28)' : 'rgba(255,255,255,.1)'};color:${c.status === 'Free' ? '#60a5fa' : '#cbd5e1'};font-weight:800">${c.status}</span>
-        </div>
-      </div>
-    `).join('');
-
     html += `
-      <div class="st-pico-search-layout" data-pico-store-search="1" style="display:grid;grid-template-columns:210px 1fr;gap:14px;background:#181a20;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.08);margin-bottom:12px">
-        <aside style="display:flex;flex-direction:column;gap:10px;border-right:1px solid rgba(255,255,255,.07);padding-right:12px">
-          <span style="align-self:flex-start;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10.5px;font-weight:700">← Store</span>
-          <div style="font-size:16px;font-weight:900;color:#f8fafc">Search</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:999px;border:1.5px solid #3b82f6;background:#1e222d;color:#f8fafc;font-size:11.5px">
-            <span>${escH(storeSearchQuery)}</span>
-            <span style="color:#94a3b8;font-size:11px">⊗ 🔍</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:#94a3b8">
-            <button type="button" data-store-launch="pico-explore" style="text-align:left;background:transparent;border:0;color:#cbd5e1;cursor:pointer;padding:3px 0;font-weight:600">Free My Sight · Panorama 8K</button>
-            <button type="button" data-store-launch="motion-tracker" style="text-align:left;background:transparent;border:0;color:#a3e635;cursor:pointer;padding:3px 0;font-weight:700">🦵 PICO Motion Tracker</button>
-            <button type="button" data-store-launch="spotify" style="text-align:left;background:transparent;border:0;color:#4ade80;cursor:pointer;padding:3px 0;font-weight:700">🟢 Spotify PICO 4</button>
-            <button type="button" data-store-launch="tiktok" style="text-align:left;background:transparent;border:0;color:#25F4EE;cursor:pointer;padding:3px 0;font-weight:700">♪ TikTok VR Vertical</button>
-            <button type="button" data-store-launch="phone-notifications" style="text-align:left;background:transparent;border:0;color:#facc15;cursor:pointer;padding:3px 0;font-weight:700">🔔 Notificações & Clima 27°C</button>
-          </div>
-        </aside>
-        <div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <span style="font-size:12px;font-weight:800;color:#e2e8f0">All search results for "${escH(storeSearchQuery)}"</span>
-            <div style="display:flex;gap:6px">
-              <span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10px;font-weight:700">All Genres ⌄</span>
-              <span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#cbd5e1;font-size:10px;font-weight:700">All Prices ⌄</span>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-            ${picoSearchGridHtml}
-          </div>
-        </div>
-      </div>
-
       <div class="st-quest-hero">
         <div class="st-quest-hero-copy">
-          <span class="st-quest-hero-kicker">PICO 4 ULTRA · NextVR STORE</span>
+          <span class="st-quest-hero-kicker">META QUEST · NEXTVR STORE</span>
           <h2 class="st-quest-hero-title">JOGOS E APPS EM DESTAQUE</h2>
-          <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), PICO Motion Tracker, Beat Saber VR, Hyper Dash INT, Roblox, Spotify e TikTok VR.</p>
+          <p class="st-quest-hero-sub">Gorilla Tag (${CARDBOARD_2015_LENS.model}), Beat Saber em modo VR imediato, Hyper Dash VR, Roblox com ambiente escuro e TikTok.</p>
           <div class="st-quest-hero-actions">
             <button type="button" class="st-btn st-quest-hero-cta" data-store-launch="beat-vr">Jogar Beat Saber VR</button>
             <button type="button" class="st-btn st-quest-hero-sec" data-openlib>Abrir Biblioteca</button>
@@ -3355,10 +2286,8 @@ function buildLibrary() {
   const emptyText = libFilter === 'games' ? t('libGamesEmpty')
     : libFilter === 'recent' ? t('libRecentEmpty') : t('appNoResults');
   const navButton = (id, label, glyph) => `<button class="lib-rail-btn" data-lib-nav="${id}"
-    aria-label="${escH(label)}" title="${escH(label)}" aria-pressed="${libFilter === id}">${icon(glyph)}<span class="lib-rail-lbl">${escH(label)}</span></button>`;
-  root.dataset.picoUltraLibrary = '1';
+    aria-label="${escH(label)}" title="${escH(label)}" aria-pressed="${libFilter === id}">${icon(glyph)}</button>`;
   root.innerHTML = `<aside class="lib-rail" aria-label="${escH(t('apps'))}">
-      <div class="lib-rail-brand" data-pico-lib-brand="1">PICO 4 ULTRA</div>
       ${navButton('all', t('libAll'), 'appGrid')}
       ${navButton('games', t('libGames'), 'controller')}
       ${navButton('recent', t('recents'), 'timer')}
@@ -3368,7 +2297,6 @@ function buildLibrary() {
     <section class="lib-main">
       <div class="lib-head">
         <h2 class="lib-title">${escH(t('apps'))}</h2>
-        <span class="lib-pico-badge" data-pico-lib-badge="1">PICO OS · ${list.length}</span>
         <div class="lib-searchbox">${icon('search')}
           <input class="lib-search open" data-q aria-label="${escH(t('searchApps'))}"
             placeholder="${escH(t('searchApps'))}" value="${escH(libQuery)}">
@@ -3386,13 +2314,6 @@ function buildLibrary() {
         <button class="lib-repin" data-act="pin" aria-label="${escH(t('repin'))}" title="${escH(t('repin'))}">${icon('crosshair')}</button>
       </div>
       <div class="lib-scroll">
-        <div class="lib-pico-strip" data-pico-lib-strip="1" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 12px 8px">
-          <button type="button" data-lib-pico="motion-tracker" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(132,204,22,.4);background:rgba(132,204,22,.14);color:#bef264;font-size:10.5px;font-weight:800;cursor:pointer">🦵 PICO Motion Tracker</button>
-          <button type="button" data-lib-pico="pico-explore" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(168,85,247,.4);background:rgba(168,85,247,.14);color:#e9d5ff;font-size:10.5px;font-weight:800;cursor:pointer">🧭 PICO Explore 8K</button>
-          <button type="button" data-lib-pico="spotify" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(29,185,84,.4);background:rgba(29,185,84,.14);color:#86efac;font-size:10.5px;font-weight:800;cursor:pointer">🟢 Spotify VR</button>
-          <button type="button" data-lib-pico="tiktok" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(37,244,238,.4);background:rgba(37,244,238,.12);color:#67e8f9;font-size:10.5px;font-weight:800;cursor:pointer">♪ TikTok VR</button>
-          <button type="button" data-lib-pico="phone-notifications" style="padding:4px 10px;border-radius:999px;border:1px solid rgba(250,204,21,.4);background:rgba(250,204,21,.14);color:#fde047;font-size:10.5px;font-weight:800;cursor:pointer">🔔 Notificações · 27°C</button>
-        </div>
         <div class="lib-grid">
           ${list.map(x => x.kind === 'xr' ? xrTileHtml(x)
             : x.kind === 'android' ? androidTileHtml(x.app) : appTile(x)).join('')}
@@ -3414,12 +2335,6 @@ function buildLibrary() {
     const c = s => e.target.closest(s);
     let m;
     if (c('[data-lib-close]')) { close(wins.find(w => w.id === 'library')); return; }
-    if ((m = c('[data-lib-pico]'))) {
-      const pid = m.dataset.libPico;
-      const run = LIB_ACTIONS[pid];
-      if (run) run();
-      return;
-    }
     if ((m = c('[data-lib-nav]'))) { libFilter = m.dataset.libNav; paintLibrary(); return; }
     if (c('[data-lib-curve]')) {
       const w = wins.find(x => x.id === 'library');
@@ -4169,8 +3084,8 @@ function buildFistQuickMenuDom() {
       <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-dock">
         ${icon('appGrid')}<span>Mostrar / Ocultar Dock</span>
       </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="avatar-creator">
-        ${icon('user')}<span>Criar Personagem</span>
+      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-spatial">
+        ${icon('maximize')}<span>${S.spatialLauncher ? 'Modo Dock' : 'Apps Flutuantes'}</span>
       </button>
       <button type="button" class="fist-menu-sec-btn" data-fist-act="settings">
         ${icon('settings')}<span>Ajustes</span>
@@ -4219,9 +3134,9 @@ function buildFistQuickMenuDom() {
     } else if (act === 'toggle-dock') {
       toggleSpatialAndDockFromGesture();
       close('fist-menu');
-    } else if (act === 'avatar-creator') {
+    } else if (act === 'toggle-spatial') {
       close('fist-menu');
-      openAvatarCreator();
+      setSpatialLauncherMode(!S.spatialLauncher);
     } else if (act === 'settings') {
       close('fist-menu');
       controlCenterApp();
@@ -4624,17 +3539,11 @@ on('device-status', status => {
   if (dirty) css3d.invalidate?.();
 });
 
-/* ============ dock (estilo IMG_20261025_140612.jpg: 4 tiles + divisor + 2 tiles + grade 3x3) ============ */
-// Assets mantidos para referência: ./icons/hz-browser.png ./icons/hz-store.png
+/* ============ dock (compacta, com atalho de ambiente virtual) ============ */
 const DK = Object.freeze({
-  compass: '<svg viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="11.2" fill="#ffffff"/><path d="M18 10.2L20.2 15.8L25.8 18L20.2 20.2L18 25.8L15.8 20.2L10.2 18L15.8 15.8L18 10.2Z" fill="#0b7ad8"/><circle cx="18" cy="18" r="1.8" fill="#ffffff"/></svg>',
-  store: '<svg viewBox="0 0 36 36" fill="none"><path d="M13.5 14.2V12.5a4.5 4.5 0 0 1 9 0v1.7" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/><rect x="9.5" y="13.8" width="17" height="13.2" rx="2.8" fill="#ffffff"/><circle cx="14" cy="17.2" r="1.2" fill="#ea580c"/><circle cx="22" cy="17.2" r="1.2" fill="#ea580c"/></svg>',
-  people: '<svg viewBox="0 0 36 36" fill="none"><circle cx="14.5" cy="14" r="3.4" fill="#ffffff"/><path d="M8.8 25.5c0-3.1 2.5-5.5 5.7-5.5s5.7 2.4 5.7 5.5v1H8.8v-1Z" fill="#ffffff"/><circle cx="22.2" cy="15.2" r="2.7" fill="#ffffff" fill-opacity=".92"/><path d="M19.8 25.5c.2-2.4 1.9-4.3 4.3-4.3 2.5 0 4.4 2 4.4 4.5v.8h-8.7v-1Z" fill="#ffffff" fill-opacity=".92"/></svg>',
-  camera: '<svg viewBox="0 0 36 36" fill="none"><path d="M20.2 10.5L28 17.8L20.2 25.1V20.4C14.2 20.4 10.6 22.3 8.5 26C9.4 19.6 13.1 15.2 20.2 14.8V10.5Z" fill="#ffffff"/></svg>',
-  gear: '<svg viewBox="0 0 36 36" fill="none"><rect x="9" y="10.5" width="18" height="15" rx="2.8" fill="#ffffff"/><rect x="10.8" y="12.5" width="14.4" height="3.2" rx="1" fill="#5b6ef3"/><circle cx="21.5" cy="14.1" r=".9" fill="#ffffff"/><circle cx="23.6" cy="14.1" r=".9" fill="#ffffff"/></svg>',
-  play: icon('play'),
-  shizuku: '<svg viewBox="0 0 36 36" fill="none"><path d="M9 13.2A2.2 2.2 0 0 1 11.2 11h5.1l2.1 2.2h6.4A2.2 2.2 0 0 1 27 15.4v9.4A2.2 2.2 0 0 1 24.8 27H11.2A2.2 2.2 0 0 1 9 24.8V13.2Z" fill="#ffffff"/><rect x="9" y="15.2" width="18" height="1.5" fill="#109bb8"/></svg>',
-  vision: icon('vision'),
+  compass:icon('compass'), store:icon('store'), people:icon('people'),
+  camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
+  vision:icon('vision'),
 });
 
 function toggleVirtualEnvironment() {
@@ -4651,23 +3560,22 @@ function syncVirtualEnvironmentDock() {
 
 function makeDock() {
   buildDock([
-    // Perfil abre o Criador de Personagem 3D NextVR, status do telefone e atalho do ambiente virtual.
-    { kind: 'avatar', id: 'profile', label: t('profile'),  run: openAvatarCreator },
+    // Perfil abre o menu de entrada NextVR, status do telefone e atalho do ambiente virtual.
+    { kind: 'avatar', id: 'profile', label: t('profile'),  run: openEntryMenu },
     { kind: 'status', id: 'status',  label: t('settings'), run: quickSettingsApp },
     { kind: 'tool', id: 'virtual-environment', label: t('envVirtual'), svg: DK.vision, run: toggleVirtualEnvironment },
     { kind: 'spacer' },
-    // 4 ícones à esquerda da divisória + 2 à direita + grade 3x3 (idêntico a IMG_20261025_140612.jpg)
-    { id: 'browser', win: 'browser', label: t('browser'), svg: DK.compass, bg: 'linear-gradient(180deg,#1cb0f6 0%,#0062cc 100%)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
-    { id: 'store',   win: 'store',   label: t('store'),   svg: DK.store,   bg: 'linear-gradient(180deg,#ff9c1a 0%,#e04f00 100%)', run: storeApp },
-    { id: 'discord', win: 'discord', label: 'Discord',    svg: DK.people,  bg: 'linear-gradient(180deg,#ec4899 0%,#7c3aed 100%)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
-    { id: 'gallery', win: 'gallery', label: t('gallery'), svg: DK.camera,  bg: 'linear-gradient(180deg,#fb5678 0%,#e11d48 100%)', run: gallery },
+    // apps principais com ícones Horizon OS 2.7 (v207)
+    { id: 'browser', win: 'browser', label: t('browser'), img: './icons/hz-browser.png', svg: DK.compass, bg: 'linear-gradient(145deg,#8aa7ff,#5d62d5)', run: () => webWindow('browser', t('browser'), 'https://google.com/') },
+    { id: 'store',   win: 'store',   label: t('store'),   img: './icons/hz-store.png',   svg: DK.store,   bg: 'linear-gradient(145deg,#fcd34d,#ea580c)', run: storeApp },
+    { id: 'discord', win: 'discord', label: 'Discord',    img: './icons/hz-whatsapp.png', svg: DK.people,  bg: 'linear-gradient(145deg,#4ade80,#16a34a)', run: () => webWindow('discord', 'Discord', 'https://discord.com/app') },
+    { id: 'gallery', win: 'gallery', label: t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera,  bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
     { kind: 'sep' },
-    { id: 'settings', win: 'control-center', label: t('settings'), svg: DK.gear, bg: 'linear-gradient(180deg,#a78bfa 0%,#2563eb 100%)', run: controlCenterApp },
-    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     svg: DK.play, bg: 'linear-gradient(180deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
-    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), svg: DK.shizuku, bg: 'linear-gradient(180deg,#2dd4bf 0%,#0284c7 100%)', run: shizukuWindow },
+    { id: 'settings', win: 'control-center', label: t('settings'), img: './icons/hz-settings.png', svg: DK.gear, bg: 'linear-gradient(145deg,#9ca8b8,#556170)', run: controlCenterApp },
+    { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
+    // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
+    { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
-    // Build 96: a bolinha com 10 bolinhas (3/4/3) que abre o anel de apps grandes — Android + do app.
-    { kind: 'orb', id: 'orb', label: 'Apps em anel (10)', run: openOrbMenu },
   ]);
   syncVirtualEnvironmentDock();
 }
@@ -4693,45 +3601,7 @@ function paintWindowBadge() {
 installAndroidApps();
 installJoycon();
 installXrGames();
-installNightCamera();
-
-/* Build 89 — a Dock pode receber QUALQUER app (aba 3 das configuracoes).
- *
- * A lista de apps Android vem do lado nativo (android-apps.js). Este registro entrega para a Dock
- * duas coisas: como desenhar o tile de um app Android instalado e como abrir um id qualquer —
- * catálogo (`netflix`), app Android (`app:com.whatsapp`) ou jogo interno.
- */
-const dockAndroidApps = () => androidApps()
-  .filter(app => app && app.pkg)
-  .map(app => ({
-    id: 'app:' + app.pkg,
-    label: app.label || app.pkg,
-    group: 'Android',
-    img: app.icon || '',
-    bg: 'linear-gradient(180deg,#3f3f46 0%,#18181b 100%)',
-  }));
-// Build 96 — o botão "tela perto / longe" (do anel de apps e dos Ajustes rápidos) é o mesmo do NextVR:
-// janelas e dock deslizam juntas na profundidade. A implementação vive em windows.js, que é quem
-// calcula o arco; aqui só publicamos os dois ganchos que a UI usa.
-window.nextvrScreenDepth = dir => screenDepth(dir);
-window.nextvrScreenDepthLimits = () => screenDepthLimits();
-
-window.__nextvrDockAndroidApps = dockAndroidApps;
-registerDockAndroidProvider(dockAndroidApps);
-registerDockLauncher(id => {
-  const key = String(id || '');
-  if (key.startsWith('app:')) { openApp(key.slice(4)); return true; }
-  const action = LIB_ACTIONS[key];
-  if (action) { action(); return true; }
-  return false;
-});
-
-/* Abrir/fechar um app na Dock veio da aba 3 das configuracoes: salva a escolha e redesenha a Dock. */
-on('dock-extras', () => {
-  makeDock();                 // a Dock e' reconstruida com a lista nova de apps extras
-  css3d.invalidate?.();
-});
-on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); refreshOrbIfOpen(); });
+on('appsState', () => { paintWindowBadge(); paintLibrarySoon(); });
 /**
  * PhoneXR state/library changed: repaint the library (hosted badge, runtime row) and the PhoneXR
  * settings page when it is open. The XR game mode itself is handled by xr-games.js; this side only
@@ -5040,22 +3910,6 @@ window.nextvrEnterWorkspace = rawSettings => {
 };
 on('profile-updated', () => makeDock());
 
-/* Build 90 — "a conta já ir vinculada no Discord, TikTok, Google e YouTube".
- *
- * Sem um servidor OAuth registrado (client id/secret) não existe vínculo automático de verdade: o
- * que dá para fazer com honestidade é abrir a página de login REAL do serviço, já com o e-mail do
- * perfil guardado, e marcar o serviço como vinculado na conta NextVR do shell. É isso que este
- * handler faz — nenhuma tela falsa de "login" é desenhada. */
-on('account-link', payload => {
-  // Build 92: quando o login já foi aberto no navegador do celular (Google/YouTube, que recusam
-  // WebView), não abre uma segunda janela aqui. No PC/teste — sem a ponte nativa — cai na janela.
-  if (payload?.browser) return;
-  const url = payload?.url || 'https://google.com/';
-  const titles = { discord: 'Discord', tiktok: 'TikTok', google: 'Google', youtube: 'YouTube' };
-  const title = titles[payload?.id] || 'Conta';
-  webWindow('account-' + (payload?.id || 'link'), title, url);
-});
-
 document.getElementById('btnGyro').onclick = () => startGyro();
 document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : startHands());
 
@@ -5063,7 +3917,7 @@ document.getElementById('btnHand').onclick = () => (tracking() ? stopHands() : s
 on('hands', v => { document.getElementById('dotHand').classList.toggle('on', !!v); });
 on('gyro', v => { document.getElementById('dotGyro').classList.toggle('on', !!v); });
 
-// Menu de entrada NextVR v2.1.0 abre sempre ao iniciar o app/jogo.
+// Menu de entrada NextVR v2.0.0 abre sempre ao iniciar o app/jogo.
 makeDock();
 const bootOnboarding = new URLSearchParams(location.search).get('onboarding') ||
   (location.hash.includes('onboarding=language') ? 'language' :

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT, ENTRY_VERIFIED_NAMES, isVerifiedProfileName } from '../web/src/entry-data.js';
+import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT } from '../web/src/entry-data.js';
 
 const EXPECTED_ABOUT_TEXT = `NextVR — realidade aumentada
 
@@ -14,21 +14,8 @@ Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, se
 NextVR — Mais que um app, uma nova forma de ver.`;
 
 test('entry menu constants match the exact collaborators order and about text', () => {
-  // Build 89: o usuario trocou a NanyGata pelo Apache ("troca o nome nanygata pelo Apache").
-  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
-  assert.ok(ENTRY_COLLABORATORS.includes('Apache'), 'Apache replaced NanyGata in ENTRY_COLLABORATORS');
-  assert.ok(!ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is gone');
-  // O "(V)" era só a representação do selo; a bio agora é só o texto.
-  assert.equal(ENTRY_COLLABORATOR_BIOS.Apache,
-    'o contribuidor mais aurudo desse planeta majestoso');
-  assert.ok(!ENTRY_COLLABORATOR_BIOS.Apache.includes('(V)'), 'the (V) placeholder is gone');
-  // O verificado e' de TODOS os colaboradores (correcao do usuario: "ter em todos da colaboracao").
-  assert.deepEqual([...ENTRY_VERIFIED_NAMES], ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
-  for (const name of ENTRY_COLLABORATORS) {
-    assert.ok(isVerifiedProfileName(name), `${name} grants the verified badge`);
-    assert.ok(isVerifiedProfileName('  ' + name.toUpperCase() + ' '), `${name} ignores case and spaces`);
-  }
-  assert.ok(!isVerifiedProfileName('OutroNome'), 'a name outside the collaborators gets nothing');
+  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
+  assert.ok(ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is restored in ENTRY_COLLABORATORS');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
   assert.equal(ENTRY_COLLABORATOR_BIOS.JocaVR, 'o portador de jogos mais importante do planeta aurudo 67');
@@ -38,7 +25,7 @@ test('entry menu constants match the exact collaborators order and about text', 
   assert.equal(ENTRY_ABOUT_TEXT, EXPECTED_ABOUT_TEXT);
 });
 
-test('entry menu source and bundle include all six cards, hand style toggle, collaborators and about text', () => {
+test('entry menu source and bundle include all five cards, hand style toggle, collaborators and about text', () => {
   const entryMenuSrc = readFileSync('web/src/entry-menu.js', 'utf8') + '\n' + readFileSync('web/src/entry-data.js', 'utf8');
   const appsSrc = readFileSync('web/src/apps.js', 'utf8');
   const bundleSrc = readFileSync('nextvr-android/src/main/assets/ui/app.js', 'utf8');
@@ -51,19 +38,17 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     'collaborators are stacked vertically one below another');
 
   for (const label of ['Iniciar', 'Configurações', 'Hand tracking', 'Colaboradores', 'Sobre']) {
-    // Key (Build 90) é a sexta: `data-entry-act="license"`.
-    assert.ok(entryMenuSrc.includes('data-entry-act="license"'), 'the Key card is in the source');
     assert.ok(entryMenuSrc.includes(label), `entry-menu.js includes ${label}`);
   }
   for (const token of ['Iniciar', 'Hand tracking', 'Colaboradores', 'Sobre']) {
     assert.ok(bundleSrc.includes(token), `bundled app.js includes ${token}`);
   }
 
-  for (const name of ['NeyVR', 'Faylan', 'Apache', 'JocaVR']) {
+  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']) {
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
-  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant the red verified badge for the collaborators names');
+  assert.ok(entryMenuSrc.includes('isVerifiedProfileName'), 'entry-menu.js and entry-data.js grant red verified badge for NeyVR, Faylan, NanyGata, and JocaVR');
   assert.ok(entryMenuSrc.includes('data-entry-dof="3dof"') && entryMenuSrc.includes('data-entry-dof="6dof"'),
     'entry-menu.js includes 3DoF and 6DoF options in Settings');
   assert.ok(indexHtml.includes('nextvrClickPop') && indexHtml.includes('nextvrChoosePulse') && indexHtml.includes('nextvr-click-ripple'),
@@ -201,7 +186,6 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     'Build 55 includes 6DoF World Lock and zero-allocation optical flow, zero-delay hand tracking, and 1200x800 1:1 antialiased ACESFilmic VR games'
   );
   const mrPistolSrc = readFileSync('web/src/mr-pistol-game.js', 'utf8');
-  const mrPaint3dSrc = readFileSync('web/src/mr-paint-3d.js', 'utf8');
   const entryDataSrc = readFileSync('web/src/entry-data.js', 'utf8');
   assert.ok(
     mrPistolSrc.includes('openMrPistolGame') &&
@@ -250,108 +234,8 @@ test('entry menu source and bundle include all six cards, hand style toggle, col
     handRendererKt.includes('if (mrGameMode && handIndex > 0) continue') &&
     activitySrc.includes('toggleInternalRecording') &&
     activitySrc.includes('setSingleHandMode') &&
-    activitySrc.includes('setBwCamera') &&
-    rendererSrc.includes('uBwCamera') &&
-    coreSrc.includes('setBwCamera') &&
-    entryMenuSrc.includes('data-entry-bw-cam') &&
-    windowsSrc.includes('win-pico-foot') &&
-    windowsSrc.includes('win-pico-grab-bar') &&
-    windowsSrc.includes('picoProWindow') &&
-    windowsSrc.includes('dock-pico-status') &&
-    appsSrc.includes('openAvatarCreator') &&
-    appsSrc.includes('openPicoMotionTracker') &&
-    appsSrc.includes('openPicoExplore') &&
-    appsSrc.includes('openTikTokVr') &&
-    appsSrc.includes('openSpotifyVr') &&
-    appsSrc.includes('openPhoneNotifications') &&
-    appsSrc.includes('PICO_BROWSER_SHORTCUTS') &&
-    appsSrc.includes('PICO_STORE_SEARCH_CARDS') &&
-    entryMenuSrc.includes('data-character-creator="1"') &&
-    entryMenuSrc.includes('data-pico4pro-emblem="1"') &&
-    entryMenuSrc.includes('data-pico4pro-callout="1"') &&
-    entryMenuSrc.includes('data-p5-sys-banner="1"') &&
-    entryMenuSrc.includes('entry-p5-wedge-wrap') &&
-    entryMenuSrc.includes('entry-p5-jagged-backing') &&
-    entryMenuSrc.includes('PICO 4 PRO') &&
-    !entryMenuSrc.includes('data-entry-spatial') &&
-    !entryMenuSrc.includes('Bolinha Mão Dir.') &&
-    handRendererKt.includes('WRIST_EXTEND=.06f') &&
-    readFileSync('web/src/hands.js', 'utf8').includes('stabilizeRayAimDuringPinch') &&
-    readFileSync('web/src/windows.js', 'utf8').includes('clickedSync') &&
-    readFileSync('web/src/windows.js', 'utf8').includes("S.pinchOnApp !== 'force-legacy'") &&
-    phoneXrHandsKt.includes('openAimX') &&
-    phoneXrHandsKt.includes('twoHandSides') &&
-    phoneXrHandsKt.includes('appendFinite(sb, h.shape.pinchGap)') &&
-    activitySrc.includes('frameGestureSignature') &&
-    readFileSync('web/src/hands.js', 'utf8').includes('_handPerfStats') &&
-    readFileSync('web/src/character-creator.js', 'utf8').includes('project3D') &&
-    readFileSync('web/src/character-creator.js', 'utf8').includes('pushCapsule3D') &&
-    readFileSync('web/src/character-creator.js', 'utf8').includes('sweepBody') &&
-    !handRendererKt.includes('drawPicoController3D') &&
-    !handRendererKt.includes('markerControllerMode') &&
-    handRendererKt.includes('discCos18') &&
-    handRendererKt.includes('ringCos') &&
-    handRendererKt.includes('beamMidBell12') &&
-    !windowsSrc.includes('nextvrMarkerRayClick') &&
-    windowsSrc.includes('const _rayTargetsList = []') &&
-    !activitySrc.includes('setMarkerTracking') &&
-    !activitySrc.includes('window.nextvrMarker(') &&
-    !appsSrc.includes('openMarkerCalibration') &&
-    appsSrc.includes('picoControlCenter') &&
-    appsSrc.includes('picoCcDevicesHero') &&
-    appsSrc.includes('data-mr-left-palette-btn="1"') &&
-    appsSrc.includes('data-mr-palette-win="1"') &&
-    appsSrc.includes("'Violeta'") &&
-    appsSrc.includes("'Cinza'") &&
-    // paintdrawer é 3D de verdade: traços InstancedMesh presos no espaço (não pintura 2D no canvas).
-    mrPaint3dSrc.includes('InstancedMesh') &&
-    mrPaint3dSrc.includes('intersectObjects') &&
-    mrPaint3dSrc.includes('viewPointFromTangent') &&
-    // Ancoragem correta: view = q(t)⁻¹ · q(0) · paint (a versão anterior usava a matriz trocada)
-    mrPaint3dSrc.includes('_qInv.copy(q).invert()') &&
-    mrPaint3dSrc.includes('paintAnchorQuaternion(q, P.q0, P.content.quaternion)') &&
-    readFileSync('web/src/mr-paint-math.js', 'utf8').includes('export function paintAnchorQuaternion') &&
-    mrPaint3dSrc.includes('makeScreenFilter') &&
-    mrPaint3dSrc.includes('mrPaintSetBwCamera') &&
-    mrPaint3dSrc.includes('mrPaintSetWorldLock') &&
-    mrPaint3dSrc.includes('depthTarget') &&
-    mrPaint3dSrc.includes('function eraseAt(') &&
-    mrPaint3dSrc.includes('localStorage') &&
-    mrPaint3dSrc.includes('renderStereo') &&
-    mrPaint3dSrc.includes('screenSpan()') &&
-    appsSrc.includes('openMrPaint3d') &&
-    entryDataSrc.includes('paint-mr-3d') &&
-    !appsSrc.includes('destination-out') &&
-    sixdofSrc.includes('depth: 1.85') &&
-    sixdofSrc.includes('setWorldLock') &&
-    sixdofSrc.includes('agreeCount') &&
-    coreSrc.includes('worldLock: 1') &&
-    coreSrc.includes('setWorldLock') &&
-    appsSrc.includes('settingsWorldLock') &&
-    appsSrc.includes('settingsCamera') &&
-    appsSrc.includes('data-hd-camera') &&
-    appsSrc.includes('data-hd-worldlock') &&
-    // Ler 0/1 do JSON: sem isso a câmera voltava ao P&B e o World Lock religava a cada sessão.
-    activitySrc.includes('jsonFlag(o,"bwCamera",true)') &&
-    activitySrc.includes('jsonFlag(o,"worldLock",true)') &&
-    entryDataSrc.includes('worldlock-camera-paint') &&
-    coreSrc.includes('bwCamera: 1') &&
-    appsSrc.includes('data-pico-lib-brand="1"') &&
-    appsSrc.includes('data-pico-lib-badge="1"') &&
-    !indexHtml.includes('html[data-cinema360="1"] body::before') &&
-    !appsSrc.includes('data-exp-pano') &&
-    !appsSrc.includes('envSection') &&
-    !entryMenuSrc.includes('data-entry-marker-tracking') &&
-    indexHtml.includes('<title>NextVR</title>') &&
-    appsSrc.includes('mr-paint-overlay') &&
-    appsSrc.includes('closeHandDrawGame') &&
-    !appsSrc.includes("open({ id: 'hand-draw'") &&
-    readFileSync('nextvr-android/build.gradle', 'utf8').includes('applicationId "com.atmoxr.app"') &&
-    Number((readFileSync('nextvr-android/build.gradle', 'utf8').match(/versionCode (\d+)/) || [])[1]) >= 96 &&
-    readFileSync('.github/workflows/android.yml', 'utf8').includes('dist/NextVR.apk') &&
-    handRendererKt.includes('virtualEnv && !glove') &&
-    handRendererKt.includes('.024f,.0175f'),
-    'Build 82 (NextVR) fixes the MR paint 3D anchoring (inverse head rotation), adds One-Euro smoothing + curved strokes + direction-based eraser + depth slider, and adds 6DoF World Lock plus a P&B/color camera switch in-game and in the PICO 4 Ultra panel'
+    handRendererKt.includes('virtualEnv && !glove'),
+    'Build 64 includes paintdrawer logo, all apps ready without forced installation, rock-solid 6DoF without lateral/forward drift, ultra-zero-delay 2-hand tracking, single-hand ShootTheDie, invisible perimeter grab arc on floating windows, and VRFS without ball reset'
   );
 });
 
@@ -402,40 +286,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         mediaVolumePercent() { return 70; },
         brightnessPercent() { return 75; },
         startVrSession(json) { window.__startedVrWith = json; },
-        // Build 90: a Key já está ativada neste "celular" de teste, então o Iniciar libera.
-        licenseStatus() { return JSON.stringify({ active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 }); },
-        activateKey(key) { return JSON.stringify({ ok: true, reason: 'ja-ativa', status: { active: true, key: 'AAAA••••ZZZZ', device: 'CD-0001', since: 1760000000000, hasKey: true, slots: 1 } }); },
-        deviceCode() { return 'CD-0001'; },
-        // Build 94: as contas Google que estão neste "celular" de teste (AccountManager do Android).
-        googleAccounts() {
-          return JSON.stringify({ permission: 'granted', accounts: [
-            { email: 'levajjooi@gmail.com' }, { email: 'adarcos87@gmail.com' }] });
-        },
-        googleChooseAccount() { window.__googleChooseCalls = (window.__googleChooseCalls || 0) + 1; },
       };
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForSelector('.entry-menu-root');
 
-    // 0. Build 93/94: o cartão de login com Google aparece ao entrar no app e mostra as contas do
-    //    celular (como no Kwai). Aqui a primeira conta é escolhida e conecta o perfil.
-    assert.equal(await page.locator('[data-entry-signin] [data-entry-google-signin]').count(), 1,
-      'o login com Google aparece ao entrar no app');
-    assert.equal(await page.locator('[data-entry-signin] [data-entry-google-account]').count(), 2,
-      'o cartão lista as contas Google do celular');
-    assert.match(await page.locator('[data-entry-signin]').innerText(), /Escolha uma conta[\s\S]*para continuar no NextVR/,
-      'mesma tela do Kwai/TikTok');
-    assert.match(await page.locator('[data-entry-google-account]').first().innerText(), /levajjooi@gmail\.com/,
-      'o e-mail aparece inteiro na linha da conta');
-    await page.evaluate(() => document.querySelector('[data-entry-google-account]').click());
-    await page.waitForSelector('[data-entry-signin]', { state: 'detached' });
-    const signedInState = await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')));
-    assert.equal(signedInState.accountEmail, 'levajjooi@gmail.com', 'a conta escolhida fica no perfil');
-    assert.equal(signedInState.googleSignedIn, 1, 'e a sessão Google fica marcada');
-    assert.ok(String(signedInState.accountLinks || '').includes('google'), 'o Google fica vinculado');
-
-    // 1. Verify initial state: 6 cards visible (Key entrou na Build 90), dock hidden
-    assert.equal(await page.locator('.entry-card').count(), 6);
+    // 1. Verify initial state: 5 cards visible, dock hidden
+    assert.equal(await page.locator('.entry-card').count(), 5);
     assert.equal(await page.locator('[data-hand-style-label]').innerText(), 'Mão desenhada');
 
     // 2. Toggle Hand tracking style: Mão desenhada -> Invisível -> Mão desenhada
@@ -449,7 +306,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvr.v1')).handDraw), 1);
     assert.equal(await page.evaluate(() => window.__handVisualCalls.at(-1)), true);
 
-    // 3. Colaboradores: NeyVR, Faylan, Apache (cinza, com selo vermelho), JocaVR empilhados na vertical
+    // 3. Colaboradores: NeyVR, Faylan, colaboradores do nextVR (em azul), JocaVR stacked vertically with red TikTok verified badge and bios after (V)
     await page.evaluate(() => document.querySelector('[data-entry-act="collaborators"]').click());
     const collabData = await page.evaluate(() => {
       const items = [...document.querySelectorAll('[data-collaborator-name]')];
@@ -462,17 +319,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         color: getComputedStyle(el.querySelector('.entry-collab-name')).color,
       }));
     });
-    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'Apache', 'JocaVR']);
-    // Todos os colaboradores tem o selo vermelho (igual sempre foi), inclusive o Apache.
-    assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has the red verified badge');
+    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
+    assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has a red TikTok-style verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');
     assert.equal(collabData.find(c => c.name === 'JocaVR')?.bio, 'o portador de jogos mais importante do planeta aurudo 67');
-    assert.equal(collabData.find(c => c.name === 'Apache')?.isBlue, false, 'Apache is not blue any more');
-    assert.equal(collabData.find(c => c.name === 'Apache')?.color, collabData.find(c => c.name === 'NeyVR')?.color,
-      'Apache uses the same gray as the other names');
-    assert.equal(collabData.find(c => c.name === 'Apache')?.bio,
-      'o contribuidor mais aurudo desse planeta majestoso');
+    assert.equal(collabData.find(c => c.name === 'NanyGata')?.isBlue, true, 'NanyGata is styled in blue');
     for (let i = 1; i < collabData.length; i++) {
       assert.ok(collabData[i].top > collabData[i - 1].top, `${collabData[i].name} must be below ${collabData[i - 1].name}`);
     }
@@ -490,9 +342,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5. Configurações básicas (2 Abas com arrasto lateral: Aba 1 · Básico + Aba 2 · Hand & Tela)
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
-    // Build 89: as abas 1 e 2 continuam com as mesmas celulas, e a aba 3 acrescenta as suas.
-    assert.ok(await page.locator('.entry-bento-cell').count() >= 10, 'the settings grid keeps its cells');
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 3, '2D Initial Menu settings has 3 tabs (Build 89 added the dock apps tab)');
+    assert.equal(await page.locator('.entry-bento-cell').count(), 10);
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 2, '2D Initial Menu settings has 2 tabs');
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
     assert.equal(await page.locator('[data-entry-lang="ru"]').count(), 1, 'Russian language option (RU) replaces French');
     assert.equal(await page.locator('[data-entry-lang="fr"]').count(), 0, 'French language option (FR) is removed');
@@ -514,7 +365,6 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5b. Login / Perfil: definir nome e foto de perfil
     await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
     assert.equal(await page.locator('[data-entry-panel="profile"] .entry-subpanel-title').innerText(), 'Login / Perfil NextVR');
-    // O selo do perfil vale para qualquer nome da colaboracao.
     await page.fill('[data-profile-name-input]', 'NeyVR');
     await page.evaluate(() => document.querySelector('[data-profile-preset]').click());
     await page.evaluate(() => document.querySelector('[data-profile-save]').click());
@@ -523,22 +373,6 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const b = document.querySelector('[data-profile-verified="1"]');
       return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
     }), true, 'Profile displays red verified badge for NeyVR');
-    // "quando botar o nome Apache aparece um verificado" — sem precisar salvar.
-    await page.evaluate(() => document.querySelector('[data-entry-act="profile"]').click());
-    await page.fill('[data-profile-name-input]', 'Apache');
-    assert.equal(await page.evaluate(() => {
-      const b = document.querySelector('[data-profile-verified="1"]');
-      return !!b && !b.hidden && !!b.querySelector('circle[fill="#fe2c55"]');
-    }), true, 'Typing Apache in the profile field shows the red verified badge');
-    // E o mesmo vale para os outros colaboradores.
-    await page.fill('[data-profile-name-input]', 'JocaVR');
-    assert.equal(await page.evaluate(() => {
-      const b = document.querySelector('[data-profile-verified="1"]');
-      return !!b && !b.hidden;
-    }), true, 'Typing JocaVR also shows the badge');
-    await page.fill('[data-profile-name-input]', 'Apache');
-    await page.evaluate(() => document.querySelector('[data-profile-save]').click());
-    assert.equal(await page.locator('[data-profile-display-name]').innerText(), 'Apache');
 
     // 5c. Bateria sincronizada em tempo real com o celular
     await page.evaluate(() => window.nextvrBattery({ level: 0.42, charging: true }));
@@ -754,13 +588,6 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // - Avança a posição da câmara em dois frames consecutivos concordantes quando em movimento (moving: true)
     // - Mantém pos.y === 0 mesmo ao aproximar/afastar da Dock (sem subir para o céu) e marca data-backface="1" ao atravessar a Dock
     const sixDofCheck = await page.evaluate(async () => {
-      // World Lock é o padrão: nada de translação, mesmo com fluxo radial a mandar andar.
-      window.SixDof.setWorldLock(true);
-      window.SixDof.reset();
-      for (let i = 0; i < 10; i++) window.nextvrSixDof({ sc: 0.05, gx: 0, gy: 0, moving: true });
-      const lockedDrift = window.SixDof.pos.length();
-      // Agora o modo 6DoF livre (World Lock desligado), que é onde andar é esperado.
-      window.SixDof.setWorldLock(false);
       window.SixDof.reset();
       for (let i = 0; i < 8; i++) {
         window.nextvrSixDof({ sc: 0.05, gx: 0, gy: 0, moving: false });
@@ -775,9 +602,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const noCoastingDrift = window.SixDof.pos.distanceTo(posBeforeIdle) === 0;
       // Aproxima, afasta e aproxima novamente até atravessar a Dock (-1.24 m)
       for (let i = 0; i < 6; i++) window.nextvrSixDof({ sc: -0.04, gx: 0, gy: 0, moving: true });
-      // Passos validados são limitados a 5 cm (≈0,75 m/s a 15 Hz), então precisa de mais
-      // amostras do que o antigo passo de 15,5 cm para atravessar a Dock.
-      for (let i = 0; i < 64; i++) window.nextvrSixDof({ sc: 0.06, gx: 0, gy: 0, moving: true });
+      for (let i = 0; i < 32; i++) window.nextvrSixDof({ sc: 0.06, gx: 0, gy: 0, moving: true });
       for (let i = 0; i < 8; i++) window.SixDof.update(performance.now() + i * 30, 0.05);
       await new Promise(r => setTimeout(r, 50));
       const posYAfterCycles = window.SixDof.pos.y;
@@ -805,10 +630,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.SixDof.processGray(g0, true);
       const flowSubpixel = window.SixDof.processGray(g1, true);
       window.SixDof.reset();
-      window.SixDof.setWorldLock(true);
-      return { lockedDrift, stationaryDrift, afterFirst, afterSecond, noCoastingDrift, posYAfterCycles, outYAfterCycles, dockBackfaceWhenBehind, dockBackfaceWhenFront, afterReset, subpixelSc: flowSubpixel?.sc ?? 0 };
+      return { stationaryDrift, afterFirst, afterSecond, noCoastingDrift, posYAfterCycles, outYAfterCycles, dockBackfaceWhenBehind, dockBackfaceWhenFront, afterReset, subpixelSc: flowSubpixel?.sc ?? 0 };
     });
-    assert.equal(sixDofCheck.lockedDrift, 0, 'World Lock (padrão) mantém a translação 6DoF congelada: o mundo não vai para a frente nem para os lados sozinho');
     assert.equal(sixDofCheck.stationaryDrift, 0, '6DoF não anda para a frente sozinho quando o utilizador está parado (moving: false)');
     assert.equal(sixDofCheck.afterFirst, 0, '6DoF Falso ignora medição isolada de um único frame');
     assert.ok(sixDofCheck.afterSecond > 0.03, '6DoF Falso avança a posição da câmara quando dois frames seguidos concordam');
@@ -1319,33 +1142,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.closeMrPistolGame?.();
       const closedCleanly = !document.getElementById('mr-pistol-overlay');
 
-      // Testa também o Jogo de Desenho MR Independente (openHandDrawGame, tipo ShootTheDie sem ser janela flutuante)
+      // Testa também o Jogo de Desenho VR em Tela Branca (openHandDrawGame)
       window.nextvrOpenHandDrawGame?.();
-      const drawWin = document.getElementById('mr-paint-overlay');
-      const noFloatingWinShell = !document.querySelector('.win-shell[data-window-id="hand-draw"]');
-      const dockEl = document.querySelector('.dock');
-      const dockHiddenDuringMrPaint = Boolean(dockEl?.hidden || dockEl?.dataset?.hidden === '1' || dockEl?.style?.display === 'none');
+      const drawWin = document.querySelector('.win-shell[data-window-id="hand-draw"]');
       const drawCanvas = drawWin?.querySelector('[data-hand-draw-canvas="1"]');
-      const leftPalBtn = drawWin?.querySelector('[data-mr-left-palette-btn="1"]');
-      const palWin = drawWin?.querySelector('[data-mr-palette-win="1"]');
-      const palInitiallyHidden = Boolean(palWin?.hidden);
-      leftPalBtn?.click();
-      const palOpenedByLeftBtn = Boolean(palWin && !palWin.hidden);
-      const palColorsCount = drawWin?.querySelectorAll('[data-hd-color]')?.length ?? 0;
       const strokesAfterDraw = window.nextvrHandDrawStroke?.(120, 120, 320, 260, '#ef4444', 10) ?? 0;
-      const mrPaintEngineState = window.nextvrMrPaint3d?.state?.() || null;
-      const mrPaintExtras = {
-        camHook: typeof window.nextvrMrPaintCamera === 'function',
-        lockHook: typeof window.nextvrMrPaintWorldLock === 'function',
-        depthHook: typeof window.nextvrMrPaintDepth === 'function',
-        camToggle: Boolean(drawWin?.querySelector('[data-hd-camera="1"]')),
-        lockToggle: Boolean(drawWin?.querySelector('[data-hd-worldlock="1"]')),
-        depthSlider: Boolean(drawWin?.querySelector('[data-hd-depth-slider]')),
-        worldLockDefault: window.nextvrMrPaint3d?.state?.().worldLock === true,
-        bwCameraDefault: window.nextvrMrPaint3d?.state?.().bwCamera === true,
-      };
       drawWin?.querySelector('[data-hd-exit]')?.click();
-      const drawClosed = !document.getElementById('mr-paint-overlay') && !document.querySelector('.win-shell[data-window-id="hand-draw"]');
+      const drawClosed = !document.querySelector('.win-shell[data-window-id="hand-draw"]');
 
       return {
         dockBat64,
@@ -1373,35 +1176,13 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         activeAfterReset,
         closedCleanly,
         hasDrawGame: Boolean(drawWin && drawCanvas),
-        noFloatingWinShell,
-        dockHiddenDuringMrPaint,
-        palInitiallyHidden,
-        palOpenedByLeftBtn,
-        palColorsCount,
         strokesAfterDraw,
-        mrPaintEngineState,
-        mrPaintExtras,
         drawClosed,
       };
     });
-    assert.equal(build56Check.hasDrawGame, true, 'openHandDrawGame opens the independent #mr-paint-overlay MR drawing game');
-    assert.equal(build56Check.noFloatingWinShell, true, 'paintdrawer is an independent MR game like ShootTheDie, NOT a floating window');
-    assert.equal(build56Check.dockHiddenDuringMrPaint, true, 'paintdrawer hides the Dock while active in MR');
-    assert.equal(build56Check.palInitiallyHidden, true, 'Floating palette starts closed until left hand Paleta button is clicked');
-    assert.equal(build56Check.palOpenedByLeftBtn, true, 'Left hand Paleta button opens the floating palette');
-    assert.equal(build56Check.palColorsCount, 10, 'Floating palette has all 10 required colors');
-    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws a 3D stroke in MR');
-    assert.ok(build56Check.mrPaintEngineState && build56Check.mrPaintEngineState.points >= 6,
-      'the MR stroke is a real 3D object (multiple world-space points), not a 2D canvas line');
-    assert.ok(build56Check.mrPaintEngineState && build56Check.mrPaintEngineState.active === true,
-      'the 3D paint engine keeps running while the independent MR mode is open');
-    assert.equal(build56Check.mrPaintExtras.camHook, true, 'MR paint exposes the P&B/color camera bridge');
-    assert.equal(build56Check.mrPaintExtras.lockHook, true, 'MR paint exposes the World Lock bridge');
-    assert.equal(build56Check.mrPaintExtras.depthHook, true, 'MR paint exposes the drawing-distance bridge');
-    assert.equal(build56Check.mrPaintExtras.camToggle && build56Check.mrPaintExtras.lockToggle && build56Check.mrPaintExtras.depthSlider,
-      true, 'MR paint palette carries camera, World Lock and distance controls');
-    assert.equal(build56Check.mrPaintExtras.worldLockDefault, true, 'World Lock is ON by default in the MR paint game');
-    assert.equal(build56Check.drawClosed, true, 'Independent MR drawing game closes cleanly');
+    assert.equal(build56Check.hasDrawGame, true, 'openHandDrawGame opens the white-canvas Hand Tracking drawing game');
+    assert.equal(build56Check.strokesAfterDraw, 1, 'nextvrHandDrawStroke draws on the white canvas');
+    assert.equal(build56Check.drawClosed, true, 'Hand Tracking drawing game closes cleanly');
     assert.equal(build56Check.dockBat64, '64%', 'Battery sync updates dock to 64%');
     assert.equal(build56Check.dockBat88, '88%', 'Battery sync updates dock to 88% (never stuck at 71%)');
     assert.equal(build56Check.hasOverlay, true, 'openMrPistolGame mounts #mr-pistol-overlay');

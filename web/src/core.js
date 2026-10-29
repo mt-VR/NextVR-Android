@@ -18,34 +18,18 @@ const DEF = {
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
   dockSize: 1, dockDist: 1, dockColor: 'default', dockApps: 'browser,youtube,gallery,env,settings,menu',
-  // Build 89: apps extras escolhidos na aba 3 das configuracoes ("pode ficar gigante"). Lista de
-  // ids do catalogo da Dock e/ou `app:<pacote>` de um app Android instalado.
-  dockExtraApps: '',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   singleHandMode: 'both',
-  mrDim: 0, bwCamera: 1,
-  // Camera noturna (Build 89): 'auto' liga sozinha quando o ambiente escurece; 'on'/'off' fixam.
-  nightCamera: 'auto',
-  // Lanterna (Build 89): sem luz nenhuma o celular acende o flash; quando a luz volta, apaga.
-  torchAuto: 1,
+  mrDim: 0,
   sixdof: 1, lateLatch: 0,
-  // World Lock (padrão): o mundo fica preso no lugar e só a cabeça gira — zero deriva do 6DoF.
-  worldLock: 1,
   gorillaInstalled: 0,
   profileName: '', profileAvatar: '',
-  // Build 90: conta NextVR (e-mail do perfil) e os servicos vinculados (lista por virgula).
-  accountEmail: '',
-  googleSignedIn: 0, accountLinks: '',
 };
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
-let S = { ...DEF, ...saved, spatialLauncher: 0 };
-if (!S.bwCameraDefaultV1) {
-  S.bwCamera = 1;
-  S.bwCameraDefaultV1 = 1;
-}
+let S = { ...DEF, ...saved };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
 if (!S.sunsetDefaultVersion) {
@@ -642,43 +626,6 @@ export function setMrDim(enabled) {
 if (typeof document !== 'undefined' && S.mrDim) {
   document.documentElement.dataset.mrDim = '1';
   window.NativeXR?.setMrDim?.(true);
-}
-
-/** Liga/desliga a câmera passthrough em Preto e Branco estilo Meta Quest 2 (só a câmera fica P&B, janelas e dock continuam coloridas). */
-export function setBwCamera(enabled) {
-  S.bwCamera = enabled ? 1 : 0;
-  save();
-  if (typeof document !== 'undefined') {
-    if (S.bwCamera) document.documentElement.dataset.bwCamera = '1';
-    else delete document.documentElement.dataset.bwCamera;
-  }
-  window.NativeXR?.setBwCamera?.(!!S.bwCamera);
-  emit('bw-camera', S.bwCamera);
-}
-if (typeof document !== 'undefined' && S.bwCamera) {
-  document.documentElement.dataset.bwCamera = '1';
-  window.NativeXR?.setBwCamera?.(true);
-}
-
-/**
- * World Lock: trava a translação do mundo no ponto atual (o 6DoF para de "andar sozinho").
- * Desligado, o 6DoF por fluxo ótico volta com os gates anti-deriva do `sixdof.js`.
- */
-export function setWorldLock(enabled) {
-  S.worldLock = enabled ? 1 : 0;
-  save();
-  SixDof.setWorldLock(!!S.worldLock);
-  window.NativeXR?.setWorldLock?.(!!S.worldLock);
-  emit('world-lock', S.worldLock);
-  return S.worldLock;
-}
-if (typeof window !== 'undefined') {
-  window.nextvrSetWorldLock = setWorldLock;
-  SixDof.setWorldLock(S.worldLock !== 0);
-  window.NativeXR?.setWorldLock?.(S.worldLock !== 0);
-}
-if (typeof window !== 'undefined') {
-  window.nextvrSetBwCamera = setBwCamera;
 }
 
 /* ============================ giroscópio ============================ */

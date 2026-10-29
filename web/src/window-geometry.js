@@ -10,12 +10,7 @@ export const WINDOW_LIMITS = Object.freeze({
   motionDeadZone: .006,
   maxMotionStep: .14,
   minResize: .72,
-  // Build 89: "deixa o negocio de aumentar o tamanho das janelinhas flutuantes ate 300%".
-  // 3.00 = 300% do tamanho base da janela, o suficiente para assistir video/filme de longe.
-  maxResize: 3.00,
-  // Folga vertical usada pelo limite de redimensionamento: sem ela o teto de 300% nunca seria
-  // alcancado (a janela bateria na borda de cima/baixo antes), que era o bug do build 82.
-  resizeOverscan: .60,
+  maxResize: 1.40,
 });
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -126,11 +121,8 @@ export function clampResize(value, maximum = WINDOW_LIMITS.maxResize) {
 /** Limita o tamanho sem deslocar o centro: a borda é que para ao chegar ao limite vertical. */
 export function maxResizeAtHeight(centerY, baseHalfHeight, eye = 1.55) {
   const half = Math.max(1e-5, finite(baseHalfHeight));
-  // A faixa vertical ganha a folga de `resizeOverscan` dos dois lados: a janela pode passar um
-  // pouco da borda enquanto cresce, senao o teto de 300% jamais seria alcancavel.
-  const slack = WINDOW_LIMITS.resizeOverscan;
-  const available = Math.min(centerY - (eye + WINDOW_LIMITS.lowerEdgeFromEye - slack),
-    eye + WINDOW_LIMITS.upperEdgeFromEye + slack - centerY);
+  const available = Math.min(centerY - (eye + WINDOW_LIMITS.lowerEdgeFromEye),
+    eye + WINDOW_LIMITS.upperEdgeFromEye - centerY);
   return clampResize(available / half);
 }
 

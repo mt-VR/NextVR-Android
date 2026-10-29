@@ -1,8 +1,6 @@
 package com.nextvr.app;
 
 import android.Manifest;
-import android.accounts.Account;
-import android.accounts.AccountManager;
 import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -74,8 +72,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile SpatialRenderer renderer;
     private final Handler main=new Handler(Looper.getMainLooper());
     private PassthroughCamera camera;
-    /** Chaves de ativação (Build 90). Ver License.java. */
-    private License license;
     private WebSurface shell;
     private final Map<String,WebSurface> browsers=new HashMap<>();
     /** Campos que aceitam digitacao. Botoes e os controles nao textuais ficam de fora de proposito:
@@ -142,8 +138,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile long lastWalkStepMs=0L;
     private volatile float gyroRate=0f;
     private volatile boolean sixDofEnabled=true;
-    // World Lock (padrão): sem translação. Só quando o usuário desliga o lock o fluxo ótico move.
-    private volatile boolean sixDofWalk=false;
     private volatile boolean sentZeroSixDof=false;
     private volatile boolean gameHandMode=false;
     private InternalEyeRecorder internalRecorder;
@@ -165,22 +159,22 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     // Usa exclusivamente o impacto escalar invariante à rotação da cabeça (|mag - gravMag|):
                     // rodar a cabeça NÃO altera a magnitude da gravidade, impedindo que o 6DoF ande sozinho para os lados ou para a frente.
                     float stepImpact=Math.abs(mag-gravMag);
-                    if(stepImpact>0.10f && gyroRate<1.35f) {
-                        walkEnergy=Math.min(4f, walkEnergy*0.88f + stepImpact*1.75f);
-                        if(walkEnergy>0.08f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(stepImpact>0.22f && gyroRate<0.85f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.86f + stepImpact*1.35f);
+                        if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                     } else if(!hasLinearAccel) {
-                        walkEnergy*=0.86f;
+                        walkEnergy*=0.84f;
                     }
                 }
             } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
                 hasLinearAccel=true;
                 float lx=event.values[0], ly=event.values[1], lz=event.values[2];
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
-                if(lmag>0.11f && gyroRate<1.35f) {
-                    walkEnergy=Math.min(4f, walkEnergy*0.88f + lmag*1.70f);
-                    if(walkEnergy>0.08f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                if(lmag>0.24f && gyroRate<0.85f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.86f + lmag*1.30f);
+                    if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
                 } else {
-                    walkEnergy*=0.86f;
+                    walkEnergy*=0.84f;
                 }
             } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
                 float gx=event.values[0], gy=event.values[1], gz=event.values[2];
@@ -240,7 +234,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
         shizuku.start(appWindows::onShizukuChanged);
-        license=new License(this);
         camera=new PassthroughCamera(this,new PassthroughCamera.Listener() {
             @Override public void frame(android.graphics.Bitmap bitmap) {
                 SpatialRenderer r=renderer;
@@ -261,29 +254,31 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                String payload=inGame?frame.gameJson():frame.json();
+                com.nextvr.app.hands.PhoneXrHands.Frame webFrame=frame.predicted(android.os.SystemClock.elapsedRealtimeNanos());
+                String payload=inGame?webFrame.gameJson():webFrame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }
             @Override public void sixDof(float sc, float gx, float gy, float mx) {
                 long nowMs=android.os.SystemClock.elapsedRealtime();
-                if(!sixDofEnabled || !sixDofWalk || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.10f) return;
-                boolean zeroFlow=Math.abs(sc)<0.0045f;
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.12f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0028f;
                 if(zeroFlow) {
                     if(sentZeroSixDof) return;
                     sentZeroSixDof=true;
                 } else {
                     sentZeroSixDof=false;
                 }
-                // Sem acelerômetro não há confirmação de passo (antes `!hasWalkAccel` deixava passar).
-                boolean accelMoving=hasWalkAccel && walkEnergy>0.14f && (nowMs-lastWalkStepMs)<850L;
-                boolean moving=accelMoving && gyroRate<1.10f && Math.hypot(gx,gy)<=2.0f && Math.abs(sc)>=0.0045f;
+                // Exige caminhada física real no acelerômetro (walkEnergy > 0.16f nos últimos 650 ms) e cabeça estável:
+                // impede completamente que o 6DoF ande sozinho para a frente ou para os lados.
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && (nowMs-lastWalkStepMs)<650L);
+                boolean moving=accelMoving && gyroRate<0.85f && Math.hypot(gx,gy)<=1.8;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
                 float adjSc=moving?sc:0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
-                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:"+(!sixDofWalk)+",worldLocked:"+worldLocked+"})");
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
                 });
             }
             @Override public void cameraDefocus(boolean defocused) {
@@ -448,16 +443,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         });
     }
 
-    private static int frameGestureSignature(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
-        if(frame==null) return 0;
-        int sig=1;
-        for(com.nextvr.app.hands.PhoneXrHands.Hand h:frame.getHands()) {
-            int shift=h.getLeft()?8:0;
-            int bits=4 | (h.getPinching()?1:0) | (h.getShape().getFist()?2:0);
-            sig |= (bits << shift);
-        }
-        return sig;
-    }
     private void scheduleHandFrameDrain() {
         if(handsPending.compareAndSet(false,true))main.post(this::drainHandFrames);
     }
@@ -465,17 +450,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         for(;;) {
             HandFrameMailbox.Batch batch=handFrames.drain();
             int stale=0;
-            int evaluated=0;
-            int extraCoalesced=0;
             if(shell!=null && resumed && !closed) {
                 StringBuilder scripts=new StringBuilder();
                 if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
                 long nowNs=SystemClock.elapsedRealtimeNanos();
-                java.util.List<HandFrameMailbox.FrameScript> list=batch.frames();
-                if(gameHandMode && list.size()>1) {
-                    HandFrameMailbox.FrameScript newest=list.get(list.size()-1);
-                    extraCoalesced=list.size()-1;
-                    evaluated=1;
+                if(gameHandMode && batch.frames().size()>1) {
+                    HandFrameMailbox.FrameScript newest=batch.frames().get(batch.frames().size()-1);
                     com.nextvr.app.hands.PhoneXrHands.Frame frame=newest.frame();
                     if(frame.isFresh(nowNs)) {
                         scripts.append(newest.script()).append(';');
@@ -485,14 +465,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                         stale++;
                     }
                 } else {
-                    for(int i=0,n=list.size();i<n;i++) {
-                        HandFrameMailbox.FrameScript pending=list.get(i);
+                    for(HandFrameMailbox.FrameScript pending:batch.frames()) {
                         com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
-                        if(i+1<n && frameGestureSignature(frame)==frameGestureSignature(list.get(i+1).frame())) {
-                            extraCoalesced++;
-                            continue;
-                        }
-                        evaluated++;
                         if(frame.isFresh(nowNs)) {
                             scripts.append(pending.script()).append(';');
                             if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
@@ -506,10 +480,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // One WebView evaluation guarantees the ordered frame edges run in one JS task,
                 // before a later batch can overtake them on Chromium's asynchronous evaluator.
                 if(scripts.length()>0)shell.evaluate(scripts.toString());
-            } else {
-                evaluated=batch.frames().size();
             }
-            PerfLog.handDrain(evaluated,stale,batch.coalesced()+extraCoalesced);
+            PerfLog.handDrain(batch.frames().size(),stale,batch.coalesced());
             handsPending.set(false);
             if(handFrames.isEmpty() || !handsPending.compareAndSet(false,true))return;
         }
@@ -573,7 +545,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
         long now=SystemClock.uptimeMillis();
-        if(now-lastPose<6 || !posePending.compareAndSet(false,true)) return;
+        if(now-lastPose<10 || !posePending.compareAndSet(false,true)) return;
         lastPose=now;
         StringBuilder json=new StringBuilder(192); json.append('['); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
         main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });
@@ -638,60 +610,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(entryView!=null) entryView.evaluateJavascript(js,null);
         });
     }
-    /**
-     * Contas Google que realmente estão neste aparelho (Build 94). Sem o acesso concedido a lista
-     * vem vazia e `permission` diz por quê — a página nunca inventa uma conta.
-     */
-    private String googleAccountsJson() {
-        try {
-            if(checkSelfPermission(Manifest.permission.GET_ACCOUNTS)!=PackageManager.PERMISSION_GRANTED)
-                return "{\"permission\":\"denied\",\"accounts\":[]}";
-            AccountManager manager=AccountManager.get(this);
-            Account[] accounts=manager.getAccountsByType("com.google");
-            JSONArray list=new JSONArray();
-            Set<String> seen=new HashSet<>();
-            for(Account account:accounts) {
-                if(account==null || account.name==null) continue;
-                String email=account.name.trim();
-                if(email.length()<5 || email.length()>120 || email.indexOf('@')<1) continue;
-                if(!seen.add(email.toLowerCase(java.util.Locale.US))) continue;
-                JSONObject item=new JSONObject();
-                item.put("email",email);
-                list.put(item);
-            }
-            JSONObject result=new JSONObject();
-            result.put("permission","granted");
-            result.put("accounts",list);
-            return result.toString();
-        } catch(Throwable unavailable) {
-            return "{\"permission\":\"unavailable\",\"accounts\":[]}";
-        }
-    }
-    private void pushGoogleAccounts() {
-        final String json=googleAccountsJson();
-        main.post(()->{
-            if(closed) return;
-            String js="window.nextvrGoogleAccounts&&window.nextvrGoogleAccounts("+JSONObject.quote(json)+")";
-            if(entryView!=null) entryView.evaluateJavascript(js,null);
-            if(shell!=null && ready) shell.evaluate(js);
-        });
-    }
-    /** Resultado da escolha de conta: status connected/cancelled/unavailable + e-mail. */
-    private void pushGoogleAccountResult(String status,String email,String message) {
-        try {
-            JSONObject result=new JSONObject();
-            result.put("status",status);
-            result.put("email",email==null?"":email);
-            result.put("message",message==null?"":message);
-            final String json=result.toString();
-            main.post(()->{
-                if(closed) return;
-                String js="window.nextvrGoogleAccount&&window.nextvrGoogleAccount("+JSONObject.quote(json)+")";
-                if(entryView!=null) entryView.evaluateJavascript(js,null);
-                if(shell!=null && ready) shell.evaluate(js);
-            });
-        } catch(Throwable ignored) {}
-    }
     void shellReady() {
         ready=true;
         if(shell!=null) {
@@ -712,7 +630,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
-        if(code==23) { pushGoogleAccounts(); return; }
         if(code==10) {
             if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
             else new AlertDialog.Builder(this).setTitle("Camera passthrough requires permission")
@@ -864,13 +781,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 else if(data.getData()!=null) values.add(data.getData());
             }
             fileCallback.onReceiveValue(values.isEmpty()?null:values.toArray(new Uri[0])); fileCallback=null;
-        }
-        if(request==22) {
-            // Build 94: "Escolha uma conta" do Android devolve o e-mail Google escolhido.
-            String email=null;
-            if(result==RESULT_OK && data!=null) email=data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
-            if(email==null || email.indexOf('@')<1) pushGoogleAccountResult("cancelled","","");
-            else pushGoogleAccountResult("connected",email.trim(),"");
         }
         if(request==21 && result==RESULT_OK && data!=null && data.getData()!=null) {
             final Uri uri=data.getData();
@@ -1140,74 +1050,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 }
             });
         }
-        /**
-         * Build 92 — abrir uma página no NAVEGADOR do celular.
-         *
-         * O Google (e o login do YouTube) recusa entrar dentro de WebView: a página responde
-         * "este navegador ou app pode não ser seguro" e a conta real nunca entra. No navegador de
-         * verdade aparece a lista de contas do aparelho — "Continuar como (sua conta)" — e o login
-         * funciona. Só http/https, para nunca abrir um intent arbitrário vindo da página.
-         */
-        /**
-         * Build 94 — a conta Google de verdade, do jeito que o Kwai e o TikTok fazem.
-         *
-         * O usuário: "era pra a conta do Gmail se conectar com o app, tipo que a do Kwai se conecta
-         * com o app". No Kwai o toque em entrar abre a lista das CONTAS DO APARELHO ("Escolha uma
-         * conta / para continuar no ...", com "Adicionar outra conta") e a conta escolhida fica
-         * ligada ao app. Isto é o AccountManager do Android: os e-mails vêm do celular — nada é
-         * digitado nem inventado pela página.
-         *
-         * Devolve JSON (texto): {"permission":"granted"|"denied"|"unavailable","accounts":[{email}]}
-         */
-        @JavascriptInterface public String googleAccounts() { return googleAccountsJson(); }
-
-        /** Pede o acesso às contas (Android 6+) e devolve a lista por [`pushGoogleAccounts`]. */
-        @JavascriptInterface public void requestGoogleAccounts() {
-            main.post(()->{
-                if(closed) return;
-                if(checkSelfPermission(Manifest.permission.GET_ACCOUNTS)==PackageManager.PERMISSION_GRANTED) { pushGoogleAccounts(); return; }
-                try { requestPermissions(new String[]{Manifest.permission.GET_ACCOUNTS},23); }
-                catch(Throwable ignored) { pushGoogleAccounts(); }
-            });
-        }
-
-        /**
-         * Abre a tela do próprio Android "Escolha uma conta" (a mesma que o Kwai abre), filtrada nas
-         * contas Google, com "Adicionar conta". Ela devolve o e-mail em [`onActivityResult`].
-         */
-        @JavascriptInterface public void googleChooseAccount() {
-            main.post(()->{
-                if(closed) return;
-                try {
-                    Intent intent=AccountManager.newChooseAccountIntent(null,null,new String[]{"com.google"},true,
-                        "para continuar no NextVR","oauth2:email profile",null,null);
-                    startActivityForResult(intent,22);
-                } catch(Throwable unavailable) {
-                    pushGoogleAccountResult("unavailable","","A tela de contas do Google não abriu neste aparelho");
-                }
-            });
-        }
-
-        @JavascriptInterface public void openExternal(String url) {
-            if(url==null) return;
-            final String target=url.trim();
-            Uri parsed=Uri.parse(target);
-            String scheme=parsed.getScheme();
-            if(scheme==null) return;
-            scheme=scheme.toLowerCase(java.util.Locale.US);
-            if(!"https".equals(scheme) && !"http".equals(scheme)) return;
-            main.post(()->{
-                if(closed) return;
-                try {
-                    Intent intent=new Intent(Intent.ACTION_VIEW, parsed);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch(Exception unavailable) {
-                    Toast.makeText(NextVrActivity.this,"Nenhum navegador instalado",Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
         @JavascriptInterface public String battery() {
             return readBatteryJson(null);
         }
@@ -1290,64 +1132,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.mrDim=enabled;
         }
-        @JavascriptInterface public void setBwCamera(boolean enabled) {
-            SpatialRenderer target=renderer;
-            if(target!=null) target.bwCamera=enabled;
-        }
-        /**
-         * Camera noturna (Build 89). `on` levanta o ganho do passthrough no shader (SpatialRenderer)
-         * e manda +EV/reducao de ruido para o Camera2 (PassthroughCamera). Quem decide quando ligar
-         * e' o shell: ele mede a luz com `cameraLuma()` e aplica histerese.
-         */
-        @JavascriptInterface public void setNightCamera(boolean enabled) {
-            SpatialRenderer target=renderer;
-            if(target!=null) target.nightCamera=enabled;
-            PassthroughCamera cam=camera;
-            if(cam!=null) cam.setNightMode(enabled);
-        }
-        /** Luminosidade media da camera (0..1), ou -1 enquanto o sensor nao mediu nenhum quadro. */
-        @JavascriptInterface public String cameraLuma() {
-            PassthroughCamera cam=camera;
-            float level=cam==null?-1f:cam.luma();
-            return String.valueOf(level);
-        }
-        /**
-         * Lanterna (Build 89): acende quando a cena nao tem luz nenhuma e apaga quando a luz volta.
-         * Quem decide e' o shell (web/src/night-camera.js, com histerese e tempo minimo), porque a
-         * leitura de luz tambem vem de la' — aqui so' existe o controle do flash.
-         */
-        @JavascriptInterface public void setTorch(boolean enabled) {
-            PassthroughCamera cam=camera;
-            if(cam!=null) cam.setTorch(enabled);
-        }
-        /** O aparelho tem lanterna? (falso = o app nao mostra o controle) */
-        @JavascriptInterface public boolean torchAvailable() {
-            PassthroughCamera cam=camera;
-            return cam!=null && cam.torchAvailable();
-        }
-
-        /* ---------------- Build 90: chaves de ativação ---------------- */
-
-        /** Estado da licença em JSON: {active, key, device, since, reason}. */
-        @JavascriptInterface public String licenseStatus() {
-            License l=license;
-            if(l==null) { l=new License(NextVrActivity.this); license=l; }
-            return l.status().toString();
-        }
-
-        /** Tenta ativar uma chave de 22 caracteres. Devolve {ok, reason, status}. */
-        @JavascriptInterface public String activateKey(String key) {
-            License l=license;
-            if(l==null) { l=new License(NextVrActivity.this); license=l; }
-            return l.activate(key).toString();
-        }
-
-        /** Código curto do aparelho (para suporte), ex.: "A1B2-C3D4". */
-        @JavascriptInterface public String deviceCode() {
-            License l=license;
-            if(l==null) { l=new License(NextVrActivity.this); license=l; }
-            return l.deviceCode();
-        }
         @JavascriptInterface public void setSingleHandMode(String mode) {
             PassthroughCamera cam=camera;
             if(cam!=null) cam.setSingleHandMode(mode);
@@ -1375,8 +1159,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 target.targetSixDofX=cx;
                 target.targetSixDofZ=cz;
                 if(target.sixDofX==0f && target.sixDofZ==0f) {
-                    target.sixDofX=cx*0.85f;
-                    target.sixDofZ=cz*0.85f;
+                    target.sixDofX=cx*0.55f;
+                    target.sixDofZ=cz*0.55f;
                 }
                 target.sixDofY=0f;
             }
@@ -1386,31 +1170,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(!enabled) {
                 resetSixDof();
             }
-        }
-        /**
-         * World Lock: com o mundo travado o renderer não recebe nenhuma translação do 6DoF — é o
-         * que impede o desenho (e as janelas) de ir para a frente ou para os lados do nada.
-         */
-        /**
-         * Lê um booleano do JSON de configurações vindo do shell, aceitando `true/false` mas
-         * também `1/0` — o shell grava flags como inteiros (`bwCamera: 0`). Usar `optBoolean`
-         * direto devolvia o default para inteiros, e a câmera voltava para P&B a cada sessão.
-         */
-        private boolean jsonFlag(org.json.JSONObject o, String key, boolean fallback) {
-            if(o==null || !o.has(key)) return fallback;
-            Object v=o.opt(key);
-            if(v instanceof Boolean) return (Boolean)v;
-            if(v instanceof Number) return ((Number)v).doubleValue()!=0d;
-            if(v instanceof String) {
-                String t=((String)v).trim();
-                return !("false".equalsIgnoreCase(t) || "0".equals(t) || t.isEmpty());
-            }
-            return fallback;
-        }
-
-        @JavascriptInterface public void setWorldLock(boolean locked) {
-            sixDofWalk=!locked;
-            if(locked) resetSixDof();
         }
         @JavascriptInterface public void resetSixDof() {
             SpatialRenderer target=renderer;
@@ -1442,31 +1201,27 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(settingsJson!=null) {
                         try {
                             JSONObject o=new JSONObject(settingsJson);
-                            boolean spatial=jsonFlag(o,"spatialLauncher",false);
+                            boolean spatial=o.optBoolean("spatialLauncher",false) || o.optInt("spatialLauncher",0)==1;
                             customEnv=!spatial && o.optBoolean("entryEnvChosen",false) && !"passthrough".equals(o.optString("env","passthrough"));
-                            boolean wide=jsonFlag(o,"wideCamera",false);
+                            boolean wide=o.optBoolean("wideCamera",false) || o.optInt("wideCamera",0)==1;
                             target.wideCamera=wide;
                             if(camera!=null)camera.setWideCamera(wide);
                             if(o.has("quality")) target.setQuality(o.optString("quality","auto"));
                             if(o.has("handDraw")) {
-                                boolean hd=jsonFlag(o,"handDraw",true);
+                                boolean hd=o.optBoolean("handDraw",false) || o.optInt("handDraw",1)!=0;
                                 target.showHands=hd;
                             }
                             if(o.has("fingerTouch")) {
-                                boolean ft=jsonFlag(o,"fingerTouch",true);
+                                boolean ft=o.optBoolean("fingerTouch",false) || o.optInt("fingerTouch",1)!=0;
                                 target.handRenderer.setShowPointer(!ft);
                             }
                             if(o.has("mrDim")) {
-                                target.mrDim=jsonFlag(o,"mrDim",false);
+                                target.mrDim=o.optBoolean("mrDim",false) || o.optInt("mrDim",0)!=0;
                             }
-                            // Câmera: respeita P&B (1) e colorida (0) sem voltar ao default a cada sessão.
-                            target.bwCamera=jsonFlag(o,"bwCamera",true);
                             if(o.has("sixdof")) {
-                                sixDofEnabled=jsonFlag(o,"sixdof",true);
+                                sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
                                 if(!sixDofEnabled) resetSixDof();
                             }
-                            sixDofWalk=!jsonFlag(o,"worldLock",true);
-                            if(!sixDofWalk) resetSixDof();
                             if(o.has("singleHandMode") && camera!=null) {
                                 camera.setSingleHandMode(o.optString("singleHandMode","both"));
                             }

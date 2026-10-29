@@ -1,8 +1,4 @@
-import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
-import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
-import { dockCatalogAll, extraDockIds, toggleExtraDockId } from './dock-catalog.js';
-import { licenseStatus, activateKey, deviceCode, formatKey, licenseMessage, normalizeKey, KEY_LENGTH, onLicenseChange } from './license.js';
-import { nightCameraState, setNightCameraMode, setTorchAuto } from './night-camera.js';
+import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, native, SixDof } from './core.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -63,73 +59,6 @@ const SVG_TIKTOK_VERIFIED = `
   <path d="M7.6 12.4l3 3 5.8-6.2" fill="none" stroke="#ffffff" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const SVG_PICO4_PRO_MEDALLION = `
-<svg viewBox="0 0 260 260" class="entry-pico4pro-svg" aria-label="PICO 4 Pro">
-  <defs>
-    <linearGradient id="p4pVisor" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="35%" stop-color="#d4d4d8"/>
-      <stop offset="70%" stop-color="#52525b"/>
-      <stop offset="100%" stop-color="#18181b"/>
-    </linearGradient>
-    <linearGradient id="p4pFrontGlass" x1="0" y1="0" x2="1" y2="0.8">
-      <stop offset="0%" stop-color="#3f3f46"/>
-      <stop offset="45%" stop-color="#18181b"/>
-      <stop offset="100%" stop-color="#09090b"/>
-    </linearGradient>
-    <linearGradient id="p4pStrap" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f4f4f5"/>
-      <stop offset="100%" stop-color="#a1a1aa"/>
-    </linearGradient>
-  </defs>
-  <!-- Estrela concêntrica de fundo dentro do medalhão -->
-  <polygon points="130,18 156,84 228,88 171,132 190,202 130,162 70,202 89,132 32,88 104,84" fill="#18181b" stroke="#52525b" stroke-width="3"/>
-  <!-- Alça superior e traseira do PICO 4 Pro -->
-  <path d="M58 102 C58 52, 202 52, 202 102" fill="none" stroke="url(#p4pStrap)" stroke-width="12" stroke-linecap="round"/>
-  <path d="M130 48 L130 74" fill="none" stroke="#e4e4e7" stroke-width="10" stroke-linecap="round"/>
-  <!-- Hastes laterais brancas/cinzas do PICO 4 Pro -->
-  <rect x="30" y="92" width="28" height="22" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
-  <rect x="202" y="92" width="28" height="22" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
-  <!-- Carcaça principal do visor PICO 4 Pro -->
-  <rect x="44" y="68" width="172" height="74" rx="34" fill="url(#p4pVisor)" stroke="#09090b" stroke-width="4.5"/>
-  <!-- Lente frontal espelhada escura PICO 4 Pro -->
-  <rect x="54" y="76" width="152" height="58" rx="27" fill="url(#p4pFrontGlass)" stroke="#e4e4e7" stroke-width="2.2"/>
-  <!-- Reflexo diagonal prateado no visor -->
-  <path d="M76 80 L118 80 L94 130 L62 130 Z" fill="rgba(255,255,255,0.16)"/>
-  <path d="M130 80 L146 80 L122 130 L106 130 Z" fill="rgba(255,255,255,0.09)"/>
-  <!-- 4 câmeras de rastreamento óptico nos cantos do visor -->
-  <circle cx="68" cy="89" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
-  <circle cx="192" cy="89" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
-  <circle cx="68" cy="121" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
-  <circle cx="192" cy="121" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="2"/>
-  <!-- LED central e logo PICO 4 PRO -->
-  <rect x="108" y="99" width="44" height="5" rx="2.5" fill="#ffffff"/>
-  <text x="130" y="118" text-anchor="middle" fill="#e4e4e7" font-family="Inter,sans-serif" font-weight="900" font-size="10" letter-spacing="1.8">PICO 4 PRO</text>
-  <!-- Controle Esquerdo PICO 4 Pro -->
-  <g transform="translate(46, 152) rotate(-14)">
-    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#e4e4e7" stroke-width="6"/>
-    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#09090b" stroke-width="1.8"/>
-    <rect x="22" y="16" width="18" height="44" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
-    <circle cx="31" cy="24" r="5" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/>
-  </g>
-  <!-- Controle Direito PICO 4 Pro -->
-  <g transform="translate(148, 138) rotate(14)">
-    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#e4e4e7" stroke-width="6"/>
-    <ellipse cx="32" cy="24" rx="26" ry="14" fill="none" stroke="#09090b" stroke-width="1.8"/>
-    <rect x="22" y="16" width="18" height="44" rx="9" fill="url(#p4pStrap)" stroke="#09090b" stroke-width="3"/>
-    <circle cx="31" cy="24" r="5" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/>
-  </g>
-</svg>`;
-
-const SVG_PICO4_PRO_MINI = `
-<svg viewBox="0 0 64 64" class="entry-pico4pro-mini-svg" aria-hidden="true">
-  <circle cx="32" cy="32" r="29" fill="#18181b" stroke="#ffffff" stroke-width="3"/>
-  <path d="M16 28 C16 14, 48 14, 48 28" fill="none" stroke="#d4d4d8" stroke-width="4" stroke-linecap="round"/>
-  <rect x="11" y="23" width="42" height="20" rx="10" fill="#e4e4e7" stroke="#09090b" stroke-width="2.5"/>
-  <rect x="15" y="26" width="34" height="14" rx="7" fill="#09090b" stroke="#a1a1aa" stroke-width="1.2"/>
-  <rect x="25" y="32" width="14" height="2.4" rx="1.2" fill="#ffffff"/>
-</svg>`;
-
 const MENU_STORE_APPS = [
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'MR · G18 & Alvos 3D · 4.9 ★', bg: '#080a0f', img: './icons/shootthedie-logo.jpg' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'Desenhar com Hand Tracking · 4.9 ★', bg: '#09090b', img: './icons/paintdrawer-logo.jpg' },
@@ -175,7 +104,7 @@ const EM_I18N = {
     dockSnapOn: 'Slot Dock: ON', dockSnapOff: 'Slot Dock: OFF',
     qualityCell: 'qualidade', qAuto: 'Auto', qHigh: 'Alta (1080p)', qMed: 'Média (890p)', qLow: 'Baixa (390p)',
     ocularCell: 'câmera grande ocular (0.5x)', volumeCell: 'VOLUME', brightnessCell: 'BRILHO',
-    handCell: 'Hand tracking', fingerTouchOn: 'Raio Laser PICO 4: ON', fingerTouchOff: 'Raio Laser PICO 4: OFF',
+    handCell: 'Hand tracking', fingerTouchOn: 'Toque (Sem Pinça): ON', fingerTouchOff: 'Toque (Sem Pinça): OFF',
     envTitle: 'Ambiente', envAr: 'Câmera (AR)', envSunset: 'Pôr do Sol', envNight: 'Noite',
   },
   en: {
@@ -251,32 +180,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   root.dataset.entryMenu = '2.0.0';
   if (fullscreen) root.dataset.entryFullscreen = '1';
 
-  let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'license' | 'loading'
-  // Build 90 — aviso mostrado no painel da Key quando o jogador tenta iniciar sem licença.
-  let licensePrompt = '';
-
-  /*
-   * Build 90 — a Key libera o jogo.
-   *
-   * "botou a Key pronto, não precisa por denovo" — então o app só insiste enquanto não houver
-   * licença ATIVA neste aparelho. Duas proteções para nunca trancar ninguém fora por engano:
-   *   1) se a ponte nativa não existir (navegador, teste, versão antiga do shell), libera;
-   *   2) se o lado nativo respondeu com erro interno ("erro"), libera também — só barra quando
-   *      ele deu uma resposta de verdade dizendo "sem key".
-   */
-  const licenseAllowsPlay = () => {
-    if (typeof window.NativeXR?.licenseStatus !== 'function') return true;
-    const st = licenseStatus(true);
-    if (st.active || st.reason === 'erro' || st.reason === 'indisponivel') return true;
-    licensePrompt = 'Ative a sua Key de 22 caracteres para jogar. Ela é digitada uma vez só e fica presa a este celular.';
-    activeView = 'license';
-    paint();
-    const msg = root.querySelector('[data-entry-key-msg]');
-    if (msg) { msg.textContent = licensePrompt; msg.dataset.state = 'error'; }
-    return false;
-  };
-  // 1 | 2 | 3 — Aba 1 (básico), Aba 2 (mão & tela) e a Aba 3 da Build 89: os apps da Dock.
-  let activeSettingsTab = 1;
+  let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'loading'
+  let activeSettingsTab = 1; // 1 | 2 (Aba 1 e Aba 2 das configurações do menu inicial 2D, com arrasto pro lado)
   let countdownSec = 6;
   let loadingPct = 0;
   let countdownTimer = null;
@@ -413,14 +318,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
         </button>
 
-        <button type="button" class="entry-card entry-card--key ${activeView === 'license' ? 'entry-card--active' : ''} ${licenseStatus().active ? 'entry-card--activated' : ''}" data-entry-act="license">
-          <span class="entry-card-body">
-            <span class="entry-card-title">🔑 KEY</span>
-            <span class="entry-card-state" data-entry-key-state>${licenseStatus().active ? 'ATIVADA' : 'ATIVAR'}</span>
-          </span>
-          <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
-        </button>
-
         <button type="button" class="entry-card ${activeView === 'about' ? 'entry-card--active' : ''}" data-entry-act="about">
           <span class="entry-card-body">
             <span class="entry-card-title">${emT('about')}</span>
@@ -430,102 +327,40 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </nav>`;
   };
 
-  const renderBrandStage = (batInfo) => {
-    const bText = batInfo ? batInfo.text : currentBattery().text;
+  const renderBrandStage = () => {
     return `
-      <div class="entry-brand-stage entry-p5-stage" data-entry-panel="brand">
+      <div class="entry-brand-stage" data-entry-panel="brand">
         <div class="entry-brand-grid-bg" aria-hidden="true"></div>
-
-        <!-- Estrelas concêntricas estilo quadrinhos (Preto, Cinza e Branco) -->
-        <svg class="entry-p5-stars-bg" viewBox="0 0 600 400" preserveAspectRatio="none" aria-hidden="true">
-          <g transform="translate(385, 62) rotate(-12) scale(0.85)">
-            <polygon points="0,-42 12,-12 44,-10 18,10 26,40 0,22 -26,40 -18,10 -44,-10 -12,-12" fill="#ffffff"/>
-            <polygon points="0,-31 9,-9 32,-8 13,7 19,30 0,16 -19,30 -13,7 -32,-8 -9,-9" fill="#52525b"/>
-            <polygon points="0,-20 6,-6 21,-5 8,5 12,19 0,10 -12,19 -8,5 -21,-5 -6,-6" fill="#09090b"/>
-          </g>
-          <g transform="translate(310, 290) rotate(14) scale(0.95)">
-            <polygon points="0,-44 13,-13 46,-11 19,11 27,42 0,23 -27,42 -19,11 -46,-11 -13,-13" fill="#d4d4d8"/>
-            <polygon points="0,-32 9,-9 33,-8 14,8 20,31 0,17 -20,31 -14,8 -33,-8 -9,-9" fill="#27272a"/>
-            <polygon points="0,-19 6,-6 20,-5 8,5 12,18 0,10 -12,18 -8,5 -20,-5 -6,-6" fill="#ffffff"/>
-          </g>
-          <g transform="translate(390, 250) rotate(-8) scale(0.58)">
-            <polygon points="0,-40 12,-12 42,-10 17,10 25,38 0,21 -25,38 -17,10 -42,-10 -12,-12" fill="#ffffff"/>
-            <polygon points="0,-26 8,-8 27,-6 11,6 16,25 0,14 -16,25 -11,6 -27,-6 -8,-8" fill="#18181b"/>
-          </g>
-        </svg>
-
-        <!-- Balão Angular Superior Direito (em Português + Mini PICO 4 Pro no lugar do mascote) -->
-        <div class="entry-p5-top-callout" data-pico4pro-callout="1">
-          <div class="entry-p5-callout-text">
-            <strong>SISTEMA PICO 4 PRO · NextVR</strong>
-            <span>Use o Hand Tracking otimizado, crie seu Personagem 3D e abra janelas flutuantes PICO 4 Pro!</span>
+        <div class="entry-updates-feed" data-entry-updates role="region" aria-label="Atualizações NextVR">
+          <div class="entry-updates-head">
+            <span class="entry-updates-dot" aria-hidden="true"></span>
+            <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
+            <span class="entry-updates-badge">v2.0.0</span>
           </div>
-          <div class="entry-p5-callout-mascot" data-entry-act="profile" title="Criar Personagem 3D / Perfil">
-            ${SVG_PICO4_PRO_MINI}
-          </div>
-        </div>
-
-        <!-- Feixe Gigante em Perspectiva 3D (estilo "SKILL" da foto, em Branco/Cinza/Preto e em Português) -->
-        <div class="entry-p5-wedge-wrap" data-entry-act="start" role="button" tabindex="0" title="Clique para Iniciar o NextVR">
-          <svg class="entry-p5-wedge-svg" viewBox="0 0 540 240" preserveAspectRatio="none" aria-hidden="true">
-            <polygon points="6,10 475,112 6,226" fill="#09090b" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
-            <polygon points="14,22 458,112 14,212" fill="#f4f4f5"/>
-            <polygon points="14,22 458,112 440,122 14,56" fill="#d4d4d8" opacity="0.65"/>
-            <!-- Faixa preta inclinada na base da cunha -->
-            <polygon points="14,166 290,144 282,192 14,212" fill="#09090b"/>
-          </svg>
-          <div class="entry-p5-wedge-text">NextVR</div>
-          <div class="entry-p5-wedge-sub">INICIAR REALIDADE MISTA</div>
-          <span class="entry-p5-wedge-star" aria-hidden="true">★</span>
-        </div>
-
-        <!-- Medalhão Circular Direito com o PICO 4 Pro (no lugar do boneco da foto) -->
-        <div class="entry-p5-medallion" data-pico4pro-emblem="1" data-entry-act="store" role="button" tabindex="0" title="PICO 4 Pro · Abrir Store NextVR">
-          <div class="entry-p5-medallion-inner">
-            ${SVG_PICO4_PRO_MEDALLION}
-          </div>
-          <span class="entry-p5-medallion-tag">PICO 4 PRO · VR</span>
-        </div>
-
-        <!-- Barra Inferior de Atualizações + Store & Contador Angular (estilo ¥ 10,960 da foto) -->
-        <div class="entry-p5-bottom-bar">
-          <div class="entry-p5-currency-readout" title="Bateria e Relógio em Tempo Real">
-            <span class="entry-p5-currency-sym">⚡</span>
-            <span class="entry-p5-currency-val">${bText}</span>
-          </div>
-
-          <div class="entry-updates-feed entry-updates-feed--p5" data-entry-updates role="region" aria-label="Atualizações NextVR">
-            <div class="entry-updates-head">
-              <span class="entry-updates-dot" aria-hidden="true"></span>
-              <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-              <span class="entry-updates-badge">v2.0.0</span>
-            </div>
-            <div class="entry-updates-list">
-              ${ENTRY_UPDATES.slice(0, 4).map(u => `
-              <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
-                <div class="entry-notif-top">
-                  <span class="entry-notif-tag">${escHtml(u.tag)}</span>
-                  <span class="entry-notif-time">${escHtml(u.time)}</span>
-                </div>
-                <strong class="entry-notif-heading">${escHtml(u.heading)}</strong>
-                <p class="entry-notif-desc">${escHtml(u.desc)}</p>
-              </article>`).join('')}
-            </div>
-          </div>
-
-          <div class="entry-brand-store-dock entry-brand-store-dock--p5">
-            <div class="entry-brand-store-info" data-entry-act="store" role="button" tabindex="0">
-              <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-brand-store-thumb" draggable="false" />
-              <div class="entry-brand-store-meta">
-                <span class="entry-brand-store-tag">STORE · DESTAQUE</span>
-                <strong class="entry-brand-store-name">Gorilla Tag VR</strong>
+          <div class="entry-updates-list">
+            ${ENTRY_UPDATES.map(u => `
+            <article class="entry-notif-card" data-entry-notif="${escHtml(u.id)}">
+              <div class="entry-notif-top">
+                <span class="entry-notif-tag">${escHtml(u.tag)}</span>
+                <span class="entry-notif-time">${escHtml(u.time)}</span>
               </div>
+              <strong class="entry-notif-heading">${escHtml(u.heading)}</strong>
+              <p class="entry-notif-desc">${escHtml(u.desc)}</p>
+            </article>`).join('')}
+          </div>
+        </div>
+        <div class="entry-brand-store-dock">
+          <div class="entry-brand-store-info" data-entry-act="store" role="button" tabindex="0">
+            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-brand-store-thumb" draggable="false" />
+            <div class="entry-brand-store-meta">
+              <span class="entry-brand-store-tag">STORE · EM DESTAQUE</span>
+              <strong class="entry-brand-store-name">Gorilla Tag VR</strong>
             </div>
-            <div class="entry-brand-store-actions">
-              <button type="button" class="entry-btn entry-btn--primary entry-brand-store-open" data-entry-act="store">
-                ${SVG_STORE_BAG}<span>${emT('store')}</span>
-              </button>
-            </div>
+          </div>
+          <div class="entry-brand-store-actions">
+            <button type="button" class="entry-btn entry-btn--primary entry-brand-store-open" data-entry-act="store">
+              ${SVG_STORE_BAG}<span>${emT('store')}</span>
+            </button>
           </div>
         </div>
       </div>`;
@@ -593,85 +428,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>`;
   };
 
-  /*
-   * Build 89 — Aba 3: "bote uma opcao nas configuracoes de botar mais apps na dock ... pode ficar
-   * gigante". Um tile por app do catalogo (e por app Android instalado, quando a lista chegou).
-   * Nao ha limite: a Dock cresce, o carrossel rola e a contagem mostra quantos estao ligados.
-   */
-  const dockAppsPageHtml = () => {
-    const enabled = extraDockIds(S);
-    const all = dockCatalogAll();
-    const groups = new Map();
-    for (const item of all) {
-      const key = item.group || 'Apps';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
-    }
-    const tile = item => {
-      const on = enabled.includes(item.id);
-      return `<button type="button" class="entry-dock-app ${on ? 'on' : ''}" data-dock-app="${escHtml(item.id)}"
-        aria-pressed="${on ? 'true' : 'false'}" title="${escHtml(item.label)}">
-        <span class="entry-dock-app-ico" style="background:${item.bg || '#27272a'}">${item.img
-          ? `<img src="${escHtml(item.img)}" alt="" draggable="false">`
-          : `<span>${escHtml(item.glyph || (item.label || '?').slice(0, 1))}</span>`}</span>
-        <span class="entry-dock-app-name">${escHtml(item.label)}</span>
-        <span class="entry-dock-app-check">${on ? '✓' : '+'}</span>
-      </button>`;
-    };
-    return `
-      <div class="entry-bento-grid entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3">
-        <div class="entry-bento-cell entry-bento-cell--wide">
-          <div class="entry-bento-title">APPS NA DOCK · SEM LIMITE</div>
-          <p class="entry-dock-apps-hint">Toque num app para ele entrar (ou sair) da Dock. A Dock pode ficar
-            gigante: quanto mais apps, mais ela cresce para os lados.
-            <b data-dock-apps-count>${enabled.length}</b> app(s) adicionado(s).</p>
-          <div class="entry-seg-row">
-            <button type="button" class="entry-seg-btn" data-dock-apps-clear="1">Limpar tudo</button>
-            <button type="button" class="entry-seg-btn" data-dock-apps-scroll="1">Ver a Dock →</button>
-          </div>
-        </div>
-        <div class="entry-bento-cell entry-bento-cell--wide entry-play-protect">
-          <div class="entry-bento-title">SOBRE O AVISO DE "APP DESCONHECIDO" / PLAY PROTECT</div>
-          <p class="entry-play-protect-note">${playProtectNote()}</p>
-        </div>
-        ${[...groups].map(([group, items]) => `
-          <div class="entry-bento-cell entry-bento-cell--wide">
-            <div class="entry-bento-title">${escHtml(group)}</div>
-            <div class="entry-dock-apps-grid">${items.map(tile).join('')}</div>
-          </div>`).join('')}
-      </div>`;
-  };
-
-  /** Texto do estado da câmera noturna (a leitura da luz vem do lado nativo). */
-  const nightCamNote = () => {
-    const st = nightCameraState();
-    const level = st.level >= 0 ? `${Math.round(st.level * 100)}% de luz` : 'sem leitura da câmera agora';
-    const active = st.active ? 'ligada' : 'desligada';
-    const torch = st.torchAvailable === false
-      ? 'lanterna não disponível neste aparelho'
-      : (st.torch ? 'lanterna ACESA' : 'lanterna apagada');
-    // Build 91: mostra a luz do ambiente já descontando a luz da própria lanterna. É esse número
-    // (e não a leitura crua) que decide se a lanterna apaga.
-    const ambient = Number.isFinite(st.torchAmbient)
-      ? ` · ambiente ${Math.round(st.torchAmbient * 100)}% (já sem a luz da lanterna)`
-      : '';
-    return `Agora: ${active} · ${level}${ambient} · ${torch}. A câmera mede o ambiente e sobe o ganho `
-      + `do passthrough (+EV e redução de ruído) quando escurece. Sem luz nenhuma, o flash do celular `
-      + `acende; quando a luz do ambiente volta, apaga — a luz da própria lanterna não conta. `
-      + `Não grava nada.`;
-  };
-
-  /* Build 89 — aviso honesto sobre o Play Protect. O APK sai fora da Play Store, então o Android
-     mostra "app desconhecido" na instalação. Isso NÃO é um problema do app e não dá para remover
-     por código: só publicando na Play Store. O que dá para fazer (e foi feito) é entregar um build
-     de release assinado, e explicar o caminho mais curto para instalar. */
-  const playProtectNote = () => `ATENÇÃO: o NextVR é instalado direto do GitHub, fora da Play Store.
-    Por isso o Android mostra "app desconhecido" na hora de instalar. Isso é o aviso padrão do
-    sistema para qualquer APK baixado, não um problema do NextVR — não existe código que o remova,
-    só publicar na Play Store. Para instalar: toque em "Mais detalhes" → "Instalar mesmo assim".
-    Nas versões novas do Android o Play Protect volta a perguntar; isso é do sistema, mas o APK
-    agora é assinado como release (não é mais um build de depuração), o que reduz os alertas.`;
-
   const renderSettingsPanel = () => {
     const envs = [
       { id: 'passthrough', label: emT('envAr') },
@@ -702,7 +458,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <div class="entry-settings-tabs" role="tablist" aria-label="Abas de configurações">
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 1 ? 'on' : ''}" data-entry-settings-tab="1">Aba 1 · Básico</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Hand &amp; Tela ↔</button>
-              <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Apps na Dock</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -711,45 +466,46 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
         </div>
         <div class="entry-settings-carousel" data-entry-settings-carousel="1" data-menu-hscroll="1">
-          <!-- Build 93 — organização: uma coluna, cartões com título e opções EMPILHADAS (em pé),
-               nada de várias pastilhas espremidas numa linha só. -->
-          <div class="entry-bento-grid entry-bento-grid--list entry-settings-page" data-entry-settings-page="1">
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">IDIOMA DO MENU</div>
-              <div class="entry-opt-list">
-                ${[['pt','Português (PT)'],['en','English (EN)'],['es','Español (ES)'],['ja','日本語 (JA)'],['ru','Русский (RU)'],['de','Deutsch (DE)']]
-                  .map(([id, label]) => `<button type="button" class="entry-seg-btn ${curLang === id ? 'on' : ''}" data-entry-lang="${id}">${label}</button>`).join('')}
+          <div class="entry-bento-grid entry-settings-page" data-entry-settings-page="1">
+            <div class="entry-bento-cell entry-bento-cell--idioma">
+              <div class="entry-bento-title">${emT('langCell')}</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${curLang === 'pt' ? 'on' : ''}" data-entry-lang="pt">PT</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'en' ? 'on' : ''}" data-entry-lang="en">EN</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'es' ? 'on' : ''}" data-entry-lang="es">ES</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'ja' ? 'on' : ''}" data-entry-lang="ja">JA</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'ru' ? 'on' : ''}" data-entry-lang="ru">RU</button>
+                <button type="button" class="entry-seg-btn ${curLang === 'de' ? 'on' : ''}" data-entry-lang="de">DE</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">DOCK &amp; PERSONAGEM</div>
-              <div class="entry-opt-list">
-                <button type="button" class="entry-seg-btn on">${emT('dock')} PICO 4 Pro</button>
+            <div class="entry-bento-cell entry-bento-cell--spatial">
+              <div class="entry-bento-title">${emT('spatialCell')}</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${spatialMode ? 'on' : ''}" data-entry-spatial="1">${emT('on')}</button>
+                <button type="button" class="entry-seg-btn ${!spatialMode ? 'on' : ''}" data-entry-spatial="0">${emT('dock')}</button>
                 <button type="button" class="entry-seg-btn ${dockSnapOn ? 'on' : ''}" data-entry-dock-snap="${dockSnapOn ? '1' : '0'}" title="Espaço pré-definido ao mover janelas na Dock normal">${dockSnapOn ? emT('dockSnapOn') : emT('dockSnapOff')}</button>
-                <button type="button" class="entry-seg-btn" data-entry-act="profile">Criar Personagem</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell">
+            <div class="entry-bento-cell entry-bento-cell--qualidade">
               <div class="entry-bento-title">${emT('qualityCell')}</div>
-              <div class="entry-opt-list">
+              <div class="entry-seg-row entry-seg-row--compact">
                 ${qualities.map(q => `<button type="button" class="entry-seg-btn ${activeQuality === q.id ? 'on' : ''}" data-entry-quality="${q.id}">${q.label}</button>`).join('')}
               </div>
             </div>
 
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">CÂMERA &amp; MOVIMENTO · 3DoF / 6DoF</div>
-              <div class="entry-opt-list">
-                <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">Câmera 0.5x (grande angular)</button>
-                <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">Câmera 1.0x (normal)</button>
-                <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="3DoF: só gira a cabeça, o mundo fica parado">3DoF (só girar a cabeça)</button>
-                <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="6DoF: anda no espaço com o World Lock embutido (o mundo não escorrega)">6DoF + World Lock (andar no espaço)</button>
+            <div class="entry-bento-cell entry-bento-cell--ocular">
+              <div class="entry-bento-title">${emT('ocularCell')} · 3DoF / 6DoF</div>
+              <div class="entry-seg-row entry-seg-row--compact">
+                <button type="button" class="entry-seg-btn ${wideCam ? 'on' : ''}" data-entry-wide-cam="1">0.5x</button>
+                <button type="button" class="entry-seg-btn ${!wideCam ? 'on' : ''}" data-entry-wide-cam="0">1.0x</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof === 0 ? 'on' : ''}" data-entry-dof="3dof" title="Modo 3DoF (rotação de cabeça)">3DoF</button>
+                <button type="button" class="entry-seg-btn ${S.sixdof !== 0 ? 'on' : ''}" data-entry-dof="6dof" title="Modo 6DoF Falso (andar no espaço)">6DoF</button>
               </div>
-              <p class="entry-opt-note">O 6DoF já vem com o <b>World Lock</b> ligado — era um botão separado e agora é parte do modo: escolheu 6DoF, o mundo fica travado no lugar.</p>
             </div>
 
-            <div class="entry-bento-cell">
+            <div class="entry-bento-cell entry-bento-cell--volume">
               <div class="entry-bento-slider-head">
                 <span class="entry-bento-big">${emT('volumeCell')}</span>
                 <span class="entry-bento-val" data-vol-val>${vol}%</span>
@@ -757,7 +513,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <input type="range" min="0" max="100" value="${vol}" class="entry-slider" data-entry-volume />
             </div>
 
-            <div class="entry-bento-cell">
+            <div class="entry-bento-cell entry-bento-cell--brilho">
               <div class="entry-bento-slider-head">
                 <span class="entry-bento-big">${emT('brightnessCell')}</span>
                 <span class="entry-bento-val" data-bri-val>${bri}%</span>
@@ -766,65 +522,47 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             </div>
           </div>
 
-          <div class="entry-bento-grid entry-bento-grid--list entry-settings-page" data-entry-settings-page="2">
-            <div class="entry-bento-cell">
+          <div class="entry-bento-grid entry-bento-grid--tab2 entry-settings-page" data-entry-settings-page="2">
+            <div class="entry-bento-cell entry-bento-cell--singlehand">
               <div class="entry-bento-title">HAND TRACKING EM 1 MÃO SÓ (0 DELAY)</div>
-              <div class="entry-opt-list">
-                <button type="button" class="entry-seg-btn ${shMode === 'both' ? 'on' : ''}" data-entry-single-hand-set="both">2 Mãos (ambas)</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'right' ? 'on' : ''}" data-entry-single-hand-set="right">Só a mão direita</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'left' ? 'on' : ''}" data-entry-single-hand-set="left">Só a mão esquerda</button>
-                <button type="button" class="entry-seg-btn ${shMode === 'one' ? 'on' : ''}" data-entry-single-hand="${shMode}" data-entry-single-hand-set="one">1 mão automática</button>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+                <button type="button" class="entry-seg-btn ${shMode === 'both' ? 'on' : ''}" data-entry-single-hand-set="both">2 Mãos (Ambas)</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'right' ? 'on' : ''}" data-entry-single-hand-set="right">Só Mão Direita</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'left' ? 'on' : ''}" data-entry-single-hand-set="left">Só Mão Esquerda</button>
+                <button type="button" class="entry-seg-btn ${shMode === 'one' ? 'on' : ''}" data-entry-single-hand="${shMode}" data-entry-single-hand-set="one">1 Mão Automática</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">${emT('handCell')} · PICO 4 (SÓ A MÃO · RAIO LASER)</div>
-              <div class="entry-opt-list">
+            <div class="entry-bento-cell entry-bento-cell--hand">
+              <div class="entry-bento-title">${emT('handCell')} &amp; GESTOS</div>
+              <div class="entry-hand-col">
                 <button type="button" class="entry-seg-btn ${S.handDraw ? 'on' : ''}" data-entry-hand-draw="1">${emT('handDrawn')}</button>
                 <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
-                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Interação por raio laser estilo PICO 4 ao invés de pinça">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
+                <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
+                <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
               </div>
             </div>
 
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">COR DA DOCK</div>
-              <div class="entry-opt-list">
-                ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']]
-                  .map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
+            <div class="entry-bento-cell entry-bento-cell--dockcolor">
+              <div class="entry-bento-title">COR DA DOCK &amp; MULTITAREFA</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:5px">
+                ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']].map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
               </div>
-            </div>
-
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">JANELAS &amp; MULTITAREFA</div>
-              <div class="entry-opt-list">
-                <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela perto passa na frente: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
+              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:8px;flex-wrap:wrap;gap:5px">
+                <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela Perto Sobre / Trás Embaixo: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
                 <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
-                <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">Mostrar FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
+                <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
               </div>
             </div>
 
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">CÂMERA NOTURNA (ESCURO = MODO NOTURNO)</div>
-              <div class="entry-opt-list">
-                <button type="button" class="entry-seg-btn ${(S.nightCamera || 'auto') === 'auto' ? 'on' : ''}" data-entry-night-cam="auto" title="Liga sozinha quando o ambiente escurece">Automática</button>
-                <button type="button" class="entry-seg-btn ${S.nightCamera === 'on' ? 'on' : ''}" data-entry-night-cam="on" title="Sempre ligada">Sempre ligada</button>
-                <button type="button" class="entry-seg-btn ${S.nightCamera === 'off' ? 'on' : ''}" data-entry-night-cam="off" title="Nunca ligar">Desligada</button>
-                <button type="button" class="entry-seg-btn ${S.torchAuto !== 0 ? 'on' : ''}" data-entry-torch-auto="${S.torchAuto !== 0 ? '1' : '0'}" title="Sem luz nenhuma o celular acende a lanterna; quando a luz volta, apaga">🔦 Lanterna automática: ${S.torchAuto !== 0 ? 'ON' : 'OFF'}</button>
-              </div>
-              <p class="entry-night-cam-note" data-night-cam-state>${nightCamNote()}</p>
-            </div>
-
-            <div class="entry-bento-cell">
-              <div class="entry-bento-title">${emT('envTitle')} &amp; PASSTHROUGH</div>
-              <div class="entry-opt-list">
+            <div class="entry-bento-cell entry-bento-cell--env">
+              <div class="entry-bento-title">${emT('envTitle')}</div>
+              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
                 ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
-                <button type="button" class="entry-seg-btn ${S.bwCamera ? 'on' : ''}" data-entry-bw-cam="${S.bwCamera ? '1' : '0'}" title="Deixar só a câmera passthrough preto e branco estilo Meta Quest 2 (janelinhas e dock continuam coloridas)">Câmera P&amp;B (Quest 2): ${S.bwCamera ? 'ON' : 'OFF'}</button>
-                <button type="button" class="entry-seg-btn ${!S.bwCamera ? 'on' : ''}" data-entry-camera="color" title="Câmera passthrough colorida (sem filtro P&amp;B)">📷 Câmera colorida</button>
               </div>
             </div>
           </div>
-
-          ${dockAppsPageHtml()}
         </div>
       </div>`;
   };
@@ -840,14 +578,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       <div class="entry-collab-list" role="list">
         ${ENTRY_COLLABORATORS.map(name => {
           const bio = ENTRY_COLLABORATOR_BIOS[name] || '';
-          // Todos os nomes sao cinza do mesmo jeito e TODOS os colaboradores tem o selo vermelho
-          // (Build 89: "ter em todos da colaboracao", inclusive o Apache).
-          const verified = isVerifiedProfileName(name);
+          const isBlue = name === 'NanyGata';
           return `
-          <div class="entry-collab-item" role="listitem" data-collaborator-name="${name}">
+          <div class="entry-collab-item ${isBlue ? 'entry-collab-item--blue' : ''}" role="listitem" data-collaborator-name="${name}">
             <span class="entry-collab-name-row">
-              <span class="entry-collab-name" data-collab-name="${name}">${name}</span>
-              ${verified ? `<span class="entry-collab-verified" data-collab-verified="${name}" title="Verificado">${SVG_TIKTOK_VERIFIED}</span>` : ''}
+              <span class="entry-collab-name ${isBlue ? 'entry-collab-name--blue' : ''}" ${isBlue ? 'data-collab-blue="1"' : ''}>${name}</span>
+              <span class="entry-collab-verified" data-collab-verified="${name}" title="Verificado">${SVG_TIKTOK_VERIFIED}</span>
               ${bio ? `<span class="entry-collab-bio" data-collab-bio="${name}">${escHtml(bio)}</span>` : ''}
             </span>
           </div>`;
@@ -870,39 +606,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>
     </div>`;
 
-  /* Build 90 — conta NextVR por e-mail.
-   *
-   * O usuário: "quando entrar, bota a opção de e-mail pra a conta já ir vinculada no discord, tiktok
-   * Google e YouTube". O e-mail é guardado no perfil e cada botão abre a página de login REAL do
-   * serviço (é o que dá para fazer sem servidor OAuth registrado); o vínculo fica marcado aqui.
-   */
-  /*
-   * Build 92 — a conta de verdade.
-   *
-   * O usuário: "o do Google é pra abrir aquela firebase algo assim que dá acesso às contas do
-   * Google, e você clica em continuar como (sua conta), aí a sua conta real entra".
-   *
-   * É a tela de escolha de conta do Google (`/AccountChooser`) — a mesma que o login do Firebase
-   * usa por baixo dos panos: lista as contas que já estão no celular e mostra o botão
-   * "Continuar como (você)". O Google RECUSA esse login dentro de WebView ("este navegador pode
-   * não ser seguro"), então ela abre no navegador DE VERDADE pelo lado nativo
-   * (`NativeXR.openExternal`, um intent ACTION_VIEW). No PC/teste cai na janela interna.
-   */
-  const googleChooser = continueTo =>
-    `https://accounts.google.com/AccountChooser?continue=${encodeURIComponent(continueTo)}`;
-  const ACCOUNT_LINKS = [
-    { id: 'discord', label: 'Discord', glyph: 'D', url: 'https://discord.com/login', browser: true, bg: 'linear-gradient(180deg,#5865f2,#3b45c9)' },
-    { id: 'tiktok', label: 'TikTok', glyph: '♪', url: 'https://www.tiktok.com/login', browser: true, bg: 'linear-gradient(180deg,#25f4ee,#fe2c55)' },
-    { id: 'google', label: 'Google', glyph: 'G', url: googleChooser('https://myaccount.google.com/'), browser: true, bg: 'linear-gradient(180deg,#4285f4,#1a73e8)' },
-    { id: 'youtube', label: 'YouTube', glyph: '▶', url: googleChooser('https://www.youtube.com/'), browser: true, bg: 'linear-gradient(180deg,#ff0033,#c4302b)' },
-  ];
-  const accountLinkedIds = () => String(S.accountLinks || '').split(',').map(v => v.trim()).filter(Boolean);
-  const accountLinked = id => accountLinkedIds().includes(id);
-
   const renderProfilePanel = () => {
     const currentName = S.profileName || '';
     const currentAvatar = S.profileAvatar || '';
-    const charCfg = loadCharacter();
     const avatarInner = currentAvatar
       ? `<img src="${escHtml(currentAvatar)}" alt="Foto de perfil" class="entry-login-avatar-img" data-profile-avatar-img />`
       : SVG_USER;
@@ -912,11 +618,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <h2 class="entry-subpanel-title">Login / Perfil NextVR</h2>
           <div class="entry-subpanel-actions">
             <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">Voltar</button>
-            <button type="button" class="entry-btn entry-btn--primary" data-char-apply-avatar>Usar Personagem no Perfil</button>
             <button type="button" class="entry-btn entry-btn--primary" data-profile-save>Salvar Login</button>
           </div>
         </div>
-        <div class="entry-login-body" style="overflow-y:auto;max-height:100%">
+        <div class="entry-login-body">
           <div class="entry-login-left">
             <div class="entry-login-avatar-preview" data-profile-avatar-preview title="Toque para escolher foto da galeria">
               ${avatarInner}
@@ -925,77 +630,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               Escolher Foto da Galeria
             </button>
             <input type="file" accept="image/*" data-profile-file hidden />
-            <div style="margin-top:8px;padding:8px;border-radius:12px;background:rgba(9,9,11,.92);border:1px solid rgba(161,161,170,.28);text-align:center">
-              <div style="font-size:10px;font-weight:800;color:#d4d4d8;margin-bottom:4px">SEU PERSONAGEM 3D</div>
-              <canvas data-char-preview-canvas width="140" height="175" style="width:128px;height:160px;border-radius:10px;display:block;margin:0 auto;border:1px solid rgba(255,255,255,.12)"></canvas>
-            </div>
           </div>
           <div class="entry-login-right">
             <label class="entry-login-label">
               <span>SEU NOME / NICK <span class="entry-collab-verified entry-profile-verified-preview" data-profile-verified-preview="1" ${isVerifiedProfileName(currentName) ? '' : 'hidden'} title="Verificado">${SVG_TIKTOK_VERIFIED}</span></span>
               <input type="text" class="entry-login-input" data-profile-name-input maxlength="24" placeholder="Digite seu nome..." value="${escHtml(currentName)}" />
             </label>
-
-            <div class="entry-account" data-entry-account="1">
-              <div class="entry-account-title">CONTA NextVR · E-MAIL E VÍNCULOS</div>
-              <label class="entry-login-label">
-                <span>SEU E-MAIL (a conta fica vinculada)</span>
-                <input type="email" class="entry-login-input" data-account-email maxlength="80"
-                  autocomplete="email" spellcheck="false" placeholder="voce@email.com"
-                  value="${escHtml(S.accountEmail || '')}" />
-              </label>
-              <div class="entry-account-links">
-                ${ACCOUNT_LINKS.map(link => {
-                  const on = accountLinked(link.id);
-                  return `<button type="button" class="entry-account-link ${on ? 'on' : ''}"
-                    data-account-link="${link.id}" data-account-browser="${link.browser ? '1' : '0'}"
-                    aria-pressed="${on ? 'true' : 'false'}"
-                    title="${on ? 'Vinculado — toque para abrir ' : 'Abrir a escolha de conta do '}${link.label}">
-                    <span class="entry-account-ico" style="background:${link.bg}">${link.glyph}</span>
-                    <span class="entry-account-name">${link.label}</span>
-                    <span class="entry-account-state">${on ? '✓ VINCULADO' : 'VINCULAR'}</span>
-                  </button>`;
-                }).join('')}
-              </div>
-              <p class="entry-account-note">Digite o e-mail e toque em cada serviço: o app abre a
-                página de login real. No Google e no YouTube abre a <b>escolha de conta do Google</b>
-                (a mesma que o login do Firebase usa) — toque em <b>"Continuar como (sua conta)"</b>
-                e a sua conta real entra. O vínculo fica guardado na sua conta NextVR deste perfil.</p>
-            </div>
-
-            <div class="entry-char-studio" data-character-creator="1" style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(15,15,18,.94);border:1px solid rgba(161,161,170,.3);display:flex;flex-direction:column;gap:7px">
-              <div style="display:flex;align-items:center;justify-content:space-between">
-                <strong style="font-size:11.5px;letter-spacing:.04em;color:#f4f4f5">CRIAR PERSONAGEM DO JOGO · NextVR</strong>
-                <span style="font-size:10px;color:#38bdf8;font-weight:700">Sincronizado com Motion Tracker &amp; VR</span>
-              </div>
-              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">PELE:</span>
-                ${CHARACTER_OPTIONS.skins.map(s => `<button type="button" data-char-set="skin:${s.id}" title="${escHtml(s.label)}" style="width:20px;height:20px;border-radius:50%;background:${s.id};border:${charCfg.skin === s.id ? '2.5px solid #fff' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;margin-left:8px">COR CABELO:</span>
-                ${CHARACTER_OPTIONS.hairColors.map(hc => `<button type="button" data-char-set="hairColor:${hc.id}" title="${escHtml(hc.label)}" style="width:18px;height:18px;border-radius:50%;background:${hc.id};border:${charCfg.hairColor === hc.id ? '2.5px solid #38bdf8' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
-              </div>
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">CABELO:</span>
-                ${CHARACTER_OPTIONS.hairStyles.map(hs => `<button type="button" class="entry-seg-btn ${charCfg.hairStyle === hs.id ? 'on' : ''}" data-char-set="hairStyle:${hs.id}" style="padding:3px 7px;font-size:10px">${escHtml(hs.label)}</button>`).join('')}
-              </div>
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">VISOR VR:</span>
-                ${CHARACTER_OPTIONS.visors.map(v => `<button type="button" class="entry-seg-btn ${charCfg.visor === v.id ? 'on' : ''}" data-char-set="visor:${v.id}" style="padding:3px 7px;font-size:10px">${escHtml(v.label)}</button>`).join('')}
-              </div>
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">TRAJE:</span>
-                ${CHARACTER_OPTIONS.outfits.map(o => `<button type="button" class="entry-seg-btn ${charCfg.outfit === o.id ? 'on' : ''}" data-char-set="outfit:${o.id}" style="padding:3px 7px;font-size:10px">${escHtml(o.label)}</button>`).join('')}
-              </div>
-              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;min-width:56px">COR ROUPA:</span>
-                ${CHARACTER_OPTIONS.outfitColors.map(oc => `<button type="button" data-char-set="outfitColor:${oc.id}" title="${escHtml(oc.label)}" style="width:18px;height:18px;border-radius:50%;background:${oc.id};border:${charCfg.outfitColor === oc.id ? '2.5px solid #fff' : '1px solid rgba(255,255,255,.3)'};cursor:pointer"></button>`).join('')}
-                <span style="font-size:10px;font-weight:800;color:#a1a1aa;margin-left:6px">ACESSÓRIO:</span>
-                ${CHARACTER_OPTIONS.accessories.map(ac => `<button type="button" class="entry-seg-btn ${charCfg.accessory === ac.id ? 'on' : ''}" data-char-set="accessory:${ac.id}" style="padding:3px 7px;font-size:10px">${escHtml(ac.label)}</button>`).join('')}
-              </div>
-            </div>
-
-            <div class="entry-login-presets-wrap" style="margin-top:6px">
-              <span class="entry-login-presets-title">OU ESCOLHA UM AVATAR PRONTO</span>
+            <div class="entry-login-presets-wrap">
+              <span class="entry-login-presets-title">OU ESCOLHA UM AVATAR</span>
               <div class="entry-login-presets">
                 ${PRESET_AVATARS.map(a => `
                   <button type="button" class="entry-login-preset ${currentAvatar === a.url ? 'on' : ''}" data-profile-preset="${escHtml(a.url)}" title="${escHtml(a.label)}">
@@ -1009,254 +651,72 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       </div>`;
   };
 
-  /*
-   * Build 90 — painel da Key.
-   *
-   * "bota um sistema de Key… a Key tem que ter 22 caracteres… essas keys só funciona uma vez…
-   *  botou a Key pronto, não precisa por denovo, só se desinstalar e instalar denovo… e a Key só
-   *  e pra esse celular".
-   *
-   * A tela é deliberadamente simples: uma caixa de 22 caracteres, o botão ATIVAR, o estado e o
-   * código do aparelho. Quem manda é o lado nativo (License.java) — aqui só desenhamos.
-   */
-  const renderLicensePanel = () => {
-    const st = licenseStatus(true);
-    const active = !!st.active;
-    return `
-      <div class="entry-subpanel entry-subpanel--license" data-entry-panel="license">
-        <div class="entry-subpanel-head">
-          <h2 class="entry-subpanel-title">Key de ativação</h2>
-          <div class="entry-subpanel-actions">
-            <button type="button" class="entry-btn entry-btn--ghost" data-entry-act="back">Voltar</button>
-          </div>
-        </div>
-        <div class="entry-key-body">
-          <div class="entry-key-status ${active ? 'on' : ''}" data-entry-key-status>
-            <span class="entry-key-dot" aria-hidden="true"></span>
-            <span data-entry-key-status-text>${active ? 'KEY ATIVADA NESTE CELULAR' : 'SEM KEY ATIVA'}</span>
-          </div>
-          <p class="entry-key-help">
-            A Key tem <b>22 caracteres</b>, funciona <b>uma vez</b> e fica presa a <b>este celular</b>.
-            Digitou e ativou, não precisa digitar de novo — só se desinstalar e instalar o app outra vez.
-          </p>
-          ${active ? `
-            <div class="entry-key-activated">
-              <div><span>Key</span><b data-entry-key-mask>${escHtml(st.key || '—')}</b></div>
-              <div><span>Aparelho</span><b>${escHtml(deviceCode())}</b></div>
-              <div><span>Ativada</span><b>${st.since ? new Date(st.since).toLocaleDateString('pt-BR') : '—'}</b></div>
-            </div>
-          ` : `
-            <label class="entry-login-label">
-              <span>SUA KEY (22 CARACTERES)</span>
-              <input type="text" class="entry-login-input entry-key-input" data-entry-key-input
-                maxlength="${KEY_LENGTH + 6}" autocomplete="off" spellcheck="false"
-                placeholder="XXXX XXXX XXXX XXXX XXXX XX" />
-            </label>
-            <div class="entry-key-row">
-              <span class="entry-key-count" data-entry-key-count>0/${KEY_LENGTH}</span>
-              <button type="button" class="entry-btn entry-btn--primary" data-entry-key-activate>Ativar Key</button>
-            </div>
-            <p class="entry-key-msg" data-entry-key-msg>${escHtml(licensePrompt)}</p>
-            <p class="entry-key-device">Aparelho: <b>${escHtml(deviceCode())}</b> · a Key ativada aqui não funciona em outro celular.</p>
-          `}
-        </div>
-      </div>`;
-  };
-
-  /*
-   * Build 89 — tela de carregamento NextVR.
-   *
-   * O usuario mandou o print da tela nova e pediu "substitui aquela e poe essa". A antiga era um
-   * HUD azul com moldura poligonal; a nova e' preta, com o wordmark NextVR gigante (o XR dentro de uma
-   * caixa), um selo de realidade virtual embaixo, a barra de progresso fina e o texto de status.
-   * Todos os ganchos que o countdown e os testes usam continuam aqui, com os mesmos nomes.
-   */
   const renderLoadingScreen = (batInfo) => {
     const statusText = loadingStatusForPct(loadingPct);
     return `
-      <div class="entry-nextvr-load" data-entry-panel="loading" role="status" aria-live="polite">
-        <img class="entry-nextvr-art" src="nextvr-load.jpg" alt="NextVR" draggable="false">
-        <button type="button" class="entry-nextvr-cancel" data-entry-cancel-countdown title="Cancelar">CANCELAR</button>
-        <span class="entry-nextvr-bat" data-entry-battery-top>${batInfo.text}</span>
-        <footer class="entry-nextvr-foot">
-          <div class="entry-nextvr-status" data-entry-load-status>${statusText}</div>
-          <div class="entry-nextvr-bar-row">
-            <div class="entry-nextvr-bar-track">
-              <div class="entry-nextvr-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
+      <div class="entry-hud-screen" data-entry-panel="loading" role="status" aria-live="polite">
+        <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
+
+        <header class="entry-hud-top">
+          <div class="entry-hud-top-left" aria-hidden="true">
+            <div class="entry-hud-sq-box"><div class="entry-hud-sq-inner"></div></div>
+            <div class="entry-hud-lines">
+              <span class="entry-hud-line-short"></span>
+              <span class="entry-hud-line-long"></span>
             </div>
-            <span class="entry-nextvr-pct" data-entry-load-pct>${loadingPct}%</span>
-            <span class="entry-nextvr-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
+            <div class="entry-hud-vdiv"></div>
           </div>
-          <div class="entry-nextvr-hint" data-entry-countdown-sub>Coloque o celular no VR Box · Iniciando em ${countdownSec}s...</div>
-        </footer>
-      </div>`;
-  };
 
-  /*
-   * Build 93 — "quero que quando entrar no app aparece o negócio de fazer login com Google".
-   *
-   * Um cartão de login com o botão do Google aparece assim que o menu carrega (por cima do menu),
-   * até a conta ser vinculada. O botão usa a mesma tela de escolha de conta do Google
-   * (`/AccountChooser`, a que o Firebase usa) aberta no navegador do celular, onde aparece
-   * "Continuar como (sua conta)". Sem a ponte nativa (PC/teste) abre na janela interna.
-   */
-  const googleSignInUrl = () =>
-    `${googleChooser('https://myaccount.google.com/')}`;
-  const signedIn = () => S.googleSignedIn === 1;
-  let signInOpen = !signedIn();
-
-  /*
-   * Build 94 — a conta Google que CONECTA no app, como no Kwai e no TikTok.
-   *
-   * O usuário: "era pra a conta do Gmail se conectar com o app, tipo que a do Kwai se conecta com o
-   * app". No Kwai o toque em entrar mostra as CONTAS DO APARELHO ("Escolha uma conta — para continuar
-   * no Kwai", com "Adicionar outra conta") e a escolhida fica ligada ao app. É o que este cartão faz,
-   * com uma diferença importante: a lista não é desenhada de mentira. Os e-mails vêm do AccountManager
-   * do Android (`NativeXR.googleAccounts()`, permissão GET_ACCOUNTS pedida na hora) e a escolha de
-   * "outra conta" abre a tela do próprio sistema (`NativeXR.googleChooseAccount()`). Sem a ponte
-   * nativa (PC/teste) sobra o caminho do navegador, que continua existindo como alternativa.
-   */
-  const GOOGLE_AVATAR_COLORS = ['#1a73e8', '#d93025', '#188038', '#9334e6', '#e37400', '#12b5cb'];
-  const googleInitial = email => (String(email || '').trim()[0] || 'G').toUpperCase();
-  const googleLabel = email => {
-    const local = String(email || '').split('@')[0] || 'Conta Google';
-    return local.charAt(0).toUpperCase() + local.slice(1);
-  };
-  const googleAvatarColor = email => {
-    let hash = 0;
-    for (const ch of String(email || '')) hash = (hash * 31 + ch.codePointAt(0)) % 9973;
-    return GOOGLE_AVATAR_COLORS[hash % GOOGLE_AVATAR_COLORS.length];
-  };
-  /** null = ainda não perguntou; 'loading'; ou a lista real de e-mails do aparelho. */
-  let googleAccounts = null;
-  let googlePermission = ''; // granted | denied | unavailable
-  let googleStatus = '';     // mensagem curta mostrada no cartão
-  const nativeGoogleAccounts = () =>
-    (typeof window.NativeXR?.googleAccounts === 'function' ? window.NativeXR : null);
-  const readGoogleAccounts = raw => {
-    let data = null;
-    try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { data = null; }
-    googlePermission = String(data?.permission || 'unavailable');
-    googleAccounts = Array.isArray(data?.accounts)
-      ? data.accounts
-        .map(a => String(typeof a === 'string' ? a : a?.email || '').trim())
-        .filter(email => email.includes('@'))
-      : [];
-    return googleAccounts;
-  };
-  const loadGoogleAccounts = () => {
-    if (googleAccounts !== null) return googleAccounts;
-    if (!nativeGoogleAccounts()) {
-      googleAccounts = [];
-      googlePermission = 'unavailable';
-      return googleAccounts;
-    }
-    googleAccounts = 'loading';
-    let raw = null;
-    try { raw = window.NativeXR.googleAccounts(); } catch { raw = null; }
-    return readGoogleAccounts(raw);
-  };
-  const connectGoogleAccount = email => {
-    const mail = String(email || '').trim();
-    if (!mail.includes('@')) return;
-    S.googleSignedIn = 1;
-    S.accountEmail = mail;
-    S.accountLinks = [...new Set([...accountLinkedIds(), 'google'])].join(',');
-    if (!String(S.profileName || '').trim()) S.profileName = googleLabel(mail);
-    save(S);
-    signInOpen = false;
-    googleStatus = '';
-    emit('account-linked', { id: 'google', email: mail });
-    emit('profile-updated', { name: S.profileName, avatar: S.profileAvatar });
-    paint();
-  };
-  const openGoogleBrowserFallback = () => {
-    const url = googleSignInUrl();
-    let opened = false;
-    try {
-      if (typeof window.NativeXR?.openExternal === 'function') {
-        window.NativeXR.openExternal(url);
-        opened = true;
-      }
-    } catch { opened = false; }
-    googleStatus = opened
-      ? 'A escolha de conta abriu no navegador do celular. Toque em “Continuar como (você)” e depois em JÁ ENTREI.'
-      : 'Abra a escolha de conta no navegador e toque em JÁ ENTREI depois de escolher a sua conta.';
-    emit('account-link', { id: 'google', url, email: S.accountEmail || '', browser: opened });
-    if (!opened) return false;
-    paint();
-    return true;
-  };
-
-  const signInOverlayHtml = () => {
-    if (!signInOpen) return '';
-    loadGoogleAccounts();
-    const list = Array.isArray(googleAccounts) ? googleAccounts : [];
-    const loading = googleAccounts === 'loading';
-    const needsPermission = googlePermission === 'denied';
-    const rows = list.length ? `
-          <div class="entry-signin-accounts" data-entry-google-accounts="1">
-            ${list.map(email => `
-              <button type="button" class="entry-signin-account" data-entry-google-account="${escHtml(email)}"
-                title="Entrar no NextVR com ${escHtml(email)}">
-                <span class="entry-signin-avatar" style="background:${googleAvatarColor(email)}">${escHtml(googleInitial(email))}</span>
-                <span class="entry-signin-id">
-                  <b class="entry-signin-account-name">${escHtml(googleLabel(email))}</b>
-                  <span class="entry-signin-account-mail">${escHtml(email)}</span>
-                </span>
-                <span class="entry-signin-account-check" aria-hidden="true">›</span>
-              </button>`).join('')}
-          </div>` : '';
-    return `
-      <div class="entry-signin-backdrop" data-entry-signin="1">
-        <div class="entry-signin-card" role="dialog" aria-modal="true" aria-label="Escolha uma conta">
-          <div class="entry-signin-logo" aria-hidden="true">
-            <svg viewBox="0 0 48 48" width="34" height="34" role="img" aria-label="Google">
-              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
-              <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
-              <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
-              <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
-            </svg>
-          </div>
-          <h2 class="entry-signin-title">Escolha uma conta</h2>
-          <p class="entry-signin-sub">para continuar no NextVR</p>
-          ${rows}
-          ${needsPermission ? `
-            <button type="button" class="entry-signin-permission" data-entry-google-permission>
-              Ver as contas Google deste celular
-            </button>` : ''}
-          ${loading ? '<p class="entry-signin-state" data-entry-signin-msg>Lendo as contas deste celular...</p>' : ''}
-          ${!rows && !loading && !needsPermission ? `
-            <p class="entry-signin-state" data-entry-signin-msg>${googlePermission === 'unavailable'
-              ? 'Neste aparelho a lista de contas é montada pelo app (Android). Toque em <b>Adicionar outra conta</b> ou em <b>Usar o navegador do Google</b>.'
-              : 'Nenhuma conta Google neste celular. Toque em <b>Adicionar outra conta</b> para entrar com a sua no próprio Android.'}</p>` : ''}
-          <button type="button" class="entry-signin-add" data-entry-google-choose>
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <circle cx="9" cy="8" r="3.4"/><path d="M3.2 19c.5-3.2 3-5.1 5.8-5.1s5.3 1.9 5.8 5.1"/>
-              <path d="M18 7.5v5M15.5 10h5"/>
-            </svg>
-            <span>Adicionar outra conta</span>
-          </button>
-          <p class="entry-signin-legal">Para continuar, o Google vai compartilhar o seu nome e o seu
-            endereço de e-mail com o NextVR. Antes de usar, leia a política de privacidade e os termos
-            de serviço do app.</p>
-          <p class="entry-signin-state" data-entry-signin-msg>${escHtml(googleStatus ||
-            'Toque na sua conta acima: ela fica conectada no perfil, no Google e no YouTube.')}</p>
-          <div class="entry-signin-actions">
-            <button type="button" class="entry-signin-google" data-entry-google-signin>
-              <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
-                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5Z"/>
-                <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v8.4h12.5c-.3 2.1-1.6 5.2-4.6 7.3l7.6 5.9c4.5-4.2 6.6-10.3 6.6-17.5Z"/>
-                <path fill="#FBBC05" d="M10.4 28.7A14.6 14.6 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1Z"/>
-                <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.5-5.9l-7.6-5.9c-2 1.4-4.7 2.4-7.9 2.4-6.4 0-11.7-3.7-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48Z"/>
-              </svg>
-              <span>Usar o navegador do Google</span>
+          <div class="entry-hud-top-right">
+            <div class="entry-hud-vdiv" aria-hidden="true"></div>
+            <div class="entry-hud-rect" aria-hidden="true">
+              <span>NEXTVR</span>
+              <b data-entry-battery-top>${batInfo.text}</b>
+            </div>
+            <button type="button" class="entry-hud-rect entry-hud-rect--btn" data-entry-cancel-countdown title="Cancelar">
+              CANCELAR
             </button>
-            <button type="button" class="entry-signin-confirm" data-entry-signin-done>JÁ ENTREI</button>
-            <button type="button" class="entry-signin-skip" data-entry-signin-skip>Agora não</button>
+          </div>
+        </header>
+
+        <div class="entry-hud-center">
+          <div class="entry-hud-frame-wrap">
+            <svg class="entry-hud-frame-svg" viewBox="0 0 920 400" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <filter id="entryHudGlow" x="-15%" y="-15%" width="130%" height="130%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <polygon points="274,14 646,14 628,32 292,32" fill="#00f2fe" filter="url(#entryHudGlow)" />
+              <polygon points="292,368 628,368 646,386 274,386" fill="#00f2fe" filter="url(#entryHudGlow)" />
+              <path d="M 68,14 L 256,14 L 284,42 L 636,42 L 664,14 L 852,14 L 876,66 L 868,78 Q 906,200 868,322 L 876,334 L 852,386 L 664,386 L 636,358 L 284,358 L 256,386 L 68,386 L 44,334 L 52,322 Q 14,200 52,78 L 44,66 Z"
+                fill="rgba(4, 34, 58, 0.34)"
+                stroke="#38bdf8"
+                stroke-width="2.5"
+                stroke-linejoin="round" />
+            </svg>
+
+            <div class="entry-hud-frame-content">
+              <div class="entry-hud-brand">NextVR</div>
+              <div class="entry-hud-pct-row">
+                <span class="entry-hud-pct" data-entry-load-pct>${loadingPct}%</span>
+                <span class="entry-hud-sec">(<b data-entry-countdown>${countdownSec}</b>s)</span>
+              </div>
+              <div class="entry-hud-status" data-entry-load-status>${statusText}</div>
+              <div class="entry-hud-hint" data-entry-countdown-sub>COLOQUE O CELULAR NO VR BOX · Iniciando em ${countdownSec}s...</div>
+            </div>
           </div>
         </div>
+
+        <footer class="entry-hud-bottom">
+          <div class="entry-hud-bar-track">
+            <div class="entry-hud-bar-fill" data-entry-load-bar style="width:${loadingPct}%"></div>
+          </div>
+        </footer>
       </div>`;
   };
 
@@ -1280,9 +740,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       activeView === 'collaborators' ? renderCollaboratorsPanel() :
       activeView === 'about' ? renderAboutPanel() :
       activeView === 'profile' ? renderProfilePanel() :
-      activeView === 'license' ? renderLicensePanel() :
       activeView === 'store' ? renderStorePanel() :
-      renderBrandStage(batInfo);
+      renderBrandStage();
 
     const displayName = S.profileName ? escHtml(S.profileName) : 'NextVR (Login)';
     const profileAvatarHtml = S.profileAvatar
@@ -1296,15 +755,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
       <header class="entry-top-header">
         <div class="entry-top-bars" aria-hidden="true"></div>
-        <h1 class="entry-main-title">NextVR</h1>
+        <h1 class="entry-main-title">MAIN MENU</h1>
         <div class="entry-subtitle">${ENTRY_SUBTITLE}</div>
-        <div class="entry-p5-sys-banner" data-p5-sys-banner="1">
-          <span class="entry-p5-sys-tag">SISTEMA</span>
-          <div class="entry-p5-sys-box">
-            <span>"MENU PRINCIPAL" &amp; "PICO 4 PRO"</span>
-            <i class="entry-p5-sys-bang" aria-hidden="true">!</i>
-          </div>
-        </div>
         <div class="entry-top-right-cluster">
           <button type="button" class="entry-top-store-btn ${activeView === 'store' ? 'on' : ''}" data-entry-act="store" title="Abrir Store NextVR">
             ${SVG_STORE_BAG}
@@ -1324,7 +776,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
       <div class="entry-layout">
         <aside class="entry-left-column">
-          <div class="entry-p5-jagged-backing" aria-hidden="true"></div>
           ${renderSlantedButtons()}
 
           <div class="entry-profile-box" data-entry-act="profile" role="button" tabindex="0" title="Clique para editar Nome e Foto de Perfil">
@@ -1347,62 +798,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           ` : ''}
         </main>
       </div>
-      ${signInOverlayHtml()}
     `;
 
-    const googleBtn = root.querySelector('[data-entry-google-signin]');
-    if (googleBtn) {
-      // Alternativa: a escolha de conta no navegador (funciona também no PC/teste, sem ponte nativa).
-      googleBtn.onclick = () => openGoogleBrowserFallback();
-    }
-    // Build 94: tocar numa conta do celular CONECTA aquela conta no app.
-    root.querySelectorAll('[data-entry-google-account]').forEach(btn => {
-      btn.onclick = () => connectGoogleAccount(btn.dataset.entryGoogleAccount || '');
-    });
-    const googlePermissionBtn = root.querySelector('[data-entry-google-permission]');
-    if (googlePermissionBtn) {
-      googlePermissionBtn.onclick = () => {
-        googleAccounts = 'loading';
-        try { window.NativeXR?.requestGoogleAccounts?.(); } catch {}
-        paint();
-      };
-    }
-    const googleChooseBtn = root.querySelector('[data-entry-google-choose]');
-    if (googleChooseBtn) {
-      googleChooseBtn.onclick = () => {
-        if (typeof window.NativeXR?.googleChooseAccount === 'function') {
-          googleStatus = 'Abrindo a tela de contas do Android...';
-          try { window.NativeXR.googleChooseAccount(); } catch { openGoogleBrowserFallback(); }
-          paint();
-        } else {
-          openGoogleBrowserFallback();
-        }
-      };
-    }
-    const signInDone = root.querySelector('[data-entry-signin-done]');
-    if (signInDone) {
-      signInDone.onclick = () => {
-        S.googleSignedIn = 1;
-        S.accountLinks = String(S.accountLinks || '').includes('google')
-          ? S.accountLinks
-          : [...String(S.accountLinks || '').split(',').map(v => v.trim()).filter(Boolean), 'google'].join(',');
-        save(S);
-        signInOpen = false;
-        emit('account-linked', { id: 'google', email: S.accountEmail || '' });
-        emit('profile-updated', { name: S.profileName, avatar: S.profileAvatar });
-        paint();
-      };
-    }
-    const signInSkip = root.querySelector('[data-entry-signin-skip]');
-    if (signInSkip) {
-      signInSkip.onclick = () => {
-        signInOpen = false;
-        paint();
-      };
-    }
     root.querySelectorAll('[data-entry-act="start"]').forEach(btn => {
       btn.onclick = () => {
-        if (!licenseAllowsPlay()) return;
         if (fullscreen) {
           startCountdown();
         } else {
@@ -1446,58 +845,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
-    root.querySelectorAll('[data-entry-act="license"]').forEach(btn => {
-      btn.onclick = () => {
-        activeView = 'license';
-        paint();
-      };
-    });
-    const keyInput = root.querySelector('[data-entry-key-input]');
-    if (keyInput) {
-      const paintKeyCount = () => {
-        const count = root.querySelector('[data-entry-key-count]');
-        const clean = normalizeKey(keyInput.value);
-        if (count) count.textContent = `${clean.length}/${KEY_LENGTH}`;
-        // A caixa mostra a chave em grupos de 4 para caber na tela do celular.
-        keyInput.value = formatKey(keyInput.value);
-      };
-      keyInput.addEventListener('input', paintKeyCount);
-      paintKeyCount();
-    }
-    const keyActivate = root.querySelector('[data-entry-key-activate]');
-    if (keyActivate) {
-      keyActivate.onclick = () => {
-        const raw = keyInput ? keyInput.value : '';
-        const result = activateKey(raw);
-        const msg = root.querySelector('[data-entry-key-msg]');
-        // Build 95: no iPhone a conferência da Key acontece no Swift e volta um instante depois —
-        // mostramos "Conferindo..." e esperamos o aviso, em vez de dizer que a Key é inválida.
-        if (result.pending) {
-          if (msg) {
-            msg.textContent = licenseMessage('pendente');
-            msg.dataset.state = 'pending';
-          }
-          const stop = onLicenseChange(status => {
-            stop();
-            if (!status || !status.active) return;
-            emit('license', status);
-            activeView = 'license';
-            paint();
-          });
-          return false;
-        }
-        if (msg) {
-          msg.textContent = licenseMessage(result.reason);
-          msg.dataset.state = result.ok ? 'ok' : 'error';
-        }
-        if (result.ok) {
-          emit('license', result.status);
-          activeView = 'license';
-          paint();
-        }
-        return false;
-      };
-    }
     root.querySelectorAll('[data-entry-act="about"]').forEach(btn => {
       btn.onclick = () => {
         stopCountdown();
@@ -1586,47 +933,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         if (previewBadge) previewBadge.hidden = !verified;
       };
     }
-    const accountEmail = root.querySelector('[data-account-email]');
-    if (accountEmail) {
-      accountEmail.oninput = () => {
-        S.accountEmail = accountEmail.value.trim();
-        save(S);
-      };
-    }
-    root.querySelectorAll('[data-account-link]').forEach(btn => {
-      btn.onclick = () => {
-        const id = btn.dataset.accountLink || '';
-        const link = ACCOUNT_LINKS.find(l => l.id === id);
-        if (!link) return;
-        const current = accountLinkedIds();
-        S.accountLinks = current.includes(id) ? current.filter(v => v !== id) : [...current, id];
-        if (id === 'google' && accountLinkedIds().includes('google')) S.googleSignedIn = 1;
-        save(S);
-        const on = accountLinkedIds().includes(id);
-        btn.classList.toggle('on', on);
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        const state = btn.querySelector('.entry-account-state');
-        if (state) state.textContent = on ? '✓ VINCULADO' : 'VINCULAR';
-        // Abre a página de login real do serviço na janela do navegador.
-        // Build 92: Google/YouTube (e os outros logins) abrem no navegador de verdade — o Google
-        // bloqueia login dentro de WebView, e é lá que aparece o "Continuar como (sua conta)".
-        let openedInBrowser = false;
-        // Build 94: "Google" e "YouTube" agora abrem a tela de contas do próprio Android (a mesma do
-        // Kwai/TikTok) e conectam a conta escolhida neste perfil; o navegador fica como alternativa.
-        if ((id === 'google' || id === 'youtube') && typeof window.NativeXR?.googleChooseAccount === 'function') {
-          try { window.NativeXR.googleChooseAccount(); openedInBrowser = true; } catch { openedInBrowser = false; }
-        }
-        if (!openedInBrowser && link.browser) {
-          try {
-            if (typeof window.NativeXR?.openExternal === 'function') {
-              window.NativeXR.openExternal(link.url);
-              openedInBrowser = true;
-            }
-          } catch {}
-        }
-        emit('account-link', { id, url: link.url, email: S.accountEmail || '', browser: openedInBrowser });
-      };
-    });
     const saveProfileBtn = root.querySelector('[data-profile-save]');
     if (saveProfileBtn) {
       saveProfileBtn.onclick = () => {
@@ -1646,33 +952,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         paint();
       };
     });
-    const charCanvas = root.querySelector('[data-char-preview-canvas]');
-    if (charCanvas) {
-      const ctx = charCanvas.getContext('2d');
-      if (ctx) drawCharacter2D(ctx, charCanvas.width, charCanvas.height, loadCharacter(), { time: 0.4 });
-    }
-    root.querySelectorAll('[data-char-set]').forEach(btn => {
-      btn.onclick = () => {
-        const raw = btn.dataset.charSet || '';
-        const sep = raw.indexOf(':');
-        if (sep < 0) return;
-        const key = raw.slice(0, sep);
-        const val = raw.slice(sep + 1);
-        if (nameInput) S.profileName = nameInput.value.trim();
-        const cur = loadCharacter();
-        cur[key] = val;
-        saveCharacter(cur, { updateProfileAvatar: true });
-        paint();
-      };
-    });
-    const applyCharAvatarBtn = root.querySelector('[data-char-apply-avatar]');
-    if (applyCharAvatarBtn) {
-      applyCharAvatarBtn.onclick = () => {
-        if (nameInput) S.profileName = nameInput.value.trim();
-        saveCharacter(loadCharacter(), { updateProfileAvatar: true });
-        paint();
-      };
-    }
     const uploadBtn = root.querySelector('[data-profile-upload]');
     const avatarPreview = root.querySelector('[data-profile-avatar-preview]');
     const fileInput = root.querySelector('[data-profile-file]');
@@ -1804,14 +1083,13 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     const settingsCarousel = root.querySelector('[data-entry-settings-carousel]');
     if (settingsCarousel) {
       requestAnimationFrame(() => {
-        if (settingsCarousel.clientWidth > 0 && activeSettingsTab > 1) {
-          settingsCarousel.scrollLeft = settingsCarousel.clientWidth * (activeSettingsTab - 1);
+        if (activeSettingsTab === 2 && settingsCarousel.clientWidth > 0) {
+          settingsCarousel.scrollLeft = settingsCarousel.clientWidth;
         }
       });
       settingsCarousel.addEventListener('scroll', () => {
         if (settingsCarousel.clientWidth <= 0) return;
-        const page = Math.round(settingsCarousel.scrollLeft / Math.max(1, settingsCarousel.clientWidth));
-        const tab = Math.min(3, Math.max(1, page + 1));
+        const tab = settingsCarousel.scrollLeft > settingsCarousel.clientWidth * 0.45 ? 2 : 1;
         if (tab !== activeSettingsTab) {
           activeSettingsTab = tab;
           root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
@@ -1822,14 +1100,13 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     }
     root.querySelectorAll('[data-entry-settings-tab]').forEach(btn => {
       btn.onclick = () => {
-        const parsedTab = Number(btn.dataset.entrySettingsTab);
-        const nextTab = parsedTab === 3 ? 3 : (parsedTab === 2 ? 2 : 1);
+        const nextTab = Number(btn.dataset.entrySettingsTab) === 2 ? 2 : 1;
         activeSettingsTab = nextTab;
         root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
           b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
         });
         if (settingsCarousel) {
-          const targetX = Math.max(320, settingsCarousel.clientWidth) * (activeSettingsTab - 1);
+          const targetX = activeSettingsTab === 2 ? Math.max(320, settingsCarousel.clientWidth) : 0;
           if (typeof settingsCarousel.scrollTo === 'function') {
             settingsCarousel.scrollTo({ left: targetX, behavior: 'smooth' });
           } else {
@@ -1838,65 +1115,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         }
       };
     });
-    // Aba 3: liga/desliga um app da Dock. Salva em `S.dockExtraApps` e avisa o shell, que
-    // reconstroi a Dock na hora (a Dock nao tem limite de tamanho).
-    const paintDockCount = () => {
-      const count = root.querySelector('[data-dock-apps-count]');
-      if (count) count.textContent = String(extraDockIds(S).length);
-    };
-    root.querySelectorAll('[data-dock-app]').forEach(btn => {
-      btn.onclick = () => {
-        const id = btn.dataset.dockApp || '';
-        S.dockExtraApps = toggleExtraDockId(S, id);
-        save(S);
-        const on = extraDockIds(S).includes(id);
-        btn.classList.toggle('on', on);
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        const check = btn.querySelector('.entry-dock-app-check');
-        if (check) check.textContent = on ? '✓' : '+';
-        paintDockCount();
-        emit('dock-extras', S.dockExtraApps);
-      };
-    });
-    const dockClear = root.querySelector('[data-dock-apps-clear]');
-    if (dockClear) {
-      dockClear.onclick = () => {
-        S.dockExtraApps = '';
-        save(S);
-        root.querySelectorAll('[data-dock-app]').forEach(btn => {
-          btn.classList.remove('on');
-          btn.setAttribute('aria-pressed', 'false');
-          const check = btn.querySelector('.entry-dock-app-check');
-          if (check) check.textContent = '+';
-        });
-        paintDockCount();
-        emit('dock-extras', '');
-      };
-    }
-    const dockScroll = root.querySelector('[data-dock-apps-scroll]');
-    if (dockScroll) dockScroll.onclick = () => { emit('dock-scroll-to', true); };
-
-    // Lanterna (Build 89): "sem luz nenhuma o celular acende a lanterna; quando reconhece luz,
-    // a lanterna apaga". O botão só liga/desliga a automação.
-    root.querySelectorAll('[data-entry-torch-auto]').forEach(btn => {
-      btn.onclick = () => {
-        setTorchAuto(S.torchAuto === 0);
-        paint();
-      };
-    });
-
-    // Câmera noturna (Build 89): auto quando escurece, ou fixa ligada/desligada.
-    root.querySelectorAll('[data-entry-night-cam]').forEach(btn => {
-      btn.onclick = () => {
-        const mode = btn.dataset.entryNightCam === 'on' ? 'on'
-          : (btn.dataset.entryNightCam === 'off' ? 'off' : 'auto');
-        S.nightCamera = mode;
-        save(S);
-        setNightCameraMode(mode);
-        paint();
-      };
-    });
-
     root.querySelectorAll('[data-entry-single-hand-set]').forEach(btn => {
       btn.onclick = () => {
         const next = btn.dataset.entrySingleHandSet || 'both';
@@ -1932,13 +1150,22 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       btn.onclick = () => {
         const enableSixDof = btn.dataset.entryDof === '6dof';
         S.sixdof = enableSixDof ? 1 : 0;
-        // Build 93: o World Lock faz parte do 6DoF ("era pra tá no 6dof, não ser separado").
-        // 6DoF → World Lock ligado; 3DoF → desligado (o mundo nem se move sem 6DoF).
-        setWorldLock(enableSixDof);
         save(S);
         if (!enableSixDof) SixDof.reset();
         window.NativeXR?.setSixDofEnabled?.(enableSixDof);
         emit('sixdof', enableSixDof);
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-spatial]').forEach(btn => {
+      btn.onclick = () => {
+        S.spatialLauncher = btn.dataset.entrySpatial === '1' ? 1 : 0;
+        if (S.spatialLauncher) {
+          S.env = 'passthrough';
+          setPassthrough(true);
+        }
+        save(S);
+        emit('spatialLauncher', !!S.spatialLauncher);
         paint();
       };
     });
@@ -1962,25 +1189,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         save(S);
         window.NativeXR?.setMrDim?.(!!S.mrDim);
         emit('mr-dim', S.mrDim);
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-bw-cam]').forEach(btn => {
-      btn.onclick = () => {
-        const next = S.bwCamera ? 0 : 1;
-        setBwCamera(next === 1);
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-camera]').forEach(btn => {
-      btn.onclick = () => {
-        setBwCamera(btn.dataset.entryCamera !== 'color');
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-worldlock]').forEach(btn => {
-      btn.onclick = () => {
-        setWorldLock(!S.worldLock);
         paint();
       };
     });
@@ -2047,29 +1255,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   window.nextvrBattery = data => {
     try { prevNextvrBattery?.(data); } catch {}
     syncClockAndBatteryDom();
-  };
-
-  /* Build 94 — respostas do lado nativo da conta Google (AccountManager do Android).
-   * `nextvrGoogleAccounts` chega depois do "Ver as contas Google deste celular" (ou de conceder o
-   * acesso); `nextvrGoogleAccount` é o resultado da tela "Escolha uma conta" do sistema. Ambos vêm
-   * como texto JSON e nunca como uma conta inventada pela página. */
-  window.nextvrGoogleAccounts = raw => {
-    readGoogleAccounts(raw);
-    googleStatus = '';
-    if (signInOpen) paint();
-  };
-  window.nextvrGoogleAccount = raw => {
-    let data = null;
-    try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { data = null; }
-    const status = String(data?.status || '');
-    if (status === 'connected') { connectGoogleAccount(data?.email || ''); return; }
-    if (status === 'unavailable') {
-      googleStatus = String(data?.message || 'A tela de contas do Android não abriu.');
-      openGoogleBrowserFallback();
-      return;
-    }
-    googleStatus = '';
-    if (signInOpen) paint();
   };
 
   window.nextvrProfilePhoto = dataUrl => {

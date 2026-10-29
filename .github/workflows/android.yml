@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build the NextVR release APK
+    name: Build NextVR debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     # Declarar `permissions` substitui o conjunto default inteiro: sem `checks: write`
@@ -142,7 +142,7 @@ jobs:
         id: build
         run: |
           set -o pipefail
-          ./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleRelease --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
+          ./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
         continue-on-error: true
 
       - name: Verify native camera and detector libraries in both APK ABIs
@@ -152,7 +152,7 @@ jobs:
         run: |
           set -o pipefail
           (set -e
-          APK=$(find nextvr-android/build/outputs/apk/release -name '*.apk' -print -quit)
+          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
           NM="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
           unzip -Z1 "$APK" | grep '^lib/'
           for ABI in armeabi-v7a arm64-v8a; do
@@ -165,12 +165,12 @@ jobs:
           done
           ) 2>&1 | tee -a /tmp/build.log
 
-      # A assinatura vem do repositório (signing/debug.keystore, declarado no
+      # A assinatura de depuração vem do repositório (signing/debug.keystore, declarado no
       # build.gradle do módulo). Sem isso, cada runner gera uma chave nova e a rodada nova NÃO
       # instala por cima da anterior ("App not installed"). Aqui o APK montado é conferido contra a
       # impressão digital da chave do repositório: se o Gradle voltar a assinar sozinho, o CI falha
       # no lugar de entregar um APK que não atualiza.
-      - name: Verify the release signature is the repository key
+      - name: Verify debug signature is the repository key
         id: sign
         if: steps.build.outcome == 'success'
         continue-on-error: true
@@ -178,13 +178,13 @@ jobs:
           set -o pipefail
           (set -e
           FP=94b3534f902bb783d9cd5859978106f2687016e3127c239a397ffc3ea7b2adbf
-          # O relatório do próprio Gradle diz com qual chave a variante release sai assinada.
+          # O relatório do próprio Gradle diz com qual chave a variante debug sai assinada.
           ./gradlew :nextvr-android:signingReport --no-daemon > /tmp/sign.txt 2>&1 || true
           cat /tmp/sign.txt
           tr -d ':' < /tmp/sign.txt | grep -qi "$FP"
-          echo "Variante release assinada com a chave do repositório"
+          echo "Variante debug assinada com a chave de depuração do repositório"
           # Reforço: a assinatura do APK montado, quando o apksigner está disponível.
-          APK=$(find nextvr-android/build/outputs/apk/release -name '*.apk' -print -quit)
+          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
           if [ -n "$APKSIGNER" ]; then
             "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -qi "$FP"
@@ -235,19 +235,15 @@ jobs:
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
         run: exit 1
 
-      - name: Publish the release APK to the apk-dist branch
+      - name: Publish debug APK to apk-dist branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           # Caminho absoluto de proposito: o passo faz `cd /tmp/apk-dist` antes do cp.
-          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/release" -name '*.apk' -print -quit)
+          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
           test -n "$APK"
-          if [ "$(basename "$APK")" != "NextVR.apk" ]; then
-            mv "$APK" "$(dirname "$APK")/NextVR.apk"
-            APK="$(dirname "$APK")/NextVR.apk"
-          fi
           rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
           git init -q -b apk-dist
           git config user.name "github-actions[bot]"
@@ -258,11 +254,11 @@ jobs:
           # nenhum (a documentação aponta para este arquivo).
           SIZE=$(stat -c %s "$APK")
           MD5=$(md5sum "$APK" | cut -d' ' -f1)
-          printf 'NextVR APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+          printf 'Debug APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
             "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
           cat dist/build.txt
           git add dist
-          git commit -qm "NextVR APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           for attempt in 1 2 3 4; do
             if git push --force origin apk-dist; then
@@ -288,10 +284,11 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: NextVR
+          name: nextvr-debug-apk
           # O build nao configura ABI splits, entao sai um unico
-          # NextVR.apk.
-          path: nextvr-android/build/outputs/apk/release/*.apk
+          # nextvr-android-debug.apk. O padrao anterior (*-universal-debug.apk)
+          # nao casava com nada e o upload era pulado.
+          path: nextvr-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
 
