@@ -57,9 +57,12 @@ jobs:
           xcodegen generate
           ls -la ATMOXR.xcodeproj
 
+      # O log do runner do macOS não é legível pela API (o results-receiver devolve EOF), então os
+      # erros de compilação são publicados como ANOTAÇÕES do check — que dá para ler de fora e é o que
+      # permite consertar sem ficar tentando às cegas.
       - name: Build the app (unsigned, arm64)
         run: |
-          set -o pipefail
+          set +e
           cd ios
           xcodebuild \
             -project ATMOXR.xcodeproj \
@@ -69,7 +72,15 @@ jobs:
             -destination "generic/platform=iOS" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build 2>&1 | tail -n 120
+            build > /tmp/xcodebuild.log 2>&1
+          STATUS=$?
+          tail -n 80 /tmp/xcodebuild.log
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::xcodebuild falhou (status $STATUS)"
+            grep -nE "error:|fatal error|The following build commands failed" /tmp/xcodebuild.log | head -n 20 |
+              while IFS= read -r line; do echo "::error::$(printf '%s' "$line" | cut -c1-500)"; done
+            exit 1
+          fi
 
       - name: Package the unsigned .ipa
         run: |
@@ -112,6 +123,16 @@ jobs:
             sleep $((attempt * 4))
           done
           echo "IPA published: branch ipa-dist, path dist/ATMOXR.ipa"
+
+      - name: Upload the build log
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodebuild-log
+          path: /tmp/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 5
 
       - name: Upload the .ipa
         continue-on-error: true

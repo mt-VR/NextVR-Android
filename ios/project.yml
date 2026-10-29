@@ -13,6 +13,16 @@ settings:
     ENABLE_BITCODE: NO
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
 
+schemes:
+  ATMOXR:
+    build:
+      targets:
+        ATMOXR: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   ATMOXR:
     type: application
