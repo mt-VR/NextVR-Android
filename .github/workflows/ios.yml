@@ -67,34 +67,43 @@ jobs:
           echo "::notice::xcodebuild -list status $?"
 
       # O log do runner do macOS não é legível pela API (o results-receiver devolve EOF), então os
-      # erros de compilação são publicados como ANOTAÇÕES do check — que dá para ler de fora e é o que
-      # permite consertar sem ficar tentando às cegas.
+      # erros saem como ANOTAÇÕES do check — e só eles: o GitHub corta em 10 anotações por check, e um
+      # despejo das primeiras linhas do log já gastou essa cota uma vez.
       - name: Build the app (unsigned, arm64)
         run: |
           set +e
           cd "$GITHUB_WORKSPACE/ios" || { echo "::error::nao consegui entrar em ios/"; exit 1; }
-          pwd
-          ls -la | head -20
-          echo "::notice::pwd=$(pwd) projeto=$(ls -d ATMOXR.xcodeproj 2>/dev/null || echo AUSENTE)"
-          xcodebuild \
-            -project ATMOXR.xcodeproj \
-            -scheme ATMOXR \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
+          report() {
+            echo "::error::$1 (status $2)"
+            grep -nE "error:|fatal error" "$3" | head -n 6 |
+              while IFS= read -r line; do echo "::error::$(printf '%s' "$line" | cut -c1-420)"; done
+          }
+          # 1) Compilar primeiro para o simulador: não tem assinatura nenhuma no caminho, então o que
+          #    aparecer aqui é erro de código (Swift/plist), não de assinatura.
+          xcodebuild -project ATMOXR.xcodeproj -scheme ATMOXR -configuration Release \
+            -sdk iphonesimulator -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build-sim build > /tmp/sim.log 2>&1
+          SIM=$?
+          if [ $SIM -ne 0 ]; then
+            echo "::error::compilacao para o simulador falhou"
+            grep -nE "error:|fatal error" /tmp/sim.log | head -n 6 |
+              while IFS= read -r line; do echo "::error::$(printf '%s' "$line" | cut -c1-420)"; done
+            cat /tmp/sim.log > /tmp/xcodebuild.log
+            exit 1
+          fi
+          echo "::notice::compilou para o simulador (iOS $(xcrun --sdk iphonesimulator --show-sdk-version))"
+          # 2) Agora o pacote de verdade (arm64, iphoneos), sem assinatura.
+          xcodebuild -project ATMOXR.xcodeproj -scheme ATMOXR -configuration Release \
+            -sdk iphoneos -destination "generic/platform=iOS" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build > /tmp/xcodebuild.log 2>&1
           STATUS=$?
-          tail -n 80 /tmp/xcodebuild.log
           if [ $STATUS -ne 0 ]; then
-            echo "::error::xcodebuild falhou (status $STATUS)"
-            head -n 25 /tmp/xcodebuild.log |
-              while IFS= read -r line; do echo "::error::[inicio] $(printf '%s' "$line" | cut -c1-400)"; done
-            grep -nE "error:|fatal error|The following build commands failed" /tmp/xcodebuild.log | head -n 20 |
-              while IFS= read -r line; do echo "::error::$(printf '%s' "$line" | cut -c1-450)"; done
+            report "xcodebuild (device) falhou" "$STATUS" /tmp/xcodebuild.log
             exit 1
           fi
+          echo "::notice::app arm64 compilado sem assinatura"
 
       - name: Package the unsigned .ipa
         run: |
@@ -149,6 +158,7 @@ jobs:
         run: |
           set -e
           test -f /tmp/xcodebuild.log || echo "(sem log)" > /tmp/xcodebuild.log
+          test -f /tmp/sim.log && cp /tmp/sim.log sim.log || true
           rm -rf /tmp/ipa-debug && mkdir -p /tmp/ipa-debug && cd /tmp/ipa-debug
           git init -q -b ipa-debug
           git config user.name "github-actions[bot]"
