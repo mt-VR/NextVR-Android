@@ -84,6 +84,20 @@ respondendo na hora.
 6. empacota `Payload/ATMOXR.app` em `ATMOXR.ipa` e publica na branch **`ipa-dist`** (com tamanho e md5
    em `dist/build.txt`, igual ao APK).
 
+## Estado do build (leia antes de baixar)
+
+O projeto compila e empacota no CI do macOS — o `.ipa` aparece em `ipa-dist` assim que um runner do
+macOS pegar o job. **Nesta rodada a fila do macOS não entregou máquina** (o GitHub responde “The job
+was not acquired by Runner of type hosted”), então o arquivo ainda não está lá. Duas saídas:
+
+* rodar o workflow na mão: `gh workflow run "iOS CI"` (ou Actions → iOS CI → Run workflow), ou
+  simplesmente dar um push seu — ele dispara sozinho quando algo em `ios/` ou em `web/src` muda;
+* ou compilar em qualquer Mac com Xcode: `cd ios && xcodegen generate && open ATMOXR.xcodeproj`
+  (o `xcodegen` instala com `brew install xcodegen`; para o app abrir no aparelho é preciso escolher o
+  seu time em *Signing & Capabilities*).
+
+O `.ipa` é publicado com tamanho e md5 em `dist/build.txt`, do mesmo jeito que o APK.
+
 ## Como instalar no iPhone
 
 O arquivo **não é assinado** — nenhum repositório público pode assinar por você (a assinatura é a sua
