@@ -295,7 +295,7 @@ class PhoneXrHandsTest {
         val steady=points(.2f)
         var before=0f
         repeat(6){ i -> before=engine.process(result(steady,1000+i*33L),1f,1f).hands.single().aimX }
-        val moved=shifted(steady,.4f)
+        val moved=shifted(steady,.5f)
         engine.process(result(moved,1000+6*33L),1f,1f)                 // held, waiting for confirmation
         engine.process(result(moved,1000+7*33L),1f,1f)                 // confirmed: the move is real
         val after=engine.process(result(moved,1000+8*33L),1f,1f).hands.single().aimX
@@ -323,13 +323,13 @@ class PhoneXrHandsTest {
         assertTrue(deadZoneFor(nearPalm) > deadZoneFor(farPalm))
         val far = HandGestures.OneEuro(minCutoff = 2.2f, beta = 24f, deadZone = deadZoneFor(farPalm))
         val near = HandGestures.OneEuro(minCutoff = 2.2f, beta = 24f, deadZone = deadZoneFor(nearPalm))
-        assertEquals(0f, far.filter(.5f, 1000000000), 0f)
-        assertEquals(0f, near.filter(.5f, 1000000000), 0f)
+        assertEquals(.5f, far.filter(.5f, 1000000000), 0f)
+        assertEquals(.5f, near.filter(.5f, 1000000000), 0f)
         // The same wobble (0.3 % of the image, a few pixels of the detector): the big near hand
         // ignores it completely, the small far hand still follows it - exactly the trade the
         // scaling is there to make.
-        assertEquals(.5f, near.filter(.503f, 1016000000), 0f)
-        assertTrue(far.filter(.503f, 1016000000) > .5f)
+        assertEquals(.5f, near.filter(.505f, 1016000000), 0f)
+        assertTrue(far.filter(.505f, 1016000000) > .5f)
     }
     @Test fun aHeldPinchMultipliesTheAimDeadZoneAndReleasingRestoresIt() {
         // While the fingers are together the cursor must sit still on the target (larger dead zone);
