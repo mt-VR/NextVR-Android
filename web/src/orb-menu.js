@@ -19,7 +19,7 @@
 
 import { settings as S, emit, native } from './core.js';
 import { open, close, wins, focus, screenDepth, screenDepthLimits } from './windows.js';
-import { dockCatalogAll, catalogEntry, launchDockApp } from './dock-catalog.js';
+import { DOCK_CATALOG, dockCatalogAll, catalogEntry, launchDockApp } from './dock-catalog.js';
 
 /**
  * 10 lugares: 3 em cima, 4 no meio, 3 embaixo (posições em % da caixa do anel).
@@ -63,12 +63,36 @@ export function orbAndroidApps() {
  *   - sem apps Android (aparelho sem a lista), o anel fica com os apps do ATMO XR — nada de buraco.
  * O que não couber fica na lista completa (o centro do anel).
  */
+/**
+ * Os apps do ATMO XR do anel: os da lista fixa primeiro e, se eles não bastarem para encher os
+ * lugares que os apps do Android não ocuparam, entram os JOGOS do catálogo (que são apps do app
+ * também). Assim o anel fica cheio num aparelho sem a lista de apps Android em vez de mostrar 8 e
+ * deixar dois buracos.
+ */
+export function orbOwnApps(count = 10) {
+  const out = [];
+  const push = entry => {
+    if (!entry || out.length >= count) return;
+    if (out.some(item => item.id === entry.id)) return;
+    out.push(entry);
+  };
+  for (const id of ORB_OWN_IDS) push(catalogEntry(id));
+  for (const meta of DOCK_CATALOG) if (!meta.id.startsWith('app:')) push(meta);
+  return out;
+}
+
+/**
+ * Os 10 apps do anel, alternando os dois lados:
+ *   - até 5 apps do Android e até 5 do ATMO XR quando os dois existem;
+ *   - sem apps Android (aparelho sem a lista), o anel fica cheio com os apps do ATMO XR.
+ * O que não couber fica na lista completa (o centro do anel).
+ */
 export function orbEntries(android = orbAndroidApps()) {
-  const own = ORB_OWN_IDS.map(id => catalogEntry(id)).filter(Boolean);
   const phones = (android || []).filter(item => item && isAndroidId(item.id)).slice(0, ORB_ANDROID_SLOTS);
-  const ownCount = Math.max(0, Math.min(ORB_OWN_SLOTS + (ORB_ANDROID_SLOTS - phones.length), 10 - phones.length));
-  const take = Math.min(own.length, ownCount);
-  return [...own.slice(0, take), ...phones].slice(0, ORB_LAYOUT.length);
+  const ownCount = Math.max(0, Math.min(ORB_LAYOUT.length - phones.length,
+    ORB_OWN_SLOTS + (ORB_ANDROID_SLOTS - phones.length)));
+  const own = orbOwnApps(ownCount);
+  return [...own, ...phones].slice(0, ORB_LAYOUT.length);
 }
 
 /** Quanto um toque move a tela para perto/longe (metros). */

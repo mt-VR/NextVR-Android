@@ -63,8 +63,13 @@ test('Build 96: o anel mostra apps do Android E apps do próprio aplicativo', ()
   for (const id of ['browser', 'youtube', 'store', 'gallery', 'library', 'settings']) {
     assert.ok(ownBlock.includes(`'${id}'`), `o app do ATMO XR "${id}" está na fila do anel`);
   }
-  // Sem a lista do aparelho o anel não fica com buracos: os apps do app ocupam os 10 lugares.
-  assert.ok(/orbEntries\(\)/.test(source) && /slice\(0, ORB_LAYOUT\.length\)/.test(source));
+  // Sem a lista do aparelho o anel não fica com buracos: os apps do app ocupam os 10 lugares
+  // (a lista fixa primeiro e, se faltar, os jogos do catálogo completam).
+  assert.ok(/orbOwnApps\(/.test(source), 'os apps do app saem de uma função só');
+  assert.ok(/DOCK_CATALOG/.test(source), 'o catálogo completa os lugares que sobrarem');
+  assert.ok(/slice\(0, ORB_LAYOUT\.length\)/.test(source), 'o anel nunca passa de 10');
+  assert.ok(/ORB_LAYOUT\.length - phones\.length/.test(source),
+    'os apps do ATMO XR ocupam exatamente os lugares que os apps Android não pegaram');
 });
 
 test('Build 96: a bolinha da Dock desenha as mesmas 10 bolinhas (3/4/3)', () => {
