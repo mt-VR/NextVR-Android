@@ -46,8 +46,10 @@ android {
         // 94 / 2.1.0: a conta Google se conecta no app de verdade — o cartão mostra as contas do
         // próprio celular ("Escolha uma conta … para continuar no ATMO XR") e a escolhida fica ligada
         // ao perfil, como no Kwai/TikTok.
-        versionCode 94
-        versionName "2.1.0"
+        // 95 / 2.1.1: versão para iPhone (projeto ios/, .ipa no CI). O APK do Android é o da 94 —
+        // só o número muda, para os dois aparelhos contarem a mesma build.
+        versionCode 95
+        versionName "2.1.1"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         // The Cardboard SDK .so files are shipped for these ABIs. Remove the
         // abiFilters line to build for every ABI (x86/x86_64 included), which is

@@ -44,6 +44,32 @@ const EMPTY = Object.freeze({ active: false, key: '', device: '', since: 0, hasK
 
 let cached = { ...EMPTY };
 
+/* Build 95 — no iOS a ponte é assíncrona (WKWebView), então "ativar" responde `{pending:true}` e o
+ * veredito de verdade chega depois por `window.nextvrLicenseActivated(json)`. Quem estiver olhando
+ * (a tela da Key) é avisado por `onLicenseChange`, sem precisar saber em qual aparelho está. */
+const licenseListeners = new Set();
+
+export function onLicenseChange(listener) {
+  if (typeof listener !== 'function') return () => {};
+  licenseListeners.add(listener);
+  return () => licenseListeners.delete(listener);
+}
+
+function publishLicense() {
+  for (const listener of [...licenseListeners]) {
+    try { listener({ ...cached }); } catch { /* um ouvinte quebrado não trava a tela */ }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.nextvrLicenseActivated = raw => {
+    const parsed = parse(raw);
+    if (!parsed) return;
+    cached = { ...EMPTY, ...(parsed.status || cached), loaded: true };
+    publishLicense();
+  };
+}
+
 const parse = raw => {
   if (!raw) return null;
   try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
@@ -64,6 +90,8 @@ export function activateKey(raw) {
   if (problem) return { ok: false, reason: problem, status: licenseStatus(true) };
   const parsed = parse(window.NativeXR?.activateKey?.(key));
   if (!parsed) return { ok: false, reason: 'indisponivel', status: licenseStatus(true) };
+  // iOS: a resposta chega depois por `window.nextvrLicenseActivated` (ver `onLicenseChange`).
+  if (parsed.pending) return { ok: false, pending: true, reason: 'pendente', status: licenseStatus(true) };
   cached = { ...EMPTY, ...(parsed.status || {}), loaded: true };
   return { ok: !!parsed.ok, reason: parsed.reason || '', status: cached };
 }
@@ -88,6 +116,7 @@ export const LICENSE_MESSAGES = Object.freeze({
   invalida: 'Key inválida: confira os 22 caracteres (ela é única e não pode ser inventada).',
   aparelho: 'Esta Key foi ativada em outro celular. Cada Key vale em um aparelho só.',
   indisponivel: 'A ativação não está disponível neste aparelho.',
+  pendente: 'Conferindo a sua Key...',
   erro: 'Não foi possível ativar agora. Tente outra vez.',
   'outro-aparelho': 'A Key gravada é de outro celular.',
 });

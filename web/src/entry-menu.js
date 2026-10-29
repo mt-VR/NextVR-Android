@@ -1,7 +1,7 @@
 import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, setBwCamera, setWorldLock, native, SixDof } from './core.js';
 import { CHARACTER_OPTIONS, loadCharacter, saveCharacter, drawCharacter2D } from './character-creator.js';
 import { dockCatalogAll, extraDockIds, toggleExtraDockId } from './dock-catalog.js';
-import { licenseStatus, activateKey, deviceCode, formatKey, licenseMessage, normalizeKey, KEY_LENGTH } from './license.js';
+import { licenseStatus, activateKey, deviceCode, formatKey, licenseMessage, normalizeKey, KEY_LENGTH, onLicenseChange } from './license.js';
 import { nightCameraState, setNightCameraMode, setTorchAuto } from './night-camera.js';
 import {
   ENTRY_VERSION,
@@ -1470,6 +1470,22 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         const raw = keyInput ? keyInput.value : '';
         const result = activateKey(raw);
         const msg = root.querySelector('[data-entry-key-msg]');
+        // Build 95: no iPhone a conferência da Key acontece no Swift e volta um instante depois —
+        // mostramos "Conferindo..." e esperamos o aviso, em vez de dizer que a Key é inválida.
+        if (result.pending) {
+          if (msg) {
+            msg.textContent = licenseMessage('pendente');
+            msg.dataset.state = 'pending';
+          }
+          const stop = onLicenseChange(status => {
+            stop();
+            if (!status || !status.active) return;
+            emit('license', status);
+            activeView = 'license';
+            paint();
+          });
+          return false;
+        }
         if (msg) {
           msg.textContent = licenseMessage(result.reason);
           msg.dataset.state = result.ok ? 'ok' : 'error';

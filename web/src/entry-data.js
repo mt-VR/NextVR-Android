@@ -52,6 +52,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'build-95-ios',
+    tag: 'NOVO · BUILD 95 — O ATMO XR NO IPHONE (.IPA)',
+    time: 'Agora',
+    heading: 'Build 95: versão para iPhone — o mesmo menu, o mesmo passthrough e a mesma Key, agora em .ipa',
+    desc: 'O ATMO XR ganhou uma versão para iPhone: o mesmo menu de entrada, as mesmas Configurações e a mesma Key de 22 caracteres (as suas 4 chaves valem nos dois aparelhos), com o mundo real atrás da interface pela câmera traseira, olhar em volta pelo giroscópio, lanterna e câmera noturna, brilho da tela e foto de perfil das suas fotos. O arquivo .ipa sai pronto para instalar com o seu Apple ID. O que é do Android — janelas de apps, Shizuku, espelhar a tela, rastreio de mãos — não existe no iPhone e a interface mostra isso em vez de fingir.',
+  },
+  {
     id: 'build-94-conta-google',
     tag: 'NOVO · BUILD 94 — A CONTA DO GMAIL CONECTA NO APP (COMO NO KWAI E NO TIKTOK)',
     time: 'Agora',

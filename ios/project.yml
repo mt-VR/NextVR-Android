@@ -1,0 +1,42 @@
+name: ATMOXR
+options:
+  bundleIdPrefix: com.nextvr
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_BITCODE: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+
+targets:
+  ATMOXR:
+    type: application
+    platform: iOS
+    sources:
+      - path: ATMOXR/Sources
+      # A ponte JS: uma referência de arquivo comum, então ela fica na raiz do pacote (bridge.js).
+      - path: ATMOXR/Resources/bridge.js
+        buildPhase: resources
+      # A interface é a MESMA do Android (assets/ui), copiada por ios/Scripts/sync-ui.sh. Referência
+      # de PASTA para o pacote ficar igual ao Android: ATMOXR.app/ui/index.html, ui/app.js, ui/env/…
+      - path: ATMOXR/Resources/ui
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nextvr.atmoxr
+        PRODUCT_NAME: ATMOXR
+        INFOPLIST_FILE: ATMOXR/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "2.1.1"
+        CURRENT_PROJECT_VERSION: "95"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        DEVELOPMENT_TEAM: ""
+        SUPPORTS_MACCATALYST: NO

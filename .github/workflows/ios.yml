@@ -1,0 +1,123 @@
+name: iOS CI
+
+# Build 95 — o .ipa do ATMO XR.
+#
+# Este workflow NÃO assina o app: não há certificado Apple no repositório, e um .ipa assinado à mão
+# por um robô não instalaria em ninguém. O que ele entrega é o pacote COMPILADO (arm64, Release), que
+# se instala em qualquer iPhone com o seu Apple ID por Sideloadly, AltStore ou Xcode — e que o dia em
+# que houver uma conta Apple Developer vira TestFlight com duas linhas a mais (assinatura automática).
+on:
+  workflow_dispatch:
+  push:
+    branches: ["arena/98e128f7-nextvr-android"]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+      - "web/src/**"
+      - "web/index.html"
+      - "web/build.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    name: Build the ATMO XR iPhone app
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Bundle the UI and copy it into the iOS app
+        run: |
+          set -e
+          npm ci
+          npm run build:ui
+          bash ios/Scripts/sync-ui.sh
+          ls ios/ATMOXR/Resources/ui | head -20
+
+      # A mesma checagem estática que roda no Android: os nomes da ponte, o segredo da Key, o plist.
+      - name: Validate the iOS project
+        run: node --test tests/build-95-ios.test.mjs
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: |
+          set -e
+          cd ios
+          xcodegen generate
+          ls -la ATMOXR.xcodeproj
+
+      - name: Build the app (unsigned, arm64)
+        run: |
+          set -o pipefail
+          cd ios
+          xcodebuild \
+            -project ATMOXR.xcodeproj \
+            -scheme ATMOXR \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tail -n 120
+
+      - name: Package the unsigned .ipa
+        run: |
+          set -e
+          APP=$(find ios/build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          test -n "$APP"
+          echo "app: $APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist"
+          test -f "$APP/ui/index.html"
+          test -f "$APP/bridge.js"
+          rm -rf dist && mkdir -p dist/Payload
+          cp -R "$APP" dist/Payload/
+          cd dist
+          zip -qry ATMOXR.ipa Payload
+          SIZE=$(stat -f %z ATMOXR.ipa)
+          MD5=$(md5 -q ATMOXR.ipa)
+          printf 'ATMOXR IPA built by iOS CI run %s from commit %s\nsize: %s bytes\nmd5: %s\nsigned: no (install with Sideloadly/AltStore using your Apple ID)\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > build.txt
+          cat build.txt
+
+      - name: Publish the .ipa to the ipa-dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/dist"
+          rm -rf /tmp/ipa-dist && mkdir -p /tmp/ipa-dist/dist && cd /tmp/ipa-dist
+          git init -q -b ipa-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/dist/ATMOXR.ipa" dist/ATMOXR.ipa
+          cp "$GITHUB_WORKSPACE/dist/build.txt" dist/build.txt
+          git add dist
+          git commit -qm "ATMOXR IPA from iOS CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4; do
+            if git push --force origin ipa-dist; then break; fi
+            echo "ipa-dist push failed (attempt $attempt); retrying"
+            sleep $((attempt * 4))
+          done
+          echo "IPA published: branch ipa-dist, path dist/ATMOXR.ipa"
+
+      - name: Upload the .ipa
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ATMOXR-ipa
+          path: dist/ATMOXR.ipa
+          if-no-files-found: error
+          retention-days: 30
