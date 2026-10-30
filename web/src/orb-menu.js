@@ -148,9 +148,12 @@ function tileHtml(entry, index) {
 function clockNow() {
   const status = (() => { try { return getDeviceStatus(); } catch { return {}; } })();
   const now = new Date();
-  const time = status.time && status.time !== '--:--'
-    ? status.time
-    : now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const pad = n => String(n).padStart(2, '0');
+  const own = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const fromDock = String(status.time || '');
+  // 24 h sempre (o toLocaleTimeString de alguns aparelhos devolve "03:15 AM"): a hora do jogador é a
+  // do relógio do aparelho, no mesmo formato para todo mundo.
+  const time = /^\d{1,2}:\d{2}$/.test(fromDock) ? fromDock : own;
   const battery = Number.isFinite(status.batteryLevel) ? Math.round(status.batteryLevel) : null;
   return { time, battery, charging: !!status.charging, online: status.online !== false };
 }
