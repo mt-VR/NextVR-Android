@@ -228,3 +228,45 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
   assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline\}\);continue;\}/);
 });
+
+test('"TODOS" saiu do centro do anel e foi para a barra de baixo, ao lado da hora e da bateria', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  const html = await read('web/index.html');
+  // Nada de "TODOS" no MEIO do anel: o centro fica vazio e o mundo escurecido aparece por ele.
+  assert.doesNotMatch(orb, /orb-hub/);
+  assert.doesNotMatch(html, /\.orb-hub/);
+  const ring = orb.slice(orb.indexOf('<div class="orb-ring"'), orb.indexOf('</div>', orb.indexOf('<div class="orb-ring"')));
+  assert.doesNotMatch(ring, /data-orb-all/, 'o centro do anel não tem mais o botão TODOS');
+  // Ele vive na barra do rodapé, junto do giroscópio, do perfil, da hora e da bateria.
+  const bar = orb.slice(orb.indexOf('data-orb-bar'), orb.indexOf('${clockHtml()}', orb.indexOf('data-orb-bar')));
+  // O chip do giroscópio é desenhado por uma função (ele mostra o estado vivo do sensor).
+  assert.ok(bar.includes('${gyroChipHtml()}'), 'a barra desenha o chip do giroscópio');
+  assert.ok(bar.includes('data-orb-all'), 'a barra tem o TODOS');
+  assert.ok(bar.includes('${meHtml()}'), 'a barra tem o perfil');
+  assert.ok(bar.indexOf('data-orb-all') < bar.indexOf('${gyroChipHtml()}'), 'TODOS vem antes do giroscópio');
+  assert.ok(bar.indexOf('${gyroChipHtml()}') < bar.indexOf('${meHtml()}'), 'o giroscópio fica ao lado do perfil/hora');
+  assert.match(orb, /function gyroChipHtml\(\) \{[\s\S]{0,400}?data-orb-gyro="1"/);
+  // A barra é a linguagem do HUD: vidro escuro, fino, encostado no rodapé.
+  assert.match(html, /\.orb-bar\{display:flex;align-items:center;gap:10px;pointer-events:auto;/);
+  assert.match(html, /\.orb-chip\{pointer-events:auto;/);
+});
+
+test('o giroscópio é um botão de verdade: mostra o estado e liga/desliga a orientação', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  assert.match(orb, /data-orb-gyro="1"/);
+  assert.match(orb, /export function gyroNow\(\)/);
+  assert.match(orb, /function toggleGyro\(\)/);
+  assert.match(orb, /S\.gyro = S\.gyro === 0 \? 1 : 0;/);
+  assert.match(orb, /if \(target\?\.closest\('\[data-orb-gyro\]'\)\) \{ toggleGyro\(\); return; \}/);
+  // O chip acompanha o sensor quando ele fica vivo depois do anel aberto.
+  assert.match(orb, /on\('gyro', \(\) => \{ if \(orbOpen\(\)\) paintOrb\(\); \}\)/);
+
+  const core = await read('web/src/core.js');
+  // Padrão ligado, e o laço respeita a escolha (desligado, olhar é arrasto).
+  assert.match(core, /gyro: 1,/);
+  assert.match(core, /else if \(gyroLive\(\) && S\.gyro !== 0\) \{/);
+
+  const windows = await read('web/src/windows.js');
+  // A pinça alcança o chip (a barra é HUD, não objeto 3D).
+  assert.match(windows, /\[data-orb-gyro\]/);
+});

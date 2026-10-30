@@ -23,6 +23,9 @@ const DEF = {
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
   // A bolinha da dock abre o anel de 10 apps (1) ou a biblioteca de sempre (0), como era antes.
   orbRing: 1,
+  // Giroscópio ligado (1) ou desligado (0): o botão GIROSCÓPIO da barra do anel, ao lado da hora e
+  // da bateria, liga e desliga a orientação de verdade — desligado, olhar é arrastar.
+  gyro: 1,
   singleHandMode: 'both',
   mrDim: 0,
   sixdof: 1, lateLatch: 0,
@@ -785,7 +788,7 @@ function loop(now) {
 
   if (native) {
     // The Cardboard pose is already filtered and predicted; do not smooth or replace it.
-  } else if (gyroLive()) {
+  } else if (gyroLive() && S.gyro !== 0) {
     // frame-rate independent: suaviza sem o atraso exagerado de um fator fixo por frame
     camera.quaternion.slerp(gyro.q, 1 - Math.exp(-dt * 12));
     if (dragYaw) { camera.rotateY(dragYaw); dragYaw = 0; }

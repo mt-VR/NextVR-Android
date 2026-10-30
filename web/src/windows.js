@@ -1271,7 +1271,7 @@ function clearWinBrowserHold() {
   }
 }
 
-const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-orb-gyro],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 function findDirectAppPoint(cx, cy) {
   if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
@@ -1280,7 +1280,8 @@ function findDirectAppPoint(cx, cy) {
     const orb = document.getElementById('orb-layer');
     if (orb) {
       const under = document.elementFromPoint(cx * viewport.width, cy * viewport.height);
-      const orbMatch = under?.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page]');
+      // A barra de baixo do anel (TODOS, GIROSCÓPIO, perfil, hora) também é tocável com a pinça.
+      const orbMatch = under?.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-orb-gyro]');
       if (orbMatch) return { x: cx, y: cy, el: orbMatch, isHud: true };
       // Fora de um ícone, o anel come o toque: nada de clicar numa janela escondida atrás dele.
       return { x: cx, y: cy, el: null, isHud: true };

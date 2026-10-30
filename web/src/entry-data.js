@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-hud-status-bar',
+    tag: 'NOVO · TODOS E GIROSCÓPIO NA BARRA DE BAIXO, COMO UM HUD',
+    time: 'Agora',
+    heading: 'Barra de Status no Rodapé: TODOS, Giroscópio, Perfil, Hora e Bateria',
+    desc: 'O "TODOS" saiu do meio do anel — ele tapava o centro dos dez apps e o mundo escurecido atrás deles. Agora ele fica na barra de status do rodapé, ao lado do GIROSCÓPIO, do perfil, da hora e da bateria, no mesmo desenho de HUD da referência: um vidro escuro, fino, encostado embaixo, com os controles à esquerda e o relógio à direita. O chip do GIROSCÓPIO mostra o estado de verdade (ATIVO, AGUARDANDO ou DESLIGADO) e liga/desliga a orientação com um toque — desligado, olhar volta a ser arrasto. O centro do anel ficou vazio de propósito: dez ícones gigantes em volta e o ambiente aparecendo pelo meio.',
+  },
+  {
     id: 'orb-visible-pinch-ray',
     tag: 'CORREÇÃO · OS APPS DO ANEL APARECEM, PINÇA COM RAIO & DUAS MÃOS',
     time: 'Agora',

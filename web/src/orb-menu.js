@@ -22,7 +22,7 @@
 //   5. o círculo no canto de cima volta para a dock.
 // O anel mostra os apps DO NextVR e os apps DO ANDROID. Este módulo não conhece catálogo de
 // ninguém: o apps.js entrega as funções por `installOrbMenu`, e aqui só se desenha o anel.
-import { on, setSceneDim } from './core.js';
+import { on, setSceneDim, settings as S, save, startGyro, gyroLive, toast } from './core.js';
 import { getDeviceStatus } from './windows.js';
 
 /** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo (em % da caixa do anel). */
@@ -158,6 +158,33 @@ function clockNow() {
   return { time, battery, charging: !!status.charging, online: status.online !== false };
 }
 
+/** Estado do giroscópio para o chip da barra: ligado/desligado pelo usuário e vivo ou não no
+ *  aparelho. Desligado, o olhar volta a ser arrasto — é o que o botão faz. */
+export function gyroNow() {
+  const on_ = S.gyro !== 0;
+  const live = (() => { try { return gyroLive() === true; } catch { return false; } })();
+  return { on: on_, live, label: !on_ ? 'DESLIGADO' : live ? 'ATIVO' : 'AGUARDANDO' };
+}
+
+function gyroChipHtml() {
+  const g = gyroNow();
+  return `<button type="button" class="orb-chip orb-chip--gyro${g.on ? (g.live ? ' is-on' : '') : ' is-off'}"
+      data-orb-gyro="1" aria-pressed="${g.on}" title="Giroscópio: ${g.label}. Toque para ${g.on ? 'desligar' : 'ligar'}.">
+      <span class="orb-chip-dot" aria-hidden="true"></span>
+      <span class="orb-chip-label">GIROSCÓPIO</span>
+      <b>${g.label}</b>
+    </button>`;
+}
+
+/** Liga/desliga o giroscópio pelo chip da barra (e liga o sensor de verdade ao ligar de novo). */
+function toggleGyro() {
+  S.gyro = S.gyro === 0 ? 1 : 0;
+  save(S);
+  if (S.gyro !== 0) { try { Promise.resolve(startGyro()).catch(() => {}); } catch {} }
+  try { toast(S.gyro !== 0 ? 'Giroscópio: ativo' : 'Giroscópio: desligado · arraste para olhar'); } catch {}
+  paintOrb();
+}
+
 function meHtml() {
   let me = { name: '', avatar: '', verified: false };
   try { me = providers.profile() || me; } catch {}
@@ -202,17 +229,24 @@ export function orbMarkup(entries = orbEntries(), pageIndex = page) {
       </div>
       <div class="orb-ring" data-orb-ring="1">
         ${tiles}
-        <button type="button" class="orb-hub" data-orb-all="1" title="Todos os apps do NextVR">
-          <span class="orb-hub-icon">▦</span>
-          <span class="orb-hub-label">TODOS</span>
-        </button>
       </div>
       ${pages.length > 1 ? `
       <button type="button" class="orb-page orb-page--prev" data-orb-page="-1" aria-label="Página anterior" title="Página anterior">‹</button>
       <button type="button" class="orb-page orb-page--next" data-orb-page="1" aria-label="Próxima página" title="Próxima página">›</button>` : ''}
       <div class="orb-foot">
-        ${meHtml()}
-        ${clockHtml()}
+        <div class="orb-bar" data-orb-bar="1">
+          <div class="orb-bar-side orb-bar-left">
+            <button type="button" class="orb-chip orb-chip--all" data-orb-all="1" title="Todos os apps do NextVR">
+              <span class="orb-chip-ico" aria-hidden="true">▦</span>
+              <span class="orb-chip-label">TODOS</span>
+            </button>
+            ${gyroChipHtml()}
+          </div>
+          <div class="orb-bar-side orb-bar-right">
+            ${meHtml()}
+            ${clockHtml()}
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -276,6 +310,7 @@ function wireOrb(host) {
     const shut = target?.closest('[data-orb-close]');
     const pager = target?.closest('[data-orb-page]');
     if (pager) { turnPage(Number(pager.dataset.orbPage) || 1); return; }
+    if (target?.closest('[data-orb-gyro]')) { toggleGyro(); return; }
     let byPointTile = null, byPointAll = false, byPointClose = false;
     if (!tile && !all && !shut) {
       const x = event.clientX, y = event.clientY;
@@ -440,6 +475,9 @@ if (typeof document !== 'undefined') document.addEventListener('wheel', onOrbWhe
 
 /* O relógio/bateria do rodapé acompanha o aparelho. */
 on('device-status', () => { if (orbOpen()) paintClock(); });
+/* O giroscópio pode ficar "vivo" depois do anel aberto (permissão, primeiro evento do sensor): o
+ * chip da barra acompanha em vez de ficar mentindo "AGUARDANDO". */
+on('gyro', () => { if (orbOpen()) paintOrb(); });
 
 /* A lista do aparelho pode chegar com o anel aberto. */
 on('appsState', () => { if (orbOpen()) paintOrb(); });

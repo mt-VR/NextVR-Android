@@ -3555,18 +3555,9 @@
   .orb-app--android{box-shadow:0 18px 40px rgba(0,0,0,.7),0 0 0 2px rgba(34,197,94,.85),
     0 0 30px 3px rgba(34,197,94,.45)}
 
-  /* O centro do anel: "TODOS" abre a biblioteca completa do NextVR. */
-  .orb-hub{pointer-events:auto;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:clamp(62px,7.4%,96px);aspect-ratio:1;border-radius:50%;color:#fff;cursor:pointer;
-    background:radial-gradient(circle at 32% 26%,rgba(92,96,116,.9),rgba(16,16,22,.94));
-    border:1.5px solid rgba(255,255,255,.45);box-shadow:0 14px 34px rgba(0,0,0,.6);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    transition:transform .16s,box-shadow .16s}
-  .orb-hub:hover{transform:translate(-50%,-50%) scale(1.08);
-    box-shadow:0 20px 42px rgba(0,0,0,.66),0 0 0 2px rgba(167,139,250,.6)}
-  .orb-hub:active{transform:translate(-50%,-50%) scale(.94)}
-  .orb-hub-icon{font-size:clamp(16px,2vw,26px);line-height:1}
-  .orb-hub-label{font-size:clamp(7px,.85vw,11px);font-weight:800;letter-spacing:.1em}
+  /* O centro do anel fica VAZIO de propósito: o "TODOS" não mora mais ali (ele tapava o meio dos
+     dez apps e o mundo escurecido atrás dele). Ele foi para a barra de baixo, ao lado do
+     giroscópio, do perfil, da hora e da bateria — foi o que o usuário pediu. */
 
   /* Rolagem: as setas laterais passam as páginas (é o que a mão alcança sem sair do anel). */
   .orb-page{pointer-events:auto;position:absolute;top:50%;transform:translateY(-50%);width:52px;height:64px;
@@ -3588,27 +3579,49 @@
   .orb-ring.is-next .orb-app{animation-name:orbInNext}
   .orb-ring.is-prev .orb-app{animation-name:orbInPrev}
 
-  /* Rodapé: perfil e hora do jogador, no lugar da dock. */
-  .orb-foot{flex:none;display:flex;align-items:center;justify-content:center;gap:12px;
-    padding:0 8px 14px}
-  .orb-me{display:flex;align-items:center;gap:10px;pointer-events:none;
-    padding:7px 14px 7px 7px;border-radius:999px;background:rgba(12,14,20,.62);
-    border:1px solid rgba(255,255,255,.24);box-shadow:0 10px 26px rgba(0,0,0,.5)}
-  .orb-me-av{position:relative;width:42px;height:42px;border-radius:50%;flex:none;display:grid;
+  /* ---------- barra de status da HUD (rodapé do anel) ---------- */
+  /* A mesma linguagem do HUD de referência: um vidro escuro, fino, encostado no rodapé, com os
+     controles à esquerda e o relógio/bateria à direita. À esquerda ficam o "TODOS" (que saiu do
+     centro do anel) e o GIROSCÓPIO; à direita, o perfil do jogador, a hora e a bateria. */
+  .orb-foot{flex:none;padding:0 4px 10px}
+  .orb-bar{display:flex;align-items:center;gap:10px;pointer-events:auto;
+    padding:6px 8px;border-radius:16px;min-height:56px;
+    background:rgba(9,11,16,.62);border:1px solid rgba(255,255,255,.15);
+    box-shadow:0 12px 30px rgba(0,0,0,.55)}
+  .orb-bar-side{display:flex;align-items:center;gap:8px;min-width:0}
+  .orb-bar-left{flex:1 1 auto;overflow:hidden}
+  .orb-bar-right{flex:none;margin-left:auto;padding-left:6px}
+  .orb-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    padding:9px 13px;border-radius:11px;color:#fff;font-size:12.5px;font-weight:800;
+    letter-spacing:.06em;white-space:nowrap;line-height:1;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+    transition:background .14s,transform .14s,border-color .14s}
+  .orb-chip:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3)}
+  .orb-chip:active{transform:scale(.96)}
+  .orb-chip-ico{font-size:15px;line-height:1;opacity:.9}
+  .orb-chip b{font-weight:800;font-size:11.5px;letter-spacing:.05em;color:rgba(255,255,255,.6)}
+  .orb-chip-dot{width:9px;height:9px;border-radius:50%;flex:none;background:rgba(255,255,255,.34)}
+  .orb-chip.is-on{border-color:rgba(141,230,200,.5)}
+  .orb-chip.is-on b{color:#8de6c8}
+  .orb-chip.is-on .orb-chip-dot{background:#8de6c8;box-shadow:0 0 10px rgba(141,230,200,.85)}
+  .orb-chip.is-off b{color:#ffb4b4}
+  .orb-chip.is-off .orb-chip-dot{background:#ff6b6b}
+  .orb-me{display:flex;align-items:center;gap:9px;pointer-events:none;min-width:0;
+    padding-right:4px}
+  .orb-me-av{position:relative;width:30px;height:30px;border-radius:50%;flex:none;display:grid;
     place-items:center;background:linear-gradient(145deg,#4b5563,#1f2937)}
   .orb-me-av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
-  .orb-me-initial{font-size:20px;font-weight:800}
-  .orb-me-check{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;border-radius:50%;
-    background:#fe2c55;color:#fff;font-size:11px;font-style:normal;font-weight:900;
+  .orb-me-initial{font-size:14px;font-weight:800}
+  .orb-me-check{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:50%;
+    background:#fe2c55;color:#fff;font-size:9px;font-style:normal;font-weight:900;
     display:grid;place-items:center;border:2px solid rgba(10,12,18,.9)}
-  .orb-me-name{font-size:15px;font-weight:800;letter-spacing:.02em;max-width:34vw;
+  .orb-me-name{font-size:13.5px;font-weight:800;letter-spacing:.02em;max-width:32vw;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .orb-clock{display:flex;align-items:center;gap:9px;pointer-events:none;
-    padding:12px 18px;border-radius:999px;background:rgba(12,14,20,.62);
-    border:1px solid rgba(255,255,255,.24);box-shadow:0 10px 26px rgba(0,0,0,.5)}
-  .orb-clock-time{font-size:19px;font-weight:800;letter-spacing:.06em;
+  .orb-clock{display:flex;align-items:center;gap:8px;pointer-events:none;
+    padding-left:10px;border-left:1px solid rgba(255,255,255,.16)}
+  .orb-clock-time{font-size:17px;font-weight:800;letter-spacing:.06em;
     font-variant-numeric:tabular-nums}
-  .orb-clock-bat{font-size:14px;font-weight:700;color:rgba(255,255,255,.75)}
+  .orb-clock-bat{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.75)}
 </style>
 </head>
 <body>
