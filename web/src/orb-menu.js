@@ -147,6 +147,7 @@ export function orbMarkup(entries = orbEntries()) {
  * "TODOS" não abrir nada). O erro fica registrado em `window.__orbLastError` para diagnóstico.
  */
 function launchTarget(invoke) {
+  if (typeof window !== 'undefined') window.__orbLaunchCalls = (window.__orbLaunchCalls || 0) + 1;
   try {
     closeOrbMenu();
   } catch (error) {
@@ -178,7 +179,13 @@ function wireOrb(host) {
   host.dataset.orbWired = '1';
   host.onclick = event => {
     const target = event.target instanceof Element ? event.target : null;
+    // Qual peça do anel recebeu o toque: é o primeiro lugar a olhar quando um toque "não abre nada".
     const tile = target?.closest('[data-orb-app]');
+    if (typeof window !== 'undefined') {
+      window.__orbLastHit = tile ? 'app:' + tile.dataset.orbApp
+        : target?.closest('[data-orb-all]') ? 'all'
+        : target?.closest('[data-orb-close]') ? 'close' : 'outside';
+    }
     if (tile) {
       const key = tile.dataset.orbApp;
       const isAndroid = tile.dataset.orbAndroid === '1';
@@ -257,6 +264,7 @@ function openOrbRing() {
 }
 
 export function closeOrbMenu() {
+  if (typeof window !== 'undefined') window.__orbCloseCalls = (window.__orbCloseCalls || 0) + 1;
   const win = winObj();
   try {
     if (win) close(win);

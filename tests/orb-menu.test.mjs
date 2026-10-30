@@ -89,7 +89,7 @@ test('abrir o anel empurra as outras janelas para trás do véu', async () => {
   assert.match(html, /html\[data-orb-open="1"\] \.dock\{\n    background:none!important/);
   assert.match(html, /html\[data-orb-open="1"\] \.dock \.dock-app,\n  html\[data-orb-open="1"\] \.dock \.dock-tool,[\s\S]{0,220}display:none!important/);
   // Fechar o anel desfaz o véu e o selo MESMO se a janela falhar ao fechar (try/finally).
-  assert.match(orb, /export function closeOrbMenu\(\) \{\n  const win = winObj\(\);\n  try \{\n    if \(win\) close\(win\);\n  \} finally \{/);
+  assert.match(orb, /export function closeOrbMenu\(\) \{[\s\S]{0,160}const win = winObj\(\);\n  try \{\n    if \(win\) close\(win\);\n  \} finally \{/);
 });
 
 test('the ring window fits the native atlas, so no column is cropped in the APK', async () => {
