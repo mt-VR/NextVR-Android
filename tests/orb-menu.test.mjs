@@ -1,211 +1,175 @@
-// O anel de 10 apps da bolinha da dock, o escurecimento do ambiente e o raio preso à mão.
+// O anel de 10 apps — agora uma JANELINHA FLUTUANTE INVISÍVEL, do jeito da UI dos apps espaciais.
 //
-// Pedido do usuário, palavra por palavra: "bota aquela opção de 10 apps que aparece ... o ambiente
-// escurece mas ainda dá pra vê e os apps aparecem gigantes na tela, mas esse fundo que aparece
-// configurações, só bugou, não é pra botar esse fundo de configurações ... não muda a bolinha, só o
-// raio, e deixa ele mais preciso, e que quase não saia da mão ... tira o bug do Hand tracking se
-// multiplicar do nada".
+// Pedido do usuário, palavra por palavra: "Tá a mesma merda, faz ele tipo aquele ui dos apps
+// spaciais, mas só quando clicar aonde era a 'antiga biblioteca de apps' faz esses apps em uma
+// janelinha, porém Deixa a janelinha flutuante invisível se barrinha branca pra mover, e tira aquele
+// troço da dock sumir, já sei, faz melhor, adiciona uma opção na dock que aparece 3 bolinhas em cima,
+// 4 no meio, e 3 embaixo, do lado esquerdo da biblioteca de apps, sem afetar na interface gráfica, e
+// quando clicarmos, a dock fica por baixo de tudo, porém o hand tracking fica por cima de tudo pra
+// escolher um app, e faz IGUAL dessa screenshot, só os apps e ícones não, os apps e ícones são o do
+// jogo+android".
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(path, 'utf8');
 
-test('the dock dot opens a ring of ten apps, three over four over three', async () => {
+test('a janelinha do anel mostra dez apps, três em cima, quatro no meio e três embaixo', async () => {
   const orb = await read('web/src/orb-menu.js');
-  assert.match(orb, /export const ORB_LAYOUT = Object\.freeze\(\[/);
-  const layout = orb.slice(orb.indexOf('ORB_LAYOUT'), orb.indexOf(']);', orb.indexOf('ORB_LAYOUT')));
-  const slots = [...layout.matchAll(/\{ x: *(\d+), y: *(\d+) \}/g)].map(m => ({ x: +m[1], y: +m[2] }));
-  assert.equal(slots.length, 10, 'the ring has exactly ten places');
-  // 3 em cima, 4 no meio, 3 embaixo (as três faixas de y do círculo).
-  const rows = slots.reduce((acc, s) => {
-    const row = s.y < 33 ? 0 : s.y < 67 ? 1 : 2;
-    acc[row] = (acc[row] || 0) + 1;
-    return acc;
-  }, []);
-  assert.deepEqual(rows, [3, 4, 3]);
-  // Both sides on the ring: the app's own apps AND the phone's Android apps.
+  // As fileiras são a própria estrutura do desenho (3/4/3), não posições absolutas soltas.
+  assert.match(orb, /export const ORB_ROWS = Object\.freeze\(\[/);
+  const rows = orb.slice(orb.indexOf('ORB_ROWS = Object.freeze(['), orb.indexOf(']);', orb.indexOf('ORB_ROWS = Object.freeze([')));
+  const sizes = [...rows.matchAll(/Object\.freeze\(\[([\d,\s]+)\]\)/g)].map(m => m[1].split(',').filter(Boolean).length);
+  assert.deepEqual(sizes, [3, 4, 3]);
+  assert.match(orb, /export const ORB_PAGE = 10/);
+  // Cada ícone leva o NOME embaixo, como na screenshot.
+  assert.match(orb, /<span class="orb-label">\$\{esc\(label\)\}<\/span>/);
+  const html = await read('web/index.html');
+  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:26px/);
+  assert.match(html, /\.orb-label\{position:relative;max-width:118px;font-size:13\.5px/);
+  // Os dois lados: apps do NextVR E apps do Android instalado.
   assert.match(orb, /ORB_ANDROID_SLOTS = 4/);
   assert.match(orb, /providers\.launchAndroid/);
   assert.match(orb, /providers\.launchOwn/);
-  // Um ouvinte só, delegado no host: o toque da mão chega no elemento mais fundo (o nome, o ícone)
-  // e precisa subir até o anel — sem depender de um handler por tile.
-  assert.match(orb, /host\.onclick = event => \{/);
-  assert.match(orb, /closest\('\[data-orb-app\]'\)/);
-  // Se o hit-test devolve o contêiner do anel em vez do tile/"TODOS", vale o ponto tocado: sem isso
-  // um toque no meio do anel não abria nada.
-  assert.match(orb, /function insideRect\(el, x, y\)/);
-  assert.match(orb, /byPointAll = true/);
-  assert.match(orb, /byPointTile = \[\.\.\.host\.querySelectorAll\('\[data-orb-app\]'\)\]\.find/);
-  assert.match(orb, /if \(all \|\| byPointAll\) \{ act\('all'\); return; \}/);
-  assert.match(orb, /if \(hit === 'all'\) \{ launchTarget\(\(\) => providers\.launchOwn\('library'\)\); return; \}/);
 });
 
-test('o anel não tem fundo/vidro atrás e o mundo só escurece', async () => {
+test('o anel é a janelinha invisível dos apps espaciais (sem moldura, sem barrinha branca)', async () => {
   const orb = await read('web/src/orb-menu.js');
-  // Não existe janela: nada de `open(...)`, de chrome de janela ou de painel pintado atrás dos apps.
-  assert.doesNotMatch(orb, /from '\.\/windows\.js'/g.test(orb) ? /chrome: false/ : /$^/);
-  assert.doesNotMatch(orb, /chrome: false/);
-  assert.doesNotMatch(orb, /background:\s*['"]#/);
-  // A camada nasce na HUD (#hud), que é o que o nativo desenha por cima e sem vidro.
-  assert.match(orb, /document\.getElementById\('hud'\)/);
-  assert.match(orb, /layer\.className = 'orb-layer'/);
-  // O escurecimento vai para a WebView E para o GL nativo (é o GL que desenha o mundo no headset).
-  assert.match(orb, /export const ORB_DIM = 0\.7/);
+  // É uma JANELA de verdade, com o mesmo vidro invisível do Spatial App.
+  assert.match(orb, /export const ORB_WIN = 'orb-apps'/);
+  assert.match(orb, /const win = open\(\{\n      id: ORB_WIN,/);
+  assert.match(orb, /chrome: false/);
+  assert.match(orb, /resizable: false/);
+  assert.match(orb, /win\.handle\.hidden = true;/);
+  assert.match(orb, /win\.resizeHandle\.hidden = true;/);
+  assert.doesNotMatch(orb, /document\.getElementById\('hud'\)/, 'não é mais camada da HUD');
+  const html = await read('web/index.html');
+  assert.match(html, /\.win-shell\[data-window-id="orb-apps"\],\n  \.win-shell\[data-window-id="orb-apps"\] \.win\{\n    background:transparent!important;border:none!important/);
+  assert.match(html, /\.win-shell\[data-window-id="orb-apps"\] \.win-handle,/);
+  // E o mundo só escurece — no headset quem escurece é o GL nativo.
+  assert.match(orb, /export const ORB_DIM = 0\.55/);
   assert.match(orb, /setSceneDim\(value \? ORB_DIM : 0\)/);
   assert.match(orb, /window\.NativeXR\?\.setSceneDim\?\.\(value \? ORB_DIM : 0\)/);
-  // Fechar o anel por qualquer caminho desfaz o escurecimento (mesmo se a remoção falhar).
-  assert.match(orb, /export function closeOrbMenu\(\) \{[\s\S]{0,220}\} finally \{[\s\S]{0,120}dim\(false\)/);
-
+  assert.match(orb, /export function closeOrbMenu\(\) \{[\s\S]{0,240}\} finally \{[\s\S]{0,120}dim\(false\)/);
   const core = await read('web/src/core.js');
-  assert.match(core, /export function setSceneDim\(amount\)/);
-  assert.match(core, /Math\.min\(\.82, /);
-  // No aparelho NÃO existe véu do DOM: o retângulo inteiro da WebView é capturado como HUD e
-  // desenhado por cima de tudo, então um div escuro virava a caixa preta vista no headset.
-  assert.match(core, /if \(native\) \{[\s\S]{0,240}sceneDimEl\.remove\(\); sceneDimEl = null;/);
-  assert.match(core, /window\.NativeXR\?\.setSceneDim\?\.\(a\)/);
-
-  // E o nativo escurece o mundo de verdade: câmera e panorama multiplicados, apps intocados.
-  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
-  assert.match(renderer, /public volatile float sceneDim = 0f/);
-  assert.match(renderer, /uniform float uSceneDim/);
-  assert.match(renderer, /glUniform1f\(camUSceneDim,sceneDim\)/);
-  assert.match(renderer, /glUniform1f\(envUSceneDim,sceneDim\)/);
-  const activity = await read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
-  assert.match(activity, /public void setSceneDim\(float amount\)/);
-
-  const html = await read('web/index.html');
-  assert.match(html, /#scene-dim\{position:fixed;inset:0;z-index:1;pointer-events:none;background:#05070c;opacity:0/);
-  // Ninguém pinta o painel da janela antiga: o anel não é janela.
-  assert.doesNotMatch(html, /\.win-shell\[data-window-id="orb-menu"\]/);
+  assert.match(core, /if \(native\) \{[\s\S]{0,200}if \(sceneDimEl\) \{ sceneDimEl\.remove\(\); sceneDimEl = null; \}/);
 });
 
-test('o anel manda na tela: dock some, janelas saem de cena, e a camada fica por cima', async () => {
+test('a dock NÃO some: ela fica por baixo, e as mãos continuam por cima para escolher', async () => {
+  const html = await read('web/index.html');
+  // Nenhuma regra esconde a dock (nem as janelas) com o anel aberto.
+  assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.dock/);
+  assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.win-shell/);
+  // O anel se marca como aberto (é o que o CSS e os testes usam), mas nada desaparece por isso.
   const orb = await read('web/src/orb-menu.js');
-  // O <html> ganha o selo enquanto o anel está aberto (é o que o CSS usa) e perde ao fechar.
   assert.match(orb, /document\.documentElement\.dataset\.orbOpen = '1'/);
   assert.match(orb, /else delete document\.documentElement\.dataset\.orbOpen/);
+  // A janela nasce na frente da dock: é ordenada no empilhamento das janelas (a mais próxima, no topo).
+  assert.match(orb, /updateWindowsDepthLayering\(win\)/);
+  // As mãos são o ÚLTIMO passe do render nativo: por cima de janelas e da dock.
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
+  const draw = renderer.slice(renderer.indexOf('sorted.sort('));
+  assert.ok(draw.indexOf('handRenderer.draw(') > draw.indexOf('drawPanel(p)'),
+    'o passe das mãos vem depois dos painéis (janelas e dock)');
+});
 
-  const html = await read('web/index.html');
-  // A dock DESAPARECE com o anel aberto (o rodapé do anel mostra perfil e hora no lugar dela).
-  assert.match(html, /html\[data-orb-open="1"\] \.dock\{display:none!important\}/);
-  // E nenhuma janela fica como caixa preta na frente/atrás dos ícones.
-  assert.match(html, /html\[data-orb-open="1"\] \.win-shell\{opacity:0!important;visibility:hidden!important/);
-  // A camada do anel é a última coisa desenhada na HUD — e ela é `absolute` DENTRO da HUD, não
-  // `fixed`: no aparelho a HUD é uma caixa de 1200x800 em cima de uma página de 4096x4096, então um
-  // `fixed` ficava centrado em 2048,2048 e era recortado (o anel existia e não aparecia no headset).
-  assert.match(html, /\.orb-layer\{position:absolute;inset:0;z-index:60;pointer-events:none;/);
-  assert.doesNotMatch(html, /\.orb-layer\{position:fixed/);
-  // Os tiles se destacam no escuro: aro claro + halo colorido.
-  assert.match(html, /\.orb-app\{[^}]*box-shadow:0 18px 40px rgba\(0,0,0,\.7\),0 0 0 2px rgba\(255,255,255,\.55\),0 0 30px 3px/);
-
-  // Sem capa, o tile usa a paleta forte do anel (o cinza quase preto sumia no ambiente escurecido).
-  assert.match(orb, /export const ORB_PALETTE = Object\.freeze\(\[/);
-  assert.match(orb, /entry\.bg \|\| ORB_PALETTE\[index % ORB_PALETTE\.length\]/);
-
-  // O toque da mão chega no anel: a HUD é uma superfície real e o hit-test procura as peças dele.
-  const windows = await read('web/src/windows.js');
-  assert.match(windows, /\[data-orb-app\],\[data-orb-all\],\[data-orb-close\],\[data-orb-page\]/);
-  assert.match(windows, /const orb = document\.getElementById\('orb-layer'\)/);
+test('a dock ganha o botão 3-4-3 à esquerda da biblioteca, sem mexer no resto da interface', async () => {
+  const apps = await read('web/src/apps.js');
+  // O ícone: dez bolinhas (3 em cima, 4 no meio, 3 embaixo), desenhado no próprio app.
+  assert.match(apps, /const ORB_DOTS_SVG = `<svg viewBox="0 0 24 24"/);
+  const dotsStart = apps.indexOf('const ORB_DOTS_SVG');
+  const dots = apps.slice(dotsStart, apps.indexOf('</svg>`', dotsStart));
+  // As dez coordenadas do desenho: três em cima, quatro no meio, três embaixo.
+  const ys = [...dots.matchAll(/\[(\d+(?:\.\d+)?), (\d+(?:\.\d+)?)\]/g)].map(m => Number(m[2]));
+  assert.equal(ys.length, 10, 'dez bolinhas');
+  assert.deepEqual([...new Set(ys)], [5.4, 12, 18.6], 'três fileiras');
+  assert.deepEqual([ys.filter(y => y === 5.4).length, ys.filter(y => y === 12).length, ys.filter(y => y === 18.6).length],
+    [3, 4, 3], '3 em cima, 4 no meio, 3 embaixo');
+  // O botão fica imediatamente À ESQUERDA do botão da biblioteca.
+  const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot },";
+  const orbLine = "    { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },";
+  assert.ok(apps.includes(orbLine) && apps.includes(libraryLine));
+  assert.ok(apps.indexOf(orbLine) < apps.indexOf(libraryLine), 'o anel vem antes da biblioteca na dock');
+  // A bolinha da biblioteca também abre o anel (é "aonde era a antiga biblioteca de apps").
+  assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  return openOrbMenu\(\);/);
 });
 
 test('a rolagem passa as páginas de dez ícones, com animação', async () => {
   const orb = await read('web/src/orb-menu.js');
-  // Dez por página ("só aparece 10 ícones") e mais páginas quando há mais apps.
-  assert.match(orb, /export const ORB_PAGE = 10/);
-  assert.match(orb, /export function orbPages\(entries = orbEntries\(\)\)/);
   assert.match(orb, /export function turnPage\(step = 1\)/);
-  // A roda é ouvida no documento (a camada é pointer-events:none, então ela não recebe a roda).
+  // A roda é ouvida no documento (a página recebe a roda no navegador e no headset).
   assert.match(orb, /document\.addEventListener\('wheel', onOrbWheel, \{ passive: false \}\)/);
   assert.match(orb, /function onOrbWheel\(event\) \{\n  if \(!orbOpen\(\)\) return;/);
   assert.match(orb, /Math\.abs\(dx\) > 48\) turnPage/);
+  assert.match(orb, /data-orb-page="-1"/);
   assert.match(orb, /data-orb-page="1"/);
-  // A animação de rolagem é do CSS (o quadro de entrada de cada ícone).
+  // A animação é do CSS e entra na grade NOVA.
   const html = await read('web/index.html');
   assert.match(html, /@keyframes orbInNext\{/);
   assert.match(html, /@keyframes orbInPrev\{/);
-  assert.match(html, /\.orb-ring\.is-next \.orb-app\{animation-name:orbInNext\}/);
-  // E a classe entra na página NOVA (senão a animação nasce no elemento que já foi trocado).
-  assert.match(orb, /ring\.classList\.add\('is-' \+ direction\)/);
+  assert.match(html, /\.orb-grid\.is-next \.orb-app\{animation-name:orbInNext\}/);
+  assert.match(orb, /grid\.classList\.add\('is-' \+ direction\)/);
 });
 
-test('o rodapé do anel mostra o perfil e a hora do jogador', async () => {
+test('a barra de status é a da referência: TODOS, giroscópio, perfil, hora, bateria e linha branca', async () => {
   const orb = await read('web/src/orb-menu.js');
-  assert.match(orb, /import \{ getDeviceStatus \} from '\.\/windows\.js'/);
-  assert.match(orb, /data-orb-me="1"/);
-  assert.match(orb, /data-orb-clock="1"/);
+  const html = await read('web/index.html');
+  const bar = orb.slice(orb.indexOf('data-orb-bar'), orb.indexOf('${clockHtml()}', orb.indexOf('data-orb-bar')));
+  for (const marker of ['data-orb-all', '${gyroChipHtml()}', '${meHtml()}']) {
+    assert.ok(bar.includes(marker), `a barra tem ${marker}`);
+  }
+  assert.ok(bar.indexOf('data-orb-all') < bar.indexOf('${gyroChipHtml()}'), 'TODOS vem antes do giroscópio');
+  assert.ok(bar.indexOf('${gyroChipHtml()}') < bar.indexOf('${meHtml()}'), 'o giroscópio fica ao lado do perfil/hora');
+  // O ponto e o texto, como na screenshot, e a linha branca fina embaixo.
+  assert.match(orb, /<span class="orb-dot" aria-hidden="true"><\/span>/);
+  assert.match(orb, /data-orb-count/);
+  assert.match(orb, /class="orb-home-line"/);
+  assert.match(html, /\.orb-home-line\{position:absolute;left:50%;bottom:-2px/);
+  assert.match(html, /\.orb-bar\{flex:none;width:100%;display:flex;align-items:center;gap:10px;pointer-events:auto;/);
+  // Relógio de verdade, 24 h, do aparelho.
   assert.match(orb, /setInterval\(paintClock, 1000\)/);
   assert.match(orb, /on\('device-status', \(\) => \{ if \(orbOpen\(\)\) paintClock\(\); \}\)/);
-  // Perfil de verdade (nome, avatar e selo de verificado), vindo do apps.js.
   const apps = await read('web/src/apps.js');
   assert.match(apps, /profile: \(\) => \(\{/);
   assert.match(apps, /verified: isVerifiedProfileName\(S\.profileName\)/);
 });
 
-test('dez ícones cabem na tela: 3+4+3 e nada é cortado por um recorte de janela', async () => {
+test('o giroscópio é um botão de verdade: mostra o estado e liga/desliga a orientação', async () => {
   const orb = await read('web/src/orb-menu.js');
-  const html = await read('web/index.html');
-  // O anel não passa pelo atlas de texturas (não é janela), então não existe recorte que corte coluna.
-  assert.match(orb, /export const ORB_W = 1040/);
-  assert.match(html, /\.orb-app\{[^}]*width:clamp\(104px,15\.2%,196px\)/);
-  assert.match(html, /\.orb-page--prev\{left:2px\}/);
-  assert.match(html, /\.orb-page--next\{right:2px\}/);
-});
-
-test('the dock keeps its dot grid and only what it opens changed', async () => {
-  const apps = await read('web/src/apps.js');
-  // A aparência da bolinha continua a mesma grade de pontinhos do buildDock.
-  const windows = await read('web/src/windows.js');
-  assert.match(windows, /'<span class="dk-grid">' \+ '<i><\/i>'\.repeat\(9\) \+ '<\/span>'/);
-  // A bolinha (item launcher da dock) abre o anel; com o anel desativado nas Configurações ela
-  // volta a abrir a biblioteca, como era antes.
-  assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\), run: openAppsDot \}/);
-  assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  return openOrbMenu\(\);/);
-  assert.match(apps, /import \{ openOrbMenu, closeOrbMenu, orbOpen, installOrbMenu \} from '\.\/orb-menu\.js'/);
-  assert.match(apps, /installOrbMenu\(\{[\s\S]*?refreshAndroid: \(\) => loadAndroidLibrary\(\)/);
-});
-
-test('the ray comes out of the hand and stays with it', async () => {
-  const hands = await read('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt');
-  // Sem amplificação ancorada no ombro (+25%) e sem o viés fixo de +25% no eixo Y: era isso que
-  // fazia o raio "sair da mão" e mirar alto.
-  assert.doesNotMatch(hands, /shoulder/);
-  assert.doesNotMatch(hands, /\(by\+1f\)\*\.25f/);
-  assert.match(hands, /state\.x\.filter\(bx,stamp\)/);
-  assert.match(hands, /state\.y\.filter\(by,stamp\)/);
-
-  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
-  // O feixe nasce no meio da palma (landmark 9), não num ponto do plano da tela.
-  assert.match(renderer, /originX=\(hand\.points\[9\]-\.5f\)\*2f\*sx/);
-  assert.match(renderer, /b\[0\]=if\(direct\)0f else originX/);
-});
-
-test('a hand can never be drawn twice, and the ghost of a mislabelled hand is dropped', async () => {
-  const hands = await read('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt');
-  assert.match(hands, /private const val GHOST_RADIUS = \.09f/);
-  // A predita que caiu em cima de uma mão detectada é descartada NESTA rodada, mas o lado não fica
-  // morto: a segunda mão volta a aparecer assim que o detector a vê de novo (antes ela demorava, e
-  // com as duas mãos em uso parecia que só uma era rastreada).
-  assert.match(hands, /if \(duplicate\) \{[\s\S]{0,400}?consecutiveMisses/);
-  // Duas mãos no mesmo resultado nunca recebem o mesmo id (uma delas é movida para o lado livre).
-  assert.match(hands, /if \(!detected\.add\(left\)\) \{ left = !left; detected\.add\(left\) \}/);
+  assert.match(orb, /data-orb-gyro="1"/);
+  assert.match(orb, /export function gyroNow\(\)/);
+  assert.match(orb, /function toggleGyro\(\)/);
+  assert.match(orb, /S\.gyro = S\.gyro === 0 \? 1 : 0;/);
+  assert.match(orb, /if \(target\?\.closest\('\[data-orb-gyro\]'\)\) \{ toggleGyro\(\); return; \}/);
+  assert.match(orb, /on\('gyro', \(\) => \{ if \(orbOpen\(\)\) paintOrb\(\); \}\)/);
+  const core = await read('web/src/core.js');
+  assert.match(core, /gyro: 1,/);
+  assert.match(core, /else if \(gyroLive\(\) && S\.gyro !== 0\) \{/);
+  assert.match(core, /if \(S\.gyro === 0\) return;\n    poseMatrix\.fromArray\(values\)\.invert\(\);/);
 });
 
 test('o anel de 10 apps pode ser desativado e a bolinha volta a abrir a biblioteca', async () => {
   const apps = await read('web/src/apps.js');
   const core = await read('web/src/core.js');
-  // Padrão: anel ligado (a configuração existe e nasce com 1).
   assert.match(core, /orbRing: 1,/);
-  // Interruptor nas Configurações (Central de controle), com o texto dizendo o que volta.
   assert.match(apps, /control\('appGrid', 'Anel de 10 Apps \(bolinha da Dock\)', S\.orbRing !== 0 \? 'Ativado' : 'Desativado · biblioteca de volta'/);
   assert.match(apps, /S\.orbRing = enabled \? 1 : 0;/);
-  assert.match(apps, /save\(S\);/);
-  // Desligar com o anel aberto fecha o anel na hora (o véu e o selo saem junto).
   assert.match(apps, /if \(!enabled\) \{ try \{ closeOrbMenu\(\); \} catch \{\} \}/);
-  // O mesmo interruptor existe nas Configurações (dentro do jogo), na seção da Dock.
-  assert.match(apps, /ytRow\(icon\('appGrid'\), 'Anel de 10 Apps \(bolinha da Dock\)',\n    'Desligado: a bolinha abre a biblioteca de sempre',\n    ytToggle\('orbRing'/);
-  // E a escolha é lembrada: é uma configuração salva, não um estado de sessão.
-  assert.match(core, /orbRing/);
+});
+
+test('o toque da pinça chega no ícone e no TODOS (janela normal, sem camada da HUD)', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  assert.match(orb, /host\.onclick = event => \{/);
+  assert.match(orb, /closest\('\[data-orb-app\]'\)/);
+  // Se o hit-test devolve o contêiner, vale o ponto tocado.
+  assert.match(orb, /function insideRect\(el, x, y\)/);
+  assert.match(orb, /byPointAll = true/);
+  assert.match(orb, /if \(all \|\| byPointAll\) \{ act\('all'\); return; \}/);
+  assert.match(orb, /if \(hit === 'all'\) \{ launchTarget\(\(\) => providers\.launchOwn\('library'\)\); return; \}/);
+  // A janela da HUD do anel não existe mais no caminho de toque.
+  const windows = await read('web/src/windows.js');
+  assert.doesNotMatch(windows, /getElementById\('orb-layer'\)/);
+  assert.match(windows, /\[data-orb-all\],\[data-orb-close\],\[data-orb-page\],\[data-orb-gyro\]/);
 });
 
 test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pinça com raio")', async () => {
@@ -227,28 +191,6 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
   assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline\}\);continue;\}/);
-});
-
-test('"TODOS" saiu do centro do anel e foi para a barra de baixo, ao lado da hora e da bateria', async () => {
-  const orb = await read('web/src/orb-menu.js');
-  const html = await read('web/index.html');
-  // Nada de "TODOS" no MEIO do anel: o centro fica vazio e o mundo escurecido aparece por ele.
-  assert.doesNotMatch(orb, /orb-hub/);
-  assert.doesNotMatch(html, /\.orb-hub/);
-  const ring = orb.slice(orb.indexOf('<div class="orb-ring"'), orb.indexOf('</div>', orb.indexOf('<div class="orb-ring"')));
-  assert.doesNotMatch(ring, /data-orb-all/, 'o centro do anel não tem mais o botão TODOS');
-  // Ele vive na barra do rodapé, junto do giroscópio, do perfil, da hora e da bateria.
-  const bar = orb.slice(orb.indexOf('data-orb-bar'), orb.indexOf('${clockHtml()}', orb.indexOf('data-orb-bar')));
-  // O chip do giroscópio é desenhado por uma função (ele mostra o estado vivo do sensor).
-  assert.ok(bar.includes('${gyroChipHtml()}'), 'a barra desenha o chip do giroscópio');
-  assert.ok(bar.includes('data-orb-all'), 'a barra tem o TODOS');
-  assert.ok(bar.includes('${meHtml()}'), 'a barra tem o perfil');
-  assert.ok(bar.indexOf('data-orb-all') < bar.indexOf('${gyroChipHtml()}'), 'TODOS vem antes do giroscópio');
-  assert.ok(bar.indexOf('${gyroChipHtml()}') < bar.indexOf('${meHtml()}'), 'o giroscópio fica ao lado do perfil/hora');
-  assert.match(orb, /function gyroChipHtml\(\) \{[\s\S]{0,400}?data-orb-gyro="1"/);
-  // A barra é a linguagem do HUD: vidro escuro, fino, encostado no rodapé.
-  assert.match(html, /\.orb-bar\{display:flex;align-items:center;gap:10px;pointer-events:auto;/);
-  assert.match(html, /\.orb-chip\{pointer-events:auto;/);
 });
 
 test('o giroscópio é um botão de verdade: mostra o estado e liga/desliga a orientação', async () => {

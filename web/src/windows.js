@@ -1275,17 +1275,9 @@ const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-s
 
 function findDirectAppPoint(cx, cy) {
   if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
-    // O anel de 10 apps vive na HUD (camada presa na cabeça): o toque da mão cai direto no ícone,
-    // exatamente como cai no menu da mão esquerda.
-    const orb = document.getElementById('orb-layer');
-    if (orb) {
-      const under = document.elementFromPoint(cx * viewport.width, cy * viewport.height);
-      // A barra de baixo do anel (TODOS, GIROSCÓPIO, perfil, hora) também é tocável com a pinça.
-      const orbMatch = under?.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-orb-gyro]');
-      if (orbMatch) return { x: cx, y: cy, el: orbMatch, isHud: true };
-      // Fora de um ícone, o anel come o toque: nada de clicar numa janela escondida atrás dele.
-      return { x: cx, y: cy, el: null, isHud: true };
-    }
+    // O anel de apps agora é uma JANELA (vidro invisível, como o Spatial App): ele passa pelo
+    // caminho normal de janela, então a pinça acerta os ícones pelo hit-test do próprio painel —
+    // nada de camada da HUD aqui. Quem ainda mora na HUD é o menu rápido da mão esquerda.
     const hudMenu = document.getElementById('left-hand-quick-menu');
     if (hudMenu && !hudMenu.hidden) {
       const fromHud = document.elementFromPoint(cx * viewport.width, cy * viewport.height);

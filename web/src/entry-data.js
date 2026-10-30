@@ -45,11 +45,11 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
-    id: 'orb-hud-status-bar',
-    tag: 'NOVO · TODOS E GIROSCÓPIO NA BARRA DE BAIXO, COMO UM HUD',
+    id: 'orb-floating-window',
+    tag: 'NOVO · ANEL EM JANELINHA INVISÍVEL, BOTÃO 3-4-3 NA DOCK & A DOCK QUE NÃO SOME',
     time: 'Agora',
-    heading: 'Barra de Status no Rodapé: TODOS, Giroscópio, Perfil, Hora e Bateria',
-    desc: 'O "TODOS" saiu do meio do anel — ele tapava o centro dos dez apps e o mundo escurecido atrás deles. Agora ele fica na barra de status do rodapé, ao lado do GIROSCÓPIO, do perfil, da hora e da bateria, no mesmo desenho de HUD da referência: um vidro escuro, fino, encostado embaixo, com os controles à esquerda e o relógio à direita. O chip do GIROSCÓPIO mostra o estado de verdade (ATIVO, AGUARDANDO ou DESLIGADO) e liga/desliga a orientação com um toque — desligado, o mundo para de girar com a cabeça (no headset a pose do Cardboard é ignorada e a cena fica parada; no navegador, olhar volta a ser arrasto). O centro do anel ficou vazio de propósito: dez ícones gigantes em volta e o ambiente aparecendo pelo meio.',
+    heading: 'Anel de Apps em Janelinha Invisível, Botão 3-4-3 na Dock e a Dock de Volta ao Lugar',
+    desc: 'O anel de dez apps virou uma JANELINHA FLUTUANTE INVISÍVEL, do jeito da UI dos apps espaciais: sem moldura, sem barrinha branca para mover e sem fundo preto — o mundo escurecido aparece atrás, com dez ícones e o nome embaixo, três em cima, quatro no meio e três embaixo. A DOCK NÃO SOME MAIS: ela continua ali, por baixo, e as mãos são o último desenho do render, então continuam por cima de tudo para você escolher o app com a pinça. A dock ganhou um botão novo à esquerda da biblioteca com as dez bolinhas do anel (3-4-3); a bolinha da biblioteca abre a mesma janelinha. A barra de baixo é a da referência: um ponto, a contagem de apps, as setas de página, o TODOS, o chip do GIROSCÓPIO, o perfil, a hora, a bateria e a linha branca fina embaixo.',
   },
   {
     id: 'orb-visible-pinch-ray',

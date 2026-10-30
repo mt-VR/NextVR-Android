@@ -3621,10 +3621,23 @@ on('device-status', status => {
 });
 
 /* ============ dock (compacta, com atalho de ambiente virtual) ============ */
+/**
+ * O ícone do botão novo da dock: DEZ bolinhas — 3 em cima, 4 no meio, 3 embaixo — que é o desenho
+ * do anel pedido pelo usuário ("adiciona uma opção na dock que aparece 3 bolinhas em cima, 4 no
+ * meio, e 3 embaixo, do lado esquerdo da biblioteca de apps"). Desenhado aqui para não depender de
+ * nenhum ícone de terceiros.
+ */
+const ORB_DOTS_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${
+  [[6.2, 5.4], [12, 5.4], [17.8, 5.4],
+   [4.2, 12], [9.5, 12], [14.5, 12], [19.8, 12],
+   [6.2, 18.6], [12, 18.6], [17.8, 18.6]]
+    .map(([cx, cy]) => `<circle cx="${cx}" cy="${cy}" r="1.85"/>`).join('')
+}</svg>`;
+
 const DK = Object.freeze({
   compass:icon('compass'), store:icon('store'), people:icon('people'),
   camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
-  vision:icon('vision'),
+  vision:icon('vision'), orbDots:ORB_DOTS_SVG,
 });
 
 function toggleVirtualEnvironment() {
@@ -3669,6 +3682,9 @@ function makeDock() {
     // apps do Android — com o ambiente escurecido mas ainda visível. O desenho da bolinha é o
     // mesmo de sempre; o que muda é só o que ela abre. Com o anel DESATIVADO nas Configurações
     // (S.orbRing = 0) a bolinha volta a abrir a biblioteca, como era antes.
+    // O botão do ANEL (dez bolinhas, 3-4-3) fica à ESQUERDA da biblioteca, do mesmo tamanho e no
+    // mesmo ritmo dos outros: a interface gráfica da dock não muda, só ganha mais um atalho.
+    { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },
     { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot },
   ]);
   syncVirtualEnvironmentDock();

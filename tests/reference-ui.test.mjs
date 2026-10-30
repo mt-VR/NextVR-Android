@@ -203,12 +203,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
-    // A bolinha da dock agora abre o ANEL de 10 apps (3/4/3), não a janela da biblioteca: o anel é
-    // transparente, o ambiente escurece e cada tile é um app do NextVR ou do Android instalado.
+    // A bolinha da dock (e o botão 3-4-3 ao lado dela) abre o ANEL de 10 apps numa JANELINHA
+    // FLUTUANTE INVISÍVEL, do jeito dos apps espaciais: sem moldura, sem barrinha branca para
+    // mover, o ambiente escurece e cada ícone é um app do NextVR ou do Android instalado.
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
     assert.equal(await page.locator('.orb-app').count(),10,'the ring shows ten apps');
-    assert.equal(await page.locator('.orb-ring').count(),1,'the tiles live inside one circular ring');
+    assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.orb-row')].map(r=>r.querySelectorAll('.orb-app').length)),
+      [3,4,3],'3 em cima, 4 no meio, 3 embaixo');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),'1',
       'the environment dims but stays visible behind the ring');
     // No aparelho o escurecimento é do GL nativo (o véu do DOM é proibido: ele entrava na textura da
@@ -217,20 +219,27 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       const veil = document.getElementById('scene-dim');
       return !veil || parseFloat(getComputedStyle(veil).opacity) > 0;
     }), 'the environment is dimmed by the native GL (no dark DOM veil in the headset)');
-    // O anel é uma CAMADA da HUD, não uma janela: nada de barra, de vidro nem de painel atrás.
-    assert.equal(await page.evaluate(()=>document.querySelectorAll('.win-shell[data-window-id="orb-menu"]').length),0,
-      'the ring is not a window any more (a window is what painted the dark box behind the icons)');
-    assert.equal(await page.evaluate(()=>!!document.querySelector('#hud #orb-layer')),true,
-      'the ring lives in the HUD layer, drawn on top of everything');
+    // O anel É uma janela — a mesma janelinha invisível do Spatial App — e não mais uma camada da
+    // HUD: sem moldura, sem barrinha branca para mover, sem fundo preto atrás dos ícones.
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('.win-shell[data-window-id="orb-apps"]').length),1,
+      'the ring is the invisible floating window');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.win-shell[data-window-id="orb-apps"] .win')).backgroundColor),
+      'rgba(0, 0, 0, 0)','the window glass is invisible: the dimmed world shows through');
+    assert.equal(await page.evaluate(()=>{
+      const h=document.querySelector('.win-shell[data-window-id="orb-apps"] .win-handle');
+      return !h || getComputedStyle(h).display==='none';
+    }),true,'there is no white move bar on the ring window');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),'1',
       'the ring marks the page as open');
     assert.ok(await page.locator('.orb-app').first().evaluate(e=>getComputedStyle(e).boxShadow!=='none'),
       'each app tile carries its own glow so it stands out in the dark');
-    assert.ok(await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width)>=150),
-      'the apps are giant, not thumbnails');
-    // A dock DESAPARECE; no lugar dela o anel mostra o perfil e a hora do jogador.
-    assert.equal(await page.locator('.dock').isVisible(),false,
-      'the dock steps aside while the ring is open');
+    // O tamanho é o da referência: ícone com o NOME EMBAIXO, não um thumb minúsculo.
+    const tileSize = await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width));
+    assert.ok(tileSize >= 96 && tileSize <= 140, `the icons are the size of the reference (${tileSize}px)`);
+    assert.ok(await page.locator('.orb-label').first().isVisible(), 'each icon carries its name underneath');
+    // A DOCK NÃO SOME: ela fica por baixo, e a janelinha nasce na frente dela.
+    assert.equal(await page.locator('.dock').isVisible(),true,
+      'the dock stays on screen (it just sits behind the ring window)');
     assert.equal(await page.locator('[data-orb-me]').isVisible(),true,'the ring shows the player profile');
     assert.equal(await page.locator('[data-orb-clock]').isVisible(),true,'the ring shows the clock');
     assert.match(await page.evaluate(()=>document.querySelector('[data-orb-clock] .orb-clock-time')?.textContent||''),
@@ -255,7 +264,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const pages = await page.evaluate(()=>document.querySelectorAll('.orb-dots i').length);
     if (pages > 1) {
       assert.notEqual(paging.after, '0', 'turning the page moves to the next page of apps');
-      assert.equal(await page.evaluate(()=>document.querySelector('.orb-ring').className.includes('is-')),true,
+      assert.equal(await page.evaluate(()=>document.querySelector('.orb-grid').className.includes('is-')),true,
         'the new page enters with the scroll animation');
       // Voltar: com duas páginas a roda de trás retorna; a asserção confere a VOLTA, não o número,
       // porque o teste da roda já pode ter passado mais de uma página.
@@ -278,7 +287,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       const cx=r.left+r.width/2, cy=r.top+r.height/2;
       const at=document.elementFromPoint(cx,cy);
       return {rect:[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)],
-        wired:document.querySelector('.orb-host')?.dataset.orbWired==='1',
+        wired:document.querySelector('.win-shell[data-window-id="orb-apps"] .win-body')?.dataset.orbWired==='1',
         atCenter:at?`${at.tagName}.${at.className}`:null,
         hubPointer:getComputedStyle(hub).pointerEvents,
         viewport:[innerWidth,innerHeight]};
@@ -299,14 +308,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
       'closing the ring restores the environment brightness');
     assert.equal(await page.locator('.dock .dock-app').first().isVisible(),true,
-      'the dock apps come back when the ring closes');
+      'the dock apps are still there (and never left) while the ring opens and closes');
     assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).backgroundImage),/gradient\(/,
       'the dock pill comes back with the apps');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),undefined,
       'the ring clears its open mark when it closes');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.dock')).display!=='none',
-      null,{timeout:5000}).catch(()=>{});
-    assert.equal(await page.locator('.dock').isVisible(),true,'the dock is back as soon as the ring closes');
+    assert.equal(await page.locator('.dock').isVisible(),true,'the dock is visible before, during and after the ring');
     assert.equal(await page.locator('.lib-tile').count(),16,
       'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
@@ -624,7 +631,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        reaches the app rather than becoming a synthetic click on the shell.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    // A bolinha abre o anel de 10 apps; "TODOS" no centro abre a biblioteca do NextVR.
+    // A bolinha abre o anel de 10 apps; o TODOS da barra de baixo abre a biblioteca do NextVR.
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('[data-orb-all]'));
     await page.locator('[data-orb-all]').click();
@@ -645,7 +652,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         lastTarget: window.__orbLastTarget || null,
         lastError: window.__orbLastError || null,
         orbRoot: !!document.querySelector('.orb-root'),
-        orbLayer: !!document.querySelector('#orb-layer'),
+        orbWindow: !!document.querySelector('.win-shell[data-window-id="orb-apps"]'),
         dockDisplayAfter: (() => { const d = document.querySelector('.dock'); return d ? getComputedStyle(d).display : 'no dock'; })(),
         dockDisplay: dock ? getComputedStyle(dock).display : 'no dock',
         tileDisplay: tile ? getComputedStyle(tile).display : 'no tile',
