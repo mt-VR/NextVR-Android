@@ -679,12 +679,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       // completa, que é o que este fluxo usa para achar o app instalado.
       const dockLibrary = document.querySelector('.dock [data-id="library"]');
       dockLibrary?.click();
+      // O DOM de uma janela entra no documento no primeiro render do CSS3D (next frame), então o
+      // anel (e o centro dele) só existem depois de um frame.
+      await new Promise(r => requestAnimationFrame(() => r()));
       const orbOpen = !!document.querySelector('.orb-root');
       const orbShell = !!document.querySelector('.win-shell[data-window-id="orb-menu"]');
       const orbCalls = window.__orbOpenCalls || 0;
       const hub = document.querySelector('[data-orb-all]');
       hub?.click();
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => requestAnimationFrame(() => r()));
       const libraryOpenError = window.__orbLastError || null;
       const libraryShell = !!document.querySelector('.win-shell[data-window-id="library"]');
       document.querySelector('.dock [data-id="store"]')?.click();
