@@ -176,8 +176,19 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
-      'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
+    // O botão do ANEL (as dez bolinhas, 3-4-3) entra à ESQUERDA da biblioteca: a dock ganha um
+    // atalho, o resto da interface gráfica não muda.
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','orb-apps','library'],
+      'the compact dock keeps phone status, the Vision-style virtual-environment shortcut and the ring button beside the library');
+    // O botão do anel é o das dez bolinhas: 3 em cima, 4 no meio, 3 embaixo, colado à esquerda da
+    // biblioteca — a dock não muda de tamanho nem de ordem, só ganha o atalho.
+    const ringButton = page.locator('.dock [data-id="orb-apps"]');
+    assert.equal(await ringButton.count(),1,'the dock gained one ring button');
+    assert.equal(await ringButton.locator('svg circle').count(),10,'the ring button draws the ten dots of the ring');
+    assert.deepEqual(await page.evaluate(()=>{
+      const all=[...document.querySelectorAll('.dock button[data-id]')].map(n=>n.dataset.id);
+      return [all.indexOf('orb-apps'),all.indexOf('library')];
+    }),[10,11],'the ring button sits immediately to the left of the app library');
     assert.equal(await page.locator('.dock .dock-spacer').count(),1,
       'a small gap separates status and the app tiles');
     assert.equal(await page.locator('.dock .dock-tool').count(),1,
