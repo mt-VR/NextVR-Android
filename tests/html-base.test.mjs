@@ -123,6 +123,19 @@ test('all core AR/VR features and dixVR persistence keys remain present', async 
   assert.match(html, /function setWorldLock\(/);
   assert.match(html, /function initBeachScene\(\)/);
 
+  // Multitarefa: geometria medida no DOM (nada de altura fixa estimada) e slots da dock funcionais.
+  for (const fn of [
+    'measureEntrySize',
+    'getDockMetrics',
+    'computeSlotScales',
+    'computeArcLayout',
+    'activateDockSlotPoint',
+    'getFocusedMultitaskApp',
+  ]) {
+    assert.match(html, new RegExp(`function ${fn}\\(`), `Missing multitask helper: ${fn}`);
+  }
+  assert.match(html, /new ResizeObserver\(/);
+
   for (const app of ['google', 'youtube', 'kitchen', 'dreamcore', 'shoot_the_die']) {
     assert.match(html, new RegExp(`dixVR_${app}_installed`));
   }

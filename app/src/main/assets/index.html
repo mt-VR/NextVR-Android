@@ -101,6 +101,7 @@
 
         .dixvr-floating-window {
             width: 760px;
+            height: 480px;
             display: flex;
             flex-direction: column;
             pointer-events: auto;
@@ -112,6 +113,19 @@
             border: 1px solid rgba(255, 255, 255, 0.18);
             box-shadow: 0 30px 64px rgba(0, 0, 0, 0.82);
             overflow: hidden;
+        }
+        /* Janela flutuante com tamanho FIXO (440px de conteudo + 40px de barra): a geometria 3D
+   (acima da dock, sem sobreposicao entre janelas) precisa de medidas deterministicas. */
+        .dixvr-floating-window > .main-vr-window {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+        }
+        /* O launcher do Roblox usava 100vw/100vh (tela inteira) e estourava a janela flutuante. */
+        .dixvr-floating-window #window-roblox-launcher,
+        .dixvr-floating-window #window-minecraft-launcher {
+            width: 100% !important; max-width: 100% !important;
+            height: 100% !important; min-height: 0 !important;
         }
         .dixvr-floating-window[data-slot="center"] {
             border-color: rgba(128, 197, 230, 0.55);
@@ -2729,13 +2743,14 @@ body.vr-cardboard::after{
         const DOCK_DIST = 2.08;
         const DOCK_Y = -0.68;
         const DOCK_SCALE = 0.0024;
-        const DOCK_HALF_HEIGHT = 0.085;
-        const DOCK_TOP_Y = DOCK_Y + DOCK_HALF_HEIGHT;
-        const DOCK_CLEARANCE = 0.16;
-        const MIN_WINDOW_BOTTOM_Y = DOCK_TOP_Y + DOCK_CLEARANCE;
+        const DOCK_HALF_HEIGHT = 0.085;      // fallback: usado so se a dock nao estiver mensuravel
+        const DOCK_TILT = 0.14;              // a dock e inclinada para o usuario
+        const DOCK_CLEARANCE = 0.18;         // folga minima entre o topo da dock e a base da janela
+        const WINDOW_TOP_MAX_Y = 0.46;       // teto de altura: janela alta ENCOLHE, nao sobe
         const ARC_DIST = 2.26;
-        const ARC_STEP = 0.68;
-        const SLOT_ANGLE_MAP = { left: -ARC_STEP, center: 0, right: ARC_STEP };
+        const ARC_MIN_STEP = 0.52;
+        const ARC_MAX_STEP = 0.92;
+        const ARC_GAP_M = 0.12;              // folga horizontal entre janelas vizinhas
         const SLOT_SCALE_MULT = { left: 0.84, center: 1.0, right: 0.84 };
         const SLOT_LABELS = { left: 'ESQUERDA', center: 'FRENTE', right: 'DIREITA' };
 
@@ -2743,7 +2758,11 @@ body.vr-cardboard::after{
         const multitaskTouchedAt = {};
         const multitaskDetached = new Set();
         const multitaskPanels = {};
+        const multitaskEntryCache = {};
         let multitaskClock = 0;
+        let multitaskScales = {};
+        let multitaskArcStep = ARC_MIN_STEP;
+        let multitaskLayoutScheduled = false;
         let multitaskSuspendedForGame = false;
         let shootTheDieMountSource = null;
 
@@ -2863,8 +2882,9 @@ body.vr-cardboard::after{
                     lastX = e.clientX;
                     lastY = e.clientY;
                     multitaskDetached.add(appId);
-                    p3d.position.x += dx * 0.003;
+                    p3d.position.x = Math.max(-2.6, Math.min(2.6, p3d.position.x + dx * 0.003));
                     p3d.position.y = Math.max(getMinCenterYForApp(appId), p3d.position.y - dy * 0.003);
+                    p3d.position.z = Math.min(-0.45, p3d.position.z);
                     lastMovedPanel3D = p3d;
                     if (appId === 'google') { alignGoogleKeyboardPanel(); updateNativeGoogleBounds(); }
                     if (appId === 'youtube') { updateNativeYouTubeBounds(); }
@@ -2895,23 +2915,75 @@ body.vr-cardboard::after{
             const entry = {
                 appId, panel3D, wrapperEl: wrapper, contentEl,
                 barEl: wrapper.querySelector(`[data-win-bar="${appId}"]`),
-                baseScale: 0.00202, pxW: 760, pxH: 480, title: titleText
+                baseScale: 0.00202, pxW: 760, pxH: 480, title: titleText,
+                measuredW: 0, measuredH: 0
             };
             multitaskPanels[appId] = entry;
             bindMultitaskBarEvents(wrapper, appId, () => entry.panel3D);
+            // O conteudo muda de tamanho (biblioteca, loja, notas): re-medir e re-posicionar.
+            if (typeof ResizeObserver !== 'undefined') {
+                try {
+                    const observer = new ResizeObserver(() => scheduleMultitaskLayout());
+                    observer.observe(wrapper);
+                    entry.resizeObserver = observer;
+                } catch (e) { /* ambiente sem ResizeObserver: layout manual */ }
+            }
             return entry;
         }
 
         function getMultitaskEntry(appId) {
-            if (appId === 'google') {
-                if (!googlePanel3D) return null;
-                return { appId: 'google', panel3D: googlePanel3D, wrapperEl: googlePanelElement, baseScale: 0.00164, pxW: 940, pxH: 610 };
-            }
-            if (appId === 'youtube') {
-                if (!youtubePanel3D) return null;
-                return { appId: 'youtube', panel3D: youtubePanel3D, wrapperEl: youtubePanelElement, baseScale: 0.00164, pxW: 940, pxH: 610 };
+            if (appId === 'google' || appId === 'youtube') {
+                const panel3D = appId === 'google' ? googlePanel3D : youtubePanel3D;
+                const wrapperEl = appId === 'google' ? googlePanelElement : youtubePanelElement;
+                if (!panel3D) return null;
+                const cached = multitaskEntryCache[appId];
+                if (cached) {
+                    cached.panel3D = panel3D;
+                    cached.wrapperEl = wrapperEl;
+                    return cached;
+                }
+                multitaskEntryCache[appId] = { appId, panel3D, wrapperEl, baseScale: 0.00164, pxW: 940, pxH: 610 };
+                return multitaskEntryCache[appId];
             }
             return multitaskPanels[appId] || null;
+        }
+
+        // Mede o tamanho REAL da janela no DOM (a altura varia com o conteudo: biblioteca,
+        // loja, notas, Minecraft e Roblox nao tem a mesma altura). Sem isso a janela cresce
+        // por baixo da dock.
+        function measureEntrySize(entry) {
+            if (!entry) return { w: 0, h: 0 };
+            const el = entry.wrapperEl;
+            const w = (el && el.offsetWidth) ? el.offsetWidth : 0;
+            const h = (el && el.offsetHeight) ? el.offsetHeight : 0;
+            if (w > 0) entry.measuredW = w;
+            if (h > 0) entry.measuredH = h;
+            return {
+                w: entry.measuredW || entry.pxW || 0,
+                h: entry.measuredH || entry.pxH || 0
+            };
+        }
+
+        // Topo real da dock no mundo: o painel da dock fica na base do container, e o objeto 3D
+        // do grupo esta centrado no elemento.
+        function getDockMetrics() {
+            const group = windowGroupElement;
+            let topY = DOCK_Y + DOCK_HALF_HEIGHT;
+            let panelPx = 0;
+            if (group && group.querySelector) {
+                const panel = group.querySelector('.ar-dock-panel');
+                if (panel) {
+                    const groupH = group.offsetHeight || 0;
+                    const panelH = panel.offsetHeight || 0;
+                    const offsetTop = panel.offsetTop || 0;
+                    if (groupH > 0 && panelH > 0) {
+                        panelPx = panelH;
+                        const centerToTop = groupH / 2 - offsetTop;
+                        topY = DOCK_Y + centerToTop * DOCK_SCALE * Math.cos(DOCK_TILT);
+                    }
+                }
+            }
+            return { y: DOCK_Y, topY, panelPx };
         }
 
         function findSlotOfApp(appId) {
@@ -2921,13 +2993,79 @@ body.vr-cardboard::after{
             return null;
         }
 
-        function getMinCenterYForApp(appId, slotOverride = null) {
+        function getSlotScale(appId, slot, scaleOverride = null) {
+            if (scaleOverride) return scaleOverride;
+            const cached = multitaskScales[slot];
+            if (cached) return cached;
             const entry = getMultitaskEntry(appId);
-            if (!entry) return 0.08;
+            if (!entry) return 0.00202;
+            return entry.baseScale * (SLOT_SCALE_MULT[slot] || 1.0);
+        }
+
+        // Escala de cada slot: parte da escala base e encolhe se a janela nao couber entre
+        // o topo da dock e o teto de altura (janela grande encolhe em vez de subir na cabeca).
+        function computeSlotScales() {
+            const metrics = getDockMetrics();
+            const available = Math.max(0.12, WINDOW_TOP_MAX_Y - (metrics.topY + DOCK_CLEARANCE));
+            const scales = {};
+            for (const slot of MULTITASK_SLOTS) {
+                const appId = multitaskSlots[slot];
+                const entry = appId ? getMultitaskEntry(appId) : null;
+                if (!entry) { scales[slot] = 0.00202 * (SLOT_SCALE_MULT[slot] || 1.0); continue; }
+                const size = measureEntrySize(entry);
+                let scale = entry.baseScale * (SLOT_SCALE_MULT[slot] || 1.0);
+                if (size.h > 0) scale = Math.min(scale, available / size.h);
+                scales[slot] = Math.max(0.0006, scale);
+            }
+            return scales;
+        }
+
+        // Passo angular do arco: separado pela largura REAL das janelas, para nunca se
+        // sobreporem, e limitado para as janelas laterais continuarem ao alcance do olhar.
+        function computeArcLayout(scales) {
+            const centerApp = multitaskSlots.center;
+            const sideSlots = MULTITASK_SLOTS.filter(s => s !== 'center' && multitaskSlots[s]);
+            if (!centerApp || !sideSlots.length) return { step: ARC_MIN_STEP, scales };
+            const centerEntry = getMultitaskEntry(centerApp);
+            if (!centerEntry) return { step: ARC_MIN_STEP, scales };
+
+            const centerW = measureEntrySize(centerEntry).w * scales.center;
+            const halfCenter = centerW / 2;
+
+            let widestSide = 0;
+            for (const slot of sideSlots) {
+                const entry = getMultitaskEntry(multitaskSlots[slot]);
+                if (!entry) continue;
+                widestSide = Math.max(widestSide, measureEntrySize(entry).w * scales[slot]);
+            }
+            if (widestSide <= 0) return { step: ARC_MIN_STEP, scales };
+            const halfSide = widestSide / 2;
+
+            // Distancia perpendicular entre o painel da frente e o painel lateral:
+            // ARC_DIST * sin(passo) >= meia-largura da frente + meia-largura lateral + folga.
+            const need = (halfCenter + halfSide + ARC_GAP_M) / ARC_DIST;
+            let step = Math.asin(Math.min(1, need));
+            if (step > ARC_MAX_STEP) {
+                // Nao cabe no passo maximo (limite de alcance do olhar): encolhe as laterais.
+                step = ARC_MAX_STEP;
+                const maxHalfSide = Math.max(0.02, ARC_DIST * Math.sin(step) - halfCenter - ARC_GAP_M);
+                const shrink = Math.max(0.5, (maxHalfSide * 2) / widestSide);
+                for (const slot of sideSlots) scales[slot] = Math.max(0.0006, scales[slot] * shrink);
+            }
+            return { step: Math.max(ARC_MIN_STEP, step), scales };
+        }
+
+        // Altura minima do centro de uma janela: garante a base (bottom) dela estritamente
+        // acima do topo da dock, com folga.
+        function getMinCenterYForApp(appId, slotOverride = null, scaleOverride = null) {
+            const entry = getMultitaskEntry(appId);
+            if (!entry) return 0.10;
             const slot = slotOverride || findSlotOfApp(appId) || 'center';
-            const mult = SLOT_SCALE_MULT[slot] || 1.0;
-            const halfH = (entry.pxH * entry.baseScale * mult) * 0.5;
-            return Math.max(0.10, MIN_WINDOW_BOTTOM_Y + halfH);
+            const scale = getSlotScale(appId, slot, scaleOverride);
+            const size = measureEntrySize(entry);
+            const halfH = (size.h * scale) * 0.5;
+            const metrics = getDockMetrics();
+            return metrics.topY + DOCK_CLEARANCE + halfH;
         }
 
         function updateWindowHeaderBadges() {
@@ -2972,7 +3110,12 @@ body.vr-cardboard::after{
 
             group3D.scale.set(DOCK_SCALE, DOCK_SCALE, DOCK_SCALE);
             group3D.position.set(workspaceOrigin.x + dirX * DOCK_DIST, DOCK_Y, workspaceOrigin.z + dirZ * DOCK_DIST);
-            group3D.rotation.set(-0.14, workspaceYaw + Math.PI, 0);
+            group3D.rotation.set(-DOCK_TILT, workspaceYaw + Math.PI, 0);
+
+            const arc = computeArcLayout(computeSlotScales());
+            multitaskScales = arc.scales;
+            multitaskArcStep = arc.step;
+            const slotAngles = { center: 0, left: -arc.step, right: arc.step };
 
             for (const slot of MULTITASK_SLOTS) {
                 const appId = multitaskSlots[slot];
@@ -2980,22 +3123,21 @@ body.vr-cardboard::after{
                 const entry = getMultitaskEntry(appId);
                 if (!entry || !entry.panel3D) continue;
 
-                const scaleVal = entry.baseScale * (SLOT_SCALE_MULT[slot] || 1.0);
+                const scaleVal = arc.scales[slot] || entry.baseScale;
                 entry.panel3D.scale.set(scaleVal, scaleVal, scaleVal);
 
+                const minCenterY = getMinCenterYForApp(appId, slot, scaleVal);
                 if (!multitaskDetached.has(appId)) {
-                    const theta = SLOT_ANGLE_MAP[slot] || 0;
+                    const theta = slotAngles[slot] || 0;
                     const slotDirX = dirX * Math.cos(theta) + rightX * Math.sin(theta);
                     const slotDirZ = dirZ * Math.cos(theta) + rightZ * Math.sin(theta);
-                    const winY = getMinCenterYForApp(appId, slot);
                     entry.panel3D.position.set(
                         workspaceOrigin.x + slotDirX * ARC_DIST,
-                        winY,
+                        minCenterY,
                         workspaceOrigin.z + slotDirZ * ARC_DIST
                     );
                     entry.panel3D.rotation.set(0, Math.atan2(slotDirX, slotDirZ) + Math.PI, 0);
                 } else {
-                    const minCenterY = getMinCenterYForApp(appId, slot);
                     if (entry.panel3D.position.y < minCenterY) entry.panel3D.position.y = minCenterY;
                 }
             }
@@ -3005,6 +3147,44 @@ body.vr-cardboard::after{
             if (findSlotOfApp('google')) { alignGoogleKeyboardPanel(); updateNativeGoogleBounds(); }
             if (findSlotOfApp('youtube')) { updateNativeYouTubeBounds(); }
             syncVRMirrorClones(true);
+        }
+
+        // Re-layout medido (a janela mudou de tamanho depois de carregar conteudo).
+        function scheduleMultitaskLayout() {
+            if (multitaskLayoutScheduled) return;
+            multitaskLayoutScheduled = true;
+            requestAnimationFrame(() => {
+                multitaskLayoutScheduled = false;
+                layoutMultitaskArc();
+            });
+        }
+
+        // Clique em um ponto da dock (Esquerda / Frente / Direita):
+        // slot ocupado -> traz a janela para a frente (ou fecha, se ja estiver na frente);
+        // slot vazio -> abre o app em foco exatamente naquele slot.
+        function activateDockSlotPoint(slot) {
+            if (!MULTITASK_SLOTS.includes(slot)) return false;
+            const appInSlot = multitaskSlots[slot];
+            if (appInSlot) {
+                if (slot === 'center') closeMultitaskWindow(appInSlot);
+                else moveMultitaskWindowToSlot(appInSlot, 'center');
+                return true;
+            }
+            openMultitaskWindow(getFocusedMultitaskApp(), slot);
+            return true;
+        }
+
+        // App em foco (ultimo tocado) - usado para abrir no slot que o usuario escolheu.
+        function getFocusedMultitaskApp() {
+            let best = null;
+            let bestAt = -1;
+            for (const slot of MULTITASK_SLOTS) {
+                const appId = multitaskSlots[slot];
+                if (!appId) continue;
+                const at = multitaskTouchedAt[appId] || 0;
+                if (at > bestAt) { bestAt = at; best = appId; }
+            }
+            return best || 'library';
         }
 
         function activateMultitaskSurface(appId) {
@@ -3082,24 +3262,29 @@ body.vr-cardboard::after{
                 return true;
             }
 
+            // App novo: o slot pedido (Esquerda / Frente / Direita) e respeitado quando esta livre.
+            const wanted = MULTITASK_SLOTS.includes(preferredSlot) ? preferredSlot : 'center';
+            const displaced = multitaskSlots[wanted];
+            const freeSlot = MULTITASK_SLOTS.find(s => !multitaskSlots[s]);
+
             activateMultitaskSurface(appId);
 
-            if (!multitaskSlots.center) {
-                multitaskSlots.center = appId;
-            } else if (!multitaskSlots.left) {
-                multitaskSlots.left = multitaskSlots.center;
-                multitaskSlots.center = appId;
-            } else if (!multitaskSlots.right) {
-                multitaskSlots.right = multitaskSlots.center;
-                multitaskSlots.center = appId;
+            if (freeSlot) {
+                // O ocupante do slot pedido desce para o slot livre; o app novo fica onde foi pedido.
+                if (displaced) multitaskSlots[freeSlot] = displaced;
+                multitaskSlots[wanted] = appId;
             } else {
+                // Arco cheio: expulsa a janela lateral menos recente (LRU) e promote a da frente.
                 const leftTime = multitaskTouchedAt[multitaskSlots.left] || 0;
                 const rightTime = multitaskTouchedAt[multitaskSlots.right] || 0;
                 const evictSlot = leftTime <= rightTime ? 'left' : 'right';
                 const evictedApp = multitaskSlots[evictSlot];
                 if (evictedApp) deactivateMultitaskSurface(evictedApp);
-                multitaskSlots[evictSlot] = multitaskSlots.center;
-                multitaskSlots.center = appId;
+                multitaskSlots[evictSlot] = null;
+                if (wanted !== evictSlot && displaced) {
+                    multitaskSlots[evictSlot] = displaced;
+                }
+                multitaskSlots[wanted] = appId;
             }
 
             layoutMultitaskArc();
@@ -3224,7 +3409,8 @@ body.vr-cardboard::after{
             getSlots: () => ({ ...multitaskSlots }),
             getOpenCount: () => MULTITASK_SLOTS.filter(s => !!multitaskSlots[s]).length,
             getGeometrySnapshot: () => {
-                const dockTopY = group3D ? (group3D.position.y + DOCK_HALF_HEIGHT) : DOCK_TOP_Y;
+                const metrics = getDockMetrics();
+                const dockTopY = metrics.topY;
                 const windows = {};
                 for (const slot of MULTITASK_SLOTS) {
                     const appId = multitaskSlots[slot];
@@ -3232,7 +3418,9 @@ body.vr-cardboard::after{
                     const entry = getMultitaskEntry(appId);
                     if (!entry || !entry.panel3D) continue;
                     const s = entry.panel3D.scale.y;
-                    const halfH = (entry.pxH * s) * 0.5;
+                    const size = measureEntrySize(entry);
+                    const halfH = (size.h * s) * 0.5;
+                    const halfW = (size.w * s) * 0.5;
                     windows[slot] = {
                         appId,
                         x: entry.panel3D.position.x,
@@ -3240,16 +3428,29 @@ body.vr-cardboard::after{
                         z: entry.panel3D.position.z,
                         yaw: entry.panel3D.rotation.y,
                         scale: s,
+                        pxW: size.w,
+                        pxH: size.h,
+                        halfW,
+                        halfH,
                         bottomY: entry.panel3D.position.y - halfH,
+                        topY: entry.panel3D.position.y + halfH,
                         aboveDock: (entry.panel3D.position.y - halfH) > dockTopY
                     };
                 }
-                return { dockY: group3D ? group3D.position.y : DOCK_Y, dockTopY, windows };
+                return {
+                    dockY: group3D ? group3D.position.y : DOCK_Y,
+                    dockTopY,
+                    clearance: DOCK_CLEARANCE,
+                    arcStep: multitaskArcStep,
+                    windows
+                };
             },
             open: openMultitaskWindow,
             close: closeMultitaskWindow,
             moveToSlot: moveMultitaskWindowToSlot,
-            closeAll: closeAllMultitaskWindows
+            closeAll: closeAllMultitaskWindows,
+            activateSlotPoint: activateDockSlotPoint,
+            getFocusedApp: getFocusedMultitaskApp
         };
 
         function initScene() {
@@ -3434,9 +3635,7 @@ body.vr-cardboard::after{
                     e.stopPropagation();
                     if (experimentGameActive) return;
                     const slot = pt.dataset.panelPoint;
-                    const appInSlot = multitaskSlots[slot];
-                    if (slot === 'center' && appInSlot) closeMultitaskWindow(appInSlot);
-                    else if (appInSlot) moveMultitaskWindowToSlot(appInSlot, 'center');
+                    activateDockSlotPoint(slot);
                 });
             });
 

@@ -157,3 +157,25 @@ jobs:
           path: /tmp/apk-upload/dixVR-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish APK link on the pull request
+        if: always() && github.event_name == 'pull_request' && steps.verify.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          APK_SHA=$(sha256sum /tmp/apk-upload/dixVR-debug.apk | cut -d' ' -f1)
+          BODY=$(cat <<EOF
+          ### 📦 APK dixVR pronto (build ${RUN_ID})
+
+          Baixe o artefato **dixvr-debug-apk** (contém \`dixVR-debug.apk\`) na seção **Artifacts** no rodapé da execução:
+
+          https://github.com/${REPO}/actions/runs/${RUN_ID}
+
+          - SHA-256 do APK: \`${APK_SHA}\`
+          - Assinado com a chave fixa \`signing/debug.keystore\` — permite \`adb install -r\` por cima de builds anteriores.
+          EOF
+          )
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY" || true

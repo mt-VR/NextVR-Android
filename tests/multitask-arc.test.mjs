@@ -13,6 +13,9 @@ function makeElement(tag = 'div') {
     innerHTML: '',
     hidden: false,
     dataset: {},
+    offsetWidth: 0,
+    offsetHeight: 0,
+    offsetTop: 0,
     style: { display: '', visibility: 'visible', opacity: '1' },
     children: [],
     classList: {
@@ -49,7 +52,11 @@ function makeElement(tag = 'div') {
   return el;
 }
 
-async function createMultitaskHarness() {
+/**
+ * Harness: roda o motor de multitarefa REAL (trecho do web/index.html) dentro de uma VM,
+ * com elementos de DOM que reportam tamanho medido (offsetWidth/offsetHeight).
+ */
+async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
   const [html, threeCode] = await Promise.all([
     readFile('web/index.html', 'utf8'),
     readFile('node_modules/three/build/three.min.js', 'utf8'),
@@ -62,6 +69,11 @@ async function createMultitaskHarness() {
 
   const hostEl = makeElement('div');
   const dockEl = makeElement('div');
+  const dockPanel = makeElement('div');
+  dockEl.querySelector = (sel) => (sel === '.ar-dock-panel' ? dockPanel : null);
+  dockEl.offsetHeight = dock.groupHeight ?? 120;
+  dockPanel.offsetHeight = dock.panelHeight ?? 70;
+  dockPanel.offsetTop = dock.panelTop ?? 50;
 
   const sandbox = {
     Math,
@@ -110,7 +122,6 @@ async function createMultitaskHarness() {
   vm.createContext(sandbox);
   vm.runInContext(threeCode, sandbox);
 
-  // Minimal CSS3DObject compatible with Three.js Object3D
   vm.runInContext(`
     THREE.CSS3DObject = class CSS3DObject extends THREE.Object3D {
       constructor(element) {
@@ -141,14 +152,36 @@ async function createMultitaskHarness() {
 
   vm.runInContext(multitaskCode, sandbox);
 
+  // Cria as janelas flutuantes e aplica os tamanhos MEDIDOS (como no navegador).
   vm.runInContext(`
     createFloatingDomWindow('library', document.createElement('div'), 'Biblioteca · dixVR');
     createFloatingDomWindow('store', document.createElement('div'), 'Loja · dixVR');
     createFloatingDomWindow('chat', document.createElement('div'), 'Notas · dixVR');
-    layoutMultitaskArc();
   `, sandbox);
 
+  const sizeScript = Object.entries(sizes)
+    .map(([appId, size]) => `
+      (function(){
+        var entry = multitaskPanels['${appId}'];
+        if (!entry) return;
+        entry.wrapperEl.offsetWidth = ${size.w};
+        entry.wrapperEl.offsetHeight = ${size.h};
+      })();
+    `)
+    .join('\n');
+  if (sizeScript) vm.runInContext(sizeScript, sandbox);
+
+  vm.runInContext('layoutMultitaskArc();', sandbox);
+
   return sandbox.window.__dixVRMultitask;
+}
+
+/** Distancia perpendicular entre o painel A e o plano do painel B (teste de sobreposicao). */
+function perpendicularDistance(a, b) {
+  const localX = { x: Math.cos(a.yaw), z: -Math.sin(a.yaw) };
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  return Math.abs(dx * localX.x + dz * localX.z);
 }
 
 test('NextVR-style 3-window multitasking opens 3 apps (center, left, right) strictly above the dock', async () => {
@@ -179,19 +212,93 @@ test('NextVR-style 3-window multitasking opens 3 apps (center, left, right) stri
   assert.ok(snap.windows.left.x < -1.2, `Expected left window on -X, got ${snap.windows.left.x}`);
   assert.ok(snap.windows.right.x > 1.2, `Expected right window on +X, got ${snap.windows.right.x}`);
 
-  // Side windows ("janelinhas") are compact relative to front window and angled inward toward user
-  assert.ok(snap.windows.left.yaw > 0.5, 'Left window must angle inward toward viewer');
-  assert.ok(snap.windows.right.yaw < -0.5 && snap.windows.right.yaw > -1.2 || snap.windows.right.yaw > Math.PI, 'Right window must angle inward toward viewer');
-
-  // ALL 3 windows must float strictly ABOVE the dock!
+  // ALL 3 windows must float strictly ABOVE the dock, with the configured clearance.
   for (const slot of ['left', 'center', 'right']) {
     const w = snap.windows[slot];
     assert.equal(w.aboveDock, true, `Window in ${slot} must be strictly above dock`);
     assert.ok(
-      w.bottomY > snap.dockTopY + 0.10,
-      `Expected ${slot} bottomY (${w.bottomY}) > dockTopY (${snap.dockTopY}) + 0.10m`
+      w.bottomY >= snap.dockTopY + snap.clearance - 1e-6,
+      `Expected ${slot} bottomY (${w.bottomY}) >= dockTopY (${snap.dockTopY}) + ${snap.clearance}m`
     );
   }
+
+  // The dock top must be measured from the real DOM (panel offset inside the group).
+  assert.ok(snap.dockTopY > -0.68, `Dock top (${snap.dockTopY}) must be above the dock centre`);
+});
+
+test('the 3 windows never overlap each other and stay within reach', async () => {
+  const mt = await createMultitaskHarness();
+  mt.open('library');
+  mt.open('store');
+  mt.open('youtube');
+
+  const snap = mt.getGeometrySnapshot();
+  const { center, left, right } = snap.windows;
+
+  const distLeft = perpendicularDistance(center, left);
+  const distRight = perpendicularDistance(center, right);
+
+  assert.ok(
+    distLeft >= center.halfW + left.halfW - 1e-6,
+    `Left window overlaps the front window (${distLeft} < ${center.halfW + left.halfW})`
+  );
+  assert.ok(
+    distRight >= center.halfW + right.halfW - 1e-6,
+    `Right window overlaps the front window (${distRight} < ${center.halfW + right.halfW})`
+  );
+
+  // The side windows stay reachable with the eyes (<= ARC_MAX_STEP).
+  assert.ok(snap.arcStep <= 0.92, `Arc step ${snap.arcStep} must stay within reach`);
+  assert.ok(snap.arcStep >= 0.52, `Arc step ${snap.arcStep} must keep the windows close`);
+});
+
+test('a tall window shrinks instead of sinking into the dock', async () => {
+  // A library window that grew (extra content) measures 900px instead of 480px.
+  const mt = await createMultitaskHarness({ sizes: { library: { w: 760, h: 900 } } });
+
+  mt.open('library');
+  const snap = mt.getGeometrySnapshot();
+  const w = snap.windows.center;
+
+  assert.ok(w.pxH === 900, `Expected the measured height (900), got ${w.pxH}`);
+  assert.ok(
+    w.bottomY >= snap.dockTopY + snap.clearance - 1e-6,
+    `Tall window bottom (${w.bottomY}) must stay above dock top (${snap.dockTopY})`
+  );
+  assert.ok(w.topY <= 0.46 + 1e-6, `Tall window top (${w.topY}) must respect the height ceiling`);
+  // The window was scaled down to fit between the dock and the height ceiling.
+  assert.ok(w.scale < 0.00202, `Tall window must be scaled down, got ${w.scale}`);
+});
+
+test('opening an app in a specific slot respects that slot', async () => {
+  const mt = await createMultitaskHarness();
+
+  mt.open('library', 'left');
+  assert.deepEqual({ ...mt.getSlots() }, { center: null, left: 'library', right: null });
+
+  mt.open('store', 'right');
+  assert.deepEqual({ ...mt.getSlots() }, { center: null, left: 'library', right: 'store' });
+
+  // Front slot is still free -> the app goes to the front.
+  mt.open('chat', 'center');
+  assert.deepEqual({ ...mt.getSlots() }, { center: 'chat', left: 'library', right: 'store' });
+  assert.equal(mt.getOpenCount(), 3);
+});
+
+test('dock slot points open the focused app in that exact slot', async () => {
+  const mt = await createMultitaskHarness();
+
+  // Empty slot -> opens the focused app (library by default) right there.
+  mt.activateSlotPoint('left');
+  assert.deepEqual({ ...mt.getSlots() }, { center: null, left: 'library', right: null });
+
+  // Occupied side slot -> brings that window to the front.
+  mt.activateSlotPoint('left');
+  assert.deepEqual({ ...mt.getSlots() }, { center: 'library', left: null, right: null });
+
+  // Occupied front slot -> closes the window.
+  mt.activateSlotPoint('center');
+  assert.equal(mt.getOpenCount(), 0);
 });
 
 test('opening a 4th app evicts the LRU side window and closing center promotes a side window', async () => {

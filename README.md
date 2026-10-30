@@ -7,10 +7,23 @@ Aplicativo Android independente (`com.dixvr.app` / **dixVR**), completamente sep
 - **Multitarefa Espacial 3× acima da Dock (estilo NextVR)**:
   - Abra até **3 aplicativos simultaneamente** em um arco espacial 3D ao redor do usuário:
     - **1 janela principal na frente** (`FRENTE`, `0°`)
-    - **1 janelinha angulada no lado esquerdo** (`ESQUERDA`, `-39°`)
-    - **1 janelinha angulada no lado direito** (`DIREITA`, `+39°`)
-  - **Tudo posicionado acima da Dock**: a Dock permanece ancorada na parte inferior (`y = -0.68m`) e todas as 3 janelas flutuam acima dela com folga espacial garantida.
-  - **Substituição inteligente (LRU)**: ao abrir um 4º app com 3 janelas cheias, a janela lateral menos recente dá lugar automaticamente.
+    - **1 janelinha angulada no lado esquerdo** (`ESQUERDA`)
+    - **1 janelinha angulada no lado direito** (`DIREITA`)
+  - **Tudo posicionado acima da Dock, com geometria medida no DOM**: o topo da dock é medido no
+    elemento real (`.ar-dock-panel`) e cada janela é posicionada pela sua **altura medida**
+    (`offsetHeight`), nunca por estimativas fixas. Resultado: a base de toda janela fica
+    **≥ 18 cm acima do topo da dock** e nenhuma janela invade a área da dock.
+  - **Janelas que crescem encolhem em vez de subir na cabeça**: quando um app carrega mais
+    conteúdo (biblioteca, loja, notas), a janela é re-escalada para caber entre a dock e o teto
+    de altura, e o layout é refeito via `ResizeObserver`.
+  - **Arco sem sobreposição**: o passo angular é calculado a partir da largura real das janelas
+    (`ARC_DIST · sin(passo) ≥ meia-largura da frente + meia-largura lateral + folga`), com limite
+    de alcance do olhar; se não couber, as janelas laterais encolhem.
+  - **Slots da dock funcionais**: tocar em `ESQUERDA` / `FRENTE` / `DIREITA` na dock abre o app em
+    foco **exatamente naquele slot**; com o slot ocupado, a janela vai para a frente (e a da frente
+    fecha).
+  - **Substituição inteligente (LRU)**: ao abrir um 4º app com 3 janelas cheias, a janela lateral
+    menos recente dá lugar automaticamente.
   - **Controles rápidos em cada janela**: botões `◀` (Esquerda), `⌖` (Frente), `▶` (Direita) e `×` (Fechar) acessíveis por toque ou permanência do indicador (1s).
   - **Google + YouTube nativos lado a lado**: `DixVrActivity` mantém as sub-WebViews nativas do Google e do YouTube independentes para rodarem ao mesmo tempo na multitarefa.
 - **Passthrough AR + Fluxo Óptico (6DoF aproximado)** + **World Lock** e **Modo VR Cardboard** estereoscópico.
@@ -41,7 +54,10 @@ O APK de debug assinado com `signing/debug.keystore` (chave fixa do repositório
 
 1. Abra a aba **Actions** do repositório: <https://github.com/mt-VR/NextVR-Android/actions>
 2. Escolha a execução do workflow **Android CI (dixVR)** do branch `arena/7e43774f-nextvr-android`.
-3. No rodapé da execução, baixe o artefato **`dixvr-debug-apk`** e extraia `dixVR-debug.apk`.
+3. No rodapé da execução (**Artifacts**), baixe **`dixvr-debug-apk`** e extraia `dixVR-debug.apk`.
+
+> A URL direta de download de artefato (`/actions/artifacts/<id>`) não é estável no GitHub; use a
+> página da execução. O próprio workflow publica um comentário no PR com o link e o SHA-256 do APK.
 
 Instalação:
 
