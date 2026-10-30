@@ -66,3 +66,10 @@ adb install -r dixVR-debug.apk
 ```
 
 > O nome base do APK vem de `base.archivesName` no `app/build.gradle` (o Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`). O CI sempre publica o arquivo com o nome `dixVR-debug.apk`, independentemente do nome gerado localmente pelo Gradle.
+
+### Controles do workspace
+
+- Alça branca horizontal abaixo da dock; alças brancas à direita das janelas para arrastar com toque ou pinça.
+- Dock a 1,85 m e arco das janelas a 2 m, mantendo as três janelas acima da dock.
+- Workspace acompanha a direção da cabeça por padrão (World Lock continua opcional) e recentra ao entrar e sair dos jogos.
+- Hand tracking com alvo de 24 FPS e sem inferências simultâneas; desempenho real depende do aparelho.

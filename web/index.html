@@ -966,7 +966,8 @@
         .google-keyboard-panel .key.space{min-width:340px}
         .google-keyboard-panel .key:hover,.google-keyboard-panel .key.hand-hover{background:rgba(255,255,255,.28);transform:scale(1.06)}
         .google-hint{position:absolute;right:14px;bottom:10px;padding:7px 10px;border-radius:10px;background:rgba(32,33,36,.78);color:#fff;font-size:10px;z-index:9;pointer-events:none}
-        .google-move-handle{position:absolute;left:-15px;top:50%;transform:translateY(-50%);width:22px;height:110px;background:#fff;border:2px solid #000;border-radius:11px;box-shadow:0 0 8px rgba(0,0,0,.75);z-index:20;cursor:grab}
+        .google-move-handle{position:absolute;right:0;top:50%;transform:translateY(-50%);width:22px;height:110px;background:#fff;border:2px solid #000;border-radius:11px;box-shadow:0 0 8px rgba(0,0,0,.75);z-index:20;cursor:grab}
+        .google-content, .youtube-content { width: calc(100% - 26px); }
         .google-move-handle.hand-grabbed{box-shadow:0 0 14px rgba(255,255,255,.8)}
         @media(max-width:700px){.store-app-card{grid-template-columns:62px 1fr}.store-app-icon{width:58px;height:58px}.install-btn{grid-column:2}.google-vr-panel{width:920px;height:600px}.google-keyboard-panel{width:96%}.google-keyboard-panel .key{min-width:28px}.google-keyboard-panel .key.space{min-width:150px}}
         @media(max-width:700px){.experiment-card{grid-template-columns:62px 1fr}.experiment-icon{width:58px;height:58px;font-size:30px}.experiment-btn{grid-column:2}.game-help{font-size:10px;max-width:92vw;overflow:hidden}}
@@ -1070,7 +1071,7 @@ body.vr-cardboard::after{
             font-family:Arial,sans-serif;color:#202124;
         }
         .youtube-move-handle{
-            position:absolute;left:-15px;top:50%;transform:translateY(-50%);
+            position:absolute;right:0;top:50%;transform:translateY(-50%);
             width:22px;height:110px;background:#fff;border:2px solid #000;
             border-radius:11px;box-shadow:0 0 8px rgba(0,0,0,.75);
             z-index:20;cursor:grab;
