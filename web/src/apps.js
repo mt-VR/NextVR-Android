@@ -14,6 +14,7 @@ import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
+import { openOrbMenu, installOrbMenu } from './orb-menu.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -2049,6 +2050,35 @@ const LIB_ACTIONS = {
   'hyper-vr': () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/'),
 };
 
+/* ============ o anel de 10 apps da bolinha da dock ============ */
+/*
+ * O anel mostra os dois lados: os apps DO NextVR (o mesmo catálogo da biblioteca, com o mesmo
+ * `LIB_ACTIONS`) e os apps DO ANDROID instalados no aparelho. Até 4 do Android; o resto dos 10
+ * lugares é dos apps do NextVR. Sem Shizuku/sem lista do aparelho, o anel enche só com os do NextVR.
+ */
+const ORB_OWN_APPS = LIB_APPS
+  .filter(a => typeof LIB_ACTIONS[a.id] === 'function')
+  .map(a => ({
+    id: a.id,
+    name: a.label || a.name,
+    // A capa local quando existe; o resto cai no glifo (primeira letra), como nas outras grades.
+    img: a.imgUrl || (a.html && (a.html.match(/src="([^"]+)"/) || [])[1]) || '',
+    glyph: String(a.label || a.name || a.id).trim().slice(0, 1).toUpperCase(),
+    bg: a.bg || '',
+  }));
+
+installOrbMenu({
+  own: () => ORB_OWN_APPS,
+  android: () => (androidApps() || []).map(a => ({ pkg: a.pkg, label: a.label, icon: a.icon })),
+  launchOwn: id => {
+    const run = LIB_ACTIONS[id];
+    if (run) run();
+    else libraryApp();          // 'TODOS' no centro do anel abre a biblioteca completa
+  },
+  launchAndroid: pkg => { openApp(pkg); focusAppWindow(pkg); },
+  refreshAndroid: () => loadAndroidLibrary(),
+});
+
 /* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */
 let storeTab = 'apps';
 let storeQuestFilter = 'home'; // 'home' | 'games' | 'apps' | 'wishlist'
@@ -2632,7 +2662,8 @@ function buildSpatialLauncherDom() {
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'passthrough' ? 'on' : ''}" data-spatial-env="passthrough" title="Câmera Real (Passthrough)">Câmera</button>
         <button type="button" class="spatial-hz-env-pill spatial-hz-mrdim-pill ${isMrDim ? 'on' : ''}" data-spatial-act="mr-dim" title="Alternar Ambiente MR Escuro ou Normal">${isMrDim ? 'MR Escuro: ON' : 'Escurecer MR'}</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'sunset' ? 'on' : ''}" data-spatial-env="sunset" title="Ambiente Pôr do Sol 360°">Sunset</button>
-        <button type="button" class="spatial-hz-env-pill ${curEnv === 'lagoon' ? 'on' : ''}" data-spatial-env="lagoon" title="Ambiente Lagoa 360°">Lagoon</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'neon' ? 'on' : ''}" data-spatial-env="neon" title="Sala gamer neon 360°">Neon</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'aether' ? 'on' : ''}" data-spatial-env="aether" title="Cidade flutuante 360°">Aether</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'dark' ? 'on' : ''}" data-spatial-env="dark" title="Ambiente Escuro 360°">Dark</button>
       </div>
       <label class="spatial-hz-search">
@@ -3062,8 +3093,11 @@ function buildFistQuickMenuDom() {
         <button type="button" class="fist-env-chip ${curEnv === 'sunset' ? 'on' : ''}" data-fist-env="sunset">
           ${icon('vision')}<span>Sunset 360°</span>
         </button>
-        <button type="button" class="fist-env-chip ${curEnv === 'lagoon' ? 'on' : ''}" data-fist-env="lagoon">
-          ${icon('vision')}<span>Lagoon 360°</span>
+        <button type="button" class="fist-env-chip ${curEnv === 'street' ? 'on' : ''}" data-fist-env="street">
+          ${icon('vision')}<span>Rua à noite 360°</span>
+        </button>
+        <button type="button" class="fist-env-chip ${curEnv === 'studio' ? 'on' : ''}" data-fist-env="studio">
+          ${icon('vision')}<span>Estúdio VR 360°</span>
         </button>
         <button type="button" class="fist-env-chip ${curEnv === 'dark' ? 'on' : ''}" data-fist-env="dark">
           ${icon('vision')}<span>Escuro 360°</span>
@@ -3575,7 +3609,10 @@ function makeDock() {
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
-    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: libraryApp },
+    // A bolinha da dock (a grade de pontinhos): abre o ANEL de 10 apps — apps do NextVR +
+    // apps do Android — com o ambiente escurecido mas ainda visível. O desenho da bolinha é o
+    // mesmo de sempre; o que mudou foi só o que ela abre.
+    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openOrbMenu },
   ]);
   syncVirtualEnvironmentDock();
 }

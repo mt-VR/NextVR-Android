@@ -1,4 +1,4 @@
-import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, native, SixDof } from './core.js';
+import { settings as S, save, emit, on, setLang, langTable, setEnvironment, setPassthrough, native, SixDof, t } from './core.js';
 import {
   ENTRY_VERSION,
   ENTRY_VERSION_ALPHA,
@@ -433,6 +433,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       { id: 'passthrough', label: emT('envAr') },
       { id: 'sunset', label: emT('envSunset') },
       { id: 'night', label: emT('envNight') },
+      { id: 'neon', label: t('envNeon') },
+      { id: 'street', label: t('envStreet') },
+      { id: 'aether', label: t('envAether') },
+      { id: 'studio', label: t('envStudio') },
       { id: 'dark', label: 'Dark Panorâmico' },
     ];
     const qualities = [

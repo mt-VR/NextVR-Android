@@ -124,15 +124,17 @@ class PhoneXrHandsTest {
         assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
         assertFalse(latch.pinching)
     }
-    @Test fun nativeRearHandednessAndShoulderRayMatchFork() {
+    @Test fun nativeRearHandednessAndTheRayAimExactlyWhereTheHandPoints() {
         val hand=PhoneXrHands().process(result(points(.2f),1000),1f,1f).hands.single()
         assertTrue(hand.left) // raw MediaPipe Right is physical Left for an unmirrored rear image
         val p=points(.2f);val expected=p[2].x()*.3f+p[5].x()*.45f+(p[4].x()+p[8].x())/2*.25f
         assertEquals(expected,hand.shape.aimX,1e-5f)
         assertNotEquals(hand.shape.pinchX,hand.shape.aimX)
-        val shoulder=if(hand.baseX>0).45f else -.45f
-        assertEquals(hand.baseX+(hand.baseX-shoulder)*.25f,hand.aimX,1e-5f)
-        assertEquals(hand.baseY+(hand.baseY+1f)*.25f,hand.aimY,1e-5f)
+        // The published aim IS the hand's aim: no shoulder-anchored amplification (it used to push
+        // the ray 25% past the hand) and no fixed vertical bias (it used to aim +25% high), so the
+        // ray leaves the hand and stays with it. First sample: the filter returns it unchanged.
+        assertEquals(hand.baseX,hand.aimX,1e-5f)
+        assertEquals(hand.baseY,hand.aimY,1e-5f)
     }
     @Test fun briefMissIsBridgedByAPredictionThatHoldsButNeverStartsAGesture() {
         val engine=PhoneXrHands()

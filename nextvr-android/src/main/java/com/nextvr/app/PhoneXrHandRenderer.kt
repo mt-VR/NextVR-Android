@@ -278,7 +278,17 @@ class PhoneXrHandRenderer {
             if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
             touching=direct && down
             val b=beamLine
-            b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
+            // O raio nasce NA MÃO, não num ponto do plano da tela. Antes a origem era (aimX,aimY) a
+            // 1 m: o feixe era um marcador longe da mão e, quando a mão andava rápido, parecia
+            // escapar dela. Aqui a origem é o meio da palma (landmark 9) da pose já predita para o
+            // instante do display — o raio sai da mão e acompanha a mão em qualquer velocidade.
+            var originX=hand.baseX; var originY=hand.baseY
+            if(!direct && hand.points.size>=30) {
+                originX=(hand.points[9]-.5f)*2f*sx
+                originY=(.5f-hand.points[10])*2f*sy
+                if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
+            }
+            b[0]=if(direct)0f else originX;b[1]=if(direct)0f else originY;b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
             drawBeam(b,down,blueRay,noBeam,position,hFade)
         }

@@ -32,6 +32,13 @@ try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } cat
 let S = { ...DEF, ...saved };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
+// Build 65 (NextVR de volta): os panoramas repetidos saíram da lista. Quem tinha um deles salvo cai
+// no panorama equivalente que ficou — `lagoon`, `palm`, `tropical` e `lakeside` eram a MESMA cena do
+// `sunset`, e `virtual` era a mesma do `dusk`. Sem isso, o app salvo com um id morto abriria no
+// passthrough sem explicação.
+const LEGACY_ENV = { lagoon: 'sunset', palm: 'sunset', tropical: 'sunset', lakeside: 'sunset', virtual: 'dusk' };
+if (S.env && LEGACY_ENV[S.env]) S.env = LEGACY_ENV[S.env];
+if (S.panorama && LEGACY_ENV[S.panorama]) S.panorama = LEGACY_ENV[S.panorama];
 if (!S.sunsetDefaultVersion) {
   if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
     S.env = 'sunset';
@@ -67,10 +74,10 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
+    envPass:'Camera passthrough', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
+    envNeon:'Sala gamer neon 360°', envStreet:'Rua à noite 360°', envAether:'Cidade flutuante 360°', envStudio:'Estúdio VR 360°',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
-    envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
-    envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
+    envVirtual:'Ambiente virtual',
     envDark:'Panorama 360° · Dark',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
@@ -156,10 +163,10 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
-    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
+    envPass:'Camera passthrough', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
+    envNeon:'Neon gaming room 360°', envStreet:'Night street 360°', envAether:'Floating city 360°', envStudio:'VR studio 360°',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
-    envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
-    envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
+    envVirtual:'Virtual environment',
     envDark:'360° panorama · Dark',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
@@ -245,10 +252,10 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
+    envPass:'Camera passthrough', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
+    envNeon:'Sala gamer neón 360°', envStreet:'Calle nocturna 360°', envAether:'Ciudad flotante 360°', envStudio:'Estudio VR 360°',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
-    envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
-    envTropical:'Panorama 360° · valle tropical', envLakeside:'Panorama 360° · lago al atardecer',
+    envVirtual:'Entorno virtual',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -583,20 +590,20 @@ on('quality', resize);
  * ambientes, o GL nativo desenha uma esfera enquanto a câmera rastreia as mãos.
  * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside', 'dark']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'night', 'cinema', 'space', 'dark',
+  'neon', 'street', 'aether', 'studio']);
 export const envList = () => [
-  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'passthrough', name: t('envPass'), thumb: null },
-  { id: 'dark', name: t('envDark'), thumb: './env/dark.jpg' },
+  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'dusk', name: t('envDusk'), thumb: './env/dusk.jpg' },
-  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
-  { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
-  { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
+  { id: 'neon', name: t('envNeon'), thumb: './env/neon.jpg' },
+  { id: 'street', name: t('envStreet'), thumb: './env/street.jpg' },
+  { id: 'aether', name: t('envAether'), thumb: './env/aether.jpg' },
+  { id: 'studio', name: t('envStudio'), thumb: './env/studio.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
   { id: 'cinema', name: t('envCinema'), thumb: './env/cinema.jpg' },
-  { id: 'tropical', name: t('envTropical'), thumb: './env/tropical.jpg' },
-  { id: 'lakeside', name: t('envLakeside'), thumb: './env/lakeside.jpg' },
+  { id: 'dark', name: t('envDark'), thumb: './env/dark.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';
@@ -627,6 +634,44 @@ if (typeof document !== 'undefined' && S.mrDim) {
   document.documentElement.dataset.mrDim = '1';
   window.NativeXR?.setMrDim?.(true);
 }
+
+/* ============ escurecer o AMBIENTE sem escurecer os apps ============ */
+/*
+ * O anel de 10 apps precisa que o mundo escureça mas continue visível ("o ambiente escurece mas
+ * ainda dá pra vê") e que os apps fiquem em cima, claros. Isso NÃO é o `mrDim` (que além de ser
+ * uma preferência salva da câmera traseira, escurece o app inteiro) nem uma janela de fundo.
+ *
+ * É um véu único na camada do ambiente: fica ACIMA do GL (#gl, z-index 1) e ABAIXO das janelas
+ * (#css3d, z-index 2), então tudo o que é mundo — passthrough ou panorama — escurece junto, e
+ * todos os apps continuam com o brilho normal. As mãos (#overlay, z-index 3) e a HUD (#hud, z4)
+ * também continuam por cima do véu: o raio e a dock nunca somem no escuro.
+ */
+let sceneDimEl = null;
+let sceneDimLevel = 0;
+
+/** Escurece o ambiente em `amount` (0 = normal, 1 = quase preto). Nunca chega a 1 de propósito. */
+export function setSceneDim(amount) {
+  const a = Math.max(0, Math.min(.82, Number(amount) || 0));
+  sceneDimLevel = a;
+  if (typeof document !== 'undefined') {
+    if (!sceneDimEl) {
+      sceneDimEl = document.createElement('div');
+      sceneDimEl.id = 'scene-dim';
+      sceneDimEl.setAttribute('aria-hidden', 'true');
+      // Nasce no fim do body: com o mesmo z-index do #gl, a ordem do DOM põe o véu por cima dele
+      // e ainda embaixo do #css3d. O CSS real mora no index.html.
+      document.body.appendChild(sceneDimEl);
+    }
+    sceneDimEl.style.opacity = String(a);
+    if (a > 0) document.documentElement.dataset.sceneDim = '1';
+    else delete document.documentElement.dataset.sceneDim;
+  }
+  // O GL nativo (panorama desenhado fora do WebView) escurece pelo mesmo valor, se o lado nativo
+  // souber fazer isso; o véu CSS já cobre o caso em que ele não sabe.
+  window.NativeXR?.setSceneDim?.(a);
+  emit('scene-dim', a);
+}
+export const sceneDimLevelNow = () => sceneDimLevel;
 
 /* ============================ giroscópio ============================ */
 /*

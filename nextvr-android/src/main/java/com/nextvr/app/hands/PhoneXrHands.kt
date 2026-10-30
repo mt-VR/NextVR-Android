@@ -4,7 +4,7 @@ import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 
 /** Adapted from mt-VR/NextVR b878d8b VrHomeActivity.onHands/LandmarkSmoother.
- * Detection, smoothing, shapes, pinch and shoulder rays are native. The HTML shell only hit-tests
+ * Detection, smoothing, shapes and pinch are native. The HTML shell only hit-tests
  * these rays against its own window geometry. No reference-prototype gesture heuristics remain.
  *
  * Temporal tracking (confidence-aware): a hand that briefly disappears from the detector — which on
@@ -45,6 +45,14 @@ class PhoneXrHands {
         const val MAX_PREDICT_STEP = .35f
         /** Per-sample weight of the velocity estimate from consecutive detections. */
         private const val VELOCITY_EMA = .65f
+        /**
+         * Duas mãos de verdade nunca estão com a palma praticamente no mesmo ponto da imagem.
+         * Quando a predita cai dentro deste raio de uma mão detectada no MESMO resultado, elas
+         * são a mesma mão física: o MediaPipe troca o rótulo esquerda/direita quando as mãos se
+         * cruzam ou aparecem de perfil, e o resultado era uma SEGUNDA mão aparecendo do nada.
+         * Raio em coordenadas normalizadas da imagem.
+         */
+        private const val GHOST_RADIUS = .09f
     }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
@@ -186,11 +194,16 @@ class PhoneXrHands {
         val landmarks = Array(63) { i ->
             when {
                 i % 3 == 2 -> HandGestures.OneEuro(minCutoff=90.0f, beta=400.0f, deadZone=0f)
-                else -> HandGestures.OneEuro(minCutoff=180.0f, beta=800.0f, deadZone=0f)
+                // x/y: minCutoff mais baixo que antes deixa a mão PARADA mais firme (menos tremor,
+                // ponteiro mais preciso no alvo) e o beta bem mais alto corta o atraso quando a mão
+                // se move — é essa combinação que dá o "a mão segue em velocidade absurda".
+                else -> HandGestures.OneEuro(minCutoff=150.0f, beta=1200.0f, deadZone=0f)
             }
         }
-        val x = HandGestures.OneEuro(minCutoff=180.0f, beta=800.0f, deadZone=0f)
-        val y = HandGestures.OneEuro(minCutoff=180.0f, beta=800.0f, deadZone=0f)
+        // O raio/cursor usa estes dois: beta alto = o raio chega junto com a mão, nunca fica
+        // arrastando atrás dela; minCutoff baixo = para de tremer quando a mão para.
+        val x = HandGestures.OneEuro(minCutoff=150.0f, beta=1500.0f, deadZone=0f)
+        val y = HandGestures.OneEuro(minCutoff=150.0f, beta=1500.0f, deadZone=0f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
         val grabX = HandGestures.OneEuro(minCutoff=160.0f,beta=700.0f, deadZone=0f)
@@ -362,13 +375,14 @@ class PhoneXrHands {
             if(!shape.fist || !state.fist){state.grabX.reset();state.grabY.reset()}
             state.fist=shape.fist
             val head = world?.let { HandGestures.headPoints(points,it,scaleX,scaleY) }
+            // Aim = a própria mão. Era `bx+(bx-ombro)*.25`, ou seja o raio apontava 25% para além da
+            // mão, e no eixo Y havia ainda um viés fixo de +25%: o resultado era o raio "saindo da
+            // mão" e mirando alto. Agora o raio nasce e aponta exatamente onde a mão aponta.
             val bx = (shape.aimX-.5f)*2f*scaleX
             val by = (.5f-shape.aimY)*2f*scaleY
-            val rightSide = head?.let { it[0]>0f } ?: (bx>0f)
-            val shoulder = if(rightSide) .45f else -.45f
             val hand = Hand(left,FloatArray(63) { i -> when(i%3) { 0->points[i/3].x();1->points[i/3].y();else->points[i/3].z() } },
-                head,shape,bx,by,state.x.filter(bx+(bx-shoulder)*.25f,stamp),
-                state.y.filter(by+(by+1f)*.25f,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
+                head,shape,bx,by,state.x.filter(bx,stamp),
+                state.y.filter(by,stamp),state.pinch.update(shape),state.grabX.filter(shape.palmX,stamp),state.grabY.filter(shape.palmY,stamp))
             state.noteDetection(stamp,hand)
             seen.add(hand)
         }
@@ -390,6 +404,16 @@ class PhoneXrHands {
                 continue
             }
             val predicted = entry.value.predict(stamp) ?: continue
+            // Nunca desenhar a mesma mão duas vezes (ver GHOST_RADIUS): se a predita está em cima
+            // de uma mão realmente detectada, ela é aquela mão com outro rótulo. Descarta agora e
+            // encerra a predição desse lado até uma detecção de verdade, para o fantasma não ficar
+            // piscando entre os lados.
+            val duplicate = seen.any { other ->
+                val dx = other.grabX - predicted.grabX
+                val dy = other.grabY - predicted.grabY
+                dx * dx + dy * dy < GHOST_RADIUS * GHOST_RADIUS
+            }
+            if (duplicate) { entry.value.consecutiveMisses = 2; continue }
             seen.add(predicted)
         }
         // Capture time drives One Euro dt; expiry uses measured frame age on the elapsedRealtime

@@ -38,10 +38,12 @@ test('every literal UI icon name resolves to a bundled vector', async () => {
   }
 });
 
-test('the two supplied panoramas are selectable environments and ship in the APK',async()=>{
+test('the ten supplied panoramas are selectable environments and ship in the APK',async()=>{
   const core=await readFile('web/src/core.js','utf8');
   const java=await readFile('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java','utf8');
-  for(const id of ['tropical','lakeside']) {
+  // Os quatro panoramas novos entraram e os duplicados saíram: a lista é a mesma no shell, no
+  // bridge nativo e nos dois diretórios de assets (o ceu grande e a miniatura da lista).
+  for(const id of ['sunset','dusk','night','cinema','space','dark','neon','street','aether','studio']) {
     assert.match(core,new RegExp(`id: '${id}'.*env\\/${id}\\.jpg`));
     assert.ok(java.includes(`id.equals("${id}")`),`${id} is accepted by the native environment bridge`);
     for(const file of [`web/env/${id}.jpg`,`nextvr-android/src/main/assets/env/${id}.jpg`,

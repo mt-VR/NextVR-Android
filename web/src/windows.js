@@ -437,7 +437,15 @@ function layout() {
   const hasOpenAppWins = wins.some(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
   for (const w of wins) {
     if (!w.onboarding) continue;
-    if (w.id === 'spatial-launcher') {
+    if (w.id === 'orb-menu') {
+      // O anel de 10 apps ("a bolinha" da dock): grande, centrado na frente dos olhos e SOLTO no ar.
+      // Ele nasce um pouco mais para trás que o resto porque ocupa o campo de visão inteiro; não é
+      // preso ao arco, então abrir o anel nunca empurra nem fecha um app do usuário.
+      w.pinned = false;
+      w.resizeScale = hasOpenAppWins ? 1.12 : 1.22;
+      w.target.set(0, EYE - .04, -1.02);
+      w.apply();
+    } else if (w.id === 'spatial-launcher') {
       // Interface Library flutuante em tamanho amplo (igual à foto de referência 7e3d8ab40bd4dd3) a 0.84 m sobre a câmera traseira real.
       if (hasOpenAppWins) {
         w.resizeScale = 0.88;

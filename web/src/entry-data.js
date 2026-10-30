@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-ten-apps-envs-hands',
+    tag: 'NOVO · ANEL DE 10 APPS, 4 PANORAMAS & RAIO NA MÃO',
+    time: 'Agora',
+    heading: 'Anel de 10 Apps, 4 Panoramas Novos, Raio na Mão & Fim das Mãos Duplicadas',
+    desc: 'A bolinha da Dock abre o anel de 10 apps (apps do NextVR + apps do Android) com o ambiente escurecido mas ainda visível e os apps gigantes na tela, sem nenhum painel de fundo. Quatro panoramas novos (sala gamer neon, rua à noite, cidade flutuante e estúdio VR) e os duplicados saíram de vez. O raio agora sai da mão e aponta exatamente para onde a mão aponta, seguindo a mão em velocidade absurda no estilo Quest — e a mão não se multiplica mais do nada.',
+  },
+  {
     id: 'internal-rec-hand-zero',
     tag: 'NOVO · PAINTDRAWER, 6DOF FIXO & 0 DELAY ULTRA',
     time: 'Agora',

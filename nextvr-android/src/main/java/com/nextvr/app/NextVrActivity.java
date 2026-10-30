@@ -892,9 +892,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
-            if(id==null || !(id.equals("passthrough")||id.equals("black")||id.equals("dark")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
+            // Os 10 panoramas que existem de verdade em assets/env. Os antigos duplicados
+            // (lagoon/palm/tropical/lakeside eram a mesma cena; virtual era o dusk) saíram daqui e
+            // do pacote: o shell remapeia um id antigo salvo para o equivalente antes de chamar.
+            if(id==null || !(id.equals("passthrough")||id.equals("black")||id.equals("dark")
                     ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
-                    ||id.equals("cinema")||id.equals("tropical")||id.equals("lakeside"))) return;
+                    ||id.equals("cinema")||id.equals("neon")||id.equals("street")
+                    ||id.equals("aether")||id.equals("studio"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {
