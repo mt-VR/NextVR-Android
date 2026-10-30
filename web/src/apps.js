@@ -11,7 +11,6 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
-import { isVerifiedProfileName } from './entry-data.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
@@ -2096,12 +2095,6 @@ installOrbMenu({
   },
   launchAndroid: pkg => { openApp(pkg); focusAppWindow(pkg); },
   refreshAndroid: () => loadAndroidLibrary(),
-  // O rodapé do anel mostra o jogador de verdade (o mesmo nome/avatar/selo da dock e do menu).
-  profile: () => ({
-    name: S.profileName || 'Jogador',
-    avatar: S.profileAvatar || '',
-    verified: isVerifiedProfileName(S.profileName),
-  }),
 });
 
 /* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */
@@ -3655,11 +3648,16 @@ function syncVirtualEnvironmentDock() {
 /* O que a bolinha abre: o anel de 10 apps (padrão) ou a biblioteca de sempre, quando o usuário
  * desliga o anel nas Configurações. É o único ponto de decisão — todo o resto do app continua
  * chamando openOrbMenu/render normalmente. */
+// O botão da dock (e a bolinha da biblioteca) abre os apps no ambiente. Tocar de novo fecha: o anel
+// não tem ✕ no meio dos apps, então o próprio botão é o liga/desliga.
 export function openAppsDot() {
   if (S.orbRing === 0) return libraryApp();
+  if (orbOpen()) { closeOrbMenu(); return null; }
   return openOrbMenu();
 }
 window.nextvrOpenAppsDot = openAppsDot;
+// A biblioteca completa continua alcançável: segurando a bolinha da biblioteca (abaixo) ou por aqui.
+window.nextvrOpenLibrary = libraryApp;
 
 function makeDock() {
   buildDock([
@@ -3685,7 +3683,10 @@ function makeDock() {
     // O botão do ANEL (dez bolinhas, 3-4-3) fica à ESQUERDA da biblioteca, do mesmo tamanho e no
     // mesmo ritmo dos outros: a interface gráfica da dock não muda, só ganha mais um atalho.
     { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },
-    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot },
+    // Segurar a bolinha da biblioteca abre a BIBLIOTECA COMPLETA (a grade de todos os apps), que é
+    // onde ficam os que não cabem nas dez casas do anel.
+    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot,
+      hold: () => { if (orbOpen()) closeOrbMenu(); libraryApp(); } },
   ]);
   syncVirtualEnvironmentDock();
 }

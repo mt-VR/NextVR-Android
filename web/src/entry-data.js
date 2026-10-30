@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-apps-no-window',
+    tag: 'NOVO · APPS SOLTOS NO AMBIENTE: SEM JANELINHA, SEM BARRA, SEM BRILHO, SEM ALÇA',
+    time: 'Agora',
+    heading: 'Os Apps Ficaram Soltos no Ambiente: Nada de Janelinha, Barra ou Alça em Volta',
+    desc: 'Saiu tudo o que estava em volta dos apps: a barra de baixo (com o TODOS, o GIROSCÓPIO ATIVO, o perfil, a hora e a bateria), a barra de aumentar e diminuir o brilho, a alça branca para mover, as telinhas de encaixe do canto, a barra de cinema e o ✕. Agora os dez ícones ficam SOLTOS no ambiente, cada um no seu espaço, com folga de 56 px entre eles e o nome embaixo — o mundo escurece e eles ficam ali, do jeito do print. Fechar é pelo mesmo botão que abriu (tocar de novo) ou pelo voltar do Android, e segurar a bolinha da biblioteca continua abrindo a biblioteca completa. A dock não some: ela escurece junto com o ambiente e fica apagada atrás dos apps, com as mãos sempre por cima para escolher.',
+  },
+  {
     id: 'orb-print-fixes',
     tag: 'NOVO · ÍCONES MAIORES E MAIS SEPARADOS, DOCK ESCURA COM O AMBIENTE & CANTO DE CIMA LIMPO',
     time: 'Agora',

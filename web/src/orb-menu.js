@@ -1,27 +1,23 @@
-// O anel de 10 apps — agora uma JANELINHA FLUTUANTE INVISÍVEL, como a UI dos apps espaciais.
+// O anel de 10 apps — agora os apps SOLTOS no ambiente, cada um no seu espaço.
 //
-// Pedido do usuário, palavra por palavra, depois de ver o anel na HUD:
+// Pedido do usuário, palavra por palavra (depois de ver a janelinha):
 //
-//   "Tá a mesma merda, faz ele tipo aquele ui dos apps spaciais, mas só quando clicar aonde era a
-//    'antiga biblioteca de apps' faz esses apps em uma janelinha, porém Deixa a janelinha flutuante
-//    invisível se barrinha branca pra mover, e tira aquele troço da dock sumir, já sei, faz melhor,
-//    adiciona uma opção na dock que aparece 3 bolinhas em cima, 4 no meio, e 3 embaixo, do lado
-//    esquerdo da biblioteca de apps, sem afetar na interface gráfica, e quando clicarmos, a dock
-//    fica por baixo de tudo, porém o hand tracking fica por cima de tudo pra escolher um app, e faz
-//    IGUAL dessa screenshot, só os apps e ícones não, os apps e ícones são o do jogo+android".
+//   "Não e pra ser uma janelinha flutuanteeeeeeeeeeeeeee, tira a barrinha abaixo dela, aonde aparece
+//    giroscopio ativo, o negócio de aumentar e diminuir brilho e a barrinha branca pra mover remove,
+//    e os apps tem que ter o próprio espaço, não em dentro de uma janelinha flutuante"
 //
 // Traduzido em comportamento (e é assim que está feito agora):
-//   1. é uma JANELA de verdade, com o mesmo vidro invisível do Spatial App: sem moldura, sem
-//      barrinha branca para mover, sem fundo preto — o mundo escurecido aparece atrás;
-//   2. dez ícones com o nome embaixo, como na referência: 3 em cima, 4 no meio, 3 embaixo;
-//   3. a DOCK NÃO SOME mais: ela fica por baixo de tudo (a janela nasce na frente e é a mais
-//      próxima), e as mãos continuam desenhadas por cima de tudo (o passe das mãos é o último do
-//      render nativo), então dá para escolher o app com a pinça;
-//   4. a barra de status embaixo é a da screenshot: um ponto, o texto, o relógio, o perfil e a
-//      linha branca fina — mais o chip do GIROSCÓPIO, que já existia;
-//   5. os ícones e nomes são os do NextVR + os apps do Android (nada da interface do Android).
-import { on, setSceneDim, settings as S, save, startGyro, gyroLive, toast } from './core.js';
-import { getDeviceStatus, open, close, wins, focus, updateWindowsDepthLayering } from './windows.js';
+//   1. NENHUMA moldura visível: sem barra de status, sem ✕, sem linha branca embaixo, sem barra de
+//      brilho, sem barra de cinema, sem as telinhas de encaixe. Só os dez ícones no ar;
+//   2. os apps ficam soltos no ambiente escurecido, cada um no seu espaço (3 em cima, 4 no meio,
+//      3 embaixo), como no print do usuário;
+//   3. a dock NÃO some: ela continua na cena, apagada atrás dos apps, e as mãos são o último passe
+//      do render nativo, então continuam por cima de tudo para escolher o app com a pinça;
+//   4. fechar: o mesmo botão da dock (que agora alterna) ou o voltar do Android — nada de ✕ no meio
+//      dos apps;
+//   5. os ícones e nomes são os do NextVR + os apps do Android.
+import { on, setSceneDim } from './core.js';
+import { open, close, wins, focus, updateWindowsDepthLayering } from './windows.js';
 
 /** Os dez lugares, em três fileiras: 3 em cima, 4 no meio, 3 embaixo. */
 export const ORB_ROWS = Object.freeze([
@@ -80,8 +76,6 @@ let providers = {
   launchAndroid: () => {},
   /** Pede a lista do aparelho (Shizuku); opcional. */
   refreshAndroid: null,
-  /** Nome/avatar/verificado do jogador, para o rodapé do anel. */
-  profile: () => ({ name: '', avatar: '', verified: false }),
 };
 
 export function installOrbMenu(next = {}) {
@@ -172,66 +166,10 @@ function tileHtml(entry, index) {
     </button>`;
 }
 
-function clockNow() {
-  const status = (() => { try { return getDeviceStatus(); } catch { return {}; } })();
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const own = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const fromDock = String(status.time || '');
-  // 24 h sempre (o toLocaleTimeString de alguns aparelhos devolve "03:15 AM"): a hora do jogador é a
-  // do relógio do aparelho, no mesmo formato para todo mundo.
-  const time = /^\d{1,2}:\d{2}$/.test(fromDock) ? fromDock : own;
-  const battery = Number.isFinite(status.batteryLevel) ? Math.round(status.batteryLevel) : null;
-  return { time, battery, charging: !!status.charging, online: status.online !== false };
-}
-
-/** Estado do giroscópio para o chip da barra: ligado/desligado pelo usuário e vivo ou não no
- *  aparelho. Desligado, o olhar volta a ser arrasto — é o que o botão faz. */
-export function gyroNow() {
-  const on_ = S.gyro !== 0;
-  const live = (() => { try { return gyroLive() === true; } catch { return false; } })();
-  return { on: on_, live, label: !on_ ? 'DESLIGADO' : live ? 'ATIVO' : 'AGUARDANDO' };
-}
-
-function gyroChipHtml() {
-  const g = gyroNow();
-  return `<button type="button" class="orb-chip orb-chip--gyro${g.on ? (g.live ? ' is-on' : '') : ' is-off'}"
-      data-orb-gyro="1" aria-pressed="${g.on}" title="Giroscópio: ${g.label}. Toque para ${g.on ? 'desligar' : 'ligar'}.">
-      <span class="orb-chip-dot" aria-hidden="true"></span>
-      <span class="orb-chip-label">GIROSCÓPIO</span>
-      <b>${g.label}</b>
-    </button>`;
-}
-
-/** Liga/desliga o giroscópio pelo chip da barra (e liga o sensor de verdade ao ligar de novo). */
-function toggleGyro() {
-  S.gyro = S.gyro === 0 ? 1 : 0;
-  save(S);
-  if (S.gyro !== 0) { try { Promise.resolve(startGyro()).catch(() => {}); } catch {} }
-  try { toast(S.gyro !== 0 ? 'Giroscópio: ativo' : 'Giroscópio: desligado · arraste para olhar'); } catch {}
-  paintOrb();
-}
-
-function meHtml() {
-  let me = { name: '', avatar: '', verified: false };
-  try { me = providers.profile() || me; } catch {}
-  const name = String(me.name || 'Você');
-  const avatar = me.avatar
-    ? `<img src="${esc(me.avatar)}" alt="" draggable="false">`
-    : `<span class="orb-me-initial">${esc(name.trim().slice(0, 1).toUpperCase() || '•')}</span>`;
-  return `<div class="orb-me" data-orb-me="1">
-      <span class="orb-me-av">${avatar}${me.verified ? '<i class="orb-me-check" aria-hidden="true">✓</i>' : ''}</span>
-      <span class="orb-me-name">${esc(name)}</span>
-    </div>`;
-}
-
-function clockHtml() {
-  const c = clockNow();
-  const bat = c.battery == null ? '' : `<span class="orb-clock-bat">${c.charging ? '⚡' : ''}${c.battery}%</span>`;
-  return `<div class="orb-clock" data-orb-clock="1"><span class="orb-clock-time">${esc(c.time)}</span>${bat}</div>`;
-}
-
-/** O miolo da janelinha: as três fileiras + a barra de status da referência. */
+/**
+ * O miolo do anel: SÓ os dez ícones, em três fileiras (3/4/3). Nada de barra de status, nada de ✕,
+ * nada de linha branca embaixo: os apps ficam soltos no ambiente, cada um no seu espaço.
+ */
 export function orbMarkup(entries = orbEntries(), pageIndex = page) {
   const pages = orbPages(entries);
   page = Math.max(0, Math.min(pages.length - 1, pageIndex | 0));
@@ -240,30 +178,9 @@ export function orbMarkup(entries = orbEntries(), pageIndex = page) {
   const rows = ORB_ROWS.map(row => `<div class="orb-row">${
     row.map(i => (pageItems[i] ? tileHtml(pageItems[i], i) : '<span class="orb-slot"></span>')).join('')
   }</div>`).join('');
-  const total = entries.length;
   return `
     <div class="orb-root" data-orb-root="1" data-page="${page}">
-      <button type="button" class="orb-close" data-orb-close="1" aria-label="Fechar" title="Fechar">✕</button>
       <div class="orb-grid" data-orb-grid="1">${rows}</div>
-      <div class="orb-bar" data-orb-bar="1">
-        <div class="orb-bar-side orb-bar-left">
-          <span class="orb-dot" aria-hidden="true"></span>
-          <span class="orb-bar-text" data-orb-count>${pageItems.length} de ${total}</span>
-          ${total > ORB_PAGE ? `<button type="button" class="orb-pager" data-orb-page="-1" aria-label="Página anterior" title="Página anterior">‹</button>
-          <button type="button" class="orb-pager" data-orb-page="1" aria-label="Próxima página" title="Próxima página">›</button>` : ''}
-          <button type="button" class="orb-chip orb-chip--all" data-orb-all="1" title="Todos os apps do NextVR">
-            <span class="orb-chip-ico" aria-hidden="true">▦</span>
-            <span class="orb-chip-label">TODOS</span>
-          </button>
-          ${gyroChipHtml()}
-        </div>
-        <div class="orb-bar-side orb-bar-right">
-          ${meHtml()}
-          ${clockHtml()}
-        </div>
-      </div>
-      ${pages.length > 1 ? `<div class="orb-dots">${pages.map((_, i) => `<i class="${i === page ? 'on' : ''}"></i>`).join('')}</div>` : ''}
-      <span class="orb-home-line" aria-hidden="true"></span>
     </div>`;
 }
 
@@ -299,16 +216,13 @@ function insideRect(el, x, y) {
   return r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
-/** O que fazer com cada peça do anel. Um lugar só: o clique da mão, do mouse e das setas entra aqui. */
+/** O que fazer com cada peça do anel: só existem apps. Um lugar só para o toque da mão e do mouse. */
 function act(hit, key, isAndroid) {
-  if (hit === 'close') { closeOrbMenu(); return; }
-  if (hit === 'all') { launchTarget(() => providers.launchOwn('library')); return; }
-  if (hit === 'app') {
-    launchTarget(() => {
-      if (isAndroid) providers.launchAndroid(String(key).replace(/^app:/, ''));
-      else providers.launchOwn(key);
-    });
-  }
+  if (hit !== 'app') return;
+  launchTarget(() => {
+    if (isAndroid) providers.launchAndroid(String(key).replace(/^app:/, ''));
+    else providers.launchOwn(key);
+  });
 }
 
 /**
@@ -322,41 +236,22 @@ function wireOrb(host) {
   host.onclick = event => {
     const target = event.target instanceof Element ? event.target : null;
     const tile = target?.closest('[data-orb-app]');
-    const all = target?.closest('[data-orb-all]');
-    const shut = target?.closest('[data-orb-close]');
-    const pager = target?.closest('[data-orb-page]');
-    if (pager) { turnPage(Number(pager.dataset.orbPage) || 1); return; }
-    if (target?.closest('[data-orb-gyro]')) { toggleGyro(); return; }
-    let byPointTile = null, byPointAll = false, byPointClose = false;
-    if (!tile && !all && !shut) {
-      const x = event.clientX, y = event.clientY;
-      if (insideRect(host.querySelector('[data-orb-all]'), x, y)) byPointAll = true;
-      else if (insideRect(host.querySelector('[data-orb-close]'), x, y)) byPointClose = true;
-      else byPointTile = [...host.querySelectorAll('[data-orb-app]')].find(t => insideRect(t, x, y)) || null;
-    }
+    // Sem barra embaixo: só existem ícones. Se o hit-test devolve o contêiner, vale o ponto tocado.
+    const byPoint = !tile
+      ? [...host.querySelectorAll('[data-orb-app]')].find(t => insideRect(t, event.clientX, event.clientY)) || null
+      : null;
+    const chosen = tile || byPoint;
     if (typeof window !== 'undefined') {
-      window.__orbLastHit = tile ? 'app:' + tile.dataset.orbApp
-        : all ? 'all'
-        : shut ? 'close'
-        : byPointAll ? 'all(por ponto)'
-        : byPointClose ? 'close(por ponto)'
-        : byPointTile ? 'app(por ponto):' + byPointTile.dataset.orbApp : 'outside';
+      window.__orbLastHit = chosen ? 'app:' + chosen.dataset.orbApp : 'outside';
     }
-    const chosen = tile || byPointTile;
-    if (chosen) {
-      act('app', chosen.dataset.orbApp, chosen.dataset.orbAndroid === '1');
-      return;
-    }
-    if (all || byPointAll) { act('all'); return; }
-    if (shut || byPointClose) act('close');
+    if (chosen) act('app', chosen.dataset.orbApp, chosen.dataset.orbAndroid === '1');
   };
 
-  // As setas/roda repintam o anel várias vezes: os ouvintes de arrasto são uma vez só, senão cada
-  // repintura empilhava mais um e a mesma passada virava três páginas.
+  // As repinturas (página nova, lista do Android chegando) não podem empilhar ouvintes de arrasto.
   if (!first) return;
   let dragFrom = null;
   host.addEventListener('pointerdown', event => {
-    if (event.target.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-orb-gyro]')) return;
+    if (event.target.closest?.('[data-orb-app]')) return;
     dragFrom = { x: event.clientX, y: event.clientY };
   });
   host.addEventListener('pointerup', event => {
@@ -367,7 +262,7 @@ function wireOrb(host) {
   });
 }
 
-/** Vira a página do anel com a animação de rolagem (as setas da barra e a roda chamam isto). */
+/** Vira a página do anel com a animação de rolagem (a roda e o arrasto chamam isto). */
 export function turnPage(step = 1) {
   const win = orbWindow();
   if (!win) return page;
@@ -393,33 +288,15 @@ export function paintOrb() {
   const host = win.el.querySelector('.orb-win-host') || win.el.querySelector('.win-body') || win.el;
   host.innerHTML = orbMarkup(undefined, page);
   wireOrb(host);
-  paintClock();
   updateWindowsDepthLayering(win);
 }
 
-/* O relógio do rodapé corre junto com o do aparelho (o mesmo publishDeviceStatus da dock). */
-let clockTimer = null;
-function paintClock() {
-  const win = orbWindow();
-  const box = win?.el.querySelector('[data-orb-clock]');
-  if (!box) return;
-  const c = clockNow();
-  box.innerHTML = `<span class="orb-clock-time">${esc(c.time)}</span>`
-    + (c.battery == null ? '' : `<span class="orb-clock-bat">${c.charging ? '⚡' : ''}${c.battery}%</span>`);
-}
-function startClock() {
-  stopClock();
-  clockTimer = setInterval(paintClock, 1000);
-}
-function stopClock() {
-  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
-}
-
 /**
- * Abre o anel. É uma JANELA de verdade — o mesmo vidro invisível do Spatial App (`chrome:false`, sem
- * barrinha branca, sem moldura, fundo transparente) —, e não mais uma camada da HUD. A dock NÃO sai
- * de cena: ela continua lá, mais longe, e é o painel desta janela que fica na frente; as mãos são o
- * último passe do render, então continuam por cima de tudo para escolher o app.
+ * Abre o anel: os dez apps soltos no ambiente, sem nenhuma moldura. A janela que os carrega é
+ * invisível e NÃO tem controles — handle, alça de tamanho, barra de brilho, barra de cinema e as
+ * telinhas de encaixe são REMOVIDOS do documento (não basta esconder: o CSS deles usa display
+ * inline-flex e vence o atributo `hidden`). A dock continua na cena, apagada atrás dos apps, e as
+ * mãos são o último passe do render nativo, então escolhem o app por cima de tudo.
  */
 export function openOrbMenu() {
   if (typeof window !== 'undefined') window.__orbOpenCalls = (window.__orbOpenCalls || 0) + 1;
@@ -444,16 +321,17 @@ export function openOrbMenu() {
       chrome: false,
       resizable: false,
     });
-    win.handle.hidden = true;
-    win.resizeHandle.hidden = true;
-    // Sem barra de brilho nem barra de cinema: a janelinha do anel é só os apps e a barra de baixo.
-    if (win.brightnessBar) win.brightnessBar.hidden = true;
-    if (win.cinemaBar) win.cinemaBar.hidden = true;
+    // Nada de controle em volta dos apps. `remove()` e não `hidden`: as barras têm display próprio no
+    // CSS (inline-flex), que vence o atributo `hidden` — era por isso que a barra de brilho e as
+    // telinhas de encaixe continuavam aparecendo no headset.
+    for (const part of [win.handle, win.resizeHandle, win.brightnessBar, win.cinemaBar,
+      win.predefinedSlotsBar, win.grabArc, win.el?.querySelector?.('.win-bar')]) {
+      try { part?.remove(); } catch {}
+    }
     win.pinned = false;
     win.el.classList.add('orb-shell');
     paintOrb();
     dim(true);
-    startClock();
     updateWindowsDepthLayering(win);
     // Os apps do Android chegam depois (a lista é lida do aparelho): o anel se redesenha ao chegar.
     try { providers.refreshAndroid?.(); } catch (error) { remember(error); }
@@ -471,7 +349,6 @@ export function closeOrbMenu() {
     if (win) close(win);
   } finally {
     // Sempre, mesmo se o fechamento falhar no meio: o escurecimento não pode ficar preso.
-    stopClock();
     dim(false);
   }
 }
@@ -503,17 +380,12 @@ function onOrbWheel(event) {
 }
 if (typeof document !== 'undefined') document.addEventListener('wheel', onOrbWheel, { passive: false });
 
-/* O relógio/bateria do rodapé acompanha o aparelho. */
-on('device-status', () => { if (orbOpen()) paintClock(); });
-/* O giroscópio pode ficar "vivo" depois do anel aberto (permissão, primeiro evento do sensor): o
- * chip da barra acompanha em vez de ficar mentindo "AGUARDANDO". */
-on('gyro', () => { if (orbOpen()) paintOrb(); });
 /* A lista do aparelho pode chegar com o anel aberto. */
 on('appsState', () => { if (orbOpen()) paintOrb(); });
 on('lang', () => { if (orbOpen()) paintOrb(); });
-/* Fechar a janela por qualquer outro caminho (o ✕ da própria janela, um app que a substituiu)
- * devolve o ambiente ao normal. */
-on('wins', () => { if (!orbOpen()) { stopClock(); dim(false); } });
+/* Fechar o anel por qualquer outro caminho (o voltar do Android, um app que entrou no lugar) devolve
+ * o ambiente ao normal. */
+on('wins', () => { if (!orbOpen()) dim(false); });
 
 if (typeof window !== 'undefined') {
   window.nextvrOpenOrbMenu = openOrbMenu;

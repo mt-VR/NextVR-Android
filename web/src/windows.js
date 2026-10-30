@@ -1271,7 +1271,7 @@ function clearWinBrowserHold() {
   }
 }
 
-const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-orb-gyro],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 function findDirectAppPoint(cx, cy) {
   if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
@@ -1735,6 +1735,19 @@ export function buildDock(items) {
       b.addEventListener('pointerup', cancelPtrHold);
       b.addEventListener('pointercancel', cancelPtrHold);
       b.addEventListener('pointerleave', cancelPtrHold);
+    }
+    // Botão com `hold`: segurar abre uma segunda tela (hoje, a biblioteca completa atrás da bolinha).
+    if (typeof it.hold === 'function') {
+      let holdTimer = null;
+      const clearHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+      b.addEventListener('pointerdown', () => {
+        clearHold();
+        holdTimer = setTimeout(() => {
+          b.dataset.holdConsumed = '1';
+          try { it.hold(); } catch {}
+        }, 650);
+      });
+      for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, clearHold);
     }
     b.addEventListener('click', () => {
       if (b.dataset.holdConsumed === '1') {

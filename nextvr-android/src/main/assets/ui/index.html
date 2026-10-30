@@ -3492,11 +3492,12 @@
   #scene-dim{position:fixed;inset:0;z-index:1;pointer-events:none;background:#05070c;opacity:0;
     transition:opacity .22s ease}
 
-  /* ---------- anel de 10 apps: JANELINHA FLUTUANTE INVISÍVEL (estilo apps espaciais) ---------- */
-  /* Pedido do usuário: "faz ele tipo aquele ui dos apps spaciais ... deixa a janelinha flutuante
-     invisível, sem barrinha branca pra mover, e tira aquele troço da dock sumir". É uma janela de
-     verdade (`#orb-apps`), com o mesmo vidro invisível do Spatial App: nenhuma moldura, nenhuma
-     barrinha, nenhum fundo preto — quem aparece atrás é o mundo escurecido. */
+  /* ---------- anel de 10 apps: os apps SOLTOS no ambiente, sem janelinha aparecendo ---------- */
+  /* Pedido do usuário: "Não e pra ser uma janelinha flutuante, tira a barrinha abaixo dela, aonde
+     aparece giroscopio ativo, o negócio de aumentar e diminuir brilho e a barrinha branca pra mover
+     remove, e os apps tem que ter o próprio espaço". A superfície que carrega os apps (`#orb-apps`)
+     é invisível: nenhum vidro, nenhuma moldura, nenhuma barra. Quem aparece é só o mundo escurecido
+     com os dez ícones soltos nele. */
   .win-shell[data-window-id="orb-apps"],
   .win-shell[data-window-id="orb-apps"] .win{
     background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important
@@ -3511,23 +3512,15 @@
   }
   .orb-win-host{width:100%;height:100%}
   .orb-root{position:relative;width:100%;height:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:space-between;gap:8px;padding:16px 20px 8px;box-sizing:border-box;
+    align-items:center;justify-content:center;gap:8px;padding:18px 20px;box-sizing:border-box;
     font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;user-select:none;
     animation:orbFade .18s ease}
   @keyframes orbFade{from{opacity:0}to{opacity:1}}
 
-  /* O ✕ fica no canto de cima, como na referência (não é a volta para a dock: a dock nunca sai). */
-  .orb-close{pointer-events:auto;position:absolute;right:6px;top:4px;width:40px;height:40px;border-radius:50%;
-    display:grid;place-items:center;color:#fff;font-size:19px;line-height:1;cursor:pointer;
-    background:rgba(12,14,20,.45);border:1.5px solid rgba(255,255,255,.42);
-    box-shadow:0 6px 18px rgba(0,0,0,.5);transition:transform .14s,background .14s}
-  .orb-close:hover{background:rgba(64,68,82,.9);transform:scale(1.08)}
-  .orb-close:active{transform:scale(.94)}
-
   /* ---------- as três fileiras: 3 em cima, 4 no meio, 3 embaixo ---------- */
-  .orb-grid{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px}
-  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:48px;width:100%}
+  .orb-grid{flex:none;width:100%;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:20px}
+  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:56px;width:100%}
   @keyframes orbIn{from{opacity:0;transform:translateY(10px) scale(.9)}
     to{opacity:1;transform:none}}
   @keyframes orbInNext{from{opacity:0;transform:translateX(46px) scale(.9)}
@@ -3565,87 +3558,19 @@
   /* Casa vazia (menos de dez apps): não desenha nada, mas mantém o lugar da fileira. */
   .orb-slot{flex:none;width:150px;height:150px;opacity:0;pointer-events:none}
 
-  /* ---------- barra de status: a da referência (ponto, texto, relógio, perfil, linha branca) ---------- */
-  .orb-bar{flex:none;width:100%;display:flex;align-items:center;gap:10px;pointer-events:auto;
-    padding:6px 12px;border-radius:15px;min-height:46px;
-    background:rgba(8,10,15,.66);border:1px solid rgba(255,255,255,.16);
-    box-shadow:0 12px 26px rgba(0,0,0,.52)}
-  .orb-bar-side{display:flex;align-items:center;gap:8px;min-width:0}
-  .orb-bar-left{flex:1 1 auto;overflow:hidden}
-  .orb-bar-right{flex:0 0 auto;margin-left:auto;padding-left:8px}
-  .orb-dot{width:9px;height:9px;border-radius:50%;flex:none;background:rgba(255,255,255,.55)}
-  .orb-bar-text{font-size:13.5px;font-weight:700;color:rgba(255,255,255,.92);white-space:nowrap;
-    text-shadow:0 2px 6px rgba(0,0,0,.9)}
-  .orb-pager{pointer-events:auto;width:30px;height:30px;border-radius:9px;color:#fff;font-size:18px;
-    line-height:1;display:grid;place-items:center;cursor:pointer;
-    background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18)}
-  .orb-pager:hover{background:rgba(255,255,255,.2)}
-  .orb-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:7px;cursor:pointer;
-    flex:0 1 auto;min-width:0;overflow:hidden;padding:8px 11px;border-radius:10px;color:#fff;
-    font-size:12px;font-weight:800;letter-spacing:.05em;white-space:nowrap;line-height:1;
-    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
-    transition:background .14s,transform .14s,border-color .14s}
-  .orb-chip:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3)}
-  .orb-chip:active{transform:scale(.96)}
-  .orb-chip-ico{font-size:14px;line-height:1;opacity:.9}
-  .orb-chip b{font-weight:800;font-size:11px;letter-spacing:.05em;color:rgba(255,255,255,.6)}
-  .orb-chip-dot{width:8px;height:8px;border-radius:50%;flex:none;background:rgba(255,255,255,.34)}
-  .orb-chip.is-on{border-color:rgba(141,230,200,.5)}
-  .orb-chip.is-on b{color:#8de6c8}
-  .orb-chip.is-on .orb-chip-dot{background:#8de6c8;box-shadow:0 0 10px rgba(141,230,200,.85)}
-  .orb-chip.is-off b{color:#ffb4b4}
-  .orb-chip.is-off .orb-chip-dot{background:#ff6b6b}
-  .orb-me{display:flex;align-items:center;gap:8px;pointer-events:none;min-width:0;padding-right:2px}
-  .orb-me-av{position:relative;width:26px;height:26px;border-radius:50%;flex:none;display:grid;
-    place-items:center;background:linear-gradient(145deg,#4b5563,#1f2937);overflow:visible}
-  .orb-me-av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
-  .orb-me-initial{font-size:13px;font-weight:800}
-  .orb-me-check{position:absolute;right:-4px;bottom:-4px;width:13px;height:13px;border-radius:50%;
-    background:#fe2c55;color:#fff;font-size:8px;font-style:normal;font-weight:900;
-    display:grid;place-items:center;border:2px solid rgba(10,12,18,.9)}
-  .orb-me-name{font-size:12.5px;font-weight:800;letter-spacing:.02em;
-    max-width:min(26vw,190px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .orb-clock{display:flex;align-items:center;gap:7px;pointer-events:none;
-    padding-left:9px;border-left:1px solid rgba(255,255,255,.16)}
-  .orb-clock-time{font-size:16px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums}
-  .orb-clock-bat{font-size:11.5px;font-weight:700;color:rgba(255,255,255,.75)}
-  .orb-dots{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);display:flex;gap:6px}
-  .orb-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3)}
-  .orb-dots i.on{background:#fff;box-shadow:0 0 10px rgba(255,255,255,.8)}
-  /* A linha branca fina embaixo de tudo, como a barra de gestos da referência. */
-  .orb-home-line{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);
-    width:150px;height:4px;border-radius:999px;background:rgba(255,255,255,.85);
-    box-shadow:0 0 12px rgba(255,255,255,.45)}
-
-  /* O canto de cima do print: as três telinhas pré-definidas e o ✕ viram UM conjunto só — uma
-     pílula escura de vidro com os três encaixes e o fechar ao lado, do mesmo tamanho. */
-  .win-shell[data-window-id="orb-apps"] .win-predefined-slots{
-    right:74px;top:12px;gap:7px;padding:5px 7px;border-radius:14px;
-    background:rgba(10,12,18,.62);border:1px solid rgba(255,255,255,.16);
-    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-    box-shadow:0 8px 22px rgba(0,0,0,.5)
-  }
-  .win-shell[data-window-id="orb-apps"] .win-predefined-slot{
-    width:30px;height:24px;border-radius:8px;border:1px solid rgba(255,255,255,.2);
-    background:rgba(255,255,255,.07)
-  }
-  .win-shell[data-window-id="orb-apps"] .win-predefined-slot:hover,
-  .win-shell[data-window-id="orb-apps"] .win-predefined-slot.finger-hover{
-    background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.44)
-  }
-  .win-shell[data-window-id="orb-apps"] .win-predefined-slot-frame{
-    width:13px;height:9px;border-radius:3px;border:1.4px solid rgba(255,255,255,.8);background:rgba(0,0,0,.4)
-  }
-  .win-shell[data-window-id="orb-apps"] .orb-close{right:14px;top:9px;width:42px;height:42px;font-size:20px;
-    background:rgba(10,12,18,.62);border:1.5px solid rgba(255,255,255,.34)}
-  /* O anel não tem barra de brilho nem barra de cinema: é uma janelinha limpa, só os apps. */
+  /* Nada de barra de status, chip de giroscópio, perfil, relógio, linha branca ou barra de brilho:
+     o anel é só os apps soltos no ambiente. (O ✕, a alça de tamanho, as telinhas de encaixe e as
+     barras do Win são removidos do DOM ao abrir — esconder não bastava, o display próprio do CSS
+     vencia o atributo `hidden`. Aqui fica a trava para qualquer caminho que as recrie.) */
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slots,
   .win-shell[data-window-id="orb-apps"] .win-brightness-bar,
-  .win-shell[data-window-id="orb-apps"] .win-cinema-bar{
+  .win-shell[data-window-id="orb-apps"] .win-cinema-bar,
+  .win-shell[data-window-id="orb-apps"] .win-bar{
     display:none!important
   }
 
   /* Dock escura com o ambiente: com o anel aberto o mundo escurece, e a dock escurece junto — ela
-     continua ali, só que apagada atrás da janelinha (ela NUNCA é escondida). */
+     continua ali, só que apagada atrás dos apps (ela NUNCA é escondida). */
   html[data-orb-open="1"] .dock{
     background:linear-gradient(180deg,rgba(22,25,33,.92),rgba(7,9,13,.96))!important;
     border-color:rgba(255,255,255,.10)!important;

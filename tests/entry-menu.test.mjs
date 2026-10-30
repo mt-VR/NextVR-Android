@@ -678,8 +678,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     const gorillaFlow = await page.evaluate(async () => {
       window.__gorillaFastTest = true;
       window.__handVisualCalls = [];
-      // A bolinha da dock abre o ANEL de 10 apps; o centro do anel ("TODOS") abre a biblioteca
-      // completa, que é o que este fluxo usa para achar o app instalado.
+      // A bolinha da dock abre os apps no ambiente; segurá-la abre a biblioteca completa, que é o
+      // que este fluxo usa para achar o app instalado.
       const dockLibrary = document.querySelector('.dock [data-id="library"]');
       dockLibrary?.click();
       // O DOM de uma janela entra no documento no primeiro render do CSS3D (next frame), então o
@@ -688,8 +688,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const orbOpen = !!document.querySelector('.orb-root');
       const orbShell = !!document.querySelector('#hud #orb-layer');
       const orbCalls = window.__orbOpenCalls || 0;
-      const hub = document.querySelector('[data-orb-all]');
-      hub?.click();
+      const canOpenLibrary = typeof window.nextvrOpenLibrary === 'function';
+      if (canOpenLibrary) { window.nextvrCloseOrbMenu?.(); window.nextvrOpenLibrary(); }
       await new Promise(r => requestAnimationFrame(() => r()));
       const libraryOpenError = window.__orbLastError || null;
       const libraryShell = !!document.querySelector('.win-shell[data-window-id="library"]');
