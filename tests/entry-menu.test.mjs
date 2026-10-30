@@ -680,6 +680,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const dockLibrary = document.querySelector('.dock [data-id="library"]');
       dockLibrary?.click();
       const orbOpen = !!document.querySelector('.orb-root');
+      const orbShell = !!document.querySelector('.win-shell[data-window-id="orb-menu"]');
+      const orbCalls = window.__orbOpenCalls || 0;
       const hub = document.querySelector('[data-orb-all]');
       hub?.click();
       await new Promise(r => setTimeout(r, 0));
@@ -759,6 +761,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       return {
         libraryOpenError,
         orbOpen,
+        orbShell,
+        orbCalls,
         hubFound: !!hub,
         libraryShell,
         dockLibraryFound: !!dockLibrary,
@@ -781,7 +785,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(gorillaFlow.storeLogo, true, 'Gorilla Tag Store card uses gorilla-tag-logo.jpg');
     assert.equal(gorillaFlow.inLibrary, true,
       `Downloading Gorilla Tag in the Store adds it to the App Library (${
-        JSON.stringify({orb:gorillaFlow.orbOpen,hub:gorillaFlow.hubFound,dock:gorillaFlow.dockLibraryFound,
+        JSON.stringify({orb:gorillaFlow.orbOpen,rootShell:gorillaFlow.orbShell,calls:gorillaFlow.orbCalls,
+          hub:gorillaFlow.hubFound,dock:gorillaFlow.dockLibraryFound,
           shell:gorillaFlow.libraryShell,err:gorillaFlow.libraryOpenError})})`);
     assert.equal(gorillaFlow.libLogo, true, 'Gorilla Tag App Library tile uses gorilla-tag-logo.jpg');
     assert.equal(gorillaFlow.enteringText, 'Entrando no Gorilla Tag', 'Opening Gorilla Tag displays "Entrando no Gorilla Tag"');

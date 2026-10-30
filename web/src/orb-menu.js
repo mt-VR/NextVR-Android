@@ -188,8 +188,40 @@ export function paintOrb() {
  * nenhum app aberto para "abrir espaço").
  */
 export function openOrbMenu() {
+  // Contador de chamadas + erro registrado: é por aqui que se descobre, sem adivinhar, se a bolinha
+  // foi tocada e o que falhou no caminho.
+  if (typeof window !== 'undefined') window.__orbOpenCalls = (window.__orbOpenCalls || 0) + 1;
+  try {
+    return openOrbRing();
+  } catch (error) {
+    remember(error);
+    // A janela pode já ter sido criada (a exceção pode vir de um ouvinte de 'wins' disparado lá
+    // dentro). Nesse caso o anel ainda aparece: nada de ficar sem os apps por causa do resto.
+    const recovered = winObj();
+    if (!recovered) throw error;
+    try { paintOrb(); } catch (again) { remember(again); }
+    return recovered;
+  }
+}
+
+function decorateOrb(win) {
+  win.shell.classList.add('orb-shell');
+  win.el.classList.add('orb-window');
+  dim(true);
+  paintOrb();
+  // Os apps do Android chegam depois (a lista é lida do aparelho): o anel se redesenha ao chegar.
+  try { providers.refreshAndroid?.(); } catch (error) { remember(error); }
+  return win;
+}
+
+function openOrbRing() {
   const existing = winObj();
-  if (existing) { paintOrb(); focus(existing); dim(true); return existing; }
+  if (existing) {
+    try { paintOrb(); } catch (error) { remember(error); }
+    try { focus(existing); } catch (error) { remember(error); }
+    dim(true);
+    return existing;
+  }
   const host = document.createElement('div');
   host.className = 'orb-host';
   const win = open({
@@ -202,13 +234,7 @@ export function openOrbMenu() {
     chrome: false,
     resizable: false,
   });
-  win.shell.classList.add('orb-shell');
-  win.el.classList.add('orb-window');
-  dim(true);
-  paintOrb();
-  // Os apps do Android chegam depois (a lista é lida do aparelho): o anel se redesenha ao chegar.
-  try { providers.refreshAndroid?.(); } catch { /* sem Shizuku não há o que pedir */ }
-  return win;
+  return decorateOrb(win);
 }
 
 export function closeOrbMenu() {
