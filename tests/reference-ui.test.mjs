@@ -17,7 +17,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       // The shell's asset host serves the Android app icons from /apps/<file> (WebSurface); the test
       // server answers the same way with a real PNG, so a tile that loses its icon is a real failure.
       if(path.startsWith('apps/')) { res.setHeader('Content-Type','image/png'); res.end(await readFile(new URL('icons/nextvr-n.png',base))); return; }
-      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':path.endsWith('.png')?'image/png':'application/octet-stream');
+      // Uma logo de marca só existe como <img> se vier com o MIME de SVG (é o que o WebView faz
+      // com os assets .svg do APK); servida como octet-stream o navegador recusa desenhar.
+      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':path.endsWith('.png')?'image/png':path.endsWith('.svg')?'image/svg+xml':'application/octet-stream');
       res.end(await readFile(new URL(path,base)));
     } catch { res.writeHead(404); res.end(); }
   });
@@ -271,6 +273,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(pagesInfo.active, 1, 'exactly one page is marked as current');
     assert.equal(pagesInfo.activeColor, 'rgb(255, 255, 255)', 'the current page dot is white');
     // Os apps do serviço mostram a logo de verdade, não a inicial.
+    await page.waitForFunction(()=>[...document.querySelectorAll('.orb-mark img')].every(i=>i.complete),null,{timeout:10000});
     const brandLogos = await page.evaluate(()=>[...document.querySelectorAll('.orb-mark img')]
       .map(i=>i.getAttribute('src')).filter(Boolean));
     assert.ok(brandLogos.some(src=>/orb-youtube\.svg$/.test(src)), 'YouTube uses its real logo');
