@@ -439,11 +439,15 @@ function layout() {
     if (!w.onboarding) continue;
     if (w.id === 'orb-menu') {
       // O anel de 10 apps ("a bolinha" da dock): grande, centrado na frente dos olhos e SOLTO no ar.
-      // Ele nasce um pouco mais para trás que o resto porque ocupa o campo de visão inteiro; não é
-      // preso ao arco, então abrir o anel nunca empurra nem fecha um app do usuário.
+      // Ele nasce um pouco mais perto que o resto porque ocupa o campo de visão inteiro (a captura do
+      // usuário mostrou o anel pequeno e apagado atrás do resto); não é preso ao arco, então abrir o
+      // anel nunca empurra nem fecha um app do usuário.
       w.pinned = false;
-      w.resizeScale = hasOpenAppWins ? 1.12 : 1.22;
-      w.target.set(0, EYE - .04, -1.02);
+      // A 0.98 m, 1.50 enche ~78% da altura e ~70% da largura do campo (câmera de 72° na vertical):
+      // os apps ficam GIGANTES sem a coluna das pontas sair da vista. Com apps abertos atrás o anel
+      // encolhe um pouco, porque aí ele divide a cena com o que o usuário já tinha na tela.
+      w.resizeScale = hasOpenAppWins ? 1.44 : 1.50;
+      w.target.set(0, EYE + .02, -0.98);
       w.apply();
     } else if (w.id === 'spatial-launcher') {
       // Interface Library flutuante em tamanho amplo (igual à foto de referência 7e3d8ab40bd4dd3) a 0.84 m sobre a câmera traseira real.
@@ -705,9 +709,24 @@ export function setDockColor(colorId = 'default') {
 }
 export const getDockColor = () => S.dockColor || 'default';
 
+/* O anel é uma janela de onboarding: ele não entra na fila de profundidade das janelas normais
+ * (openWins exclui onboarding) e por isso ficava com z-index 0 — atrás de qualquer app aberto. Com
+ * o anel aberto ele vai para a camada de cima, acima até do Menu Rápido, e volta ao normal quando
+ * fecha (o z-index é recalculado a cada layout). */
+export function raiseOrbLayer() {
+  const orb = wins.find(w => w.id === 'orb-menu' && !w.hidden);
+  if (!orb) return null;
+  orb.shell.style.zIndex = '90';
+  orb.obj.renderOrder = 90;
+  orb.hit.renderOrder = 90;
+  orb.shell.dataset.depthLayer = 'top';
+  return orb;
+}
+
 export function updateWindowsDepthLayering(activeWin = null) {
+  const orb = raiseOrbLayer();
   const openWins = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
-  if (!openWins.length) return [];
+  if (!openWins.length) { if (orb) css3d.invalidate?.(); return []; }
   if (S.depthLayerOrder === 0) {
     openWins.forEach((w, idx) => {
       const z = (w === focused ? 40 : 20 + idx);

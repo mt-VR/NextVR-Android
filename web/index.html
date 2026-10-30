@@ -3499,13 +3499,22 @@
   .win-shell[data-window-id="orb-menu"] .win-grab-arc{
     display:none!important;opacity:0!important;pointer-events:none!important}
 
+  /* Com o anel aberto, as OUTRAS janelas recuam para trás do véu: elas não somem (o usuário volta a
+     elas ao fechar o anel), mas param de cobrir os apps. Era isto que faltava na captura: o Menu
+     Rápido ficava na frente e o anel aparecia atrás dele. As mãos e a dock estão na HUD (#hud z4) e
+     não são tocadas por esta regra. */
+  html[data-orb-open="1"] .win-shell:not([data-window-id="orb-menu"]){
+    opacity:.22;filter:saturate(.55) brightness(.62);pointer-events:none;
+    transition:opacity .2s ease,filter .2s ease}
+  .win-shell{transition:opacity .2s ease,filter .2s ease}
+
   .orb-host,.orb-root{width:100%;height:100%;background:transparent;user-select:none}
-  .orb-root{position:relative;display:flex;flex-direction:column;padding:6px 10px 14px}
-  .orb-head{display:flex;align-items:center;gap:14px;height:66px;flex:none;padding:0 6px}
-  .orb-title{font-size:22px;font-weight:800;letter-spacing:.18em;color:#fff;
-    text-shadow:0 2px 12px rgba(0,0,0,.75)}
-  .orb-hint{font-size:15px;font-weight:600;color:rgba(255,255,255,.74);
-    text-shadow:0 2px 10px rgba(0,0,0,.8)}
+  .orb-root{position:relative;display:flex;flex-direction:column;padding:4px 10px 10px}
+  .orb-head{display:flex;align-items:center;gap:14px;height:52px;flex:none;padding:0 6px}
+  .orb-title{font-size:24px;font-weight:800;letter-spacing:.22em;color:#fff;
+    text-shadow:0 2px 14px rgba(0,0,0,.85)}
+  .orb-hint{font-size:15px;font-weight:600;color:rgba(255,255,255,.8);
+    text-shadow:0 2px 10px rgba(0,0,0,.85)}
   .orb-close{margin-left:auto;width:52px;height:52px;border-radius:50%;font-size:20px;color:#fff;
     background:rgba(16,16,20,.62);border:1px solid rgba(255,255,255,.18);
     backdrop-filter:blur(10px);display:grid;place-items:center;transition:transform .14s,background .14s}
@@ -3515,27 +3524,30 @@
   /* O círculo: 3 em cima, 4 no meio, 3 embaixo — os lugares vêm do JS em % desta caixa. */
   .orb-ring{position:relative;flex:1;min-height:0}
   .orb-app{position:absolute;transform:translate(-50%,-50%);
-    width:168px;height:168px;border-radius:32px;padding:0;overflow:hidden;
+    width:180px;height:180px;border-radius:36px;padding:0;overflow:hidden;
     display:block;color:#fff;border:0;
-    box-shadow:0 22px 46px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.14);
+    /* Os apps se destacam no escuro: aro claro, brilho colorido em volta e sombra funda. */
+    box-shadow:0 26px 56px rgba(0,0,0,.72),0 0 0 2px rgba(255,255,255,.58),0 0 42px 4px rgba(125,175,255,.4);
     transition:transform .16s cubic-bezier(.2,.9,.2,1),box-shadow .16s}
-  .orb-app img{width:100%;height:100%;object-fit:cover;border-radius:32px;display:block}
-  .orb-app:hover{box-shadow:0 26px 56px rgba(0,0,0,.7),0 0 0 3px rgba(255,255,255,.6);
-    transform:translate(-50%,-50%) scale(1.09)}
+  .orb-app img{width:100%;height:100%;object-fit:cover;border-radius:36px;display:block}
+  .orb-app:hover{box-shadow:0 30px 64px rgba(0,0,0,.78),0 0 0 3px #fff,0 0 60px 8px rgba(150,195,255,.55);
+    transform:translate(-50%,-50%) scale(1.1)}
   .orb-app:active{transform:translate(-50%,-50%) scale(.96)}
-  .orb-glyph{display:grid;place-items:center;width:100%;height:100%;border-radius:32px;
-    font-size:68px;font-weight:800;color:rgba(255,255,255,.94);
-    text-shadow:0 3px 14px rgba(0,0,0,.5)}
+  .orb-glyph{display:grid;place-items:center;width:100%;height:100%;border-radius:36px;
+    font-size:76px;font-weight:800;color:#fff;
+    text-shadow:0 3px 16px rgba(0,0,0,.55)}
   /* Nome dentro do tile, num rodapé escuro: um rótulo pendurado embaixo do tile seria cortado pelo
      recorte da janela (e o atlas nativo só captura a caixa da janela). */
-  .orb-label{position:absolute;left:0;right:0;bottom:0;padding:14px 8px 7px;
-    font-size:14px;font-weight:700;color:#fff;text-align:center;
+  .orb-label{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 8px;
+    font-size:15px;font-weight:800;color:#fff;text-align:center;
+    text-shadow:0 2px 8px rgba(0,0,0,.9);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
     background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.62) 55%,rgba(0,0,0,.82) 100%)}
   .orb-badge{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
     background:#22c55e;color:#04240f;font-size:14px;font-weight:900;font-style:normal;
     display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,.55)}
-  .orb-app--android{box-shadow:0 22px 46px rgba(0,0,0,.62),0 0 0 2px rgba(34,197,94,.55)}
+  .orb-app--android{box-shadow:0 26px 56px rgba(0,0,0,.72),0 0 0 2px rgba(34,197,94,.85),
+    0 0 42px 4px rgba(34,197,94,.45)}
 
   /* O centro do anel: "TODOS" abre a biblioteca completa do NextVR. */
   .orb-hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -3551,10 +3563,10 @@
   .orb-hub-label{font-size:12px;font-weight:800;letter-spacing:.12em}
 
   @media(max-width:900px){
-    .orb-app{width:132px;height:132px;border-radius:26px}
-    .orb-app img,.orb-glyph{border-radius:26px}
-    .orb-glyph{font-size:52px}
-    .orb-hub{width:96px;height:96px}
+    .orb-app{width:142px;height:142px;border-radius:28px}
+    .orb-app img,.orb-glyph{border-radius:28px}
+    .orb-glyph{font-size:56px}
+    .orb-hub{width:100px;height:100px}
     .orb-label{font-size:12px;padding:10px 6px 5px}
   }
 </style>

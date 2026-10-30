@@ -41,7 +41,7 @@ test('the ring has no settings-style backdrop behind it and the world only dims'
   assert.doesNotMatch(orb, /background:\s*['"]#/);
   // O escurecimento é do AMBIENTE (véu próprio), nunca de uma janela/tela por trás do anel.
   assert.match(orb, /setSceneDim\(value \? ORB_DIM : 0\)/);
-  assert.match(orb, /export const ORB_DIM = 0\.55/);
+  assert.match(orb, /export const ORB_DIM = 0\.7/);
   // Fechar o anel por qualquer caminho desfaz o escurecimento.
   assert.match(orb, /on\('wins', \(\) => \{ if \(!orbOpen\(\)\) dim\(false\); \}\)/);
 
@@ -56,7 +56,40 @@ test('the ring has no settings-style backdrop behind it and the world only dims'
 
   const windows = await read('web/src/windows.js');
   assert.match(windows, /w\.id === 'orb-menu'/);
-  assert.match(windows, /w\.resizeScale = hasOpenAppWins \? 1\.12 : 1\.22/);
+  assert.match(windows, /w\.resizeScale = hasOpenAppWins \? 1\.44 : 1\.50/);
+});
+
+test('abrir o anel empurra as outras janelas para trás do véu', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  // O <html> ganha o selo enquanto o anel está aberto (é o que o CSS usa) e perde ao fechar.
+  assert.match(orb, /document\.documentElement\.dataset\.orbOpen = '1'/);
+  assert.match(orb, /else delete document\.documentElement\.dataset\.orbOpen/);
+
+  const html = await read('web/index.html');
+  // Com o anel aberto, as OUTRAS janelas escurecem e não recebem toque; o anel nunca é afetado.
+  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*opacity:\.22/);
+  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*pointer-events:none/);
+  // Os tiles se destacam no escuro: aro claro + halo colorido.
+  assert.match(html, /\.orb-app\{[^}]*box-shadow:0 26px 56px rgba\(0,0,0,\.72\),0 0 0 2px rgba\(255,255,255,\.58\),0 0 42px 4px/);
+
+  // O anel é onboarding e ficava com z-index 0 (atrás de tudo): agora sobe para a camada de cima.
+  const windows = await read('web/src/windows.js');
+  assert.match(windows, /export function raiseOrbLayer\(\)/);
+  assert.match(windows, /orb\.shell\.style\.zIndex = '90'/);
+  assert.match(windows, /export function updateWindowsDepthLayering\(activeWin = null\) \{\n  const orb = raiseOrbLayer\(\);/);
+  // Perto dos olhos: um dedo acima da linha dos olhos, na frente do resto, para o anel preencher a vista.
+  assert.match(windows, /w\.target\.set\(0, EYE \+ \.02, -0\.98\)/);
+
+  // Sem capa, o tile usa a paleta forte do anel (o cinza quase preto sumia no ambiente escurecido).
+  assert.match(orb, /export const ORB_PALETTE = Object\.freeze\(\[/);
+  assert.match(orb, /entry\.bg \|\| ORB_PALETTE\[index % ORB_PALETTE\.length\]/);
+
+  // A dock é HUD e ficava por cima da fileira de baixo do anel: ela sai de cena enquanto o anel
+  // está aberto e volta ao fechar — respeitando o estado de antes (jogo/gesto que já a escondia).
+  assert.match(orb, /function recedeDock\(on_\) \{/);
+  assert.match(orb, /if \(!dockHiddenByOrb && !dockHiddenNow\(\)\) \{/);
+  assert.match(orb, /if \(dockHiddenNow\(\)\) setDockHidden\(false\)/);
+  assert.match(orb, /try \{ recedeDock\(value\); \}/);
 });
 
 test('the ring window fits the native atlas, so no column is cropped in the APK', async () => {

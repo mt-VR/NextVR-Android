@@ -14,7 +14,7 @@
 // O anel mostra os apps DO NextVR e os apps DO ANDROID. Este módulo não conhece catálogo de
 // ninguém: o apps.js entrega as funções por `installOrbMenu`, e aqui só se desenha o anel.
 import { on, setSceneDim } from './core.js';
-import { open, close, wins, focus } from './windows.js';
+import { open, close, wins, focus, setDockHidden, dockHiddenNow } from './windows.js';
 
 /** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo, fechando o círculo (em % da caixa do anel). */
 export const ORB_LAYOUT = Object.freeze([
@@ -32,8 +32,26 @@ export const ORB_H = 660;
 export const ORB_ANDROID_SLOTS = 4;
 
 export const ORB_WIN = 'orb-menu';
-/** Quanto o ambiente escurece com o anel aberto: dá para ver o mundo, mas os apps saltam. */
-export const ORB_DIM = 0.55;
+/** Quanto o ambiente escurece com o anel aberto: dá para ver o mundo, mas os apps saltam. Pedido do
+ * usuário olhando a captura: "é pra ti escurecer o fundo e os apps aparecer se destacando" — o véu
+ * ficou mais fundo (.55 -> .70), sem nunca apagar o ambiente (o teto do setSceneDim é .82). */
+export const ORB_DIM = 0.7;
+
+/* As cores do anel. Os apps do NextVR que só têm glifo (sem capa) vinham com um cinza quase preto e
+ * sumiam dentro do ambiente escurecido; aqui cada lugar tem uma cor forte, na ordem do círculo. A
+ * cor de marca do app, quando existe, continua ganhando. */
+export const ORB_PALETTE = Object.freeze([
+  'linear-gradient(160deg,#8b5cf6 0%,#4c1d95 100%)',
+  'linear-gradient(160deg,#38bdf8 0%,#075985 100%)',
+  'linear-gradient(160deg,#34d399 0%,#065f46 100%)',
+  'linear-gradient(160deg,#fb923c 0%,#9a3412 100%)',
+  'linear-gradient(160deg,#f472b6 0%,#9d174d 100%)',
+  'linear-gradient(160deg,#2dd4bf 0%,#115e59 100%)',
+  'linear-gradient(160deg,#facc15 0%,#a16207 100%)',
+  'linear-gradient(160deg,#818cf8 0%,#3730a3 100%)',
+  'linear-gradient(160deg,#f87171 0%,#991b1b 100%)',
+  'linear-gradient(160deg,#22d3ee 0%,#155e75 100%)',
+]);
 
 let providers = {
   /** Apps do próprio NextVR: [{ id, name, img?, glyph?, bg? }] */
@@ -95,7 +113,7 @@ function tileHtml(entry, index) {
   return `<button type="button" class="orb-app${entry.android ? ' orb-app--android' : ''}"
       data-orb-app="${esc(entry.key)}"
       ${entry.android ? 'data-orb-android="1"' : ''}
-      style="left:${pos.x}%;top:${pos.y}%;background:${esc(entry.bg || 'linear-gradient(180deg,#3f3f46 0%,#18181b 100%)')}"
+      style="left:${pos.x}%;top:${pos.y}%;background:${esc(entry.bg || ORB_PALETTE[index % ORB_PALETTE.length])}"
       title="${esc(label)}${entry.android ? ' · Android' : ''}">
       ${inner}
       <span class="orb-label">${esc(label)}</span>
@@ -245,12 +263,40 @@ export function closeOrbMenu() {
 
 export const orbOpen = () => !!winObj();
 
+/* A dock sai de cena enquanto o anel está aberto. Ela é HUD (z-index acima das janelas) e ficava
+ * POR CIMA da fileira de baixo do anel; e, como no Vrbox, o que o usuário vê ao abrir o anel são só
+ * os apps sobre o ambiente escurecido. O estado anterior é respeitado: se a dock já estava escondida
+ * (jogo, gesto), o anel não a traz de volta ao fechar. */
+let dockHiddenByOrb = false;
+function recedeDock(on_) {
+  if (on_) {
+    if (!dockHiddenByOrb && !dockHiddenNow()) {
+      setDockHidden(true);
+      dockHiddenByOrb = true;
+    }
+    return;
+  }
+  if (dockHiddenByOrb) {
+    dockHiddenByOrb = false;
+    if (dockHiddenNow()) setDockHidden(false);
+  }
+}
+
 let dimmed = false;
 function dim(on_) {
   const value = !!on_;
+  // Marca no <html> que o anel está aberto: o CSS (index.html) usa isso para empurrar as outras
+  // janelas para trás. Sem isso o "Menu Rápido" (ou qualquer app aberto) ficava POR CIMA do anel —
+  // o anel é uma janela de onboarding e não disputava a camada de profundidade das janelas normais.
+  // Vem antes do atalho de "já está escuro": o selo não pode ficar velho se o estado divergir.
+  if (typeof document !== 'undefined') {
+    if (value) document.documentElement.dataset.orbOpen = '1';
+    else delete document.documentElement.dataset.orbOpen;
+  }
   if (dimmed === value) return;
   dimmed = value;
   setSceneDim(value ? ORB_DIM : 0);
+  try { recedeDock(value); } catch (error) { remember(error); }
 }
 
 /* A lista do aparelho pode chegar com o anel aberto. */
