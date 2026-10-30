@@ -33,13 +33,15 @@ class HandTracker @JvmOverloads constructor(
     private var generations = 0
     /** The graph of the search: two slots, lower bar. Always built (it is the graph that must be). */
     private val wide: HandLandmarker = build(SEARCH_CONFIDENCE, WIDE_HANDS)
-    /** The one-slot graph. Built the first time a hand is found; a session that only searches pays nothing. */
-    private var narrow: HandLandmarker? = null
+    /** The one-slot graph. Pre-warmed at construction so switching to 1-hand tracking never stalls. */
+    private var narrow: HandLandmarker? = build(TRACK_CONFIDENCE, NARROW_HANDS)
     private var lastTimestamp = -1L
     /** Pure slot/cadence policy, also covered by JVM tests without constructing MediaPipe. */
     private val slots = HandSlotPolicy(WIDE_HANDS, PROBE_MS, PROBE_FRAMES)
     /** Which graph processed the last frame, for the perf log. */
     private var lastFrameNarrow = false
+    /** When true (Single-Hand Mode), always runs the 1-slot fast graph (2.47x faster, zero 2-hand probe cost). */
+    @JvmField @Volatile var singleHandOnly = false
 
     /** Detect without taking ownership; the caller keeps and reuses [bitmap]. */
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
@@ -72,7 +74,7 @@ class HandTracker @JvmOverloads constructor(
             // as by camera time: on a slow device the camera clock runs far ahead of the tracker,
             // and a camera-time probe alone would fire on every frame and never reach the one-slot
             // graph (the split's whole reason to exist).
-            val searching = slots.useWide(stamp)
+            val searching = if (singleHandOnly) false else slots.useWide(stamp)
             val active = if (searching) wide else narrowGraph()
             // The upright pipeline feeds rotation 0 every frame: the plain overload is the same graph
             // with an identity transform, without building ImageProcessingOptions per inference.
@@ -136,10 +138,10 @@ class HandTracker @JvmOverloads constructor(
         /** The tracking graph's slots: the hand being tracked, and nothing else. */
         const val NARROW_HANDS = 1
         /** The graph used while a hand is tracked: MediaPipe's default-quality threshold. */
-        const val TRACK_CONFIDENCE = .45f
+        const val TRACK_CONFIDENCE = .50f
         /** The graph used while NOTHING is tracked: lower bar for a hard-to-see hand, still high
          * enough that noise is not promoted to a hand (the fork's crop rescue used .3 on a crop). */
-        const val SEARCH_CONFIDENCE = .25f
+        const val SEARCH_CONFIDENCE = .38f
         /**
          * Find a second hand while keeping one-hand frames on the fast graph: at most one two-slot
          * frame in this many processed frames.

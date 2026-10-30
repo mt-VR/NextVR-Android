@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { migrateComfort } from './comfort.js';
 import { AtlasRenderer, VIEW } from './atlas.js';
+import { SixDof, Walk, handBoxes, bindSixDofContext } from './sixdof.js';
+export { SixDof, Walk, handBoxes };
 export const native = !!window.NativeXR;
 export const viewport = native ? VIEW : { width: innerWidth, height: innerHeight };
 import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
@@ -15,15 +17,33 @@ const DEF = {
   winCurve: 1, winScale: .75, winDist: 2.2, winTilt: 1,
   // Curvatura "360" das janelas: ligada por padrão? (0/1) e a meia-abertura do arco em radianos.
   win360: 0, win360K: 1.15,
-  dockSize: 1, dockDist: 1, dockApps: 'browser,youtube,gallery,env,settings,menu',
+  dockSize: 1, dockDist: 1, dockColor: 'default', dockApps: 'browser,youtube,gallery,env,settings,menu',
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
+  wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
+  // A bolinha da dock abre o anel de 10 apps (1) ou a biblioteca de sempre (0), como era antes.
+  orbRing: 1,
+  // Giroscópio ligado (1) ou desligado (0): o botão GIROSCÓPIO da barra do anel, ao lado da hora e
+  // da bateria, liga e desliga a orientação de verdade — desligado, olhar é arrastar.
+  gyro: 1,
+  singleHandMode: 'both',
+  mrDim: 0,
+  sixdof: 1, lateLatch: 0,
+  gorillaInstalled: 0,
+  profileName: '', profileAvatar: '',
 };
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('nextvr.v1') || '{}') || {}; } catch {}
 let S = { ...DEF, ...saved };
 // O formato antigo não guardava o último panorama. Preserve escolhas explícitas, mas migre o
 // passthrough herdado como padrão e faça o atalho voltar ao mesmo fundo que estava selecionado.
+// Build 65 (NextVR de volta): os panoramas repetidos saíram da lista. Quem tinha um deles salvo cai
+// no panorama equivalente que ficou — `lagoon`, `palm`, `tropical` e `lakeside` eram a MESMA cena do
+// `sunset`, e `virtual` era a mesma do `dusk`. Sem isso, o app salvo com um id morto abriria no
+// passthrough sem explicação.
+const LEGACY_ENV = { lagoon: 'sunset', palm: 'sunset', tropical: 'sunset', lakeside: 'sunset', virtual: 'dusk' };
+if (S.env && LEGACY_ENV[S.env]) S.env = LEGACY_ENV[S.env];
+if (S.panorama && LEGACY_ENV[S.panorama]) S.panorama = LEGACY_ENV[S.panorama];
 if (!S.sunsetDefaultVersion) {
   if (!S.envChosen && S.env === 'passthrough' && (!saved.panorama || saved.panorama === 'lagoon'))
     S.env = 'sunset';
@@ -59,10 +79,14 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · lagoa ao pôr do sol', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
+    giantAppsLocked:'Feche os apps gigantes para abrir outro app',
+    envPass:'Camera passthrough', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
+    envNeon:'Sala gamer neon 360°', envStreet:'Rua à noite 360°', envAether:'Cidade flutuante 360°', envStudio:'Estúdio VR 360°',
+    envStadium:'Estádio de futebol 360°', envTron:'Cidade cyberpunk 360°', envCyber:'Avenida cyberpunk 360°',
+    envSpa:'Casa de vidro na floresta 360°', envFactory:'Fábrica de carros 360°', envSkyline:'Cityline ao entardecer 360°',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
-    envPalm:'Panorama 360° · Palmeira', envPalmeira:'Panorama 360° · Palmeira', envVirtual:'Ambiente virtual',
-    envTropical:'Panorama 360° · vale tropical', envLakeside:'Panorama 360° · lago ao pôr do sol',
+    envVirtual:'Ambiente virtual',
+    envDark:'Panorama 360° · Dark',
     win360:'Curvatura 360°', win360k:'Meia-abertura do arco (0.2 leve · 1.1 bem curvada)',
     win360All:'Abrir novas janelas já curvadas', win360Btn:'Curvar esta janela em 360°',
     langTitle:'Idioma', langSoon:'Mais idiomas chegam nas próximas versões.',
@@ -147,10 +171,14 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
-    envPass:'Camera passthrough', envLagoon:'360° panorama · sunset lagoon', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
+    giantAppsLocked:'Close the giant apps to open another app',
+    envPass:'Camera passthrough', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
+    envNeon:'Neon gaming room 360°', envStreet:'Night street 360°', envAether:'Floating city 360°', envStudio:'VR studio 360°',
+    envStadium:'Football stadium 360°', envTron:'Cyberpunk city 360°', envCyber:'Cyberpunk avenue 360°',
+    envSpa:'Glass house in the forest 360°', envFactory:'Car factory 360°', envSkyline:'Skyline at dusk 360°',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
-    envPalm:'360° panorama · palm tree', envPalmeira:'360° panorama · palm tree', envVirtual:'Virtual environment',
-    envTropical:'360° panorama · tropical valley', envLakeside:'360° panorama · sunset lake',
+    envVirtual:'Virtual environment',
+    envDark:'360° panorama · Dark',
     win360:'360° curvature', win360k:'Arc half-angle (0.2 subtle · 1.1 very curved)',
     win360All:'Open new windows already curved', win360Btn:'Curve this window in 360°',
     langTitle:'Language', langSoon:'More languages are coming in the next versions.',
@@ -235,10 +263,13 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
-    envPass:'Camera passthrough', envLagoon:'Panorama 360° · laguna al atardecer', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
+    giantAppsLocked:'Cierra las apps gigantes para abrir otra app',
+    envPass:'Camera passthrough', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
+    envNeon:'Sala gamer neón 360°', envStreet:'Calle nocturna 360°', envAether:'Ciudad flotante 360°', envStudio:'Estudio VR 360°',
+    envStadium:'Estadio de fútbol 360°', envTron:'Ciudad cyberpunk 360°', envCyber:'Avenida cyberpunk 360°',
+    envSpa:'Casa de cristal en el bosque 360°', envFactory:'Fábrica de coches 360°', envSkyline:'Horizonte al atardecer 360°',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
-    envPalm:'Panorama 360° · palmera', envPalmeira:'Panorama 360° · palmera', envVirtual:'Entorno virtual',
-    envTropical:'Panorama 360° · valle tropical', envLakeside:'Panorama 360° · lago al atardecer',
+    envVirtual:'Entorno virtual',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
     win360All:'Abrir ventanas nuevas ya curvadas', win360Btn:'Curvar esta ventana en 360°',
     langTitle:'Idioma', langSoon:'Más idiomas llegan en las próximas versiones.',
@@ -309,23 +340,166 @@ const STR = {
     'kind.cone':'Cono', 'kind.plate':'Placa',
   },
 };
+Object.assign(STR.pt, {
+  dockSnapSlot:'Espaço pré-definido na Dock',
+  dockSnapDesc:'Mostrar janela preta transparente ao mover janelas na Dock normal',
+  dockSnapHint:'Solte aqui para encaixar no espaço pré-definido',
+  fingerTouch:'Toque com indicador (sem pinça)',
+  fingerTouchDesc:'Abrir apps na Dock ou Spatial levando o indicador à frente',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Média (890p)', qualityLow:'Baixa (390p)', qualityAuto:'Automática',
+});
+Object.assign(STR.en, {
+  dockSnapSlot:'Pre-defined Dock Slot',
+  dockSnapDesc:'Show semi-transparent black slot when moving windows in normal Dock',
+  dockSnapHint:'Drop here to snap into pre-defined slot',
+  fingerTouch:'Index Finger Touch (No Pinch)',
+  fingerTouchDesc:'Open apps in Dock or Spatial by pushing your index finger forward',
+  qualityHigh:'High (1080p)', qualityMedium:'Medium (890p)', qualityLow:'Low (390p)', qualityAuto:'Auto',
+});
+Object.assign(STR.es, {
+  dockSnapSlot:'Espacio predefinido en Dock',
+  dockSnapDesc:'Mostrar ventana negra semitransparente al mover ventanas en el Dock normal',
+  dockSnapHint:'Suelta aquí para encajar en el espacio predefinido',
+  fingerTouch:'Toque con índice (sin pinza)',
+  fingerTouchDesc:'Abrir apps en el Dock o Spatial llevando el dedo índice hacia adelante',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Media (890p)', qualityLow:'Baja (390p)', qualityAuto:'Automática',
+});
+STR.ja = {
+  ...STR.en,
+  desktop:'ワークスペース', browser:'ブラウザ', youtube:'YouTube', gallery:'ギャラリー',
+  settings:'設定', menu:'メニュー', store:'ストア', env:'環境', keyboard:'キーボード', center:'正面にリセット',
+  search:'ウェブを検索', searchYt:'動画を検索', open:'開く', close:'閉じる',
+  general:'一般', hands:'ハンドトラッキング', windows:'ウィンドウ', dock:'ドック', perf:'パフォーマンス',
+  language:'言語', on:'オン', off:'オフ', sens:'感度', scale:'スケール',
+  dist:'距離', curve:'カーブ', size:'サイズ', quality:'画質', apps:'アプリ',
+  recents:'最近', battery:'バッテリー', net:'ネットワーク', time:'時刻',
+  libAll:'すべて', libFilter:'フィルター', libGames:'ゲーム',
+  centered:'視点をリセットしました', langChanged:'言語を変更しました',
+  langTitle:'言語', langContinue:'次へ', langPick:'言語を選択',
+  notif:'通知', noNotif:'新しい通知はありません', profile:'プロフィール',
+  dockSnapSlot:'ドック定義済みスロット', dockSnapDesc:'ウィンドウ移動時に半透明の黒枠を表示',
+  dockSnapHint:'ここにドロップして配置',
+  qualityHigh:'高 (1080p)', qualityMedium:'中 (890p)', qualityLow:'低 (390p)', qualityAuto:'自動',
+};
+STR.fr = {
+  ...STR.en,
+  desktop:'Espace de travail', browser:'Navigateur', youtube:'YouTube', gallery:'Galerie',
+  settings:'Paramètres', menu:'Menu', store:'Boutique', env:'Environnements', keyboard:'Clavier', center:'Recentrer',
+  search:'Rechercher sur le web', searchYt:'Rechercher des vidéos', open:'Ouvrir', close:'Fermer',
+  general:'Général', hands:'Suivi des mains', windows:'Fenêtres', dock:'Dock', perf:'Performance',
+  language:'Langue', on:'Activé', off:'Désactivé', sens:'Sensibilité', scale:'Échelle',
+  dist:'Distance', curve:'Courbure', size:'Taille', quality:'Qualité', apps:'Applications',
+  recents:'Récents', battery:'Batterie', net:'Réseau', time:'Heure',
+  libAll:'Tout', libFilter:'Filtre', libGames:'Jeux',
+  centered:'Espace recentré', langChanged:'Langue modifiée',
+  langTitle:'Langue', langContinue:'Continuer', langPick:'Choisissez votre langue',
+  notif:'Notifications', noNotif:'Aucune notification', profile:'Profil',
+  dockSnapSlot:'Emplacement prédéfini du Dock', dockSnapDesc:'Afficher un cadre noir semi-transparent lors du déplacement',
+  dockSnapHint:'Relâchez ici pour placer la fenêtre',
+  qualityHigh:'Haute (1080p)', qualityMedium:'Moyenne (890p)', qualityLow:'Basse (390p)', qualityAuto:'Auto',
+};
+STR.de = {
+  ...STR.en,
+  desktop:'Arbeitsbereich', browser:'Browser', youtube:'YouTube', gallery:'Galerie',
+  settings:'Einstellungen', menu:'Menü', store:'Store', env:'Umgebungen', keyboard:'Tastatur', center:'Zentrieren',
+  search:'Im Web suchen', searchYt:'Videos suchen', open:'Öffnen', close:'Schließen',
+  general:'Allgemein', hands:'Hand-Tracking', windows:'Fenster', dock:'Dock', perf:'Leistung',
+  language:'Sprache', on:'Ein', off:'Aus', sens:'Empfindlichkeit', scale:'Skalierung',
+  dist:'Abstand', curve:'Krümmung', size:'Größe', quality:'Qualität', apps:'Apps',
+  recents:'Zuletzt', battery:'Akku', net:'Netzwerk', time:'Zeit',
+  libAll:'Alle', libFilter:'Filter', libGames:'Spiele',
+  centered:'Ansicht zentriert', langChanged:'Sprache geändert',
+  langTitle:'Sprache', langContinue:'Weiter', langPick:'Sprache auswählen',
+  notif:'Mitteilungen', noNotif:'Keine neuen Mitteilungen', profile:'Profil',
+  dockSnapSlot:'Vordefinierter Dock-Platz', dockSnapDesc:'Halbtransparentes schwarzes Zielfenster beim Bewegen anzeigen',
+  dockSnapHint:'Hier ablegen zum Einrasten',
+  qualityHigh:'Hoch (1080p)', qualityMedium:'Mittel (890p)', qualityLow:'Niedrig (390p)', qualityAuto:'Automatisch',
+};
+STR.ko = {
+  ...STR.en,
+  desktop:'작업 공간', browser:'브라우저', youtube:'YouTube', gallery:'갤러리',
+  settings:'설정', menu:'메뉴', store:'스토어', env:'환경', keyboard:'키보드', center:'중앙 정렬',
+  search:'웹 검색', searchYt:'동영상 검색', open:'열기', close:'닫기',
+  general:'일반', hands:'핸드 트래킹', windows:'창', dock:'독', perf:'성능',
+  language:'언어', on:'켜짐', off:'꺼짐', sens:'감도', scale:'크기 비율',
+  dist:'거리', curve:'곡률', size:'크기', quality:'화질', apps:'앱',
+  recents:'최근 항목', battery:'배터리', net:'네트워크', time:'시간',
+  libAll:'전체', libFilter:'필터', libGames:'게임',
+  centered:'화면이 중앙에 맞춰졌습니다', langChanged:'언어가 변경되었습니다',
+  langTitle:'언어', langContinue:'계속', langPick:'언어 선택',
+  notif:'알림', noNotif:'새 알림 없음', profile:'프로필',
+  dockSnapSlot:'독 사전 정의 슬롯', dockSnapDesc:'창 이동 시 반투명 검은 슬롯 표시',
+  dockSnapHint:'여기에 놓아 슬롯에 배치',
+  qualityHigh:'높음 (1080p)', qualityMedium:'중간 (890p)', qualityLow:'낮음 (390p)', qualityAuto:'자동',
+};
+STR.it = {
+  ...STR.en,
+  desktop:'Spazio di lavoro', browser:'Browser', youtube:'YouTube', gallery:'Galleria',
+  settings:'Impostazioni', menu:'Menu', store:'Store', env:'Ambienti', keyboard:'Tastiera', center:'Ricentra',
+  search:'Cerca sul web', searchYt:'Cerca video', open:'Apri', close:'Chiudi',
+  general:'Generale', hands:'Tracciamento mani', windows:'Finestre', dock:'Dock', perf:'Prestazioni',
+  language:'Lingua', on:'Attivo', off:'Disattivo', sens:'Sensibilità', scale:'Scala',
+  dist:'Distanza', curve:'Curvatura', size:'Dimensione', quality:'Qualità', apps:'App',
+  recents:'Recenti', battery:'Batteria', net:'Rete', time:'Ora',
+  libAll:'Tutti', libFilter:'Filtro', libGames:'Giochi',
+  centered:'Ambiente centrato', langChanged:'Lingua modificata',
+  langTitle:'Lingua', langContinue:'Continua', langPick:'Scegli la lingua',
+  notif:'Notifiche', noNotif:'Nessuna notifica', profile:'Profilo',
+  dockSnapSlot:'Slot predefinito Dock', dockSnapDesc:'Mostra finestra nera semitrasparente quando sposti le finestre',
+  dockSnapHint:'Rilascia qui per agganciare',
+  qualityHigh:'Alta (1080p)', qualityMedium:'Media (890p)', qualityLow:'Bassa (390p)', qualityAuto:'Automatica',
+};
+STR.nl = {
+  ...STR.en,
+  desktop:'Werkruimte', browser:'Browser', youtube:'YouTube', gallery:'Galerij',
+  settings:'Instellingen', menu:'Menu', store:'Winkel', env:'Omgevingen', keyboard:'Toetsenbord', center:'Centreren',
+  search:'Zoeken op het web', searchYt:'Video’s zoeken', open:'Openen', close:'Sluiten',
+  general:'Algemeen', hands:'Handtracking', windows:'Vensters', dock:'Dock', perf:'Prestaties',
+  language:'Taal', on:'Aan', off:'Uit', sens:'Gevoeligheid', scale:'Schaal',
+  dist:'Afstand', curve:'Kromming', size:'Grootte', quality:'Kwaliteit', apps:'Apps',
+  recents:'Recent', battery:'Batterij', net:'Netwerk', time:'Tijd',
+  libAll:'Alles', libFilter:'Filter', libGames:'Games',
+  centered:'Omgeving gecentreerd', langChanged:'Taal gewijzigd',
+  langTitle:'Taal', langContinue:'Doorgaan', langPick:'Kies je taal',
+  notif:'Meldingen', noNotif:'Geen nieuwe meldingen', profile:'Profiel',
+  dockSnapSlot:'Vooraf ingesteld Dock-vak', dockSnapDesc:'Toon halftransparant zwart vak tijdens verplaatsen van vensters',
+  dockSnapHint:'Laat hier los om te plaatsen',
+  qualityHigh:'Hoog (1080p)', qualityMedium:'Gemiddeld (890p)', qualityLow:'Laag (390p)', qualityAuto:'Automatisch',
+};
+STR.ru = {
+  ...STR.en,
+  desktop:'Рабочее пространство', browser:'Браузер', youtube:'YouTube', gallery:'Галерея',
+  settings:'Настройки', menu:'Меню', store:'Магазин', env:'Окружение', keyboard:'Клавиатура', center:'Центрировать',
+  search:'Поиск в сети', searchYt:'Поиск видео', open:'Открыть', close:'Закрыть',
+  general:'Общие', hands:'Отслеживание рук', windows:'Окна', dock:'Док', perf:'Производительность',
+  language:'Язык', on:'Вкл.', off:'Выкл.', sens:'Чувствительность', scale:'Масштаб',
+  dist:'Расстояние', curve:'Изгиб', size:'Размер', quality:'Качество', apps:'Приложения',
+  recents:'Недавние', battery:'Батарея', net:'Сеть', time:'Время',
+  libAll:'Все', libFilter:'Фильтр', libGames:'Игры',
+  centered:'Пространство центрировано', langChanged:'Язык изменён',
+  langTitle:'Язык', langContinue:'Продолжить', langPick:'Выберите язык',
+  notif:'Уведомления', noNotif:'Нет новых уведомлений', profile:'Профиль',
+  dockSnapSlot:'Предустановленный слот дока', dockSnapDesc:'Показывать полупрозрачное чёрное окно при перемещении окон',
+  dockSnapHint:'Отпустите здесь для размещения',
+  fingerTouch:'Касание указательным пальцем (без щипка)',
+  fingerTouchDesc:'Наведение выбирает; движение руки вперёд открывает приложение (без луча и кружка)',
+  qualityHigh:'Высокое (1080p)', qualityMedium:'Среднее (890p)', qualityLow:'Низкое (390p)', qualityAuto:'Авто',
+};
 /**
  * Idiomas do seletor, na ordem da referência (a lista do Quest), com o português na frente porque
- * é o idioma principal deste app. `table` é a tradução que a linha usa: há duas linhas de inglês e
- * duas de espanhol (US/UK e Espanha/Latinoamérica) que compartilham a mesma tabela. As linhas sem
- * `table` aparecem na lista (identidade visual da referência) mas ainda não têm tradução.
+ * é o idioma principal deste app. Todos os 12 idiomas possuem tabela de tradução ativa.
  */
 export const LANG_ROWS = Object.freeze([
   { id: 'en', label: 'English (US)', table: 'en' },
-  { id: 'ja', label: '日本語' },
-  { id: 'fr', label: 'Français' },
-  { id: 'de', label: 'Deutsch' },
-  { id: 'ko', label: '한국어' },
+  { id: 'ja', label: '日本語', table: 'ja' },
+  { id: 'ru', label: 'Русский', table: 'ru' },
+  { id: 'de', label: 'Deutsch', table: 'de' },
+  { id: 'ko', label: '한국어', table: 'ko' },
   { id: 'es-ES', label: 'Español (España)', table: 'es' },
-  { id: 'it', label: 'Italiano' },
+  { id: 'it', label: 'Italiano', table: 'it' },
   { id: 'en-GB', label: 'English (UK)', table: 'en' },
-  { id: 'nl', label: 'Nederlands' },
-  { id: 'ru', label: 'Русский' },
+  { id: 'nl', label: 'Nederlands', table: 'nl' },
+  { id: 'pt-PT', label: 'Português (Portugal)', table: 'pt' },
   { id: 'es', label: 'Español (Latinoamérica)', table: 'es' },
   { id: 'pt', label: 'Português (Brasil)', table: 'pt' },
 ]);
@@ -338,8 +512,8 @@ export const LANG_ROWS = Object.freeze([
 const LANG_FALLBACK = 'pt';
 export const langRow = id => LANG_ROWS.find(r => r.id === id) || LANG_ROWS.find(r => r.id === LANG_FALLBACK);
 export const langLabel = () => langRow(S.lang).label;
-const langTable = () => langRow(S.lang).table || 'pt';
-export const t = k => (STR[langTable()] || STR.pt)[k] || k;
+export const langTable = () => langRow(S.lang).table || 'pt';
+export const t = k => (STR[langTable()] || STR.pt)[k] || STR.pt[k] || k;
 export const setLang = l => {
   if (!LANG_ROWS.some(r => r.id === l && r.table)) return false;
   S.lang = l; save(); emit('lang'); return true;
@@ -373,6 +547,7 @@ scene.add(contentRoot);
 
 export const EYE = 1.55;              // altura dos olhos, metros
 camera.position.set(0, EYE, 0);
+bindSixDofContext({ settings: S, camera, contentRoot });
 
 export const renderer = native ? { setClearColor(){}, setPixelRatio(){}, setSize(){}, render(){} }
   : new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -386,14 +561,31 @@ if (native) {
   for (const id of ['overlay','hud','toast','boot']) hud.append(document.getElementById(id));
 }
 
+export const QUALITY_PRESETS = Object.freeze({
+  high:   { id: 'high',   height: 1080, label: '1080p', dpr: 2.25 },
+  medium: { id: 'medium', height: 890,  label: '890p',  dpr: 1.85 },
+  low:    { id: 'low',    height: 390,  label: '390p',  dpr: 1.35 },
+});
+let autoQualityTier = 'high';
+export const activeQualityTier = () => S.quality === 'auto' ? autoQualityTier : (QUALITY_PRESETS[S.quality] ? S.quality : 'high');
+export const activeQualityPreset = () => QUALITY_PRESETS[activeQualityTier()] || QUALITY_PRESETS.high;
+
 function dpr() {
-  const q = S.quality;
-  if (q === 'low') return 1;
-  if (q === 'high') return Math.min(devicePixelRatio, 2);
-  return Math.min(devicePixelRatio, 1.6);     // auto
+  const tier = activeQualityTier();
+  if (tier === 'low') return Math.min(devicePixelRatio, 1.35);
+  if (tier === 'high') return Math.min(devicePixelRatio, 2.25);
+  return Math.min(devicePixelRatio, 1.85);     // medium (890p+)
+}
+function applyQualityState() {
+  const tier = activeQualityTier();
+  const preset = activeQualityPreset();
+  document.documentElement.dataset.quality = S.quality;
+  document.documentElement.dataset.qualityTier = tier;
+  document.documentElement.dataset.qualityRes = preset.label;
+  window.NativeXR?.setQuality?.(tier);
 }
 function resize() {
-  document.documentElement.dataset.quality = S.quality;
+  applyQualityState();
   if (!native) { viewport.width = innerWidth; viewport.height = innerHeight; }
   const w = viewport.width, h = viewport.height;
   camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -412,19 +604,29 @@ on('quality', resize);
  * ambientes, o GL nativo desenha uma esfera enquanto a câmera rastreia as mãos.
  * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
-export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'cinema', 'lagoon', 'virtual', 'palm', 'night', 'space', 'tropical', 'lakeside']);
+export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'night', 'cinema', 'space', 'dark',
+  'neon', 'street', 'aether', 'studio', 'stadium', 'tron', 'cyber', 'spa', 'factory', 'skyline']);
 export const envList = () => [
-  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'passthrough', name: t('envPass'), thumb: null },
+  { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
   { id: 'dusk', name: t('envDusk'), thumb: './env/dusk.jpg' },
-  { id: 'palm', name: t('envPalm'), thumb: './env/palm.jpg' },
-  { id: 'lagoon', name: t('envLagoon'), thumb: './env/lagoon.jpg' },
-  { id: 'virtual', name: t('envVirtual'), thumb: './env/virtual.jpg' },
   { id: 'night', name: t('envNight'), thumb: './env/night.jpg' },
+  { id: 'neon', name: t('envNeon'), thumb: './env/neon.jpg' },
+  { id: 'street', name: t('envStreet'), thumb: './env/street.jpg' },
+  { id: 'aether', name: t('envAether'), thumb: './env/aether.jpg' },
+  { id: 'studio', name: t('envStudio'), thumb: './env/studio.jpg' },
+  // Os seis panoramas novos chegaram para valer: estádio de futebol à noite, dois letreiros
+  // cyberpunk, a casa de vidro na floresta com banheira, a fábrica de carros e a cityline ao
+  // entardecer. Todos em 3072x1536 no APK e com miniatura própria na lista.
+  { id: 'stadium', name: t('envStadium'), thumb: './env/stadium.jpg' },
+  { id: 'tron', name: t('envTron'), thumb: './env/tron.jpg' },
+  { id: 'cyber', name: t('envCyber'), thumb: './env/cyber.jpg' },
+  { id: 'spa', name: t('envSpa'), thumb: './env/spa.jpg' },
+  { id: 'factory', name: t('envFactory'), thumb: './env/factory.jpg' },
+  { id: 'skyline', name: t('envSkyline'), thumb: './env/skyline.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
   { id: 'cinema', name: t('envCinema'), thumb: './env/cinema.jpg' },
-  { id: 'tropical', name: t('envTropical'), thumb: './env/tropical.jpg' },
-  { id: 'lakeside', name: t('envLakeside'), thumb: './env/lakeside.jpg' },
+  { id: 'dark', name: t('envDark'), thumb: './env/dark.jpg' },
 ];
 export function setEnvironment(id) {
   S.env = ENV_IDS.includes(id) ? id : 'passthrough';
@@ -432,12 +634,75 @@ export function setEnvironment(id) {
   // Lembra o último panorama escolhido: é ele que volta quando o passthrough é desligado.
   if (S.env !== 'passthrough') S.panorama = S.env;
   save(); emit('env', S.env);
+  if (typeof window !== 'undefined') window.nextvrShowCircleLoader?.('env', S.env);
   // O fundo é renderizado no GL nativo; o WebView só informa qual ambiente usar.
   window.NativeXR?.env?.(S.env);
 }
 
 /** Liga/desliga o passthrough: desligado mostra o último panorama escolhido (padrão: pôr do sol). */
 export const setPassthrough = enabled => setEnvironment(enabled ? 'passthrough' : S.panorama);
+
+/** Liga/desliga o escurecimento do ambiente MR (câmera traseira escura em volta dos apps). */
+export function setMrDim(enabled) {
+  S.mrDim = enabled ? 1 : 0;
+  save();
+  if (typeof document !== 'undefined') {
+    if (S.mrDim) document.documentElement.dataset.mrDim = '1';
+    else delete document.documentElement.dataset.mrDim;
+  }
+  window.NativeXR?.setMrDim?.(!!S.mrDim);
+  emit('mr-dim', S.mrDim);
+}
+if (typeof document !== 'undefined' && S.mrDim) {
+  document.documentElement.dataset.mrDim = '1';
+  window.NativeXR?.setMrDim?.(true);
+}
+
+/* ============ escurecer o AMBIENTE sem escurecer os apps ============ */
+/*
+ * O anel de 10 apps precisa que o mundo escureça mas continue visível ("o ambiente escurece mas
+ * ainda dá pra vê") e que os apps fiquem em cima, claros. Isso NÃO é o `mrDim` (que além de ser
+ * uma preferência salva da câmera traseira, escurece o app inteiro) nem uma janela de fundo.
+ *
+ * No NAVEGADOR o véu é um div na camada do ambiente: fica ACIMA do GL (#gl, z-index 1) e ABAIXO das
+ * janelas (#css3d, z-index 2), então o mundo escurece e os apps continuam claros.
+ *
+ * NO APARELHO o véu do DOM é PROIBIDO: o lado nativo captura o retângulo inteiro da WebView como a
+ * camada da HUD e desenha essa textura POR CIMA de tudo. Um div escuro aqui virava uma caixa preta
+ * enorme sobre o mundo, as janelas e as mãos (era o "negócio preto" que o usuário via). No headset
+ * quem escurece é o GL nativo (`NativeXR.setSceneDim`), que multiplica só a câmera e o panorama.
+ */
+let sceneDimEl = null;
+let sceneDimLevel = 0;
+
+/** Escurece o ambiente em `amount` (0 = normal, 1 = quase preto). Nunca chega a 1 de propósito. */
+export function setSceneDim(amount) {
+  const a = Math.max(0, Math.min(.82, Number(amount) || 0));
+  sceneDimLevel = a;
+  if (typeof document !== 'undefined') {
+    if (native) {
+      // Só o nativo: nenhum pixel escuro entra na textura da HUD. O selo do <html> fica (o CSS usa
+      // para as outras regras do anel), o div não.
+      if (sceneDimEl) { sceneDimEl.remove(); sceneDimEl = null; }
+    } else {
+      if (!sceneDimEl) {
+        sceneDimEl = document.createElement('div');
+        sceneDimEl.id = 'scene-dim';
+        sceneDimEl.setAttribute('aria-hidden', 'true');
+        // Nasce no fim do body: com o mesmo z-index do #gl, a ordem do DOM põe o véu por cima dele
+        // e ainda embaixo do #css3d. O CSS real mora no index.html.
+        document.body.appendChild(sceneDimEl);
+      }
+      sceneDimEl.style.opacity = String(a);
+    }
+    if (a > 0) document.documentElement.dataset.sceneDim = '1';
+    else delete document.documentElement.dataset.sceneDim;
+  }
+  // No headset quem escurece é o GL nativo (câmera e panorama multiplicados); no navegador, o véu.
+  window.NativeXR?.setSceneDim?.(a);
+  emit('scene-dim', a);
+}
+export const sceneDimLevelNow = () => sceneDimLevel;
 
 /* ============================ giroscópio ============================ */
 /*
@@ -508,9 +773,11 @@ addEventListener('pointercancel', () => drag = null);
  * Não fecha app, não reinicia nada, não mexe no sensor.
  */
 export function recenter() {
+  SixDof.reset();
   const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
   contentRoot.rotation.y = e.y;
   contentRoot.position.set(0, 0, 0);
+  camera.position.set(0, EYE, 0);
   emit('recenter');
   toast(t('centered'));
 }
@@ -539,7 +806,7 @@ function loop(now) {
 
   if (native) {
     // The Cardboard pose is already filtered and predicted; do not smooth or replace it.
-  } else if (gyroLive()) {
+  } else if (gyroLive() && S.gyro !== 0) {
     // frame-rate independent: suaviza sem o atraso exagerado de um fator fixo por frame
     camera.quaternion.slerp(gyro.q, 1 - Math.exp(-dt * 12));
     if (dragYaw) { camera.rotateY(dragYaw); dragYaw = 0; }
@@ -547,7 +814,13 @@ function loop(now) {
     camera.quaternion.setFromEuler(new THREE.Euler(dragPitch, camera.rotation.y + dragYaw, 0, 'YXZ'));
     dragYaw = 0;
   }
-  camera.position.set(0, EYE, 0);
+  SixDof.update(now, dt);
+  camera.position.set(SixDof.out.x, EYE + SixDof.out.y, SixDof.out.z);
+  if (window.__gorillaStereoOverlay) {
+    css3d.render(scene, camera);
+    requestAnimationFrame(loop);
+    return;
+  }
 
   for (const f of frameSubs) f(dt, now);
   renderer.render(scene, camera);
@@ -555,26 +828,49 @@ function loop(now) {
 
   fpsAcc += dt; fpsN++;
   if (fpsAcc >= 1) {
+    const measuredFps = Math.round(fpsN / fpsAcc);
+    if (S.quality === 'auto') {
+      const nextTier = measuredFps >= 28 ? 'high' : 'medium';
+      if (nextTier !== autoQualityTier) {
+        autoQualityTier = nextTier;
+        applyQualityState();
+        renderer.setPixelRatio(dpr());
+        emit('quality-tier', autoQualityTier);
+      }
+    }
     const el = document.getElementById('fps');
     el.textContent = S.showFps
-      ? Math.round(fpsN / fpsAcc) + ' fps' + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
+      ? measuredFps + ' fps · ' + activeQualityPreset().label
+        + (native && S.handsOn ? ' · tracking ' + handFps + ' fps' : '')
         + (native && S.handsOn ? diagText() : '')
       : '';
     fpsAcc = 0; fpsN = 0;
   }
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
-
-setEnvironment(S.env);
+const isFullscreenOverlay = typeof location !== 'undefined' &&
+  (new URLSearchParams(location.search).get('fullscreen') === '1' || location.hash.includes('fullscreen=1'));
+const isNativeShellSkip = typeof location !== 'undefined' && location.hash.includes('onboarding=skip');
+if (!isFullscreenOverlay) {
+  requestAnimationFrame(loop);
+  if (isNativeShellSkip && !S.entryEnvChosen) {
+    setPassthrough(true);
+  } else {
+    setEnvironment(S.env);
+  }
+}
 
 if (native) {
   const poseMatrix = new THREE.Matrix4();
   let firstPose = true;
   window.nextvrPose = values => {
+    // GIROSCÓPIO desligado no anel: a cabeça não gira mais o mundo (a pose do Cardboard é ignorada
+    // e a câmera fica onde está), que é o mesmo efeito de desligar o sensor no modo navegador.
+    // A centralização continua valendo quando o usuário liga de volta.
+    if (S.gyro === 0) return;
     poseMatrix.fromArray(values).invert();
     camera.quaternion.setFromRotationMatrix(poseMatrix);
-    camera.position.set(0, EYE, 0); camera.updateMatrixWorld(true);
+    camera.position.set(SixDof.out.x, EYE + SixDof.out.y, SixDof.out.z); camera.updateMatrixWorld(true);
     if (firstPose) { contentRoot.rotation.y = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; firstPose = false; }
   };
   window.nextvrMessage = toast;

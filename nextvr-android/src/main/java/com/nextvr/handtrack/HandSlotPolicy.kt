@@ -45,6 +45,21 @@ internal class HandSlotPolicy(
      */
     private val reacquireFrames = 2
 
+    /**
+     * Two-slot frames still owed while BOTH hands are in use.
+     *
+     * With two hands up, the wide graph regularly misses the second hand for a single frame (a
+     * hand at the edge of the image, one hand in front of the other, a fast hand in motion). The
+     * old rule sent that single frame straight to the one-slot graph, which by construction can
+     * never report the second hand: it stayed invisible until the next probe - four frames later,
+     * or a whole second on a slow device - and then the same flicker repeated. The two-hand
+     * experience was a hand blinking in and out, which is exactly what "as duas mãos não tem como"
+     * describes. A couple of wide frames with one hand are now allowed before giving up on the
+     * second hand, so a single miss is bridged by the graph that can actually see it.
+     */
+    private val bothHandsHold = 2
+    private var holdFrames = 0
+
     private var trackingSingleHand = false
     /** Processed frames since the last two-slot frame (this frame included). */
     private var framesSinceSearch = 0
@@ -86,7 +101,20 @@ internal class HandSlotPolicy(
     /** Update the next-frame policy with the result from the graph actually used. */
     fun onResult(usedWide: Boolean, detectedHands: Int) {
         require(detectedHands >= 0) { "detectedHands must not be negative" }
-        trackingSingleHand = if (usedWide) detectedHands in 1 until searchSlots else detectedHands > 0
+        if (usedWide) {
+            // Both hands seen: the two-slot graph is the one that can hold them, so a later frame
+            // that reports only one hand is bridged instead of dropping to the one-slot graph.
+            if (detectedHands >= searchSlots) holdFrames = bothHandsHold
+            else if (holdFrames > 0) holdFrames--
+        } else if (detectedHands == 0) {
+            // Nothing at all on a one-slot frame: no second hand to protect.
+            holdFrames = 0
+        }
+        trackingSingleHand = when {
+            holdFrames > 0 -> false
+            usedWide -> detectedHands in 1 until searchSlots
+            else -> detectedHands > 0
+        }
         if (usedWide) {
             // A two-slot frame that saw no hand at all means the hand is really gone: the next one
             // that appears is a fresh chance for the one-slot graph.

@@ -29,6 +29,8 @@ import java.util.Map;
 final class WebSurface {
     static final String ORIGIN="https://appassets.androidplatform.net";
     static final String HOME=ORIGIN+"/ui/index.html";
+    static final String SHELL_HOME=HOME+"#onboarding=skip";
+    static final String ENTRY_HOME=HOME+"?fullscreen=1";
     final WebView web;
     final Presentation presentation;
     private final VirtualDisplay display;
@@ -38,15 +40,18 @@ final class WebSurface {
     private android.view.View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private long downTime;
-    final int width,height;
+    final int width,height,renderW,renderH;
     private final boolean shell;
     private boolean released;
     private static final String AUDIO_SCRIPT="(()=>{const contexts=[];for(const k of ['AudioContext','webkitAudioContext']){const C=window[k];if(C)window[k]=new Proxy(C,{construct(t,a){const c=Reflect.construct(t,a);contexts.push(c);return c;}});}window.__nextvrAudio=on=>{document.querySelectorAll('audio,video').forEach(e=>{if(!on){e.dataset.nextvrVolume=e.volume;e.volume=0;e.pause();}else if(e.dataset.nextvrVolume){e.volume=+e.dataset.nextvrVolume;delete e.dataset.nextvrVolume;}});contexts.forEach(c=>{try{on?c.resume():c.suspend();}catch{}});};})();";
     @SuppressLint("SetJavaScriptEnabled")
     WebSurface(NextVrActivity owner,SurfaceTexture texture,int width,int height,boolean shell,Object bridge,String url) {
         this.owner=owner; this.width=width; this.height=height; this.shell=shell;
-        texture.setDefaultBufferSize(width,height); surface=new Surface(texture);
-        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),width,height,160,surface,0);
+        this.renderW=shell?width:Math.min(2048,Math.round(width*1.35f));
+        this.renderH=shell?height:Math.min(1536,Math.round(height*1.35f));
+        int dpi=shell?160:216;
+        texture.setDefaultBufferSize(renderW,renderH); surface=new Surface(texture);
+        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),renderW,renderH,dpi,surface,0);
         if(display==null) throw new IllegalStateException("Cannot create HTML virtual display");
         presentation=new Presentation(owner,display.getDisplay());
         presentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -55,15 +60,18 @@ final class WebSurface {
         presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         web=new WebView(presentation.getContext());
+        web.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         web.setBackgroundColor(shell?Color.TRANSPARENT:Color.WHITE);
         web.setInitialScale(100);
-        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
+        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        if(android.os.Build.VERSION.SDK_INT>=23) s.setOffscreenPreRaster(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(true); // Only SAF-selected photo URIs are granted.
         s.setMediaPlaybackRequiresUserGesture(false); // Native pinch is a real user action, not WebView JS activation.
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setUseWideViewPort(!shell); s.setLoadWithOverviewMode(!shell);
-        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); // Always pair the APK bridge with this APK's UI.
+        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); else s.setCacheMode(WebSettings.LOAD_DEFAULT); // Always pair the APK bridge with this APK's UI.
         web.setVerticalScrollBarEnabled(false); web.setHorizontalScrollBarEnabled(false);
         if(shell) web.addJavascriptInterface(bridge,"NativeXR");
         /*
@@ -93,7 +101,7 @@ final class WebSurface {
                 return null;
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
-                if(shell) return !request.getUrl().toString().equals(HOME);
+                if(shell) return !request.getUrl().toString().startsWith(HOME);
                 return !isWebUrl(request.getUrl().toString());
             }
             @Override public void onPageFinished(WebView view,String address) {
@@ -133,9 +141,10 @@ final class WebSurface {
         });
         web.setDownloadListener((address,agent,disposition,mime,length)->owner.download(address,agent,disposition,mime));
         container=new FrameLayout(presentation.getContext()); container.setBackgroundColor(Color.TRANSPARENT);
+        container.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         container.addView(web,new FrameLayout.LayoutParams(-1,-1)); presentation.setContentView(container);
         presentation.show();
-        presentation.getWindow().setLayout(width,height);
+        presentation.getWindow().setLayout(renderW,renderH);
         // A Presentation on a private virtual display never receives window focus, so nothing here
         // would ever claim it. The page still needs the WebView focused to keep its own focused
         // element (and its :focus styling and scroll-into-view) alive between keyboard strokes.
@@ -161,18 +170,65 @@ final class WebSurface {
         return typingEngine;
     }
     static boolean isWebUrl(String url) { Uri uri=Uri.parse(url); return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) && uri.getHost()!=null; }
-    private WebResourceResponse asset(Uri uri) {
+    static WebResourceResponse assetFromOwner(NextVrActivity owner,Uri uri) {
         String path=uri.getPath();
-        if(path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
+        if(owner==null || path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
         try {
-            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":"application/octet-stream";
+            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav":"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src https: blob:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
         } catch(Exception e) { return denied(); }
+    }
+    private WebResourceResponse asset(Uri uri) { return assetFromOwner(owner,uri); }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    static WebView createFullscreenEntryView(NextVrActivity owner,Object bridge) {
+        WebView entry=new WebView(owner);
+        entry.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
+        entry.setBackgroundColor(Color.parseColor("#070c1f"));
+        WebSettings s=entry.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        s.setSupportMultipleWindows(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setUseWideViewPort(false);
+        s.setLoadWithOverviewMode(false);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        entry.setVerticalScrollBarEnabled(false);
+        entry.setHorizontalScrollBarEnabled(false);
+        entry.addJavascriptInterface(bridge,"NativeXR");
+        entry.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
+                Uri u=request.getUrl();
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return assetFromOwner(owner,u);
+                return null;
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
+                return !request.getUrl().toString().startsWith(HOME);
+            }
+            @Override public void onPageFinished(WebView view,String address) {
+                if(owner!=null) owner.pushBatteryState(null);
+            }
+        });
+        entry.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                android.util.Log.d("NextVR-Entry",m.message()+" @"+m.lineNumber()); return true;
+            }
+            @Override public boolean onShowFileChooser(WebView v,ValueCallback<Uri[]> cb,FileChooserParams p) {
+                owner.chooseFiles(cb,p); return true;
+            }
+        });
+        entry.loadUrl(ENTRY_HOME);
+        return entry;
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the
@@ -222,7 +278,8 @@ final class WebSurface {
         properties.id=0;
         properties.toolType=MotionEvent.TOOL_TYPE_FINGER;
         MotionEvent.PointerCoords coordinates=new MotionEvent.PointerCoords();
-        coordinates.x=x; coordinates.y=y;
+        coordinates.x=shell?x:(x*renderW/Math.max(1f,width));
+        coordinates.y=shell?y:(y*renderH/Math.max(1f,height));
         coordinates.pressure=(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL)?0f:1f;
         coordinates.size=1f;
         // WebView/Chromium classifies a default MotionEvent.obtain() as SOURCE_UNKNOWN. Give the

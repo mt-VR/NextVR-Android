@@ -70,11 +70,13 @@ const APP_ICONS = Object.freeze({
   keyboard:'<rect x="3" y="6.5" width="18" height="11" rx="2.6"/><path d="M7 10.4h.01M10.4 10.4h.01M13.8 10.4h.01M17.2 10.4h.01M7.6 14h8.8"/>',
   globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   notification:'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
-  compass:'<circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4z" fill="currentColor" stroke="none"/>',
-  store:'<path d="M4 9.2 5.6 4h12.8L20 9.2"/><path d="M4.6 9.2V20h14.8V9.2"/><path d="M4 9.2c0 1.9 1.6 2.4 2.7 2.4s2.7-.5 2.7-2.4c0 1.9 1.2 2.4 2.6 2.4s2.7-.5 2.7-2.4c0 1.9 1.4 2.4 2.7 2.4S20 11.1 20 9.2"/><path d="M10 20v-5h4v5"/>',
+  compass:'<path d="M11.6 4.6a7.8 7.8 0 0 0-6.8 11.4l9.6-9.6a7.7 7.7 0 0 0-2.8-1.8z" fill="currentColor" stroke="none"/><path d="M16.2 8.2 6.6 17.8a7.8 7.8 0 0 0 11.4-6.8 7.7 7.7 0 0 0-1.8-2.8z" fill="currentColor" stroke="none"/><path d="M15.4 4.2 20 4l-.2 4.6-1.4-1.4-10.2 10.2-1.4-1.4L17 5.8z" fill="currentColor" stroke="none"/>',
+  store:'<path d="M8.8 9V7.3a3.2 3.2 0 0 1 6.4 0V9"/><path d="M6.2 9h11.6a1.6 1.6 0 0 1 1.6 1.7l-.7 8a2.1 2.1 0 0 1-2.1 1.9H7.4a2.1 2.1 0 0 1-2.1-1.9l-.7-8A1.6 1.6 0 0 1 6.2 9z"/><path d="M9.5 14a2.6 2.6 0 0 1 4.6-1.2M14.5 15.2a2.6 2.6 0 0 1-4.6 1.2"/>',
   people:'<circle cx="9" cy="9" r="3"/><path d="M3.6 19c0-3.1 2.4-5 5.4-5s5.4 1.9 5.4 5"/><circle cx="17" cy="10" r="2.4"/><path d="M16.2 14.2c2.6 0 4.4 1.6 4.4 4.3"/>',
   play:'<rect x="3" y="6" width="18" height="12" rx="3.6"/><path d="M10.2 9.4v5.2l4.6-2.6z" fill="currentColor" stroke="none"/>',
   top:'<path d="m7 14 5-5 5 5"/>',
+  home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  hand:'<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-5.9-2.3L3.3 16.9a2 2 0 0 1 2.8-2.8L8 16"/>',
   shizuku:'<path d="M17 6.5a3 3 0 0 0-3-3H9a3 3 0 0 0 0 6h6a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h5a3 3 0 0 0 3-3"/><path d="M7 6.5h.01M17 17.5h.01"/>'
 });
 

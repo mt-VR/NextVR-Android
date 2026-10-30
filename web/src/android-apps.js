@@ -15,7 +15,7 @@
 //
 // There is no mirror button: the Shizuku launcher owns the Android app list and badge,
 // and a failed session names its reason instead of leaving a blank window (see sessionError).
-import { t, toast, on, emit, native } from './core.js';
+import { t, toast, on, emit, native, css3d, scene, camera } from './core.js';
 import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
@@ -121,6 +121,8 @@ function reconcile() {
     if (!live.has(s.pkg)) createWindow(s); else updateWindow(s);
   }
   for (const pkg of [...live.keys()]) if (!wanted.has(pkg)) closeWindow(pkg, true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
   scheduleSync(true);
 }
 

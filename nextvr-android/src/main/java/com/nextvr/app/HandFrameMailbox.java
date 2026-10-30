@@ -32,7 +32,7 @@ public final class HandFrameMailbox {
      * it - the queue feeds itself, frames age past their native validity, and an aged frame is a
      * CANCEL. "The dock is smooth but my clicks vanish when an app is open" is that failure.
      */
-    public static final int DEFAULT_COLLAPSE_ABOVE = 8;
+    public static final int DEFAULT_COLLAPSE_ABOVE = 4;
     /**
      * Samples kept per run of equal gesture state. One would be enough for the click state machine
      * (it only reacts to edges); two keeps a depth delta, which is what tells a real near-touch push

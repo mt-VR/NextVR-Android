@@ -326,6 +326,8 @@ test('the keyboard types into the focused field, repeats while held and follows 
     await page.evaluate(p => { window.nextvrResume(); window.nextvrPose(p); window.nextvrHands({ hands: [] }); }, IDENTITY);
     await page.evaluate(() => { localStorage.setItem('nextvr.v1', JSON.stringify({ lang: 'en' })); });
     await page.reload();
+    await page.waitForSelector('[data-entry-act="start"]');
+    await page.evaluate(() => document.querySelector('[data-entry-act="start"]')?.click());
     await page.waitForFunction(() => window.__last?.panels.some(p => p.id === 'dock'));
     await page.evaluate(p => { window.nextvrResume(); window.nextvrPose(p); window.nextvrHands({ hands: [] }); }, IDENTITY);
     await page.waitForTimeout(300);

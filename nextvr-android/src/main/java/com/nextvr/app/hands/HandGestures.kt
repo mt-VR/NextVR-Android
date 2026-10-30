@@ -80,9 +80,12 @@ object HandGestures {
         var others = 0
         for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.04f) others++
         val indexCurled = d(0, 8) < d(0, 6) * 1.04f
+        // When pinching sideways or at an angle (IMG_20261021_143724.jpg), the index finger bends
+        // toward the thumb while the fingertips stay out in front of the knuckles and touch closely.
+        val sidewaysPinchPose = gap < .42f && d(0, 8) > d(0, 5) * .72f && d(4, 8) < d(8, 12) * .92f
         // A fist has every finger folded. A pinch with the index bent and the other fingers open
         // (or closed) is not a fist.
-        val fist = indexCurled && others >= 2
+        val fist = indexCurled && others >= 2 && !sidewaysPinchPose
         // Winding of wrist -> index base -> pinky base: for the back camera, a right hand shows its
         // back (palm toward the user) when this turns clockwise in image space.
         val ax = p[5].x() - p[0].x(); val ay = p[5].y() - p[0].y()

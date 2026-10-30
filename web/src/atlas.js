@@ -11,10 +11,10 @@ const PAD = 160;
 export function pack(sizes, limit = ATLAS_SIZE) {
   return sizes.map(({ width, height, kind = 'window', slot = 0 }) => {
     const w = Math.ceil(width) + PAD * 2, h = Math.ceil(height) + PAD * 2;
-    const x = kind === 'window' ? (slot % 3) * 1360 : 0;
-    const y = kind === 'dock' ? 800 : kind === 'keyboard' ? 3160 : 1200 + Math.floor(slot / 3) * 980;
+    const x = kind === 'window' ? (slot % 3) * 1360 : kind === 'slot' ? 1360 : 0;
+    const y = kind === 'dock' ? 800 : kind === 'keyboard' ? 3160 : kind === 'slot' ? 0 : 1200 + Math.floor(slot / 3) * 980;
     const capacity = kind === 'dock' ? 400 : kind === 'keyboard' ? 936 : 980;
-    if (slot > 5 || w > (kind === 'window' ? 1360 : limit) || h > capacity || x + w > limit || y + h > limit)
+    if (slot > 5 || w > (kind === 'window' || kind === 'slot' ? 1360 : limit) || h > capacity || x + w > limit || y + h > limit)
       throw new Error('Workspace texture is full; close a window first.');
     return [x, y, w, h];
   });
@@ -30,28 +30,58 @@ export class AtlasRenderer {
     this.domElement = document.createElement('div');
     this.domElement.id = 'atlas';
     this.last = 0;
-  this.sent = null;
-  this.sentSpecs = null;
+    this.sent = null;
+    this.sentSpecs = null;
+    this.overlayJson = null;
     this.lastError = '';
     this.slots = new Map();
   }
   setSize() {}
   render(scene) {
+    if (window.__gorillaStereoOverlay) {
+      if (!this.overlayJson) {
+        const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
+        const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
+          .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
+        this.overlayJson = JSON.stringify([{
+          overlay: true,
+          matrix: gHud.toArray(),
+          rect: [0, 0, VIEW.width / 2, VIEW.height],
+          uvR: [(VIEW.width / 2) / ATLAS_SIZE, 1 - VIEW.height / ATLAS_SIZE, (VIEW.width / 2) / ATLAS_SIZE, VIEW.height / ATLAS_SIZE],
+        }]);
+      }
+      const sceneJson = this.overlayJson, specsJson = '[]';
+      if (sceneJson !== this.sent || specsJson !== this.sentSpecs) {
+        this.sent = sceneJson; this.sentSpecs = specsJson;
+        window.NativeXR?.frame?.(sceneJson, specsJson);
+      }
+      return;
+    }
     scene.updateMatrixWorld(true);
     const objects = [];
     scene.traverse(o => { if (o.isCSS3DObject && o.visible) objects.push(o); });
     for (const o of objects) {
       if (o.element.parentNode !== this.domElement) this.domElement.append(o.element);
-      o.element.style.transform = 'none';
+      if (o.element.style.transform !== 'none') o.element.style.transform = 'none';
     }
     for (const id of this.slots.keys()) if (!objects.some(o => o.id === id)) this.slots.delete(id);
     const sizes = objects.map(o => {
-      const kind = o.element.classList.contains('dock') ? 'dock' : o.element.classList.contains('kb') ? 'keyboard' : 'window';
+      const kind = o.element.classList.contains('dock') ? 'dock'
+        : o.element.classList.contains('kb') ? 'keyboard'
+        : o.element.classList.contains('win-drop-slot') ? 'slot'
+        : 'window';
       if (kind === 'window' && !this.slots.has(o.id)) {
         const used = new Set(this.slots.values()); let slot = 0; while (used.has(slot)) slot++;
         this.slots.set(o.id, slot);
       }
-      return { width: o.element.offsetWidth, height: o.element.offsetHeight, kind, slot: this.slots.get(o.id) || 0 };
+      const maxW = (kind === 'window' || kind === 'slot') ? 1040 : ATLAS_SIZE - PAD * 2;
+      const maxH = (kind === 'dock' ? 400 : kind === 'keyboard' ? 936 : 980) - PAD * 2;
+      return {
+        width: Math.min(o.element.offsetWidth, maxW),
+        height: Math.min(o.element.offsetHeight, maxH),
+        kind,
+        slot: this.slots.get(o.id) || 0,
+      };
     });
     let rects;
     try { rects = pack(sizes); } catch (e) {
@@ -61,7 +91,9 @@ export class AtlasRenderer {
     const panels = [], browsers = [];
     objects.forEach((o, i) => {
       const e = o.element, [x, y, w, h] = rects[i];
-      e.style.left = `${x + PAD}px`; e.style.top = `${y + PAD}px`;
+      const leftPx = `${x + PAD}px`, topPx = `${y + PAD}px`;
+      if (e.style.left !== leftPx) e.style.left = leftPx;
+      if (e.style.top !== topPx) e.style.top = topPx;
       const matrix = o.matrixWorld.clone().multiply(new THREE.Matrix4().makeScale(w, h, 1));
       // `curve` (radianos, 0 = plana) é a curvatura 360 da janela: o shader nativo dobra o quad
       // no cilindro correspondente. Sem curvatura o caminho é exatamente o de antes.
@@ -94,7 +126,7 @@ export class AtlasRenderer {
         // Published back so the shell (and the tests) can see the crop the shader was given. Only
         // written when it changes: this runs inside the frame loop.
         const crop = [fit.u0, fit.v0, fit.uw, fit.vh].map(n => n.toFixed(5)).join(',');
-        if (a.dataset.uv !== crop) a.dataset.uv = crop;
+        if (a.dataset.uv !== crop) { a.dataset.uv = crop; this.last = 0; }
       }
       /*
        * Hosted headset games (PhoneXR). Same deal as a hosted Android app — the window body
@@ -146,16 +178,29 @@ export class AtlasRenderer {
             sizes[i].height / 2 - (clip.top - origin.top + ch / 2), .5))
           .multiply(new THREE.Matrix4().makeScale(cw, ch, 1));
         panels.push({ browser: id, matrix: m.toArray(), rect: [0, 0, width, height], curve: +(e.dataset.curve || 0),
+          homeOverlay: b.dataset.homeOverlay === '1',
           uv: [(clip.left - box.left) / width, (box.bottom - clip.bottom) / height, cw / width, ch / height] });
       }
     });
     const sy = 2 * Math.tan(THREE.MathUtils.degToRad(36));
     const hud = new THREE.Matrix4().makeTranslation(0, 0, -1)
       .multiply(new THREE.Matrix4().makeScale(sy * 1.5, sy, 1));
-    panels.push({ overlay: true, matrix: hud.toArray(), rect: [0, 0, VIEW.width, VIEW.height] });
+    if (window.__gorillaStereoOverlay) {
+      const gHud = new THREE.Matrix4().makeTranslation(0, 0, -1)
+        .multiply(new THREE.Matrix4().makeScale(sy * 1.78, sy * 1.48, 1));
+      panels.push({
+        overlay: true,
+        matrix: gHud.toArray(),
+        rect: [0, 0, VIEW.width / 2, VIEW.height],
+        uvR: [(VIEW.width / 2) / ATLAS_SIZE, 1 - VIEW.height / ATLAS_SIZE, (VIEW.width / 2) / ATLAS_SIZE, VIEW.height / ATLAS_SIZE],
+      });
+    } else {
+      panels.push({ overlay: true, matrix: hud.toArray(), rect: [0, 0, VIEW.width, VIEW.height] });
+    }
     // GL renders head motion at display rate. Only CSS layout/animations cross this bridge at 30 Hz.
     const now = performance.now();
-    if (now - this.last >= ({ low: 66, auto: 30, high: 16 }[document.documentElement.dataset.quality] || 30)) {
+    const tier = document.documentElement.dataset.qualityTier || document.documentElement.dataset.quality;
+    if (now - this.last >= ({ low: 32, medium: 24, auto: 24, high: 16 }[tier] || 24)) {
       this.last = now;
       const scene = JSON.stringify(panels), specs = JSON.stringify(browsers);
       // A settled scene is bit-identical frame to frame, so do not cross the bridge for it: the
@@ -169,5 +214,5 @@ export class AtlasRenderer {
     }
   }
   /** Forget the cached payload so the next frame re-sends the whole scene to the native side. */
-  invalidate() { this.sent = this.sentSpecs = null; }
+  invalidate() { this.sent = this.sentSpecs = null; this.last = 0; }
 }

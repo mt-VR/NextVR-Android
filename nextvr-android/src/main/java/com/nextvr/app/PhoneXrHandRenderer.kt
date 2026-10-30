@@ -21,24 +21,36 @@ import kotlin.math.hypot
  *  - presses and ray lines come only from live tracking, never from a retained pose.
  */
 class PhoneXrHandRenderer {
-    /** Quest-style cyan hand/pointer colours, faded per hand when native tracking is predicted. */
+    /** Dark translucent hand silhouette with thin crisp white contour (fits snugly on the hand). */
     private companion object {
-        const val HAND_FILL_R = .04f
-        const val HAND_FILL_G = .18f
-        const val HAND_FILL_B = .24f
-        const val HAND_CONTOUR_R = .153f
-        const val HAND_CONTOUR_G = .91f
+        const val HAND_FILL_R = .03f
+        const val HAND_FILL_G = .03f
+        const val HAND_FILL_B = .04f
+        const val HAND_CONTOUR_R = .96f
+        const val HAND_CONTOUR_G = .97f
         const val HAND_CONTOUR_B = 1f
-        const val HAND_FILL_ALPHA = .55f
-        const val HAND_OUTLINE_ALPHA = .9f
-        const val HAND_PINCH_ALPHA = 1f
-        const val POINTER_DROP_ALPHA = .85f
+        const val GLOVE_FILL_R = .08f
+        const val GLOVE_FILL_G = .78f
+        const val GLOVE_FILL_B = .38f
+        const val GLOVE_CONTOUR_R = .36f
+        const val GLOVE_CONTOUR_G = 1f
+        const val GLOVE_CONTOUR_B = .64f
+        const val HAND_FILL_ALPHA = .35f
+        const val HAND_OUTLINE_ALPHA = .70f
+        const val HAND_PINCH_ALPHA = .94f
+        const val POINTER_DROP_ALPHA = .82f
         const val POINTER_CLICK_ALPHA = .95f
-        const val POINTER_RAY_ALPHA = .85f
+        const val POINTER_RAY_ALPHA = .82f
+        const val TOUCH_FILL_R = .24f
+        const val TOUCH_FILL_G = .24f
+        const val TOUCH_FILL_B = .25f
+        const val IDLE_FILL_R = .18f
+        const val IDLE_FILL_G = .18f
+        const val IDLE_FILL_B = .19f
     }
     private val colorProgram=SpatialRenderer.link(
         "attribute vec3 aPosition; uniform mat4 uMatrix; varying vec2 vPos; void main(){gl_Position=uMatrix*vec4(aPosition,1.); vPos=aPosition.xy;}",
-        "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=1.-smoothstep(.46,1.,t); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
+        "precision highp float; uniform vec4 uColor; uniform vec2 uWrist; uniform vec2 uKnuckle; uniform float uUseGrad; varying vec2 vPos; void main(){ if(uUseGrad<.5){ gl_FragColor=uColor; return; } vec2 axis=uWrist-uKnuckle; float t=dot(vPos-uKnuckle,axis)/max(dot(axis,axis),1e-6); float fade=uUseGrad>1.5?(1.-smoothstep(.82,1.02,t)):(1.-smoothstep(.34,.86,t)); gl_FragColor=vec4(uColor.rgb,uColor.a*fade); }")
     private val matrixUniform=GLES20.glGetUniformLocation(colorProgram,"uMatrix")
     private val colorUniform=GLES20.glGetUniformLocation(colorProgram,"uColor")
     private val wristUniform=GLES20.glGetUniformLocation(colorProgram,"uWrist")
@@ -53,6 +65,11 @@ class PhoneXrHandRenderer {
     private var viewScaleX=1f
     private var viewScaleY=1f
     private val presentation=com.nextvr.app.hands.HandPresentation()
+    fun resetPresentation() {
+        presentation.reset()
+        meshes=emptyList()
+        meshPoints=emptyList()
+    }
     /** Primitive builder: a hand mesh is tens of thousands of floats per result frame. */
     private class FloatBuilder(initialCapacity:Int) {
         var values=FloatArray(maxOf(3,initialCapacity)); private set
@@ -70,6 +87,10 @@ class PhoneXrHandRenderer {
         val color=FloatArray(4)
         val wrist=FloatArray(2)
         val knuckle=FloatArray(2)
+        var handIndex=0
+        var passType=0
+        var touching=false
+        var blueOutline=false
     }
     private val meshPool=ArrayList<Mesh>()
     private var meshes=emptyList<Mesh>()
@@ -77,15 +98,22 @@ class PhoneXrHandRenderer {
     private var meshBuiltAt=0L
     private var meshScaleX=0f
     private var meshScaleY=0f
+    private var meshVirtualEnv=false
+    private var meshMrGameMode=false
     private val hasStencil=true
     private var touching=false
+    @Volatile var showPointer=false
+    @JvmField @Volatile var virtualEnv=false
+    @JvmField @Volatile var gameHandMode=false
+    @JvmField @Volatile var mrGameMode=false
     private val CURSOR_R=.016f
-    private val RAY_SHOWN=.55f
-    /** Normalized landmark delta that forces a mesh rebuild (~0.4 px at 640 px analysis width).
-     * Any real motion rebuilds; the One Euro dead zone keeps a resting hand fully cached. */
-    private val MESH_REBUILD_EPSILON=.0006f
-    /** Even a slowly drifting hand refreshes its silhouette at least this often. */
-    private val MESH_REBUILD_MAX_NS=120_000_000L
+    // O feixe ia da mão até 42% do caminho do alvo (0.76 * 0.55): parecia um toco. Agora ele vai
+    // quase ATÉ o alvo, e onde não há alvo o destino é o ponto apontado a 3 m — um raio de verdade.
+    private val RAY_SHOWN=1.06f
+    /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
+    private val MESH_REBUILD_EPSILON=0f
+    /** Rebuild every display frame with zero throttling. */
+    private val MESH_REBUILD_MAX_NS=0L
     private val RING_STEPS=40
     /** Reused per-frame scratch on the GL thread: the beam/ring path used to allocate a 720-float
      *  ring array plus ~30 small arrays per hand per eye per frame — GC churn exactly under load. */
@@ -157,6 +185,10 @@ class PhoneXrHandRenderer {
         val live=frame.hands.isNotEmpty() && frame.isFresh(now)
         val fade=if(visible==null)0f else presentation.fade(visible,now)
         viewScaleX=sx;viewScaleY=sy
+        if(targetsText!=targetsJson){
+            targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
+            targetsText=targetsJson
+        }
         GLES20.glUseProgram(colorProgram)
         GLES20.glUniformMatrix4fv(matrixUniform,1,false,projection,0)
         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -167,14 +199,65 @@ class PhoneXrHandRenderer {
             // Predicted to display time: the silhouette tracks the render rate even when the
             // detection rate drops (app open, GPU contention) — no stepping, no flicker.
             meshes=meshesFor(visual,sx,sy,now)
+            for((idx, m) in meshes.withIndex()) {
+                val hPose=visual.hands.getOrNull(m.handIndex) ?: visual.hands.getOrNull(idx/2)
+                val hId=if(hPose?.left==true) "left" else "right"
+                var tObj:JSONObject?=null
+                for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==hId){tObj=o;break} }
+                m.touching = (hPose?.pinching == true) ||
+                    (tObj?.optBoolean("touching") == true) ||
+                    (tObj?.optBoolean("fingerHover") == true) ||
+                    (tObj?.optBoolean("direct") == true) ||
+                    (tObj?.optBoolean("down") == true) ||
+                    (tObj?.optJSONArray("end") != null)
+                m.blueOutline = (tObj?.optBoolean("blueOutline") == true)
+            }
             drawHandSkeletons(position,fade)
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
-        // Both eyes/display frames commonly reuse the same bridge packet.
-        if(targetsText!=targetsJson){
-            targets=runCatching { JSONArray(targetsJson) }.getOrElse { JSONArray() }
-            targetsText=targetsJson
+        if(!showPointer || mrGameMode) {
+            for((hIdx, hand) in visual.hands.withIndex()) {
+                val id=if(hand.left) "left" else "right"
+                var target:JSONObject?=null
+                for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
+                if(target?.optBoolean("hidden")==true) continue
+                // Pinça com raio, também no Toque Direto: com o ponteiro livre desligado o app não
+                // desenhava NENHUM feixe (era o "o Next tá sem pinça com raio"), porque este ramo
+                // só pintava o anel de hover. A pinça de verdade — sempre a de uma detecção viva,
+                // nunca a de uma pose predita — agora sai da palma com o mesmo raio azul do ponteiro.
+                if(live && !hand.predicted && (target?.optBoolean("down")==true || target?.optBoolean("pinchRay")==true)) {
+                    val e=beamEnd
+                    if(aimPoint(hand,target,view,e)) {
+                        var originX=hand.baseX; var originY=hand.baseY
+                        if(hand.points.size>=30) {
+                            originX=(hand.points[9]-.5f)*2f*sx
+                            originY=(.5f-hand.points[10])*2f*sy
+                            if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
+                        }
+                        val b=beamLine
+                        b[0]=originX;b[1]=originY;b[2]=-1f
+                        b[3]=e[0];b[4]=e[1];b[5]=e[2]
+                        b[6]=if(target?.optJSONArray("end")!=null) 1f else 0f
+                        drawBeam(b,true,true,false,position,fade)
+                    }
+                }
+                if(target?.optBoolean("fingerHover")==true) {
+                    val pts=handPoints.getOrNull(hIdx) ?: hand.points
+                    if(pts.size>=26) {
+                        val hFade=fade*hand.confidence.coerceIn(0f,1f)
+                        val fx=(pts[24]-.5f)*2f*sx
+                        val fy=(.5f-pts[25])*2f*sy
+                        GLES20.glUniform1f(gradUniform,0f)
+                        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                        GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
+                        ring3d(fx,fy,-1f,.022f,.0185f,position)
+                    }
+                }
+            }
+            GLES20.glDisable(GLES20.GL_STENCIL_TEST)
+            GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            return
         }
         // Beam positions are predicted to display time; pinch state is always the live one.
         for(hand in visual.hands) {
@@ -182,32 +265,40 @@ class PhoneXrHandRenderer {
             var target:JSONObject?=null
             for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
             if(target?.optBoolean("hidden")==true) continue
+            val noBeam=target?.optBoolean("noBeam")==true
+            val fingerHover=target?.optBoolean("fingerHover")==true
             val direct=target?.optBoolean("direct")==true
+            val hFade=fade*hand.confidence.coerceIn(0f,1f)
+            if(fingerHover && hand.points.size>=26) {
+                val fx=(hand.points[24]-.5f)*2f*sx
+                val fy=(.5f-hand.points[25])*2f*sy
+                GLES20.glUniform1f(gradUniform,0f)
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
+                ring3d(fx,fy,-1f,.022f,.0185f,position)
+            }
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.
             val down=live && !hand.predicted && (target?.optBoolean("down") ?: hand.pinching)
+            val blueRay=down || (target?.optBoolean("blueRay")==true)
             val end=target?.optJSONArray("end")
-            val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
             val e=beamEnd
-            if(end!=null && end.length()==3) {
-                val wx=end.optDouble(0,Double.NaN).toFloat()
-                val wy=end.optDouble(1,Double.NaN).toFloat()
-                val wz=end.optDouble(2,Double.NaN).toFloat()
-                // World -> this eye's space, matching the panel's view transformation. Without
-                // this step the ring drifts in stereo even though the input hit-test was correct.
-                val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
-                val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
-                val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
-                val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
-                if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez }
-                else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
-            } else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
-            if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
+            if(!aimPoint(hand,target,view,e))continue
             touching=direct && down
             val b=beamLine
-            b[0]=if(direct)0f else hand.baseX;b[1]=if(direct)0f else hand.baseY;b[2]=if(direct)0f else -1f
-            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null)1f else 0f
-            drawBeam(b,down,position,fade*hand.confidence.coerceIn(0f,1f))
+            // O raio nasce NA MÃO, não num ponto do plano da tela. Antes a origem era (aimX,aimY) a
+            // 1 m: o feixe era um marcador longe da mão e, quando a mão andava rápido, parecia
+            // escapar dela. Aqui a origem é o meio da palma (landmark 9) da pose já predita para o
+            // instante do display — o raio sai da mão e acompanha a mão em qualquer velocidade.
+            var originX=hand.baseX; var originY=hand.baseY
+            if(!direct && hand.points.size>=30) {
+                originX=(hand.points[9]-.5f)*2f*sx
+                originY=(.5f-hand.points[10])*2f*sy
+                if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
+            }
+            b[0]=if(direct)0f else originX;b[1]=if(direct)0f else originY;b[2]=if(direct)0f else -1f
+            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
+            drawBeam(b,down,blueRay,noBeam,position,hFade)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -217,14 +308,35 @@ class PhoneXrHandRenderer {
      * exact same buffers and a moving hand rebuilds every display frame, so the silhouette
      * glides with the prediction instead of stepping at the detection rate. */
     private fun meshesFor(frame:PhoneXrHands.Frame,sx:Float,sy:Float,nowNs:Long):List<Mesh> {
-        val points=frame.hands.map { it.points }
-        val moved=points.size!=meshPoints.size || sx!=meshScaleX || sy!=meshScaleY || points.indices.any { i ->
+        val points=frame.hands.map { hand ->
+            val hId=if(hand.left) "left" else "right"
+            var stickArr:JSONArray?=null
+            for(i in 0 until targets.length()) {
+                val o=targets.optJSONObject(i)
+                if(o!=null && o.optString("id")==hId) { stickArr=o.optJSONArray("stick"); break }
+            }
+            val rawPts=hand.points
+            if(stickArr!=null && stickArr.length()>=2 && rawPts.size>=26) {
+                val sxRaw=stickArr.optDouble(0,Double.NaN).toFloat()
+                val syRaw=stickArr.optDouble(1,Double.NaN).toFloat()
+                if(sxRaw.isFinite() && syRaw.isFinite()) {
+                    val copy=rawPts.copyOf()
+                    val dx=(sxRaw-copy[24]).coerceIn(-.042f,.042f)
+                    val dy=(syRaw-copy[25]).coerceIn(-.042f,.042f)
+                    copy[24]+=dx*.70f; copy[25]+=dy*.70f
+                    copy[21]+=dx*.42f; copy[22]+=dy*.42f
+                    copy[18]+=dx*.18f; copy[19]+=dy*.18f
+                    copy
+                } else rawPts
+            } else rawPts
+        }
+        val moved=points.size!=meshPoints.size || sx!=meshScaleX || sy!=meshScaleY || virtualEnv!=meshVirtualEnv || mrGameMode!=meshMrGameMode || points.indices.any { i ->
             val a=points[i];val b=meshPoints[i];var j=0;var d=0f
             while(j<a.size) { val delta=abs(a[j]-b[j]);if(delta>d)d=delta;j++ }
             d>MESH_REBUILD_EPSILON
         }
         if(!moved && nowNs-meshBuiltAt<MESH_REBUILD_MAX_NS)return meshes
-        handPoints=points;meshPoints=points;meshBuiltAt=nowNs;meshScaleX=sx;meshScaleY=sy
+        handPoints=points;meshPoints=points;meshBuiltAt=nowNs;meshScaleX=sx;meshScaleY=sy;meshVirtualEnv=virtualEnv;meshMrGameMode=mrGameMode
         buildHandMeshes()
         return meshes
     }
@@ -241,15 +353,55 @@ class PhoneXrHandRenderer {
     }
 private fun drawHandSkeletons(position: Int, fade: Float) {
         val color=colorUniform
+        val glove=mrGameMode
+        val envMode=virtualEnv && !glove
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glStencilMask(0xff)
         GLES20.glStencilFunc(GLES20.GL_GREATER,1,0xff)
         GLES20.glStencilOp(GLES20.GL_KEEP,GLES20.GL_KEEP,GLES20.GL_REPLACE)
         for(mesh in meshes) {
+            if(mesh.passType>=2) continue
             GLES20.glUniform2f(wristUniform,mesh.wrist[0],mesh.wrist[1])
             GLES20.glUniform2f(knuckleUniform,mesh.knuckle[0],mesh.knuckle[1])
-            GLES20.glUniform1f(gradUniform,1f)
-            GLES20.glUniform4f(color,mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]*fade)
+            val isOutline = mesh.color[0] > .5f
+            GLES20.glUniform1f(gradUniform,if(isOutline) 2f else 1f)
+            if (glove) {
+                if (isOutline) {
+                    val alpha = if (mesh.touching) .90f else mesh.color[3]
+                    GLES20.glUniform4f(color,GLOVE_CONTOUR_R,GLOVE_CONTOUR_G,GLOVE_CONTOUR_B,alpha*fade)
+                } else {
+                    val alpha = if (mesh.touching) .52f else (mesh.color[3] + .10f)
+                    GLES20.glUniform4f(color,GLOVE_FILL_R,GLOVE_FILL_G,GLOVE_FILL_B,alpha*fade)
+                }
+            } else if (envMode) {
+                if (isOutline) {
+                    val alpha = if (mesh.touching) .95f else .88f
+                    val cr = if (mesh.blueOutline) .28f else .86f
+                    val cg = if (mesh.blueOutline) .68f else .89f
+                    val cb = if (mesh.blueOutline) 1f else .94f
+                    GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
+                } else {
+                    val r = if (mesh.touching) .065f else .040f
+                    val g = if (mesh.touching) .070f else .044f
+                    val b = if (mesh.touching) .082f else .052f
+                    val alpha = if (mesh.touching) .92f else .88f
+                    GLES20.glUniform4f(color,r,g,b,alpha*fade)
+                }
+            } else {
+                if (isOutline) {
+                    val alpha = if (mesh.touching) .82f else mesh.color[3]
+                    val cr = if (mesh.blueOutline) .28f else HAND_CONTOUR_R
+                    val cg = if (mesh.blueOutline) .68f else HAND_CONTOUR_G
+                    val cb = if (mesh.blueOutline) 1f else HAND_CONTOUR_B
+                    GLES20.glUniform4f(color,cr,cg,cb,alpha*fade)
+                } else {
+                    val r = if (mesh.touching) TOUCH_FILL_R else IDLE_FILL_R
+                    val g = if (mesh.touching) TOUCH_FILL_G else IDLE_FILL_G
+                    val b = if (mesh.touching) TOUCH_FILL_B else IDLE_FILL_B
+                    val alpha = if (mesh.touching) .24f else mesh.color[3]
+                    GLES20.glUniform4f(color,r,g,b,alpha*fade)
+                }
+            }
             drawArray(mesh.vertices,GLES20.GL_TRIANGLES,position)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
@@ -267,6 +419,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 return m
             }
             for ((handIndex, hand) in hands.withIndex()) {
+                if (mrGameMode && handIndex > 0) continue
                 val handPose = frame.hands.getOrNull(handIndex)
                 val pinching = handPose?.pinching == true
                 val handConfidence = (handPose?.confidence ?: 1f).coerceIn(0f, 1f)
@@ -291,7 +444,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                 var nx = -axY; var ny = axX
                 if ((x(1) - x(0)) * nx + (y(1) - y(0)) * ny < 0f) { nx = -nx; ny = -ny }
                 // Virtual wrist cross-section; wrist breadth is ~0.55 of palm breadth.
-                val wristHalf = .5f * WRIST_BREADTH * hypot(x(17) - x(5), y(17) - y(5))
+                val wristHalf = .5f * WRIST_BREADTH * maxOf(hypot(x(17) - x(5), y(17) - y(5)), palm * .48f)
                 val virtX = x(0) + axX * axL * WRIST_EXTEND
                 val virtY = y(0) + axY * axL * WRIST_EXTEND
                 val eh = wristHalf * STUB_TAPER
@@ -387,17 +540,61 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
                     chain(ulnarChain, r * .95f, wristHalf - eh)
                     chain(radialChain, wristHalf - eh, r * 1.12f)
-                    // Thumb and fingers, thinner towards the tips.
                     val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
-                    for (finger in 0 until 5) {
-                        val base = 1 + finger * 4
-                        val f = scale[finger]
-                        if (finger == 0) {
-                            bone(1, 2, r * 1.15f, r * 1.02f); bone(2, 3, r * 1.02f, r * .95f); bone(3, 4, r * .95f, r * .82f)
-                        } else {
-                            bone(base, base + 1, r * f, r * .92f * f)
-                            bone(base + 1, base + 2, r * .92f * f, r * .85f * f)
-                            bone(base + 2, base + 3, r * .85f * f, r * .76f * f)
+                    if (mrGameMode) {
+                        // Estilo "luva verde leve com abertura nos dedos" SOMENTE dentro do jogo de tiro ao alvo (mrGameMode):
+                        // cobre apenas a palma + punho curto + manga curta da falange proximal (76%),
+                        // deixando os dedos abertos a partir da abertura da luva com anel de acabamento.
+                        for (finger in 0 until 5) {
+                            val base = 1 + finger * 4
+                            val f = scale[finger]
+                            val j0 = if (finger == 0) 1 else base
+                            val j1 = if (finger == 0) 2 else (base + 1)
+                            val cut = if (finger == 0) 0.82f else 0.76f
+                            val sx = x(j0); val sy = y(j0)
+                            val ex = sx + (x(j1) - sx) * cut
+                            val ey = sy + (y(j1) - sy) * cut
+                            val r0 = (if (finger == 0) r * 1.12f else r * f) + grow
+                            val r1 = (if (finger == 0) r * 0.96f else r * 0.88f * f) + grow
+                            handBone(shape, sx, sy, ex, ey, r0, r1)
+                            handDisc(shape, sx, sy, r0)
+                            if (outline) {
+                                // Borda de abertura do dedo da luva ("abertura nos dedos").
+                                handCuffOpen(shape, sx, sy, ex, ey, r1 * 1.05f, edge * 1.35f)
+                            } else {
+                                handDisc(shape, ex, ey, r1 * 0.86f)
+                            }
+                        }
+                    } else {
+                        // Fora do jogo (no NextVR normal e nos ambientes 360): hand tracking 100% liso
+                        // sem nenhuma junta aparente nos dedos (cápsulas contínuas suavizadas por stencil).
+                        fun smoothSpan(i0: Int, i1: Int, i2: Int, i3: Int, r0: Float, r1: Float, r2: Float, r3: Float) {
+                            val x0 = x(i0); val y0 = y(i0)
+                            val x1 = x(i1); val y1 = y(i1)
+                            val x2 = x(i2); val y2 = y(i2)
+                            val x3 = x(i3); val y3 = y(i3)
+                            val mx1 = (x0 + x1 * 2f + x2) * .25f
+                            val my1 = (y0 + y1 * 2f + y2) * .25f
+                            val mr1 = (r0 + r1 * 2f + r2) * .25f
+                            val mx2 = (x1 + x2 * 2f + x3) * .25f
+                            val my2 = (y1 + y2 * 2f + y3) * .25f
+                            val mr2 = (r1 + r2 * 2f + r3) * .25f
+                            handBone(shape, x0, y0, mx1, my1, r0 + grow, mr1 + grow)
+                            handDisc(shape, x0, y0, r0 + grow)
+                            handDisc(shape, mx1, my1, mr1 + grow)
+                            handBone(shape, mx1, my1, mx2, my2, mr1 + grow, mr2 + grow)
+                            handDisc(shape, mx2, my2, mr2 + grow)
+                            handBone(shape, mx2, my2, x3, y3, mr2 + grow, r3 + grow)
+                            handDisc(shape, x3, y3, r3 + grow)
+                        }
+                        for (finger in 0 until 5) {
+                            val base = 1 + finger * 4
+                            val f = scale[finger]
+                            if (finger == 0) {
+                                smoothSpan(1, 2, 3, 4, r * 1.12f, r * .94f, r * .80f, r * .68f)
+                            } else {
+                                smoothSpan(base, base + 1, base + 2, base + 3, r * f, r * .87f * f, r * .75f * f, r * .64f * f)
+                            }
                         }
                     }
                     val rgba=when {
@@ -405,6 +602,8 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                         outline -> floatArrayOf(HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,HAND_OUTLINE_ALPHA*handConfidence)
                         else -> floatArrayOf(HAND_FILL_R,HAND_FILL_G,HAND_FILL_B,HAND_FILL_ALPHA*handConfidence)
                     }
+                    m.handIndex=handIndex
+                    m.passType=if(outline)1 else 0
                     m.color[0]=rgba[0];m.color[1]=rgba[1];m.color[2]=rgba[2];m.color[3]=rgba[3]
                     m.wrist[0]=virtX;m.wrist[1]=virtY;m.knuckle[0]=kcx;m.knuckle[1]=kcy
                     result.add(m)
@@ -414,7 +613,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
         }
 
 private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
-            val segments = 14
+            val segments = if (mrGameMode) 6 else 18
             for (k in 0 until segments) {
                 val a0 = (k * 2 * Math.PI / segments).toFloat()
                 val a1 = ((k + 1) * 2 * Math.PI / segments).toFloat()
@@ -422,6 +621,18 @@ private fun handDisc(out: FloatBuilder, x: Float, y: Float, r: Float) {
                 out.vertex(x + kotlin.math.cos(a0) * r,y + kotlin.math.sin(a0) * r,-1f)
                 out.vertex(x + kotlin.math.cos(a1) * r,y + kotlin.math.sin(a1) * r,-1f)
             }
+        }
+
+private fun handCuffOpen(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Float, r: Float, band: Float) {
+            val length = hypot(x2 - x1, y2 - y1)
+            if (length < 1e-6f) return
+            val ux = (x2 - x1) / length
+            val uy = (y2 - y1) / length
+            val sx = x2 - ux * band
+            val sy = y2 - uy * band
+            val ex = x2 + ux * band
+            val ey = y2 + uy * band
+            handBone(out, sx, sy, ex, ey, r, r * 0.96f)
         }
 
 private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Float, r1: Float, r2: Float) {
@@ -437,7 +648,29 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
             out.vertex(bx,by,-1f);out.vertex(dx,dy,-1f);out.vertex(cx,cy,-1f)
         }
 
-private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
+/** Ponto de mira do raio, no espaço do olho: o `end` que o JS manda (o alvo real de um acerto) ou
+ *  a direção da própria mão a 1,2 m quando não há acerto nenhum. Devolve false quando o ponto não
+ *  está à frente do olho — nesse caso não há feixe a desenhar. */
+private fun aimPoint(hand: PhoneXrHands.Hand, target: JSONObject?, view: FloatArray, e: FloatArray): Boolean {
+    val end=target?.optJSONArray("end")
+    val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
+    if(end!=null && end.length()==3) {
+        val wx=end.optDouble(0,Double.NaN).toFloat()
+        val wy=end.optDouble(1,Double.NaN).toFloat()
+        val wz=end.optDouble(2,Double.NaN).toFloat()
+        // World -> this eye's space, matching the panel's view transformation. Without this step
+        // the ring drifts in stereo even though the input hit-test was correct.
+        val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
+        val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
+        val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
+        val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
+        if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez;return true }
+    }
+    e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length
+    return e[0].isFinite()&&e[1].isFinite()&&e[2].isFinite()&&e[2]<-.05f
+}
+
+private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boolean, position: Int, fade: Float) {
             val color = colorUniform
             GLES20.glUniform1f(gradUniform,0f)
             if (b[2] < -.05f) {
@@ -455,7 +688,11 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handDisc(shape, hx, hy, r)
                     shape.vertex(hx-dy*r,hy+dx*r,-1f);shape.vertex(hx+dy*r,hy-dx*r,-1f)
                     shape.vertex(hx+dx*(r+tip),hy+dy*(r+tip),-1f)
-                    GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, POINTER_DROP_ALPHA*fade)
+                    if (virtualEnv && !mrGameMode) {
+                        GLES20.glUniform4f(color, .22f, .23f, .25f, POINTER_DROP_ALPHA*fade)
+                    } else {
+                        GLES20.glUniform4f(color, 1f, 1f, 1f, POINTER_DROP_ALPHA*fade)
+                    }
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = hx; sy = hy
                 } else {
@@ -466,12 +703,12 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                     handBone(shape, hx, hy, ex, ey, w, w)
                     handDisc(shape, hx, hy, w)
                     handDisc(shape, ex, ey, w)
-                    GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, POINTER_CLICK_ALPHA*fade)
+                    GLES20.glUniform4f(color, .18f, .62f, 1f, POINTER_CLICK_ALPHA*fade)
                     drawArray(shape, GLES20.GL_TRIANGLES, position)
                     sx = ex; sy = ey
                 }
-                if (down) {
-                    // The line, only while clicking: from the stick's end, fading out before the target.
+                // Thin middle-only ray (faded out at both the hand end and cursor dot end).
+                if (!noBeam) run {
                     val sz = -1f
                     val ex = b[3]; val ey = b[4]; val ez = b[5]
                     fun across(px: Float, py: Float, pz: Float, width: Float, out: FloatArray) {
@@ -480,16 +717,28 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                         val cl = kotlin.math.sqrt(cx * cx + cy * cy + cz * cz).coerceAtLeast(1e-6f)
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
-                    val segments = 10
+                    val segments = 12
+                    val startT = 0.12f
+                    val endT = 0.94f * RAY_SHOWN
+                    val rayWidth = if (blueRay) .0032f else .0024f
+                    val boost = if (blueRay) 1f else .78f
+                    val rayR = if (blueRay) .18f else HAND_CONTOUR_R
+                    val rayG = if (blueRay) .62f else HAND_CONTOUR_G
+                    val rayB = if (blueRay) 1f else HAND_CONTOUR_B
                     val wa = acrossA; val wb = acrossB; val q = quad
                     for (k in 0 until segments) {
-                        val t0 = k / segments.toFloat() * RAY_SHOWN; val t1 = (k + 1) / segments.toFloat() * RAY_SHOWN
+                        val u0 = k / segments.toFloat()
+                        val u1 = (k + 1) / segments.toFloat()
+                        val um = (u0 + u1) * .5f
+                        val t0 = startT + (endT - startT) * u0
+                        val t1 = startT + (endT - startT) * u1
+                        val midBell = kotlin.math.sin(um * Math.PI).toFloat().coerceIn(0f, 1f)
                         val ax = sx + (ex - sx) * t0; val ay = sy + (ey - sy) * t0; val az = sz + (ez - sz) * t0
                         val bx = sx + (ex - sx) * t1; val by = sy + (ey - sy) * t1; val bz = sz + (ez - sz) * t1
-                        across(ax, ay, az, .006f, wa)
-                        across(bx, by, bz, .006f, wb)
-                        GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B,
-                            POINTER_RAY_ALPHA * (1f - t0 / RAY_SHOWN * .9f) * fade)
+                        across(ax, ay, az, rayWidth * (.65f + .35f * midBell), wa)
+                        across(bx, by, bz, rayWidth * (.65f + .35f * midBell), wb)
+                        GLES20.glUniform4f(color, rayR, rayG, rayB,
+                            POINTER_RAY_ALPHA * (midBell * midBell) * boost * fade)
                         q[0]=ax-wa[0];q[1]=ay-wa[1];q[2]=az-wa[2];q[3]=ax+wa[0];q[4]=ay+wa[1];q[5]=az+wa[2]
                         q[6]=bx+wb[0];q[7]=by+wb[1];q[8]=bz+wb[2]
                         q[9]=ax-wa[0];q[10]=ay-wa[1];q[11]=az-wa[2];q[12]=bx+wb[0];q[13]=by+wb[1];q[14]=bz+wb[2]
@@ -499,14 +748,12 @@ private fun drawBeam(b: FloatArray, down: Boolean, position: Int, fade: Float) {
                 }
             }
             if (b[6] < .5f) return
-            // The ring: small, white inverted over what is behind it, empty inside.
+            // Bolinha branca sólida na ponta do raio (inner = 0f).
             val depth = -b[5]
-            // A small point for precise aiming, a little smaller still while pressing.
-            val outer = (if (down || touching) .009f else .012f) * depth
-            // Um anel ciano fino, sem inversão branca da cor de fundo.
-            val inner = outer - .0035f * depth
+            val outer = (if (down || touching) .0095f else .0115f) * depth
+            val inner = 0f
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-            GLES20.glUniform4f(color, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, fade)
+            GLES20.glUniform4f(color, 1f, 1f, 1f, fade)
             ring3d(b[3], b[4], b[5], outer, inner, position)
         }
 
