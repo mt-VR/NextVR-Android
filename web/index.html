@@ -3584,14 +3584,16 @@
      controles à esquerda e o relógio/bateria à direita. À esquerda ficam o "TODOS" (que saiu do
      centro do anel) e o GIROSCÓPIO; à direita, o perfil do jogador, a hora e a bateria. */
   .orb-foot{flex:none;padding:0 4px 10px}
-  .orb-bar{display:flex;align-items:center;gap:10px;pointer-events:auto;
+  .orb-bar{display:flex;align-items:center;gap:10px;pointer-events:auto;overflow:hidden;
     padding:6px 8px;border-radius:16px;min-height:56px;
     background:rgba(9,11,16,.62);border:1px solid rgba(255,255,255,.15);
     box-shadow:0 12px 30px rgba(0,0,0,.55)}
   .orb-bar-side{display:flex;align-items:center;gap:8px;min-width:0}
+  /* Os chips da esquerda podem encolher (mas nunca sumir); o relógio da direita nunca encolhe. */
   .orb-bar-left{flex:1 1 auto;overflow:hidden}
-  .orb-bar-right{flex:none;margin-left:auto;padding-left:6px}
+  .orb-bar-right{flex:0 0 auto;margin-left:auto;padding-left:6px;min-width:0}
   .orb-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    flex:0 1 auto;min-width:0;overflow:hidden;
     padding:9px 13px;border-radius:11px;color:#fff;font-size:12.5px;font-weight:800;
     letter-spacing:.06em;white-space:nowrap;line-height:1;
     background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
@@ -3615,8 +3617,8 @@
   .orb-me-check{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:50%;
     background:#fe2c55;color:#fff;font-size:9px;font-style:normal;font-weight:900;
     display:grid;place-items:center;border:2px solid rgba(10,12,18,.9)}
-  .orb-me-name{font-size:13.5px;font-weight:800;letter-spacing:.02em;max-width:32vw;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .orb-me-name{font-size:13.5px;font-weight:800;letter-spacing:.02em;
+    max-width:min(32vw,210px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .orb-clock{display:flex;align-items:center;gap:8px;pointer-events:none;
     padding-left:10px;border-left:1px solid rgba(255,255,255,.16)}
   .orb-clock-time{font-size:17px;font-weight:800;letter-spacing:.06em;
