@@ -530,7 +530,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(fist);await page.waitForTimeout(300);
     assert.equal(await page.locator('.win-shell.moving').count(),0,'closing a fist without moving does not drag');
     assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
-    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden));
+    // O punho precisa de mais de um quadro para o alvo ficar "consumido" pela janela; em runner
+    // lento o primeiro quadro só abre o gesto, então alimenta de novo antes de esperar.
+    await feed(fist);
+    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden),null,{timeout:15000});
     fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
     await feed(fist);
     await page.waitForFunction(original=>{
