@@ -679,6 +679,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       // completa, que é o que este fluxo usa para achar o app instalado.
       document.querySelector('.dock [data-id="library"]')?.click();
       document.querySelector('[data-orb-all]')?.click();
+      const libraryOpenError = window.__orbLastError || null;
       document.querySelector('.dock [data-id="store"]')?.click();
       await new Promise(r => setTimeout(r, 80));
       const installBtn = document.querySelector('[data-window-id="store"] [data-install-gorilla], [data-install-gorilla]');
@@ -751,6 +752,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const exitedOnBtn = overlay?.dataset?.gorillaStage === 'idle' && overlay?.style?.display === 'none' && !window.__gorillaStereoOverlay;
 
       return {
+        libraryOpenError,
         hadInstallBtn,
         storeLogo,
         inLibrary,
@@ -768,7 +770,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     });
     assert.equal(gorillaFlow.hadInstallBtn, true, 'Gorilla Tag has a BAIXAR button in the Store');
     assert.equal(gorillaFlow.storeLogo, true, 'Gorilla Tag Store card uses gorilla-tag-logo.jpg');
-    assert.equal(gorillaFlow.inLibrary, true, 'Downloading Gorilla Tag in the Store adds it to the App Library');
+    assert.equal(gorillaFlow.inLibrary, true,
+      `Downloading Gorilla Tag in the Store adds it to the App Library (orb: ${gorillaFlow.libraryOpenError})`);
     assert.equal(gorillaFlow.libLogo, true, 'Gorilla Tag App Library tile uses gorilla-tag-logo.jpg');
     assert.equal(gorillaFlow.enteringText, 'Entrando no Gorilla Tag', 'Opening Gorilla Tag displays "Entrando no Gorilla Tag"');
     assert.equal(gorillaFlow.lenses, '2015', 'Gorilla Tag renders with Google Cardboard 2015 stereo lenses');

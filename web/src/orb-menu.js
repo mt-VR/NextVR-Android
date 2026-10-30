@@ -123,18 +123,45 @@ export function orbMarkup(entries = orbEntries()) {
     </div>`;
 }
 
+/**
+ * Abre o app escolhido. Fechar o anel e abrir o app são passos INDEPENDENTES de propósito: um
+ * problema ao fechar o anel nunca pode engolir o toque do usuário (era isso que fazia o toque em
+ * "TODOS" não abrir nada). O erro fica registrado em `window.__orbLastError` para diagnóstico.
+ */
+function launchTarget(invoke) {
+  try {
+    closeOrbMenu();
+  } catch (error) {
+    // Fechou pela metade? O escurecimento sai do mesmo jeito e o app abre logo abaixo.
+    try { setSceneDim(0); } catch {}
+    remember(error);
+  }
+  try {
+    invoke();
+  } catch (error) {
+    remember(error);
+  }
+}
+
+function remember(error) {
+  const text = String((error && (error.stack || error.message)) || error || 'erro desconhecido');
+  if (typeof window !== 'undefined') window.__orbLastError = text;
+  if (typeof console !== 'undefined') console.error('orb-menu:', error);
+}
+
 function wireOrb(host) {
   host.querySelectorAll('[data-orb-app]').forEach(button => {
     button.onclick = () => {
       const key = button.dataset.orbApp;
       const isAndroid = button.dataset.orbAndroid === '1';
-      closeOrbMenu();
-      if (isAndroid) providers.launchAndroid(key.replace(/^app:/, ''));
-      else providers.launchOwn(key);
+      launchTarget(() => {
+        if (isAndroid) providers.launchAndroid(key.replace(/^app:/, ''));
+        else providers.launchOwn(key);
+      });
     };
   });
   const all = host.querySelector('[data-orb-all]');
-  if (all) all.onclick = () => { closeOrbMenu(); providers.launchOwn('library'); };
+  if (all) all.onclick = () => launchTarget(() => providers.launchOwn('library'));
   const closeBtn = host.querySelector('[data-orb-close]');
   if (closeBtn) closeBtn.onclick = () => closeOrbMenu();
 }

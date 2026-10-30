@@ -220,7 +220,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       true,'no settings-style backdrop is painted behind the apps');
     // O centro do anel ("TODOS") abre a biblioteca completa do NextVR.
     await page.locator('[data-orb-all]').click();
-    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'),null,{timeout:8000}).catch(async error=>{
+      const info=await page.evaluate(()=>({err:window.__orbLastError||null,
+        shells:[...document.querySelectorAll('.win-shell')].map(s=>s.dataset.windowId),
+        orb:!!document.querySelector('.orb-root')}));
+      throw new Error(`the ring did not open the library: ${JSON.stringify(info)} / ${error.message}`);
+    });
     assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
       'closing the ring restores the environment brightness');
