@@ -27,9 +27,11 @@ import { getDeviceStatus } from './windows.js';
 
 /** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo (em % da caixa do anel). */
 export const ORB_LAYOUT = Object.freeze([
+  // A fileira de baixo subiu um pouco: a barra de status (TODOS, giroscópio, perfil, hora) mora
+  // embaixo agora, e o ícone gigante não pode encostar nela.
   { x: 22, y: 16 }, { x: 50, y: 13 }, { x: 78, y: 16 },
-  { x: 13, y: 50 }, { x: 37, y: 50 }, { x: 63, y: 50 }, { x: 87, y: 50 },
-  { x: 22, y: 84 }, { x: 50, y: 87 }, { x: 78, y: 84 },
+  { x: 13, y: 48 }, { x: 37, y: 48 }, { x: 63, y: 48 }, { x: 87, y: 48 },
+  { x: 22, y: 80 }, { x: 50, y: 83 }, { x: 78, y: 80 },
 ]);
 
 /* Tamanho de referência do anel. Ele não é mais uma janela (não passa pelo atlas de texturas), então
