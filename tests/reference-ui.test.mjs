@@ -242,8 +242,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     }),true,'there is no white move bar on the ring window');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),'1',
       'the ring marks the page as open');
-    assert.ok(await page.locator('.orb-app').first().evaluate(e=>getComputedStyle(e).boxShadow!=='none'),
-      'each app tile carries its own glow so it stands out in the dark');
+    // O brilho vive no quadrado do ícone (::before), não no botão: o NOME embaixo fica solto no ar,
+    // como na referência, e continua sendo o quadrado que se destaca no ambiente escurecido.
+    assert.ok(await page.locator('.orb-app').first().evaluate(e=>{
+      const square=getComputedStyle(e,'::before');
+      return square.boxShadow!=='none'&&square.backgroundImage!=='none';
+    }),'each app tile carries its own glow so it stands out in the dark');
     // O tamanho é o da referência: ícone com o NOME EMBAIXO, não um thumb minúsculo.
     const tileSize = await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width));
     assert.ok(tileSize >= 96 && tileSize <= 140, `the icons are the size of the reference (${tileSize}px)`);
