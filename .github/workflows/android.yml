@@ -1,8 +1,8 @@
-name: Android CI
+name: Android CI (MetaMR PotatoVR)
 
 on:
   push:
-    branches: [ "arena/80a6e3eb-nextvr-android", "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
+    branches: [ "arena/7e43774f-nextvr-android", "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -12,197 +12,111 @@ permissions:
 
 jobs:
   build:
-    name: Build NextVR debug APK
+    name: Build MetaMR PotatoVR debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # Declarar `permissions` substitui o conjunto default inteiro: sem `checks: write`
-    # o passo "Publish build diagnostics" tomava 403 ao criar o check-run e o run
-    # falhava com exit 1 mesmo com o build verde.
+    timeout-minutes: 45
     permissions:
-      contents: write     # publicar o APK na branch apk-dist
-      actions: write      # apagar artefatos antigos (cota de storage)
-      checks: write       # criar/atualizar o check-run gradle-diagnostics
+      contents: write
+      actions: write
+      checks: write
       pull-requests: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Free disk space
-        continue-on-error: true
-        run: |
-          # Runner às vezes enche com ferramentas pré-instaladas que não usamos.
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/local/.ghcup 2>/dev/null || true
-          # NÃO apagar /usr/local/lib/android: é onde o setup-java e o SDK do Android vivem.
-          sudo rm -rf /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/Python*/*-arm* 2>/dev/null || true
-          sudo swapoff -a 2>/dev/null || true
-          sudo rm -f /mnt/swapfile /swapfile 2>/dev/null || true
-          sudo apt-get clean || true
-          docker system prune -af 2>/dev/null || true
-          df -h /
-      - name: Prune old CI artifacts
+      - name: Prune old CI artifacts (storage quota guard)
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # O free tier guarda 500 MB de artefatos. Cada build subia ~40 MB com
-          # retencao de 30 dias; a cota estourou, o upload falhou e derrubou o run.
-          # Apaga os antigos antes de subir os novos.
-          set -x
-          keep=2
+          keep=3
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.name=="nextvr-debug-apk" or .name=="native-test-reports") | "\(.created_at) \(.id)"' \
+            --jq '.artifacts[] | select(.name=="metamr-potatovr-debug-apk" or .name=="unit-test-reports") | "\(.created_at) \(.id)"' \
             | sort -r | tail -n +$((keep + 1)) | awk '{print $2}' > /tmp/old-artifacts.txt || true
-          echo "artifacts to delete: $(wc -l < /tmp/old-artifacts.txt)"
-          xargs -r -P 8 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts | length' || true
+          xargs -r -P 4 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
 
-      - name: Set up Node
-        uses: actions/setup-node@v7
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
 
-      - name: Validate and bundle reference UI
+      - name: Validate HTML/JS base, Java refs and bundle offline assets
         id: ui
         continue-on-error: true
         run: |
           set -o pipefail
           (set -e
           npm ci
-          # Reference check of the Android sources (no JDK on this step): it catches renamed methods,
-          # changed arities, accessed fields that do not exist and AIDL transactions without an
-          # implementation. Installed here because the runner image does not carry javalang; if the
-          # install fails the script says so and skips instead of pretending to have checked.
           python3 -m pip install --quiet --break-system-packages javalang 2>/dev/null || \
             python3 -m pip install --quiet --user javalang 2>/dev/null || true
-          # First the tool's own synthetic cases: a rule that quietly stopped working would report a
-          # clean tree and let the next compile error through.
           python3 tools/check-java-refs.py --self-test
           python3 tools/check-java-refs.py
-          npm test
           npm run build:ui
-          git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
+          npm test
+          git diff --exit-code -- app/src/main/assets/index.html) 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v6
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-
-      - name: Show runner Android toolchain
-        run: |
-          set -x
-          # `bash -e` derruba o passo no primeiro comando que falhar: tudo aqui e diagnostico,
-          # entao nada pode sair diferente de zero (era daqui que vinha um exit 127).
-          java -version || echo "java not on PATH"
-          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          echo "ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls "$SDK" 2>/dev/null || echo "no Android SDK directory"
-          ls "$SDK/ndk" 2>/dev/null || echo "no ndk preinstalled"
-          ls "$SDK/cmake" 2>/dev/null || echo "no cmake preinstalled"
-          command -v sdkmanager || ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null \
-            || echo "no sdkmanager on this runner"
-        continue-on-error: true
-
-      # O runner nao tem o `sdkmanager` no PATH (ele mora em cmdline-tools/*/bin). Os passos `run:`
-      # rodam com `bash -e`, entao `sdkmanager ... || sdkmanager ...` abortava o passo com exit 127
-      # ANTES da linha com `|| true`, e o Actions publicava a anotacao vermelha "Process completed
-      # with exit code 127" em toda rodada -- mesmo com o NDK e o CMake ja instalados na imagem.
-      # Agora o binario e localizado de verdade, a instalacao so roda quando falta algo, e nenhuma
-      # falha derruba o passo: quem garante o toolchain e o build Gradle logo abaixo.
-      - name: Install NDK and CMake
-        run: |
-          set -x
-          NDK_VERSION=29.0.14206865
-          CMAKE_VERSION=3.22.1
-          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          SDKMANAGER="$(command -v sdkmanager || true)"
-          if [ -z "$SDKMANAGER" ] && [ -n "$SDK" ]; then
-            SDKMANAGER="$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1 || true)"
-          fi
-          echo "sdkmanager=${SDKMANAGER:-<none>}"
-          if [ -d "$SDK/ndk/$NDK_VERSION" ] && [ -d "$SDK/cmake/$CMAKE_VERSION" ]; then
-            echo "NDK $NDK_VERSION and CMake $CMAKE_VERSION are already installed"
-          elif [ -z "$SDKMANAGER" ]; then
-            echo "no sdkmanager: relying on the preinstalled toolchain"
-          else
-            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-            "$SDKMANAGER" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" \
-              || echo "sdkmanager install failed; continuing with the preinstalled toolchain"
-          fi
-          ls "$SDK/ndk" "$SDK/cmake" 2>/dev/null || true
-        continue-on-error: true
-
-      - name: Build Cardboard SDK and NextVR
+      - name: Build MetaMR debug APK and run JVM unit tests
         id: build
+        continue-on-error: true
         run: |
           set -o pipefail
-          ./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
-        continue-on-error: true
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace --no-daemon 2>&1 | tee -a /tmp/build.log
 
-      - name: Verify native camera and detector libraries in both APK ABIs
+      - name: Verify packaged assets and debug signature
         id: verify
         if: steps.build.outcome == 'success'
         continue-on-error: true
         run: |
           set -o pipefail
           (set -e
-          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
-          NM="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          unzip -Z1 "$APK" | grep '^lib/'
-          for ABI in armeabi-v7a arm64-v8a; do
-            for LIB in libnextvr_jni.so libmediapipe_tasks_jni.so libtensorflowlite_jni.so; do
-              echo "Checking $ABI/$LIB"
-              unzip -Z1 "$APK" | grep -Fx "lib/$ABI/$LIB"
-            done
-            unzip -p "$APK" "lib/$ABI/libnextvr_jni.so" > "/tmp/nextvr-$ABI.so"
-            "$NM" -D "/tmp/nextvr-$ABI.so" | grep 'Java_com_nextvr_app_PassthroughCamera_nativeYuvToArgb'
-          done
-          ) 2>&1 | tee -a /tmp/build.log
+          APK=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          test -n "$APK"
+          echo "Built APK: $APK ($(stat -c %s "$APK") bytes)"
 
-      # A assinatura de depuração vem do repositório (signing/debug.keystore, declarado no
-      # build.gradle do módulo). Sem isso, cada runner gera uma chave nova e a rodada nova NÃO
-      # instala por cima da anterior ("App not installed"). Aqui o APK montado é conferido contra a
-      # impressão digital da chave do repositório: se o Gradle voltar a assinar sozinho, o CI falha
-      # no lugar de entregar um APK que não atualiza.
-      - name: Verify debug signature is the repository key
-        id: sign
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          (set -e
+          for ENTRY in \
+            assets/index.html \
+            assets/vendor/three/three.min.js \
+            assets/vendor/three/CSS3DRenderer.js \
+            assets/vendor/mediapipe/camera_utils/camera_utils.js \
+            assets/vendor/mediapipe/hands/hands.js \
+            assets/vendor/mediapipe/hands/hand_landmark_lite.tflite \
+            assets/vendor/mediapipe/hands/hands_solution_simd_wasm_bin.wasm \
+            classes.dex \
+            AndroidManifest.xml; do
+            echo "Checking $ENTRY"
+            unzip -Z1 "$APK" | grep -Fx "$ENTRY"
+          done
+
           FP=94b3534f902bb783d9cd5859978106f2687016e3127c239a397ffc3ea7b2adbf
-          # O relatório do próprio Gradle diz com qual chave a variante debug sai assinada.
-          ./gradlew :nextvr-android:signingReport --no-daemon > /tmp/sign.txt 2>&1 || true
-          cat /tmp/sign.txt
-          tr -d ':' < /tmp/sign.txt | grep -qi "$FP"
-          echo "Variante debug assinada com a chave de depuração do repositório"
-          # Reforço: a assinatura do APK montado, quando o apksigner está disponível.
-          APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
           if [ -n "$APKSIGNER" ]; then
             "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -qi "$FP"
-            echo "APK conferido pelo apksigner"
-          else
-            echo "apksigner indisponível neste runner; a conferência acima já cobre a assinatura"
+            echo "APK conferido pelo apksigner com a chave fixa do repositório."
           fi
+
+          mkdir -p /tmp/apk-upload
+          cp "$APK" /tmp/apk-upload/MetaMR-PotatoVR-debug.apk
           ) 2>&1 | tee -a /tmp/build.log
 
       - name: Publish build diagnostics
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OUTCOME: ${{ steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.verify.outcome == 'success' && steps.sign.outcome == 'success' && 'success' || 'failure' }}
+          OUTCOME: ${{ steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.verify.outcome == 'success' && 'success' || 'failure' }}
         run: |
           if [ ! -f /tmp/build.log ]; then echo "no build log captured" > /tmp/build.log; fi
-          python3 -c 'import glob,xml.etree.ElementTree as E; [(print("JVM",p,E.parse(p).getroot().attrib)) for p in glob.glob("nextvr-android/build/test-results/testDebugUnitTest/TEST-*.xml")]' >> /tmp/build.log
-          # Strip ANSI colour codes, keep the last 60k characters (check-run limit).
           tail -c 60000 /tmp/build.log | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/build-tail.txt
           case "$OUTCOME" in
             success) CONCLUSION=success ;;
@@ -213,78 +127,33 @@ jobs:
                 --arg sha "${{ github.sha }}" \
                 '{name: "gradle-diagnostics", head_sha: $sha, status: "completed",
                   conclusion: $c,
-                  output: {title: "Gradle build log (tail)", summary: "Build output for this commit", text: $t}}' \
+                  output: {title: "Gradle build log (tail)", summary: "Build output for MetaMR PotatoVR APK", text: $t}}' \
             > /tmp/payload.json
-          # The push and the pull_request runs of the same commit post at the same moment, and the
-          # second one used to die on the API's secondary rate limit — turning a fully green build
-          # into a red job with nothing wrong in it. Retry instead of failing the job for that.
-          uploaded=0
-          for attempt in 1 2 3 4; do
+          for attempt in 1 2 3; do
             if gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json; then
-              uploaded=1
               break
             fi
-            echo "check-run upload failed (attempt $attempt); retrying"
-            sleep $((attempt * 5))
-          done
-          [ "$uploaded" = "1" ] || echo "diagnostics upload failed (ignored)"
+            sleep $((attempt * 4))
+          done || true
 
-      # Diagnostics are best-effort, but validation is not: the build/test steps use
-      # continue-on-error so their logs can be published before the job fails.
       - name: Fail if any validation failed
-        if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
+        if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success'
         run: exit 1
 
-      - name: Publish debug APK to apk-dist branch
-        # Keep the public APK branch owned by main's release stream. Arena feature branches only
-        # upload their run artifact; they never push to a different branch.
-        if: github.ref == 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          # Caminho absoluto de proposito: o passo faz `cd /tmp/apk-dist` antes do cp.
-          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
-          test -n "$APK"
-          rm -rf /tmp/apk-dist && mkdir -p /tmp/apk-dist/dist && cd /tmp/apk-dist
-          git init -q -b apk-dist
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp "$APK" dist/app-debug.apk
-          # O APK se identifica: o arquivo ao lado dele diz de que run e de que commit ele veio, com
-          # tamanho e md5, para conferir o download sem depender de um número escrito na mão em lugar
-          # nenhum (a documentação aponta para este arquivo).
-          SIZE=$(stat -c %s "$APK")
-          MD5=$(md5sum "$APK" | cut -d' ' -f1)
-          printf 'Debug APK built by Android CI run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
-            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
-          cat dist/build.txt
-          git add dist
-          git commit -qm "Debug APK from CI run $GITHUB_RUN_ID ($GITHUB_SHA)"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin apk-dist
-          echo "APK published: branch apk-dist, path dist/app-debug.apk"
-
-
-      - name: Upload native test reports
+      - name: Upload unit test reports
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: native-test-reports
-          path: nextvr-android/build/test-results/testDebugUnitTest/
+          name: unit-test-reports
+          path: app/build/test-results/testDebugUnitTest/
           if-no-files-found: ignore
-          retention-days: 3
+          retention-days: 5
 
-      - name: Upload APK
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
+      - name: Upload MetaMR PotatoVR APK
+        uses: actions/upload-artifact@v4
         with:
-          name: nextvr-debug-apk
-          # O build nao configura ABI splits, entao sai um unico
-          # nextvr-android-debug.apk. O padrao anterior (*-universal-debug.apk)
-          # nao casava com nada e o upload era pulado.
-          path: nextvr-android/build/outputs/apk/debug/*.apk
+          name: metamr-potatovr-debug-apk
+          path: /tmp/apk-upload/MetaMR-PotatoVR-debug.apk
           if-no-files-found: error
           retention-days: 30
-

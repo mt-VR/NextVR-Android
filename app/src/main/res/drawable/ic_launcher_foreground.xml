@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Visor VR com Aura Neon Ciano -->
+    <path
+        android:fillColor="#00E5FF"
+        android:fillAlpha="0.22"
+        android:pathData="M24,38h60c5.5,0 10,4.5 10,10v12c0,5.5 -4.5,10 -10,10H64l-6,-7c-2.1,-2.5 -5.9,-2.5 -8,0l-6,7H24c-5.5,0 -10,-4.5 -10,-10V48c0,-5.5 4.5,-10 10,-10z" />
+    <path
+        android:strokeColor="#00F0FF"
+        android:strokeWidth="3.6"
+        android:strokeLineJoin="round"
+        android:fillColor="#101829"
+        android:pathData="M27,41h54c4.4,0 8,3.6 8,8v10c0,4.4 -3.6,8 -8,8H63l-5.2,-6.2c-2,-2.4 -5.6,-2.4 -7.6,0L45,67H27c-4.4,0 -8,-3.6 -8,-8V49c0,-4.4 3.6,-8 8,-8z" />
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M37,54m-5.5,0a5.5,5.5 0 1,1 11,0a5.5,5.5 0 1,1 -11,0" />
+    <path
+        android:fillColor="#7C4DFF"
+        android:pathData="M71,54m-5.5,0a5.5,5.5 0 1,1 11,0a5.5,5.5 0 1,1 -11,0" />
+</vector>

@@ -21,7 +21,7 @@ except ImportError:  # pragma: no cover - the CI image may not have it
           'Install it with: python3 -m pip install --break-system-packages javalang')
     sys.exit(0)
 
-ROOT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else 'nextvr-android/src'
+ROOT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else 'app/src'
 
 # Known false positives of the receiver inference, all confirmed by hand. Each one is a call whose
 # receiver name was declared with two different types in two different scopes, so the last
@@ -29,11 +29,7 @@ ROOT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') els
 # name with a SpatialRenderer field, and IDisplayService#capabilities reached through a local that
 # shares its name with ShizukuManager.Listener. Keep this list short and explained: anything else
 # that shows up is a real mismatch.
-ALLOWED_MESSAGES = {
-    'SpatialRenderer.dispatchHandEvent/3 not found',
-    'SpatialRenderer.evaluate/1 not found',
-    'Listener.capabilities/0 not found',
-}
+ALLOWED_MESSAGES = set()
 
 
 def java_files(root):
@@ -474,10 +470,10 @@ class Mirror {
 }
 """
 R_WITH_IMPORT = """
-package com.nextvr.app.apps;
-import com.nextvr.app.R;
+package com.metamr.potatovr.sub;
+import com.metamr.potatovr.R;
 class Mirror {
-    String title(Context context) { return context.getString(R.string.mirror_notification_title); }
+    String title(Context context) { return context.getString(R.string.app_name); }
 }
 """
 TYPE_WITHOUT_IMPORT = """
@@ -562,7 +558,7 @@ class Released {
 # that declares it, so the rule stays honest if the app is ever renamed.
 def app_namespace():
     try:
-        with open('nextvr-android/build.gradle', encoding='utf-8') as handle:
+        with open('app/build.gradle', encoding='utf-8') as handle:
             match = re.search(r"namespace\s*=?\s*['\"]([\w.]+)['\"]", handle.read())
         return match.group(1) if match else None
     except OSError:
