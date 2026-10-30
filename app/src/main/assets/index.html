@@ -117,7 +117,7 @@
         /* Janela flutuante com tamanho FIXO (440px de conteudo + 40px de barra): a geometria 3D
    (acima da dock, sem sobreposicao entre janelas) precisa de medidas deterministicas. */
         .dixvr-floating-window > .main-vr-window {
-            width: 100% !important;
+            width: calc(100% - 20px) !important;
             height: 100% !important;
             min-height: 0 !important;
         }
@@ -167,6 +167,25 @@
         }
         .dixvr-win-close {
             background: rgba(255,82,82,0.18); border-color: rgba(255,105,105,0.35); color: #ffd6d6; font-size: 16px;
+        }
+        /* Alça branca no LADO DIREITO da janelinha flutuante: pega e move a janela. */
+        .dixvr-win-move-handle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 130px;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 10px;
+            box-shadow: 0 0 8px rgba(0,0,0,.75), 0 0 7px rgba(255,255,255,.35);
+            pointer-events: auto;
+            z-index: 40;
+            cursor: grab;
+        }
+        .dixvr-win-move-handle.hand-grabbed {
+            box-shadow: 0 0 10px rgba(0,0,0,.9), 0 0 14px rgba(255,255,255,.7);
         }
         .main-vr-window {
             width: 760px; height: 440px; background: transparent;
@@ -361,14 +380,14 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Alça lateral para mover o painel com pinça (alargada para ser mais fácil de agarrar) */
+        /* Alça horizontal EMBaixo da dock para mover o painel com a mão (pinça) */
         .panel-move-handle {
             position: absolute;
-            left: -15px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 22px;
-            height: 110px;
+            left: 50%;
+            bottom: -17px;
+            transform: translateX(-50%);
+            width: 130px;
+            height: 22px;
             background: #fff;
             border: 2px solid #000;
             border-radius: 11px;
@@ -376,6 +395,7 @@
             opacity: .96;
             pointer-events: auto;
             z-index: 30;
+            cursor: grab;
         }
         .panel-move-handle.hand-grabbed {
             opacity: 1;
@@ -1637,7 +1657,7 @@ body.vr-cardboard::after{
         let activePanelType = null;
         // World Lock: quando ligado, o painel mantém exatamente sua pose 3D
         // e não é reposicionado pela orientação do celular.
-        let worldLockEnabled = true;
+        let worldLockEnabled = false;
 
         // ===== Rastreamento espacial 6DoF / SLAM (WebXR/ARCore) =====
         // Mantém o giroscópio original como fallback. Em Android compatível,
@@ -1665,7 +1685,6 @@ body.vr-cardboard::after{
                 xrSpatialTrackingActive = true;
                 xrSpatialHasPosition = false;
                 xrSpatialStartedAt = performance.now();
-                worldLockEnabled = true;
                 updateWorldLockButton();
 
                 session.addEventListener('end', () => {
@@ -1980,7 +1999,7 @@ body.vr-cardboard::after{
         let isAnalyzing = false;
         let lastClickTime = 0;
         let lastAnalysisTime = 0;
-        const ANALYSIS_INTERVAL = 55; // ~18 FPS de IA; reduz picos no WebView móvel
+        const ANALYSIS_INTERVAL = 1000 / 24; // alvo de 24 FPS; sem análises simultâneas
         let draggingPanelWithHand = false;
         let handDragLast = { x: 0, y: 0, zPinch: 0 };
         let handDragSmooth = { x: 0, y: 0, zPinch: 0 };
@@ -2740,14 +2759,14 @@ body.vr-cardboard::after{
         // ===== MULTITAREFA ESPACIAL dixVR (ESTILO NEXTVR: ATÉ 3 APPS ACIMA DA DOCK) =====
         const MULTITASK_MAX = 3;
         const MULTITASK_SLOTS = ['center', 'left', 'right'];
-        const DOCK_DIST = 2.08;
+        const DOCK_DIST = 1.85;
         const DOCK_Y = -0.68;
         const DOCK_SCALE = 0.0024;
         const DOCK_HALF_HEIGHT = 0.085;      // fallback: usado so se a dock nao estiver mensuravel
         const DOCK_TILT = 0.14;              // a dock e inclinada para o usuario
         const DOCK_CLEARANCE = 0.18;         // folga minima entre o topo da dock e a base da janela
         const WINDOW_TOP_MAX_Y = 0.46;       // teto de altura: janela alta ENCOLHE, nao sobe
-        const ARC_DIST = 2.26;
+        const ARC_DIST = 2.00;
         const ARC_MIN_STEP = 0.52;
         const ARC_MAX_STEP = 0.92;
         const ARC_GAP_M = 0.12;              // folga horizontal entre janelas vizinhas
@@ -2759,6 +2778,7 @@ body.vr-cardboard::after{
         const multitaskDetached = new Set();
         const multitaskPanels = {};
         const multitaskEntryCache = {};
+        const multitaskHandDrag = {};
         let multitaskClock = 0;
         let multitaskScales = {};
         let multitaskArcStep = ARC_MIN_STEP;
@@ -2850,6 +2870,39 @@ body.vr-cardboard::after{
                 </div>`;
         }
 
+        // Arraste de uma janela flutuante (usado tanto na barra de titulo quanto na
+        // alça branca do lado direito). A janela sai do arco e passa a ficar solta.
+        function attachMultitaskPointerDrag(el, appId, getPanel3D) {
+            if (!el) return;
+            let dragging = false, lastX = 0, lastY = 0;
+            el.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button')) return;
+                e.stopPropagation();
+                dragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                el.setPointerCapture?.(e.pointerId);
+            });
+            el.addEventListener('pointermove', (e) => {
+                const p3d = getPanel3D();
+                if (!dragging || !p3d) return;
+                e.stopPropagation();
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                multitaskDetached.add(appId);
+                p3d.position.x = Math.max(-2.6, Math.min(2.6, p3d.position.x + dx * 0.003));
+                p3d.position.y = Math.max(getMinCenterYForApp(appId), p3d.position.y - dy * 0.003);
+                p3d.position.z = Math.min(-0.45, p3d.position.z);
+                lastMovedPanel3D = p3d;
+                if (appId === 'google') { alignGoogleKeyboardPanel(); updateNativeGoogleBounds(); }
+                if (appId === 'youtube') { updateNativeYouTubeBounds(); }
+            });
+            el.addEventListener('pointerup', () => { dragging = false; });
+            el.addEventListener('pointercancel', () => { dragging = false; });
+        }
+
         function bindMultitaskBarEvents(wrapperEl, appId, getPanel3D) {
             wrapperEl.querySelectorAll('[data-win-slot]').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -2865,33 +2918,9 @@ body.vr-cardboard::after{
                 });
             }
             const bar = wrapperEl.querySelector(`[data-win-bar="${appId}"]`);
-            if (bar) {
-                let dragging = false, lastX = 0, lastY = 0;
-                bar.addEventListener('pointerdown', (e) => {
-                    if (e.target.closest('button')) return;
-                    dragging = true;
-                    lastX = e.clientX;
-                    lastY = e.clientY;
-                    bar.setPointerCapture?.(e.pointerId);
-                });
-                bar.addEventListener('pointermove', (e) => {
-                    const p3d = getPanel3D();
-                    if (!dragging || !p3d) return;
-                    const dx = e.clientX - lastX;
-                    const dy = e.clientY - lastY;
-                    lastX = e.clientX;
-                    lastY = e.clientY;
-                    multitaskDetached.add(appId);
-                    p3d.position.x = Math.max(-2.6, Math.min(2.6, p3d.position.x + dx * 0.003));
-                    p3d.position.y = Math.max(getMinCenterYForApp(appId), p3d.position.y - dy * 0.003);
-                    p3d.position.z = Math.min(-0.45, p3d.position.z);
-                    lastMovedPanel3D = p3d;
-                    if (appId === 'google') { alignGoogleKeyboardPanel(); updateNativeGoogleBounds(); }
-                    if (appId === 'youtube') { updateNativeYouTubeBounds(); }
-                });
-                bar.addEventListener('pointerup', () => { dragging = false; });
-                bar.addEventListener('pointercancel', () => { dragging = false; });
-            }
+            attachMultitaskPointerDrag(bar, appId, getPanel3D);
+            const handle = wrapperEl.querySelector(`[data-win-handle="${appId}"]`);
+            attachMultitaskPointerDrag(handle, appId, getPanel3D);
         }
 
         function createFloatingDomWindow(appId, contentEl, titleText) {
@@ -2904,6 +2933,13 @@ body.vr-cardboard::after{
             wrapper.innerHTML = buildMultitaskControlsMarkup(appId, titleText);
             contentEl.classList.add('active-window');
             wrapper.appendChild(contentEl);
+            // Alça branca no lado direito: pega a janelinha e move ela de lugar.
+            const moveHandle = document.createElement('div');
+            moveHandle.className = 'dixvr-win-move-handle';
+            moveHandle.dataset.winHandle = appId;
+            moveHandle.title = 'Segure para mover';
+            moveHandle.setAttribute('aria-label', 'Mover janela');
+            wrapper.appendChild(moveHandle);
             host.appendChild(wrapper);
 
             const panel3D = new THREE.CSS3DObject(wrapper);
@@ -2915,6 +2951,7 @@ body.vr-cardboard::after{
             const entry = {
                 appId, panel3D, wrapperEl: wrapper, contentEl,
                 barEl: wrapper.querySelector(`[data-win-bar="${appId}"]`),
+                handleEl: moveHandle,
                 baseScale: 0.00202, pxW: 760, pxH: 480, title: titleText,
                 measuredW: 0, measuredH: 0
             };
@@ -3348,6 +3385,7 @@ body.vr-cardboard::after{
 
         function suspendMultitaskForGame(suspend) {
             multitaskSuspendedForGame = !!suspend;
+            alignPanelInFront();
             if (group3D) group3D.visible = !suspend;
             for (const slot of MULTITASK_SLOTS) {
                 const appId = multitaskSlots[slot];
@@ -4663,7 +4701,9 @@ body.vr-cardboard::after{
             // Somente a IA recebe uma cópia pequena e é chamada quando há um novo frame.
             async function analyzeFrame(now) {
                 if (!isAnalyzing && videoElement.readyState >= 2 && (now - lastAnalysisTime) >= ANALYSIS_INTERVAL) {
-                    lastAnalysisTime = now;
+                    // Preserva a fração entre frames de câmera (30 Hz) e IA (24 Hz).
+                    // Limita atraso acumulado: não dispara rajadas após pausas.
+                    lastAnalysisTime = now - Math.min(now - lastAnalysisTime - ANALYSIS_INTERVAL, ANALYSIS_INTERVAL);
                     isAnalyzing = true;
                     processCtx.drawImage(videoElement, 0, 0, processCanvas.width, processCanvas.height);
                     try {
@@ -5407,8 +5447,52 @@ body.vr-cardboard::after{
                     }
                 }
 
+                // A pinça segura a alça direita até soltar, mesmo saindo de sua área.
+                if (!experimentGameActive && !multitaskSuspendedForGame) {
+                    for (const slot of MULTITASK_SLOTS) {
+                        const appId = multitaskSlots[slot];
+                        if (!appId) continue;
+                        const entry = getMultitaskEntry(appId);
+                        if (!entry?.handleEl || !entry.panel3D?.visible) continue;
+                        const r = entry.handleEl.getBoundingClientRect();
+                        const over = indexTip.x >= r.left - 18 && indexTip.x <= r.right + 18
+                            && indexTip.y >= r.top - 18 && indexTip.y <= r.bottom + 18;
+                        let drag = multitaskHandDrag[appId];
+                        if (drag && drag.side !== side) continue;
+                        if (drag && !pinchGrabHold) {
+                            delete multitaskHandDrag[appId];
+                            entry.handleEl.classList.remove('hand-grabbed');
+                            continue;
+                        }
+                        if (!drag && (!over || !pinchGrabStart || grabbed)) continue;
+                        const x = (indexTip.x + thumbTip.x) * .5;
+                        const y = (indexTip.y + thumbTip.y) * .5;
+                        if (!drag) {
+                            drag = multitaskHandDrag[appId] = {side, x, y, position: entry.panel3D.position.clone()};
+                        }
+                        drag.seen = true;
+                        multitaskDetached.add(appId);
+                        const targetX = drag.position.x + (x - drag.x) * .0042;
+                        const targetY = Math.max(getMinCenterYForApp(appId), drag.position.y - (y - drag.y) * .0042);
+                        entry.panel3D.position.x += (targetX - entry.panel3D.position.x) * PANEL_HAND_SMOOTH;
+                        entry.panel3D.position.y += (targetY - entry.panel3D.position.y) * PANEL_HAND_SMOOTH;
+                        entry.handleEl.classList.add('hand-grabbed');
+                        lastMovedPanel3D = entry.panel3D;
+                        grabbed = true;
+                        break;
+                    }
+                }
+
                 // Os painéis usam apenas o cursor do indicador + permanência de 1s.
             });
+
+            for (const appId of Object.keys(multitaskHandDrag)) {
+                const drag = multitaskHandDrag[appId];
+                if (!drag.seen) {
+                    getMultitaskEntry(appId)?.handleEl?.classList.remove('hand-grabbed');
+                    delete multitaskHandDrag[appId];
+                } else drag.seen = false;
+            }
 
             if (!grabbed && draggingPanelWithHand) draggingPanelWithHand=false;
             if (!grabbed && googlePanelDragging) googlePanelDragging=false;
