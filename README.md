@@ -1,55 +1,38 @@
-# MetaMR (PotatoVR) — Base Android APK Independente
+# dixVR — Standalone Android AR/VR APK
 
-Projeto Android isolado e enxuto criado especificamente a partir do código-base **`PotatoVR_ShootTheDie_AR_SLAM_OPTIMIZADO-2_AuraNeon_FLUXO-OPTICO.html`** (**MetaMR - VR Launcher**).
+Aplicativo Android independente (`com.dixvr.app` / **dixVR**), completamente separado da base NextVR original, construído sobre a base **AR SLAM Otimizado + Aura Neon + Fluxo Óptico** com **Multitarefa Espacial de 3 Janelas estilo NextVR acima da Dock**.
 
-Possui identidade própria (`applicationId "com.metamr.potatovr"`), permitindo instalar este novo APK no mesmo celular **lado a lado com o NextVR (`com.nextvr.app`)** sem sobrescrever nem misturar código.
+## Principais Recursos
 
----
+- **Multitarefa Espacial 3× acima da Dock (estilo NextVR)**:
+  - Abra até **3 aplicativos simultaneamente** em um arco espacial 3D ao redor do usuário:
+    - **1 janela principal na frente** (`FRENTE`, `0°`)
+    - **1 janelinha angulada no lado esquerdo** (`ESQUERDA`, `-39°`)
+    - **1 janelinha angulada no lado direito** (`DIREITA`, `+39°`)
+  - **Tudo posicionado acima da Dock**: a Dock permanece ancorada na parte inferior (`y = -0.68m`) e todas as 3 janelas flutuam acima dela com folga espacial garantida.
+  - **Substituição inteligente (LRU)**: ao abrir um 4º app com 3 janelas cheias, a janela lateral menos recente dá lugar automaticamente.
+  - **Controles rápidos em cada janela**: botões `◀` (Esquerda), `⌖` (Frente), `▶` (Direita) e `×` (Fechar) acessíveis por toque ou permanência do indicador (1s).
+  - **Google + YouTube nativos lado a lado**: `DixVrActivity` mantém as sub-WebViews nativas do Google e do YouTube independentes para rodarem ao mesmo tempo na multitarefa.
+- **Passthrough AR + Fluxo Óptico (6DoF aproximado)** + **World Lock** e **Modo VR Cardboard** estereoscópico.
+- **Hand Tracking Offline (MediaPipe Hands WASM/TFLite empacotado no APK)**: estilos **Fantasma**, **Aura Neon**, **3D** e **Original**.
+- **Loja dixVR & Biblioteca dixVR**: **ShootTheDie** (FPS VR embutido via `dixvr-shoot-hand` / `dixvr-shoot-gyro`), **Chicken Cut VR**, **Dreamcore**, **Google**, **YouTube** e **Notas & Multitarefa dixVR**.
 
-## O que vem integrado nesta base
+## Estrutura do Projeto
 
-- **Workspace AR/VR em Tela Cheia Imersiva (`MetaMrActivity`)**:
-  - Orientação `sensorLandscape`, tela sempre acesa e barras do sistema ocultas.
-  - Origem segura local (`https://appassets.androidplatform.net/assets/index.html`) para `getUserMedia` (câmera traseira), `WebXR`, `localStorage` e iframes `srcdoc`.
-- **Funcionamento 100% Offline para AR e Hand Tracking (`AssetRequestRouter`)**:
-  - `Three.js r128`, `CSS3DRenderer` e `@mediapipe/hands` (incluindo binários `.wasm`, `.data` e modelos `.tflite`) são empacotados dentro do próprio APK.
-  - Carregamento instantâneo sem depender de CDN externa, inclusive dentro do jogo embutido **ShootTheDie**.
-- **Recursos preservados do código-base**:
-  - **Fluxo Óptico Lucas-Kanade (`FLUXO-OPTICO`)** somado ao giroscópio para compensação visual leve de deslocamento + suporte a **WebXR inline** e ponte `postMessage` (`arcore-pose`).
-  - **4 estilos visuais de mãos**: *Mão fantasma*, *Aura Neon*, *3D* e *Original* (MediaPipe Hands para 2 mãos).
-  - **Modo VR Cardboard Estéreo** (`#btn-dock-vr`) e **World Lock** (`#btn-dock-worldlock`).
-  - **Ilha 3D em WebGL** (`#beach-webgl`) com ondas reais, areia e cadeira.
-  - **Experiências embutidas na Loja / Biblioteca**: *ShootTheDie* (FPS VR HTML), *Chicken Cut VR*, *Dreamcore*, *Google* e *YouTube*.
-- **Ponte Android Nativa (`window.PotatoAndroid` / `window.MetaMR` / `window.Android`)**:
-  - Sub-WebViews nativas reais para os painéis flutuantes do **Google** e **YouTube** (sem bloqueio de `X-Frame-Options`), sincronizadas com a posição 3D do painel, rolagem por gesto de mão, clique por permanência (*dwell*) e camada transparente de cursor neon (`HandCursorOverlayView`).
-  - Abertura nativa de aplicativos externos via `Intent` (`intent://`, pacotes instalados ou fallback para Play Store).
-  - Botão **Voltar** do Android fecha primeiro o jogo/painel ativo antes de encerrar a sessão AR.
+- `web/index.html` — código-fonte HTML/CSS/JS do workspace **dixVR** + multitarefa 3× em arco.
+- `web/build.mjs` — empacota `web/index.html`, `three@0.128.0` (`CSS3DRenderer`) e `@mediapipe/hands` + `@mediapipe/camera_utils` em `app/src/main/assets/`.
+- `app/` — módulo Android (`com.dixvr.app`, `DixVrActivity`, `AssetRequestRouter`, `PanelBounds`, `HandCursorOverlayView`).
+- `tests/` — suíte automatizada de testes Node.js (branding `dixVR`, contrato da ponte Android, geometria 3D da multitarefa acima da dock e assets offline).
 
----
-
-## Como baixar o APK pelo GitHub Actions
-
-Cada commit neste Pull Request dispara o workflow **`Android CI (MetaMR PotatoVR)`**, que compila, testa, assina com `signing/debug.keystore` e publica o artefato **`metamr-potatovr-debug-apk`** (`MetaMR-PotatoVR-debug.apk`) na aba **Actions** da execução do PR.
-
----
-
-## Como desenvolver e compilar localmente
-
-### 1. Editar a interface/base Web (`web/index.html`)
+## Comandos Úteis
 
 ```bash
 npm ci
 npm run build:ui
+python3 tools/check-java-refs.py --self-test
+python3 tools/check-java-refs.py
 npm test
-```
-
-### 2. Compilar o APK Debug
-
-Com JDK 21 e Android SDK 35:
-
-```bash
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> Mesmo sem Node.js instalado (por exemplo, abrindo direto no Android Studio), a task Gradle `prepareWebAssets` sincroniza automaticamente `web/index.html` e baixa os pacotes fixados do `Three.js` e `MediaPipe Hands` com verificação de hash SHA-1.
+O APK assinado com `signing/debug.keystore` é gerado em `app/build/outputs/apk/debug/dixVR-debug.apk` e publicado como artefato `dixvr-debug-apk` no GitHub Actions.

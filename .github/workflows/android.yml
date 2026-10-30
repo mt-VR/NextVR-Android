@@ -1,4 +1,4 @@
-name: Android CI (MetaMR PotatoVR)
+name: Android CI (dixVR)
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build MetaMR PotatoVR debug APK
+    name: Build dixVR debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -32,7 +32,7 @@ jobs:
         run: |
           keep=3
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.name=="metamr-potatovr-debug-apk" or .name=="unit-test-reports") | "\(.created_at) \(.id)"' \
+            --jq '.artifacts[] | select(.name=="dixvr-debug-apk" or .name=="metamr-potatovr-debug-apk" or .name=="unit-test-reports") | "\(.created_at) \(.id)"' \
             | sort -r | tail -n +$((keep + 1)) | awk '{print $2}' > /tmp/old-artifacts.txt || true
           xargs -r -P 4 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
 
@@ -66,7 +66,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build MetaMR debug APK and run JVM unit tests
+      - name: Build dixVR debug APK and run JVM unit tests
         id: build
         continue-on-error: true
         run: |
@@ -107,7 +107,7 @@ jobs:
           fi
 
           mkdir -p /tmp/apk-upload
-          cp "$APK" /tmp/apk-upload/MetaMR-PotatoVR-debug.apk
+          cp "$APK" /tmp/apk-upload/dixVR-debug.apk
           ) 2>&1 | tee -a /tmp/build.log
 
       - name: Publish build diagnostics
@@ -127,7 +127,7 @@ jobs:
                 --arg sha "${{ github.sha }}" \
                 '{name: "gradle-diagnostics", head_sha: $sha, status: "completed",
                   conclusion: $c,
-                  output: {title: "Gradle build log (tail)", summary: "Build output for MetaMR PotatoVR APK", text: $t}}' \
+                  output: {title: "Gradle build log (tail)", summary: "Build output for dixVR APK", text: $t}}' \
             > /tmp/payload.json
           for attempt in 1 2 3; do
             if gh api -X POST "repos/${{ github.repository }}/check-runs" --input /tmp/payload.json; then
@@ -150,10 +150,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 5
 
-      - name: Upload MetaMR PotatoVR APK
+      - name: Upload dixVR APK
         uses: actions/upload-artifact@v4
         with:
-          name: metamr-potatovr-debug-apk
-          path: /tmp/apk-upload/MetaMR-PotatoVR-debug.apk
+          name: dixvr-debug-apk
+          path: /tmp/apk-upload/dixVR-debug.apk
           if-no-files-found: error
           retention-days: 30

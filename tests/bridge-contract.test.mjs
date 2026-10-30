@@ -2,32 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('Android APK has its own standalone identity separate from NextVR', async () => {
+test('dixVR Android APK has standalone package identity com.dixvr.app', async () => {
   const gradle = await readFile('app/build.gradle', 'utf8');
   const manifest = await readFile('app/src/main/AndroidManifest.xml', 'utf8');
   const settings = await readFile('settings.gradle', 'utf8');
+  const strings = await readFile('app/src/main/res/values/strings.xml', 'utf8');
 
+  assert.match(settings, /rootProject\.name\s*=\s*'dixVR'/);
   assert.match(settings, /include\s+':app'/);
   assert.doesNotMatch(settings, /nextvr-android|sdk/);
 
-  assert.match(gradle, /applicationId\s+"com\.metamr\.potatovr"/);
-  assert.match(gradle, /namespace\s*=\s*'com\.metamr\.potatovr'/);
-  assert.doesNotMatch(gradle, /com\.nextvr\.app/);
+  assert.match(gradle, /applicationId\s+"com\.dixvr\.app"/);
+  assert.match(gradle, /namespace\s*=\s*'com\.dixvr\.app'/);
+  assert.doesNotMatch(gradle, /com\.nextvr\.app|com\.metamr/);
 
-  assert.match(manifest, /android:name="com\.metamr\.potatovr\.MetaMrActivity"/);
+  assert.match(strings, /<string name="app_name">dixVR<\/string>/);
+  assert.match(manifest, /android:name="com\.dixvr\.app\.DixVrActivity"/);
   assert.match(manifest, /android\.permission\.CAMERA/);
   assert.match(manifest, /android\.permission\.INTERNET/);
   assert.match(manifest, /android:screenOrientation="sensorLandscape"/);
 });
 
-test('MetaMrActivity exposes all JS bridge interfaces and methods without overload collisions', async () => {
+test('DixVrActivity exposes DixVR JS bridge and allows simultaneous Google + YouTube panels', async () => {
   const activity = await readFile(
-    'app/src/main/java/com/metamr/potatovr/MetaMrActivity.java',
+    'app/src/main/java/com/dixvr/app/DixVrActivity.java',
     'utf8'
   );
   const html = await readFile('web/index.html', 'utf8');
 
-  for (const alias of ['PotatoAndroid', 'MetaMR', 'Android']) {
+  for (const alias of ['DixVR', 'dixVR', 'Android']) {
     assert.match(
       activity,
       new RegExp(`addJavascriptInterface\\(bridge,\\s*"${alias}"\\)`),
@@ -61,7 +64,6 @@ test('MetaMrActivity exposes all JS bridge interfaces and methods without overlo
     'getAppVersion',
   ];
 
-  // Collect all @JavascriptInterface methods in MetaMrActivity and verify uniqueness (no GinJavaBridge overloads)
   const annotated = [
     ...activity.matchAll(/@JavascriptInterface\s+public\s+[\w<>[\]]+\s+(\w+)\s*\(/g),
   ].map((m) => m[1]);
@@ -73,11 +75,16 @@ test('MetaMrActivity exposes all JS bridge interfaces and methods without overlo
   for (const [name, count] of counts.entries()) {
     assert.equal(count, 1, `@JavascriptInterface method ${name} must not be overloaded`);
   }
-
   for (const method of requiredBridgeMethods) {
     assert.ok(counts.has(method), `Missing @JavascriptInterface method: ${method}`);
   }
 
-  assert.match(html, /window\.__metaMrBackPressed\s*=\s*function/);
-  assert.match(activity, /window\.__metaMrBackPressed/);
+  // Verify showGooglePanel does not hide youtubeWebView and showYouTubePanel does not hide googleWebView
+  const showGoogleBody = activity.match(/public void showGooglePanel[\s\S]*?\n        \}/)?.[0] || '';
+  const showYouTubeBody = activity.match(/public void showYouTubePanel[\s\S]*?\n        \}/)?.[0] || '';
+  assert.doesNotMatch(showGoogleBody, /youtubeWebView\.setVisibility\(View\.GONE\)/);
+  assert.doesNotMatch(showYouTubeBody, /googleWebView\.setVisibility\(View\.GONE\)/);
+
+  assert.match(html, /window\.__dixVrBackPressed\s*=\s*function/);
+  assert.match(activity, /window\.__dixVrBackPressed/);
 });

@@ -1,4 +1,4 @@
-package com.metamr.potatovr;
+package com.dixvr.app;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

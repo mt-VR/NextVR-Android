@@ -34,7 +34,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name="com.metamr.potatovr.MetaMrActivity"
+            android:name="com.dixvr.app.DixVrActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"

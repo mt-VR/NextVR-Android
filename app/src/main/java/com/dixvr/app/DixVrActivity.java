@@ -1,4 +1,4 @@
-package com.metamr.potatovr;
+package com.dixvr.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -42,15 +42,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Host Android nativo do MetaMR (PotatoVR AR/VR Base).
+ * Host Android nativo do dixVR.
  *
  * <p>Executa o workspace AR/VR HTML5 + Three.js CSS3D + MediaPipe Hands + Fluxo Óptico + Aura Neon
- * em contexto seguro ({@code https://appassets.androidplatform.net}), com bibliotecas empacotadas
- * localmente para funcionamento offline, permissão automática de câmera traseira e ponte nativa
- * {@code window.PotatoAndroid} / {@code window.MetaMR} / {@code window.Android} para painéis
+ * + Multitarefa de 3 janelas em arco acima da dock em contexto seguro
+ * ({@code https://appassets.androidplatform.net}), com bibliotecas empacotadas localmente para
+ * funcionamento offline, permissão automática de câmera traseira e ponte nativa
+ * {@code window.DixVR} / {@code window.dixVR} / {@code window.Android} para painéis simultâneos
  * Google/YouTube e abertura de apps externos.
  */
-public class MetaMrActivity extends AppCompatActivity {
+public class DixVrActivity extends AppCompatActivity {
     private static final int REQ_CAMERA = 1001;
     private static final String GOOGLE_HOME_URL = "https://www.google.com/";
     private static final String YOUTUBE_HOME_URL = "https://m.youtube.com/";
@@ -106,8 +107,8 @@ public class MetaMrActivity extends AppCompatActivity {
         setContentView(rootLayout);
 
         NativeBridge bridge = new NativeBridge();
-        mainWebView.addJavascriptInterface(bridge, "PotatoAndroid");
-        mainWebView.addJavascriptInterface(bridge, "MetaMR");
+        mainWebView.addJavascriptInterface(bridge, "DixVR");
+        mainWebView.addJavascriptInterface(bridge, "dixVR");
         mainWebView.addJavascriptInterface(bridge, "Android");
 
         setupBackNavigation();
@@ -174,7 +175,7 @@ public class MetaMrActivity extends AppCompatActivity {
                     }
                     if (mainWebView != null) {
                         mainWebView.evaluateJavascript(
-                            "(function(){return !!(window.__metaMrBackPressed && window.__metaMrBackPressed());})()",
+                            "(function(){return !!(window.__dixVrBackPressed && window.__dixVrBackPressed());})()",
                             result -> {
                                 if (!"true".equals(result)) {
                                     setEnabled(false);
@@ -518,7 +519,7 @@ public class MetaMrActivity extends AppCompatActivity {
                 } else {
                     pendingWebPermission = request;
                     ActivityCompat.requestPermissions(
-                        MetaMrActivity.this,
+                        DixVrActivity.this,
                         new String[] {Manifest.permission.CAMERA},
                         REQ_CAMERA
                     );
@@ -528,8 +529,8 @@ public class MetaMrActivity extends AppCompatActivity {
     }
 
     /**
-     * Ponte JavaScript exposta simultaneamente como {@code window.PotatoAndroid},
-     * {@code window.MetaMR} e {@code window.Android}.
+     * Ponte JavaScript exposta como {@code window.DixVR}, {@code window.dixVR} e {@code window.Android}.
+     * Suporta multitarefa real: Google e YouTube podem permanecer visíveis simultaneamente lado a lado.
      */
     @Keep
     public final class NativeBridge {
@@ -537,10 +538,6 @@ public class MetaMrActivity extends AppCompatActivity {
         public void showGooglePanel(String boundsJson) {
             mainHandler.post(() -> {
                 googlePanelActive = true;
-                youtubePanelActive = false;
-                if (youtubeWebView != null) {
-                    youtubeWebView.setVisibility(View.GONE);
-                }
                 WebView view = ensureGoogleWebView();
                 lastGoogleBounds = applyPanelBounds(view, boundsJson);
             });
@@ -643,10 +640,6 @@ public class MetaMrActivity extends AppCompatActivity {
         public void showYouTubePanel(String boundsJson) {
             mainHandler.post(() -> {
                 youtubePanelActive = true;
-                googlePanelActive = false;
-                if (googleWebView != null) {
-                    googleWebView.setVisibility(View.GONE);
-                }
                 WebView view = ensureYouTubeWebView();
                 lastYouTubeBounds = applyPanelBounds(view, boundsJson);
             });

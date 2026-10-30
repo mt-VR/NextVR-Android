@@ -1,4 +1,4 @@
-package com.metamr.potatovr;
+package com.dixvr.app;
 
 import android.content.res.AssetManager;
 import android.net.Uri;

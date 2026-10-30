@@ -22,7 +22,6 @@ test('HTML style and script tags are balanced and JavaScript parses cleanly', as
   assert.equal(openStyles, closeStyles, 'Every <style> tag must have a matching </style>');
   assert.equal(openStyles, 2, 'Expected main stylesheet and landscape lock stylesheet');
 
-  // Ensure .youtube-vr-panel lives inside <head> styles rather than leaking into body text
   const headEnd = html.indexOf('</head>');
   const ytRulePos = html.indexOf('.youtube-vr-panel{');
   assert.ok(ytRulePos > 0 && ytRulePos < headEnd, '.youtube-vr-panel CSS must be inside <head>');
@@ -35,19 +34,47 @@ test('HTML style and script tags are balanced and JavaScript parses cleanly', as
   );
 });
 
-test('embedded ShootTheDie VR FPS HTML decodes and uses matching postMessage channels', async () => {
+test('complete dixVR rebrand: zero MetaMR or PotatoVR/potatoBR occurrences remain', async () => {
+  const filesToAudit = [
+    'web/index.html',
+    'package.json',
+    'settings.gradle',
+    'app/build.gradle',
+    'app/proguard-rules.pro',
+    'app/src/main/AndroidManifest.xml',
+    'app/src/main/res/values/strings.xml',
+    'app/src/main/java/com/dixvr/app/DixVrActivity.java',
+    'README.md',
+  ];
+
+  for (const path of filesToAudit) {
+    const content = await readFile(path, 'utf8');
+    assert.doesNotMatch(
+      content,
+      /meta\s*mr|potato\s*[vb]r|potatovr|potatoandroid/i,
+      `Found legacy MetaMR/PotatoVR brand reference in ${path}`
+    );
+  }
+
+  const html = await readFile(SOURCE_HTML, 'utf8');
+  assert.match(html, /<title>dixVR - VR Launcher<\/title>/);
+  assert.match(html, /<h2>dixVR Sistema MR<\/h2>/);
+  assert.match(html, /Loja dixVR/);
+  assert.match(html, /ShootTheDie · dixVR/);
+});
+
+test('embedded ShootTheDie VR FPS HTML decodes cleanly under dixVR channels', async () => {
   const html = await readFile(SOURCE_HTML, 'utf8');
   const b64Match = html.match(/SHOOT_THE_DIE_HTML_B64\s*=\s*'([^']+)'/);
   assert.ok(b64Match, 'SHOOT_THE_DIE_HTML_B64 constant must exist');
 
   const shootHtml = Buffer.from(b64Match[1], 'base64').toString('utf8');
-  assert.match(shootHtml, /d\.type\s*===\s*'potatovr-shoot-hand'/);
-  assert.match(shootHtml, /d\.type\s*===\s*'potatovr-shoot-gyro'/);
+  assert.doesNotMatch(shootHtml, /meta\s*mr|potato/i);
+  assert.match(shootHtml, /d\.type\s*===\s*'dixvr-shoot-hand'/);
+  assert.match(shootHtml, /d\.type\s*===\s*'dixvr-shoot-gyro'/);
 
-  // Host HTML must never send mismatched MetaMR-shoot-hand
-  assert.doesNotMatch(html, /type:\s*'MetaMR-shoot-hand'/);
-  assert.match(html, /type:\s*'potatovr-shoot-hand'/);
-  assert.match(html, /type:\s*'potatovr-shoot-gyro'/);
+  assert.match(html, /type:\s*'dixvr-shoot-hand'/);
+  assert.match(html, /type:\s*'dixvr-shoot-gyro'/);
 
   const shootScript = shootHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(shootScript, 'ShootTheDie inline script must exist');
@@ -57,28 +84,23 @@ test('embedded ShootTheDie VR FPS HTML decodes and uses matching postMessage cha
   );
 });
 
-test('all core features of the PotatoVR / MetaMR base remain present', async () => {
+test('all core AR/VR features and dixVR persistence keys remain present', async () => {
   const html = await readFile(SOURCE_HTML, 'utf8');
 
-  // Optical flow 6DoF approximation (FLUXO-OPTICO)
   assert.match(html, /function initOpticalFlow\(\)/);
   assert.match(html, /function flowTrackPoints\(/);
   assert.match(html, /function updateOpticalFlow\(now\)/);
 
-  // Configurable hand styles including Aura Neon, Ghost, 3D, Original
   assert.match(html, /Aura Neon/);
   assert.match(html, /Mão fantasma/);
   assert.match(html, /saveHandVisualStyle/);
 
-  // Stereo Cardboard split mode & World Lock & 3D Beach island
   assert.match(html, /function enterCardboardVR\(\)/);
   assert.match(html, /function exitCardboardVR\(\)/);
   assert.match(html, /function setWorldLock\(/);
   assert.match(html, /function initBeachScene\(\)/);
 
-  // Built-in experiences & persistence across restarts
   for (const app of ['google', 'youtube', 'kitchen', 'dreamcore', 'shoot_the_die']) {
-    assert.match(html, new RegExp(`MetaMR_${app}_installed`));
-    assert.match(html, new RegExp(`potatovr_${app}_installed`));
+    assert.match(html, new RegExp(`dixVR_${app}_installed`));
   }
 });

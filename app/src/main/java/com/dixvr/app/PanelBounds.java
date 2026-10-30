@@ -1,4 +1,4 @@
-package com.metamr.potatovr;
+package com.dixvr.app;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

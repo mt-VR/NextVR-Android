@@ -470,8 +470,8 @@ class Mirror {
 }
 """
 R_WITH_IMPORT = """
-package com.metamr.potatovr.sub;
-import com.metamr.potatovr.R;
+package com.dixvr.app.sub;
+import com.dixvr.app.R;
 class Mirror {
     String title(Context context) { return context.getString(R.string.app_name); }
 }

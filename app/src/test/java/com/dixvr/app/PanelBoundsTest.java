@@ -1,4 +1,4 @@
-package com.metamr.potatovr;
+package com.dixvr.app;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -23,13 +23,25 @@ public class PanelBoundsTest {
     }
 
     @Test
+    public void supportsSideBySideMultitaskBoundsSimultaneously() {
+        String leftSlot = "{\"left\":20,\"top\":40,\"width\":210,\"height\":190,\"vw\":800,\"vh\":400,\"vrSplit\":false}";
+        String rightSlot = "{\"left\":570,\"top\":40,\"width\":210,\"height\":190,\"vw\":800,\"vh\":400,\"vrSplit\":false}";
+
+        PanelBounds left = PanelBounds.fromJson(leftSlot, 1600, 800, 2.0f);
+        PanelBounds right = PanelBounds.fromJson(rightSlot, 1600, 800, 2.0f);
+
+        assertTrue(left.visible);
+        assertTrue(right.visible);
+        assertTrue("Left and right multitask bounds should not overlap", left.leftPx + left.widthPx < right.leftPx);
+    }
+
+    @Test
     public void clampsToLeftHalfInCardboardVrSplitMode() {
         String json = "{\"left\":200,\"top\":20,\"width\":360,\"height\":200,\"vw\":800,\"vh\":400,\"vrSplit\":true}";
         PanelBounds b = PanelBounds.fromJson(json, 2400, 1200, 3.0f);
 
         assertTrue(b.visible);
         assertEquals(600, b.leftPx);
-        // Right edge is clamped at hostWidth / 2 == 1200, so width == 600.
         assertEquals(600, b.widthPx);
     }
 
