@@ -846,6 +846,10 @@ if (native) {
   const poseMatrix = new THREE.Matrix4();
   let firstPose = true;
   window.nextvrPose = values => {
+    // GIROSCÓPIO desligado no anel: a cabeça não gira mais o mundo (a pose do Cardboard é ignorada
+    // e a câmera fica onde está), que é o mesmo efeito de desligar o sensor no modo navegador.
+    // A centralização continua valendo quando o usuário liga de volta.
+    if (S.gyro === 0) return;
     poseMatrix.fromArray(values).invert();
     camera.quaternion.setFromRotationMatrix(poseMatrix);
     camera.position.set(SixDof.out.x, EYE + SixDof.out.y, SixDof.out.z); camera.updateMatrixWorld(true);

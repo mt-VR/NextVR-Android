@@ -265,6 +265,8 @@ test('o giroscópio é um botão de verdade: mostra o estado e liga/desliga a or
   // Padrão ligado, e o laço respeita a escolha (desligado, olhar é arrasto).
   assert.match(core, /gyro: 1,/);
   assert.match(core, /else if \(gyroLive\(\) && S\.gyro !== 0\) \{/);
+  // No headset a pose vem do Cardboard (nextvrPose): desligado, ela é ignorada e o mundo fica parado.
+  assert.match(core, /if \(S\.gyro === 0\) return;\n    poseMatrix\.fromArray\(values\)\.invert\(\);/);
 
   const windows = await read('web/src/windows.js');
   // A pinça alcança o chip (a barra é HUD, não objeto 3D).
