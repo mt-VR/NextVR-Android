@@ -770,7 +770,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         orbOpen,
         orbShell,
         orbCalls,
-        hubFound: !!hub,
+        hubFound: canOpenLibrary,
         libraryShell,
         dockBack,
         dockLibraryFound: !!dockLibrary,
