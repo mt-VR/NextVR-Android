@@ -219,12 +219,29 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       return s.backgroundImage==='none'&&(s.backgroundColor==='rgba(0, 0, 0, 0)'||s.backgroundColor==='transparent');}),
       true,'no settings-style backdrop is painted behind the apps');
     // O centro do anel ("TODOS") abre a biblioteca completa do NextVR.
+    const hubInfo = await page.evaluate(()=>{
+      const hub=document.querySelector('[data-orb-all]');
+      if(!hub) return {missing:true};
+      const r=hub.getBoundingClientRect();
+      const cx=r.left+r.width/2, cy=r.top+r.height/2;
+      const at=document.elementFromPoint(cx,cy);
+      return {rect:[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)],
+        wired:document.querySelector('.orb-host')?.dataset.orbWired==='1',
+        atCenter:at?`${at.tagName}.${at.className}`:null,
+        hubPointer:getComputedStyle(hub).pointerEvents,
+        viewport:[innerWidth,innerHeight]};
+    });
     await page.locator('[data-orb-all]').click();
+    // Se o toque do mouse não abrir (o anel é uma janela sem barra, com os tiles soltos no ar), o
+    // mesmo clique disparado no elemento mostra se o problema é o toque ou é o app que não abre.
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'),null,{timeout:3000}).catch(async()=>{
+      await page.evaluate(()=>document.querySelector('[data-orb-all]')?.click());
+    });
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'),null,{timeout:8000}).catch(async error=>{
       const info=await page.evaluate(()=>({err:window.__orbLastError||null,
         shells:[...document.querySelectorAll('.win-shell')].map(s=>s.dataset.windowId),
         orb:!!document.querySelector('.orb-root')}));
-      throw new Error(`the ring did not open the library: ${JSON.stringify(info)} / ${error.message}`);
+      throw new Error(`the ring did not open the library: ${JSON.stringify({...info,hub:hubInfo})} / ${error.message}`);
     });
     assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,

@@ -28,6 +28,10 @@ test('the dock dot opens a ring of ten apps, three over four over three', async 
   assert.match(orb, /ORB_ANDROID_SLOTS = 4/);
   assert.match(orb, /providers\.launchAndroid/);
   assert.match(orb, /providers\.launchOwn/);
+  // Um ouvinte só, delegado no host: o toque da mão chega no elemento mais fundo (o nome, o ícone)
+  // e precisa subir até o anel — sem depender de um handler por tile.
+  assert.match(orb, /host\.onclick = event => \{/);
+  assert.match(orb, /closest\('\[data-orb-app\]'\)/);
 });
 
 test('the ring has no settings-style backdrop behind it and the world only dims', async () => {

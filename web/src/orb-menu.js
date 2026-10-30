@@ -149,21 +149,29 @@ function remember(error) {
   if (typeof console !== 'undefined') console.error('orb-menu:', error);
 }
 
+/**
+ * Um único ouvinte no host do anel, por delegação. Cada tile também funciona sozinho, mas o toque
+ * passa a ser reconhecido mesmo quando o evento chega em qualquer filho do tile (o nome, o ícone,
+ * a imagem) — e é assim que o toque da mão chega: o lado nativo/hit-test entrega o clique no
+ * elemento mais fundo encontrado, e ele sobe até aqui.
+ */
 function wireOrb(host) {
-  host.querySelectorAll('[data-orb-app]').forEach(button => {
-    button.onclick = () => {
-      const key = button.dataset.orbApp;
-      const isAndroid = button.dataset.orbAndroid === '1';
+  host.dataset.orbWired = '1';
+  host.onclick = event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const tile = target?.closest('[data-orb-app]');
+    if (tile) {
+      const key = tile.dataset.orbApp;
+      const isAndroid = tile.dataset.orbAndroid === '1';
       launchTarget(() => {
         if (isAndroid) providers.launchAndroid(key.replace(/^app:/, ''));
         else providers.launchOwn(key);
       });
-    };
-  });
-  const all = host.querySelector('[data-orb-all]');
-  if (all) all.onclick = () => launchTarget(() => providers.launchOwn('library'));
-  const closeBtn = host.querySelector('[data-orb-close]');
-  if (closeBtn) closeBtn.onclick = () => closeOrbMenu();
+      return;
+    }
+    if (target?.closest('[data-orb-all]')) { launchTarget(() => providers.launchOwn('library')); return; }
+    if (target?.closest('[data-orb-close]')) closeOrbMenu();
+  };
 }
 
 export function paintOrb() {
