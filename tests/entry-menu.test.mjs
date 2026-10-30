@@ -330,7 +330,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     }
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
     assert.equal(await page.locator('.entry-brand-chrome-logo').count(), 0, 'Metallic NextVR logo is removed from the right side of the menu');
-    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 4, 'Right side of the menu displays notification-style update cards');
+    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 5, 'Right side of the menu displays notification-style update cards (Build 98 added one)');
 
     // 4. Sobre: exact text check
     await page.evaluate(() => document.querySelector('[data-entry-act="about"]').click());
@@ -675,8 +675,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     const gorillaFlow = await page.evaluate(async () => {
       window.__gorillaFastTest = true;
       window.__handVisualCalls = [];
-      // Open Library and Store via the dock buttons ([data-id="library"] and [data-id="store"])
+      // A bolinha da dock abre o ANEL de 10 apps; o centro do anel ("TODOS") abre a biblioteca
+      // completa, que é o que este fluxo usa para achar o app instalado.
       document.querySelector('.dock [data-id="library"]')?.click();
+      document.querySelector('[data-orb-all]')?.click();
       document.querySelector('.dock [data-id="store"]')?.click();
       await new Promise(r => setTimeout(r, 80));
       const installBtn = document.querySelector('[data-window-id="store"] [data-install-gorilla], [data-install-gorilla]');

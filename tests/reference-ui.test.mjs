@@ -203,8 +203,27 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
+    // A bolinha da dock agora abre o ANEL de 10 apps (3/4/3), não a janela da biblioteca: o anel é
+    // transparente, o ambiente escurece e cada tile é um app do NextVR ou do Android instalado.
     await page.locator('.dock [data-id="library"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
+    assert.equal(await page.locator('.orb-app').count(),10,'the ring shows ten apps');
+    assert.equal(await page.locator('.orb-ring').count(),1,'the tiles live inside one circular ring');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),'1',
+      'the environment dims but stays visible behind the ring');
+    assert.ok(await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('scene-dim')).opacity)>0),
+      'the dim veil is actually painted');
+    assert.equal(await page.locator('.win-shell[data-window-id="orb-menu"] .win-bar').isVisible(),false,
+      'the ring has no window bar');
+    assert.equal(await page.evaluate(()=>{const s=getComputedStyle(document.querySelector('.win-shell[data-window-id="orb-menu"] .win'));
+      return s.backgroundImage==='none'&&(s.backgroundColor==='rgba(0, 0, 0, 0)'||s.backgroundColor==='transparent');}),
+      true,'no settings-style backdrop is painted behind the apps');
+    // O centro do anel ("TODOS") abre a biblioteca completa do NextVR.
+    await page.locator('[data-orb-all]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
+      'closing the ring restores the environment brightness');
     assert.equal(await page.locator('.lib-tile').count(),16,
       'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
@@ -522,7 +541,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        reaches the app rather than becoming a synthetic click on the shell.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
+    // A bolinha abre o anel de 10 apps; "TODOS" no centro abre a biblioteca do NextVR.
     await page.locator('.dock [data-id="library"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('[data-orb-all]'));
+    await page.locator('[data-orb-all]').click();
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
       'the NextVR library does not mix device apps into its own grid');
