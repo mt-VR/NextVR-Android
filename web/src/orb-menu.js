@@ -175,31 +175,62 @@ function remember(error) {
  * a imagem) — e é assim que o toque da mão chega: o lado nativo/hit-test entrega o clique no
  * elemento mais fundo encontrado, e ele sobe até aqui.
  */
+/** Um ponto (x, y) está dentro da caixa de `el`? Usado quando o toque chega no contêiner. */
+function insideRect(el, x, y) {
+  if (!el || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+/**
+ * Um único ouvinte no host do anel, por delegação. Cada tile também funciona sozinho, mas o toque
+ * passa a ser reconhecido mesmo quando o evento chega em qualquer filho do tile (o nome, o ícone,
+ * a imagem) — e é assim que o toque da mão chega: o lado nativo/hit-test entrega o clique no
+ * elemento mais fundo encontrado, e ele sobe até aqui.
+ *
+ * Quando o hit-test devolve o PRÓPRIO contêiner do anel (acontece com a janela em 3D: o ponto
+ * tocado é do anel, mas o elemento escolhido é `.orb-ring`), quem decide é o ponto tocado. Sem
+ * isso, um toque no meio do anel não abria nada — e o "TODOS" simplesmente não respondia.
+ */
 function wireOrb(host) {
   host.dataset.orbWired = '1';
   host.onclick = event => {
     const target = event.target instanceof Element ? event.target : null;
-    // Qual peça do anel recebeu o toque: é o primeiro lugar a olhar quando um toque "não abre nada".
     const tile = target?.closest('[data-orb-app]');
+    const all = target?.closest('[data-orb-all]');
+    const shut = target?.closest('[data-orb-close]');
+    // Fallback por coordenada, só quando o alvo não é nenhuma peça do anel.
+    let byPointTile = null, byPointAll = false, byPointClose = false;
+    if (!tile && !all && !shut) {
+      const x = event.clientX, y = event.clientY;
+      if (insideRect(host.querySelector('[data-orb-all]'), x, y)) byPointAll = true;
+      else if (insideRect(host.querySelector('[data-orb-close]'), x, y)) byPointClose = true;
+      else byPointTile = [...host.querySelectorAll('[data-orb-app]')].find(t => insideRect(t, x, y)) || null;
+    }
+    // Qual peça do anel recebeu o toque: é o primeiro lugar a olhar quando um toque "não abre nada".
     if (typeof window !== 'undefined') {
       window.__orbLastHit = tile ? 'app:' + tile.dataset.orbApp
-        : target?.closest('[data-orb-all]') ? 'all'
-        : target?.closest('[data-orb-close]') ? 'close' : 'outside';
+        : all ? 'all'
+        : shut ? 'close'
+        : byPointAll ? 'all(por ponto)'
+        : byPointClose ? 'close(por ponto)'
+        : byPointTile ? 'app(por ponto):' + byPointTile.dataset.orbApp : 'outside';
       window.__orbLastTarget = target
         ? `${target.tagName}.${String(target.className || '').replace(/\s+/g, '.')}`
         : 'sem elemento';
     }
-    if (tile) {
-      const key = tile.dataset.orbApp;
-      const isAndroid = tile.dataset.orbAndroid === '1';
+    const chosenTile = tile || byPointTile;
+    if (chosenTile) {
+      const key = chosenTile.dataset.orbApp;
+      const isAndroid = chosenTile.dataset.orbAndroid === '1';
       launchTarget(() => {
         if (isAndroid) providers.launchAndroid(key.replace(/^app:/, ''));
         else providers.launchOwn(key);
       });
       return;
     }
-    if (target?.closest('[data-orb-all]')) { launchTarget(() => providers.launchOwn('library')); return; }
-    if (target?.closest('[data-orb-close]')) closeOrbMenu();
+    if (all || byPointAll) { launchTarget(() => providers.launchOwn('library')); return; }
+    if (shut || byPointClose) closeOrbMenu();
   };
 }
 

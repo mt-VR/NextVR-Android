@@ -32,6 +32,12 @@ test('the dock dot opens a ring of ten apps, three over four over three', async 
   // e precisa subir até o anel — sem depender de um handler por tile.
   assert.match(orb, /host\.onclick = event => \{/);
   assert.match(orb, /closest\('\[data-orb-app\]'\)/);
+  // Se o hit-test devolve o contêiner do anel em vez do tile/"TODOS", vale o ponto tocado: sem isso
+  // um toque no meio do anel não abria nada.
+  assert.match(orb, /function insideRect\(el, x, y\)/);
+  assert.match(orb, /byPointAll = true/);
+  assert.match(orb, /byPointTile = \[\.\.\.host\.querySelectorAll\('\[data-orb-app\]'\)\]\.find/);
+  assert.match(orb, /if \(all \|\| byPointAll\) \{ launchTarget\(\(\) => providers\.launchOwn\('library'\)\); return; \}/);
 });
 
 test('the ring has no settings-style backdrop behind it and the world only dims', async () => {
