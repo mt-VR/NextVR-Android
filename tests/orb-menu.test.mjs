@@ -25,12 +25,27 @@ test('a janelinha do anel mostra dez apps, três em cima, quatro no meio e três
   // Cada ícone leva o NOME embaixo, como na screenshot.
   assert.match(orb, /<span class="orb-label">\$\{esc\(label\)\}<\/span>/);
   const html = await read('web/index.html');
-  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:26px/);
-  assert.match(html, /\.orb-label\{position:relative;max-width:118px;font-size:13\.5px/);
+  // "APPS MAIORES E MAIS SEPARADOS" (print do usuário): os ícones cresceram e as fileiras abriram.
+  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:48px/);
+  assert.match(html, /\.orb-app\{pointer-events:auto;position:relative;flex:none;width:150px/);
+  assert.match(html, /\.orb-app::before\{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px/);
+  assert.match(html, /\.orb-label\{position:relative;max-width:158px;font-size:15px/);
   // Os dois lados: apps do NextVR E apps do Android instalado.
   assert.match(orb, /ORB_ANDROID_SLOTS = 4/);
   assert.match(orb, /providers\.launchAndroid/);
   assert.match(orb, /providers\.launchOwn/);
+});
+
+test('o raio do ícone: halo na cor do próprio app e o mesmo arredondamento do NextVR', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  // "o raio do next" (print do usuário): o halo de cada app sai da cor dele, não de um azul genérico.
+  assert.match(orb, /export function glowOf\(bg\)/);
+  assert.match(orb, /const glow = entry\.android \? 'rgba\(34,197,94,\.5\)' : glowOf\(bg\)/);
+  assert.match(orb, /--orb-glow:\$\{esc\(glow\)\}/);
+  const html = await read('web/index.html');
+  assert.match(html, /0 0 26px 4px var\(--orb-glow,rgba\(150,190,255,\.30\)\)/);
+  // O quadrado do ícone usa 34 px de raio, como os ícones grandes do NextVR na loja e na biblioteca.
+  assert.match(html, /\.orb-app::before\{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px/);
 });
 
 test('o anel é a janelinha invisível dos apps espaciais (sem moldura, sem barrinha branca)', async () => {
@@ -57,9 +72,13 @@ test('o anel é a janelinha invisível dos apps espaciais (sem moldura, sem barr
 
 test('a dock NÃO some: ela fica por baixo, e as mãos continuam por cima para escolher', async () => {
   const html = await read('web/index.html');
-  // Nenhuma regra esconde a dock (nem as janelas) com o anel aberto.
-  assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.dock/);
+  // Nenhuma regra esconde a dock (nem as janelas) com o anel aberto: ela pode escurecer junto com o
+  // ambiente ("dock tem que ficar escura com o ambiente", print do usuário), mas nunca sai de cena.
   assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.win-shell/);
+  assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.dock\{[^}]*display:\s*none/);
+  assert.doesNotMatch(html, /html\[data-orb-open="1"\] \.dock\{[^}]*visibility:\s*hidden/);
+  assert.match(html, /html\[data-orb-open="1"\] \.dock\{[\s\S]{0,420}filter:brightness\(\.62\)/,
+    'a dock escurece junto com o ambiente, em vez de sumir');
   // O anel se marca como aberto (é o que o CSS e os testes usam), mas nada desaparece por isso.
   const orb = await read('web/src/orb-menu.js');
   assert.match(orb, /document\.documentElement\.dataset\.orbOpen = '1'/);

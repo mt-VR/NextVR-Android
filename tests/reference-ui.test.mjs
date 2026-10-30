@@ -249,12 +249,28 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       return square.boxShadow!=='none'&&square.backgroundImage!=='none';
     }),'each app tile carries its own glow so it stands out in the dark');
     // O tamanho é o da referência: ícone com o NOME EMBAIXO, não um thumb minúsculo.
+    // "APPS MAIORES E MAIS SEPARADOS": os ícones são grandes e as fileiras têm folga.
     const tileSize = await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width));
-    assert.ok(tileSize >= 96 && tileSize <= 140, `the icons are the size of the reference (${tileSize}px)`);
+    assert.ok(tileSize >= 130 && tileSize <= 190, `the icons are the size of the reference (${tileSize}px)`);
+    const rowGap = await page.evaluate(()=>parseFloat(getComputedStyle(document.querySelector('.orb-row')).columnGap));
+    assert.ok(rowGap >= 32, `there is real air between the icons (${rowGap}px)`);
     assert.ok(await page.locator('.orb-label').first().isVisible(), 'each icon carries its name underneath');
     // A DOCK NÃO SOME: ela fica por baixo, e a janelinha nasce na frente dela.
     assert.equal(await page.locator('.dock').isVisible(),true,
       'the dock stays on screen (it just sits behind the ring window)');
+    // O print pediu a dock ESCURA com o ambiente: ela continua visível, só apagada atrás do anel.
+    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).filter),/brightness\(0?\.6/,
+      'the dock goes dark along with the environment while the ring is open');
+    // Nada de barra de brilho nem barra de cinema pendurada na janelinha do anel.
+    assert.equal(await page.evaluate(()=>{
+      const bar=document.querySelector('.win-shell[data-window-id="orb-apps"] .win-brightness-bar');
+      return !bar || getComputedStyle(bar).display==='none';
+    }),true,'the ring window carries no brightness slider');
+    // O canto de cima é UM conjunto: as três telinhas pré-definidas e o ✕, no mesmo vidro escuro.
+    assert.equal(await page.evaluate(()=>{
+      const pill=document.querySelector('.win-shell[data-window-id="orb-apps"] .win-predefined-slots');
+      return !!pill && getComputedStyle(pill).display!=='none' && pill.querySelectorAll('.win-predefined-slot').length===3;
+    }),true,'the three screen slots sit in one dark pill at the top corner');
     assert.equal(await page.locator('[data-orb-me]').isVisible(),true,'the ring shows the player profile');
     assert.equal(await page.locator('[data-orb-clock]').isVisible(),true,'the ring shows the clock');
     assert.match(await page.evaluate(()=>document.querySelector('[data-orb-clock] .orb-clock-time')?.textContent||''),

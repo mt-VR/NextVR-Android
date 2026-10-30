@@ -3511,7 +3511,7 @@
   }
   .orb-win-host{width:100%;height:100%}
   .orb-root{position:relative;width:100%;height:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:space-between;gap:6px;padding:14px 18px 6px;box-sizing:border-box;
+    align-items:center;justify-content:space-between;gap:8px;padding:16px 20px 8px;box-sizing:border-box;
     font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;user-select:none;
     animation:orbFade .18s ease}
   @keyframes orbFade{from{opacity:0}to{opacity:1}}
@@ -3526,8 +3526,8 @@
 
   /* ---------- as três fileiras: 3 em cima, 4 no meio, 3 embaixo ---------- */
   .orb-grid{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:10px}
-  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:26px;width:100%}
+    align-items:center;justify-content:center;gap:18px}
+  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:48px;width:100%}
   @keyframes orbIn{from{opacity:0;transform:translateY(10px) scale(.9)}
     to{opacity:1;transform:none}}
   @keyframes orbInNext{from{opacity:0;transform:translateX(46px) scale(.9)}
@@ -3539,42 +3539,42 @@
 
   /* O ícone: quadrado arredondado com o NOME EMBAIXO, como na screenshot. Mesmo sem capa ele tem
      cor forte (o cinza quase preto sumia no ambiente escurecido) e um aro claro para se destacar. */
-  .orb-app{pointer-events:auto;position:relative;flex:none;width:112px;
-    display:flex;flex-direction:column;align-items:center;gap:8px;padding:0;border:0;background:none;
+  .orb-app{pointer-events:auto;position:relative;flex:none;width:150px;
+    display:flex;flex-direction:column;align-items:center;gap:10px;padding:0;border:0;background:none;
     color:#fff;cursor:pointer;transition:transform .16s cubic-bezier(.2,.9,.2,1);
     animation:orbIn .34s cubic-bezier(.2,.9,.2,1);animation-delay:calc(var(--i,0)*18ms)}
   /* A cor do app vive no quadrado (::before), não no botão: assim o NOME embaixo fica solto no ar,
      como na referência, e o quadrado continua redondo. */
-  .orb-app::before{content:'';position:absolute;left:0;top:0;width:112px;height:112px;border-radius:26px;
+  .orb-app::before{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px;
     background:var(--orb-bg,#2b3040);box-shadow:0 12px 26px rgba(0,0,0,.55),0 0 0 1.5px rgba(255,255,255,.42),
-      0 0 22px 2px rgba(150,190,255,.22);transition:box-shadow .16s}
-  .orb-app img{position:relative;width:112px;height:112px;border-radius:26px;object-fit:cover;display:block}
+      0 0 26px 4px var(--orb-glow,rgba(150,190,255,.30));transition:box-shadow .16s}
+  .orb-app img{position:relative;width:150px;height:150px;border-radius:34px;object-fit:cover;display:block}
   .orb-app:hover{transform:translateY(-3px) scale(1.05)}
-  .orb-app:hover::before{box-shadow:0 16px 32px rgba(0,0,0,.62),0 0 0 2.5px #fff,0 0 34px 5px rgba(160,200,255,.45)}
+  .orb-app:hover::before{box-shadow:0 16px 32px rgba(0,0,0,.62),0 0 0 2.5px #fff,0 0 40px 7px var(--orb-glow,rgba(160,200,255,.45))}
   .orb-app:active{transform:scale(.95)}
-  .orb-glyph{position:relative;width:112px;height:112px;border-radius:26px;display:grid;place-items:center;
-    font-size:44px;font-weight:800;color:#fff;text-shadow:0 3px 14px rgba(0,0,0,.55)}
-  .orb-label{position:relative;max-width:118px;font-size:13.5px;font-weight:700;letter-spacing:.01em;
+  .orb-glyph{position:relative;width:150px;height:150px;border-radius:34px;display:grid;place-items:center;
+    font-size:58px;font-weight:800;color:#fff;text-shadow:0 3px 14px rgba(0,0,0,.55)}
+  .orb-label{position:relative;max-width:158px;font-size:15px;font-weight:700;letter-spacing:.01em;
     color:#fff;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.95);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
-  .orb-badge{position:absolute;left:88px;top:-4px;width:22px;height:22px;border-radius:50%;z-index:2;
+  .orb-badge{position:absolute;left:122px;top:-2px;width:24px;height:24px;border-radius:50%;z-index:2;
     background:#22c55e;color:#04240f;font-size:11px;font-weight:900;font-style:normal;
     display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.55)}
   .orb-app--android::before{box-shadow:0 12px 26px rgba(0,0,0,.55),0 0 0 1.5px rgba(34,197,94,.75),
-    0 0 22px 2px rgba(34,197,94,.35)}
+    0 0 26px 4px rgba(34,197,94,.45)}
   /* Casa vazia (menos de dez apps): não desenha nada, mas mantém o lugar da fileira. */
-  .orb-slot{flex:none;width:112px;height:112px;opacity:0;pointer-events:none}
+  .orb-slot{flex:none;width:150px;height:150px;opacity:0;pointer-events:none}
 
   /* ---------- barra de status: a da referência (ponto, texto, relógio, perfil, linha branca) ---------- */
   .orb-bar{flex:none;width:100%;display:flex;align-items:center;gap:10px;pointer-events:auto;
-    padding:5px 10px;border-radius:14px;min-height:44px;
-    background:rgba(9,11,16,.42);border:1px solid rgba(255,255,255,.12);
-    box-shadow:0 10px 24px rgba(0,0,0,.42)}
+    padding:6px 12px;border-radius:15px;min-height:46px;
+    background:rgba(8,10,15,.66);border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 12px 26px rgba(0,0,0,.52)}
   .orb-bar-side{display:flex;align-items:center;gap:8px;min-width:0}
   .orb-bar-left{flex:1 1 auto;overflow:hidden}
   .orb-bar-right{flex:0 0 auto;margin-left:auto;padding-left:8px}
   .orb-dot{width:9px;height:9px;border-radius:50%;flex:none;background:rgba(255,255,255,.55)}
-  .orb-bar-text{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.86);white-space:nowrap;
+  .orb-bar-text{font-size:13.5px;font-weight:700;color:rgba(255,255,255,.92);white-space:nowrap;
     text-shadow:0 2px 6px rgba(0,0,0,.9)}
   .orb-pager{pointer-events:auto;width:30px;height:30px;border-radius:9px;color:#fff;font-size:18px;
     line-height:1;display:grid;place-items:center;cursor:pointer;
@@ -3607,7 +3607,7 @@
     max-width:min(26vw,190px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .orb-clock{display:flex;align-items:center;gap:7px;pointer-events:none;
     padding-left:9px;border-left:1px solid rgba(255,255,255,.16)}
-  .orb-clock-time{font-size:15px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .orb-clock-time{font-size:16px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums}
   .orb-clock-bat{font-size:11.5px;font-weight:700;color:rgba(255,255,255,.75)}
   .orb-dots{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);display:flex;gap:6px}
   .orb-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3)}
@@ -3616,6 +3616,43 @@
   .orb-home-line{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);
     width:150px;height:4px;border-radius:999px;background:rgba(255,255,255,.85);
     box-shadow:0 0 12px rgba(255,255,255,.45)}
+
+  /* O canto de cima do print: as três telinhas pré-definidas e o ✕ viram UM conjunto só — uma
+     pílula escura de vidro com os três encaixes e o fechar ao lado, do mesmo tamanho. */
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slots{
+    right:74px;top:12px;gap:7px;padding:5px 7px;border-radius:14px;
+    background:rgba(10,12,18,.62);border:1px solid rgba(255,255,255,.16);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 8px 22px rgba(0,0,0,.5)
+  }
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slot{
+    width:30px;height:24px;border-radius:8px;border:1px solid rgba(255,255,255,.2);
+    background:rgba(255,255,255,.07)
+  }
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slot:hover,
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slot.finger-hover{
+    background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.44)
+  }
+  .win-shell[data-window-id="orb-apps"] .win-predefined-slot-frame{
+    width:13px;height:9px;border-radius:3px;border:1.4px solid rgba(255,255,255,.8);background:rgba(0,0,0,.4)
+  }
+  .win-shell[data-window-id="orb-apps"] .orb-close{right:14px;top:9px;width:42px;height:42px;font-size:20px;
+    background:rgba(10,12,18,.62);border:1.5px solid rgba(255,255,255,.34)}
+  /* O anel não tem barra de brilho nem barra de cinema: é uma janelinha limpa, só os apps. */
+  .win-shell[data-window-id="orb-apps"] .win-brightness-bar,
+  .win-shell[data-window-id="orb-apps"] .win-cinema-bar{
+    display:none!important
+  }
+
+  /* Dock escura com o ambiente: com o anel aberto o mundo escurece, e a dock escurece junto — ela
+     continua ali, só que apagada atrás da janelinha (ela NUNCA é escondida). */
+  html[data-orb-open="1"] .dock{
+    background:linear-gradient(180deg,rgba(22,25,33,.92),rgba(7,9,13,.96))!important;
+    border-color:rgba(255,255,255,.10)!important;
+    box-shadow:0 14px 30px rgba(0,0,0,.66),inset 0 1px 0 rgba(255,255,255,.06)!important;
+    filter:brightness(.62) saturate(.7)
+  }
+  html[data-orb-open="1"] .dock .dock-grab::after{opacity:.42}
 </style>
 </head>
 <body>

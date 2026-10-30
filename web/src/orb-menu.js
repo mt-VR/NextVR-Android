@@ -38,6 +38,10 @@ export const ORB_LAYOUT = Object.freeze(ORB_ROWS.flatMap((row, r) =>
   }))));
 
 /** Tamanho da janela (a mesma caixa do Spatial App: é ela que dá o enquadramento da referência). */
+// A caixa é a do Spatial App (1040x660) e NÃO pode passar disso: o atlas nativo corta qualquer
+// janela em 660 px de altura, então uma janelinha mais alta chegaria no headset com a barra de baixo
+// fatiada. Os ícones maiores ("APPS MAIORES E MAIS SEPARADOS", print do usuário) cabem nela folgados
+// porque a folga extra vai para os lados, onde há espaço de sobra.
 export const ORB_W = 1040;
 export const ORB_H = 660;
 
@@ -130,19 +134,37 @@ let page = 0;
 export const orbPageNow = () => page;
 
 /**
+ * A cor do brilho em volta do ícone: "o raio do next" (print do usuário) — o halo de cada app sai da
+ * PRÓPRIA cor dele, como nos ícones do NextVR, em vez de um brilho azul genérico. Quando o app não tem
+ * cor (só a capa do Android), volta o azul claro da referência.
+ */
+export function glowOf(bg) {
+  const text = String(bg || '');
+  const hex = text.match(/#([0-9a-f]{3}|[0-9a-f]{6})\b/i);
+  if (!hex) return 'rgba(150,190,255,.30)';
+  let h = hex[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  // Halo visível sobre o passthrough escuro sem virar um quadrado de luz: 45% de alfa.
+  return `rgba(${r},${g},${b},.45)`;
+}
+
+/**
  * Um ícone: o quadrado arredondado com a capa (ou a inicial) e o NOME EMBAIXO, como na referência.
  * Nada de posição absoluta: as fileiras são o layout, e o texto é parte do ícone.
  */
 function tileHtml(entry, index) {
   const label = String(entry.label || entry.key || '');
   const bg = entry.bg || ORB_PALETTE[index % ORB_PALETTE.length];
+  // O app do Android chega só com o ícone: o halo dele é o verde do sistema, o mesmo do selo.
+  const glow = entry.android ? 'rgba(34,197,94,.5)' : glowOf(bg);
   const inner = entry.img
     ? `<img src="${esc(entry.img)}" alt="" draggable="false" onerror="this.remove()">`
     : `<span class="orb-glyph">${esc(entry.glyph || label.trim().slice(0, 1).toUpperCase() || '•')}</span>`;
   return `<button type="button" class="orb-app${entry.android ? ' orb-app--android' : ''}"
       data-orb-app="${esc(entry.key)}"
       ${entry.android ? 'data-orb-android="1"' : ''}
-      style="--i:${index};--orb-bg:${esc(bg)}"
+      style="--i:${index};--orb-bg:${esc(bg)};--orb-glow:${esc(glow)}"
       title="${esc(label)}${entry.android ? ' · Android' : ''}">
       ${inner}
       ${entry.android ? '<i class="orb-badge" aria-hidden="true">A</i>' : ''}
@@ -424,6 +446,9 @@ export function openOrbMenu() {
     });
     win.handle.hidden = true;
     win.resizeHandle.hidden = true;
+    // Sem barra de brilho nem barra de cinema: a janelinha do anel é só os apps e a barra de baixo.
+    if (win.brightnessBar) win.brightnessBar.hidden = true;
+    if (win.cinemaBar) win.cinemaBar.hidden = true;
     win.pinned = false;
     win.el.classList.add('orb-shell');
     paintOrb();

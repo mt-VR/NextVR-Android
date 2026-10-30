@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-print-fixes',
+    tag: 'NOVO · ÍCONES MAIORES E MAIS SEPARADOS, DOCK ESCURA COM O AMBIENTE & CANTO DE CIMA LIMPO',
+    time: 'Agora',
+    heading: 'Apps Maiores e Mais Separados, a Dock Escura com o Ambiente e o Canto de Cima Arrumado',
+    desc: 'Seguindo o print: os apps do anel ficaram MAIORES — cada ícone tem 150 px, com 48 px de folga entre eles, e o nome continua embaixo, agora em 15 px. O raio dos cantos acompanha o dos ícones do NextVR (34 px), então nenhum app fica com quadrado duro no meio dos outros. A DOCK FICA ESCURA COM O AMBIENTE: com o anel aberto ela não some nem clareia sozinha, escurece junto com o mundo e continua ali, apagada atrás da janelinha. No canto de cima, as três telinhas de encaixe e o ✕ deixaram de ser dois enfeites soltos e viraram UM conjunto: uma pílula de vidro escuro com os três encaixes e o fechar do mesmo tamanho, ao lado. A barra de brilho e a barra de cinema saíram da janelinha do anel — ela é só os apps e a barra de status, que também ficou mais densa e legível no passthrough.',
+  },
+  {
     id: 'orb-floating-window',
     tag: 'NOVO · ANEL EM JANELINHA INVISÍVEL, BOTÃO 3-4-3 NA DOCK & A DOCK QUE NÃO SOME',
     time: 'Agora',
