@@ -6,6 +6,25 @@ import vm from 'node:vm';
 const SOURCE_HTML = 'web/index.html';
 const ASSET_HTML = 'app/src/main/assets/index.html';
 
+// Padrões das marcas legadas montados por fragmentos para que nenhum nome de marca
+// antigo fique literalmente gravado neste repositório.
+const LEGACY_PATTERNS = [
+  new RegExp(['me', 'ta', 'mr'].join('\\s*'), 'i'),
+  new RegExp(['pot', 'ato', '[vb]r'].join('\\s*'), 'i'),
+  new RegExp(['pot', 'ato', 'android'].join('\\s*'), 'i'),
+  new RegExp(['pot', 'ato'].join('\\s*'), 'i'),
+];
+
+function assertNoLegacyBrand(content, label) {
+  for (const pattern of LEGACY_PATTERNS) {
+    assert.doesNotMatch(
+      content,
+      pattern,
+      `Found legacy brand reference (${pattern.source}) in ${label}`
+    );
+  }
+}
+
 test('bundled APK index.html matches web/index.html byte-for-byte', async () => {
   const [src, bundled] = await Promise.all([
     readFile(SOURCE_HTML),
@@ -34,26 +53,30 @@ test('HTML style and script tags are balanced and JavaScript parses cleanly', as
   );
 });
 
-test('complete dixVR rebrand: zero MetaMR or PotatoVR/potatoBR occurrences remain', async () => {
+test('complete dixVR rebrand leaves zero legacy brand occurrences behind', async () => {
   const filesToAudit = [
     'web/index.html',
     'package.json',
+    'package-lock.json',
     'settings.gradle',
+    'build.gradle',
     'app/build.gradle',
     'app/proguard-rules.pro',
     'app/src/main/AndroidManifest.xml',
     'app/src/main/res/values/strings.xml',
     'app/src/main/java/com/dixvr/app/DixVrActivity.java',
+    'app/src/main/java/com/dixvr/app/AssetRequestRouter.java',
+    'app/src/main/java/com/dixvr/app/PanelBounds.java',
+    'app/src/main/java/com/dixvr/app/HandCursorOverlayView.java',
+    'app/src/test/java/com/dixvr/app/PanelBoundsTest.java',
+    'app/src/test/java/com/dixvr/app/AssetRequestRouterTest.java',
+    'tools/check-java-refs.py',
     'README.md',
+    '.github/workflows/android.yml',
   ];
 
   for (const path of filesToAudit) {
-    const content = await readFile(path, 'utf8');
-    assert.doesNotMatch(
-      content,
-      /meta\s*mr|potato\s*[vb]r|potatovr|potatoandroid/i,
-      `Found legacy MetaMR/PotatoVR brand reference in ${path}`
-    );
+    assertNoLegacyBrand(await readFile(path, 'utf8'), path);
   }
 
   const html = await readFile(SOURCE_HTML, 'utf8');
@@ -69,7 +92,7 @@ test('embedded ShootTheDie VR FPS HTML decodes cleanly under dixVR channels', as
   assert.ok(b64Match, 'SHOOT_THE_DIE_HTML_B64 constant must exist');
 
   const shootHtml = Buffer.from(b64Match[1], 'base64').toString('utf8');
-  assert.doesNotMatch(shootHtml, /meta\s*mr|potato/i);
+  assertNoLegacyBrand(shootHtml, 'embedded ShootTheDie HTML');
   assert.match(shootHtml, /d\.type\s*===\s*'dixvr-shoot-hand'/);
   assert.match(shootHtml, /d\.type\s*===\s*'dixvr-shoot-gyro'/);
 

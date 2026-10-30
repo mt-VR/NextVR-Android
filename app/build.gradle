@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+// Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`
+// (que quebrava o build com "Could not set unknown property 'archivesBaseName'").
+// O nome base do APK agora vem do plugin `base` (`BasePluginExtension.archivesName`),
+// que e a mesma propriedade usada pelo AGP 9 para gerar `dixVR-debug.apk`.
+// O guard `withId('base')` mantem o build seguro caso o plugin `base` nao seja aplicado.
+project.plugins.withId('base') {
+    def baseExtension = project.extensions.findByName('base')
+    if (baseExtension != null) {
+        try {
+            baseExtension.archivesName.set('dixVR')
+        } catch (Exception e) {
+            project.logger.lifecycle("dixVR: nao foi possivel definir base.archivesName (${e.message}).")
+        }
+    }
+}
+
 android {
     namespace = 'com.dixvr.app'
     compileSdk = 35
@@ -15,7 +31,6 @@ android {
         versionCode 1
         versionName "1.0.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        setProperty("archivesBaseName", "dixVR")
     }
 
     // Assinatura de depuração fixa no repositório para permitir atualização direta (adb install -r

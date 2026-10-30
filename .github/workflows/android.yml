@@ -32,7 +32,7 @@ jobs:
         run: |
           keep=3
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.name=="dixvr-debug-apk" or .name=="metamr-potatovr-debug-apk" or .name=="unit-test-reports") | "\(.created_at) \(.id)"' \
+            --jq '.artifacts[] | select(.workflow_run.head_branch == "arena/7e43774f-nextvr-android") | "\(.created_at) \(.id)"' \
             | sort -r | tail -n +$((keep + 1)) | awk '{print $2}' > /tmp/old-artifacts.txt || true
           xargs -r -P 4 -I{} gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/{}" < /tmp/old-artifacts.txt || true
 
