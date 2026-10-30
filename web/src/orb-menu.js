@@ -185,6 +185,9 @@ function wireOrb(host) {
       window.__orbLastHit = tile ? 'app:' + tile.dataset.orbApp
         : target?.closest('[data-orb-all]') ? 'all'
         : target?.closest('[data-orb-close]') ? 'close' : 'outside';
+      window.__orbLastTarget = target
+        ? `${target.tagName}.${String(target.className || '').replace(/\s+/g, '.')}`
+        : 'sem elemento';
     }
     if (tile) {
       const key = tile.dataset.orbApp;

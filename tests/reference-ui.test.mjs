@@ -622,6 +622,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         closeCalls: window.__orbCloseCalls || 0,
         launchCalls: window.__orbLaunchCalls || 0,
         lastHit: window.__orbLastHit || null,
+        lastTarget: window.__orbLastTarget || null,
         lastError: window.__orbLastError || null,
         orbRoot: !!document.querySelector('.orb-root'),
         orbShellVisible: (() => { const s = document.querySelector('.win-shell[data-window-id="orb-menu"]'); return s ? getComputedStyle(s).visibility : 'none'; })(),
