@@ -220,6 +220,26 @@ class PhoneXrHandRenderer {
                 var target:JSONObject?=null
                 for(i in 0 until targets.length()) { val o=targets.optJSONObject(i);if(o!=null&&o.optString("id")==id){target=o;break} }
                 if(target?.optBoolean("hidden")==true) continue
+                // Pinça com raio, também no Toque Direto: com o ponteiro livre desligado o app não
+                // desenhava NENHUM feixe (era o "o Next tá sem pinça com raio"), porque este ramo
+                // só pintava o anel de hover. A pinça de verdade — sempre a de uma detecção viva,
+                // nunca a de uma pose predita — agora sai da palma com o mesmo raio azul do ponteiro.
+                if(live && !hand.predicted && (target?.optBoolean("down")==true || target?.optBoolean("pinchRay")==true)) {
+                    val e=beamEnd
+                    if(aimPoint(hand,target,view,e)) {
+                        var originX=hand.baseX; var originY=hand.baseY
+                        if(hand.points.size>=30) {
+                            originX=(hand.points[9]-.5f)*2f*sx
+                            originY=(.5f-hand.points[10])*2f*sy
+                            if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
+                        }
+                        val b=beamLine
+                        b[0]=originX;b[1]=originY;b[2]=-1f
+                        b[3]=e[0];b[4]=e[1];b[5]=e[2]
+                        b[6]=if(target?.optJSONArray("end")!=null) 1f else 0f
+                        drawBeam(b,true,true,false,position,fade)
+                    }
+                }
                 if(target?.optBoolean("fingerHover")==true) {
                     val pts=handPoints.getOrNull(hIdx) ?: hand.points
                     if(pts.size>=26) {
@@ -260,22 +280,8 @@ class PhoneXrHandRenderer {
             val down=live && !hand.predicted && (target?.optBoolean("down") ?: hand.pinching)
             val blueRay=down || (target?.optBoolean("blueRay")==true)
             val end=target?.optJSONArray("end")
-            val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
             val e=beamEnd
-            if(end!=null && end.length()==3) {
-                val wx=end.optDouble(0,Double.NaN).toFloat()
-                val wy=end.optDouble(1,Double.NaN).toFloat()
-                val wz=end.optDouble(2,Double.NaN).toFloat()
-                // World -> this eye's space, matching the panel's view transformation. Without
-                // this step the ring drifts in stereo even though the input hit-test was correct.
-                val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
-                val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
-                val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
-                val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
-                if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez }
-                else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
-            } else { e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length }
-            if(!e[0].isFinite()||!e[1].isFinite()||!e[2].isFinite()||e[2]>=-.05f)continue
+            if(!aimPoint(hand,target,view,e))continue
             touching=direct && down
             val b=beamLine
             // O raio nasce NA MÃO, não num ponto do plano da tela. Antes a origem era (aimX,aimY) a
@@ -639,6 +645,28 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
             out.vertex(ax,ay,-1f);out.vertex(bx,by,-1f);out.vertex(cx,cy,-1f)
             out.vertex(bx,by,-1f);out.vertex(dx,dy,-1f);out.vertex(cx,cy,-1f)
         }
+
+/** Ponto de mira do raio, no espaço do olho: o `end` que o JS manda (o alvo real de um acerto) ou
+ *  a direção da própria mão a 1,2 m quando não há acerto nenhum. Devolve false quando o ponto não
+ *  está à frente do olho — nesse caso não há feixe a desenhar. */
+private fun aimPoint(hand: PhoneXrHands.Hand, target: JSONObject?, view: FloatArray, e: FloatArray): Boolean {
+    val end=target?.optJSONArray("end")
+    val length=kotlin.math.sqrt(hand.aimX*hand.aimX+hand.aimY*hand.aimY+1f)
+    if(end!=null && end.length()==3) {
+        val wx=end.optDouble(0,Double.NaN).toFloat()
+        val wy=end.optDouble(1,Double.NaN).toFloat()
+        val wz=end.optDouble(2,Double.NaN).toFloat()
+        // World -> this eye's space, matching the panel's view transformation. Without this step
+        // the ring drifts in stereo even though the input hit-test was correct.
+        val ex=view[0]*wx+view[4]*wy+view[8]*wz+view[12]
+        val ey=view[1]*wx+view[5]*wy+view[9]*wz+view[13]
+        val ez=view[2]*wx+view[6]*wy+view[10]*wz+view[14]
+        val ew=view[3]*wx+view[7]*wy+view[11]*wz+view[15]
+        if(ew>1e-4f && ez<-.05f) { e[0]=ex;e[1]=ey;e[2]=ez;return true }
+    }
+    e[0]=hand.aimX/length*1.2f;e[1]=hand.aimY/length*1.2f;e[2]=-1.2f/length
+    return e[0].isFinite()&&e[1].isFinite()&&e[2].isFinite()&&e[2]<-.05f
+}
 
 private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boolean, position: Int, fade: Float) {
             val color = colorUniform

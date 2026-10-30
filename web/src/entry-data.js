@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-visible-pinch-ray',
+    tag: 'CORREÇÃO · OS APPS DO ANEL APARECEM, PINÇA COM RAIO & DUAS MÃOS',
+    time: 'Agora',
+    heading: 'Os Apps do Anel Aparecem no Headset, Pinça com Raio e Duas Mãos de Verdade',
+    desc: 'O anel de 10 apps voltou a aparecer no headset: a camada estava centralizada na página inteira (4096x4096) em vez de dentro da HUD (1200x800), então o ambiente escurecia e os ícones ficavam fora do recorte — era o "os aplicativos não aparece". A pinça agora tem RAIO mesmo com o Toque Direto ligado (antes esse modo desligava o ponteiro e nenhum feixe era desenhado): o raio azul sai da palma e aponta para o alvo, inclusive quando o alvo é o anel ou a Dock. O rastreamento das DUAS mãos ficou estável: uma falha de um quadro não joga mais a segunda mão para o grafo de uma mão, e uma mão que some por alguns quadros continua desenhada em vez de piscar. E a biblioteca de apps não volta mais sozinha para o menu principal: o voltar do Android fecha a janela em foco primeiro (o segundo voltar, em até 2,5 s, vai para o menu inicial), a biblioteca nunca é descartada para abrir outro app e o carregamento de 6 s ganhou um botão PULAR.',
+  },
+  {
     id: 'orb-hud-redesign',
     tag: 'NOVO · ANEL NA HUD, DEZ POR PÁGINA & PERFIL NO LUGAR DA DOCK',
     time: 'Agora',

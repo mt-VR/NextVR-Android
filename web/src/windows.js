@@ -518,7 +518,10 @@ export function open(spec) {
   const apps = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
   if (spec.id !== 'left-quick-menu' && apps.length >= ARC_CAPACITY) {
     // Multitarefa em arco: até 3 apps de vez. Com o arco cheio, o menos recente sai para o novo entrar.
-    const lru = pickLru(apps);
+    // A BIBLIOTECA nunca é a escolhida: ela é o hub que o usuário acabou de abrir, e fechá-la para
+    // dar lugar a um app era o que fazia a tela "voltar ao menu principal do nada" (com o launcher
+    // espacial ligado, a grade inicial reaparece no lugar dela).
+    const lru = pickLru(apps.filter(w => w.id !== 'library'));
     if (lru) { toast(`${t('arcFull')}: ${lru.title}`); close(lru); }
   }
   const w = new Win(spec);
@@ -3968,9 +3971,13 @@ function syncHandTargets(now = performance.now()) {
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,pinchRay:true,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
     }
-    if(packet.consumed.has(h.id) || packet.blockFar){targets.push({id:h.id,hidden:true,blueOutline});continue;}
+    if(packet.consumed.has(h.id) || packet.blockFar){
+      // Pinça ativa: a janela já recebeu o toque (o alvo está consumido), mas a mão continua
+      // visível para o RAY — o feixe é justamente o retorno de que a pinça está pressionando.
+      if(!h.pinching){targets.push({id:h.id,hidden:true,blueOutline});continue;}
+    }
     // Ambas as mãos usam predição cinemática zero-delay na taxa do display (60-120 Hz).
     const p=predictedHandScreenPoint(h,now);
     const r=phoneRay(p.x,p.y);
@@ -3986,7 +3993,14 @@ function syncHandTargets(now = performance.now()) {
     const isPrimaryRay=(cursor.hand?.id===h.id) || packet.hands.length===1;
     const blueRay=Boolean(isHolding || ((hasOpenApp || now<appOpenBlueUntil) && (isPrimaryRay || Boolean(hit))));
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
-    targets.push({id:h.id,...(hit?{end:hit.point.toArray()}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    // O raio precisa de um destino mesmo quando o alvo é da HUD (o anel de 10 apps, a dock, o menu
+    // da mão esquerda): esses não são objetos 3D, então não existe `hit`, e sem destino o feixe
+    // ficava mudo — no Toque Direto, sem feixe nenhum. Sem acerto, o destino é o ponto do olhar a
+    // 1,2 m, que é o que a mão está apontando de verdade.
+    const pinchRay=!!h.pinching;
+    const end=hit ? hit.point.toArray()
+      : pinchRay ? r.ray.at(1.2, new THREE.Vector3()).toArray() : null;
+    targets.push({id:h.id,...(end?{end}:{}),...(pinchRay?{pinchRay:true}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

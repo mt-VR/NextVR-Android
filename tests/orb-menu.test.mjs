@@ -91,8 +91,11 @@ test('o anel manda na tela: dock some, janelas saem de cena, e a camada fica por
   assert.match(html, /html\[data-orb-open="1"\] \.dock\{display:none!important\}/);
   // E nenhuma janela fica como caixa preta na frente/atrás dos ícones.
   assert.match(html, /html\[data-orb-open="1"\] \.win-shell\{opacity:0!important;visibility:hidden!important/);
-  // A camada do anel é a última coisa desenhada na HUD.
-  assert.match(html, /\.orb-layer\{position:fixed;left:50%;top:50%;transform:translate\(-50%,-50%\);/);
+  // A camada do anel é a última coisa desenhada na HUD — e ela é `absolute` DENTRO da HUD, não
+  // `fixed`: no aparelho a HUD é uma caixa de 1200x800 em cima de uma página de 4096x4096, então um
+  // `fixed` ficava centrado em 2048,2048 e era recortado (o anel existia e não aparecia no headset).
+  assert.match(html, /\.orb-layer\{position:absolute;inset:0;z-index:60;pointer-events:none;/);
+  assert.doesNotMatch(html, /\.orb-layer\{position:fixed/);
   // Os tiles se destacam no escuro: aro claro + halo colorido.
   assert.match(html, /\.orb-app\{[^}]*box-shadow:0 18px 40px rgba\(0,0,0,\.7\),0 0 0 2px rgba\(255,255,255,\.55\),0 0 30px 3px/);
 
@@ -158,7 +161,7 @@ test('the dock keeps its dot grid and only what it opens changed', async () => {
   // volta a abrir a biblioteca, como era antes.
   assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\), run: openAppsDot \}/);
   assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  return openOrbMenu\(\);/);
-  assert.match(apps, /import \{ openOrbMenu, closeOrbMenu, installOrbMenu \} from '\.\/orb-menu\.js'/);
+  assert.match(apps, /import \{ openOrbMenu, closeOrbMenu, orbOpen, installOrbMenu \} from '\.\/orb-menu\.js'/);
   assert.match(apps, /installOrbMenu\(\{[\s\S]*?refreshAndroid: \(\) => loadAndroidLibrary\(\)/);
 });
 
@@ -180,7 +183,10 @@ test('the ray comes out of the hand and stays with it', async () => {
 test('a hand can never be drawn twice, and the ghost of a mislabelled hand is dropped', async () => {
   const hands = await read('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt');
   assert.match(hands, /private const val GHOST_RADIUS = \.09f/);
-  assert.match(hands, /if \(duplicate\) \{ entry\.value\.consecutiveMisses = 2; continue \}/);
+  // A predita que caiu em cima de uma mão detectada é descartada NESTA rodada, mas o lado não fica
+  // morto: a segunda mão volta a aparecer assim que o detector a vê de novo (antes ela demorava, e
+  // com as duas mãos em uso parecia que só uma era rastreada).
+  assert.match(hands, /if \(duplicate\) \{[\s\S]{0,400}?consecutiveMisses/);
   // Duas mãos no mesmo resultado nunca recebem o mesmo id (uma delas é movida para o lado livre).
   assert.match(hands, /if \(!detected\.add\(left\)\) \{ left = !left; detected\.add\(left\) \}/);
 });
@@ -200,4 +206,25 @@ test('o anel de 10 apps pode ser desativado e a bolinha volta a abrir a bibliote
   assert.match(apps, /ytRow\(icon\('appGrid'\), 'Anel de 10 Apps \(bolinha da Dock\)',\n    'Desligado: a bolinha abre a biblioteca de sempre',\n    ytToggle\('orbRing'/);
   // E a escolha é lembrada: é uma configuração salva, não um estado de sessão.
   assert.match(core, /orbRing/);
+});
+
+test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pinça com raio")', async () => {
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
+  // Com o Toque Direto ligado (o padrão) o ponteiro livre é desligado — e o renderer SAÍA do desenho
+  // antes de qualquer feixe. A pinça de verdade passa a desenhar o raio azul no mesmo ramo.
+  const gate = renderer.slice(renderer.indexOf('if(!showPointer || mrGameMode)'), renderer.indexOf('// Beam positions are predicted'));
+  assert.match(gate, /target\?\.optBoolean\("pinchRay"\)==true/);
+  assert.match(gate, /drawBeam\(b,true,true,false,position,fade\)/);
+  // Só uma detecção viva pinta o raio: uma pose predita nunca inventa uma pinça.
+  assert.match(gate, /if\(live && !hand\.predicted &&/);
+  // O raio nasce na palma e o destino vem de aimPoint (o alvo real, ou a direção da mão a 1,2 m).
+  assert.match(renderer, /private fun aimPoint\(hand: PhoneXrHands\.Hand, target: JSONObject\?, view: FloatArray, e: FloatArray\): Boolean/);
+
+  const windows = await read('web/src/windows.js');
+  // O alvo do raio existe mesmo quando o alvo é da HUD (o anel, a dock, o menu da mão): esses não
+  // são objetos 3D, então sem isto o feixe ficava sem destino.
+  assert.match(windows, /const end=hit \? hit\.point\.toArray\(\)\s*\n\s*: pinchRay \? r\.ray\.at\(1\.2, new THREE\.Vector3\(\)\)\.toArray\(\) : null;/);
+  assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
+  // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
+  assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline\}\);continue;\}/);
 });

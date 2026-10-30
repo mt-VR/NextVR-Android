@@ -1285,8 +1285,23 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(!entryVisible && entryView!=null) { setEntryMenuVisible(true); return; }
         finish();
     }
+    /**
+     * Voltar dentro da sessao. Antes o PRIMEIRO voltar ja derrubava tudo para o menu inicial — e no
+     * VR Box a tela do celular encosta no plastico, um toque acidental vira voltar do sistema. O
+     * usuario via a biblioteca de apps (ou qualquer app) "voltar ao menu principal do nada".
+     * Agora o primeiro voltar fecha o anel/o menu da mao/a janela em foco (o que o Android faria) e
+     * so o segundo, em ate 2,5 s, volta ao menu inicial.
+     */
+    private long lastBackAt=0L;
     @Override public void onBackPressed() {
-        if(!entryVisible && entryView!=null) { setEntryMenuVisible(true); return; }
+        if(!entryVisible && entryView!=null) {
+            long now=SystemClock.uptimeMillis();
+            if(now-lastBackAt<=2500L) { lastBackAt=0L; setEntryMenuVisible(true); return; }
+            lastBackAt=now;
+            WebSurface s=shell;
+            if(s!=null && ready && resumed) s.evaluate("window.nextvrBack&&window.nextvrBack()");
+            return;
+        }
         super.onBackPressed();
     }
     public void showSettings(View v) { PopupMenu menu=new PopupMenu(this,v); menu.getMenuInflater().inflate(R.menu.settings_menu,menu.getMenu()); menu.setOnMenuItemClickListener(this); menu.show(); }

@@ -37,6 +37,11 @@ test('the second-hand probe is bounded by processed frames as well as by camera 
     'the probe also honours the camera-time bound, so a second hand is still found promptly');
   assert.match(policy, /frameBoundMet && timeBoundMet/,
     'both bounds must be met before the two-slot graph runs again');
+  // Com as duas mãos em uso, UMA falha no segundo hand não pode jogar o rastreamento no grafo de
+  // um slot (que nunca vê a segunda mão): era isso que fazia a segunda mão piscar/sumir.
+  assert.match(policy, /private val bothHandsHold = 2/);
+  assert.match(policy, /if \(detectedHands >= searchSlots\) holdFrames = bothHandsHold/);
+  assert.match(policy, /holdFrames > 0 -> false/);
   const unit = await readFile('nextvr-android/src/test/java/com/nextvr/handtrack/HandSlotPolicyTest.kt', 'utf8');
   assert.match(unit, /theProbeIsCountedInFramesSoASlowDeviceStillReachesTheOneSlotGraph/);
   assert.match(unit, /aFastDeviceStillProbesOnTheCameraTimeBound/);
@@ -64,4 +69,16 @@ test('two-hand silhouettes predict and fade independently, with per-hand pinch f
   assert.match(renderer, /ring3d\(b\[3\], b\[4\], b\[5\], outer, inner, position\)/);
   assert.match(renderer, /HAND_OUTLINE_ALPHA\*handConfidence/);
   assert.doesNotMatch(renderer, /frame\.hands\.any \{ it\.pinching \}/);
+});
+
+test('uma mão que falha por alguns quadros continua desenhada (duas mãos não piscam)', async () => {
+  const hands = await readFile('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
+  // Era `consecutiveMisses >= 2`: UMA falha e a mão desaparecia até o detector voltar a vê-la. Com
+  // duas mãos isso acontece o tempo todo, e a segunda mão ficava piscando.
+  assert.match(hands, /const val MAX_PREDICT_MISSES = 4/);
+  assert.match(hands, /if \(consecutiveMisses >= MAX_PREDICT_MISSES\) return null/);
+  assert.doesNotMatch(hands, /consecutiveMisses >= 2\)/);
+  // O fantasma (predita em cima de uma mão detectada) é descartado só nesta rodada, sem matar o lado.
+  const ghost = hands.slice(hands.indexOf('val duplicate = seen.any'));
+  assert.doesNotMatch(ghost.slice(0, 600), /consecutiveMisses = 2/);
 });

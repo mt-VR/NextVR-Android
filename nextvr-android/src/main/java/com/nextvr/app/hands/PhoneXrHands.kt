@@ -43,6 +43,14 @@ class PhoneXrHands {
         const val STATE_RETAIN_NS = 1_500_000_000L
         /** One prediction step may never move a landmark further than this (normalized units). */
         const val MAX_PREDICT_STEP = .35f
+        /**
+         * Quantos resultados seguidos uma mão pode faltar e ainda ser desenhada pelo modelo de
+         * movimento. Era 2 — ou seja, UMA falha e a mão sumia da tela até o detector voltar a vê-la.
+         * Com as duas mãos em uso isso acontece o tempo todo (uma mão na borda da imagem, uma na
+         * frente da outra, mão rápida), e o resultado era a segunda mão piscando. O horizonte de
+         * tempo continua mandando: uma mão que sumiu de verdade desaparece sozinha.
+         */
+        const val MAX_PREDICT_MISSES = 4
         /** Per-sample weight of the velocity estimate from consecutive detections. */
         private const val VELOCITY_EMA = .65f
         /**
@@ -264,7 +272,7 @@ class PhoneXrHands {
             val hand = lastHand ?: return null
             if (!sawDetection) return null
             consecutiveMisses++
-            if (consecutiveMisses >= 2) return null
+            if (consecutiveMisses >= MAX_PREDICT_MISSES) return null
             val since = stampNs - lastStampNs
             if (since <= 0L || since > PREDICT_HORIZON_NS) return null
             val t = since / 1e9f
@@ -413,7 +421,13 @@ class PhoneXrHands {
                 val dy = other.grabY - predicted.grabY
                 dx * dx + dy * dy < GHOST_RADIUS * GHOST_RADIUS
             }
-            if (duplicate) { entry.value.consecutiveMisses = 2; continue }
+            if (duplicate) {
+                // Uma falha só: a predição deste lado é descartada nesta rodada, mas a mão volta a
+                // aparecer assim que o detector voltar a vê-la longe da outra (antes o lado ficava
+                // morto até uma nova detecção e a segunda mão demorava a voltar).
+                entry.value.consecutiveMisses = (entry.value.consecutiveMisses + 1).coerceAtLeast(1)
+                continue
+            }
             seen.add(predicted)
         }
         // Capture time drives One Euro dt; expiry uses measured frame age on the elapsedRealtime

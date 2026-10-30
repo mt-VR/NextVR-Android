@@ -677,6 +677,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <span>NEXTVR</span>
               <b data-entry-battery-top>${batInfo.text}</b>
             </div>
+            <button type="button" class="entry-hud-rect entry-hud-rect--btn entry-hud-skip" data-entry-skip title="Pular o carregamento e entrar agora">
+              PULAR ››
+            </button>
             <button type="button" class="entry-hud-rect entry-hud-rect--btn" data-entry-cancel-countdown title="Cancelar">
               CANCELAR
             </button>
@@ -734,6 +737,18 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           stopCountdown();
           activeView = 'home';
           paint();
+        };
+      }
+      // Pular o carregamento: entra na hora, sem esperar os 6 s. É o pedido "bota uma opção de
+      // pular aquele carregamento de 5s" — antes só dava para CANCELAR e escolher tudo de novo.
+      const skipBtn = root.querySelector('[data-entry-skip]');
+      if (skipBtn) {
+        skipBtn.onclick = () => {
+          if (!countdownTimer) return;
+          stopCountdown();
+          loadingPct = 100;
+          updateCountdownDom();
+          onStart?.();
         };
       }
       return;

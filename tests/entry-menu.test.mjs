@@ -1261,6 +1261,16 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(countdownInfo.pct, '0%', 'loading starts at 0%');
     assert.equal(countdownInfo.status, 'Carregando câmera AR...', 'loading shows dynamic status messages');
     assert.equal(countdownInfo.hasBar, true, 'loading renders bottom HUD progress bar');
+    // "PULAR": entra na hora, sem esperar o carregamento. Pedido do usuário: "bota uma opção de
+    // pular aquele carregamento de 5s".
+    const skipInfo = await page.evaluate(() => {
+      const btn = document.querySelector('[data-entry-skip]');
+      if (!btn) return { present: false };
+      btn.click();
+      return { present: true, gone: !document.querySelector('[data-entry-panel="loading"]') };
+    });
+    assert.equal(skipInfo.present, true, 'the loading screen offers a PULAR button');
+    assert.equal(skipInfo.gone, true, 'PULAR leaves the loading screen at once instead of waiting the countdown');
     await page.waitForFunction(() => window.__startedVrWith !== null, null, { timeout: 9000 });
   } finally {
     await browser?.close();
@@ -1268,3 +1278,15 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
   }
 });
 
+
+test('o carregamento de 6 s pode ser pulado, e não só cancelado', async () => {
+  const source = readFileSync('web/src/entry-menu.js', 'utf8');
+  // O botão existe na tela de carregamento, ao lado de CANCELAR (que apenas volta ao menu).
+  assert.match(source, /data-entry-skip/);
+  assert.match(source, /PULAR/);
+  // E ele chama onStart na hora: pular o carregamento tem que ENTRAR na sessão, não voltar ao menu.
+  assert.match(source, /const skipBtn = root\.querySelector\('\[data-entry-skip\]'\);/);
+  assert.match(source, /stopCountdown\(\);\s*\n\s*loadingPct = 100;\s*\n\s*updateCountdownDom\(\);\s*\n\s*onStart\?\.\(\);/);
+  const html = readFileSync('web/index.html', 'utf8');
+  assert.match(html, /\.entry-hud-skip\{/);
+});

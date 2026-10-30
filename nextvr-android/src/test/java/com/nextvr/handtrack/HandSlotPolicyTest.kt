@@ -76,7 +76,25 @@ class HandSlotPolicyTest {
         policy.onResult(usedWide = true, detectedHands = 2)
         assertTrue(policy.useWide(33L))
         policy.onResult(usedWide = true, detectedHands = 1)
-        assertFalse(policy.useWide(66L))
+        // The second hand is given one more two-slot frame before the graph gives up on it (see
+        // aSingleMissedFrameWithTwoHandsKeepsBothHandsTracked).
+        assertTrue(policy.useWide(66L))
+        policy.onResult(usedWide = true, detectedHands = 1)
+        assertFalse(policy.useWide(99L))
+    }
+
+    @Test fun aSingleMissedFrameWithTwoHandsKeepsBothHandsTracked() {
+        // The one-slot graph can never report a second hand. Giving up on it after ONE missed
+        // frame made the second hand blink out until the next probe - the two-hand experience was
+        // "as duas mãos não tem como". A single miss is now bridged.
+        val policy = policy()
+        assertTrue(policy.useWide(0L))
+        policy.onResult(usedWide = true, detectedHands = 2)
+        assertTrue(policy.useWide(33L))
+        policy.onResult(usedWide = true, detectedHands = 1)
+        assertTrue("a single miss still uses the two-slot graph", policy.useWide(66L))
+        policy.onResult(usedWide = true, detectedHands = 2)
+        assertTrue(policy.useWide(99L))
     }
 
     @Test fun losingTheOnlyTrackedHandReturnsImmediatelyToWideSearch() {

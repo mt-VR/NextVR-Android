@@ -15,7 +15,7 @@ import { isVerifiedProfileName } from './entry-data.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
-import { openOrbMenu, closeOrbMenu, installOrbMenu } from './orb-menu.js';
+import { openOrbMenu, closeOrbMenu, orbOpen, installOrbMenu } from './orb-menu.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -2524,7 +2524,12 @@ function shizukuWindow() {
 
 function libraryApp() {
   const w = wins.find(x => x.id === 'library');
-  if (w) { paintLibrary(); focus(w); css3d.render?.(scene, camera); return w; }
+  if (w) {
+    // Já aberta: traz para a frente SEM reconstruir o conteúdo. O repintar fechava o teclado de
+    // busca e devolvia a lista para o começo — o "volta ao menu principal" dentro da biblioteca.
+    if (w.hidden) { w.setHidden(false); paintLibrary(); }
+    focus(w); css3d.render?.(scene, camera); return w;
+  }
   const body = el('div'); body.style.cssText = 'height:100%';
   const win = open({ id: 'library', title: t('apps'), node: body, w:1040, h:660, chrome:false, resizable:false });
   paintLibrary();
@@ -2953,7 +2958,9 @@ function syncSpatialLauncherVisibility() {
     if (appWins.length > 3) {
       const newest = appWins[appWins.length - 1];
       for (const oldWin of appWins) {
-        if (oldWin !== newest) close(oldWin);
+        // A biblioteca é o hub do usuário, não um app do arco: fechá-la aqui devolvia a grade
+        // inicial por cima dela ("o app volta ao menu principal do nada").
+        if (oldWin !== newest && oldWin.id !== 'library') close(oldWin);
       }
     }
     if (appWins.length !== lastSpatialAppWinCount) {
@@ -3541,6 +3548,21 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
   return true;
 }
 window.nextvrToggleLeftHandQuickMenu = toggleLeftHandQuickMenu;
+
+/**
+ * Botão voltar do Android DENTRO da sessão. O nativo só volta ao menu inicial no SEGUNDO voltar
+ * (ver NextVrActivity.onBackPressed): o primeiro chega aqui. Ordem: fecha o anel de 10 apps, o menu
+ * da mão esquerda ou a janela em foco — nada de derrubar a biblioteca de apps para o menu principal
+ * por causa de um toque acidental na tela (dentro do VR Box a tela encosta no plástico).
+ */
+window.nextvrBack = () => {
+  if (orbOpen()) { closeOrbMenu(); return true; }
+  const quick = wins.find(w => w.id === 'left-quick-menu');
+  if (quick && !quick.hidden) { toggleLeftHandQuickMenu(false); return true; }
+  const focused = focusedWin();
+  if (focused && !focused.onboarding) { close(focused); return true; }
+  return false;
+};
 
 function setSpatialLauncherMode(enabled) {
   S.spatialLauncher = enabled ? 1 : 0;
