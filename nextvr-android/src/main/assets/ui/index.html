@@ -3499,16 +3499,25 @@
   .win-shell[data-window-id="orb-menu"] .win-grab-arc{
     display:none!important;opacity:0!important;pointer-events:none!important}
 
-  /* Com o anel aberto, as OUTRAS janelas recuam para trás do véu: elas não somem (o usuário volta a
-     elas ao fechar o anel), mas param de cobrir os apps. Era isto que faltava na captura: o Menu
-     Rápido ficava na frente e o anel aparecia atrás dele. As mãos e a dock estão na HUD (#hud z4) e
-     não são tocadas por esta regra. */
+  /* Com o anel aberto não fica caixa nenhuma no caminho: as OUTRAS janelas saem de cena de vez (nem
+     sombra escura sobra atrás dos apps) e voltam inteiras ao fechar — elas não são fechadas, só
+     escondidas; estado, lugar e conteúdo continuam guardados. As mãos (#overlay z3) e a HUD ficam. */
   html[data-orb-open="1"] .win-shell:not([data-window-id="orb-menu"]){
-    opacity:.22;filter:saturate(.55) brightness(.62);pointer-events:none;
-    transition:opacity .2s ease,filter .2s ease}
-  /* A dock também é HUD: ela recua (fica, mas apagada) para os apps serem o que brilha. */
-  html[data-orb-open="1"] .dock{opacity:.38;transition:opacity .2s ease}
-  .win-shell{transition:opacity .2s ease,filter .2s ease}
+    opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+  .win-shell{transition:opacity .18s ease}
+  /* A dock vira só perfil + relógio/bateria, sem a pílula escura e sem os apps: quem tocou na
+     bolinha está escolhendo um app no anel, e a dock volta inteira quando o anel fecha. */
+  html[data-orb-open="1"] .dock{
+    background:none!important;border-color:transparent!important;box-shadow:none!important;
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  html[data-orb-open="1"] .dock .dock-app,
+  html[data-orb-open="1"] .dock .dock-tool,
+  html[data-orb-open="1"] .dock .dock-sep,
+  html[data-orb-open="1"] .dock .dock-spacer,
+  html[data-orb-open="1"] .dock .dock-bell-ind{display:none!important}
+  html[data-orb-open="1"] .dock .dock-av,
+  html[data-orb-open="1"] .dock .dock-status{
+    filter:drop-shadow(0 3px 10px rgba(0,0,0,.85))}
 
   .orb-host,.orb-root{width:100%;height:100%;background:transparent;user-select:none}
   .orb-root{position:relative;display:flex;flex-direction:column;padding:4px 10px 10px}

@@ -330,7 +330,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     }
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
     assert.equal(await page.locator('.entry-brand-chrome-logo').count(), 0, 'Metallic NextVR logo is removed from the right side of the menu');
-    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 5, 'Right side of the menu displays notification-style update cards (Build 98 added one)');
+    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 6,
+      'Right side of the menu displays notification-style update cards (the ring toggle added one)');
 
     // 4. Sobre: exact text check
     await page.evaluate(() => document.querySelector('[data-entry-act="about"]').click());

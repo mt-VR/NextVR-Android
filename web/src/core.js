@@ -21,6 +21,8 @@ const DEF = {
   // O pôr do sol com palmeiras é o fundo inicial; passthrough continua a um toque de distância.
   env: 'sunset', panorama: 'sunset', quality: 'auto', showFps: 0,
   wideCamera: 0, spatialLauncher: 0, dockSnapSlot: 1, depthLayerOrder: 1, fingerTouch: 1, pinchOnApp: 1, gunGesture: 1,
+  // A bolinha da dock abre o anel de 10 apps (1) ou a biblioteca de sempre (0), como era antes.
+  orbRing: 1,
   singleHandMode: 'both',
   mrDim: 0,
   sixdof: 1, lateLatch: 0,

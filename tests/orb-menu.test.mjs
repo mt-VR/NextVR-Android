@@ -66,9 +66,10 @@ test('abrir o anel empurra as outras janelas para trás do véu', async () => {
   assert.match(orb, /else delete document\.documentElement\.dataset\.orbOpen/);
 
   const html = await read('web/index.html');
-  // Com o anel aberto, as OUTRAS janelas escurecem e não recebem toque; o anel nunca é afetado.
-  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*opacity:\.22/);
-  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*pointer-events:none/);
+  // Com o anel aberto, as OUTRAS janelas saem de cena de vez (nada de caixa preta atrás dos apps) e
+  // não recebem toque; o anel nunca é afetado.
+  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*visibility:hidden!important/);
+  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*pointer-events:none!important/);
   // Os tiles se destacam no escuro: aro claro + halo colorido.
   assert.match(html, /\.orb-app\{[^}]*box-shadow:0 26px 56px rgba\(0,0,0,\.72\),0 0 0 2px rgba\(255,255,255,\.58\),0 0 42px 4px/);
 
@@ -84,8 +85,9 @@ test('abrir o anel empurra as outras janelas para trás do véu', async () => {
   assert.match(orb, /export const ORB_PALETTE = Object\.freeze\(\[/);
   assert.match(orb, /entry\.bg \|\| ORB_PALETTE\[index % ORB_PALETTE\.length\]/);
 
-  // A dock continua no lugar (é a bolinha que abriu o anel), mas recua junto com o resto do HUD.
-  assert.match(html, /html\[data-orb-open="1"\] \.dock\{opacity:\.38/);
+  // A dock vira só perfil + relógio: a pílula escura sai e os apps/tools somem (e voltam ao fechar).
+  assert.match(html, /html\[data-orb-open="1"\] \.dock\{\n    background:none!important/);
+  assert.match(html, /html\[data-orb-open="1"\] \.dock \.dock-app,\n  html\[data-orb-open="1"\] \.dock \.dock-tool,[\s\S]{0,220}display:none!important/);
   // Fechar o anel desfaz o véu e o selo MESMO se a janela falhar ao fechar (try/finally).
   assert.match(orb, /export function closeOrbMenu\(\) \{\n  const win = winObj\(\);\n  try \{\n    if \(win\) close\(win\);\n  \} finally \{/);
 });
@@ -105,9 +107,11 @@ test('the dock keeps its dot grid and only what it opens changed', async () => {
   // A aparência da bolinha continua a mesma grade de pontinhos do buildDock.
   const windows = await read('web/src/windows.js');
   assert.match(windows, /'<span class="dk-grid">' \+ '<i><\/i>'\.repeat\(9\) \+ '<\/span>'/);
-  // A bolinha (item launcher da dock) abre o anel e não a janela de biblioteca.
-  assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\), run: openOrbMenu \}/);
-  assert.match(apps, /import \{ openOrbMenu, installOrbMenu \} from '\.\/orb-menu\.js'/);
+  // A bolinha (item launcher da dock) abre o anel; com o anel desativado nas Configurações ela
+  // volta a abrir a biblioteca, como era antes.
+  assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\), run: openAppsDot \}/);
+  assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  return openOrbMenu\(\);/);
+  assert.match(apps, /import \{ openOrbMenu, closeOrbMenu, installOrbMenu \} from '\.\/orb-menu\.js'/);
   assert.match(apps, /installOrbMenu\(\{[\s\S]*?refreshAndroid: \(\) => loadAndroidLibrary\(\)/);
 });
 
@@ -132,4 +136,21 @@ test('a hand can never be drawn twice, and the ghost of a mislabelled hand is dr
   assert.match(hands, /if \(duplicate\) \{ entry\.value\.consecutiveMisses = 2; continue \}/);
   // Duas mãos no mesmo resultado nunca recebem o mesmo id (uma delas é movida para o lado livre).
   assert.match(hands, /if \(!detected\.add\(left\)\) \{ left = !left; detected\.add\(left\) \}/);
+});
+
+test('o anel de 10 apps pode ser desativado e a bolinha volta a abrir a biblioteca', async () => {
+  const apps = await read('web/src/apps.js');
+  const core = await read('web/src/core.js');
+  // Padrão: anel ligado (a configuração existe e nasce com 1).
+  assert.match(core, /orbRing: 1,/);
+  // Interruptor nas Configurações (Central de controle), com o texto dizendo o que volta.
+  assert.match(apps, /control\('appGrid', 'Anel de 10 Apps \(bolinha da Dock\)', S\.orbRing !== 0 \? 'Ativado' : 'Desativado · biblioteca de volta'/);
+  assert.match(apps, /S\.orbRing = enabled \? 1 : 0;/);
+  assert.match(apps, /save\(S\);/);
+  // Desligar com o anel aberto fecha o anel na hora (o véu e o selo saem junto).
+  assert.match(apps, /if \(!enabled\) \{ try \{ closeOrbMenu\(\); \} catch \{\} \}/);
+  // O mesmo interruptor existe nas Configurações (dentro do jogo), na seção da Dock.
+  assert.match(apps, /ytRow\(icon\('appGrid'\), 'Anel de 10 Apps \(bolinha da Dock\)',\n    'Desligado: a bolinha abre a biblioteca de sempre',\n    ytToggle\('orbRing'/);
+  // E a escolha é lembrada: é uma configuração salva, não um estado de sessão.
+  assert.match(core, /orbRing/);
 });

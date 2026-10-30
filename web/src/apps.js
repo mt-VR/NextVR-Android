@@ -14,7 +14,7 @@ import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
-import { openOrbMenu, installOrbMenu } from './orb-menu.js';
+import { openOrbMenu, closeOrbMenu, installOrbMenu } from './orb-menu.js';
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
@@ -1081,6 +1081,17 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
     return S.gunGesture !== 0;
   }, S.gunGesture !== 0);
+  control('appGrid', 'Anel de 10 Apps (bolinha da Dock)', S.orbRing !== 0 ? 'Ativado' : 'Desativado · biblioteca de volta', button => {
+    const enabled = S.orbRing === 0;      // tocou: inverte
+    S.orbRing = enabled ? 1 : 0;
+    save(S);
+    // Desligar fecha o anel que estiver aberto (o véu e o selo saem junto) e devolve a dock normal.
+    if (!enabled) { try { closeOrbMenu(); } catch {} }
+    emit('orbRing', enabled);
+    button.querySelector('small').textContent = enabled ? 'Ativado' : 'Desativado · biblioteca de volta';
+    toast(enabled ? 'Anel de 10 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
+    return enabled;
+  }, S.orbRing !== 0);
   control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
     S.sixdof = S.sixdof === 0 ? 1 : 0;
     save(S);
@@ -1236,6 +1247,13 @@ function settingsApp() {
 
   // Dock
   scroll.append(ytSection(t('dock')));
+  // O anel de 10 apps também se desliga por aqui (a bolinha volta a abrir a biblioteca).
+  scroll.append(ytRow(icon('appGrid'), 'Anel de 10 Apps (bolinha da Dock)',
+    'Desligado: a bolinha abre a biblioteca de sempre',
+    ytToggle('orbRing', v => {
+      if (!v) { try { closeOrbMenu(); } catch {} }
+      toast(v ? 'Anel de 10 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
+    })));
   scroll.append(ytRow(icon('appGrid'), 'Tamanho da dock', null, ytRange('dockSize',.7,1.5,.05)));
   scroll.append(ytRow(icon('distance'), 'Distância da dock', null, ytRange('dockDist',.7,1.5,.05)));
   scroll.append(ytRow(icon('move'), t('dockSnapSlot'), t('dockSnapDesc'), ytToggle('dockSnapSlot')));
@@ -3592,6 +3610,15 @@ function syncVirtualEnvironmentDock() {
   button.title = `${t('envVirtual')} · ${active ? t('on') : t('off')}`;
 }
 
+/* O que a bolinha abre: o anel de 10 apps (padrão) ou a biblioteca de sempre, quando o usuário
+ * desliga o anel nas Configurações. É o único ponto de decisão — todo o resto do app continua
+ * chamando openOrbMenu/render normalmente. */
+export function openAppsDot() {
+  if (S.orbRing === 0) return libraryApp();
+  return openOrbMenu();
+}
+window.nextvrOpenAppsDot = openAppsDot;
+
 function makeDock() {
   buildDock([
     // Perfil abre o menu de entrada NextVR, status do telefone e atalho do ambiente virtual.
@@ -3611,8 +3638,9 @@ function makeDock() {
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
     // A bolinha da dock (a grade de pontinhos): abre o ANEL de 10 apps — apps do NextVR +
     // apps do Android — com o ambiente escurecido mas ainda visível. O desenho da bolinha é o
-    // mesmo de sempre; o que mudou foi só o que ela abre.
-    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openOrbMenu },
+    // mesmo de sempre; o que muda é só o que ela abre. Com o anel DESATIVADO nas Configurações
+    // (S.orbRing = 0) a bolinha volta a abrir a biblioteca, como era antes.
+    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot },
   ]);
   syncVirtualEnvironmentDock();
 }

@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-dock-toggle-clean',
+    tag: 'NOVO · ANEL SEM CAIXAS PRETAS, DOCK SÓ PERFIL & RELÓGIO, LIGA/DESLIGA',
+    time: 'Agora',
+    heading: 'Anel Limpo (Sem Fundo Preto), Dock que Sai de Cena & Interruptor do Anel',
+    desc: 'O anel de 10 apps agora aparece sozinho na tela: as outras janelas saem de cena (nada de caixa preta atrás dos ícones), o ambiente escurece mas continua visível e os apps ficam gigantes, com aro claro e brilho próprio. Ao tocar na bolinha, a Dock desaparece e ficam só o perfil, o relógio e a bateria; quando o anel fecha, a Dock volta inteira. E quem preferir o jeito antigo pode DESATIVAR o anel em Configurações › Anel de 10 Apps (bolinha da Dock): a bolinha volta a abrir a biblioteca de sempre.',
+  },
+  {
     id: 'orb-ten-apps-envs-hands',
     tag: 'NOVO · ANEL DE 10 APPS, 4 PANORAMAS & RAIO NA MÃO',
     time: 'Agora',

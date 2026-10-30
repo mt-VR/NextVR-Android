@@ -229,12 +229,19 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'each app tile carries its own glow so it stands out in the dark');
     assert.ok(await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width)>=180),
       'the apps are giant, not thumbnails');
-    // A dock é HUD: fica no lugar (a bolinha que abriu o anel), mas recua com o resto — com a
-    // transição de .2s do CSS, por isso a espera antes de medir.
-    await page.waitForFunction(()=>parseFloat(getComputedStyle(document.querySelector('.dock')).opacity)<=.4,
-      null,{timeout:5000}).catch(()=>{});
-    assert.ok(await page.locator('.dock').evaluate(e=>parseFloat(getComputedStyle(e).opacity)<=.4),
-      'the dock recedes with the rest of the HUD while the ring is open');
+    // Com o anel aberto a dock vira só perfil + relógio: a pílula escura e os apps saem da tela,
+    // e voltam inteiros quando o anel fecha.
+    assert.equal(await page.locator('.dock .dock-app').first().isVisible(),false,
+      'the dock apps step aside while the ring is open');
+    assert.equal(await page.locator('.dock .dock-av').isVisible(),true,'the profile stays on screen');
+    assert.equal(await page.locator('.dock .dock-status').isVisible(),true,'the clock/battery stay on screen');
+    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).backgroundImage),/none/,
+      'no dark pill is left behind the profile and the clock');
+    // E nenhuma outra janela fica como caixa preta atrás dos apps.
+    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.win-shell')]
+      .filter(s=>s.dataset.windowId!=='orb-menu')
+      .every(s=>getComputedStyle(s).visibility==='hidden')),true,
+      'every other window is out of sight behind the ring');
     await page.evaluate(()=>window.nextvrOpenFistQuickMenu());
     await page.waitForFunction(()=>!!document.querySelector('.win-shell[data-window-id="fist-menu"]'),null,{timeout:8000});
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.win-shell[data-window-id="fist-menu"]')).opacity!=='1');
@@ -274,10 +281,10 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
       'closing the ring restores the environment brightness');
-    await page.waitForFunction(()=>parseFloat(getComputedStyle(document.querySelector('.dock')).opacity)>.9,
-      null,{timeout:5000}).catch(()=>{});
-    assert.ok(await page.locator('.dock').evaluate(e=>parseFloat(getComputedStyle(e).opacity)>.9),
-      'the dock goes back to full brightness when the ring closes');
+    assert.equal(await page.locator('.dock .dock-app').first().isVisible(),true,
+      'the dock apps come back when the ring closes');
+    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).backgroundImage),/gradient\(/,
+      'the dock pill comes back with the apps');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),undefined,
       'the ring clears its open mark when it closes');
     assert.equal(await page.locator('.lib-tile').count(),16,
