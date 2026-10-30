@@ -257,9 +257,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       assert.notEqual(paging.after, '0', 'turning the page moves to the next page of apps');
       assert.equal(await page.evaluate(()=>document.querySelector('.orb-ring').className.includes('is-')),true,
         'the new page enters with the scroll animation');
-      await page.evaluate(()=>window.nextvrOrbPage?.(-1));
-      assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
-        'and the previous page comes back');
+      // Voltar: com duas páginas a roda de trás retorna; a asserção confere a VOLTA, não o número,
+      // porque o teste da roda já pode ter passado mais de uma página.
+      const back = await page.evaluate(()=>{
+        for (let i = 0; i < 6 && document.querySelector('.orb-root').dataset.page !== '0'; i++) {
+          window.nextvrOrbPage?.(-1);
+        }
+        return document.querySelector('.orb-root').dataset.page;
+      });
+      assert.equal(back,'0','and the previous page comes back');
     } else {
       assert.equal(await page.evaluate(()=>document.querySelectorAll('[data-orb-page]').length),0,
         'a single page of ten apps has no page arrows');
