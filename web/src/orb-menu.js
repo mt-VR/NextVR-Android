@@ -303,12 +303,6 @@ function wireOrb(host) {
     if (shut || byPointClose) act('close');
   };
 
-  // Rolagem: roda do mouse/trackpad e arrasto horizontal passam as páginas com animação.
-  host.addEventListener('wheel', event => {
-    if (Math.abs(event.deltaY) < 6 && Math.abs(event.deltaX) < 6) return;
-    event.preventDefault();
-    turnPage((event.deltaY || event.deltaX) > 0 ? 1 : -1);
-  }, { passive: false });
   let dragFrom = null;
   host.addEventListener('pointerdown', event => {
     if (event.target.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page]')) return;
@@ -432,6 +426,17 @@ function dim(on_) {
   setSceneDim(value ? ORB_DIM : 0);
   try { window.NativeXR?.setSceneDim?.(value ? ORB_DIM : 0); } catch {}
 }
+
+/* Rolagem: a roda do mouse/trackpad passa as páginas com animação. O ouvinte é do documento (e não
+ * da camada), porque a camada é `pointer-events:none` para não roubar o toque das janelas: assim a
+ * roda funciona igual no celular, no navegador e no headset. */
+function onOrbWheel(event) {
+  if (!orbOpen()) return;
+  if (Math.abs(event.deltaY) < 6 && Math.abs(event.deltaX) < 6) return;
+  event.preventDefault();
+  turnPage((event.deltaY || event.deltaX) > 0 ? 1 : -1);
+}
+if (typeof document !== 'undefined') document.addEventListener('wheel', onOrbWheel, { passive: false });
 
 /* O relógio/bateria do rodapé acompanha o aparelho. */
 on('device-status', () => { if (orbOpen()) paintClock(); });

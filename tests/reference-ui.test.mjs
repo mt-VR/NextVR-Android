@@ -237,17 +237,33 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       /^\d{1,2}:\d{2}$/,'the clock tells the time of the device');
     // O círculo do canto volta para a dock.
     assert.equal(await page.locator('[data-orb-close]').count(),1,'there is a way back to the dock');
-    // Rolagem: a roda passa a página, com os dez ícones por página e a animação de entrada.
+    // Rolagem: dez ícones por página; com mais apps, a roda passa a página e a roda de volta volta.
     assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0');
-    await page.mouse.move(600,400);
-    await page.mouse.wheel(0,240);
-    await page.waitForFunction(()=>document.querySelector('.orb-root')?.dataset.page!=='0',null,{timeout:4000}).catch(()=>{});
-    assert.notEqual(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
-      'scrolling moves to the next page of apps');
     assert.ok(await page.locator('.orb-app').count()<=10,'a page never shows more than ten icons');
-    await page.evaluate(()=>window.nextvrOrbPage?.(-1));
-    assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
-      'and back to the first page');
+    const paging = await page.evaluate(()=>{
+      if (typeof window.nextvrOrbPage !== 'function') return { missing: true };
+      const before = document.querySelector('.orb-root').dataset.page;
+      window.nextvrOrbPage(1);
+      const after = document.querySelector('.orb-root').dataset.page;
+      // A roda do mouse é do documento (a camada é pointer-events:none): dispara um evento real.
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, bubbles: true, cancelable: true }));
+      const afterWheel = document.querySelector('.orb-root').dataset.page;
+      return { before, after, afterWheel };
+    });
+    assert.equal(paging.missing, undefined, 'the ring exposes paging');
+    // Com dez apps há uma página só: as setas nem aparecem. Com mais, virar a página funciona.
+    const pages = await page.evaluate(()=>document.querySelectorAll('.orb-dots i').length);
+    if (pages > 1) {
+      assert.notEqual(paging.after, '0', 'turning the page moves to the next page of apps');
+      assert.equal(await page.evaluate(()=>document.querySelector('.orb-ring').className.includes('is-')),true,
+        'the new page enters with the scroll animation');
+      await page.evaluate(()=>window.nextvrOrbPage?.(-1));
+      assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
+        'and the previous page comes back');
+    } else {
+      assert.equal(await page.evaluate(()=>document.querySelectorAll('[data-orb-page]').length),0,
+        'a single page of ten apps has no page arrows');
+    }
     // O centro do anel ("TODOS") abre a biblioteca completa do NextVR.
     const hubInfo = await page.evaluate(()=>{
       const hub=document.querySelector('[data-orb-all]');

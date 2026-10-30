@@ -112,7 +112,9 @@ test('a rolagem passa as páginas de dez ícones, com animação', async () => {
   assert.match(orb, /export const ORB_PAGE = 10/);
   assert.match(orb, /export function orbPages\(entries = orbEntries\(\)\)/);
   assert.match(orb, /export function turnPage\(step = 1\)/);
-  assert.match(orb, /addEventListener\('wheel'/);
+  // A roda é ouvida no documento (a camada é pointer-events:none, então ela não recebe a roda).
+  assert.match(orb, /document\.addEventListener\('wheel', onOrbWheel, \{ passive: false \}\)/);
+  assert.match(orb, /function onOrbWheel\(event\) \{\n  if \(!orbOpen\(\)\) return;/);
   assert.match(orb, /Math\.abs\(dx\) > 48\) turnPage/);
   assert.match(orb, /data-orb-page="1"/);
   // A animação de rolagem é do CSS (o quadro de entrada de cada ícone).
