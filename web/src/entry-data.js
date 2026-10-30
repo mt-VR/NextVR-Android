@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'pinch-ray-panoramas-dock-lock',
+    tag: 'NOVO · RAIO DA PINÇA COMPRIDO, SEIS PANORAMAS NOVOS & DOCK TRAVADA COM OS APPS GIGANTES',
+    time: 'Agora',
+    heading: 'Raio da Pinça Até o Alvo, Seis Panoramas Novos e a Dock Travada Atrás dos Apps Gigantes',
+    desc: 'O raio da pinça estava um toco: ele saía da mão e morria a 42% do caminho do alvo. Agora ele vai quase até o alvo (94%) e, quando não há alvo, atravessa o ambiente até 3 metros — mais grosso e mais visível também. Entraram SEIS panoramas novos em 360°: estádio de futebol à noite, a cidade Tron, a avenida cyberpunk, a casa de vidro na floresta com banheira, a fábrica de carros e a cityline ao entardecer; todos com miniatura própria e 3072x1536 no APK. Os apps gigantes ficaram com mais ar entre eles (78 px entre as colunas, 34 px entre as fileiras). E, com os apps gigantes abertos, a DOCK FICA TRAVADA: nenhum app dela abre — só abre o que você tocar dentro dos apps gigantes. As duas bolinhas (o anel e a biblioteca) continuam respondendo, porque são elas que abrem e fecham o anel.',
+  },
+  {
     id: 'orb-apps-no-window',
     tag: 'NOVO · APPS SOLTOS NO AMBIENTE: SEM JANELINHA, SEM BARRA, SEM BRILHO, SEM ALÇA',
     time: 'Agora',

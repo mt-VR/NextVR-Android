@@ -25,7 +25,7 @@ test('a janelinha do anel mostra dez apps, três em cima, quatro no meio e três
   assert.match(orb, /<span class="orb-label">\$\{esc\(label\)\}<\/span>/);
   const html = await read('web/index.html');
   // "APPS MAIORES E MAIS SEPARADOS" (print do usuário): os ícones cresceram e as fileiras abriram.
-  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:56px/);
+  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:78px/);
   assert.match(html, /\.orb-app\{pointer-events:auto;position:relative;flex:none;width:150px/);
   assert.match(html, /\.orb-app::before\{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px/);
   assert.match(html, /\.orb-label\{position:relative;max-width:158px;font-size:15px/);
@@ -117,6 +117,24 @@ test('a dock ganha o botão 3-4-3 à esquerda da biblioteca, sem mexer no resto 
   assert.match(apps, /window\.nextvrOpenLibrary = libraryApp;/);
 });
 
+test('com os apps gigantes abertos, nenhum app da dock abre (só os do anel)', async () => {
+  const windows = await read('web/src/windows.js');
+  // Um lugar só decide: a dock fica travada enquanto o anel estiver na frente.
+  assert.match(windows, /export const giantAppsOpen = \(\) => wins\.some\(w => w\.id === 'orb-apps'\);/);
+  assert.match(windows, /if \(giantAppsOpen\(\) && it\.id !== 'orb-apps' && it\.id !== 'library'\) \{\n        toast\(t\('giantAppsLocked'\)\);\n        return;\n      \}/);
+  // Segurar a bolinha (que abriria a biblioteca completa) também não fura a trava.
+  assert.match(windows, /if \(giantAppsOpen\(\)\) return;\s+\/\/ a dock não abre nada com os apps gigantes na frente/);
+  // As duas bolinhas continuam respondendo: são elas que abrem e fecham o anel.
+  assert.match(windows, /it\.id !== 'orb-apps' && it\.id !== 'library'/);
+  // A mensagem existe nos três idiomas.
+  const core = await read('web/src/core.js');
+  assert.equal((core.match(/giantAppsLocked:/g) || []).length, 3, 'pt, en e es');
+  // E os apps do anel abrem normalmente: o lançamento fecha o anel ANTES de abrir o app, então a
+  // trava não pega o caminho do próprio anel.
+  const orb = await read('web/src/orb-menu.js');
+  assert.match(orb, /function launchTarget\(invoke\) \{[\s\S]{0,220}closeOrbMenu\(\);/);
+});
+
 test('a rolagem passa as páginas de dez ícones, com animação', async () => {
   const orb = await read('web/src/orb-menu.js');
   assert.match(orb, /export function turnPage\(step = 1\)/);
@@ -191,7 +209,14 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   const windows = await read('web/src/windows.js');
   // O alvo do raio existe mesmo quando o alvo é da HUD (o anel, a dock, o menu da mão): esses não
   // são objetos 3D, então sem isto o feixe ficava sem destino.
-  assert.match(windows, /const end=hit \? hit\.point\.toArray\(\)\s*\n\s*: pinchRay \? r\.ray\.at\(1\.2, new THREE\.Vector3\(\)\)\.toArray\(\) : null;/);
+  // O feixe vai até o alvo; sem alvo, até 3 m (antes morria a 1,2 m: um toco).
+  assert.match(windows, /const RAY_FAR = 3;/);
+  assert.match(windows, /const end=hit \? hit\.point\.toArray\(\)\s*\n\s*: pinchRay \? r\.ray\.at\(RAY_FAR, new THREE\.Vector3\(\)\)\.toArray\(\) : null;/);
+  // E no render nativo o feixe cobre quase todo o caminho da mão até o alvo, não 42%.
+  assert.match(windows, /RAY_FAR = 3/);
+  const renderer0 = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
+  assert.match(renderer0, /private val RAY_SHOWN=1\.06f/);
+  assert.match(renderer0, /val endT = 0\.94f \* RAY_SHOWN/);
   assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
   assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline\}\);continue;\}/);

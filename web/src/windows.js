@@ -1271,6 +1271,9 @@ function clearWinBrowserHold() {
   }
 }
 
+/** Até onde o feixe da pinça vai quando não acerta nada (em metros). */
+const RAY_FAR = 3;
+
 const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 function findDirectAppPoint(cx, cy) {
@@ -1557,6 +1560,14 @@ on('pinchup', () => {
   dockPinch('up');
 });
 
+/**
+ * Os apps gigantes (a janelinha invisível `orb-apps`) estão abertos? Enquanto estiverem, a DOCK fica
+ * travada: nenhum app da dock abre — só os apps que estão dentro dos apps gigantes. Pedido do
+ * usuário: "se aquela parte dos apps gigantes estiver aberto, nenhum app da dock pode abrir, so vai
+ * abrir se clicarmos em algum app que tá nos apps gigantes".
+ */
+export const giantAppsOpen = () => wins.some(w => w.id === 'orb-apps');
+
 /* =================== dock =================== */
 const dockEl = document.createElement('div');
 dockEl.className = 'dock';
@@ -1743,6 +1754,7 @@ export function buildDock(items) {
       b.addEventListener('pointerdown', () => {
         clearHold();
         holdTimer = setTimeout(() => {
+          if (giantAppsOpen()) return;   // a dock não abre nada com os apps gigantes na frente
           b.dataset.holdConsumed = '1';
           try { it.hold(); } catch {}
         }, 650);
@@ -1755,6 +1767,12 @@ export function buildDock(items) {
         return;
       }
       hideBrowserTabMenus();
+      // Com os apps gigantes abertos, só as duas bolinhas (o anel e a biblioteca, que abrem e fecham
+      // o mesmo anel) respondem. Todo o resto da dock fica travado até o anel fechar.
+      if (giantAppsOpen() && it.id !== 'orb-apps' && it.id !== 'library') {
+        toast(t('giantAppsLocked'));
+        return;
+      }
       it.run();
     });
     dockEl.appendChild(b); dockBtns.push(b);
@@ -4001,11 +4019,11 @@ function syncHandTargets(now = performance.now()) {
     const isTouching=fingerHover || isDown || Boolean(hit) || Boolean(nearContact?.id===h.id);
     // O raio precisa de um destino mesmo quando o alvo é da HUD (o anel de 10 apps, a dock, o menu
     // da mão esquerda): esses não são objetos 3D, então não existe `hit`, e sem destino o feixe
-    // ficava mudo — no Toque Direto, sem feixe nenhum. Sem acerto, o destino é o ponto do olhar a
-    // 1,2 m, que é o que a mão está apontando de verdade.
+    // ficava mudo — no Toque Direto, sem feixe nenhum. Sem acerto, o destino é o ponto apontado a
+    // RAY_FAR (3 m): o feixe atravessa o ambiente em vez de morrer a 1,2 m na frente da mão.
     const pinchRay=!!h.pinching;
     const end=hit ? hit.point.toArray()
-      : pinchRay ? r.ray.at(1.2, new THREE.Vector3()).toArray() : null;
+      : pinchRay ? r.ray.at(RAY_FAR, new THREE.Vector3()).toArray() : null;
     targets.push({id:h.id,...(end?{end}:{}),...(pinchRay?{pinchRay:true}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);

@@ -263,6 +263,18 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // O print pediu a dock ESCURA com o ambiente: ela continua visível, só apagada atrás do anel.
     assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).filter),/brightness\(0?\.6/,
       'the dock goes dark along with the environment while the ring is open');
+    // Com os apps gigantes abertos, a dock fica TRAVADA: nenhum app dela abre — só os do anel.
+    await page.locator('.dock [data-id="store"]').click();
+    await page.waitForTimeout(250);
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.win-shell[data-window-id="store"]')),false,
+      'a dock não abre app nenhum enquanto os apps gigantes estão abertos');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),true,
+      'e o anel continua aberto depois do toque na dock');
+    // ...mas as duas bolinhas continuam respondendo (são elas que abrem e fecham o anel).
+    assert.deepEqual(await page.evaluate(()=>{
+      const orb=document.querySelector('.orb-root');
+      return [!!orb, !!document.querySelector('.win-shell[data-window-id="orb-apps"]')];
+    }),[true,true],'o anel segue no ar');
     // Nada de barra de status embaixo dos apps: nem TODOS, nem giroscópio, nem perfil, nem relógio,
     // nem a linha branca ("tira a barrinha abaixo dela, aonde aparece giroscopio ativo").
     assert.equal(await page.locator('.orb-root [data-orb-bar], .orb-root [data-orb-all], .orb-root [data-orb-gyro], .orb-root [data-orb-me], .orb-root [data-orb-clock], .orb-root [data-orb-close], .orb-root .orb-home-line').count(),0,

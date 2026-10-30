@@ -79,8 +79,11 @@ const STR = {
     photosHelp:'As fotos ficam só no aparelho e não saem do Next VR.',
     centered:'Ambiente centralizado', langChanged:'Idioma alterado',
     arcFull:'Arco cheio (máx. 5 apps) — fechando',
+    giantAppsLocked:'Feche os apps gigantes para abrir outro app',
     envPass:'Camera passthrough', envSunset:'Pôr do sol · palmeiras', envDusk:'Crepúsculo', envCinema:'Cinema', envPassOn:'Passthrough da câmera',
     envNeon:'Sala gamer neon 360°', envStreet:'Rua à noite 360°', envAether:'Cidade flutuante 360°', envStudio:'Estúdio VR 360°',
+    envStadium:'Estádio de futebol 360°', envTron:'Cidade cyberpunk 360°', envCyber:'Avenida cyberpunk 360°',
+    envSpa:'Casa de vidro na floresta 360°', envFactory:'Fábrica de carros 360°', envSkyline:'Cityline ao entardecer 360°',
     envNight:'Panorama 360° · cidade à noite', envSpace:'Panorama 360° · espaço',
     envVirtual:'Ambiente virtual',
     envDark:'Panorama 360° · Dark',
@@ -168,8 +171,11 @@ const STR = {
     photosHelp:'Photos stay on the device and never leave Next VR.',
     centered:'View recentered', langChanged:'Language changed',
     arcFull:'Arc full (max 5 apps) — closing',
+    giantAppsLocked:'Close the giant apps to open another app',
     envPass:'Camera passthrough', envSunset:'Sunset · palms', envDusk:'Dusk', envCinema:'Cinema', envPassOn:'Camera passthrough',
     envNeon:'Neon gaming room 360°', envStreet:'Night street 360°', envAether:'Floating city 360°', envStudio:'VR studio 360°',
+    envStadium:'Football stadium 360°', envTron:'Cyberpunk city 360°', envCyber:'Cyberpunk avenue 360°',
+    envSpa:'Glass house in the forest 360°', envFactory:'Car factory 360°', envSkyline:'Skyline at dusk 360°',
     envNight:'360° panorama · city at night', envSpace:'360° panorama · space',
     envVirtual:'Virtual environment',
     envDark:'360° panorama · Dark',
@@ -257,8 +263,11 @@ const STR = {
     photosHelp:'Las fotos se quedan en el dispositivo y no salen de Next VR.',
     centered:'Vista centrada', langChanged:'Idioma cambiado',
     arcFull:'Arco lleno (máx. 5 apps) — cerrando',
+    giantAppsLocked:'Cierra las apps gigantes para abrir otra app',
     envPass:'Camera passthrough', envSunset:'Atardecer · palmeras', envDusk:'Crepúsculo', envCinema:'Cine', envPassOn:'Passthrough de la cámara',
     envNeon:'Sala gamer neón 360°', envStreet:'Calle nocturna 360°', envAether:'Ciudad flotante 360°', envStudio:'Estudio VR 360°',
+    envStadium:'Estadio de fútbol 360°', envTron:'Ciudad cyberpunk 360°', envCyber:'Avenida cyberpunk 360°',
+    envSpa:'Casa de cristal en el bosque 360°', envFactory:'Fábrica de coches 360°', envSkyline:'Horizonte al atardecer 360°',
     envNight:'Panorama 360° · ciudad de noche', envSpace:'Panorama 360° · espacio',
     envVirtual:'Entorno virtual',
     win360:'Curvatura 360°', win360k:'Semiángulo del arco (0.2 leve · 1.1 muy curvada)',
@@ -596,7 +605,7 @@ on('quality', resize);
  * Os ids são os nomes dos assets (`env/<id>.jpg` no APK).
  */
 export const ENV_IDS = Object.freeze(['passthrough', 'sunset', 'dusk', 'night', 'cinema', 'space', 'dark',
-  'neon', 'street', 'aether', 'studio']);
+  'neon', 'street', 'aether', 'studio', 'stadium', 'tron', 'cyber', 'spa', 'factory', 'skyline']);
 export const envList = () => [
   { id: 'passthrough', name: t('envPass'), thumb: null },
   { id: 'sunset', name: t('envSunset'), thumb: './env/sunset.jpg' },
@@ -606,6 +615,15 @@ export const envList = () => [
   { id: 'street', name: t('envStreet'), thumb: './env/street.jpg' },
   { id: 'aether', name: t('envAether'), thumb: './env/aether.jpg' },
   { id: 'studio', name: t('envStudio'), thumb: './env/studio.jpg' },
+  // Os seis panoramas novos chegaram para valer: estádio de futebol à noite, dois letreiros
+  // cyberpunk, a casa de vidro na floresta com banheira, a fábrica de carros e a cityline ao
+  // entardecer. Todos em 3072x1536 no APK e com miniatura própria na lista.
+  { id: 'stadium', name: t('envStadium'), thumb: './env/stadium.jpg' },
+  { id: 'tron', name: t('envTron'), thumb: './env/tron.jpg' },
+  { id: 'cyber', name: t('envCyber'), thumb: './env/cyber.jpg' },
+  { id: 'spa', name: t('envSpa'), thumb: './env/spa.jpg' },
+  { id: 'factory', name: t('envFactory'), thumb: './env/factory.jpg' },
+  { id: 'skyline', name: t('envSkyline'), thumb: './env/skyline.jpg' },
   { id: 'space', name: t('envSpace'), thumb: './env/space.jpg' },
   { id: 'cinema', name: t('envCinema'), thumb: './env/cinema.jpg' },
   { id: 'dark', name: t('envDark'), thumb: './env/dark.jpg' },

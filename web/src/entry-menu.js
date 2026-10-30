@@ -437,6 +437,12 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       { id: 'street', label: t('envStreet') },
       { id: 'aether', label: t('envAether') },
       { id: 'studio', label: t('envStudio') },
+      { id: 'stadium', label: t('envStadium') },
+      { id: 'tron', label: t('envTron') },
+      { id: 'cyber', label: t('envCyber') },
+      { id: 'spa', label: t('envSpa') },
+      { id: 'factory', label: t('envFactory') },
+      { id: 'skyline', label: t('envSkyline') },
       { id: 'dark', label: 'Dark Panorâmico' },
     ];
     const qualities = [

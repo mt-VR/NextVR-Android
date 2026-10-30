@@ -898,7 +898,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(id==null || !(id.equals("passthrough")||id.equals("black")||id.equals("dark")
                     ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
                     ||id.equals("cinema")||id.equals("neon")||id.equals("street")
-                    ||id.equals("aether")||id.equals("studio"))) return;
+                    ||id.equals("aether")||id.equals("studio")||id.equals("stadium")
+                    ||id.equals("tron")||id.equals("cyber")||id.equals("spa")
+                    ||id.equals("factory")||id.equals("skyline"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {

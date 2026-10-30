@@ -2687,6 +2687,12 @@ function buildSpatialLauncherDom() {
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'sunset' ? 'on' : ''}" data-spatial-env="sunset" title="Ambiente Pôr do Sol 360°">Sunset</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'neon' ? 'on' : ''}" data-spatial-env="neon" title="Sala gamer neon 360°">Neon</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'aether' ? 'on' : ''}" data-spatial-env="aether" title="Cidade flutuante 360°">Aether</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'stadium' ? 'on' : ''}" data-spatial-env="stadium" title="Estádio de futebol 360°">Estádio</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'tron' ? 'on' : ''}" data-spatial-env="tron" title="Cidade cyberpunk 360°">Tron</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'cyber' ? 'on' : ''}" data-spatial-env="cyber" title="Avenida cyberpunk 360°">Cyber</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'spa' ? 'on' : ''}" data-spatial-env="spa" title="Casa de vidro na floresta 360°">Spa</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'factory' ? 'on' : ''}" data-spatial-env="factory" title="Fábrica de carros 360°">Fábrica</button>
+        <button type="button" class="spatial-hz-env-pill ${curEnv === 'skyline' ? 'on' : ''}" data-spatial-env="skyline" title="Cityline ao entardecer 360°">Skyline</button>
         <button type="button" class="spatial-hz-env-pill ${curEnv === 'dark' ? 'on' : ''}" data-spatial-env="dark" title="Ambiente Escuro 360°">Dark</button>
       </div>
       <label class="spatial-hz-search">

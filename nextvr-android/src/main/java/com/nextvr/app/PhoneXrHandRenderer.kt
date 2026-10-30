@@ -107,7 +107,9 @@ class PhoneXrHandRenderer {
     @JvmField @Volatile var gameHandMode=false
     @JvmField @Volatile var mrGameMode=false
     private val CURSOR_R=.016f
-    private val RAY_SHOWN=.55f
+    // O feixe ia da mão até 42% do caminho do alvo (0.76 * 0.55): parecia um toco. Agora ele vai
+    // quase ATÉ o alvo, e onde não há alvo o destino é o ponto apontado a 3 m — um raio de verdade.
+    private val RAY_SHOWN=1.06f
     /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
     private val MESH_REBUILD_EPSILON=0f
     /** Rebuild every display frame with zero throttling. */
@@ -716,9 +718,9 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
                     val segments = 12
-                    val startT = 0.24f
-                    val endT = 0.76f * RAY_SHOWN
-                    val rayWidth = if (blueRay) .0025f else .0019f
+                    val startT = 0.12f
+                    val endT = 0.94f * RAY_SHOWN
+                    val rayWidth = if (blueRay) .0032f else .0024f
                     val boost = if (blueRay) 1f else .78f
                     val rayR = if (blueRay) .18f else HAND_CONTOUR_R
                     val rayG = if (blueRay) .62f else HAND_CONTOUR_G

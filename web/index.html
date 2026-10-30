@@ -3518,9 +3518,11 @@
   @keyframes orbFade{from{opacity:0}to{opacity:1}}
 
   /* ---------- as três fileiras: 3 em cima, 4 no meio, 3 embaixo ---------- */
+  /* Mais ar entre os apps ("deixa ele com mais espaço entre eles"): 78 px entre as colunas e 34 px
+     entre as fileiras, com a janelinha em 1040 px — os quatro ícones do meio ainda cabem. */
   .orb-grid{flex:none;width:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:20px}
-  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:56px;width:100%}
+    align-items:center;justify-content:center;gap:34px}
+  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:78px;width:100%}
   @keyframes orbIn{from{opacity:0;transform:translateY(10px) scale(.9)}
     to{opacity:1;transform:none}}
   @keyframes orbInNext{from{opacity:0;transform:translateX(46px) scale(.9)}
