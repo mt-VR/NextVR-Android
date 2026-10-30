@@ -257,6 +257,27 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const rowGap = await page.evaluate(()=>parseFloat(getComputedStyle(document.querySelector('.orb-row')).columnGap));
     assert.ok(rowGap >= 32, `there is real air between the icons (${rowGap}px)`);
     assert.ok(await page.locator('.orb-label').first().isVisible(), 'each icon carries its name underneath');
+    // Mais espaço entre os apps ("deixa um pouco mais espaçado").
+    assert.ok(rowGap >= 40, `more air between the columns now (${rowGap}px)`);
+    // As bolinhas de página: uma por página, pequenas, e a de agora branca.
+    const pagesInfo = await page.evaluate(()=>({
+      dots: document.querySelectorAll('.orb-pages i').length,
+      active: document.querySelectorAll('.orb-pages i.on').length,
+      total: Number(document.querySelector('.orb-root').dataset.pages),
+      activeColor: (() => { const d=document.querySelector('.orb-pages i.on'); return d ? getComputedStyle(d).backgroundColor : null; })(),
+    }));
+    assert.equal(pagesInfo.total > 1, true, 'the ring has more than one page of apps');
+    assert.equal(pagesInfo.dots, pagesInfo.total, 'one dot per page');
+    assert.equal(pagesInfo.active, 1, 'exactly one page is marked as current');
+    assert.equal(pagesInfo.activeColor, 'rgb(255, 255, 255)', 'the current page dot is white');
+    // Os apps do serviço mostram a logo de verdade, não a inicial.
+    const brandLogos = await page.evaluate(()=>[...document.querySelectorAll('.orb-mark img')]
+      .map(i=>i.getAttribute('src')).filter(Boolean));
+    assert.ok(brandLogos.some(src=>/orb-youtube\.svg$/.test(src)), 'YouTube uses its real logo');
+    assert.ok(brandLogos.some(src=>/orb-twitch\.svg$/.test(src)), 'Twitch uses its real logo');
+    assert.ok(brandLogos.some(src=>/orb-netflix\.svg$/.test(src)), 'Netflix uses its real logo');
+    assert.equal(await page.locator('.orb-mark img').first().evaluate(i=>i.naturalWidth>0), true,
+      'the brand logo is a real image the tile keeps');
     // A DOCK NÃO SOME: ela fica por baixo, e a janelinha nasce na frente dela.
     assert.equal(await page.locator('.dock').isVisible(),true,
       'the dock stays on screen (it just sits behind the ring window)');

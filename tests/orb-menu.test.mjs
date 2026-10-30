@@ -25,7 +25,7 @@ test('a janelinha do anel mostra dez apps, três em cima, quatro no meio e três
   assert.match(orb, /<span class="orb-label">\$\{esc\(label\)\}<\/span>/);
   const html = await read('web/index.html');
   // "APPS MAIORES E MAIS SEPARADOS" (print do usuário): os ícones cresceram e as fileiras abriram.
-  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:78px/);
+  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:92px/);
   assert.match(html, /\.orb-app\{pointer-events:auto;position:relative;flex:none;width:150px/);
   assert.match(html, /\.orb-app::before\{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px/);
   assert.match(html, /\.orb-label\{position:relative;max-width:158px;font-size:15px/);
@@ -115,6 +115,51 @@ test('a dock ganha o botão 3-4-3 à esquerda da biblioteca, sem mexer no resto 
   // Segurar a bolinha abre a biblioteca completa, que é onde ficam os apps fora das dez casas.
   assert.match(apps, /hold: \(\) => \{ if \(orbOpen\(\)\) closeOrbMenu\(\); libraryApp\(\); \}/);
   assert.match(apps, /window\.nextvrOpenLibrary = libraryApp;/);
+});
+
+test('as bolinhas de página: pequenas embaixo dos apps e a de agora branca', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  const html = await read('web/index.html');
+  // Uma bolinha por página, e a da página em que estamos recebe `on`.
+  assert.match(orb, /class="orb-pages" data-orb-pages/);
+  assert.ok(orb.includes('pages.map((_, i) => `<i')
+    && orb.includes("i === page ? ' class=\"on\"' : ''"),
+  'uma bolinha por página, e a de agora sai marcada');
+  assert.ok(orb.includes('data-pages="${pages.length}"'), 'o anel publica quantas páginas tem');
+  // Com uma página só, nada de bolinha (não há para onde rolar).
+  assert.match(orb, /const dots = pages\.length > 1/);
+  // Pequenas, redondas, e a ativa é branca.
+  assert.match(html, /\.orb-pages\{position:absolute;left:50%;bottom:8px;transform:translateX\(-50%\)/);
+  assert.match(html, /\.orb-pages i\{width:7px;height:7px;border-radius:50%;background:rgba\(255,255,255,\.34\)/);
+  assert.match(html, /\.orb-pages i\.on\{background:#fff;transform:scale\(1\.16\)/);
+  // Trocar de página repinta e a bolinha acompanha.
+  assert.match(orb, /page = next;\n  paintOrb\(\);/);
+});
+
+test('os apps gigantes usam a logo de verdade de cada serviço (YouTube, Twitch, Netflix…)', async () => {
+  const apps = await read('web/src/apps.js');
+  const build = await read('web/build.mjs');
+  // O mapa de marcas: fundo na cor do serviço e a logo centrada.
+  assert.match(apps, /const ORB_BRAND = \{/);
+  for (const [id, slug] of [['youtube','youtube'],['twitch','twitch'],['netflix','netflix'],['discord','discord'],
+    ['prime','primevideo'],['whatsapp','whatsapp'],['instagram','instagram'],['x','x'],['facebook','facebook'],
+    ['spotify','spotify']]) {
+    assert.match(apps, new RegExp(`${id}:\\s*\\{ bg: [^}]*logo: 'orb-${slug}'`), `a marca ${id} aponta para orb-${slug}`);
+  }
+  // O build gera os SVGs na tinta certa pra cada quadrado.
+  assert.match(build, /icons\/orb-\$\{slug\}\.svg/);
+  for (const slug of ['youtube','netflix','primevideo','twitch','discord','whatsapp','instagram','x','facebook','spotify'])
+    assert.ok(build.includes(`${slug}:'`), `o build gera orb-${slug}.svg`);
+  // E cada arquivo existe de verdade no pacote (nada de imagem quebrada no headset).
+  for (const slug of ['youtube','netflix','primevideo','twitch','discord','whatsapp','instagram','x','facebook','spotify']) {
+    const svg = await read(`nextvr-android/src/main/assets/ui/icons/orb-${slug}.svg`);
+    assert.ok(svg.startsWith('<svg') && svg.includes('<path'), `orb-${slug}.svg é um vetor de verdade`);
+  }
+  // O tile mostra a logo CENTRADA (não esticada na borda) quando o app tem marca.
+  const orb = await read('web/src/orb-menu.js');
+  assert.ok(orb.includes('entry.logo') && orb.includes('class="orb-mark"'), 'a logo da marca vai centrada no quadrado');
+  const html = await read('web/index.html');
+  assert.match(html, /\.orb-mark img\{width:76px;height:76px;object-fit:contain/);
 });
 
 test('com os apps gigantes abertos, nenhum app da dock abre (só os do anel)', async () => {

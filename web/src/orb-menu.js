@@ -110,6 +110,9 @@ export function orbEntries() {
     key: app.id,
     label: app.name || app.label || app.id,
     img: app.img || '',
+    // A marca de verdade (YouTube, Twitch, Netflix…): o SVG da logo, branco ou na cor da marca,
+    // por cima do quadrado da cor dela. Sem logo, cai na capa local ou na inicial.
+    logo: app.logo || '',
     glyph: app.glyph || '',
     bg: app.bg || '',
     android: false,
@@ -152,9 +155,13 @@ function tileHtml(entry, index) {
   const bg = entry.bg || ORB_PALETTE[index % ORB_PALETTE.length];
   // O app do Android chega só com o ícone: o halo dele é o verde do sistema, o mesmo do selo.
   const glow = entry.android ? 'rgba(34,197,94,.5)' : glowOf(bg);
-  const inner = entry.img
-    ? `<img src="${esc(entry.img)}" alt="" draggable="false" onerror="this.remove()">`
-    : `<span class="orb-glyph">${esc(entry.glyph || label.trim().slice(0, 1).toUpperCase() || '•')}</span>`;
+  const inner = entry.logo
+    // O ícone da marca fica CENTRADO no quadrado (não esticado até a borda): é assim que a logo
+    // do YouTube, da Twitch e das outras aparece inteira dentro do tile.
+    ? `<span class="orb-mark"><img src="${esc(entry.logo)}" alt="" draggable="false" onerror="this.remove()"></span>`
+    : entry.img
+      ? `<img src="${esc(entry.img)}" alt="" draggable="false" onerror="this.remove()">`
+      : `<span class="orb-glyph">${esc(entry.glyph || label.trim().slice(0, 1).toUpperCase() || '•')}</span>`;
   return `<button type="button" class="orb-app${entry.android ? ' orb-app--android' : ''}"
       data-orb-app="${esc(entry.key)}"
       ${entry.android ? 'data-orb-android="1"' : ''}
@@ -178,9 +185,17 @@ export function orbMarkup(entries = orbEntries(), pageIndex = page) {
   const rows = ORB_ROWS.map(row => `<div class="orb-row">${
     row.map(i => (pageItems[i] ? tileHtml(pageItems[i], i) : '<span class="orb-slot"></span>')).join('')
   }</div>`).join('');
+  // As bolinhas de página: pequenas, embaixo dos apps, e a da página em que estamos fica BRANCA.
+  // Com uma página só elas nem aparecem (não há para onde rolar).
+  const dots = pages.length > 1
+    ? `<div class="orb-pages" data-orb-pages aria-hidden="true">${
+        pages.map((_, i) => `<i${i === page ? ' class="on"' : ''}></i>`).join('')
+      }</div>`
+    : '';
   return `
-    <div class="orb-root" data-orb-root="1" data-page="${page}">
+    <div class="orb-root" data-orb-root="1" data-page="${page}" data-pages="${pages.length}">
       <div class="orb-grid" data-orb-grid="1">${rows}</div>
+      ${dots}
     </div>`;
 }
 

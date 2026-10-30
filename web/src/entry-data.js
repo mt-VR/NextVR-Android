@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-logos-and-pages',
+    tag: 'NOVO · LOGO DE VERDADE EM CADA APP DO ANEL, BOLINHAS DE PÁGINA & MAIS ESPAÇO',
+    time: 'Agora',
+    heading: 'Apps Gigantes com as Logos de Verdade, Bolinhas de Página e Mais Espaço',
+    desc: 'Os apps gigantes deixaram de mostrar a inicial e agora mostram a LOGO DE VERDADE de cada serviço: YouTube, Twitch, Netflix, Prime Video, Discord, WhatsApp, Instagram, X, Facebook e Spotify, cada uma na cor da própria marca, centrada no quadrado do app. Embaixo dos apps entraram DUAS BOLINHAS pequenas que dizem em que página você está — a da página atual fica branca, e com uma página só elas nem aparecem. O espaço entre os apps também aumentou: 92 px entre as colunas e 38 px entre as fileiras, para os ícones respirarem de verdade. Tudo isso sem mexer nas outras telas: a biblioteca e o launcher continuam com os ícones que já tinham.',
+  },
+  {
     id: 'pinch-ray-panoramas-dock-lock',
     tag: 'NOVO · RAIO DA PINÇA COMPRIDO, SEIS PANORAMAS NOVOS & DOCK TRAVADA COM OS APPS GIGANTES',
     time: 'Agora',

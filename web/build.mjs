@@ -48,6 +48,15 @@ for (const [slug,color] of Object.entries({youtube:'FF0000',tiktok:'ffffff',disc
   if (!icon) throw new Error(`Missing bundled icon: ${slug}`);
   await writeFile(new URL(`icons/${slug}.svg`, out), icon.svg.replace('<svg ', `<svg fill="#${color}" `));
 }
+// Os apps gigantes usam a MESMA logo de marca, com a tinta escolhida para o quadrado colorido do
+// anel (branco sobre o roxo da Twitch, vermelho sobre o preto da Netflix…). São arquivos próprios
+// para não mexer no que a biblioteca e o launcher já desenham.
+for (const [slug,ink] of Object.entries({youtube:'FF0033',netflix:'E50914',primevideo:'ffffff',tiktok:'ffffff',
+  discord:'ffffff',twitch:'ffffff',whatsapp:'ffffff',instagram:'ffffff',x:'ffffff',facebook:'ffffff',spotify:'04130A',telegram:'ffffff'})) {
+  const icon = Object.values(icons).find(i => i.slug === slug);
+  if (!icon) throw new Error(`Missing bundled icon: ${slug}`);
+  await writeFile(new URL(`icons/orb-${slug}.svg`, out), icon.svg.replace('<svg ', `<svg fill="#${ink}" `));
+}
 await copyFile('node_modules/three/LICENSE', new URL('THREE-LICENSE.txt', out));
 await copyFile('node_modules/@fontsource/inter/LICENSE', new URL('INTER-LICENSE.txt', out));
 await copyFile('node_modules/simple-icons/LICENSE.md', new URL('ICONS-LICENSE.txt', out));

@@ -2074,16 +2074,40 @@ const LIB_ACTIONS = {
  * `LIB_ACTIONS`) e os apps DO ANDROID instalados no aparelho. Até 4 do Android; o resto dos 10
  * lugares é dos apps do NextVR. Sem Shizuku/sem lista do aparelho, o anel enche só com os do NextVR.
  */
+/**
+ * Os apps gigantes mostram a LOGO DE VERDADE de cada serviço (YouTube, Twitch, Netflix, Discord,
+ * Spotify…), não a inicial. O quadrado pinta a cor da marca e a logo (SVG da simple-icons, gerado no
+ * build como `icons/orb-<slug>.svg`) fica branca ou na cor da marca por cima.
+ */
+const ORB_BRAND = {
+  netflix:   { bg: '#0b0b0d',                      logo: 'orb-netflix' },
+  youtube:   { bg: '#111114',                      logo: 'orb-youtube' },
+  tiktok:    { bg: '#000000',                      logo: 'orb-tiktok' },
+  discord:   { bg: '#5865f2',                      logo: 'orb-discord' },
+  twitch:    { bg: '#9146ff',                      logo: 'orb-twitch' },
+  prime:     { bg: '#0f171e',                      logo: 'orb-primevideo' },
+  whatsapp:  { bg: '#25d366',                      logo: 'orb-whatsapp' },
+  instagram: { bg: 'linear-gradient(135deg,#feda75,#d62976 55%,#4f5bd5)', logo: 'orb-instagram' },
+  x:         { bg: '#000000',                      logo: 'orb-x' },
+  facebook:  { bg: '#0866ff',                      logo: 'orb-facebook' },
+  spotify:   { bg: '#1db954',                      logo: 'orb-spotify' },
+  telegram:  { bg: '#26a5e4',                      logo: 'orb-telegram' },
+};
+
 const ORB_OWN_APPS = LIB_APPS
   .filter(a => typeof LIB_ACTIONS[a.id] === 'function')
-  .map(a => ({
-    id: a.id,
-    name: a.label || a.name,
-    // A capa local quando existe; o resto cai no glifo (primeira letra), como nas outras grades.
-    img: a.imgUrl || (a.html && (a.html.match(/src="([^"]+)"/) || [])[1]) || '',
-    glyph: String(a.label || a.name || a.id).trim().slice(0, 1).toUpperCase(),
-    bg: a.bg || '',
-  }));
+  .map(a => {
+    const brand = ORB_BRAND[a.id];
+    return {
+      id: a.id,
+      name: a.label || a.name,
+      // Com marca, a logo centrada; sem marca, a capa local; sem capa, o glifo (inicial).
+      logo: brand ? `./icons/${brand.logo}.svg` : '',
+      img: brand ? '' : (a.imgUrl || (a.html && (a.html.match(/src="([^"]+)"/) || [])[1]) || ''),
+      glyph: String(a.label || a.name || a.id).trim().slice(0, 1).toUpperCase(),
+      bg: brand ? brand.bg : (a.bg || ''),
+    };
+  });
 
 installOrbMenu({
   own: () => ORB_OWN_APPS,

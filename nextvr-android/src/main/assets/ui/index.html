@@ -3518,11 +3518,11 @@
   @keyframes orbFade{from{opacity:0}to{opacity:1}}
 
   /* ---------- as três fileiras: 3 em cima, 4 no meio, 3 embaixo ---------- */
-  /* Mais ar entre os apps ("deixa ele com mais espaço entre eles"): 78 px entre as colunas e 34 px
-     entre as fileiras, com a janelinha em 1040 px — os quatro ícones do meio ainda cabem. */
+  /* Mais ar entre os apps ("deixa um pouco mais espaçado"): 92 px entre as colunas e 38 px entre as
+     fileiras, com a janelinha em 1040 px — os quatro ícones do meio ainda cabem folgados. */
   .orb-grid{flex:none;width:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:34px}
-  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:78px;width:100%}
+    align-items:center;justify-content:center;gap:38px}
+  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:92px;width:100%}
   @keyframes orbIn{from{opacity:0;transform:translateY(10px) scale(.9)}
     to{opacity:1;transform:none}}
   @keyframes orbInNext{from{opacity:0;transform:translateX(46px) scale(.9)}
@@ -3544,6 +3544,11 @@
     background:var(--orb-bg,#2b3040);box-shadow:0 12px 26px rgba(0,0,0,.55),0 0 0 1.5px rgba(255,255,255,.42),
       0 0 26px 4px var(--orb-glow,rgba(150,190,255,.30));transition:box-shadow .16s}
   .orb-app img{position:relative;width:150px;height:150px;border-radius:34px;object-fit:cover;display:block}
+  /* A logo da marca (YouTube, Twitch, Netflix…) ocupa o miolo do quadrado, sem esticar até a borda:
+     o quadrado pinta a cor da marca (::before) e a logo fica por cima, inteira. */
+  .orb-mark{position:relative;width:150px;height:150px;display:grid;place-items:center;pointer-events:none}
+  .orb-mark img{width:76px;height:76px;object-fit:contain;border-radius:0;display:block;
+    filter:drop-shadow(0 2px 7px rgba(0,0,0,.45))}
   .orb-app:hover{transform:translateY(-3px) scale(1.05)}
   .orb-app:hover::before{box-shadow:0 16px 32px rgba(0,0,0,.62),0 0 0 2.5px #fff,0 0 40px 7px var(--orb-glow,rgba(160,200,255,.45))}
   .orb-app:active{transform:scale(.95)}
@@ -3557,6 +3562,14 @@
     display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.55)}
   .orb-app--android::before{box-shadow:0 12px 26px rgba(0,0,0,.55),0 0 0 1.5px rgba(34,197,94,.75),
     0 0 26px 4px rgba(34,197,94,.45)}
+  /* As bolinhas de página: pequenas, no rodapé da janelinha, e a de agora é BRANCA. */
+  .orb-pages{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:9px;pointer-events:none}
+  .orb-pages i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.34);
+    box-shadow:0 1px 3px rgba(0,0,0,.55);transition:background .16s,transform .16s}
+  .orb-pages i.on{background:#fff;transform:scale(1.16);
+    box-shadow:0 0 10px rgba(255,255,255,.85),0 1px 3px rgba(0,0,0,.6)}
+
   /* Casa vazia (menos de dez apps): não desenha nada, mas mantém o lugar da fileira. */
   .orb-slot{flex:none;width:150px;height:150px;opacity:0;pointer-events:none}
 
