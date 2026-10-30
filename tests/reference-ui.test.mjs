@@ -211,8 +211,12 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.orb-ring').count(),1,'the tiles live inside one circular ring');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),'1',
       'the environment dims but stays visible behind the ring');
-    assert.ok(await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('scene-dim')).opacity)>0),
-      'the dim veil is actually painted');
+    // No aparelho o escurecimento é do GL nativo (o véu do DOM é proibido: ele entrava na textura da
+    // HUD e virava a caixa preta). No navegador, o véu existe e é pintado.
+    assert.ok(await page.evaluate(()=>{
+      const veil = document.getElementById('scene-dim');
+      return !veil || parseFloat(getComputedStyle(veil).opacity) > 0;
+    }), 'the environment is dimmed by the native GL (no dark DOM veil in the headset)');
     // O anel é uma CAMADA da HUD, não uma janela: nada de barra, de vidro nem de painel atrás.
     assert.equal(await page.evaluate(()=>document.querySelectorAll('.win-shell[data-window-id="orb-menu"]').length),0,
       'the ring is not a window any more (a window is what painted the dark box behind the icons)');
