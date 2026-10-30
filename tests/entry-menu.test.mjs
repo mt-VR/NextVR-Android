@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT } from '../web/src/entry-data.js';
+import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT, ENTRY_UPDATES } from '../web/src/entry-data.js';
 
 const EXPECTED_ABOUT_TEXT = `NextVR — realidade aumentada
 
@@ -330,8 +330,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     }
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
     assert.equal(await page.locator('.entry-brand-chrome-logo').count(), 0, 'Metallic NextVR logo is removed from the right side of the menu');
-    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 9,
-      'Right side of the menu displays notification-style update cards (the status bar added one)');
+    // Uma carta por novidade do menu (ENTRY_UPDATES): o número acompanha a lista em vez de ficar
+    // escrito à mão, que é o que deixava o teste vermelho a cada card novo.
+    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), ENTRY_UPDATES.length,
+      'Right side of the menu displays one notification-style card per update');
 
     // 4. Sobre: exact text check
     await page.evaluate(() => document.querySelector('[data-entry-act="about"]').click());
