@@ -3506,6 +3506,8 @@
   html[data-orb-open="1"] .win-shell:not([data-window-id="orb-menu"]){
     opacity:.22;filter:saturate(.55) brightness(.62);pointer-events:none;
     transition:opacity .2s ease,filter .2s ease}
+  /* A dock também é HUD: ela recua (fica, mas apagada) para os apps serem o que brilha. */
+  html[data-orb-open="1"] .dock{opacity:.38;transition:opacity .2s ease}
   .win-shell{transition:opacity .2s ease,filter .2s ease}
 
   .orb-host,.orb-root{width:100%;height:100%;background:transparent;user-select:none}

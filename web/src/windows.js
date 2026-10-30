@@ -447,7 +447,9 @@ function layout() {
       // os apps ficam GIGANTES sem a coluna das pontas sair da vista. Com apps abertos atrás o anel
       // encolhe um pouco, porque aí ele divide a cena com o que o usuário já tinha na tela.
       w.resizeScale = hasOpenAppWins ? 1.44 : 1.50;
-      w.target.set(0, EYE + .02, -0.98);
+      // Um pouco acima da linha dos olhos: a fileira de baixo termina ACIMA da dock (que é HUD e
+      // passa por cima das janelas) em vez de sumir atrás dela.
+      w.target.set(0, EYE + .06, -0.98);
       w.apply();
     } else if (w.id === 'spatial-launcher') {
       // Interface Library flutuante em tamanho amplo (igual à foto de referência 7e3d8ab40bd4dd3) a 0.84 m sobre a câmera traseira real.

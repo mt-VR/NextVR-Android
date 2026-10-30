@@ -78,18 +78,16 @@ test('abrir o anel empurra as outras janelas para trás do véu', async () => {
   assert.match(windows, /orb\.shell\.style\.zIndex = '90'/);
   assert.match(windows, /export function updateWindowsDepthLayering\(activeWin = null\) \{\n  const orb = raiseOrbLayer\(\);/);
   // Perto dos olhos: um dedo acima da linha dos olhos, na frente do resto, para o anel preencher a vista.
-  assert.match(windows, /w\.target\.set\(0, EYE \+ \.02, -0\.98\)/);
+  assert.match(windows, /w\.target\.set\(0, EYE \+ \.06, -0\.98\)/);
 
   // Sem capa, o tile usa a paleta forte do anel (o cinza quase preto sumia no ambiente escurecido).
   assert.match(orb, /export const ORB_PALETTE = Object\.freeze\(\[/);
   assert.match(orb, /entry\.bg \|\| ORB_PALETTE\[index % ORB_PALETTE\.length\]/);
 
-  // A dock é HUD e ficava por cima da fileira de baixo do anel: ela sai de cena enquanto o anel
-  // está aberto e volta ao fechar — respeitando o estado de antes (jogo/gesto que já a escondia).
-  assert.match(orb, /function recedeDock\(on_\) \{/);
-  assert.match(orb, /if \(!dockHiddenByOrb && !dockHiddenNow\(\)\) \{/);
-  assert.match(orb, /if \(dockHiddenNow\(\)\) setDockHidden\(false\)/);
-  assert.match(orb, /try \{ recedeDock\(value\); \}/);
+  // A dock continua no lugar (é a bolinha que abriu o anel), mas recua junto com o resto do HUD.
+  assert.match(html, /html\[data-orb-open="1"\] \.dock\{opacity:\.38/);
+  // Fechar o anel desfaz o véu e o selo MESMO se a janela falhar ao fechar (try/finally).
+  assert.match(orb, /export function closeOrbMenu\(\) \{\n  const win = winObj\(\);\n  try \{\n    if \(win\) close\(win\);\n  \} finally \{/);
 });
 
 test('the ring window fits the native atlas, so no column is cropped in the APK', async () => {

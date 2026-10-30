@@ -14,7 +14,7 @@
 // O anel mostra os apps DO NextVR e os apps DO ANDROID. Este módulo não conhece catálogo de
 // ninguém: o apps.js entrega as funções por `installOrbMenu`, e aqui só se desenha o anel.
 import { on, setSceneDim } from './core.js';
-import { open, close, wins, focus, setDockHidden, dockHiddenNow } from './windows.js';
+import { open, close, wins, focus } from './windows.js';
 
 /** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo, fechando o círculo (em % da caixa do anel). */
 export const ORB_LAYOUT = Object.freeze([
@@ -150,8 +150,9 @@ function launchTarget(invoke) {
   try {
     closeOrbMenu();
   } catch (error) {
-    // Fechou pela metade? O escurecimento sai do mesmo jeito e o app abre logo abaixo.
-    try { setSceneDim(0); } catch {}
+    // Fechou pela metade? O escurecimento (e o selo do <html>) saem do mesmo jeito e o app abre logo
+    // abaixo. Antes daqui saía só o setSceneDim(0), e o selo/dock ficavam presos no estado "aberto".
+    try { dim(false); } catch { try { setSceneDim(0); } catch {} }
     remember(error);
   }
   try {
@@ -257,30 +258,15 @@ function openOrbRing() {
 
 export function closeOrbMenu() {
   const win = winObj();
-  if (win) close(win);
-  dim(false);
+  try {
+    if (win) close(win);
+  } finally {
+    // Sempre, mesmo se o fechamento da janela falhar no meio: o véu e o selo não podem ficar presos.
+    dim(false);
+  }
 }
 
 export const orbOpen = () => !!winObj();
-
-/* A dock sai de cena enquanto o anel está aberto. Ela é HUD (z-index acima das janelas) e ficava
- * POR CIMA da fileira de baixo do anel; e, como no Vrbox, o que o usuário vê ao abrir o anel são só
- * os apps sobre o ambiente escurecido. O estado anterior é respeitado: se a dock já estava escondida
- * (jogo, gesto), o anel não a traz de volta ao fechar. */
-let dockHiddenByOrb = false;
-function recedeDock(on_) {
-  if (on_) {
-    if (!dockHiddenByOrb && !dockHiddenNow()) {
-      setDockHidden(true);
-      dockHiddenByOrb = true;
-    }
-    return;
-  }
-  if (dockHiddenByOrb) {
-    dockHiddenByOrb = false;
-    if (dockHiddenNow()) setDockHidden(false);
-  }
-}
 
 let dimmed = false;
 function dim(on_) {
@@ -296,7 +282,6 @@ function dim(on_) {
   if (dimmed === value) return;
   dimmed = value;
   setSceneDim(value ? ORB_DIM : 0);
-  try { recedeDock(value); } catch (error) { remember(error); }
 }
 
 /* A lista do aparelho pode chegar com o anel aberto. */

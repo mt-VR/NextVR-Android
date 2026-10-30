@@ -229,8 +229,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'each app tile carries its own glow so it stands out in the dark');
     assert.ok(await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width)>=180),
       'the apps are giant, not thumbnails');
-    assert.equal(await page.locator('.dock').isVisible(),false,
-      'the dock steps aside while the ring is open (it is HUD and covered the bottom row)');
+    assert.ok(await page.locator('.dock').evaluate(e=>parseFloat(getComputedStyle(e).opacity)<=.4),
+      'the dock recedes with the rest of the HUD while the ring is open');
     await page.evaluate(()=>window.nextvrOpenFistQuickMenu());
     await page.waitForFunction(()=>!!document.querySelector('.win-shell[data-window-id="fist-menu"]'),null,{timeout:8000});
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.win-shell[data-window-id="fist-menu"]')).opacity!=='1');
@@ -268,7 +268,6 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       throw new Error(`the ring did not open the library: ${JSON.stringify({...info,hub:hubInfo})} / ${error.message}`);
     });
     assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
-    assert.equal(await page.locator('.dock').isVisible(),true,'the dock comes back when the ring closes');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
       'closing the ring restores the environment brightness');
     assert.equal(await page.locator('.lib-tile').count(),16,
