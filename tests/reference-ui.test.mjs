@@ -611,7 +611,25 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
       'the NextVR library does not mix device apps into its own grid');
-    await page.locator('.dock [data-id="shizuku"]').click();
+    // Diagnóstico: se a dock não responder aqui, o estado abaixo diz o porquê.
+    const dockState = await page.evaluate(() => {
+      const dock = document.querySelector('.dock');
+      const tile = document.querySelector('.dock [data-id="shizuku"]');
+      const lib = document.querySelector('.lib-grid');
+      return {
+        orbMark: document.documentElement.dataset.orbOpen || null,
+        orbRoot: !!document.querySelector('.orb-root'),
+        orbShellVisible: (() => { const s = document.querySelector('.win-shell[data-window-id="orb-menu"]'); return s ? getComputedStyle(s).visibility : 'none'; })(),
+        dockDisplay: dock ? getComputedStyle(dock).display : 'no dock',
+        tileDisplay: tile ? getComputedStyle(tile).display : 'no tile',
+        tileRect: tile ? [tile.getBoundingClientRect().width, tile.getBoundingClientRect().height] : null,
+        libVisible: lib ? getComputedStyle(lib.closest('.win-shell') || lib).visibility : 'no lib',
+        shells: [...document.querySelectorAll('.win-shell')].map(s => `${s.dataset.windowId}:${getComputedStyle(s).visibility}`),
+      };
+    });
+    await page.locator('.dock [data-id="shizuku"]').click({timeout:15000}).catch(error => {
+      throw new Error(`a dock não respondeu: ${JSON.stringify(dockState)} / ${error.message}`);
+    });
     await page.waitForFunction(()=>!!document.querySelector('.android-app-grid'));
     assert.equal(await page.locator('.android-app-grid .lib-tile.android').count(),2,
       'both installed apps appear in the dedicated Shizuku launcher');
