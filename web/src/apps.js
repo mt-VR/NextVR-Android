@@ -11,6 +11,7 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
+import { isVerifiedProfileName } from './entry-data.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
@@ -2095,6 +2096,12 @@ installOrbMenu({
   },
   launchAndroid: pkg => { openApp(pkg); focusAppWindow(pkg); },
   refreshAndroid: () => loadAndroidLibrary(),
+  // O rodapé do anel mostra o jogador de verdade (o mesmo nome/avatar/selo da dock e do menu).
+  profile: () => ({
+    name: S.profileName || 'Jogador',
+    avatar: S.profileAvatar || '',
+    verified: isVerifiedProfileName(S.profileName),
+  }),
 });
 
 /* ---------- loja (Meta Quest 3 Store UI: Página inicial · Jogos · Apps · Lista de desejos) ---------- */

@@ -45,6 +45,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-hud-redesign',
+    tag: 'NOVO · ANEL NA HUD, DEZ POR PÁGINA & PERFIL NO LUGAR DA DOCK',
+    time: 'Agora',
+    heading: 'Anel Redesenhado: Apps Gigantes na Tela, Rolagem de Páginas, Perfil e Hora',
+    desc: 'O anel de 10 apps agora é uma camada presa na sua visão (não é mais janela): nada de caixa escura atrás dos ícones. Os apps aparecem gigantes no desenho 3-4-3, só dez por vez, e a rolagem (roda, arrasto ou as setas laterais) passa para a próxima página com animação. O ambiente escurece de verdade — inclusive dentro do headset — mas continua visível, e a tela toda escurece um pouco para os apps brilharem. Ao abrir o anel a Dock sai de cena, e no lugar dela ficam o SEU PERFIL e a HORA sincronizados com o aparelho. O círculo do canto volta na hora para a Dock.',
+  },
+  {
     id: 'orb-dock-toggle-clean',
     tag: 'NOVO · ANEL SEM CAIXAS PRETAS, DOCK SÓ PERFIL & RELÓGIO, LIGA/DESLIGA',
     time: 'Agora',

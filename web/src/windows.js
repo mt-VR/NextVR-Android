@@ -437,21 +437,7 @@ function layout() {
   const hasOpenAppWins = wins.some(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
   for (const w of wins) {
     if (!w.onboarding) continue;
-    if (w.id === 'orb-menu') {
-      // O anel de 10 apps ("a bolinha" da dock): grande, centrado na frente dos olhos e SOLTO no ar.
-      // Ele nasce um pouco mais perto que o resto porque ocupa o campo de visão inteiro (a captura do
-      // usuário mostrou o anel pequeno e apagado atrás do resto); não é preso ao arco, então abrir o
-      // anel nunca empurra nem fecha um app do usuário.
-      w.pinned = false;
-      // A 0.98 m, 1.50 enche ~78% da altura e ~70% da largura do campo (câmera de 72° na vertical):
-      // os apps ficam GIGANTES sem a coluna das pontas sair da vista. Com apps abertos atrás o anel
-      // encolhe um pouco, porque aí ele divide a cena com o que o usuário já tinha na tela.
-      w.resizeScale = hasOpenAppWins ? 1.44 : 1.50;
-      // Um pouco acima da linha dos olhos: a fileira de baixo termina ACIMA da dock (que é HUD e
-      // passa por cima das janelas) em vez de sumir atrás dela.
-      w.target.set(0, EYE + .06, -0.98);
-      w.apply();
-    } else if (w.id === 'spatial-launcher') {
+    if (w.id === 'spatial-launcher') {
       // Interface Library flutuante em tamanho amplo (igual à foto de referência 7e3d8ab40bd4dd3) a 0.84 m sobre a câmera traseira real.
       if (hasOpenAppWins) {
         w.resizeScale = 0.88;
@@ -711,24 +697,9 @@ export function setDockColor(colorId = 'default') {
 }
 export const getDockColor = () => S.dockColor || 'default';
 
-/* O anel é uma janela de onboarding: ele não entra na fila de profundidade das janelas normais
- * (openWins exclui onboarding) e por isso ficava com z-index 0 — atrás de qualquer app aberto. Com
- * o anel aberto ele vai para a camada de cima, acima até do Menu Rápido, e volta ao normal quando
- * fecha (o z-index é recalculado a cada layout). */
-export function raiseOrbLayer() {
-  const orb = wins.find(w => w.id === 'orb-menu' && !w.hidden);
-  if (!orb) return null;
-  orb.shell.style.zIndex = '90';
-  orb.obj.renderOrder = 90;
-  orb.hit.renderOrder = 90;
-  orb.shell.dataset.depthLayer = 'top';
-  return orb;
-}
-
 export function updateWindowsDepthLayering(activeWin = null) {
-  const orb = raiseOrbLayer();
   const openWins = wins.filter(w => !w.onboarding && !w.hidden && w.id !== 'left-quick-menu');
-  if (!openWins.length) { if (orb) css3d.invalidate?.(); return []; }
+  if (!openWins.length) return [];
   if (S.depthLayerOrder === 0) {
     openWins.forEach((w, idx) => {
       const z = (w === focused ? 40 : 20 + idx);
@@ -1297,10 +1268,20 @@ function clearWinBrowserHold() {
   }
 }
 
-const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 function findDirectAppPoint(cx, cy) {
   if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
+    // O anel de 10 apps vive na HUD (camada presa na cabeça): o toque da mão cai direto no ícone,
+    // exatamente como cai no menu da mão esquerda.
+    const orb = document.getElementById('orb-layer');
+    if (orb) {
+      const under = document.elementFromPoint(cx * viewport.width, cy * viewport.height);
+      const orbMatch = under?.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page]');
+      if (orbMatch) return { x: cx, y: cy, el: orbMatch, isHud: true };
+      // Fora de um ícone, o anel come o toque: nada de clicar numa janela escondida atrás dele.
+      return { x: cx, y: cy, el: null, isHud: true };
+    }
     const hudMenu = document.getElementById('left-hand-quick-menu');
     if (hudMenu && !hudMenu.hidden) {
       const fromHud = document.elementFromPoint(cx * viewport.width, cy * viewport.height);

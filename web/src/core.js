@@ -643,10 +643,13 @@ if (typeof document !== 'undefined' && S.mrDim) {
  * ainda dá pra vê") e que os apps fiquem em cima, claros. Isso NÃO é o `mrDim` (que além de ser
  * uma preferência salva da câmera traseira, escurece o app inteiro) nem uma janela de fundo.
  *
- * É um véu único na camada do ambiente: fica ACIMA do GL (#gl, z-index 1) e ABAIXO das janelas
- * (#css3d, z-index 2), então tudo o que é mundo — passthrough ou panorama — escurece junto, e
- * todos os apps continuam com o brilho normal. As mãos (#overlay, z-index 3) e a HUD (#hud, z4)
- * também continuam por cima do véu: o raio e a dock nunca somem no escuro.
+ * No NAVEGADOR o véu é um div na camada do ambiente: fica ACIMA do GL (#gl, z-index 1) e ABAIXO das
+ * janelas (#css3d, z-index 2), então o mundo escurece e os apps continuam claros.
+ *
+ * NO APARELHO o véu do DOM é PROIBIDO: o lado nativo captura o retângulo inteiro da WebView como a
+ * camada da HUD e desenha essa textura POR CIMA de tudo. Um div escuro aqui virava uma caixa preta
+ * enorme sobre o mundo, as janelas e as mãos (era o "negócio preto" que o usuário via). No headset
+ * quem escurece é o GL nativo (`NativeXR.setSceneDim`), que multiplica só a câmera e o panorama.
  */
 let sceneDimEl = null;
 let sceneDimLevel = 0;
@@ -656,20 +659,25 @@ export function setSceneDim(amount) {
   const a = Math.max(0, Math.min(.82, Number(amount) || 0));
   sceneDimLevel = a;
   if (typeof document !== 'undefined') {
-    if (!sceneDimEl) {
-      sceneDimEl = document.createElement('div');
-      sceneDimEl.id = 'scene-dim';
-      sceneDimEl.setAttribute('aria-hidden', 'true');
-      // Nasce no fim do body: com o mesmo z-index do #gl, a ordem do DOM põe o véu por cima dele
-      // e ainda embaixo do #css3d. O CSS real mora no index.html.
-      document.body.appendChild(sceneDimEl);
+    if (native) {
+      // Só o nativo: nenhum pixel escuro entra na textura da HUD. O selo do <html> fica (o CSS usa
+      // para as outras regras do anel), o div não.
+      if (sceneDimEl) { sceneDimEl.remove(); sceneDimEl = null; }
+    } else {
+      if (!sceneDimEl) {
+        sceneDimEl = document.createElement('div');
+        sceneDimEl.id = 'scene-dim';
+        sceneDimEl.setAttribute('aria-hidden', 'true');
+        // Nasce no fim do body: com o mesmo z-index do #gl, a ordem do DOM põe o véu por cima dele
+        // e ainda embaixo do #css3d. O CSS real mora no index.html.
+        document.body.appendChild(sceneDimEl);
+      }
+      sceneDimEl.style.opacity = String(a);
     }
-    sceneDimEl.style.opacity = String(a);
     if (a > 0) document.documentElement.dataset.sceneDim = '1';
     else delete document.documentElement.dataset.sceneDim;
   }
-  // O GL nativo (panorama desenhado fora do WebView) escurece pelo mesmo valor, se o lado nativo
-  // souber fazer isso; o véu CSS já cobre o caso em que ele não sabe.
+  // No headset quem escurece é o GL nativo (câmera e panorama multiplicados); no navegador, o véu.
   window.NativeXR?.setSceneDim?.(a);
   emit('scene-dim', a);
 }

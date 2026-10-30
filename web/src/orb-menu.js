@@ -2,44 +2,52 @@
 //
 //   "bota aquela opção de 10 apps que aparece ... os negócios de 10 apps e assim, o ambiente escurece
 //    mas ainda dá pra vê e os apps aparecem gigantes na tela, mas esse fundo que aparece
-//    configurações, só bugou, não é pra botar esse fundo de configurações".
+//    configurações, só bugou, não é pra botar esse fundo de configurações"
 //
-// Traduzido em comportamento:
-//   1. a bolinha da dock abre um anel de 10 apps, desenho 3 em cima / 4 no meio / 3 embaixo;
-//   2. o AMBIENTE escurece mas continua visível (véu em core.setSceneDim, nunca preto);
-//   3. os apps ficam GIGANTES e soltos no ar;
-//   4. fundo NENHUM atrás: a janela do anel é transparente de propósito. O bug antigo era a janela
-//      abrir com o painel de Configurações por baixo — aqui não existe painel nenhum.
+// e, depois de ver o resultado no aparelho, com o desenho na mão:
 //
+//   "PEGOS APPS GIGANTES ... → a opção de voltar a dock ... → tudo escurece um pouco → rolagem para
+//    avançar as páginas durante → só aparece 10 ícones → → hora e perfil sincronizado com a do
+//    jogador → animação de rolagem".
+//
+// Traduzido em comportamento (e é assim que está feito):
+//   1. a bolinha da dock abre uma CAMADA na HUD — não é janela: nada de vidro/caixa preta atrás, e
+//      os apps ficam gigantes, 3 em cima / 4 no meio / 3 embaixo;
+//   2. o AMBIENTE escurece de verdade (o véu na WebView E o escurecimento no GL nativo, que é quem
+//      desenha o mundo no headset) e continua visível;
+//   3. só aparecem DEZ ícones por vez, e a rolagem (roda do mouse, arrasto, as setas laterais) passa
+//      para a próxima página com animação;
+//   4. a dock desaparece enquanto o anel está aberto; no lugar dela, o anel mostra o PERFIL e a HORA
+//      do jogador (sincronizados com o relógio/bateria do aparelho);
+//   5. o círculo no canto de cima volta para a dock.
 // O anel mostra os apps DO NextVR e os apps DO ANDROID. Este módulo não conhece catálogo de
 // ninguém: o apps.js entrega as funções por `installOrbMenu`, e aqui só se desenha o anel.
 import { on, setSceneDim } from './core.js';
-import { open, close, wins, focus } from './windows.js';
+import { getDeviceStatus } from './windows.js';
 
-/** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo, fechando o círculo (em % da caixa do anel). */
+/** Os 10 lugares: 3 em cima, 4 no meio, 3 embaixo (em % da caixa do anel). */
 export const ORB_LAYOUT = Object.freeze([
-  { x: 22, y: 17 }, { x: 50, y: 15 }, { x: 78, y: 17 },
-  { x: 11, y: 50 }, { x: 34, y: 50 }, { x: 66, y: 50 }, { x: 89, y: 50 },
-  { x: 22, y: 83 }, { x: 50, y: 85 }, { x: 78, y: 83 },
+  { x: 22, y: 16 }, { x: 50, y: 13 }, { x: 78, y: 16 },
+  { x: 13, y: 50 }, { x: 37, y: 50 }, { x: 63, y: 50 }, { x: 87, y: 50 },
+  { x: 22, y: 84 }, { x: 50, y: 87 }, { x: 78, y: 84 },
 ]);
-/* Tamanho da janela do anel. 1040x660 é o limite do atlas de texturas do lado nativo: uma janela
- * maior que isso é cortada na captura e as colunas das pontas do anel sumiriam no APK. O tamanho
- * "gigante" na tela vem do resizeScale em windows.js, não de aumentar esta caixa. */
+
+/* Tamanho de referência do anel. Ele não é mais uma janela (não passa pelo atlas de texturas), então
+ * este número só descreve o desenho histórico; o tamanho na tela vem do CSS, em % da HUD. */
 export const ORB_W = 1040;
 export const ORB_H = 660;
+
+/** Quantos apps do ring cabem por página: dez, como no desenho ("só aparece 10 ícones"). */
+export const ORB_PAGE = 10;
 
 /** Quantos apps do Android cabem no anel; o resto dos 10 lugares é do NextVR. */
 export const ORB_ANDROID_SLOTS = 4;
 
 export const ORB_WIN = 'orb-menu';
-/** Quanto o ambiente escurece com o anel aberto: dá para ver o mundo, mas os apps saltam. Pedido do
- * usuário olhando a captura: "é pra ti escurecer o fundo e os apps aparecer se destacando" — o véu
- * ficou mais fundo (.55 -> .70), sem nunca apagar o ambiente (o teto do setSceneDim é .82). */
+/** Quanto o ambiente escurece com o anel aberto: dá para ver o mundo, mas os apps saltam. */
 export const ORB_DIM = 0.7;
 
-/* As cores do anel. Os apps do NextVR que só têm glifo (sem capa) vinham com um cinza quase preto e
- * sumiam dentro do ambiente escurecido; aqui cada lugar tem uma cor forte, na ordem do círculo. A
- * cor de marca do app, quando existe, continua ganhando. */
+/** Cores dos tiles sem capa, na ordem do círculo. */
 export const ORB_PALETTE = Object.freeze([
   'linear-gradient(160deg,#8b5cf6 0%,#4c1d95 100%)',
   'linear-gradient(160deg,#38bdf8 0%,#075985 100%)',
@@ -53,6 +61,8 @@ export const ORB_PALETTE = Object.freeze([
   'linear-gradient(160deg,#22d3ee 0%,#155e75 100%)',
 ]);
 
+const ORB_LAYER_ID = 'orb-layer';
+
 let providers = {
   /** Apps do próprio NextVR: [{ id, name, img?, glyph?, bg? }] */
   own: () => [],
@@ -64,6 +74,8 @@ let providers = {
   launchAndroid: () => {},
   /** Pede a lista do aparelho (Shizuku); opcional. */
   refreshAndroid: null,
+  /** Nome/avatar/verificado do jogador, para o rodapé do anel. */
+  profile: () => ({ name: '', avatar: '', verified: false }),
 };
 
 export function installOrbMenu(next = {}) {
@@ -73,14 +85,17 @@ export function installOrbMenu(next = {}) {
 }
 
 const esc = value => String(value == null ? '' : value)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"|'/g, '&quot;');
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const winObj = () => wins.find(w => w.id === ORB_WIN) || null;
+export const orbLayer = () => (typeof document === 'undefined' ? null : document.getElementById(ORB_LAYER_ID));
+export const orbOpen = () => !!orbLayer();
+
+/** `es` = texto de "não há mais páginas" no rodapé. */
 
 /**
- * Os 10 apps do anel: os apps do Android primeiro (é o que o usuário não tem à mão sem sair do VR),
- * completando com os apps do NextVR. Sem a lista do Android (Shizuku desligado/sem permissão) o anel
- * se enche só com apps do NextVR — nunca fica com buraco.
+ * Todos os apps do anel, na ordem em que aparecem: os apps do Android primeiro (é o que o usuário não
+ * tem à mão sem sair do VR) e depois os do NextVR. Sem a lista do Android (Shizuku desligado/sem
+ * permissão) o anel se enche só com apps do NextVR — nunca fica com buraco.
  */
 export function orbEntries() {
   let own = [], android = [];
@@ -92,8 +107,7 @@ export function orbEntries() {
     img: app.icon || '',
     android: true,
   }));
-  const ownSlots = Math.max(0, ORB_LAYOUT.length - phones.length);
-  const mine = own.slice(0, ownSlots).map(app => ({
+  const mine = own.map(app => ({
     key: app.id,
     label: app.name || app.label || app.id,
     img: app.img || '',
@@ -101,8 +115,18 @@ export function orbEntries() {
     bg: app.bg || '',
     android: false,
   }));
-  return [...mine, ...phones].slice(0, ORB_LAYOUT.length);
+  return [...phones, ...mine];
 }
+
+/** Os apps divididos em páginas de dez. */
+export function orbPages(entries = orbEntries()) {
+  const pages = [];
+  for (let i = 0; i < entries.length; i += ORB_PAGE) pages.push(entries.slice(i, i + ORB_PAGE));
+  return pages.length ? pages : [[]];
+}
+
+let page = 0;
+export const orbPageNow = () => page;
 
 function tileHtml(entry, index) {
   const pos = ORB_LAYOUT[index] || ORB_LAYOUT[0];
@@ -113,7 +137,7 @@ function tileHtml(entry, index) {
   return `<button type="button" class="orb-app${entry.android ? ' orb-app--android' : ''}"
       data-orb-app="${esc(entry.key)}"
       ${entry.android ? 'data-orb-android="1"' : ''}
-      style="left:${pos.x}%;top:${pos.y}%;background:${esc(entry.bg || ORB_PALETTE[index % ORB_PALETTE.length])}"
+      style="left:${pos.x}%;top:${pos.y}%;--i:${index};background:${esc(entry.bg || ORB_PALETTE[index % ORB_PALETTE.length])}"
       title="${esc(label)}${entry.android ? ' · Android' : ''}">
       ${inner}
       <span class="orb-label">${esc(label)}</span>
@@ -121,15 +145,57 @@ function tileHtml(entry, index) {
     </button>`;
 }
 
-/** O desenho do anel. Fundo NENHUM: quem aparece atrás é o ambiente escurecido. */
-export function orbMarkup(entries = orbEntries()) {
-  const tiles = entries.map(tileHtml).join('');
+function clockNow() {
+  const status = (() => { try { return getDeviceStatus(); } catch { return {}; } })();
+  const now = new Date();
+  const time = status.time && status.time !== '--:--'
+    ? status.time
+    : now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const battery = Number.isFinite(status.batteryLevel) ? Math.round(status.batteryLevel) : null;
+  return { time, battery, charging: !!status.charging, online: status.online !== false };
+}
+
+function meHtml() {
+  let me = { name: '', avatar: '', verified: false };
+  try { me = providers.profile() || me; } catch {}
+  const name = String(me.name || 'Você');
+  const avatar = me.avatar
+    ? `<img src="${esc(me.avatar)}" alt="" draggable="false">`
+    : `<span class="orb-me-initial">${esc(name.trim().slice(0, 1).toUpperCase() || '•')}</span>`;
+  return `<div class="orb-me" data-orb-me="1">
+      <span class="orb-me-av">${avatar}${me.verified ? '<i class="orb-me-check" aria-hidden="true">✓</i>' : ''}</span>
+      <span class="orb-me-name">${esc(name)}</span>
+    </div>`;
+}
+
+function clockHtml() {
+  const c = clockNow();
+  const bat = c.battery == null ? '' : `<span class="orb-clock-bat">${c.charging ? '⚡' : ''}${c.battery}%</span>`;
+  return `<div class="orb-clock" data-orb-clock="1"><span class="orb-clock-time">${esc(c.time)}</span>${bat}</div>`;
+}
+
+/**
+ * O desenho do anel. Fundo NENHUM: quem aparece atrás é o ambiente escurecido. `page` escolhe qual
+ * dezena de apps está na tela.
+ */
+export function orbMarkup(entries = orbEntries(), pageIndex = page) {
+  const pages = orbPages(entries);
+  page = Math.max(0, Math.min(pages.length - 1, pageIndex | 0));
+  const tiles = pages[page].map(tileHtml).join('');
+  const dots = pages.length > 1
+    ? `<div class="orb-dots">${pages.map((_, i) => `<i class="${i === page ? 'on' : ''}"></i>`).join('')}</div>`
+    : '';
   return `
-    <div class="orb-root" data-orb-root="1">
-      <div class="orb-head">
-        <span class="orb-title">APPS</span>
-        <span class="orb-hint">${entries.length} no anel · toque para abrir</span>
-        <button type="button" class="orb-close" data-orb-close="1" aria-label="Fechar" title="Fechar">✕</button>
+    <div class="orb-root" data-orb-root="1" data-page="${page}">
+      <div class="orb-top">
+        <button type="button" class="orb-back" data-orb-close="1" aria-label="Voltar para a dock" title="Voltar para a dock">
+          <span class="orb-back-arrow">‹</span>
+        </button>
+        <div class="orb-headline">
+          <span class="orb-title">APPS</span>
+          <span class="orb-hint">${pages[page].length} de ${entries.length} · role para ver mais</span>
+        </div>
+        ${dots}
       </div>
       <div class="orb-ring" data-orb-ring="1">
         ${tiles}
@@ -138,21 +204,26 @@ export function orbMarkup(entries = orbEntries()) {
           <span class="orb-hub-label">TODOS</span>
         </button>
       </div>
+      ${pages.length > 1 ? `
+      <button type="button" class="orb-page orb-page--prev" data-orb-page="-1" aria-label="Página anterior" title="Página anterior">‹</button>
+      <button type="button" class="orb-page orb-page--next" data-orb-page="1" aria-label="Próxima página" title="Próxima página">›</button>` : ''}
+      <div class="orb-foot">
+        ${meHtml()}
+        ${clockHtml()}
+      </div>
     </div>`;
 }
 
 /**
  * Abre o app escolhido. Fechar o anel e abrir o app são passos INDEPENDENTES de propósito: um
- * problema ao fechar o anel nunca pode engolir o toque do usuário (era isso que fazia o toque em
- * "TODOS" não abrir nada). O erro fica registrado em `window.__orbLastError` para diagnóstico.
+ * problema ao fechar o anel nunca pode engolir o toque do usuário. O erro fica registrado em
+ * `window.__orbLastError` para diagnóstico.
  */
 function launchTarget(invoke) {
   if (typeof window !== 'undefined') window.__orbLaunchCalls = (window.__orbLaunchCalls || 0) + 1;
   try {
     closeOrbMenu();
   } catch (error) {
-    // Fechou pela metade? O escurecimento (e o selo do <html>) saem do mesmo jeito e o app abre logo
-    // abaixo. Antes daqui saía só o setSceneDim(0), e o selo/dock ficavam presos no estado "aberto".
     try { dim(false); } catch { try { setSceneDim(0); } catch {} }
     remember(error);
   }
@@ -169,12 +240,6 @@ function remember(error) {
   if (typeof console !== 'undefined') console.error('orb-menu:', error);
 }
 
-/**
- * Um único ouvinte no host do anel, por delegação. Cada tile também funciona sozinho, mas o toque
- * passa a ser reconhecido mesmo quando o evento chega em qualquer filho do tile (o nome, o ícone,
- * a imagem) — e é assim que o toque da mão chega: o lado nativo/hit-test entrega o clique no
- * elemento mais fundo encontrado, e ele sobe até aqui.
- */
 /** Um ponto (x, y) está dentro da caixa de `el`? Usado quando o toque chega no contêiner. */
 function insideRect(el, x, y) {
   if (!el || !Number.isFinite(x) || !Number.isFinite(y)) return false;
@@ -182,15 +247,22 @@ function insideRect(el, x, y) {
   return r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
+/** O que fazer com cada peça do anel. Um lugar só: o clique da mão, do mouse e das setas entra aqui. */
+function act(hit, key, isAndroid) {
+  if (hit === 'close') { closeOrbMenu(); return; }
+  if (hit === 'all') { launchTarget(() => providers.launchOwn('library')); return; }
+  if (hit === 'app') {
+    launchTarget(() => {
+      if (isAndroid) providers.launchAndroid(String(key).replace(/^app:/, ''));
+      else providers.launchOwn(key);
+    });
+  }
+}
+
 /**
- * Um único ouvinte no host do anel, por delegação. Cada tile também funciona sozinho, mas o toque
- * passa a ser reconhecido mesmo quando o evento chega em qualquer filho do tile (o nome, o ícone,
- * a imagem) — e é assim que o toque da mão chega: o lado nativo/hit-test entrega o clique no
- * elemento mais fundo encontrado, e ele sobe até aqui.
- *
- * Quando o hit-test devolve o PRÓPRIO contêiner do anel (acontece com a janela em 3D: o ponto
- * tocado é do anel, mas o elemento escolhido é `.orb-ring`), quem decide é o ponto tocado. Sem
- * isso, um toque no meio do anel não abria nada — e o "TODOS" simplesmente não respondia.
+ * O toque no anel: delegado no host. Quando o hit-test devolve o PRÓPRIO contêiner (acontece com o
+ * toque da mão, que escolhe o elemento mais fundo de uma superfície), quem decide é o ponto tocado —
+ * sem isso, um toque no meio do anel não abria nada.
  */
 function wireOrb(host) {
   host.dataset.orbWired = '1';
@@ -199,7 +271,8 @@ function wireOrb(host) {
     const tile = target?.closest('[data-orb-app]');
     const all = target?.closest('[data-orb-all]');
     const shut = target?.closest('[data-orb-close]');
-    // Fallback por coordenada, só quando o alvo não é nenhuma peça do anel.
+    const pager = target?.closest('[data-orb-page]');
+    if (pager) { turnPage(Number(pager.dataset.orbPage) || 1); return; }
     let byPointTile = null, byPointAll = false, byPointClose = false;
     if (!tile && !all && !shut) {
       const x = event.clientX, y = event.clientY;
@@ -207,7 +280,6 @@ function wireOrb(host) {
       else if (insideRect(host.querySelector('[data-orb-close]'), x, y)) byPointClose = true;
       else byPointTile = [...host.querySelectorAll('[data-orb-app]')].find(t => insideRect(t, x, y)) || null;
     }
-    // Qual peça do anel recebeu o toque: é o primeiro lugar a olhar quando um toque "não abre nada".
     if (typeof window !== 'undefined') {
       window.__orbLastHit = tile ? 'app:' + tile.dataset.orbApp
         : all ? 'all'
@@ -219,119 +291,158 @@ function wireOrb(host) {
         ? `${target.tagName}.${String(target.className || '').replace(/\s+/g, '.')}`
         : 'sem elemento';
     }
-    const chosenTile = tile || byPointTile;
-    if (chosenTile) {
-      const key = chosenTile.dataset.orbApp;
-      const isAndroid = chosenTile.dataset.orbAndroid === '1';
-      launchTarget(() => {
-        if (isAndroid) providers.launchAndroid(key.replace(/^app:/, ''));
-        else providers.launchOwn(key);
-      });
+    const chosen = tile || byPointTile;
+    if (chosen) {
+      act('app', chosen.dataset.orbApp, chosen.dataset.orbAndroid === '1');
       return;
     }
-    if (all || byPointAll) { launchTarget(() => providers.launchOwn('library')); return; }
-    if (shut || byPointClose) closeOrbMenu();
+    if (all || byPointAll) { act('all'); return; }
+    if (shut || byPointClose) act('close');
   };
+
+  // Rolagem: roda do mouse/trackpad e arrasto horizontal passam as páginas com animação.
+  host.addEventListener('wheel', event => {
+    if (Math.abs(event.deltaY) < 6 && Math.abs(event.deltaX) < 6) return;
+    event.preventDefault();
+    turnPage((event.deltaY || event.deltaX) > 0 ? 1 : -1);
+  }, { passive: false });
+  let dragFrom = null;
+  host.addEventListener('pointerdown', event => {
+    if (event.target.closest?.('[data-orb-app],[data-orb-all],[data-orb-close],[data-orb-page]')) return;
+    dragFrom = { x: event.clientX, y: event.clientY };
+  });
+  host.addEventListener('pointerup', event => {
+    if (!dragFrom) return;
+    const dx = event.clientX - dragFrom.x;
+    dragFrom = null;
+    if (Math.abs(dx) > 48) turnPage(dx < 0 ? 1 : -1);
+  });
+}
+
+/** Vira a página do anel com a animação de rolagem (as setas laterais e a roda chamam isto). */
+export function turnPage(step = 1) {
+  const layer = orbLayer();
+  if (!layer) return page;
+  const pages = orbPages();
+  if (pages.length < 2) return page;
+  const next = (page + (Number(step) || 1) + pages.length) % pages.length;
+  const direction = (Number(step) || 1) > 0 ? 'next' : 'prev';
+  page = next;
+  const host = layer.querySelector('.orb-host');
+  const root = layer.querySelector('.orb-root');
+  if (host) { host.innerHTML = orbMarkup(undefined, page); wireOrb(host); }
+  if (root) root.dataset.page = String(page);
+  // A animação de rolagem entra na página NOVA: os ícones deslizam do lado de onde vieram.
+  const ring = layer.querySelector('.orb-ring');
+  if (ring) {
+    ring.classList.add('is-' + direction);
+    setTimeout(() => ring.classList.remove('is-next', 'is-prev'), 420);
+  }
+  return page;
 }
 
 export function paintOrb() {
-  const win = winObj();
-  const host = win?.el.querySelector('.orb-host');
+  const layer = orbLayer();
+  const host = layer?.querySelector('.orb-host');
   if (!host) return;
-  host.innerHTML = orbMarkup();
+  host.innerHTML = orbMarkup(undefined, page);
   wireOrb(host);
+  paintClock();
+}
+
+/* O relógio do rodapé corre junto com o do aparelho (o mesmo publishDeviceStatus da dock). */
+let clockTimer = null;
+function paintClock() {
+  const layer = orbLayer();
+  const box = layer?.querySelector('[data-orb-clock]');
+  if (!box) return;
+  const c = clockNow();
+  box.innerHTML = `<span class="orb-clock-time">${esc(c.time)}</span>`
+    + (c.battery == null ? '' : `<span class="orb-clock-bat">${c.charging ? '⚡' : ''}${c.battery}%</span>`);
+}
+function startClock() {
+  stopClock();
+  clockTimer = setInterval(paintClock, 1000);
+}
+function stopClock() {
+  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
 }
 
 /**
- * Abre o anel. `onboarding: true` é o que o mantém FORA do arco de janelas: o anel é uma camada
- * sobre o mundo, não um app concorrendo a slot com os apps do usuário (e por isso nunca fecha
- * nenhum app aberto para "abrir espaço").
+ * Abre o anel. Nada de janela: a camada nasce na HUD (#hud), que é o que o lado nativo desenha por
+ * cima de tudo e sem vidro. `onboarding: true` deixou de existir aqui — não há slot de janela a
+ * disputar, então abrir o anel nunca fecha nem empurra um app do usuário.
  */
 export function openOrbMenu() {
-  // Contador de chamadas + erro registrado: é por aqui que se descobre, sem adivinhar, se a bolinha
-  // foi tocada e o que falhou no caminho.
   if (typeof window !== 'undefined') window.__orbOpenCalls = (window.__orbOpenCalls || 0) + 1;
   try {
-    return openOrbRing();
+    const existing = orbLayer();
+    if (existing) { paintOrb(); dim(true); return existing; }
+    page = 0;
+    const layer = document.createElement('div');
+    layer.id = ORB_LAYER_ID;
+    layer.className = 'orb-layer';
+    layer.dataset.orbLayer = '1';
+    const host = document.createElement('div');
+    host.className = 'orb-host';
+    layer.appendChild(host);
+    const hud = document.getElementById('hud') || document.body;
+    hud.appendChild(layer);
+    dim(true);
+    paintOrb();
+    startClock();
+    // Os apps do Android chegam depois (a lista é lida do aparelho): o anel se redesenha ao chegar.
+    try { providers.refreshAndroid?.(); } catch (error) { remember(error); }
+    return layer;
   } catch (error) {
     remember(error);
-    // A janela pode já ter sido criada (a exceção pode vir de um ouvinte de 'wins' disparado lá
-    // dentro). Nesse caso o anel ainda aparece: nada de ficar sem os apps por causa do resto.
-    const recovered = winObj();
+    const recovered = orbLayer();
     if (!recovered) throw error;
     try { paintOrb(); } catch (again) { remember(again); }
     return recovered;
   }
 }
 
-function decorateOrb(win) {
-  win.shell.classList.add('orb-shell');
-  win.el.classList.add('orb-window');
-  dim(true);
-  paintOrb();
-  // Os apps do Android chegam depois (a lista é lida do aparelho): o anel se redesenha ao chegar.
-  try { providers.refreshAndroid?.(); } catch (error) { remember(error); }
-  return win;
-}
-
-function openOrbRing() {
-  const existing = winObj();
-  if (existing) {
-    try { paintOrb(); } catch (error) { remember(error); }
-    try { focus(existing); } catch (error) { remember(error); }
-    dim(true);
-    return existing;
-  }
-  const host = document.createElement('div');
-  host.className = 'orb-host';
-  const win = open({
-    id: ORB_WIN,
-    title: 'Apps',
-    node: host,
-    w: ORB_W,
-    h: ORB_H,
-    onboarding: true,
-    chrome: false,
-    resizable: false,
-  });
-  return decorateOrb(win);
-}
-
 export function closeOrbMenu() {
   if (typeof window !== 'undefined') window.__orbCloseCalls = (window.__orbCloseCalls || 0) + 1;
-  const win = winObj();
   try {
-    if (win) close(win);
+    orbLayer()?.remove();
   } finally {
-    // Sempre, mesmo se o fechamento da janela falhar no meio: o véu e o selo não podem ficar presos.
+    // Sempre, mesmo se a remoção falhar no meio: o véu e o selo não podem ficar presos.
+    stopClock();
     dim(false);
   }
 }
 
-export const orbOpen = () => !!winObj();
-
 let dimmed = false;
 function dim(on_) {
   const value = !!on_;
-  // Marca no <html> que o anel está aberto: o CSS (index.html) usa isso para empurrar as outras
-  // janelas para trás. Sem isso o "Menu Rápido" (ou qualquer app aberto) ficava POR CIMA do anel —
-  // o anel é uma janela de onboarding e não disputava a camada de profundidade das janelas normais.
-  // Vem antes do atalho de "já está escuro": o selo não pode ficar velho se o estado divergir.
+  // Marca no <html> que o anel está aberto: o CSS usa isso para tirar a dock e as janelas da frente.
   if (typeof document !== 'undefined') {
     if (value) document.documentElement.dataset.orbOpen = '1';
     else delete document.documentElement.dataset.orbOpen;
   }
   if (dimmed === value) return;
   dimmed = value;
+  // O véu da WebView (para o modo navegador) e o escurecimento do GL nativo (que é quem desenha o
+  // mundo dentro do headset) andam juntos: um número só.
   setSceneDim(value ? ORB_DIM : 0);
+  try { window.NativeXR?.setSceneDim?.(value ? ORB_DIM : 0); } catch {}
 }
+
+/* O relógio/bateria do rodapé acompanha o aparelho. */
+on('device-status', () => { if (orbOpen()) paintClock(); });
 
 /* A lista do aparelho pode chegar com o anel aberto. */
 on('appsState', () => { if (orbOpen()) paintOrb(); });
-
-/* A janela pode ser fechada por fora (✕, troca de idioma, jogo em andamento): o escurecimento sai
- * junto. Sem isso, fechar o anel por qualquer outro caminho deixaria a tela escura para sempre. */
-on('wins', () => { if (!orbOpen()) dim(false); });
 on('lang', () => { if (orbOpen()) paintOrb(); });
 
-if (typeof window !== 'undefined') window.nextvrOpenOrbMenu = openOrbMenu;
+/* A HUD é presa na cabeça: um pedido de recentralizar/trocar de ambiente não fecha o anel. Quem
+ * fecha é o círculo de voltar ou a escolha de um app. */
+on('wins', () => { if (!orbOpen()) stopClock(); });
+
+if (typeof window !== 'undefined') {
+  window.nextvrOpenOrbMenu = openOrbMenu;
+  window.nextvrCloseOrbMenu = closeOrbMenu;
+  window.nextvrOrbPage = turnPage;
+}

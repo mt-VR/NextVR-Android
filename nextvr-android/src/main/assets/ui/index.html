@@ -3481,105 +3481,126 @@
   }
 
   /* ---------- véu do ambiente (anel de 10 apps) ---------- */
-  /* Acima do GL (#gl z1) e abaixo das janelas (#css3d z2): escurece o mundo, nunca os apps,
-     nunca as mãos (#overlay z3) nem a dock (#hud z4). */
+  /* Acima do GL (#gl z1) e abaixo das janelas (#css3d z2): escurece o mundo, nunca os apps e nunca
+     a HUD. Dentro do headset quem escurece de verdade é o GL nativo (NativeXR.setSceneDim); este véu
+     é o mesmo efeito no modo navegador. */
   #scene-dim{position:fixed;inset:0;z-index:1;pointer-events:none;background:#05070c;opacity:0;
     transition:opacity .22s ease}
 
-  /* ---------- anel de 10 apps: janela sem fundo nenhum ---------- */
-  .win-shell[data-window-id="orb-menu"],.win-shell[data-window-id="orb-menu"] .win{
-    background:transparent!important;border:none!important;box-shadow:none!important;
-    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:visible!important}
-  .win-shell[data-window-id="orb-menu"] .win-body{background:transparent!important;padding:0;overflow:visible}
-  .win-shell[data-window-id="orb-menu"] .win-handle,
-  .win-shell[data-window-id="orb-menu"] .win-resize,
-  .win-shell[data-window-id="orb-menu"] .win-brightness-bar,
-  .win-shell[data-window-id="orb-menu"] .win-predefined-slots,
-  .win-shell[data-window-id="orb-menu"] .win-cinema-bar,
-  .win-shell[data-window-id="orb-menu"] .win-grab-arc{
-    display:none!important;opacity:0!important;pointer-events:none!important}
+  /* ---------- anel de 10 apps: camada da HUD, sem janela e sem vidro ---------- */
+  /* Não é janela: é uma camada presa na cabeça, desenhada por cima de tudo pelo lado nativo e sem
+     nenhum painel/backdrop atrás (era isso que aparecia como caixa escura no headset). */
+  .orb-layer{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:100%;height:100%;max-width:1200px;max-height:800px;z-index:60;pointer-events:none;
+    font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;
+    animation:orbFade .18s ease both}
+  @keyframes orbFade{from{opacity:0}to{opacity:1}}
+  .orb-host{position:absolute;inset:0}
+  .orb-root{position:absolute;inset:0;display:flex;flex-direction:column;padding:14px 10px 0}
 
-  /* Com o anel aberto não fica caixa nenhuma no caminho: as OUTRAS janelas saem de cena de vez (nem
-     sombra escura sobra atrás dos apps) e voltam inteiras ao fechar — elas não são fechadas, só
-     escondidas; estado, lugar e conteúdo continuam guardados. As mãos (#overlay z3) e a HUD ficam. */
-  html[data-orb-open="1"] .win-shell:not([data-window-id="orb-menu"]){
-    opacity:0!important;visibility:hidden!important;pointer-events:none!important}
-  .win-shell{transition:opacity .18s ease}
-  /* A dock vira só perfil + relógio/bateria, sem a pílula escura e sem os apps: quem tocou na
-     bolinha está escolhendo um app no anel, e a dock volta inteira quando o anel fecha. */
-  html[data-orb-open="1"] .dock{
-    background:none!important;border-color:transparent!important;box-shadow:none!important;
-    backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-  html[data-orb-open="1"] .dock .dock-app,
-  html[data-orb-open="1"] .dock .dock-tool,
-  html[data-orb-open="1"] .dock .dock-sep,
-  html[data-orb-open="1"] .dock .dock-spacer,
-  html[data-orb-open="1"] .dock .dock-bell-ind{display:none!important}
-  html[data-orb-open="1"] .dock .dock-av,
-  html[data-orb-open="1"] .dock .dock-status{
-    filter:drop-shadow(0 3px 10px rgba(0,0,0,.85))}
+  /* Enquanto o anel está aberto: a dock desaparece e as janelas saem de cena (nada de caixa preta
+     nem de app cobrindo os ícones). Tudo volta no instante em que o anel fecha. */
+  html[data-orb-open="1"] .dock{display:none!important}
+  html[data-orb-open="1"] .win-shell{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 
-  .orb-host,.orb-root{width:100%;height:100%;background:transparent;user-select:none}
-  .orb-root{position:relative;display:flex;flex-direction:column;padding:4px 10px 10px}
-  .orb-head{display:flex;align-items:center;gap:14px;height:52px;flex:none;padding:0 6px}
-  .orb-title{font-size:24px;font-weight:800;letter-spacing:.22em;color:#fff;
-    text-shadow:0 2px 14px rgba(0,0,0,.85)}
-  .orb-hint{font-size:15px;font-weight:600;color:rgba(255,255,255,.8);
-    text-shadow:0 2px 10px rgba(0,0,0,.85)}
-  .orb-close{margin-left:auto;width:52px;height:52px;border-radius:50%;font-size:20px;color:#fff;
-    background:rgba(16,16,20,.62);border:1px solid rgba(255,255,255,.18);
-    backdrop-filter:blur(10px);display:grid;place-items:center;transition:transform .14s,background .14s}
-  .orb-close:hover{background:rgba(40,40,48,.8);transform:scale(1.06)}
-  .orb-close:active{transform:scale(.94)}
+  .orb-top{display:flex;align-items:center;gap:14px;flex:none;padding:0 8px;height:60px}
+  .orb-back{pointer-events:auto;width:54px;height:54px;border-radius:50%;flex:none;cursor:pointer;
+    display:grid;place-items:center;color:#fff;font-size:30px;line-height:1;
+    background:rgba(18,20,26,.55);border:1.5px solid rgba(255,255,255,.6);
+    box-shadow:0 8px 22px rgba(0,0,0,.55);transition:transform .14s,background .14s}
+  .orb-back:hover{background:rgba(48,52,64,.85);transform:scale(1.07)}
+  .orb-back:active{transform:scale(.94)}
+  .orb-back-arrow{display:block;margin-top:-4px}
+  .orb-headline{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .orb-title{font-size:26px;font-weight:900;letter-spacing:.24em;
+    text-shadow:0 2px 14px rgba(0,0,0,.9)}
+  .orb-hint{font-size:14px;font-weight:600;color:rgba(255,255,255,.72);
+    text-shadow:0 2px 10px rgba(0,0,0,.9)}
+  .orb-dots{display:flex;gap:7px;margin-left:auto;pointer-events:none}
+  .orb-dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.32)}
+  .orb-dots i.on{background:#fff;box-shadow:0 0 12px rgba(255,255,255,.8)}
 
-  /* O círculo: 3 em cima, 4 no meio, 3 embaixo — os lugares vêm do JS em % desta caixa. */
-  .orb-ring{position:relative;flex:1;min-height:0}
-  .orb-app{position:absolute;transform:translate(-50%,-50%);
-    width:180px;height:180px;border-radius:36px;padding:0;overflow:hidden;
-    display:block;color:#fff;border:0;
-    /* Os apps se destacam no escuro: aro claro, brilho colorido em volta e sombra funda. */
-    box-shadow:0 26px 56px rgba(0,0,0,.72),0 0 0 2px rgba(255,255,255,.58),0 0 42px 4px rgba(125,175,255,.4);
-    transition:transform .16s cubic-bezier(.2,.9,.2,1),box-shadow .16s}
-  .orb-app img{width:100%;height:100%;object-fit:cover;border-radius:36px;display:block}
-  .orb-app:hover{box-shadow:0 30px 64px rgba(0,0,0,.78),0 0 0 3px #fff,0 0 60px 8px rgba(150,195,255,.55);
-    transform:translate(-50%,-50%) scale(1.1)}
-  .orb-app:active{transform:translate(-50%,-50%) scale(.96)}
-  .orb-glyph{display:grid;place-items:center;width:100%;height:100%;border-radius:36px;
-    font-size:76px;font-weight:800;color:#fff;
+  /* O círculo: 3 em cima, 4 no meio, 3 embaixo. Os lugares vêm do JS em % desta caixa. */
+  .orb-ring{position:relative;flex:1;min-height:0;margin-top:2px}
+  .orb-app{pointer-events:auto;position:absolute;transform:translate(-50%,-50%);
+    width:clamp(104px,15.2%,196px);aspect-ratio:1;border-radius:30px;padding:0;
+    overflow:hidden;display:block;color:#fff;border:0;cursor:pointer;
+    /* App gigante que se destaca no escuro: aro claro, brilho próprio e sombra funda. */
+    box-shadow:0 18px 40px rgba(0,0,0,.7),0 0 0 2px rgba(255,255,255,.55),0 0 30px 3px rgba(140,185,255,.34);
+    transition:transform .16s cubic-bezier(.2,.9,.2,1),box-shadow .16s;
+    animation:orbIn .34s cubic-bezier(.2,.9,.2,1) both;animation-delay:calc(var(--i,0)*22ms)}
+  .orb-app img{width:100%;height:100%;object-fit:cover;display:block}
+  .orb-app:hover{box-shadow:0 22px 48px rgba(0,0,0,.78),0 0 0 3px #fff,0 0 44px 6px rgba(160,200,255,.5);
+    transform:translate(-50%,-50%) scale(1.07)}
+  .orb-app:active{transform:translate(-50%,-50%) scale(.95)}
+  .orb-glyph{display:grid;place-items:center;width:100%;height:100%;
+    font-size:clamp(34px,4.4vw,64px);font-weight:800;color:#fff;
     text-shadow:0 3px 16px rgba(0,0,0,.55)}
-  /* Nome dentro do tile, num rodapé escuro: um rótulo pendurado embaixo do tile seria cortado pelo
-     recorte da janela (e o atlas nativo só captura a caixa da janela). */
-  .orb-label{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 8px;
-    font-size:15px;font-weight:800;color:#fff;text-align:center;
-    text-shadow:0 2px 8px rgba(0,0,0,.9);
+  .orb-label{position:absolute;left:0;right:0;bottom:0;padding:16px 6px 7px;
+    font-size:clamp(10px,1.05vw,14px);font-weight:800;color:#fff;text-align:center;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
-    background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.62) 55%,rgba(0,0,0,.82) 100%)}
-  .orb-badge{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
-    background:#22c55e;color:#04240f;font-size:14px;font-weight:900;font-style:normal;
+    text-shadow:0 2px 8px rgba(0,0,0,.95);
+    background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.8) 100%)}
+  .orb-badge{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+    background:#22c55e;color:#04240f;font-size:12px;font-weight:900;font-style:normal;
     display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,.55)}
-  .orb-app--android{box-shadow:0 26px 56px rgba(0,0,0,.72),0 0 0 2px rgba(34,197,94,.85),
-    0 0 42px 4px rgba(34,197,94,.45)}
+  .orb-app--android{box-shadow:0 18px 40px rgba(0,0,0,.7),0 0 0 2px rgba(34,197,94,.85),
+    0 0 30px 3px rgba(34,197,94,.45)}
 
   /* O centro do anel: "TODOS" abre a biblioteca completa do NextVR. */
-  .orb-hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:120px;height:120px;border-radius:50%;color:#fff;
-    background:radial-gradient(circle at 32% 26%,rgba(80,80,96,.92),rgba(18,18,24,.94));
-    border:1px solid rgba(255,255,255,.2);box-shadow:0 20px 44px rgba(0,0,0,.6);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  .orb-hub{pointer-events:auto;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:clamp(62px,7.4%,96px);aspect-ratio:1;border-radius:50%;color:#fff;cursor:pointer;
+    background:radial-gradient(circle at 32% 26%,rgba(92,96,116,.9),rgba(16,16,22,.94));
+    border:1.5px solid rgba(255,255,255,.45);box-shadow:0 14px 34px rgba(0,0,0,.6);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     transition:transform .16s,box-shadow .16s}
-  .orb-hub:hover{transform:translate(-50%,-50%) scale(1.06);
-    box-shadow:0 24px 52px rgba(0,0,0,.66),0 0 0 2px rgba(167,139,250,.55)}
-  .orb-hub:active{transform:translate(-50%,-50%) scale(.95)}
-  .orb-hub-icon{font-size:30px;line-height:1}
-  .orb-hub-label{font-size:12px;font-weight:800;letter-spacing:.12em}
+  .orb-hub:hover{transform:translate(-50%,-50%) scale(1.08);
+    box-shadow:0 20px 42px rgba(0,0,0,.66),0 0 0 2px rgba(167,139,250,.6)}
+  .orb-hub:active{transform:translate(-50%,-50%) scale(.94)}
+  .orb-hub-icon{font-size:clamp(16px,2vw,26px);line-height:1}
+  .orb-hub-label{font-size:clamp(7px,.85vw,11px);font-weight:800;letter-spacing:.1em}
 
-  @media(max-width:900px){
-    .orb-app{width:142px;height:142px;border-radius:28px}
-    .orb-app img,.orb-glyph{border-radius:28px}
-    .orb-glyph{font-size:56px}
-    .orb-hub{width:100px;height:100px}
-    .orb-label{font-size:12px;padding:10px 6px 5px}
-  }
+  /* Rolagem: as setas laterais passam as páginas (é o que a mão alcança sem sair do anel). */
+  .orb-page{pointer-events:auto;position:absolute;top:50%;transform:translateY(-50%);width:52px;height:64px;
+    border-radius:16px;cursor:pointer;color:#fff;font-size:30px;line-height:1;display:grid;place-items:center;
+    background:rgba(16,18,24,.5);border:1.5px solid rgba(255,255,255,.42);
+    box-shadow:0 10px 24px rgba(0,0,0,.5);transition:transform .14s,background .14s}
+  .orb-page:hover{background:rgba(44,48,60,.85);transform:translateY(-50%) scale(1.06)}
+  .orb-page:active{transform:translateY(-50%) scale(.94)}
+  .orb-page--prev{left:2px}
+  .orb-page--next{right:2px}
+
+  /* A animação de rolagem: a página nova entra deslizando, ícone por ícone. */
+  @keyframes orbIn{from{opacity:0;transform:translate(-50%,-50%) scale(.86)}
+    to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  @keyframes orbInNext{from{opacity:0;transform:translate(calc(-50% + 60px),-50%) scale(.86)}
+    to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  @keyframes orbInPrev{from{opacity:0;transform:translate(calc(-50% - 60px),-50%) scale(.86)}
+    to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  .orb-ring.is-next .orb-app{animation-name:orbInNext}
+  .orb-ring.is-prev .orb-app{animation-name:orbInPrev}
+
+  /* Rodapé: perfil e hora do jogador, no lugar da dock. */
+  .orb-foot{flex:none;display:flex;align-items:center;justify-content:center;gap:12px;
+    padding:0 8px 14px}
+  .orb-me{display:flex;align-items:center;gap:10px;pointer-events:none;
+    padding:7px 14px 7px 7px;border-radius:999px;background:rgba(12,14,20,.62);
+    border:1px solid rgba(255,255,255,.24);box-shadow:0 10px 26px rgba(0,0,0,.5)}
+  .orb-me-av{position:relative;width:42px;height:42px;border-radius:50%;flex:none;display:grid;
+    place-items:center;background:linear-gradient(145deg,#4b5563,#1f2937)}
+  .orb-me-av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .orb-me-initial{font-size:20px;font-weight:800}
+  .orb-me-check{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;border-radius:50%;
+    background:#fe2c55;color:#fff;font-size:11px;font-style:normal;font-weight:900;
+    display:grid;place-items:center;border:2px solid rgba(10,12,18,.9)}
+  .orb-me-name{font-size:15px;font-weight:800;letter-spacing:.02em;max-width:34vw;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .orb-clock{display:flex;align-items:center;gap:9px;pointer-events:none;
+    padding:12px 18px;border-radius:999px;background:rgba(12,14,20,.62);
+    border:1px solid rgba(255,255,255,.24);box-shadow:0 10px 26px rgba(0,0,0,.5)}
+  .orb-clock-time{font-size:19px;font-weight:800;letter-spacing:.06em;
+    font-variant-numeric:tabular-nums}
+  .orb-clock-bat{font-size:14px;font-weight:700;color:rgba(255,255,255,.75)}
 </style>
 </head>
 <body>

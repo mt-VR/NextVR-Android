@@ -1132,6 +1132,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             SpatialRenderer target=renderer;
             if(target!=null) target.handRenderer.setShowPointer(!enabled);
         }
+        /* Escurece só o MUNDO (câmera/panorama), nunca os apps: é o véu do anel de 10 apps visto de
+         * dentro do headset. `0` volta ao normal. */
+        @JavascriptInterface public void setSceneDim(float amount) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.sceneDim=Math.max(0f,Math.min(.82f,amount));
+        }
         @JavascriptInterface public void setMrDim(boolean enabled) {
             SpatialRenderer target=renderer;
             if(target!=null) target.mrDim=enabled;

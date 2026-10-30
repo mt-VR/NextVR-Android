@@ -197,9 +197,12 @@ final class SpatialRenderer {
     private final int uRectR, uEye;
     private final int uPass, uBackface, uBackdrop, uGlass, uViewport, uProjection, uSpan, uCamera, uCamDim;
     private final int cameraProgram;
-    private final int camAPos, camUTex, camUProj, camUSpan, camUQual, camUDim;
+    private final int camAPos, camUTex, camUProj, camUSpan, camUQual, camUDim, camUSceneDim;
+    /* 0 = mundo normal, 1 = quase preto. Quem mexe é o anel de 10 apps (NativeXR.setSceneDim):
+     * o mundo escurece e os apps continuam com o brilho normal, dentro do headset. */
+    public volatile float sceneDim = 0f;
     private final int envProgram;
-    private final int envAPos, envUTex, envUProj, envUViewInv, envUQual, envUReveal;
+    private final int envAPos, envUTex, envUProj, envUViewInv, envUQual, envUReveal, envUSceneDim;
     private volatile long envTransitionStartMs = 0L;
     private final List<Panel> sorted = new ArrayList<>(24);
     private final float[] viewInv = new float[16], viewProj = new float[16];
@@ -230,24 +233,26 @@ final class SpatialRenderer {
         // A full-screen camera pass before *any* world surfaces. Camera image is never world-locked.
         cameraProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
-            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform vec2 uSpan; uniform float uQualityHeight; uniform float uDimDrop; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+ray.x/uSpan.x,.5-ray.y/uSpan.y); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*1.7778,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} gl_FragColor=vec4(texture2D(uTexture,clamp(uv,0.,1.)).rgb*(1.-uDimDrop),1.);}");
+            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform vec2 uSpan; uniform float uQualityHeight; uniform float uDimDrop; uniform float uSceneDim; void main(){vec2 ray=(vNdc+uProjection.zw)/uProjection.xy; vec2 uv=vec2(.5+ray.x/uSpan.x,.5-ray.y/uSpan.y); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*1.7778,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} gl_FragColor=vec4(texture2D(uTexture,clamp(uv,0.,1.)).rgb*(1.-uDimDrop)*(1.-uSceneDim),1.);}");
         camAPos=GLES20.glGetAttribLocation(cameraProgram,"aPosition");
         camUTex=GLES20.glGetUniformLocation(cameraProgram,"uTexture");
         camUProj=GLES20.glGetUniformLocation(cameraProgram,"uProjection");
         camUSpan=GLES20.glGetUniformLocation(cameraProgram,"uSpan");
         camUQual=GLES20.glGetUniformLocation(cameraProgram,"uQualityHeight");
         camUDim=GLES20.glGetUniformLocation(cameraProgram,"uDimDrop");
+        camUSceneDim=GLES20.glGetUniformLocation(cameraProgram,"uSceneDim");
         // Fundo panoramico 360: a direcao do olhar sai da projecao do olho e e girada para o mundo
         // pelo inverso da view, entao o panorama gira com a cabeca. Sem uSpan: nada de aspect-fill.
         envProgram = link(
             "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
-            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform mat4 uViewInv; uniform float uQualityHeight; uniform float uReveal; const float PI=3.14159265; void main(){vec2 t=(vNdc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(t.x,t.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); vec2 uv=vec2(.5+lon/(2.*PI),.5-lat/PI); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*2.,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 envCol=texture2D(uTexture,uv).rgb; if(uReveal>=.999){gl_FragColor=vec4(envCol,1.);return;} float normH=lat/PI+.5; float wave=sin(lon*5.+uReveal*8.)*.028+cos(lon*11.-uReveal*6.)*.016; float edge=uReveal*1.32-.12+wave; float alpha=1.-smoothstep(edge-.02,edge+.16,normH); float smoke=smoothstep(edge-.18,edge,normH)*(1.-smoothstep(edge,edge+.16,normH)); vec3 col=mix(envCol,vec3(.88,.91,.96),smoke*.82); gl_FragColor=vec4(col*alpha,alpha);}");
+            "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform mat4 uViewInv; uniform float uQualityHeight; uniform float uReveal; uniform float uSceneDim; const float PI=3.14159265; void main(){vec2 t=(vNdc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(t.x,t.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); vec2 uv=vec2(.5+lon/(2.*PI),.5-lat/PI); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*2.,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 envCol=texture2D(uTexture,uv).rgb*(1.-uSceneDim); if(uReveal>=.999){gl_FragColor=vec4(envCol,1.);return;} float normH=lat/PI+.5; float wave=sin(lon*5.+uReveal*8.)*.028+cos(lon*11.-uReveal*6.)*.016; float edge=uReveal*1.32-.12+wave; float alpha=1.-smoothstep(edge-.02,edge+.16,normH); float smoke=smoothstep(edge-.18,edge,normH)*(1.-smoothstep(edge,edge+.16,normH)); vec3 col=mix(envCol,vec3(.88,.91,.96),smoke*.82); gl_FragColor=vec4(col*(1.-uSceneDim)*alpha,alpha);}");
         envAPos=GLES20.glGetAttribLocation(envProgram,"aPosition");
         envUTex=GLES20.glGetUniformLocation(envProgram,"uTexture");
         envUProj=GLES20.glGetUniformLocation(envProgram,"uProjection");
         envUViewInv=GLES20.glGetUniformLocation(envProgram,"uViewInv");
         envUQual=GLES20.glGetUniformLocation(envProgram,"uQualityHeight");
         envUReveal=GLES20.glGetUniformLocation(envProgram,"uReveal");
+        envUSceneDim=GLES20.glGetUniformLocation(envProgram,"uSceneDim");
     }
     static List<Panel> decode(String json) throws Exception {
         JSONArray arr = new JSONArray(json);
@@ -498,6 +503,7 @@ final class SpatialRenderer {
         GLES20.glUniform2f(camUSpan,spanX,spanY);
         GLES20.glUniform1f(camUQual,qualityHeight);
         GLES20.glUniform1f(camUDim,mrDim?0.68f:0.0f);
+        GLES20.glUniform1f(camUSceneDim,sceneDim);
         drawScreenQuad(camAPos);
     }
     /** Fundo panoramico 360: esfera inteira em volta do usuario, presa ao mundo (gira com a cabeca). */
@@ -509,6 +515,7 @@ final class SpatialRenderer {
         GLES20.glUniformMatrix4fv(envUViewInv,1,false,viewInv,0);
         GLES20.glUniform1f(envUQual,qualityHeight);
         GLES20.glUniform1f(envUReveal,reveal);
+        GLES20.glUniform1f(envUSceneDim,sceneDim);
         drawScreenQuad(envAPos);
     }
     private static FloatBuffer floats(float[] a) { FloatBuffer b=ByteBuffer.allocateDirect(a.length*4).order(ByteOrder.nativeOrder()).asFloatBuffer(); b.put(a).position(0); return b; }

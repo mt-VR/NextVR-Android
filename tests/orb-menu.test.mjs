@@ -37,75 +37,114 @@ test('the dock dot opens a ring of ten apps, three over four over three', async 
   assert.match(orb, /function insideRect\(el, x, y\)/);
   assert.match(orb, /byPointAll = true/);
   assert.match(orb, /byPointTile = \[\.\.\.host\.querySelectorAll\('\[data-orb-app\]'\)\]\.find/);
-  assert.match(orb, /if \(all \|\| byPointAll\) \{ launchTarget\(\(\) => providers\.launchOwn\('library'\)\); return; \}/);
+  assert.match(orb, /if \(all \|\| byPointAll\) \{ act\('all'\); return; \}/);
+  assert.match(orb, /if \(hit === 'all'\) \{ launchTarget\(\(\) => providers\.launchOwn\('library'\)\); return; \}/);
 });
 
-test('the ring has no settings-style backdrop behind it and the world only dims', async () => {
+test('o anel não tem fundo/vidro atrás e o mundo só escurece', async () => {
   const orb = await read('web/src/orb-menu.js');
-  // Nenhum painel/folha de fundo: a janela do anel é transparente e ninguém pinta um "fundo".
-  assert.match(orb, /chrome: false/);
+  // Não existe janela: nada de `open(...)`, de chrome de janela ou de painel pintado atrás dos apps.
+  assert.doesNotMatch(orb, /from '\.\/windows\.js'/g.test(orb) ? /chrome: false/ : /$^/);
+  assert.doesNotMatch(orb, /chrome: false/);
   assert.doesNotMatch(orb, /background:\s*['"]#/);
-  // O escurecimento é do AMBIENTE (véu próprio), nunca de uma janela/tela por trás do anel.
-  assert.match(orb, /setSceneDim\(value \? ORB_DIM : 0\)/);
+  // A camada nasce na HUD (#hud), que é o que o nativo desenha por cima e sem vidro.
+  assert.match(orb, /document\.getElementById\('hud'\)/);
+  assert.match(orb, /layer\.className = 'orb-layer'/);
+  // O escurecimento vai para a WebView E para o GL nativo (é o GL que desenha o mundo no headset).
   assert.match(orb, /export const ORB_DIM = 0\.7/);
-  // Fechar o anel por qualquer caminho desfaz o escurecimento.
-  assert.match(orb, /on\('wins', \(\) => \{ if \(!orbOpen\(\)\) dim\(false\); \}\)/);
+  assert.match(orb, /setSceneDim\(value \? ORB_DIM : 0\)/);
+  assert.match(orb, /window\.NativeXR\?\.setSceneDim\?\.\(value \? ORB_DIM : 0\)/);
+  // Fechar o anel por qualquer caminho desfaz o escurecimento (mesmo se a remoção falhar).
+  assert.match(orb, /export function closeOrbMenu\(\) \{[\s\S]{0,220}\} finally \{[\s\S]{0,120}dim\(false\)/);
 
   const core = await read('web/src/core.js');
   assert.match(core, /export function setSceneDim\(amount\)/);
-  // O véu fica entre o ambiente e as janelas e nunca chega a preto.
   assert.match(core, /Math\.min\(\.82, /);
+  // No aparelho NÃO existe véu do DOM: o retângulo inteiro da WebView é capturado como HUD e
+  // desenhado por cima de tudo, então um div escuro virava a caixa preta vista no headset.
+  assert.match(core, /if \(native\) \{[\s\S]{0,240}sceneDimEl\.remove\(\); sceneDimEl = null;/);
+  assert.match(core, /window\.NativeXR\?\.setSceneDim\?\.\(a\)/);
+
+  // E o nativo escurece o mundo de verdade: câmera e panorama multiplicados, apps intocados.
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
+  assert.match(renderer, /public volatile float sceneDim = 0f/);
+  assert.match(renderer, /uniform float uSceneDim/);
+  assert.match(renderer, /glUniform1f\(camUSceneDim,sceneDim\)/);
+  assert.match(renderer, /glUniform1f\(envUSceneDim,sceneDim\)/);
+  const activity = await read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+  assert.match(activity, /public void setSceneDim\(float amount\)/);
 
   const html = await read('web/index.html');
   assert.match(html, /#scene-dim\{position:fixed;inset:0;z-index:1;pointer-events:none;background:#05070c;opacity:0/);
-  assert.match(html, /\.win-shell\[data-window-id="orb-menu"\][\s\S]{0,240}background:transparent!important/);
-
-  const windows = await read('web/src/windows.js');
-  assert.match(windows, /w\.id === 'orb-menu'/);
-  assert.match(windows, /w\.resizeScale = hasOpenAppWins \? 1\.44 : 1\.50/);
+  // Ninguém pinta o painel da janela antiga: o anel não é janela.
+  assert.doesNotMatch(html, /\.win-shell\[data-window-id="orb-menu"\]/);
 });
 
-test('abrir o anel empurra as outras janelas para trás do véu', async () => {
+test('o anel manda na tela: dock some, janelas saem de cena, e a camada fica por cima', async () => {
   const orb = await read('web/src/orb-menu.js');
   // O <html> ganha o selo enquanto o anel está aberto (é o que o CSS usa) e perde ao fechar.
   assert.match(orb, /document\.documentElement\.dataset\.orbOpen = '1'/);
   assert.match(orb, /else delete document\.documentElement\.dataset\.orbOpen/);
 
   const html = await read('web/index.html');
-  // Com o anel aberto, as OUTRAS janelas saem de cena de vez (nada de caixa preta atrás dos apps) e
-  // não recebem toque; o anel nunca é afetado.
-  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*visibility:hidden!important/);
-  assert.match(html, /html\[data-orb-open="1"\] \.win-shell:not\(\[data-window-id="orb-menu"\]\)\{[^}]*pointer-events:none!important/);
+  // A dock DESAPARECE com o anel aberto (o rodapé do anel mostra perfil e hora no lugar dela).
+  assert.match(html, /html\[data-orb-open="1"\] \.dock\{display:none!important\}/);
+  // E nenhuma janela fica como caixa preta na frente/atrás dos ícones.
+  assert.match(html, /html\[data-orb-open="1"\] \.win-shell\{opacity:0!important;visibility:hidden!important/);
+  // A camada do anel é a última coisa desenhada na HUD.
+  assert.match(html, /\.orb-layer\{position:fixed;left:50%;top:50%;transform:translate\(-50%,-50%\);/);
   // Os tiles se destacam no escuro: aro claro + halo colorido.
-  assert.match(html, /\.orb-app\{[^}]*box-shadow:0 26px 56px rgba\(0,0,0,\.72\),0 0 0 2px rgba\(255,255,255,\.58\),0 0 42px 4px/);
-
-  // O anel é onboarding e ficava com z-index 0 (atrás de tudo): agora sobe para a camada de cima.
-  const windows = await read('web/src/windows.js');
-  assert.match(windows, /export function raiseOrbLayer\(\)/);
-  assert.match(windows, /orb\.shell\.style\.zIndex = '90'/);
-  assert.match(windows, /export function updateWindowsDepthLayering\(activeWin = null\) \{\n  const orb = raiseOrbLayer\(\);/);
-  // Perto dos olhos: um dedo acima da linha dos olhos, na frente do resto, para o anel preencher a vista.
-  assert.match(windows, /w\.target\.set\(0, EYE \+ \.06, -0\.98\)/);
+  assert.match(html, /\.orb-app\{[^}]*box-shadow:0 18px 40px rgba\(0,0,0,\.7\),0 0 0 2px rgba\(255,255,255,\.55\),0 0 30px 3px/);
 
   // Sem capa, o tile usa a paleta forte do anel (o cinza quase preto sumia no ambiente escurecido).
   assert.match(orb, /export const ORB_PALETTE = Object\.freeze\(\[/);
   assert.match(orb, /entry\.bg \|\| ORB_PALETTE\[index % ORB_PALETTE\.length\]/);
 
-  // A dock vira só perfil + relógio: a pílula escura sai e os apps/tools somem (e voltam ao fechar).
-  assert.match(html, /html\[data-orb-open="1"\] \.dock\{\n    background:none!important/);
-  assert.match(html, /html\[data-orb-open="1"\] \.dock \.dock-app,\n  html\[data-orb-open="1"\] \.dock \.dock-tool,[\s\S]{0,220}display:none!important/);
-  // Fechar o anel desfaz o véu e o selo MESMO se a janela falhar ao fechar (try/finally).
-  assert.match(orb, /export function closeOrbMenu\(\) \{[\s\S]{0,160}const win = winObj\(\);\n  try \{\n    if \(win\) close\(win\);\n  \} finally \{/);
+  // O toque da mão chega no anel: a HUD é uma superfície real e o hit-test procura as peças dele.
+  const windows = await read('web/src/windows.js');
+  assert.match(windows, /\[data-orb-app\],\[data-orb-all\],\[data-orb-close\],\[data-orb-page\]/);
+  assert.match(windows, /const orb = document\.getElementById\('orb-layer'\)/);
 });
 
-test('the ring window fits the native atlas, so no column is cropped in the APK', async () => {
+test('a rolagem passa as páginas de dez ícones, com animação', async () => {
   const orb = await read('web/src/orb-menu.js');
-  const atlas = await read('web/src/atlas.js');
-  // 1040 x 660 é o recorte máximo que o atlas entrega para uma janela.
+  // Dez por página ("só aparece 10 ícones") e mais páginas quando há mais apps.
+  assert.match(orb, /export const ORB_PAGE = 10/);
+  assert.match(orb, /export function orbPages\(entries = orbEntries\(\)\)/);
+  assert.match(orb, /export function turnPage\(step = 1\)/);
+  assert.match(orb, /addEventListener\('wheel'/);
+  assert.match(orb, /Math\.abs\(dx\) > 48\) turnPage/);
+  assert.match(orb, /data-orb-page="1"/);
+  // A animação de rolagem é do CSS (o quadro de entrada de cada ícone).
+  const html = await read('web/index.html');
+  assert.match(html, /@keyframes orbInNext\{/);
+  assert.match(html, /@keyframes orbInPrev\{/);
+  assert.match(html, /\.orb-ring\.is-next \.orb-app\{animation-name:orbInNext\}/);
+  // E a classe entra na página NOVA (senão a animação nasce no elemento que já foi trocado).
+  assert.match(orb, /ring\.classList\.add\('is-' \+ direction\)/);
+});
+
+test('o rodapé do anel mostra o perfil e a hora do jogador', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  assert.match(orb, /import \{ getDeviceStatus \} from '\.\/windows\.js'/);
+  assert.match(orb, /data-orb-me="1"/);
+  assert.match(orb, /data-orb-clock="1"/);
+  assert.match(orb, /setInterval\(paintClock, 1000\)/);
+  assert.match(orb, /on\('device-status', \(\) => \{ if \(orbOpen\(\)\) paintClock\(\); \}\)/);
+  // Perfil de verdade (nome, avatar e selo de verificado), vindo do apps.js.
+  const apps = await read('web/src/apps.js');
+  assert.match(apps, /profile: \(\) => \(\{/);
+  assert.match(apps, /verified: isVerifiedProfileName\(S\.profileName\)/);
+});
+
+test('dez ícones cabem na tela: 3+4+3 e nada é cortado por um recorte de janela', async () => {
+  const orb = await read('web/src/orb-menu.js');
+  const html = await read('web/index.html');
+  // O anel não passa pelo atlas de texturas (não é janela), então não existe recorte que corte coluna.
   assert.match(orb, /export const ORB_W = 1040/);
-  assert.match(orb, /export const ORB_H = 660/);
-  assert.match(atlas, /const maxW = \(kind === 'window' \|\| kind === 'slot'\) \? 1040/);
-  assert.match(atlas, /const maxH = \(kind === 'dock' \? 400 : kind === 'keyboard' \? 936 : 980\) - PAD \* 2/);
+  assert.match(html, /\.orb-app\{[^}]*width:clamp\(104px,15\.2%,196px\)/);
+  assert.match(html, /\.orb-page--prev\{left:2px\}/);
+  assert.match(html, /\.orb-page--next\{right:2px\}/);
 });
 
 test('the dock keeps its dot grid and only what it opens changed', async () => {

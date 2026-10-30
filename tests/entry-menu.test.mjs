@@ -330,8 +330,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     }
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
     assert.equal(await page.locator('.entry-brand-chrome-logo').count(), 0, 'Metallic NextVR logo is removed from the right side of the menu');
-    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 6,
-      'Right side of the menu displays notification-style update cards (the ring toggle added one)');
+    assert.equal(await page.locator('[data-entry-updates] .entry-notif-card').count(), 7,
+      'Right side of the menu displays notification-style update cards (the ring redesign added one)');
 
     // 4. Sobre: exact text check
     await page.evaluate(() => document.querySelector('[data-entry-act="about"]').click());
@@ -684,13 +684,14 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       // anel (e o centro dele) só existem depois de um frame.
       await new Promise(r => requestAnimationFrame(() => r()));
       const orbOpen = !!document.querySelector('.orb-root');
-      const orbShell = !!document.querySelector('.win-shell[data-window-id="orb-menu"]');
+      const orbShell = !!document.querySelector('#hud #orb-layer');
       const orbCalls = window.__orbOpenCalls || 0;
       const hub = document.querySelector('[data-orb-all]');
       hub?.click();
       await new Promise(r => requestAnimationFrame(() => r()));
       const libraryOpenError = window.__orbLastError || null;
       const libraryShell = !!document.querySelector('.win-shell[data-window-id="library"]');
+      const dockBack = (() => { const d = document.querySelector('.dock'); return d ? getComputedStyle(d).display !== 'none' : false; })();
       document.querySelector('.dock [data-id="store"]')?.click();
       await new Promise(r => setTimeout(r, 80));
       const installBtn = document.querySelector('[data-window-id="store"] [data-install-gorilla], [data-install-gorilla]');
@@ -769,6 +770,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         orbCalls,
         hubFound: !!hub,
         libraryShell,
+        dockBack,
         dockLibraryFound: !!dockLibrary,
         hadInstallBtn,
         storeLogo,
@@ -789,8 +791,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(gorillaFlow.storeLogo, true, 'Gorilla Tag Store card uses gorilla-tag-logo.jpg');
     assert.equal(gorillaFlow.inLibrary, true,
       `Downloading Gorilla Tag in the Store adds it to the App Library (${
-        JSON.stringify({orb:gorillaFlow.orbOpen,rootShell:gorillaFlow.orbShell,calls:gorillaFlow.orbCalls,
-          hub:gorillaFlow.hubFound,dock:gorillaFlow.dockLibraryFound,
+        JSON.stringify({orb:gorillaFlow.orbOpen,layer:gorillaFlow.orbShell,calls:gorillaFlow.orbCalls,
+          hub:gorillaFlow.hubFound,dock:gorillaFlow.dockLibraryFound,dockBack:gorillaFlow.dockBack,
           shell:gorillaFlow.libraryShell,err:gorillaFlow.libraryOpenError})})`);
     assert.equal(gorillaFlow.libLogo, true, 'Gorilla Tag App Library tile uses gorilla-tag-logo.jpg');
     assert.equal(gorillaFlow.enteringText, 'Entrando no Gorilla Tag', 'Opening Gorilla Tag displays "Entrando no Gorilla Tag"');

@@ -213,46 +213,37 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'the environment dims but stays visible behind the ring');
     assert.ok(await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('scene-dim')).opacity)>0),
       'the dim veil is actually painted');
-    assert.equal(await page.locator('.win-shell[data-window-id="orb-menu"] .win-bar').isVisible(),false,
-      'the ring has no window bar');
-    assert.equal(await page.evaluate(()=>{const s=getComputedStyle(document.querySelector('.win-shell[data-window-id="orb-menu"] .win'));
-      return s.backgroundImage==='none'&&(s.backgroundColor==='rgba(0, 0, 0, 0)'||s.backgroundColor==='transparent');}),
-      true,'no settings-style backdrop is painted behind the apps');
-    // O anel não pode ficar ATRÁS de um app aberto: na captura do usuário o Menu Rápido (gesto de
-    // soco) cobria o anel, e o anel parecia não ter aberto. Com o anel na tela, as outras janelas
-    // recuam para trás do véu e o anel fica na camada de cima.
+    // O anel é uma CAMADA da HUD, não uma janela: nada de barra, de vidro nem de painel atrás.
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('.win-shell[data-window-id="orb-menu"]').length),0,
+      'the ring is not a window any more (a window is what painted the dark box behind the icons)');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('#hud #orb-layer')),true,
+      'the ring lives in the HUD layer, drawn on top of everything');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),'1',
-      'the ring marks the page as open so the other windows can recede');
-    assert.equal(await page.locator('.win-shell[data-window-id="orb-menu"]').evaluate(e=>getComputedStyle(e).zIndex),'90',
-      'the ring is layered above every window');
+      'the ring marks the page as open');
     assert.ok(await page.locator('.orb-app').first().evaluate(e=>getComputedStyle(e).boxShadow!=='none'),
       'each app tile carries its own glow so it stands out in the dark');
-    assert.ok(await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width)>=180),
+    assert.ok(await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width)>=150),
       'the apps are giant, not thumbnails');
-    // Com o anel aberto a dock vira só perfil + relógio: a pílula escura e os apps saem da tela,
-    // e voltam inteiros quando o anel fecha.
-    assert.equal(await page.locator('.dock .dock-app').first().isVisible(),false,
-      'the dock apps step aside while the ring is open');
-    assert.equal(await page.locator('.dock .dock-av').isVisible(),true,'the profile stays on screen');
-    assert.equal(await page.locator('.dock .dock-status').isVisible(),true,'the clock/battery stay on screen');
-    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).backgroundImage),/none/,
-      'no dark pill is left behind the profile and the clock');
-    // E nenhuma outra janela fica como caixa preta atrás dos apps.
-    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.win-shell')]
-      .filter(s=>s.dataset.windowId!=='orb-menu')
-      .every(s=>getComputedStyle(s).visibility==='hidden')),true,
-      'every other window is out of sight behind the ring');
-    await page.evaluate(()=>window.nextvrOpenFistQuickMenu());
-    await page.waitForFunction(()=>!!document.querySelector('.win-shell[data-window-id="fist-menu"]'),null,{timeout:8000});
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.win-shell[data-window-id="fist-menu"]')).opacity!=='1');
-    assert.ok(await page.locator('.win-shell[data-window-id="fist-menu"]').evaluate(e=>parseFloat(getComputedStyle(e).opacity)<=.3),
-      'an open app fades behind the veil instead of covering the ring');
-    assert.ok(+await page.locator('.win-shell[data-window-id="orb-menu"]').evaluate(e=>getComputedStyle(e).zIndex)
-      > +await page.locator('.win-shell[data-window-id="fist-menu"]').evaluate(e=>getComputedStyle(e).zIndex),
-      'the ring stays in front of the quick menu');
-    // Fecha o Menu Rápido para o resto do teste seguir com a tela do anel só.
-    await page.evaluate(()=>document.querySelector('.win-shell[data-window-id="fist-menu"] [data-act="close"]')?.click());
-    await page.waitForFunction(()=>!document.querySelector('.win-shell[data-window-id="fist-menu"]'),null,{timeout:8000});
+    // A dock DESAPARECE; no lugar dela o anel mostra o perfil e a hora do jogador.
+    assert.equal(await page.locator('.dock').isVisible(),false,
+      'the dock steps aside while the ring is open');
+    assert.equal(await page.locator('[data-orb-me]').isVisible(),true,'the ring shows the player profile');
+    assert.equal(await page.locator('[data-orb-clock]').isVisible(),true,'the ring shows the clock');
+    assert.match(await page.evaluate(()=>document.querySelector('[data-orb-clock] .orb-clock-time')?.textContent||''),
+      /^\d{1,2}:\d{2}$/,'the clock tells the time of the device');
+    // O círculo do canto volta para a dock.
+    assert.equal(await page.locator('[data-orb-close]').count(),1,'there is a way back to the dock');
+    // Rolagem: a roda passa a página, com os dez ícones por página e a animação de entrada.
+    assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0');
+    await page.mouse.move(600,400);
+    await page.mouse.wheel(0,240);
+    await page.waitForFunction(()=>document.querySelector('.orb-root')?.dataset.page!=='0',null,{timeout:4000}).catch(()=>{});
+    assert.notEqual(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
+      'scrolling moves to the next page of apps');
+    assert.ok(await page.locator('.orb-app').count()<=10,'a page never shows more than ten icons');
+    await page.evaluate(()=>window.nextvrOrbPage?.(-1));
+    assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0',
+      'and back to the first page');
     // O centro do anel ("TODOS") abre a biblioteca completa do NextVR.
     const hubInfo = await page.evaluate(()=>{
       const hub=document.querySelector('[data-orb-all]');
@@ -287,6 +278,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'the dock pill comes back with the apps');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),undefined,
       'the ring clears its open mark when it closes');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.dock')).display!=='none',
+      null,{timeout:5000}).catch(()=>{});
+    assert.equal(await page.locator('.dock').isVisible(),true,'the dock is back as soon as the ring closes');
     assert.equal(await page.locator('.lib-tile').count(),16,
       'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
@@ -625,7 +619,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         lastTarget: window.__orbLastTarget || null,
         lastError: window.__orbLastError || null,
         orbRoot: !!document.querySelector('.orb-root'),
-        orbShellVisible: (() => { const s = document.querySelector('.win-shell[data-window-id="orb-menu"]'); return s ? getComputedStyle(s).visibility : 'none'; })(),
+        orbLayer: !!document.querySelector('#orb-layer'),
+        dockDisplayAfter: (() => { const d = document.querySelector('.dock'); return d ? getComputedStyle(d).display : 'no dock'; })(),
         dockDisplay: dock ? getComputedStyle(dock).display : 'no dock',
         tileDisplay: tile ? getComputedStyle(tile).display : 'no tile',
         tileRect: tile ? [tile.getBoundingClientRect().width, tile.getBoundingClientRect().height] : null,
