@@ -8,18 +8,15 @@ local.properties
 build
 .cxx
 
-gitlog.json
-.externalNativeBuild
-
-# Cardboard SDK native artifacts extracted from the sdk AAR by the extractNdk task
-nextvr-android/libraries/
-
 node_modules/
 playwright-report/
 test-results/
 
-# Built APKs are CI artifacts (branch apk-dist); never commit them locally
+# Vendor binaries (Three.js r128 + MediaPipe Hands WASM/TFLite) are materialized
+# by `npm run build:ui` or automatically by Gradle's `prepareWebAssets` task.
+app/src/main/assets/vendor/
+
+# Built APKs are CI artifacts; never commit them locally.
 *.apk
 
-# Python tooling scratch (tools/bench, tools/perf)
 __pycache__/
