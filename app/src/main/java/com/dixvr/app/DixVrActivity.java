@@ -40,6 +40,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Host Android nativo do dixVR.
@@ -61,6 +63,13 @@ public class DixVrActivity extends AppCompatActivity {
     private WebView mainWebView;
     private WebView googleWebView;
     private WebView youtubeWebView;
+    private ProjectedBrowserPanel googlePanelView;
+    private ProjectedBrowserPanel youtubePanelView;
+    private String googleHomeUrl = GOOGLE_HOME_URL;
+    private final AtomicReference<String> pendingGoogleGeometry = new AtomicReference<>();
+    private final AtomicReference<String> pendingYouTubeGeometry = new AtomicReference<>();
+    private final AtomicBoolean googleGeometryQueued = new AtomicBoolean();
+    private final AtomicBoolean youtubeGeometryQueued = new AtomicBoolean();
     private HandCursorOverlayView cursorOverlay;
     private NativeStereoMirrorView stereoMirror;
 
@@ -132,14 +141,14 @@ public class DixVrActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private WebView createConfiguredWebView(boolean isMainShell) {
-        WebView webView = isMainShell ? new WebView(this) : new ProjectedPanelWebView(this);
+        WebView webView = new WebView(this);
         webView.setBackgroundColor(isMainShell ? Color.BLACK : Color.TRANSPARENT);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        if (!isMainShell) settings.setTextZoom(140);
+        if (!isMainShell) settings.setTextZoom(120);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
@@ -326,17 +335,33 @@ public class DixVrActivity extends AppCompatActivity {
         }
     }
 
+    private ProjectedBrowserPanel createBrowserPanel(WebView page, String appId) {
+        return new ProjectedBrowserPanel(this, page, "google".equals(appId) ? "Google" : "YouTube", command -> {
+            if ("close".equals(command)) {
+                mainWebView.evaluateJavascript("window.__dixVRMultitask.close('" + appId + "')", null);
+            } else if ("left".equals(command) || "center".equals(command) || "right".equals(command)) {
+                mainWebView.evaluateJavascript("window.__dixVRMultitask.moveToSlot('" + appId + "','" + command + "')", null);
+            } else if ("back".equals(command) && page.canGoBack()) page.goBack();
+            else if ("forward".equals(command) && page.canGoForward()) page.goForward();
+            else if ("reload".equals(command)) page.reload();
+            else if ("zoomIn".equals(command)) page.getSettings().setTextZoom(Math.min(220, page.getSettings().getTextZoom() + 20));
+            else if ("zoomOut".equals(command)) page.getSettings().setTextZoom(Math.max(80, page.getSettings().getTextZoom() - 20));
+            else if ("home".equals(command)) page.loadUrl("google".equals(appId) ? googleHomeUrl : YOUTUBE_HOME_URL);
+        });
+    }
+
     private WebView ensureGoogleWebView() {
         if (googleWebView == null) {
             googleWebView = createConfiguredWebView(false);
+            googlePanelView = createBrowserPanel(googleWebView, "google");
             int overlayIndex = rootLayout.indexOfChild(cursorOverlay);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT);
             if (overlayIndex >= 0) {
-                rootLayout.addView(googleWebView, overlayIndex, params);
+                rootLayout.addView(googlePanelView, overlayIndex, params);
             } else {
-                rootLayout.addView(googleWebView, params);
+                rootLayout.addView(googlePanelView, params);
             }
-            stereoMirror.addSource(googleWebView);
+            stereoMirror.addSource(googlePanelView);
             googleWebView.loadUrl(GOOGLE_HOME_URL);
         }
         return googleWebView;
@@ -345,20 +370,35 @@ public class DixVrActivity extends AppCompatActivity {
     private WebView ensureYouTubeWebView() {
         if (youtubeWebView == null) {
             youtubeWebView = createConfiguredWebView(false);
+            youtubePanelView = createBrowserPanel(youtubeWebView, "youtube");
             int overlayIndex = rootLayout.indexOfChild(cursorOverlay);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT);
             if (overlayIndex >= 0) {
-                rootLayout.addView(youtubeWebView, overlayIndex, params);
+                rootLayout.addView(youtubePanelView, overlayIndex, params);
             } else {
-                rootLayout.addView(youtubeWebView, params);
+                rootLayout.addView(youtubePanelView, params);
             }
-            stereoMirror.addSource(youtubeWebView);
+            stereoMirror.addSource(youtubePanelView);
             youtubeWebView.loadUrl(YOUTUBE_HOME_URL);
         }
         return youtubeWebView;
     }
 
-    private PanelBounds applyPanelBounds(WebView panelView, String boundsJson) {
+    private void queuePanelGeometry(boolean google, String json) {
+        AtomicReference<String> latest = google ? pendingGoogleGeometry : pendingYouTubeGeometry;
+        AtomicBoolean queued = google ? googleGeometryQueued : youtubeGeometryQueued;
+        latest.set(json);
+        if (!queued.compareAndSet(false, true)) return;
+        mainHandler.post(() -> rootLayout.postOnAnimation(() -> {
+            queued.set(false);
+            String payload = latest.getAndSet(null);
+            if (payload == null) return;
+            if (google && googlePanelActive && googlePanelView != null) lastGoogleBounds = applyPanelBounds(googlePanelView, payload);
+            if (!google && youtubePanelActive && youtubePanelView != null) lastYouTubeBounds = applyPanelBounds(youtubePanelView, payload);
+        }));
+    }
+
+    private PanelBounds applyPanelBounds(ProjectedBrowserPanel panelView, String boundsJson) {
         if (panelView == null || mainWebView == null) {
             return null;
         }
@@ -388,16 +428,14 @@ public class DixVrActivity extends AppCompatActivity {
             lp.height = bounds.heightPx;
             panelView.setLayoutParams(lp);
         }
-        if (panelView instanceof ProjectedPanelWebView) {
-            ((ProjectedPanelWebView) panelView).updateProjection(boundsJson, bounds);
-        }
+        panelView.updateProjection(boundsJson, bounds);
         if (panelView.getVisibility() != View.VISIBLE) {
             panelView.setVisibility(View.VISIBLE);
         }
         return bounds;
     }
 
-    private void dispatchSyntheticTap(WebView target, PanelBounds bounds, double cssLocalX, double cssLocalY) {
+    private void dispatchSyntheticTap(View target, PanelBounds bounds, double cssLocalX, double cssLocalY) {
         if (target == null || target.getVisibility() != View.VISIBLE) {
             return;
         }
@@ -467,14 +505,23 @@ public class DixVrActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null);
+        googlePanelActive = false;
+        youtubePanelActive = false;
+        pendingGoogleGeometry.set(null);
+        pendingYouTubeGeometry.set(null);
         if (stereoMirror != null) stereoMirror.release();
         if (googleWebView != null) {
-            rootLayout.removeView(googleWebView);
+            rootLayout.removeView(googlePanelView);
+            if (googleWebView.getParent() instanceof ViewGroup) ((ViewGroup) googleWebView.getParent()).removeView(googleWebView);
+            googlePanelView = null;
             googleWebView.destroy();
             googleWebView = null;
         }
         if (youtubeWebView != null) {
-            rootLayout.removeView(youtubeWebView);
+            rootLayout.removeView(youtubePanelView);
+            if (youtubeWebView.getParent() instanceof ViewGroup) ((ViewGroup) youtubeWebView.getParent()).removeView(youtubeWebView);
+            youtubePanelView = null;
             youtubeWebView.destroy();
             youtubeWebView = null;
         }
@@ -511,6 +558,13 @@ public class DixVrActivity extends AppCompatActivity {
     }
 
     private final class EmbeddedPanelWebViewClient extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            if (view == googleWebView && googlePanelView != null) googlePanelView.setLocation(url);
+            if (view == youtubeWebView && youtubePanelView != null) youtubePanelView.setLocation(url);
+        }
+
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
@@ -553,8 +607,9 @@ public class DixVrActivity extends AppCompatActivity {
         public void showGooglePanel(String boundsJson) {
             mainHandler.post(() -> {
                 googlePanelActive = true;
+                pendingGoogleGeometry.set(null);
                 WebView view = ensureGoogleWebView();
-                lastGoogleBounds = applyPanelBounds(view, boundsJson);
+                lastGoogleBounds = applyPanelBounds(googlePanelView, boundsJson);
             });
         }
 
@@ -567,8 +622,9 @@ public class DixVrActivity extends AppCompatActivity {
         public void hideGooglePanel() {
             mainHandler.post(() -> {
                 googlePanelActive = false;
+                pendingGoogleGeometry.set(null);
                 if (googleWebView != null) {
-                    googleWebView.setVisibility(View.GONE);
+                    googlePanelView.setVisibility(View.GONE);
                 }
                 if (!youtubePanelActive && cursorOverlay != null) {
                     cursorOverlay.updateCursor(0f, 0f, 0f, false);
@@ -578,11 +634,25 @@ public class DixVrActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void updateGooglePanelBounds(String boundsJson) {
+            queuePanelGeometry(true, boundsJson);
+        }
+
+        @JavascriptInterface
+        public void openWebApp(String appId) {
             mainHandler.post(() -> {
-                if (!googlePanelActive || googleWebView == null) {
-                    return;
-                }
-                lastGoogleBounds = applyPanelBounds(googleWebView, boundsJson);
+                String url;
+                String name;
+                if ("wikipedia".equals(appId)) { url = "https://pt.wikipedia.org/"; name = "Wikipedia"; }
+                else if ("reddit".equals(appId)) { url = "https://www.reddit.com/"; name = "Reddit"; }
+                else if ("github".equals(appId)) { url = "https://github.com/"; name = "GitHub"; }
+                else if ("twitch".equals(appId)) { url = "https://www.twitch.tv/"; name = "Twitch"; }
+                else if ("maps".equals(appId)) { url = "https://www.google.com/maps"; name = "Maps"; }
+                else if ("poki".equals(appId)) { url = "https://poki.com/pt"; name = "Poki"; }
+                else return;
+                WebView page = ensureGoogleWebView();
+                googleHomeUrl = url;
+                googlePanelView.setTitle(name);
+                page.loadUrl(url);
             });
         }
 
@@ -605,7 +675,7 @@ public class DixVrActivity extends AppCompatActivity {
         public void homeGoogle() {
             mainHandler.post(() -> {
                 if (googleWebView != null) {
-                    googleWebView.loadUrl(GOOGLE_HOME_URL);
+                    googleWebView.loadUrl(googleHomeUrl);
                 }
             });
         }
@@ -651,7 +721,7 @@ public class DixVrActivity extends AppCompatActivity {
         public void clickGoogleAt(double localX, double localY) {
             mainHandler.post(() -> {
                 if (googlePanelActive && googleWebView != null) {
-                    dispatchSyntheticTap(googleWebView, lastGoogleBounds, localX, localY);
+                    dispatchSyntheticTap(googlePanelView, lastGoogleBounds, localX, localY);
                 }
             });
         }
@@ -660,8 +730,9 @@ public class DixVrActivity extends AppCompatActivity {
         public void showYouTubePanel(String boundsJson) {
             mainHandler.post(() -> {
                 youtubePanelActive = true;
+                pendingYouTubeGeometry.set(null);
                 WebView view = ensureYouTubeWebView();
-                lastYouTubeBounds = applyPanelBounds(view, boundsJson);
+                lastYouTubeBounds = applyPanelBounds(youtubePanelView, boundsJson);
             });
         }
 
@@ -669,8 +740,9 @@ public class DixVrActivity extends AppCompatActivity {
         public void hideYouTubePanel() {
             mainHandler.post(() -> {
                 youtubePanelActive = false;
+                pendingYouTubeGeometry.set(null);
                 if (youtubeWebView != null) {
-                    youtubeWebView.setVisibility(View.GONE);
+                    youtubePanelView.setVisibility(View.GONE);
                 }
                 if (!googlePanelActive && cursorOverlay != null) {
                     cursorOverlay.updateCursor(0f, 0f, 0f, false);
@@ -680,12 +752,7 @@ public class DixVrActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void updateYouTubePanelBounds(String boundsJson) {
-            mainHandler.post(() -> {
-                if (!youtubePanelActive || youtubeWebView == null) {
-                    return;
-                }
-                lastYouTubeBounds = applyPanelBounds(youtubeWebView, boundsJson);
-            });
+            queuePanelGeometry(false, boundsJson);
         }
 
         @JavascriptInterface
@@ -738,7 +805,7 @@ public class DixVrActivity extends AppCompatActivity {
         public void clickYouTubeAt(double localX, double localY) {
             mainHandler.post(() -> {
                 if (youtubePanelActive && youtubeWebView != null) {
-                    dispatchSyntheticTap(youtubeWebView, lastYouTubeBounds, localX, localY);
+                    dispatchSyntheticTap(youtubePanelView, lastYouTubeBounds, localX, localY);
                 }
             });
         }

@@ -10,7 +10,6 @@ import android.os.Looper;
 import android.view.PixelCopy;
 import android.view.View;
 import android.view.Window;
-import android.webkit.WebView;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,12 +25,12 @@ public final class NativeStereoMirrorView extends View {
     private int generation;
 
     private static final class Frame {
-        final WebView source;
+        final View source;
         Bitmap front;
         Bitmap back;
         final Rect destination = new Rect();
         boolean visible;
-        Frame(WebView source) { this.source = source; }
+        Frame(View source) { this.source = source; }
     }
 
     public NativeStereoMirrorView(Context context, Window window) {
@@ -42,7 +41,7 @@ public final class NativeStereoMirrorView extends View {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
 
-    public void addSource(WebView source) { frames.add(new Frame(source)); }
+    public void addSource(View source) { frames.add(new Frame(source)); }
 
     public void setStereo(boolean enabled) {
         stereo = enabled;
@@ -79,7 +78,7 @@ public final class NativeStereoMirrorView extends View {
             return;
         }
         Frame frame = frames.get(index);
-        WebView source = frame.source;
+        View source = frame.source;
         if (!source.isShown() || source.getWidth() < 1 || source.getHeight() < 1) {
             capture(index + 1, token);
             return;

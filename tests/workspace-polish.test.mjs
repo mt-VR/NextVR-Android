@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const html = await readFile('web/index.html', 'utf8');
 test('dock and workspace are closer without enabling head-follow', () => {
-  assert.match(html, /DOCK_DIST = 1\.78/);
-  assert.match(html, /ARC_DIST = 2\.00/);
+  assert.match(html, /DOCK_DIST = 1\.55/);
+  assert.match(html, /ARC_DIST = 1\.65/);
   assert.match(html, /let worldLockEnabled = true/);
 });
 test('grips are lower and the mini-window grip is outside the content', () => {
@@ -105,15 +105,15 @@ test('chicken albedo is sRGB and exposure/ambient no longer wash out shadows', (
 });
 
 test('web page is transformed/clipped to its actual floating surface', async () => {
-  const java = await readFile('app/src/main/java/com/dixvr/app/ProjectedPanelWebView.java', 'utf8');
+  const java = await readFile('app/src/main/java/com/dixvr/app/ProjectedBrowserPanel.java', 'utf8');
   const activity = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java', 'utf8');
   assert.match(html, /quad:getNativePanelQuad\(el\)/);
-  assert.match(html, /panel.localToWorld\(v\);v.project\(camera\)/);
+  assert.match(html, /probe.getBoundingClientRect\(\)/);
   assert.match(java, /projection.setPolyToPoly/);
   assert.match(java, /canvas.clipPath\(clip\)/);
   assert.match(java, /local.transform\(inverse\)/);
   assert.match(activity, /settings.setUseWideViewPort\(isMainShell\)/);
-  assert.match(activity, /settings.setTextZoom\(140\)/);
+  assert.match(activity, /settings.setTextZoom\(120\)/);
 });
 
 test('CI uploads an actual APK to a commit-pinned prerelease without changing latest main release', async () => {
@@ -125,27 +125,78 @@ test('CI uploads an actual APK to a commit-pinned prerelease without changing la
   assert.match(workflow, /sha256sum dixVR-debug.apk > dixVR-debug.apk.sha256/);
 });
 
-test('content quadrilateral projects all four corners rather than an enclosing rectangle', async () => {
-  const imported = await import('three');
-  const THREE = imported.default || imported;
+test('native corners follow actual DOM projection, including a pose change, without a second camera model', async () => {
   const { default: vm } = await import('node:vm');
-  const panel = new THREE.Object3D();
-  panel.element = { offsetWidth: 760, offsetHeight: 520 };
-  panel.scale.setScalar(.002);
-  panel.position.z = -2;
-  const scene = new THREE.Scene(); scene.add(panel);
-  const camera = new THREE.PerspectiveCamera(55, 2, .1, 100);
-  const el = { closest: () => true, offsetParent: panel.element, offsetLeft: 1, offsetTop: 96, offsetWidth: 726, offsetHeight: 424 };
-  const context = vm.createContext({ THREE, scene, camera, googlePanel3D: panel, youtubePanel3D: null, vrCardboardActive: false, window: { innerWidth: 800, innerHeight: 400 } });
-  const start = html.indexOf('function getNativePanelQuad(');
+  let pose = [[10,20],[110,22],[108,82],[12,85]];
+  let created = 0, appended = 0;
+  const root = { appendChild() { appended++; } };
+  const context = vm.createContext({ document: { createElement() {
+    const i=created++;
+    return { style: {}, setAttribute() {}, getBoundingClientRect: () => ({ left:pose[i][0], top:pose[i][1] }) };
+  } } });
+  const start = html.indexOf('const nativePanelCornerProbes = new WeakMap()');
   const end = html.indexOf('function serializeNativePanelBounds(', start);
   vm.runInContext(html.slice(start, end), context);
-  const flat = context.getNativePanelQuad(el);
-  assert.equal(flat.length, 8);
-  assert.ok(Math.abs(flat[1]-flat[3]) < 1e-8);
-  assert.ok(Math.abs(flat[0]-flat[6]) < 1e-8);
-  panel.rotation.y = .4;
-  const skewed = context.getNativePanelQuad(el);
-  assert.ok(Math.abs(skewed[1]-skewed[3]) > 1, 'perspective surface must retain its tilted top edge');
-  assert.ok(skewed.every(Number.isFinite));
+  assert.deepEqual([...context.getNativePanelQuad(root)], pose.flat());
+  pose = [[-20,10],[60,-3],[65,70],[-10,91]];
+  assert.deepEqual([...context.getNativePanelQuad(root)], pose.flat());
+  assert.equal(created,4,'reuse probes across camera frames');
+  assert.equal(appended,4);
+});
+
+test('browser frame and page share one native transform and fail closed on missing geometry', async () => {
+  const java = await readFile('app/src/main/java/com/dixvr/app/ProjectedBrowserPanel.java','utf8');
+  assert.match(java, /content.addView\(header/);
+  assert.match(java, /content.addView\(page/);
+  assert.match(java, /if \(!ready\) return;/);
+  assert.match(java, /canvas.concat\(projection\);\s*canvas.clipPath\(rounded\);\s*super.dispatchDraw/);
+  assert.match(java, /int width = dp\(480\)/);
+  assert.match(java, /float\[\] source = \{0, 0, logicalWidth/);
+  assert.doesNotMatch(java, /source = .*bounds.widthPx/);
+  assert.match(html, /native-composited/);
+});
+
+test('six web shortcuts have matching native allowlist entries and share the browser slot', async () => {
+  const java = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java','utf8');
+  const { default: vm } = await import('node:vm');
+  const start = html.indexOf('const WEB_APPS = [');
+  const end = html.indexOf('function openLibraryWebApp',start);
+  const apps = vm.runInNewContext(html.slice(start,end)+'; WEB_APPS');
+  assert.equal(apps.length,6);
+  for(const app of apps){
+    assert.match(java,new RegExp('"'+app.id+'"\\.equals\\(appId\\)'));
+    assert.ok(java.includes(app.url));
+    assert.ok(app.url.startsWith('https://'));
+  }
+  assert.match(html, /navegador compartilhado/);
+  assert.match(html, /nativeGoogleCall\('openWebApp',id\)/);
+});
+
+test('native geometry updates coalesce and pinch events reach the whole browser panel', async () => {
+  const java = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java','utf8');
+  assert.match(java,/latest.set\(json\)/);
+  assert.match(java,/queued.compareAndSet\(false, true\)/);
+  assert.match(java,/rootLayout.postOnAnimation/);
+  assert.match(java,/latest.getAndSet\(null\)/);
+  assert.match(java,/dispatchSyntheticTap\(googlePanelView/);
+  assert.match(java,/dispatchSyntheticTap\(youtubePanelView/);
+  assert.match(java,/stereoMirror.addSource\(googlePanelView\)/);
+  assert.match(java,/__dixVRMultitask.moveToSlot/);
+  assert.match(java,/"zoomIn".equals\(command\)/);
+});
+
+test('web shortcuts reject unknown app IDs and navigate only through the browser surface', async () => {
+  const { default: vm } = await import('node:vm');
+  const calls=[];
+  let opened=0;
+  const context=vm.createContext({ googleInstalled:false, localStorage:{setItem(){}}, googleFrame:null,
+    openGooglePanel:()=>opened++, nativeGoogleCall:(...args)=>{calls.push(args);return true;} });
+  const start=html.indexOf('const WEB_APPS = [');
+  const end=html.indexOf('function refreshLibrary()',start);
+  vm.runInContext(html.slice(start,end),context);
+  assert.equal(context.openLibraryWebApp('github'),true);
+  assert.equal(opened,1);
+  assert.deepEqual(calls,[['openWebApp','github']]);
+  assert.equal(context.openLibraryWebApp('unrecognized'),false);
+  assert.equal(opened,1);
 });

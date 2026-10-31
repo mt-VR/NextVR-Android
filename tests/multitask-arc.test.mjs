@@ -84,6 +84,8 @@ async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
     console,
     window: { innerWidth: 1920, innerHeight: 1080 },
     localStorage: { getItem: () => null, setItem: () => {} },
+    googleNativeBridgeActive: false,
+    youtubeNativeBridgeActive: false,
     requestAnimationFrame: (fn) => fn(),
     document: {
       getElementById: (id) => (id === 'google-panel-host' ? hostEl : makeElement('div')),

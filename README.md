@@ -67,18 +67,16 @@ adb install -r dixVR-debug.apk
 
 > O nome base do APK vem de `base.archivesName` no `app/build.gradle` (o Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`). O CI sempre publica o arquivo com o nome `dixVR-debug.apk`, independentemente do nome gerado localmente pelo Gradle.
 
-### Revisão atual: conteúdo integrado, raio de pinça e contraste
+### Revisão atual: navegador como uma peça só
 
-- Dock a 1,78 m e arco a 2 m (geometria medida, três janelas acima da Dock); World Lock mantido.
-- Google/YouTube usam uma página por janela, projetada e recortada nos quatro cantos da superfície flutuante. Não há uma segunda moldura nativa nem um iframe ativo escondido no Google.
-- Páginas sem zoom automático de visão geral, com texto em 140% para não virar uma miniatura de celular dentro da janela.
-- Raio sai do ponto médio entre polegar e indicador. A palma dirige a mira com suavização/zona morta; a mira fica travada durante a pinça e volta a mover ao soltar. Ainda é uma aproximação em tela, não um controlador 6DoF.
-- Mãos têm alvo de 24 inferências/s, sem concorrência; a taxa real depende do aparelho.
-- Chicken: albedo sRGB, exposição/iluminação reduzidas para recuperar cores, sombras recebidas pelo frango/bancada e sombra de contato barata. Resolução interna limitada a DPR 0,85, sem MSAA; o cenário inteiro não balança a cada frame.
-- Interface/canvases e mãos nas duas metades; jogos Chicken/Dreamcore com dois viewports no modo VR.
-- WebViews nativos têm cópia visual assíncrona via PixelCopy na metade direita, sem segunda página/áudio. A cópia é monocular e pode atrasar; vídeo protegido pode não ser capturado.
-- Sem botão/badge flutuante do ShootTheDie em VR; sair pelo Voltar do Android.
+- Moldura, botões e página agora pertencem ao mesmo `ProjectedBrowserPanel`: um único transform, um único recorte arredondado e a mesma inversa para toques/pinças. Não há uma moldura HTML animando separada da página nativa.
+- A geometria vem de quatro pontos do DOM, medidos na projeção CSS3D real. Atualizações antigas são substituídas pela mais recente antes do próximo frame Android, evitando fila de poses atrasadas.
+- O viewport interno da página fica estável ao virar, em vez de recalcular a largura do site a partir do retângulo inclinado.
+- Dock a 1,55 m e arco a 1,65 m; escala-base do navegador aumentada, mantendo 3 janelas acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
+- Biblioteca ganhou **Wikipedia, Reddit, GitHub, Twitch, Maps e Poki**. São atalhos web (não APKs instalados), compartilham a janela do navegador e exigem internet. Login, reprodução e compatibilidade dependem de cada site.
+- Mãos com alvo de 24 análises/s e raio entre polegar/indicador; mira trava durante a pinça.
+- Mantidas as correções de contraste/sombras do Chicken e a renderização estéreo dos jogos.
 
-**APK sem ZIP:** o CI da PR publica uma pré-release `dixvr-preview-<commit>` com o arquivo `dixVR-debug.apk` e seu SHA-256, sem alterar a release principal NextVR. O comentário automático na PR #45 contém o link direto e a alternativa por artefato.
+**APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
 
-**Limitações:** ainda não há SDK óptico oficial Cardboard, perfil QR ou correção de distorção. A projeção nativa e o espelhamento precisam ser conferidos no aparelho. Testes de build não garantem FPS ou correção visual em todos os celulares.
+**Validação necessária:** virar a cabeça, mover a alça, tocar e fechar o navegador precisam ser conferidos no aparelho. O espelhamento da lente direita via PixelCopy é monocular e pode atrasar ou não capturar vídeo protegido. Ainda não há SDK óptico Cardboard, perfil QR ou correção de distorção. FPS real não é garantido por testes de build.

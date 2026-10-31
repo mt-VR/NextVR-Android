@@ -1114,6 +1114,11 @@ body.vr-cardboard::after{
         .dock-item svg { width:38px; height:38px; }
         .library-app-sub { font-size:12px; }
         .dixvr-win-name { font-size:16px; }
+
+        .native-composited { background:transparent !important; border-color:transparent !important; box-shadow:none !important; backdrop-filter:none !important; overflow:visible !important; }
+        .native-composited > :not(.google-move-handle):not(.youtube-move-handle):not(.native-corner-probe) { visibility:hidden !important; pointer-events:none !important; }
+        .native-composited > .google-move-handle, .native-composited > .youtube-move-handle { right:-38px; left:auto; }
+        .web-shortcut-icon { display:grid; place-items:center; width:78px; height:78px; margin:0 auto 10px; border-radius:18px; color:white; font-size:28px; font-weight:800; }
     </style>
 
 <style id="roblox-launcher-landscape-lock">
@@ -2788,14 +2793,14 @@ body.vr-cardboard::after{
         // ===== MULTITAREFA ESPACIAL dixVR (ESTILO NEXTVR: ATÉ 3 APPS ACIMA DA DOCK) =====
         const MULTITASK_MAX = 3;
         const MULTITASK_SLOTS = ['center', 'left', 'right'];
-        const DOCK_DIST = 1.78;
+        const DOCK_DIST = 1.55;
         const DOCK_Y = -0.68;
         const DOCK_SCALE = 0.0024;
         const DOCK_HALF_HEIGHT = 0.085;      // fallback: usado so se a dock nao estiver mensuravel
         const DOCK_TILT = 0.14;              // a dock e inclinada para o usuario
         const DOCK_CLEARANCE = 0.18;         // folga minima entre o topo da dock e a base da janela
         const WINDOW_TOP_MAX_Y = 0.46;       // teto de altura: janela alta ENCOLHE, nao sobe
-        const ARC_DIST = 2.00;
+        const ARC_DIST = 1.65;
         const ARC_MIN_STEP = 0.52;
         const ARC_MAX_STEP = 0.92;
         const ARC_GAP_M = 0.12;              // folga horizontal entre janelas vizinhas
@@ -2858,9 +2863,9 @@ body.vr-cardboard::after{
                 const entry = getMultitaskEntry(appId);
                 if (!entry || !entry.panel3D || !entry.panel3D.visible || !entry.wrapperEl) continue;
                 if (appId === 'google') {
-                    elements = elements.concat(Array.from(entry.wrapperEl.querySelectorAll('button, input')));
+                    if(!googleNativeBridgeActive) elements = elements.concat(Array.from(entry.wrapperEl.querySelectorAll('button, input')));
                 } else if (appId === 'youtube') {
-                    elements = elements.concat(Array.from(entry.wrapperEl.querySelectorAll('button')));
+                    if(!youtubeNativeBridgeActive) elements = elements.concat(Array.from(entry.wrapperEl.querySelectorAll('button')));
                 } else {
                     elements = elements.concat(Array.from(entry.wrapperEl.querySelectorAll(INTERACTIVE_UI_SELECTOR)));
                 }
@@ -3008,7 +3013,7 @@ body.vr-cardboard::after{
                     cached.wrapperEl = wrapperEl;
                     return cached;
                 }
-                multitaskEntryCache[appId] = { appId, panel3D, wrapperEl, baseScale: 0.00164, pxW: 940, pxH: 610 };
+                multitaskEntryCache[appId] = { appId, panel3D, wrapperEl, baseScale: 0.00195, pxW: 940, pxH: 610 };
                 return multitaskEntryCache[appId];
             }
             return multitaskPanels[appId] || null;
@@ -3925,6 +3930,27 @@ body.vr-cardboard::after{
             refreshStore();
         }
 
+        const WEB_APPS = [
+            {id:'wikipedia',name:'Wikipedia',url:'https://pt.wikipedia.org/',color:'#586174',icon:'W'},
+            {id:'reddit',name:'Reddit',url:'https://www.reddit.com/',color:'#e95322',icon:'r'},
+            {id:'github',name:'GitHub',url:'https://github.com/',color:'#283448',icon:'GH'},
+            {id:'twitch',name:'Twitch',url:'https://www.twitch.tv/',color:'#8245dd',icon:'TV'},
+            {id:'maps',name:'Maps',url:'https://www.google.com/maps',color:'#22875d',icon:'⌖'},
+            {id:'poki',name:'Poki',url:'https://poki.com/pt',color:'#197bc0',icon:'▶'}
+        ];
+        function openLibraryWebApp(id){
+            const app=WEB_APPS.find(app=>app.id===id);
+            if(!app)return false;
+            googleInstalled=true;
+            try{localStorage.setItem('dixVR_google_installed','1');}catch(e){}
+            openGooglePanel();
+            if(!nativeGoogleCall('openWebApp',id) && googleFrame){
+                googleFrame.src=app.url;
+                showGoogleSearchOverlay(false);
+            }
+            return true;
+        }
+
         function refreshLibrary(){
             const area=uiQuery('#library-apps');
             if(!area)return;
@@ -3976,7 +4002,11 @@ body.vr-cardboard::after{
                     <div class="store-app-icon"><svg viewBox="0 0 72 72"><rect x="3" y="3" width="66" height="66" rx="18" fill="#11151d" stroke="#2b3342"/><circle cx="36" cy="36" r="21" fill="none" stroke="#fff" stroke-width="4"/><circle cx="36" cy="36" r="5" fill="#fff"/><path d="M36 10v10M36 52v10M10 36h10M52 36h10" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg></div>
                     <div class="library-app-title">ShootTheDie</div><div class="library-app-sub">FPS VR · HTML</div></button>`;
             }
+            html += WEB_APPS.map(app=>`<button class="library-app" data-web-app="${app.id}" title="Abrir ${app.name} no navegador">
+                <div class="web-shortcut-icon" style="background:${app.color}">${app.icon}</div>
+                <div class="library-app-title">${app.name}</div><div class="library-app-sub">Web · navegador compartilhado</div></button>`).join('');
             area.innerHTML = html || '<div style="color:rgba(255,255,255,.45);font-size:13px;padding:10px 0">Nenhum aplicativo instalado ainda.</div>';
+            area.querySelectorAll('[data-web-app]').forEach(button=>button.addEventListener('click',e=>{e.stopPropagation();openLibraryWebApp(button.dataset.webApp);}));
             area.querySelector('#library-google-app')?.addEventListener('click',(e)=>{e.stopPropagation();openGooglePanel();});
             area.querySelector('#library-youtube-app')?.addEventListener('click',(e)=>{e.stopPropagation();openYouTubePanel();});
             area.querySelector('#library-kitchen-app')?.addEventListener('click',(e)=>{e.stopPropagation();openKitchenGame();});
@@ -4203,29 +4233,33 @@ body.vr-cardboard::after{
         const GOOGLE_NATIVE_MAX_DWELL_MOVE=28;
 
         function getNativeDixVRApi(){ return window.DixVR||window.dixVR||window.Android||null; }
+        const nativePanelCornerProbes = new WeakMap();
         function getNativePanelQuad(el) {
-            const panel = el.closest('.google-vr-panel') ? googlePanel3D : youtubePanel3D;
-            if (!panel || !camera) return null;
-            let x=0,y=0,node=el;
-            while(node && node!==panel.element){x+=node.offsetLeft||0;y+=node.offsetTop||0;node=node.offsetParent;}
-            if(node!==panel.element) return null;
-            scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);
-            const pw=panel.element.offsetWidth,ph=panel.element.offsetHeight;
-            const width=vrCardboardActive?window.innerWidth*.5:window.innerWidth;
-            return [[x,y],[x+el.offsetWidth,y],[x+el.offsetWidth,y+el.offsetHeight],[x,y+el.offsetHeight]].flatMap(([px,py])=>{
-                const v=new THREE.Vector3(px-pw/2,ph/2-py,0);
-                panel.localToWorld(v);v.project(camera);
-                return [(v.x+1)*width*.5,(1-v.y)*window.innerHeight*.5];
-            });
+            // Read the browser's actual CSS3D projection, not a second camera math approximation.
+            let probes=nativePanelCornerProbes.get(el);
+            if(!probes){
+                probes=[[0,0],[100,0],[100,100],[0,100]].map(([x,y])=>{
+                    const probe=document.createElement('span');
+                    probe.className='native-corner-probe';
+                    probe.setAttribute('aria-hidden','true');
+                    probe.style.cssText=`position:absolute;left:${x}%;top:${y}%;width:0;height:0;padding:0;margin:0;border:0;pointer-events:none;`;
+                    el.appendChild(probe);
+                    return probe;
+                });
+                nativePanelCornerProbes.set(el,probes);
+            }
+            return probes.flatMap(probe=>{const r=probe.getBoundingClientRect();return [r.left,r.top];});
         }
 
         function serializeNativePanelBounds(el){
+            el=el.closest('.google-vr-panel, .youtube-vr-panel')||el;
             const r=el.getBoundingClientRect();
             return JSON.stringify({
                 left:r.left, top:r.top, right:r.right, bottom:r.bottom,
                 width:r.width, height:r.height,
                 vw:window.innerWidth||1, vh:window.innerHeight||1,
                 quad:getNativePanelQuad(el),
+                surfaceWidth:el.offsetWidth, surfaceHeight:el.offsetHeight,
                 vrSplit:!!vrCardboardActive
             });
         }
@@ -4247,12 +4281,14 @@ body.vr-cardboard::after{
                     const content=googlePanelElement?.querySelector('.google-content');
                     if(content)fn.call(api,serializeNativePanelBounds(content));
                     else fn.call(api,'{}');
+                    googlePanelElement.classList.add('native-composited');
                     googleNativeBridgeActive=true;
                     lastNativeGoogleGeometry=null;
                     googleNativeDwellStartedAt=0;
                     googleNativeDwellTriggered=false;
                 }else{
                     fn.call(api);
+                    googlePanelElement?.classList.remove('native-composited');
                     googleNativeBridgeActive=false;
                     googleNativeDwellStartedAt=0;
                     googleNativeDwellTriggered=false;
@@ -4299,12 +4335,14 @@ body.vr-cardboard::after{
                     const content=youtubePanelElement?.querySelector('.youtube-content');
                     if(content)fn.call(api,serializeNativePanelBounds(content));
                     else fn.call(api,'{}');
+                    youtubePanelElement.classList.add('native-composited');
                     youtubeNativeBridgeActive=true;
                     lastNativeYouTubeGeometry=null;
                     youtubeNativeDwellStartedAt=0;
                     youtubeNativeDwellTriggered=false;
                 }else{
                     fn.call(api);
+                    youtubePanelElement?.classList.remove('native-composited');
                     youtubeNativeBridgeActive=false;
                     youtubeNativeDwellStartedAt=0;
                     youtubeNativeDwellTriggered=false;
@@ -4404,7 +4442,7 @@ body.vr-cardboard::after{
             if (!pinchHold) youtubeViewportPinch[side] = false;
             if (pinchStart) youtubeViewportPinch[side] = true;
             if (!youtubeNativeBridgeActive || !youtubePanel3D?.visible) return;
-            const r = youtubePanelElement?.querySelector('.youtube-content')?.getBoundingClientRect();
+            const r = youtubePanelElement?.getBoundingClientRect();
             if (!r || aim.x < r.left || aim.x > r.right || aim.y < r.top || aim.y > r.bottom) return;
             if (pinchStart && !wasPinching) {
                 nativeGoogleCall('clickYouTubeAt', Math.max(0, aim.x-r.left), Math.max(0, aim.y-r.top));
@@ -4509,7 +4547,7 @@ body.vr-cardboard::after{
             if (!pinchHold) googleViewportPinch[side] = false;
             if (pinchStart) googleViewportPinch[side] = true;
             if (!googleNativeBridgeActive || !googlePanel3D?.visible) return;
-            const r = googlePanelElement?.querySelector('.google-content')?.getBoundingClientRect();
+            const r = googlePanelElement?.getBoundingClientRect();
             if (!r || aim.x < r.left || aim.x > r.right || aim.y < r.top || aim.y > r.bottom) return;
             if (pinchStart && !wasPinching) {
                 nativeGoogleCall('clickGoogleAt', Math.max(0, aim.x-r.left), Math.max(0, aim.y-r.top));
@@ -5345,7 +5383,7 @@ body.vr-cardboard::after{
                 if(!experimentGameActive && googlePanelElement && googlePanel3D && googlePanel3D.visible && googleHandleElement){
                     const r=googleHandleElement.getBoundingClientRect();
                     const topbarEl=googlePanelElement.querySelector('.google-topbar');
-                    const rTop=topbarEl?topbarEl.getBoundingClientRect():null;
+                    const rTop=(!googleNativeBridgeActive && topbarEl)?topbarEl.getBoundingClientRect():null;
                     const PAD=45;
                     const overHandle=(indexTip.x>=r.left-PAD&&indexTip.x<=r.right+PAD&&indexTip.y>=r.top-PAD&&indexTip.y<=r.bottom+PAD)
                         || (rTop && indexTip.x>=rTop.left-10&&indexTip.x<=rTop.right+10&&indexTip.y>=rTop.top-15&&indexTip.y<=rTop.bottom+15);
@@ -5381,7 +5419,7 @@ body.vr-cardboard::after{
                 if(!experimentGameActive && youtubePanelElement && youtubePanel3D && youtubePanel3D.visible && youtubeHandleElement){
                     const r=youtubeHandleElement.getBoundingClientRect();
                     const topbarEl=youtubePanelElement.querySelector('.youtube-topbar');
-                    const rTop=topbarEl?topbarEl.getBoundingClientRect():null;
+                    const rTop=(!youtubeNativeBridgeActive && topbarEl)?topbarEl.getBoundingClientRect():null;
                     const PAD=45;
                     const overHandle=(indexTip.x>=r.left-PAD&&indexTip.x<=r.right+PAD&&indexTip.y>=r.top-PAD&&indexTip.y<=r.bottom+PAD)
                         || (rTop && indexTip.x>=rTop.left-10&&indexTip.x<=rTop.right+10&&indexTip.y>=rTop.top-15&&indexTip.y<=rTop.bottom+15);
