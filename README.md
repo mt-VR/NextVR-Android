@@ -67,9 +67,20 @@ adb install -r dixVR-debug.apk
 
 > O nome base do APK vem de `base.archivesName` no `app/build.gradle` (o Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`). O CI sempre publica o arquivo com o nome `dixVR-debug.apk`, independentemente do nome gerado localmente pelo Gradle.
 
-### Controles do workspace
+### Revisão: base estável + desempenho/VR
 
-- Alça branca horizontal abaixo da dock; alças brancas à direita das janelas para arrastar com toque ou pinça.
-- Dock a 1,85 m e arco das janelas a 2 m, mantendo as três janelas acima da dock.
-- Workspace acompanha a direção da cabeça por padrão (World Lock continua opcional) e recentra ao entrar e sair dos jogos.
-- Hand tracking com alvo de 24 FPS e sem inferências simultâneas; desempenho real depende do aparelho.
+Esta revisão parte da build `0917cfa` (41136029467), não da mudança de head-follow.
+
+- Distâncias e World Lock anteriores restaurados; alças um pouco mais baixas e alça da janela afastada à direita.
+- Google menor, textos maiores, fechamento restrito à sua janela da multitarefa.
+- Google e YouTube permanecem em WebViews embutidos; YouTube usa `https://www.youtube.com/`.
+- Ativação por pinça com raio projetado na interface, sem esperar o dwell. O raio é uma aproximação em tela, não rastreamento 6DoF de controlador.
+- Interface/canvases e mãos atualizados nas duas metades; jogos Chicken/Dreamcore usam duas câmeras no modo VR.
+- WebViews nativos usam uma cópia visual assíncrona via PixelCopy para a metade direita, sem carregar uma segunda página nem duplicar áudio. Essa cópia é monocular e pode ter atraso; conteúdo protegido pode não ser capturado. Precisa de teste em aparelho.
+- GPU: resolução interna limitada a DPR 1 nos jogos, sombras da cozinha em 1024, workspace oculto sem renderização durante jogos, iluminação de preenchimento mais clara no Chicken.
+- Removidos o botão/badge flutuantes do ShootTheDie em VR; sair pelo botão Voltar do Android.
+- Ícones recompostos da imagem de referência enviada pelo usuário (não são o pacote oficial de assets).
+
+**Limitações:** o modo lado a lado ainda não implementa o SDK óptico do Google Cardboard, perfil QR ou correção de distorção de lentes. Não equivale ao renderer oficial Cardboard. FPS real e sincronização visual precisam ser medidos no celular; testes de build não garantem fluidez.
+
+Para o APK mais recente, veja o comentário automático **APK dixVR pronto** na PR #45 e abra a execução indicada, seção **Artifacts**, artefato `dixvr-debug-apk`.

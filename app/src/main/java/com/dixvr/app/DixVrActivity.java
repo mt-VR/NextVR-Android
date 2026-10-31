@@ -54,7 +54,7 @@ import java.util.List;
 public class DixVrActivity extends AppCompatActivity {
     private static final int REQ_CAMERA = 1001;
     private static final String GOOGLE_HOME_URL = "https://www.google.com/";
-    private static final String YOUTUBE_HOME_URL = "https://m.youtube.com/";
+    private static final String YOUTUBE_HOME_URL = "https://www.youtube.com/";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private FrameLayout rootLayout;
@@ -62,6 +62,7 @@ public class DixVrActivity extends AppCompatActivity {
     private WebView googleWebView;
     private WebView youtubeWebView;
     private HandCursorOverlayView cursorOverlay;
+    private NativeStereoMirrorView stereoMirror;
 
     private PanelBounds lastGoogleBounds;
     private PanelBounds lastYouTubeBounds;
@@ -94,6 +95,11 @@ public class DixVrActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         );
+
+        stereoMirror = new NativeStereoMirrorView(this, getWindow());
+        stereoMirror.setStereo(false);
+        rootLayout.addView(stereoMirror, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         cursorOverlay = new HandCursorOverlayView(this);
         rootLayout.addView(
@@ -133,6 +139,7 @@ public class DixVrActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        if (!isMainShell) settings.setTextZoom(120);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
@@ -329,6 +336,7 @@ public class DixVrActivity extends AppCompatActivity {
             } else {
                 rootLayout.addView(googleWebView, params);
             }
+            stereoMirror.addSource(googleWebView);
             googleWebView.loadUrl(GOOGLE_HOME_URL);
         }
         return googleWebView;
@@ -344,6 +352,7 @@ public class DixVrActivity extends AppCompatActivity {
             } else {
                 rootLayout.addView(youtubeWebView, params);
             }
+            stereoMirror.addSource(youtubeWebView);
             youtubeWebView.loadUrl(YOUTUBE_HOME_URL);
         }
         return youtubeWebView;
@@ -424,6 +433,7 @@ public class DixVrActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (stereoMirror != null) stereoMirror.setRunning(true);
         applyImmersiveFullscreen();
         if (mainWebView != null) {
             mainWebView.onResume();
@@ -439,6 +449,7 @@ public class DixVrActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
+        if (stereoMirror != null) stereoMirror.setRunning(false);
         if (googleWebView != null) {
             googleWebView.onPause();
         }
@@ -453,6 +464,7 @@ public class DixVrActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (stereoMirror != null) stereoMirror.release();
         if (googleWebView != null) {
             rootLayout.removeView(googleWebView);
             googleWebView.destroy();
@@ -541,6 +553,11 @@ public class DixVrActivity extends AppCompatActivity {
                 WebView view = ensureGoogleWebView();
                 lastGoogleBounds = applyPanelBounds(view, boundsJson);
             });
+        }
+
+        @JavascriptInterface
+        public void setStereoMode(boolean enabled) {
+            mainHandler.post(() -> { if (stereoMirror != null) stereoMirror.setStereo(enabled); });
         }
 
         @JavascriptInterface

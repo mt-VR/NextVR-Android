@@ -2,33 +2,68 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const html = await readFile('web/index.html', 'utf8');
-test('dock grip is below and mini-window grip is on the right', () => {
-  const dock = html.match(/\.panel-move-handle \{([^}]+)\}/)[1];
-  assert.match(dock, /bottom: -17px/);
-  assert.match(dock, /translateX/);
-  const grip = html.match(/\.dixvr-win-move-handle \{([^}]+)\}/)[1];
-  assert.match(grip, /right: 0/);
+test('stable world-locked geometry is restored', () => {
+  assert.match(html, /DOCK_DIST = 2\.08/);
+  assert.match(html, /ARC_DIST = 2\.26/);
+  assert.match(html, /let worldLockEnabled = true/);
+});
+test('grips are lower and the mini-window grip is outside the content', () => {
+  assert.match(html, /left: -20px;\s*top: 60%/);
+  assert.match(html, /right:-42px; top:60%/);
   assert.match(html, /attachMultitaskPointerDrag\(handle, appId, getPanel3D\)/);
-  assert.match(html, /drag.side !== side/);
-  assert.match(html, /if \(!drag.seen\)/);
 });
-test('workspace is closer, follows gaze by default and recenters at game transitions', () => {
-  assert.match(html, /DOCK_DIST = 1\.85/);
-  assert.match(html, /ARC_DIST = 2\.00/);
-  assert.match(html, /let worldLockEnabled = false/);
-  assert.match(html, /function suspendMultitaskForGame\(suspend\) \{\s*multitaskSuspendedForGame = !!suspend;\s*alignPanelInFront\(\)/);
+test('both eyes receive changing UI, canvas pixels and hand overlay', () => {
+  assert.match(html, /clone.element.className = obj.element.className/);
+  assert.match(html, /clone.userData.markup !== markup/);
+  assert.match(html, /copies\[i\].getContext\('2d'\)\?\.drawImage/);
+  assert.match(html, /ctx.drawImage\(handsCanvas, 0, 0\)/);
+  assert.match(html, /VR_EYE_RENDER_INTERVAL = 0/);
 });
-test('24 FPS scheduling preserves remainder instead of falling to 15 FPS on a 30 Hz camera', () => {
-  assert.match(html, /ANALYSIS_INTERVAL = 1000 \/ 24/);
-  assert.match(html, /lastAnalysisTime = now - Math.min/);
-  let last = 0, frames = 0;
-  const interval = 1000 / 24;
-  for (let i = 1; i <= 300; i++) {
-    const now = i * 1000 / 30;
-    if (now - last >= interval) {
-      last = now - Math.min(now - last - interval, interval);
-      frames++;
-    }
-  }
-  assert.ok(frames >= 239 && frames <= 240, `analyzed ${frames} frames in 10 seconds`);
+test('VR hides inactive ShootTheDie host and exit overlay', () => {
+  assert.match(html, /#shoot-the-die-host:not\(\.active\) \{ display:none !important/);
+  assert.match(html, /#shoot-the-die-close \{ display:none !important/);
+});
+test('pinch clicks on rising edge and Google remains an individual multitask surface', () => {
+  const pinch = html.slice(html.indexOf('function processPinchClick'), html.indexOf('function findScrollablePanelAt'));
+  assert.match(pinch, /pinchStart&&!wasPinching/);
+  assert.match(pinch, /target.click\(\)/);
+  assert.doesNotMatch(pinch, /DWELL_CLICK_MS/);
+  assert.match(html, /if \(findSlotOfApp\('google'\)\) closeMultitaskWindow\('google'\)/);
+});
+test('games reduce GPU cost without disabling kitchen shadows', () => {
+  assert.match(html, /key.shadow.mapSize.set\(1024,1024\)/);
+  assert.match(html, /kitchenRenderer.shadowMap.enabled=true/);
+  assert.match(html, /if\(experimentGameActive\) \{ renderHandsUI\(\); syncRightHandOverlay\(\); return; \}/);
+});
+
+test('holding a pinch clicks once; release rearms it without a dwell delay', async () => {
+  const { default: vm } = await import('node:vm');
+  const start = html.indexOf('function processPinchClick(');
+  const end = html.indexOf('function findScrollablePanelAt', start);
+  let clicks = 0;
+  let target = { click() { clicks++; } };
+  const context = vm.createContext({ experimentGameActive: false, pinchClickState: {}, findInteractiveAt: () => target });
+  vm.runInContext(html.slice(start, end), context);
+  context.processPinchClick('Left', 10, 10, true, true);
+  context.processPinchClick('Left', 10, 10, true, true);
+  assert.equal(clicks, 1);
+  context.processPinchClick('Left', 10, 10, false, false);
+  context.processPinchClick('Left', 10, 10, true, true);
+  assert.equal(clicks, 2);
+  target = null;
+  context.processPinchClick('Right', 10, 10, true, true);
+  target = { click() { clicks++; } };
+  context.processPinchClick('Right', 10, 10, true, true);
+  assert.equal(clicks, 2, 'a held pinch must not click a newly encountered target');
+});
+
+test('native right eye mirrors one WebView, without a second playback instance', async () => {
+  const java = await readFile('app/src/main/java/com/dixvr/app/NativeStereoMirrorView.java', 'utf8');
+  assert.match(java, /PixelCopy.request\(window, crop, frame.back/);
+  assert.match(java, /token == generation/);
+  assert.match(java, /frame.source.isShown\(\)/);
+  assert.match(java, /handler.removeCallbacks\(tick\)/);
+  assert.doesNotMatch(java, /new WebView|loadUrl/);
+  assert.match(html, /nativeGoogleCall\('setStereoMode', true\)/);
+  assert.match(html, /nativeGoogleCall\('setStereoMode', false\)/);
 });
