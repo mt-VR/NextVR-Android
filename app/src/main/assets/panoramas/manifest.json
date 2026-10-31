@@ -1,51 +1,44 @@
 [
   {
-    "id": "cyberpunk-avenue",
-    "label": "Avenida futurista",
-    "file": "cyberpunk-avenue.jpg",
-    "source": "cyberpunk-night-city-tron-future-panorama-hdris-mapa-do-ambiente-completo-de-graus-futurístico-superfície-computador-studio-d-284240028.jpg",
-    "sha256": "8ac5d1d5a9159dc040aa89ed2717a88a7d243d76e0308c073c95329121241054"
-  },
-  {
-    "id": "neon-crossroads",
-    "label": "Cruzamento neon",
-    "file": "neon-crossroads.jpg",
-    "source": "cyberpunk-night-city-tron-future-panorama-hdris-mapa-do-ambiente-panorâmico-completo-de-graus-da-paisagem-urbana-steampunk-velha-281629109.jpg",
-    "sha256": "95706fab2dbe95fc1787895a061cdb9230b411cf6471fbd07059dfe875d46a43"
-  },
-  {
-    "id": "night-skyline",
-    "label": "Torres noturnas",
-    "file": "night-skyline.jpg",
-    "source": "34d55c698a99941b0ac8fb1eaf456ea0.jpg",
-    "sha256": "8769c8f1a15ff08c04d9b798d964de0d93934fedd8bd5a23b9e83cfea9552495"
-  },
-  {
-    "id": "car-factory",
-    "label": "Fábrica de carros",
-    "file": "car-factory.jpg",
-    "source": "d15f86946ca23e1ff8131bfc2b196a98.jpg",
-    "sha256": "edb2693d671cf8f138b72bcc7a5c677747299e663a4df1e8204892458a80cfda"
-  },
-  {
     "id": "gaming-room",
     "label": "Sala gamer azul",
     "file": "gaming-room.png",
     "source": "file_00000000efc0820eaf31a8b0c7a0e0bd.png",
-    "sha256": "bce752663c65322345ed58834182cbd5ec861d2cfe9eba0b3a7bc2fe18c99640"
+    "sha256": "bce752663c65322345ed58834182cbd5ec861d2cfe9eba0b3a7bc2fe18c99640",
+    "thumbnail": "thumbnails/gaming-room.webp"
   },
   {
     "id": "future-studio",
     "label": "Estúdio futurista",
     "file": "future-studio.webp",
     "source": "fdca5ff3-dbd2-4387-932b-48c45977ef2f.webp",
-    "sha256": "ac392333b8ee95f96f59908204cf36a80bf366341c69a4a4d2d21f467a5865f6"
+    "sha256": "ac392333b8ee95f96f59908204cf36a80bf366341c69a4a4d2d21f467a5865f6",
+    "thumbnail": "thumbnails/future-studio.webp"
   },
   {
     "id": "purple-street",
     "label": "Rua violeta",
     "file": "purple-street.png",
     "source": "file_0000000046cc820ebadab3742a546cd2.png",
-    "sha256": "aad818eda6d8acb0ecaa27c32f5805f1e4e952c131cc7655d671ce811a399bea"
+    "sha256": "aad818eda6d8acb0ecaa27c32f5805f1e4e952c131cc7655d671ce811a399bea",
+    "thumbnail": "thumbnails/purple-street.webp"
+  },
+  {
+    "id": "orbital-observatory",
+    "label": "Observatório orbital",
+    "file": "orbital-observatory.webp",
+    "source": "AI-generated for dixVR",
+    "generated": true,
+    "sha256": "9dd6c1d2016cc814f00c2eaa3d860f186bdb3c5a70dba44ddf625168eb8b2d39",
+    "thumbnail": "thumbnails/orbital-observatory.webp"
+  },
+  {
+    "id": "moonlit-lake",
+    "label": "Lago ao luar",
+    "file": "moonlit-lake.webp",
+    "source": "AI-generated for dixVR",
+    "generated": true,
+    "sha256": "4a60239019614809143d67a0a5e9bc07f70d8f9ecf2118392f0537b482ee495d",
+    "thumbnail": "thumbnails/moonlit-lake.webp"
   }
 ]

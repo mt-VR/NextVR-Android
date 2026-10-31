@@ -161,6 +161,7 @@ async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
     createFloatingDomWindow('library', document.createElement('div'), 'Biblioteca · dixVR');
     createFloatingDomWindow('store', document.createElement('div'), 'Loja · dixVR');
     createFloatingDomWindow('chat', document.createElement('div'), 'Notas · dixVR');
+    createFloatingDomWindow('panoramas', document.createElement('div'), 'Ambientes · dixVR');
   `, sandbox);
 
   const sizeScript = Object.entries(sizes)
@@ -342,4 +343,14 @@ test('all three windows retain the center scale and canonical dimensions, even a
   assert.ok(snap.arcRadius>=1.65, 'move arc out instead of shrinking side windows');
   assert.ok(snap.arcStep<=.92);
   assert.ok(perpendicularDistance(snap.windows.center,snap.windows.left)>=snap.windows.center.halfW+snap.windows.left.projectedHalfW-1e-7);
+});
+
+
+test('panorama gallery occupies one of the three equal-sized above-Dock slots', async () => {
+  const mt=await createMultitaskHarness();
+  mt.open('library');mt.open('google');mt.open('youtube');mt.open('panoramas');
+  const snapshot=mt.getGeometrySnapshot(),windows=Object.values(snapshot.windows);
+  assert.equal(windows.length,3);
+  assert.ok(windows.some(w=>w.appId==='panoramas'));
+  for(const w of windows){assert.equal(w.pxW,760);assert.equal(w.pxH,480);assert.equal(w.scale,snapshot.windows.center.scale);}
 });

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, cp } from 'node:fs/promises';
+import { copyFile, mkdir, cp, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +25,7 @@ await mkdir(join(assetsDir, 'vendor/mediapipe/hands'), { recursive: true });
 
 await copyFile(join(root, 'web/index.html'), join(assetsDir, 'index.html'));
 await cp(join(root, 'web/icons'), join(assetsDir, 'icons'), { recursive: true });
+await rm(join(assetsDir, 'panoramas'), { recursive: true, force: true });
 await cp(join(root, 'web/panoramas'), join(assetsDir, 'panoramas'), { recursive: true });
 await copyFile(
   join(root, 'node_modules/three/build/three.min.js'),
@@ -34,6 +35,7 @@ await copyFile(
   join(root, 'node_modules/three/examples/js/renderers/CSS3DRenderer.js'),
   join(assetsDir, 'vendor/three/CSS3DRenderer.js')
 );
+await copyFile(join(root, 'node_modules/three/examples/js/utils/BufferGeometryUtils.js'), join(assetsDir, 'vendor/three/BufferGeometryUtils.js'));
 await copyFile(
   join(root, 'node_modules/@mediapipe/camera_utils/camera_utils.js'),
   join(assetsDir, 'vendor/mediapipe/camera_utils/camera_utils.js')

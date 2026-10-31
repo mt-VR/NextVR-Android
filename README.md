@@ -88,13 +88,19 @@ adb install -r dixVR-debug.apk
 ### Ícone DI e panoramas enviados
 
 - Ícone Android **DI branco sobre preto**, conforme imagem enviada, em todas as densidades e nas variantes adaptativa/redonda. Identidade `com.dixvr.app` e chave de assinatura preservadas.
-- Removida a praia procedural 3D. O botão **câmera / 360°** da Dock percorre somente os **sete panoramas enviados**, na ordem das imagens, e depois volta ao passthrough. O contador `1/7` … `7/7` identifica a seleção; `360°` indica câmera. Todos os arquivos são locais, sem download na execução.
+- Removida a praia procedural 3D. O botão **câmera / 360°** da Dock abre a janela flutuante **Ambientes**, com miniaturas, seleção por toque/pinça, indicação do ambiente ativo e botão de câmera real. Foram removidos os quatro primeiros panoramas; mantidos sala gamer, estúdio futurista e rua violeta. Adicionados **Observatório orbital** e **Lago ao luar**, criados com IA e identificados na galeria. Todos os arquivos são locais, sem download na execução.
 - Panoramas monoscópicos equiretangulares: rotação acompanhando a cabeça, mesmo fundo nos dois olhos, sem parallax/6DoF. Uma esfera sem iluminação/sombras substitui a praia animada. Imagens mantidas na resolução recebida e com os créditos/marcas existentes; consulte `web/panoramas/NOTICE.md`.
 - Raio encurtado: extrapolação de 2 para 0,85 e alcance visual livre de até 28% da menor dimensão da lente. Mantidos a trava durante a pinça e o ponto de contato na Dock.
 
 ### Qualidade e orientação ao abrir apps
 
-- Panoramas preservados **byte a byte nos formatos recebidos** (JPEG/PNG/WebP), sem uma segunda compressão JPEG. Renderização com até 1,5× de resolução; segue cada frame da cabeça, mas reutiliza o último frame quando orientação/projeção não mudam. As imagens de 736×368/800×400 continuam limitadas pela resolução original — não há detalhe extra inventado.
+- Panoramas preservados **byte a byte nos formatos recebidos** (PNG/WebP), sem uma segunda compressão JPEG. Renderização com até 1,5× de resolução; segue cada frame da cabeça, mas reutiliza o último frame quando orientação/projeção não mudam. Os originais mantidos têm 1774×887; os dois novos foram gerados em aproximadamente 1,4K e ajustados minimamente para 2:1, sem ampliação artificial.
 - Jogos começam com resolução mais alta (Chicken até 1,15×) e a resolução adaptativa não desce de 0,8×. Sombras da sala estática são reutilizadas; ao mover a faca, são atualizadas em até 15 Hz e reaproveitadas nos dois olhos. Menos alocações por frame e intervalo adaptativo para deixar folga entre análises das mãos.
 - Orientação nativa via `SensorManager` (game rotation vector, com rotation vector como fallback), independente do foco das WebViews Google/YouTube. Entrega limitada a uma pose JS pendente, registrada no resume e removida no pause/destroy. Giroscópio do navegador continua como fallback, com troca de fonte sem salto de direção; abrir apps não recalibra a cabeça nem muda o cadeado.
 - Exige confirmação no aparelho: abrir/fechar Google e YouTube, virar para ambos os lados sem tocar no cadeado, voltar de app externo, e comparar nitidez/FPS. Os testes automatizados não medem fluidez no telefone.
+
+### Agrupamento do cenário e galeria
+
+- A galeria usa o mesmo quadro 760×480, controles de mover/fechar e um dos três slots existentes — não cria uma quarta janela. Miniaturas pequenas são carregadas no painel; só o ambiente selecionado carrega a textura completa.
+- Geometria opaca estática é agrupada por material, flags de sombra e células espaciais, reduzindo chamadas de desenho no Chicken, Dreamcore e labirinto do ShootTheDie. Personagens, faca, marcadores, portais e superfícies transparentes ficam separados. Colisão do labirinto continua usando os mesmos limites; sombras e nitidez foram mantidas.
+- Testes de geometria conferem redução de 100 objetos estáticos compatíveis para 2 malhas no cenário sintético e preservação dos limites/objetos móveis. Isso mede o agrupamento, **não FPS no celular**. A confirmação de fluidez continua exigindo teste no aparelho.

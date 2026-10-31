@@ -6,8 +6,8 @@ import * as Three from 'three';
 const html=await readFile('web/index.html','utf8');
 const manifest=JSON.parse(await readFile('web/panoramas/manifest.json','utf8'));
 
-test('only the seven supplied panoramas are bundled, offline and byte-identical',async()=>{
-  assert.equal(manifest.length,7);
+test('only the three retained and two generated panoramas are bundled, offline and byte-identical',async()=>{
+  assert.equal(manifest.length,5);
   const expected=manifest.map(p=>p.file).sort();
   assert.deepEqual((await readdir('web/panoramas')).filter(f=>/\.(jpg|png|webp)$/.test(f)).sort(),expected);
   assert.deepEqual((await readdir('app/src/main/assets/panoramas')).filter(f=>/\.(jpg|png|webp)$/.test(f)).sort(),expected);
@@ -32,20 +32,22 @@ test('panorama selection handles stale loads, texture disposal, both eyes and ca
   const camera=new Three.PerspectiveCamera(55,1,.1,100); camera.rotation.set(.1,.2,0);
   const ctx=vm.createContext({THREE:{...Three,WebGLRenderer:Renderer,TextureLoader:Loader},window:{innerWidth:1000,innerHeight:600,devicePixelRatio:2},document,videoElement,camera,vrCardboardActive:true,uiQuery:()=>btn});
   vm.runInContext(html.slice(html.indexOf('const PANORAMAS ='),html.indexOf('function getScreenCoordinates')),ctx);
-  ctx.cyclePanorama();ctx.cyclePanorama();
+  ctx.selectPanorama(0);ctx.selectPanorama(1);
   const stale=new Three.Texture();let disposed=0;stale.addEventListener('dispose',()=>disposed++);
   loads[0].success(stale);assert.equal(disposed,1);
   const texture=new Three.Texture();texture.addEventListener('dispose',()=>disposed++);loads[1].success(texture);
-  assert.equal(videoElement.style.opacity,'0');assert.equal(label.textContent,'2/7');
+  assert.equal(videoElement.style.opacity,'0');assert.equal(label.textContent,'2/5');
   ctx.renderPanoramaScene();assert.equal(renders.length,2);
   assert.deepEqual(views,[[0,0,500,600],[500,0,500,600]]);
   assert.equal(renders[0].camera.position.length(),0);
   assert.ok(renders[0].camera.quaternion.equals(camera.quaternion));
   ctx.selectPanorama(2);loads[2].success(new Three.Texture());assert.equal(disposed,2);
-  ctx.selectPanorama(6);ctx.cyclePanorama();assert.equal(videoElement.style.opacity,'1');assert.equal(label.textContent,'360°');
+  ctx.gallery={querySelector:()=>({textContent:''}),querySelectorAll:()=>[]};
+  vm.runInContext('panoramaPanelElement=gallery;',ctx);
+  ctx.selectPanorama(4);ctx.selectPanorama(-1);assert.equal(videoElement.style.opacity,'1');assert.equal(label.textContent,'360°');
   const cancelled=new Three.Texture();cancelled.addEventListener('dispose',()=>disposed++);loads[3].success(cancelled);assert.equal(disposed,3);
   ctx.renderPanoramaScene();assert.equal(renders.length,2,'hidden panorama does not render');
-  ctx.cyclePanorama();loads[4].error();assert.equal(videoElement.style.opacity,'1');
+  ctx.selectPanorama(0);loads[4].error();assert.equal(videoElement.style.opacity,'1');
 });
 
 test('shortened ray has bounded reach and retains pinch target locking',()=>{

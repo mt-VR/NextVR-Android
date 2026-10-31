@@ -61,7 +61,7 @@ test('panorama quality preserves received source bytes and avoids a fixed 30 Hz 
   const manifest=JSON.parse(await readFile('web/panoramas/manifest.json','utf8'));
   for(const p of manifest)assert.equal(createHash('sha256').update(await readFile('web/panoramas/'+p.file)).digest('hex'),p.sha256);
   assert.equal(manifest.filter(p=>p.file.endsWith('.png')).length,2);
-  assert.equal(manifest.filter(p=>p.file.endsWith('.webp')).length,1);
+  assert.equal(manifest.filter(p=>p.file.endsWith('.webp')).length,3);
   assert.match(html,/panoramaRenderer.setPixelRatio\(Math.min\(window.devicePixelRatio\|\|1,1.5\)\)/);
   assert.match(html,/panoramaLastRotation.equals\(camera.quaternion\)/);
   assert.doesNotMatch(html,/now-lastPanoramaRender>=33/);

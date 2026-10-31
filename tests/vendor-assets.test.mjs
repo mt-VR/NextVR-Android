@@ -6,6 +6,7 @@ const REQUIRED_ASSETS = [
   'app/src/main/assets/index.html',
   'app/src/main/assets/vendor/three/three.min.js',
   'app/src/main/assets/vendor/three/CSS3DRenderer.js',
+  'app/src/main/assets/vendor/three/BufferGeometryUtils.js',
   'app/src/main/assets/vendor/mediapipe/camera_utils/camera_utils.js',
   'app/src/main/assets/vendor/mediapipe/hands/hands.js',
   'app/src/main/assets/vendor/mediapipe/hands/hands.binarypb',
