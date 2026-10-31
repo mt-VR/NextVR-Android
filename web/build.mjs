@@ -25,6 +25,7 @@ await mkdir(join(assetsDir, 'vendor/mediapipe/hands'), { recursive: true });
 
 await copyFile(join(root, 'web/index.html'), join(assetsDir, 'index.html'));
 await cp(join(root, 'web/icons'), join(assetsDir, 'icons'), { recursive: true });
+await cp(join(root, 'web/panoramas'), join(assetsDir, 'panoramas'), { recursive: true });
 await copyFile(
   join(root, 'node_modules/three/build/three.min.js'),
   join(assetsDir, 'vendor/three/three.min.js')

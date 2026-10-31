@@ -1,0 +1,1 @@
+Panoramas fornecidos pelo usuário para esta revisão. Apenas estes sete arquivos são oferecidos. Conversão para JPEG, sem recorte, remoção de marcas d’água ou aumento de resolução. Marcas e créditos existentes foram preservados; o envio não estabelece licença de redistribuição das imagens de terceiros.

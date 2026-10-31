@@ -84,3 +84,10 @@ adb install -r dixVR-debug.apk
 **APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
 
 **Validação necessária:** virar a cabeça, mover a alça, tocar e fechar o navegador precisam ser conferidos no aparelho. O espelhamento da lente direita via PixelCopy é monocular e pode atrasar ou não capturar vídeo protegido. Ainda não há SDK óptico Cardboard, perfil QR ou correção de distorção. FPS real não é garantido por testes de build.
+
+### Ícone DI e panoramas enviados
+
+- Ícone Android **DI branco sobre preto**, conforme imagem enviada, em todas as densidades e nas variantes adaptativa/redonda. Identidade `com.dixvr.app` e chave de assinatura preservadas.
+- Removida a praia procedural 3D. O botão **câmera / 360°** da Dock percorre somente os **sete panoramas enviados**, na ordem das imagens, e depois volta ao passthrough. O contador `1/7` … `7/7` identifica a seleção; `360°` indica câmera. Todos os arquivos são locais, sem download na execução.
+- Panoramas monoscópicos equiretangulares: rotação acompanhando a cabeça, mesmo fundo nos dois olhos, sem parallax/6DoF. Uma esfera sem iluminação/sombras substitui a praia animada. Imagens mantidas na resolução recebida e com os créditos/marcas existentes; consulte `web/panoramas/NOTICE.md`.
+- Raio encurtado: extrapolação de 2 para 0,85 e alcance visual livre de até 28% da menor dimensão da lente. Mantidos a trava durante a pinça e o ponto de contato na Dock.

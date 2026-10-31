@@ -1,0 +1,44 @@
+[
+  {
+    "id": "cyberpunk-avenue",
+    "label": "Avenida futurista",
+    "file": "cyberpunk-avenue.jpg",
+    "source": "cyberpunk-night-city-tron-future-panorama-hdris-mapa-do-ambiente-completo-de-graus-futurístico-superfície-computador-studio-d-284240028.jpg"
+  },
+  {
+    "id": "neon-crossroads",
+    "label": "Cruzamento neon",
+    "file": "neon-crossroads.jpg",
+    "source": "cyberpunk-night-city-tron-future-panorama-hdris-mapa-do-ambiente-panorâmico-completo-de-graus-da-paisagem-urbana-steampunk-velha-281629109.jpg"
+  },
+  {
+    "id": "night-skyline",
+    "label": "Torres noturnas",
+    "file": "night-skyline.jpg",
+    "source": "34d55c698a99941b0ac8fb1eaf456ea0.jpg"
+  },
+  {
+    "id": "car-factory",
+    "label": "Fábrica de carros",
+    "file": "car-factory.jpg",
+    "source": "d15f86946ca23e1ff8131bfc2b196a98.jpg"
+  },
+  {
+    "id": "gaming-room",
+    "label": "Sala gamer azul",
+    "file": "gaming-room.jpg",
+    "source": "file_00000000efc0820eaf31a8b0c7a0e0bd.png"
+  },
+  {
+    "id": "future-studio",
+    "label": "Estúdio futurista",
+    "file": "future-studio.jpg",
+    "source": "fdca5ff3-dbd2-4387-932b-48c45977ef2f.webp"
+  },
+  {
+    "id": "purple-street",
+    "label": "Rua violeta",
+    "file": "purple-street.jpg",
+    "source": "file_0000000046cc820ebadab3742a546cd2.png"
+  }
+]

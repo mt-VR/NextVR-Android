@@ -121,7 +121,7 @@ test('all core AR/VR features and dixVR persistence keys remain present', async 
   assert.match(html, /function enterCardboardVR\(\)/);
   assert.match(html, /function exitCardboardVR\(\)/);
   assert.match(html, /function setWorldLock\(/);
-  assert.match(html, /function initBeachScene\(\)/);
+  assert.match(html, /function initPanoramaScene\(\)/);
 
   // Multitarefa: geometria medida no DOM (nada de altura fixa estimada) e slots da dock funcionais.
   for (const fn of [
