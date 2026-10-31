@@ -148,7 +148,7 @@ public class DixVrActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        if (!isMainShell) settings.setTextZoom(150);
+        if (!isMainShell) settings.setTextZoom(100);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
@@ -345,7 +345,7 @@ public class DixVrActivity extends AppCompatActivity {
             else if ("forward".equals(command) && page.canGoForward()) page.goForward();
             else if ("reload".equals(command)) page.reload();
             else if ("zoomIn".equals(command)) page.getSettings().setTextZoom(Math.min(220, page.getSettings().getTextZoom() + 20));
-            else if ("zoomOut".equals(command)) page.getSettings().setTextZoom(Math.max(80, page.getSettings().getTextZoom() - 20));
+            else if ("zoomOut".equals(command)) page.getSettings().setTextZoom(Math.max(60, page.getSettings().getTextZoom() - 20));
             else if ("home".equals(command)) page.loadUrl("google".equals(appId) ? googleHomeUrl : YOUTUBE_HOME_URL);
         });
     }

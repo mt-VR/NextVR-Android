@@ -37,14 +37,25 @@ test('library/store and native header use brand images rather than letter tiles 
   assert.match(activity, /googlePanelView.setAppIcon\(appId\)/);
 });
 
-test('larger common scale applies to every embedded browser without changing anchoring', async () => {
+test('wider page viewport and normal text zoom show more content without shrinking the window', async () => {
   const java = await readFile('app/src/main/java/com/dixvr/app/ProjectedBrowserPanel.java','utf8');
   const activity = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java','utf8');
   const html = await readFile('web/index.html','utf8');
-  assert.match(activity, /if \(!isMainShell\) settings.setTextZoom\(150\)/);
-  assert.match(java, /logicalWidth = dp\(400\)/);
-  assert.match(java, /int width = dp\(400\)/);
+  assert.match(activity, /if \(!isMainShell\) settings.setTextZoom\(100\)/);
+  assert.match(java, /logicalWidth = dp\(800\)/);
+  assert.match(java, /int width = dp\(800\)/);
   assert.match(java, /canvas.concat\(projection\)/);
   assert.match(html, /WINDOW_TOP_MAX_Y = 0.62/);
   assert.match(html, /baseScale: 0.0022, pxW: 940/);
+});
+
+test('reference-style content zoom preserves the large physical window and manual adjustment', async () => {
+  const html = await readFile('web/index.html','utf8');
+  const activity = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java','utf8');
+  assert.match(html, /ARC_DIST = 1.65/);
+  assert.match(html, /WINDOW_TOP_MAX_Y = 0.62/);
+  assert.match(html, /baseScale: 0.0022, pxW: 940/);
+  assert.match(activity, /Math.max\(60, page.getSettings\(\).getTextZoom\(\) - 20\)/);
+  assert.match(activity, /"zoomIn".equals\(command\)/);
+  assert.match(activity, /"zoomOut".equals\(command\)/);
 });

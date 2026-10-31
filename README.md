@@ -71,7 +71,7 @@ adb install -r dixVR-debug.apk
 
 - Moldura, botões e página agora pertencem ao mesmo `ProjectedBrowserPanel`: um único transform, um único recorte arredondado e a mesma inversa para toques/pinças. Não há uma moldura HTML animando separada da página nativa.
 - A geometria vem de quatro pontos do DOM, medidos na projeção CSS3D real. Atualizações antigas são substituídas pela mais recente antes do próximo frame Android, evitando fila de poses atrasadas.
-- O viewport interno fica estável em 400 dp ao virar; todos os apps WebView começam com texto em 150%, mantendo os botões + / −. A área vertical disponível e a escala-base do navegador foram ampliadas sem permitir sobreposição com a Dock.
+- O viewport interno fica estável em 800 dp ao virar; todos os apps WebView começam com texto em 100% para caber mais da página, sem diminuir a janela no espaço VR, mantendo os botões + / −. A área vertical disponível e a escala-base do navegador foram ampliadas sem permitir sobreposição com a Dock.
 - Dock a 1,55 m e arco a 1,65 m; escala-base do navegador aumentada, mantendo 3 janelas acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
 - Logotipos de Google, YouTube e dos seis atalhos web são empacotados offline na biblioteca, loja e barra nativa, substituindo letras e recortes da referência. Fontes e direitos das marcas em `web/icons/NOTICE.md`.
 - Biblioteca ganhou **Wikipedia, Reddit, GitHub, Twitch, Maps e Poki**. São atalhos web (não APKs instalados), compartilham a janela do navegador e exigem internet. Login, reprodução e compatibilidade dependem de cada site.

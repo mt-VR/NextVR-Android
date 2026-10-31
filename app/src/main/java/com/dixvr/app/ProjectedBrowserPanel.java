@@ -73,8 +73,8 @@ public final class ProjectedBrowserPanel extends FrameLayout {
         addButton(navigation, "+", "zoomIn", action);
         content.addView(navigation, new LinearLayout.LayoutParams(-1, dp(36)));
         content.addView(page, new LinearLayout.LayoutParams(-1, 0, 1f));
-        logicalWidth = dp(400);
-        logicalHeight = dp(360);
+        logicalWidth = dp(800);
+        logicalHeight = dp(600);
         addView(content, new FrameLayout.LayoutParams(logicalWidth, logicalHeight));
     }
 
@@ -127,7 +127,7 @@ public final class ProjectedBrowserPanel extends FrameLayout {
             JSONArray points = data.optJSONArray("quad");
             if (points == null || points.length() != 8 || !bounds.visible) { invalidate(); return; }
             // Stable page viewport: turning the head must not reflow/resize the website.
-            int width = dp(400);
+            int width = dp(800);
             double ratio = data.optDouble("surfaceHeight", 600) / Math.max(1, data.optDouble("surfaceWidth", 800));
             int height = Math.max(dp(200), Math.min(dp(800), (int) Math.round(width * ratio)));
             if (width != logicalWidth || height != logicalHeight) {

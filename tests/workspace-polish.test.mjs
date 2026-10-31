@@ -113,7 +113,7 @@ test('web page is transformed/clipped to its actual floating surface', async () 
   assert.match(java, /canvas.clipPath\(clip\)/);
   assert.match(java, /local.transform\(inverse\)/);
   assert.match(activity, /settings.setUseWideViewPort\(isMainShell\)/);
-  assert.match(activity, /settings.setTextZoom\(150\)/);
+  assert.match(activity, /settings.setTextZoom\(100\)/);
 });
 
 test('CI uploads an actual APK to a commit-pinned prerelease without changing latest main release', async () => {
@@ -150,7 +150,7 @@ test('browser frame and page share one native transform and fail closed on missi
   assert.match(java, /content.addView\(page/);
   assert.match(java, /if \(!ready\) return;/);
   assert.match(java, /canvas.concat\(projection\);\s*canvas.clipPath\(rounded\);\s*super.dispatchDraw/);
-  assert.match(java, /int width = dp\(400\)/);
+  assert.match(java, /int width = dp\(800\)/);
   assert.match(java, /float\[\] source = \{0, 0, logicalWidth/);
   assert.doesNotMatch(java, /source = .*bounds.widthPx/);
   assert.match(html, /native-composited/);
