@@ -141,12 +141,14 @@ async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
     function createGooglePanel() {
       if (googlePanel3D) return;
       googlePanelElement = document.createElement('div');
+      googlePanelElement.offsetWidth = 760; googlePanelElement.offsetHeight = 480;
       googlePanel3D = new THREE.CSS3DObject(googlePanelElement);
       scene.add(googlePanel3D);
     }
     function createYouTubePanel() {
       if (youtubePanel3D) return;
       youtubePanelElement = document.createElement('div');
+      youtubePanelElement.offsetWidth = 760; youtubePanelElement.offsetHeight = 480;
       youtubePanel3D = new THREE.CSS3DObject(youtubePanelElement);
       scene.add(youtubePanel3D);
     }
@@ -241,11 +243,11 @@ test('the 3 windows never overlap each other and stay within reach', async () =>
   const distRight = perpendicularDistance(center, right);
 
   assert.ok(
-    distLeft >= center.halfW + left.halfW - 1e-6,
+    distLeft >= center.projectedHalfW + left.projectedHalfW - 1e-6,
     `Left window overlaps the front window (${distLeft} < ${center.halfW + left.halfW})`
   );
   assert.ok(
-    distRight >= center.halfW + right.halfW - 1e-6,
+    distRight >= center.projectedHalfW + right.projectedHalfW - 1e-6,
     `Right window overlaps the front window (${distRight} < ${center.halfW + right.halfW})`
   );
 
@@ -323,4 +325,21 @@ test('opening a 4th app evicts the LRU side window and closing center promotes a
   mt.close('store');
   assert.equal(mt.getOpenCount(), 2);
   assert.ok(mt.getSlots().center !== null, 'Closing center must promote a side window to center');
+});
+
+
+test('all three windows retain the center scale and canonical dimensions, even at the widest layout', async () => {
+  const mt = await createMultitaskHarness();
+  mt.open('library'); mt.open('google'); mt.open('youtube');
+  const snap=mt.getGeometrySnapshot();
+  const windows=Object.values(snap.windows);
+  for(const w of windows){
+    assert.equal(w.pxW,760); assert.equal(w.pxH,480);
+    assert.ok(Math.abs(w.scale-snap.windows.center.scale)<1e-10);
+    assert.ok(Math.abs(w.halfW-snap.windows.center.halfW)<1e-10);
+    assert.ok(Math.abs(w.halfH-snap.windows.center.halfH)<1e-10);
+  }
+  assert.ok(snap.arcRadius>=1.65, 'move arc out instead of shrinking side windows');
+  assert.ok(snap.arcStep<=.92);
+  assert.ok(perpendicularDistance(snap.windows.center,snap.windows.left)>=snap.windows.center.halfW+snap.windows.left.projectedHalfW-1e-7);
 });

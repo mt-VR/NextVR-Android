@@ -41,7 +41,7 @@ test('wider page viewport and normal text zoom show more content without shrinki
   const java = await readFile('app/src/main/java/com/dixvr/app/ProjectedBrowserPanel.java','utf8');
   const activity = await readFile('app/src/main/java/com/dixvr/app/DixVrActivity.java','utf8');
   const html = await readFile('web/index.html','utf8');
-  assert.match(activity, /if \(!isMainShell\) settings.setTextZoom\(100\)/);
+  assert.match(activity, /if \(!isMainShell\) settings.setTextZoom\(90\)/);
   assert.match(java, /logicalWidth = dp\(800\)/);
   assert.match(java, /int width = dp\(800\)/);
   assert.match(java, /canvas.concat\(projection\)/);

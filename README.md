@@ -71,12 +71,15 @@ adb install -r dixVR-debug.apk
 
 - Moldura, botões e página agora pertencem ao mesmo `ProjectedBrowserPanel`: um único transform, um único recorte arredondado e a mesma inversa para toques/pinças. Não há uma moldura HTML animando separada da página nativa.
 - A geometria vem de quatro pontos do DOM, medidos na projeção CSS3D real. Atualizações antigas são substituídas pela mais recente antes do próximo frame Android, evitando fila de poses atrasadas.
-- O viewport interno fica estável em 800 dp ao virar; todos os apps WebView começam com texto em 100% para caber mais da página, sem diminuir a janela no espaço VR, mantendo os botões + / −. A área vertical disponível e a escala-base do navegador foram ampliadas sem permitir sobreposição com a Dock.
-- Dock a 1,55 m e arco a 1,65 m; escala-base do navegador aumentada, mantendo 3 janelas acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
+- O viewport interno fica estável em 800 dp ao virar; todos os apps WebView começam com texto em 90% para caber mais da página, sem diminuir a janela no espaço VR, mantendo os botões + / −. A área vertical disponível e a escala-base do navegador foram ampliadas sem permitir sobreposição com a Dock.
+- Dock a 1,55 m e arco a partir de 1,65 m. As três janelas usam o mesmo quadro de 760 × 480 e a mesma escala, sem encolher as laterais; quando necessário, o arco afasta o conjunto para evitar sobreposição. Mantidos os 3 espaços acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
 - Logotipos de Google, YouTube e dos seis atalhos web são empacotados offline na biblioteca, loja e barra nativa, substituindo letras e recortes da referência. Fontes e direitos das marcas em `web/icons/NOTICE.md`.
 - Biblioteca ganhou **Wikipedia, Reddit, GitHub, Twitch, Maps e Poki**. São atalhos web (não APKs instalados), compartilham a janela do navegador e exigem internet. Login, reprodução e compatibilidade dependem de cada site.
 - Mãos com alvo de 24 análises/s e raio entre polegar/indicador; mira trava durante a pinça.
 - Mantidas as correções de contraste/sombras do Chicken e a renderização estéreo dos jogos.
+- O raio da mão intersecta o plano 3D da Dock: encurta na superfície e usa o mesmo ponto para a bolinha, hover e pinça.
+- Espelho do DOM atualizado só quando há mudanças (até 10 Hz); pose continua em cada frame. Cópia de canvas, desenho das mãos e envio de geometria nativa ficam em até 30 Hz, sem limitar o loop principal dos jogos a 30 FPS. Observadores são desconectados ao sair do VR.
+- Jogos reduzem gradualmente a resolução sob carga sustentada e recuperam qualidade quando há folga; Dreamcore sem MSAA. Espelho nativo limitado a 896 px na maior dimensão. Essas reduções de trabalho não substituem medição de FPS no aparelho.
 
 **APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
 

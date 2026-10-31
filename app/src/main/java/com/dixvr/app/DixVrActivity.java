@@ -148,7 +148,7 @@ public class DixVrActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        if (!isMainShell) settings.setTextZoom(100);
+        if (!isMainShell) settings.setTextZoom(90);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);

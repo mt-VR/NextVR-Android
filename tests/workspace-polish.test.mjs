@@ -13,7 +13,7 @@ test('grips are lower and the mini-window grip is outside the content', () => {
   assert.match(html, /attachMultitaskPointerDrag\(handle, appId, getPanel3D\)/);
 });
 test('both eyes receive changing UI, canvas pixels and hand overlay', () => {
-  assert.match(html, /clone.element.className = obj.element.className/);
+  assert.match(html, /clone.element.className\s*=\s*obj.element.className/);
   assert.match(html, /clone.userData.markup !== markup/);
   assert.match(html, /copies\[i\].getContext\('2d'\)\?\.drawImage/);
   assert.match(html, /ctx.drawImage\(handsCanvas, 0, 0\)/);
@@ -33,7 +33,7 @@ test('pinch clicks on rising edge and Google remains an individual multitask sur
 test('games reduce GPU cost without disabling kitchen shadows', () => {
   assert.match(html, /key.shadow.mapSize.set\(1024,1024\)/);
   assert.match(html, /kitchenRenderer.shadowMap.enabled=true/);
-  assert.match(html, /if\(experimentGameActive\) \{ renderHandsUI\(\); syncRightHandOverlay\(\); return; \}/);
+  assert.match(html, /if\(experimentGameActive\) \{ renderHandOverlay\(now\); return; \}/);
 });
 
 test('holding a pinch clicks once; release rearms it without a dwell delay', async () => {
@@ -113,7 +113,7 @@ test('web page is transformed/clipped to its actual floating surface', async () 
   assert.match(java, /canvas.clipPath\(clip\)/);
   assert.match(java, /local.transform\(inverse\)/);
   assert.match(activity, /settings.setUseWideViewPort\(isMainShell\)/);
-  assert.match(activity, /settings.setTextZoom\(100\)/);
+  assert.match(activity, /settings.setTextZoom\(90\)/);
 });
 
 test('CI uploads an actual APK to a commit-pinned prerelease without changing latest main release', async () => {

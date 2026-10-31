@@ -93,7 +93,7 @@ public final class NativeStereoMirrorView extends View {
             capture(index + 1, token);
             return;
         }
-        float ratio = Math.min(1f, 1024f / Math.max(crop.width(), crop.height()));
+        float ratio = Math.min(1f, 896f / Math.max(crop.width(), crop.height()));
         int width = Math.max(1, Math.round(crop.width() * ratio));
         int height = Math.max(1, Math.round(crop.height() * ratio));
         if (frame.back == null || frame.back.getWidth() != width || frame.back.getHeight() != height) {
