@@ -9,8 +9,8 @@ const manifest=JSON.parse(await readFile('web/panoramas/manifest.json','utf8'));
 test('only the seven supplied panoramas are bundled, offline and byte-identical',async()=>{
   assert.equal(manifest.length,7);
   const expected=manifest.map(p=>p.file).sort();
-  assert.deepEqual((await readdir('web/panoramas')).filter(f=>f.endsWith('.jpg')).sort(),expected);
-  assert.deepEqual((await readdir('app/src/main/assets/panoramas')).filter(f=>f.endsWith('.jpg')).sort(),expected);
+  assert.deepEqual((await readdir('web/panoramas')).filter(f=>/\.(jpg|png|webp)$/.test(f)).sort(),expected);
+  assert.deepEqual((await readdir('app/src/main/assets/panoramas')).filter(f=>/\.(jpg|png|webp)$/.test(f)).sort(),expected);
   for(const p of manifest){
     assert.ok(html.includes(p.file));
     assert.deepEqual(await readFile('web/panoramas/'+p.file),await readFile('app/src/main/assets/panoramas/'+p.file));

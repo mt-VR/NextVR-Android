@@ -49,7 +49,7 @@ test('adaptive resolution responds to sustained slow frames, is bounded and reco
   const renderer={getPixelRatio:()=>ratio,setPixelRatio:v=>{ratio=v;changes++;}};
   ctx.adaptGameQuality(renderer,now);
   for(let i=0;i<400;i++) ctx.adaptGameQuality(renderer,now+=40);
-  assert.equal(ratio,.6); assert.ok(changes>0);
+  assert.equal(ratio,.8); assert.ok(changes>0);
   for(let i=0;i<4000;i++) ctx.adaptGameQuality(renderer,now+=16);
   assert.equal(ratio,1);
   ctx.adaptGameQuality(renderer,now+=20000);

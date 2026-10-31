@@ -79,7 +79,7 @@ adb install -r dixVR-debug.apk
 - Mantidas as correções de contraste/sombras do Chicken e a renderização estéreo dos jogos.
 - O raio da mão intersecta o plano 3D da Dock: encurta na superfície e usa o mesmo ponto para a bolinha, hover e pinça.
 - Espelho do DOM atualizado só quando há mudanças (até 10 Hz); pose continua em cada frame. Cópia de canvas, desenho das mãos e envio de geometria nativa ficam em até 30 Hz, sem limitar o loop principal dos jogos a 30 FPS. Observadores são desconectados ao sair do VR.
-- Jogos reduzem gradualmente a resolução sob carga sustentada e recuperam qualidade quando há folga; Dreamcore sem MSAA. Espelho nativo limitado a 896 px na maior dimensão. Essas reduções de trabalho não substituem medição de FPS no aparelho.
+- Jogos reduzem gradualmente a resolução sob carga sustentada e recuperam qualidade quando há folga; Dreamcore sem MSAA. Espelho nativo limitado a 1280 px na maior dimensão. Essas reduções de trabalho não substituem medição de FPS no aparelho.
 
 **APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
 
@@ -91,3 +91,10 @@ adb install -r dixVR-debug.apk
 - Removida a praia procedural 3D. O botão **câmera / 360°** da Dock percorre somente os **sete panoramas enviados**, na ordem das imagens, e depois volta ao passthrough. O contador `1/7` … `7/7` identifica a seleção; `360°` indica câmera. Todos os arquivos são locais, sem download na execução.
 - Panoramas monoscópicos equiretangulares: rotação acompanhando a cabeça, mesmo fundo nos dois olhos, sem parallax/6DoF. Uma esfera sem iluminação/sombras substitui a praia animada. Imagens mantidas na resolução recebida e com os créditos/marcas existentes; consulte `web/panoramas/NOTICE.md`.
 - Raio encurtado: extrapolação de 2 para 0,85 e alcance visual livre de até 28% da menor dimensão da lente. Mantidos a trava durante a pinça e o ponto de contato na Dock.
+
+### Qualidade e orientação ao abrir apps
+
+- Panoramas preservados **byte a byte nos formatos recebidos** (JPEG/PNG/WebP), sem uma segunda compressão JPEG. Renderização com até 1,5× de resolução; segue cada frame da cabeça, mas reutiliza o último frame quando orientação/projeção não mudam. As imagens de 736×368/800×400 continuam limitadas pela resolução original — não há detalhe extra inventado.
+- Jogos começam com resolução mais alta (Chicken até 1,15×) e a resolução adaptativa não desce de 0,8×. Sombras da sala estática são reutilizadas; ao mover a faca, são atualizadas em até 15 Hz e reaproveitadas nos dois olhos. Menos alocações por frame e intervalo adaptativo para deixar folga entre análises das mãos.
+- Orientação nativa via `SensorManager` (game rotation vector, com rotation vector como fallback), independente do foco das WebViews Google/YouTube. Entrega limitada a uma pose JS pendente, registrada no resume e removida no pause/destroy. Giroscópio do navegador continua como fallback, com troca de fonte sem salto de direção; abrir apps não recalibra a cabeça nem muda o cadeado.
+- Exige confirmação no aparelho: abrir/fechar Google e YouTube, virar para ambos os lados sem tocar no cadeado, voltar de app externo, e comparar nitidez/FPS. Os testes automatizados não medem fluidez no telefone.

@@ -6,6 +6,10 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -53,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code window.DixVR} / {@code window.dixVR} / {@code window.Android} para painéis simultâneos
  * Google/YouTube e abertura de apps externos.
  */
-public class DixVrActivity extends AppCompatActivity {
+public class DixVrActivity extends AppCompatActivity implements SensorEventListener {
     private static final int REQ_CAMERA = 1001;
     private static final String GOOGLE_HOME_URL = "https://www.google.com/";
     private static final String YOUTUBE_HOME_URL = "https://www.youtube.com/";
@@ -79,6 +83,49 @@ public class DixVrActivity extends AppCompatActivity {
     private boolean youtubePanelActive;
 
     private PermissionRequest pendingWebPermission;
+    private SensorManager orientationManager;
+    private boolean orientationRunning;
+    private boolean orientationInFlight;
+    private int orientationGeneration;
+    private long lastOrientationNs;
+    private final float[] orientationQuaternion = new float[4];
+
+    private void startOrientationTracking() {
+        if (orientationManager == null) orientationManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (orientationManager == null || orientationRunning) return;
+        Sensor sensor = orientationManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
+        if (sensor == null) sensor = orientationManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        orientationInFlight = false;
+        lastOrientationNs = 0;
+        if (sensor != null) orientationRunning = orientationManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME);
+    }
+
+    private void stopOrientationTracking() {
+        orientationRunning = false;
+        orientationGeneration++;
+        orientationInFlight = false;
+        if (orientationManager != null) orientationManager.unregisterListener(this);
+    }
+
+    @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+    @Override public void onSensorChanged(SensorEvent event) {
+        // SensorManager belongs to the Activity, not the focused browser window.
+        // At most one JS delivery in flight: never queue old head poses under load.
+        if (!orientationRunning || mainWebView == null || orientationInFlight || event.timestamp-lastOrientationNs < 16000000L) return;
+        SensorManager.getQuaternionFromVector(orientationQuaternion, event.values);
+        for (float value : orientationQuaternion) if (Float.isNaN(value) || Float.isInfinite(value)) return;
+        lastOrientationNs = event.timestamp;
+        int degrees = getWindowManager().getDefaultDisplay().getRotation() * 90;
+        int generation = orientationGeneration;
+        String script = "window.__dixvrNativeOrientation && window.__dixvrNativeOrientation("
+            + orientationQuaternion[1] + "," + orientationQuaternion[2] + "," + orientationQuaternion[3] + "," + orientationQuaternion[0] + "," + degrees + "," + generation + ")";
+        orientationInFlight = true;
+        mainWebView.evaluateJavascript(script, result -> {
+            if (generation == orientationGeneration) orientationInFlight = false;
+        });
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -474,6 +521,7 @@ public class DixVrActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        startOrientationTracking();
         if (stereoMirror != null) stereoMirror.setRunning(true);
         applyImmersiveFullscreen();
         if (mainWebView != null) {
@@ -490,6 +538,7 @@ public class DixVrActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
+        stopOrientationTracking();
         if (stereoMirror != null) stereoMirror.setRunning(false);
         if (googleWebView != null) {
             googleWebView.onPause();
@@ -505,6 +554,7 @@ public class DixVrActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        stopOrientationTracking();
         mainHandler.removeCallbacksAndMessages(null);
         googlePanelActive = false;
         youtubePanelActive = false;
