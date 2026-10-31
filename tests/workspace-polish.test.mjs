@@ -7,9 +7,9 @@ test('dock and workspace are closer without enabling head-follow', () => {
   assert.match(html, /ARC_DIST = 1\.65/);
   assert.match(html, /let worldLockEnabled = true/);
 });
-test('grips are lower and the mini-window grip is outside the content', () => {
+test('dock grip remains lower and floating windows use outside bottom bars', () => {
   assert.match(html, /left: -20px;\s*top: 60%/);
-  assert.match(html, /right:-42px; top:60%/);
+  assert.match(html, /bottom:-30px; transform:translateX\(-50%\)/);
   assert.match(html, /attachMultitaskPointerDrag\(handle, appId, getPanel3D\)/);
 });
 test('both eyes receive changing UI, canvas pixels and hand overlay', () => {

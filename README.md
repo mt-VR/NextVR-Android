@@ -26,7 +26,7 @@ Aplicativo Android independente (`com.dixvr.app` / **dixVR**), completamente sep
     menos recente dá lugar automaticamente.
   - **Controles rápidos em cada janela**: botões `◀` (Esquerda), `⌖` (Frente), `▶` (Direita) e `×` (Fechar) acessíveis por toque ou permanência do indicador (1s).
   - **Google + YouTube nativos lado a lado**: `DixVrActivity` mantém as sub-WebViews nativas do Google e do YouTube independentes para rodarem ao mesmo tempo na multitarefa.
-- **Passthrough AR + Fluxo Óptico (6DoF aproximado)** + **World Lock** e **Modo VR Cardboard** estereoscópico.
+- **Passthrough AR + orientação nativa** + **World Lock** e **Modo VR Cardboard** estereoscópico.
 - **Hand Tracking Offline (MediaPipe Hands WASM/TFLite empacotado no APK)**: estilos **Fantasma**, **Aura Neon**, **3D** e **Original**.
 - **Loja dixVR & Biblioteca dixVR**: **ShootTheDie** (FPS VR embutido via `dixvr-shoot-hand` / `dixvr-shoot-gyro`), **Chicken Cut VR**, **Dreamcore**, **Google**, **YouTube** e **Notas & Multitarefa dixVR**.
 
@@ -75,10 +75,10 @@ adb install -r dixVR-debug.apk
 - Dock a 1,55 m e arco a partir de 1,65 m. As três janelas usam o mesmo quadro de 760 × 480 e a mesma escala, sem encolher as laterais; quando necessário, o arco afasta o conjunto para evitar sobreposição. Mantidos os 3 espaços acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
 - Logotipos de Google, YouTube e dos seis atalhos web são empacotados offline na biblioteca, loja e barra nativa, substituindo letras e recortes da referência. Fontes e direitos das marcas em `web/icons/NOTICE.md`.
 - Biblioteca ganhou **Wikipedia, Reddit, GitHub, Twitch, Maps e Poki**. São atalhos web (não APKs instalados), compartilham a janela do navegador e exigem internet. Login, reprodução e compatibilidade dependem de cada site.
-- Mãos com alvo de 24 análises/s e raio entre polegar/indicador; mira trava durante a pinça.
+- Mãos com alvo de até 60 análises/s, limitado pelo tempo de inferência/câmera e raio entre polegar/indicador; mira trava durante a pinça.
 - Mantidas as correções de contraste/sombras do Chicken e a renderização estéreo dos jogos.
 - O raio da mão intersecta o plano 3D da Dock: encurta na superfície e usa o mesmo ponto para a bolinha, hover e pinça.
-- Espelho do DOM atualizado só quando há mudanças (até 10 Hz); pose continua em cada frame. Cópia de canvas, desenho das mãos e envio de geometria nativa ficam em até 30 Hz, sem limitar o loop principal dos jogos a 30 FPS. Observadores são desconectados ao sair do VR.
+- Espelho do DOM atualizado só quando há mudanças (até 10 Hz); pose continua em cada frame. Cópia de canvas de conteúdo e envio de geometria nativa ficam em até 30 Hz; mãos acompanham a cadência da tela, sem limitar o loop principal dos jogos a 30 FPS. Observadores são desconectados ao sair do VR.
 - Jogos reduzem gradualmente a resolução sob carga sustentada e recuperam qualidade quando há folga; Dreamcore sem MSAA. Espelho nativo limitado a 1280 px na maior dimensão. Essas reduções de trabalho não substituem medição de FPS no aparelho.
 
 **APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
@@ -104,3 +104,11 @@ adb install -r dixVR-debug.apk
 - A galeria usa o mesmo quadro 760×480, controles de mover/fechar e um dos três slots existentes — não cria uma quarta janela. Miniaturas pequenas são carregadas no painel; só o ambiente selecionado carrega a textura completa.
 - Geometria opaca estática é agrupada por material, flags de sombra e células espaciais, reduzindo chamadas de desenho no Chicken, Dreamcore e labirinto do ShootTheDie. Personagens, faca, marcadores, portais e superfícies transparentes ficam separados. Colisão do labirinto continua usando os mesmos limites; sombras e nitidez foram mantidas.
 - Testes de geometria conferem redução de 100 objetos estáticos compatíveis para 2 malhas no cenário sintético e preservação dos limites/objetos móveis. Isso mede o agrupamento, **não FPS no celular**. A confirmação de fluidez continua exigindo teste no aparelho.
+
+### Recentrar, ancoragem e mãos sem fila
+
+- Botão **Recentrar e nivelar Dock** na própria Dock: traz o conjunto para a direção horizontal do olhar, zera inclinação/rolagem da Dock e ativa o cadeado, sem recalibrar o giroscópio. Dock nivelada por padrão.
+- O cadeado bloqueia pegadas acidentais da Dock. Desbloquear permite movê-la deliberadamente, **não** a transforma em HUD/head-follow; voltar a travar preserva posição. Removidos o ajuste de rotação por fluxo óptico e o início automático de WebXR inline, evitando competição com o sensor e liberando CPU. Isso é ancoragem orientacional no espaço 3D, não SLAM/6DoF posicional real; deriva residual do sensor ainda precisa de avaliação no aparelho.
+- Barras brancas horizontais abaixo das janelas, inclusive Google/YouTube, reaproveitam os controles de arraste por toque e pinça. Três slots/tamanhos e folga acima da Dock preservados.
+- Mãos sem limite visual de 30 Hz. Entrada com alvo de até 60 análises/s, uma única inferência em voo, sem fila de imagens, rejeição de quadro duplicado e resultados com mais de 200 ms. Troca de visibilidade/rotação invalida o resultado pendente; mão/cursor vencidos são removidos. Falhas de captura liberam o processamento.
+- ShootTheDie recebe no máximo um pacote de mãos pendente, com ACK e prazo medido desde a captura — sem acumular mensagens antigas. Esqueleto desenhado em um único path; brilho Aura copia somente a região da mão, não o canvas inteiro. Sem mãos, o overlay ocioso não é redesenhado. FPS efetivo de inferência/renderização depende do aparelho e não foi medido aqui.

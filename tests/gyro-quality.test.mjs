@@ -65,5 +65,5 @@ test('panorama quality preserves received source bytes and avoids a fixed 30 Hz 
   assert.match(html,/panoramaRenderer.setPixelRatio\(Math.min\(window.devicePixelRatio\|\|1,1.5\)\)/);
   assert.match(html,/panoramaLastRotation.equals\(camera.quaternion\)/);
   assert.doesNotMatch(html,/now-lastPanoramaRender>=33/);
-  assert.match(html,/handInferenceEMA\*1.5/);
+  assert.match(html,/this.ema\*1.1/);
 });
