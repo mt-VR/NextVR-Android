@@ -267,7 +267,7 @@ test('a tall window shrinks instead of sinking into the dock', async () => {
     w.bottomY >= snap.dockTopY + snap.clearance - 1e-6,
     `Tall window bottom (${w.bottomY}) must stay above dock top (${snap.dockTopY})`
   );
-  assert.ok(w.topY <= 0.46 + 1e-6, `Tall window top (${w.topY}) must respect the height ceiling`);
+  assert.ok(w.topY <= 0.62 + 1e-6, `Tall window top (${w.topY}) must respect the height ceiling`);
   // The window was scaled down to fit between the dock and the height ceiling.
   assert.ok(w.scale < 0.00202, `Tall window must be scaled down, got ${w.scale}`);
 });

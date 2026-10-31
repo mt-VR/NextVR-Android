@@ -148,7 +148,7 @@ public class DixVrActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        if (!isMainShell) settings.setTextZoom(120);
+        if (!isMainShell) settings.setTextZoom(150);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
@@ -336,7 +336,7 @@ public class DixVrActivity extends AppCompatActivity {
     }
 
     private ProjectedBrowserPanel createBrowserPanel(WebView page, String appId) {
-        return new ProjectedBrowserPanel(this, page, "google".equals(appId) ? "Google" : "YouTube", command -> {
+        return new ProjectedBrowserPanel(this, page, appId, "google".equals(appId) ? "Google" : "YouTube", command -> {
             if ("close".equals(command)) {
                 mainWebView.evaluateJavascript("window.__dixVRMultitask.close('" + appId + "')", null);
             } else if ("left".equals(command) || "center".equals(command) || "right".equals(command)) {
@@ -652,6 +652,7 @@ public class DixVrActivity extends AppCompatActivity {
                 WebView page = ensureGoogleWebView();
                 googleHomeUrl = url;
                 googlePanelView.setTitle(name);
+                googlePanelView.setAppIcon(appId);
                 page.loadUrl(url);
             });
         }

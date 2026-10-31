@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, cp } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,6 +24,7 @@ await mkdir(join(assetsDir, 'vendor/mediapipe/camera_utils'), { recursive: true 
 await mkdir(join(assetsDir, 'vendor/mediapipe/hands'), { recursive: true });
 
 await copyFile(join(root, 'web/index.html'), join(assetsDir, 'index.html'));
+await cp(join(root, 'web/icons'), join(assetsDir, 'icons'), { recursive: true });
 await copyFile(
   join(root, 'node_modules/three/build/three.min.js'),
   join(assetsDir, 'vendor/three/three.min.js')

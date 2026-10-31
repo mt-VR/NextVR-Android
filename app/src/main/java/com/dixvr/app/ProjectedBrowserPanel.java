@@ -5,6 +5,9 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Path;
+import android.graphics.drawable.Drawable;
+import android.widget.ImageView;
+import java.io.InputStream;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -25,6 +28,7 @@ public final class ProjectedBrowserPanel extends FrameLayout {
     private final Path rounded = new Path();
     private final LinearLayout content;
     private final TextView title;
+    private final ImageView appIcon;
     private final TextView address;
     private final float density;
     private int logicalWidth;
@@ -32,7 +36,7 @@ public final class ProjectedBrowserPanel extends FrameLayout {
     private boolean ready;
     private boolean gestureInside;
 
-    public ProjectedBrowserPanel(Context context, WebView page, String name, Consumer<String> action) {
+    public ProjectedBrowserPanel(Context context, WebView page, String appId, String name, Consumer<String> action) {
         super(context);
         density = getResources().getDisplayMetrics().density;
         setClipChildren(false);
@@ -44,6 +48,12 @@ public final class ProjectedBrowserPanel extends FrameLayout {
         title.setTextColor(Color.rgb(30, 38, 49));
         LinearLayout header = row();
         header.setBackgroundColor(Color.rgb(237, 242, 248));
+        appIcon = new ImageView(context);
+        appIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        appIcon.setPadding(dp(3), dp(3), dp(3), dp(3));
+        appIcon.setContentDescription(name);
+        header.addView(appIcon, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        setAppIcon(appId);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(40), 1f));
         addButton(header, "◀", "left", action);
         addButton(header, "⌖", "center", action);
@@ -63,7 +73,7 @@ public final class ProjectedBrowserPanel extends FrameLayout {
         addButton(navigation, "+", "zoomIn", action);
         content.addView(navigation, new LinearLayout.LayoutParams(-1, dp(36)));
         content.addView(page, new LinearLayout.LayoutParams(-1, 0, 1f));
-        logicalWidth = dp(480);
+        logicalWidth = dp(400);
         logicalHeight = dp(360);
         addView(content, new FrameLayout.LayoutParams(logicalWidth, logicalHeight));
     }
@@ -100,7 +110,15 @@ public final class ProjectedBrowserPanel extends FrameLayout {
         row.addView(button, new LinearLayout.LayoutParams(dp(36), -1));
     }
     public void setLocation(String url) { address.setText(url); }
-    public void setTitle(String text) { title.setText(text); }
+    public void setTitle(String text) { title.setText(text); appIcon.setContentDescription(text); }
+    public void setAppIcon(String id) {
+        if (!id.matches("google|youtube|wikipedia|reddit|github|twitch|maps|poki")) return;
+        try (InputStream stream = getContext().getAssets().open("icons/" + id + ".png")) {
+            appIcon.setImageDrawable(Drawable.createFromStream(stream, id));
+        } catch (java.io.IOException unavailableIcon) {
+            appIcon.setImageDrawable(null);
+        }
+    }
 
     public void updateProjection(String json, PanelBounds bounds) {
         ready = false;
@@ -109,7 +127,7 @@ public final class ProjectedBrowserPanel extends FrameLayout {
             JSONArray points = data.optJSONArray("quad");
             if (points == null || points.length() != 8 || !bounds.visible) { invalidate(); return; }
             // Stable page viewport: turning the head must not reflow/resize the website.
-            int width = dp(480);
+            int width = dp(400);
             double ratio = data.optDouble("surfaceHeight", 600) / Math.max(1, data.optDouble("surfaceWidth", 800));
             int height = Math.max(dp(200), Math.min(dp(800), (int) Math.round(width * ratio)));
             if (width != logicalWidth || height != logicalHeight) {
