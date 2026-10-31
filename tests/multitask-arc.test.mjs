@@ -178,7 +178,24 @@ async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
 
   vm.runInContext('layoutMultitaskArc();', sandbox);
 
-  return sandbox.window.__dixVRMultitask;
+  const mt=sandbox.window.__dixVRMultitask;
+  sandbox.worldLockEnabled=true;sandbox.captureWorldLockPose=()=>{};
+  sandbox.resetOpticalFlowDrift=()=>{};sandbox.updateButtonCache=()=>{};sandbox.updateWorldLockButton=()=>{};
+  sandbox.draggingPanelWithHand=false;sandbox.googlePanelDragging=false;sandbox.youtubePanelDragging=false;
+  vm.runInContext(html.slice(html.indexOf('function alignPanelInFront('),html.indexOf('class LatestHandFramePump')),sandbox);
+  mt.testView=(pitch,yaw,roll=0)=>{
+    vm.runInContext(`camera.quaternion.setFromEuler(new THREE.Euler(${pitch},${yaw},${roll},'YXZ'));camera.position.set(.3,.2,-.1);recenterWorkspace();`,sandbox);
+    return vm.runInContext(`(()=>{
+      const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+      const target=camera.position.clone().addScaledVector(forward,DOCK_DIST);
+      const normal=new THREE.Vector3(0,0,1).applyQuaternion(group3D.quaternion);
+      const snapshot=window.__dixVRMultitask.getGeometrySnapshot();
+      const position=group3D.position.clone();camera.rotation.y+=.7;
+      layoutMultitaskArc();
+      return {error:target.distanceTo(position),facing:normal.dot(forward),drift:position.distanceTo(group3D.position),snapshot};
+    })()`,sandbox);
+  };
+  return mt;
 }
 
 /** Distancia perpendicular entre o painel A e o plano do painel B (teste de sobreposicao). */
@@ -353,4 +370,17 @@ test('panorama gallery occupies one of the three equal-sized above-Dock slots', 
   assert.equal(windows.length,3);
   assert.ok(windows.some(w=>w.appId==='panoramas'));
   for(const w of windows){assert.equal(w.pxW,760);assert.equal(w.pxH,480);assert.equal(w.scale,snapshot.windows.center.scale);}
+});
+
+
+test('recenter places the Dock at gaze target in every direction and keeps the whole arc anchored',async()=>{
+  const mt=await createMultitaskHarness();mt.open('library');mt.open('google');mt.open('youtube');
+  for(const [pitch,yaw] of [[0,0],[0,Math.PI],[0,Math.PI/2],[0,-Math.PI/2],[.9,.4],[-.9,2],[Math.PI/2,0],[-Math.PI/2,0]]){
+    const result=mt.testView(pitch,yaw,.15);
+    assert.ok(result.error<1e-7,`Dock target error at ${pitch}/${yaw}: ${result.error}`);
+    assert.ok(Math.abs(result.facing+1)<1e-7,'Dock surface faces back toward viewer, even vertically');
+    assert.ok(result.drift<1e-7,'camera motion after recenter does not move Dock');
+    const panels=Object.values(result.snapshot.windows);assert.equal(panels.length,3);
+    for(const panel of panels){assert.ok(panel.aboveDock,'clearance is evaluated in tilted workspace coordinates');assert.equal(panel.scale,panels[0].scale);}
+  }
 });

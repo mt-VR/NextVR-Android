@@ -30,11 +30,12 @@ test('world-space dock stays fixed while head rotates, including unlocked mode; 
   const group3D=new THREE.Object3D(),camera=new THREE.PerspectiveCamera();
   group3D.position.set(1,-.8,-2);group3D.rotation.set(.2,.3,.1);
   const origin=new THREE.Vector3();let layouts=0,captures=0;
-  const ctx=vm.createContext({THREE,group3D,camera,worldLockEnabled:true,workspaceDockY:-.8,DOCK_Y:-.68,draggingPanelWithHand:true,googlePanelDragging:true,youtubePanelDragging:true,multitaskHandDrag:{library:{}},workspaceOrigin:origin,multitaskDetached:new Set(),layoutMultitaskArc(){layouts++;group3D.rotation.set(0,ctx.workspaceYaw+Math.PI,0);group3D.position.set(Math.sin(ctx.workspaceYaw)*1.55,-.68,Math.cos(ctx.workspaceYaw)*1.55);},captureWorldLockPose:()=>captures++,updateButtonCache(){},updateWorldLockButton(){},resetOpticalFlowDrift(){}});
+  const ctx=vm.createContext({THREE,group3D,camera,worldLockEnabled:true,workspaceDockY:-.8,workspacePitch:0,DOCK_DIST:1.55,DOCK_Y:-.68,draggingPanelWithHand:true,googlePanelDragging:true,youtubePanelDragging:true,multitaskHandDrag:{library:{}},workspaceOrigin:origin,multitaskDetached:new Set(),layoutMultitaskArc(){layouts++;group3D.rotation.set(0,ctx.workspaceYaw+Math.PI,0);group3D.position.set(Math.sin(ctx.workspaceYaw)*1.55,-.68,Math.cos(ctx.workspaceYaw)*1.55);},captureWorldLockPose:()=>captures++,updateButtonCache(){},updateWorldLockButton(){},resetOpticalFlowDrift(){}});
   vm.runInContext(html.slice(html.indexOf('function updateHeadLockedPanel(){'),html.indexOf('function enterCardboardVR()')),ctx);
   for(const locked of [true,false]){ctx.worldLockEnabled=locked;for(let i=0;i<20;i++){camera.rotation.y=i*.1;ctx.updateHeadLockedPanel();}}
   assert.equal(layouts,0);assert.deepEqual(group3D.position.toArray(),[1,-.8,-2]);
-  vm.runInContext(html.slice(html.indexOf('function alignPanelInFront()'),html.indexOf('class LatestHandFramePump')),ctx);
+  vm.runInContext(html.slice(html.indexOf('function alignPanelInFront('),html.indexOf('class LatestHandFramePump')),ctx);
+  vm.runInContext(html.slice(html.indexOf('function getWorkspaceTilt()'),html.indexOf('function workspaceToWorld(')),ctx);
   ctx.recenterWorkspace();assert.equal(ctx.worldLockEnabled,true);assert.equal(ctx.workspaceDockY,-.68);
   assert.equal(group3D.rotation.x,0);assert.equal(group3D.rotation.z,0);assert.ok(captures>0);
   const saved=group3D.position.clone();camera.rotation.y+=.5;ctx.updateHeadLockedPanel();assert.ok(group3D.position.equals(saved));
@@ -63,11 +64,11 @@ test('ShootTheDie hand IPC allows one outstanding frame and ACKs stale packets',
   assert.match(embedded,/Date.now\(\)-d.capturedAt<=200/);assert.match(embedded,/finally \{ parent.postMessage/);
 });
 
-test('expired hands are removed by capture age even if no more results arrive',()=>{
+test('held visual hands expire after bounded dropout grace even if no more results arrive',()=>{
   const activeHands={Left:{lastSeen:0},Right:{lastSeen:10}};let hidden=0;
-  const ctx=vm.createContext({activeHands,pinchRayState:{},handGrabState:{Left:true,Right:true},pinchClickState:{Left:true,Right:true},resetPanelScrollGesture(){},syncNativeHandCursor:()=>hidden++});
+  const ctx=vm.createContext({activeHands,pinchRayState:{},handGrabState:{Left:true,Right:true},pinchClickState:{Left:true,Right:true},resetPanelScrollGesture(){},HAND_VISUAL_GRACE_MS:450,syncNativeHandCursor:()=>hidden++});
   vm.runInContext(html.slice(html.indexOf('function clearTrackedHands('),html.indexOf('// 5. Configurar Hand Tracking')),ctx);
   ctx.clearTrackedHands(150);assert.ok(activeHands.Left);assert.ok(activeHands.Right);
-  ctx.clearTrackedHands(220);assert.equal(activeHands.Left,null);assert.equal(activeHands.Right,null);assert.equal(hidden,1);
-  ctx.clearTrackedHands(250);assert.equal(hidden,1);
+  ctx.clearTrackedHands(500);assert.equal(activeHands.Left,null);assert.equal(activeHands.Right,null);assert.equal(hidden,1);
+  ctx.clearTrackedHands(600);assert.equal(hidden,1);
 });

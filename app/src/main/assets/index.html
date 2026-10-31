@@ -1616,7 +1616,7 @@ body.vr-cardboard::after{
                         </svg>
                     </button>
 
-                    <button class="dock-item" data-action="recenter" title="Recentrar e nivelar Dock" aria-label="Recentrar e nivelar Dock">
+                    <button class="dock-item" data-action="recenter" title="Recentrar Dock na direção do olhar" aria-label="Recentrar Dock na direção do olhar">
                         <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                     <button class="dock-item" id="btn-dock-worldlock" data-action="world-lock" title="Travar painel no mundo" aria-label="Travar painel no mundo">
@@ -2204,6 +2204,7 @@ body.vr-cardboard::after{
         let workspaceYaw = Math.PI;
         const workspaceOrigin = new THREE.Vector3(0, 0, 0);
         let savedWorkspaceYaw = Math.PI;
+        let savedWorkspacePitch = 0;
         const savedWorkspaceOrigin = new THREE.Vector3(0, 0, 0);
 
         function captureWorldLockPose(){
@@ -2211,6 +2212,7 @@ body.vr-cardboard::after{
             worldLockPose.position.copy(group3D.position);
             worldLockPose.quaternion.copy(group3D.quaternion);
             savedWorkspaceYaw = workspaceYaw;
+            savedWorkspacePitch = workspacePitch;
             savedWorkspaceOrigin.copy(workspaceOrigin);
             worldLockPoseValid=true;
         }
@@ -2218,6 +2220,7 @@ body.vr-cardboard::after{
         function restoreWorldLockPose(){
             if(!group3D || !worldLockPoseValid) return;
             workspaceYaw = savedWorkspaceYaw;
+            workspacePitch = savedWorkspacePitch;
             workspaceOrigin.copy(savedWorkspaceOrigin);
             layoutMultitaskArc();
         }
@@ -2225,9 +2228,8 @@ body.vr-cardboard::after{
         function setWorldLock(enabled){
             worldLockEnabled=!!enabled;
             if(worldLockEnabled && group3D){
-                workspaceOrigin.x=group3D.position.x-Math.sin(workspaceYaw)*DOCK_DIST;
-                workspaceOrigin.z=group3D.position.z-Math.cos(workspaceYaw)*DOCK_DIST;
-                workspaceDockY=group3D.position.y;
+                const offset=new THREE.Vector3(Math.sin(workspaceYaw)*DOCK_DIST,workspaceDockY,Math.cos(workspaceYaw)*DOCK_DIST).applyQuaternion(getWorkspaceTilt());
+                workspaceOrigin.copy(group3D.position).sub(offset);
                 captureWorldLockPose();
             }
             updateWorldLockButton();
@@ -2518,6 +2520,7 @@ body.vr-cardboard::after{
         const DOCK_DIST = 1.55;
         const DOCK_Y = -0.68;
         let workspaceDockY = DOCK_Y;
+        let workspacePitch = 0;
         const DOCK_SCALE = 0.0024;
         const DOCK_HALF_HEIGHT = 0.085;      // fallback: usado so se a dock nao estiver mensuravel
         const DOCK_TILT = 0.0;               // Dock nivelada no mundo, sem pitch/roll
@@ -2652,8 +2655,8 @@ body.vr-cardboard::after{
                 lastY = e.clientY;
                 multitaskDetached.add(appId);
                 p3d.position.x = Math.max(-2.6, Math.min(2.6, p3d.position.x + dx * 0.003));
-                p3d.position.y = Math.max(getMinCenterYForApp(appId), p3d.position.y - dy * 0.003);
-                p3d.position.z = Math.min(-0.45, p3d.position.z);
+                p3d.position.y -= dy * 0.003;clampWindowAboveDock(appId);
+
                 lastMovedPanel3D = p3d;
                 if (appId === 'google') { alignGoogleKeyboardPanel(); updateNativeGoogleBounds(); }
                 if (appId === 'youtube') { updateNativeYouTubeBounds(); }
@@ -2764,7 +2767,7 @@ body.vr-cardboard::after{
         // do grupo esta centrado no elemento.
         function getDockMetrics() {
             const group = windowGroupElement;
-            let topY = DOCK_Y + DOCK_HALF_HEIGHT;
+            let topY = workspaceDockY + DOCK_HALF_HEIGHT;
             let panelPx = 0;
             if (group && group.querySelector) {
                 const panel = group.querySelector('.ar-dock-panel');
@@ -2775,11 +2778,11 @@ body.vr-cardboard::after{
                     if (groupH > 0 && panelH > 0) {
                         panelPx = panelH;
                         const centerToTop = groupH / 2 - offsetTop;
-                        topY = DOCK_Y + centerToTop * DOCK_SCALE * Math.cos(DOCK_TILT);
+                        topY = workspaceDockY + centerToTop * DOCK_SCALE * Math.cos(DOCK_TILT);
                     }
                 }
             }
-            return { y: DOCK_Y, topY, panelPx };
+            return { y: workspaceDockY, topY, panelPx };
         }
 
         function findSlotOfApp(appId) {
@@ -2879,6 +2882,24 @@ body.vr-cardboard::after{
             activePanelType = multitaskSlots.center || multitaskSlots.left || multitaskSlots.right || null;
         }
 
+        function getWorkspaceTilt() {
+            return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(-Math.cos(workspaceYaw),0,Math.sin(workspaceYaw)),workspacePitch);
+        }
+        function workspaceToWorld(point) {
+            const pivot=new THREE.Vector3(workspaceOrigin.x,0,workspaceOrigin.z);
+            return point.sub(pivot).applyQuaternion(getWorkspaceTilt()).add(pivot).add(new THREE.Vector3(0,workspaceOrigin.y,0));
+        }
+        function worldToWorkspace(point) {
+            const pivot=new THREE.Vector3(workspaceOrigin.x,0,workspaceOrigin.z);
+            return point.sub(new THREE.Vector3(0,workspaceOrigin.y,0)).sub(pivot).applyQuaternion(getWorkspaceTilt().invert()).add(pivot);
+        }
+        function clampWindowAboveDock(appId,slot=null) {
+            const panel=getMultitaskEntry(appId)?.panel3D;if(!panel)return;
+            const local=worldToWorkspace(panel.position.clone());
+            const minimum=getMinCenterYForApp(appId,slot);
+            if(local.y<minimum){local.y=minimum;panel.position.copy(workspaceToWorld(local));}
+        }
+
         function layoutMultitaskArc() {
             if (!group3D) return;
             const dirX = Math.sin(workspaceYaw);
@@ -2889,6 +2910,7 @@ body.vr-cardboard::after{
             group3D.scale.set(DOCK_SCALE, DOCK_SCALE, DOCK_SCALE);
             group3D.position.set(workspaceOrigin.x + dirX * DOCK_DIST, workspaceDockY, workspaceOrigin.z + dirZ * DOCK_DIST);
             group3D.rotation.set(-DOCK_TILT, workspaceYaw + Math.PI, 0);
+            workspaceToWorld(group3D.position);group3D.quaternion.premultiply(getWorkspaceTilt());
 
             const arc = computeArcLayout(computeSlotScales());
             multitaskScales = arc.scales;
@@ -2916,8 +2938,9 @@ body.vr-cardboard::after{
                         workspaceOrigin.z + slotDirZ * arc.radius
                     );
                     entry.panel3D.rotation.set(0, Math.atan2(slotDirX, slotDirZ) + Math.PI, 0);
+                    workspaceToWorld(entry.panel3D.position);entry.panel3D.quaternion.premultiply(getWorkspaceTilt());
                 } else {
-                    if (entry.panel3D.position.y < minCenterY) entry.panel3D.position.y = minCenterY;
+                    clampWindowAboveDock(appId,slot);
                 }
             }
 
@@ -3200,6 +3223,7 @@ body.vr-cardboard::after{
                     const size = measureEntrySize(entry);
                     const halfH = (size.h * s) * 0.5;
                     const halfW = (size.w * s) * 0.5;
+                    const localY=worldToWorkspace(entry.panel3D.position.clone()).y;
                     windows[slot] = {
                         appId,
                         x: entry.panel3D.position.x,
@@ -3214,7 +3238,8 @@ body.vr-cardboard::after{
                         halfH,
                         bottomY: entry.panel3D.position.y - halfH,
                         topY: entry.panel3D.position.y + halfH,
-                        aboveDock: (entry.panel3D.position.y - halfH) > dockTopY
+                        localY,localBottomY:localY-halfH,
+                        aboveDock: (localY - halfH) > dockTopY
                     };
                 }
                 return {
@@ -3222,7 +3247,7 @@ body.vr-cardboard::after{
                     dockTopY,
                     clearance: DOCK_CLEARANCE,
                     arcStep: multitaskArcStep,
-                    arcRadius: multitaskArcRadius,
+                    arcRadius: multitaskArcRadius,workspacePitch,
                     windows
                 };
             },
@@ -3903,13 +3928,9 @@ body.vr-cardboard::after{
         }
 
         function alignGoogleKeyboardPanel(){
-            if(!googleKeyboardPanel3D||!camera)return;
-            const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion); dir.y=0;
-            if(dir.lengthSq()<.001)dir.set(0,0,-1); dir.normalize();
-            const d=1.52;
-            const yaw=Math.atan2(dir.x,dir.z)+Math.PI;
-            googleKeyboardPanel3D.position.set(dir.x*d,-0.40,dir.z*d);
-            googleKeyboardPanel3D.rotation.set(-0.36,yaw,0);
+            if(!googleKeyboardPanel3D||!googlePanel3D)return;
+            googleKeyboardPanel3D.quaternion.copy(googlePanel3D.quaternion);
+            googleKeyboardPanel3D.position.copy(googlePanel3D.position).add(new THREE.Vector3(0,-.65,.08).applyQuaternion(googlePanel3D.quaternion));
         }
 
         function showGoogleKeyboardPanel(show){
@@ -4196,7 +4217,7 @@ body.vr-cardboard::after{
                     const dx=e.clientX-lastX,dy=e.clientY-lastY;
                     multitaskDetached.add('youtube');
                     youtubePanel3D.position.x+=dx*.003;
-                    youtubePanel3D.position.y=Math.max(getMinCenterYForApp('youtube'), youtubePanel3D.position.y-dy*.003);
+                    youtubePanel3D.position.y-=dy*.003;clampWindowAboveDock('youtube');
                     lastMovedPanel3D=youtubePanel3D;
                     updateNativeYouTubeBounds();
                     lastX=e.clientX;lastY=e.clientY;
@@ -4288,7 +4309,7 @@ body.vr-cardboard::after{
                     const dx=e.clientX-lastX,dy=e.clientY-lastY;
                     multitaskDetached.add('google');
                     googlePanel3D.position.x+=dx*.003;
-                    googlePanel3D.position.y=Math.max(getMinCenterYForApp('google'), googlePanel3D.position.y-dy*.003);
+                    googlePanel3D.position.y-=dy*.003;clampWindowAboveDock('google');
                     lastMovedPanel3D=googlePanel3D;
                     lastX=e.clientX;lastY=e.clientY;
                     alignGoogleKeyboardPanel();
@@ -4377,24 +4398,26 @@ body.vr-cardboard::after{
                 if (!appId) continue;
                 const entry = getMultitaskEntry(appId);
                 if (!entry || !entry.panel3D || !entry.panel3D.visible) continue;
-                const minCenterY = getMinCenterYForApp(appId, slot);
-                if (entry.panel3D.position.y < minCenterY) entry.panel3D.position.y = minCenterY;
+                clampWindowAboveDock(appId,slot);
             }
         }
 
-        function alignPanelInFront() {
-            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-            dir.y = 0;
-            if (dir.lengthSq() < 0.001) dir.set(0, 0, -1);
-            dir.normalize();
-
-            workspaceYaw = Math.atan2(dir.x, dir.z);
-            workspaceOrigin.set(camera.position.x, 0, camera.position.z);
-            multitaskDetached.clear();
-            layoutMultitaskArc();
-            if(worldLockEnabled) captureWorldLockPose();
-            resetOpticalFlowDrift();
-            updateButtonCache();
+        function alignPanelInFront(fullGaze=false) {
+            const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+            if(Math.hypot(dir.x,dir.z)>1e-5)workspaceYaw=Math.atan2(dir.x,dir.z);
+            else {
+                const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+                workspaceYaw=Math.atan2(right.z,-right.x);
+            }
+            workspacePitch=fullGaze?Math.asin(THREE.MathUtils.clamp(dir.y,-1,1)):0;
+            workspaceOrigin.set(camera.position.x,0,camera.position.z);
+            if(fullGaze){
+                const dockOffset=new THREE.Vector3(Math.sin(workspaceYaw)*DOCK_DIST,workspaceDockY,Math.cos(workspaceYaw)*DOCK_DIST).applyQuaternion(getWorkspaceTilt());
+                workspaceOrigin.copy(camera.position).addScaledVector(dir,DOCK_DIST).sub(dockOffset);
+            }
+            multitaskDetached.clear();layoutMultitaskArc();
+            if(worldLockEnabled)captureWorldLockPose();
+            resetOpticalFlowDrift();updateButtonCache();
         }
 
         function recenterWorkspace() {
@@ -4403,7 +4426,7 @@ body.vr-cardboard::after{
             for(const key of Object.keys(multitaskHandDrag))delete multitaskHandDrag[key];
             worldLockEnabled=true;workspaceDockY=DOCK_Y;
             resetOpticalFlowDrift();
-            alignPanelInFront();
+            alignPanelInFront(true);
             captureWorldLockPose();updateWorldLockButton();
         }
 
@@ -4423,10 +4446,20 @@ body.vr-cardboard::after{
             }
         }
         let handFramePump=null;
+        const HAND_VISUAL_GRACE_MS=450;
+        function handInputFresh(hand,now=performance.now()) {
+            return !!hand && !hand.missingFrames && now-(hand.sampledAt??hand.lastSeen)<=200;
+        }
+        function markHandMissing(side) {
+            const hand=activeHands[side];if(!hand)return;
+            hand.missingFrames=(hand.missingFrames||0)+1;
+            handGrabState[side]=false;pinchClickState[side]=false;delete pinchRayState[side];
+            hand.pinchProgress=0;hand.fistProgress=0;hand.indexProgress=0;resetPanelScrollGesture(side);
+        }
         function clearTrackedHands(now=Infinity) {
             let removed=false;
             for(const side of ['Left','Right']){
-                if(activeHands[side] && now-activeHands[side].lastSeen<=200)continue;
+                if(activeHands[side] && now-activeHands[side].lastSeen<=HAND_VISUAL_GRACE_MS)continue;
                 if(activeHands[side])removed=true;
                 activeHands[side]=null;delete pinchRayState[side];handGrabState[side]=false;pinchClickState[side]=false;
                 resetPanelScrollGesture(side);
@@ -4456,7 +4489,7 @@ body.vr-cardboard::after{
                 if(handFramePump.acceptResult())onHandResults(results);
             });
             document.addEventListener('visibilitychange',()=>{handFramePump.reset();clearTrackedHands();});
-            window.addEventListener('resize',()=>{handFramePump.reset();clearTrackedHands();});
+            window.addEventListener('resize',()=>{handFramePump.reset();for(const side of ['Left','Right'])markHandMissing(side);});
             const sample=now=>{
                 if(!document.hidden && videoElement.readyState>=2)handFramePump.sample(videoElement.currentTime,now);
             };
@@ -4492,7 +4525,7 @@ body.vr-cardboard::after{
             const sampledAt=handFramePump?.started??now;
             const capturedAt=Date.now()-Math.max(0,now-sampledAt);
             if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
-                ['Left','Right'].forEach(side=>{if(activeHands[side]&&now-activeHands[side].lastSeen>180){activeHands[side]=null;delete pinchRayState[side];handGrabState[side]=false;pinchClickState[side]=false;}});
+                ['Left','Right'].forEach(markHandMissing);
                 forwardShootHands({multiHandLandmarks:[],multiHandedness:[]},capturedAt);
                 return;
             }
@@ -4532,14 +4565,14 @@ body.vr-cardboard::after{
                 const landmarks=det.landmarks;
                 let hand=activeHands[side];
                 if(!hand){
-                    hand=activeHands[side]={points:new Array(21),pinchProgress:0,fistProgress:0,indexProgress:0,lastSeen:sampledAt,wristX:det.wristX,wristY:det.wristY,stableId:handIdentityNextId++};
+                    hand=activeHands[side]={points:new Array(21),pinchProgress:0,fistProgress:0,indexProgress:0,lastSeen:now,sampledAt,missingFrames:0,wristX:det.wristX,wristY:det.wristY,stableId:handIdentityNextId++};
                     for(let i=0;i<21;i++){const lm=landmarks[i],x=offsetX+lm.x*renderW,y=offsetY+lm.y*renderH;hand.points[i]={x,y,targetX:x,targetY:y};}
                 }else{
                     for(let i=0;i<21;i++){const lm=landmarks[i];hand.points[i].targetX=offsetX+lm.x*renderW;hand.points[i].targetY=offsetY+lm.y*renderH;}
                 }
-                hand.wristX=hand.points[0].targetX;hand.wristY=hand.points[0].targetY;hand.lastSeen=sampledAt;hand.mpSide=det.mpSide;seen.add(side);
+                hand.wristX=hand.points[0].targetX;hand.wristY=hand.points[0].targetY;hand.lastSeen=now;hand.sampledAt=sampledAt;hand.missingFrames=0;hand.mpSide=det.mpSide;seen.add(side);
             });
-            ['Left','Right'].forEach(side=>{const h=activeHands[side];if(h&&!seen.has(side)&&now-h.lastSeen>180){activeHands[side]=null;delete pinchRayState[side];handGrabState[side]=false;pinchClickState[side]=false;resetPanelScrollGesture(side);}});
+            ['Left','Right'].forEach(side=>{if(!seen.has(side))markHandMissing(side);});
             // Ponte de Hand Tracking: o ShootTheDie consome exatamente o mesmo resultado
             // do MediaPipe processado pelo dixVR, sem iniciar outra câmera.
             forwardShootHands({multiHandLandmarks:results.multiHandLandmarks,multiHandedness:results.multiHandedness},capturedAt);
@@ -4715,7 +4748,7 @@ body.vr-cardboard::after{
                 let bestScore = -1;
                 ['Left', 'Right'].forEach(side => {
                     const h = activeHands[side];
-                    if (!h) return;
+                    if (!handInputFresh(h)) return;
                     const wrist = h.points[0], index = h.points[8];
                     const scale = Math.hypot(h.points[9].x - wrist.x, h.points[9].y - wrist.y) || 100;
                     const indexLen = Math.hypot(index.x - wrist.x, index.y - wrist.y) / scale;
@@ -5043,6 +5076,8 @@ body.vr-cardboard::after{
                 }
                 handsCtx.restore();
 
+                // Short detection gaps keep the last visual pose, but cannot click or drag.
+                if(!handInputFresh(hand))return;
                 const indexTip=hand.points[8], thumbTip=hand.points[4];
                 const wrist=hand.points[0], middle=hand.points[9];
                 const scale=Math.hypot(middle.x-wrist.x,middle.y-wrist.y)||100;
@@ -5138,7 +5173,7 @@ body.vr-cardboard::after{
                         // entre dois frames, eliminando os 'pulos' de Z.
                         const pinchFromAnchor=handDragAnchor.z-handDragSmooth.zPinch;
                         const zTarget=handDragPanelStart.z + THREE.MathUtils.clamp(pinchFromAnchor*PANEL_HAND_Z_SENSITIVITY,-2.2,2.2);
-                        group3D.position.z += (THREE.MathUtils.clamp(zTarget,-3.8,-.9)-group3D.position.z)*0.22;
+                        group3D.position.z += (zTarget-group3D.position.z)*0.22;
 
                         handDragLast={x:handDragSmooth.x,y:handDragSmooth.y,zPinch:handDragSmooth.zPinch};
                         grabbed=true;
@@ -5171,11 +5206,11 @@ body.vr-cardboard::after{
                         const dragDy=THREE.MathUtils.clamp((googleDragSmooth.y-googleDragAnchor.y)*0.0042,-0.95,0.95);
                         multitaskDetached.add('google');
                         googlePanel3D.position.x=googleDragPanelStart.x+dragDx;
-                        googlePanel3D.position.y=Math.max(getMinCenterYForApp('google'), googleDragPanelStart.y-dragDy);
+                        googlePanel3D.position.y=googleDragPanelStart.y-dragDy;
                         
                         const pinchFromAnchor=googleDragAnchor.pinch-googleDragSmooth.pinch;
                         const zTarget=googleDragPanelStart.z + THREE.MathUtils.clamp(pinchFromAnchor*PANEL_HAND_Z_SENSITIVITY,-2.2,2.2);
-                        googlePanel3D.position.z += (THREE.MathUtils.clamp(zTarget,-4,-.9)-googlePanel3D.position.z)*0.22;
+                        googlePanel3D.position.z += (zTarget-googlePanel3D.position.z)*0.22;
                         googleDragLast={x:googleDragSmooth.x,y:googleDragSmooth.y,pinch:googleDragSmooth.pinch};
                         grabbed=true;
                     }
@@ -5207,11 +5242,11 @@ body.vr-cardboard::after{
                         const dragDy=THREE.MathUtils.clamp((youtubeDragSmooth.y-youtubeDragAnchor.y)*0.0042,-0.95,0.95);
                         multitaskDetached.add('youtube');
                         youtubePanel3D.position.x=youtubeDragPanelStart.x+dragDx;
-                        youtubePanel3D.position.y=Math.max(getMinCenterYForApp('youtube'), youtubeDragPanelStart.y-dragDy);
+                        youtubePanel3D.position.y=youtubeDragPanelStart.y-dragDy;
                         
                         const pinchFromAnchor=youtubeDragAnchor.pinch-youtubeDragSmooth.pinch;
                         const zTarget=youtubeDragPanelStart.z+THREE.MathUtils.clamp(pinchFromAnchor*PANEL_HAND_Z_SENSITIVITY,-2.2,2.2);
-                        youtubePanel3D.position.z+=(THREE.MathUtils.clamp(zTarget,-4,-.9)-youtubePanel3D.position.z)*0.22;
+                        youtubePanel3D.position.z+=(zTarget-youtubePanel3D.position.z)*0.22;
                         youtubeDragLast={x:youtubeDragSmooth.x,y:youtubeDragSmooth.y,pinch:youtubeDragSmooth.pinch};
                         grabbed=true;
                     }
@@ -5243,7 +5278,7 @@ body.vr-cardboard::after{
                         drag.seen = true;
                         multitaskDetached.add(appId);
                         const targetX = drag.position.x + (x - drag.x) * .0042;
-                        const targetY = Math.max(getMinCenterYForApp(appId), drag.position.y - (y - drag.y) * .0042);
+                        const targetY = drag.position.y - (y - drag.y) * .0042;
                         entry.panel3D.position.x += (targetX - entry.panel3D.position.x) * PANEL_HAND_SMOOTH;
                         entry.panel3D.position.y += (targetY - entry.panel3D.position.y) * PANEL_HAND_SMOOTH;
                         entry.handleEl.classList.add('hand-grabbed');
