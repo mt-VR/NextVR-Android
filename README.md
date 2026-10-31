@@ -67,20 +67,18 @@ adb install -r dixVR-debug.apk
 
 > O nome base do APK vem de `base.archivesName` no `app/build.gradle` (o Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`). O CI sempre publica o arquivo com o nome `dixVR-debug.apk`, independentemente do nome gerado localmente pelo Gradle.
 
-### Revisão: base estável + desempenho/VR
+### Revisão atual: conteúdo integrado, raio de pinça e contraste
 
-Esta revisão parte da build `0917cfa` (41136029467), não da mudança de head-follow.
+- Dock a 1,78 m e arco a 2 m (geometria medida, três janelas acima da Dock); World Lock mantido.
+- Google/YouTube usam uma página por janela, projetada e recortada nos quatro cantos da superfície flutuante. Não há uma segunda moldura nativa nem um iframe ativo escondido no Google.
+- Páginas sem zoom automático de visão geral, com texto em 140% para não virar uma miniatura de celular dentro da janela.
+- Raio sai do ponto médio entre polegar e indicador. A palma dirige a mira com suavização/zona morta; a mira fica travada durante a pinça e volta a mover ao soltar. Ainda é uma aproximação em tela, não um controlador 6DoF.
+- Mãos têm alvo de 24 inferências/s, sem concorrência; a taxa real depende do aparelho.
+- Chicken: albedo sRGB, exposição/iluminação reduzidas para recuperar cores, sombras recebidas pelo frango/bancada e sombra de contato barata. Resolução interna limitada a DPR 0,85, sem MSAA; o cenário inteiro não balança a cada frame.
+- Interface/canvases e mãos nas duas metades; jogos Chicken/Dreamcore com dois viewports no modo VR.
+- WebViews nativos têm cópia visual assíncrona via PixelCopy na metade direita, sem segunda página/áudio. A cópia é monocular e pode atrasar; vídeo protegido pode não ser capturado.
+- Sem botão/badge flutuante do ShootTheDie em VR; sair pelo Voltar do Android.
 
-- Distâncias e World Lock anteriores restaurados; alças um pouco mais baixas e alça da janela afastada à direita.
-- Google menor, textos maiores, fechamento restrito à sua janela da multitarefa.
-- Google e YouTube permanecem em WebViews embutidos; YouTube usa `https://www.youtube.com/`.
-- Ativação por pinça com raio projetado na interface, sem esperar o dwell. O raio é uma aproximação em tela, não rastreamento 6DoF de controlador.
-- Interface/canvases e mãos atualizados nas duas metades; jogos Chicken/Dreamcore usam duas câmeras no modo VR.
-- WebViews nativos usam uma cópia visual assíncrona via PixelCopy para a metade direita, sem carregar uma segunda página nem duplicar áudio. Essa cópia é monocular e pode ter atraso; conteúdo protegido pode não ser capturado. Precisa de teste em aparelho.
-- GPU: resolução interna limitada a DPR 1 nos jogos, sombras da cozinha em 1024, workspace oculto sem renderização durante jogos, iluminação de preenchimento mais clara no Chicken.
-- Removidos o botão/badge flutuantes do ShootTheDie em VR; sair pelo botão Voltar do Android.
-- Ícones recompostos da imagem de referência enviada pelo usuário (não são o pacote oficial de assets).
+**APK sem ZIP:** o CI da PR publica uma pré-release `dixvr-preview-<commit>` com o arquivo `dixVR-debug.apk` e seu SHA-256, sem alterar a release principal NextVR. O comentário automático na PR #45 contém o link direto e a alternativa por artefato.
 
-**Limitações:** o modo lado a lado ainda não implementa o SDK óptico do Google Cardboard, perfil QR ou correção de distorção de lentes. Não equivale ao renderer oficial Cardboard. FPS real e sincronização visual precisam ser medidos no celular; testes de build não garantem fluidez.
-
-Para o APK mais recente, veja o comentário automático **APK dixVR pronto** na PR #45 e abra a execução indicada, seção **Artifacts**, artefato `dixvr-debug-apk`.
+**Limitações:** ainda não há SDK óptico oficial Cardboard, perfil QR ou correção de distorção. A projeção nativa e o espelhamento precisam ser conferidos no aparelho. Testes de build não garantem FPS ou correção visual em todos os celulares.

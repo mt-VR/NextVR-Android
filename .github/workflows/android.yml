@@ -158,6 +158,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish direct APK download (standalone dixVR preview)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arena/7e43774f-nextvr-android' && steps.verify.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          TAG="dixvr-preview-${HEAD_SHA:0:12}"
+          cd /tmp/apk-upload
+          sha256sum dixVR-debug.apk > dixVR-debug.apk.sha256
+          printf 'Standalone dixVR preview, not a NextVR main release.\n\nSource: %s\nRun: https://github.com/%s/actions/runs/%s\n\nDownload dixVR-debug.apk directly; no ZIP extraction required. Signed with the fixed repository debug key.\n' "$HEAD_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dixVR-debug.apk dixVR-debug.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" dixVR-debug.apk dixVR-debug.apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$HEAD_SHA" --title "dixVR preview ${HEAD_SHA:0:12}" --notes-file /tmp/release-notes.md --prerelease --latest=false
+          fi
+
       - name: Publish APK link on the pull request
         if: always() && github.event_name == 'pull_request' && steps.verify.outcome == 'success'
         continue-on-error: true
@@ -165,12 +181,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           APK_SHA=$(sha256sum /tmp/apk-upload/dixVR-debug.apk | cut -d' ' -f1)
+          TAG="dixvr-preview-${HEAD_SHA:0:12}"
+          DIRECT="https://github.com/${REPO}/releases/download/${TAG}/dixVR-debug.apk"
           BODY=$(cat <<EOF
           ### 📦 APK dixVR pronto (build ${RUN_ID})
 
-          Baixe o artefato **dixvr-debug-apk** (contém \`dixVR-debug.apk\`) na seção **Artifacts** no rodapé da execução:
+          **APK direto, sem ZIP:** ${DIRECT}
+
+          Alternativa: baixe o artefato **dixvr-debug-apk** (contém \`dixVR-debug.apk\`) na seção **Artifacts** no rodapé da execução:
 
           https://github.com/${REPO}/actions/runs/${RUN_ID}
 

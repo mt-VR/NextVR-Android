@@ -2012,7 +2012,7 @@ body.vr-cardboard::after{
         let isAnalyzing = false;
         let lastClickTime = 0;
         let lastAnalysisTime = 0;
-        const ANALYSIS_INTERVAL = 55; // ~18 FPS de IA; reduz picos no WebView móvel
+        const ANALYSIS_INTERVAL = 1000 / 24; // alvo, sujeito ao tempo real de inferência
         let draggingPanelWithHand = false;
         let handDragLast = { x: 0, y: 0, zPinch: 0 };
         let handDragSmooth = { x: 0, y: 0, zPinch: 0 };
@@ -2788,14 +2788,14 @@ body.vr-cardboard::after{
         // ===== MULTITAREFA ESPACIAL dixVR (ESTILO NEXTVR: ATÉ 3 APPS ACIMA DA DOCK) =====
         const MULTITASK_MAX = 3;
         const MULTITASK_SLOTS = ['center', 'left', 'right'];
-        const DOCK_DIST = 2.08;
+        const DOCK_DIST = 1.78;
         const DOCK_Y = -0.68;
         const DOCK_SCALE = 0.0024;
         const DOCK_HALF_HEIGHT = 0.085;      // fallback: usado so se a dock nao estiver mensuravel
         const DOCK_TILT = 0.14;              // a dock e inclinada para o usuario
         const DOCK_CLEARANCE = 0.18;         // folga minima entre o topo da dock e a base da janela
         const WINDOW_TOP_MAX_Y = 0.46;       // teto de altura: janela alta ENCOLHE, nao sobe
-        const ARC_DIST = 2.26;
+        const ARC_DIST = 2.00;
         const ARC_MIN_STEP = 0.52;
         const ARC_MAX_STEP = 0.92;
         const ARC_GAP_M = 0.12;              // folga horizontal entre janelas vizinhas
@@ -3260,8 +3260,8 @@ body.vr-cardboard::after{
                 if (googlePanelElement) googlePanelElement.style.display = 'block';
                 const nativeOpened = callNativeGooglePanel(true);
                 const iframe = googlePanelElement?.querySelector('#google-frame');
-                if (iframe) iframe.style.visibility = nativeOpened ? 'hidden' : 'visible';
-                showGoogleSearchOverlay(true);
+                if (iframe) { iframe.style.visibility = nativeOpened ? 'hidden' : 'visible'; if(nativeOpened) iframe.src='about:blank'; }
+                showGoogleSearchOverlay(!nativeOpened);
                 return;
             }
             if (appId === 'youtube') {
@@ -4133,7 +4133,7 @@ body.vr-cardboard::after{
                 <div class="google-content">
                     <iframe class="google-iframe" id="google-frame" title="Google" scrolling="yes" src="https://www.google.com/webhp?igu=1"></iframe>
                     <div class="google-search-overlay visible" id="google-search-overlay"><div class="google-search-box"><span style="font-size:18px;color:#9aa0a6">⌕</span><input id="google-search-input" type="text" autocomplete="off" inputmode="none" placeholder="Pesquisar no Google"><button class="google-nav" id="google-search-go">→</button></div></div>
-                    <div class="google-hint">☝ aponte · permanência = clique</div>
+                    <div class="google-hint">Aponte o raio · pinça para clicar</div>
                 </div>`;
             host.appendChild(wrap);
             googlePanelElement=wrap;
@@ -4193,6 +4193,7 @@ body.vr-cardboard::after{
         }
 
         let googleNativeBridgeActive=false;
+        let lastNativeGoogleGeometry=null;
         let googleNativeDwellStartedAt=0;
         let googleNativeDwellX=0, googleNativeDwellY=0;
         let googleNativeDwellTriggered=false;
@@ -4202,12 +4203,29 @@ body.vr-cardboard::after{
         const GOOGLE_NATIVE_MAX_DWELL_MOVE=28;
 
         function getNativeDixVRApi(){ return window.DixVR||window.dixVR||window.Android||null; }
+        function getNativePanelQuad(el) {
+            const panel = el.closest('.google-vr-panel') ? googlePanel3D : youtubePanel3D;
+            if (!panel || !camera) return null;
+            let x=0,y=0,node=el;
+            while(node && node!==panel.element){x+=node.offsetLeft||0;y+=node.offsetTop||0;node=node.offsetParent;}
+            if(node!==panel.element) return null;
+            scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);
+            const pw=panel.element.offsetWidth,ph=panel.element.offsetHeight;
+            const width=vrCardboardActive?window.innerWidth*.5:window.innerWidth;
+            return [[x,y],[x+el.offsetWidth,y],[x+el.offsetWidth,y+el.offsetHeight],[x,y+el.offsetHeight]].flatMap(([px,py])=>{
+                const v=new THREE.Vector3(px-pw/2,ph/2-py,0);
+                panel.localToWorld(v);v.project(camera);
+                return [(v.x+1)*width*.5,(1-v.y)*window.innerHeight*.5];
+            });
+        }
+
         function serializeNativePanelBounds(el){
             const r=el.getBoundingClientRect();
             return JSON.stringify({
                 left:r.left, top:r.top, right:r.right, bottom:r.bottom,
                 width:r.width, height:r.height,
                 vw:window.innerWidth||1, vh:window.innerHeight||1,
+                quad:getNativePanelQuad(el),
                 vrSplit:!!vrCardboardActive
             });
         }
@@ -4230,6 +4248,7 @@ body.vr-cardboard::after{
                     if(content)fn.call(api,serializeNativePanelBounds(content));
                     else fn.call(api,'{}');
                     googleNativeBridgeActive=true;
+                    lastNativeGoogleGeometry=null;
                     googleNativeDwellStartedAt=0;
                     googleNativeDwellTriggered=false;
                 }else{
@@ -4248,7 +4267,10 @@ body.vr-cardboard::after{
                 const api=getNativeDixVRApi();
                 const fn=api?.updateGooglePanelBounds;
                 const content=googlePanelElement?.querySelector('.google-content');
-                if(typeof fn==='function'&&content)fn.call(api,serializeNativePanelBounds(content));
+                if(typeof fn==='function'&&content){
+                    const json=serializeNativePanelBounds(content);
+                    if(json!==lastNativeGoogleGeometry){fn.call(api,json);lastNativeGoogleGeometry=json;}
+                }
             }catch(e){}
         }
         function nativeGoogleCall(name,...args){
@@ -4260,6 +4282,7 @@ body.vr-cardboard::after{
         }
 
         let youtubeNativeBridgeActive=false;
+        let lastNativeYouTubeGeometry=null;
         let youtubeLastHandPoint={x:0,y:0};
         let youtubeLastNativeScrollAt=0;
         let youtubeNativeDwellStartedAt=0;
@@ -4277,6 +4300,7 @@ body.vr-cardboard::after{
                     if(content)fn.call(api,serializeNativePanelBounds(content));
                     else fn.call(api,'{}');
                     youtubeNativeBridgeActive=true;
+                    lastNativeYouTubeGeometry=null;
                     youtubeNativeDwellStartedAt=0;
                     youtubeNativeDwellTriggered=false;
                 }else{
@@ -4295,7 +4319,10 @@ body.vr-cardboard::after{
                 const api=getNativeDixVRApi();
                 const fn=api?.updateYouTubePanelBounds;
                 const content=youtubePanelElement?.querySelector('.youtube-content');
-                if(typeof fn==='function'&&content)fn.call(api,serializeNativePanelBounds(content));
+                if(typeof fn==='function'&&content){
+                    const json=serializeNativePanelBounds(content);
+                    if(json!==lastNativeYouTubeGeometry){fn.call(api,json);lastNativeYouTubeGeometry=json;}
+                }
             }catch(e){}
         }
 
@@ -4500,6 +4527,7 @@ body.vr-cardboard::after{
             q.addEventListener('focus',()=>{showGoogleKeyboardPanel(true);});
             q.addEventListener('keydown',e=>{if(e.key==='Enter')submitGoogleSearch();});
             googleFrame.addEventListener('load',()=>{
+                if(googleNativeBridgeActive)return;
                 resetGoogleHandInteraction();
                 const url=googlePanelElement.querySelector('#google-url'); if(url)url.textContent=googleFrame.src.replace('https://','');
                 if(!googleNativeBridgeActive)googleFrame.style.visibility='visible';
@@ -4642,7 +4670,7 @@ body.vr-cardboard::after{
             // Somente a IA recebe uma cópia pequena e é chamada quando há um novo frame.
             async function analyzeFrame(now) {
                 if (!isAnalyzing && videoElement.readyState >= 2 && (now - lastAnalysisTime) >= ANALYSIS_INTERVAL) {
-                    lastAnalysisTime = now;
+                    lastAnalysisTime = now - Math.min(now - lastAnalysisTime - ANALYSIS_INTERVAL, ANALYSIS_INTERVAL);
                     isAnalyzing = true;
                     processCtx.drawImage(videoElement, 0, 0, processCanvas.width, processCanvas.height);
                     try {
@@ -4685,7 +4713,7 @@ body.vr-cardboard::after{
 
             const now=performance.now();
             if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
-                ['Left','Right'].forEach(side=>{if(activeHands[side]&&now-activeHands[side].lastSeen>180){activeHands[side]=null;handGrabState[side]=false;}});
+                ['Left','Right'].forEach(side=>{if(activeHands[side]&&now-activeHands[side].lastSeen>180){activeHands[side]=null;delete pinchRayState[side];handGrabState[side]=false;pinchClickState[side]=false;}});
                 if(activePanelType==='shoot-the-die' && shootTheDieFrameRef?.contentWindow){
                     try{shootTheDieFrameRef.contentWindow.postMessage({type:'dixvr-shoot-hand',results:{multiHandLandmarks:[],multiHandedness:[]}},'*');}catch(e){}
                 }
@@ -4734,7 +4762,7 @@ body.vr-cardboard::after{
                 }
                 hand.wristX=hand.points[0].targetX;hand.wristY=hand.points[0].targetY;hand.lastSeen=now;hand.mpSide=det.mpSide;seen.add(side);
             });
-            ['Left','Right'].forEach(side=>{const h=activeHands[side];if(h&&!seen.has(side)&&now-h.lastSeen>180){activeHands[side]=null;handGrabState[side]=false;pinchClickState[side]=false;resetPanelScrollGesture(side);}});
+            ['Left','Right'].forEach(side=>{const h=activeHands[side];if(h&&!seen.has(side)&&now-h.lastSeen>180){activeHands[side]=null;delete pinchRayState[side];handGrabState[side]=false;pinchClickState[side]=false;resetPanelScrollGesture(side);}});
             // Ponte de Hand Tracking: o ShootTheDie consome exatamente o mesmo resultado
             // do MediaPipe processado pelo dixVR, sem iniciar outra câmera.
             if(activePanelType==='shoot-the-die' && shootTheDieFrameRef?.contentWindow){
@@ -4781,6 +4809,24 @@ body.vr-cardboard::after{
             }
             return null;
         }
+        const pinchRayState = {};
+        function getStablePinchRay(side, hand, width, height) {
+            const p=hand.points;
+            const originX=(p[4].x+p[8].x)*.5,originY=(p[4].y+p[8].y)*.5;
+            const baseX=(p[2].x+p[5].x)*.5,baseY=(p[2].y+p[5].y)*.5;
+            const rawX=THREE.MathUtils.clamp(originX+(baseX-p[0].x)*2,0,width);
+            const rawY=THREE.MathUtils.clamp(originY+(baseY-p[0].y)*2,0,height);
+            let state=pinchRayState[side];
+            if(!state) state=pinchRayState[side]={x:rawX,y:rawY,originX,originY,pinching:false};
+            const holding=state.pinching?hand.pinchProgress>.38:hand.pinchProgress>.72;
+            if(!holding){
+                if(Math.hypot(rawX-state.x,rawY-state.y)>2){state.x+=(rawX-state.x)*.22;state.y+=(rawY-state.y)*.22;}
+            }
+            state.originX+=(originX-state.originX)*.4;state.originY+=(originY-state.originY)*.4;
+            state.pinching=holding;
+            return state;
+        }
+
         function processPinchClick(side,x,y,pinchStart,pinchHold){
             if(experimentGameActive)return null;
             const target=findInteractiveAt(x,y);
@@ -4881,7 +4927,7 @@ body.vr-cardboard::after{
                         Math.hypot(h.points[tip].x-wrist.x,h.points[tip].y-wrist.y) <
                         Math.hypot(h.points[pip].x-wrist.x,h.points[pip].y-wrist.y) * 1.22
                     ).length;
-                    const score = (indexLen > 1.20 && others >= 2) ? indexLen + others : 0;
+                    const score = h.pinchProgress>.38 ? 10+h.pinchProgress : ((indexLen > 1.20 && others >= 2) ? indexLen + others : 0);
                     if (score > bestScore) { bestScore = score; bestSide = side; }
                 });
                 if (bestSide) {
@@ -5232,13 +5278,9 @@ body.vr-cardboard::after{
                 const isPointing=hand.indexProgress>.65;
 
                 if (!experimentGameActive && side === pointerHandSide) {
-                    // Project the index direction into the UI plane; pinch is the trigger.
-                    const aim = {
-                        x: THREE.MathUtils.clamp(indexTip.x + (indexTip.x - hand.points[6].x) * 2, 0, handsCanvas.width),
-                        y: THREE.MathUtils.clamp(indexTip.y + (indexTip.y - hand.points[6].y) * 2, 0, handsCanvas.height)
-                    };
+                    const aim = getStablePinchRay(side, hand, handsCanvas.width, handsCanvas.height);
                     handsCtx.beginPath();
-                    handsCtx.moveTo(indexTip.x, indexTip.y);
+                    handsCtx.moveTo(aim.originX, aim.originY);
                     handsCtx.lineTo(aim.x, aim.y);
                     handsCtx.strokeStyle = pinchGrabHold ? '#80eaff' : 'rgba(255,255,255,.65)';
                     handsCtx.lineWidth = 2;
@@ -5815,7 +5857,8 @@ body.vr-cardboard::after{
             const tex=new THREE.CanvasTexture(c);
             tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
             tex.repeat.set(repeatX,repeatY);
-            tex.anisotropy=4;
+            tex.encoding=THREE.sRGBEncoding;
+            tex.anisotropy=2;
             return tex;
         }
         function woodTexture(base='#a87343',dark='#7a5230',rx=2,ry=2){
@@ -5904,8 +5947,8 @@ body.vr-cardboard::after{
         function buildKitchenScene(){
             const canvas=document.getElementById('kitchen-canvas');
             if(!canvas)return;
-            kitchenRenderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
-            kitchenRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.0));
+            kitchenRenderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'high-performance'});
+            kitchenRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1,.85));
             kitchenRenderer.setSize(window.innerWidth,window.innerHeight,false);
             kitchenRenderer.outputEncoding=THREE.sRGBEncoding;
             kitchenRenderer.shadowMap.enabled=true;
@@ -5914,7 +5957,7 @@ body.vr-cardboard::after{
             // Tonalização mais suave (evita contrastes "estourados" e deixa a luz
             // parecer mais natural, como um fotograma de câmera real).
             kitchenRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-            kitchenRenderer.toneMappingExposure = 1.2;
+            kitchenRenderer.toneMappingExposure = .85;
 
             kitchenScene=new THREE.Scene();
             kitchenScene.background=new THREE.Color(0x1c1712);
@@ -5932,19 +5975,22 @@ body.vr-cardboard::after{
             kitchenCamera.userData.baseQuaternion = kitchenCamera.quaternion.clone();
 
             // Luz mais quente e difusa, com sombras suaves e menos contraste.
-            const hemi=new THREE.HemisphereLight(0xfff0dc,0x6b6258,1.2);
+            const hemi=new THREE.HemisphereLight(0xfff0dc,0x332b24,.45);
             kitchenScene.add(hemi);
-            const ambient=new THREE.AmbientLight(0xffe6c8,.55);
+            const ambient=new THREE.AmbientLight(0xffe6c8,.12);
             kitchenScene.add(ambient);
-            const key=new THREE.DirectionalLight(0xffdfb0,1.5);
+            const key=new THREE.DirectionalLight(0xffe4c5,1.0);
             key.position.set(-2.0,4.2,2.0); key.castShadow=true;
             key.shadow.mapSize.set(1024,1024);
             key.shadow.camera.left=-4;key.shadow.camera.right=4;key.shadow.camera.top=4;key.shadow.camera.bottom=-4;
-            key.shadow.bias=-.0015;
+            key.target.position.set(0,1.0,-.35);
+            kitchenScene.add(key.target);
+            key.shadow.bias=-.0003;
+            key.shadow.normalBias=.015;
             kitchenScene.add(key);
-            const fill=new THREE.PointLight(0xffe6c2,.85,8);
+            const fill=new THREE.PointLight(0xffe6c2,.20,8);
             fill.position.set(2.0,2.2,1.5); kitchenScene.add(fill);
-            const rim=new THREE.PointLight(0xffd9a0,.45,6);
+            const rim=new THREE.PointLight(0xffd9a0,.10,6);
             rim.position.set(-1.5,1.8,1.1); kitchenScene.add(rim);
 
             kitchenWorldRoot=new THREE.Group();
@@ -5982,8 +6028,8 @@ body.vr-cardboard::after{
             // então a pia/bancada não fica gigante perto da câmera.
             const counter=boxTex(6.2,.62,1.35,counterTex,.4,.05);
             counter.position.set(0,.57,-1.15);counter.castShadow=true;counter.receiveShadow=true;kitchenWorldRoot.add(counter);
-            const slab=boxTex(6.35,.10,1.5,counterTex,.32,.08);
-            slab.position.set(0,.90,-1.15);slab.castShadow=true;kitchenWorldRoot.add(slab);
+            const slab=boxTex(6.35,.10,1.5,counterTex,.55,.02);
+            slab.position.set(0,.90,-1.15);slab.castShadow=true;slab.receiveShadow=true;kitchenWorldRoot.add(slab);
             const backsplash=boxTex(6.25,1.0,.08,backsplashTex,.85,0);
             backsplash.position.set(0,1.20,-1.82);kitchenWorldRoot.add(backsplash);
 
@@ -6023,7 +6069,7 @@ body.vr-cardboard::after{
 
             // ---- Frango — corpo, coxas e asas com silhueta mais realista ----
             kitchenChicken=new THREE.Group();
-            const chickenMat=texMat(chickenTex,.5,0);
+            const chickenMat=texMat(chickenTex,.8,0,0xd7ae92);
             const boneMat=mat(0xecd2b0,.55,0);
             const breast=new THREE.Mesh(new THREE.SphereGeometry(.4,40,26),chickenMat);
             breast.scale.set(1.15,.48,.85);breast.position.set(0,1.27,-.33);breast.castShadow=true;kitchenChicken.add(breast);
@@ -6049,7 +6095,17 @@ body.vr-cardboard::after{
             const herbs=[[-.16,1.52,-.45],[.12,1.47,-.28],[.02,1.44,-.55],[-.34,1.42,-.4],[.28,1.4,-.55]];
             herbs.forEach((p,i)=>{const h=cyl(.022,.022,.06,i%2?0x4c6e39:0x5f8a46,10,.9);h.rotation.x=.7;h.rotation.y=Math.random()*6;h.position.set(...p);kitchenChicken.add(h);});
             kitchenChicken.position.set(0,0,0);
+            kitchenChicken.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
             kitchenWorldRoot.add(kitchenChicken);
+            // Low-cost contact shadow keeps the chicken grounded even on low-end shadow filtering.
+            const contactTex=makeCanvasTexture(64,(ctx,size)=>{
+                const g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+                g.addColorStop(0,'rgba(35,18,10,.50)');g.addColorStop(1,'rgba(35,18,10,0)');
+                ctx.fillStyle=g;ctx.fillRect(0,0,size,size);
+            });
+            const contact=new THREE.Mesh(new THREE.PlaneGeometry(1.25,.85),new THREE.MeshBasicMaterial({map:contactTex,transparent:true,depthWrite:false}));
+            contact.rotation.x=-Math.PI/2;contact.position.set(0,1.069,-.30);
+            kitchenWorldRoot.add(contact);
 
             // ---- Alho e raminhos de alecrim ao redor da tábua (como na embalagem) ----
             const garlicMat=mat(0xf1e6d2,.4,0);
@@ -6234,7 +6290,15 @@ body.vr-cardboard::after{
             }
         }
 
+        const gameShadowFrames = new WeakMap();
         function renderGameEyes(renderer, gameScene, gameCamera) {
+            if(renderer.shadowMap.enabled){
+                const frame=gameShadowFrames.get(renderer)||0;
+                // One shadow map at 30 Hz, reused by both eyes; scene rendering stays at display cadence.
+                renderer.shadowMap.autoUpdate=false;
+                renderer.shadowMap.needsUpdate=(frame%2)===0;
+                gameShadowFrames.set(renderer,frame+1);
+            }
             if (!vrCardboardActive) { renderer.render(gameScene, gameCamera); return; }
             const size = renderer.getSize(new THREE.Vector2());
             const half = Math.floor(size.x / 2);
@@ -6266,7 +6330,7 @@ body.vr-cardboard::after{
             }
             // Pequeno balanço ambiental.
             const t=performance.now()*.001;
-            if(kitchenWorldRoot)kitchenWorldRoot.position.y=Math.sin(t*.6)*.004;
+            // Keep the room static: do not animate every shadow caster each frame.
             if(kitchenKnife && !kitchenHeldKnife){
                 kitchenKnife.rotation.y=Math.sin(t*.55)*.015;
             }

@@ -132,20 +132,20 @@ public class DixVrActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private WebView createConfiguredWebView(boolean isMainShell) {
-        WebView webView = new WebView(this);
-        webView.setBackgroundColor(isMainShell ? Color.BLACK : Color.WHITE);
+        WebView webView = isMainShell ? new WebView(this) : new ProjectedPanelWebView(this);
+        webView.setBackgroundColor(isMainShell ? Color.BLACK : Color.TRANSPARENT);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        if (!isMainShell) settings.setTextZoom(120);
+        if (!isMainShell) settings.setTextZoom(140);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(isMainShell);
+        settings.setUseWideViewPort(isMainShell);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
@@ -387,6 +387,9 @@ public class DixVrActivity extends AppCompatActivity {
             lp.width = bounds.widthPx;
             lp.height = bounds.heightPx;
             panelView.setLayoutParams(lp);
+        }
+        if (panelView instanceof ProjectedPanelWebView) {
+            ((ProjectedPanelWebView) panelView).updateProjection(boundsJson, bounds);
         }
         if (panelView.getVisibility() != View.VISIBLE) {
             panelView.setVisibility(View.VISIBLE);
