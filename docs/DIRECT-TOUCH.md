@@ -92,6 +92,15 @@ O caminho de superfície é o de uma tela de toque de verdade: apertar manda `do
 toque não vira dois: o botão de DOM é clicado pelo `presstap`, a superfície é tocada pelo caminho de
 toque, nunca os dois para o mesmo ponto.
 
+## A pinça não escolhe outra linha
+
+O `pinchdown` ainda tem o caminho de pinça direta (apertar sem raio) e ele também obedece à regra do
+"um alvo só": o ponto procurado é **o da ponta** (landmark 8) e, se ela não estiver sobre nada, o do
+olhar. Só depois disso é que o meio da pinça, a palma e os deslocamentos de 1,6/2,8 cm entram — e
+apenas para a dock e o menu rápido da mão esquerda, que não têm hit-test 3D
+(`findDirectAppPoint(..., onlyFloating)`). Antes esses pontos vinham primeiro e sem restrição: o meio
+da pinça caía numa linha vizinha e escolhia **outro** idioma, sem a ponta ter encostado em nada.
+
 ## Como ajustar
 
 Todos os números estão em `POKE`, no topo de `web/src/direct-touch.js`, em metros e milissegundos:

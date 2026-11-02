@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
-import bundledChromium from '@sparticuz/chromium';
+import { launchOrSkip } from './support/chromium.mjs';
 import * as THREE from 'three';
 
 // CI runs this on a software renderer: the whole flow (boot, windows, hand input, keyboard, Android
@@ -26,12 +25,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   let browser;
   try {
-    try {
-      browser=await chromium.launch({executablePath:await bundledChromium.executablePath(),args:bundledChromium.args,headless:true});
-    } catch(launchErr) {
-      t.skip('Chromium unavailable: '+launchErr.message?.slice(0,80));
-      return;
-    }
+    browser=await launchOrSkip(t);
+    if(!browser) return;
     const page=await browser.newPage({viewport:{width:4096,height:4096},deviceScaleFactor:1});
     const errors=[]; page.on('pageerror',e=>errors.push(e.message));
     // Validate native GLSL grammar/linking with ANGLE. Only the platform-specific OES sampler is

@@ -257,8 +257,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
   const { createServer } = await import('node:http');
   const { existsSync } = await import('node:fs');
   const { extname, join, resolve } = await import('node:path');
-  const { chromium: pw } = await import('playwright-core');
-  const chromium = (await import('@sparticuz/chromium')).default;
+  const { launchOrSkip } = await import('./support/chromium.mjs');
 
   const root = resolve('nextvr-android/src/main/assets/ui');
   const MIME = { '.html': 'text/html;charset=utf-8', '.js': 'text/javascript;charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2', '.wav': 'audio/wav' };
@@ -273,15 +272,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
 
   let browser;
   try {
-    try {
-      browser = await pw.launch({ executablePath: await chromium.executablePath(), args: chromium.args, headless: true });
-    } catch (e) {
-      if (/shared libraries|cannot open shared object|Target page, context or browser has been closed/.test(String(e))) {
-        t.skip('Playwright browser relies on system libs provided by the CI runner');
-        return;
-      }
-      throw e;
-    }
+    // O Chromium empacotado é descompactado uma vez por suíte, com lock: sem isso o launch morria
+    // em ETXTBSY enquanto outro arquivo de teste escrevia o mesmo binário.
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
     await page.addInitScript(() => {
       window.__gorillaFastTest = true;

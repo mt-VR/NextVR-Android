@@ -8,8 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
-import bundledChromium from '@sparticuz/chromium';
+import { launchOrSkip } from './support/chromium.mjs';
 import * as THREE from 'three';
 
 const ACTION = { down: 0, up: 1, move: 2, cancel: 3 };
@@ -173,8 +172,8 @@ test('language window: a detected press and release remain distinct at a slow sa
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const samples = [handAt(aim, .60, false), handAt(aim, .60, true), handAt(aim, .60, false)];
@@ -203,8 +202,8 @@ test("language window: far ray pinch selects English", { timeout: 120000 }, asyn
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.60:0:700,0.60:1:700,0.60:0:700');
@@ -219,8 +218,8 @@ test('language window: hovering in the near band with a pinch still uses the far
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Bem à frente do vidro, fora da faixa de toque direto: quem decide é o raio distante.
@@ -235,8 +234,8 @@ test('language window: starting behind the glass never leaves a press stuck DOWN
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Começa atrás do vidro e vem para a frente: sem pinça, nada pode apertar.
@@ -255,8 +254,8 @@ test('language window: push through the glass selects once, and a held pinch can
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Chega, encosta (aperta), atravessa um dedo, volta a encostar e sai: soltar sobre a MESMA linha
@@ -273,8 +272,8 @@ test('language window: leaving direct-touch range releases and suppresses the he
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '.lq-welcome');
     // Encosta e aperta (o toque direto passa a ser dono da mão), e SÓ ENTÃO fecha a pinça: com o
@@ -294,8 +293,8 @@ test('language window: releasing a push while still pinched emits one UP and no 
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     // The welcome heading is not a button, so this press must not close the window.
     const aim = await languageTarget(page, '.lq-welcome');
