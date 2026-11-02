@@ -15,6 +15,13 @@ const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls)
 const iconText = (name, text='') => `<span class="icon-label">${icon(name)}${text ? `<span>${text}</span>` : ''}</span>`;
 const openOut = url => { if (native) return webWindow('browser-extra', t('browser'), url); try { window.open(url, '_blank', 'noopener'); } catch { toast('Bloqueado pelo navegador'); } };
 
+// Identidade pública do app. A versão acompanha o versionName do build.gradle; a página de
+// downloads é a fonte do APK direto publicado pelo CI (sem ZIP), e o repositório é a fonte do
+// código. Ficam no topo para que Configurações e o rodapé usem o mesmo valor.
+const APP_VERSION = '1.0.11';
+const REPO_URL = 'https://github.com/mt-VR/NextVR-Android';
+const RELEASES_URL = `${REPO_URL}/releases`;
+
 /* ============ janela com página externa (Google, Discord) ============ */
 /*
  * Google e Discord mandam X-Frame-Options/CSP e recusam ser carregados
@@ -749,7 +756,22 @@ function settingsApp() {
   };
   scroll.append(xrButton, xrPage);
 
-  const foot = el('div', 'yt-foot'); foot.textContent = 'NextVR · shell XR para Android · v1.0';
+  // Sobre / downloads: o APK do CI é publicado como asset de release (link direto, sem ZIP).
+  // As linhas abertas no navegador WebViews do próprio shell, sem sair do workspace.
+  scroll.append(ytSection('Sobre'));
+  scroll.append(ytRow(icon('headset'), 'NextVR', `Versão ${APP_VERSION} · Cardboard SDK 1.35.0`));
+  const releasesBtn = el('button', 'yt-link');
+  releasesBtn.dataset.url = RELEASES_URL;
+  releasesBtn.append(ytRow(icon('external'), 'Downloads / APK', 'Abrir a página de downloads do GitHub'));
+  releasesBtn.onclick = () => openOut(RELEASES_URL);
+  scroll.append(releasesBtn);
+  const repoBtn = el('button', 'yt-link');
+  repoBtn.dataset.url = REPO_URL;
+  repoBtn.append(ytRow(icon('link'), 'Repositório', 'github.com/mt-VR/NextVR-Android'));
+  repoBtn.onclick = () => openOut(REPO_URL);
+  scroll.append(repoBtn);
+
+  const foot = el('div', 'yt-foot'); foot.textContent = `NextVR · shell XR para Android · v${APP_VERSION}`;
   scroll.append(foot);
 
   body.append(head, scroll);

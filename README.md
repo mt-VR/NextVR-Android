@@ -41,6 +41,11 @@ hand/camera and audio acceptance tests.
 and publishes the `nextvr-debug-apk` artifact. CI also tests the actual HTML UI and verifies that
 bundled assets match source.
 
+Pull-request builds additionally publish the raw `nextvr-android-debug.apk` as a GitHub Release
+asset. That release download is a direct APK link (no ZIP extraction), tagged
+`nextvr-preview-<commit>`; the workflow posts the URL on the pull request together with the APK
+SHA-256. Builds on `main` keep publishing to the `apk-dist` branch.
+
 Successive CI builds share one debug signature: the workflow copies `signing/debug.keystore` (the
 stock Android debug key, `androiddebugkey`/`android`) to `~/.android/debug.keystore` before building.
 Without it every runner generates a fresh key and installing a new round over the previous install

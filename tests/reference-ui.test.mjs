@@ -249,6 +249,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     const xrSettings = page.locator('.win-shell[data-window-id="settings"] .yt-link').filter({hasText:'PhoneXR'});
     await xrSettings.evaluate(button => button.click());
     assert.equal(await page.locator('[data-xr-page] .seg button').count(),2,'PhoneXR offers controllers and hands modes');
+    // The About section is the in-app route to the direct APK release, not a ZIP artifact.
+    const aboutDownloads = page.locator('.win-shell[data-window-id="settings"] .yt-link').filter({hasText:'Downloads / APK'});
+    assert.equal(await aboutDownloads.count(),1,'settings exposes the direct APK download page');
+    assert.equal(await aboutDownloads.getAttribute('data-url'),'https://github.com/mt-VR/NextVR-Android/releases',
+      'the in-app download row points at the GitHub releases page');
+    assert.match(await page.locator('.win-shell[data-window-id="settings"] .yt-foot').innerText(),/v1\.0\.11/,
+      'the settings footer shows the same version as the APK');
     await page.locator('.win-shell[data-window-id="settings"] [data-act="close"]').click();
     await page.locator('.quick-settings [data-q-close]').click();
     await page.waitForFunction(()=>!document.querySelector('.quick-settings'));
