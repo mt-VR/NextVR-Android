@@ -1,0 +1,15 @@
+Verifying release jar: /tmp/fixtures/good.jar
+  size: 0.0 MB
+  mod:  Discord Voice Bridge (discord_voice_bridge) 1.0.1
+  mapping namespace: official
+  nested jars listed in fabric.mod.json: 2
+    fabric-api 0.165.0+26.3   (META-INF/jars/fabric-api-0.165.0+26.3.jar)
+      fabric-api-base 2.0.6   (META-INF/jars/fabric-api-base-2.0.6.jar)
+    fabric-permissions-api-v0 0.7.0   (META-INF/jars/fabric-permissions-api-0.7.0.jar)
+  dependencies:
+    fabricloader             >=0.20.1         ok (loader builtin)
+    fabric-api               >=0.165.0        ok (0.165.0+26.3 >= 0.165.0)
+    minecraft                ~26.3            ok (loader builtin)
+    java                     >=25             ok (loader builtin)
+
+OK: fabric.mod.json dependencies are satisfied by this jar alone.
