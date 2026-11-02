@@ -44,6 +44,14 @@ if(WIN32)
     target_link_libraries(nextvr PRIVATE d3d11 mfplat mfuuid ws2_32 ole32)
     target_compile_definitions(nextvr PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
     set_target_properties(nextvr PROPERTIES PREFIX "" OUTPUT_NAME "driver_nextvr")
+
+    # Sonda do OpenXR: pergunta ao runtime ATIVO quais extensões ele declara, porque Skeletal Input é
+    # OpenVR e não responde por XR_EXT_hand_tracking. O Bridge a chama (pc-bridge/src/compat.mjs) e
+    # mostra o resultado na janela do PC Link. Sem ela, o campo fica `null` = "não verificado".
+    add_executable(nextvr-openxr-probe tools/openxr_probe.cpp)
+    target_link_libraries(nextvr-openxr-probe PRIVATE advapi32)
+    target_compile_definitions(nextvr-openxr-probe PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    set_target_properties(nextvr-openxr-probe PROPERTIES PREFIX "" OUTPUT_NAME "nextvr-openxr-probe")
 else()
     # Fora do Windows: os fontes do driver também são checados (sintaxe) pelo CI, com um sink nulo
     # no lugar do D3D11. Isso pega erro de API do OpenVR sem precisar de uma máquina Windows.
@@ -62,6 +70,8 @@ if(WIN32)
     if(STEAMVR_DRIVER_DIR)
         install(TARGETS nextvr RUNTIME DESTINATION "${STEAMVR_DRIVER_DIR}/nextvr/bin/win64")
         install(FILES driver.vrdrivermanifest DESTINATION "${STEAMVR_DRIVER_DIR}/nextvr")
+        # O Bridge procura a sonda em pc-bridge/bin/; o instalador do driver a deixa aqui também.
+        install(TARGETS nextvr-openxr-probe RUNTIME DESTINATION "${STEAMVR_DRIVER_DIR}/nextvr")
         install(DIRECTORY resources/ DESTINATION "${STEAMVR_DRIVER_DIR}/nextvr/resources")
     endif()
 endif()

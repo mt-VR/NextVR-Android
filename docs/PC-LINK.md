@@ -33,6 +33,7 @@ Esta seção existe porque a regra do projeto é não apresentar função simula
 | Android: descoberta, controle, envio, decodificação | escrito; testes JVM dos bytes e da geometria |
 | Passe de olho no renderer (metade por olho) | escrito |
 | **Verificado em Windows + SteamVR + headset** | **não** — este ambiente não tem nada disso |
+| Sonda do OpenXR (`nextvr-openxr-probe`) | escrita; sintaxe conferida em Linux, **compila no MSVC** — não rodada |
 | `XR_EXT_hand_tracking` | **não implementado** — ver §7 |
 | Áudio | não transmitido (o campo existe reservado) |
 
@@ -220,9 +221,14 @@ juntas no formato do OpenXR, que **não** é a lista de 31 ossos (o número e a 
 O caminho é a camada OpenXR que traduz o nosso estado para o runtime, e ela **não está escrita**. O
 que já existe para ela:
 
-* o Bridge sabe se o runtime OpenXR em uso tem a extensão (`compat.mjs`, campo
-  `openxrHandTracking`, que chega ao celular como `true`, `false` ou **`null` = não verificado**;
-  virar `false` seria afirmar que não tem sem ter perguntado);
+* **a pergunta já é feita de verdade**: `steamvr-driver/tools/openxr_probe.cpp` compila para
+  `nextvr-openxr-probe.exe`, abre o loader do OpenXR do sistema, lê o `ActiveRuntime` do registro do
+  Khronos e cria uma instância para enumerar as extensões de instância que o runtime ativo declara.
+  Imprime uma linha JSON (`{"ok":true,"extensions":[…],"runtimeManifest":"…"}`). O Bridge a chama em
+  `compat.mjs`; sem o executável, o campo fica `null`;
+* por isso o Bridge sabe se o runtime em uso tem a extensão (campo `openxrHandTracking`, que chega ao
+  celular como `true`, `false` ou **`null` = não verificado**; virar `false` seria afirmar que não
+  tem sem ter perguntado);
 * o estado de 744 bytes tem as 21 juntas por mão em metros, que é a entrada de qualquer conversão;
 * a `welcome` já diz ao celular o que o PC tem, e a janela mostra isso.
 
