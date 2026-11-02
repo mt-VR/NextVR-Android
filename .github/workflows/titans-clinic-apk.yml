@@ -10,7 +10,7 @@ on:
       - '.github/workflows/titans-clinic-apk.yml'
 
 permissions:
-  contents: read
+  contents: write   # o CI commita o APK na própria branch (canal de entrega)
 
 jobs:
   build:
@@ -41,3 +41,17 @@ jobs:
           name: titans-clinic-apk
           path: titans-clinic.apk
           retention-days: 30
+
+      # Entrega via git: o .gitignore ignora *.apk, então o CI faz add -f e
+      # commita o binário na branch que disparou o run (canal baixável depois).
+      - name: Publish APK to branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f titans-clinic.apk
+          if git diff --cached --quiet; then
+            echo "APK identico ao anterior, nada a commitar"
+          else
+            git commit -m "chore(apk): titans-clinic build de ${GITHUB_SHA::8}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
