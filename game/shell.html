@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12123a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Clínica dos Titãs — jogo de dentista e nail art para celular, em um único arquivo HTML.">
+<title>Clínica dos Titãs · Titans Clinic (mobile)</title>
+<style>
+  :root{
+    --bg1:#1b1b4b; --bg2:#0d0d26;
+    --panel:rgba(16,16,44,.82);
+    --panel2:rgba(255,255,255,.08);
+    --ink:#fff;
+    --mut:#b9bde8;
+    --acc:#7cf0c0;
+    --acc2:#ffd166;
+    --bad:#ff6b7a;
+    --line:rgba(255,255,255,.16);
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+    --r:18px;
+    --font:'Baloo 2','Fredoka','Nunito',ui-rounded,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg2);color:var(--ink);
+    font-family:var(--font);touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* ---------- telas ---------- */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;z-index:5}
+  .screen.on{display:flex}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;inset:0;pointer-events:none;z-index:6;display:none;
+    flex-direction:column;justify-content:space-between}
+  #hud.on{display:flex}
+  .hud-top{display:flex;gap:8px;align-items:flex-start;padding:calc(var(--safe-t) + 8px) 10px 0}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:6px 12px;font-weight:700;font-size:14px;line-height:1.2;backdrop-filter:blur(6px);
+    display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .chip b{color:var(--acc2)}
+  .chip.err b{color:var(--bad)}
+  .spacer{flex:1}
+  .ibtn{pointer-events:auto;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    width:46px;height:46px;border-radius:14px;font-size:20px;display:grid;place-items:center;cursor:pointer;
+    backdrop-filter:blur(6px)}
+  .ibtn:active{transform:scale(.94)}
+  #checklist{position:absolute;right:10px;top:calc(var(--safe-t) + 62px);display:flex;flex-direction:column;
+    gap:6px;align-items:flex-end}
+  .task{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px 10px;
+    font-size:13px;font-weight:700;display:flex;gap:6px;align-items:center;backdrop-filter:blur(6px);
+    transition:opacity .3s, transform .3s}
+  .task .dot{width:9px;height:9px;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px var(--acc2)}
+  .task.done{opacity:.42}
+  .task.done .dot{background:var(--acc);box-shadow:0 0 8px var(--acc)}
+  .task.hidden-t .dot{background:#6fb7ff;box-shadow:0 0 8px #6fb7ff}
+
+  /* ---------- barra de ferramentas ---------- */
+  #toolbar{pointer-events:auto;display:flex;gap:8px;padding:8px 10px calc(var(--safe-b) + 10px);
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;background:linear-gradient(transparent,rgba(6,6,20,.75) 40%)}
+  #toolbar::-webkit-scrollbar{display:none}
+  .tool{flex:0 0 auto;min-width:64px;padding:8px 6px 6px;border-radius:16px;border:2px solid var(--line);
+    background:var(--panel);color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-family:inherit;font-weight:800;font-size:11px;cursor:pointer;backdrop-filter:blur(6px)}
+  .tool .ico{font-size:24px;line-height:1}
+  .tool.on{border-color:var(--acc);background:rgba(124,240,192,.18);box-shadow:0 0 0 3px rgba(124,240,192,.18)}
+  .tool:active{transform:scale(.95)}
+
+  /* ---------- menu ---------- */
+  #menu{background:radial-gradient(120% 90% at 50% 0%,#2c2c74 0%,#14143a 55%,#0a0a1e 100%);
+    padding:calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 14px);overflow-y:auto;
+    -webkit-overflow-scrolling:touch;touch-action:pan-y}
+  .logo{text-align:center;margin:4px 0 2px}
+  .logo h1{margin:0;font-size:clamp(30px,9.4vw,46px);line-height:.98;font-weight:800;letter-spacing:.5px;
+    color:#fff;text-shadow:0 3px 0 #4b3fd6,0 6px 0 #2a2480,0 12px 26px rgba(0,0,0,.55)}
+  .logo h1 span{color:var(--acc2);text-shadow:0 3px 0 #c98a12,0 6px 0 #7d5405,0 12px 26px rgba(0,0,0,.5)}
+  .logo p{margin:6px 0 0;color:var(--mut);font-size:13px;font-weight:700}
+  .modes{display:flex;flex-direction:column;gap:10px;margin:16px 0 6px}
+  .mode{border:0;border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:14px;
+    font-family:inherit;color:#12123a;font-weight:800;font-size:17px;cursor:pointer;text-align:left;
+    box-shadow:0 6px 0 rgba(0,0,0,.35),0 12px 24px rgba(0,0,0,.3)}
+  .mode:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .mode .big{font-size:32px}
+  .mode small{display:block;font-size:11.5px;font-weight:700;opacity:.72;margin-top:2px}
+  .m1{background:linear-gradient(135deg,#8ef7cd,#38d79a)}
+  .m2{background:linear-gradient(135deg,#ffc4e4,#ff7ab8)}
+  .secttl{display:flex;align-items:center;gap:8px;margin:18px 2px 8px;font-size:12px;font-weight:800;
+    letter-spacing:1.4px;text-transform:uppercase;color:var(--mut)}
+  .secttl:after{content:'';flex:1;height:1px;background:var(--line)}
+  .row{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none;touch-action:pan-x}
+  .row::-webkit-scrollbar{display:none}
+  .pcard{flex:0 0 auto;width:96px;border-radius:16px;border:1px solid var(--line);background:var(--panel);
+    padding:8px 6px 7px;text-align:center;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .pcard:active{transform:scale(.96)}
+  .pcard canvas{position:static;width:64px;height:64px;display:block;margin:0 auto}
+  .pcard .nm{font-size:11.5px;font-weight:800;margin-top:4px;line-height:1.15}
+  .pcard .st{font-size:11px;color:var(--acc2);letter-spacing:1px;margin-top:2px}
+  .grid2{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:2px 0 6px}
+  .grid2 .pcard{width:auto}
+  .foot{margin-top:auto;padding-top:16px;display:flex;gap:10px;align-items:center;justify-content:center;
+    color:var(--mut);font-size:11px;font-weight:700;text-align:center;line-height:1.5}
+
+  /* ---------- botões genéricos ---------- */
+  .btn{border:0;border-radius:14px;padding:13px 20px;font-family:inherit;font-weight:800;font-size:15px;
+    cursor:pointer;color:#12123a;background:linear-gradient(135deg,#ffe08a,#ffbe3d);
+    box-shadow:0 5px 0 rgba(0,0,0,.32)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.32)}
+  .btn.g{background:linear-gradient(135deg,#8ef7cd,#38d79a)}
+  .btn.p{background:linear-gradient(135deg,#ffc4e4,#ff7ab8)}
+  .btn.ghost{background:var(--panel2);color:#fff;border:1px solid var(--line);box-shadow:none}
+
+  /* ---------- overlays ---------- */
+  .ovl{position:absolute;inset:0;z-index:9;display:none;place-items:center;padding:20px;
+    background:rgba(6,6,20,.72);backdrop-filter:blur(4px)}
+  .ovl.on{display:grid}
+  .card{width:min(420px,100%);background:linear-gradient(180deg,#26265e,#171740);border:1px solid var(--line);
+    border-radius:22px;padding:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55);
+    animation:pop .28s cubic-bezier(.2,1.5,.4,1)}
+  @keyframes pop{from{transform:scale(.86);opacity:0}to{transform:scale(1);opacity:1}}
+  .card h2{margin:0 0 4px;font-size:23px;font-weight:800}
+  .card p{margin:6px 0 0;color:var(--mut);font-size:13.5px;font-weight:700;line-height:1.55}
+  .stars{font-size:40px;letter-spacing:6px;margin:10px 0 2px;color:#3a3a72}
+  .stars i{font-style:normal;color:var(--acc2);text-shadow:0 0 18px rgba(255,209,102,.6);
+    display:inline-block;animation:stp .4s backwards}
+  .stars i:nth-child(2){animation-delay:.14s}.stars i:nth-child(3){animation-delay:.28s}
+  @keyframes stp{from{transform:scale(0) rotate(-40deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+  .kv{display:flex;justify-content:center;gap:18px;margin:12px 0 4px;font-weight:800;font-size:14px}
+  .kv span{color:var(--mut);font-weight:700}
+  .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+
+  /* ---------- intro do paciente ---------- */
+  #intro .card{background:linear-gradient(180deg,#2c2c72,#15153a)}
+  .diag{text-align:left;margin:12px auto 0;max-width:300px;display:flex;flex-direction:column;gap:6px}
+  .diag div{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:12px;
+    padding:7px 10px;font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center}
+
+  /* ---------- salão: cores e carimbos ---------- */
+  #paints{pointer-events:auto;display:none;gap:8px;padding:0 10px 6px;align-items:center;flex-wrap:nowrap;
+    overflow-x:auto;scrollbar-width:none}
+  #paints.on{display:flex}
+  #paints::-webkit-scrollbar{display:none}
+  .sw{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.35);
+    cursor:pointer;position:relative;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+  .sw.on{border-color:#fff;transform:scale(1.12)}
+  .sw.lock:after{content:'🔒';position:absolute;inset:0;display:grid;place-items:center;font-size:15px;
+    background:rgba(8,8,24,.6);border-radius:50%}
+  .stp{flex:0 0 auto;width:42px;height:38px;border-radius:12px;border:2px solid var(--line);
+    background:var(--panel);color:#fff;font-size:19px;cursor:pointer;display:grid;place-items:center}
+  .stp.on{border-color:var(--acc);background:rgba(124,240,192,.18)}
+  .stp.lock{opacity:.55}
+  .plabel{flex:0 0 auto;font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+    color:var(--mut);padding:0 2px}
+
+  /* ---------- configurações ---------- */
+  .setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;
+    border-bottom:1px solid var(--line);font-weight:700;font-size:14.5px}
+  .setrow:last-child{border-bottom:0}
+  .tg{width:56px;height:32px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid var(--line);
+    position:relative;cursor:pointer;flex:0 0 auto}
+  .tg:after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+    background:#fff;transition:.2s}
+  .tg.on{background:linear-gradient(135deg,#8ef7cd,#38d79a)}
+  .tg.on:after{left:27px}
+  .hint{position:absolute;left:50%;bottom:calc(var(--safe-b) + 96px);transform:translateX(-50%);
+    z-index:7;background:rgba(10,10,30,.86);border:1px solid var(--line);border-radius:14px;
+    padding:8px 14px;font-size:12.5px;font-weight:700;color:#fff;max-width:88vw;text-align:center;
+    display:none;pointer-events:none}
+  .hint.on{display:block;animation:pop .25s}
+  .buy-preview{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;
+    vertical-align:middle;margin:0 4px;border:2px solid rgba(255,255,255,.4);font-size:16px}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <!-- ===== MENU ===== -->
+  <section class="screen on" id="menu">
+    <div class="logo">
+      <h1>CLÍNICA DOS <span>TITÃS</span></h1>
+      <p data-i18n="tagline"></p>
+    </div>
+    <div class="modes">
+      <button class="mode m1" id="btnClinic">
+        <span class="big">🦷</span>
+        <span><span data-i18n="clinic"></span><small data-i18n="clinicSub"></small></span>
+      </button>
+      <button class="mode m2" id="btnSalon">
+        <span class="big">💅</span>
+        <span><span data-i18n="salon"></span><small data-i18n="salonSub"></small></span>
+      </button>
+    </div>
+    <div class="secttl" data-i18n="patients"></div>
+    <div class="grid2" id="prow"></div>
+    <div class="secttl" data-i18n="clients"></div>
+    <div class="grid2" id="srow"></div>
+    <div class="secttl" data-i18n="shop"></div>
+    <div class="chip" style="align-self:center"><span>🪙</span> <b id="coinMenu">0</b></div>
+    <p style="text-align:center;color:var(--mut);font-size:12.5px;font-weight:700;margin:8px 0 0" data-i18n="shopHint"></p>
+    <div class="foot">
+      <button class="ibtn" id="btnSet" aria-label="Settings">⚙️</button>
+      <div data-i18n="credit"></div>
+    </div>
+  </section>
+
+  <!-- ===== JOGO ===== -->
+  <section class="screen" id="play">
+    <div id="hud">
+      <div class="hud-top">
+        <button class="ibtn" id="btnHome" aria-label="Home">🏠</button>
+        <div class="chip">⏱ <b id="uiTime">0:00</b></div>
+        <div class="chip err">✖ <b id="uiErr">0</b></div>
+        <div class="spacer"></div>
+        <div class="chip">🪙 <b id="uiCoin">0</b></div>
+        <button class="ibtn" id="btnPause" aria-label="Pause">⏸</button>
+      </div>
+      <div id="checklist"></div>
+      <div>
+        <div id="paints"></div>
+        <div id="toolbar"></div>
+      </div>
+    </div>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <!-- ===== OVERLAYS ===== -->
+  <div class="ovl" id="intro">
+    <div class="card">
+      <div style="font-size:46px" id="introEmoji">🦷</div>
+      <h2 id="introName">—</h2>
+      <p id="introText">—</p>
+      <div class="diag" id="introDiag"></div>
+      <div class="acts"><button class="btn g" id="btnStart">▶</button></div>
+    </div>
+  </div>
+
+  <div class="ovl" id="result">
+    <div class="card">
+      <div style="font-size:44px" id="resEmoji">🎉</div>
+      <h2 id="resTitle">—</h2>
+      <div class="stars" id="resStars"></div>
+      <p id="resText">—</p>
+      <div class="kv">
+        <div>⏱ <span id="resTime">0:00</span></div>
+        <div>✖ <span id="resErr">0</span></div>
+        <div>🪙 +<span id="resCoin">0</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" id="resHome">🏠</button>
+        <button class="btn" id="resAgain">↻</button>
+        <button class="btn g" id="resNext">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ovl" id="pause">
+    <div class="card">
+      <h2 id="pauseTitle">⏸</h2>
+      <div class="setrow"><span data-i18n="sound"></span><div class="tg on" id="tgSound"></div></div>
+      <div class="setrow"><span data-i18n="vib"></span><div class="tg on" id="tgVib"></div></div>
+      <div class="setrow"><span>🌐 PT / EN</span><button class="btn ghost" id="btnLang" style="padding:8px 14px">EN</button></div>
+      <div class="acts">
+        <button class="btn ghost" id="pHome">🏠</button>
+        <button class="btn g" id="pResume">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ovl" id="shop">
+    <div class="card">
+      <h2 id="shopTitle">🛍</h2>
+      <p id="shopText"></p>
+      <div class="acts">
+        <button class="btn ghost" id="shopNo"></button>
+        <button class="btn" id="shopYes"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ovl" id="settings">
+    <div class="card">
+      <h2 data-i18n="settings">⚙️</h2>
+      <div class="setrow"><span data-i18n="sound"></span><div class="tg on" id="tgSound2"></div></div>
+      <div class="setrow"><span data-i18n="vib"></span><div class="tg on" id="tgVib2"></div></div>
+      <div class="setrow"><span>🌐 Português / English</span><button class="btn ghost" id="btnLang2" style="padding:8px 14px">EN</button></div>
+      <div class="setrow"><span data-i18n="reset"></span><button class="btn ghost" id="btnReset" style="padding:8px 14px" data-i18n="resetBtn"></button></div>
+      <div class="acts"><button class="btn g" id="setClose"></button></div>
+      <p style="margin-top:14px;font-size:11.5px" data-i18n="credit"></p>
+    </div>
+  </div>
+</div>
+<script src="titans-clinic-mobile.js"></script>
+</body>
+</html>
