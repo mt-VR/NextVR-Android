@@ -20,4 +20,8 @@ const out = shell.replace(
 if (out === shell) throw new Error('marcador <script src> não encontrado');
 
 fs.writeFileSync('titans-clinic.html', out);
-console.log('titans-clinic.html', (fs.statSync('titans-clinic.html').size / 1024).toFixed(1) + ' kB');
+// cópia empacotada dentro do APK (WebView carrega de assets/)
+fs.mkdirSync('titans-clinic-apk/src/main/assets', { recursive: true });
+fs.writeFileSync('titans-clinic-apk/src/main/assets/titans-clinic.html', out);
+console.log('titans-clinic.html', (fs.statSync('titans-clinic.html').size / 1024).toFixed(1) + ' kB',
+  '(+ assets do APK)');

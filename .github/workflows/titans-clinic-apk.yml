@@ -1,0 +1,43 @@
+name: Titans Clinic APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'titans-clinic-apk/**'
+      - 'game/**'
+      - 'titans-clinic.html'
+      - '.github/workflows/titans-clinic-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build game APK (WebView wrapper)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build release APK
+        run: ./gradlew -p titans-clinic-apk assembleRelease --no-daemon --stacktrace
+
+      - name: Rename artifact
+        run: |
+          cp titans-clinic-apk/build/outputs/apk/release/titans-clinic-apk-release.apk titans-clinic.apk
+          ls -la titans-clinic.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: titans-clinic-apk
+          path: titans-clinic.apk
+          retention-days: 30

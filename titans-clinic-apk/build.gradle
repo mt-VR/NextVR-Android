@@ -1,0 +1,51 @@
+// APK minimalista: uma WebView em tela cheia carregando o jogo HTML single-file.
+// Sem AndroidX, sem Kotlin, sem código nativo — só framework + assets.
+plugins {
+    id 'com.android.application' version '9.2.0'
+}
+
+android {
+    namespace = 'com.titansclinic'
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = 'com.titansclinic'
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = '1.0'
+    }
+
+    signingConfigs {
+        // mesmo keystore de debug versionado no repo (só para builds de teste)
+        debug {
+            storeFile file("${rootDir}/../signing/debug.keystore")
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // APK de distribuição direta (sideload): assinado com o keystore de
+            // debug do repo para poder instalar sem Play Store.
+            signingConfig signingConfigs.debug
+            minifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'kotlin/**']
+        }
+    }
+}
