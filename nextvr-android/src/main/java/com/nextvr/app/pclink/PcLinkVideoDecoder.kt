@@ -5,7 +5,8 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.SystemClock
 import android.view.Surface
-import java.util.ArrayDeque
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /**
  * Hardware decode of the PC's video into a `Surface`.
@@ -66,8 +67,16 @@ class PcLinkVideoDecoder {
     @Volatile private var width = 1832
     @Volatile private var height = 1920
 
+    /** Guards the surface and the codec, which are rebuilt together. */
     private val lock = Any()
-    private val queue = ArrayDeque<PcLinkWire.AssembledFrame>(8)
+    /**
+     * Frames waiting for the decoder.
+     *
+     * A blocking queue instead of a hand-written wait/notify pair: the network thread must never
+     * block, the decode thread must never spin, and the queue is the one object both of them need
+     * anyway. `poll(timeout)` is what makes `stop()` able to actually stop it.
+     */
+    private val queue = LinkedBlockingQueue<PcLinkWire.AssembledFrame>(8)
     private var surface: Surface? = null
     private var codec: MediaCodec? = null
     private var configuredMime: String? = null
@@ -128,35 +137,30 @@ class PcLinkVideoDecoder {
 
     /** Called from the socket thread: never blocks on the decoder. */
     fun push(frame: PcLinkWire.AssembledFrame) {
-        synchronized(lock) {
-            if (surface == null) return
-            if (queue.size >= 4) {
-                // Drop the oldest frame that nobody can save; a keyframe is worth keeping because
-                // without it every following frame is a smear.
-                val oldest = queue.peekFirst()
-                if (oldest != null && !oldest.keyframe) {
-                    queue.removeFirst(); stats.dropped++
-                } else {
-                    queue.removeLast(); stats.dropped++
-                }
+        if (surface == null) return
+        if (queue.size >= 4) {
+            // Drop the oldest frame that nobody can save; a keyframe is worth keeping because
+            // without it every following frame is a smear.
+            val oldest = queue.peek()
+            if (oldest != null && !oldest.keyframe) {
+                queue.poll(); stats.dropped++
+            } else if (queue.remainingCapacity() == 0) {
+                stats.dropped++
+                return
             }
-            queue.addLast(frame)
-            lock.notifyAll()
         }
+        if (!queue.offer(frame)) stats.dropped++
     }
 
     private fun loop() {
         while (running) {
-            // A local `var` with an initial value: Kotlin refuses to initialise a captured `val`
-            // inside a lambda, and the wait has to happen under the lock.
-            var next: PcLinkWire.AssembledFrame? = null
-            synchronized(lock) {
-                while (running && queue.isEmpty()) {
-                    try { lock.wait(200) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return }
-                }
-                if (running && queue.isNotEmpty()) next = queue.removeFirst()
+            val ready = try {
+                queue.poll(200, TimeUnit.MILLISECONDS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
             }
-            val frame = next ?: continue
+            val frame = ready ?: continue
             try {
                 decode(frame)
             } catch (e: Exception) {
