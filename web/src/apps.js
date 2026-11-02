@@ -1474,6 +1474,9 @@ const LIB_APPS = [
   { id:'store', name:'Store', bg:'linear-gradient(145deg,#fcd34d,#ea580c)', imgUrl:'./icons/hz-store.png', icon:'store' },
   { id:'gallery', name:'Gallery', bg:'linear-gradient(145deg,#fdba74,#c084fc)', imgUrl:'./icons/hz-gallery.png', icon:'camera' },
   { id:'settings', name:'Settings', bg:'linear-gradient(145deg,#9ca8b8,#556170)', imgUrl:'./icons/hz-settings.png', icon:'settings' },
+  // PC Link não é um app de PC dentro do celular: é o celular virando headset do SteamVR. Fica no
+  // catálogo (e portanto no anel, com os mesmos 10 lugares) como qualquer outro app do NextVR.
+  { id:'pclink', name:'PC Link', label:'PC Link', bg:'linear-gradient(145deg,#1d4ed8,#0b1224)', icon:'monitor' },
 ];
 const GORILLA_TAG_ITEM = {
   id: 'gorilla-tag',
@@ -2047,6 +2050,7 @@ const LIB_ACTIONS = {
   store:    () => storeApp(),
   gallery:  () => gallery(),
   settings: () => controlCenterApp(),
+  pclink:   () => pcLinkApp(),
   discord:  () => webWindow('discord',   'Discord',      'https://discord.com/app'),
   netflix:  () => webWindow('netflix',   'Netflix',      'https://www.netflix.com/'),
   tiktok:   () => webWindow('tiktok',    'TikTok',       'https://www.tiktok.com/'),
@@ -3660,6 +3664,7 @@ const ORB_DOTS_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="
 const DK = Object.freeze({
   compass:icon('compass'), store:icon('store'), people:icon('people'),
   camera:icon('camera'), gear:icon('settings'), play:icon('play'), shizuku:icon('shizuku'),
+  monitor:icon('monitor'),
   vision:icon('vision'), orbDots:ORB_DOTS_SVG,
 });
 
@@ -3703,6 +3708,7 @@ function makeDock() {
     { id: 'gallery', win: 'gallery', label: t('gallery'), img: './icons/hz-gallery.png', svg: DK.camera,  bg: 'linear-gradient(145deg,#fdba74,#c084fc)', run: gallery },
     { kind: 'sep' },
     { id: 'settings', win: 'control-center', label: t('settings'), img: './icons/hz-settings.png', svg: DK.gear, bg: 'linear-gradient(145deg,#9ca8b8,#556170)', run: controlCenterApp },
+    { id: 'pclink', win: 'pclink', label: 'PC Link', svg: DK.monitor, bg: 'linear-gradient(145deg,#1d4ed8,#0b1224)', run: pcLinkApp },
     { id: 'youtube',  win: 'youtube',  label: 'YouTube',     img: './icons/hz-tv.png', svg: DK.play, bg: 'linear-gradient(145deg,#f472b6,#7c3aed)', run: () => webWindow('youtube', 'YouTube', 'https://m.youtube.com/') },
     // Janela dedicada do Shizuku: os apps do aparelho numa janela só deles, com o aviso do serviço.
     { id: 'shizuku', win: 'shizuku', label: t('shizuku'), img: './icons/hz-files.png', svg: DK.shizuku, bg: 'linear-gradient(145deg,#7dd3fc,#455e8c)', run: shizukuWindow },
@@ -4111,3 +4117,295 @@ if (native) {
 
 /* O menu do jogo pede as configurações: a janela abre por cima do mundo, sem sair dele. */
 on('game:settings', () => controlCenterApp());
+
+/* ============================ PC Link ===================================== */
+/*
+ * A janela do PC Link. Ela não tem um único número inventado: tudo aqui vem de
+ * `NativeXR.pcLinkState()`, que é o estado real dos sockets, do decodificador de vídeo e do último
+ * `state` que o NextVR PC Bridge publicou. Quando o PC não está lá, a janela diz que não está —
+ * não desenha um FPS plausível.
+ *
+ * Texto de apoio (e também o que está em docs/PC-LINK.md): isto NÃO é espelhamento de tela. O jogo
+ * roda no PC e a imagem que chega é o quadro estéreo dele, mostrado um olho por vez; o que volta é a
+ * pose da cabeça e das mãos, e é isso que move a câmera do jogo.
+ */
+const PCLINK_QUALITIES = [['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta']];
+const PCLINK_MODES = [['wifi', 'Wi-Fi'], ['usb', 'USB'], ['auto', 'Automático']];
+
+function pcLinkStateSafe() {
+  try { return JSON.parse(window.NativeXR?.pcLinkState?.() || '{}') || {}; } catch { return {}; }
+}
+
+const pcLinkPhaseText = phase => ({
+  idle: 'Desligado',
+  discovering: 'Procurando o PC na rede',
+  connecting: 'Conectando',
+  connected: 'Conectado',
+  failed: 'Sem conexão',
+}[phase] || 'Desligado');
+
+const pcLinkHandsText = state => {
+  const pc = state.state || {};
+  switch (pc.handTracking) {
+    case 'ok': return 'Duas mãos sendo vistas';
+    case 'one': return 'Uma mão sendo vista';
+    case 'idle': return 'Nenhuma mão na câmera';
+    case 'off': return 'Desligado';
+    default: return 'Sem sessão';
+  }
+};
+
+function pcLinkApp() {
+  const body = el('div');
+  body.style.cssText = 'display:flex;flex-direction:column;height:100%;background:#0f0f0f;color:#f1f1f1;font-family:Inter,system-ui,sans-serif;';
+  const head = el('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:8px 8px 4px;';
+  const back = el('button', 'yt-back');
+  back.innerHTML = icon('back'); back.title = 'Voltar';
+  back.onclick = () => { const w = wins.find(x => x.id === 'pclink'); if (w) close(w); };
+  const title = el('div', 'yt-head-title'); title.textContent = 'PC Link';
+  head.append(back, title);
+
+  const scroll = el('div');
+  scroll.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:4px 0 20px;';
+
+  // --- conexão ------------------------------------------------------------------------------
+  scroll.append(ytSection('Conexão'));
+  const statusRow = el('div', 'az-row');
+  statusRow.style.cssText = 'padding:10px 16px;display:flex;align-items:center;gap:10px;';
+  const dot = el('i', 'az-dot'); dot.dataset.state = 'off';
+  const statusText = el('span', 'az-text');
+  statusRow.append(dot, statusText);
+  scroll.append(statusRow);
+
+  const modeSeg = el('div', 'seg');
+  const modeButtons = PCLINK_MODES.map(([id, label]) => {
+    const b = el('button', null, label);
+    b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => { modeButtons.forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); mode = id; };
+    modeSeg.appendChild(b);
+    return b;
+  });
+  let mode = 'auto';
+  try { if (S.pcLinkHost) hostInput.value = S.pcLinkHost; } catch { /* sem storage */ }
+
+  const hostInput = el('input');
+  hostInput.type = 'text';
+  hostInput.placeholder = 'IP do PC (deixe vazio para achar sozinho)';
+  hostInput.style.cssText = 'flex:1;min-width:120px;background:#1b1b1b;border:1px solid #303030;border-radius:8px;color:#f1f1f1;padding:8px 10px;font:inherit';
+  const connectBtn = el('button', 'go', 'Conectar');
+  const hostRow = el('div');
+  hostRow.style.cssText = 'display:flex;gap:10px;align-items:center;padding:10px 16px;flex-wrap:wrap';
+  hostRow.append(hostInput, connectBtn);
+
+  // `pcLinkVideo` liga o passe de olho no renderer (a imagem do PC no lugar do fundo, uma metade por
+  // olho). Ele só é ligado quando a sessão começa de verdade — não no connect.
+  let videoOn = false;
+  const setVideo = (on, w = 1832, h = 1920) => {
+    if (videoOn === on) return;
+    videoOn = on;
+    try { window.NativeXR?.pcLinkVideo?.(on, w, h); } catch { /* renderer pode não existir ainda */ }
+  };
+
+  const send = json => { try { window.NativeXR?.pcLinkCommand?.(JSON.stringify(json)); } catch { /* ponte ausente */ } };
+
+  connectBtn.onclick = () => {
+    const host = hostInput.value.trim();
+    send({ action: 'connect', mode, host });
+    if (host) persistPcLinkHost(host);
+  };
+  const disconnectBtn = el('button', null, 'Desconectar');
+  disconnectBtn.onclick = () => { setVideo(false); send({ action: 'disconnect' }); };
+  const buttons = el('div', 'row');
+  buttons.style.cssText = 'gap:10px;flex-wrap:wrap;padding:0 16px 12px';
+  buttons.append(connectBtn, disconnectBtn);
+
+  scroll.append(row('Rede', 'Wi-Fi na mesma rede, ou USB (ancoragem) sem Wi-Fi', modeSeg),
+    hostRow, buttons);
+
+  // --- sessão -------------------------------------------------------------------------------
+  scroll.append(ytSection('Sessão'));
+  const sessionText = el('div');
+  sessionText.style.cssText = 'padding:0 16px 8px;opacity:.8;font-size:13px';
+  const startBtn = el('button', 'go', 'Iniciar sessão');
+  const stopBtn = el('button', null, 'Parar');
+  let quality = 'medium';
+  const qualitySeg = el('div', 'seg');
+  const qualityButtons = PCLINK_QUALITIES.map(([id, label]) => {
+    const b = el('button', null, label);
+    b.setAttribute('aria-pressed', String(id === quality));
+    b.onclick = () => {
+      qualityButtons.forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true'); quality = id;
+      send({ action: 'quality', quality });
+    };
+    qualitySeg.appendChild(b);
+    return b;
+  });
+  const sizeOf = name => ({ low: [1440, 1600], medium: [1832, 1920], high: [2290, 2400] }[name] || [1832, 1920]);
+  startBtn.onclick = () => {
+    const [w, h] = sizeOf(quality);
+    send({ action: 'session', active: true, quality });
+    setVideo(true, w, h);
+  };
+  stopBtn.onclick = () => { send({ action: 'session', active: false }); setVideo(false); };
+  const sessionBtns = el('div', 'row');
+  sessionBtns.style.cssText = 'gap:10px;flex-wrap:wrap;padding:0 16px 12px';
+  sessionBtns.append(startBtn, stopBtn);
+  scroll.append(row('Qualidade', 'Baixa 20 Mbps · Média 40 Mbps · Alta 80 Mbps', qualitySeg), sessionBtns, sessionText);
+
+  // --- números medidos ----------------------------------------------------------------------
+  scroll.append(ytSection('Medições'));
+  const stats = el('div');
+  stats.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 16px 12px';
+  const statCell = label => {
+    const cell = el('div');
+    cell.style.cssText = 'background:#1a1a1a;border:1px solid #262626;border-radius:10px;padding:10px 12px';
+    const big = el('div'); big.style.cssText = 'font-size:20px;font-weight:600';
+    const small = el('div'); small.style.cssText = 'font-size:11px;opacity:.65;margin-top:2px';
+    small.textContent = label;
+    cell.append(big, small);
+    stats.append(cell);
+    return big;
+  };
+  const fpsCell = statCell('FPS do vídeo (medido no decodificador)');
+  const latencyCell = statCell('Latência (RTT/2 + fila do vídeo)');
+  const handsCell = statCell('Mãos no último pacote enviado');
+  const dropCell = statCell('Quadros perdidos no caminho');
+  const codecCell = statCell('Codec · resolução pedida');
+  const routeCell = statCell('Caminho (pacotes enviados / perdidos)');
+  scroll.append(stats);
+
+  // --- mãos e calibração --------------------------------------------------------------------
+  scroll.append(ytSection('Mãos e calibração'));
+  const handsRow = el('div');
+  handsRow.style.cssText = 'padding:0 16px 8px;font-size:13px;opacity:.85';
+  const handsToggle = el('button', null, 'Hand tracking ligado');
+  handsToggle.onclick = () => {
+    handTracking = !handTracking;
+    handsToggle.textContent = handTracking ? 'Hand tracking ligado' : 'Hand tracking desligado';
+    send({ action: 'hands', enabled: handTracking });
+  };
+  let handTracking = true;
+
+  const sliders = {};
+  const sliderRow = (key, label, min, max, step, fmt) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'padding:0 16px 10px';
+    const line = el('div');
+    line.style.cssText = 'display:flex;justify-content:space-between;font-size:13px;opacity:.85';
+    const name = el('span', null, label);
+    const value = el('span', null, fmt(min));
+    line.append(name, value);
+    const input = el('input');
+    input.type = 'range'; input.min = String(min); input.max = String(max); input.step = String(step);
+    input.value = String(min);
+    input.style.cssText = 'width:100%';
+    input.oninput = () => { value.textContent = fmt(Number(input.value)); };
+    input.onchange = () => send({ action: 'calibrate', [key]: Number(input.value) });
+    wrap.append(line, input);
+    scroll.append(wrap);
+    sliders[key] = { input, value, fmt };
+    return sliders[key];
+  };
+  sliderRow('ipd', 'IPD (distância entre as pupilas)', 0.03, 0.09, 0.001, v => `${(v * 1000).toFixed(0)} mm`);
+  sliderRow('userHeight', 'Altura do usuário', 1.2, 2.2, 0.01, v => `${v.toFixed(2)} m`);
+  sliderRow('worldScale', 'Escala do mundo', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`);
+  const handsWrap = el('div');
+  handsWrap.style.cssText = 'display:flex;gap:10px;padding:0 16px 12px';
+  handsWrap.append(handsToggle);
+  scroll.append(handsRow, handsWrap);
+
+  // --- avisos e notas -----------------------------------------------------------------------
+  const notes = el('div');
+  notes.style.cssText = 'padding:8px 16px 0';
+  scroll.append(notes);
+  scroll.append(el('p', 'note',
+    'Isto não é espelhamento de tela: o PC renderiza o jogo para este headset, o quadro chega comprimido '
+    + 'e é mostrado um olho por vez. Precisa do NextVR PC Bridge rodando no Windows e do driver NextVR '
+    + 'instalado no SteamVR. Se um jogo recusar a mão nativa, a janela mostra o motivo — o NextVR não '
+    + 'inventa uma mão no lugar. Áudio ainda não é transmitido.'));
+  scroll.append(el('p', 'note',
+    'USB é ancoragem USB (rede pelo cabo). `adb forward` só carrega TCP e não serve: vídeo e '
+    + 'rastreamento são UDP.'));
+
+  body.append(head, scroll);
+  const win = open({ id: 'pclink', title: 'PC Link', node: body });
+
+  // --- pintura ------------------------------------------------------------------------------
+  const paint = state => {
+    const phase = state.phase || 'idle';
+    dot.dataset.state = phase === 'connected' ? 'on' : phase === 'failed' ? 'off' : 'busy';
+    const name = state.bridge?.name || state.host || '';
+    statusText.innerHTML = `<b>${escHtml(pcLinkPhaseText(phase))}</b>`
+      + `<small>${escHtml(name || state.message || 'Toque em Conectar')}</small>`;
+    if (state.host && !hostInput.value) hostInput.value = state.host;
+    if (state.mode) modeButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(PCLINK_MODES[i][0] === state.mode)));
+    mode = state.mode || mode;
+
+    const pc = state.state || {};
+    const video = state.video || {};
+    fpsCell.textContent = Number(video.fps) > 0 ? Number(video.fps).toFixed(0) : (Number(pc.fps) || 0);
+    const latency = Number(pc.latencyMs);
+    latencyCell.textContent = Number.isFinite(latency) && latency >= 0 ? `${latency.toFixed(0)} ms` : '—';
+    handsCell.textContent = String(state.handsInPacket ?? 0);
+    dropCell.textContent = String((Number(video.lost) || 0) + (Number(pc.dropped) || 0));
+    codecCell.textContent = `${(state.codec || 'h264').toUpperCase()} · ${pc.video?.width || video.width || 0}×${pc.video?.height || video.height || 0}`;
+    routeCell.textContent = `${Number(state.packets) || 0} env · ${Number(state.sendFailures) || 0} falhas`;
+
+    sessionText.textContent = state.session
+      ? `Sessão ativa com ${pc.connection ? 'o PC' : 'o PC (sem estado ainda)'} · SteamVR: ${state.bridge?.steamvr || 'desconhecido'}`
+      : 'Sessão parada. O jogo só aparece no headset depois de iniciar.';
+    // Iniciar só faz sentido com o PC conectado: um botão que não pode funcionar é uma promessa falsa.
+    startBtn.disabled = state.phase !== 'connected';
+    stopBtn.disabled = !state.session;
+
+    handsRow.textContent = `${pcLinkHandsText(state)} · ${state.handTracking ? 'envio de mãos ligado' : 'envio de mãos desligado'}`;
+    const calibration = state.calibration || {};
+    if (calibration.ipd && document.activeElement !== sliders.ipd.input) {
+      sliders.ipd.input.value = String(calibration.ipd);
+      sliders.ipd.value.textContent = sliders.ipd.fmt(calibration.ipd);
+    }
+    if (calibration.userHeight && document.activeElement !== sliders.userHeight.input) {
+      sliders.userHeight.input.value = String(calibration.userHeight);
+      sliders.userHeight.value.textContent = sliders.userHeight.fmt(calibration.userHeight);
+    }
+    if (calibration.worldScale && document.activeElement !== sliders.worldScale.input) {
+      sliders.worldScale.input.value = String(calibration.worldScale);
+      sliders.worldScale.value.textContent = sliders.worldScale.fmt(calibration.worldScale);
+    }
+
+    // O vídeo é ligado/desligado pelo estado real, não pelo clique: se o PC cair, o passe de olho sai.
+    if (!state.session && videoOn) setVideo(false);
+
+    const warn = [];
+    if (state.bridge?.warnings) warn.push(state.bridge.warnings);
+    if (state.bridge && state.bridge.steamvr && state.bridge.steamvr !== 'running') {
+      warn.push('SteamVR não está rodando no PC: o jogo não aparece até ele abrir.');
+    }
+    if (state.bridge?.openxrHandTracking === false) {
+      warn.push('O runtime OpenXR do PC não tem XR_EXT_hand_tracking: jogos OpenXR que pedem a extensão não recebem mão. O Skeletal Input do SteamVR continua funcionando.');
+    }
+    if (video.failure) warn.push(`Vídeo: ${video.failure}`);
+    if (state.message && phase !== 'connected') warn.push(state.message);
+    notes.innerHTML = warn.filter(Boolean)
+      .map(text => `<p class="note" style="color:#fca5a5">${escHtml(text)}</p>`).join('');
+  };
+
+  const timer = setInterval(() => {
+    if (!wins.find(x => x.id === 'pclink')) { clearInterval(timer); setVideo(false); return; }
+    paint(pcLinkStateSafe());
+  }, 500);
+  paint(pcLinkStateSafe());
+  return win;
+}
+
+/** Tamanho por preset, do mesmo jeito que o app e o Bridge contam. */
+/** Escapa o que vem do PC: nome do Bridge, mensagens e avisos são texto de fora. */
+function escHtml(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Lembra o IP digitado: digitar de novo a cada sessão é o tipo de atrito que faz desistir. */
+function persistPcLinkHost(host) { try { S.pcLinkHost = host; save(S); } catch { /* sem storage */ } }

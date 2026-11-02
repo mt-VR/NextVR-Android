@@ -45,6 +45,22 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'pc-link',
+    tag: 'NOVO · PC LINK: O CELULAR VIRA HEADSET DO STEAMVR',
+    time: 'Agora',
+    heading: 'PC Link — o Jogo do PC no Seu Headset, com as Suas Mãos',
+    desc: 'Entrou a janela PC Link: o celular deixa de ser uma tela e passa a ser o HEADSET de um PC com '
+      + 'SteamVR. O jogo roda no PC, a imagem chega comprimida pelo hardware e é decodificada no hardware do '
+      + 'celular, uma metade por olho, preenchendo o campo de visão — e a pose da sua cabeça volta para o PC a '
+      + '60 Hz, então a câmera do jogo gira com você. As mãos são as MESMAS que já movem as janelas do NextVR: '
+      + '21 articulações medidas viram 31 ossos de Skeletal Input no SteamVR, com pinça no gatilho e punho no '
+      + 'grab. Na janela: Wi-Fi, USB (ancoragem) ou automático, campo de IP, estado da conexão, FPS e latência '
+      + 'medidos de verdade, qualidade do vídeo, IPD, altura e escala. Do lado do PC vêm dois programas '
+      + 'separados: o NextVR PC Bridge e o NextVR SteamVR Driver. Nada aqui foi testado em Windows/SteamVR '
+      + 'ainda — e o app diz isso onde importa: sem PC, a janela mostra "sem conexão", nunca um número de '
+      + 'fachada. Áudio e XR_EXT_hand_tracking ainda não estão implementados.',
+  },
+  {
     id: 'orb-logos-and-pages',
     tag: 'NOVO · LOGO DE VERDADE EM CADA APP DO ANEL, BOLINHAS DE PÁGINA & MAIS ESPAÇO',
     time: 'Agora',

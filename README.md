@@ -106,6 +106,30 @@ Approved visual proposals (illustrative design references, not device screenshot
 
 ![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
 
+## PC Link (SteamVR)
+
+The phone can act as the headset for a PC running SteamVR — not screen mirroring: the PC renders
+the game for this device, hardware-encodes it, the phone hardware-decodes it and shows one half per
+eye, while the head pose and both hands travel back at 60 Hz and move the game camera and its
+skeletal hands.
+
+Three separate programs, three separate builds ([`docs/PC-LINK.md`](docs/PC-LINK.md),
+protocol in [`pclink/PROTOCOL.md`](pclink/PROTOCOL.md)):
+
+* the Android side (`nextvr-android/src/main/java/com/nextvr/app/pclink/`) — discovery, control,
+  60 Hz tracking, MediaCodec into the eye texture;
+* the **NextVR PC Bridge** (`pc-bridge/`, Node ≥ 20, no dependencies) — discovery, one session at a
+  time, video fragmented below the MTU, and the 744-byte state block the driver reads;
+* the **NextVR SteamVR Driver** (`steamvr-driver/`, MSVC 2022 + Windows SDK) — a virtual HMD and two
+  hands publishing all 31 OpenVR bones, derived from the same 21 joints the app already tracks.
+
+Honest scope: everything above is code that exists and is tested where it can be (byte layouts on
+both sides, geometry, the skeleton builder, a real loopback session against a fake phone), but
+**nothing has been run against Windows, SteamVR or a headset from this repository's CI**.
+`XR_EXT_hand_tracking` is not implemented (Skeletal Input is OpenVR and does not imply it), audio is
+not transmitted, and USB is USB tethering — `adb forward` is TCP-only and cannot carry the UDP video
+or tracking.
+
 ## Games (PhoneXR)
 
 Headset games are the PhoneXR library: the bundled OpenXR runtime (`org.freedesktop.monado.openxr_runtime.out_of_process`,
