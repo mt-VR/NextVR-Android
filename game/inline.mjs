@@ -20,8 +20,23 @@ const out = shell.replace(
 if (out === shell) throw new Error('marcador <script src> não encontrado');
 
 fs.writeFileSync('titans-clinic.html', out);
+
+// ---- edição 3D: shell + three.js (UMD) + motor, tudo inline ----
+const three = fs.readFileSync(process.env.THREE_PATH || '/tmp/three/node_modules/three/build/three.min.js', 'utf8');
+const shell3d = fs.readFileSync('game/shell-3d.html', 'utf8');
+const js3d = fs.readFileSync('game/titans-3d.js', 'utf8');
+for (const bad of ['</script', '/*THREE_LIB*/x']) {
+  if (js3d.includes('</script')) throw new Error('js3d contém </script');
+}
+let out3d = shell3d
+  .replace('/*THREE_LIB*/', () => three)
+  .replace('/*GAME_LIB*/', () => js3d);
+if (out3d === shell3d) throw new Error('marcadores 3D não encontrados');
+fs.writeFileSync('titans-clinic-3d.html', out3d);
+console.log('titans-clinic-3d.html', (fs.statSync('titans-clinic-3d.html').size / 1024).toFixed(0) + ' kB');
 // cópia empacotada dentro do APK (WebView carrega de assets/)
 fs.mkdirSync('titans-clinic-apk/src/main/assets', { recursive: true });
 fs.writeFileSync('titans-clinic-apk/src/main/assets/titans-clinic.html', out);
+fs.writeFileSync('titans-clinic-apk/src/main/assets/titans-clinic-3d.html', out3d);
 console.log('titans-clinic.html', (fs.statSync('titans-clinic.html').size / 1024).toFixed(1) + ' kB',
   '(+ assets do APK)');

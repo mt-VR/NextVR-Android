@@ -3,6 +3,10 @@
 
     <!-- navigator.vibrate() do jogo -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- hand tracking do modo 3D (MediaPipe via WebView/getUserMedia) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
         android:label="@string/app_name"

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { JSDOM, VirtualConsole } from '/tmp/ig/node_modules/jsdom/lib/api.js';
 
-const html = fs.readFileSync(process.argv[2] || 'titans-clinic-mobile.html', 'utf8');
+const html = fs.readFileSync(process.argv[2] || 'titans-clinic.html', 'utf8');
 const vc = new VirtualConsole();
 const errors = [];
 vc.on('jsdomError', e => errors.push('jsdomError: ' + (e.stack || e.message)));

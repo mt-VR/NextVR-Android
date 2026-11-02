@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#101030">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Clínica dos Titãs 3D · hand tracking</title>
+<style>
+  :root{
+    --panel:rgba(14,14,40,.85); --line:rgba(255,255,255,.16); --ink:#fff; --mut:#b9bde8;
+    --acc:#7cf0c0; --acc2:#ffd166; --bad:#ff6b7a;
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+    --font:'Baloo 2','Fredoka','Nunito',ui-rounded,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0a0a1e;color:var(--ink);
+    font-family:var(--font);touch-action:none;user-select:none;-webkit-user-select:none}
+  #app{position:fixed;inset:0}
+  canvas.gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;z-index:5}
+  .screen.on{display:flex}
+  #play{pointer-events:none}          /* o canvas abaixo recebe os toques do jogo */
+  #menu{background:radial-gradient(120% 90% at 50% 0%,#2c2c74 0%,#14143a 55%,#0a0a1e 100%);
+    padding:calc(var(--safe-t) + 16px) 18px calc(var(--safe-b) + 16px);overflow-y:auto;touch-action:pan-y}
+  .logo{text-align:center}
+  .logo h1{margin:0;font-size:clamp(28px,8.6vw,44px);font-weight:800;line-height:1;
+    text-shadow:0 3px 0 #4b3fd6,0 6px 0 #2a2480,0 12px 26px rgba(0,0,0,.55)}
+  .logo h1 span{color:var(--acc2);text-shadow:0 3px 0 #c98a12,0 6px 0 #7d5405}
+  .logo .tag3d{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:999px;
+    background:linear-gradient(135deg,#8ef7cd,#38d79a);color:#12123a;font-weight:800;font-size:12px}
+  .logo p{color:var(--mut);font-weight:700;font-size:13px;margin:10px 0 0}
+  .secttl{display:flex;align-items:center;gap:8px;margin:20px 2px 8px;font-size:12px;font-weight:800;
+    letter-spacing:1.4px;text-transform:uppercase;color:var(--mut)}
+  .secttl:after{content:'';flex:1;height:1px;background:var(--line)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pcard{border-radius:16px;border:1px solid var(--line);background:var(--panel);padding:10px 6px;
+    text-align:center;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .pcard:active{transform:scale(.96)}
+  .pcard .em{font-size:34px;line-height:1.1}
+  .pcard .nm{font-size:11.5px;font-weight:800;margin-top:4px}
+  .pcard .st{font-size:11px;color:var(--acc2);letter-spacing:1px}
+  .howto{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+    font-size:13px;font-weight:700;color:var(--mut);line-height:1.6}
+  .howto b{color:#fff}
+  #hud{position:absolute;inset:0;pointer-events:none;z-index:6;display:none;flex-direction:column}
+  #hud.on{display:flex}
+  .hud-top{display:flex;gap:8px;align-items:flex-start;padding:calc(var(--safe-t) + 8px) 10px 0}
+  .chip{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:6px 12px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;
+    backdrop-filter:blur(6px);white-space:nowrap;cursor:pointer}
+  .chip b{color:var(--acc2)} .chip.err b{color:var(--bad)}
+  .chip.ht-on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(124,240,192,.25)}
+  .spacer{flex:1}
+  #checklist{position:absolute;right:10px;top:calc(var(--safe-t) + 60px);display:flex;
+    flex-direction:column;gap:6px;align-items:flex-end}
+  .task{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px 10px;
+    font-size:12.5px;font-weight:700;display:flex;gap:6px;align-items:center}
+  .task .dot{width:9px;height:9px;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px var(--acc2)}
+  .task.done{opacity:.42} .task.done .dot{background:var(--acc)}
+  .task.hidden-t .dot{background:#6fb7ff;box-shadow:0 0 8px #6fb7ff}
+  #pip{position:absolute;left:10px;bottom:calc(var(--safe-b) + 12px);width:112px;height:148px;
+    border-radius:14px;border:1px solid var(--line);object-fit:cover;transform:scaleX(-1);
+    display:none;background:#000;opacity:.9;z-index:7}
+  #pip.on{display:block}
+  .hint{position:absolute;left:50%;bottom:calc(var(--safe-b) + 14px);transform:translateX(-50%);
+    z-index:7;background:rgba(10,10,30,.88);border:1px solid var(--line);border-radius:14px;
+    padding:8px 14px;font-size:12.5px;font-weight:700;max-width:88vw;text-align:center;
+    display:none;pointer-events:none}
+  .hint.on{display:block}
+  .ovl{position:absolute;inset:0;z-index:9;display:none;place-items:center;padding:20px;
+    background:rgba(6,6,20,.72);backdrop-filter:blur(4px)}
+  .ovl.on{display:grid}
+  .card{width:min(420px,100%);background:linear-gradient(180deg,#26265e,#171740);border:1px solid var(--line);
+    border-radius:22px;padding:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+  .card h2{margin:0 0 4px;font-size:22px;font-weight:800}
+  .card p{margin:6px 0 0;color:var(--mut);font-size:13.5px;font-weight:700;line-height:1.55}
+  .stars{font-size:38px;letter-spacing:6px;margin:10px 0 2px;color:#3a3a72}
+  .stars i{font-style:normal;color:var(--acc2)}
+  .kv{display:flex;justify-content:center;gap:18px;margin:12px 0 4px;font-weight:800;font-size:14px}
+  .kv span{color:var(--mut);font-weight:700}
+  .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+  .btn{border:0;border-radius:14px;padding:12px 18px;font-family:inherit;font-weight:800;font-size:14px;
+    cursor:pointer;color:#12123a;background:linear-gradient(135deg,#ffe08a,#ffbe3d);box-shadow:0 5px 0 rgba(0,0,0,.32)}
+  .btn:active{transform:translateY(3px)}
+  .btn.g{background:linear-gradient(135deg,#8ef7cd,#38d79a)}
+  .btn.ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid var(--line);box-shadow:none}
+  .diag{text-align:left;margin:12px auto 0;max-width:300px;display:flex;flex-direction:column;gap:6px}
+  .diag div{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:12px;
+    padding:7px 10px;font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <section class="screen on" id="menu">
+    <div class="logo">
+      <h1>CLÍNICA DOS <span>TITÃS</span></h1>
+      <div class="tag3d">3D · HAND TRACKING</div>
+      <p data-i18n="tag3d"></p>
+    </div>
+    <div class="howto" id="howto"></div>
+    <div class="secttl" data-i18n="patients"></div>
+    <div class="grid3" id="prow"></div>
+    <div class="secttl" data-i18n="progress"></div>
+    <div class="chip" style="align-self:center;cursor:default">🪙 <b id="coinMenu">0</b></div>
+  </section>
+
+  <section class="screen" id="play">
+    <div id="hud">
+      <div class="hud-top">
+        <button class="chip" id="btnHome">🏠</button>
+        <div class="chip" style="cursor:default">⏱ <b id="uiTime">0:00</b></div>
+        <div class="chip err" style="cursor:default">✖ <b id="uiErr">0</b></div>
+        <div class="spacer"></div>
+        <button class="chip" id="btnHT">🖐 <b id="htState">off</b></button>
+        <button class="chip" id="btnPause">⏸</button>
+      </div>
+      <div id="checklist"></div>
+    </div>
+    <video id="pip" playsinline muted autoplay></video>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <div class="ovl" id="intro">
+    <div class="card">
+      <div style="font-size:44px" id="introEmoji">🦷</div>
+      <h2 id="introName">—</h2>
+      <p id="introText">—</p>
+      <div class="diag" id="introDiag"></div>
+      <div class="acts"><button class="btn g" id="btnStart">▶</button></div>
+    </div>
+  </div>
+
+  <div class="ovl" id="result">
+    <div class="card">
+      <div style="font-size:42px" id="resEmoji">😁</div>
+      <h2 id="resTitle">—</h2>
+      <div class="stars" id="resStars"></div>
+      <p id="resText">—</p>
+      <div class="kv">
+        <div>⏱ <span id="resTime">0:00</span></div>
+        <div>✖ <span id="resErr">0</span></div>
+        <div>🪙 +<span id="resCoin">0</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" id="resHome">🏠</button>
+        <button class="btn" id="resAgain">↻</button>
+        <button class="btn g" id="resNext">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ovl" id="pause">
+    <div class="card">
+      <h2 id="pauseTitle">⏸</h2>
+      <div class="acts">
+        <button class="btn ghost" id="pHome">🏠</button>
+        <button class="btn g" id="pResume">▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>/*THREE_LIB*/</script>
+<script>/*GAME_LIB*/</script>
+</body>
+</html>

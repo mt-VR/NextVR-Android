@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Clínica dos Titãs</title>
+<style>
+  :root{--acc:#7cf0c0;--acc2:#ffd166;--line:rgba(255,255,255,.14)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#0d0d26;color:#fff;
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    overscroll-behavior:none;touch-action:manipulation}
+  .wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:28px 20px calc(20px + env(safe-area-inset-bottom))}
+  h1{margin:0;font-size:30px;font-weight:900;letter-spacing:1px;text-align:center}
+  h1 span{color:var(--acc2)}
+  .tag{font-size:11px;font-weight:800;letter-spacing:2.5px;color:var(--acc);
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  p{margin:4px 0 8px;color:#9aa0c8;font-size:13.5px;font-weight:700;text-align:center;line-height:1.55}
+  a.card{display:flex;align-items:center;gap:14px;width:min(360px,100%);text-decoration:none;
+    color:#fff;background:linear-gradient(180deg,#26265e,#171740);border:1px solid var(--line);
+    border-radius:20px;padding:16px 18px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+  a.card:active{transform:translateY(2px)}
+  a.card .em{font-size:38px}
+  a.card .tt{font-size:16.5px;font-weight:900}
+  a.card .dd{font-size:12px;color:#9aa0c8;font-weight:700;margin-top:3px;line-height:1.45}
+  a.card .go{margin-left:auto;font-size:22px;color:var(--acc2)}
+  .note{font-size:11px;color:#6f74a0;font-weight:700;text-align:center;max-width:320px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CLÍNICA DOS <span>TITÃS</span></h1>
+  <div class="tag">FAN-MADE · NÃO OFICIAL</div>
+  <p>Escolha o modo de jogo:</p>
+  <a class="card" href="./titans-clinic-3d.html">
+    <div class="em">🖐️</div>
+    <div><div class="tt">3D · Hand Tracking</div>
+      <div class="dd">Modelos 3D, mesa de instrumentos e mãos reais pela câmera para pegar e escovar.</div></div>
+    <div class="go">▶</div>
+  </a>
+  <a class="card" href="./titans-clinic.html">
+    <div class="em">🦷</div>
+    <div><div class="tt">2D · Toque</div>
+      <div class="dd">Versão clássica com toque: consultório e salão de unhas.</div></div>
+    <div class="go">▶</div>
+  </a>
+  <div class="note">O modo 3D com hand tracking usa a câmera e precisa de internet no primeiro acesso (modelos de visão). Sem câmera, dá para jogar tocando na tela.</div>
+</div>
+</body>
+</html>
