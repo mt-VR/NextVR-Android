@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** GL-thread-owned compositor. HTML supplies world transforms, never head tracking. */
-final class SpatialRenderer {
+final class SpatialRenderer implements com.nextvr.app.pclink.PcLinkHeadSource {
     static final int ATLAS = 4096;
     static final class Texture {
         final int id;
@@ -203,9 +203,32 @@ final class SpatialRenderer {
     public volatile float sceneDim = 0f;
     private final int envProgram;
     private final int envAPos, envUTex, envUProj, envUViewInv, envUQual, envUReveal, envUSceneDim;
+    /*
+     * PC Link: o que o SteamVR desenhou, olho por olho.
+     *
+     * Isto NAO e uma janela com um video dentro: enquanto `pcLinkEyes` esta ligado, o passe de fundo
+     * (camera/paisagem) sai de cena e cada olho recebe a metade correspondente do quadro estereo na
+     * sua viewport. E o mesmo lugar onde a camera da visao passante e desenhada, porque e o mesmo
+     * lugar geometrico: a imagem preenche o campo de visao e gira com a cabeca, e as janelas e as maos
+     * continuam sendo desenhadas por cima, para o menu existir durante o jogo.
+     *
+     * A imagem chega ja pre-distorcida pelo compositor do SteamVR (o driver declara a lente do
+     * celular como a lente do headset virtual), entao aqui nao ha correcao de distorcao: dividir a
+     * metade e o trabalho inteiro. Ver docs/PC-LINK.md.
+     */
+    public volatile boolean pcLinkEyes = false;
+    /** O quadro do PC e estereo lado a lado (o normal) ou mono (um jogo 2D do SteamVR). */
+    public volatile boolean pcLinkStereo = true;
+    private final int pcLinkProgram, pcLinkAPos, pcLinkUTex, pcLinkUEye, pcLinkUStereo, pcLinkUTransform;
+    /** Id do texture slot cujo Surface o decodificador do PC Link escreve. */
+    public static final String PC_LINK_TEXTURE = "pclink:eyes";
     private volatile long envTransitionStartMs = 0L;
     private final List<Panel> sorted = new ArrayList<>(24);
     private final float[] viewInv = new float[16], viewProj = new float[16];
+    /** Pose da cabeca (x, y, z, quaternion) e um contador que diz se ja houve algum quadro. */
+    private final float[] headPose = new float[7];
+    private final float[] quaternion = new float[4];
+    private volatile long headPoseFrame = 0L;
     private final int[] viewport = new int[4];
     volatile float spanX = 2.2f, spanY = 1.5f;
     /** Which eye this draw() belongs to: the GL viewport is the only per-eye tell there is. */
@@ -248,6 +271,17 @@ final class SpatialRenderer {
             "precision highp float; varying vec2 vNdc; uniform sampler2D uTexture; uniform vec4 uProjection; uniform mat4 uViewInv; uniform float uQualityHeight; uniform float uReveal; uniform float uSceneDim; const float PI=3.14159265; void main(){vec2 t=(vNdc+uProjection.zw)/uProjection.xy; vec3 d=normalize(vec3(t.x,t.y,-1.)); vec3 w=(uViewInv*vec4(d,0.)).xyz; float lon=atan(w.x,-w.z); float lat=asin(clamp(w.y,-1.,1.)); vec2 uv=vec2(.5+lon/(2.*PI),.5-lat/PI); if(uQualityHeight>100. && uQualityHeight<1000.){vec2 grid=vec2(uQualityHeight*2.,uQualityHeight); uv=(floor(uv*grid)+.5)/grid;} vec3 envCol=texture2D(uTexture,uv).rgb*(1.-uSceneDim); if(uReveal>=.999){gl_FragColor=vec4(envCol,1.);return;} float normH=lat/PI+.5; float wave=sin(lon*5.+uReveal*8.)*.028+cos(lon*11.-uReveal*6.)*.016; float edge=uReveal*1.32-.12+wave; float alpha=1.-smoothstep(edge-.02,edge+.16,normH); float smoke=smoothstep(edge-.18,edge,normH)*(1.-smoothstep(edge,edge+.16,normH)); vec3 col=mix(envCol,vec3(.88,.91,.96),smoke*.82); gl_FragColor=vec4(col*(1.-uSceneDim)*alpha,alpha);}");
         envAPos=GLES20.glGetAttribLocation(envProgram,"aPosition");
         envUTex=GLES20.glGetUniformLocation(envProgram,"uTexture");
+        // Passe do PC Link: um quad de tela cheia por olho, amostrando a metade do quadro estereo.
+        // O `uTransform` do SurfaceTexture entra por ultimo porque e ele que diz se o quadro chegou
+        // com as linhas invertidas ou com o passo errado, e isso muda por aparelho.
+        pcLinkProgram = link(
+            "attribute vec2 aPosition; varying vec2 vNdc; void main(){vNdc=aPosition;gl_Position=vec4(aPosition,0.,1.);}",
+            "#extension GL_OES_EGL_image_external : require\nprecision highp float; varying vec2 vNdc; uniform samplerExternalOES uTexture; uniform float uEye; uniform float uStereo; uniform mat4 uTransform; void main(){vec2 uv=vec2(vNdc.x*.5+.5,vNdc.y*.5+.5); if(uStereo>.5){uv.x=uv.x*.5+uEye*.5;} uv=(uTransform*vec4(uv,0.,1.)).xy; gl_FragColor=vec4(texture2D(uTexture,clamp(uv,0.,1.)).rgb,1.);}");
+        pcLinkAPos=GLES20.glGetAttribLocation(pcLinkProgram,"aPosition");
+        pcLinkUTex=GLES20.glGetUniformLocation(pcLinkProgram,"uTexture");
+        pcLinkUEye=GLES20.glGetUniformLocation(pcLinkProgram,"uEye");
+        pcLinkUStereo=GLES20.glGetUniformLocation(pcLinkProgram,"uStereo");
+        pcLinkUTransform=GLES20.glGetUniformLocation(pcLinkProgram,"uTransform");
         envUProj=GLES20.glGetUniformLocation(envProgram,"uProjection");
         envUViewInv=GLES20.glGetUniformLocation(envProgram,"uViewInv");
         envUQual=GLES20.glGetUniformLocation(envProgram,"uQualityHeight");
@@ -293,6 +327,20 @@ final class SpatialRenderer {
         for(int r=0;r<3;r++) { p.flat[r]/=p.scaleX; p.flat[4+r]/=p.scaleY; p.flat[8+r]/=p.scaleZ; }
         p.curveRadius=p.curve>1e-4f?(p.scaleX*Math.max(.05f,p.glass[2])*.5f)/(float)Math.sin(p.curve):0f;
     }
+    /**
+     * Copia a pose da cabeca (x, y, z, quaternion x y z w, espaco do app) para `out`.
+     *
+     * Chamado da thread do PC Link. O `synchronized` protege o array: uma pose lida pela metade nao
+     * e uma pose, e nao ha nada aqui que justifique pagar por isso.
+     */
+    @Override public boolean copyHeadPose(float[] out) {
+        if(out==null || out.length<7) return false;
+        synchronized(headPose) {
+            if(headPoseFrame==0L) return false;
+            System.arraycopy(headPose,0,out,0,7);
+        }
+        return true;
+    }
     private static float length(float x,float y,float z) { return (float)Math.sqrt(x*x+y*y+z*z); }
     /**
      * Ambiente escolhido na interface: um panorama 360 substitui a imagem da camera no FUNDO. A
@@ -331,6 +379,14 @@ final class SpatialRenderer {
         }
         if(sixDofX!=0f || sixDofY!=0f || sixDofZ!=0f) Matrix.translateM(view,0,-sixDofX,-sixDofY,-sixDofZ);
         Matrix.invertM(viewInv,0,view,0);
+        // O PC Link manda esta pose para o PC 60 vezes por segundo; ela e lida da MESMA matriz com que
+        // os olhos foram desenhados, senao o mundo do jogo fica atras da cabeca do usuario.
+        if(viewport[0]==0) synchronized(headPose) {
+            headPose[0]=viewInv[12]; headPose[1]=viewInv[13]; headPose[2]=viewInv[14];
+            com.nextvr.app.pclink.PcLinkGeometry.Companion.headQuaternion(viewInv,quaternion);
+            headPose[3]=quaternion[0]; headPose[4]=quaternion[1]; headPose[5]=quaternion[2]; headPose[6]=quaternion[3];
+            headPoseFrame++;
+        }
         Matrix.multiplyMM(viewProj,0,projection,0,view,0);
         boolean blackEnv="black".equals(environmentId);
         sphere=!blackEnv && environment.ready && !"passthrough".equals(environmentId);
@@ -344,7 +400,10 @@ final class SpatialRenderer {
             float tEnv = elapsedEnv / 1200f;
             envReveal = 1f - (1f - tEnv) * (1f - tEnv) * (1f - tEnv);
         }
-        if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
+        Texture pcLinkTexture = pcLinkEyes ? browsers.get(PC_LINK_TEXTURE) : null;
+        if(pcLinkTexture != null && pcLinkTexture.ready) {
+            drawPcLinkEyes(pcLinkTexture);
+        } else if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
             if(sphere && envReveal >= 0.999f) {
                 drawEnvironment(projection, 1f);
             } else {
@@ -505,6 +564,24 @@ final class SpatialRenderer {
         GLES20.glUniform1f(camUDim,mrDim?0.68f:0.0f);
         GLES20.glUniform1f(camUSceneDim,sceneDim);
         drawScreenQuad(camAPos);
+    }
+    /**
+     * O quadro do PC, um olho por vez.
+     *
+     * `eyeUniform` sai da viewport (0 no primeiro passe, 1 no segundo), que e o mesmo sinal que o
+     * resto do renderer usa para saber de que olho e o desenho. Com `uStereo` em 0 (quadro mono) a
+     * imagem inteira vai nos dois olhos, o que e o que um jogo 2D espera.
+     */
+    private void drawPcLinkEyes(Texture tex) {
+        GLES20.glUseProgram(pcLinkProgram);
+        GLES20.glDisable(GLES20.GL_BLEND);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, tex.id);
+        GLES20.glUniform1i(pcLinkUTex, 0);
+        GLES20.glUniform1f(pcLinkUEye, eyeUniform);
+        GLES20.glUniform1f(pcLinkUStereo, pcLinkStereo ? 1f : 0f);
+        GLES20.glUniformMatrix4fv(pcLinkUTransform, 1, false, tex.transform, 0);
+        drawScreenQuad(pcLinkAPos);
     }
     /** Fundo panoramico 360: esfera inteira em volta do usuario, presa ao mundo (gira com a cabeca). */
     private void drawEnvironment(float[] p, float reveal) {

@@ -47,6 +47,7 @@ import com.nextvr.app.apps.AppSessionManager;
 import com.nextvr.app.apps.AppSurfaceHost;
 import com.nextvr.app.apps.AppWindowController;
 import com.nextvr.app.apps.ShizukuManager;
+import com.nextvr.app.pclink.PcLink;
 import com.nextvr.app.xr.XrGameController;
 import com.nextvr.app.xr.XrHandBridge;
 import org.json.JSONArray;
@@ -113,6 +114,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      * camera, tracking, compositor and menus — stays alive underneath it. That is what lets the same
      * pinch that selects a window select something inside a game.
      */
+    private PcLink pcLink;
     private XrHandBridge xrHands;
     private XrGameController xrGames;
     /** Sessions this activity suspended because the whole VR activity was paused (not by the user). */
@@ -215,6 +217,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appSessions.setListener(appWindows::onSessionsChanged);
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
         xrHands=new XrHandBridge();
+        // PC Link: o mesmo rastreador de mãos que já move as janelas e os jogos deste app, falando
+        // com o NextVR PC Bridge. Ele nasce desligado — nada de socket aberto antes de o usuário pedir.
+        pcLink=new PcLink(android.os.Build.MODEL==null?"Android":"NextVR "+android.os.Build.MODEL);
+        // O renderer e recriado (girar a tela, trocar de superficie), entao a fonte le o campo a
+        // cada quadro em vez de guardar o objeto: uma referencia velha aqui e uma cabeca congelada.
+        pcLink.setHeadSource(out->{ SpatialRenderer r=renderer; return r!=null && r.copyHeadPose(out); });
         xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
         internalRecorder=new InternalEyeRecorder(this,(rec,sec,msg,savedPath)->main.post(()->{
             if(closed) return;
@@ -251,6 +259,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
                 if(xrHands!=null) xrHands.offer(frame);
+                // PC Link guarda o quadro mais novo; quem envia é a thread dele, a 60 Hz.
+                if(pcLink!=null) pcLink.offer(frame);
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
@@ -739,6 +749,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         if(appWindows!=null) appWindows.shutdown();
         if(xrGames!=null) xrGames.shutdown();
+        if(pcLink!=null) { pcLink.stop(); pcLink=null; }
         if(shizuku!=null) shizuku.stop();
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
@@ -1121,6 +1132,58 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @JavascriptInterface public void xrHandMode(String mode) {
             XrHandBridge.Mode chosen="hands".equals(mode)?XrHandBridge.Mode.HANDS:XrHandBridge.Mode.CONTROLLERS;
             main.post(()->{ if(xrGames!=null && !closed) xrGames.handMode(chosen); });
+        }
+        /**
+         * Estado do PC Link, como JSON. Lido pela janela do PC Link a 2 Hz; tudo que ele traz vem de
+         * um socket de verdade (fase da conexão, pacotes enviados, frames decodificados, RTT medido).
+         */
+        @JavascriptInterface public String pcLinkState() {
+            PcLink link=pcLink;
+            return link==null?"{\"running\":false}":link.statusJson();
+        }
+        /**
+         * Comandos do PC Link: `{action:"connect",mode:"wifi"|"usb"|"auto",host:"192.168.0.10"}`,
+         * `{action:"disconnect"}`, `{action:"session",active:true,quality:"medium"}`,
+         * `{action:"quality"|"codec"|"calibrate"|"hands",...}`.
+         */
+        @JavascriptInterface public void pcLinkCommand(String json) {
+            if(json==null || json.length()>4000) return;
+            main.post(()->{ PcLink link=pcLink; if(link!=null && !closed) link.command(json); });
+        }
+        /**
+         * Liga o quadro do PC na tela do headset: cria o slot de textura (no thread do GL, como
+         * qualquer outra superfície deste app) e entrega o Surface ao decodificador.
+         *
+         * Desligar libera o slot: uma textura viva com um decoder parado é memória de GPU presa.
+         */
+        @JavascriptInterface public void pcLinkVideo(boolean enabled,int width,int height) {
+            main.post(()->{
+                if(closed) return;
+                PcLink link=pcLink;
+                if(link==null) return;
+                final int w=Math.max(64,Math.min(4096,width)), h=Math.max(64,Math.min(4096,height));
+                if(!enabled) {
+                    link.setSurface(null,w,h);
+                    SpatialRenderer target=renderer;
+                    if(target!=null) target.pcLinkEyes=false;
+                    release(SpatialRenderer.PC_LINK_TEXTURE);
+                    return;
+                }
+                acquire(SpatialRenderer.PC_LINK_TEXTURE,w,h,new com.nextvr.app.apps.AppSurfaceHost.Callback() {
+                    @Override public void ready(android.graphics.SurfaceTexture texture) {
+                        if(closed) return;
+                        PcLink current=pcLink; if(current==null) return;
+                        android.view.Surface surface=new android.view.Surface(texture);
+                        current.setSurface(surface,w,h);
+                        SpatialRenderer target=renderer;
+                        if(target!=null) target.pcLinkEyes=true;
+                    }
+                    @Override public void failed(String reason) {
+                        PcLink current=pcLink; if(current!=null) current.setSurface(null,w,h);
+                        report("PC Link video: "+reason);
+                    }
+                });
+            });
         }
         @JavascriptInterface public void setQuality(String quality) {
             SpatialRenderer target=renderer;
