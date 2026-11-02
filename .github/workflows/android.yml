@@ -288,3 +288,66 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # O artefato do Actions é um ZIP. Este passo publica o APK cru como asset de release para
+      # que o link final baixe e instale o .apk direto, sem descompactar. O asset fica versionado
+      # pelo SHA do commit; builds de main continuam no branch apk-dist.
+      - name: Publish direct APK download
+        id: release
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
+          test -n "$APK"
+          mkdir -p /tmp/nextvr-release
+          cp "$APK" /tmp/nextvr-release/nextvr-android-debug.apk
+          cd /tmp/nextvr-release
+          sha256sum nextvr-android-debug.apk > nextvr-android-debug.apk.sha256
+          SIZE=$(stat -c %s nextvr-android-debug.apk)
+          SHA256=$(cut -d' ' -f1 nextvr-android-debug.apk.sha256)
+          TAG="nextvr-preview-${HEAD_SHA:0:12}"
+          DIRECT="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/nextvr-android-debug.apk"
+          printf 'NextVR preview — APK direto, sem ZIP.\n\n- Source: %s\n- CI run: https://github.com/%s/actions/runs/%s\n- Size: %s bytes\n- SHA-256: %s\n- Signed with the fixed repository debug key (signing/debug.keystore).\n\nThis is a preview build from a pull request, not a main release.\n' \
+            "$HEAD_SHA" "$GITHUB_REPOSITORY" "$RUN_ID" "$SIZE" "$SHA256" > release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" nextvr-android-debug.apk nextvr-android-debug.apk.sha256 \
+              --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" nextvr-android-debug.apk nextvr-android-debug.apk.sha256 \
+              --repo "$GITHUB_REPOSITORY" --target "$HEAD_SHA" \
+              --title "NextVR preview ${HEAD_SHA:0:12}" \
+              --notes-file release-notes.md --prerelease --latest=false
+          fi
+          echo "Direct APK: $DIRECT"
+          echo "Direct SHA-256: $SHA256"
+
+      - name: Publish APK link on the pull request
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.release.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TAG="nextvr-preview-${HEAD_SHA:0:12}"
+          DIRECT="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/nextvr-android-debug.apk"
+          APK_SHA=$(sha256sum /tmp/nextvr-release/nextvr-android-debug.apk | cut -d' ' -f1)
+          BODY=$(cat <<EOF
+          ### 📦 APK NextVR pronto (build ${RUN_ID})
+
+          **APK direto, sem ZIP:** ${DIRECT}
+
+          O artefato **nextvr-debug-apk** (contém \`nextvr-android-debug.apk\`) também fica na seção **Artifacts** da execução:
+
+          https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}
+
+          - SHA-256 do APK: \`${APK_SHA}\`
+          - Assinado com a chave fixa \`signing/debug.keystore\` — permite \`adb install -r\` por cima de builds anteriores.
+          EOF
+          )
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
+
