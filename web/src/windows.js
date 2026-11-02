@@ -1277,7 +1277,14 @@ const RAY_FAR = 3;
 
 const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
-function findDirectAppPoint(cx, cy) {
+/**
+ * Ponto de toque da pinça. `onlyFloating` restringe a busca ao que NÃO tem hit-test 3D (dock, menu
+ * rápido da mão esquerda e a alça de arraste da dock): essas peças são pequenas e aceitam a
+ * vizinhança de alguns pixels. O conteúdo de uma janela NÃO aceita: ali só vale o ponto exato da
+ * ponta (ou o do olhar) — senão o meio da pinça, a palma ou um deslocamento de 1,6 cm escolhiam a
+ * linha/ladrilho vizinho, que é o "toque sem querer" que a ponta nunca fez.
+ */
+function findDirectAppPoint(cx, cy, onlyFloating = false) {
   if (typeof document !== 'undefined' && Number.isFinite(cx) && Number.isFinite(cy)) {
     // O anel de apps agora é uma JANELA (vidro invisível, como o Spatial App): ele passa pelo
     // caminho normal de janela, então a pinça acerta os ícones pelo hit-test do próprio painel —
@@ -1298,6 +1305,7 @@ function findDirectAppPoint(cx, cy) {
   if (dkGrab) {
     return { x: cx, y: cy, el: null, isDockGrab: true };
   }
+  if (onlyFloating) return null;
   const hit = hitAt(cx, cy);
   if (hit) {
     if (hit.handle || hit.resize) {
@@ -1322,32 +1330,36 @@ function resolveDirectPinchPoint(handArg = null) {
   }
   const sx = Number(lastPhonePacket?.scaleX) || 1;
   const sy = Number(lastPhonePacket?.scaleY) || 1;
-  const basePts = [];
-  if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
-    basePts.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
+  const tipPt = (Number.isFinite(p[24]) && Number.isFinite(p[25]))
+    ? [(p[24] - 0.5) * sx + 0.5, (p[25] - 0.5) * sy + 0.5] : null;
+  const aimPt = Array.isArray(h.aim) && h.aim.length >= 2 ? screenPoint(h.aim) : null;
+  // 1) A PONTA primeiro e no ponto exato — é ela que o Toque Direto usa, e é ela que escolhe. O
+  //    olhar vem depois, como rede de segurança para quando a mão entra na frente sem apontar.
+  for (const pt of [tipPt, aimPt]) {
+    if (!pt || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) continue;
+    const found = findDirectAppPoint(pt[0], pt[1]);
+    if (found) return found;
   }
-  if (Number.isFinite(p[24]) && Number.isFinite(p[25])) {
-    basePts.push([(p[24] - 0.5) * sx + 0.5, (p[25] - 0.5) * sy + 0.5]);
+  // 2) Só para dock/HUD (sem hit-test 3D) vale a vizinhança: meio da pinça, palma, pulsos e o
+  //    cursor do olhar. Nada disso alcança o conteúdo de uma janela, que é onde o alvo tem de ser
+  //    exatamente o que está debaixo do dedo.
+  const nearPts = [];
+  if (Number.isFinite(p[12]) && Number.isFinite(p[13]) && Number.isFinite(p[24]) && Number.isFinite(p[25])) {
+    nearPts.push([((p[12] + p[24]) * 0.5 - 0.5) * sx + 0.5, ((p[13] + p[25]) * 0.5 - 0.5) * sy + 0.5]);
   }
   if (p.length >= 30 && Number.isFinite(p[15]) && Number.isFinite(p[16]) && Number.isFinite(p[27]) && Number.isFinite(p[28])) {
-    basePts.push([((p[15] + p[27]) * 0.5 - 0.5) * sx + 0.5, ((p[16] + p[28]) * 0.5 - 0.5) * sy + 0.5]);
+    nearPts.push([((p[15] + p[27]) * 0.5 - 0.5) * sx + 0.5, ((p[16] + p[28]) * 0.5 - 0.5) * sy + 0.5]);
   }
   if (Array.isArray(h.palm) && h.palm.length >= 2) {
-    basePts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
-  }
-  if (Array.isArray(h.aim) && h.aim.length >= 2) {
-    const aimPt = screenPoint(h.aim);
-    if (Number.isFinite(aimPt.x) && Number.isFinite(aimPt.y)) {
-      basePts.push([aimPt.x, aimPt.y]);
-    }
+    nearPts.push([(h.palm[0] - 0.5) * sx + 0.5, (h.palm[1] - 0.5) * sy + 0.5]);
   }
   if (Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
-    basePts.push([cursor.x, cursor.y]);
+    nearPts.push([cursor.x, cursor.y]);
   }
   const offsets = [[0, 0], [0, -0.016], [0, 0.016], [-0.016, 0], [0.016, 0], [0, -0.028], [0, 0.028], [-0.028, 0], [0.028, 0]];
-  for (const [bx, by] of basePts) {
+  for (const [bx, by] of nearPts) {
     for (const [ox, oy] of offsets) {
-      const found = findDirectAppPoint(bx + ox, by + oy);
+      const found = findDirectAppPoint(bx + ox, by + oy, true);
       if (found) return found;
     }
   }

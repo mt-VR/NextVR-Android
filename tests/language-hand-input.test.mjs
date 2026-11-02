@@ -71,9 +71,15 @@ function pointingPoints(aim) {
   const x = .5 + tx / (2 * TAN_X), y = .5 - ty / (2 * TAN_Y);
   const pts = new Array(63).fill(.5);
   pts[0] = x; pts[1] = Math.min(.98, y + .24);   // punho
+  pts[15] = x - .008; pts[16] = Math.min(.95, y + .05); // MCP do indicador
   pts[18] = x; pts[19] = Math.min(.95, y + .10); // PIP
   pts[21] = x; pts[22] = Math.min(.95, y + .05); // MCP
-  pts[24] = x; pts[25] = y;                      // PONTA
+  pts[24] = x; pts[25] = y;                      // PONTA (landmark 8)
+  // Dedo médio dobrado: o MCP dele fica logo abaixo da ponta, não no meio da tela. Com um valor
+  // neutro (0.5) o meio da pinça caía numa linha vizinha e escolhia OUTRO idioma — o mesmo toque
+  // sem querer que a ponta nunca fez.
+  pts[12] = x + .010; pts[13] = Math.min(.95, y + .03);
+  pts[27] = x + .012; pts[28] = Math.min(.95, y + .06);
   return pts;
 }
 

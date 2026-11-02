@@ -496,7 +496,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       // Step 2: EMPURRAR o vidro com a ponta do dedo -> abre o YouTube e esconde o Spatial App.
       // Aproximar não abre, e "levantar o dedo" também não: o toque agora exige pressão contra o
       // plano do alvo (Toque Direto). A ponta vai de 6 cm à frente do vidro até 1 cm atrás dele.
-      const planeZ = (window.__last.panels.find(p => p.id === 'spatial-launcher') || { matrix: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.5,1] }).matrix[14];
+      const planeZ = (window.__last.find?.(p => p.id === 'spatial-launcher') || { matrix: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.5,1] }).matrix[14];
       window.nextvrHands({ hands: [mkPointingHand(0.22, planeZ + 0.06, 0)] });
       await new Promise(r => setTimeout(r, 90));
       const openedOnApproach = !!document.querySelector('.win-shell[data-window-id="browser"]');
