@@ -493,19 +493,28 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const selectedOnHover = !!winEl.querySelector('[data-spatial-builtin="youtube"].finger-hover');
       const openedOnHover = !!document.querySelector('.win-shell[data-window-id="browser"]');
 
-      // Step 2: Lift index finger ("levantar o dedo") while over the app -> opens YouTube and hides spatial-launcher
-      window.nextvrHands({ hands: [mkPointingHand(0.22, -0.45, 0.015)] });
-      await new Promise(r => setTimeout(r, 40));
+      // Step 2: EMPURRAR o vidro com a ponta do dedo -> abre o YouTube e esconde o Spatial App.
+      // Aproximar não abre, e "levantar o dedo" também não: o toque agora exige pressão contra o
+      // plano do alvo (Toque Direto). A ponta vai de 6 cm à frente do vidro até 1 cm atrás dele.
+      const planeZ = (window.__last.panels.find(p => p.id === 'spatial-launcher') || { matrix: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.5,1] }).matrix[14];
+      window.nextvrHands({ hands: [mkPointingHand(0.22, planeZ + 0.06, 0)] });
+      await new Promise(r => setTimeout(r, 90));
+      const openedOnApproach = !!document.querySelector('.win-shell[data-window-id="browser"]');
+      window.nextvrHands({ hands: [mkPointingHand(0.22, planeZ + 0.02, 0)] });
+      await new Promise(r => setTimeout(r, 120));
+      window.nextvrHands({ hands: [mkPointingHand(0.22, planeZ - 0.012, 0)] });
+      await new Promise(r => setTimeout(r, 140));
       const openedOnPoke = !!document.querySelector('.win-shell[data-window-id="browser"]');
       const spatialHiddenWhileAppOpen = getComputedStyle(winEl).display === 'none';
       document.querySelector('.win-shell[data-window-id="browser"] [data-act="close"]')?.click();
       await new Promise(r => setTimeout(r, 40));
       const spatialRestoredAfterClose = getComputedStyle(winEl).display !== 'none';
-      return { selectedOnHover, openedOnHover, openedOnPoke, spatialHiddenWhileAppOpen, spatialRestoredAfterClose };
+      return { selectedOnHover, openedOnHover, openedOnApproach, openedOnPoke, spatialHiddenWhileAppOpen, spatialRestoredAfterClose };
     });
     assert.equal(pokeResult.selectedOnHover, true, 'passing/holding index finger over app selects/highlights it');
-    assert.equal(pokeResult.openedOnHover, false, 'holding index finger over app must NOT open it before lifting the finger');
-    assert.equal(pokeResult.openedOnPoke, true, 'lifting index finger ("levantar o dedo") while over the app opens it');
+    assert.equal(pokeResult.openedOnHover, false, 'holding index finger over app must NOT open it');
+    assert.equal(pokeResult.openedOnApproach, false, 'approaching the glass must NOT open it either: touching needs a press');
+    assert.equal(pokeResult.openedOnPoke, true, 'pushing the fingertip through the glass opens the app');
     assert.equal(pokeResult.spatialHiddenWhileAppOpen, true, 'opening an app from Spatial App hides the Spatial App launcher');
     assert.equal(pokeResult.spatialRestoredAfterClose, true, 'closing the app window restores the Spatial App launcher');
 

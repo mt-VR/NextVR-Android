@@ -62,6 +62,21 @@ const nativeShim = () => {
   };
 };
 
+// O dedo indicador em 2D: o Toque Direto escolhe o alvo pela PONTA (landmark 8), exatamente como no
+// aparelho — `points[24], points[25]` é a projeção do `aim` na tela, com a cadeia punho/PIP/MCP
+// embaixo para o dedo estar realmente esticado. Sem isso a mão sintética só funcionava pelo raio.
+const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
+function pointingPoints(aim) {
+  const tx = aim.x / -aim.z, ty = (aim.y - EYE_Y) / -aim.z;
+  const x = .5 + tx / (2 * TAN_X), y = .5 - ty / (2 * TAN_Y);
+  const pts = new Array(63).fill(.5);
+  pts[0] = x; pts[1] = Math.min(.98, y + .24);   // punho
+  pts[18] = x; pts[19] = Math.min(.95, y + .10); // PIP
+  pts[21] = x; pts[22] = Math.min(.95, y + .05); // MCP
+  pts[24] = x; pts[25] = y;                      // PONTA
+  return pts;
+}
+
 // Fingertip (landmark 8, head offset 24..26) `depth` metres from the eye, along the ray to `aim`.
 function handAt(aim, depth, pinching) {
   const head = new Array(63).fill(0);
@@ -69,7 +84,7 @@ function handAt(aim, depth, pinching) {
   head[24] = dir.x * depth; head[25] = dir.y * depth; head[26] = dir.z * depth;
   return {
     hands: [{
-      id: 'right', left: false, points: Array.from({ length: 63 }, () => 0.5), head,
+      id: 'right', left: false, points: pointingPoints(aim), head,
       base: [0, -.2], aim: [aim.x / -aim.z, (aim.y - EYE_Y) / -aim.z], palm: [.5, .5], grab: [.5, .5],
       palmWidth: .2, pinching, fist: false, palmFacesEyes: false, menuEligible: false
     }]
@@ -126,7 +141,7 @@ function handAtOffset(aim, off, pinching) {
   head[24] = aim.x; head[25] = aim.y - EYE_Y; head[26] = aim.z + off;
   return {
     hands: [{
-      id: 'right', left: false, points: Array.from({ length: 63 }, () => 0.5), head,
+      id: 'right', left: false, points: pointingPoints(aim), head,
       base: [0, -.2], aim: [aim.x / -aim.z, (aim.y - EYE_Y) / -aim.z], palm: [.5, .5], grab: [.5, .5],
       palmWidth: .2, pinching, fist: false, palmFacesEyes: false, menuEligible: false
     }]

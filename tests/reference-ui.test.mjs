@@ -564,6 +564,20 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden),null,{timeout:15000});
     fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
     await feed(fist);
+    // DIAGNÓSTICO TEMPORÁRIO (sai antes do merge): o que a página vê enquanto o punho arrasta.
+    await page.waitForTimeout(800);
+    console.log('DBG-fist', JSON.stringify(await page.evaluate(() => {
+      const lib = window.__last.panels.find(p => p.id === 'library');
+      return {
+        moving: document.querySelectorAll('.win-shell.moving').length,
+        free: document.querySelectorAll('.win-shell.free').length,
+        libX: lib?.matrix?.[12], libZ: lib?.matrix?.[14],
+        targets: window.__handTargets,
+        frames: window.__frames?.length,
+        errors: (window.__pageErrors || []).slice(0, 4),
+      };
+    })));
+    console.log('DBG-fist-node-errors', JSON.stringify(errors.slice(0, 4)));
     await page.waitForFunction(original=>{
       const current=window.__last.panels.find(p=>p.id==='library').matrix;
       return Math.abs(current[12]-original[12])>.03;
