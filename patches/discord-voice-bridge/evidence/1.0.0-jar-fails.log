@@ -1,0 +1,17 @@
+
+FAIL: problems that make the jar uninstallable or inconsistent:
+  - depends on 'fabric' (version 0.165.0 or later), but there is no mod with the id 'fabric'. Fabric API's mod id is 'fabric-api'; the loader builtins are fabricloader, minecraft and java. No install can ever satisfy this dependency. A clean server will abort with:
+    Mod 'Discord Voice Bridge' (discord_voice_bridge) 1.0.0 requires version 0.165.0 or later of fabric, which is missing!
+Verifying release jar: /tmp/fixtures/bad-fabric-id.jar
+  size: 0.0 MB
+  mod:  Discord Voice Bridge (discord_voice_bridge) 1.0.0
+  mapping namespace: official
+  nested jars listed in fabric.mod.json: 2
+    fabric-api 0.165.0+26.3   (META-INF/jars/fabric-api-0.165.0+26.3.jar)
+      fabric-api-base 2.0.6   (META-INF/jars/fabric-api-base-2.0.6.jar)
+    fabric-permissions-api-v0 0.7.0   (META-INF/jars/fabric-permissions-api-0.7.0.jar)
+  dependencies:
+    fabricloader             >=0.20.1         ok (loader builtin)
+    fabric                   >=0.165.0        FAIL (not a real mod id)
+    minecraft                ~26.3            ok (loader builtin)
+    java                     >=25             ok (loader builtin)

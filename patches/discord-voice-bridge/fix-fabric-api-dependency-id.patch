@@ -1,0 +1,772 @@
+From e2bde93f0ffca7d5cc906020050388726896586e Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Mon, 2 Nov 2026 23:08:34 +0000
+Subject: [PATCH] Fix the Fabric API mod id in fabric.mod.json (1.0.1)
+
+The release jar declared "fabric": ">=0.165.0" in depends. Fabric API's mod
+id is "fabric-api" and Loader has no builtin mod called "fabric" (only
+fabricloader, minecraft and java), so the dependency could never be
+satisfied. Every install aborted with:
+
+    Mod 'Discord Voice Bridge' (discord_voice_bridge) 1.0.0 requires
+    version 0.165.0 or later of fabric, which is missing!
+
+Nesting Fabric API in 1.0.0 worked - the aggregate jar is in META-INF/jars
+and listed in the jar's "jars" array - but nesting cannot satisfy a
+dependency on a mod id that does not exist, which is why PR #1 did not fix
+the report and why installing Fabric API by hand does not either.
+
+- fabric.mod.json: fabric -> fabric-api (>=0.165.0)
+- version 1.0.1 so a stale 1.0.0 download is identifiable
+- scripts/verify_release_jar.py: opens the built jar, follows nested jars
+  recursively and checks every depends entry against the ids/versions that
+  are actually present; CI runs it before uploading the artifact
+- loader-smoke workflow (manual) boots a real 26.3 Fabric server with only
+  this jar to reproduce/confirm the report end to end
+- tick handler: guard the SVC plugin, which is null when SVC is absent
+- docs: exact supported Minecraft/Loader/Java/SVC/Fabric API versions,
+  installation steps, and a troubleshooting table for Loader's messages
+---
+ .github/workflows/ci.yml                      |  10 +-
+ .github/workflows/loader-smoke.yml            | 110 ++++++
+ AGENTS.md                                     |   6 +-
+ CONTRIBUTING.md                               |  21 +-
+ README.md                                     |  75 +++-
+ build.gradle                                  |  15 +-
+ scripts/verify_release_jar.py                 | 352 ++++++++++++++++++
+ .../DiscordVoiceBridgeMod.java                |   8 +-
+ src/main/resources/fabric.mod.json            |   2 +-
+ 9 files changed, 577 insertions(+), 22 deletions(-)
+ create mode 100644 .github/workflows/loader-smoke.yml
+ create mode 100755 scripts/verify_release_jar.py
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index ab1d76e..6132504 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -29,8 +29,16 @@ jobs:
+       - name: Build and test
+         run: ./gradlew clean test build --no-daemon
+ 
++      # Compiling proves nothing about the jar users install: the nested jars
++      # and the mod ids in its fabric.mod.json are what Fabric Loader resolves.
++      # This inspects the actual release artifact and fails the build when a
++      # "depends" entry cannot be satisfied by the jar itself (the 1.0.0
++      # "requires version 0.165.0 or later of fabric" bug).
++      - name: Verify release jar metadata and nested mods
++        run: python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar
++
+       - name: Upload release jar
+         uses: actions/upload-artifact@v4
+         with:
+           name: discord-voice-bridge
+-          path: build/libs/discord_voice_bridge-1.0.0.jar
++          path: build/libs/discord_voice_bridge-1.0.1.jar
+diff --git a/.github/workflows/loader-smoke.yml b/.github/workflows/loader-smoke.yml
+new file mode 100644
+index 0000000..1de883b
+--- /dev/null
++++ b/.github/workflows/loader-smoke.yml
+@@ -0,0 +1,110 @@
++name: Loader smoke test
++
++# Manual, end-to-end check of the *published* artifact: builds the release jar,
++# boots a real Fabric 26.3 dedicated server with only that jar (plus Simple
++# Voice Chat) in mods/, and fails if Fabric Loader cannot resolve its
++# dependencies.
++#
++# This is the reproduction for the "Mod 'Discord Voice Bridge' ...
++# requires version 0.165.0 or later of fabric, which is missing!" report.
++# Running it against the 1.0.0 jar fails; running it against a fixed jar must
++# reach "Done (" with fabric-api in the loaded mod list.
++#
++# It is manual (workflow_dispatch) on purpose: it downloads a Minecraft server
++# and boots it, which is slower and noisier than the normal CI build. Run it
++# before publishing a release, not on every push.
++
++on:
++  workflow_dispatch:
++
++jobs:
++  boot:
++    runs-on: ubuntu-latest
++    timeout-minutes: 25
++    steps:
++      - uses: actions/checkout@v4
++
++      - name: Set up Java 25
++        uses: actions/setup-java@v4
++        with:
++          distribution: temurin
++          java-version: 25
++
++      - name: Fetch Simple Voice Chat from Modrinth
++        run: |
++          mkdir -p libs
++          curl -fL --retry 3 -o "libs/voicechat-fabric-2.6.27+26.3.jar" \
++            "https://cdn.modrinth.com/data/9eGKb6K1/versions/x9jLR94Q/voicechat-fabric-2.6.27%2B26.3.jar"
++
++      - name: Build
++        run: ./gradlew clean build --no-daemon
++
++      - name: Verify release jar metadata
++        run: python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar
++
++      - name: Prepare server
++        run: |
++          set -euo pipefail
++          mkdir -p server/mods
++          cp build/libs/discord_voice_bridge-1.0.1.jar server/mods/
++          cp libs/voicechat-fabric-2.6.27+26.3.jar server/mods/
++          cd server
++          echo "eula=true" > eula.txt
++          printf '%s\n' \
++            'online-mode=false' \
++            'level-type=minecraft\:flat' \
++            'spawn-protection=0' \
++            'max-tick-time=-1' \
++            'view-distance=4' \
++            'simulation-distance=4' > server.properties
++          INSTALLER=$(curl -fsSL https://meta.fabricmc.net/v2/versions/installer \
++            | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["version"])')
++          echo "Fabric installer: $INSTALLER"
++          curl -fsSL --retry 3 -o fabric-server.jar \
++            "https://meta.fabricmc.net/v2/versions/loader/26.3/0.20.1/${INSTALLER}/server/jar"
++          ls -la mods fabric-server.jar
++
++      - name: Boot server with only this mod installed
++        run: |
++          set -uo pipefail
++          cd server
++          java -Xmx2G -jar fabric-server.jar nogui > server.log 2>&1 &
++          SERVER_PID=$!
++
++          for _ in $(seq 1 150); do
++            if grep -q 'Done (' server.log 2>/dev/null; then break; fi
++            if grep -qE 'which is missing!|A potential solution|ModResolutionException' server.log 2>/dev/null; then break; fi
++            if ! kill -0 "$SERVER_PID" 2>/dev/null; then break; fi
++            sleep 2
++          done
++
++          kill "$SERVER_PID" 2>/dev/null || true
++          wait "$SERVER_PID" 2>/dev/null || true
++
++          echo '===== server.log ====='
++          cat server.log
++          echo '======================'
++          echo '===== mod list ====='
++          grep -iE "Loading [0-9]+ mods|fabric-api|discord_voice_bridge" server.log || true
++
++          status=0
++          if grep -q 'which is missing!' server.log; then
++            echo "::error::Fabric Loader could not resolve a dependency of the release jar."
++            status=1
++          fi
++          if ! grep -q 'Done (' server.log; then
++            echo "::error::Server did not finish starting."
++            status=1
++          fi
++          if ! grep -q 'fabric-api' server.log; then
++            echo "::error::The nested Fabric API did not load; the jar is not self-contained."
++            status=1
++          fi
++          exit $status
++
++      - name: Upload server log
++        if: always()
++        uses: actions/upload-artifact@v4
++        with:
++          name: loader-smoke-server-log
++          path: server/server.log
+diff --git a/AGENTS.md b/AGENTS.md
+index caa33d5..b54617c 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -37,7 +37,7 @@ Mojang moved to year-based versioning (last 1.x was 1.21.11, then 26.1, 26.2, 26
+ ## Build notes
+ 
+ - loom 1.19.3 (plugin id `net.fabricmc.fabric-loom`), Gradle 9.8.2 (wrapper committed), Java 25. No mappings line: 26.3 jars are pre-named with Mojang's official mappings.
+-- Versions: JDA 5.5.1, SVC api 2.6.27, SVC fabric jar 2.6.27+26.3, fabric-api 0.165.0+26.3 (nested in the release jar so the `fabric` mod dependency is present), fabric-loader 0.20.1, fabric-permissions-api 0.7.0, sponge-mixin 0.17.5+mixin.0.8.7 (compileOnly, annotations only; must never end up in the jar).
++- Versions: JDA 5.5.1, SVC api 2.6.27, SVC fabric jar 2.6.27+26.3, fabric-api 0.165.0+26.3 (nested in the release jar; its mod id is `fabric-api` and that is the id the jar's `depends` must use - there is no mod called `fabric`), fabric-loader 0.20.1, fabric-permissions-api 0.7.0, sponge-mixin 0.17.5+mixin.0.8.7 (compileOnly, annotations only; must never end up in the jar).
+ - This artifact targets Minecraft 26.3 only. Cross-version support requires separate compatibility ports/builds because Minecraft, Fabric API, and SVC APIs and Java requirements vary by game version.
+ - Build:
+ 
+@@ -50,10 +50,12 @@ On Linux/macOS: `./gradlew clean test build`.
+ 
+ - The `downloadSvc` task fetches `libs/voicechat-fabric-2.6.27+26.3.jar` from Modrinth. That jar is not redistributable and is gitignored; CI does the same fetch in `.github/workflows/ci.yml`.
+ - The release jar must be ~18 MB (shaded JDA tree + nested permissions jar). If it comes back tiny, something broke in the jar/remap wiring: check the `jar` task (folds `shadowJar` output) and the manifest `Fabric-Mapping-Namespace` (must be `official`).
++- Dependency ids in `fabric.mod.json` must match the id in each dependency's own `fabric.mod.json` (`fabric-api`, not `fabric`; Loader builtins are only `fabricloader`, `minecraft`, `java`). 1.0.0 shipped `"fabric": ">=0.165.0"`, which can never resolve, and the jar was rejected on every server even with Fabric API installed.
++- After any dependency change run `python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar`. It inspects the built jar (nested jars included), not `build.gradle`. CI runs the same script before uploading the artifact.
+ - Mixin list lives in `discord_voice_bridge.mixins.json`; keep it in sync with `fabric.mod.json` and the classes. `compatibilityLevel` must be `JAVA_25`.
+ - When bumping Minecraft/SVC versions: verify every MC and SVC symbol against the new jars (javap), re-run `clean test build`, and re-check the release jar size.
+ 
+ ## Paths
+ 
+ - Config at runtime: `config/discord_voice_bridge/discord_voice_bridge.json`
+-- Release jar: `build/libs/discord_voice_bridge-1.0.0.jar`
++- Release jar: `build/libs/discord_voice_bridge-1.0.1.jar`
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 28fe8a4..2573355 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -35,7 +35,17 @@ local install needed.
+ ./gradlew clean test build
+ ```
+ 
+-The release jar is `build/libs/discord_voice_bridge-1.0.0.jar`.
++The release jar is `build/libs/discord_voice_bridge-1.0.1.jar`. Check the artifact you are about
++to publish, not just the build output:
++
++```
++python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar
++```
++
++It opens the jar, follows the nested jars listed in its `fabric.mod.json` and verifies that every
++`depends` entry is provided with a matching version. A dependency id that does not match the
++nested mod's id (for example `fabric` instead of `fabric-api`) makes Loader reject the whole jar,
++so this check runs in CI before the artifact is uploaded.
+ 
+ Tests run on a plain JVM, no Discord token and no Minecraft server needed:
+ 
+@@ -47,8 +57,9 @@ Tests run on a plain JVM, no Discord token and no Minecraft server needed:
+ 
+ `.github/workflows/ci.yml` runs on every push and PR: sets up Java 25, fetches
+ the SVC jar from Modrinth (same step `downloadSvc` does locally), then runs
+-`./gradlew clean test build` and uploads the release jar as an artifact. Keep it
+-green; if CI is red on your PR, the run log is the first place to look.
++`./gradlew clean test build`, runs `scripts/verify_release_jar.py` against the built jar and
++only then uploads it as an artifact. Keep it green; if CI is red on your PR, the run log is the
++first place to look.
+ 
+ ## Pull requests
+ 
+@@ -56,8 +67,8 @@ Small, focused changes are easier to review than big ones. A good PR:
+ 
+ 1. Explains what it changes and why, in the description.
+ 2. Builds locally (`./gradlew clean test build`) with all tests passing.
+-3. Keeps the version coordinates in `build.gradle` and `fabric.mod.json` in
+-   sync when it touches them.
++3. Keeps the version coordinates in `build.gradle`, `fabric.mod.json`, the CI artifact path and
++   the README in sync when it touches them.
+ 4. Follows the existing structure. This repo is a single `com.discordvoicebridge`
+    package tree with mixins, config, audio, discord and svc folders. Put new
+    code where similar code already lives.
+diff --git a/README.md b/README.md
+index 3b450eb..b27832b 100644
+--- a/README.md
++++ b/README.md
+@@ -13,13 +13,60 @@ Fabric mod for Minecraft 26.3 that bridges Discord voice chat with Simple Voice
+ - The bot does not show up in the TAB player list: `PlayerListMixin` cancels the bot's UUID in the player join path, and the fake player is only spawned as a world entity, never added to `PlayerList`.
+ - Configuration is done in-game with `/dvc config`, a clickable chat panel.
+ 
+-## Requirements
+-
+-- Minecraft 26.3, Fabric Loader, Java 25
+-- Simple Voice Chat for 26.3 (2.6.27+26.3) on the server
+-- A Discord bot with the `guild_voice_states` intent (the bot account needs `voice_connect` and `voice_receive`)
+-
+-The release jar nests the matching Fabric API dependency, so a separate Fabric API install is not required for this version. This release targets **Minecraft 26.3 only**; Minecraft, Fabric API, Java, and Simple Voice Chat APIs change between game versions, so a single jar cannot safely support every Minecraft version. Other versions need their own compatible port/build.
++## Installation
++
++1. Run a **Minecraft 26.3** server with **Fabric Loader 0.20.1 or newer** and **Java 25**.
++2. Put `discord_voice_bridge-1.0.1.jar` in the server's `mods/` folder.
++3. Put **Simple Voice Chat 2.6.27+26.3** (`voicechat-fabric-2.6.27+26.3.jar`) in `mods/` too.
++4. Do **not** install Fabric API separately. The release jar is self-contained: it nests
++   `fabric-api 0.165.0+26.3` and `fabric-permissions-api 0.7.0`. A server that already ships
++   Fabric API is fine as well (Loader resolves to one copy; keep it at 0.165.0+26.3 or newer for 26.3).
++5. Start the server and check the log: Fabric Loader should list `fabric-api`, `voicechat` and
++   `discord_voice_bridge` as loaded mods, with no `which is missing!` line.
++
++Players need the matching **Simple Voice Chat client mod**; this mod itself is server-side only
++(`"environment": "server"`), so clients do not install it.
++
++You also need a Discord bot with the `guild_voice_states` intent whose account can
++`voice_connect` and `voice_receive` in the target voice channel.
++
++### Supported versions
++
++| Component | Supported by this jar | Notes |
++|---|---|---|
++| Minecraft | **26.3** (26.3.x patches within 26.3) | Declared as `minecraft ~26.3`. Not 1.21.x, not 26.1/26.2. |
++| Fabric Loader | **0.20.1 or newer** | Declared as `fabricloader >=0.20.1`. Older Loaders are rejected before the mod loads. |
++| Java | **25 or newer** | Compiled and published with `--release 25`; Minecraft 26.3 itself needs Java 25. |
++| Fabric API | **0.165.0+26.3, bundled** | No separate download. This is what the jar's `fabric-api` dependency resolves to. |
++| fabric-permissions-api | **0.7.0, bundled** | Nested jar, nothing to install. |
++| Simple Voice Chat | **2.6.27+26.3** on the server | Separate download (not redistributable here). The mod loads without it but logs a warning and cannot bridge audio. |
++| Discord | Any JDA 5.5.1-compatible API | Bot token in `config/discord_voice_bridge/discord_voice_bridge.json`. |
++
++**One jar cannot support every Minecraft version.** Minecraft, Fabric API, Simple Voice Chat and
++the Java baseline all change between game versions, and this mod touches all four (Mojang-mapped
++26.3 classes, `PlayerList.placeNewPlayer` for the TAB mixin, the SVC 2.6.x API and its
++`CommonCompatibilityManager` bootstrap, Java 25 bytecode). Each Minecraft version therefore needs
++its own build against that version's Minecraft, Fabric API, SVC and Java. The table above is the
++complete list of what this artifact supports.
++
++### Troubleshooting
++
++| Error in the log | What it means | Fix |
++|---|---|---|
++| `Mod 'Discord Voice Bridge' (discord_voice_bridge) 1.0.0 requires version 0.165.0 or later of fabric, which is missing!` | **1.0.0 only.** Its `fabric.mod.json` declared a dependency on a mod id called `fabric`. No such mod exists (Fabric API is `fabric-api`; the builtins are `fabricloader`, `minecraft`, `java`), so no install can satisfy it - not even a manual Fabric API install. | Delete the 1.0.0 jar and use **1.0.1 or newer**. Nothing else fixes it. |
++| `... requires version 0.165.0 or later of fabric-api, which is missing!` | The jar you installed has no nested Fabric API (typically the `-dev` jar or a broken build). | Install the release jar from CI/releases, or drop Fabric API 0.165.0+26.3 into `mods/`. |
++| `... requires version ... of minecraft` | Wrong Minecraft version. | Use 26.3. |
++| `... requires version ... of fabricloader` | Fabric Loader older than 0.20.1. | Update the Loader. |
++| `... requires version ... of java` | Server running on Java < 25. | Update Java to 25. |
++| Server starts but the bridge does nothing | SVC missing, invalid token/channel id, or bridge disabled. | Check the log warnings, then `/dvc config`. |
++
++## Version history
++
++- **1.0.1** - fixes the Fabric API dependency id (`fabric` -> `fabric-api`). 1.0.0 shipped a jar
++  that could not load on any server regardless of whether Fabric API was nested or installed
++  manually. Adds `scripts/verify_release_jar.py` to CI so the built artifact, not the build script,
++  is what gets checked.
++- **1.0.0** - first release. Nested Fabric API 0.165.0+26.3, but declared it under the wrong mod id.
+ 
+ ## Build
+ 
+@@ -30,7 +77,19 @@ Java 25 is required. The Gradle wrapper is committed, so no Gradle install is ne
+ ./gradlew clean test build
+ ```
+ 
+-Release artifact: `build/libs/discord_voice_bridge-1.0.0.jar`. JDA and its dependencies are relocated inside the jar so they do not collide with other mods.
++Release artifact: `build/libs/discord_voice_bridge-1.0.1.jar`. JDA and its dependencies are relocated inside the jar so they do not collide with other mods.
++
++A green build does not prove the artifact is installable, so check what was actually produced:
++
++```
++python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar
++```
++
++The script opens the release jar, follows every nested jar (recursively), reads each
++`fabric.mod.json` and checks that every entry of the jar's `depends` is satisfied by the mod
++itself, a Loader builtin or a nested mod - i.e. the same metadata Fabric Loader resolves at
++startup. CI runs it on every build and refuses to upload a jar that fails. To boot a real
++server with only this jar installed, run the manual **Loader smoke test** workflow.
+ 
+ ### SVC jar
+ 
+diff --git a/build.gradle b/build.gradle
+index 7fe05c6..da34729 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -4,7 +4,7 @@ plugins {
+     id 'com.gradleup.shadow' version '9.6.1'
+ }
+ 
+-version = '1.0.0'
++version = '1.0.1'
+ group = 'com.discordvoicebridge'
+ 
+ // Loom registers its own project-level repositories, which makes Gradle ignore
+@@ -33,9 +33,16 @@ dependencies {
+     minecraft "com.mojang:minecraft:26.3"
+     implementation "net.fabricmc:fabric-loader:0.20.1"
+     // Keep Fabric API on the compile classpath and nest its aggregate jar in
+-    // our release artifact. This makes the declared `fabric` mod dependency
+-    // available on a clean Fabric server instead of requiring a separate manual
+-    // install. Fabric API's aggregate jar contains its module jars.
++    // our release artifact. This makes the `fabric-api` mod dependency declared
++    // in fabric.mod.json available on a clean Fabric server instead of
++    // requiring a separate manual install. Fabric API's aggregate jar contains
++    // its module jars (nested one level deeper by Fabric API's own build).
++    //
++    // The mod id matters: Fabric API's id is `fabric-api` (see FabricMC/fabric
++    // fabric.mod.json). There is no mod called `fabric` - `fabricloader`,
++    // `minecraft` and `java` are the only loader builtins - so declaring
++    // `"fabric"` in fabric.mod.json can never be satisfied, no matter how the
++    // jar is packaged or what the user installs.
+     implementation "net.fabricmc.fabric-api:fabric-api:0.165.0+26.3"
+     include "net.fabricmc.fabric-api:fabric-api:0.165.0+26.3"
+     // mixin provides @Mixin/@Inject annotations at compile time.
+diff --git a/scripts/verify_release_jar.py b/scripts/verify_release_jar.py
+new file mode 100755
+index 0000000..e5d5c9a
+--- /dev/null
++++ b/scripts/verify_release_jar.py
+@@ -0,0 +1,352 @@
++#!/usr/bin/env python3
++"""Verify the *release* jar - the artifact users actually install.
++
++Gradle succeeding and `include`/`implementation` lines existing in build.gradle
++say nothing about the contents of build/libs/*.jar. This script inspects the
++built jar the same way Fabric Loader does:
++
++  * reads the top-level fabric.mod.json,
++  * follows every entry of its "jars" array into the nested jars (recursively,
++    so jar-in-jar-in-jar works),
++  * reads each nested jar's own fabric.mod.json to learn its mod id and version,
++  * checks that every entry in "depends" is satisfied by the mod itself, by a
++    loader builtin (fabricloader/minecraft/java), or by a nested jar.
++
++The last point is the one that matters for the "requires version 0.165.0 or
++later of fabric, which is missing!" bug: the dependency id has to match the
++nested mod's id exactly. Fabric API's id is "fabric-api"; there is no mod called
++"fabric".
++
++Usage:
++    python3 scripts/verify_release_jar.py build/libs/discord_voice_bridge-1.0.1.jar
++
++Exit code 0 means the jar is installable on a clean Fabric server as far as mod
++metadata is concerned; 1 lists every problem found.
++"""
++
++from __future__ import annotations
++
++import argparse
++import io
++import json
++import re
++import sys
++import zipfile
++from dataclasses import dataclass, field
++
++FABRIC_MOD_JSON = "fabric.mod.json"
++
++# Mods that Fabric Loader provides itself; they are never shipped in the jar.
++BUILTIN_MOD_IDS = {"fabricloader", "minecraft", "java"}
++
++# 1.0.0 shipped this dependency id by mistake. Fabric API is "fabric-api".
++KNOWN_BAD_DEPENDENCY_IDS = {
++    "fabric": (
++        "there is no mod with the id 'fabric'. Fabric API's mod id is 'fabric-api'; "
++        "the loader builtins are fabricloader, minecraft and java. No install can "
++        "ever satisfy this dependency."
++    ),
++}
++
++
++@dataclass
++class ModInfo:
++    """One mod, either the outer jar or a jar nested inside it."""
++
++    mod_id: str
++    version: str
++    name: str
++    source: str
++    depth: int
++    depends: dict = field(default_factory=dict)
++    provides: list = field(default_factory=list)
++    jars: list = field(default_factory=list)
++
++
++@dataclass
++class Problem:
++    message: str
++
++
++def parse_mod_json(raw: bytes, source: str, depth: int) -> ModInfo:
++    data = json.loads(raw.decode("utf-8"))
++    return ModInfo(
++        mod_id=data.get("id", ""),
++        version=data.get("version", ""),
++        name=data.get("name", data.get("id", "")),
++        source=source,
++        depth=depth,
++        depends=dict(data.get("depends") or {}),
++        provides=list(data.get("provides") or []),
++        jars=list(data.get("jars") or []),
++    )
++
++
++def read_nested_jars(outer: zipfile.ZipFile, parent: ModInfo, problems: list[Problem]) -> list[ModInfo]:
++    """Open every nested jar listed in parent.jars and recurse into it."""
++    found: list[ModInfo] = []
++
++    for entry in parent.jars:
++        filename = entry.get("file") if isinstance(entry, dict) else None
++
++        if not filename:
++            problems.append(
++                Problem(f"{parent.source}: a \"jars\" entry has no \"file\" key: {entry!r}")
++            )
++            continue
++
++        try:
++            raw = outer.read(filename)
++        except KeyError:
++            problems.append(
++                Problem(
++                    f"{parent.source}: fabric.mod.json lists nested jar "
++                    f"'{filename}', but that entry does not exist in the jar"
++                )
++            )
++            continue
++
++        try:
++            nested_zip = zipfile.ZipFile(io.BytesIO(raw))
++        except zipfile.BadZipFile:
++            problems.append(Problem(f"{parent.source}: nested jar '{filename}' is not a valid zip"))
++            continue
++
++        with nested_zip:
++            if FABRIC_MOD_JSON not in nested_zip.namelist():
++                problems.append(
++                    Problem(
++                        f"{filename}: nested jar has no fabric.mod.json, so the loader "
++                        "cannot see it as a mod"
++                    )
++                )
++                continue
++
++            nested = parse_mod_json(
++                nested_zip.read(FABRIC_MOD_JSON),
++                filename,
++                parent.depth + 1,
++            )
++
++            if not nested.mod_id:
++                problems.append(Problem(f"{filename}: nested fabric.mod.json has no \"id\""))
++                continue
++
++            found.append(nested)
++            # Fabric API's aggregate jar nests its modules one level deeper.
++            found.extend(read_nested_jars(nested_zip, nested, problems))
++
++    if parent.depth == 0:
++        on_disk = {name for name in outer.namelist() if name.startswith("META-INF/jars/")}
++        listed = {
++            entry.get("file")
++            for entry in parent.jars
++            if isinstance(entry, dict) and entry.get("file")
++        }
++        for extra in sorted(on_disk - listed):
++            # Not fatal: the loader only reads what fabric.mod.json lists.
++            print(f"note: {extra} is in the jar but not listed in \"jars\"; loader will ignore it")
++
++    return found
++
++
++def version_tuple(value: str):
++    """Numeric version prefix, ignoring build metadata and qualifiers.
++
++    '0.165.0+26.3' -> (0, 165, 0); '26.3' -> (26, 3, 0); '26.3-' -> (26, 3, 0).
++    """
++    base = value.split("+", 1)[0].strip()
++    match = re.match(r"^\d+(?:\.\d+)*", base)
++
++    if not match:
++        return None
++
++    parts = [int(part) for part in match.group(0).split(".")]
++    while len(parts) < 3:
++        parts.append(0)
++
++    return tuple(parts)
++
++
++def satisfies(version: str, constraint: str):
++    """Return (ok, explanation) for a Fabric version predicate.
++
++    Covers the operators used by real mods: *, x.y.z, =, >=, >, <=, <, ~, ^.
++    Anything that cannot be parsed is reported as unverifiable instead of
++    silently passing.
++    """
++    constraint = (constraint or "").strip()
++
++    if constraint in ("", "*"):
++        return True, "any version"
++
++    operator = "="
++    target = constraint
++
++    for candidate in (">=", "<=", ">", "<", "=", "~", "^"):
++        if constraint.startswith(candidate):
++            operator = candidate
++            target = constraint[len(candidate):].strip()
++            break
++
++    have = version_tuple(version)
++    want = version_tuple(target)
++
++    if have is None or want is None:
++        return None, f"cannot compare '{version}' with '{constraint}'"
++
++    if operator == "=":
++        return have == want, f"{version} == {target}"
++    if operator == ">=":
++        return have >= want, f"{version} >= {target}"
++    if operator == ">":
++        return have > want, f"{version} > {target}"
++    if operator == "<=":
++        return have <= want, f"{version} <= {target}"
++    if operator == "<":
++        return have < want, f"{version} < {target}"
++
++    if operator == "~":
++        if len([p for p in target.split("+")[0].split(".") if p != ""]) >= 2:
++            upper = (want[0], want[1] + 1, 0)
++        else:
++            upper = (want[0] + 1, 0, 0)
++
++        return want <= have < upper, f"{target} <= {version} < {'.'.join(map(str, upper))}"
++
++    if operator == "^":
++        upper = (want[0] + 1, 0, 0) if want[0] > 0 else (0, want[1] + 1, 0)
++        return want <= have < upper, f"{target} <= {version} < {'.'.join(map(str, upper))}"
++
++    return None, f"unsupported predicate '{constraint}'"
++
++
++def loader_style_dependency(version: str, constraint: str) -> str:
++    """Render a dependency the way Fabric Loader does in its error message."""
++    constraint = (constraint or "").strip()
++
++    if constraint.startswith(">="):
++        return f"version {constraint[2:].strip()} or later"
++
++    return constraint or "any version"
++
++
++def verify(jar_path: str) -> int:
++    problems: list[Problem] = []
++
++    print(f"Verifying release jar: {jar_path}")
++
++    try:
++        outer = zipfile.ZipFile(jar_path)
++    except FileNotFoundError:
++        print(f"FAIL: {jar_path} does not exist - did the build produce it?", file=sys.stderr)
++        return 1
++    except zipfile.BadZipFile:
++        print(f"FAIL: {jar_path} is not a valid jar", file=sys.stderr)
++        return 1
++
++    with outer:
++        names = outer.namelist()
++
++        if FABRIC_MOD_JSON not in names:
++            print(f"FAIL: {jar_path} has no fabric.mod.json", file=sys.stderr)
++            return 1
++
++        root = parse_mod_json(outer.read(FABRIC_MOD_JSON), jar_path, 0)
++
++        print(f"  size: {len(open(jar_path, 'rb').read()) / (1024 * 1024):.1f} MB")
++        print(f"  mod:  {root.name} ({root.mod_id}) {root.version}")
++
++        if not root.mod_id:
++            problems.append(Problem("top-level fabric.mod.json has no \"id\""))
++
++        if not any(name.startswith("com/discordvoicebridge/") and name.endswith(".class") for name in names):
++            problems.append(
++                Problem("no com/discordvoicebridge/*.class entries - this looks like an empty stub jar")
++            )
++
++        if "META-INF/MANIFEST.MF" in names:
++            manifest = outer.read("META-INF/MANIFEST.MF").decode("utf-8", "replace")
++            for line in manifest.splitlines():
++                if line.lower().startswith("fabric-mapping-namespace:"):
++                    print(f"  mapping namespace: {line.split(':', 1)[1].strip()}")
++
++        nested = read_nested_jars(outer, root, problems)
++
++        print(f"  nested jars listed in fabric.mod.json: {len(root.jars)}")
++        for mod in nested:
++            indent = "    " + "  " * (mod.depth - 1)
++            print(f"{indent}{mod.mod_id} {mod.version}   ({mod.source})")
++
++        known: dict[str, ModInfo] = {root.mod_id: root, **{m.mod_id: m for m in nested}}
++        provided: dict[str, ModInfo] = {}
++        for mod in nested:
++            for alias in mod.provides:
++                provided[alias] = mod
++
++        print("  dependencies:")
++        for dep_id, constraint in root.depends.items():
++            if dep_id in BUILTIN_MOD_IDS:
++                print(f"    {dep_id:<24} {constraint:<16} ok (loader builtin)")
++                continue
++
++            if dep_id in KNOWN_BAD_DEPENDENCY_IDS:
++                problems.append(
++                    Problem(
++                        f"depends on '{dep_id}' ({loader_style_dependency(root.version, constraint)}), but "
++                        f"{KNOWN_BAD_DEPENDENCY_IDS[dep_id]} A clean server will abort with:\n"
++                        f"    Mod '{root.name}' ({root.mod_id}) {root.version} requires "
++                        f"{loader_style_dependency(root.version, constraint)} of {dep_id}, which is missing!"
++                    )
++                )
++                print(f"    {dep_id:<24} {constraint:<16} FAIL (not a real mod id)")
++                continue
++
++            candidate = known.get(dep_id) or provided.get(dep_id)
++
++            if candidate is None:
++                problems.append(
++                    Problem(
++                        f"depends on '{dep_id}' but nothing in this jar provides it. A clean server "
++                        f"will abort with:\n"
++                        f"    Mod '{root.name}' ({root.mod_id}) {root.version} requires "
++                        f"{loader_style_dependency(root.version, constraint)} of {dep_id}, which is missing!"
++                    )
++                )
++                print(f"    {dep_id:<24} {constraint:<16} FAIL (missing)")
++                continue
++
++            ok, detail = satisfies(candidate.version, constraint)
++
++            if ok is False:
++                problems.append(
++                    Problem(
++                        f"depends on '{dep_id}' {constraint}, but the jar ships {dep_id} "
++                        f"{candidate.version} ({candidate.source}); fix the bundled version or the range"
++                    )
++                )
++                print(f"    {dep_id:<24} {constraint:<16} FAIL ({detail})")
++            elif ok is None:
++                print(f"    {dep_id:<24} {constraint:<16} unverified ({detail})")
++            else:
++                print(f"    {dep_id:<24} {constraint:<16} ok ({detail})")
++
++    if problems:
++        print("\nFAIL: problems that make the jar uninstallable or inconsistent:", file=sys.stderr)
++        for problem in problems:
++            print(f"  - {problem.message}", file=sys.stderr)
++        return 1
++
++    print("\nOK: fabric.mod.json dependencies are satisfied by this jar alone.")
++    return 0
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("jar", help="path to the release jar (build/libs/discord_voice_bridge-<version>.jar)")
++    args = parser.parse_args()
++    return verify(args.jar)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/src/main/java/com/discordvoicebridge/DiscordVoiceBridgeMod.java b/src/main/java/com/discordvoicebridge/DiscordVoiceBridgeMod.java
+index a501283..8b09ba1 100644
+--- a/src/main/java/com/discordvoicebridge/DiscordVoiceBridgeMod.java
++++ b/src/main/java/com/discordvoicebridge/DiscordVoiceBridgeMod.java
+@@ -80,7 +80,13 @@ public class DiscordVoiceBridgeMod implements DedicatedServerModInitializer {
+             LOGGER.error("Failed to initialize Simple Voice Chat bridge", t);
+         }
+ 
+-        ServerTickEvents.END_SERVER_TICK.register(event -> svcPlugin.refreshPlayers(server));
++        // `voicechat` is only a suggestion: without SVC installed the bridge above is
++        // skipped, and this tick handler must not dereference the null plugin.
++        ServerTickEvents.END_SERVER_TICK.register(event -> {
++            if (svcPlugin != null) {
++                svcPlugin.refreshPlayers(server);
++            }
++        });
+ 
+         if (config.isEnabled()) {
+             discordBot.start();
+diff --git a/src/main/resources/fabric.mod.json b/src/main/resources/fabric.mod.json
+index 09b7735..256d92b 100644
+--- a/src/main/resources/fabric.mod.json
++++ b/src/main/resources/fabric.mod.json
+@@ -19,7 +19,7 @@
+   ],
+   "depends": {
+     "fabricloader": ">=0.20.1",
+-    "fabric": ">=0.165.0",
++    "fabric-api": ">=0.165.0",
+     "minecraft": "~26.3",
+     "java": ">=25"
+   },
+-- 
+2.39.5
+
