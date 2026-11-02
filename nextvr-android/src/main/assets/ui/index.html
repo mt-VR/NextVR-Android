@@ -3469,6 +3469,20 @@
     transform:scale(0.96);
     transition:transform .08s ease,box-shadow .08s ease !important;
   }
+
+  /* ---------- Toque Direto: aproximação → contacto → pressão ----------
+     Aproximação acende (`.finger-hover`, que já existia). Contacto afunda um pouco. Pressão afunda
+     de vez e escurece — e a ação só acontece AQUI, nunca no destaque. */
+  .finger-contact{
+    transform:scale(.97) !important;
+    filter:brightness(.94);
+    transition:transform .07s ease !important;
+  }
+  .finger-pressed{
+    transform:scale(.90) !important;
+    filter:brightness(.84);
+    transition:transform .05s ease !important;
+  }
   .finger-sticky-dot{
     position:absolute;
     width:22px;
@@ -3480,6 +3494,21 @@
     box-shadow:0 0 14px rgba(56,189,248,.85);
     pointer-events:none;
     z-index:52;
+    transition:width .09s ease,height .09s ease,box-shadow .09s ease,border-color .09s ease,background .09s ease;
+  }
+  /* A ponta do dedo encostou: o anel fecha e engrossa em volta do alvo. */
+  .finger-sticky-dot.contact{
+    width:34px;
+    height:34px;
+    border-color:#38bdf8;
+    box-shadow:0 0 22px rgba(56,189,248,.95),0 0 0 6px rgba(56,189,248,.22);
+  }
+  /* Empurrou o vidro: o ponto de contacto enche de azul. */
+  .finger-sticky-dot.pressed{
+    width:26px;
+    height:26px;
+    background:radial-gradient(circle,rgba(56,189,248,.98) 0%,rgba(255,255,255,.94) 62%,rgba(56,189,248,.45) 100%);
+    box-shadow:0 0 26px rgba(56,189,248,1),0 0 0 10px rgba(56,189,248,.30);
   }
   .finger-sticky-dot[hidden]{
     display:none !important;

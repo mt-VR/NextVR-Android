@@ -45,6 +45,24 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'direct-touch',
+    tag: 'NOVO · TOQUE DIRETO: O DEDO TEM QUE ENCOSTAR E EMPURRAR (META QUEST)',
+    time: 'Agora',
+    heading: 'Toque Direto: Chega de Abrir App Só Passando o Dedo Por Cima',
+    desc: 'O toque da mão virou uma máquina de estados de verdade: APROXIMAR acende o botão e não faz mais '
+      + 'nada. ENCOSTAR mostra o contacto na ponta do dedo. EMPURRAR o vidro confirma a pressão e executa a '
+      + 'ação, UMA vez por pressão. Segurar apertado não repete nada, e só depois de tirar o dedo da área de '
+      + 'contacto é que existe outro clique. Saiu do código o caminho antigo — escolher o alvo por o dedo '
+      + 'passar por cima e clicar quando o dedo fazia um movimento pequeno para cima (era isso que abria '
+      + 'aplicativos por acidente, porque o tremor do rastreamento passava dos mesmos limiares). A profundidade '
+      + 'agora é medida em metros contra o PLANO do alvo: a ponta precisa atravessar o vidro (6 mm) ou avançar '
+      + '3 cm na direção dele, com 2 quadros de confirmação, e amostras preditas do rastreador não decidem mais '
+      + 'nada — quem aperta é a detecção viva. Vale para a dock, os ícones, o teclado, as janelas e a superfície '
+      + 'das janelas (apertar o vidro manda DOWN, arrastar manda MOVE e soltar manda UP, então slider, rolagem e '
+      + 'arrasto continuam funcionando). De brinde: o anel da ponta do dedo e a bolinha do alvo crescem com a '
+      + 'pressão, e a pinça com raio continua intacta — a pinça NÃO é o mecanismo de clique.',
+  },
+  {
     id: 'pc-link',
     tag: 'NOVO · PC LINK: O CELULAR VIRA HEADSET DO STEAMVR',
     time: 'Agora',

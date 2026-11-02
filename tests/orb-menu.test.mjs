@@ -264,5 +264,5 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   assert.match(renderer0, /val endT = 0\.94f \* RAY_SHOWN/);
   assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
-  assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline\}\);continue;\}/);
+  assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline,\.\.\.pokeFields\}\);continue;\}/);
 });

@@ -63,6 +63,18 @@ to the Cardboard compositor. Browser contents run in isolated WebViews in the sa
 The headless Chromium test dependency needs standard Linux browser libraries (`libnss3`, `libnspr4`)
 on minimal development images. The Ubuntu CI runner already supplies them.
 
+## Direct Touch (poke interaction)
+
+The hand UI is touched the way a Meta Quest is: **the index finger has to reach the surface and push
+it**. Approaching a button only highlights it; contact shows a contact ring at the fingertip; pushing
+through the target's plane fires exactly one click, once per press, and the finger must leave the
+contact area before another click can happen. The old "select while passing by, click when the finger
+lifts" heuristics are gone from `windows.js` — they fired on tracking noise. Depth is measured in
+metres against the target's plane (the window surface, or the dock/keyboard plane), with an absolute
+threshold and a relative push, live samples only (never predicted ones). Pinch is **not** the click
+mechanism, and the pinch ray is untouched. States, thresholds, what happens on each kind of target
+and how to tune it: [`docs/DIRECT-TOUCH.md`](docs/DIRECT-TOUCH.md).
+
 ## Latest UI/input update
 
 See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the

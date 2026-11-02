@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
+import { DirectTouch, POKE_STATE } from './direct-touch.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -2676,6 +2677,14 @@ function isIndexFingerPointing(h) {
   return dTip > 0.045 && dTip > dPip * 1.05;
 }
 
+/**
+ * O alvo sob um ponto da tela. Devolve também `plane` (distância da câmera ao plano do alvo, em
+ * metros, medida pelo raio) e, para alvos de janela, `win` — é com isso que o Toque Direto mede a
+ * profundidade da ponta do dedo em relação à superfície.
+ *
+ * Sem memória magnética: vale o que está debaixo do ponto AGORA. O dedo que sai de um botão não
+ * pode continuar apertando o anterior.
+ */
 function resolvePointTarget(x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   const kb = kbProbe(x, y);
@@ -2689,17 +2698,17 @@ function resolvePointTarget(x, y) {
   }
   if (kb && (!h || kb.distance < h.distance) && kb.button) {
     setNextvrChoosingElement(kb.button);
-    return { kind: 'kb', x, y, el: kb.button, key: 'kb:' + (kb.button.dataset?.k || kb.button.textContent || '') };
+    return { kind: 'kb', x, y, el: kb.button, plane: kb.distance, key: 'kb:' + (kb.button.dataset?.k || kb.button.textContent || '') };
   }
   if (dk && (!h || dk.distance <= (h.distance ?? Infinity) + 0.15)) {
     if (dk.popupOpt && dk.el) {
       setNextvrChoosingElement(dk.el);
-      return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, key: 'dock-popup:' + dk.popupOpt };
+      return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, plane: dk.distance, key: 'dock-popup:' + dk.popupOpt };
     }
     if (dockBtns[dk.i]) {
       const b = dockBtns[dk.i];
       setNextvrChoosingElement(b);
-      return { kind: 'dock', x, y, el: b, key: 'dock:' + (b.dataset?.id || dk.i) };
+      return { kind: 'dock', x, y, el: b, plane: dk.distance, key: 'dock:' + (b.dataset?.id || dk.i) };
     }
   }
   if (h && !h.handle && !h.resize) {
@@ -2709,21 +2718,24 @@ function resolvePointTarget(x, y) {
     if (clickable) {
       setNextvrChoosingElement(clickable);
       const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.spatialEnv || clickable.dataset?.fistAct || clickable.dataset?.fistEnv || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
-      return { kind: 'win', x, y, el: clickable, hit: h, key: `win:${h.win.id}:${idAttr}` };
+      return { kind: 'win', x, y, el: clickable, hit: h, win: h.win, plane: h.distance, key: `win:${h.win.id}:${idAttr}` };
     }
     if (nativeSurf) {
       const qx = Math.round(h.u * 16), qy = Math.round(h.v * 12);
-      return { kind: 'win-surf', x, y, el: nativeSurf, hit: h, key: `surf:${h.win.id}:${qx}:${qy}` };
+      return { kind: 'win-surf', x, y, el: nativeSurf, hit: h, win: h.win, plane: h.distance, key: `surf:${h.win.id}:${qx}:${qy}` };
     }
+    // O vidro pelado também é uma superfície de toque: é o que deixa o dedo apertar qualquer ponto
+    // de uma janela (arrastar, rolar, mexer num slider), não só os botões do conteúdo.
+    return { kind: 'win-glass', x, y, el: null, hit: h, win: h.win, plane: h.distance, key: `glass:${h.win.id}` };
   }
   if (dk?.popupOpt && dk.el) {
     setNextvrChoosingElement(dk.el);
-    return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, key: 'dock-popup:' + dk.popupOpt };
+    return { kind: 'dock-popup', x, y, el: dk.el, popupOpt: dk.popupOpt, plane: dk.distance, key: 'dock-popup:' + dk.popupOpt };
   }
   if (dk && dockBtns[dk.i]) {
     const b = dockBtns[dk.i];
     setNextvrChoosingElement(b);
-    return { kind: 'dock', x, y, el: b, key: 'dock:' + (b.dataset?.id || dk.i) };
+    return { kind: 'dock', x, y, el: b, plane: dk.distance, key: 'dock:' + (b.dataset?.id || dk.i) };
   }
   return null;
 }
@@ -2858,14 +2870,80 @@ function triggerFingerTouchTap(x, y, preferredEl = null) {
   return false;
 }
 
-function handBoneSpan2D(p) {
-  if (!p || p.length < 63) return 0;
-  return (
-    Math.hypot(p[15] - p[0], p[16] - p[1]) +
-    Math.hypot(p[51] - p[0], p[52] - p[1]) +
-    Math.hypot(p[51] - p[15], p[52] - p[16]) +
-    Math.hypot(p[27] - p[0], p[28] - p[1])
-  );
+/* =================== Toque Direto (Direct Touch) =================== */
+/**
+ * O clique da mão agora sai de uma máquina de estados de verdade (web/src/direct-touch.js), não de
+ * um movimento pequeno do dedo. Três medidas mandam:
+ *
+ *   • o alvo é o que está debaixo da PONTA (landmark 8) naquele quadro;
+ *   • a ponta tem que estar DENTRO da área desse alvo;
+ *   • a profundidade da ponta em relação ao PLANO do alvo (em metros, positivo à frente do vidro)
+ *     tem que mostrar uma pressão.
+ *
+ * Aproximação só acende. Encostar mostra o contacto na ponta. Empurrar confirma UM clique. Segurar
+ * não repete. E só depois de sair da área de contacto é que existe outro — o contrário do "passou
+ * por cima e levantou o dedo" que abria aplicativos sem querer.
+ */
+const directTouch = new DirectTouch();
+
+/** Distância métrica (m) da ponta do indicador até a câmera, ou null se não houver essa medida. */
+function fingertipMetricDistance(h) {
+  const hd = h?.head;
+  if (!hd || hd.length < 63) return null;
+  const d = Math.hypot(hd[24], hd[25], hd[26]);
+  return Number.isFinite(d) && d > 0.05 && d <= 0.9 ? d : null;
+}
+
+/**
+ * Profundidade da ponta em relação ao PLANO do alvo, em metros: positivo à frente do vidro,
+ * negativo atrás dele (a ponta atravessou a superfície).
+ *
+ * Para alvos de janela usa-se a mesma medida do toque de janela (`windowPoint().d`), que já é em
+ * metros do mundo e não depende da escala métrica do MediaPipe. Para a dock e o teclado — que são
+ * planos próprios, não a superfície de uma janela — usa-se a distância do raio até o plano menos a
+ * distância métrica da ponta.
+ */
+function fingertipDepth(h, target) {
+  const hd = h?.head;
+  if (target?.win && hd && hd.length >= 63) {
+    const tipWorld = new THREE.Vector3().fromArray(hd, 24).applyMatrix4(camera.matrixWorld);
+    const d = windowPoint(target.win, tipWorld).d;
+    if (Number.isFinite(d)) return d;
+  }
+  const plane = Number(target?.plane);
+  const tip = fingertipMetricDistance(h);
+  if (Number.isFinite(plane) && tip != null) return plane - tip;
+  return Infinity;
+}
+
+let pokeVisualEl = null;
+
+/** Contacto na ponta do dedo: o anel da HUD (e o do GL) cresce com o progresso da pressão. */
+function applyFingerDotPoke(mode) {
+  if (!stickyFingerDotEl) return;
+  stickyFingerDotEl.classList.toggle('contact', mode === 'contact' || mode === 'pressed');
+  stickyFingerDotEl.classList.toggle('pressed', mode === 'pressed');
+}
+
+/** O elemento do alvo afunda quando a ponta encosta, e volta ao normal ao soltar. */
+function setPokeVisual(el, mode) {
+  if (pokeVisualEl && (pokeVisualEl !== el || !mode)) {
+    pokeVisualEl.classList?.remove?.('finger-pressed', 'finger-contact');
+    pokeVisualEl = null;
+  }
+  if (!el || !mode) {
+    applyFingerDotPoke('');
+    return;
+  }
+  pokeVisualEl = el;
+  el.classList?.toggle?.('finger-contact', mode === 'contact' || mode === 'pressed');
+  el.classList?.toggle?.('finger-pressed', mode === 'pressed');
+  applyFingerDotPoke(mode);
+}
+
+function clearPokeVisuals() {
+  setPokeVisual(null, '');
+  setFingerHoverEl(null);
 }
 
 const fingerScrollByHand = new Map();
@@ -2936,71 +3014,124 @@ function endFingerTouchScroll(handId) {
 }
 
 function updateFingerPoke(h, packet, nowMs) {
+  const handId = h?.id || 'right';
   if (S.fingerTouch === 0) {
-    fingerPokeByHand.delete(h?.id);
-    endFingerTouchScroll(h?.id);
-    setFingerHoverEl(null);
+    directTouch.reset(handId);
+    fingerPokeByHand.delete(handId);
+    endFingerTouchScroll(handId);
+    clearPokeVisuals();
     return false;
   }
+
   const p = h?.points;
-  const currentSt = fingerPokeByHand.get(h?.id);
-
-  // Atualiza sempre a memória do app sob a mão para que a "pinça sem raio" abra o app ao fazer pinça encima dele
-  let cachedHoverTarget = null;
-  let hoverTargetComputed = false;
-  if (p && p.length >= 26 && Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008) {
-    cachedHoverTarget = resolveFingerTarget(h, packet);
-    hoverTargetComputed = true;
-    if (cachedHoverTarget?.el) {
-      handOverAppByHand.set(h.id || 'right', { x: cachedHoverTarget.x, y: cachedHoverTarget.y, el: cachedHoverTarget.el, at: nowMs });
-    }
-  }
-
-  if (!isIndexFingerPointing(h)) {
-    const wasScrolling = fingerScrollByHand.get(h?.id)?.scrolling;
-    endFingerTouchScroll(h?.id);
-    if (
-      !wasScrolling &&
-      currentSt &&
-      !currentSt.latched &&
-      !h?.pinching &&
-      !h?.fist &&
-      !h?.predicted &&
-      p &&
-      p.length >= 26 &&
-      (nowMs - currentSt.enterAt >= 40) &&
-      (nowMs - currentSt.lastSeenAt <= 220) &&
-      (nowMs - currentSt.lastTapAt >= 360) &&
-      Math.hypot(p[0] - (currentSt.wristX ?? p[0]), p[1] - (currentSt.wristY ?? p[1])) <= 0.045
-    ) {
-      const tapped = triggerFingerTouchTap(currentSt.tapX, currentSt.tapY, currentSt.targetEl);
-      fingerPokeByHand.delete(h?.id);
-      setFingerHoverEl(null);
-      if (tapped) {
-        fingerPokeFlashUntil = nowMs + 220;
-        return true;
-      }
-    }
-    fingerPokeByHand.delete(h?.id);
-    setFingerHoverEl(null);
+  const hasPoints = Boolean(p && p.length >= 63);
+  // Sem landmarks não existe dedo: esquece o toque em vez de deixar um botão afundado preso.
+  if (!hasPoints) {
+    directTouch.reset(handId);
+    fingerPokeByHand.delete(handId);
+    endFingerTouchScroll(handId);
+    clearPokeVisuals();
     return false;
   }
-  const tipX = (p && p.length >= 26) ? p[24] : 0.5;
-  const tipY = (p && p.length >= 26) ? p[25] : 0.5;
+  const pointing = isIndexFingerPointing(h);
+  // Só a PONTA escolhe. O alvo do raio do olhar (`viaRay`) continua servindo à pinça, mas não ao
+  // toque: apontar para longe não pode encostar em nada.
+  const resolved = pointing ? resolveFingerTarget(h, packet) : null;
+  const target = resolved && !resolved.viaRay ? resolved : null;
+
+  // Memória do app sob a mão (pinça sem raio): independe do toque, e usa o alvo do raio também.
+  if (p && p.length >= 26 && Math.hypot(p[18] - p[15], p[19] - p[16]) > 0.008) {
+    const memTarget = resolved || resolveFingerTarget(h, packet);
+    if (memTarget?.el) {
+      handOverAppByHand.set(handId, { x: memTarget.x, y: memTarget.y, el: memTarget.el, at: nowMs });
+    }
+  }
+
+  const depth = target ? fingertipDepth(h, target) : Infinity;
+  const poke = directTouch.update(handId, {
+    targetKey: target?.key ?? null,
+    inside: Boolean(target),
+    depth,
+    nowMs,
+    predicted: Boolean(h?.predicted),
+    present: hasPoints,
+  });
+
+  const el = target?.el || null;
+  const mode = poke.state === POKE_STATE.pressed
+    ? 'pressed'
+    : (poke.contact || poke.state === POKE_STATE.contact) ? 'contact' : '';
+  setFingerHoverEl(el, target?.x, target?.y);
+  setPokeVisual(el, mode);
+
+  let st = fingerPokeByHand.get(handId);
+  const key = target?.key ?? null;
+  if (st?.key !== key) {
+    st = key ? { key, enterAt: nowMs, holdTold: false } : null;
+    if (st) fingerPokeByHand.set(handId, st);
+    else fingerPokeByHand.delete(handId);
+  }
+  if (st) {
+    st.targetEl = el;
+    st.kind = target?.kind || null;
+    st.win = target?.win || null;
+    st.tapX = target?.x ?? st.tapX;
+    st.tapY = target?.y ?? st.tapY;
+    st.state = poke.state;
+    st.progress = poke.progress;
+    st.contact = poke.contact;
+    st.pressed = poke.pressed;
+    st.at = nowMs;
+  }
+
+  // Segurar 2 s no ícone do Navegador abre + NOVA GUIA / + GUIA ANÔNIMA. Antes isto valia com o dedo
+  // só passando por cima; agora exige contacto de verdade com a superfície.
+  if (st?.targetEl && !st.holdTold && (poke.contact || poke.pressed) && nowMs - st.enterAt >= 2000) {
+    const browserEl = st.targetEl;
+    const isBrowserBtn = Boolean(
+      browserEl.dataset?.id === 'browser' ||
+      browserEl.dataset?.spatialBuiltin === 'browser' ||
+      browserEl.dataset?.app === 'browser'
+    );
+    if (isBrowserBtn) {
+      st.holdTold = true;
+      showBrowserTabMenu(browserEl.dataset?.id === 'browser' ? 'dock' : 'spatial');
+      fingerPokeFlashUntil = nowMs + 220;
+      return true;
+    }
+  }
+
+  // O clique: um por pressão, no instante em que a pressão é confirmada.
+  if (poke.events.includes('press') && target?.el) {
+    const tapped = triggerFingerTouchTap(target.x, target.y, target.el);
+    if (tapped) {
+      fingerPokeFlashUntil = nowMs + 220;
+      endFingerTouchScroll(handId);
+      return true;
+    }
+  }
+
+  if (!pointing || !p || p.length < 26) {
+    endFingerTouchScroll(handId);
+    return false;
+  }
+
+  // Rolar para baixo/cima ou para os lados arrastando o dedo na frente do vidro. Nunca durante uma
+  // pressão: aí o dedo está ocupado apertando o botão.
+  const tipX = p[24];
+  const tipY = p[25];
   const sx = Number(packet?.scaleX) || 1;
   const sy = Number(packet?.scaleY) || 1;
   const screenX = (tipX - 0.5) * sx + 0.5;
   const screenY = (tipY - 0.5) * sy + 0.5;
-
-  // Rolar para baixo/cima ou para os lados usando o toque sem pinça (arrastar a mão/dedo indicador)
-  let scrollSt = fingerScrollByHand.get(h.id);
-  const curWinHit = hitAt(screenX, screenY) || (Array.isArray(h.aim) && h.aim.length >= 2 ? hitAt(screenPoint(h.aim).x, screenPoint(h.aim).y) : null);
+  let scrollSt = fingerScrollByHand.get(handId);
+  const curWinHit = hitAt(screenX, screenY) || (Array.isArray(h?.aim) && h.aim.length >= 2 ? hitAt(screenPoint(h.aim).x, screenPoint(h.aim).y) : null);
   if (!scrollSt) {
     scrollSt = {
       startTipX: tipX,
       startTipY: tipY,
-      startWristX: p ? p[0] : tipX,
-      startWristY: p ? p[1] : tipY,
+      startWristX: p[0],
+      startWristY: p[1],
       startScreenX: screenX,
       startScreenY: screenY,
       lastScreenX: screenX,
@@ -3011,269 +3142,37 @@ function updateFingerPoke(h, packet, nowMs) {
       nativeDownSent: false,
       winHit: curWinHit,
     };
-    fingerScrollByHand.set(h.id, scrollSt);
-  } else {
-    const stepDx = screenX - scrollSt.lastScreenX;
-    const stepDy = screenY - scrollSt.lastScreenY;
-    scrollSt.lastScreenX = screenX;
-    scrollSt.lastScreenY = screenY;
-    if (curWinHit) scrollSt.winHit = curWinHit;
-    const tipMove = Math.hypot(tipX - scrollSt.startTipX, tipY - scrollSt.startTipY);
-    const wristMove = p ? Math.hypot(p[0] - scrollSt.startWristX, p[1] - scrollSt.startWristY) : 0;
-    const isStickingToOption = Boolean(currentSt && !currentSt.latched && currentSt.targetEl);
-    const pullingUpward = Boolean(currentSt && (tipY < currentSt.restTipY - 0.003 || stepDy < -0.002));
-    if (
-      !scrollSt.scrolling &&
-      scrollSt.winHit &&
-      !pullingUpward &&
-      (isStickingToOption
-        ? (tipMove >= 0.085 && (tipY - (currentSt?.restTipY ?? tipY)) >= 0.015)
-        : ((tipMove >= 0.022 && wristMove >= 0.012) || tipMove >= 0.036))
-    ) {
-      scrollSt.scrolling = true;
-    }
-    if (scrollSt.scrolling) {
-      applyFingerTouchScroll(scrollSt, screenX, screenY, stepDx, stepDy);
-      if (currentSt) currentSt.latched = true;
-      setFingerHoverEl(null);
-      return true;
-    }
-  }
-  const mcpY = (p && p.length >= 17) ? p[16] : tipY;
-  const fingerLift = mcpY - tipY; // aumenta quando o dedo indicador se levanta em relação ao nó (MCP)
-  const dTip = (p && p.length >= 26) ? Math.hypot(p[24] - p[0], p[25] - p[1]) : 0.1;
-  const dPip = (p && p.length >= 20) ? Math.hypot(p[18] - p[0], p[19] - p[1]) : 0.08;
-  const curIndexRatio = dTip / Math.max(1e-4, dPip);
-  const tipHeadY = (h.head && h.head.length === 63) ? h.head[25] : 0;
-  const tipDist = (h.head && h.head.length === 63)
-    ? Math.hypot(h.head[24], h.head[25], h.head[26])
-    : 0;
-  const tipRelZ = (h.head && h.head.length === 63)
-    ? (h.head[29] - h.head[26])
-    : 0;
-  const palm = Number(h.palmWidth) || 0;
-  const boneSpan = handBoneSpan2D(h.points);
-
-  let st = currentSt;
-  let target = hoverTargetComputed ? cachedHoverTarget : resolveFingerTarget(h, packet);
-
-  // Grudadinha magnética: se o dedo já encostou num app/opção e ainda não puxou para cima,
-  // mantém o dedo "grudado" na opção dentro do raio magnético (~5.8%) para não escapar antes do puxão para cima.
-  if (
-    st &&
-    !st.latched &&
-    st.targetEl &&
-    document.body.contains(st.targetEl) &&
-    (nowMs - st.lastSeenAt <= 240) &&
-    Math.hypot(tipX - (st.stickRawX ?? st.restTipX ?? tipX), tipY - (st.stickRawY ?? st.restTipY ?? tipY)) <= 0.058
-  ) {
-    if (!target || target.key !== st.targetKey) {
-      target = {
-        kind: 'win',
-        key: st.targetKey,
-        el: st.targetEl,
-        x: st.tapX,
-        y: st.tapY,
-      };
-    }
-  }
-
-  const checkForwardPush = state => {
-    if (!state) return false;
-    const distPush = (tipDist > 0 && state.baseDist > 0) ? (tipDist - state.baseDist) : 0;
-    const distRatio = (tipDist > 0 && state.baseDist > 0) ? (distPush / state.baseDist) : 0;
-    const palmDropRatio = (palm > 0.012 && state.basePalm > 0.012) ? ((state.basePalm - palm) / state.basePalm) : 0;
-    const spanDropRatio = (boneSpan > 0.02 && state.baseSpan > 0.02) ? ((state.baseSpan - boneSpan) / state.baseSpan) : 0;
-    const tipRelPush = tipRelZ - state.baseTipRelZ;
-    return (
-      distPush >= 0.016 ||
-      distRatio >= 0.036 ||
-      palmDropRatio >= 0.042 ||
-      spanDropRatio >= 0.042 ||
-      (tipRelPush >= 0.014 && (distPush >= 0.006 || palmDropRatio >= 0.018 || spanDropRatio >= 0.018))
-    );
-  };
-
-  // Quando encostar o dedo no app ou opção ele dá uma "grudadinha", e quando puxar o dedo para cima conta como clique.
-  const checkFingerLift = state => {
-    if (!state) return false;
-    const tipLiftUp = (state.restTipY - tipY) >= 0.0055 || (state.lastTipY - tipY) >= 0.0060;
-    const knuckleLiftUp = (fingerLift - state.restFingerLift) >= 0.0060;
-    const headLiftUp = (tipHeadY - state.restHeadY) >= 0.0060;
-    const indexFlexLift = state.maxIndexRatio > 1.08 && (state.maxIndexRatio - curIndexRatio) >= 0.075;
-    const wx = (state.wristX ?? 0.5) - state.restTipX;
-    const wy = (state.wristY ?? 0.7) - state.restTipY;
-    const wLen = Math.hypot(wx, wy) || 1;
-    const retractAlongFinger = ((tipX - state.restTipX) * (wx / wLen) + (tipY - state.restTipY) * (wy / wLen)) >= 0.0065;
-    return tipLiftUp || knuckleLiftUp || headLiftUp || indexFlexLift || retractAlongFinger || checkForwardPush(state);
-  };
-
-  if (!target) {
-    if (st && st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 320)) {
-      st.pendingBrowserTap = false;
-      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
-        st.latched = true;
-        st.lastTapAt = nowMs;
-        fingerPokeFlashUntil = nowMs + 220;
-        return true;
-      }
-    }
-    const pulledOffTarget = st && (checkFingerLift(st) || (st.restTipY - tipY) >= 0.0050 || Math.hypot(tipX - st.restTipX, tipY - st.restTipY) >= 0.006);
-    if (st && (nowMs - st.lastSeenAt <= 240) && (nowMs - st.enterAt >= 30) && !st.latched && pulledOffTarget && (nowMs - st.lastTapAt >= 320)) {
-      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
-        st.latched = true;
-        st.lastTapAt = nowMs;
-        fingerPokeFlashUntil = nowMs + 220;
-        setFingerHoverEl(null);
-        return true;
-      }
-    }
-    if (!st || nowMs - st.lastSeenAt > 240) {
-      fingerPokeByHand.delete(h.id);
-      setFingerHoverEl(null);
-    }
+    fingerScrollByHand.set(handId, scrollSt);
     return false;
   }
-
-  setFingerHoverEl(target.el, target.x, target.y);
-
-  const liftingAlready = st && !st.latched && (nowMs - st.enterAt >= 30) && checkFingerLift(st);
-  if (!st || (target.key !== st.targetKey && !liftingAlready)) {
-    if (st && !st.latched && (nowMs - st.enterAt >= 30) && (nowMs - st.lastSeenAt <= 220) && ((st.restTipY - tipY >= 0.0055) || (st.lastTipY - tipY >= 0.0060) || checkFingerLift(st)) && (nowMs - st.lastTapAt >= 320)) {
-      if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
-        st.latched = true;
-        st.lastTapAt = nowMs;
-        fingerPokeFlashUntil = nowMs + 220;
-        return true;
-      }
-    }
-    st = {
-      targetKey: target.key,
-      targetEl: target.el,
-      tapX: target.x,
-      tapY: target.y,
-      viaRay: Boolean(target.viaRay),
-      stickRawX: target.viaRay ? null : tipX,
-      stickRawY: target.viaRay ? null : tipY,
-      wristX: p[0],
-      wristY: p[1],
-      maxIndexRatio: curIndexRatio,
-      restTipX: tipX,
-      restTipY: tipY,
-      restFingerLift: fingerLift,
-      restHeadY: tipHeadY,
-      lastTipX: tipX,
-      lastTipY: tipY,
-      baseDist: tipDist,
-      basePalm: palm,
-      baseSpan: boneSpan,
-      baseTipRelZ: tipRelZ,
-      enterAt: nowMs,
-      lastSeenAt: nowMs,
-      latched: false,
-      holdMenuOpened: false,
-      pendingBrowserTap: false,
-      lastTapAt: st?.lastTapAt ?? -1000,
-    };
-    fingerPokeByHand.set(h.id, st);
-    return false;
-  }
-
-  if (target.key === st.targetKey) {
-    st.tapX = target.x;
-    st.tapY = target.y;
-    st.targetEl = target.el;
-    st.viaRay = Boolean(target.viaRay);
-    st.wristX = p[0];
-    st.wristY = p[1];
-    st.lastSeenAt = nowMs;
-  }
-
-  const isBrowserBtn = Boolean(
-    st.targetEl?.dataset?.id === 'browser' ||
-    st.targetEl?.dataset?.spatialBuiltin === 'browser' ||
-    st.targetEl?.dataset?.app === 'browser'
-  );
-
-  // Segurar por 2 segundos (2000ms) no ícone do Navegador com Hand tracking de toque abre + NOVA GUIA / + GUIA ANÔNIMA
-  if (isBrowserBtn && !st.holdMenuOpened && (nowMs - st.enterAt >= 2000)) {
-    st.holdMenuOpened = true;
-    st.pendingBrowserTap = false;
-    st.latched = true;
-    st.lastTapAt = nowMs;
-    showBrowserTabMenu(st.targetEl?.dataset?.id === 'browser' ? 'dock' : 'spatial');
-    fingerPokeFlashUntil = nowMs + 220;
+  const stepDx = screenX - scrollSt.lastScreenX;
+  const stepDy = screenY - scrollSt.lastScreenY;
+  scrollSt.lastScreenX = screenX;
+  scrollSt.lastScreenY = screenY;
+  if (curWinHit) scrollSt.winHit = curWinHit;
+  if (scrollSt.scrolling) {
+    applyFingerTouchScroll(scrollSt, screenX, screenY, stepDx, stepDy);
+    setFingerHoverEl(null);
     return true;
   }
-
-  // Enquanto pousa o dedo no app (~40ms), apenas escolhe/destaca sem abrir e calibra a posição do dedo em cima do app
-  if (nowMs - st.enterAt < 40) {
-    st.restTipY = Math.max(st.restTipY, tipY);
-    st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
-    st.restHeadY = Math.min(st.restHeadY, tipHeadY);
-    st.maxIndexRatio = Math.max(st.maxIndexRatio || curIndexRatio, curIndexRatio);
-    st.lastTipX = tipX;
-    st.lastTipY = tipY;
-    if (tipDist > 0) st.baseDist = st.baseDist > 0 ? (st.baseDist * 0.5 + tipDist * 0.5) : tipDist;
-    if (palm > 0) st.basePalm = st.basePalm > 0 ? (st.basePalm * 0.5 + palm * 0.5) : palm;
-    if (boneSpan > 0) st.baseSpan = st.baseSpan > 0 ? (st.baseSpan * 0.5 + boneSpan * 0.5) : boneSpan;
-    st.baseTipRelZ = st.baseTipRelZ * 0.5 + tipRelZ * 0.5;
+  // O arrasto começa a contar só quando o dedo está perto de uma janela: longe dela não é gesto.
+  if (poke.state === POKE_STATE.idle) {
+    scrollSt.startTipX = tipX;
+    scrollSt.startTipY = tipY;
+    scrollSt.startScreenX = screenX;
+    scrollSt.startScreenY = screenY;
     return false;
   }
-
-  const liftedFinger = checkFingerLift(st);
-  st.lastTipX = tipX;
-  st.lastTipY = tipY;
-
-  if (!st.latched && liftedFinger && (nowMs - st.lastTapAt >= 360)) {
-    if (isBrowserBtn && checkForwardPush(st) && !((st.restTipY - tipY) >= 0.0075 || (fingerLift - st.restFingerLift) >= 0.0075)) {
-      st.pendingBrowserTap = true;
-      st.latched = true;
-      return false;
-    }
-    if (triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl)) {
-      st.latched = true;
-      st.lastTapAt = nowMs;
-      fingerPokeFlashUntil = nowMs + 220;
-      return true;
-    }
-  } else if (st.latched) {
-    const distPush = (tipDist > 0 && st.baseDist > 0) ? (tipDist - st.baseDist) : 0;
-    const palmDropRatio = (palm > 0.012 && st.basePalm > 0.012) ? ((st.basePalm - palm) / st.basePalm) : 0;
-    const spanDropRatio = (boneSpan > 0.02 && st.baseSpan > 0.02) ? ((stateSpan(st, boneSpan))) : 0;
-    const settled = distPush <= 0.008 && palmDropRatio <= 0.022 && spanDropRatio <= 0.022 && Math.abs(st.restTipY - tipY) <= 0.006;
-    if (settled) {
-      if (st.pendingBrowserTap && !st.holdMenuOpened && (nowMs - st.lastTapAt >= 360)) {
-        st.pendingBrowserTap = false;
-        st.latched = false;
-        st.lastTapAt = nowMs;
-        fingerPokeFlashUntil = nowMs + 220;
-        triggerFingerTouchTap(st.tapX, st.tapY, st.targetEl);
-        return true;
-      }
-      st.latched = false;
-      st.restTipY = tipY;
-      st.restFingerLift = fingerLift;
-      st.restHeadY = tipHeadY;
-      st.maxIndexRatio = curIndexRatio;
-      st.baseDist = tipDist;
-      st.basePalm = palm;
-      st.baseSpan = boneSpan;
-      st.baseTipRelZ = tipRelZ;
-    }
-  } else {
-    st.restTipY = Math.max(st.restTipY, tipY);
-    st.restFingerLift = Math.min(st.restFingerLift, fingerLift);
-    st.restHeadY = Math.min(st.restHeadY, tipHeadY);
-    st.maxIndexRatio = Math.max(st.maxIndexRatio || curIndexRatio, curIndexRatio);
-    if (tipDist > 0) st.baseDist = st.baseDist > 0 ? Math.min(st.baseDist, st.baseDist * 0.92 + tipDist * 0.08) : tipDist;
-    if (palm > 0.012) st.basePalm = st.basePalm > 0 ? Math.max(st.basePalm, st.basePalm * 0.92 + palm * 0.08) : palm;
-    if (boneSpan > 0.02) st.baseSpan = st.baseSpan > 0 ? Math.max(st.baseSpan, st.baseSpan * 0.92 + boneSpan * 0.08) : boneSpan;
+  const tipMove = Math.hypot(tipX - scrollSt.startTipX, tipY - scrollSt.startTipY);
+  const wristMove = Math.hypot(p[0] - scrollSt.startWristX, p[1] - scrollSt.startWristY);
+  if (scrollSt.winHit && poke.state !== POKE_STATE.pressed &&
+      ((tipMove >= 0.022 && wristMove >= 0.012) || tipMove >= 0.036)) {
+    scrollSt.scrolling = true;
+    applyFingerTouchScroll(scrollSt, screenX, screenY, stepDx, stepDy);
+    setFingerHoverEl(null);
+    return true;
   }
   return false;
-}
-function stateSpan(st, boneSpan) {
-  return (st.baseSpan - boneSpan) / st.baseSpan;
 }
 
 /* =================== Gesto da Mão Direita & Esquerda (V/L "Arminha" na Palma -> Bolinha com Logos IMG_20261007_215701.png / 215728.png + Pinça Polegar+Indicador + Contorno Azul) =================== */
@@ -3921,13 +3820,22 @@ on('phonehands', packet => {
       if(!best || current || (!best.current && Math.abs(p.d)<Math.abs(best.d)))best={...p,id:h.id,win:w,point:tip,current};
     }
   }
+  // A máquina do Toque Direto vê TODO quadro de cada mão — inclusive enquanto o dedo está apertando
+  // a superfície de uma janela, senão ela nunca veria a soltura e o botão ficaria afundado.
   const runFingerPokes = () => {
-    if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed')) return;
-    for (const h of packet.hands) {
-      if (packet.consumed.has(h.id)) continue;
-      updateFingerPoke(h, packet, nowMs);
+    if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed')) {
+      directTouch.resetAll();
+      for (const id of fingerPokeByHand.keys()) endFingerTouchScroll(id);
+      fingerPokeByHand.clear();
+      clearPokeVisuals();
+      return;
+    }
+    for (const h of packet.hands) updateFingerPoke(h, packet, nowMs);
+    for (const id of [...directTouch.byHand.keys()]) {
+      if (!ids.has(id)) { directTouch.reset(id); fingerPokeByHand.delete(id); endFingerTouchScroll(id); }
     }
   };
+  runFingerPokes();
   // Brief near-band jitter keeps an existing contact, but never keeps a press after tracking loss.
   if(!best && nearContact && ids.has(nearContact.id) && wins.includes(nearContact.win)
       && !nearContact.win.hidden && nowMs-nearContact.lastSeen<=NEAR_HOLD_MS) {
@@ -3935,7 +3843,6 @@ on('phonehands', packet => {
   }
   if(!best) {
     endNear(!ids.has(nearContact?.id),packet);
-    runFingerPokes();
     return;
   }
   if(!best.current) {
@@ -3949,12 +3856,22 @@ on('phonehands', packet => {
   }
   const n=nearContact,inside=n.u>=0&&n.u<=1&&n.v>=0&&n.v<=1;
   const hit={win:n.win,u:Math.max(0,Math.min(1,n.u)),v:Math.max(0,Math.min(1,n.v))};
-  if(!n.down && inside && n.d<=.012 && n.previousD>.012){
+  /*
+   * O toque na superfície de uma janela começa e termina na MÁQUINA do Toque Direto, não numa borda
+   * de profundidade solta: apertar o vidro manda o DOWN, arrastar manda MOVE (slider, rolagem dentro
+   * do app) e soltar manda o UP — que é o clique de toque de verdade. Só vale para superfícies que
+   * não têm botão de DOM próprio; um botão do conteúdo já virou clique no `press` da máquina.
+   */
+  const pokeNow=directTouch.stateOf(n.id);
+  const pokeKind=fingerPokeByHand.get(n.id)?.kind;
+  const surfaceOwns=pokeKind==='win-glass'||pokeKind==='win-surf';
+  const pressing=Boolean(surfaceOwns && pokeNow?.state===POKE_STATE.pressed);
+  if(!n.down && pressing && inside){
     // A real push through the glass takes over from a FAR ray press already in progress.
     if(cursor.down)cancelHandInput();
     focus(n.win);handTouch(hit,0);n.down=true;
   }
-  else if(n.down && (n.d>=.035 || !inside)){
+  else if(n.down && (!pressing || !inside)){
     handTouch(hit,1);n.down=false;
     // Still pinched while pulling back: that pinch must not restart as a ray press on the same spot.
     if(packet.hands.some(h=>h.id===n.id&&h.pinching)){pinchSuppressed.add(n.id);packet.consumed.add(n.id);}
@@ -3964,7 +3881,6 @@ on('phonehands', packet => {
   // Only an actual press owns the hand. Hovering within reach leaves the FAR ray pinch working,
   // which is how the welcome window's language options (about 0.42 m away) are chosen.
   if(n.down){packet.blockFar=true;packet.consumed.add(n.id);}
-  else runFingerPokes();
 });
 let lastTargetAt=0,lastTargets='',appOpenBlueUntil=0,lastWinCount=0;
 on('wins', () => {
@@ -3981,11 +3897,19 @@ function syncHandTargets(now = performance.now()) {
   const hasOpenApp = wins.some(w => !w.hidden && !w.onboarding && w.id !== 'entry-menu' && w.id !== 'spatial-launcher');
   for(const h of packet.hands) {
     const fSt = fingerPokeByHand.get(h.id);
-    const fingerHover = Boolean(fSt?.targetEl && !fSt?.viaRay);
-    const noBeam = fingerHover;
-    const stick = (fSt?.targetEl && !fSt.viaRay && !fSt.latched && Number.isFinite(fSt.stickRawX) && Number.isFinite(fSt.stickRawY))
-      ? [Number(fSt.stickRawX.toFixed(4)), Number(fSt.stickRawY.toFixed(4))]
-      : null;
+    // Dedo em cima de um alvo (ou encostado nele): o GL desenha o anel da ponta e esconde o feixe.
+    // `fingerHover` é aproximação; `pokeDown` é contacto com o vidro.
+    const pokeNow = directTouch.stateOf(h.id);
+    const pokeState = pokeNow?.state || POKE_STATE.idle;
+    const pokeDown = pokeState === POKE_STATE.pressed;
+    const pokeProgress = Number.isFinite(pokeNow?.progress) ? pokeNow.progress : 0;
+    // O anel da ponta aparece no alvo de interface e no contacto/pressão — encostar no vidro de uma
+    // janela também é contacto. O feixe só se esconde para alvo de interface: encostar no vidro não
+    // pode matar a pinça com raio.
+    const touchingGlass = pokeState === POKE_STATE.contact || pokeDown;
+    const fingerHover = Boolean(fSt?.targetEl) || touchingGlass;
+    const noBeam = Boolean(fSt?.targetEl);
+    const pokeFields = { poke: pokeState, pokeProgress: Number(pokeProgress.toFixed(3)), ...(pokeDown ? { pokeDown: true } : {}) };
     const isRightBolinha = isRightBolinhaHand(h);
     const isLeftBolinha = isLeftBolinhaHand(h);
     const blueOutline = Boolean(
@@ -3995,12 +3919,12 @@ function syncHandTargets(now = performance.now()) {
     if(nearContact?.id===h.id && nearContact.down) {
       const n=nearContact;
       const point=new THREE.Vector3((n.u-.5)*n.win.w,(.5-n.v)*n.win.h,0).applyMatrix4(n.win.obj.matrixWorld);
-      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,pinchRay:true,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});continue;
+      targets.push({id:h.id,end:camera.worldToLocal(point).toArray(),direct:true,touching:true,fingerHover:true,blueOutline,blueRay:true,down:n.down,pinchRay:true,...pokeFields,...(noBeam?{noBeam:true}:{})});continue;
     }
     if(packet.consumed.has(h.id) || packet.blockFar){
       // Pinça ativa: a janela já recebeu o toque (o alvo está consumido), mas a mão continua
       // visível para o RAY — o feixe é justamente o retorno de que a pinça está pressionando.
-      if(!h.pinching){targets.push({id:h.id,hidden:true,blueOutline});continue;}
+      if(!h.pinching){targets.push({id:h.id,hidden:true,blueOutline,...pokeFields});continue;}
     }
     // Ambas as mãos usam predição cinemática zero-delay na taxa do display (60-120 Hz).
     const p=predictedHandScreenPoint(h,now);
@@ -4024,7 +3948,7 @@ function syncHandTargets(now = performance.now()) {
     const pinchRay=!!h.pinching;
     const end=hit ? hit.point.toArray()
       : pinchRay ? r.ray.at(RAY_FAR, new THREE.Vector3()).toArray() : null;
-    targets.push({id:h.id,...(end?{end}:{}),...(pinchRay?{pinchRay:true}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...(stick?{stick}:{}),...(noBeam?{noBeam:true}:{})});
+    targets.push({id:h.id,...(end?{end}:{}),...(pinchRay?{pinchRay:true}:{}),down:isDown,blueRay,touching:isTouching,fingerHover,blueOutline,...pokeFields,...(noBeam?{noBeam:true}:{})});
   }
   const json=JSON.stringify(targets);
   if(json!==lastTargets){lastTargets=json;window.NativeXR.handTargets?.(json);}

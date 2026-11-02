@@ -133,8 +133,22 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
   assert.ok(appsSrc.includes('w: 560') && appsSrc.includes('h: 740') && appsSrc.includes('resizeScale = 1.68') && rendererSrc.includes('1440f'),
     'apps.js sizes the left-hand quick menu to match the reference screenshot (560x740, scale 1.68) and SpatialRenderer.java raises rendering quality to 1440p');
-  assert.ok(windowsSrc.includes('checkFingerLift') && windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
-    'windows.js implements finger-lift touch activation, 2s closed-fist quick menu trigger, and keyboard superscript symbols');
+  // O toque do dedo não é mais "levantar o dedo": é a máquina do Toque Direto (web/src/direct-touch.js),
+  // com contacto medido em metros contra o plano do alvo. O caminho antigo não pode voltar.
+  assert.ok(
+    windowsSrc.includes("from './direct-touch.js'") &&
+    windowsSrc.includes('fingertipDepth') &&
+    windowsSrc.includes("poke.events.includes('press')") &&
+    !windowsSrc.includes('checkFingerLift') &&
+    !windowsSrc.includes('checkForwardPush') &&
+    !windowsSrc.includes('pulledOffTarget'),
+    'windows.js activa o toque pela máquina do Toque Direto, sem heurísticas de levantar o dedo');
+  const pokeSrc = readFileSync('web/src/direct-touch.js', 'utf8');
+  assert.ok(
+    pokeSrc.includes('pressHoldMs') && pokeSrc.includes('rearm') && pokeSrc.includes("events.push('press')") && pokeSrc.includes('_seenFront'),
+    'direct-touch.js exige pressão sustentada, rearme depois do contacto e dedo vindo de frente');
+  assert.ok(windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
+    'windows.js implements 2s closed-fist quick menu trigger and keyboard superscript symbols');
   const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');
   const phoneXrHandsKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
   const handRendererKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8');

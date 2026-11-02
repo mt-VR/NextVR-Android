@@ -250,8 +250,7 @@ class PhoneXrHandRenderer {
                         val fy=(.5f-pts[25])*2f*sy
                         GLES20.glUniform1f(gradUniform,0f)
                         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                        GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
-                        ring3d(fx,fy,-1f,.022f,.0185f,position)
+                        drawPokeTip(target,fx,fy,hFade,position)
                     }
                 }
             }
@@ -274,8 +273,7 @@ class PhoneXrHandRenderer {
                 val fy=(.5f-hand.points[25])*2f*sy
                 GLES20.glUniform1f(gradUniform,0f)
                 GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                GLES20.glUniform4f(colorUniform,HAND_CONTOUR_R,HAND_CONTOUR_G,HAND_CONTOUR_B,.94f*hFade)
-                ring3d(fx,fy,-1f,.022f,.0185f,position)
+                drawPokeTip(target,fx,fy,hFade,position)
             }
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.
@@ -756,6 +754,34 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
             GLES20.glUniform4f(color, 1f, 1f, 1f, fade)
             ring3d(b[3], b[4], b[5], outer, inner, position)
         }
+
+    /**
+     * O efeito de contacto do Toque Direto na ponta do dedo.
+     *
+     * `poke` (o estado da máquina no JS) vale "hover", "contact", "pressed" ou "released", e
+     * `pokeProgress` (0..1) é o quanto a ponta já avançou na direção do vidro. Aproximação: só o
+     * anel fino de sempre. Contacto: o anel fecha e engrossa. Pressão: ele abre, fica azul e o
+     * centro ganha um ponto — o retorno de "encostou", igual ao de uma tela.
+     */
+    private fun drawPokeTip(target: JSONObject?, x: Float, y: Float, hFade: Float, position: Int) {
+        val poke = target?.optString("poke") ?: "hover"
+        val progress = (target?.optDouble("pokeProgress", 0.0) ?: 0.0).toFloat().coerceIn(0f, 1f)
+        val down = target?.optBoolean("pokeDown") == true || poke == "pressed"
+        val touching = down || poke == "contact"
+        val grow = if (touching) progress else progress * .35f
+        val outer = .022f + .020f * grow
+        val inner = if (down) outer * .52f else .0185f + .012f * grow
+        if (down) {
+            // Ponto de contacto: o centro do anel se enche quando a superfície é pressionada.
+            GLES20.glUniform4f(colorUniform, HAND_CONTOUR_R, HAND_CONTOUR_G, HAND_CONTOUR_B, .88f * hFade)
+            ring3d(x, y, -1f, .010f + .004f * progress, 0f, position)
+        }
+        val cr = if (touching) .24f else HAND_CONTOUR_R
+        val cg = if (touching) .78f else HAND_CONTOUR_G
+        val cb = if (touching) .98f else HAND_CONTOUR_B
+        GLES20.glUniform4f(colorUniform, cr, cg, cb, .94f * hFade)
+        ring3d(x, y, -1f, outer, inner, position)
+    }
 
 private fun ring3d(x: Float, y: Float, z: Float, outer: Float, inner: Float, position: Int) {
             val steps = RING_STEPS
