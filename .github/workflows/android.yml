@@ -2,13 +2,26 @@ name: Android CI
 
 on:
   push:
-    branches: [ "arena/80a6e3eb-nextvr-android", "arena/8b022eaa-nextvr-android", "arena/c4d7e93b-nextvr-android", "arena/b89c3f64-nextvr-android", "arena/b491b5e8-nextvr-android", "arena/d9f930f3-nextvr-android", "arena/12af1f16-nextvr-android", "main" ]
+    # Só `main` builda no push: ele é o fluxo que publica no branch `apk-dist`. Branch de trabalho
+    # é construída pelo pull request dela. Listar as branches do Arena aqui já falhou do jeito
+    # previsível: a lista ficou parada em sete nomes antigos e toda branch nova (ou renomeada)
+    # deixou de buildar sem ninguém perceber. E, enquanto estava correta, cada commit gerava DOIS
+    # builds de ~6 min do mesmo SHA (push + pull_request), dois check-runs competindo e dois uploads
+    # no mesmo release.
+    branches: [ "main" ]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
   checks: write
+
+# Um push novo na mesma ref torna o APK em construção obsoleto, então o run anterior é cancelado.
+# Exceção: push em `main`, que empurra o APK para `apk-dist` — cancelar no meio de um push de
+# branch deixaria a publicação pela metade. Ali o novo run espera em fila.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -287,4 +300,100 @@ jobs:
           path: nextvr-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # O artefato do Actions é um ZIP. Este passo publica o APK cru como asset de release para
+      # que o link final baixe e instale o .apk direto, sem descompactar. O asset fica versionado
+      # pelo SHA do commit; builds de main continuam no branch apk-dist.
+      #
+      # `workflow_dispatch` também publica: é a única forma de obter o APK de uma branch que ainda
+      # não tem pull request aberto (o push em branch deixou de disparar o workflow).
+      - name: Publish direct APK download
+        id: release
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PR: o head do PR (é ele que carrega o código). Dispatch: o SHA que foi despachado.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          APK=$(find "$GITHUB_WORKSPACE/nextvr-android/build/outputs/apk/debug" -name '*.apk' -print -quit)
+          test -n "$APK"
+          mkdir -p /tmp/nextvr-release
+          cp "$APK" /tmp/nextvr-release/nextvr-android-debug.apk
+          cd /tmp/nextvr-release
+          sha256sum nextvr-android-debug.apk > nextvr-android-debug.apk.sha256
+          SIZE=$(stat -c %s nextvr-android-debug.apk)
+          SHA256=$(cut -d' ' -f1 nextvr-android-debug.apk.sha256)
+          TAG="nextvr-preview-${HEAD_SHA:0:12}"
+          DIRECT="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/nextvr-android-debug.apk"
+          printf 'NextVR preview — APK direto, sem ZIP.\n\n- Source: %s\n- Ref: %s\n- CI run: https://github.com/%s/actions/runs/%s\n- Size: %s bytes\n- SHA-256: %s\n- Signed with the fixed repository debug key (signing/debug.keystore).\n\nThis is a preview build from a pull request, not a main release.\n' \
+            "$HEAD_SHA" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" "$RUN_ID" "$SIZE" "$SHA256" > release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" nextvr-android-debug.apk nextvr-android-debug.apk.sha256 \
+              --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" nextvr-android-debug.apk nextvr-android-debug.apk.sha256 \
+              --repo "$GITHUB_REPOSITORY" --target "$HEAD_SHA" \
+              --title "NextVR preview ${HEAD_SHA:0:12}" \
+              --notes-file release-notes.md --prerelease --latest=false
+          fi
+          echo "Direct APK: $DIRECT"
+          echo "Direct SHA-256: $SHA256"
+
+      - name: Publish APK link on the pull request
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.release.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TAG="nextvr-preview-${HEAD_SHA:0:12}"
+          DIRECT="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/nextvr-android-debug.apk"
+          APK_SHA=$(sha256sum /tmp/nextvr-release/nextvr-android-debug.apk | cut -d' ' -f1)
+          BODY=$(cat <<EOF
+          ### 📦 APK NextVR pronto (build ${RUN_ID})
+
+          **APK direto, sem ZIP:** ${DIRECT}
+
+          O artefato **nextvr-debug-apk** (contém \`nextvr-android-debug.apk\`) também fica na seção **Artifacts** da execução:
+
+          https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}
+
+          - SHA-256 do APK: \`${APK_SHA}\`
+          - Assinado com a chave fixa \`signing/debug.keystore\` — permite \`adb install -r\` por cima de builds anteriores.
+          EOF
+          )
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
+
+      # Cada preview é um APK de ~60 MB e as releases ficam para sempre: só entre 30/10 e 02/11
+      # nasceram oito. Mantém as dez mais recentes e apaga as anteriores (release + tag) para o
+      # armazenamento não crescer sem limite. O artifact do Actions continua por 30 dias e a
+      # release do commit em teste nunca entra na lista, porque é a mais nova.
+      - name: Prune old preview releases
+        if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: 10
+        run: |
+          set -euo pipefail
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
+            | jq -r --argjson keep "$KEEP" \
+                '[.[] | select(.tagName | test("-(preview)-[0-9a-f]{12}$"))]
+                 | sort_by(.createdAt) | reverse | .[$keep:] | .[].tagName' \
+            > /tmp/old-releases.txt || true
+          echo "preview releases to prune: $(grep -c . /tmp/old-releases.txt || true)"
+          pruned=0
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            if gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag; then
+              pruned=$((pruned + 1))
+            else
+              echo "could not delete $tag (ignored)"
+            fi
+          done < /tmp/old-releases.txt
+          echo "pruned $pruned preview release(s)"
 

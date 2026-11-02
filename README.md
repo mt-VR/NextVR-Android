@@ -41,6 +41,30 @@ hand/camera and audio acceptance tests.
 and publishes the `nextvr-debug-apk` artifact. CI also tests the actual HTML UI and verifies that
 bundled assets match source.
 
+Pull-request builds additionally publish the raw `nextvr-android-debug.apk` as a GitHub Release
+asset. That release download is a direct APK link (no ZIP extraction), tagged
+`nextvr-preview-<commit>`; the workflow posts the URL on the pull request together with the APK
+SHA-256. Builds on `main` keep publishing to the `apk-dist` branch.
+
+When the APK is needed, without opening a pull request — a branch under evaluation, a device test
+before the PR exists — dispatch the workflow by hand:
+
+```bash
+gh workflow run android.yml --ref <branch>   # then read the release link from the run summary
+```
+
+The trigger is deliberately narrow: `pull_request` for every branch, `push` only for `main`, plus
+`workflow_dispatch`. A `push` entry listing individual `arena/*` branches went stale every time a
+branch was created or renamed, and while it was accurate each commit produced two identical
+six-minute builds of the same SHA (push and pull-request), with both competing for the same release
+and check-run. Runs on the same ref are now serialized, and a superseded pull-request run is
+cancelled instead of finishing an APK nobody will install.
+
+Preview releases are pruned to the ten most recent (`nextvr-preview-*`, `dixvr-preview-*`): each
+one carries a ~60 MB APK and every commit created another. The newest release, the one being
+tested, is never in the pruned set; the zipped `nextvr-debug-apk` artifact stays available for 30
+days.
+
 Successive CI builds share one debug signature: the workflow copies `signing/debug.keystore` (the
 stock Android debug key, `androiddebugkey`/`android`) to `~/.android/debug.keystore` before building.
 Without it every runner generates a fresh key and installing a new round over the previous install
