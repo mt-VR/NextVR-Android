@@ -1,0 +1,10 @@
+{
+	"alwaysActivate": true,
+	"name": "nextvr",
+	"directory": "nextvr",
+	"redirectsDisplay": false,
+	"resources": {
+		"inputprofile": "resources/input/nextvr_hand_profile.json",
+		"settings": "resources/settings/default.vrsettings"
+	}
+}

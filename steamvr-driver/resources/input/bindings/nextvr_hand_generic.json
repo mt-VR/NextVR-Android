@@ -1,0 +1,38 @@
+{
+	"jsonid": "input_binding",
+	"controller_type": "nextvr_hand",
+	"name": "NextVR Hand (padrão)",
+	"description": "Punho fechado = grab, pinça = trigger. O esqueleto é publicado sempre; estes dois gestos existem para jogos que só conhecem controles.",
+	"bindings": {
+		"/actions/default": {
+			"sources": [
+				{
+					"path": "/user/hand/left/input/grab/click",
+					"mode": "button",
+					"inputs": { "click": { "output": "/actions/default/in/grab_left" } }
+				},
+				{
+					"path": "/user/hand/right/input/grab/click",
+					"mode": "button",
+					"inputs": { "click": { "output": "/actions/default/in/grab_right" } }
+				},
+				{
+					"path": "/user/hand/left/input/trigger/value",
+					"mode": "trigger",
+					"inputs": {
+						"value": { "output": "/actions/default/in/trigger_left" },
+						"click": { "output": "/actions/default/in/trigger_click_left" }
+					}
+				},
+				{
+					"path": "/user/hand/right/input/trigger/value",
+					"mode": "trigger",
+					"inputs": {
+						"value": { "output": "/actions/default/in/trigger_right" },
+						"click": { "output": "/actions/default/in/trigger_click_right" }
+					}
+				}
+			]
+		}
+	}
+}
