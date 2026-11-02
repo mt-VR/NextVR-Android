@@ -26,3 +26,52 @@ test('PR builds publish the raw APK as a release asset and comment the direct li
   assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/,
     'the release step only runs for same-repository pull requests');
 });
+
+// The trigger list used to name individual `arena/*` branches. Every new or renamed branch silently
+// stopped building, and while the list was accurate a single commit produced two identical runs.
+test('CI triggers every brand through pull_request instead of a hardcoded branch list', async () => {
+  const workflow = await readFile('.github/workflows/android.yml', 'utf8');
+  assert.doesNotMatch(workflow, /arena\/[0-9a-f]{8}-nextvr-android/,
+    'no branch name is pinned in the workflow triggers');
+  assert.match(workflow, /on:\s*\n\s*push:\s*\n(?:\s*#.*\n)*\s*branches: \[ "main" \]/,
+    'push builds are limited to main, which owns the apk-dist publication');
+  assert.match(workflow, /\n  pull_request:\n/,
+    'every branch is built through its pull request');
+  assert.match(workflow, /\n  workflow_dispatch:\n/,
+    'a branch build can still be requested by hand');
+});
+
+// Without a pull request the release step used to be skipped, so the only APK available for a
+// branch under evaluation was a ZIP inside an Actions artifact.
+test('a dispatched branch build publishes the same direct APK as a pull request', async () => {
+  const workflow = await readFile('.github/workflows/android.yml', 'utf8');
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/,
+    'the release step is not restricted to pull requests');
+  assert.match(workflow, /github\.event\.pull_request\.head\.sha \|\| github\.sha/,
+    'the release tag falls back to the dispatched SHA');
+  assert.match(workflow, /\$GITHUB_REF_NAME/,
+    'the release notes record which branch produced the APK');
+});
+
+// Each preview is a ~60 MB APK and every commit created one more; eight accumulated in three days.
+test('preview releases are pruned to a bounded number', async () => {
+  const workflow = await readFile('.github/workflows/android.yml', 'utf8');
+  assert.match(workflow, /name: Prune old preview releases/,
+    'the workflow prunes old previews');
+  assert.match(workflow, /KEEP: 10/,
+    'the retention count is explicit');
+  assert.match(workflow, /gh release delete[\s\S]*--cleanup-tag/,
+    'both the release and its tag are deleted');
+  assert.match(workflow, /sort_by\(\.createdAt\) \| reverse \| \.\[\$keep:\]/,
+    'the newest releases are the ones kept');
+});
+
+// Two runs for one ref competed for the same release and check-run; a superseded PR run only burns
+// runner minutes to produce an APK that installs nothing new.
+test('runs on the same ref are serialized and superseded PR runs are cancelled', async () => {
+  const workflow = await readFile('.github/workflows/android.yml', 'utf8');
+  assert.match(workflow, /concurrency:\s*\n\s*group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/,
+    'the concurrency group is per workflow and ref');
+  assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/,
+    'PR runs are cancelled, while a main run that pushes apk-dist is not interrupted');
+});
