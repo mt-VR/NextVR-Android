@@ -126,6 +126,23 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         fist:false,palmFacesEyes:false,...extra}]};
     };
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
+    /*
+     * O pegão do punho começa na BORDA DE SUBIDA (fechar a mão), e `feed` reenvia o MESMO quadro em
+     * loop: se o primeiro quadro do punho não acerta a janela — pose ainda assentando, matrizes do
+     * render velhas num runner lento — ele nunca mais tenta, e esperar o estado trava para sempre.
+     * Aqui cada tentativa abre a mão (limpa a borda) e fecha de novo, até a condição valer.
+     */
+    const feedFistUntil = async (fist, open, predicate, timeout = 20000) => {
+      const started = Date.now();
+      while (Date.now() - started < timeout) {
+        await feed(open);
+        await page.waitForTimeout(140);
+        await feed(fist);
+        await page.waitForTimeout(180);
+        if (await page.evaluate(predicate)) return true;
+      }
+      return false;
+    };
     // Entry menu onboarding: only the NextVR v2.0.0 entry menu window (+ HUD overlay) is composited.
     assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during entry menu onboarding');
     assert.equal(await page.locator('.dock').count(),0,'entry menu onboarding shows only the entry menu');
@@ -555,13 +572,13 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
     // O punho precisa de mais de um quadro para o alvo ficar "consumido" pela janela; em runner
     // lento o primeiro quadro só abre o gesto, então alimenta de novo antes de esperar.
-    await feed(fist);
-    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden),null,{timeout:15000});
     fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
-    await feed(fist);
     // O arraste só começa quando o laço de quadro consome o pacote do punho: esperar o estado
     // (`.moving`) é determinístico; um tempo fixo dependia da velocidade do runner.
-    await page.waitForFunction(()=>document.querySelectorAll('.win-shell.moving').length===1,null,{timeout:15000});
+    assert.ok(await feedFistUntil(fist,hand(.4),()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden)),
+      'the closed fist is consumed by the window (no ray target while it grabs)');
+    assert.ok(await feedFistUntil(fist,hand(.4),()=>document.querySelectorAll('.win-shell.moving').length===1),
+      'the fist grab starts dragging the window');
     await page.waitForFunction(original=>{
       const current=window.__last.panels.find(p=>p.id==='library').matrix;
       return Math.abs(current[12]-original[12])>.03;
