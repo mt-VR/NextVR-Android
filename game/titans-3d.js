@@ -14,7 +14,7 @@ const I18N = {
       + 'Encoste nos dentes para tratar. Para guardar, pinçe/toque sobre a mesa de novo. '
       + 'Sem câmera? Funciona por toque: arraste para mover a mão virtual.',
     htOn: 'on', htOff: 'off', htLoading: '…', htDenied: 'sem câmera',
-    hintGrab: 'Pegue um instrumento na mesa para começar.',
+    rotate:'Gire o celular para o modo paisagem 🔄', noGyro:'Sem giroscópio: arraste na tela para olhar ao redor', hintGrab: 'Pegue um instrumento na mesa para começar.',
     hintXray: 'Aponte a lanterna de Raio-X para a boca e segure para revelar cáries ocultas.',
     done: 'Sorriso de Milhão!', perfect: 'Perfeito! Nenhum erro.',
     again: 'De novo', next: 'Próximo', home: 'Menu', paused: 'Pausado', resume: 'Continuar',
@@ -28,6 +28,7 @@ const I18N = {
       + 'Touch the teeth to treat. To put it back, pinch/tap the table again. '
       + 'No camera? Touch works: drag to move the virtual hand.',
     htOn: 'on', htOff: 'off', htLoading: '…', htDenied: 'no camera',
+    rotate:'Rotate your phone to landscape mode 🔄', noGyro:'No gyroscope: drag on the screen to look around',
     hintGrab: 'Grab an instrument from the table to start.',
     hintXray: 'Point the X-Ray light at the mouth and hold to reveal hidden cavities.',
     done: 'Million-Dollar Smile!', perfect: 'Perfect! No mistakes.',
@@ -47,7 +48,7 @@ const PATIENTS = [
 const TOOLS = [
   { id:'xray',  key:'tXray',  color:0x66d9ff },
   { id:'brush', key:'tBrush', color:0xff5fa2 },
-  { id:'pick',  key:'tPick',  color:0xffb03a },
+  { id:'pick',  key:'tPick',  color:0x2f7fe0 },
   { id:'drill', key:'tDrill', color:0xb9c4d6 },
   { id:'vac',   key:'tVac',   color:0x8f7bff },
   { id:'heal',  key:'tHeal',  color:0x7cf0c0 }
@@ -113,8 +114,8 @@ function initScene(canvas){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x101030);
-  scene.fog = new THREE.Fog(0x101030, 5.5, 9);
+  scene.background = new THREE.Color(0x2b3140);
+  scene.fog = new THREE.Fog(0x2b3140, 6.5, 11);
   camera = new THREE.PerspectiveCamera(50, 1, 0.05, 30);
   camera.position.set(0, 0.02, 3.25);
   camera.lookAt(0, -0.02, 0);
@@ -132,24 +133,56 @@ function initScene(canvas){
   beamMesh = buildBeam(); scene.add(beamMesh);
   onResize();
 }
+let lookYaw=0, lookPitch=0, tLookYaw=0, tLookPitch=0;   // olhar (giroscópio/arrastar)
+let gyroOn=false, gyroBase=null, dragLook=null, toastShown=false;
+
+function layoutCamera(){
+  const land = innerWidth >= innerHeight;               // modo paisagem = close na boca
+  camera.fov = land? 55 : 50;
+  camera.position.set(0, land? -0.04 : 0.02, land? 2.20 : 3.25);
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  G.land = land;
+}
+function applyLook(){
+  camera.lookAt(0, G.land? -0.10 : -0.02, 0);
+  camera.rotateY(lookYaw);                              // estilo WebXR: gira a cabeça
+  camera.rotateX(lookPitch);
+  camera.updateMatrixWorld();
+}
+function rotateToast(){
+  const touch = matchMedia('(pointer:coarse)').matches;
+  if(innerWidth >= innerHeight){ toastShown=false; return; }
+  if(touch && G.playing && !toastShown){ toastShown=true; showHint(t('rotate'), 3.4); }
+}
 function onResize(){
-  const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w/h; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+  layoutCamera(); rotateToast();
 }
 addEventListener('resize', onResize);
+addEventListener('orientationchange', onResize);
 
 function buildRoom(){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(14,14),
-    new THREE.MeshStandardMaterial({ color:0x23234d, roughness:.95 }));
+    new THREE.MeshStandardMaterial({ color:0x767e8c, roughness:.9 }));
   floor.rotation.x = -Math.PI/2; floor.position.y = -1.35; scene.add(floor);
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(14,8),
-    new THREE.MeshStandardMaterial({ color:0x1b2c4d, roughness:.9 }));
+    new THREE.MeshStandardMaterial({ color:0xc3cad4, roughness:.85 }));
   wall.position.set(0,1.2,-2.2); scene.add(wall);
-  // azulejos: grade sutil
-  const grid = new THREE.GridHelper(12, 24, 0x3a5a8c, 0x27406b);
+  // painéis claros + frisos neon azuis (clínica sci-fi do original)
+  const panel = new THREE.MeshStandardMaterial({ color:0x9aa4b2, roughness:.8 });
+  [-2.6,-1.3,1.3,2.6].forEach(x=>{
+    const p = new THREE.Mesh(new THREE.BoxGeometry(.9,3.4,.06), panel);
+    p.position.set(x,.9,-2.16); scene.add(p);
+  });
+  const neon = new THREE.MeshStandardMaterial({ color:0x2fb7ff, emissive:0x1490d6, emissiveIntensity:1.1 });
+  [-1.95,0,1.95].forEach(x=>{
+    const n = new THREE.Mesh(new THREE.BoxGeometry(.05,3.2,.05), neon);
+    n.position.set(x,.9,-2.12); scene.add(n);
+  });
+  const grid = new THREE.GridHelper(12, 24, 0xffffff, 0x8fa0b5);
   grid.position.set(0,1.19,-2.19); grid.rotation.x = Math.PI/2;
-  grid.material.transparent = true; grid.material.opacity = .25; scene.add(grid);
+  grid.material.transparent = true; grid.material.opacity = .12; scene.add(grid);
   // luminária
   const lamp = new THREE.Mesh(new THREE.CylinderGeometry(.5,.62,.16,24),
     new THREE.MeshStandardMaterial({ color:0x20304f, roughness:.6 }));
@@ -162,28 +195,33 @@ function buildRoom(){
   scene.add(spot); scene.add(spot.target);
   // cadeira
   const chair = new THREE.Mesh(new THREE.BoxGeometry(1.5,.35,1.1),
-    new THREE.MeshStandardMaterial({ color:0x2e5d54, roughness:.8 }));
+    new THREE.MeshStandardMaterial({ color:0xaeb6c2, roughness:.75 }));
   chair.position.set(0,-0.95,-0.35); scene.add(chair);
   const back = new THREE.Mesh(new THREE.BoxGeometry(1.5,1.5,.28),
-    new THREE.MeshStandardMaterial({ color:0x2e5d54, roughness:.8 }));
+    new THREE.MeshStandardMaterial({ color:0xaeb6c2, roughness:.75 }));
   back.position.set(0,-0.15,-0.85); back.rotation.x = -.18; scene.add(back);
 }
 
 function buildTable(){
-  const wood = new THREE.MeshStandardMaterial({ color:0x6b4a2f, roughness:.75 });
+ const wood = new THREE.MeshStandardMaterial({color:0xa7afbc, roughness:.7 });
   const top = new THREE.Mesh(new THREE.BoxGeometry(1.9,.08,1.0), wood);
   top.position.set(0, TRAY_Y-0.06, 1.05); scene.add(top);
   [[-0.85,0.72],[0.85,0.72],[-0.85,1.4],[0.85,1.4]].forEach(p=>{
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(.09,0.72,.09), wood);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(.09,0.72,.09),
+      new THREE.MeshStandardMaterial({ color:0x8b93a0, roughness:.7 }));
     leg.position.set(p[0], TRAY_Y-0.44, p[1]); scene.add(leg);
   });
   // bandeja de instrumentos
   const tray = new THREE.Mesh(new THREE.BoxGeometry(1.02,.035,.4),
-    new THREE.MeshStandardMaterial({ color:0xb9c4d6, roughness:.35, metalness:.55 }));
+    new THREE.MeshStandardMaterial({ color:0xe8edf3, roughness:.3, metalness:.35 }));
   tray.position.set(0, TRAY_Y-0.005, 0.95); scene.add(tray);
   const rim = new THREE.Mesh(new THREE.BoxGeometry(1.06,.06,.44),
-    new THREE.MeshStandardMaterial({ color:0x8d99ad, roughness:.4, metalness:.5 }));
+    new THREE.MeshStandardMaterial({ color:0x2fb7ff, emissive:0x1490d6, emissiveIntensity:.85,
+      roughness:.4, metalness:.3 }));
   rim.position.set(0, TRAY_Y-0.02, 0.95); scene.add(rim);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(1.9,.02,.02),
+    new THREE.MeshStandardMaterial({ color:0x66d9ff, emissive:0x22aadd, emissiveIntensity:1.2 }));
+  strip.position.set(0, TRAY_Y-0.05, 1.53); scene.add(strip);   // neon na borda da mesa
   tray.position.y += .012;
 }
 
@@ -201,7 +239,7 @@ function toothMeshes(){
   const tartar = new THREE.Mesh(new THREE.BoxGeometry(.098,.05,.088),
     new THREE.MeshStandardMaterial({ color:0x8a5a2c, roughness:1 }));
   tartar.position.y = -.045; tartar.visible = false; g.add(tartar);
-  const caries = new THREE.Mesh(new THREE.SphereGeometry(.032,10,8),
+  const caries = new THREE.Mesh(new THREE.SphereGeometry(.036,10,8),
     new THREE.MeshStandardMaterial({ color:0x2a1710, roughness:.95 }));
   caries.position.set(0,.02,.045); caries.visible = false; g.add(caries);
   const debris = new THREE.Group();
@@ -329,8 +367,8 @@ function applyTeethVisuals(){
     P.caries.visible = showCar;
     if(showCar){
       const drilling = tt.drilled>0;
-      P.caries.material.color.setHex(drilling?0x4a2a1e:0x2a1710);
-      P.caries.material.emissive.setHex(G.scanOn?0x114466:0x000000);
+      P.caries.material.color.setHex(drilling?0x5b2ea6:0x8a4bd8);
+      P.caries.material.emissive.setHex(G.scanOn?0x2a1660:0x000000);
       P.caries.scale.setScalar(1+tt.drilled*.35);
     }
     P.debris.visible = tt.debris>0;
@@ -362,8 +400,12 @@ function buildToolModel(id, color){
   } else if(id==='drill'){
     const bodyM = new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.26,12), metal);
     g.add(bodyM);
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.1,12), dark);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.1,12),
+      new THREE.MeshStandardMaterial({ color:0x2f7fe0, roughness:.5 }));
     grip.position.y = -.12; g.add(grip);
+    const tipGold = new THREE.Mesh(new THREE.ConeGeometry(.014,.06,10),
+      new THREE.MeshStandardMaterial({ color:0xd8a53a, metalness:.9, roughness:.3 }));
+    tipGold.position.y = .23; g.add(tipGold);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(.018,.09,10), metal);
     tip.position.y = .17; g.add(tip);
   } else if(id==='vac'){
@@ -762,6 +804,42 @@ function screenToPlane(cx,cy){
   ray.ray.intersectPlane(plane, out);
   return out;
 }
+/* ---------------------------------------------------- giroscópio (WebXR-like) */
+function wrapPi(a){ while(a>Math.PI)a-=2*Math.PI; while(a<-Math.PI)a+=2*Math.PI; return a; }
+function onOrient(e){
+  if(e.beta==null) return;
+  if(!gyroBase){ gyroBase={a:e.alpha||0,b:e.beta,g:e.gamma}; return; }
+  const da=wrapPi(THREE.MathUtils.degToRad((e.alpha||0)-gyroBase.a));
+  const db=THREE.MathUtils.degToRad(e.beta-gyroBase.b);
+  const dg=THREE.MathUtils.degToRad(e.gamma-gyroBase.g);
+  const ang=(screen.orientation&&screen.orientation.angle!=null)?screen.orientation.angle:(window.orientation||0);
+  let yaw,pit;                                   // paisagem: beta=virar, gamma=inclinar
+  if(ang===90){ yaw=-db; pit=dg; }
+  else if(ang===270||ang===-90){ yaw=db; pit=-dg; }
+  else { yaw=-da; pit=db; }
+  tLookYaw  = THREE.MathUtils.clamp(yaw, -.6, .6);
+  tLookPitch= THREE.MathUtils.clamp(pit, -.35, .35);
+}
+function gyroChip(on){
+  const b=$('#btnGyro'); if(!b) return;
+  b.classList.toggle('ht-on', on);
+  const st=$('#gyState'); if(st) st.textContent = on? 'on':'off';
+}
+function enableGyro(){
+  const DO=window.DeviceOrientationEvent;
+  if(!DO){ showHint(t('noGyro'), 2.6); return; }
+  const go=()=>{ gyroOn=true; gyroBase=null;
+    addEventListener('deviceorientation', onOrient); gyroChip(true); Sfx.play('ok'); };
+  if(DO.requestPermission){
+    DO.requestPermission().then(r=>{ r==='granted'? go() : showHint(t('noGyro'), 2.6); })
+      .catch(()=>showHint(t('noGyro'), 2.6));
+  } else go();
+}
+function disableGyro(){
+  gyroOn=false; gyroBase=null; removeEventListener('deviceorientation', onOrient);
+  tLookYaw=0; tLookPitch=0; gyroChip(false);
+}
+
 function bindInput(canvas){
   canvas.addEventListener('pointerdown',e=>{
     Sfx.init();
@@ -769,15 +847,26 @@ function bindInput(canvas){
     G.touchDown=true;
     const p=screenToPlane(e.clientX,e.clientY);
     if(p){ G.cursorTarget.copy(p); G.cursor.copy(p); }   // imediato: pega no tap
+    dragLook = G.held? null : { x:e.clientX, y:e.clientY, active:false };
     onPinchStart();
     e.preventDefault();
   });
   canvas.addEventListener('pointermove',e=>{
     if(G.ht) return;                      // com mão real, o tracking domina
+    if(dragLook && !G.held){              // sem ferramenta: arrastar = olhar ao redor
+      const dx=e.clientX-dragLook.x, dy=e.clientY-dragLook.y;
+      if(!dragLook.active && Math.hypot(dx,dy)>10) dragLook.active=true;
+      if(dragLook.active){
+        tLookYaw  = THREE.MathUtils.clamp(tLookYaw  - dx*0.0009, -.6, .6);
+        tLookPitch= THREE.MathUtils.clamp(tLookPitch- dy*0.0007, -.35, .35);
+        dragLook.x=e.clientX; dragLook.y=e.clientY;
+        return;
+      }
+    }
     const p=screenToPlane(e.clientX,e.clientY);
     if(p) G.cursorTarget.copy(p);
   });
-  const up=()=>{ G.touchDown=false; };
+  const up=()=>{ G.touchDown=false; dragLook=null; };
   canvas.addEventListener('pointerup',up);
   canvas.addEventListener('pointercancel',up);
   addEventListener('contextmenu',e=>e.preventDefault());
@@ -792,6 +881,10 @@ function tick(){
   if(!G.ht) handRig.group.visible=false;
   // suaviza cursor
   G.cursor.lerp(G.cursorTarget, G.ht? .45 : .6);
+  // suaviza o olhar (giroscópio / arrastar) e aplica na câmera
+  lookYaw   += (tLookYaw-lookYaw)*.16;
+  lookPitch += (tLookPitch-lookPitch)*.16;
+  applyLook();
   if(G.playing){
     G.time+=dt; $('#uiTime').textContent=fmtTime(G.time);
     applyHeldTool(dt);
@@ -830,7 +923,13 @@ $('#btnPause').addEventListener('click',()=>{ G.playing=false; $('#pause').class
 $('#pResume').addEventListener('click',()=>{ $('#pause').classList.remove('on'); G.playing=!G.over; });
 $('#pHome').addEventListener('click',()=>{ $('#pause').classList.remove('on'); goHome(); });
 $('#btnStart').addEventListener('click',()=>{ $('#intro').classList.remove('on');
-  G.playing=true; Sfx.play('ok'); buzz(12); showHint(t('hintGrab'),3.2); });
+  G.playing=true; Sfx.play('ok'); buzz(12); showHint(t('hintGrab'),3.2);
+  try{ const fs=document.documentElement;
+    if(fs.requestFullscreen) fs.requestFullscreen({navigationUI:'hide'}).catch(()=>{}); }catch(e){}
+  try{ if(screen.orientation&&screen.orientation.lock)
+    screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
+  rotateToast(); });
+$('#btnGyro').addEventListener('click',()=>{ Sfx.init(); gyroOn? disableGyro() : enableGyro(); });
 $('#resHome').addEventListener('click',goHome);
 $('#resAgain').addEventListener('click',()=>{ $('#result').classList.remove('on'); startClinic(G.patient); });
 $('#resNext').addEventListener('click',()=>{

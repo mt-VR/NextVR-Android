@@ -10,7 +10,7 @@ const browser = await chromium.launch({
   env: { ...process.env, LD_LIBRARY_PATH: '/tmp/al2023/lib:/tmp:' + (process.env.LD_LIBRARY_PATH || '') },
   headless: true
 });
-const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true });
 const errors = [];
 page.on('pageerror', e => errors.push(String(e).slice(0, 300)));
 await page.goto(process.argv[2] || 'http://127.0.0.1:8080/titans-clinic-3d.html');

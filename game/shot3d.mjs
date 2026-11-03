@@ -10,7 +10,7 @@ const browser = await chromium.launch({
   env: { ...process.env, LD_LIBRARY_PATH: '/tmp/al2023/lib:/tmp:' + (process.env.LD_LIBRARY_PATH || '') },
   headless: true
 });
-const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true });
 page.on('console', m => { if (m.type() === 'error') console.log('[console.error]', m.text().slice(0, 300)); });
 page.on('pageerror', e => console.log('[pageerror]', String(e).slice(0, 400)));
 

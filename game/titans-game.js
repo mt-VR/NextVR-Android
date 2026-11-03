@@ -1105,6 +1105,8 @@ function openIntro(p,diag){
 $('#btnStart').addEventListener('click',()=>{
   $('#intro').classList.remove('on'); Audio2.play('ok'); buzz(14);
   G.playing=true; G.introT=0;
+  try{ if(screen.orientation&&screen.orientation.lock)
+    screen.orientation.lock('portrait').catch(()=>{}); }catch(e){}   // 2D é retrato
   showHint(G.mode==='clinic'?t('hintXray'):t('hintSoap'),3);
 });
 
