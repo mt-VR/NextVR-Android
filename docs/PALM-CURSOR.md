@@ -51,6 +51,11 @@ fadeMs:      180,   // saída em fade (casa com o CSS)
   mais de `graceMs`, a bolinha sai em fade. Mão que desapareceu de vez: o elemento é removido na hora.
 * **Custo**: uma conta de produto vetorial por mão por quadro, sem alocação e sem relógio global — o
   tempo entra por parâmetro, e é por isso que os testes conseguem dirigir o portão quadro a quadro.
+* **Entrada e saída suaves**: o cartão nasce com a classe `showing` (transparente, 82 % do tamanho) e
+  assenta no quadro seguinte; ao sair recebe `hiding` e só é removido depois do fade.
+* **Posição**: a bolinha entre polegar e indicador passa por um passa-baixa curto (70 ms) com zona
+  morta de ~0,0018 (≈1,5 px): tremor menor que isso não move a bolinha, movimento de verdade passa
+  direto. A primeira amostra depois de aparecer é exata — nunca desliza até a mão.
 
 ## O que NÃO mudou
 

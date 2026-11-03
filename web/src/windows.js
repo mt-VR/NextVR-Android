@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { DirectTouch, POKE_STATE } from './direct-touch.js';
-import { PalmCursorGate, PALM_CURSOR, palmUpOfHand, bolinhaNormalizedPoint } from './palm-cursor.js';
+import { PalmCursorGate, PALM_CURSOR, palmUpOfHand, bolinhaNormalizedPoint, BolinhaMotion } from './palm-cursor.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -3224,6 +3224,10 @@ let leftHandBolinhaState = {
 const bolinhaGateRight = new PalmCursorGate();
 const bolinhaGateLeft = new PalmCursorGate();
 const bolinhaGateOf = isRightBolinha => (isRightBolinha ? bolinhaGateRight : bolinhaGateLeft);
+/** Posição suavizada da bolinha por mão: tremor de landmark não vira tremedeira na tela. */
+const bolinhaMotionRight = new BolinhaMotion();
+const bolinhaMotionLeft = new BolinhaMotion();
+const bolinhaMotionOf = isRightBolinha => (isRightBolinha ? bolinhaMotionRight : bolinhaMotionLeft);
 
 /** Palma erguida AGORA — leitura pura do portão (quem o avança é o laço de mãos, uma vez por mão). */
 function isPalmTurnedForBolinha(isRightBolinha) {
@@ -3305,12 +3309,18 @@ function showBolinhaBubble(h, packet, fired = false) {
     hud.appendChild(bolinhaBubbleEl);
   }
   // Posiciona a bolinha com o ícone original transparente entre o polegar e o indicador da mão
-  // direita (o mesmo ponto de sempre, agora calculado em palm-cursor.js).
-  const { u: normX, v: normY } = bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY);
+  // direita (o mesmo ponto de sempre, agora calculado em palm-cursor.js e suavizado).
+  const { u: normX, v: normY } = bolinhaMotionRight.update(bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY), performance.now());
   bolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
   bolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
+  const firstShow = bolinhaBubbleEl.hidden;
   bolinhaBubbleEl.hidden = false;
   bolinhaBubbleEl.classList.remove('hiding');
+  if (firstShow) {
+    // Entrada em fade: o cartão nasce transparente e assenta, em vez de aparecer de um quadro para o outro.
+    bolinhaBubbleEl.classList.add('showing');
+    requestAnimationFrame(() => bolinhaBubbleEl?.classList.remove('showing'));
+  }
   bolinhaBubbleEl.classList.toggle('fired', !!fired);
   bolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
   bolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
@@ -3329,6 +3339,7 @@ function hideBolinhaBubble(delayMs = 0) {
       bolinhaHideTimer = null;
       bolinhaBubbleEl?.remove();
       bolinhaBubbleEl = null;
+      bolinhaMotionRight.reset();
       if (document.documentElement.dataset.handBlueOutline === 'right') {
         delete document.documentElement.dataset.handBlueOutline;
       }
@@ -3337,6 +3348,7 @@ function hideBolinhaBubble(delayMs = 0) {
   } else {
     bolinhaBubbleEl.remove();
     bolinhaBubbleEl = null;
+    bolinhaMotionRight.reset();
     if (document.documentElement.dataset.handBlueOutline === 'right') {
       delete document.documentElement.dataset.handBlueOutline;
     }
@@ -3361,11 +3373,16 @@ function showLeftBolinhaBubble(h, packet, fired = false) {
     `;
     hud.appendChild(leftBolinhaBubbleEl);
   }
-  const { u: normX, v: normY } = bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY);
+  const { u: normX, v: normY } = bolinhaMotionLeft.update(bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY), performance.now());
   leftBolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
   leftBolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
+  const firstShow = leftBolinhaBubbleEl.hidden;
   leftBolinhaBubbleEl.hidden = false;
   leftBolinhaBubbleEl.classList.remove('hiding');
+  if (firstShow) {
+    leftBolinhaBubbleEl.classList.add('showing');
+    requestAnimationFrame(() => leftBolinhaBubbleEl?.classList.remove('showing'));
+  }
   leftBolinhaBubbleEl.classList.toggle('fired', !!fired);
   leftBolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
   leftBolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
@@ -3383,6 +3400,7 @@ function hideLeftBolinhaBubble(delayMs = 0) {
       leftBolinhaHideTimer = null;
       leftBolinhaBubbleEl?.remove();
       leftBolinhaBubbleEl = null;
+      bolinhaMotionLeft.reset();
       if (document.documentElement.dataset.handBlueOutline === 'left') {
         delete document.documentElement.dataset.handBlueOutline;
       }
@@ -3391,6 +3409,7 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   } else {
     leftBolinhaBubbleEl.remove();
     leftBolinhaBubbleEl = null;
+    bolinhaMotionLeft.reset();
     if (document.documentElement.dataset.handBlueOutline === 'left') {
       delete document.documentElement.dataset.handBlueOutline;
     }
@@ -3442,6 +3461,8 @@ function resetBolinhaState() {
   leftHandBolinhaState.flashUntil = 0;
   bolinhaGateRight.reset();
   bolinhaGateLeft.reset();
+  bolinhaMotionRight.reset();
+  bolinhaMotionLeft.reset();
   hideBolinhaBubble(0);
   hideLeftBolinhaBubble(0);
 }

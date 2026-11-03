@@ -198,3 +198,45 @@ export function bolinhaNormalizedPoint(hand, sx = 1, sy = 1) {
     v: Math.max(.08, Math.min(.90, (rawV - .5) * scaleY + .5)),
   };
 }
+
+/**
+ * Posição da bolinha na tela, suavizada.
+ *
+ * O filtro nativo cuida dos landmarks, mas a bolinha ainda pulava alguns pixels de um quadro para o
+ * outro porque a mistura polegar/indicador amplifica o ruído dos dois. Aqui a posição passa por um
+ * passa-baixa curto (segue a mão sem arrastar) com uma zona morta: tremor menor que ~1,5 px num
+ * campo de visão normal não move a bolinha, e movimento de verdade passa direto.
+ */
+export class BolinhaMotion {
+  constructor({ tauMs = 70, deadZone = .0018 } = {}) {
+    this.tauMs = tauMs;
+    this.deadZone = deadZone;
+    this.reset();
+  }
+
+  reset() {
+    this.u = null;
+    this.v = null;
+    this.at = 0;
+    return this;
+  }
+
+  /** @returns {{u:number, v:number}} posição a desenhar (ou a crua, na primeira amostra). */
+  update(point, nowMs = this.at) {
+    if (!point || !num(point.u) || !num(point.v)) return { u: this.u ?? .5, v: this.v ?? .5 };
+    if (this.u == null || this.v == null) {
+      // Primeira amostra (ou logo depois de sumir): mostra exatamente onde a mão está.
+      this.u = point.u; this.v = point.v; this.at = nowMs;
+      return { u: this.u, v: this.v };
+    }
+    const dt = this.at > 0 && nowMs > this.at ? nowMs - this.at : 16;
+    this.at = nowMs;
+    const k = 1 - Math.exp(-dt / Math.max(1, this.tauMs));
+    const du = point.u - this.u, dv = point.v - this.v;
+    if (Math.hypot(du, dv) > this.deadZone) {
+      this.u += du * k;
+      this.v += dv * k;
+    }
+    return { u: this.u, v: this.v };
+  }
+}

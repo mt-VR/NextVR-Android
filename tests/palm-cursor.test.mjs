@@ -11,7 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PALM_CURSOR, PalmCursorGate, palmUpFromHead, palmUpOfHand,
-  isBackOfHand, bolinhaNormalizedPoint,
+  isBackOfHand, bolinhaNormalizedPoint, BolinhaMotion,
 } from '../web/src/palm-cursor.js';
 
 const rad = d => d * Math.PI / 180;
@@ -219,4 +219,27 @@ test('a bolinha fica entre o polegar e o indicador', () => {
   // O mapeamento do pacote (sx/sy) desloca o ponto junto com a mão, sem sair da tela.
   const scaled = bolinhaNormalizedPoint({ points: p }, 1.3, 1.3);
   assert.ok(scaled.u >= .08 && scaled.u <= .92 && scaled.v >= .08 && scaled.v <= .9);
+});
+
+test('a posição da bolinha é suavizada: tremor de landmark não vira tremedeira na tela', () => {
+  const motion = new BolinhaMotion();
+  let now = 0;
+  const first = motion.update({ u: .5, v: .5 }, now);
+  assert.deepEqual(first, { u: .5, v: .5 }, 'a primeira amostra é exata: nada de deslizar até a mão');
+  // Tremor de ±0,0012 (menos que a zona morta) em 120 quadros: a bolinha não se mexe.
+  let maxDev = 0;
+  for (let i = 0; i < 120; i++) {
+    const p = motion.update({ u: .5 + Math.sin(i) * .0012, v: .5 + Math.cos(i) * .0012 }, now += 16);
+    maxDev = Math.max(maxDev, Math.hypot(p.u - .5, p.v - .5));
+  }
+  assert.ok(maxDev < .0005, 'zona morta mata o tremor (' + maxDev + ')');
+  // Movimento de verdade: acompanha e chega perto em poucos quadros (sem arrastar atrás).
+  let p = null;
+  for (let i = 0; i < 20; i++) p = motion.update({ u: .6, v: .4 }, now += 16);
+  assert.ok(Math.abs(p.u - .6) < .002 && Math.abs(p.v - .4) < .002, 'segue a mão (' + p.u + ', ' + p.v + ')');
+  // Um salto grande é suavizado, não teleporta no primeiro quadro.
+  const step = motion.update({ u: .8, v: .4 }, now += 16);
+  assert.ok(step.u > .6 && step.u < .8, 'passa pelo caminho (' + step.u + ')');
+  motion.reset();
+  assert.deepEqual(motion.update({ u: .9, v: .1 }, now += 16), { u: .9, v: .1 }, 'depois de sumir, volta a ser exata');
 });
