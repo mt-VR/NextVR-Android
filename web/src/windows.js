@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { DirectTouch, POKE_STATE } from './direct-touch.js';
+import { PalmCursorGate, PALM_CURSOR, palmUpOfHand, bolinhaNormalizedPoint } from './palm-cursor.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -3198,6 +3199,8 @@ let rightHandBolinhaState = {
   lastArmedAt: 0,
   lastTriggerAt: -2000,
   blueUntil: 0,
+  /** Até quando a bolinha mostra o cartão de "ativou" (o elemento não é recriado a cada gesto). */
+  flashUntil: 0,
 };
 let leftHandBolinhaState = {
   frames: 0,
@@ -3205,25 +3208,26 @@ let leftHandBolinhaState = {
   lastArmedAt: 0,
   lastTriggerAt: -2000,
   blueUntil: 0,
+  flashUntil: 0,
 };
 
-function isPalmTurnedForBolinha(h, isRightBolinha) {
-  if (!h || !h.points || h.points.length < 63) return false;
-  if (h.palmToFace === false || h.backOfHand === true) return false;
-  if (h.palmToFace === true) return true;
-  const p = h.points;
-  // Na câmera traseira real (PhoneXrHands), quando o utilizador vira a palma da MÃO DIREITA para o rosto:
-  // MediaPipe classifica a palma como "Right" e PhoneXrHands inverte para h.left = true (id = 'left'),
-  // ficando o polegar (4, idx 12) à esquerda do indicador MCP (5, idx 15): p[12] <= p[15] + 0.015.
-  // E quando o utilizador vira a palma da MÃO ESQUERDA para o rosto:
-  // PhoneXrHands reporta h.left = false (id = 'right'), ficando o polegar à direita do indicador MCP: p[12] >= p[15] - 0.015.
-  if (isRightBolinha) {
-    if (p[12] > p[15] + 0.015 && p[15] > p[51]) return false;
-    return p[12] <= p[15] + 0.015;
-  } else {
-    if (p[12] < p[15] - 0.015 && p[15] < p[51]) return false;
-    return p[12] >= p[15] - 0.015;
-  }
+/**
+ * Palma erguida (virada para cima) — a medida que acende a bolinha.
+ *
+ * Antes eram DOIS juízes discordando a cada quadro: `palmToFace` vinha pronto do nativo (sinal de um
+ * produto vetorial 2D, sem memória) e, quando ele era `undefined`, o web decidia de novo pelo
+ * polegar. Uma mão parada alternava entre os dois e a bolinha piscava. Agora existe uma medida só,
+ * em 3D quando o rastreador publica `head`, e quem decide é o portão por mão (suavização +
+ * histerese + tolerância a falha), em `palm-cursor.js`.
+ */
+/** O portão de cada mão: um estado independente por mão, então as duas têm o seu próprio cursor. */
+const bolinhaGateRight = new PalmCursorGate();
+const bolinhaGateLeft = new PalmCursorGate();
+const bolinhaGateOf = isRightBolinha => (isRightBolinha ? bolinhaGateRight : bolinhaGateLeft);
+
+/** Palma erguida AGORA — leitura pura do portão (quem o avança é o laço de mãos, uma vez por mão). */
+function isPalmTurnedForBolinha(isRightBolinha) {
+  return bolinhaGateOf(isRightBolinha).visible;
 }
 
 function isRightBolinhaHand(h) {
@@ -3239,7 +3243,8 @@ function isVLArminhaPose(h, isRightBolinha) {
   if (isRightBolinha ? !isRightBolinhaHand(h) : !isLeftBolinhaHand(h)) return false;
   const p = h.points;
   if (!p || p.length < 63) return false;
-  if (!isPalmTurnedForBolinha(h, isRightBolinha)) return false;
+  // A bolinha só existe com a palma erguida; sem ela, a pose não arma o gatilho.
+  if (!isPalmTurnedForBolinha(isRightBolinha)) return false;
   const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
   // Ignora mãos sintéticas de testes que têm juntas colapsadas no mesmo ponto
   if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
@@ -3299,17 +3304,13 @@ function showBolinhaBubble(h, packet, fired = false) {
     `;
     hud.appendChild(bolinhaBubbleEl);
   }
-  const p = h.points;
-  const sx = Number(packet?.scaleX) || 1;
-  const sy = Number(packet?.scaleY) || 1;
-  // Posiciona a bolinha com o ícone original transparente entre o polegar e o indicador da mão direita
-  const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.55);
-  const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
-  const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
-  const normY = Math.max(0.08, Math.min(0.90, (rawY - 0.5) * sy + 0.5));
+  // Posiciona a bolinha com o ícone original transparente entre o polegar e o indicador da mão
+  // direita (o mesmo ponto de sempre, agora calculado em palm-cursor.js).
+  const { u: normX, v: normY } = bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY);
   bolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
   bolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
   bolinhaBubbleEl.hidden = false;
+  bolinhaBubbleEl.classList.remove('hiding');
   bolinhaBubbleEl.classList.toggle('fired', !!fired);
   bolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
   bolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
@@ -3322,6 +3323,8 @@ function hideBolinhaBubble(delayMs = 0) {
   }
   if (!bolinhaBubbleEl) return;
   if (delayMs > 0) {
+    // Sai em fade (CSS) em vez de piscar: a palma virou, a bolinha acompanha sem corte.
+    bolinhaBubbleEl.classList.add('hiding');
     bolinhaHideTimer = setTimeout(() => {
       bolinhaHideTimer = null;
       bolinhaBubbleEl?.remove();
@@ -3358,16 +3361,11 @@ function showLeftBolinhaBubble(h, packet, fired = false) {
     `;
     hud.appendChild(leftBolinhaBubbleEl);
   }
-  const p = h.points;
-  const sx = Number(packet?.scaleX) || 1;
-  const sy = Number(packet?.scaleY) || 1;
-  const rawX = (p && p.length >= 26) ? (p[24] * 0.52 + p[12] * 0.48) : (h.palm?.[0] ?? 0.35);
-  const rawY = (p && p.length >= 26) ? ((p[25] + p[13]) * 0.5 - 0.025) : ((h.palm?.[1] ?? 0.5) - 0.06);
-  const normX = Math.max(0.08, Math.min(0.92, (rawX - 0.5) * sx + 0.5));
-  const normY = Math.max(0.08, Math.min(0.90, (rawY - 0.5) * sy + 0.5));
+  const { u: normX, v: normY } = bolinhaNormalizedPoint(h, packet?.scaleX, packet?.scaleY);
   leftBolinhaBubbleEl.style.left = `${(normX * 100).toFixed(1)}%`;
   leftBolinhaBubbleEl.style.top = `${(normY * 100).toFixed(1)}%`;
   leftBolinhaBubbleEl.hidden = false;
+  leftBolinhaBubbleEl.classList.remove('hiding');
   leftBolinhaBubbleEl.classList.toggle('fired', !!fired);
   leftBolinhaBubbleEl.classList.toggle('gun-triggered', !!fired);
   leftBolinhaBubbleEl.classList.toggle('bolinha-menu-card', !!fired);
@@ -3380,6 +3378,7 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   }
   if (!leftBolinhaBubbleEl) return;
   if (delayMs > 0) {
+    leftBolinhaBubbleEl.classList.add('hiding');
     leftBolinhaHideTimer = setTimeout(() => {
       leftBolinhaHideTimer = null;
       leftBolinhaBubbleEl?.remove();
@@ -3433,153 +3432,161 @@ function updateLeftQuickMenuAttachment(packet) {
   css3d.invalidate?.();
 }
 
+/** Zera o estado das duas bolinhas (menus de entrada, arraste, gesto desligado): nada fica preso. */
+function resetBolinhaState() {
+  rightHandBolinhaState.frames = 0;
+  rightHandBolinhaState.armed = false;
+  leftHandBolinhaState.frames = 0;
+  leftHandBolinhaState.armed = false;
+  rightHandBolinhaState.flashUntil = 0;
+  leftHandBolinhaState.flashUntil = 0;
+  bolinhaGateRight.reset();
+  bolinhaGateLeft.reset();
+  hideBolinhaBubble(0);
+  hideLeftBolinhaBubble(0);
+}
+
 function updateRightHandBolinhaGesture(packet, nowMs) {
   updateLeftQuickMenuAttachment(packet);
   if (S.gunGesture === 0) {
-    rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.armed = false;
-    leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.armed = false;
-    hideBolinhaBubble(0);
-    hideLeftBolinhaBubble(0);
+    resetBolinhaState();
     return false;
   }
   const gOv = document.getElementById('gorilla-overlay');
   if (gOv && gOv.style.display && gOv.style.display !== 'none') {
-    rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.armed = false;
-    leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.armed = false;
-    hideBolinhaBubble(0);
-    hideLeftBolinhaBubble(0);
+    resetBolinhaState();
     return false;
   }
   if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden) || document.querySelector('.entry-menu-root')) {
-    rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.armed = false;
-    leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.armed = false;
-    hideBolinhaBubble(0);
-    hideLeftBolinhaBubble(0);
+    resetBolinhaState();
     return false;
   }
   if (drag.win || resizing.win || dockDrag.start) {
-    rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.armed = false;
-    leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.armed = false;
-    hideBolinhaBubble(0);
-    hideLeftBolinhaBubble(0);
+    resetBolinhaState();
     return false;
   }
 
   let anyActive = false;
 
-  // 1. Mão direita física ("N" logo -> IMG_20261007_215701.png + Menu card + contorno azul + alternar Dock/Apps)
+  /*
+   * A bolinha de cada mão é decidida por um portão próprio (palm-cursor.js): palma para cima acende,
+   * palma para baixo apaga em fade, e a orientação é medida em 3D. A ARMINHA continua sendo o que
+   * arma o gatilho de pinça — o cursor não depende mais dela para aparecer, e é isso que tira o
+   * "desaparece do nada" (antes a bolinha vivia dentro de uma janela de 300 ms de armar).
+   */
+
+  // 1. Mão direita física (bolinha com o logo IMG_20261007_215701.png + contorno azul + alternar Dock/Apps)
   const rightHand = (packet?.hands || []).find(h => isRightBolinhaHand(h));
+  const rightCursor = bolinhaGateRight.update({
+    facing: rightHand ? palmUpOfHand(rightHand, true) : null,
+    nowMs,
+    present: Boolean(rightHand && rightHand.points?.length >= 63),
+  });
   if (!rightHand) {
-    if (!packet?.hands?.length || (nowMs - rightHandBolinhaState.lastArmedAt > 240 && nowMs >= rightHandBolinhaState.blueUntil)) {
-      rightHandBolinhaState.frames = 0;
-      rightHandBolinhaState.armed = false;
-      rightHandBolinhaState.blueUntil = 0;
-      hideBolinhaBubble(0);
-    }
-  } else if (!isPalmTurnedForBolinha(rightHand, true)) {
     rightHandBolinhaState.frames = 0;
     rightHandBolinhaState.armed = false;
     rightHandBolinhaState.blueUntil = 0;
+    if (rightCursor.visible) bolinhaGateRight.reset();
     hideBolinhaBubble(0);
-  } else if (isRightHandBolinhaGesture(rightHand)) {
-    rightHandBolinhaState.frames += 1;
-    if (rightHandBolinhaState.frames >= 2) {
-      rightHandBolinhaState.armed = true;
-      rightHandBolinhaState.lastArmedAt = nowMs;
-      showBolinhaBubble(rightHand, packet, false);
-      css3d.invalidate?.();
-    }
-    anyActive = anyActive || rightHandBolinhaState.armed;
-  } else if (
-    rightHandBolinhaState.armed &&
-    (nowMs - rightHandBolinhaState.lastArmedAt <= 850) &&
-    (nowMs - rightHandBolinhaState.lastTriggerAt >= 750) &&
-    isHandPinchFromBolinha(rightHand, true)
-  ) {
-    const hKey = rightHand.id || 'left';
-    rightHandBolinhaState.armed = false;
+  } else if (!rightCursor.visible) {
+    // Palma para baixo (ou mão ainda sem medida): a bolinha sai em fade, o gatilho desarma sozinho.
     rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.lastTriggerAt = nowMs;
-    rightHandBolinhaState.blueUntil = nowMs + 750;
-    document.documentElement.dataset.handBlueOutline = 'right';
-    window.NativeXR?.handVisuals?.(!!S.handDraw);
-    fistHoldByHand.delete(hKey);
-    pinchSuppressed.add(hKey);
-    packet.consumed.add(hKey);
-    cancelHandInput();
-    showBolinhaBubble(rightHand, packet, true);
-    hideBolinhaBubble(420);
-    window.nextvrToggleSpatialAndDockFromGesture?.();
-    window.NativeXR?.click?.();
-    css3d.invalidate?.();
-    css3d.render?.(scene, camera);
+    rightHandBolinhaState.armed = false;
+    hideBolinhaBubble(PALM_CURSOR.fadeMs);
+  } else {
+    showBolinhaBubble(rightHand, packet, nowMs < rightHandBolinhaState.flashUntil);
     anyActive = true;
-  } else if (nowMs - rightHandBolinhaState.lastArmedAt > 300 && nowMs >= rightHandBolinhaState.blueUntil) {
-    rightHandBolinhaState.frames = 0;
-    rightHandBolinhaState.armed = false;
-    hideBolinhaBubble(0);
+    if (isRightHandBolinhaGesture(rightHand)) {
+      rightHandBolinhaState.frames += 1;
+      if (rightHandBolinhaState.frames >= 2) {
+        rightHandBolinhaState.armed = true;
+        rightHandBolinhaState.lastArmedAt = nowMs;
+      }
+    } else if (
+      rightHandBolinhaState.armed &&
+      (nowMs - rightHandBolinhaState.lastArmedAt <= 850) &&
+      (nowMs - rightHandBolinhaState.lastTriggerAt >= 750) &&
+      isHandPinchFromBolinha(rightHand, true)
+    ) {
+      const hKey = rightHand.id || 'left';
+      rightHandBolinhaState.armed = false;
+      rightHandBolinhaState.frames = 0;
+      rightHandBolinhaState.lastTriggerAt = nowMs;
+      rightHandBolinhaState.blueUntil = nowMs + 750;
+      rightHandBolinhaState.flashUntil = nowMs + 420;
+      document.documentElement.dataset.handBlueOutline = 'right';
+      window.NativeXR?.handVisuals?.(!!S.handDraw);
+      fistHoldByHand.delete(hKey);
+      pinchSuppressed.add(hKey);
+      packet.consumed.add(hKey);
+      cancelHandInput();
+      showBolinhaBubble(rightHand, packet, true);
+      window.nextvrToggleSpatialAndDockFromGesture?.();
+      window.NativeXR?.click?.();
+      css3d.invalidate?.();
+      css3d.render?.(scene, camera);
+      anyActive = true;
+    } else if (nowMs - rightHandBolinhaState.lastArmedAt > 300 && nowMs >= rightHandBolinhaState.blueUntil) {
+      rightHandBolinhaState.frames = 0;
+      rightHandBolinhaState.armed = false;
+    }
   }
 
-  // 2. Mão esquerda física (Logo IMG_20261007_215728.png -> Pinça polegar+indicador abre/fecha a janelinha flutuante transparente de Brilho e Som)
+  // 2. Mão esquerda física (bolinha com o logo IMG_20261007_215728.png + pinça abre a janelinha de Brilho e Som)
   const leftHand = (packet?.hands || []).find(h => isLeftBolinhaHand(h));
+  const leftCursor = bolinhaGateLeft.update({
+    facing: leftHand ? palmUpOfHand(leftHand, false) : null,
+    nowMs,
+    present: Boolean(leftHand && leftHand.points?.length >= 63),
+  });
   if (!leftHand) {
-    if (!packet?.hands?.length || (nowMs - leftHandBolinhaState.lastArmedAt > 240 && nowMs >= leftHandBolinhaState.blueUntil)) {
-      leftHandBolinhaState.frames = 0;
-      leftHandBolinhaState.armed = false;
-      leftHandBolinhaState.blueUntil = 0;
-      hideLeftBolinhaBubble(0);
-    }
-  } else if (!isPalmTurnedForBolinha(leftHand, false)) {
     leftHandBolinhaState.frames = 0;
     leftHandBolinhaState.armed = false;
     leftHandBolinhaState.blueUntil = 0;
+    if (leftCursor.visible) bolinhaGateLeft.reset();
     hideLeftBolinhaBubble(0);
-  } else if (isLeftHandBolinhaGesture(leftHand)) {
-    leftHandBolinhaState.frames += 1;
-    if (leftHandBolinhaState.frames >= 2) {
-      leftHandBolinhaState.armed = true;
-      leftHandBolinhaState.lastArmedAt = nowMs;
-      showLeftBolinhaBubble(leftHand, packet, false);
-      css3d.invalidate?.();
-    }
-    anyActive = anyActive || leftHandBolinhaState.armed;
-  } else if (
-    leftHandBolinhaState.armed &&
-    (nowMs - leftHandBolinhaState.lastArmedAt <= 850) &&
-    (nowMs - leftHandBolinhaState.lastTriggerAt >= 750) &&
-    isHandPinchFromBolinha(leftHand, false)
-  ) {
-    const hKey = leftHand.id || 'right';
-    leftHandBolinhaState.armed = false;
+  } else if (!leftCursor.visible) {
     leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.lastTriggerAt = nowMs;
-    leftHandBolinhaState.blueUntil = nowMs + 750;
-    document.documentElement.dataset.handBlueOutline = 'left';
-    window.NativeXR?.handVisuals?.(!!S.handDraw);
-    fistHoldByHand.delete(hKey);
-    pinchSuppressed.add(hKey);
-    packet.consumed.add(hKey);
-    cancelHandInput();
-    showLeftBolinhaBubble(leftHand, packet, true);
-    hideLeftBolinhaBubble(420);
-    window.nextvrToggleLeftHandQuickMenu?.();
-    updateLeftQuickMenuAttachment(packet);
-    window.NativeXR?.click?.();
-    css3d.invalidate?.();
-    css3d.render?.(scene, camera);
+    leftHandBolinhaState.armed = false;
+    hideLeftBolinhaBubble(PALM_CURSOR.fadeMs);
+  } else {
+    showLeftBolinhaBubble(leftHand, packet, nowMs < leftHandBolinhaState.flashUntil);
     anyActive = true;
-  } else if (nowMs - leftHandBolinhaState.lastArmedAt > 300 && nowMs >= leftHandBolinhaState.blueUntil) {
-    leftHandBolinhaState.frames = 0;
-    leftHandBolinhaState.armed = false;
-    hideLeftBolinhaBubble(0);
+    if (isLeftHandBolinhaGesture(leftHand)) {
+      leftHandBolinhaState.frames += 1;
+      if (leftHandBolinhaState.frames >= 2) {
+        leftHandBolinhaState.armed = true;
+        leftHandBolinhaState.lastArmedAt = nowMs;
+      }
+    } else if (
+      leftHandBolinhaState.armed &&
+      (nowMs - leftHandBolinhaState.lastArmedAt <= 850) &&
+      (nowMs - leftHandBolinhaState.lastTriggerAt >= 750) &&
+      isHandPinchFromBolinha(leftHand, false)
+    ) {
+      const hKey = leftHand.id || 'right';
+      leftHandBolinhaState.armed = false;
+      leftHandBolinhaState.frames = 0;
+      leftHandBolinhaState.lastTriggerAt = nowMs;
+      leftHandBolinhaState.blueUntil = nowMs + 750;
+      leftHandBolinhaState.flashUntil = nowMs + 420;
+      document.documentElement.dataset.handBlueOutline = 'left';
+      window.NativeXR?.handVisuals?.(!!S.handDraw);
+      fistHoldByHand.delete(hKey);
+      pinchSuppressed.add(hKey);
+      packet.consumed.add(hKey);
+      cancelHandInput();
+      showLeftBolinhaBubble(leftHand, packet, true);
+      window.nextvrToggleLeftHandQuickMenu?.();
+      updateLeftQuickMenuAttachment(packet);
+      window.NativeXR?.click?.();
+      css3d.invalidate?.();
+      css3d.render?.(scene, camera);
+      anyActive = true;
+    } else if (nowMs - leftHandBolinhaState.lastArmedAt > 300 && nowMs >= leftHandBolinhaState.blueUntil) {
+      leftHandBolinhaState.frames = 0;
+      leftHandBolinhaState.armed = false;
+    }
   }
 
   return anyActive;

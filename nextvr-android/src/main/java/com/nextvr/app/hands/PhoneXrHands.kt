@@ -61,6 +61,21 @@ class PhoneXrHands {
          * Raio em coordenadas normalizadas da imagem.
          */
         private const val GHOST_RADIUS = .09f
+        /**
+         * Solavanco de detector: um landmark que salta mais de 55 % do próprio raio (pulso →
+         * landmark) em UM quadro não é movimento de mão — é ruído de profundidade ou oclusão. Ele é
+         * segurado no raio anterior e a referência sobe devagar, em vez de esticar o dedo até o
+         * limite duro e voltar no quadro seguinte (era isso que deformava e contorcia a mão).
+         */
+        private const val REACH_JUMP = 1.55f
+        /** Até onde o raio de um solavanco pode ir num quadro antes de o landmark voltar ao normal. */
+        const val REACH_JUMP_SOFT = 1.25f
+        /** Palma (pulso → nós dos dedos) abaixo disto não dá para medir alcance. */
+        private const val MIN_PALM_FOR_REACH = .015f
+        /** Limite duro de alcance, em palmas: nenhuma mão real passa disso. */
+        private const val HARD_REACH_FLOOR = .06f
+        /** Quanto o pulso volta ao lugar antigo no primeiro quadro depois de uma falha. */
+        private const val WRIST_REACQUIRE = .55f
     }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
@@ -199,23 +214,27 @@ class PhoneXrHands {
         }
     }
     private class State {
+        /**
+         * Os 63 landmarks da silhueta. O minCutoff anterior (150 Hz) era, na prática, o filtro
+         * DESLIGADO: com 150 Hz a 30 quadros/s o One Euro passa ~97 % do valor cru, então todo o
+         * tremor do MediaPipe ia direto para o desenho — era a mão tremendo e, junto com o limite de
+         * alcance, se contorcendo. Com 3 Hz a mão PARADA fica firme, e o beta alto devolve o valor
+         * cru assim que ela se move: nada de atraso no movimento, só silêncio no repouso.
+         */
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=90.0f, beta=400.0f, deadZone=0f)
-                // x/y: minCutoff mais baixo que antes deixa a mão PARADA mais firme (menos tremor,
-                // ponteiro mais preciso no alvo) e o beta bem mais alto corta o atraso quando a mão
-                // se move — é essa combinação que dá o "a mão segue em velocidade absurda".
-                else -> HandGestures.OneEuro(minCutoff=150.0f, beta=1200.0f, deadZone=0f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=3.0f, beta=40.0f, deadZone=0f)
+                else -> HandGestures.OneEuro(minCutoff=3.0f, beta=60.0f, deadZone=0f)
             }
         }
         // O raio/cursor usa estes dois: beta alto = o raio chega junto com a mão, nunca fica
         // arrastando atrás dela; minCutoff baixo = para de tremer quando a mão para.
-        val x = HandGestures.OneEuro(minCutoff=150.0f, beta=1500.0f, deadZone=0f)
-        val y = HandGestures.OneEuro(minCutoff=150.0f, beta=1500.0f, deadZone=0f)
+        val x = HandGestures.OneEuro(minCutoff=3.0f, beta=900.0f, deadZone=0f)
+        val y = HandGestures.OneEuro(minCutoff=3.0f, beta=900.0f, deadZone=0f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=160.0f,beta=700.0f, deadZone=0f)
-        val grabY = HandGestures.OneEuro(minCutoff=160.0f,beta=700.0f, deadZone=0f)
+        val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=200.0f, deadZone=0f)
+        val grabY = HandGestures.OneEuro(minCutoff=4.0f,beta=200.0f, deadZone=0f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
@@ -229,6 +248,12 @@ class PhoneXrHands {
         val vAim = FloatArray(2)
         val vGrab = FloatArray(2)
         val vPalm = FloatArray(2)
+        /**
+         * Raio pulso → landmark do último quadro aceito, por landmark. É a referência que separa
+         * movimento de mão (que muda o raio devagar) de solavanco do detector (que o dobra de uma
+         * vez). Ver o limite de alcance em [process].
+         */
+        val reach = FloatArray(21)
 
         /** Feed the newest real detection: blend its velocity estimate, never snap the model. */
         fun noteDetection(stampNs: Long, hand: PhoneXrHands.Hand) {
@@ -337,24 +362,48 @@ class PhoneXrHands {
             // claim is moved to the free side, so each hand keeps its own state and its own id.
             if (!detected.add(left)) { left = !left; detected.add(left) }
             val state = states.getOrPut(left) { State() }
-            val w0x = raw[0].x(); val w0y = raw[0].y()
-            val m9x = raw[9].x(); val m9y = raw[9].y()
+            // O pulso publicado é o MESMO centro usado pelo limite de alcance. Antes o landmark 0
+            // saía suavizado (misturado com o quadro anterior) e os outros eram limitados contra o
+            // pulso CRU: numa falha de detecção o pulso ficava para trás e os dedos iam para a
+            // frente, e a mão dobrava por dentro até parecer torcida.
+            val rawWx = raw[0].x(); val rawWy = raw[0].y()
+            // Reaparecer depois de uma falha NÃO pode deformar a mão: o ajuste é uma TRANSLACÃO da
+            // mão inteira (o mesmo deslocamento em todos os 21 landmarks), não um pulo só do pulso.
+            // Antes só o landmark 0 era misturado com o quadro anterior e os dedos ficavam no lugar
+            // novo: a palma esticava e a mão parecia torcida por alguns quadros.
+            var shiftX = 0f
+            var shiftY = 0f
+            if (state.consecutiveMisses > 0) {
+                val prevPts = state.lastHand?.points
+                if (prevPts != null && prevPts.size >= 2) {
+                    shiftX = (prevPts[0] - rawWx) * (1f - WRIST_REACQUIRE)
+                    shiftY = (prevPts[1] - rawWy) * (1f - WRIST_REACQUIRE)
+                }
+            }
+            val w0x = rawWx + shiftX; val w0y = rawWy + shiftY
+            val m9x = raw[9].x() + shiftX; val m9y = raw[9].y() + shiftY
             val palmLen = kotlin.math.hypot(m9x - w0x, m9y - w0y)
-            val maxReach = (palmLen * 2.35f).coerceAtLeast(0.06f)
+            val hardReach = (palmLen * 2.35f).coerceAtLeast(HARD_REACH_FLOOR)
             val points = raw.mapIndexed { i,p ->
-                var px = p.x(); var py = p.y()
-                if (i == 0 && state.consecutiveMisses > 0) {
-                    val prevPts = state.lastHand?.points
-                    if (prevPts != null && prevPts.size >= 2) {
-                        px = prevPts[0] + (px - prevPts[0]) * 0.55f
-                        py = prevPts[1] + (py - prevPts[1]) * 0.55f
-                    }
-                } else if (i > 0 && palmLen > 0.015f) {
+                var px = p.x() + shiftX
+                var py = p.y() + shiftY
+                if (i > 0 && palmLen > MIN_PALM_FOR_REACH) {
                     val rx = px - w0x; val ry = py - w0y
                     val rd = kotlin.math.hypot(rx, ry)
-                    if (rd > maxReach && rd > 1e-4f) {
-                        val s = maxReach / rd
-                        px = w0x + rx * s; py = w0y + ry * s
+                    if (rd > 1e-4f) {
+                        // Um solavanco de UM quadro é cortado perto do raio anterior; um dedo que
+                        // abre de verdade cresce aos poucos e passa direto. O limite duro continua
+                        // como última barreira contra mão degenerada.
+                        val previous = state.reach[i]
+                        val jumpCap = if (previous > 0f) previous * REACH_JUMP else hardReach
+                        if (rd > jumpCap) {
+                            val limit = minOf(hardReach, if (previous > 0f) previous * REACH_JUMP_SOFT else hardReach)
+                            val s = limit / rd
+                            px = w0x + rx * s; py = w0y + ry * s
+                            state.reach[i] = limit
+                        } else {
+                            state.reach[i] = rd
+                        }
                     }
                 }
                 NormalizedLandmark.create(

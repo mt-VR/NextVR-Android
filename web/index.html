@@ -2202,6 +2202,12 @@
     opacity:.72!important;
     filter:brightness(1.65) contrast(1.18);
   }
+  /* Saiu de cena (palma virou para baixo ou a mão desapareceu): desliza para fora em fade, em vez
+     de sumir no quadro seguinte. Quem agenda a remoção é o JS, com a mesma duração. */
+  .gun-logo-bubble.hiding{
+    opacity:0;
+    transform:scale(.86);
+  }
   .gun-logo-bubble.fired,
   .gun-logo-bubble.gun-triggered{
     transform:scale(1.10);

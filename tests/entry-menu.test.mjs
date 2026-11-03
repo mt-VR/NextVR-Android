@@ -153,6 +153,9 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
   const phoneXrHandsKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
   const handRendererKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8');
   assert.ok(
+    windowsSrc.includes("from './palm-cursor.js'") &&
+    windowsSrc.includes('PalmCursorGate') &&
+    windowsSrc.includes('palmUpOfHand') &&
     windowsSrc.includes('isPalmTurnedForBolinha') &&
     windowsSrc.includes('isHandPinchFromBolinha') &&
     windowsSrc.includes('nextvr-bolinha-logo.png') &&

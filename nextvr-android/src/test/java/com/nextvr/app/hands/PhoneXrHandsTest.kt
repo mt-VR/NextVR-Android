@@ -343,6 +343,68 @@ class PhoneXrHandsTest {
         val back=engine.process(result(moved,3200),1f,1f).hands.single()
         assertEquals(moved[0].x(),back.points[0],1e-6f)
     }
+    /** Distância entre dois landmarks publicados, em unidades da imagem. */
+    private fun span(h: PhoneXrHands.Hand, a: Int, b: Int): Float {
+        val dx = h.points[a * 3] - h.points[b * 3]
+        val dy = h.points[a * 3 + 1] - h.points[b * 3 + 1]
+        return kotlin.math.hypot(dx, dy)
+    }
+    @Test fun reappearingAfterAMissKeepsTheShapeInsteadOfStretchingThePalm() {
+        // A mão pisca por um quadro e reaparece 20 cm ao lado (a pessoa mexeu o braço). O ajuste de
+        // reaquisição tem de ser uma TRANSLACÃO: a distância pulso→nós dos dedos não pode mudar. Antes
+        // só o pulso era misturado com o quadro antigo e os dedos iam para o lugar novo, então a
+        // palma esticava e a mão aparecia torcida por alguns quadros.
+        val engine = PhoneXrHands()
+        repeat(4) { engine.process(result(points(.2f), 1000 + it * 33L), 1f, 1f) }
+        val before = engine.process(result(points(.2f), 1150), 1f, 1f).hands.single()
+        engine.process(result(null, 1183), 1f, 1f) // falha curta: o estado do filtro sobrevive
+        val moved = points(.2f).map { NormalizedLandmark.create(it.x() + .2f, it.y(), it.z()) }
+        val after = engine.process(result(moved, 1216), 1f, 1f).hands.single()
+        assertTrue("a mão reapareceu mais para a direita", after.points[0] > before.points[0] + .05f)
+        assertEquals("a palma não estica na reaquisição", span(before, 0, 5), span(after, 0, 5), .01f)
+        assertEquals("nem o dedo indicador", span(before, 0, 8), span(after, 0, 8), .01f)
+    }
+    @Test fun aSingleFrameLandmarkSpikeIsHeldNearTheLastPose() {
+        // Ruído de profundidade/oclusão fazia um landmark saltar de uma vez; o limite antigo o
+        // esticava até um teto fixo e ele voltava no quadro seguinte (a mão se contorcia).
+        val engine = PhoneXrHands()
+        val steady = points(.2f)
+        repeat(4) { engine.process(result(steady, 1000 + it * 33L), 1f, 1f) }
+        val before = engine.process(result(steady, 1150), 1f, 1f).hands.single()
+        val spike = steady.toMutableList()
+        spike[8] = NormalizedLandmark.create(steady[0].x() + .9f, steady[0].y() - .9f, 0f)
+        val after = engine.process(result(spike, 1183), 1f, 1f).hands.single()
+        val reachBefore = span(before, 0, 8)
+        val reachAfter = span(after, 0, 8)
+        assertTrue("o dedo não salta num quadro: $reachBefore -> $reachAfter",
+            reachAfter < reachBefore * PhoneXrHands.REACH_JUMP_SOFT + .03f)
+        // O resto da mão continua exatamente no lugar: não é a mão inteira que encolhe.
+        assertEquals(before.points[2 * 3], after.points[2 * 3], .01f)
+    }
+    @Test fun aFingerThatReallyOpensIsNotHeldBack() {
+        // O corte é só contra solavanco de UM quadro: abrir o dedo de verdade (poucos por cento por
+        // quadro) passa direto até o valor cru.
+        val engine = PhoneXrHands()
+        var last = engine.process(result(points(.2f), 1000), 1f, 1f).hands.single()
+        var stamp = 1000L
+        for (step in 1..10) {
+            stamp += 33
+            val grow = 1f + step * .09f
+            val opening = points(.2f).mapIndexed { i, p ->
+                val dx = p.x() - .5f; val dy = p.y() - .85f
+                NormalizedLandmark.create(.5f + dx * grow, .85f + dy * grow, p.z())
+            }
+            last = engine.process(result(opening, stamp), 1f, 1f).hands.single()
+        }
+        val reference = points(.2f).mapIndexed { i, p ->
+            val dx = p.x() - .5f; val dy = p.y() - .85f
+            NormalizedLandmark.create(.5f + dx * 1.9f, .85f + dy * 1.9f, p.z())
+        }
+        // O raio publicado acompanhou o crescimento real (sem ficar preso perto do começo).
+        val grown = span(last, 0, 12)
+        val wanted = kotlin.math.hypot(reference[12].x() - reference[0].x(), reference[12].y() - reference[0].y())
+        assertTrue("o dedo cresceu de verdade: $grown vs $wanted", grown > wanted * .8f)
+    }
     @Test fun processChainsThePreviousDetectionAndResetClearsIt() {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)

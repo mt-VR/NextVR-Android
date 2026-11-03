@@ -45,6 +45,26 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'palm-cursor',
+    tag: 'CORRIGIDO · PALM CURSOR: A BOLINHA COM A PALMA PARA CIMA (META QUEST 3S)',
+    time: 'Agora',
+    heading: 'Palm Cursor: Mais Nada de Bolinha Piscando ou Sumindo Sozinha',
+    desc: 'A bolinha entre o polegar e o indicador agora aparece com a PALMA VIRADA PARA CIMA e some com a '
+      + 'palma para baixo — medido pela geometria da mão em 3D (pulso, MCP do indicador e MCP do dedo mínimo), '
+      + 'nunca pela altura dela. Antes eram dois juízes discordando a cada quadro — o sinal que vinha do '
+      + 'rastreador e uma segunda decisão do lado da interface — e era isso que fazia a bolinha piscar, '
+      + 'desaparecer com a mão parada e trocar de lado quando as mãos se cruzavam. Agora existe uma medida só, '
+      + 'com suavização, histerese (acende num limiar, apaga em outro mais baixo), tolerância a falha curta de '
+      + 'rastreamento e saída em fade. Cada mão tem o seu próprio cursor: duas mãos levantadas, dois cursores. '
+      + 'A posição continua sendo entre o polegar e o indicador, e o gatilho de pinça da bolinha (alternar '
+      + 'Dock/Apps pela direita, janelinha de Brilho e Som pela esquerda) não mudou. De brinde, o rastreamento '
+      + 'parou de tremer e de deformar a mão: o filtro de posição estava, na prática, desligado (150 Hz a 30 '
+      + 'quadros/s passa ~97 % do valor cru), e o limite de alcance esticava o dedo até um teto fixo num '
+      + 'solavanco de um quadro só. Agora o tremor do repouso é filtrado de verdade, um solavanco é segurado '
+      + 'perto do quadro anterior, e reaparecer depois de uma falha desloca a mão inteira em vez de esticar a '
+      + 'palma.',
+  },
+  {
     id: 'direct-touch',
     tag: 'NOVO · TOQUE DIRETO: O DEDO TEM QUE ENCOSTAR E EMPURRAR (META QUEST)',
     time: 'Agora',
