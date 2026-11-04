@@ -241,14 +241,14 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
-    // A bolinha da dock (e o botão 3-4-3 ao lado dela) abre o ANEL de 10 apps SOLTOS no ambiente:
+    // A bolinha da dock (e o botão 4-5-4 ao lado dela) abre o ANEL de 13 apps SOLTOS no ambiente:
     // sem janelinha aparecendo, sem barra embaixo, sem brilho, sem alça para mover. O ambiente
     // escurece e cada ícone é um app do NextVR ou do Android instalado.
     await page.locator('.dock [data-id="library"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
-    assert.equal(await page.locator('.orb-app').count(),10,'the ring shows ten apps');
+    assert.equal(await page.locator('.orb-app').count(),13,'the ring shows thirteen apps');
     assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.orb-row')].map(r=>r.querySelectorAll('.orb-app').length)),
-      [3,4,3],'3 em cima, 4 no meio, 3 embaixo');
+      [4,5,4],'4 em cima, 5 no meio, 4 embaixo');
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),'1',
       'the environment dims but stays visible behind the ring');
     // No aparelho o escurecimento é do GL nativo (o véu do DOM é proibido: ele entrava na textura da
@@ -328,9 +328,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // nem a linha branca ("tira a barrinha abaixo dela, aonde aparece giroscopio ativo").
     assert.equal(await page.locator('.orb-root [data-orb-bar], .orb-root [data-orb-all], .orb-root [data-orb-gyro], .orb-root [data-orb-me], .orb-root [data-orb-clock], .orb-root [data-orb-close], .orb-root .orb-home-line').count(),0,
       'nothing but the apps is drawn');
-    // Rolagem: dez ícones por página; com mais apps, a roda passa a página e a roda de volta volta.
+    // Rolagem: treze ícones por página; com mais apps, a roda passa a página e a roda de volta volta.
     assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0');
-    assert.ok(await page.locator('.orb-app').count()<=10,'a page never shows more than ten icons');
+    assert.ok(await page.locator('.orb-app').count()<=13,'a page never shows more than thirteen icons');
     const paging = await page.evaluate(()=>{
       if (typeof window.nextvrOrbPage !== 'function') return { missing: true };
       const before = document.querySelector('.orb-root').dataset.page;
@@ -342,7 +342,8 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       return { before, after, afterWheel };
     });
     assert.equal(paging.missing, undefined, 'the ring exposes paging');
-    // Com dez apps há uma página só; com mais, virar a página continua valendo (roda e arrasto),
+    // Com treze lugares a primeira página enche; com mais, virar a página continua valendo (roda e
+    // arrasto),
     // sem bolinhas nem setas na tela.
     assert.equal(await page.locator('.orb-dots').count(),0,'no page dots on screen');
     assert.equal(await page.locator('[data-orb-page]').count(),0,'no page arrows on screen');
@@ -352,7 +353,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     });
     assert.equal(back,'0','the ring comes back to the first page');
 
-    // A biblioteca completa (os apps que não cabem nas dez casas) abre pela mesma bolinha, segurando-a.
+    // A biblioteca completa (os apps que não cabem nas treze casas) abre pela mesma bolinha, segurando-a.
     const hubInfo = await page.evaluate(()=>({
       openLibrary: typeof window.nextvrOpenLibrary === 'function',
       shells: [...document.querySelectorAll('.win-shell')].map(s => s.dataset.windowId),

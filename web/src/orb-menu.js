@@ -1,4 +1,4 @@
-// O anel de 10 apps — agora os apps SOLTOS no ambiente, cada um no seu espaço.
+// O anel de 13 apps — agora os apps SOLTOS no ambiente, cada um no seu espaço.
 //
 // Pedido do usuário, palavra por palavra (depois de ver a janelinha):
 //
@@ -9,28 +9,30 @@
 // Traduzido em comportamento (e é assim que está feito agora):
 //   1. NENHUMA moldura visível: sem barra de status, sem ✕, sem linha branca embaixo, sem barra de
 //      brilho, sem barra de cinema, sem as telinhas de encaixe. Só os dez ícones no ar;
-//   2. os apps ficam soltos no ambiente escurecido, cada um no seu espaço (3 em cima, 4 no meio,
-//      3 embaixo), como no print do usuário;
+//   2. os apps ficam soltos no ambiente escurecido, cada um no seu espaço (4 em cima, 5 no meio,
+//      4 embaixo — treze lugares), como no print do usuário;
 //   3. a dock NÃO some: ela continua na cena, apagada atrás dos apps, e as mãos são o último passe
 //      do render nativo, então continuam por cima de tudo para escolher o app com a pinça;
 //   4. fechar: o mesmo botão da dock (que agora alterna) ou o voltar do Android — nada de ✕ no meio
 //      dos apps;
-//   5. os ícones e nomes são os do NextVR + os apps do Android.
+//   5. os ícones e nomes são os do NextVR + os apps do Android;
+//   6. com o anel aberto NÃO existe mais nenhuma janelinha: as que estavam abertas fecham ao abrir o
+//      anel e nenhuma outra abre enquanto ele estiver na tela — só os treze apps dele.
 import { on, setSceneDim } from './core.js';
 import { open, close, wins, focus, updateWindowsDepthLayering } from './windows.js';
 
-/** Os dez lugares, em três fileiras: 3 em cima, 4 no meio, 3 embaixo. */
+/** Os treze lugares, em três fileiras: 4 em cima, 5 no meio, 4 embaixo. */
 export const ORB_ROWS = Object.freeze([
-  Object.freeze([0, 1, 2]),
-  Object.freeze([3, 4, 5, 6]),
-  Object.freeze([7, 8, 9]),
+  Object.freeze([0, 1, 2, 3]),
+  Object.freeze([4, 5, 6, 7, 8]),
+  Object.freeze([9, 10, 11, 12]),
 ]);
 
-/** Posições em % da caixa (mantidas para quem já lê a tabela: 3/4/3). */
+/** Posições em % da caixa (4/5/4): a fileira do meio é a mais larga, é ela que dá o ritmo. */
 export const ORB_LAYOUT = Object.freeze(ORB_ROWS.flatMap((row, r) =>
   row.map((_, i) => ({
-    x: Math.round(50 + (i - (row.length - 1) / 2) * (row.length === 4 ? 25 : 28)),
-    y: r === 0 ? 16 : r === 1 ? 50 : 84,
+    x: Math.round(50 + (i - (row.length - 1) / 2) * (row.length === 5 ? 20 : 26)),
+    y: r === 0 ? 14 : r === 1 ? 50 : 86,
   }))));
 
 /** Tamanho da janela (a mesma caixa do Spatial App: é ela que dá o enquadramento da referência). */
@@ -41,11 +43,11 @@ export const ORB_LAYOUT = Object.freeze(ORB_ROWS.flatMap((row, r) =>
 export const ORB_W = 1040;
 export const ORB_H = 660;
 
-/** Quantos apps do ring cabem por página: dez, como no desenho ("só aparece 10 ícones"). */
-export const ORB_PAGE = 10;
+/** Quantos apps do ring cabem por página: treze (4 + 5 + 4), como no desenho. */
+export const ORB_PAGE = 13;
 
-/** Quantos apps do Android cabem no anel; o resto dos 10 lugares é do NextVR. */
-export const ORB_ANDROID_SLOTS = 4;
+/** Quantos apps do Android cabem no anel; o resto dos 13 lugares é do NextVR. */
+export const ORB_ANDROID_SLOTS = 5;
 
 export const ORB_WIN = 'orb-apps';
 /** Quanto o ambiente escurece com a janelinha aberta: dá para ver o mundo, mas os apps saltam. */
@@ -174,15 +176,17 @@ function tileHtml(entry, index) {
 }
 
 /**
- * O miolo do anel: SÓ os dez ícones, em três fileiras (3/4/3). Nada de barra de status, nada de ✕,
+ * O miolo do anel: SÓ os treze ícones, em três fileiras (4/5/4). Nada de barra de status, nada de ✕,
  * nada de linha branca embaixo: os apps ficam soltos no ambiente, cada um no seu espaço.
  */
 export function orbMarkup(entries = orbEntries(), pageIndex = page) {
   const pages = orbPages(entries);
   page = Math.max(0, Math.min(pages.length - 1, pageIndex | 0));
   const pageItems = pages[page];
-  // As fileiras do desenho são fixas (3/4/3); com menos de dez apps as últimas casas ficam vazias.
-  const rows = ORB_ROWS.map(row => `<div class="orb-row">${
+  // As fileiras do desenho são fixas (4/5/4); com menos de treze apps as últimas casas ficam vazias.
+  // O `orb-row--N` existe para cada fileira ter o próprio espaçamento: a do meio, com cinco, precisa
+  // de menos folga que as de quatro para caber com os ícones no tamanho de sempre.
+  const rows = ORB_ROWS.map(row => `<div class="orb-row orb-row--${row.length}">${
     row.map(i => (pageItems[i] ? tileHtml(pageItems[i], i) : '<span class="orb-slot"></span>')).join('')
   }</div>`).join('');
   // As bolinhas de página: pequenas, embaixo dos apps, e a da página em que estamos fica BRANCA.
@@ -313,9 +317,27 @@ export function paintOrb() {
  * inline-flex e vence o atributo `hidden`). A dock continua na cena, apagada atrás dos apps, e as
  * mãos são o último passe do render nativo, então escolhem o app por cima de tudo.
  */
+/**
+ * As janelas que NÃO são "janelinhas flutuantes": o menu de entrada e o seletor de idioma que ele
+ * abre por cima. Todo o resto fecha quando o anel aparece.
+ */
+const ORB_KEEP_OPEN = new Set([ORB_WIN, 'entry-menu', 'language']);
+
+/** Fecha tudo o que é janelinha flutuante: com o anel na tela só existem os treze apps dele. */
+function closeFloatingWindows() {
+  for (const w of [...wins]) {
+    if (ORB_KEEP_OPEN.has(w.id)) continue;
+    try { close(w); } catch (error) { remember(error); }
+  }
+}
+
 export function openOrbMenu() {
   if (typeof window !== 'undefined') window.__orbOpenCalls = (window.__orbOpenCalls || 0) + 1;
   try {
+    // Primeiro o mundo limpa, depois o anel aparece: a trava de windows.js só deixa abrir o próprio
+    // anel enquanto ele está aberto, então fechar antes é justamente o que evita que uma janelinha
+    // aberta "resista" ao anel. Nada aqui pode derrubar o próprio anel: ele ainda não existe.
+    closeFloatingWindows();
     const existing = orbWindow();
     if (existing) {
       if (existing.hidden) existing.setHidden(false);

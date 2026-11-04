@@ -181,6 +181,9 @@ function createWindow(session) {
   const box = windowBox(session);
   const win = open({ id: appWindowId(session.pkg), title: session.title, node: body,
     w: box.w, h: box.h });
+  // Com o anel de 13 apps aberto nenhuma janelinha nasce (`open` devolve `null`): a sessão só passa a
+  // existir quando existe janela, senão o registro ficava com um buraco e o app sumia de vez.
+  if (!win) return;
   // The session is kept with the window: a rotation or a re-open needs the canvas it was created with
   // (the phone's own screen), and the shell must never fall back to guessing a size.
   live.set(session.pkg, { win, surface, status, badge, session });

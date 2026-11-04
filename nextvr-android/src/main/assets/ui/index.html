@@ -1256,7 +1256,9 @@
     font-weight:800;font-style:italic;color:#38bdf8;padding-top:2px
   }
 
-  /* Configurações em 2 Abas com arrasto lateral (Aba 1 · Básico / Aba 2 · Hand & Tela) */
+  /* Configurações em 3 Abas com arrasto lateral (Aba 1 · Básico / Aba 2 · Mãos & Gestos /
+     Aba 3 · Tela & Dock). A terceira nasceu porque as duas primeiras estavam apertadas: a mão e os
+     gestos num lado, a dock e o ambiente no outro. */
   .entry-settings-tabs{
     display:inline-flex;align-items:center;gap:6px;background:rgba(5,8,17,.85);
     padding:3px;border-radius:999px;border:1px solid rgba(56,189,248,.38)
@@ -1292,6 +1294,12 @@
     grid-template-columns:1.1fr 0.9fr;
     grid-template-rows:repeat(3,minmax(0,1fr))
   }
+  /* Aba 3: duas colunas, a da dock (dois blocos de botões) e a dos ambientes. Com duas células
+     grandes cada uma respira, em vez de dividir espaço com quatro. */
+  .entry-bento-grid--tab3{
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr
+  }
   .entry-bento-cell{
     background:#050811;
     border:1.5px solid rgba(37,99,235,.78);
@@ -1309,6 +1317,8 @@
   .entry-bento-cell--singlehand{grid-column:1;grid-row:1}
   .entry-bento-cell--dockcolor{grid-column:1;grid-row:2}
   .entry-bento-cell--env{grid-column:1;grid-row:3}
+  .entry-bento-grid--tab3 .entry-bento-cell--dockcolor{grid-column:1;grid-row:1}
+  .entry-bento-grid--tab3 .entry-bento-cell--env{grid-column:2;grid-row:1}
   .entry-bento-cell--hand{
     grid-column:2;grid-row:1 / 4;
     justify-content:space-evenly;padding:8px 10px
@@ -3533,7 +3543,7 @@
   #scene-dim{position:fixed;inset:0;z-index:1;pointer-events:none;background:#05070c;opacity:0;
     transition:opacity .22s ease}
 
-  /* ---------- anel de 10 apps: os apps SOLTOS no ambiente, sem janelinha aparecendo ---------- */
+  /* ---------- anel de 13 apps: os apps SOLTOS no ambiente, sem janelinha aparecendo ---------- */
   /* Pedido do usuário: "Não e pra ser uma janelinha flutuante, tira a barrinha abaixo dela, aonde
      aparece giroscopio ativo, o negócio de aumentar e diminuir brilho e a barrinha branca pra mover
      remove, e os apps tem que ter o próprio espaço". A superfície que carrega os apps (`#orb-apps`)
@@ -3553,17 +3563,19 @@
   }
   .orb-win-host{width:100%;height:100%}
   .orb-root{position:relative;width:100%;height:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:8px;padding:18px 20px;box-sizing:border-box;
+    align-items:center;justify-content:center;gap:8px;padding:10px 16px;box-sizing:border-box;
     font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;user-select:none;
     animation:orbFade .18s ease}
   @keyframes orbFade{from{opacity:0}to{opacity:1}}
 
-  /* ---------- as três fileiras: 3 em cima, 4 no meio, 3 embaixo ---------- */
-  /* Mais ar entre os apps ("deixa um pouco mais espaçado"): 92 px entre as colunas e 38 px entre as
-     fileiras, com a janelinha em 1040 px — os quatro ícones do meio ainda cabem folgados. */
+  /* ---------- as três fileiras: 4 em cima, 5 no meio, 4 embaixo (treze lugares) ---------- */
+  /* "separa mais": a folga é a máxima que a caixa de 1040 px aceita sem encolher o ícone — as
+     fileiras de quatro abrem 110 px entre as colunas (600 + 330 = 930 de 1008 úteis) e a de cinco,
+     que é a mais larga, fica com 62 px (750 + 248 = 998). */
   .orb-grid{flex:none;width:100%;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:38px}
-  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:92px;width:100%}
+    align-items:center;justify-content:center;gap:24px}
+  .orb-row{display:flex;align-items:flex-start;justify-content:center;gap:110px;width:100%}
+  .orb-row--5{gap:62px}
   @keyframes orbIn{from{opacity:0;transform:translateY(10px) scale(.9)}
     to{opacity:1;transform:none}}
   @keyframes orbInNext{from{opacity:0;transform:translateX(46px) scale(.9)}

@@ -181,7 +181,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   if (fullscreen) root.dataset.entryFullscreen = '1';
 
   let activeView = 'home'; // 'home' | 'settings' | 'collaborators' | 'about' | 'profile' | 'store' | 'loading'
-  let activeSettingsTab = 1; // 1 | 2 (Aba 1 e Aba 2 das configurações do menu inicial 2D, com arrasto pro lado)
+  let activeSettingsTab = 1; // 1 | 2 | 3 (abas das configurações do menu inicial 2D, com arrasto pro lado)
   let countdownSec = 6;
   let loadingPct = 0;
   let countdownTimer = null;
@@ -467,7 +467,8 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
             <h2 class="entry-subpanel-title">${emT('basicSettings')}</h2>
             <div class="entry-settings-tabs" role="tablist" aria-label="Abas de configurações">
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 1 ? 'on' : ''}" data-entry-settings-tab="1">Aba 1 · Básico</button>
-              <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Hand &amp; Tela ↔</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Mãos &amp; Gestos</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Tela &amp; Dock</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -554,6 +555,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
 
+          </div>
+
+          <div class="entry-bento-grid entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3">
             <div class="entry-bento-cell entry-bento-cell--dockcolor">
               <div class="entry-bento-title">COR DA DOCK &amp; MULTITAREFA</div>
               <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:5px">
@@ -657,6 +661,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
           </div>
+
         </div>
       </div>`;
   };
@@ -1106,32 +1111,44 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       };
     });
     const settingsCarousel = root.querySelector('[data-entry-settings-carousel]');
+    // TRÊS abas: a posição de cada página vem do próprio elemento (`offsetLeft`), não de
+    // `clientWidth × índice`. A conta antiga só sabia duas abas (`=== 2 ? clientWidth : 0`), então a
+    // terceira caía sempre em 0 e nunca chegava na vista.
+    const settingsPages = () => [...root.querySelectorAll('[data-entry-settings-page]')];
+    const pageLeft = tab => settingsPages()[tab - 1]?.offsetLeft ?? 0;
+    const syncTabButtons = () => {
+      root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
+        b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
+      });
+    };
     if (settingsCarousel) {
       requestAnimationFrame(() => {
-        if (activeSettingsTab === 2 && settingsCarousel.clientWidth > 0) {
-          settingsCarousel.scrollLeft = settingsCarousel.clientWidth;
+        if (activeSettingsTab > 1 && settingsCarousel.clientWidth > 0) {
+          settingsCarousel.scrollLeft = pageLeft(activeSettingsTab);
         }
       });
       settingsCarousel.addEventListener('scroll', () => {
         if (settingsCarousel.clientWidth <= 0) return;
-        const tab = settingsCarousel.scrollLeft > settingsCarousel.clientWidth * 0.45 ? 2 : 1;
-        if (tab !== activeSettingsTab) {
-          activeSettingsTab = tab;
-          root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
-            b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
-          });
+        // A aba em foco é a página cujo começo está mais perto da borda esquerda visível.
+        const left = settingsCarousel.scrollLeft;
+        let nearest = 1, best = Infinity;
+        for (let tab = 1; tab <= settingsPages().length; tab++) {
+          const distance = Math.abs(pageLeft(tab) - left);
+          if (distance < best) { best = distance; nearest = tab; }
+        }
+        if (nearest !== activeSettingsTab) {
+          activeSettingsTab = nearest;
+          syncTabButtons();
         }
       }, { passive: true });
     }
     root.querySelectorAll('[data-entry-settings-tab]').forEach(btn => {
       btn.onclick = () => {
-        const nextTab = Number(btn.dataset.entrySettingsTab) === 2 ? 2 : 1;
+        const nextTab = Math.max(1, Math.min(3, Number(btn.dataset.entrySettingsTab) || 1));
         activeSettingsTab = nextTab;
-        root.querySelectorAll('[data-entry-settings-tab]').forEach(b => {
-          b.classList.toggle('on', Number(b.dataset.entrySettingsTab) === activeSettingsTab);
-        });
+        syncTabButtons();
         if (settingsCarousel) {
-          const targetX = activeSettingsTab === 2 ? Math.max(320, settingsCarousel.clientWidth) : 0;
+          const targetX = pageLeft(activeSettingsTab);
           if (typeof settingsCarousel.scrollTo === 'function') {
             settingsCarousel.scrollTo({ left: targetX, behavior: 'smooth' });
           } else {

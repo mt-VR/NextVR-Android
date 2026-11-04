@@ -2,7 +2,7 @@
 import { settings as S, save, t, setLang, on, emit, toast, recenter, setEnvironment, setPassthrough, setMrDim, envList, startGyro, gyroLive, native, css3d, scene, contentRoot, camera,
   LANG_ROWS, langRow, SixDof } from './core.js';
 import { startHands, stopHands, tracking } from './hands.js';
-import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus } from './windows.js';
+import { open, close, wins, buildDock, dockButton, keyboard, keyboardOpen, setKeyboardHidden, focusedWin, focus, setDockVisible, setDockHidden, getDeviceStatus, LEFT_QUICK_MENU_SCALE } from './windows.js';
 import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
@@ -1081,7 +1081,7 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
     return S.gunGesture !== 0;
   }, S.gunGesture !== 0);
-  control('appGrid', 'Anel de 10 Apps (bolinha da Dock)', S.orbRing !== 0 ? 'Ativado' : 'Desativado · biblioteca de volta', button => {
+  control('appGrid', 'Anel de 13 Apps (bolinha da Dock)', S.orbRing !== 0 ? 'Ativado' : 'Desativado · biblioteca de volta', button => {
     const enabled = S.orbRing === 0;      // tocou: inverte
     S.orbRing = enabled ? 1 : 0;
     save(S);
@@ -1089,7 +1089,7 @@ function controlCenterApp() {
     if (!enabled) { try { closeOrbMenu(); } catch {} }
     emit('orbRing', enabled);
     button.querySelector('small').textContent = enabled ? 'Ativado' : 'Desativado · biblioteca de volta';
-    toast(enabled ? 'Anel de 10 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
+    toast(enabled ? 'Anel de 13 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
     return enabled;
   }, S.orbRing !== 0);
   control('move', 'Modo 3DoF / 6DoF', S.sixdof !== 0 ? '6DoF Ativado' : '3DoF Ativado', button => {
@@ -1248,11 +1248,11 @@ function settingsApp() {
   // Dock
   scroll.append(ytSection(t('dock')));
   // O anel de 10 apps também se desliga por aqui (a bolinha volta a abrir a biblioteca).
-  scroll.append(ytRow(icon('appGrid'), 'Anel de 10 Apps (bolinha da Dock)',
+  scroll.append(ytRow(icon('appGrid'), 'Anel de 13 Apps (bolinha da Dock)',
     'Desligado: a bolinha abre a biblioteca de sempre',
     ytToggle('orbRing', v => {
       if (!v) { try { closeOrbMenu(); } catch {} }
-      toast(v ? 'Anel de 10 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
+      toast(v ? 'Anel de 13 apps ativado' : 'Anel desativado · a bolinha abre a biblioteca');
     })));
   scroll.append(ytRow(icon('appGrid'), 'Tamanho da dock', null, ytRange('dockSize',.7,1.5,.05)));
   scroll.append(ytRow(icon('distance'), 'Distância da dock', null, ytRange('dockDist',.7,1.5,.05)));
@@ -3095,6 +3095,9 @@ function spatialLauncherApp() {
     chrome: false,
     resizable: false,
   });
+  // `open` devolve `null` quando uma janela é barrada (com o anel de 13 apps na tela, nada abre):
+  // sem esta linha o `null.handle` estourava e derrubava o resto do quadro.
+  if (!win) return null;
   win.handle.hidden = true;
   win.resizeHandle.hidden = true;
   paintSpatialLauncher();
@@ -3537,7 +3540,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
     }
     existing.setHidden(false);
     existing.curve = 0;
-    existing.resizeScale = 1.68;
+    existing.resizeScale = LEFT_QUICK_MENU_SCALE;
     existing.target.copy(localSpawn);
     existing.obj.position.copy(localSpawn);
     existing.shell.dataset.attachedHand = 'left';
@@ -3561,7 +3564,7 @@ export function toggleLeftHandQuickMenu(forceState = undefined) {
     });
     if (win) {
       win.curve = 0;
-      win.resizeScale = 1.68;
+      win.resizeScale = LEFT_QUICK_MENU_SCALE;
       win.target.copy(localSpawn);
       win.obj.position.copy(localSpawn);
       win.shell.dataset.attachedHand = 'left';
@@ -3649,15 +3652,14 @@ on('device-status', status => {
 
 /* ============ dock (compacta, com atalho de ambiente virtual) ============ */
 /**
- * O ícone do botão novo da dock: DEZ bolinhas — 3 em cima, 4 no meio, 3 embaixo — que é o desenho
- * do anel pedido pelo usuário ("adiciona uma opção na dock que aparece 3 bolinhas em cima, 4 no
- * meio, e 3 embaixo, do lado esquerdo da biblioteca de apps"). Desenhado aqui para não depender de
- * nenhum ícone de terceiros.
+ * O ícone do botão novo da dock: TREZE bolinhas — 4 em cima, 5 no meio, 4 embaixo — que é o desenho
+ * do anel como ele ficou depois do último pedido do usuário ("era 4 encima, 5 no meio e 4 embaixo").
+ * Desenhado aqui para não depender de nenhum ícone de terceiros.
  */
 const ORB_DOTS_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${
-  [[6.2, 5.4], [12, 5.4], [17.8, 5.4],
-   [4.2, 12], [9.5, 12], [14.5, 12], [19.8, 12],
-   [6.2, 18.6], [12, 18.6], [17.8, 18.6]]
+  [[4.4, 5.4], [9.45, 5.4], [14.55, 5.4], [19.6, 5.4],
+   [2.6, 12], [7.3, 12], [12, 12], [16.7, 12], [21.4, 12],
+   [4.4, 18.6], [9.45, 18.6], [14.55, 18.6], [19.6, 18.6]]
     .map(([cx, cy]) => `<circle cx="${cx}" cy="${cy}" r="1.85"/>`).join('')
 }</svg>`;
 

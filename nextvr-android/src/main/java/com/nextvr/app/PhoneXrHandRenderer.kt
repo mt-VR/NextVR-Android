@@ -120,6 +120,8 @@ class PhoneXrHandRenderer {
     private val ringData=FloatArray(RING_STEPS*18)
     private val beamEnd=FloatArray(3)
     private val beamLine=FloatArray(7)
+    /** Scratch da ORIGEM do feixe (a pinça). Separado de [beamEnd], que guarda o DESTINO. */
+    private val beamOrigin=FloatArray(2)
     private val acrossA=FloatArray(3)
     private val acrossB=FloatArray(3)
     private val quad=FloatArray(18)
@@ -225,18 +227,14 @@ class PhoneXrHandRenderer {
                 // Pinça com raio, também no Toque Direto: com o ponteiro livre desligado o app não
                 // desenhava NENHUM feixe (era o "o Next tá sem pinça com raio"), porque este ramo
                 // só pintava o anel de hover. A pinça de verdade — sempre a de uma detecção viva,
-                // nunca a de uma pose predita — agora sai da palma com o mesmo raio azul do ponteiro.
+                // nunca a de uma pose predita — sai da pinça com o mesmo raio azul do ponteiro.
                 if(live && !hand.predicted && (target?.optBoolean("down")==true || target?.optBoolean("pinchRay")==true)) {
                     val e=beamEnd
                     if(aimPoint(hand,target,view,e)) {
-                        var originX=hand.baseX; var originY=hand.baseY
-                        if(hand.points.size>=30) {
-                            originX=(hand.points[9]-.5f)*2f*sx
-                            originY=(.5f-hand.points[10])*2f*sy
-                            if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
-                        }
+                        val o=beamOrigin
+                        beamStart(hand,sx,sy,o)
                         val b=beamLine
-                        b[0]=originX;b[1]=originY;b[2]=-1f
+                        b[0]=o[0];b[1]=o[1];b[2]=-1f
                         b[3]=e[0];b[4]=e[1];b[5]=e[2]
                         b[6]=if(target?.optJSONArray("end")!=null) 1f else 0f
                         drawBeam(b,true,true,false,position,fade)
@@ -282,19 +280,14 @@ class PhoneXrHandRenderer {
             val end=target?.optJSONArray("end")
             val e=beamEnd
             if(!aimPoint(hand,target,view,e))continue
+            val origin=beamOrigin
             touching=direct && down
             val b=beamLine
-            // O raio nasce NA MÃO, não num ponto do plano da tela. Antes a origem era (aimX,aimY) a
-            // 1 m: o feixe era um marcador longe da mão e, quando a mão andava rápido, parecia
-            // escapar dela. Aqui a origem é o meio da palma (landmark 9) da pose já predita para o
-            // instante do display — o raio sai da mão e acompanha a mão em qualquer velocidade.
-            var originX=hand.baseX; var originY=hand.baseY
-            if(!direct && hand.points.size>=30) {
-                originX=(hand.points[9]-.5f)*2f*sx
-                originY=(.5f-hand.points[10])*2f*sy
-                if(!originX.isFinite()||!originY.isFinite()) { originX=hand.baseX; originY=hand.baseY }
-            }
-            b[0]=if(direct)0f else originX;b[1]=if(direct)0f else originY;b[2]=if(direct)0f else -1f
+            // O raio nasce NA PINÇA (ver [beamStart]), da pose já predita para o instante do
+            // display: sai da borda da mão, no ponto que a pessoa está usando, e acompanha a mão em
+            // qualquer velocidade.
+            if(!direct) beamStart(hand,sx,sy,origin)
+            b[0]=if(direct)0f else origin[0];b[1]=if(direct)0f else origin[1];b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
             drawBeam(b,down,blueRay,noBeam,position,hFade)
         }
@@ -645,6 +638,33 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
             out.vertex(ax,ay,-1f);out.vertex(bx,by,-1f);out.vertex(cx,cy,-1f)
             out.vertex(bx,by,-1f);out.vertex(dx,dy,-1f);out.vertex(cx,cy,-1f)
         }
+
+/** ONDE O FEIXE NASCE, no plano do olho (z = −1), em [out].
+ *
+ *  Antes o código lia `points[9]` e `points[10]` achando que era o "landmark 9" (meio da palma).
+ *  `points` é achatado (63 floats = 21 landmarks × 3), então esses índices são o X e o Y do
+ *  landmark 3 — a ponta do polegar. Era exatamente isso que fazia o raio nascer DENTRO da mão,
+ *  colado no dedão. Agora a origem é o ponto da pinça — o meio entre a ponta do polegar (4) e a
+ *  do indicador (8) — que é onde a pessoa segura o raio, e o feixe sai da borda da mão em vez de
+ *  aparecer no meio dela. Sem as duas pontas, cai para o meio da palma (9) e, por último, no
+ *  centro da mão. */
+private fun beamStart(hand: PhoneXrHands.Hand, sx: Float, sy: Float, out: FloatArray) {
+    val p = hand.points
+    var nx = Float.NaN
+    var ny = Float.NaN
+    if (p.size >= 26) {
+        val thumbX = p[12]; val thumbY = p[13]     // landmark 4 — ponta do polegar
+        val indexX = p[24]; val indexY = p[25]     // landmark 8 — ponta do indicador
+        if (thumbX.isFinite() && thumbY.isFinite() && indexX.isFinite() && indexY.isFinite()) {
+            nx = (thumbX + indexX) * .5f
+            ny = (thumbY + indexY) * .5f
+        }
+    }
+    if (!nx.isFinite() && p.size >= 29) { nx = p[27]; ny = p[28] }   // landmark 9 — meio da palma
+    if (!nx.isFinite() || !ny.isFinite()) { nx = hand.baseX; ny = hand.baseY }
+    out[0] = (nx - .5f) * 2f * sx
+    out[1] = (.5f - ny) * 2f * sy
+}
 
 /** Ponto de mira do raio, no espaço do olho: o `end` que o JS manda (o alvo real de um acerto) ou
  *  a direção da própria mão a 1,2 m quando não há acerto nenhum. Devolve false quando o ponto não

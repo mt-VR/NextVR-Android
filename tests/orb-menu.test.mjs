@@ -1,4 +1,4 @@
-// O anel de 10 apps — agora os apps SOLTOS no ambiente, cada um no seu espaço.
+// O anel de 13 apps — agora os apps SOLTOS no ambiente, cada um no seu espaço.
 //
 // Pedido do usuário, palavra por palavra: "Não e pra ser uma janelinha flutuanteeeeeeeeeeeeeee, tira a
 // barrinha abaixo dela, aonde aparece giroscopio ativo, o negócio de aumentar e diminuir brilho e a
@@ -6,31 +6,37 @@
 // janelinha flutuante".
 //
 // Ou seja: nada de barra de status, nada de chip de giroscópio, nada de barra de brilho, nada de
-// alça branca para mover, nada de ✕. Só os dez ícones no ar, sobre o mundo escurecido.
+// alça branca para mover, nada de ✕. Só os treze ícones no ar, sobre o mundo escurecido.
+//
+// E depois disso o desenho mudou de novo, palavra por palavra: "era 4 encima, 5 no meio e 4
+// embaixo" — treze lugares, com mais ar entre eles.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(path, 'utf8');
 
-test('a janelinha do anel mostra dez apps, três em cima, quatro no meio e três embaixo', async () => {
+test('a janelinha do anel mostra treze apps: quatro em cima, cinco no meio e quatro embaixo', async () => {
   const orb = await read('web/src/orb-menu.js');
-  // As fileiras são a própria estrutura do desenho (3/4/3), não posições absolutas soltas.
+  // As fileiras são a própria estrutura do desenho (4/5/4), não posições absolutas soltas.
   assert.match(orb, /export const ORB_ROWS = Object\.freeze\(\[/);
   const rows = orb.slice(orb.indexOf('ORB_ROWS = Object.freeze(['), orb.indexOf(']);', orb.indexOf('ORB_ROWS = Object.freeze([')));
   const sizes = [...rows.matchAll(/Object\.freeze\(\[([\d,\s]+)\]\)/g)].map(m => m[1].split(',').filter(Boolean).length);
-  assert.deepEqual(sizes, [3, 4, 3]);
-  assert.match(orb, /export const ORB_PAGE = 10/);
+  assert.deepEqual(sizes, [4, 5, 4]);
+  assert.match(orb, /export const ORB_PAGE = 13/);
   // Cada ícone leva o NOME embaixo, como na screenshot.
   assert.match(orb, /<span class="orb-label">\$\{esc\(label\)\}<\/span>/);
   const html = await read('web/index.html');
   // "APPS MAIORES E MAIS SEPARADOS" (print do usuário): os ícones cresceram e as fileiras abriram.
-  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:92px/);
+  assert.match(html, /\.orb-row\{display:flex;align-items:flex-start;justify-content:center;gap:110px/);
+  // "separa mais": a fileira de cinco ganha o mesmo respiro entre os ícones sem estourar a caixa.
+  assert.match(html, /\.orb-row--5\{gap:62px\}/);
+  assert.match(html, /\.orb-grid\{flex:none;width:100%;display:flex;flex-direction:column;\s*\n?\s*align-items:center;justify-content:center;gap:24px\}/);
   assert.match(html, /\.orb-app\{pointer-events:auto;position:relative;flex:none;width:150px/);
   assert.match(html, /\.orb-app::before\{content:'';position:absolute;left:0;top:0;width:150px;height:150px;border-radius:34px/);
   assert.match(html, /\.orb-label\{position:relative;max-width:158px;font-size:15px/);
   // Os dois lados: apps do NextVR E apps do Android instalado.
-  assert.match(orb, /ORB_ANDROID_SLOTS = 4/);
+  assert.match(orb, /ORB_ANDROID_SLOTS = 5/);
   assert.match(orb, /providers\.launchAndroid/);
   assert.match(orb, /providers\.launchOwn/);
 });
@@ -92,18 +98,19 @@ test('a dock NÃO some: ela fica por baixo, e as mãos continuam por cima para e
     'o passe das mãos vem depois dos painéis (janelas e dock)');
 });
 
-test('a dock ganha o botão 3-4-3 à esquerda da biblioteca, sem mexer no resto da interface', async () => {
+test('a dock ganha o botão 4-5-4 à esquerda da biblioteca, sem mexer no resto da interface', async () => {
   const apps = await read('web/src/apps.js');
-  // O ícone: dez bolinhas (3 em cima, 4 no meio, 3 embaixo), desenhado no próprio app.
+  // O ícone: treze bolinhas (4 em cima, 5 no meio, 4 embaixo), desenhado no próprio app — o mesmo
+  // desenho do anel, para o botão da dock não mentir sobre o que ele abre.
   assert.match(apps, /const ORB_DOTS_SVG = `<svg viewBox="0 0 24 24"/);
   const dotsStart = apps.indexOf('const ORB_DOTS_SVG');
   const dots = apps.slice(dotsStart, apps.indexOf('</svg>`', dotsStart));
-  // As dez coordenadas do desenho: três em cima, quatro no meio, três embaixo.
+  // As treze coordenadas do desenho: quatro em cima, cinco no meio, quatro embaixo.
   const ys = [...dots.matchAll(/\[(\d+(?:\.\d+)?), (\d+(?:\.\d+)?)\]/g)].map(m => Number(m[2]));
-  assert.equal(ys.length, 10, 'dez bolinhas');
+  assert.equal(ys.length, 13, 'treze bolinhas');
   assert.deepEqual([...new Set(ys)], [5.4, 12, 18.6], 'três fileiras');
   assert.deepEqual([ys.filter(y => y === 5.4).length, ys.filter(y => y === 12).length, ys.filter(y => y === 18.6).length],
-    [3, 4, 3], '3 em cima, 4 no meio, 3 embaixo');
+    [4, 5, 4], '4 em cima, 5 no meio, 4 embaixo');
   // O botão fica imediatamente À ESQUERDA do botão da biblioteca.
   const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot,";
   const orbLine = "    { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },";
@@ -180,7 +187,7 @@ test('com os apps gigantes abertos, nenhum app da dock abre (só os do anel)', a
   assert.match(orb, /function launchTarget\(invoke\) \{[\s\S]{0,220}closeOrbMenu\(\);/);
 });
 
-test('a rolagem passa as páginas de dez ícones, com animação', async () => {
+test('a rolagem passa as páginas de treze ícones, com animação', async () => {
   const orb = await read('web/src/orb-menu.js');
   assert.match(orb, /export function turnPage\(step = 1\)/);
   // A roda é ouvida no documento (a página recebe a roda no navegador e no headset).
@@ -215,11 +222,11 @@ test('saiu a barra de baixo: nada de TODOS, giroscópio, perfil, hora, bateria, 
   assert.doesNotMatch(markup, /orb-bar|orb-close|orb-home-line|orb-clock|orb-me/);
 });
 
-test('o anel de 10 apps pode ser desativado e a bolinha volta a abrir a biblioteca', async () => {
+test('o anel de 13 apps pode ser desativado e a bolinha volta a abrir a biblioteca', async () => {
   const apps = await read('web/src/apps.js');
   const core = await read('web/src/core.js');
   assert.match(core, /orbRing: 1,/);
-  assert.match(apps, /control\('appGrid', 'Anel de 10 Apps \(bolinha da Dock\)', S\.orbRing !== 0 \? 'Ativado' : 'Desativado · biblioteca de volta'/);
+  assert.match(apps, /control\('appGrid', 'Anel de 13 Apps \(bolinha da Dock\)', S\.orbRing !== 0 \? 'Ativado' : 'Desativado · biblioteca de volta'/);
   assert.match(apps, /S\.orbRing = enabled \? 1 : 0;/);
   assert.match(apps, /if \(!enabled\) \{ try \{ closeOrbMenu\(\); \} catch \{\} \}/);
 });
@@ -265,4 +272,55 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
   assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline,\.\.\.pokeFields\}\);continue;\}/);
+});
+
+test('o anel é exclusivo: as janelinhas fecham ao abrir e nenhuma outra abre enquanto ele está na tela', async () => {
+  // "fechar todas as janelinhas flutuantes que estava aberta" + "nenhuma janelinha flutuante pode
+  // abrir" + "só os apps dos 13 apps que flutua".
+  const orb = await read('web/src/orb-menu.js');
+  // Uma lista só do que NÃO é janelinha flutuante: o próprio anel, o menu de entrada e o seletor de
+  // idioma que ele abre por cima. Todo o resto fecha.
+  assert.match(orb, /const ORB_KEEP_OPEN = new Set\(\[ORB_WIN, 'entry-menu', 'language'\]\);/);
+  assert.match(orb, /function closeFloatingWindows\(\) \{\n  for \(const w of \[\.\.\.wins\]\) \{\n    if \(ORB_KEEP_OPEN\.has\(w\.id\)\) continue;/);
+  // A limpeza é a PRIMEIRA coisa que o `openOrbMenu` faz — antes de qualquer coisa aparecer.
+  const openFn = orb.slice(orb.indexOf('export function openOrbMenu()'), orb.indexOf('export function closeOrbMenu()'));
+  const firstInTry = openFn.slice(openFn.indexOf('try {') + 'try {'.length)
+    .split('\n').map(line => line.trim())
+    .filter(line => line && !line.startsWith('//'))[0];
+  assert.equal(firstInTry, 'closeFloatingWindows();',
+    'as janelinhas fecham antes de o anel aparecer (não depois)');
+  // E o caminho de criação de janelas barra qualquer coisa que não seja o próprio anel.
+  const windows = await read('web/src/windows.js');
+  assert.match(windows, /if \(spec\.id !== 'orb-apps' && document\.documentElement\.dataset\.orbOpen === '1'\) \{\n    return null;\n  \}/);
+  // Quem abre janela fora do anel não pode explodir com o `null` do bloqueio.
+  assert.ok(windows.includes('if (spec.id !== \'orb-apps\' && document.documentElement.dataset.orbOpen === \'1\')'),
+    'a trava fica no caminho único de criação de janelas');
+  const apps = await read('web/src/apps.js');
+  assert.match(apps, /if \(!win\) return null;\n  win\.handle\.hidden = true;/);
+  const android = await read('web/src/android-apps.js');
+  assert.match(android, /if \(!win\) return;\n  \/\/ The session is kept with the window/);
+});
+
+test('o raio sai da PINÇA, não de dentro da mão (era "colado no dedão")', async () => {
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
+  // `points` é achatado (63 floats = 21 landmarks × 3): `points[9]`/`points[10]` são o X e o Y do
+  // landmark 3 — a ponta do polegar. Era por isso que o feixe nascia dentro da mão, no dedão.
+  const code = renderer.split('\n').filter(line => !/^\s*(\*|\/\/|\/\*)/.test(line)).join('\n');
+  assert.ok(!/points\[9\]/.test(code) && !/points\[10\]/.test(code),
+    'nenhum ponto do feixe lê landmark por índice solto no array achatado (só na explicação do conserto)');
+  // A origem é o ponto da pinça: meio entre a ponta do polegar (4 → 12/13) e a do indicador (8 → 24/25).
+  assert.match(renderer, /private fun beamStart\(hand: PhoneXrHands\.Hand, sx: Float, sy: Float, out: FloatArray\)/);
+  const helper = renderer.slice(renderer.indexOf('private fun beamStart('), renderer.indexOf('private fun aimPoint('));
+  assert.match(helper, /val thumbX = p\[12\]; val thumbY = p\[13\]/);
+  assert.match(helper, /val indexX = p\[24\]; val indexY = p\[25\]/);
+  assert.match(helper, /nx = \(thumbX \+ indexX\) \* \.5f/);
+  // Sem as duas pontas, cai para o meio da palma (landmark 9 → 27/28), nunca para um índice solto.
+  assert.match(helper, /if \(!nx\.isFinite\(\) && p\.size >= 29\) \{ nx = p\[27\]; ny = p\[28\] \}/);
+  // As duas pontas do caminho do feixe (ponteiro livre e pinça com o ponteiro desligado) usam a MESMA
+  // origem, e o destino continua vindo do `aimPoint`.
+  assert.ok(renderer.split('beamStart(hand,sx,sy,').length - 1 === 2, 'os dois caminhos do feixe usam beamStart');
+  assert.match(renderer, /b\[0\]=if\(direct\)0f else origin\[0\];b\[1\]=if\(direct\)0f else origin\[1\];b\[2\]=if\(direct\)0f else -1f/);
+  // O destino tem scratch próprio: a origem não pode sobrescrever o alvo (nem o contrário).
+  assert.match(renderer, /private val beamEnd=FloatArray\(3\)/);
+  assert.match(renderer, /private val beamOrigin=FloatArray\(2\)/);
 });

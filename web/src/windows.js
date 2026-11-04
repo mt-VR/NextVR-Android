@@ -509,6 +509,12 @@ on('resize', layout);
 export function open(spec) {
   const same = wins.find(w => w.id === spec.id);
   if (same) { focus(same); return same; }
+  // Com o anel de 13 apps aberto NENHUMA outra janela nasce — só os apps dele, e eles fecham o anel
+  // antes de abrir (por isso o próprio anel é a única exceção). Sem esta trava, um app pedindo uma
+  // janelinha por baixo (ou um toque antigo chegando atrasado) abria uma janela sobre o anel.
+  if (spec.id !== 'orb-apps' && document.documentElement.dataset.orbOpen === '1') {
+    return null;
+  }
   // Garante que o 6DoF esteja sempre ativo desde a primeira página aberta (corrige o bug de só funcionar com 2 páginas)
   if (S.sixdof !== 0) {
     S.sixdof = 1;
@@ -3427,6 +3433,12 @@ function hideLeftBolinhaBubble(delayMs = 0) {
  */
 const LEFT_QUICK_MENU_DIST = 0.56;
 
+/**
+ * O ÚNICO tamanho do centro de brilho, num lugar só (apps.js importa daqui). Era 1,68 e ficava
+ * grande demais na frente do rosto: o mesmo layout, um pouco menor.
+ */
+export const LEFT_QUICK_MENU_SCALE = 1.45;
+
 function updateLeftQuickMenuAttachment(packet) {
   const lhWin = wins.find(w => w.id === 'left-quick-menu' && !w.hidden);
   if (!lhWin) return;
@@ -3451,7 +3463,7 @@ function updateLeftQuickMenuAttachment(packet) {
   lhWin.shell.dataset.attachedPos = `${localPt.x.toFixed(2)},${localPt.y.toFixed(2)},${localPt.z.toFixed(2)}`;
   lhWin.shell.dataset.attachedDist = LEFT_QUICK_MENU_DIST.toFixed(2);
   // Nem o arraste, nem a distância, nem a mão mudam o tamanho: um tamanho só, sempre.
-  lhWin.resizeScale = 1.68;
+  lhWin.resizeScale = LEFT_QUICK_MENU_SCALE;
   css3d.invalidate?.();
 }
 

@@ -45,6 +45,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'orb-454-ray-tabs',
+    tag: 'NOVO · ANEL 4-5-4 (TREZE APPS), ANEL EXCLUSIVO, TRÊS ABAS NAS CONFIGURAÇÕES & RAIO FORA DA MÃO',
+    time: 'Agora',
+    heading: 'Anel 4-5-4 com Treze Apps, Nada Flutuante por Cima Dele, Três Abas de Configurações e o Raio Saindo da Pinça',
+    desc: 'O anel agora é 4 EM CIMA, 5 NO MEIO e 4 EMBAIXO — treze lugares, com muito mais ar entre os ícones (as fileiras de quatro abrem 110 px e a de cinco, 62 px), e o botão da dock passou a desenhar as mesmas treze bolinhas. '
+      + 'O ANEL É EXCLUSIVO: ao abrir, todas as janelinhas flutuantes que estavam abertas fecham, e enquanto ele está na tela NENHUMA outra janela nasce — só os treze apps dele abrem (e eles fecham o anel antes de aparecer). '
+      + 'As configurações do menu de entrada ganharam a ABA 3 (TELA & DOCK): idioma e modo espacial na aba 1, mãos e gestos na aba 2, e cor da dock, ordem de profundidade, ambiente MR, FPS e os panoramas na aba 3 — a terceira página também rola até a vista, que antes parava fora da tela. '
+      + 'O centro de brilho ficou MENOR (escala 1.45 em vez de 1.68) e continua com um tamanho só, igual de perto e de longe. '
+      + 'E o RAIO saiu de dentro da mão: ele nascia no X e no Y de um índice solto do array achatado de landmarks — que é a ponta do polegar, não o meio da palma — e por isso aparecia colado no dedão; agora nasce no ponto da PINÇA, entre a ponta do polegar e a do indicador, e o feixe sai da borda da mão em vez de brotar dentro dela.',
+  },
+  {
     id: 'palm-cursor',
     tag: 'CORRIGIDO · PALM CURSOR: PALMA PARA A CÂMERA ACENDE, DORSO APAGA (META QUEST 3S)',
     time: 'Agora',

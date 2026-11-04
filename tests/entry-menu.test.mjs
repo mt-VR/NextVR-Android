@@ -133,8 +133,14 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'o centro de brilho não adapta mais a distância ao tamanho da mão (era isso que encolhia a janela ao empurrá-la para frente)');
   assert.ok(appsSrc.includes('toggleCameraSoloMode') && appsSrc.includes('camera-solo') && activitySrc.includes('public void refocusCamera()') && cameraSrc.includes('triggerAutoFocus'),
     'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
-  assert.ok(appsSrc.includes('w: 560') && appsSrc.includes('h: 740') && appsSrc.includes('resizeScale = 1.68') && rendererSrc.includes('1440f'),
-    'apps.js sizes the left-hand quick menu to match the reference screenshot (560x740, scale 1.68) and SpatialRenderer.java raises rendering quality to 1440p');
+  // "deixa o centro de brilho menor": a caixa continua 560x740, mas a escala caiu de 1.68 para 1.45
+  // (as duas pontas — a janelinha que já existia e a que nasce — leem a MESMA constante, senão o
+  // menu mudava de tamanho conforme era aberto pela primeira ou pela segunda vez).
+  assert.ok(appsSrc.includes('w: 560') && appsSrc.includes('h: 740') && appsSrc.includes('resizeScale = LEFT_QUICK_MENU_SCALE') && rendererSrc.includes('1440f'),
+    'apps.js sizes the left-hand quick menu to match the reference screenshot (560x740, scale 1.45 via LEFT_QUICK_MENU_SCALE) and SpatialRenderer.java raises rendering quality to 1440p');
+  assert.ok(windowsSrc.includes('export const LEFT_QUICK_MENU_SCALE = 1.45;'),
+    'a escala do centro de brilho é uma constante só, exportada por windows.js');
+  assert.ok(!windowsSrc.includes('leftQuickMenuScale'), 'nada de escala adaptativa: o tamanho é o mesmo sempre');
   // O toque do dedo não é mais "levantar o dedo": é a máquina do Toque Direto (web/src/direct-touch.js),
   // com contacto medido em metros contra o plano do alvo. O caminho antigo não pode voltar.
   assert.ok(
@@ -1319,4 +1325,31 @@ test('o carregamento de 6 s pode ser pulado, e não só cancelado', async () => 
   assert.match(source, /stopCountdown\(\);\s*\n\s*loadingPct = 100;\s*\n\s*updateCountdownDom\(\);\s*\n\s*onStart\?\.\(\);/);
   const html = readFileSync('web/index.html', 'utf8');
   assert.match(html, /\.entry-hud-skip\{/);
+});
+
+test('as configurações cabem em três abas, e a terceira rola até a vista', async () => {
+  // "Cria uma 3 aba, pq as configurações já tá tudo apertado": a aba 1 fica com o básico, a 2 com as
+  // mãos/gestos e a 3 com tela & dock (cor da dock, ordem de profundidade, dim do MR, FPS e ambientes).
+  const read = path => readFileSync(path, 'utf8');
+  const src = read('web/src/entry-menu.js');
+  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock']])
+    assert.ok(src.includes(`data-entry-settings-tab="${tab}">${label}</button>`), `a aba ${tab} existe com o nome ${label}`);
+  const pages = [...src.matchAll(/data-entry-settings-page="(\d)"/g)].map(m => Number(m[1]));
+  assert.deepEqual(pages, [1, 2, 3], 'três páginas no carrossel');
+  // A aba 3 tem a própria grade (duas células lado a lado) e leva a cor da dock e os ambientes.
+  assert.match(src, /entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3"/);
+  const third = src.slice(src.indexOf('data-entry-settings-page="3"'));
+  assert.ok(third.includes('data-entry-dock-color') && third.includes('data-entry-env'),
+    'a aba 3 traz a cor da dock e os ambientes');
+  assert.ok(third.includes('data-entry-depth-layer') && third.includes('data-entry-mr-dim') && third.includes('data-entry-fps'),
+    'e o resto do que estava apertando a aba 2');
+  // O carrossel posiciona pelo `offsetLeft` da página: com a conta antiga (`aba - 1 × clientWidth`)
+  // a terceira aba ficava fora da vista, porque entre as páginas existe a folga do `gap`.
+  assert.match(src, /const pageLeft = tab => settingsPages\(\)\[tab - 1\]\?\.offsetLeft \?\? 0;/);
+  assert.match(src, /settingsCarousel\.scrollTo\(\{ left: targetX, behavior: 'smooth' \}\)/);
+  assert.match(src, /const nextTab = Math\.max\(1, Math\.min\(3, Number\(btn\.dataset\.entrySettingsTab\) \|\| 1\)\);/);
+  const html = read('web/index.html');
+  assert.match(html, /\.entry-bento-grid--tab3\{\n    grid-template-columns:1fr 1fr;\n    grid-template-rows:1fr\n  \}/);
+  assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--dockcolor\{grid-column:1;grid-row:1\}/);
+  assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--env\{grid-column:2;grid-row:1\}/);
 });
