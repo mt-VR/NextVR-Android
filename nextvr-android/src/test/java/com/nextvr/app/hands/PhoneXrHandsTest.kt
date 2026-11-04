@@ -477,15 +477,25 @@ class PhoneXrHandsTest {
         }
         val engine = PhoneXrHands()
         var reference = 0f
+        var stamp = 1000L
+        // Cada ângulo é mantido por vinte quadros: girar o pulso e parar é o que uma pessoa faz, e
+        // medir a palma no quadro do salto mediria o atraso do filtro (25 % por quadro no repouso),
+        // não a forma da mão.
         for ((i, deg) in listOf(0f, 45f, 90f, 135f, 180f).withIndex()) {
-            val h = engine.process(result(rotated(deg), 1000L + i * 33), 1f, 1f).hands.single()
+            var h = engine.process(result(rotated(deg), stamp), 1f, 1f).hands.single()
+            repeat(19) {
+                stamp += 33
+                h = engine.process(result(rotated(deg), stamp), 1f, 1f).hands.single()
+            }
+            stamp += 33
             val palm = span(h, 0, 9)
             if (i == 0) reference = palm
-            assertEquals("palma intacta a ${'$'}deg graus", reference, palm, reference * .06f)
+            assertEquals("palma intacta a ${'$'}deg graus", reference, palm, reference * .03f)
             assertTrue("dedo indicador continua existindo a ${'$'}deg graus", span(h, 0, 8) > .05f)
+            // E a mão inteira girou de verdade: o nó do dedo médio saiu do lugar.
+            if (i == 0) assertTrue("a rotação não é identidade", span(h, 0, 12) > .1f)
         }
     }
-
     /**
      * Fechar e abrir os dedos (o punho de verdade, não a mão crescendo): os quatro dedos dobram
      * para dentro do nó e a ponta tem de acompanhar. Um corretor de comprimento ingênuo — que
@@ -551,18 +561,29 @@ class PhoneXrHandsTest {
     @Test fun movingTowardsAndAwayFromTheCameraKeepsTheShape() {
         val engine = PhoneXrHands()
         val ratios = mutableListOf<Float>()
-        for ((i, scale) in listOf(1f, 1.4f, 2f, 1.4f, 1f).withIndex()) {
-            val scaled = points(.2f).mapIndexed { j, p ->
-                val dx = p.x() - .5f; val dy = p.y() - .8f
-                NormalizedLandmark.create(.5f + dx * scale, .8f + dy * scale, p.z())
+        var stamp = 1000L
+        // Aproximar e afastar sem pular: passos de 20 % da distância, com o filtro assentado.
+        for (scale in listOf(1f, 1.2f, 1.4f, 1.2f, 1f)) {
+            var h = engine.process(result(nearFar(scale), stamp), 1f, 1f).hands.single()
+            repeat(11) {
+                stamp += 33
+                h = engine.process(result(nearFar(scale), stamp), 1f, 1f).hands.single()
             }
-            val h = engine.process(result(scaled, 1000L + i * 33), 1f, 1f).hands.single()
+            stamp += 33
             val palm = span(h, 0, 9)
             // O comprimento dos dedos em fração da palma não muda com a distância.
             ratios.add(span(h, 0, 12) / palm)
+            // E a palma acompanhou o movimento (não ficou presa).
+            if (ratios.size == 3) assertTrue("a mão chegou perto ($palm)", palm > .32f)
         }
         val spread = ratios.maxOrNull()!! - ratios.minOrNull()!!
-        assertTrue("a proporção não muda com a distância ($ratios)", spread < .12f)
+        assertTrue("a proporção não muda com a distância ($ratios)", spread < .10f)
+    }
+
+    /** A mesma mão de [points], em escala em torno do centro da palma. */
+    private fun nearFar(scale: Float): List<NormalizedLandmark> = points(.2f).mapIndexed { _, p ->
+        val dx = p.x() - .5f; val dy = p.y() - .8f
+        NormalizedLandmark.create(.5f + dx * scale, .8f + dy * scale, p.z())
     }
 
     /** Pinça repetida: cada ciclo dá exatamente um DOWN e um UP. */
