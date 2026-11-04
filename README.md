@@ -77,17 +77,18 @@ and how to tune it: [`docs/DIRECT-TOUCH.md`](docs/DIRECT-TOUCH.md).
 
 ## Palm cursor (the dot between thumb and index)
 
-The NextVR dot tracks the Meta Quest 3S behaviour: **it appears when the palm is turned up and
-disappears when the palm is turned down**, for either hand, each with its own cursor. Orientation is
-geometry, not the hand's height: the palm plane comes from three 3D landmarks (wrist, index MCP,
-pinky MCP), the normal is oriented per hand (left and right mirror each other) and compared with the
-head's "up". A single gate per hand smooths it, applies hysteresis (a higher threshold to show, a
-lower one to hide), tolerates a short tracking miss and fades the dot out — it is never removed on
-the first bad frame. The dot keeps its old position between thumb and index, and the pinch trigger it
-already had (right: toggle Dock/Apps, left: brightness/volume window) is unchanged.
+The NextVR dot tracks the Meta Quest 3S behaviour: **it appears when the palm faces the camera/headset
+and disappears when the back of the hand does**, for either hand, each with its own cursor. Orientation
+is geometry, not the hand's height or finger pose: the palm plane comes from three 3D landmarks (wrist,
+index MCP, pinky MCP), the normal is oriented per hand (left and right mirror each other) and compared
+with the palm → eye direction via a dot product. A single gate per hand smooths it, applies hysteresis
+(a higher threshold to show, a lower one to hide), tolerates a short tracking miss and fades the dot
+out — it is never removed on the first bad frame. The dot keeps its old position between thumb and
+index, and the pinch trigger it already had (right: toggle Dock/Apps, left: brightness/volume window)
+is unchanged.
 
-Thresholds, the 2D-only fallback and the honest limits:
-[`docs/PALM-CURSOR.md`](docs/PALM-CURSOR.md).
+Thresholds, the 2D fallback and the honest limits: [`docs/PALM-CURSOR.md`](docs/PALM-CURSOR.md).
+Tracking pipeline, filters, latency and every fix: [`docs/HAND-TRACKING.md`](docs/HAND-TRACKING.md).
 
 ## Latest UI/input update
 

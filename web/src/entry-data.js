@@ -46,23 +46,36 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'palm-cursor',
-    tag: 'CORRIGIDO · PALM CURSOR: A BOLINHA COM A PALMA PARA CIMA (META QUEST 3S)',
+    tag: 'CORRIGIDO · PALM CURSOR: PALMA PARA A CÂMERA ACENDE, DORSO APAGA (META QUEST 3S)',
     time: 'Agora',
-    heading: 'Palm Cursor: Mais Nada de Bolinha Piscando ou Sumindo Sozinha',
-    desc: 'A bolinha entre o polegar e o indicador agora aparece com a PALMA VIRADA PARA CIMA e some com a '
-      + 'palma para baixo — medido pela geometria da mão em 3D (pulso, MCP do indicador e MCP do dedo mínimo), '
-      + 'nunca pela altura dela. Antes eram dois juízes discordando a cada quadro — o sinal que vinha do '
-      + 'rastreador e uma segunda decisão do lado da interface — e era isso que fazia a bolinha piscar, '
-      + 'desaparecer com a mão parada e trocar de lado quando as mãos se cruzavam. Agora existe uma medida só, '
-      + 'com suavização, histerese (acende num limiar, apaga em outro mais baixo), tolerância a falha curta de '
-      + 'rastreamento e saída em fade. Cada mão tem o seu próprio cursor: duas mãos levantadas, dois cursores. '
-      + 'A posição continua sendo entre o polegar e o indicador, e o gatilho de pinça da bolinha (alternar '
-      + 'Dock/Apps pela direita, janelinha de Brilho e Som pela esquerda) não mudou. De brinde, o rastreamento '
-      + 'parou de tremer e de deformar a mão: o filtro de posição estava, na prática, desligado (150 Hz a 30 '
-      + 'quadros/s passa ~97 % do valor cru), e o limite de alcance esticava o dedo até um teto fixo num '
-      + 'solavanco de um quadro só. Agora o tremor do repouso é filtrado de verdade, um solavanco é segurado '
-      + 'perto do quadro anterior, e reaparecer depois de uma falha desloca a mão inteira em vez de esticar a '
-      + 'palma.',
+    heading: 'Palm Cursor: Mais Nada de Bolinha Piscando, Sumindo ou Trocando de Lado',
+    desc: 'A bolinha entre o polegar e o indicador aparece com a PALMA VOLTADA PARA A CÂMERA/HEADSET e '
+      + 'some quando é o DORSO da mão que está voltado para lá — o gesto do Meta Quest, medido pela '
+      + 'geometria da mão em 3D: a normal da palma (pulso, MCP do indicador e MCP do dedo mínimo) vezes '
+      + 'a direção palma → olho. Nada de "a mão está alta, então está virada": altura, posição dos dedos '
+      + 'e o desenho 2D não decidem nada. Antes eram dois juízes discordando a cada quadro — o sinal que '
+      + 'vinha do rastreador e uma segunda decisão do lado da interface — e era isso que fazia a bolinha '
+      + 'piscar, desaparecer com a mão parada e trocar de lado quando as mãos se cruzavam. Agora existe '
+      + 'uma medida só, com suavização, histerese (acende num limiar, apaga em outro mais baixo), '
+      + 'tolerância a falha curta e saída em fade. Cada mão tem o seu cursor. O gatilho de pinça da '
+      + 'bolinha (Dock/Apps pela direita, Brilho e Som pela esquerda) não mudou.',
+  },
+  {
+    id: 'hand-tracking-deep',
+    tag: 'CORRIGIDO · RASTREAMENTO: SEM TREMOR, SEM DEDO CONTORCENDO',
+    time: 'Agora',
+    heading: 'Mãos Estáveis: o Tremor e a Deformação Foram Corrigidos na Raiz',
+    desc: 'Três causas reais, medidas no código do rastreador: (1) o filtro One Euro dos 63 landmarks '
+      + 'estava, na prática, desligado — 150 Hz a 30 quadros/s passa ~97 % do valor cru — e o ganho de '
+      + 'velocidade não separava tremor de movimento, então o ruído de ~1 px por quadro elevava o corte '
+      + 'e passava direto; agora o repouso é filtrado com zona morta (tremor abaixo dela não é publicado) '
+      + 'e o movimento devolve o valor cru em um quadro. (2) O limite de alcance cortava cada landmark '
+      + 'contra um teto fixo, então um solavanco de um quadro esticava o dedo e ele voltava no seguinte: '
+      + 'agora o corte é contra o raio do quadro anterior e existe consistência anatômica — o comprimento '
+      + 'de cada osso do dedo é aprendido em fração da palma e só é corrigido quando salta, sem congelar '
+      + 'articulação nenhuma. (3) Reaparecer depois de uma falha virou TRANSLACÃO da mão inteira (antes '
+      + 'só o pulso era misturado e a palma esticava). De brinde, a previsão deixou de ser feita duas '
+      + 'vezes (no nativo e no shell), que era o que fazia a mão passar do ponto em movimento rápido.',
   },
   {
     id: 'direct-touch',

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings as S, save, scene, contentRoot, camera, EYE, on, emit, t, toast, onFrame, native, viewport, css3d, recenter } from './core.js';
 import { DirectTouch, POKE_STATE } from './direct-touch.js';
-import { PalmCursorGate, PALM_CURSOR, palmUpOfHand, bolinhaNormalizedPoint, BolinhaMotion } from './palm-cursor.js';
+import { PalmCursorGate, PALM_CURSOR, palmFacingOfHand, bolinhaNormalizedPoint, BolinhaMotion } from './palm-cursor.js';
 import { cursor, screenPoint, predictedCursor, predictedHandScreenPoint, cancelHandInput } from './hands.js';
 import { COMFORT } from './comfort.js';
 import { icon } from './reference-icons.js';
@@ -3212,7 +3212,7 @@ let leftHandBolinhaState = {
 };
 
 /**
- * Palma erguida (virada para cima) — a medida que acende a bolinha.
+ * Palma voltada para a câmera — a medida que acende a bolinha.
  *
  * Antes eram DOIS juízes discordando a cada quadro: `palmToFace` vinha pronto do nativo (sinal de um
  * produto vetorial 2D, sem memória) e, quando ele era `undefined`, o web decidia de novo pelo
@@ -3490,8 +3490,8 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   let anyActive = false;
 
   /*
-   * A bolinha de cada mão é decidida por um portão próprio (palm-cursor.js): palma para cima acende,
-   * palma para baixo apaga em fade, e a orientação é medida em 3D. A ARMINHA continua sendo o que
+   * A bolinha de cada mão é decidida por um portão próprio (palm-cursor.js): palma voltada para a
+   * câmera acende, dorso apaga em fade, e a orientação é medida em 3D. A ARMINHA continua sendo o que
    * arma o gatilho de pinça — o cursor não depende mais dela para aparecer, e é isso que tira o
    * "desaparece do nada" (antes a bolinha vivia dentro de uma janela de 300 ms de armar).
    */
@@ -3499,7 +3499,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 1. Mão direita física (bolinha com o logo IMG_20261007_215701.png + contorno azul + alternar Dock/Apps)
   const rightHand = (packet?.hands || []).find(h => isRightBolinhaHand(h));
   const rightCursor = bolinhaGateRight.update({
-    facing: rightHand ? palmUpOfHand(rightHand, true) : null,
+    facing: rightHand ? palmFacingOfHand(rightHand, true) : null,
     nowMs,
     present: Boolean(rightHand && rightHand.points?.length >= 63),
   });
@@ -3556,7 +3556,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 2. Mão esquerda física (bolinha com o logo IMG_20261007_215728.png + pinça abre a janelinha de Brilho e Som)
   const leftHand = (packet?.hands || []).find(h => isLeftBolinhaHand(h));
   const leftCursor = bolinhaGateLeft.update({
-    facing: leftHand ? palmUpOfHand(leftHand, false) : null,
+    facing: leftHand ? palmFacingOfHand(leftHand, false) : null,
     nowMs,
     present: Boolean(leftHand && leftHand.points?.length >= 63),
   });

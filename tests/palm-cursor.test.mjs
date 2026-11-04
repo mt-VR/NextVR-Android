@@ -1,7 +1,7 @@
-// Palm Cursor: a bolinha entre o polegar e o indicador aparece com a PALMA VIRADA PARA CIMA.
+// Palm Cursor: a bolinha entre o polegar e o indicador aparece com a PALMA VOLTADA PARA A CÂMERA.
 //
 // O que estes testes travam (cada um foi um bug observado no aparelho):
-//  • palma para cima -> bolinha; palma para baixo -> nenhuma bolinha (e some se estava aparecendo);
+//  • palma para a câmera -> bolinha; dorso da mão -> nenhuma bolinha (e some se estava aparecendo);
 //  • a orientação NÃO pode depender da altura da mão: a mesma pose baixa e alta dá o mesmo valor;
 //  • esquerda e direita não se invertem (a mesma pose nas duas mãos tem normais opostas);
 //  • giro lento acompanha a orientação e não pisca no meio do caminho;
@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PALM_CURSOR, PalmCursorGate, palmUpFromHead, palmUpOfHand,
+  PALM_CURSOR, PalmCursorGate, palmFacingFromHead, palmFacingOfHand,
   isBackOfHand, bolinhaNormalizedPoint, BolinhaMotion,
 } from '../web/src/palm-cursor.js';
 
@@ -26,7 +26,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
  * sentido do polegar, que é o que distingue as duas mãos fisicamente.
  */
 function headHand({
-  u = [0, 0, -1], out = [0, 1, 0], side = 'right',
+  u = [0, 1, 0], out = [0, 0, 1], side = 'right',
   x = .12, y = -.2, z = -.42, scale = 1,
 } = {}) {
   const U = norm(u), OUT = norm(out);
@@ -52,7 +52,7 @@ function headHand({
 }
 
 /** A mesma mão vista pela câmera: landmarks 2D (0..1, y para baixo), como o pacote sem 3D. */
-function imageHand({ u = [0, 0, -1], out = [0, 1, 0], side = 'right', x = .5, y = .6, scale = .12 } = {}) {
+function imageHand({ u = [0, 1, 0], out = [0, 0, 1], side = 'right', x = .5, y = .6, scale = .12 } = {}) {
   const head = headHand({ u, out, side, x: 0, y: 0, z: 0 });
   const pts = new Array(63).fill(0);
   for (let i = 0; i < 21; i++) {
@@ -63,57 +63,67 @@ function imageHand({ u = [0, 0, -1], out = [0, 1, 0], side = 'right', x = .5, y 
   return pts;
 }
 
-test('palma para cima mede +1, para baixo −1, e nenhum dos dois depende da altura da mão', () => {
+test('palma voltada para a câmera mede +1, dorso mede −1, e nada depende da altura da mão', () => {
   for (const side of ['right', 'left']) {
-    const up = palmUpFromHead(headHand({ side }), side === 'left');
-    const down = palmUpFromHead(headHand({ side, out: [0, -1, 0] }), side === 'left');
-    assert.ok(up > .99, side + ': palma para cima mede ' + up);
-    assert.ok(down < -.99, side + ': palma para baixo mede ' + down);
+    const front = palmFacingFromHead(headHand({ side }), side === 'left');
+    const back = palmFacingFromHead(headHand({ side, out: [0, 0, -1] }), side === 'left');
+    assert.ok(front > .85, side + ': palma para a câmera mede ' + front);
+    assert.ok(back < -.85, side + ': dorso mede ' + back);
   }
   // Baixa, alta ou lateral: a orientação é a mesma — não é a posição vertical que decide.
-  const low = palmUpFromHead(headHand({ y: -.6 }), false);
-  const high = palmUpFromHead(headHand({ y: .5 }), false);
-  const sideways = palmUpFromHead(headHand({ x: .6 }), false);
-  for (const v of [low, high, sideways]) assert.ok(Math.abs(v - 1) < .01, 'mesma orientação em qualquer altura (' + v + ')');
+  const low = palmFacingFromHead(headHand({ y: -.6 }), false);
+  const high = palmFacingFromHead(headHand({ y: .5 }), false);
+  const sideways = palmFacingFromHead(headHand({ x: .6 }), false);
+  // Continuam "de frente" em qualquer altura: o valor cai um pouco quando a mão está bem acima ou
+  // abaixo do olho (a palma deixa de apontar exatamente para ele, e isso é física, não ruído), mas
+  // nunca troca de sinal nem some.
+  for (const v of [low, high, sideways]) assert.ok(v > PALM_CURSOR.showAt + .2, 'de frente em qualquer altura (' + v + ')');
+  // E o dorso, na mesma altura que antes a bolinha aparecia, continua medindo negativo.
+  for (const y of [-.6, .5]) assert.ok(palmFacingFromHead(headHand({ y, out: [0, 0, -1] }), false) < -.5, 'dorso em qualquer altura');
+  // Palma para cima (dedos para a frente) NÃO é "de frente": é de perfil para a câmera.
+  const palmUpProfile = palmFacingFromHead(headHand({ out: [0, 1, 0] }), false);
+  assert.ok(Math.abs(palmUpProfile) < .12, 'palma para o teto fica de perfil (' + palmUpProfile + ')');
 });
 
 test('esquerda e direita concordam: nada de inversão entre as mãos', () => {
-  const right = palmUpFromHead(headHand({ side: 'right' }), false);
-  const left = palmUpFromHead(headHand({ side: 'left' }), true);
-  assert.ok(Math.abs(right - left) < .02, 'as duas mãos com a palma para cima (' + right + ' / ' + left + ')');
-  const rightDown = palmUpFromHead(headHand({ side: 'right', out: [0, -1, 0] }), false);
-  const leftDown = palmUpFromHead(headHand({ side: 'left', out: [0, -1, 0] }), true);
-  assert.ok(Math.abs(rightDown - leftDown) < .02, 'e as duas com a palma para baixo');
+  const right = palmFacingFromHead(headHand({ side: 'right' }), false);
+  const left = palmFacingFromHead(headHand({ side: 'left' }), true);
+  assert.ok(Math.abs(right - left) < .02, 'as duas mãos com a palma para a câmera (' + right + ' / ' + left + ')');
+  const rightBack = palmFacingFromHead(headHand({ side: 'right', out: [0, 0, -1] }), false);
+  const leftBack = palmFacingFromHead(headHand({ side: 'left', out: [0, 0, -1] }), true);
+  assert.ok(Math.abs(rightBack - leftBack) < .02, 'e as duas com o dorso para a câmera');
+  assert.ok(rightBack < -.85, 'dorso continua sendo dorso nas duas mãos');
 });
 
-test('giro em torno do pulso: cima > 45º > lado > baixo, sem saltos', () => {
-  // Dedos apontando para a frente (u = -z): rolar a palma de cima para baixo é girá-la no plano x/y.
+test('girar o pulso: frente > 45º > perfil > dorso, sem saltos', () => {
+  // Dedos para cima e palma girando no plano horizontal (em torno do eixo dos dedos em y).
   const values = [0, 45, 90, 135, 180].map(turn => {
     const a = rad(turn);
-    return palmUpFromHead(headHand({ out: [Math.sin(a), Math.cos(a), 0] }), false);
+    return palmFacingFromHead(headHand({ x: 0, y: 0, z: -.42, u: [0, 1, 0], out: [Math.sin(a), 0, Math.cos(a)] }), false);
   });
   for (let i = 1; i < values.length; i++) {
     assert.ok(values[i] < values[i - 1] + 1e-6, 'sequência monótona: ' + values.map(v => v.toFixed(2)).join(' > '));
   }
-  assert.ok(Math.abs(values[2]) < .02, 'de lado mede ~0 (' + values[2] + ')');
+  assert.ok(Math.abs(values[2]) < .02, 'de perfil mede ~0 (' + values[2] + ')');
+  assert.ok(values[4] < -.9, 'meia volta é o dorso (' + values[4] + ')');
 });
 
 test('mão degenerada ou sem landmarks 3D não é medida', () => {
-  assert.equal(palmUpFromHead(new Array(63).fill(0), false), null, 'mão colapsada');
-  assert.equal(palmUpFromHead(null, false), null, 'sem head');
-  assert.equal(palmUpOfHand({ points: new Array(63).fill(.5), left: false }), null, 'sem geometria 2D');
+  assert.equal(palmFacingFromHead(new Array(63).fill(0), false), null, 'mão colapsada');
+  assert.equal(palmFacingFromHead(null, false), null, 'sem head');
+  assert.equal(palmFacingOfHand({ points: new Array(63).fill(.5), left: false }), null, 'sem geometria 2D');
 });
 
 test('sem 3D o pacote 2D ainda separa palma de dorso (senão a bolinha sumiria num aparelho sem world landmarks)', () => {
-  const palm = imageHand({ side: 'right', u: [0, 1, 0], out: [0, 0, 1] });
-  assert.ok(palmUpOfHand({ id: 'left', left: true, points: palm }, true) > 0, 'palma medida nos 2D');
+  const palm = imageHand({ side: 'right' });
+  assert.ok(palmFacingOfHand({ id: 'left', left: true, points: palm }, true) > 0, 'palma medida nos 2D');
   const pts = new Array(63).fill(.5);
   pts[12] = .52; pts[15] = .39; pts[51] = .31;   // direita: polegar do lado de fora do indicador
   assert.equal(isBackOfHand({ points: pts }, true), true);
-  assert.ok(palmUpOfHand({ points: pts, id: 'left', left: true }, true) < 0, 'dorso não acende a bolinha');
+  assert.ok(palmFacingOfHand({ points: pts, id: 'left', left: true }, true) < 0, 'dorso não acende a bolinha');
   pts[12] = .24; pts[15] = .39; pts[51] = .31;   // palma: polegar do lado de dentro
   assert.equal(isBackOfHand({ points: pts }, true), false);
-  assert.ok(palmUpOfHand({ points: pts, id: 'left', left: true }, true) > 0);
+  assert.ok(palmFacingOfHand({ points: pts, id: 'left', left: true }, true) > 0);
   // Mão esquerda: geometria espelhada, mesmo resultado.
   pts[12] = .24; pts[15] = .39; pts[51] = .46;
   assert.equal(isBackOfHand({ points: pts }, false), true);
@@ -125,10 +135,10 @@ test('sem 3D o pacote 2D ainda separa palma de dorso (senão a bolinha sumiria n
 });
 
 test('o 3D manda quando existe, mesmo que os 2D sugiram outra coisa', () => {
-  const head = headHand({ side: 'right', out: [0, 1, 0] });
+  const head = headHand({ side: 'right' });
   const pts = new Array(63).fill(.5);
   pts[12] = .52; pts[15] = .39; pts[51] = .31; // "dorso" nos 2D
-  assert.ok(palmUpOfHand({ points: pts, head, id: 'right', left: false }) > .99, 'a geometria 3D decide');
+  assert.ok(palmFacingOfHand({ points: pts, head, id: 'right', left: false }) > .5, 'a geometria 3D decide');
 });
 
 test('histerese: acende acima de 0,34 e só apaga abaixo de 0,16 depois da tolerância', () => {
@@ -147,7 +157,7 @@ test('histerese: acende acima de 0,34 e só apaga abaixo de 0,16 depois da toler
   assert.equal(gate.visible, false, 'abaixo do limiar baixo por toda a tolerância apaga');
 });
 
-test('palma para baixo apaga; voltar a erguer acende de novo, com fade na saída', () => {
+test('dorso apaga; virar a palma de volta acende, com fade na saída', () => {
   const gate = new PalmCursorGate();
   let t = 0;
   assert.equal(gate.update({ facing: 1, nowMs: t += 33 }).visible, true);
@@ -156,7 +166,7 @@ test('palma para baixo apaga; voltar a erguer acende de novo, com fade na saída
   for (let i = 0; i < 20; i++) {
     down = gate.update({ facing: -1, nowMs: t += 33 });
     if (down.changed) {
-      assert.equal(down.visible, false, 'palma para baixo apaga');
+      assert.equal(down.visible, false, 'dorso para a câmera apaga');
       assert.equal(down.fading, true, 'a saída é em fade, não um corte');
     }
   }
@@ -187,7 +197,7 @@ test('giro lento acompanha a orientação sem piscar no meio do caminho', () => 
     last = out.visible;
   }
   assert.equal(changes, 2, 'um liga e um desliga num giro completo (' + changes + ')');
-  assert.equal(gate.visible, false, 'termina escondida com a palma para baixo');
+  assert.equal(gate.visible, false, 'termina escondida com o dorso para a câmera');
 });
 
 test('tremor de ±2 mm na palma não pisca a bolinha', () => {
@@ -209,9 +219,8 @@ test('mão perdida por um quadro não apaga; perdida de verdade apaga', () => {
 });
 
 test('a bolinha fica entre o polegar e o indicador', () => {
-  // Dedos para cima e palma para a câmera: é a pose que a imagem consegue medir (palma para cima com
-  // os dedos para a frente é vista de perfil, a projeção colapsa numa linha).
-  const p = imageHand({ side: 'right', u: [0, 1, 0], out: [0, 0, 1] });
+  // Dedos para cima e palma para a câmera: a pose que a imagem consegue medir.
+  const p = imageHand({ side: 'right' });
   const pt = bolinhaNormalizedPoint({ points: p });
   const thumbU = p[12], thumbV = p[13], indexU = p[24], indexV = p[25];
   assert.ok(pt.u > Math.min(thumbU, indexU) && pt.u < Math.max(thumbU, indexU), 'u entre polegar e indicador');

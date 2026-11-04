@@ -264,8 +264,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                com.nextvr.app.hands.PhoneXrHands.Frame webFrame=frame.predicted(android.os.SystemClock.elapsedRealtimeNanos());
-                String payload=inGame?webFrame.gameJson():webFrame.json();
+                // A previsão de apresentação (frame.predicted) fica SÓ para o desenho nativo, que a
+                // reconstrói a cada quadro de exibição. Mandar a versão extrapolada para o WebView
+                // somava duas extrapolações (a daqui e a do cursor do shell), e era isso que fazia a
+                // mão "passar do ponto" e voltar em movimento rápido. O shell prevê a partir do
+                // timestamp de CAPTURA que vem no pacote, com uma previsão só.
+                String payload=inGame?frame.gameJson():frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
             }

@@ -155,7 +155,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
   assert.ok(
     windowsSrc.includes("from './palm-cursor.js'") &&
     windowsSrc.includes('PalmCursorGate') &&
-    windowsSrc.includes('palmUpOfHand') &&
+    windowsSrc.includes('palmFacingOfHand') &&
     windowsSrc.includes('isPalmTurnedForBolinha') &&
     windowsSrc.includes('isHandPinchFromBolinha') &&
     windowsSrc.includes('nextvr-bolinha-logo.png') &&

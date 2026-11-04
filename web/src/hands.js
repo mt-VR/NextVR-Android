@@ -18,6 +18,31 @@ export async function startHands() {
   if (!native) { toast('Hand tracking requires the Android camera pipeline.'); return false; }
   enabled = true; window.NativeXR.hands(true); emit('hands', true); return true;
 }
+/**
+ * Diagnóstico do pipeline de mãos, medido no aparelho (não é estimativa):
+ *
+ *   inferenceMs  — idade do quadro quando o MediaPipe terminou (captura → resultado), medido pelo
+ *                  rastreador nativo: é a parte da latência que o app não controla;
+ *   handleMs     — tempo gasto pelo shell para tratar o pacote (filtro do cursor, hit-test, emissores
+ *                  de gesto e a reconstrução dos alvos espaciais);
+ *   frames       — quantos pacotes foram tratados desde o início (para tirar média por segundo).
+ *
+ * Comparar handleMs com inferenceMs diz onde está o gargalo sem chutar: subiu o primeiro, o shell está
+ * pesado; subiu o segundo, o detector está lento (luz, distância, aparelho).
+ *
+ * É o suficiente para separar "o rastreamento está lento" de "a interface está lenta" sem chutar.
+ */
+export const handStats = { frames: 0, handleMs: 0, inferenceMs: 0, payloadBytes: 0, maxHandleMs: 0 };
+window.__handStats = handStats;
+let statsSamples = 0;
+function noteHandFrameCost(now, started, inferenceMs) {
+  const cost = performance.now() - started;
+  handStats.frames++;
+  statsSamples++;
+  handStats.handleMs += (cost - handStats.handleMs) / Math.min(60, statsSamples);
+  if (cost > handStats.maxHandleMs) handStats.maxHandleMs = cost;
+  if (inferenceMs > 0) handStats.inferenceMs += (inferenceMs - handStats.inferenceMs) / Math.min(60, statsSamples);
+}
 function emitClickEvents(events) {
   for (const event of events) emit(`pinch${event}`, cursor);
 }
@@ -57,6 +82,8 @@ const CURSOR_PREDICT_MAX_SPEED = 4.5;   // unidades normalizadas/s — resposta 
 const CURSOR_PREDICT_MAX_STEP = .14;    // alcance de extrapolação para compensar scanout do display
 let cursorVel = { x: 0, y: 0 }, cursorAt = 0, cursorStampNs = 0;
 const _perHandCursorState = new Map();
+/** Timestamp de captura (ns) do último pacote recebido do rastreador. */
+let packetStampNs = 0;
 
 export function predictedCursor(nowMs = performance.now()) {
   if (!cursor.active) return { x: cursor.x, y: cursor.y };
@@ -73,7 +100,11 @@ export function predictedHandScreenPoint(hand, nowMs = performance.now()) {
   const base = screenPoint(hand.aim);
   const st = _perHandCursorState.get(hand.id);
   if (!st) return base;
-  const rawAge = nowMs - st.at;
+  // Idade medida na linha do tempo de CAPTURA. Antes ela vinha da hora de chegada ao WebView, que
+  // jittera com o dreno da fila: a mesma mão extrapolava diferente a cada quadro (tremor/overshoot).
+  const rawAge = st.stampNs > 0 && packetStampNs > 0
+    ? Math.max(0, (packetStampNs - st.stampNs) / 1e6)
+    : nowMs - st.at;
   if (!(rawAge > 0) || rawAge > CURSOR_PREDICT_MAX_MS) return base;
   const t = (rawAge * 1.35) / 1000, clamp = v => Math.max(-CURSOR_PREDICT_MAX_STEP, Math.min(CURSOR_PREDICT_MAX_STEP, v));
   return {
@@ -136,6 +167,11 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   if (!enabled) return;
   reportHandFrame();
   const now = performance.now();
+  // Timestamp de CAPTURA do quadro: é a única linha do tempo em que a previsão e a velocidade podem
+  // ser medidas (a hora de chegada ao WebView jittera com o dreno da fila).
+  const stampNs = Number(frame.timestampNs) || 0;
+  if (stampNs > 0) packetStampNs = stampNs;
+  const started = now;
   scaleX=sx;scaleY=sy;lastFrame=now;
   // Floor of 1 s: opening a floating window stalls the WebView/main thread briefly, delaying
   // frame delivery; a transient stall must not expire the hand state and flicker the cursor.
@@ -151,7 +187,7 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
     incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
   }
   hands.splice(0,hands.length,...incomingHands);
-  updatePerHandVelocities(hands, now, Number(frame.timestampNs) || 0);
+  updatePerHandVelocities(hands, now, stampNs);
   emit('handframe',{...frame,hands});
   const consumed=new Set();
   const packet={ hands, consumed, scaleX, scaleY };
@@ -162,13 +198,14 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   }
   // The spatial window adapter handles PhoneXR fist-grab and NEAR contacts before FAR pointing.
   emit('phonehands', packet);
+  noteHandFrameCost(now, started, Number(frame.inferenceMs) || 0);
   if(packet.blockFar){cancel();return;}
   const available=hands.filter(h=>!packet.consumed.has(h.id));
   const chosen=(clickState.down && available.find(h=>h.id===clickState.handId))
     || available.find(h=>h.pinching) || [...available].sort((a,b)=>b.palmWidth-a.palmWidth)[0];
   if (!chosen) { cancel(); return; }
   const point=screenPoint(chosen.aim);
-  updateCursorVelocity(point, now, Number(frame.timestampNs) || 0);
+  updateCursorVelocity(point, now, stampNs);
   cursor.x=point.x;cursor.y=point.y;cursor.active=true;cursor.hand=chosen;
   // A motion-model prediction keeps the cursor continuous across a missed detection but must
   // never touch the gesture machine: no press can START, RELEASE, or complete from predicted

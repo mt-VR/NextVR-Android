@@ -76,6 +76,31 @@ class PhoneXrHands {
         private const val HARD_REACH_FLOOR = .06f
         /** Quanto o pulso volta ao lugar antigo no primeiro quadro depois de uma falha. */
         private const val WRIST_REACQUIRE = .55f
+        /** Ossos das cinco correntes de dedo: polegar, indicador, médio, anelar, mínimo. */
+        private val BONES = intArrayOf(
+            1, 2, 2, 3, 3, 4,
+            5, 6, 6, 7, 7, 8,
+            9, 10, 10, 11, 11, 12,
+            13, 14, 14, 15, 15, 16,
+            17, 18, 18, 19, 19, 20,
+        )
+        private val BONE_COUNT = BONES.size / 2
+        /**
+         * Esticar 25 % além do comprimento natural num quadro já é artefato (landmark pulando,
+         * oclusão, ruído de profundidade) e é corrigido.
+         *
+         * ENCOLHER é permitido de propósito: na projeção da câmera um dedo que se dobra em direção
+         * à lente encurta de verdade. Travar o comprimento para baixo faria o punho ser desfeito
+         * pelo próprio corretor — a mão não conseguiria fechar.
+         */
+        private const val BONE_TOLERANCE = 1.25f
+        /** Queda de comprimento de um quadro para o outro que só pode ser falha (dedo "sumindo"). */
+        private const val BONE_COLLAPSE = .62f
+        /** Quanto da correção é aplicada por quadro (o resto fica para os seguintes). */
+        private const val BONE_CORRECTION = .55f
+        /** A referência sobe rápido (dedo abrindo) e desce devagar (nunca aperta o dedo). */
+        private const val BONE_LEARN_UP = .50f
+        private const val BONE_LEARN_DOWN = .05f
     }
     data class Hand(val left: Boolean, val points: FloatArray, val head: FloatArray?,
                     val shape: HandGestures.Shape, val baseX: Float, val baseY: Float,
@@ -215,16 +240,20 @@ class PhoneXrHands {
     }
     private class State {
         /**
-         * Os 63 landmarks da silhueta. O minCutoff anterior (150 Hz) era, na prática, o filtro
-         * DESLIGADO: com 150 Hz a 30 quadros/s o One Euro passa ~97 % do valor cru, então todo o
-         * tremor do MediaPipe ia direto para o desenho — era a mão tremendo e, junto com o limite de
-         * alcance, se contorcendo. Com 3 Hz a mão PARADA fica firme, e o beta alto devolve o valor
-         * cru assim que ela se move: nada de atraso no movimento, só silêncio no repouso.
+         * Os 63 landmarks da silhueta.
+         *
+         * Duas coisas erradas antes: o minCutoff de 150 Hz era, na prática, o filtro DESLIGADO (a 30
+         * quadros/s ele passa ~97 % do valor cru), e o beta alto não distinguia tremor de movimento —
+         * com ruído de ~1 px por quadro a derivada estimada já eleva o corte para ~30 Hz, então o
+         * tremor passava direto. Agora o repouso fica realmente filtrado e há uma ZONA MORTA: o valor
+         * filtrado só é publicado quando sai de ±0,0006 (≈1 px de 900) do que já está na tela, o que
+         * mata o tremor residual de um filtro linear. Em movimento nada disso pesa: a mão sai da zona
+         * morta no primeiro quadro e o beta devolve o valor cru.
          */
         val landmarks = Array(63) { i ->
             when {
-                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=3.0f, beta=40.0f, deadZone=0f)
-                else -> HandGestures.OneEuro(minCutoff=3.0f, beta=60.0f, deadZone=0f)
+                i % 3 == 2 -> HandGestures.OneEuro(minCutoff=1.6f, beta=6.0f, deadZone=0.0012f)
+                else -> HandGestures.OneEuro(minCutoff=1.6f, beta=14.0f, deadZone=0.0006f)
             }
         }
         // O raio/cursor usa estes dois: beta alto = o raio chega junto com a mão, nunca fica
@@ -254,6 +283,18 @@ class PhoneXrHands {
          * vez). Ver o limite de alcance em [process].
          */
         val reach = FloatArray(21)
+        /**
+         * Comprimento de cada osso do dedo como FRAÇÃO da palma, aprendido ao longo do tempo. Serve
+         * para a consistência anatômica: um dedo que estica ou encurta de repente (landmark pulando
+         * de posição, oclusão, ruído de profundidade) é puxado de volta ao comprimento natural em vez
+         * de contorcer a mão. É fração da palma, então continua certo quando a mão se aproxima ou se
+         * afasta da câmera.
+         */
+        val boneRatio = FloatArray(BONE_COUNT)
+        /** Quantos quadros a referência de cada osso já viu (0 = ainda é a medida crua). */
+        val boneSeen = IntArray(BONE_COUNT)
+        /** Comprimento do osso no quadro anterior: é contra ele que se mede um colapso de 1 quadro. */
+        val bonePrev = FloatArray(BONE_COUNT)
 
         /** Feed the newest real detection: blend its velocity estimate, never snap the model. */
         fun noteDetection(stampNs: Long, hand: PhoneXrHands.Hand) {
@@ -384,16 +425,18 @@ class PhoneXrHands {
             val m9x = raw[9].x() + shiftX; val m9y = raw[9].y() + shiftY
             val palmLen = kotlin.math.hypot(m9x - w0x, m9y - w0y)
             val hardReach = (palmLen * 2.35f).coerceAtLeast(HARD_REACH_FLOOR)
-            val points = raw.mapIndexed { i,p ->
-                var px = p.x() + shiftX
-                var py = p.y() + shiftY
+            // 1) Limite de alcance: corta solavanco de um quadro contra o raio do quadro anterior.
+            val fx = FloatArray(21)
+            val fy = FloatArray(21)
+            for (i in 0 until 21) {
+                var px = raw[i].x() + shiftX
+                var py = raw[i].y() + shiftY
                 if (i > 0 && palmLen > MIN_PALM_FOR_REACH) {
                     val rx = px - w0x; val ry = py - w0y
                     val rd = kotlin.math.hypot(rx, ry)
                     if (rd > 1e-4f) {
-                        // Um solavanco de UM quadro é cortado perto do raio anterior; um dedo que
-                        // abre de verdade cresce aos poucos e passa direto. O limite duro continua
-                        // como última barreira contra mão degenerada.
+                        // Um dedo que abre de verdade cresce aos poucos e passa direto; o limite duro
+                        // continua como última barreira contra mão degenerada.
                         val previous = state.reach[i]
                         val jumpCap = if (previous > 0f) previous * REACH_JUMP else hardReach
                         if (rd > jumpCap) {
@@ -406,9 +449,63 @@ class PhoneXrHands {
                         }
                     }
                 }
+                fx[i] = px; fy[i] = py
+            }
+            // 2) Consistência anatômica. Dois artefatos, dois remédios, nenhum congelamento:
+            //    (a) um osso que de um quadro para o outro fica 25 % mais comprido que o natural
+            //        (landmark saltando, profundidade errada) é puxado de volta — o dedo para de
+            //        "esticar sozinho";
+            //    (b) um osso que em UM quadro cai a menos de 62 % do que era (o dedo some e volta
+            //        torto) é devolvido ao tamanho anterior — o dedo para de "encolher sozinho".
+            //    Nos dois casos a DIREÇÃO atual é preservada: só o comprimento muda, então o dedo
+            //    continua dobrando e girando normalmente. O natural é medido em fração da palma,
+            //    o que mantém tudo válido com a mão perto ou longe da câmera.
+            if (palmLen > MIN_PALM_FOR_REACH) {
+                for (b in 0 until BONE_COUNT) {
+                    val a = BONES[b * 2]; val c = BONES[b * 2 + 1]
+                    var dx = fx[c] - fx[a]; var dy = fy[c] - fy[a]
+                    val len = kotlin.math.hypot(dx, dy)
+                    if (len < 1e-5f) continue
+                    val ratio = len / palmLen
+                    if (state.boneSeen[b] == 0) {
+                        state.boneRatio[b] = ratio
+                        state.bonePrev[b] = ratio
+                        state.boneSeen[b] = 1
+                        continue
+                    }
+                    val reference = state.boneRatio[b]
+                    val previous = state.bonePrev[b]
+                    val stretched = ratio > reference * BONE_TOLERANCE
+                    val collapsed = !stretched && previous > 1e-6f && ratio < previous * BONE_COLLAPSE
+                    val target = when {
+                        stretched -> reference * 1.10f
+                        collapsed -> previous
+                        else -> ratio
+                    }
+                    val shown: Float
+                    if (target != ratio) {
+                        val wanted = target * palmLen
+                        val corrected = len + (wanted - len) * BONE_CORRECTION
+                        val k = corrected / len
+                        dx *= k; dy *= k
+                        fx[c] = fx[a] + dx; fy[c] = fy[a] + dy
+                        shown = corrected / palmLen
+                    } else {
+                        shown = ratio
+                    }
+                    state.boneRatio[b] = if (shown > reference)
+                        reference + (shown - reference) * BONE_LEARN_UP
+                    else
+                        reference + (shown - reference) * BONE_LEARN_DOWN
+                    state.bonePrev[b] = shown
+                    if (state.boneSeen[b] < 1000) state.boneSeen[b]++
+                }
+            }
+            // 3) Suavização (One Euro com zona morta) e publicação dos 21 landmarks.
+            val points = List(21) { i ->
                 NormalizedLandmark.create(
-                    state.landmarks[i*3].filter(px,stamp), state.landmarks[i*3+1].filter(py,stamp),
-                    state.landmarks[i*3+2].filter(p.z(),stamp))
+                    state.landmarks[i*3].filter(fx[i],stamp), state.landmarks[i*3+1].filter(fy[i],stamp),
+                    state.landmarks[i*3+2].filter(raw[i].z(),stamp))
             }
             val imageShape = HandGestures.shape(points,left)
             val world = result.worldLandmarks().getOrNull(index)

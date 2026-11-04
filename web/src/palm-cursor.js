@@ -1,7 +1,8 @@
 // Palm Cursor: orientação da palma da mão (a bolinha entre o polegar e o indicador).
 //
-// A bolinha aparece quando a PALMA ESTÁ VIRADA PARA CIMA e some quando está virada para baixo —
-// como o cursor de mão do Meta Quest, mas medido pela geometria da mão, não pela altura dela.
+// A bolinha aparece quando a PALMA ESTÁ VOLTADA PARA A CÂMERA/HEADSET e some quando é o DORSO da mão
+// que está voltado para lá — o comportamento do cursor de mão do Meta Quest, medido pela geometria da
+// mão (normal da palma × direção palma → olho), nunca pela altura dela nem pela posição dos dedos.
 //
 // Uma única medida de orientação, em 3D quando o rastreamento a oferece:
 //
@@ -10,17 +11,17 @@
 //   • o sentido "para fora da palma" depende da mão física (a mesma pose na mão esquerda é a imagem
 //     espelhada da direita), por isso a normal é orientada por mão: fora = s × u na direita e
 //     u × s na esquerda, com u = pulso→nós dos dedos e s = indicador→mínimo;
-//   • a comparação é com o "para cima" da cabeça (+Y do espaço da cabeça que o rastreador publica em
-//     `head`), então girar o corpo ou andar não muda nada, e a orientação da mão é independente da
-//     altura em que ela está.
+//   • a comparação é com a direção PALMA → OLHO (o olho é a origem do espaço da cabeça que o
+//     rastreador publica em `head`), então girar o corpo, andar ou levantar a mão não muda nada: só
+//     a orientação conta. Palma de frente mede +1, dorso mede −1, mão de perfil mede ~0.
 //
 // Em cima dessa medida, [PalmCursorGate] faz o que faltava: suavização temporal, histerese (um
 // limiar para acender, outro mais baixo para apagar), tolerância curta a falhas de rastreamento e
 // saída em fade — nunca um `remove()` no primeiro quadro ruim.
 
-/** Limiares de "quanto a palma aponta para cima": −1 (para baixo) .. +1 (para cima). */
+/** Limiares de "quanto a palma olha para a câmera": −1 (dorso) .. +1 (palma de frente). */
 export const PALM_CURSOR = Object.freeze({
-  /** Acende a partir daqui (palma claramente para cima). */
+  /** Acende a partir daqui (palma claramente voltada para a câmera). */
   showAt: .34,
   /** Apaga abaixo daqui (histerese: um valor no meio mantém o estado atual). */
   hideAt: .16,
@@ -36,7 +37,7 @@ export const PALM_CURSOR = Object.freeze({
   minPalm2d: .008,
   /** Margem do polegar contra o dorso da mão (era .015 e disparava com tremor). */
   thumbMargin: .025,
-  /** Valor devolvido quando só existem landmarks 2D: dá para separar palma de dorso, não "para cima". */
+  /** Valor devolvido quando só existem landmarks 2D: separa palma de dorso (comprimido). */
   fallbackFacing: .6,
 });
 
@@ -64,13 +65,26 @@ function palmNormal(head, left) {
 }
 
 /**
- * Quanto a palma aponta para cima, em [-1, 1], a partir dos landmarks 3D (espaço da cabeça).
- * +1 = palma para o teto, −1 = palma para o chão, 0 = palma de lado. Null quando não há medida.
+ * Quanto a palma olha para quem está olhando, em [-1, 1], a partir dos landmarks 3D (espaço da
+ * cabeça). +1 = palma de frente para a câmera, −1 = dorso, 0 = mão de perfil. Null sem medida.
+ *
+ * O produto escalar é entre a normal da palma e a direção palma → olho: as duas na mesma direção
+ * significa palma voltada para o usuário.
  */
-export function palmUpFromHead(head, left) {
+export function palmFacingFromHead(head, left) {
   const n = palmNormal(head, left);
   if (!n) return null;
-  return Math.max(-1, Math.min(1, n.y));
+  return Math.max(-1, Math.min(1, palmTowardEye(head, n)));
+}
+
+/** Escalar normal · (olho − palma), com o olho na origem do espaço da cabeça. */
+function palmTowardEye(head, n) {
+  const cx = (head[0] + head[15] + head[27] + head[51]) / 4;
+  const cy = (head[1] + head[16] + head[28] + head[52]) / 4;
+  const cz = (head[2] + head[17] + head[29] + head[53]) / 4;
+  const cl = Math.hypot(cx, cy, cz);
+  if (!(cl > .05)) return 0;
+  return -(n.x * cx + n.y * cy + n.z * cz) / cl;
 }
 
 /**
@@ -90,12 +104,12 @@ export function isBackOfHand(hand, isRightBolinha, margin = PALM_CURSOR.thumbMar
 /**
  * Orientação da palma de um pacote de mão: 3D (`head`) quando existe, senão o que os 2D permitem.
  *
- * Sem profundidade não é possível distinguir "palma para cima" de "palma para a câmera"; nesse caso
- * o pacote devolve só o sinal palma/dorso (±[PALM_CURSOR.fallbackFacing]) para a bolinha não
- * desaparecer de vez num aparelho cujo rastreador não publicou os landmarks 3D daquele quadro.
+ * Os 2D de imagem dão exatamente o mesmo sinal (é a mesma conta projetada, na convenção que o
+ * rastreador nativo usa) com uma compressão suave, então a bolinha não desaparece num aparelho cujo
+ * rastreador não publicou os landmarks 3D daquele quadro.
  */
-export function palmUpOfHand(hand, isRightBolinha = physicalLeft(hand)) {
-  const from3d = palmUpFromHead(hand?.head, physicalLeft(hand));
+export function palmFacingOfHand(hand, isRightBolinha = physicalLeft(hand)) {
+  const from3d = palmFacingFromHead(hand?.head, physicalLeft(hand));
   if (from3d != null) return from3d;
   const p = hand?.points;
   if (!p || p.length < 63) return null;

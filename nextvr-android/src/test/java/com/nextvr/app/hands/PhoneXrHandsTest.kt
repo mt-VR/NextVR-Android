@@ -405,6 +405,182 @@ class PhoneXrHandsTest {
         val wanted = kotlin.math.hypot(reference[12].x() - reference[0].x(), reference[12].y() - reference[0].y())
         assertTrue("o dedo cresceu de verdade: $grown vs $wanted", grown > wanted * .8f)
     }
+    /* ================= os dez cenários de rastreamento, onde dá para medir sem aparelho ========= */
+
+    /** Mão parada com ruído de detector: o que sai não pode tremer. */
+    @Test fun aStillHandDoesNotTremble() {
+        val engine = PhoneXrHands()
+        repeat(8) { engine.process(result(points(.2f), 1000 + it * 33L), 1f, 1f) }
+        var previous: FloatArray? = null
+        var path = 0f
+        var rawPath = 0f
+        var lastRawX = 0f
+        var stamp = 1300L
+        repeat(60) { frame ->
+            stamp += 33
+            val noise = if (frame % 2 == 0) .0008f else -.0008f
+            val jittered = points(.2f).mapIndexed { i, p ->
+                // Ruído oposto no pulso e no indicador: é o pior caso (a mão "respira").
+                val n = if (i == 0 || i == 5) noise else if (i == 9) -noise else 0f
+                NormalizedLandmark.create(p.x() + n, p.y() + n * .5f, p.z())
+            }
+            val h = engine.process(result(jittered, stamp), 1f, 1f).hands.single()
+            if (previous != null) {
+                path += kotlin.math.abs(h.points[0] - previous!![0])
+                rawPath += kotlin.math.abs(jittered[0].x() - lastRawX)
+            }
+            lastRawX = jittered[0].x()
+            previous = h.points.copyOf()
+        }
+        assertTrue("a mão parada não pode andar (pacote publicado: $path)", path < .02f)
+        assertTrue("e muito menos que o ruído cru ($path vs $rawPath)", path < rawPath * .85f)
+    }
+
+    /** Ruído pequeno de verdade (abaixo da zona morta) não move NADA do que é publicado. */
+    @Test fun jitterBelowTheDeadZoneIsNotPublishedAtAll() {
+        val filter = HandGestures.OneEuro(minCutoff = 1.6f, beta = 14f, deadZone = .0006f)
+        var t = 1_000_000_000L
+        val settled = filter.filter(.5f, t)
+        var moved = 0f
+        repeat(120) { i ->
+            t += 33_000_000L
+            val out = filter.filter(.5f + if (i % 2 == 0) .0005f else -.0005f, t)
+            moved = maxOf(moved, kotlin.math.abs(out - settled))
+        }
+        assertEquals("tremor abaixo da zona morta não aparece", 0f, moved, 1e-6f)
+    }
+
+    /** Movimento rápido não pode ficar atrás: o filtro entrega quase tudo no segundo quadro. */
+    @Test fun aFastMoveIsNotHeldBack() {
+        val filter = HandGestures.OneEuro(minCutoff = 1.6f, beta = 14f, deadZone = .0006f)
+        var t = 1_000_000_000L
+        filter.filter(.2f, t)
+        t += 33_000_000L
+        val first = filter.filter(.5f, t)   // salto de 0,3 (mão atravessando a tela)
+        t += 33_000_000L
+        val second = filter.filter(.5f, t)
+        assertTrue("segue no primeiro quadro ($first)", first > .35f)
+        assertTrue("e chega no segundo ($second)", second > .47f)
+    }
+
+    /** Girar o pulso não pode esticar nem encolher a mão (é rotação, não deformação). */
+    @Test fun rotatingTheWristKeepsTheProportions() {
+        fun rotated(deg: Float): List<NormalizedLandmark> {
+            val a = Math.toRadians(deg.toDouble()).toFloat()
+            val cs = kotlin.math.cos(a); val sn = kotlin.math.sin(a)
+            val base = points(.2f)
+            val wx = base[0].x(); val wy = base[0].y()
+            return base.map { p ->
+                val dx = p.x() - wx; val dy = p.y() - wy
+                NormalizedLandmark.create(wx + dx * cs - dy * sn, wy + dx * sn + dy * cs, p.z())
+            }
+        }
+        val engine = PhoneXrHands()
+        var reference = 0f
+        for ((i, deg) in listOf(0f, 45f, 90f, 135f, 180f).withIndex()) {
+            val h = engine.process(result(rotated(deg), 1000L + i * 33), 1f, 1f).hands.single()
+            val palm = span(h, 0, 9)
+            if (i == 0) reference = palm
+            assertEquals("palma intacta a ${'$'}deg graus", reference, palm, reference * .06f)
+            assertTrue("dedo indicador continua existindo a ${'$'}deg graus", span(h, 0, 8) > .05f)
+        }
+    }
+
+    /**
+     * Fechar e abrir os dedos (o punho de verdade, não a mão crescendo): os quatro dedos dobram
+     * para dentro do nó e a ponta tem de acompanhar. Um corretor de comprimento ingênuo — que
+     * "endireita" todo osso mais curto que a referência — reprovaria exatamente aqui: a mão não
+     * conseguiria fechar, porque o dedo dobrado era esticado de volta.
+     */
+    @Test fun closingAndOpeningTheFingersIsNotUndoneByTheBonePass() {
+        val engine = PhoneXrHands()
+        fun folded(amount: Float): List<NormalizedLandmark> {
+            val base = points(.9f)               // mão aberta: dedos esticados
+            val out = base.toMutableList()
+            val chains = listOf(intArrayOf(5, 6, 7, 8), intArrayOf(9, 10, 11, 12),
+                intArrayOf(13, 14, 15, 16), intArrayOf(17, 18, 19, 20))
+            for (chain in chains) {
+                val ax = base[chain[0]].x(); val ay = base[chain[0]].y()
+                for (k in 1 until 4) {
+                    val i = chain[k]
+                    val px = base[i].x(); val py = base[i].y()
+                    out[i] = NormalizedLandmark.create(
+                        px + (ax - px) * amount, py + (ay - py) * amount, base[i].z())
+                }
+            }
+            return out
+        }
+        val extended = engine.process(result(folded(0f), 1000), 1f, 1f).hands.single()
+        val reference = span(extended, 0, 8)
+        var previous = reference
+        var stamp = 1000L
+        for (step in 1..8) {                     // fecha em passos de 9 % ao quadro
+            stamp += 33
+            val h = engine.process(result(folded(step * .09f), stamp), 1f, 1f).hands.single()
+            val tip = span(h, 0, 8)
+            assertTrue("o dedo acompanha o punho no passo $step ($tip de $reference)", tip < previous + .004f)
+            previous = tip
+        }
+        assertTrue("a mão fechou de verdade ($previous de $reference)", previous < reference * .78f)
+        for (step in 7 downTo 0) {               // e volta a abrir
+            stamp += 33
+            val h = engine.process(result(folded(step * .09f), stamp), 1f, 1f).hands.single()
+            val tip = span(h, 0, 8)
+            assertTrue("o dedo abre de novo no passo $step", tip > previous - .004f)
+            previous = tip
+        }
+        assertTrue("voltou ao tamanho natural ($previous de $reference)", previous > reference * .85f)
+    }
+
+    /** Um dedo que colapsa num ÚNICO quadro é falha de detecção e não pode virar dedo torto. */
+    @Test fun aFingerThatCollapsesInOneFrameIsRestored() {
+        val engine = PhoneXrHands()
+        repeat(6) { i -> engine.process(result(points(.2f), 1000 + i * 33L), 1f, 1f) }
+        val base = points(.2f)
+        val reference = span(engine.process(result(base, 1300), 1f, 1f).hands.single(), 7, 8)
+        // O detector perde a ponta do indicador por UM quadro: o osso 7→8 cai a 40 % do tamanho.
+        val p7 = base[7]; val p8 = base[8]
+        val squashed = base.toMutableList()
+        squashed[8] = NormalizedLandmark.create(
+            p7.x() + (p8.x() - p7.x()) * .4f, p7.y() + (p8.y() - p7.y()) * .4f, 0f)
+        val bone = span(engine.process(result(squashed, 1333), 1f, 1f).hands.single(), 7, 8)
+        assertTrue("o dedo não encolheu junto ($bone de $reference)", bone > reference * .62f)
+    }
+
+    /** Perto e longe da câmera: a mão cresce e encolhe junto, e continua com a mesma forma. */
+    @Test fun movingTowardsAndAwayFromTheCameraKeepsTheShape() {
+        val engine = PhoneXrHands()
+        val ratios = mutableListOf<Float>()
+        for ((i, scale) in listOf(1f, 1.4f, 2f, 1.4f, 1f).withIndex()) {
+            val scaled = points(.2f).mapIndexed { j, p ->
+                val dx = p.x() - .5f; val dy = p.y() - .8f
+                NormalizedLandmark.create(.5f + dx * scale, .8f + dy * scale, p.z())
+            }
+            val h = engine.process(result(scaled, 1000L + i * 33), 1f, 1f).hands.single()
+            val palm = span(h, 0, 9)
+            // O comprimento dos dedos em fração da palma não muda com a distância.
+            ratios.add(span(h, 0, 12) / palm)
+        }
+        val spread = ratios.maxOrNull()!! - ratios.minOrNull()!!
+        assertTrue("a proporção não muda com a distância ($ratios)", spread < .12f)
+    }
+
+    /** Pinça repetida: cada ciclo dá exatamente um DOWN e um UP. */
+    @Test fun repeatedPinchesEachProduceOneClick() {
+        val engine = PhoneXrHands()
+        var stamp = 1000L
+        val states = mutableListOf<Boolean>()
+        repeat(3) {
+            for (gap in listOf(.8f, .2f, .2f, .8f, .8f)) {
+                stamp += 33
+                states.add(engine.process(result(points(gap), stamp), 1f, 1f).hands.single().pinching)
+            }
+        }
+        val edges = states.zipWithNext().count { (a, b) -> a != b }
+        assertEquals("três ciclos de pinça são três bordas de subida e três de descida", 6, edges)
+        assertTrue("e termina solta", !states.last())
+    }
+
     @Test fun processChainsThePreviousDetectionAndResetClearsIt() {
         val engine=PhoneXrHands()
         val first=engine.process(result(points(.2f),1000),1f,1f,1_000_000_000L)
