@@ -589,10 +589,20 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       'the closed fist is consumed by the window (no ray target while it grabs)');
     assert.ok(await feedFistUntil(fistAt(.5,.5),hand(.4),()=>document.querySelectorAll('.win-shell.moving').length===1,{moves:4}),
       'the fist grab starts dragging the window');
-    await page.waitForFunction(original=>{
-      const current=window.__last.panels.find(p=>p.id==='library').matrix;
-      return Math.abs(current[12]-original[12])>.03;
-    },lib,{timeout:15000});
+    // O laço acima pode terminar no PRIMEIRO quadro em que a janela entra em `.moving` — antes de o
+    // punho andar. Esperar um tempo fixo por um movimento que ninguém está mandando deixa o teste
+    // refém do relógio do runner (era isso que falhava de vez em quando, com tudo verde). Aqui a mão
+    // anda de verdade, quadro a quadro, até a janela sair do lugar.
+    let windowMoved=false;
+    for(let step=1;step<=8&&!windowMoved;step++){
+      await feed(fistAt(.5,.5)(step/8));
+      await page.waitForTimeout(120);
+      windowMoved=await page.evaluate(original=>{
+        const current=window.__last.panels.find(p=>p.id==='library').matrix;
+        return Math.abs(current[12]-original[12])>.03;
+      },lib);
+    }
+    assert.ok(windowMoved,'a janela anda junto com o punho fechado');
     fist.hands[0].palm=fist.hands[0].grab=[.62,.99];
     await feed(fist);await page.waitForTimeout(500);
     await feed(hand(.4));
