@@ -80,9 +80,16 @@ jobs:
           # clean tree and let the next compile error through.
           python3 tools/check-java-refs.py --self-test
           python3 tools/check-java-refs.py
+          echo "ui: referências Java ok"
           npm test
+          echo "ui: suíte de testes ok"
           npm run build:ui
-          git diff --exit-code -- nextvr-android/src/main/assets/ui) 2>&1 | tee /tmp/build.log
+          echo "ui: bundle gerado"
+          if ! git diff --exit-code -- nextvr-android/src/main/assets/ui; then
+            echo "ui: o bundle commitado está DIFERENTE do que o build gera (rode node web/build.mjs)"
+            exit 1
+          fi
+          echo "ui: bundle commitado está em dia") 2>&1 | tee /tmp/build.log
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -178,16 +185,32 @@ jobs:
           set -o pipefail
           (set -e
           FP=94b3534f902bb783d9cd5859978106f2687016e3127c239a397ffc3ea7b2adbf
+          # Sem cano entre `tr` e `grep -q`: o grep sai no primeiro acerto, o tr leva SIGPIPE e, com
+          # `pipefail`, a rodada inteira falhava sem dizer nada (foi assim que uma entrega de APK
+          # ficou vermelha com todos os testes verdes). Arquivo intermediário e grep com -f de nada:
+          # nada fecha o cano antes da hora.
           # O relatório do próprio Gradle diz com qual chave a variante debug sai assinada.
           ./gradlew :nextvr-android:signingReport --no-daemon > /tmp/sign.txt 2>&1 || true
           cat /tmp/sign.txt
-          tr -d ':' < /tmp/sign.txt | grep -qi "$FP"
+          tr -d ':' < /tmp/sign.txt > /tmp/sign-fp.txt 2>/dev/null || cp /tmp/sign.txt /tmp/sign-fp.txt
+          if ! grep -qi "$FP" /tmp/sign-fp.txt; then
+            echo "o signingReport NÃO mostra a chave do repositório ($FP)"
+            exit 1
+          fi
           echo "Variante debug assinada com a chave de depuração do repositório"
           # Reforço: a assinatura do APK montado, quando o apksigner está disponível.
           APK=$(find nextvr-android/build/outputs/apk/debug -name '*.apk' -print -quit)
+          echo "APK montado: $APK"
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          echo "apksigner: ${APKSIGNER:-<nenhum>}"
           if [ -n "$APKSIGNER" ]; then
-            "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -qi "$FP"
+            "$APKSIGNER" verify --print-certs "$APK" > /tmp/apk-certs.txt 2>&1 || true
+            cat /tmp/apk-certs.txt
+            tr -d ':' < /tmp/apk-certs.txt > /tmp/apk-fp.txt 2>/dev/null || cp /tmp/apk-certs.txt /tmp/apk-fp.txt
+            if ! grep -qi "$FP" /tmp/apk-fp.txt; then
+              echo "o apksigner não achou a chave do repositório no APK montado"
+              exit 1
+            fi
             echo "APK conferido pelo apksigner"
           else
             echo "apksigner indisponível neste runner; a conferência acima já cobre a assinatura"
