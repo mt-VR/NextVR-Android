@@ -361,11 +361,33 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.deepEqual(aboutParagraphs, [...ENTRY_ABOUT_PARAGRAPHS]);
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
 
-    // 5. Configurações básicas (2 Abas com arrasto lateral: Aba 1 · Básico + Aba 2 · Hand & Tela)
+    // 5. Configurações básicas (3 abas com arrasto lateral: Aba 1 · Básico, Aba 2 · Mãos & Gestos e
+    // Aba 3 · Tela & Dock — "as configurações já tá tudo apertado")
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
     assert.equal(await page.locator('.entry-bento-cell').count(), 10);
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 2, '2D Initial Menu settings has 2 tabs');
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 3, '2D Initial Menu settings has 3 tabs');
+    // A terceira aba existe no documento e leva a cor da dock e os ambientes (o que apertava a aba 2).
+    assert.equal(await page.locator('[data-entry-settings-page="3"] [data-entry-dock-color]').count(), 7,
+      'a aba 3 traz as sete cores da dock');
+    assert.ok(await page.locator('[data-entry-settings-page="3"] [data-entry-env]').count() > 0,
+      'e os panoramas');
+    // Clicar na aba 3 leva o carrossel até ela (antes a conta só conhecia duas abas e a terceira
+    // caía sempre em 0). O deslize é suave, então espera ele terminar em vez de medir na hora.
+    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="3"]').click());
+    assert.equal(await page.evaluate(() => document.querySelector('[data-entry-settings-tab="3"]').classList.contains('on')), true,
+      'a aba 3 fica marcada assim que é tocada');
+    await page.waitForFunction(() => {
+      const car = document.querySelector('[data-entry-settings-carousel]');
+      const page3 = document.querySelector('[data-entry-settings-page="3"]');
+      return !!car && !!page3 && Math.abs(car.scrollLeft - page3.offsetLeft) < 4;
+    }, null, { timeout: 4000 }).catch(() => {});
+    assert.ok(await page.evaluate(() => {
+      const car = document.querySelector('[data-entry-settings-carousel]');
+      const page3 = document.querySelector('[data-entry-settings-page="3"]');
+      return Math.abs(car.scrollLeft - page3.offsetLeft) < 4;
+    }), 'a aba 3 chega na vista do carrossel');
+    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="1"]').click());
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
     assert.equal(await page.locator('[data-entry-lang="ru"]').count(), 1, 'Russian language option (RU) replaces French');
     assert.equal(await page.locator('[data-entry-lang="fr"]').count(), 0, 'French language option (FR) is removed');

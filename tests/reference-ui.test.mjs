@@ -201,17 +201,23 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    // O botão do ANEL (as dez bolinhas, 3-4-3) entra à ESQUERDA da biblioteca: a dock ganha um
+    // O botão do ANEL (as treze bolinhas, 4-5-4) entra à ESQUERDA da biblioteca: a dock ganha um
     // atalho, o resto da interface gráfica não muda.
     // O PC Link entra logo depois de Configurações: é uma janela do NextVR como as outras (e o
     // atalho para transformar o celular em headset do SteamVR).
     assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','pclink','youtube','shizuku','orb-apps','library'],
       'the compact dock keeps phone status, the Vision-style virtual-environment shortcut and the ring button beside the library');
-    // O botão do anel é o das dez bolinhas: 3 em cima, 4 no meio, 3 embaixo, colado à esquerda da
+    // O botão do anel é o das treze bolinhas: 4 em cima, 5 no meio, 4 embaixo, colado à esquerda da
     // biblioteca — a dock não muda de tamanho nem de ordem, só ganha o atalho.
     const ringButton = page.locator('.dock [data-id="orb-apps"]');
     assert.equal(await ringButton.count(),1,'the dock gained one ring button');
-    assert.equal(await ringButton.locator('svg circle').count(),10,'the ring button draws the ten dots of the ring');
+    assert.equal(await ringButton.locator('svg circle').count(),13,'the ring button draws the thirteen dots of the ring');
+    // As treze no desenho 4-5-4: quatro em cima, cinco no meio, quatro embaixo.
+    assert.deepEqual(await ringButton.locator('svg circle').evaluateAll(nodes => {
+      const rows = {};
+      for (const c of nodes) { const y = c.getAttribute('cy'); rows[y] = (rows[y] || 0) + 1; }
+      return Object.keys(rows).sort((a, b) => Number(a) - Number(b)).map(y => rows[y]);
+    }),[4,5,4],'4 em cima, 5 no meio, 4 embaixo');
     assert.deepEqual(await page.evaluate(()=>{
       const all=[...document.querySelectorAll('.dock button[data-id]')].map(n=>n.dataset.id);
       return [all.indexOf('orb-apps'),all.indexOf('library')];

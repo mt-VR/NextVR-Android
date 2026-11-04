@@ -1273,6 +1273,10 @@
   }
   .entry-settings-carousel{
     flex:1;min-height:0;width:100%;
+    /* `position:relative` faz cada página ter o carrossel como `offsetParent`: assim o
+       `offsetLeft` de uma página é exatamente o `scrollLeft` que a leva para a vista (é como as
+       três abas se posicionam). */
+    position:relative;
     display:flex;flex-direction:row;gap:12px;
     overflow-x:auto;overflow-y:hidden;
     scroll-snap-type:x mandatory;
