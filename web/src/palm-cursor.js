@@ -104,7 +104,8 @@ function palmTowardEye(head, n) {
 
 /**
  * Dorso da mão pelos landmarks 2D (o polegar aparece do outro lado do MCP do indicador). O segundo
- * parâmetro diz se a mão é a DIREITA (o padrão deduz do pacote). É o único
+ * parâmetro diz se a mão é a "direita" do pacote (`hand.left === false`) — o mesmo lado que orienta a
+ * normal 3D, e o padrão deduz do pacote para não haver como divergirem. É o único
  * sinal que um pacote sem profundidade consegue dar — por isso é um VETO, com margem folgada.
  */
 export function isBackOfHand(hand, isRightHand, margin = PALM_CURSOR.thumbMargin) {

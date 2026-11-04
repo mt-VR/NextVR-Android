@@ -592,11 +592,16 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // O laço acima pode terminar no PRIMEIRO quadro em que a janela entra em `.moving` — antes de o
     // punho andar. Esperar um tempo fixo por um movimento que ninguém está mandando deixa o teste
     // refém do relógio do runner (era isso que falhava de vez em quando, com tudo verde). Aqui a mão
-    // anda de verdade, quadro a quadro, até a janela sair do lugar.
+    // anda de verdade, quadro a quadro, num sentido só: começa de onde o punho parou e vai até o outro
+    // lado, até a janela sair do lugar (voltar para trás no meio do caminho não move nada).
+    const fistTo=(x,y)=>t=>{
+      fist.hands[0].palm=fist.hands[0].grab=[x+(.86-x)*t,y+(.62-y)*t];
+      return fist;
+    };
     let windowMoved=false;
-    for(let step=1;step<=8&&!windowMoved;step++){
-      await feed(fistAt(.5,.5)(step/8));
-      await page.waitForTimeout(120);
+    for(let step=1;step<=12&&!windowMoved;step++){
+      await feed(fistTo(.62,.45)(step/12));
+      await page.waitForTimeout(140);
       windowMoved=await page.evaluate(original=>{
         const current=window.__last.panels.find(p=>p.id==='library').matrix;
         return Math.abs(current[12]-original[12])>.03;

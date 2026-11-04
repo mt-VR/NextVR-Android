@@ -3503,7 +3503,9 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 1. Mão direita física (bolinha com o logo IMG_20261007_215701.png + contorno azul + alternar Dock/Apps)
   const rightHand = (packet?.hands || []).find(h => isRightBolinhaHand(h));
   const rightCursor = bolinhaGateRight.update({
-    facing: rightHand ? palmFacingOfHand(rightHand, true) : null,
+    // Sem segundo argumento: a regra 2D tem de partir do MESMO lado que a normal 3D usa
+    // (`hand.left`), senão uma mão é julgada pela regra da outra e a bolinha pisca entre as duas.
+    facing: rightHand ? palmFacingOfHand(rightHand) : null,
     nowMs,
     present: Boolean(rightHand && rightHand.points?.length >= 63),
   });
@@ -3560,7 +3562,7 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   // 2. Mão esquerda física (bolinha com o logo IMG_20261007_215728.png + pinça abre a janelinha de Brilho e Som)
   const leftHand = (packet?.hands || []).find(h => isLeftBolinhaHand(h));
   const leftCursor = bolinhaGateLeft.update({
-    facing: leftHand ? palmFacingOfHand(leftHand, false) : null,
+    facing: leftHand ? palmFacingOfHand(leftHand) : null,
     nowMs,
     present: Boolean(leftHand && leftHand.points?.length >= 63),
   });
