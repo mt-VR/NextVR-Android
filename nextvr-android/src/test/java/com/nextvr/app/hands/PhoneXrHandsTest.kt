@@ -405,6 +405,31 @@ class PhoneXrHandsTest {
         val wanted = kotlin.math.hypot(reference[12].x() - reference[0].x(), reference[12].y() - reference[0].y())
         assertTrue("o dedo cresceu de verdade: $grown vs $wanted", grown > wanted * .8f)
     }
+    /**
+     * A regra 2D de "palma para a câmera" (o enrolamento pulso → índice → mínimo) tem de concordar
+     * com a mão física. Ela estava invertida — e, como a normal 3D estava invertida no mesmo
+     * sentido, as duas concordavam entre si e o erro só aparecia no aparelho: a bolinha nascia com o
+     * DORSO da mão voltado para a câmera.
+     */
+    @Test fun the2DPalmSideRuleMatchesThePhysicalHand() {
+        // y para baixo (coordenadas da imagem). Mão direita com a palma para a câmera: o polegar
+        // aparece do lado direito da imagem, então o índice fica à direita do mínimo.
+        fun shapeOf(left: Boolean, palmToCamera: Boolean) = HandGestures.shape(
+            points(.2f).mapIndexed { i, p ->
+                when (i) {
+                    5 -> NormalizedLandmark.create(if (palmToCamera) .53f else .47f, .60f, p.z())
+                    17 -> NormalizedLandmark.create(if (palmToCamera) .47f else .53f, .60f, p.z())
+                    else -> p
+                }
+            }, left)
+        assertTrue("direita, palma para a câmera", shapeOf(left = false, palmToCamera = true).palmToFace)
+        assertTrue("esquerda, palma para a câmera", shapeOf(left = true, palmToCamera = false).palmToFace)
+        assertTrue("direita, dorso", !shapeOf(left = false, palmToCamera = false).palmToFace)
+        assertTrue("esquerda, dorso", !shapeOf(left = true, palmToCamera = true).palmToFace)
+        // E o lado errado da mesma pose nunca passa (o sinal é por mão, não global).
+        assertTrue("a pose da direita não vale para a esquerda", !shapeOf(left = true, palmToCamera = true).palmToFace)
+    }
+
     /* ================= os dez cenários de rastreamento, onde dá para medir sem aparelho ========= */
 
     /** Mão parada com ruído de detector: o que sai não pode tremer. */

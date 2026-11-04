@@ -127,8 +127,10 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     'vrfs-game.js implements VRFS 3D football simulator with visible 3D soccer ball, ground shadow, VRFS logo, cleats, and stereo VR Box mode');
   assert.ok(appsSrc.includes("id:'vrfs'") && appsSrc.includes('./icons/vrfs-logo.jpg') && appsSrc.includes('openVrfsGame') && entryMenuSrc.includes("id: 'vrfs'"),
     'apps.js and entry-menu.js integrate VRFS with its attached logo into Library, Store, Spatial Launcher, and Entry Menu');
-  assert.ok(windowsSrc.includes('measureHandApparentSize') && windowsSrc.includes('currentRadius') && windowsSrc.includes('leftQuickMenuDist') && windowsSrc.includes("emit('sixDof', true)"),
-    'windows.js auto-enables 6DoF on window drag, pulls/pushes window depth with hand distance, and makes left-quick-menu follow left-hand depth');
+  assert.ok(windowsSrc.includes('measureHandApparentSize') && windowsSrc.includes('currentRadius') && windowsSrc.includes('LEFT_QUICK_MENU_DIST') && windowsSrc.includes("emit('sixDof', true)"),
+    'windows.js auto-enables 6DoF on window drag and pulls/pushes window depth with hand distance, but the brightness menu keeps ONE fixed distance (and so one fixed size)');
+  assert.ok(!windowsSrc.includes('leftQuickMenuDist'),
+    'o centro de brilho não adapta mais a distância ao tamanho da mão (era isso que encolhia a janela ao empurrá-la para frente)');
   assert.ok(appsSrc.includes('toggleCameraSoloMode') && appsSrc.includes('camera-solo') && activitySrc.includes('public void refocusCamera()') && cameraSrc.includes('triggerAutoFocus'),
     'apps.js, NextVrActivity.java, and PassthroughCamera.java implement Solo Camera mode and automatic camera refocus on defocus');
   assert.ok(appsSrc.includes('w: 560') && appsSrc.includes('h: 740') && appsSrc.includes('resizeScale = 1.68') && rendererSrc.includes('1440f'),
@@ -1040,20 +1042,26 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const lhFloatingShell = lhMenu?.closest('.win-shell[data-window-id="left-quick-menu"]');
       const lhMenuTransparentBg = !!lhMenu && getComputedStyle(lhMenu).backgroundColor === 'rgba(0, 0, 0, 0)';
       const lhAttachedToLeftHand = lhFloatingShell?.dataset?.attachedHand === 'left' && !!lhFloatingShell?.dataset?.attachedPos;
-      // Move left hand far away (smaller palmWidth) vs closer (larger palmWidth) and verify attachedDist follows depth
+      // O centro de brilho tem UM tamanho só: mão longe ou perto, a janela fica na mesma distância
+      // (e portanto no mesmo tamanho na tela). Era o contrário antes: ela vinha para 0,36 m com a mão
+      // perto e ia para 1,25 m com a mão longe, e era isso que fazia a janela encolher ao empurrá-la.
       for (let i = 0; i < 6; i++) {
         const farLh = mkLeftVLHand(false);
         farLh.palmWidth = 0.045;
         window.nextvrHands({ t: performance.now(), hands: [farLh] });
       }
       const farDist = parseFloat(lhFloatingShell?.dataset?.attachedDist || '0');
+      const farScale = parseFloat(lhFloatingShell?.dataset?.resizeScale || '0');
       for (let i = 0; i < 6; i++) {
         const nearLh = mkLeftVLHand(false);
         nearLh.palmWidth = 0.19;
         window.nextvrHands({ t: performance.now(), hands: [nearLh] });
       }
       const nearDist = parseFloat(lhFloatingShell?.dataset?.attachedDist || '0');
-      const lhDepthFollowed = farDist > nearDist && nearDist > 0.45;
+      const nearScale = parseFloat(lhFloatingShell?.dataset?.resizeScale || '0');
+      const lhDepthFollowed = Math.abs(farDist - nearDist) < 0.001
+        && Math.abs(nearDist - 0.56) < 0.01
+        && Math.abs(farScale - nearScale) < 1e-6;
       const invisibleHandPreserved = JSON.parse(localStorage.getItem('nextvr.v1')).handDraw === 0;
       const leftQuickMenuOpened = !!lhMenu && !lhMenu.hidden && !!lhFloatingShell && lhMenuTransparentBg && lhAttachedToLeftHand && lhDepthFollowed && invisibleHandPreserved && !!lhMenu.querySelector('[data-lh-slider="brightness"]');
       window.nextvrSetScreenBrightness?.(55);

@@ -43,6 +43,21 @@ export const PALM_CURSOR = Object.freeze({
 
 const num = v => typeof v === 'number' && Number.isFinite(v);
 
+/**
+ * Sentido do "para fora da palma", deduzido da mão física (e não escolhido por tentativa).
+ *
+ * Com u = pulso → MCP do indicador, v = pulso → MCP do mínimo, no referencial da cabeça (x direita,
+ * y cima, +z para quem olha), a mão DIREITA com a palma voltada para a câmera dá
+ *
+ *     u × v = +z   (para fora da palma, ou seja, para a câmera)
+ *
+ * porque, para quem olha de frente, o polegar dela aparece do lado direito da imagem, de modo que o
+ * índice está em +x e o mínimo em −x. A esquerda é a imagem espelhada e dá o contrário. Era aqui que
+ * o sinal estava trocado: a bolinha aparecia com o DORSO da mão voltado para a câmera, exatamente o
+ * oposto do gesto do Meta Quest. `PalmMenuPose` (nativo) já usava o sentido certo — esta é a mesma
+ * conta, agora igual nos dois lados.
+ */
+
 const physicalLeft = hand => hand?.left === true || hand?.id === 'left';
 
 /**
@@ -60,8 +75,8 @@ function palmNormal(head, left) {
   const len = Math.hypot(x, y, z);
   if (!(len > 1e-7)) return null;
   x /= len; y /= len; z /= len;
-  // Sentido "para fora da palma": a mesma pose nas duas mãos tem a normal invertida.
-  return left ? { x, y, z } : { x: -x, y: -y, z: -z };
+  // Sentido "para fora da palma": na direita é +(u x v); na esquerda, o contrário (dedução acima).
+  return left ? { x: -x, y: -y, z: -z } : { x, y, z };
 }
 
 /**
@@ -88,17 +103,22 @@ function palmTowardEye(head, n) {
 }
 
 /**
- * Dorso da mão pelos landmarks 2D (o polegar aparece do outro lado do MCP do indicador). É o único
+ * Dorso da mão pelos landmarks 2D (o polegar aparece do outro lado do MCP do indicador). O segundo
+ * parâmetro diz se a mão é a DIREITA (o padrão deduz do pacote). É o único
  * sinal que um pacote sem profundidade consegue dar — por isso é um VETO, com margem folgada.
  */
-export function isBackOfHand(hand, isRightBolinha, margin = PALM_CURSOR.thumbMargin) {
+export function isBackOfHand(hand, isRightHand, margin = PALM_CURSOR.thumbMargin) {
   const p = hand?.points;
   if (!p || p.length < 63) return false;
   if (hand.backOfHand === true) return true;
   const thumbX = p[12], indexMcpX = p[15], pinkyMcpX = p[51];
   if (!num(thumbX) || !num(indexMcpX) || !num(pinkyMcpX)) return false;
-  if (isRightBolinha) return thumbX > indexMcpX + margin && indexMcpX > pinkyMcpX;
-  return thumbX < indexMcpX - margin && indexMcpX < pinkyMcpX;
+  // Palma de frente: o polegar fica do lado do indicador (a mão direita mostra o polegar à direita
+  // da imagem). Dorso: ele passa para o outro lado do MCP do indicador. A condição estava invertida
+  // — e, como a normal 3D estava invertida no mesmo sentido, os dois erros concordavam entre si e o
+  // teste antigo não via nada.
+  if (isRightHand) return thumbX < indexMcpX - margin && indexMcpX < pinkyMcpX;
+  return thumbX > indexMcpX + margin && indexMcpX > pinkyMcpX;
 }
 
 /**
@@ -108,14 +128,14 @@ export function isBackOfHand(hand, isRightBolinha, margin = PALM_CURSOR.thumbMar
  * rastreador nativo usa) com uma compressão suave, então a bolinha não desaparece num aparelho cujo
  * rastreador não publicou os landmarks 3D daquele quadro.
  */
-export function palmFacingOfHand(hand, isRightBolinha = physicalLeft(hand)) {
+export function palmFacingOfHand(hand, isRightHand = !physicalLeft(hand)) {
   const from3d = palmFacingFromHead(hand?.head, physicalLeft(hand));
   if (from3d != null) return from3d;
   const p = hand?.points;
   if (!p || p.length < 63) return null;
   const palm = Math.hypot(p[15] - p[51], p[16] - p[52]);
   if (!(palm >= PALM_CURSOR.minPalm2d)) return null;
-  return isBackOfHand(hand, isRightBolinha) ? -PALM_CURSOR.fallbackFacing : PALM_CURSOR.fallbackFacing;
+  return isBackOfHand(hand, isRightHand) ? -PALM_CURSOR.fallbackFacing : PALM_CURSOR.fallbackFacing;
 }
 
 /**

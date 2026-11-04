@@ -19,11 +19,14 @@ para fora da palma = +n na mão esquerda, −n na mão direita
 facing = n · (olho − palma)     (+1 palma de frente, −1 dorso, 0 de perfil)
 ```
 
-Três detalhes que fazem isso funcionar:
+Quatro detalhes que fazem isso funcionar:
 
 * **A mão física manda no sinal.** A mesma pose na mão esquerda é a imagem espelhada da direita, então a
-  normal é orientada por mão. Sem isso a bolinha aparecia na mão errada e a orientação se invertia quando
-  as mãos se cruzavam.
+  normal é orientada por mão. Para a mão direita com a palma voltada para a câmera, `u × v` já aponta para
+  fora da palma; na esquerda, o contrário. Essa foi a inversão real do aparelho: a normal e a regra 2D
+  estavam as duas com o sentido trocado (e, por concordarem entre si, não apareciam nos testes) — o
+  resultado é que a bolinha nascia com o DORSO da mão voltado para a câmera. Agora a regra é a mesma do
+  `PalmMenuPose` nativo, que já estava certa.
 * **Espaço da cabeça, não da imagem.** Os landmarks 3D que o rastreador publica (`head`, em metros, com o
   olho na origem) são usados assim que existem; a comparação é com a direção palma → olho. Levantar a
   mão, abaixar, andar ou girar o corpo não muda o resultado — só a orientação conta.

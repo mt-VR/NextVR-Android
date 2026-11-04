@@ -30,8 +30,10 @@ function headHand({
   x = .12, y = -.2, z = -.42, scale = 1,
 } = {}) {
   const U = norm(u), OUT = norm(out);
-  // s: do indicador para o mínimo. Na mão direita out = s × u; na esquerda out = u × s.
-  const s = side === 'left' ? cross(OUT, U) : cross(U, OUT);
+  // s: do indicador para o mínimo. Os dedos da mão DIREITA com a palma para fora dão
+  // out = s × u; os da esquerda dão out = u × s. Era o contrário, e por isso a bolinha aparecia
+  // com o dorso da mão: a mesma inversão que existia em palmNormal() e em isBackOfHand().
+  const s = side === 'right' ? cross(OUT, U) : cross(U, OUT);
   const S = norm(s);
   const w = .042, L = .085;
   const at = (a, b) => [0, 1, 2].map(k => a * U[k] + b * S[k]);
@@ -85,6 +87,27 @@ test('palma voltada para a câmera mede +1, dorso mede −1, e nada depende da a
   assert.ok(Math.abs(palmUpProfile) < .12, 'palma para o teto fica de perfil (' + palmUpProfile + ')');
 });
 
+test('sentido da normal: a PALMA para a câmera é que acende (na mão física, não no desenho)', () => {
+  // O bug relatado no aparelho: a bolinha aparecia com o DORSO da mão voltado para a câmera.
+  // A causa não era a altura nem o lado: era o SENTIDO do "para fora da palma" em u × v, trocado
+  // para as duas mãos. Aqui a geometria da mão é a física — polegar do lado do indicador, como a
+  // pessoa vê a própria mão de frente para a câmera.
+  for (const side of ['right', 'left']) {
+    const isLeft = side === 'left';
+    assert.ok(palmFacingFromHead(headHand({ side }), isLeft) > .85, side + ': palma para a câmera acende');
+    assert.ok(palmFacingFromHead(headHand({ side, out: [0, 0, -1] }), isLeft) < -.85, side + ': dorso apaga');
+    // 3D e 2D têm de concordar: se discordarem, a bolinha pisca entre um caminho e o outro.
+    const palmHand = { left: isLeft, id: side, head: headHand({ side }), points: imageHand({ side }) };
+    const backHand = { left: isLeft, id: side, head: null, points: imageHand({ side, out: [0, 0, -1] }) };
+    const isRight = side === 'right';
+    assert.ok(palmFacingOfHand(palmHand, isRight) > .8, side + ': 3D e 2D dizem palma');
+    assert.ok(palmFacingOfHand(backHand, isRight) < -.5, side + ': 3D e 2D dizem dorso');
+    // E o veto dos 2D, sozinho, tem de dizer a mesma coisa.
+    assert.equal(isBackOfHand({ points: imageHand({ side }) }, isRight), false, side + ': 2D vê a palma');
+    assert.equal(isBackOfHand({ points: imageHand({ side, out: [0, 0, -1] }) }, isRight), true, side + ': 2D vê o dorso');
+  }
+});
+
 test('esquerda e direita concordam: nada de inversão entre as mãos', () => {
   const right = palmFacingFromHead(headHand({ side: 'right' }), false);
   const left = palmFacingFromHead(headHand({ side: 'left' }), true);
@@ -115,20 +138,26 @@ test('mão degenerada ou sem landmarks 3D não é medida', () => {
 });
 
 test('sem 3D o pacote 2D ainda separa palma de dorso (senão a bolinha sumiria num aparelho sem world landmarks)', () => {
-  const palm = imageHand({ side: 'right' });
-  assert.ok(palmFacingOfHand({ id: 'left', left: true, points: palm }, true) > 0, 'palma medida nos 2D');
+  // O segundo parâmetro é "esta mão é a DIREITA". Antes ele se chamava `isRightBolinha` e o padrão
+  // era `physicalLeft(hand)` — ou seja, uma mão esquerda sem o parâmetro era julgada pela regra da
+  // direita. O nome e o padrão agora dizem a mesma coisa que o código faz.
+  assert.ok(palmFacingOfHand({ id: 'right', left: false, points: imageHand({ side: 'right' }) }, true) > 0,
+    'palma da direita medida nos 2D');
+  // Mão DIREITA: dorso = polegar do lado de fora do indicador (o índice fica entre ele e o mínimo).
   const pts = new Array(63).fill(.5);
-  pts[12] = .52; pts[15] = .39; pts[51] = .31;   // direita: polegar do lado de fora do indicador
-  assert.equal(isBackOfHand({ points: pts }, true), true);
-  assert.ok(palmFacingOfHand({ points: pts, id: 'left', left: true }, true) < 0, 'dorso não acende a bolinha');
-  pts[12] = .24; pts[15] = .39; pts[51] = .31;   // palma: polegar do lado de dentro
-  assert.equal(isBackOfHand({ points: pts }, true), false);
-  assert.ok(palmFacingOfHand({ points: pts, id: 'left', left: true }, true) > 0);
-  // Mão esquerda: geometria espelhada, mesmo resultado.
+  pts[12] = .31; pts[15] = .39; pts[51] = .52;
+  assert.equal(isBackOfHand({ points: pts }, true), true, 'direita: dorso');
+  assert.ok(palmFacingOfHand({ points: pts, id: 'right', left: false }, true) < 0, 'dorso não acende a bolinha');
+  pts[12] = .52; pts[15] = .39; pts[51] = .31;
+  assert.equal(isBackOfHand({ points: pts }, true), false, 'direita: palma');
+  assert.ok(palmFacingOfHand({ points: pts, id: 'right', left: false }, true) > 0);
+  // Mão ESQUERDA: a geometria é espelhada, então o dorso é o polegar do outro lado.
+  pts[12] = .52; pts[15] = .39; pts[51] = .31;
+  assert.equal(isBackOfHand({ points: pts }, false), true, 'esquerda: dorso');
   pts[12] = .24; pts[15] = .39; pts[51] = .46;
-  assert.equal(isBackOfHand({ points: pts }, false), true);
-  pts[12] = .55; pts[15] = .39; pts[51] = .46;
-  assert.equal(isBackOfHand({ points: pts }, false), false);
+  assert.equal(isBackOfHand({ points: pts }, false), false, 'esquerda: palma');
+  // O padrão do segundo parâmetro deduz do pacote, e não inverte a esquerda.
+  assert.equal(isBackOfHand({ points: pts, id: 'left', left: true }), false, 'padrão deduz a esquerda');
   // Folga de 2,5 cm: tremor do polegar perto do limiar não veta a bolinha.
   pts[12] = .405; pts[15] = .39; pts[51] = .31;
   assert.equal(isBackOfHand({ points: pts }, true), false, 'margem evita veto por tremor');
@@ -137,7 +166,7 @@ test('sem 3D o pacote 2D ainda separa palma de dorso (senão a bolinha sumiria n
 test('o 3D manda quando existe, mesmo que os 2D sugiram outra coisa', () => {
   const head = headHand({ side: 'right' });
   const pts = new Array(63).fill(.5);
-  pts[12] = .52; pts[15] = .39; pts[51] = .31; // "dorso" nos 2D
+  pts[12] = .31; pts[15] = .39; pts[51] = .52; // "dorso" nos 2D (polegar do outro lado do MCP)
   assert.ok(palmFacingOfHand({ points: pts, head, id: 'right', left: false }) > .5, 'a geometria 3D decide');
 });
 

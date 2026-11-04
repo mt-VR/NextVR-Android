@@ -55,7 +55,11 @@ export const ENTRY_UPDATES = Object.freeze([
       + 'a direção palma → olho. Nada de "a mão está alta, então está virada": altura, posição dos dedos '
       + 'e o desenho 2D não decidem nada. Antes eram dois juízes discordando a cada quadro — o sinal que '
       + 'vinha do rastreador e uma segunda decisão do lado da interface — e era isso que fazia a bolinha '
-      + 'piscar, desaparecer com a mão parada e trocar de lado quando as mãos se cruzavam. Agora existe '
+      + 'piscar, desaparecer com a mão parada e trocar de lado quando as mãos se cruzavam. O sentido da '
+      + 'normal estava invertido na mão física (a bolinha nascia com o DORSO da mão voltado para a '
+      + 'câmera) — e a regra 2D estava invertida no mesmo sentido, então os dois concordavam entre si e '
+      + 'nenhum teste via: agora os dois seguem a mesma conta do menu de palma nativo, que já estava '
+      + 'certa. E o centro de brilho passou a ter UM tamanho só, sempre o mesmo. Agora existe '
       + 'uma medida só, com suavização, histerese (acende num limiar, apaga em outro mais baixo), '
       + 'tolerância a falha curta e saída em fade. Cada mão tem o seu cursor. O gatilho de pinça da '
       + 'bolinha (Dock/Apps pela direita, Brilho e Som pela esquerda) não mudou.',

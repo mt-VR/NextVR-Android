@@ -3416,7 +3416,16 @@ function hideLeftBolinhaBubble(delayMs = 0) {
   }
 }
 
-let leftQuickMenuDist = 0.56;
+/**
+ * O centro de brilho tem UM tamanho só, sempre o mesmo.
+ *
+ * A janela é desenhada em metros: o que muda o tamanho que a pessoa vê é a DISTÂNCIA. Antes ela
+ * seguia o tamanho aparente da mão (~0,36 m com a mão perto, até 1,25 m com a mão longe), então
+ * empurrar a janela para frente a encolhia na hora — era "o negócio de quando bota o centro de
+ * brilho pra frente ele fica menor". Agora a distância é fixa, a mesma do nascimento da janela, e o
+ * `resizeScale` também não muda: ela só se mexe com a mão, nunca de tamanho.
+ */
+const LEFT_QUICK_MENU_DIST = 0.56;
 
 function updateLeftQuickMenuAttachment(packet) {
   const lhWin = wins.find(w => w.id === 'left-quick-menu' && !w.hidden);
@@ -3432,22 +3441,17 @@ function updateLeftQuickMenuAttachment(packet) {
   const rawY = (p && p.length >= 26) ? (Math.min(p[25], p[13]) - 0.06) : ((leftHand.palm?.[1] ?? 0.5) - 0.08);
   const normX = Math.max(0.46, Math.min(0.54, 0.5 + ((rawX - 0.5) * sx) * 0.12));
   const normY = Math.max(0.46, Math.min(0.54, 0.5 + ((rawY - 0.5) * sy) * 0.12));
-  const handSize = measureHandApparentSize(leftHand);
-  if (handSize > 0.015) {
-    // Mão perto (handSize maior) -> menu vem para perto (até 0.36m); mão longe (handSize menor) -> menu vai para longe (até 1.25m)
-    const refSize = 0.145;
-    const targetDist = Math.max(0.36, Math.min(1.25, 0.56 * Math.pow(refSize / handSize, 1.35)));
-    leftQuickMenuDist += (targetDist - leftQuickMenuDist) * 0.52;
-  }
   const r = phoneRay(normX, normY);
-  const worldPt = r.ray.origin.clone().addScaledVector(r.ray.direction, leftQuickMenuDist);
+  const worldPt = r.ray.origin.clone().addScaledVector(r.ray.direction, LEFT_QUICK_MENU_DIST);
   contentRoot.updateMatrixWorld(true);
   const localPt = contentRoot.worldToLocal(worldPt);
   lhWin.target.copy(localPt);
   lhWin.obj.position.copy(lhWin.target);
   lhWin.apply();
   lhWin.shell.dataset.attachedPos = `${localPt.x.toFixed(2)},${localPt.y.toFixed(2)},${localPt.z.toFixed(2)}`;
-  lhWin.shell.dataset.attachedDist = leftQuickMenuDist.toFixed(2);
+  lhWin.shell.dataset.attachedDist = LEFT_QUICK_MENU_DIST.toFixed(2);
+  // Nem o arraste, nem a distância, nem a mão mudam o tamanho: um tamanho só, sempre.
+  lhWin.resizeScale = 1.68;
   css3d.invalidate?.();
 }
 
