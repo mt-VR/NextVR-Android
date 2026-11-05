@@ -35,6 +35,17 @@ test('ray contact extends to visible adjacent options, not hidden or out-of-boun
   assert.equal(ctx.clipHandRayToDock(aim,1000,600).onDock,true);
   popup.hidden=true;assert.equal(ctx.clipHandRayToDock(aim,1000,600),aim);
   popup.hidden=false;popup.offsetTop=180;assert.equal(ctx.clipHandRayToDock(aim,1000,600),aim);
+  popup.offsetTop=0;
+  const sub={hidden:false,offsetLeft:243,offsetTop:0,offsetWidth:186,offsetHeight:150};
+  popup.querySelectorAll=()=>[sub];
+  const childTarget=group3D.localToWorld(new THREE.Vector3(340,70,0));
+  const childDirection=childTarget.clone().sub(origin).normalize(),childOd=origin.dot(childDirection);
+  const childFar=origin.clone().addScaledVector(childDirection,-childOd+Math.sqrt(childOd*childOd+16-origin.lengthSq())).project(camera);
+  const childAim={originX:500,originY:570,x:(childFar.x+1)*500,y:(1-childFar.y)*300};
+  assert.equal(ctx.clipHandRayToDock(childAim,1000,600).onDock,true);
+  sub.hidden=true;assert.equal(ctx.clipHandRayToDock(childAim,1000,600),childAim);
+  sub.hidden=false;popup.hidden=true;assert.equal(ctx.clipHandRayToDock(childAim,1000,600),childAim);
+
 });
 
 test('neon silhouette merges a filled palm and five tapered digits, then removes mask interior from glow',()=>{
@@ -79,4 +90,30 @@ test('requested fine camera-visible hand becomes default once; later explicit st
   const run=()=>{const ctx=vm.createContext({localStorage});vm.runInContext(code+';this.style=handVisualStyle;',ctx);return ctx.style;};
   assert.equal(run(),'aura');assert.equal(saved.get('dixVR_hand_visual_style'),'aura');
   saved.set('dixVR_hand_visual_style','3d');assert.equal(run(),'3d');
+});
+
+test('cascading menu shows one child list and explicitly closes siblings without changing the anchor',()=>{
+  const keys=['library','store','camera','hand-aura'];
+  const subs=keys.map(key=>({dataset:{orbitSubmenu:key},hidden:true}));
+  const branches=keys.map(key=>({dataset:{orbitBranch:key},setAttribute(k,v){this[k]=v;}}));
+  const root={querySelectorAll:s=>s==='.orbit-submenu'?subs:branches};let refreshed=0;
+  const ctx=vm.createContext({windowGroupElement:root,updateButtonCache:()=>refreshed++,syncVRMirrorClones:()=>refreshed++});
+  vm.runInContext(extract('function setOrbitSubmenu(', 'function setOrbitMenu('),ctx);
+  for(const key of keys){ctx.setOrbitSubmenu(key);assert.equal(subs.filter(s=>!s.hidden).length,1);assert.equal(subs.find(s=>!s.hidden).dataset.orbitSubmenu,key);assert.equal(branches.filter(b=>b['aria-expanded']==='true').length,1);}
+  ctx.setOrbitSubmenu(null);assert.ok(subs.every(s=>s.hidden));assert.equal(refreshed,10);
+  assert.match(html,/\.orbit-branch, .orbit-leaf,/);
+  assert.match(html,/if\(type==='catalog'\)\{openMultitaskWindow\(value\);applyCatalogFilter\(value,filter\);\}/);
+});
+
+test('adaptive hand filter suppresses stationary jitter but follows fast motion without frame-based extra lag',()=>{
+  const ctx=vm.createContext({});vm.runInContext(extract('function filterHandLandmark(', 'function onHandResults('),ctx);
+  const p={x:100,y:200,targetX:100,targetY:200,rawX:100,rawY:200,filteredAt:0};
+  let energy=0;
+  for(let i=1;i<=120;i++){ctx.filterHandLandmark(p,100+(i%2?1:-1),200,i*16.67);energy+=(p.x-100)**2;assert.equal(p.x,p.targetX);}
+  assert.ok(Math.sqrt(energy/120)<.45,'less than half the raw jitter');
+  ctx.filterHandLandmark(p,200,200,121*16.67);assert.ok(Math.abs(p.x-200)<2,'no long filter tail during quick translation');
+  ctx.filterHandLandmark(p,260,220,122*16.67,true);assert.equal(p.x,260,'reacquisition snaps instead of drawing a travelling ghost');
+  const before={...p};ctx.filterHandLandmark(p,NaN,Infinity,123*16.67);assert.deepEqual(p,before);
+  assert.doesNotMatch(html,/pt.x \+= \(pt.targetX-pt.x\)\*0.72/);
+  assert.match(html,/handsCtx.globalAlpha=\.30/);assert.match(html,/auraMaskCtx.fillStyle='#15202b'/);
 });
