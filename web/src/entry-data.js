@@ -45,6 +45,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'cardboard-vr-box',
+    tag: 'NOVO · JOGOS CARDBOARD / VR BOX (TÁXI DRIVER E CIA.) ABRINDO EM TELA CHEIA',
+    time: 'Agora',
+    heading: 'Jogos de Cardboard e VR Box: o Táxi Driver Abre no Seu Visor, e o NextVR Volta Igual',
+    desc: 'O NextVR agora reconhece os jogos que desenham o próprio estéreo — Cardboard e Daydream, como o Táxi Driver VR — por quatro pistas do APK: as bibliotecas do SDK, a categoria de VR do manifesto, as classes com/google/cardboard dentro do dex de um build Unity e até o nome do pacote. '
+      + 'Esses jogos NÃO viram janelinha: eles já trazem a correção de lente do VR Box dentro da imagem, e rodar isso dentro do nosso frame aplicaria a nossa correção por cima (borrão). Então eles recebem a TELA INTEIRA, do mesmo jeito que o ícone do app na gaveta do Android, e o NextVR volta exatamente como estava quando você sai. '
+      + 'Na biblioteca a tile deles ganha o selo VR BOX (sem ✕, porque eles abrem), e em Configurações › PhoneXR › Cardboard & VR Box tem a lista dos seus apps instalados com “Abrir em tela cheia” — serve para qualquer jogo que o reconhecimento automático não pegar. Nada de runtime, nada de Shizuku: é o startActivity do próprio ícone.',
+  },
+  {
     id: 'orb-454-ray-tabs',
     tag: 'NOVO · ANEL 4-5-4 (TREZE APPS), ANEL EXCLUSIVO, TRÊS ABAS NAS CONFIGURAÇÕES & RAIO FORA DA MÃO',
     time: 'Agora',

@@ -37,7 +37,7 @@ const MENU_ID = 'nextvr-xr-menu';
 const state = {
   runtime: 'missing', runtimeVersion: -1, runtimeBundled: false, vrapi: 'missing', broker: false,
   summary: '', hosting: false, display: -1, problem: null, handFeed: 0, handMode: 'controllers',
-  game: null, canvas: null,
+  game: null, canvas: null, external: false, externalGame: null, externalPackage: null,
 };
 let games = [], gamesProblem = null, gamesLoaded = false;   // jogos de headset instalados
 
@@ -62,10 +62,16 @@ export function applyState(json) {
   let next;
   try { next = JSON.parse(json); } catch { return; }
   if (!next || typeof next !== 'object') return;
+  const wasExternal = state.externalPackage;
   Object.assign(state, next);
   uiBlocked = null;
   if (state.hosting && state.game?.package) enterGame(state.game);
   else exitGame();
+  // O jogo foi entregue à tela do aparelho (Cardboard): a shell continua aqui, com o workspace
+  // intacto, e diz o que está acontecendo em vez de deixar o usuário achando que nada abriu.
+  if (state.external && state.externalPackage && wasExternal !== state.externalPackage) {
+    toast(t('xrFullScreenOpened').replace('{game}', state.externalGame || state.externalPackage));
+  }
   emit('xr', { ...state, games });
 }
 /** Chamado por XrGameController com a lista de jogos de headset instalados (string JSON). */
@@ -110,6 +116,20 @@ export function launchXrGame(pkg) {
   command({ cmd: 'open', package: pkg });
 }
 export function closeXrGame() { if (state.hosting) command({ cmd: 'close' }); }
+/**
+ * Entrega a tela do celular a um app que desenha o próprio estéreo (Cardboard/VR Box).
+ *
+ * É o mesmo caminho do "abrir no celular" de uma janela de app: `startActivity` do ícone do app, sem
+ * privilégio, sem runtime e sem display. Serve para qualquer apk que o classificador não reconheça —
+ * o usuário aponta o jogo e ele abre como abriria pela gaveta, pronto para o VR Box.
+ */
+export function launchAppFullScreen(pkg) {
+  if (!pkg) return false;
+  const payload = JSON.stringify({ cmd: 'phone', pkg });
+  try { window.NativeXR?.appsCommand?.(payload); }
+  catch { return false; }
+  return true;
+}
 export function minimizeXrGame() { if (state.hosting) command({ cmd: 'minimize' }); }
 export function restoreXrGame() { if (state.hosting) command({ cmd: 'restore' }); }
 export function installXrRuntime() {
@@ -136,12 +156,17 @@ export function xrTileHtml(item) {
   const mark = `<span class="nm">${escape(`${(g.label || g.package).slice(0, 2)}`)}</span>`;
   const running = xrGamePkg() === g.package
     ? `<span class="lib-open">${escape(t('appOpen'))}</span>` : '';
-  const hostable = g.hostable ? ''
+  // Um jogo de tela cheia (Cardboard/Daydream) abre — só não dentro do nosso frame. Marcar ✕ nele
+  // sería dizer que ele não funciona, e ele funciona: o que muda é quem entrega a imagem ao VR Box.
+  const fullScreen = g.fullScreen === true || g.kind === 'cardboard' || g.kind === 'daydream';
+  const hostable = g.hostable || fullScreen ? ''
     : `<span class="lib-sys" title="${escape(g.describe || t('xrNotHostable'))}">✕</span>`;
+  const boxBadge = fullScreen
+    ? `<span class="lib-vr" title="${escape(t('xrCardboardBadge'))}">VR BOX</span>` : `<span class="lib-vr">XR</span>`;
   return `<button class="lib-tile game" data-xr="${escape(g.package)}" aria-label="${escape(g.label || g.package)}">`
     + `<span class="lib-cover"><span class="lib-brand">${mark}</span>`
     + `<span class="lib-src" title="${escape(t('xrTitle'))}">${icon('controller')}</span>`
-    + hostable + running + `<span class="lib-vr">XR</span></span>`
+    + hostable + running + boxBadge + `</span>`
     + `<span class="lib-label">${escape(g.label || g.package)}</span></button>`;
 }
 const escape = value => String(value == null ? '' : value)

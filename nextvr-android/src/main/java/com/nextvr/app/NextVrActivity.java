@@ -379,6 +379,24 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @Override public void report(String message){ NextVrActivity.this.report(message); }
         @Override public int[] phoneSize(){ return NextVrActivity.this.phoneSize(); }
         @Override public int density(){ return getResources().getDisplayMetrics().densityDpi; }
+        /**
+         * Entrega a tela do celular a um jogo que desenha o próprio estéreo (Cardboard/Daydream): é o
+         * mesmo `startActivity` do ícone do app na gaveta, então não precisa de privilégio nenhum. Vai
+         * pelo `main` porque a sessão decide isso na thread de trabalho dela.
+         */
+        @Override public boolean launchOnPhone(String pkg){
+            if(pkg==null || pkg.isEmpty()) return false;
+            try{
+                final android.content.Intent intent=getPackageManager().getLaunchIntentForPackage(pkg);
+                if(intent==null) return false;
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    |android.content.Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                main.post(()->{ if(closed) return;
+                    try{ startActivity(intent); }
+                    catch(Throwable error){ report("Não consegui abrir o jogo: "+error.getMessage()); } });
+                return true;
+            }catch(Throwable missing){ return false; }
+        }
     };
     /** How the session talks to the shell WebView, from its own worker thread. */
     private final XrGameController.Shell xrShell=new XrGameController.Shell() {

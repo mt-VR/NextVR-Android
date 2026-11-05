@@ -103,7 +103,7 @@ test('the controller publishes the canvas and answers the hands-ui edge', async 
     'the shell reported a pinch over one of its windows: no buttons in the game for it');
   assert.match(controller, /public void onActivityPaused\(\) \{\n\s+if \(!hosting\(\)\) return;\n\s+hands\.stop\(\);\n\s+minimize\(\);/,
     'pause detaches the picture and stops feeding a game the last frame forever');
-  assert.match(controller, /public void onActivityResumed\(\) \{\n\s+if \(!hosting\(\)\) return;\n\s+hands\.start\(handMode, true, true\);\n\s+restore\(\);/);
+  assert.match(controller, /public void onActivityResumed\(\) \{\n[\s\S]{0,320}?if \(!hosting\(\)\) return;\n\s+hands\.start\(handMode, true, true\);\n\s+restore\(\);/);
 });
 
 test('the activity hands the game the pause and the resume', async () => {
@@ -233,4 +233,98 @@ test('the bundled UI carries the embeddings: state push, panels, chords and no d
   }
   const html = await read(FILES.bundleHtml);
   assert.ok(html.includes('az-dot[data-state="outdated"]'), 'the runtime dot states ship with the page');
+});
+
+/* ============ Cardboard / VR Box: o jogo que desenha o próprio estéreo ============ */
+
+test('um jogo Cardboard é reconhecido e recebe a TELA, em vez de ser hospedado', async () => {
+  const library = await read(FILES.library);
+  // Uma classe própria: Cardboard e Daydream aplicam a correção de lente do VR Box DENTRO da imagem.
+  assert.match(library, /OPENXR, OPENXR_ORIGINAL, VRAPI_READY, VRAPI_ORIGINAL, VRAPI_UNSUPPORTED, DAYDREAM, CARDBOARD/);
+  assert.match(library, /public boolean fullScreen\(\) \{\n\s+return kind == Kind\.CARDBOARD \|\| kind == Kind\.DAYDREAM;\n\s+\}/);
+  // Hospedar um deles empilharia a nossa correção em cima da do jogo: eles saem do `hostable`.
+  assert.match(library, /public boolean hostable\(\) \{\n\s+return kind == Kind\.OPENXR \|\| kind == Kind\.VRAPI_READY;\n\s+\}/);
+  // As pistas, em ordem: um loader de verdade ganha; Cardboard/Daydream vêm antes de uma categoria solta.
+  assert.match(library, /public static Kind kindOf\(/);
+  const kindOf = library.slice(library.indexOf('public static Kind kindOf('), library.indexOf('/**\n     * Whether a name says Cardboard'));
+  assert.ok(kindOf.indexOf('if (openXr)') < kindOf.indexOf('if (cardboard || cardboardDeclared)'));
+  assert.ok(kindOf.indexOf('if (cardboard || cardboardDeclared)') < kindOf.indexOf('if (declaredVr)'));
+  assert.match(library, /case DAYDREAM:\n\s+return "Daydream · abre em tela cheia no VR Box \(estéreo do próprio jogo\)";/);
+  assert.match(library, /return "Cardboard · abre em tela cheia no VR Box \(estéreo do próprio jogo\)";/);
+});
+
+test('o Táxi Driver (Unity + Cardboard, sem categoria de VR) é achado pelas pistas do APK', async () => {
+  const library = await read(FILES.library);
+  // Bibliotecas nativas do SDK Cardboard, nos nomes que o empacotamento Java/Unity usa.
+  assert.match(library, /"libcardboard\.so", "libCardboard\.so", "libcardboard_unity\.so", "libGfxPluginCardboard\.so"/);
+  // Um build Unity + plugin Cardboard não tem NADA disso: o plugin é Java. O dex é a pista.
+  assert.match(library, /"com\/google\/cardboard"\.getBytes/);
+  assert.match(library, /"com\/google\/vr\/sdk"\.getBytes/);
+  assert.match(library, /static boolean dexHasCardboard\(ZipFile zip, java\.util\.List<String> names\)/);
+  assert.match(library, /private static final long MAX_DEX_BYTES = 24L \* 1024 \* 1024;/);
+  // E, por último, o nome: o pacote do Táxi Driver termina em `.cardboard` e a versão diz
+  // `1.0-cardboard-vr-v7`.
+  assert.match(library, /static boolean looksCardboard\(String name\)/);
+  assert.match(library, /if \(!cardboard && \(looksCardboard\(info\.packageName\) \|\| looksCardboard\(String\.valueOf\(info\.versionName\)\)\)\)/);
+  // O probe só roda para quem pode ser Unity — não se abre o dex de todo app instalado.
+  assert.match(library, /boolean mightBeUnity = !declaredVr && !openXr && !gvr && !cardboard && hasUnityLib\(libs\);/);
+  assert.match(library, /if \(mightBeUnity\) cardboard = dexHasCardboard\(zip, names\);/);
+});
+
+test('abrir um jogo de tela cheia entrega a tela do celular, sem runtime e sem display', async () => {
+  const controller = await read(FILES.controller);
+  // A entrega acontece ANTES de qualquer exigência de runtime/Shizuku.
+  const open = controller.slice(controller.indexOf('private void open(String packageName)'), controller.indexOf('private void openFullScreen('));
+  assert.ok(open.indexOf('if (game.fullScreen())') < open.indexOf('if (runtime.runtimeState() != XrRuntime.State.READY)'),
+    'a tela cheia não depende do runtime');
+  assert.match(controller, /private void openFullScreen\(XrGameLibrary\.Game game\) \{\n\s+hands\.stop\(\);\n\s+current = null;\n\s+external = game;/);
+  assert.match(controller, /if \(!env\.launchOnPhone\(game\.packageName\)\) \{/);
+  // O estado diz que não é uma sessão nossa, e qual jogo foi para a tela.
+  assert.match(controller, /root\.put\("external", external != null\);/);
+  assert.match(controller, /root\.put\("externalGame", external == null \? JSONObject\.NULL : external\.label\);/);
+  assert.match(controller, /item\.put\("fullScreen", game\.fullScreen\(\)\);/);
+  // O lado Android já tinha o caminho privilegio-zero: o ícone do app na gaveta.
+  assert.match(controller, /boolean launchOnPhone\(String packageName\);/);
+  const activity = await read(FILES.activity);
+  assert.match(activity, /@Override public boolean launchOnPhone\(String pkg\)\{/);
+  assert.match(activity, /final android\.content\.Intent intent=getPackageManager\(\)\.getLaunchIntentForPackage\(pkg\);/);
+  assert.match(activity, /android\.content\.Intent\.FLAG_ACTIVITY_NEW_TASK/);
+  const windows = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowController.java');
+  assert.match(windows, /public boolean launchOnPhone\(String packageName\) \{\n\s+return displays != null && displays\.launchOnPhone\(packageName\);\n\s+\}/);
+});
+
+test('a shell pinta a tile do VR Box e oferece a tela cheia para qualquer app instalado', async () => {
+  const xr = await read(FILES.xr);
+  // Tela cheia não é "não abre": nada de ✕ na tile, e o selo diz onde ele abre.
+  assert.match(xr, /const fullScreen = g\.fullScreen === true \|\| g\.kind === 'cardboard' \|\| g\.kind === 'daydream';/);
+  assert.match(xr, /const hostable = g\.hostable \|\| fullScreen \? ''/);
+  assert.match(xr, /VR BOX/);
+  // O caminho manual, para quando o APK não traz pista nenhuma: o mesmo `startActivity` do app.
+  assert.match(xr, /export function launchAppFullScreen\(pkg\) \{/);
+  assert.match(xr, /const payload = JSON\.stringify\(\{ cmd: 'phone', pkg \}\);/);
+  assert.match(xr, /window\.NativeXR\?\.appsCommand\?\.\(payload\)/);
+  // Aviso quando o jogo vai para a tela: sem isso o usuário acha que nada abriu.
+  assert.match(xr, /if \(state\.external && state\.externalPackage && wasExternal !== state\.externalPackage\) \{/);
+  assert.match(xr, /toast\(t\('xrFullScreenOpened'\)\.replace\('\{game\}', state\.externalGame \|\| state\.externalPackage\)\)/);
+  // A página PhoneXR ganhou a seção, com a lista de apps instalados e o botão por app.
+  const apps = await read(FILES.apps);
+  assert.match(apps, /card\.append\(ytSection\(t\('xrCardboard'\)\)\);/);
+  assert.match(apps, /if \(launchAppFullScreen\(app\.pkg\)\) \{/);
+  assert.match(apps, /installed\.append\(ytRow\(icon\('controller'\), escH\(app\.label \|\| app\.pkg\), escH\(app\.pkg\), open\)\);/);
+  assert.match(apps, /loadAndroidLibrary\(true\);/);
+  assert.match(apps, /xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen \} from '\.\/xr-games\.js';/);
+  const core = await read(FILES.core);
+  for (const key of ['xrCardboardBadge', 'xrFullScreenOpened', 'xrCardboard', 'xrCardboardNote',
+    'xrCardboardOpen', 'xrCardboardLoad', 'xrCardboardEmpty']) {
+    assert.equal(core.split(`    ${key}:`).length - 1, 3, `${key} está traduzido em pt, en e es`);
+  }
+});
+
+test('voltar do jogo de tela cheia limpa o estado: ele não fica "aberto" para sempre', async () => {
+  const controller = await read(FILES.controller);
+  assert.match(controller, /if \(external != null\) \{\n\s+external = null;\n\s+publishState\(\);\n\s+\}\n\s+if \(!hosting\(\)\) return;/);
+  // E a entrega não deixa uma sessão hospedada pela metade.
+  assert.match(controller, /private void openFullScreen\(XrGameLibrary\.Game game\) \{\n\s+hands\.stop\(\);\n\s+current = null;/);
+  // Sair/fechar também limpa.
+  assert.match(controller, /private void close\(\) \{\n\s+XrGameLibrary\.Game game = current;\n\s+current = null;\n\s+external = null;/);
 });

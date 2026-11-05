@@ -21,7 +21,7 @@ aparelho.
 | **OpenXR portado** (PhoneXR) | `libopenxr_loader.so` + catalog/runtime próprio dos PhoneXR | hospedado: display nossa, atividade nossa, o loader já resolve o runtime deste aparelho | a tile explica que falta o runtime |
 | **OpenXR de loja** (original) | `libopenxr_loader.so` sem runtime embutido, descobre o runtime pelo **broker** | só abre aqui com o runtime-broker do Khronos instalado; sem ele, **não abre na casca** — a tile marca e o launcher do runtime pode abrir na tela do celular | marca "✕" na tile, com o motivo |
 | **VrApi (Gear VR/Quest)** | `libvrapi.so`, `oculus.mobile.env` | com o driver VrApi (`com.oculus.systemdriver`) instalado, o adapter do phone-monado dá ao jogo a VrApi simulada | a tile marca o driver faltante |
-| **Daydream/Cardboard** | `libgvr.so`, `sundog-*`, `targetSdk` baixo | hospedado direto | a tile marca |
+| **Cardboard / Daydream (Google VR)** | `libgvr*.so`, `libcardboard*.so`, categoria `CARDBOARD`/`DAYDREAM`, classes `com/google/cardboard` no dex de um build Unity, ou o próprio nome do pacote/versão | **tela cheia no VR Box**, como o ícone do app na gaveta | — (não depende de nada) |
 | **App Android comum** | nada de VR nos libs/manifest | segue o fluxo normal de apps (`docs/ANDROID-APP-WINDOWS.md`) | — |
 
 A classificação vive em **`xr/XrGameLibrary.java`** (varre o APK: libs nativas, o
@@ -29,6 +29,33 @@ A classificação vive em **`xr/XrGameLibrary.java`** (varre o APK: libs nativas
 publicada pra shell com um `describe` e um `hostable` por jogo. Nos testes, `XrManifestTest` prende
 as regras (`targetSdk ≤ 29` dispensa o bloco `<queries>`; a partir de 30, quem não conhece o runtime
 não o vê, a menos que já cite o `runtime_broker` ou o pacote dele).
+
+### 1.1 Por que Cardboard/Daydream NÃO é hospedado
+
+Um jogo Cardboard (o Táxi Driver é um: Unity + Cardboard, `com.manerai.taxidriver.cardboard`) aplica
+**a distorção de lente do VR Box dentro da própria imagem** antes dela sair do app, e lê os sensores
+do celular por conta própria. Hospedá-lo numa janela nossa empilharia a nossa correção de lente sobre
+a dele — duas correções na mesma imagem dão borrão e franja de cor, não 3D — e o rastreamento dele
+brigaria com a câmera 6DoF da casca.
+
+Então esses jogos recebem a **tela inteira**: `XrGameController.openFullScreen` chama
+`Environment.launchOnPhone` (o mesmo `getLaunchIntentForPackage` + `startActivity` do ícone do app, sem
+Shizuku, sem runtime, sem display), para o feed de mãos e publica `external: true` no estado. O
+workspace não é tocado: ao sair do jogo, o NextVR está exatamente como estava.
+
+**Como um APK desses é reconhecido** (`XrGameLibrary.inspect`), em ordem:
+
+1. `libopenxr_loader.so` → OpenXR (hospedado);
+2. `libcardboard*.so` / `libGfxPluginCardboard.so`, ou categoria `com.google.intent.category.CARDBOARD` → **Cardboard**;
+3. `libgvr.so` / `libgvr_audio.so`, ou categoria `DAYDREAM` → **Daydream**;
+4. num build **Unity** (`libunity.so`) sem nenhuma pista acima: procura `com/google/cardboard` ou
+   `com/google/vr/sdk` nos `classes*.dex` (o plugin Cardboard é Java e não deixa biblioteca nativa);
+5. por último, o nome: pacote ou versão contendo `cardboard` (`…taxidriver.cardboard`, `1.0-cardboard-vr-v7`).
+
+O passo 4 é limitado por tamanho (24 MB por dex) e só roda para quem pode ser Unity. Quando nenhuma
+pista aparece — APKs antigos, renomeados, plugins exóticos — a página **Configurações › PhoneXR ›
+Cardboard & VR Box** lista os apps instalados e abre qualquer um em tela cheia pelo mesmo caminho
+(`{cmd:'phone', pkg}` no `AppWindowController`).
 
 ## 2. O que entra no aparelho
 

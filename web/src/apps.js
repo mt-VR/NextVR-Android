@@ -8,7 +8,7 @@ import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, ope
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
   refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
-  xrSelfTest, xrGames, closeXrGame, restoreXrGame } from './xr-games.js';
+  xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen } from './xr-games.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
@@ -842,6 +842,50 @@ function buildXrPage(host) {
   }
   card.append(row(t('xrHandMode'), t('xrHandModeSub'), mode), actions);
   card.append(el('p', 'note', t('xrHandModeNote')));
+  /*
+   * Modo Cardboard / VR Box.
+   *
+   * Um jogo Cardboard traz a correção de lente do VR Box dentro da própria imagem; hospedá-lo numa
+   * janela nossa aplicaria a nossa correção por cima. Então ele recebe a tela do celular inteira, como
+   * abriria pela gaveta do Android — e é isso que esta seção oferece para QUALQUER app instalado,
+   * porque um apk pode não trazer nenhuma marca que o classificador reconheça (é o caso de builds
+   * Unity antigos, que nem declaram categoria de VR).
+   */
+  card.append(ytSection(t('xrCardboard')));
+  card.append(el('p', 'note', t('xrCardboardNote')));
+  const installed = el('div', 'yt-installed');
+  // `on` é assinatura permanente nesta casca (como em todas as outras páginas deste arquivo): a
+  // página vira inerte quando o card sai do documento, em vez de deixar um ouvinte escrevendo num nó
+  // que não está mais na tela.
+  let pageLive = true;
+  const paintInstalled = () => {
+    if (!pageLive) return;
+    installed.innerHTML = '';
+    const apps = (androidApps() || []).slice()
+      .sort((a, b) => String(a.label || a.pkg).localeCompare(String(b.label || b.pkg)));
+    if (!apps.length) {
+      installed.append(el('p', 'note', t('xrCardboardEmpty')));
+      const load = el('button', 'go', t('xrCardboardLoad'));
+      load.onclick = () => { loadAndroidLibrary(true); };
+      installed.append(load);
+      return;
+    }
+    for (const app of apps) {
+      const open = el('button', 'go', t('xrCardboardOpen'));
+      open.onclick = () => {
+        if (launchAppFullScreen(app.pkg)) {
+          toast(t('xrFullScreenOpened').replace('{game}', app.label || app.pkg));
+        }
+      };
+      // Os rótulos vêm do pacote instalado: entram escapados, nunca como HTML.
+      installed.append(ytRow(icon('controller'), escH(app.label || app.pkg), escH(app.pkg), open));
+    }
+  };
+  // A lista de apps instalados chega pelo `appsState` (é a mesma de "Apps do Android").
+  paintInstalled();
+  card.append(installed);
+  on('appsState', paintInstalled);
+  on('wins', () => { if (!card.isConnected) pageLive = false; });
   if (!xrRuntimeReady() && !s.runtimeBundled) {
     card.append(el('p', 'note', t('xrBundlingNote')));
   }

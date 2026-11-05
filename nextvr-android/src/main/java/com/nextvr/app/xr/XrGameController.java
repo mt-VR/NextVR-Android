@@ -87,6 +87,13 @@ public final class XrGameController {
         int[] phoneSize();
 
         int density();
+
+        /**
+         * Starts an app on the phone's own screen, the way its launcher icon does — no display, no
+         * privilege. This is how a build that draws its own stereo picture (Cardboard, Daydream) gets
+         * to the VR Box: it is handed the screen instead of being hosted inside our frame.
+         */
+        boolean launchOnPhone(String packageName);
     }
 
     private static final long SERVICE_WAIT_MS = 20_000;
@@ -105,6 +112,11 @@ public final class XrGameController {
      *  sessions on one phone is not something either runtime supports, and silently closing the first
      *  would lose whatever the user was in the middle of. */
     private volatile XrGameLibrary.Game current;
+    /**
+     * The game handed to the phone's own screen (Cardboard/Daydream), kept only so the shell can say
+     * which one it was. It is not hosted: no display, no surface, no hand feed.
+     */
+    private volatile XrGameLibrary.Game external;
     private int displayId = -1;
     private SurfaceTexture gameTexture;
     private Surface gameSurface;
@@ -174,6 +186,12 @@ public final class XrGameController {
 
     /** The activity is back: the very same surface re-attaches and the feed starts before the next frame. */
     public void onActivityResumed() {
+        // Voltamos de um jogo entregue à tela do aparelho (Cardboard): se o NextVR está na frente de
+        // novo, o jogo foi fechado, então o estado não pode continuar dizendo que ele está aberto.
+        if (external != null) {
+            external = null;
+            publishState();
+        }
         if (!hosting()) return;
         hands.start(handMode, true, true);
         restore();
@@ -247,6 +265,13 @@ public final class XrGameController {
             }
             // A game that tracks hands with the camera itself needs the camera to itself, and this
             // app's camera is the one that tracks every other hand in the session.
+            // Um jogo que desenha o próprio estéreo com a distorção do VR Box (Cardboard, Daydream) não
+            // é hospedado: ele recebe a tela inteira, como o ícone dele na gaveta do Android faria. Não
+            // precisa de runtime, de display nem de Shizuku.
+            if (game.fullScreen()) {
+                openFullScreen(game);
+                return;
+            }
             if (game.ownHandTracking) {
                 problem = game.label + " tracks hands with the camera itself; it needs the camera to itself.";
                 return;
@@ -284,6 +309,27 @@ public final class XrGameController {
             busy = false;
             publishState();
         }
+    }
+
+    /**
+     * Hands a Cardboard/Daydream game the phone's own screen.
+     *
+     * <p>No display is created and the hand feed stays off: this kind of game reads the phone's sensors
+     * itself and presses its own buttons (a cardboard box has no controllers), so a display of ours and
+     * a stream of hand packets would only fight it. What comes back is the same screen the launcher
+     * icon gives it, plus the app's own way out — and NextVR is exactly where it was when the user
+     * returns, because nothing of the workspace was touched.
+     */
+    private void openFullScreen(XrGameLibrary.Game game) {
+        hands.stop();
+        current = null;
+        external = game;
+        problem = null;
+        if (!env.launchOnPhone(game.packageName)) {
+            external = null;
+            problem = game.label + " has no launcher activity to start.";
+        }
+        publishState();
     }
 
     /**
@@ -358,6 +404,7 @@ public final class XrGameController {
     private void close() {
         XrGameLibrary.Game game = current;
         current = null;
+        external = null;
         hands.stop();
         if (displayId >= 0) {
             try {
@@ -479,6 +526,11 @@ public final class XrGameController {
             root.put("broker", runtime.brokerInstalled());
             root.put("summary", runtime.summary());
             root.put("hosting", current != null);
+            // Um jogo entregue à tela do aparelho não está hospedado, mas também não é "nada aberto":
+            // a shell usa isto para avisar que a tela cheia do VR Box é o jogo, não uma sessão nossa.
+            root.put("external", external != null);
+            root.put("externalGame", external == null ? JSONObject.NULL : external.label);
+            root.put("externalPackage", external == null ? JSONObject.NULL : external.packageName);
             root.put("display", displayId);
             root.put("problem", problem == null ? JSONObject.NULL : problem);
             root.put("handFeed", hands.packetsSent());
@@ -507,6 +559,7 @@ public final class XrGameController {
         game.put("headset", current.headset.title);
         game.put("describe", current.describe());
         game.put("surface", surfaceId(current.packageName));
+        game.put("fullScreen", current.fullScreen());
         game.put("purchase", current.checksPurchase);
         return game;
     }
@@ -523,6 +576,8 @@ public final class XrGameController {
                 item.put("headset", game.headset.title);
                 item.put("describe", game.describe());
                 item.put("hostable", game.hostable());
+                // "Tela cheia" é o que a shell pinta na tile: o jogo abre, só não é dentro do nosso frame.
+                item.put("fullScreen", game.fullScreen());
                 item.put("purchase", game.checksPurchase);
                 array.put(item);
             }
