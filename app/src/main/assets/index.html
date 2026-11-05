@@ -1155,6 +1155,47 @@ body.vr-cardboard::after{
         .orbit-pane .panel-point { width:100%; height:34px; border:0; border-radius:3px; background:#f1f2ed; color:#333; font-size:12px; }
         .orbit-pane .panel-point.active, .orbit-pane .panel-point.hand-hover { background:#d7b54d; box-shadow:none; }
         .orbit-dock .dock-time { position:absolute; top:266px; left:0; width:64px; padding:0; margin:0; text-align:center; color:#ddd; font-size:11px; border:0; }
+
+        /* Reference-inspired catalog surfaces, without copying unsupported Quest apps. */
+        #window-library .dixVR-layout { background:#272b2c; }
+        #window-library .vr-sidebar { width:48px; min-width:48px; padding:18px 6px; background:#222627; border:0; }
+        #window-library .sidebar-btn { width:32px; height:32px; border-radius:6px; }
+        #window-library .vr-content-area { padding:18px 22px; overflow:hidden; }
+        .library-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        #window-library .vr-title { font-size:21px; letter-spacing:0; }
+        #window-library .vr-subtitle { font-size:11px; margin:4px 0 0; }
+        #window-library .panel-scroll-hint { display:none; }
+        .catalog-tabs { display:flex; gap:6px; }
+        .catalog-filter { border:0; border-radius:18px; padding:6px 12px; background:#ffffff0c; color:#ddd; font:11px Arial,sans-serif; cursor:pointer; }
+        .catalog-filter.selected,.catalog-filter.hand-hover { background:#edf3f1; color:#18272b; }
+        #window-library #library-apps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px 12px; margin-top:18px; max-height:310px; padding:0 5px 12px 0; }
+        #window-library .library-app { width:auto; min-width:0; padding:0; border:0; border-radius:5px; background:transparent; text-align:center; transform:none; }
+        #window-library .library-app .store-app-icon,#window-library .library-app .web-shortcut-icon { width:100%; height:66px; margin:0 0 6px; border:0; border-radius:5px; box-shadow:none; background:linear-gradient(120deg,#1e758d,#3053a0)!important; padding:12px; }
+        #window-library .library-app:nth-child(4n+2) .store-app-icon,#window-library .library-app:nth-child(4n+2) .web-shortcut-icon { background:linear-gradient(120deg,#b13975,#5e377d)!important; }
+        #window-library .library-app:nth-child(4n+3) .store-app-icon,#window-library .library-app:nth-child(4n+3) .web-shortcut-icon { background:linear-gradient(120deg,#d7912c,#c04a2f)!important; }
+        #window-library .library-app:nth-child(4n) .store-app-icon,#window-library .library-app:nth-child(4n) .web-shortcut-icon { background:linear-gradient(120deg,#277c63,#276b91)!important; }
+        #window-library .brand-app-icon { width:42px; height:42px; margin:auto; padding:3px; border-radius:9px; background:white; object-fit:contain; }
+        #window-library .library-app-title { font-size:11px; line-height:15px; font-weight:500; }
+        #window-library .library-app-sub { font-size:8px; line-height:11px; margin:1px 0; color:#b2bdbd; }
+        #window-library .library-app.hand-hover .store-app-icon,#window-library .library-app.hand-hover .web-shortcut-icon { outline:2px solid white; outline-offset:2px; }
+        #window-store .store-scroll { background:#172d35; padding:18px 22px; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; align-content:start; }
+        #window-store .store-game-head { grid-column:1/-1; }
+        #window-store .store-game-title { font-size:18px; }
+        #window-store .store-game-sub { font-size:10px; }
+        .store-feature { position:relative; overflow:hidden; grid-column:1/-1; height:140px; border-radius:9px; padding:24px; background:radial-gradient(ellipse at 78% 130%,#338b9b,transparent 55%),linear-gradient(115deg,#192247,#535781); color:#fff; }
+        .store-feature span { display:block; font-size:9px; letter-spacing:2px; color:#bccfe8; }
+        .store-feature strong { display:block; font-size:28px; margin:10px 0 4px; position:relative; z-index:1; }
+        .store-feature p { font-size:11px; color:#cfdbed; position:relative; z-index:1; }
+        .feature-orbit { position:absolute; width:160px; height:160px; border:20px solid #84dddd30; border-radius:50%; right:36px; top:-10px; box-shadow:0 0 0 24px #a9c8ff0c,0 0 0 50px #a9c8ff06; }
+        .store-section-title { grid-column:1/-1; font-size:13px; color:#fff; margin:2px 0 0; }
+        #window-store .store-app-card { display:flex; flex-direction:column; align-items:stretch; gap:5px; padding:0; margin:0; min-height:0; border:0; border-radius:0; box-shadow:none; background:none; }
+        #window-store .store-app-icon { width:100%; height:68px; border-radius:6px; box-shadow:none; border:0; }
+        #window-store .store-app-icon .brand-app-icon { padding:13px; object-fit:contain; }
+        #window-store .store-app-name { font-size:11px; line-height:14px; }
+        #window-store .store-app-desc { font-size:9px; line-height:12px; max-height:36px; overflow:hidden; }
+        #window-store .store-app-status { font-size:8px; margin-top:3px; }
+        #window-store .install-btn { font-size:10px; padding:6px 8px; margin-top:auto; border-radius:5px; background:#ffffff18; color:#e4f3f5; }
+        #window-store .store-app-card[hidden],#window-library .library-app[hidden] { display:none!important; }
     </style>
 
 <style id="roblox-launcher-landscape-lock">
@@ -1300,8 +1341,8 @@ body.vr-cardboard::after{
                     </div>
 
                     <div class="vr-content-area">
-                        <div class="vr-title">dixVR</div>
-                        <div class="vr-subtitle">Sua biblioteca de experiências VR. Adicione e organize seus apps aqui.</div>
+                        <div class="library-toolbar"><div class="vr-title">Biblioteca</div><div class="catalog-tabs" data-catalog="library"><button class="catalog-filter selected" data-filter="all">Todos</button><button class="catalog-filter" data-filter="web">Web</button><button class="catalog-filter" data-filter="games">Jogos</button></div></div>
+                        <div class="vr-subtitle">Seus aplicativos e experiências dixVR</div>
                         <div class="panel-scroll-hint"><strong>👌 Rolagem:</strong> faça a pinça e arraste a mão para cima/baixo sobre a lista.</div>
 
                         <div class="hand-settings" id="hand-settings" hidden>
@@ -1332,7 +1373,7 @@ body.vr-cardboard::after{
                                         <svg viewBox="0 0 120 140" aria-hidden="true"><path d="M43 126c-4-15-7-22-14-32L12 71c-6-9 3-15 9-8l17 19-7-52c-2-12 10-14 12-3l7 40-1-49c0-12 12-12 13-1l2 48 7-43c2-11 14-9 12 3l-5 42 10-31c3-10 14-6 11 4L87 91c-3 15-3 23-1 35z" fill="#ffffff15" stroke="#f4fcff" stroke-width="2.2" stroke-linejoin="round"/></svg>
                                     </div>
                                     <div class="hand-style-name">Aura Neon</div>
-                                    <div class="hand-style-desc">Silhueta da mão inteira, com contorno branco neon e palma translúcida.</div>
+                                    <div class="hand-style-desc">Contorno branco fino por dentro da mão; câmera visível, sem ossos ou brilho grosso.</div>
                                 </button>
 
                                 <button class="hand-style-option" data-hand-style="ghost">
@@ -1369,9 +1410,9 @@ body.vr-cardboard::after{
                 <div class="store-scroll">
                     <div class="store-game-head">
                         <div><div class="store-game-title">Loja dixVR</div><div class="store-game-sub">Instale aplicativos e eles aparecerão na sua Biblioteca.</div></div>
-                        <div class="experiment-tag">APLICATIVOS</div>
+                        <div class="catalog-tabs" data-catalog="store"><button class="catalog-filter selected" data-filter="all">Página inicial</button><button class="catalog-filter" data-filter="games">Jogos</button><button class="catalog-filter" data-filter="web">Apps</button></div>
                     </div>
-                                        <div class="panel-scroll-hint"><strong>👌 Rolagem:</strong> faça a pinça e arraste a mão para cima/baixo sobre a Loja.</div>
+                    <div class="store-feature"><span>EXPERIÊNCIAS dixVR</span><strong>Explore novos mundos.</strong><p>Jogos VR e seus apps favoritos, em um só lugar.</p><div class="feature-orbit" aria-hidden="true"></div></div><h3 class="store-section-title">Navegar por tudo</h3>
 <div class="store-app-card" id="store-kitchen-card">
                         <div class="store-app-icon" aria-label="Chicken Cut VR">
                             <img src="data:image/jpeg;base64,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" alt="Chicken Cut VR" style="width:100%;height:100%;object-fit:cover;">
@@ -2058,17 +2099,15 @@ body.vr-cardboard::after{
         // já tinha essa preferência salva, ignoramos ela UMA vez (sem apagar a
         // escolha de quem já usou o novo seletor) para que o novo padrão
         // "fantasma" realmente apareça, em vez de continuar preso ao estilo antigo.
-        let handVisualStyle = 'ghost';
+        let handVisualStyle = 'aura';
         try {
-            const migrated = localStorage.getItem('dixVR_hand_style_migrated_v11');
-            const savedHandStyle = localStorage.getItem('dixVR_hand_visual_style');
-            if (!migrated) {
-                localStorage.setItem('dixVR_hand_style_migrated_v11', '1');
-                if (savedHandStyle === 'ghost' || savedHandStyle === '3d' || savedHandStyle === 'aura') handVisualStyle = savedHandStyle;
-                // se era 'original' (ou não existia), fica no novo padrão 'ghost'
-            } else if (savedHandStyle === 'original' || savedHandStyle === 'ghost' || savedHandStyle === '3d' || savedHandStyle === 'aura') {
-                handVisualStyle = savedHandStyle;
-            }
+            const migrated=localStorage.getItem('dixVR_hand_outline_v12');
+            const saved=localStorage.getItem('dixVR_hand_visual_style');
+            if(!migrated){
+                // Apply the requested camera-visible thin hand once; later choices persist.
+                localStorage.setItem('dixVR_hand_outline_v12','1');
+                localStorage.setItem('dixVR_hand_visual_style','aura');
+            }else if(['original','ghost','3d','aura'].includes(saved))handVisualStyle=saved;
         } catch(e) {}
         let experimentGameActive = false;
         let experimentMode = null;
@@ -2460,7 +2499,7 @@ body.vr-cardboard::after{
             createFloatingDomWindow('panoramas',panoramaPanelElement,'Ambientes · dixVR');
         }
         function openPanoramaGallery() {
-            openMultitaskWindow('panoramas',findSlotOfApp('panoramas') || 'center');
+            openMultitaskWindow('panoramas',findSlotOfApp('panoramas') || null);
             updatePanoramaGallery();
         }
         function renderPanoramaScene() {
@@ -2516,7 +2555,7 @@ body.vr-cardboard::after{
             };
         }
 
-        // ===== MULTITAREFA ESPACIAL dixVR (ESTILO NEXTVR: ATÉ 3 APPS ACIMA DA DOCK) =====
+        // ===== MULTITAREFA ESPACIAL dixVR (ESTILO NEXTVR: DIREITA, ESQUERDA E ACIMA DA DOCK) =====
         const MULTITASK_MAX = 3;
         const MULTITASK_SLOTS = ['center', 'left', 'right'];
         const DOCK_DIST = 1.55;
@@ -2550,7 +2589,7 @@ body.vr-cardboard::after{
         let multitaskSuspendedForGame = false;
         let shootTheDieMountSource = null;
 
-        const INTERACTIVE_UI_SELECTOR = '.orbit-tab, .dock-item, .sidebar-btn, .experiment-btn, .install-btn, .roblox-launcher-open, .library-app, .panel-point, .hand-style-option, .hand-settings-back, .minecraft-open-btn, .roblox-game-card, .roblox-nav-btn, .roblox-see-all, .dixvr-slot-btn, .dixvr-win-close, .dixvr-note-chip';
+        const INTERACTIVE_UI_SELECTOR = '.orbit-tab, .catalog-filter, .dock-item, .sidebar-btn, .experiment-btn, .install-btn, .roblox-launcher-open, .library-app, .panel-point, .hand-style-option, .hand-settings-back, .minecraft-open-btn, .roblox-game-card, .roblox-nav-btn, .roblox-see-all, .dixvr-slot-btn, .dixvr-win-close, .dixvr-note-chip';
 
         function getAllUiRoots() {
             const roots = [];
@@ -2821,10 +2860,10 @@ body.vr-cardboard::after{
         function computeArcLayout(scales) {
             const centerApp = multitaskSlots.center;
             const sideSlots = MULTITASK_SLOTS.filter(s => s !== 'center' && multitaskSlots[s]);
-            if(!centerApp || !sideSlots.length)return {step:ARC_MIN_STEP,scales,radius:ARC_DIST};
-            const center = getMultitaskEntry(centerApp);
-            if(!center)return {step:ARC_MIN_STEP,scales,radius:ARC_DIST};
-            const halfCenter=measureEntrySize(center).w*scales.center*.5;
+            if(!sideSlots.length)return {step:ARC_MIN_STEP,scales,radius:ARC_DIST};
+            const center = centerApp ? getMultitaskEntry(centerApp) : null;
+            // Leave room for the circular rail and its right-hand flyout even with no upper window.
+            const halfCenter=center ? measureEntrySize(center).w*scales.center*.5 : .60;
             let halfSide=0;
             for(const slot of sideSlots){
                 const entry=getMultitaskEntry(multitaskSlots[slot]);
@@ -2848,6 +2887,7 @@ body.vr-cardboard::after{
             const scale = getSlotScale(appId, slot, scaleOverride);
             const size = measureEntrySize(entry);
             const halfH = (size.h * scale) * 0.5;
+            if(slot !== 'center')return workspaceDockY;
             const metrics = getDockMetrics();
             return metrics.topY + DOCK_CLEARANCE + halfH;
         }
@@ -3045,7 +3085,7 @@ body.vr-cardboard::after{
             entry.wrapperEl.style.display = 'none';
         }
 
-        function openMultitaskWindow(appId, preferredSlot = 'center') {
+        function openMultitaskWindow(appId, preferredSlot = null) {
             if (!appId) return false;
             if (appId === 'google' && !googleInstalled) return false;
             if (appId === 'youtube' && !youtubeInstalled) return false;
@@ -3068,7 +3108,7 @@ body.vr-cardboard::after{
             }
 
             // App novo: o slot pedido (Esquerda / Frente / Direita) e respeitado quando esta livre.
-            const wanted = MULTITASK_SLOTS.includes(preferredSlot) ? preferredSlot : 'center';
+            const wanted = MULTITASK_SLOTS.includes(preferredSlot) ? preferredSlot : (['right','left','center'].find(slot=>!multitaskSlots[slot]) || 'center');
             const displaced = multitaskSlots[wanted];
             const freeSlot = MULTITASK_SLOTS.find(s => !multitaskSlots[s]);
 
@@ -3118,18 +3158,7 @@ body.vr-cardboard::after{
             deactivateMultitaskSurface(appId);
             if (slot) {
                 multitaskSlots[slot] = null;
-                if (!multitaskSlots.center) {
-                    const lApp = multitaskSlots.left, rApp = multitaskSlots.right;
-                    if (lApp && rApp) {
-                        const promoteSlot = (multitaskTouchedAt[lApp] || 0) >= (multitaskTouchedAt[rApp] || 0) ? 'left' : 'right';
-                        multitaskSlots.center = multitaskSlots[promoteSlot];
-                        multitaskSlots[promoteSlot] = null;
-                    } else if (lApp) {
-                        multitaskSlots.center = lApp; multitaskSlots.left = null;
-                    } else if (rApp) {
-                        multitaskSlots.center = rApp; multitaskSlots.right = null;
-                    }
-                }
+
             }
             layoutMultitaskArc();
             updateButtonCache();
@@ -3146,9 +3175,8 @@ body.vr-cardboard::after{
 
         function toggleDockMultitaskWindow(appId) {
             const curSlot = findSlotOfApp(appId);
-            if (curSlot === 'center') closeMultitaskWindow(appId);
-            else if (curSlot) moveMultitaskWindowToSlot(appId, 'center');
-            else openMultitaskWindow(appId, 'center');
+            if (curSlot) closeMultitaskWindow(appId);
+            else openMultitaskWindow(appId);
         }
 
         function suspendMultitaskForGame(suspend) {
@@ -3178,7 +3206,7 @@ body.vr-cardboard::after{
             const trioBtn = uiQuery('#dixvr-open-trio-btn');
             if (!listEl) return;
             let notes = [
-                'Multitarefa dixVR pronta: abra até 3 janelas simultâneas acima da dock.',
+                'Multitarefa dixVR: primeira janela à direita, segunda à esquerda e terceira acima da Dock.',
                 'Dica: use os botões ◀ ⌖ ▶ no topo de cada janela para trocar entre Esquerda, Frente e Direita.'
             ];
             try {
@@ -3334,7 +3362,7 @@ body.vr-cardboard::after{
 
         function openHandSettings(){
             if(!windowGroupElement) return;
-            openMultitaskWindow('library', findSlotOfApp('library') || 'center');
+            openMultitaskWindow('library', findSlotOfApp('library') || null);
             const settings = uiQuery('#hand-settings');
             const title = uiQuery('#window-library .vr-title');
             const subtitle = uiQuery('#window-library .vr-subtitle');
@@ -3383,6 +3411,9 @@ body.vr-cardboard::after{
         }
 
         function setupDockActions() {
+            uiQueryAll('.catalog-filter').forEach(btn=>btn.addEventListener('click',e=>{
+                e.stopPropagation();applyCatalogFilter(btn.closest('[data-catalog]').dataset.catalog,btn.dataset.filter);
+            }));
             windowGroupElement.querySelectorAll('.orbit-tab').forEach(tab=>tab.addEventListener('click',e=>{
                 e.stopPropagation();
                 if(experimentGameActive)return;
@@ -3394,10 +3425,10 @@ body.vr-cardboard::after{
             const sidebarButtons = uiQueryAll('.sidebar-btn');
 
             function setActivePoint(){ syncDockMultitaskHighlights(); }
-            function showMainPanel(type){ openMultitaskWindow(type, 'center'); }
+            function showMainPanel(type){ openMultitaskWindow(type); }
 
-            window.openRobloxLauncherPanel = ()=>openMultitaskWindow('roblox', 'center');
-            window.openMinecraftLauncherPanel = ()=>openMultitaskWindow('minecraft', 'center');
+            window.openRobloxLauncherPanel = ()=>openMultitaskWindow('roblox');
+            window.openMinecraftLauncherPanel = ()=>openMultitaskWindow('minecraft');
             uiQueryAll('.minecraft-open-btn').forEach((minecraftOpenBtn)=>{
                 let mcPressHandled=false;
                 const openFromButton=(e)=>{
@@ -3653,6 +3684,19 @@ body.vr-cardboard::after{
             updateHandSettingsUI();
         }
 
+        function applyCatalogFilter(kind,filter='all') {
+            const root=uiQuery(kind==='store'?'#window-store':'#window-library');if(!root)return;
+            root.querySelectorAll('.catalog-filter').forEach(btn=>{
+                const selected=btn.dataset.filter===filter;btn.classList.toggle('selected',selected);btn.setAttribute('aria-pressed',String(selected));
+            });
+            root.dataset.catalogFilter=filter;
+            root.querySelectorAll(kind==='store'?'.store-app-card':'.library-app').forEach(card=>{
+                const isGame=/kitchen|dreamcore|shoot-the-die|minecraft|roblox/.test(card.id);
+                card.hidden=filter!=='all' && (filter==='games'?!isGame:isGame);
+            });
+            updateButtonCache();syncVRMirrorClones(true);
+        }
+
         function refreshStore(){
             if(!windowGroupElement)return;
             const items=[
@@ -3668,6 +3712,10 @@ body.vr-cardboard::after{
                 let installed=false;
                 try{installed=!!check();}catch(e){}
                 card.classList.toggle('is-installed',installed);
+                const button=card.querySelector?.('.install-btn');
+                if(button){button.textContent=installed?'Na Biblioteca':'Instalar';button.classList.toggle('installed',installed);}
+                const status=card.querySelector?.('.store-app-status');
+                if(status && installed)status.textContent='Instalado · abra na Biblioteca';
             }
         }
 
@@ -3765,6 +3813,7 @@ body.vr-cardboard::after{
                 <div class="web-shortcut-icon" style="background:${app.color}"><img class="brand-app-icon" src="${app.icon}" alt="${app.name}"></div>
                 <div class="library-app-title">${app.name}</div><div class="library-app-sub">Web · navegador compartilhado</div></button>`).join('');
             area.innerHTML = html || '<div style="color:rgba(255,255,255,.45);font-size:13px;padding:10px 0">Nenhum aplicativo instalado ainda.</div>';
+            applyCatalogFilter('library',uiQuery('#window-library')?.dataset.catalogFilter||'all');
             area.querySelectorAll('[data-web-app]').forEach(button=>button.addEventListener('click',e=>{e.stopPropagation();openLibraryWebApp(button.dataset.webApp);}));
             area.querySelector('#library-google-app')?.addEventListener('click',(e)=>{e.stopPropagation();openGooglePanel();});
             area.querySelector('#library-youtube-app')?.addEventListener('click',(e)=>{e.stopPropagation();openYouTubePanel();});
@@ -3969,7 +4018,7 @@ body.vr-cardboard::after{
 
         function openGooglePanel(){
             if(!googleInstalled)return;
-            openMultitaskWindow('google', 'center');
+            openMultitaskWindow('google');
         }
 
         function closeGooglePanel(){
@@ -4172,7 +4221,7 @@ body.vr-cardboard::after{
 
         function openYouTubePanel(){
             if(!youtubeInstalled)return;
-            openMultitaskWindow('youtube', 'center');
+            openMultitaskWindow('youtube');
         }
 
         function closeYouTubePanel(){
@@ -4658,20 +4707,33 @@ body.vr-cardboard::after{
         }
 
         function drawHandSilhouette(ctx,P,scale) {
-            // Fill a single anatomical mask, not outlines around individual bones.
+            // Anatomical tapered surfaces: landmarks at the tips are the OUTER ends,
+            // not centres of oversized capsules. Merge before outlining (no bone seams).
             const span=Math.hypot(P[17].x-P[5].x,P[17].y-P[5].y)||1;
             const ux=(P[17].x-P[5].x)/span,uy=(P[17].y-P[5].y)/span;
             const offset=(p,d)=>({x:p.x+ux*d,y:p.y+uy*d});
-            const palm=[offset(P[0],-scale*.24),offset(P[5],-scale*.08),P[9],P[13],offset(P[17],scale*.08),offset(P[0],scale*.24)];
-            ctx.fillStyle='#fff';ctx.strokeStyle='#fff';ctx.lineCap='round';ctx.lineJoin='round';
-            ctx.beginPath();ctx.moveTo(palm[0].x,palm[0].y);
+            const palm=[offset(P[0],-scale*.20),offset(P[1],-scale*.045),offset(P[5],-scale*.065),P[9],P[13],offset(P[17],scale*.065),offset(P[0],scale*.20)];
+            ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(palm[0].x,palm[0].y);
             palm.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
-            for(const finger of [[0,1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]]){
-                for(let j=1;j<finger.length;j++){
-                    const a=P[finger[j-1]],b=P[finger[j]];
-                    ctx.lineWidth=scale*(finger[1]===1?.17:.145)*(1-(j-1)*.13);
-                    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+            for(const ids of [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]]){
+                const finger=ids.map(i=>P[i]),left=[],right=[];
+                const width=Math.max(scale*.075,Math.min(scale*.145,span*.21))*(ids[0]===1?1.12:ids[0]===17?.83:1);
+                for(let j=0;j<4;j++){
+                    const prev=finger[Math.max(0,j-1)],next=finger[Math.min(3,j+1)];
+                    const len=Math.hypot(next.x-prev.x,next.y-prev.y)||1;
+                    const tx=(next.x-prev.x)/len,ty=(next.y-prev.y)/len;
+                    const r=width*[.52,.49,.40,.32][j];
+                    const center=j===3?{x:finger[j].x-tx*r,y:finger[j].y-ty*r}:finger[j];
+                    left.push({x:center.x-ty*r,y:center.y+tx*r});
+                    right.push({x:center.x+ty*r,y:center.y-tx*r});
                 }
+                const smooth=points=>{
+                    for(let j=1;j<points.length-1;j++)ctx.quadraticCurveTo(points[j].x,points[j].y,(points[j].x+points[j+1].x)/2,(points[j].y+points[j+1].y)/2);
+                    const end=points[points.length-1];ctx.lineTo(end.x,end.y);
+                };
+                ctx.beginPath();ctx.moveTo(left[0].x,left[0].y);smooth(left);
+                ctx.quadraticCurveTo(finger[3].x,finger[3].y,right[3].x,right[3].y);
+                smooth(right.reverse());ctx.closePath();ctx.fill();
             }
         }
 
@@ -4985,6 +5047,7 @@ body.vr-cardboard::after{
                     const P=hand.points,w=handsCanvas.width,h=handsCanvas.height;
                     const handScale=Math.max(12,Math.hypot(P[9].x-P[0].x,P[9].y-P[0].y));
                     auraMaskCtx.clearRect(0,0,w,h);
+                    auraMaskCtx.globalCompositeOperation='source-over';
                     drawHandSilhouette(auraMaskCtx,P,handScale);
                     const padding=handScale*.5;
                     const sx=Math.max(0,Math.floor(Math.min(...P.map(p=>p.x))-padding));
@@ -4993,21 +5056,23 @@ body.vr-cardboard::after{
                     const sh=Math.max(0,Math.min(h,Math.ceil(Math.max(...P.map(p=>p.y))+padding))-sy);
                     auraHandCtx.clearRect(0,0,w,h);
                     if(sw>0 && sh>0){
-                        const edge=Math.max(1.2,Math.min(3,handScale*.018));
+                        const edge=Math.max(.65,Math.min(1.6,handScale*.009));
+                        // Erode the silhouette and subtract it: thin edge stays INSIDE the hand.
                         auraHandCtx.globalCompositeOperation='source-over';
+                        auraHandCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
+                        auraMaskCtx.globalCompositeOperation='destination-in';
                         for(let i=0;i<8;i++){
-                            const a=i*Math.PI/4;
-                            auraHandCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx+Math.cos(a)*edge,sy+Math.sin(a)*edge,sw,sh);
+                            const angle=i*Math.PI/4;
+                            auraMaskCtx.drawImage(auraHandCanvas,sx,sy,sw,sh,sx+Math.cos(angle)*edge,sy+Math.sin(angle)*edge,sw,sh);
                         }
+                        auraMaskCtx.globalCompositeOperation='source-over';
                         auraHandCtx.globalCompositeOperation='destination-out';
                         auraHandCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
                         auraHandCtx.globalCompositeOperation='source-over';
                         handsCtx.save();
-                        handsCtx.globalAlpha=.08;
-                        handsCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
-                        handsCtx.globalAlpha=1;
-                        handsCtx.shadowColor='#bce9ff';
-                        handsCtx.shadowBlur=Math.min(18,handScale*.12);
+                        handsCtx.globalAlpha=.85;
+                        handsCtx.shadowColor='#ffffff';
+                        handsCtx.shadowBlur=0;
                         handsCtx.drawImage(auraHandCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
                         handsCtx.restore();
                     }

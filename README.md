@@ -128,3 +128,12 @@ adb install -r dixVR-debug.apk
 - Ícone DI Halloween: arte enviada pelo usuário aplicada ao launcher adaptativo, densidades legadas e ícone interno; imagem completa dentro da área segura adaptativa, sem redesenho.
 
 Validação desta alteração: 68 testes Node (incluindo seleção/fechamento de categorias, alvos ocultos, contato do raio no submenu, composição da silhueta e três janelas acima da coluna). Aparência, alcance e desempenho real de hand tracking ainda precisam de teste no aparelho.
+
+### Revisão das referências — direita / esquerda / acima
+
+Esta revisão substitui a regra anterior de manter todas as janelas acima da Dock:
+- A abertura normal ocupa **direita → esquerda → centro superior**. Laterais ficam na altura da Dock; a terceira fica acima, com folga vertical. As três continuam iguais, no mundo, sem seguir a cabeça. Escolher explicitamente um slot ainda funciona; reabrir uma janela não a troca de lado; fechar a superior não promove as laterais. A quarta ocupa a superior, deslocando sua ocupante para o lado menos recente (máximo três).
+- Biblioteca: fundo carvão, barra lateral compacta, grade de quatro colunas, cartões retangulares coloridos e logos locais preservados. Filtros Todos/Web/Jogos funcionais, incluindo após instalar apps.
+- Loja: fundo azul-petróleo, navegação Página inicial/Jogos/Apps, banner gráfico local e vitrine em cinco colunas, com botões reais de instalação. Não oferece nem simula instalar títulos do Quest que o dixVR não possui.
+- Hand Aura: palma e cinco dedos com superfícies afuniladas/curvas, pontas sem expansão de cápsulas. Uma erosão da máscara produz uma borda branca fina **dentro** da silhueta estimada; sem preenchimento nem halo, preservando a mão da câmera. Upgrade v12 ativa esse estilo uma vez; escolhas posteriores continuam salvas. É uma aproximação pelos 21 pontos do MediaPipe, não segmentação exata da pele.
+- Validação: 71 testes Node; regressões de sequência de slots, fechamento/reabertura, igualdade de escala, recenter em todas as direções, filtros reais e migração do estilo. Aparência/encaixe do contorno e FPS no aparelho não foram medidos aqui.

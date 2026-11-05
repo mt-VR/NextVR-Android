@@ -46,7 +46,7 @@ test('gallery opens as one multitask window and its buttons select previews or c
   vm.runInContext(html.slice(html.indexOf('const PANORAMAS ='),html.indexOf('function getScreenCoordinates')),ctx);
   ctx.createPanoramaGallery();assert.equal(entry.id,'panoramas');assert.equal(element.buttons.length,6);
   assert.match(element.markup,/Criado com IA/);assert.doesNotMatch(element.markup,/cyberpunk-avenue|car-factory|night-skyline|neon-crossroads/);
-  ctx.openPanoramaGallery();assert.equal(opened.id,'panoramas');assert.equal(opened.slot,'center');
+  ctx.openPanoramaGallery();assert.equal(opened.id,'panoramas');assert.equal(opened.slot,null);
   ctx.selectPanorama=index=>selected=index;
   element.buttons[5].click({stopPropagation(){}});assert.equal(selected,4);
   element.buttons[0].click({stopPropagation(){}});assert.equal(selected,-1);

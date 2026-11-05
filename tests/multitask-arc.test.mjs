@@ -207,23 +207,26 @@ function perpendicularDistance(a, b) {
   return Math.abs(dx * localX.x + dz * localX.z);
 }
 
-test('NextVR-style 3-window multitasking opens 3 apps (center, left, right) strictly above the dock', async () => {
+test('automatic windows open right, left, then above Dock, retaining their side slots', async () => {
   const mt = await createMultitaskHarness();
 
   // 1st app -> front (center)
   mt.open('library');
   assert.equal(mt.getOpenCount(), 1);
-  assert.deepEqual({ ...mt.getSlots() }, { center: 'library', left: null, right: null });
+  assert.deepEqual({ ...mt.getSlots() }, { center: null, left: null, right: 'library' });
+  const first=mt.getGeometrySnapshot().windows.right;
+  assert.equal(first.localY,-.68);
+  assert.ok(first.x>0);
 
   // 2nd app -> new app in front (center), previous slides to left
   mt.open('store');
   assert.equal(mt.getOpenCount(), 2);
-  assert.deepEqual({ ...mt.getSlots() }, { center: 'store', left: 'library', right: null });
+  assert.deepEqual({ ...mt.getSlots() }, { center: null, left: 'store', right: 'library' });
 
   // 3rd app -> 3 simultaneous apps: 1 in front (center), 1 on left, 1 on right
   mt.open('youtube');
   assert.equal(mt.getOpenCount(), 3);
-  assert.deepEqual({ ...mt.getSlots() }, { center: 'youtube', left: 'library', right: 'store' });
+  assert.deepEqual({ ...mt.getSlots() }, { center: 'youtube', left: 'store', right: 'library' });
 
   const snap = mt.getGeometrySnapshot();
   assert.ok(snap.windows.center, 'Center window must exist');
@@ -235,14 +238,10 @@ test('NextVR-style 3-window multitasking opens 3 apps (center, left, right) stri
   assert.ok(snap.windows.left.x < -1.2, `Expected left window on -X, got ${snap.windows.left.x}`);
   assert.ok(snap.windows.right.x > 1.2, `Expected right window on +X, got ${snap.windows.right.x}`);
 
-  // ALL 3 windows must float strictly ABOVE the dock, with the configured clearance.
-  for (const slot of ['left', 'center', 'right']) {
-    const w = snap.windows[slot];
-    assert.equal(w.aboveDock, true, `Window in ${slot} must be strictly above dock`);
-    assert.ok(
-      w.bottomY >= snap.dockTopY + snap.clearance - 1e-6,
-      `Expected ${slot} bottomY (${w.bottomY}) >= dockTopY (${snap.dockTopY}) + ${snap.clearance}m`
-    );
+  assert.ok(snap.windows.center.aboveDock);
+  for(const slot of ['left','right']){
+    assert.equal(snap.windows[slot].localY,-.68,'side windows sit beside the Dock');
+    assert.equal(snap.windows[slot].scale,snap.windows.center.scale);
   }
 
   // The dock top must be measured from the real DOM (panel offset inside the group).
@@ -279,7 +278,7 @@ test('a tall window shrinks instead of sinking into the dock', async () => {
   // A library window that grew (extra content) measures 900px instead of 480px.
   const mt = await createMultitaskHarness({ sizes: { library: { w: 760, h: 900 } } });
 
-  mt.open('library');
+  mt.open('library','center');
   const snap = mt.getGeometrySnapshot();
   const w = snap.windows.center;
 
@@ -324,7 +323,7 @@ test('dock slot points open the focused app in that exact slot', async () => {
   assert.equal(mt.getOpenCount(), 0);
 });
 
-test('opening a 4th app evicts the LRU side window and closing center promotes a side window', async () => {
+test('opening a 4th app evicts the LRU side window; closing center keeps side windows in place', async () => {
   const mt = await createMultitaskHarness();
 
   mt.open('library'); // t=1
@@ -334,16 +333,16 @@ test('opening a 4th app evicts the LRU side window and closing center promotes a
   // Opening 4th app ('google') evicts oldest side window ('library')
   mt.open('google');
   assert.equal(mt.getOpenCount(), 3);
-  assert.deepEqual({ ...mt.getSlots() }, { center: 'google', left: 'chat', right: 'store' });
+  assert.deepEqual({ ...mt.getSlots() }, { center: 'google', left: 'store', right: 'chat' });
 
   // Swap right ('store') into center
   mt.moveToSlot('store', 'center');
-  assert.deepEqual({ ...mt.getSlots() }, { center: 'store', left: 'chat', right: 'google' });
+  assert.deepEqual({ ...mt.getSlots() }, { center: 'store', left: 'google', right: 'chat' });
 
   // Closing center ('store') automatically promotes most recent side window into center
   mt.close('store');
   assert.equal(mt.getOpenCount(), 2);
-  assert.ok(mt.getSlots().center !== null, 'Closing center must promote a side window to center');
+  assert.deepEqual({...mt.getSlots()},{center:null,left:'google',right:'chat'},'closing center must not move side windows');
 });
 
 
@@ -382,14 +381,24 @@ test('recenter places the Dock at gaze target in every direction and keeps the w
     assert.ok(Math.abs(result.facing+1)<1e-7,'Dock surface faces back toward viewer, even vertically');
     assert.ok(result.drift<1e-7,'camera motion after recenter does not move Dock');
     const panels=Object.values(result.snapshot.windows);assert.equal(panels.length,3);
-    for(const panel of panels){assert.ok(panel.aboveDock,'clearance is evaluated in tilted workspace coordinates');assert.equal(panel.scale,panels[0].scale);}
+    for(const panel of panels){assert.equal(panel.aboveDock,panel.appId==='youtube','only third (upper) window needs vertical Dock clearance');assert.equal(panel.scale,panels[0].scale);}
   }
 });
 
-test('vertical circular rail keeps three equal full-size surfaces above the taller menu',async()=>{
+test('vertical circular rail keeps three equal full-size surfaces beside and above the taller menu',async()=>{
   const mt=await createMultitaskHarness({dock:{groupHeight:270,panelHeight:270,panelTop:0,orbitWorkspace:true}});
   mt.open('library');mt.open('store');mt.open('chat');
   const panels=Object.values(mt.getGeometrySnapshot().windows);
   assert.equal(panels.length,3);
-  for(const panel of panels){assert.ok(panel.aboveDock);assert.equal(panel.scale,panels[0].scale);assert.ok(panel.scale>=.0022);}
+  for(const panel of panels){assert.equal(panel.aboveDock,panel.appId==='chat');assert.equal(panel.scale,panels[0].scale);assert.ok(panel.scale>=.0022);}
+});
+
+test('reopening a side app keeps its slot, fourth uses upper slot, and close does not promote sides',async()=>{
+  const mt=await createMultitaskHarness();
+  mt.open('library');mt.open('store');mt.open('library');
+  assert.deepEqual({...mt.getSlots()},{center:null,left:'store',right:'library'});
+  mt.open('chat');mt.open('google');
+  assert.deepEqual({...mt.getSlots()},{center:'google',left:'chat',right:'library'});
+  mt.close('google');assert.deepEqual({...mt.getSlots()},{center:null,left:'chat',right:'library'});
+  mt.close('chat');mt.open('store');assert.deepEqual({...mt.getSlots()},{center:null,left:'store',right:'library'});
 });
