@@ -51,3 +51,12 @@ test('small reference-inspired Poolrooms tiles keep a bounded shared texture den
   ctx.createPoolTileTexture(false);ctx.createPoolTileTexture(true);
   assert.equal(calls.length,2);for(const [size,draw,rx,ry] of calls){assert.equal(size,256);assert.equal(rx,1.5);assert.equal(ry,1.5);assert.equal(typeof draw,'function');}
 });
+
+test('tap-to-start shooter receives VR and pose again after bridges exist, not just premature iframe onload',()=>{
+  let listener;const messages=[],target={postMessage:message=>messages.push(message)};
+  const ctx=vm.createContext({activePanelType:null,shootTheDieFrameRef:{contentWindow:target},window:{addEventListener:(name,fn)=>listener=fn},vrCardboardActive:true,camera:new THREE.PerspectiveCamera()});
+  vm.runInContext(section(html,'let shootHandInFlight=null','// Processamento com correspondência'),ctx);
+  listener({source:{},data:{type:'dixvr-shoot-ready'}});assert.equal(messages.length,0);
+  listener({source:target,data:{type:'dixvr-shoot-ready'}});assert.equal(messages[0].type,'dixvr-shoot-vr');assert.equal(messages[0].enabled,true);assert.equal(messages[1].type,'dixvr-shoot-gyro');
+  assert.ok(shooter.indexOf("parent.postMessage({type:'dixvr-shoot-ready'}")>shooter.lastIndexOf('initHandTracking();'));
+});
