@@ -4776,10 +4776,23 @@ body.vr-cardboard::after{
             const ux=(P[17].x-P[5].x)/span,uy=(P[17].y-P[5].y)/span;
             const offset=(p,d)=>({x:p.x+ux*d,y:p.y+uy*d});
             const palm=[offset(P[0],-scale*.20),offset(P[1],-scale*.045),offset(P[5],-scale*.065),P[9],P[13],offset(P[17],scale*.065),offset(P[0],scale*.20)];
-            ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(palm[0].x,palm[0].y);
-            palm.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+            ctx.fillStyle='#fff';ctx.beginPath();
+            for(let i=0;i<palm.length;i++){
+                const p=palm[i],prev=palm[(i+palm.length-1)%palm.length],next=palm[(i+1)%palm.length];
+                const entry={x:p.x+(prev.x-p.x)*.16,y:p.y+(prev.y-p.y)*.16};
+                const exit={x:p.x+(next.x-p.x)*.16,y:p.y+(next.y-p.y)*.16};
+                i?ctx.lineTo(entry.x,entry.y):ctx.moveTo(entry.x,entry.y);
+                ctx.quadraticCurveTo(p.x,p.y,exit.x,exit.y);
+            }
+            ctx.closePath();ctx.fill();
             for(const ids of [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]]){
-                const finger=ids.map(i=>P[i]),left=[],right=[];
+                const finger=ids.map(i=>({...P[i]})),left=[],right=[];
+                const rootDirection={x:finger[1].x-finger[0].x,y:finger[1].y-finger[0].y};
+                const rootLength=Math.hypot(rootDirection.x,rootDirection.y)||1;
+                finger[0].x-=rootDirection.x/rootLength*scale*.24;
+                finger[0].y-=rootDirection.y/rootLength*scale*.24;
+                if(ids[0]===1)finger[0]={x:P[0].x*.65+P[1].x*.35,y:P[0].y*.65+P[1].y*.35};
+                let capCenter,capRadius,capAngle;
                 const width=Math.max(scale*.075,Math.min(scale*.145,span*.21))*(ids[0]===1?1.12:ids[0]===17?.83:1);
                 for(let j=0;j<4;j++){
                     const prev=finger[Math.max(0,j-1)],next=finger[Math.min(3,j+1)];
@@ -4787,6 +4800,7 @@ body.vr-cardboard::after{
                     const tx=(next.x-prev.x)/len,ty=(next.y-prev.y)/len;
                     const r=width*[.52,.49,.40,.32][j];
                     const center=j===3?{x:finger[j].x-tx*r,y:finger[j].y-ty*r}:finger[j];
+                    if(j===3){capCenter=center;capRadius=r;capAngle=Math.atan2(tx,-ty);}
                     left.push({x:center.x-ty*r,y:center.y+tx*r});
                     right.push({x:center.x+ty*r,y:center.y-tx*r});
                 }
@@ -4795,7 +4809,8 @@ body.vr-cardboard::after{
                     const end=points[points.length-1];ctx.lineTo(end.x,end.y);
                 };
                 ctx.beginPath();ctx.moveTo(left[0].x,left[0].y);smooth(left);
-                ctx.quadraticCurveTo(finger[3].x,finger[3].y,right[3].x,right[3].y);
+                // Exact semicircle tangent to both sides; the pole reaches landmark TIP.
+                ctx.arc(capCenter.x,capCenter.y,capRadius,capAngle,capAngle-Math.PI,true);
                 smooth(right.reverse());ctx.closePath();ctx.fill();
             }
         }
@@ -5563,6 +5578,7 @@ body.vr-cardboard::after{
         function clearDreamcoreWorld(){
             if(dreamcoreAnimationId){cancelAnimationFrame(dreamcoreAnimationId);dreamcoreAnimationId=null;}
             if(dreamcoreResizeHandler){window.removeEventListener('resize',dreamcoreResizeHandler);dreamcoreResizeHandler=null;}
+            removeDreamcoreLevelRoot();
             if(dreamcoreRenderer){try{dreamcoreRenderer.dispose();}catch(e){} try{const gl=dreamcoreRenderer.getContext&&dreamcoreRenderer.getContext();const ext=gl&&gl.getExtension&&gl.getExtension('WEBGL_lose_context');if(ext)ext.loseContext();}catch(e){}}
             dreamcoreRenderer=null;dreamcoreScene=null;dreamcoreCamera=null;dreamcoreWorldRoot=null;dreamcorePointing=false;dreamcorePortals=[];dreamcoreWaterZones=[];dreamcoreTransitionBusy=false;dreamcoreWaterState=false;dreamcoreWaterTargetY=1.62;
             const c=document.getElementById('dreamcore-canvas');if(c)c.style.display='none';
@@ -5590,28 +5606,66 @@ body.vr-cardboard::after{
         // ===== DREAMCORE LEVEL 37 · POOLROOMS (MOBILE OPTIMIZED) =====
         // Materiais e geometrias compartilhados para reduzir draw calls/CPU.
         let poolShared={};
+        let dreamcoreShadowLight=null;
+        function setDreamcoreUV(geometry,x=0,y=0,z=0) {
+            const pos=geometry.attributes.position,normal=geometry.attributes.normal,uv=geometry.attributes.uv;
+            for(let i=0;i<pos.count;i++){
+                const nx=Math.abs(normal.getX(i)),ny=Math.abs(normal.getY(i));
+                const px=pos.getX(i)+x,py=pos.getY(i)+y,pz=pos.getZ(i)+z;
+                uv.setXY(i,ny>.5?px:nx>.5?pz:px,ny>.5?pz:py);
+            }
+            uv.needsUpdate=true;return geometry;
+        }
+        function createDreamcoreWaterTexture(){
+            return makeCanvasTexture(256,(ctx,size)=>{
+                ctx.fillStyle='#468d9c';ctx.fillRect(0,0,size,size);
+                ctx.strokeStyle='rgba(189,239,225,.24)';ctx.lineWidth=2;
+                for(let y=16;y<size;y+=32){ctx.beginPath();
+                    for(let x=0;x<=size;x+=8){const yy=y+Math.sin(x*Math.PI/64+y)*8;x?ctx.lineTo(x,yy):ctx.moveTo(x,yy);}ctx.stroke();}
+            },1,1);
+        }
+        function configureDreamcoreShadows(){
+            dreamcoreShadowLight=new THREE.DirectionalLight(0xe6ede2,.70);
+            const light=dreamcoreShadowLight;light.castShadow=true;
+            light.shadow.mapSize.set(1024,1024);light.shadow.camera.left=-18;light.shadow.camera.right=18;
+            light.shadow.camera.top=18;light.shadow.camera.bottom=-18;light.shadow.camera.near=.5;light.shadow.camera.far=45;
+            light.shadow.bias=-.0003;light.shadow.normalBias=.03;
+            dreamcoreScene.add(light,light.target);updateDreamcoreShadowRegion();
+        }
+        function updateDreamcoreShadowRegion(){
+            if(!dreamcoreShadowLight || !dreamcoreCamera || !dreamcoreRenderer)return;
+            const x=Math.floor(dreamcoreCamera.position.x/12)*12,z=Math.floor(dreamcoreCamera.position.z/12)*12;
+            const key=x+':'+z;if(dreamcoreShadowLight.userData.cell===key)return;
+            dreamcoreShadowLight.userData.cell=key;
+            dreamcoreShadowLight.position.set(x+8,15,z+6);dreamcoreShadowLight.target.position.set(x,0,z);
+            dreamcoreRenderer.__dixvrShadowsDirty=true;
+        }
         function getPoolMaterials(){
             if(poolShared.wall)return poolShared;
-            const tileMap=tileTexture('#c9c7bf','#f4f1e7',8,8);
-            const floorMap=tileTexture('#bdbbb3','#e8e4d9',12,12);
+            const tileMap=tileTexture('#85938e','#c9d0c5',1,1);
+            const floorMap=tileTexture('#81948f','#b6c5bf',1,1);
             if(THREE.SRGBColorSpace){tileMap.colorSpace=THREE.SRGBColorSpace;floorMap.colorSpace=THREE.SRGBColorSpace;}else{tileMap.encoding=THREE.sRGBEncoding;floorMap.encoding=THREE.sRGBEncoding;}
             poolShared.wall=new THREE.MeshStandardMaterial({color:0xf1eee4,map:tileMap,roughness:.72,metalness:0});
             poolShared.tile=new THREE.MeshStandardMaterial({color:0xf7f4ea,map:tileMap,roughness:.68,metalness:0});
             poolShared.floor=new THREE.MeshStandardMaterial({color:0xe5e1d6,map:floorMap,roughness:.88,metalness:0});
-            poolShared.water=new THREE.MeshStandardMaterial({color:0x2699ad,roughness:.24,metalness:0,transparent:true,opacity:.90});
-            poolShared.deepWater=new THREE.MeshStandardMaterial({color:0x17657b,roughness:.28,metalness:0,transparent:true,opacity:.92});
+            const waterMap=createDreamcoreWaterTexture();
+            poolShared.water=new THREE.MeshStandardMaterial({color:0x58a8b8,map:waterMap,roughness:.36,metalness:0});
+            poolShared.deepWater=new THREE.MeshStandardMaterial({color:0x337586,map:waterMap,roughness:.40,metalness:0});
             poolShared.trim=new THREE.MeshStandardMaterial({color:0xd2cfc3,roughness:.64,metalness:0});
             poolShared.light=new THREE.MeshBasicMaterial({color:0xfff8df});
             poolShared.darkWall=new THREE.MeshStandardMaterial({color:0x68716d,map:tileMap,roughness:.82});
             return poolShared;
         }
         function addPoolBox(w,h,d,x,y,z,material){
-            const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);dreamcoreWorldRoot.add(o);return o;
+            const geometry=setDreamcoreUV(new THREE.BoxGeometry(w,h,d),x,y,z);
+            const o=new THREE.Mesh(geometry,material);o.position.set(x,y,z);
+            o.castShadow=h>.5 && w<100 && d<100 && material!==poolShared.light;
+            o.receiveShadow=material!==poolShared.light;dreamcoreWorldRoot.add(o);return o;
         }
         function addDreamcorePool(name,x,z,w,d,y,deep=false){
             const m=getPoolMaterials();
-            const water=new THREE.Mesh(new THREE.PlaneGeometry(w,d),deep?m.deepWater:m.water);
-            water.rotation.x=-Math.PI/2;water.position.set(x,y,z);water.userData.water=true;dreamcoreWorldRoot.add(water);
+            const water=new THREE.Mesh(setDreamcoreUV(new THREE.PlaneGeometry(w,d),x,z,0),deep?m.deepWater:m.water);
+            water.rotation.x=-Math.PI/2;water.position.set(x,y,z);water.userData.water=true;water.receiveShadow=true;dreamcoreWorldRoot.add(water);
             const rim=.28;
             addPoolBox(w+.35,rim,.28,x,y+rim/2,z-d/2-.14,m.trim);
             addPoolBox(w+.35,rim,.28,x,y+rim/2,z+d/2+.14,m.trim);
@@ -5625,19 +5679,15 @@ body.vr-cardboard::after{
             const bar=addPoolBox(3.2,.10,.32,x,y,z,m.light);
             // Poucas luzes reais; as barras continuam visíveis e emissivas.
             // Isso reduz muito o custo de iluminação no celular.
-            const gridX=Math.round((x+49)/14), gridZ=Math.round((18-z)/18);
-            if(!dim && (gridX%2===0) && (gridZ%2===0)){
-                const pl=new THREE.PointLight(0xd9f3ef,.52,11);
-                pl.position.set(x,y-.18,z);
-                dreamcoreWorldRoot.add(pl);
-            }
+            // Emissive bars are batched; one cached directional shadow light replaces
+            // the per-pixel cost of a large array of point lights on every surface.
             return bar;
         }
         function addPoolSlide(path,color=0xd5d2c7,radius=.46){
             const curve=new THREE.CatmullRomCurve3(path,false,'centripetal');
             // Menos segmentos/polígonos para funcionar melhor em celular.
             const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,26, radius,8,false),new THREE.MeshStandardMaterial({color,roughness:.52,metalness:.02}));
-            dreamcoreWorldRoot.add(tube);
+            tube.castShadow=true;tube.receiveShadow=true;dreamcoreWorldRoot.add(tube);
         }
         function addPoolPillar(x,z,h=4.4){
             const m=getPoolMaterials();
@@ -5655,7 +5705,7 @@ body.vr-cardboard::after{
             if(camera)dreamcoreCamera.quaternion.copy(camera.quaternion);
             dreamcoreWorldRoot=new THREE.Group();dreamcoreScene.add(dreamcoreWorldRoot);
             dreamcoreScene.add(new THREE.AmbientLight(0x26304a,.12));
-            const floor=new THREE.Mesh(new THREE.PlaneGeometry(46,46),new THREE.MeshStandardMaterial({color:0x050509,roughness:.34,metalness:.15}));floor.rotation.x=-Math.PI/2;dreamcoreWorldRoot.add(floor);
+            const floor=new THREE.Mesh(setDreamcoreUV(new THREE.PlaneGeometry(46,46)),new THREE.MeshStandardMaterial({color:0x151521,map:getPoolMaterials().floor.map,roughness:.74,metalness:0}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;dreamcoreWorldRoot.add(floor);
             addDreamcorePortal(1,0x78a7ff,{x:-3.05,y:2,z:-5.4},.12,'pool');
             addDreamcorePortal(2,0xb88cff,{x:0,y:2,z:-7.2},0,'locked2');
             addDreamcorePortal(3,0x6fe4ff,{x:3.15,y:2,z:-5.2},-.13,'locked3');
@@ -5667,8 +5717,8 @@ body.vr-cardboard::after{
             // Ambiente fechado: nunca deixa o teto/parte traseira virarem um vazio preto.
             dreamcoreScene.background=new THREE.Color(0xb8b5a8);
             dreamcoreScene.fog=new THREE.Fog(0xaaa99f,52,125);
-            dreamcoreScene.add(new THREE.HemisphereLight(0xe7e2cf,0x30383b,.78));
-            dreamcoreScene.add(new THREE.AmbientLight(0xcbd8d5,.34));
+            dreamcoreScene.add(new THREE.HemisphereLight(0xe7e2cf,0x30383b,.52));
+            dreamcoreScene.add(new THREE.AmbientLight(0xcbd8d5,.16));
 
             // Complexo grande, dividido em salas conectadas.
             addPoolBox(116,.24,116,0,-.12,-32,m.floor);
@@ -5727,18 +5777,26 @@ body.vr-cardboard::after{
             addPoolLight(0,4.9,-74,true);addPoolLight(0,4.9,-84,true);
 
             // Sem portal dentro do level: ao entrar, os três portais do hub ficam para trás.
-            dreamcoreResizeHandler=()=>{if(!dreamcoreRenderer||!dreamcoreCamera)return;dreamcoreRenderer.setSize(window.innerWidth,window.innerHeight,false);dreamcoreCamera.aspect=window.innerWidth/window.innerHeight;dreamcoreCamera.updateProjectionMatrix();};
-            window.addEventListener('resize',dreamcoreResizeHandler);
+
         }
         function setDreamcoreLevelLabel(text){const el=document.getElementById('dreamcore-level-label');if(!el)return;el.textContent=text;el.style.display=text?'block':'none';}
         function removeDreamcoreLevelRoot(){
-            if(dreamcoreScene){
-                // Troca de nível limpa também as luzes do nível anterior.
-                // Antes, as luzes antigas permaneciam na Scene e acumulavam custo
-                // a cada entrada/saída pelo portal.
-                while(dreamcoreScene.children.length) dreamcoreScene.remove(dreamcoreScene.children[0]);
-            }
-            dreamcoreWorldRoot=null;
+            const geometries=new Set(),materials=new Set(),textures=new Set();
+            const sharedMaterials=new Set(Object.values(poolShared));
+            const sharedTextures=new Set(Object.values(DREAMCORE_PREVIEWS));
+            for(const material of sharedMaterials)if(material?.map)sharedTextures.add(material.map);
+            dreamcoreScene?.traverse(object=>{
+                if(object.geometry)geometries.add(object.geometry);
+                if(object.material)for(const material of Array.isArray(object.material)?object.material:[object.material]){
+                    if(sharedMaterials.has(material))continue;
+                    materials.add(material);
+                    for(const value of Object.values(material))if(value?.isTexture && !sharedTextures.has(value))textures.add(value);
+                }
+                object.shadow?.map?.dispose();
+            });
+            geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());
+            if(dreamcoreScene)while(dreamcoreScene.children.length)dreamcoreScene.remove(dreamcoreScene.children[0]);
+            dreamcoreShadowLight=null;dreamcoreWorldRoot=null;
             dreamcorePortals=[];dreamcoreWaterZones=[];
         }
         function batchStaticWorld(root,excluded=[],chunkSize=8) {
@@ -5787,6 +5845,7 @@ body.vr-cardboard::after{
             removeDreamcoreLevelRoot();
             if(level===0) buildDreamcoreHub(); else if(level===1) buildDreamcorePoolLevel();
             batchStaticWorld(dreamcoreWorldRoot,dreamcorePortals);
+            configureDreamcoreShadows();
         }
         function enterDreamcorePoolLevel(){
             if(dreamcoreTransitionBusy)return;dreamcoreTransitionBusy=true;
@@ -5831,6 +5890,7 @@ body.vr-cardboard::after{
             if(dreamcoreVerticalOffset!==0) dreamcoreCamera.position.y += dreamcoreVerticalOffset;
             // Sem animação de vértices por frame: elimina uma das principais fontes de lag.
             checkDreamcorePortals();
+            updateDreamcoreShadowRegion();
             renderGameEyes(dreamcoreRenderer,dreamcoreScene,dreamcoreCamera);
         }
 
@@ -5839,8 +5899,12 @@ body.vr-cardboard::after{
             const canvas=document.getElementById('dreamcore-canvas');if(!canvas)return;canvas.style.display='block';
             const vignette=document.getElementById('dreamcore-vignette');if(vignette)vignette.style.display='block';
             dreamcoreRenderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance',alpha:false,preserveDrawingBuffer:false});
+            dreamcoreRenderer.shadowMap.enabled=true;dreamcoreRenderer.shadowMap.type=THREE.PCFSoftShadowMap;
+            dreamcoreRenderer.shadowMap.autoUpdate=false;dreamcoreRenderer.__dixvrShadowsDirty=true;
             dreamcoreRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.0));dreamcoreRenderer.setSize(window.innerWidth,window.innerHeight,false);dreamcoreRenderer.outputEncoding=THREE.sRGBEncoding;dreamcoreRenderer.toneMapping=THREE.ACESFilmicToneMapping;dreamcoreRenderer.toneMappingExposure=1.08;dreamcoreRenderer.sortObjects=false;dreamcoreRenderer.physicallyCorrectLights=false;
             dreamcoreScene=new THREE.Scene();dreamcoreCamera=new THREE.PerspectiveCamera(74,window.innerWidth/window.innerHeight,.05,140);dreamcoreCamera.userData.lastT=performance.now();
+            dreamcoreResizeHandler=()=>{if(!dreamcoreRenderer||!dreamcoreCamera)return;dreamcoreRenderer.setSize(window.innerWidth,window.innerHeight,false);dreamcoreCamera.aspect=window.innerWidth/window.innerHeight;dreamcoreCamera.updateProjectionMatrix();};
+            window.addEventListener('resize',dreamcoreResizeHandler);
             setDreamcoreLevel(0);animateDreamcore();
         }
 
@@ -6724,7 +6788,7 @@ body.vr-cardboard::after{
                 vrRightRenderer.domElement.style.display='block';
                 vrRightRenderer.render(vrRightScene, vrRightCamera);
             }
-            renderPanoramaScene();
+            if(!experimentGameActive)renderPanoramaScene();
             renderHandOverlay(now);
             if(now-lastNativeGeometryAt>=1000/30){
                 lastNativeGeometryAt=now;
