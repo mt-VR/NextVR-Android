@@ -8,4 +8,4 @@ These are existing brand marks, not generated substitute illustrations. Logos an
 
 PNG files are transparent 256px letterboxed rasterizations of these source assets, bundled locally for the WebView library and Android browser header. `manifest.json` records output SHA-256 digests. No remote favicon requests are made at runtime.
 
-`dixvr-app.png`: ícone DI fornecido pelo usuário no arquivo `4466dc671e9a743166bafd9b31ed85b6.jpg`, convertido para PNG sem redesenhar. Usado também nos recursos do launcher Android; não pertence à coleção de logotipos dos serviços acima.
+`dixvr-app.png`: ícone DI Halloween (chamas, morcegos e abóboras) fornecido pelo usuário no arquivo `file_0000000078cc820e884d54a4e821de21.png`, convertido para PNG sem redesenhar. Usado também nos recursos do launcher Android; não pertence à coleção de logotipos dos serviços acima.

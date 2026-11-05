@@ -1137,6 +1137,24 @@ body.vr-cardboard::after{
         .panorama-grid small { color:#acc0cd; font-size:10px; }
         .panorama-camera-symbol { display:grid; place-items:center; height:100px; font-size:42px; background:#203442; }
         .panorama-label { position:absolute; bottom:2px; right:3px; background:#111c; color:white; border-radius:4px; padding:1px 3px; font-size:9px; pointer-events:none; }
+
+        /* Reference UI: vertical circular rail and adjacent light option lists. */
+        .orbit-dock.ar-dock-panel { position:relative; width:64px; height:270px; padding:0; margin:0; flex:none; background:none; border:0; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; overflow:visible; display:block; }
+        .orbit-rail { display:flex; flex-direction:column; align-items:center; gap:12px; padding:4px 0; }
+        .orbit-tab { width:40px; height:40px; flex:none; border-radius:50%; border:1px solid #aaa9a666; background:rgba(90,92,91,.88); color:#eee; box-shadow:0 2px 5px #0004; cursor:pointer; font:22px Arial,sans-serif; display:grid; place-items:center; }
+        .orbit-tab svg { width:21px; height:21px; }
+        .orbit-tab[aria-expanded="true"], .orbit-tab:hover, .orbit-tab.hand-hover { background:#d7b54d; color:#282719; border-color:#f0d67b; }
+        .orbit-popover { position:absolute; left:82px; top:0; width:218px; padding:8px; border-radius:5px; border:1px solid #ffffff70; background:rgba(222,224,220,.96); color:#252725; box-shadow:0 4px 16px #0004; }
+        .orbit-popover[hidden], .orbit-pane[hidden] { display:none!important; }
+        .orbit-pane h2 { font-size:13px; font-weight:600; margin:2px 5px 8px; color:#50534d; }
+        .orbit-pane .dock-item { width:100%; height:38px; padding:6px 9px; margin:3px 0; border:0; border-radius:3px; background:rgba(255,255,255,.45)!important; background-image:none!important; color:#262b26; display:flex; align-items:center; justify-content:flex-start; gap:9px; box-shadow:none; font:12px Arial,sans-serif; }
+        .orbit-pane .dock-item:hover, .orbit-pane .dock-item.hand-hover, .orbit-pane .dock-item.active { background:#cfb75f!important; transform:none; }
+        .orbit-pane .dock-item svg { display:block!important; visibility:visible!important; width:20px; height:20px; flex:none; fill:currentColor; }
+        .orbit-pane .panorama-label { display:none; }
+        .orbit-pane .panel-points { position:static; display:flex; flex-direction:column; gap:4px; transform:none; margin:0; width:100%; }
+        .orbit-pane .panel-point { width:100%; height:34px; border:0; border-radius:3px; background:#f1f2ed; color:#333; font-size:12px; }
+        .orbit-pane .panel-point.active, .orbit-pane .panel-point.hand-hover { background:#d7b54d; box-shadow:none; }
+        .orbit-dock .dock-time { position:absolute; top:266px; left:0; width:64px; padding:0; margin:0; text-align:center; color:#ddd; font-size:11px; border:0; }
     </style>
 
 <style id="roblox-launcher-landscape-lock">
@@ -1241,7 +1259,7 @@ body.vr-cardboard::after{
 
     <!-- TEMPLATE DOS PAINÉIS 3D -->
     <div id="dock-template" style="display: none;">
-        <div class="window-group-container" id="window-group">
+        <div class="window-group-container orbit-workspace" id="window-group">
             <div class="panel-move-handle" id="panel-move-handle" title="Segure para mover"></div>
             <div id="shoot-the-die-host" aria-label="ShootTheDie">
                 <div class="shoot-app-badge">ShootTheDie · dixVR</div>
@@ -1311,28 +1329,10 @@ body.vr-cardboard::after{
 
                                 <button class="hand-style-option" data-hand-style="aura">
                                     <div class="hand-preview aura-hand-preview">
-                                        <svg viewBox="0 0 120 140" aria-hidden="true">
-                                            <defs>
-                                                <filter id="auraGlow" x="-60%" y="-60%" width="220%" height="220%">
-                                                    <feGaussianBlur stdDeviation="4" result="blur"/>
-                                                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                                                </filter>
-                                            </defs>
-                                            <g fill="none" stroke="#80C5E6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".45" filter="url(#auraGlow)">
-                                                <path d="M58 124L55 88L42 61L28 33M58 124L64 88L60 47L57 17M64 88L75 48L82 20M64 91L87 58L101 34M58 92L38 67L15 54"/>
-                                                <path d="M40 107Q58 96 78 105M35 96Q58 88 82 93"/>
-                                            </g>
-                                            <g fill="none" stroke="#E6F3F7" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M58 124L55 88L42 61L28 33M58 124L64 88L60 47L57 17M64 88L75 48L82 20M64 91L87 58L101 34M58 92L38 67L15 54"/>
-                                                <path d="M40 107Q58 96 78 105M35 96Q58 88 82 93" opacity=".82"/>
-                                            </g>
-                                            <g fill="#FFFFFF">
-                                                <circle cx="58" cy="124" r="3.2"/><circle cx="57" cy="17" r="3.2"/><circle cx="82" cy="20" r="3.2"/><circle cx="101" cy="34" r="3.2"/><circle cx="15" cy="54" r="3.2"/>
-                                            </g>
-                                        </svg>
+                                        <svg viewBox="0 0 120 140" aria-hidden="true"><path d="M43 126c-4-15-7-22-14-32L12 71c-6-9 3-15 9-8l17 19-7-52c-2-12 10-14 12-3l7 40-1-49c0-12 12-12 13-1l2 48 7-43c2-11 14-9 12 3l-5 42 10-31c3-10 14-6 11 4L87 91c-3 15-3 23-1 35z" fill="#ffffff15" stroke="#f4fcff" stroke-width="2.2" stroke-linejoin="round"/></svg>
                                     </div>
                                     <div class="hand-style-name">Aura Neon</div>
-                                    <div class="hand-style-desc">Contorno ciano acinzentado com brilho neon e detalhes suaves na palma.</div>
+                                    <div class="hand-style-desc">Silhueta da mão inteira, com contorno branco neon e palma translúcida.</div>
                                 </button>
 
                                 <button class="hand-style-option" data-hand-style="ghost">
@@ -1599,60 +1599,58 @@ body.vr-cardboard::after{
                 </div>
             </div>
 
-            <!-- 3. DOCK -->
-            <div class="ar-dock-panel">
-                <div class="dock-icons-list">
-                    <button class="dock-item" data-action="camera" title="Câmera · toque para os panoramas" aria-label="Alternar panoramas e câmera">
-                        <span class="panorama-label">360°</span>
-                        <svg class="icon-svg" viewBox="0 0 24 24">
-                            <path d="M9 3L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.17L15 3H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-                            <circle cx="12" cy="13" r="3"/>
-                        </svg>
-                    </button>
-
-                    <button class="dock-item" id="btn-dock-vr" data-action="vr-cardboard" title="Modo VR Cardboard" aria-label="Modo VR Cardboard">
-                        <svg class="icon-svg" viewBox="0 0 24 24">
-                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-
-                    <button class="dock-item" data-action="recenter" title="Recentrar Dock na direção do olhar" aria-label="Recentrar Dock na direção do olhar">
-                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                    <button class="dock-item" id="btn-dock-worldlock" data-action="world-lock" title="Travar painel no mundo" aria-label="Travar painel no mundo">
-                        <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-                            <path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                    </button>
-
-                    <button class="dock-item" id="btn-dock-grid" data-action="library">
+            <!-- Menu circular no mundo; flyouts não alteram o tamanho da âncora. -->
+            <div class="ar-dock-panel orbit-dock">
+                <nav class="orbit-rail" aria-label="Menu dixVR">
+                    <button class="orbit-tab" data-orbit-tab="apps" aria-label="Aplicativos" title="Aplicativos" aria-expanded="false" aria-controls="orbit-apps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+                    <button class="orbit-tab" data-orbit-tab="scene" aria-label="Ambientes" title="Ambientes" aria-expanded="false" aria-controls="orbit-scene"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg></button>
+                    <button class="orbit-tab" data-orbit-tab="windows" aria-label="Janelas" title="Janelas" aria-expanded="false" aria-controls="orbit-windows"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14m6-14v14"/></svg></button>
+                    <button class="orbit-tab" data-orbit-tab="hands" aria-label="Mãos" title="Mãos" aria-expanded="false" aria-controls="orbit-hands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21c-3-3-4-5-5-8-1-3 1-4 3-1l1 1V5c0-3 3-3 3 0v6-8c0-3 3-3 3 0v8-6c0-3 3-3 3 0v7-4c0-3 3-3 3 0v7c0 3-1 5-3 6z"/></svg></button>
+                    <button class="orbit-tab" data-orbit-tab="system" aria-label="Sistema" title="Sistema" aria-expanded="false" aria-controls="orbit-system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l3 3m8 8 3 3M5 19l3-3m8-8 3-3"/></svg></button>
+                </nav>
+                <div class="orbit-popover" hidden>
+                    <section class="orbit-pane" id="orbit-apps" data-orbit-pane="apps" hidden><h2>Aplicativos</h2><button class="dock-item" id="btn-dock-grid" data-action="library">
                         <svg class="icon-svg" viewBox="0 0 24 24">
                             <circle cx="7.5" cy="7.5" r="3"/>
                             <circle cx="16.5" cy="7.5" r="3"/>
                             <circle cx="7.5" cy="16.5" r="3"/>
                             <circle cx="16.5" cy="16.5" r="3"/>
                         </svg>
-                    </button>
-
-                    <button class="dock-item" id="btn-dock-cart" data-action="store">
+                    <span class="orbit-row-label">Aplicativos</span></button><button class="dock-item" id="btn-dock-cart" data-action="store">
                         <svg class="icon-svg" viewBox="0 0 24 24">
                             <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2zm-9.83-3.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.13 0-.25-.11-.25-.25z"/>
                         </svg>
-                    </button>
-
-                    <button class="dock-item" data-action="chat">
+                    <span class="orbit-row-label">Loja e jogos</span></button><button class="dock-item" data-action="chat">
                         <svg class="icon-svg" viewBox="0 0 24 24">
                             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
                         </svg>
-                    </button>
+                    <span class="orbit-row-label">Notas</span></button></section>
+                    <section class="orbit-pane" id="orbit-scene" data-orbit-pane="scene" hidden><h2>Ambientes</h2><button class="dock-item" data-action="camera" title="Câmera · toque para os panoramas" aria-label="Alternar panoramas e câmera">
+                        <span class="panorama-label">360°</span>
+                        <svg class="icon-svg" viewBox="0 0 24 24">
+                            <path d="M9 3L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.17L15 3H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                            <circle cx="12" cy="13" r="3"/>
+                        </svg>
+                    <span class="orbit-row-label">Escolher ambiente</span></button></section>
+                    <section class="orbit-pane" id="orbit-windows" data-orbit-pane="windows" hidden><h2>Janelas</h2><div class="panel-points" aria-label="Slots da Multitarefa dixVR (Esquerda, Frente, Direita)">
+                    <button class="panel-point" data-panel-point="left" title="Janela da Esquerda" aria-label="Janela da Esquerda">Esquerda</button>
+                    <button class="panel-point" data-panel-point="center" title="Janela da Frente" aria-label="Janela da Frente">Frente</button>
+                    <button class="panel-point" data-panel-point="right" title="Janela da Direita" aria-label="Janela da Direita">Direita</button>
+                </div></section>
+                    <section class="orbit-pane" id="orbit-hands" data-orbit-pane="hands" hidden><h2>Mãos</h2><button class="dock-item" data-action="hand-aura">Neon · contorno da mão</button><button class="dock-item" data-action="hand-settings">Todos os estilos de mão ›</button></section>
+                    <section class="orbit-pane" id="orbit-system" data-orbit-pane="system" hidden><h2>Sistema</h2><button class="dock-item" data-action="recenter" title="Recentrar Dock na direção do olhar" aria-label="Recentrar Dock na direção do olhar">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span class="orbit-row-label">Recentrar no olhar</span></button><button class="dock-item" id="btn-dock-worldlock" data-action="world-lock" title="Travar painel no mundo" aria-label="Travar painel no mundo">
+                        <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    <span class="orbit-row-label">Trava no mundo</span></button><button class="dock-item" id="btn-dock-vr" data-action="vr-cardboard" title="Modo VR Cardboard" aria-label="Modo VR Cardboard">
+                        <svg class="icon-svg" viewBox="0 0 24 24">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    <span class="orbit-row-label">Modo VR Cardboard</span></button></section>
                 </div>
-                <div class="panel-points" aria-label="Slots da Multitarefa dixVR (Esquerda, Frente, Direita)">
-                    <button class="panel-point" data-panel-point="left" title="Janela da Esquerda" aria-label="Janela da Esquerda"></button>
-                    <button class="panel-point" data-panel-point="center" title="Janela da Frente" aria-label="Janela da Frente"></button>
-                    <button class="panel-point" data-panel-point="right" title="Janela da Direita" aria-label="Janela da Direita"></button>
-                </div>
-
                 <div class="dock-time" id="clock-display">12:00</div>
             </div>
 
@@ -1669,6 +1667,8 @@ body.vr-cardboard::after{
         // do contorno sem interferir no canvas usado pelos cliques/gestos.
         const auraHandCanvas = document.createElement('canvas');
         const auraHandCtx = auraHandCanvas.getContext('2d');
+        const auraMaskCanvas = document.createElement('canvas');
+        const auraMaskCtx = auraMaskCanvas.getContext('2d');
 
         const arContainer = document.getElementById('ar-container');
         const startOverlay = document.getElementById('start-overlay');
@@ -2367,6 +2367,8 @@ body.vr-cardboard::after{
             handsCanvas.height = h;
             auraHandCanvas.width = w;
             auraHandCanvas.height = h;
+            auraMaskCanvas.width = w;
+            auraMaskCanvas.height = h;
             if(vrCardboardActive && vrRightRenderer && vrRightCamera){
                 vrRightRenderer.setSize(w,h);
                 vrRightCamera.aspect=w/h;
@@ -2548,7 +2550,7 @@ body.vr-cardboard::after{
         let multitaskSuspendedForGame = false;
         let shootTheDieMountSource = null;
 
-        const INTERACTIVE_UI_SELECTOR = '.dock-item, .sidebar-btn, .experiment-btn, .install-btn, .roblox-launcher-open, .library-app, .panel-point, .hand-style-option, .hand-settings-back, .minecraft-open-btn, .roblox-game-card, .roblox-nav-btn, .roblox-see-all, .dixvr-slot-btn, .dixvr-win-close, .dixvr-note-chip';
+        const INTERACTIVE_UI_SELECTOR = '.orbit-tab, .dock-item, .sidebar-btn, .experiment-btn, .install-btn, .roblox-launcher-open, .library-app, .panel-point, .hand-style-option, .hand-settings-back, .minecraft-open-btn, .roblox-game-card, .roblox-nav-btn, .roblox-see-all, .dixvr-slot-btn, .dixvr-win-close, .dixvr-note-chip';
 
         function getAllUiRoots() {
             const roots = [];
@@ -2601,7 +2603,7 @@ body.vr-cardboard::after{
             if (googleKeyboardElement && googleKeyboardPanel3D && googleKeyboardPanel3D.visible && googleKeyboardElement.classList.contains('visible')) {
                 elements = elements.concat(Array.from(googleKeyboardElement.querySelectorAll('button')));
             }
-            return elements;
+            return elements.filter(el => !el.getClientRects || el.getClientRects().length > 0);
         }
 
         let buttonCachePending = false;
@@ -2805,7 +2807,8 @@ body.vr-cardboard::after{
         // o topo da dock e o teto de altura (janela grande encolhe em vez de subir na cabeca).
         function computeSlotScales() {
             const metrics = getDockMetrics();
-            const available = Math.max(0.12, WINDOW_TOP_MAX_Y - (metrics.topY + DOCK_CLEARANCE));
+            const railMinimum = windowGroupElement?.classList?.contains?.('orbit-workspace') ? 480*WINDOW_SCALE : 0;
+            const available = Math.max(0.12, railMinimum, WINDOW_TOP_MAX_Y - (metrics.topY + DOCK_CLEARANCE));
             let common = WINDOW_SCALE;
             for (const slot of MULTITASK_SLOTS) {
                 const entry = multitaskSlots[slot] ? getMultitaskEntry(multitaskSlots[slot]) : null;
@@ -3364,7 +3367,27 @@ body.vr-cardboard::after{
         }
 
         // 3. Ações da Dock (Multitarefa de até 3 janelas acima da Dock)
+        function setOrbitMenu(key) {
+            const popover=windowGroupElement.querySelector('.orbit-popover');
+            if(!popover)return;
+            windowGroupElement.querySelectorAll('.orbit-tab').forEach(tab=>tab.setAttribute('aria-expanded',String(tab.dataset.orbitTab===key)));
+            windowGroupElement.querySelectorAll('.orbit-pane').forEach(pane=>pane.hidden=pane.dataset.orbitPane!==key);
+            popover.hidden=!key;
+            if(key){
+                const tabs=Array.from(windowGroupElement.querySelectorAll('.orbit-tab'));
+                const index=tabs.findIndex(tab=>tab.dataset.orbitTab===key);
+                popover.style.top=Math.max(0,Math.min(index*52,270-popover.offsetHeight))+'px';
+            }
+            updateButtonCache();
+            syncVRMirrorClones(true);
+        }
+
         function setupDockActions() {
+            windowGroupElement.querySelectorAll('.orbit-tab').forEach(tab=>tab.addEventListener('click',e=>{
+                e.stopPropagation();
+                if(experimentGameActive)return;
+                setOrbitMenu(tab.getAttribute('aria-expanded')==='true'?null:tab.dataset.orbitTab);
+            }));
             const dockButtons = windowGroupElement.querySelectorAll('.dock-item');
             const installBtn = uiQuery('#install-google-btn');
             const pointButtons = windowGroupElement.querySelectorAll('.panel-point');
@@ -3394,6 +3417,9 @@ body.vr-cardboard::after{
                     e.stopPropagation();
                     const action = btn.getAttribute('data-action');
                     if (experimentGameActive) return;
+                    setOrbitMenu(null);
+                    if (action === 'hand-settings') { openHandSettings(); return; }
+                    if (action === 'hand-aura') { saveHandVisualStyle('aura'); return; }
                     if (action === 'recenter') { recenterWorkspace(); return; }
                     if (action === 'camera') { openPanoramaGallery(); return; }
                     if (action === 'vr-cardboard') { toggleCardboardVR(); return; }
@@ -4631,6 +4657,24 @@ body.vr-cardboard::after{
             return state;
         }
 
+        function drawHandSilhouette(ctx,P,scale) {
+            // Fill a single anatomical mask, not outlines around individual bones.
+            const span=Math.hypot(P[17].x-P[5].x,P[17].y-P[5].y)||1;
+            const ux=(P[17].x-P[5].x)/span,uy=(P[17].y-P[5].y)/span;
+            const offset=(p,d)=>({x:p.x+ux*d,y:p.y+uy*d});
+            const palm=[offset(P[0],-scale*.24),offset(P[5],-scale*.08),P[9],P[13],offset(P[17],scale*.08),offset(P[0],scale*.24)];
+            ctx.fillStyle='#fff';ctx.strokeStyle='#fff';ctx.lineCap='round';ctx.lineJoin='round';
+            ctx.beginPath();ctx.moveTo(palm[0].x,palm[0].y);
+            palm.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+            for(const finger of [[0,1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]]){
+                for(let j=1;j<finger.length;j++){
+                    const a=P[finger[j-1]],b=P[finger[j]];
+                    ctx.lineWidth=scale*(finger[1]===1?.17:.145)*(1-(j-1)*.13);
+                    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+                }
+            }
+        }
+
         function clipHandRayToDock(aim,width,height) {
             if(!group3D?.visible || !camera || !windowGroupElement)return aim;
             const dock=windowGroupElement.querySelector('.ar-dock-panel');
@@ -4651,7 +4695,10 @@ body.vr-cardboard::after{
             if(!hit || hit.distanceTo(origin)>far.distanceTo(origin))return aim;
             const local=group3D.worldToLocal(hit.clone());
             const x=local.x+rootW*.5-left,y=rootH*.5-local.y-top;
-            if(x<0 || x>dock.offsetWidth || y<0 || y>dock.offsetHeight)return aim;
+            const popover=dock.querySelector?.('.orbit-popover');
+            const onRail=x>=0 && x<=dock.offsetWidth && y>=0 && y<=dock.offsetHeight;
+            const onPopover=popover && !popover.hidden && x>=popover.offsetLeft && x<=popover.offsetLeft+popover.offsetWidth && y>=popover.offsetTop && y<=popover.offsetTop+popover.offsetHeight;
+            if(!onRail && !onPopover)return aim;
             const projected=hit.project(camera);
             return {...aim,x:(projected.x+1)*width*.5,y:(1-projected.y)*height*.5,onDock:true};
         }
@@ -4934,98 +4981,36 @@ body.vr-cardboard::after{
 
                     handsCtx.globalAlpha = 1;
                 } else if (handVisualStyle === 'aura') {
-                    // Aura Neon: mesma linguagem visual do HTML "Aura Neon Perfeita" que
-                    // foi enviado junto ao projeto: contorno branco recortado no centro,
-                    // brilho ciano acinzentado duplo e dois detalhes suaves na palma.
-                    const P = hand.points;
-                    const w = handsCanvas.width;
-                    const h = handsCanvas.height;
-                    const getPt = (idx) => ({x:P[idx].x, y:P[idx].y});
-                    const drawAuraSkeleton = (ctx) => {
-                        ctx.beginPath();
-                        const p = (idx) => getPt(idx);
-                        ctx.moveTo(p(0).x,p(0).y);
-                        [1,2,3,4].forEach(i=>ctx.lineTo(p(i).x,p(i).y));
-                        ctx.moveTo(p(2).x,p(2).y); ctx.lineTo(p(5).x,p(5).y);
-                        ctx.moveTo(p(0).x,p(0).y);
-                        [5,6,7,8].forEach(i=>ctx.lineTo(p(i).x,p(i).y));
-                        ctx.moveTo(p(9).x,p(9).y);
-                        [10,11,12].forEach(i=>ctx.lineTo(p(i).x,p(i).y));
-                        ctx.moveTo(p(13).x,p(13).y);
-                        [14,15,16].forEach(i=>ctx.lineTo(p(i).x,p(i).y));
-                        ctx.moveTo(p(0).x,p(0).y);
-                        [17,18,19,20].forEach(i=>ctx.lineTo(p(i).x,p(i).y));
-                        ctx.moveTo(p(5).x,p(5).y);
-                        ctx.quadraticCurveTo(p(9).x,p(9).y-10,p(9).x,p(9).y);
-                        ctx.quadraticCurveTo(p(13).x,p(13).y-10,p(13).x,p(13).y);
-                        ctx.quadraticCurveTo(p(17).x,p(17).y-10,p(17).x,p(17).y);
-                        ctx.lineTo(p(0).x,p(0).y);
-                        ctx.lineCap='round';
-                        ctx.lineJoin='round';
-                        ctx.stroke();
-                    };
-
-                    const dx = (P[9].x-P[0].x);
-                    const dy = (P[9].y-P[0].y);
-                    const handScale = Math.hypot(dx,dy) || 100;
-                    const outerW = handScale*0.36;
-                    const innerW = handScale*0.33;
-
-                    auraHandCtx.clearRect(0,0,w,h);
-                    auraHandCtx.globalCompositeOperation='source-over';
-                    auraHandCtx.strokeStyle='#FFFFFF';
-                    auraHandCtx.lineWidth=outerW;
-                    drawAuraSkeleton(auraHandCtx);
-
-                    auraHandCtx.globalCompositeOperation='destination-out';
-                    auraHandCtx.strokeStyle='#000000';
-                    auraHandCtx.lineWidth=innerW;
-                    drawAuraSkeleton(auraHandCtx);
-                    auraHandCtx.globalCompositeOperation='source-over';
-
-                    const padding=handScale*.8;
+                    // Union of palm and tapered fingers: only the OUTSIDE boundary glows.
+                    const P=hand.points,w=handsCanvas.width,h=handsCanvas.height;
+                    const handScale=Math.max(12,Math.hypot(P[9].x-P[0].x,P[9].y-P[0].y));
+                    auraMaskCtx.clearRect(0,0,w,h);
+                    drawHandSilhouette(auraMaskCtx,P,handScale);
+                    const padding=handScale*.5;
                     const sx=Math.max(0,Math.floor(Math.min(...P.map(p=>p.x))-padding));
                     const sy=Math.max(0,Math.floor(Math.min(...P.map(p=>p.y))-padding));
                     const sw=Math.max(0,Math.min(w,Math.ceil(Math.max(...P.map(p=>p.x))+padding))-sx);
                     const sh=Math.max(0,Math.min(h,Math.ceil(Math.max(...P.map(p=>p.y))+padding))-sy);
-                    handsCtx.save();
-                    handsCtx.shadowColor='#80C5E6';
-                    handsCtx.shadowBlur=handScale*0.18;
-                    handsCtx.globalAlpha=1;
-                    if(sw>0 && sh>0)handsCtx.drawImage(auraHandCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
-                    handsCtx.shadowColor='#B8ADA5';
-                    handsCtx.shadowBlur=handScale*0.05;
-                    if(sw>0 && sh>0)handsCtx.drawImage(auraHandCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
-
-                    // Detalhes da palma do Aura Neon.
-                    handsCtx.shadowColor='#80C5E6';
-                    handsCtx.shadowBlur=handScale*0.10;
-                    handsCtx.strokeStyle='rgba(230,240,245,0.8)';
-                    handsCtx.lineWidth=Math.max(1,handScale*0.015);
-                    handsCtx.lineCap='round';
-
-                    const pBase=getPt(0);
-                    const pIndicador=getPt(5);
-                    const pPolegarBase=getPt(2);
-                    handsCtx.beginPath();
-                    handsCtx.moveTo(pIndicador.x,pIndicador.y);
-                    const cpX=pPolegarBase.x+(pBase.x-pPolegarBase.x)*0.2;
-                    const cpY=pPolegarBase.y+(pBase.y-pPolegarBase.y)*0.4;
-                    handsCtx.quadraticCurveTo(cpX,cpY,pBase.x,pBase.y);
-                    handsCtx.stroke();
-
-                    const pMedioBase=getPt(9);
-                    const pMindinhoBase=getPt(17);
-                    handsCtx.beginPath();
-                    handsCtx.moveTo(pIndicador.x,pIndicador.y+handScale*0.1);
-                    handsCtx.quadraticCurveTo(
-                        pMedioBase.x,
-                        pMedioBase.y+handScale*0.15,
-                        pMindinhoBase.x-handScale*0.05,
-                        pMindinhoBase.y+handScale*0.1
-                    );
-                    handsCtx.stroke();
-                    handsCtx.restore();
+                    auraHandCtx.clearRect(0,0,w,h);
+                    if(sw>0 && sh>0){
+                        const edge=Math.max(1.2,Math.min(3,handScale*.018));
+                        auraHandCtx.globalCompositeOperation='source-over';
+                        for(let i=0;i<8;i++){
+                            const a=i*Math.PI/4;
+                            auraHandCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx+Math.cos(a)*edge,sy+Math.sin(a)*edge,sw,sh);
+                        }
+                        auraHandCtx.globalCompositeOperation='destination-out';
+                        auraHandCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
+                        auraHandCtx.globalCompositeOperation='source-over';
+                        handsCtx.save();
+                        handsCtx.globalAlpha=.08;
+                        handsCtx.drawImage(auraMaskCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
+                        handsCtx.globalAlpha=1;
+                        handsCtx.shadowColor='#bce9ff';
+                        handsCtx.shadowBlur=Math.min(18,handScale*.12);
+                        handsCtx.drawImage(auraHandCanvas,sx,sy,sw,sh,sx,sy,sw,sh);
+                        handsCtx.restore();
+                    }
                 } else if (handVisualStyle === '3d') {
                     // Mão 3D: ossos arredondados com sombra e destaque para criar volume.
                     const palmPts=[hand.points[0],hand.points[17],hand.points[13],hand.points[9],hand.points[5]];

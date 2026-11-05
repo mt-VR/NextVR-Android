@@ -71,6 +71,7 @@ async function createMultitaskHarness({ sizes = {}, dock = {} } = {}) {
   const dockEl = makeElement('div');
   const dockPanel = makeElement('div');
   dockEl.querySelector = (sel) => (sel === '.ar-dock-panel' ? dockPanel : null);
+  if(dock.orbitWorkspace)dockEl.classList.add('orbit-workspace');
   dockEl.offsetHeight = dock.groupHeight ?? 120;
   dockPanel.offsetHeight = dock.panelHeight ?? 70;
   dockPanel.offsetTop = dock.panelTop ?? 50;
@@ -383,4 +384,12 @@ test('recenter places the Dock at gaze target in every direction and keeps the w
     const panels=Object.values(result.snapshot.windows);assert.equal(panels.length,3);
     for(const panel of panels){assert.ok(panel.aboveDock,'clearance is evaluated in tilted workspace coordinates');assert.equal(panel.scale,panels[0].scale);}
   }
+});
+
+test('vertical circular rail keeps three equal full-size surfaces above the taller menu',async()=>{
+  const mt=await createMultitaskHarness({dock:{groupHeight:270,panelHeight:270,panelTop:0,orbitWorkspace:true}});
+  mt.open('library');mt.open('store');mt.open('chat');
+  const panels=Object.values(mt.getGeometrySnapshot().windows);
+  assert.equal(panels.length,3);
+  for(const panel of panels){assert.ok(panel.aboveDock);assert.equal(panel.scale,panels[0].scale);assert.ok(panel.scale>=.0022);}
 });
