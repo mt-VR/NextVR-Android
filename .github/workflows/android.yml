@@ -102,7 +102,9 @@ jobs:
           SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
           if [ -n "$APKSIGNER" ]; then
-            "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -qi "$FP"
+            # Consume all certificate output: grep -q may close the pipe early,
+            # making tr/apksigner fail with SIGPIPE under pipefail.
+            "$APKSIGNER" verify --print-certs "$APK" | tr -d ':' | grep -i "$FP" > /dev/null
             echo "APK conferido pelo apksigner com a chave fixa do repositório."
           fi
 
