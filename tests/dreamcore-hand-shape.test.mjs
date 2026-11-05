@@ -12,6 +12,7 @@ test('all fingertip caps are true semicircles ending at TIP; finger roots overla
   const ctx={beginPath(){},moveTo(x,y){starts.push({x,y});},lineTo(){},quadraticCurveTo(){},arc(...args){arcs.push(args);},closePath(){},fill(){fills++;}};
   const sandbox=vm.createContext({});vm.runInContext(extract('function drawHandSilhouette(', 'function clipHandRayToDock('),sandbox);
   sandbox.drawHandSilhouette(ctx,points,170);assert.equal(fills,6);assert.equal(arcs.length,5);
+  assert.ok(arcs[1][2]>=11 && arcs[1][2]<16,'index pad is fuller than the old thin cap');
   for(let i=0;i<5;i++){
     const [x,y,r,start,end,anticlockwise]=arcs[i],tip=points[[4,8,12,16,20][i]];
     assert.ok(r>0);assert.ok(Math.abs(start-end-Math.PI)<1e-9);assert.equal(anticlockwise,true);
@@ -21,7 +22,7 @@ test('all fingertip caps are true semicircles ending at TIP; finger roots overla
   assert.ok(starts[2].y>points[5].y+20,'index root is inside palm, not closed on exposed MCP');
 });
 
-test('Poolrooms uses real shared tile maps, fixed world UV density, opaque textured water and one shadow light',()=>{
+test('Poolrooms uses real shared tile maps, fixed world UV density, transparent textured water and one shadow light',()=>{
   const texture=()=>new THREE.Texture();
   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera();
   const renderer={__dixvrShadowsDirty:false};
@@ -34,7 +35,7 @@ test('Poolrooms uses real shared tile maps, fixed world UV density, opaque textu
   const meshes=[];scene.traverse(o=>{if(o.isMesh)meshes.push(o);});
   assert.ok(meshes.some(o=>o.castShadow&&o.receiveShadow));
   const waters=meshes.filter(o=>o.userData.water);assert.equal(waters.length,7);
-  assert.ok(waters.every(o=>o.material.map&&!o.material.transparent&&o.receiveShadow));
+  assert.ok(waters.every(o=>o.material.map&&o.material.transparent&&o.material.opacity<.6&&!o.material.depthWrite&&o.receiveShadow));
   const box=ctx.setDreamcoreUV(new THREE.BoxGeometry(100,4,10));
   const values=Array.from(box.attributes.uv.array);assert.ok(Math.max(...values)>=50,'tiles repeat with meters, not one stretched image per huge wall');
   renderer.__dixvrShadowsDirty=false;ctx.updateDreamcoreShadowRegion();assert.equal(renderer.__dixvrShadowsDirty,false);
