@@ -1,0 +1,206 @@
+apply plugin: 'com.android.application'
+
+// Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`
+// (que quebrava o build com "Could not set unknown property 'archivesBaseName'").
+// O nome base do APK agora vem do plugin `base` (`BasePluginExtension.archivesName`),
+// que e a mesma propriedade usada pelo AGP 9 para gerar `dixVR-debug.apk`.
+// O guard `withId('base')` mantem o build seguro caso o plugin `base` nao seja aplicado.
+project.plugins.withId('base') {
+    def baseExtension = project.extensions.findByName('base')
+    if (baseExtension != null) {
+        try {
+            baseExtension.archivesName.set('dixVR')
+        } catch (Exception e) {
+            project.logger.lifecycle("dixVR: nao foi possivel definir base.archivesName (${e.message}).")
+        }
+    }
+}
+
+android {
+    namespace = 'com.dixvr.app'
+    compileSdk = 35
+
+    lintOptions {
+        abortOnError = false
+    }
+
+    defaultConfig {
+        applicationId "com.dixvr.app"
+        minSdkVersion = 26
+        targetSdkVersion = 35
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    // Assinatura de depuração fixa no repositório para permitir atualização direta (adb install -r
+    // ou instalação por cima no aparelho) entre diferentes builds do CI e máquinas locais.
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('signing/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    androidResources {
+        noCompress += ['wasm', 'data', 'tflite', 'binarypb']
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.webkit:webkit:1.12.1'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Garante que index.html e as bibliotecas offline (Three.js r128 + MediaPipe Hands WASM/TFLite)
+// estejam presentes em src/main/assets mesmo quando compilado direto no Android Studio sem npm.
+def webSourceHtml = rootProject.file('web/index.html')
+def bundledHtml = new File(projectDir, 'src/main/assets/index.html')
+def vendorDir = new File(projectDir, 'src/main/assets/vendor')
+def handsMarker = new File(vendorDir, 'mediapipe/hands/hands.js')
+
+task prepareWebAssets {
+    inputs.file(webSourceHtml)
+    outputs.file(bundledHtml)
+    outputs.file(handsMarker)
+    doLast {
+        bundledHtml.parentFile.mkdirs()
+        bundledHtml.bytes = webSourceHtml.bytes
+
+        if (handsMarker.file && new File(vendorDir, 'three/three.min.js').file) {
+            return
+        }
+
+        def packages = [
+            [
+                url: 'https://registry.npmjs.org/three/-/three-0.128.0.tgz',
+                sha1: '884dacca6a330e45600a09ec5439283f50b76aa6',
+                pick: [
+                    'package/build/three.min.js': 'three/three.min.js',
+                    'package/examples/js/renderers/CSS3DRenderer.js': 'three/CSS3DRenderer.js'
+                ]
+            ],
+            [
+                url: 'https://registry.npmjs.org/@mediapipe/camera_utils/-/camera_utils-0.3.1675466862.tgz',
+                sha1: '861051d4343325a7e838714fe72050df37c0cdd0',
+                pick: [
+                    'package/camera_utils.js': 'mediapipe/camera_utils/camera_utils.js'
+                ]
+            ],
+            [
+                url: 'https://registry.npmjs.org/@mediapipe/hands/-/hands-0.4.1675469240.tgz',
+                sha1: 'f032b2f5deff5a69430693f94be45dd9854e803f',
+                pick: [
+                    'package/hands.js': 'mediapipe/hands/hands.js',
+                    'package/hands.binarypb': 'mediapipe/hands/hands.binarypb',
+                    'package/hand_landmark_lite.tflite': 'mediapipe/hands/hand_landmark_lite.tflite',
+                    'package/hand_landmark_full.tflite': 'mediapipe/hands/hand_landmark_full.tflite',
+                    'package/hands_solution_packed_assets.data': 'mediapipe/hands/hands_solution_packed_assets.data',
+                    'package/hands_solution_packed_assets_loader.js': 'mediapipe/hands/hands_solution_packed_assets_loader.js',
+                    'package/hands_solution_simd_wasm_bin.data': 'mediapipe/hands/hands_solution_simd_wasm_bin.data',
+                    'package/hands_solution_simd_wasm_bin.js': 'mediapipe/hands/hands_solution_simd_wasm_bin.js',
+                    'package/hands_solution_simd_wasm_bin.wasm': 'mediapipe/hands/hands_solution_simd_wasm_bin.wasm',
+                    'package/hands_solution_wasm_bin.js': 'mediapipe/hands/hands_solution_wasm_bin.js',
+                    'package/hands_solution_wasm_bin.wasm': 'mediapipe/hands/hands_solution_wasm_bin.wasm'
+                ]
+            ]
+        ]
+
+        def sha1Hex = { File f ->
+            def d = java.security.MessageDigest.getInstance('SHA-1')
+            f.withInputStream { s ->
+                byte[] buf = new byte[64 * 1024]
+                for (int r = s.read(buf); r > 0; r = s.read(buf)) d.update(buf, 0, r)
+            }
+            d.digest().encodeHex().toString()
+        }
+
+        packages.each { pkg ->
+            File tmp = File.createTempFile('dixvr-npm-', '.tgz')
+            try {
+                new URL(pkg.url).withInputStream { s -> tmp.withOutputStream { it << s } }
+                if (sha1Hex(tmp) != pkg.sha1) {
+                    throw new GradleException("Checksum mismatch for ${pkg.url}")
+                }
+                tmp.withInputStream { raw ->
+                    def gz = new java.util.zip.GZIPInputStream(raw)
+                    byte[] header = new byte[512]
+                    while (true) {
+                        int got = 0
+                        while (got < 512) {
+                            int n = gz.read(header, got, 512 - got)
+                            if (n < 0) break
+                            got += n
+                        }
+                        if (got < 512 || header[0] == 0) break
+                        int nameEnd = 0
+                        while (nameEnd < 100 && header[nameEnd] != 0) nameEnd++
+                        String entryName = new String(header, 0, nameEnd, 'UTF-8')
+                        String sizeOct = new String(header, 124, 12, 'UTF-8').trim().replace("\u0000", "")
+                        long entrySize = sizeOct.isEmpty() ? 0L : Long.parseLong(sizeOct, 8)
+                        String destRel = pkg.pick[entryName]
+                        if (destRel != null) {
+                            File dest = new File(vendorDir, destRel)
+                            dest.parentFile.mkdirs()
+                            dest.withOutputStream { out ->
+                                long rem = entrySize
+                                byte[] buf = new byte[32 * 1024]
+                                while (rem > 0) {
+                                    int r = gz.read(buf, 0, (int) Math.min(buf.length, rem))
+                                    if (r < 0) break
+                                    out.write(buf, 0, r)
+                                    rem -= r
+                                }
+                            }
+                        } else {
+                            long rem = entrySize
+                            byte[] skipBuf = new byte[32 * 1024]
+                            while (rem > 0) {
+                                int r = gz.read(skipBuf, 0, (int) Math.min(skipBuf.length, rem))
+                                if (r < 0) break
+                                rem -= r
+                            }
+                        }
+                        long pad = (512L - (entrySize % 512L)) % 512L
+                        while (pad > 0) {
+                            long s = gz.skip(pad)
+                            if (s <= 0) {
+                                if (gz.read() < 0) break
+                                pad--
+                            } else {
+                                pad -= s
+                            }
+                        }
+                    }
+                }
+            } finally {
+                tmp.delete()
+            }
+        }
+    }
+}
+
+preBuild.dependsOn(prepareWebAssets)

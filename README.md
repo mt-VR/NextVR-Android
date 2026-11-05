@@ -1,197 +1,164 @@
-# NextVR — Android/Cardboard passthrough workspace
+# dixVR — Standalone Android AR/VR APK
 
-NextVR combines the spatial HTML workspace with the latest visual assets from
-**`new_references.zip`** (the primary visual source), native Camera2 passthrough, a hand-tracking
-engine built for this project (`com.nextvr.handtrack`, MediaPipe Tasks Vision), hardware-rendered
-browser surfaces and the existing Google Cardboard SDK (**v1.35.0**).
+Aplicativo Android independente (`com.dixvr.app` / **dixVR**), completamente separado da base NextVR original, construído sobre a base **AR SLAM Otimizado + Aura Neon + Fluxo Óptico** com **Multitarefa Espacial de 3 Janelas estilo NextVR acima da Dock**.
 
-The old artificial room and collectible objects have been removed. A selected panorama (or camera
-passthrough) is the background; the dock, floating windows and keyboard remain independent spatial
-surfaces rendered for both eyes. Cardboard still owns head orientation, eye projection and lens
-distortion. **6 DoF is not included or enabled.**
+## Principais Recursos
 
-> This is an integration with automated UI tests and APK build verification, not a claim of
-> physical-device or pixel-perfect validation. The reference's simulated game-store features
-> remain demonstrations. See [architecture, scope and device checklist](docs/REFERENCE-INTEGRATION.md).
->
-> Use seated. Single-camera passthrough is not depth-correct and is not safe for walking.
+- **Multitarefa Espacial 3× acima da Dock (estilo NextVR)**:
+  - Abra até **3 aplicativos simultaneamente** em um arco espacial 3D ao redor do usuário:
+    - **1 janela principal na frente** (`FRENTE`, `0°`)
+    - **1 janelinha angulada no lado esquerdo** (`ESQUERDA`)
+    - **1 janelinha angulada no lado direito** (`DIREITA`)
+  - **Tudo posicionado acima da Dock, com geometria medida no DOM**: o topo da dock é medido no
+    elemento real (`.ar-dock-panel`) e cada janela é posicionada pela sua **altura medida**
+    (`offsetHeight`), nunca por estimativas fixas. Resultado: a base de toda janela fica
+    **≥ 18 cm acima do topo da dock** e nenhuma janela invade a área da dock.
+  - **Janelas que crescem encolhem em vez de subir na cabeça**: quando um app carrega mais
+    conteúdo (biblioteca, loja, notas), a janela é re-escalada para caber entre a dock e o teto
+    de altura, e o layout é refeito via `ResizeObserver`.
+  - **Arco sem sobreposição**: o passo angular é calculado a partir da largura real das janelas
+    (`ARC_DIST · sin(passo) ≥ meia-largura da frente + meia-largura lateral + folga`), com limite
+    de alcance do olhar; se não couber, as janelas laterais encolhem.
+  - **Slots da dock funcionais**: tocar em `ESQUERDA` / `FRENTE` / `DIREITA` na dock abre o app em
+    foco **exatamente naquele slot**; com o slot ocupado, a janela vai para a frente (e a da frente
+    fecha).
+  - **Substituição inteligente (LRU)**: ao abrir um 4º app com 3 janelas cheias, a janela lateral
+    menos recente dá lugar automaticamente.
+  - **Controles rápidos em cada janela**: botões `◀` (Esquerda), `⌖` (Frente), `▶` (Direita) e `×` (Fechar) acessíveis por toque ou permanência do indicador (1s).
+  - **Google + YouTube nativos lado a lado**: `DixVrActivity` mantém as sub-WebViews nativas do Google e do YouTube independentes para rodarem ao mesmo tempo na multitarefa.
+- **Passthrough AR + orientação nativa** + **World Lock** e **Modo VR Cardboard** estereoscópico.
+- **Hand Tracking Offline (MediaPipe Hands WASM/TFLite empacotado no APK)**: estilos **Fantasma**, **Aura Neon**, **3D** e **Original**.
+- **Loja dixVR & Biblioteca dixVR**: **ShootTheDie** (FPS VR embutido via `dixvr-shoot-hand` / `dixvr-shoot-gyro`), **Chicken Cut VR**, **Dreamcore**, **Google**, **YouTube** e **Notas & Multitarefa dixVR**.
 
-## Requirements
+## Estrutura do Projeto
 
-- Android Studio compatible with the project's AGP 9.2 / Gradle 9.6.1 configuration
-- JDK **21**, Android SDK **35**, NDK **29.0.14206865**, CMake **3.22.1**
-- Android **8.0/API 26+**, rear camera, gyroscope/accelerometer, Google Cardboard viewer
-- An up-to-date Android System WebView, GLES 3-capable hardware and adequate GPU memory
-- Node **22** only when modifying/building/testing the HTML assets (bundled outputs are checked in)
+- `web/index.html` — código-fonte HTML/CSS/JS do workspace **dixVR** + multitarefa 3× em arco.
+- `web/build.mjs` — empacota `web/index.html`, `three@0.128.0` (`CSS3DRenderer`) e `@mediapipe/hands` + `@mediapipe/camera_utils` em `app/src/main/assets/`.
+- `app/` — módulo Android (`com.dixvr.app`, `DixVrActivity`, `AssetRequestRouter`, `PanelBounds`, `HandCursorOverlayView`).
+- `tests/` — suíte automatizada de testes Node.js (branding `dixVR`, contrato da ponte Android, geometria 3D da multitarefa acima da dock e assets offline).
 
-## Build
-
-Open the repository root in Android Studio and select `nextvr-android`, or:
-
-```bash
-./gradlew :nextvr-android:testDebugUnitTest :nextvr-android:assembleDebug
-adb install -r nextvr-android/build/outputs/apk/debug/nextvr-android-debug.apk
-```
-
-The app automatically builds/extracts the Cardboard SDK through `extractNdk`. No separate SDK
-build step is required. ARM32 and ARM64 are enabled; a real device is needed for meaningful VR,
-hand/camera and audio acceptance tests.
-
-[Android CI](https://github.com/mt-VR/NextVR-Android/actions/workflows/android.yml) builds the APK
-and publishes the `nextvr-debug-apk` artifact. CI also tests the actual HTML UI and verifies that
-bundled assets match source.
-
-Successive CI builds share one debug signature: the workflow copies `signing/debug.keystore` (the
-stock Android debug key, `androiddebugkey`/`android`) to `~/.android/debug.keystore` before building.
-Without it every runner generates a fresh key and installing a new round over the previous install
-fails with *App not installed*. The first install after this change needs the previous build
-uninstalled once, because that one was signed with a generated key.
-
-## Develop the reference UI
+## Comandos Úteis
 
 ```bash
 npm ci
 npm run build:ui
+python3 tools/check-java-refs.py --self-test
+python3 tools/check-java-refs.py
 npm test
+./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-Edit `web/index.html` and `web/src/`, not the minified APK bundle. These files originate from the
-supplied archive: the UI has not been replaced with a native-widget approximation. The native
-adapter rasterizes the real DOM into stable texture regions and submits its THREE world matrices
-to the Cardboard compositor. Browser contents run in isolated WebViews in the same spatial windows.
+## APK pronto (link de download)
 
-The headless Chromium test dependency needs standard Linux browser libraries (`libnss3`, `libnspr4`)
-on minimal development images. The Ubuntu CI runner already supplies them.
+O APK de debug assinado com `signing/debug.keystore` (chave fixa do repositório, permite `adb install -r`) é publicado pelo GitHub Actions como artefato **`dixvr-debug-apk`**, contendo o arquivo **`dixVR-debug.apk`**:
 
-## Latest UI/input update
+1. Abra a aba **Actions** do repositório: <https://github.com/mt-VR/NextVR-Android/actions>
+2. Escolha a execução do workflow **Android CI (dixVR)** do branch `arena/7e43774f-nextvr-android`.
+3. No rodapé da execução (**Artifacts**), baixe **`dixvr-debug-apk`** e extraia `dixVR-debug.apk`.
 
-See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the
-[hand-input investigation](docs/hand-tracking-investigation.md). The VR UI accepts only tracked
-hand input: gaze dwell, viewer-button activation and touchscreen forwarding are absent end to end;
-head rotation updates the view only. Recognized pinch/fist/contact transitions are preserved across
-slow UI drains, while redundant pointer moves are coalesced so a release is not queued behind them.
-Floating windows use deliberate drag thresholds, bounded world placement and proportional hand
-resizing. Hand tracking is one MediaPipe pipeline written for this project
-(`com.nextvr.handtrack.HandTracker`): both hands are detected and rendered together; when only one
-is present, a one-slot VIDEO graph keeps the common case responsive and a two-slot probe looks for
-the second hand every 250 ms. Once both are found, the two-slot graph follows both continuously.
-Per-hand prediction and confidence keep a brief missed detection from making its neighbour flicker.
-The PhoneXR fork pipeline (YOLO11 wrist recovery, CPU crop rescue on background threads) and its
-11.7 MB AGPL pose model are gone.
-The
-multitask arc keeps the first app centered with the others alternating around it at half a window of
-clearance, and re-centers the survivors as apps close; dragging a floating window preserves its
-distance from the eye, so moving it never sends it backwards.
-The current `N` mark and component icons are
-extracted from `new_references.zip`; the older archive is retained only as historical provenance.
+> A URL direta de download de artefato (`/actions/artifacts/<id>`) não é estável no GitHub; use a
+> página da execução. O próprio workflow publica um comentário no PR com o link e o SHA-256 do APK.
 
-## Android app windows
+Instalação:
 
-The dock has one dedicated **Shizuku** launcher for Android apps, separate from NextVR's own
-app/game library. Its window lists the installed Android apps with real icons, search, category
-filters, refresh, and a live result count. Each app opens in its own floating window on a Shizuku
-virtual display. This uses the Shizuku shell-user service (no root); if access is unavailable, the
-launcher explains the current state. The phone-screen mirror remains a separate, clearly labelled
-fallback, never presented as an embedded Android app. Full architecture, API choices, limitations
-and the on-device checklist: [`docs/ANDROID-APP-WINDOWS.md`](docs/ANDROID-APP-WINDOWS.md).
+```bash
+adb install -r dixVR-debug.apk
+```
 
-Version 1.0.11 adds Joy-Con and Bluetooth gamepad navigation. The control center remains a contained,
-ordinary spatial window in the 3D workspace, not a HUD overlay. Wi-Fi and Bluetooth open Android system panels; volume, app audio,
-and display brightness use the native bridge. The separate Shizuku launcher keeps Android apps out
-of the NextVR library, and its detail gear still opens the complete settings tabs.
+> O nome base do APK vem de `base.archivesName` no `app/build.gradle` (o Gradle 9 removeu `archivesBaseName` e o AGP 9 removeu `defaultConfig.archivesBaseName`). O CI sempre publica o arquivo com o nome `dixVR-debug.apk`, independentemente do nome gerado localmente pelo Gradle.
 
-Approved visual proposals (illustrative design references, not device screenshots):
+### Revisão atual: navegador como uma peça só
 
-![Approved control-center design proposal](artwork/proposals/settings-control-center-proposal.png)
+- Moldura, botões e página agora pertencem ao mesmo `ProjectedBrowserPanel`: um único transform, um único recorte arredondado e a mesma inversa para toques/pinças. Não há uma moldura HTML animando separada da página nativa.
+- A geometria vem de quatro pontos do DOM, medidos na projeção CSS3D real. Atualizações antigas são substituídas pela mais recente antes do próximo frame Android, evitando fila de poses atrasadas.
+- O viewport interno fica estável em 800 dp ao virar; todos os apps WebView começam com texto em 90% para caber mais da página, sem diminuir a janela no espaço VR, mantendo os botões + / −. A área vertical disponível e a escala-base do navegador foram ampliadas sem permitir sobreposição com a Dock.
+- Dock a 1,55 m e arco a partir de 1,65 m. As três janelas usam o mesmo quadro de 760 × 480 e a mesma escala, sem encolher as laterais; quando necessário, o arco afasta o conjunto para evitar sobreposição. Mantidos os 3 espaços acima da Dock e World Lock. Botões **+ / −** ajustam a escala do conteúdo web.
+- Logotipos de Google, YouTube e dos seis atalhos web são empacotados offline na biblioteca, loja e barra nativa, substituindo letras e recortes da referência. Fontes e direitos das marcas em `web/icons/NOTICE.md`.
+- Biblioteca ganhou **Wikipedia, Reddit, GitHub, Twitch, Maps e Poki**. São atalhos web (não APKs instalados), compartilham a janela do navegador e exigem internet. Login, reprodução e compatibilidade dependem de cada site.
+- Mãos com alvo de até 60 análises/s, limitado pelo tempo de inferência/câmera e raio entre polegar/indicador; mira trava durante a pinça.
+- Mantidas as correções de contraste/sombras do Chicken e a renderização estéreo dos jogos.
+- O raio da mão intersecta o plano 3D da Dock: encurta na superfície e usa o mesmo ponto para a bolinha, hover e pinça.
+- Espelho do DOM atualizado só quando há mudanças (até 10 Hz); pose continua em cada frame. Cópia de canvas de conteúdo e envio de geometria nativa ficam em até 30 Hz; mãos acompanham a cadência da tela, sem limitar o loop principal dos jogos a 30 FPS. Observadores são desconectados ao sair do VR.
+- Jogos reduzem gradualmente a resolução sob carga sustentada e recuperam qualidade quando há folga; Dreamcore sem MSAA. Espelho nativo limitado a 1280 px na maior dimensão. Essas reduções de trabalho não substituem medição de FPS no aparelho.
 
-![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
+**APK sem ZIP:** o CI publica uma pré-release `dixvr-preview-<commit>` com `dixVR-debug.apk` e SHA-256, sem substituir a release principal NextVR. O comentário automático na PR #45 traz o link direto.
 
-## Games (PhoneXR)
+**Validação necessária:** virar a cabeça, mover a alça, tocar e fechar o navegador precisam ser conferidos no aparelho. O espelhamento da lente direita via PixelCopy é monocular e pode atrasar ou não capturar vídeo protegido. Ainda não há SDK óptico Cardboard, perfil QR ou correção de distorção. FPS real não é garantido por testes de build.
 
-Headset games are the PhoneXR library: the bundled OpenXR runtime (`org.freedesktop.monado.openxr_runtime.out_of_process`,
-pinned upstream and embedded in the APK) decides per game whether it can be hosted in-headset on
-the phone or has to be opened by the runtime launcher on the phone screen, and the shell reflects
-that state in the Applications menu
-([`docs/PHONEXR-INTEGRATION.md`](docs/PHONEXR-INTEGRATION.md)).
+### Ícone DI e panoramas enviados
 
-A hostable game opens as **a window in the world driven by the runtime**: the workspace hides with
-its state preserved and restores exactly on exit, the game's stereo canvas is drawn by the same
-GLES2 panel pass as the other windows (left/right halves sampled per eye), and pinch input is
-gated between the shell and the game (a pinch over shell UI never presses a game button, and the
-game never receives a tap into shell windows). Holding a pinch with **both** hands for ~2 s opens
-the flat SteamVR-style game menu (Continue / Settings / Exit Game). There are no built-in demo
-games anymore — Minecraft VR, VRFS, Roblox and Brawl Stars were demo tiles over the 3D sandbox and
-are removed; the storefront points at the library instead of selling them.
+- Ícone Android **DI branco sobre preto**, conforme imagem enviada, em todas as densidades e nas variantes adaptativa/redonda. Identidade `com.dixvr.app` e chave de assinatura preservadas.
+- Removida a praia procedural 3D. O botão **câmera / 360°** da Dock abre a janela flutuante **Ambientes**, com miniaturas, seleção por toque/pinça, indicação do ambiente ativo e botão de câmera real. Foram removidos os quatro primeiros panoramas; mantidos sala gamer, estúdio futurista e rua violeta. Adicionados **Observatório orbital** e **Lago ao luar**, criados com IA e identificados na galeria. Todos os arquivos são locais, sem download na execução.
+- Panoramas monoscópicos equiretangulares: rotação acompanhando a cabeça, mesmo fundo nos dois olhos, sem parallax/6DoF. Uma esfera sem iluminação/sombras substitui a praia animada. Imagens mantidas na resolução recebida e com os créditos/marcas existentes; consulte `web/panoramas/NOTICE.md`.
+- Raio encurtado: extrapolação de 2 para 0,85 e alcance visual livre de até 28% da menor dimensão da lente. Mantidos a trava durante a pinça e o ponto de contato na Dock.
 
-Window placement is now free-space aware: `web/src/spawn.js` measures each surface by the angular
-rectangle it occupies in the user's view, so a new window is born where nothing is covered and a
-pinned arc slot slides aside when the user has parked a detached window in front of it. No minimum
-spacing is forced — two windows can still be placed edge to edge, or deliberately overlapping.
+### Qualidade e orientação ao abrir apps
 
-## Controls
+- Panoramas preservados **byte a byte nos formatos recebidos** (PNG/WebP), sem uma segunda compressão JPEG. Renderização com até 1,5× de resolução; segue cada frame da cabeça, mas reutiliza o último frame quando orientação/projeção não mudam. Os originais mantidos têm 1774×887; os dois novos foram gerados em aproximadamente 1,4K e ajustados minimamente para 2:1, sem ampliação artificial.
+- Jogos começam com resolução mais alta (Chicken até 1,15×) e a resolução adaptativa não desce de 0,8×. Sombras da sala estática são reutilizadas; ao mover a faca, são atualizadas em até 15 Hz e reaproveitadas nos dois olhos. Menos alocações por frame e intervalo adaptativo para deixar folga entre análises das mãos.
+- Orientação nativa via `SensorManager` (game rotation vector, com rotation vector como fallback), independente do foco das WebViews Google/YouTube. Entrega limitada a uma pose JS pendente, registrada no resume e removida no pause/destroy. Giroscópio do navegador continua como fallback, com troca de fonte sem salto de direção; abrir apps não recalibra a cabeça nem muda o cadeado.
+- Exige confirmação no aparelho: abrir/fechar Google e YouTube, virar para ambos os lados sem tocar no cadeado, voltar de app externo, e comparar nitidez/FPS. Os testes automatizados não medem fluidez no telefone.
 
-| Action | How |
-| --- | --- |
-| Start | Grant camera permission, aim the native MediaPipe hand ray at a language in the close welcome window and pinch. |
-| Look around | Existing Cardboard head orientation; windows stay in the world and looking alone never activates them. |
-| Select | Aim the MediaPipe hand ray and pinch thumb/index; the hands and pointer use a softer, translucent overlay. |
-| Joy-Con / Bluetooth gamepad | D-pad or left stick moves the visible selection, A activates, B closes the focused window, and Home hides/restores the dock, floating windows and keyboard. |
-| Move a window | Close a fist over the window or pinch the white lower handle, move beyond the deliberate-drag threshold, then release. |
-| Move the dock | Pinch the visible grab handle just below the dock, move it to a comfortable spot, then release. |
-| Resize a window | Pinch the violet corner handle and move diagonally; size is proportional and bounded. |
-| Direct touch | Touch a surface within arm’s reach with your tracked index fingertip; default distant windows use the hand ray. |
-| Return to dock arc | Use the window's crosshair/repin control. |
-| Browser scrolling | Hold a hand pinch on the page and move. |
-| Type | Pinch a field — in a browser, shell window or Android app — to show the floating keyboard. Pinch a key to type; hold it to repeat or slide onto the next key. |
-| Touchscreen/viewer button | Not routed to the VR UI. Native close/settings remain Android safety/system controls. |
-| Recenter | Quick Settings → “Redefinir visualização”. |
-| Play a game | Library → Games filter → the game's tile. Hostable PhoneXR games open in-headset; the rest launch on the phone screen by the runtime. |
-| Game menu | Hold the pinch with both hands for ~2 s; a flat panel offers Continue, Settings and Exit Game. |
-| Pair viewer | Native settings → Switch Cardboard viewer. Before pairing, SDK Cardboard v1 defaults are used. |
-| Adjust sound | Phone's media-volume buttons; normal Android headphone/Bluetooth routing. |
-| Exit | Native close control or Android back. |
+### Agrupamento do cenário e galeria
 
-Up to three regular app windows share the arc in addition to the dock, keyboard and HUD.
-Library/store styling, menus, settings, gallery, browser chrome and animations come from the
-prototype. The hand silhouette uses a dark teal fill and cyan contour, drawn from the APK's native
-MediaPipe landmarks; the camera stays with Camera2, so the WebView does not open a competing
-`getUserMedia` stream or download a second tracker from a CDN. Native filtering and pointer gestures
-remain in place. The sunset panorama is the default virtual environment; camera passthrough and the
-other 360° panoramas remain available.
+- A galeria usa o mesmo quadro 760×480, controles de mover/fechar e um dos três slots existentes — não cria uma quarta janela. Miniaturas pequenas são carregadas no painel; só o ambiente selecionado carrega a textura completa.
+- Geometria opaca estática é agrupada por material, flags de sombra e células espaciais, reduzindo chamadas de desenho no Chicken, Dreamcore e labirinto do ShootTheDie. Personagens, faca, marcadores, portais e superfícies transparentes ficam separados. Colisão do labirinto continua usando os mesmos limites; sombras e nitidez foram mantidas.
+- Testes de geometria conferem redução de 100 objetos estáticos compatíveis para 2 malhas no cenário sintético e preservação dos limites/objetos móveis. Isso mede o agrupamento, **não FPS no celular**. A confirmação de fluidez continua exigindo teste no aparelho.
 
-## Hand tracking performance
+### Recentrar, ancoragem e mãos sem fila
 
-Performance measurement and the hand-tracking investigation are documented in
-[`docs/hand-tracking-investigation.md`](docs/hand-tracking-investigation.md). Device measurement
-procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
+- Botão **Recentrar e nivelar Dock** na própria Dock: traz o conjunto para a direção completa do olhar (inclusive cima/baixo e trás), sem rolagem lateral e ativa o cadeado, sem recalibrar o giroscópio. Dock nivelada por padrão; após recentrar, acompanha a inclinação escolhida uma única vez, não segue a cabeça.
+- O cadeado bloqueia pegadas acidentais da Dock. Desbloquear permite movê-la deliberadamente, **não** a transforma em HUD/head-follow; voltar a travar preserva posição. Removidos o ajuste de rotação por fluxo óptico e o início automático de WebXR inline, evitando competição com o sensor e liberando CPU. Isso é ancoragem orientacional no espaço 3D, não SLAM/6DoF posicional real; deriva residual do sensor ainda precisa de avaliação no aparelho.
+- Barras brancas horizontais abaixo das janelas, inclusive Google/YouTube, reaproveitam os controles de arraste por toque e pinça. Três slots/tamanhos e folga acima da Dock preservados.
+- Mãos sem limite visual de 30 Hz. Entrada com alvo de até 60 análises/s, uma única inferência em voo, sem fila de imagens, rejeição de quadro duplicado e resultados com mais de 200 ms. Troca de visibilidade/rotação invalida o resultado pendente; entradas vencidas não interagem; o desenho tolera breves perdas de detecção antes de desaparecer. Falhas de captura liberam o processamento.
+- ShootTheDie recebe no máximo um pacote de mãos pendente, com ACK e prazo medido desde a captura — sem acumular mensagens antigas. Esqueleto desenhado em um único path; brilho Aura copia somente a região da mão, não o canvas inteiro. Sem mãos, o overlay ocioso não é redesenhado. FPS efetivo de inferência/renderização depende do aparelho e não foi medido aqui.
 
-## Code map
+### Continuidade das mãos e recentrar em qualquer direção
 
-| Path | Responsibility |
-| --- | --- |
-| `new_references.zip` | Unmodified primary visual/component reference; current `N` and icon paths originate here |
-| `references.zip` | Legacy workspace reference, used only where the newer archive has no corresponding component |
-| `web/index.html`, `web/src/apps.js`, `web/src/reference-icons.js` | Current styling, restored vectors, dock, library/store and application surfaces |
-| `web/src/windows.js`, `web/src/window-geometry.js` | World layout, bounded drag, proportional resize, keyboard and hand-ray interaction |
-| `web/src/typing.js` | Shared typing engine for shell fields and hosted browser WebViews (injected at document start) |
-| `web/src/hands.js` | Cyan hand contour and per-hand pinch cursor, driven by native MediaPipe landmarks |
-| `web/src/xr-games.js`, `web/src/two-hand-chord.js`, `web/src/spawn.js` | PhoneXR game mode, both-hands menu chord and free-space-aware window placement |
-| `…/xr/` | Native PhoneXR game controller, runtime, library and hand bridge |
-| `…/hands/`, `…/PhoneXrHandRenderer.kt` | Native landmark filters/gestures and GL pointer rays/targets |
-| `…/com/nextvr/handtrack/` | Hand-tracking engine: MediaPipe VIDEO graph, hunting graph while no hand is tracked, owned-bitmap input |
-| `web/src/atlas.js` | Stable HTML texture slots and world-transform submission |
-| `web/src/core.js` | Reference state, localization, content root and native pose input |
-| `nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java` | Camera2 lifecycle, shared upright unmirrored bitmap, bounded OrangeHanding worker |
-| `…/SpatialRenderer.java` | 2D camera + OES HTML shaders, glass, alpha and per-eye world composition |
-| `…/WebSurface.java` | GPU-backed virtual-display WebViews, browser security, PhoneXR contact/media handling |
-| `…/NextVrActivity.java` | Lifecycle, JNI callbacks, permissions, HTML/native bridge and Android audio |
-| `nextvr-android/src/main/jni/nextvr_app.cc` | Existing Cardboard orientation, stereo framebuffer and distortion infrastructure |
-| `sdk/`, `java_api/`, `proto/`, `third_party/` | Vendored official Cardboard SDK |
-| `tests/` | Reference UI browser tests and spatial/security invariants |
+- Recentrar considera yaw **e pitch**, inclusive nos polos (olhar totalmente para cima/baixo), e coloca a Dock no alvo do olhar a 1,55 m. Dock, janelas e teclado compartilham o mesmo referencial inclinado sem rolagem; as três janelas mantêm a separação acima da Dock no referencial local. Girar a cabeça depois não muda a pose ancorada.
+- Corrigida a causa de piscadas por descarte agressivo: a última pose visual é mantida por uma tolerância limitada de **450 ms desde a última detecção recebida**, enquanto gestos exigem captura válida de até **200 ms** e detecção presente. Perder uma detecção desarma pinça/arraste sem destruir imediatamente a mão. Reaquisição mantém identidade e pontos; perda prolongada remove o visual. Não há fila, reprodução de frames antigos ou novas ações com a mão retida.
+- Resize invalida inferência pendente e desarma gestos, mas não apaga imediatamente o desenho. Visibilidade/pausa continua limpando o estado. O limite de idade dos resultados de inferência e o pacote único com ACK no ShootTheDie permanecem.
+- Testes cobrem detecção → perda isolada → recuperação sem recriar a mão; expiração real; ausência de gestos com dados antigos; recentrar em frente/trás/lados/cima/baixo, olhar exatamente vertical, e invariância da posição após virar a cabeça. Validação visual no celular continua necessária.
 
-## Attribution
+### Menu circular e mão Neon
 
-The Cardboard SDK/sample retains its Apache-2.0 headers and [license](LICENSE-CARDBOARD-SDK).
-See [third-party provenance](docs/THIRD-PARTY.md) for the bundled web libraries and models. The
-YOLO11 pose model of the earlier PhoneXR integration is no longer distributed. No UI theme or positional-tracking system from the linked
-NextVR repository has been substituted for the supplied prototype.
+- A Dock horizontal foi substituída por cinco botões circulares verticais no mundo: aplicativos, ambientes, janelas, mãos e sistema. A seleção fica dourada e abre uma lista clara ao lado; tocar/pinçar novamente fecha. Aplicativos, jogos, notas, panoramas, três slots, VR, trava e recentralização continuam disponíveis.
+- Os menus laterais são absolutos: abrir uma categoria não desloca a âncora nem as janelas. A coluna mais alta preserva a escala das três superfícies iguais de 760×480, com folga acima do menu. Controles de listas fechadas não entram nos alvos de pinça. O raio também termina sobre a lista aberta, e as alterações são copiadas para o outro olho.
+- Em **Mãos → Neon · contorno da mão**, Aura Neon agora forma uma máscara da palma e dos cinco dedos, com preenchimento translúcido e brilho somente na borda externa. Não desenha linhas dos ossos ou cortes internos da palma. A preferência de estilo existente é preservada; não força Neon para quem usa Fantasma/3D. A composição continua recortada à região da mão e não adiciona fila de inferência.
+- Ícone DI Halloween: arte enviada pelo usuário aplicada ao launcher adaptativo, densidades legadas e ícone interno; imagem completa dentro da área segura adaptativa, sem redesenho.
+
+Validação desta alteração: 68 testes Node (incluindo seleção/fechamento de categorias, alvos ocultos, contato do raio no submenu, composição da silhueta e três janelas acima da coluna). Aparência, alcance e desempenho real de hand tracking ainda precisam de teste no aparelho.
+
+### Revisão das referências — direita / esquerda / acima
+
+Esta revisão substitui a regra anterior de manter todas as janelas acima da Dock:
+- A abertura normal ocupa **direita → esquerda → centro superior**. Laterais ficam na altura da Dock; a terceira fica acima, com folga vertical. As três continuam iguais, no mundo, sem seguir a cabeça. Escolher explicitamente um slot ainda funciona; reabrir uma janela não a troca de lado; fechar a superior não promove as laterais. A quarta ocupa a superior, deslocando sua ocupante para o lado menos recente (máximo três).
+- Biblioteca: fundo carvão, barra lateral compacta, grade de quatro colunas, cartões retangulares coloridos e logos locais preservados. Filtros Todos/Web/Jogos funcionais, incluindo após instalar apps.
+- Loja: fundo azul-petróleo, navegação Página inicial/Jogos/Apps, banner gráfico local e vitrine em cinco colunas, com botões reais de instalação. Não oferece nem simula instalar títulos do Quest que o dixVR não possui.
+- Hand Aura: palma e cinco dedos com superfícies afuniladas/curvas, pontas sem expansão de cápsulas. Uma erosão da máscara produz uma borda branca fina **dentro** da silhueta estimada; sem preenchimento nem halo, preservando a mão da câmera. Upgrade v12 ativa esse estilo uma vez; escolhas posteriores continuam salvas. É uma aproximação pelos 21 pontos do MediaPipe, não segmentação exata da pele.
+- Validação: 71 testes Node; regressões de sequência de slots, fechamento/reabertura, igualdade de escala, recenter em todas as direções, filtros reais e migração do estilo. Aparência/encaixe do contorno e FPS no aparelho não foram medidos aqui.
+
+### Listas em cascata e silhueta translúcida (referências de 05/11)
+
+- Biblioteca, Loja, Ambientes e Estilos da mão agora abrem **uma segunda lista ao lado da primeira**, sem fechá-la ou mover a âncora. Filtrar/abrir apps, selecionar câmera/panoramas e trocar estilos são ações reais. Selecionar outra categoria fecha os filhos; pinçar o item novamente recolhe. Controles ocultos continuam fora do hit-test, e o raio reconhece também a superfície da segunda lista. Os dois olhos recebem a mesma seleção.
+- Aura mostra silhueta **escura translúcida (30%) + borda branca fina**, conforme a nova imagem, sem estrutura dos ossos. A tintura ocorre no canvas auxiliar, sem escurecer outras mãos/raios.
+- Estabilização adaptativa na chegada dos resultados: corte baixo para tremidas pequenas, alto para movimentos rápidos; removida a segunda interpolação por frame que somava atraso. Reaquisição após intervalo maior que 120ms reposiciona sem arrastar uma mão fantasma. Coordenadas não finitas são descartadas. Mantidos captura latest-only, validade curta para gestos e tolerância visual de perdas breves, sem extrapolação infinita ou fila de frames.
+- Biblioteca refinada com cartões baixos e regulares, legendas discretas, fundo carvão e sidebar compacta. Loja com navegação central em pílulas, fundo azul-petróleo, banner usando miniatura local de ambiente (não anúncio de jogo externo) e vitrine dos apps reais. Branding dos serviços, instalação e filtros preservados.
+- **73 testes Node**: filtro (tremida/rápido/reaquisição/NaN), submenu exclusivo/recolhimento, raio no filho aberto versus oculto, além das regressões anteriores. O filtro é testado com dados sintéticos; encaixe real, latência da câmera e FPS ainda dependem do aparelho. Contorno estimado pelos landmarks não equivale a segmentação exata da pele.
+
+### Dreamcore e correção das juntas/pontas (capturas de 05/11)
+
+- Mão Aura: as raízes dos dedos penetram a máscara preenchida da palma, em vez de terminar sobre a borda dos MCPs. Isso elimina as linhas de fechamento expostas nas juntas. As cinco pontas agora usam semicírculos tangentes aos lados, alcançando o landmark TIP (sem o achatamento da curva anterior). Palma/punho com cantos arredondados; nenhuma linha de osso é desenhada. Mantida a união em máscara antes do contorno, inclusive para dedos sobrepostos.
+- Dreamcore/Poolrooms: texturas locais compartilhadas com UV projetado em metros, sem azulejos esticados em paredes enormes; água texturizada opaca reduz sobreposição transparente. Paredes internas, pilares e tobogãs projetam sombras; piso/água recebem. Uma luz direcional com mapa 1024² substitui as PointLights repetidas das piscinas. Mapa estático só fica sujo ao entrar em outro setor de 12m ou trocar de nível, nunca por olho/frame indiscriminadamente. Barras fluorescentes continuam visíveis e agrupadas.
+- Recursos GPU próprios do nível são liberados ao trocar/sair, preservando materiais compartilhados e previews. O listener de resize é único por sessão, em vez de acumular ao entrar no Poolrooms. Panorama de fundo deixa de renderizar durante jogos. Batching espacial e qualidade adaptativa existentes preservados.
+- 76 testes Node, incluindo geometria das cinco pontas, raízes dentro da palma, construção real do Poolrooms (texturas/água/luzes/sombras/UV), atualização de sombra por região e descarte seletivo. Também feita rasterização de desenvolvimento com Canvas para inspecionar a união e as pontas; não substitui validação em câmera real. Não é o sistema de tracking do Quest 3 nem segmentação exata da pele; FPS/aparência no aparelho continuam por confirmar.
+
+### Poolrooms transparente, dedos mais cheios e revisão estéreo ShootTheDie
+
+- A nova referência `e494fbed24af028d13df8904e6a852d8.jpg` orienta o acabamento, não é usada como foto repetida nas paredes: azulejos procedurais pequenos (seis/m), rejunte fino, branco marfim/verde suave e piso esverdeado. Texturas compartilhadas de 256², UV em metros.
+- **Substitui a água opaca da revisão anterior:** água transparente, alfa .32/.50, sem escrever profundidade, visível por cima/baixo e com ordenação de transparências. Mantidos fundo e texturas do piso visíveis através dela. Sem reflexo dinâmico/refração de tela, para limitar custo mobile.
+- Aura: dedos ~28% mais largos na base, almofadas das pontas mais cheias, mindinho menos estreito; preservados semicírculos, união palma/dedos e ausência de fechamento exposto nas juntas.
+- ShootTheDie: atualiza pose/matriz mundial **antes** de derivar os olhos; aspecto estéreo fixo .5 após resize, viewports cobrem larguras ímpares, viewport/scissor restaurados. Copia a orientação já calibrada sem o filtro .08 adicional; valida origem e quaternion da mensagem. Host fullscreen reforçado fora de ancestrais CSS3D, sem mudar a âncora mundial da Dock. Ajustes cobrem causas de desalinhamento; ocorrência física da tela preta ainda precisa ser retestada no aparelho.
+- Dreamcore/Chicken/ShootTheDie atualizam a árvore de transformações uma vez por quadro e a reutilizam nos olhos, restaurando o estado mesmo em erro de render. Vetores temporários reutilizados nos loops de movimento/inimigos do shooter e no Dreamcore. Mantidas resolução adaptativa, batching espacial, sombra estática por região e tracking latest-only; sem impor 24 FPS nem head-follow.
+- **80 testes Node**, incluindo frustos reais Three.js em 15 direções de cabeça com ambos os olhos, resize/largura ímpar, host fora de CSS3D, restauração do renderizador, transparência, densidade dos azulejos e espessura das pontas. Esses testes não medem FPS nem reproduzem a GPU/WebView do celular.
+- Complemento de inicialização do ShootTheDie: handshake após o toque de início reenvia modo VR e orientação quando as câmeras/listeners do filho já existem (o `onload` do iframe podia ocorrer antes). Origem validada pelo iframe ativo. Total atualizado: **81 testes**.

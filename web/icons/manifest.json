@@ -1,0 +1,34 @@
+{
+  "google": {
+    "asset": "google.png",
+    "sha256": "544b94e0bb4cbb15aa20737a550acda19e42c560e8213798d8f396e4e261798b"
+  },
+  "youtube": {
+    "asset": "youtube.png",
+    "sha256": "08af89b8a889241e1d5ccb7afc8de4959eaef85111e9f9926ef56a4f7e67077b"
+  },
+  "reddit": {
+    "asset": "reddit.png",
+    "sha256": "3bd81602398fbc71d76e3733f444e112a145df96042e56b218aa8c0fb51b66c8"
+  },
+  "github": {
+    "asset": "github.png",
+    "sha256": "cee27f185ca7f33fae88c55378b05f95057763018303149662e96d6480d4323a"
+  },
+  "twitch": {
+    "asset": "twitch.png",
+    "sha256": "8f65ab6c32578e0d6e9a07448479174aaa44db6257683946de224fc45e32d9a1"
+  },
+  "maps": {
+    "asset": "maps.png",
+    "sha256": "8c1ba5af2baad04b93cffb53bd64c58cbfa7c90d15c28a05cfa33022e149da35"
+  },
+  "poki": {
+    "asset": "poki.png",
+    "sha256": "973d1fae4f2733f788493e24d4f2693bdf6a6f61f3c18ff3aa31b100eaa47e85"
+  },
+  "wikipedia": {
+    "asset": "wikipedia.png",
+    "sha256": "23656393bdc6a789655468636708a57cca996de4ccbd0d98b75b090dd7c3456d"
+  }
+}
