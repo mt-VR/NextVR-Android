@@ -122,6 +122,10 @@ class PhoneXrHandRenderer {
     private val beamLine=FloatArray(7)
     /** Scratch da ORIGEM do feixe (a pinça). Separado de [beamEnd], que guarda o DESTINO. */
     private val beamOrigin=FloatArray(2)
+    /** Quanto do tamanho da mão o começo do feixe anda para fora dela (ver [beamPush]). */
+    private val BEAM_CLEAR = .46f
+    private val BEAM_CLEAR_MIN = .05f
+    private val BEAM_CLEAR_MAX = .16f
     private val acrossA=FloatArray(3)
     private val acrossB=FloatArray(3)
     private val quad=FloatArray(18)
@@ -237,6 +241,7 @@ class PhoneXrHandRenderer {
                         b[0]=o[0];b[1]=o[1];b[2]=-1f
                         b[3]=e[0];b[4]=e[1];b[5]=e[2]
                         b[6]=if(target?.optJSONArray("end")!=null) 1f else 0f
+                        beamPush(b,hand)
                         drawBeam(b,true,true,false,position,fade)
                     }
                 }
@@ -289,6 +294,7 @@ class PhoneXrHandRenderer {
             if(!direct) beamStart(hand,sx,sy,origin)
             b[0]=if(direct)0f else origin[0];b[1]=if(direct)0f else origin[1];b[2]=if(direct)0f else -1f
             b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
+            if(!direct) beamPush(b,hand)
             drawBeam(b,down,blueRay,noBeam,position,hFade)
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
@@ -641,13 +647,11 @@ private fun handBone(out: FloatBuilder, x1: Float, y1: Float, x2: Float, y2: Flo
 
 /** ONDE O FEIXE NASCE, no plano do olho (z = −1), em [out].
  *
- *  Antes o código lia `points[9]` e `points[10]` achando que era o "landmark 9" (meio da palma).
- *  `points` é achatado (63 floats = 21 landmarks × 3), então esses índices são o X e o Y do
- *  landmark 3 — a ponta do polegar. Era exatamente isso que fazia o raio nascer DENTRO da mão,
- *  colado no dedão. Agora a origem é o ponto da pinça — o meio entre a ponta do polegar (4) e a
- *  do indicador (8) — que é onde a pessoa segura o raio, e o feixe sai da borda da mão em vez de
- *  aparecer no meio dela. Sem as duas pontas, cai para o meio da palma (9) e, por último, no
- *  centro da mão. */
+ *  O raio pertence ao ponto da pinça: o meio entre a ponta do polegar (landmark 4) e a do
+ *  indicador (8), que é onde a pessoa segura. É o mesmo lugar de sempre — o que muda é que ele
+ *  agora é desenhado a partir de FORA da mão (ver [beamPush]): o desenho da mão e o do feixe estão
+ *  no mesmo plano (z = −1), então um feixe que começa no ponto da pinça fica por cima dos dedos e
+ *  parece atravessar a mão. */
 private fun beamStart(hand: PhoneXrHands.Hand, sx: Float, sy: Float, out: FloatArray) {
     val p = hand.points
     var nx = Float.NaN
@@ -664,6 +668,46 @@ private fun beamStart(hand: PhoneXrHands.Hand, sx: Float, sy: Float, out: FloatA
     if (!nx.isFinite() || !ny.isFinite()) { nx = hand.baseX; ny = hand.baseY }
     out[0] = (nx - .5f) * 2f * sx
     out[1] = (.5f - ny) * 2f * sy
+}
+
+/**
+ * EMPURRA o começo do feixe para fora da mão, em [b] ({x, y, z} de origem + {x, y, z} de destino).
+ *
+ *  A mão e o feixe são desenhados no MESMO plano (z = −1): qualquer coisa que nasça no ponto da
+ *  pinça aparece por cima dos dedos, e o usuário lê isso como "o raio passa dentro da mão". Empurrar
+ *  o começo ao longo da própria linha do feixe — por ~metade da mão, medido nos landmarks — separa os
+ *  dois desenhos sem mudar para onde o raio aponta: o destino não é tocado.
+ *
+ *  A folga é limitada a um terço da distância até o alvo, então num alvo encostado o feixe ainda
+ *  alcança, e o "pinguinho" (o drop) passa a ser desenhado no começo empurrado, fora da silhueta.
+ */
+private fun beamPush(b: FloatArray, hand: PhoneXrHands.Hand) {
+    var dx = b[3] - b[0]; var dy = b[4] - b[1]; var dz = b[5] - b[2]
+    val length = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+    if (length < 1e-4f) return
+    dx /= length; dy /= length; dz /= length
+    val push = (handReach(hand) * BEAM_CLEAR).coerceIn(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX)
+        .coerceAtMost(length * .34f)
+    if (push <= 0f) return
+    b[0] += dx * push
+    b[1] += dy * push
+    b[2] += dz * push
+}
+
+/**
+ * Quanto a mão ocupa no plano do olho, em unidades de NDC: a distância do pulso (landmark 0) à
+ * ponta do dedo médio (12), que é o tamanho da mão vista de frente e não depende de onde ela está.
+ * Sem landmarks utilizáveis, devolve um valor médio (a mão encostada no rosto ocupa mais tela, mas
+ * um número fixo é melhor do que nenhum).
+ */
+private fun handReach(hand: PhoneXrHands.Hand): Float {
+    val p = hand.points
+    if (p.size < 39) return .24f
+    val wristX = p[0]; val wristY = p[1]
+    val fingerX = p[36]; val fingerY = p[37]        // landmark 12 — ponta do dedo médio
+    if (!wristX.isFinite() || !wristY.isFinite() || !fingerX.isFinite() || !fingerY.isFinite()) return .24f
+    val span = kotlin.math.sqrt((fingerX - wristX) * (fingerX - wristX) + (fingerY - wristY) * (fingerY - wristY))
+    return (span * 1.9f).coerceIn(.16f, .62f)
 }
 
 /** Ponto de mira do raio, no espaço do olho: o `end` que o JS manda (o alvo real de um acerto) ou

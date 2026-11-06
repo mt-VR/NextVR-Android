@@ -107,6 +107,8 @@ public final class XrGameController {
     private final XrHandBridge hands;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** Avisa a lista nova quando um pacote entra ou sai; registrado sob demanda, ver {@link #watchPackages()}. */
+    private android.content.BroadcastReceiver packageWatcher;
 
     /** The one hosted game. A second open while one is running is refused, not queued: two OpenXR
      *  sessions on one phone is not something either runtime supports, and silently closing the first
@@ -162,7 +164,56 @@ public final class XrGameController {
         handMode = mode;
     }
 
+    /**
+     * Passa a acompanhar instalações e desinstalações e a republicar a lista de jogos quando uma
+     * acontece.
+     *
+     * <p>Ler o APK de cada jogo é caro, então a lista é montada uma vez e guardada na shell. O efeito
+     * colateral era o óbvio: instalar um jogo com o NextVR aberto não mostrava tile nenhuma até
+     * reiniciar o app — foi assim que o Táxi Driver "sumiu". O pacote mudou, a lista é refeita; é só
+     * isso. {@code ADDED} não é entregue a si mesmo de forma confiável em todas as versões, então
+     * {@code REPLACED} também conta (atualizar um apk instalado muda a versão, e a versão é uma das
+     * pistas que o classificador usa).
+     */
+    public void watchPackages() {
+        if (packageWatcher != null) return;
+        packageWatcher = new android.content.BroadcastReceiver() {
+            @Override public void onReceive(Context context, android.content.Intent intent) {
+                if (intent == null || intent.getData() == null) return;
+                if (intent.getBooleanExtra(android.content.Intent.EXTRA_REPLACING, false)) return;
+                offMain(XrGameController.this::publishLibrary);
+            }
+        };
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_REPLACED);
+        filter.addDataScheme("package");
+        try {
+            // API 33 exige declarar se um receptor dinâmico aceita apps de fora; este só quer os
+            // avisos do próprio sistema, então nunca é exportado.
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                env.context().registerReceiver(packageWatcher, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                env.context().registerReceiver(packageWatcher, filter);
+            }
+        } catch (Throwable refused) {
+            // Sem permissão de receber o aviso (ou contexto já morto): a lista continua sendo refeita
+            // quando a shell a pede, só não de graça.
+            packageWatcher = null;
+            Log.w(TAG, "package watch not available", refused);
+        }
+    }
+
     public void shutdown() {
+        if (packageWatcher != null) {
+            try {
+                env.context().unregisterReceiver(packageWatcher);
+            } catch (Throwable ignored) {
+                // Já foi desregistrado, ou o contexto morreu junto com a atividade.
+            }
+            packageWatcher = null;
+        }
         worker.shutdownNow();
         try {
             close();

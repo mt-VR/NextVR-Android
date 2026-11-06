@@ -317,7 +317,7 @@ test('a shell pinta a tile do VR Box e oferece a tela cheia para qualquer app in
   assert.match(apps, /xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen \} from '\.\/xr-games\.js';/);
   const core = await read(FILES.core);
   for (const key of ['xrCardboardBadge', 'xrFullScreenOpened', 'xrCardboard', 'xrCardboardNote',
-    'xrCardboardOpen', 'xrCardboardLoad', 'xrCardboardEmpty']) {
+    'xrCardboardOpen', 'xrCardboardLoad', 'xrCardboardEmpty', 'xrCardboardRescan']) {
     assert.equal(core.split(`    ${key}:`).length - 1, 3, `${key} está traduzido em pt, en e es`);
   }
 });
@@ -329,4 +329,39 @@ test('voltar do jogo de tela cheia limpa o estado: ele não fica "aberto" para s
   assert.match(controller, /private void openFullScreen\(XrGameLibrary\.Game game\) \{\n\s+hands\.stop\(\);\n\s+current = null;/);
   // Sair/fechar também limpa.
   assert.match(controller, /private void close\(\) \{\n\s+XrGameLibrary\.Game game = current;\n\s+current = null;\n\s+external = null;/);
+});
+
+test('jogo instalado com o app aberto vira tile sem reiniciar (foi assim que o Táxi "sumiu")', async () => {
+  const xr = await read(FILES.xr);
+  // A lista vem do lado nativo, que abre o APK de cada jogo: é caro, então é pedida com folga — mas
+  // é pedida toda vez que a biblioteca pinta, e não só quando não há jogo nenhum (o caso que deixava
+  // um jogo recém-instalado invisível até reiniciar o NextVR).
+  assert.match(xr, /export function ensureXrLibrary\(\) \{/);
+  assert.match(xr, /const LIBRARY_FRESH_MS = 15000;\nconst LIBRARY_MIN_GAP_MS = 2500;/);
+  assert.match(xr, /if \(!gamesLoaded\) \{ if \(now - lastAsk >= LIBRARY_MIN_GAP_MS\) askXrLibrary\(\); return; \}\n  if \(now - lastAsk >= LIBRARY_FRESH_MS\) askXrLibrary\(\);/);
+  const apps = await read(FILES.apps);
+  assert.match(apps, /if \(window\.NativeXR\?\.xrLibrary\) ensureXrLibrary\(\);/);
+  assert.ok(!apps.includes('if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();'),
+    'a condição que congelava a lista com um jogo instalado não existe mais');
+  // E o lado nativo avisa quando um pacote entra ou sai, então nem é preciso abrir a biblioteca.
+  const controller = await read(FILES.controller);
+  assert.match(controller, /public void watchPackages\(\) \{/);
+  assert.match(controller, /filter\.addAction\(android\.content\.Intent\.ACTION_PACKAGE_ADDED\);/);
+  assert.match(controller, /filter\.addAction\(android\.content\.Intent\.ACTION_PACKAGE_REMOVED\);/);
+  assert.match(controller, /filter\.addDataScheme\("package"\);/);
+  assert.match(controller, /offMain\(XrGameController\.this::publishLibrary\);/);
+  assert.match(controller, /env\.context\(\)\.unregisterReceiver\(packageWatcher\);/);
+  const activity = await read(FILES.activity);
+  assert.match(activity, /xrGames\.watchPackages\(\);/);
+});
+
+test('a lista Cardboard das configurações mostra o jogo reconhecido mesmo sem a biblioteca do Android', async () => {
+  const apps = await read(FILES.apps);
+  // Duas fontes: apps instalados e jogos de headset já classificados (o Táxi é reconhecido pelo
+  // nome, então aparece aqui antes de qualquer coisa ser carregada).
+  assert.match(apps, /for \(const game of \(xrGames\(\) \|\| \[\]\)\) if \(!byPkg\.has\(game\.package\)\) byPkg\.set\(game\.package, \{ pkg: game\.package, label: game\.label \}\);/);
+  assert.match(apps, /on\('xr', paintInstalled\);/);
+  // E um re-scan à mão, para quem instala o jogo com o app aberto e não quer esperar.
+  assert.match(apps, /const rescan = el\('button', 'go', t\('xrCardboardRescan'\)\);/);
+  assert.match(apps, /rescan\.onclick = \(\) => \{ refreshXrLibrary\(\); loadAndroidLibrary\(true\); toast\(t\('xrCardboardRescan'\)\); \};/);
 });

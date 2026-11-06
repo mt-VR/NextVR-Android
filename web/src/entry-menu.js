@@ -560,10 +560,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-bento-grid entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3">
             <div class="entry-bento-cell entry-bento-cell--dockcolor">
               <div class="entry-bento-title">COR DA DOCK &amp; MULTITAREFA</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:5px">
+              <div class="entry-dock-colors">
                 ${[['default','Cinza'],['black','Preto'],['blue','Azul'],['purple','Roxo'],['green','Verde'],['red','Vermelho'],['glass','Vidro']].map(([cid, clbl]) => `<button type="button" class="entry-seg-btn ${(S.dockColor || 'default') === cid ? 'on' : ''}" data-entry-dock-color="${cid}" title="Cor da Dock: ${clbl}">${clbl}</button>`).join('')}
               </div>
-              <div class="entry-seg-row entry-seg-row--compact" style="margin-top:8px;flex-wrap:wrap;gap:5px">
+              <div class="entry-dock-toggles">
                 <button type="button" class="entry-seg-btn ${S.depthLayerOrder !== 0 ? 'on' : ''}" data-entry-depth-layer="${S.depthLayerOrder !== 0 ? '1' : '0'}" title="Quando puxar a tela pra perto ela fica sobre todas as outras, e pra trás fica embaixo">Tela Perto Sobre / Trás Embaixo: ${S.depthLayerOrder !== 0 ? 'ON' : 'OFF'}</button>
                 <button type="button" class="entry-seg-btn ${S.mrDim ? 'on' : ''}" data-entry-mr-dim="${S.mrDim ? '1' : '0'}" title="Escurecer o ambiente real (MR) em volta dos apps flutuantes">Ambiente MR: ${S.mrDim ? 'Escuro' : 'Normal'}</button>
                 <button type="button" class="entry-seg-btn ${S.showFps ? 'on' : ''}" data-entry-fps="1">FPS: ${S.showFps ? 'ON' : 'OFF'}</button>
@@ -572,7 +572,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
             <div class="entry-bento-cell entry-bento-cell--env">
               <div class="entry-bento-title">${emT('envTitle')}</div>
-              <div class="entry-seg-row entry-seg-row--compact" style="flex-wrap:wrap;gap:6px">
+              <div class="entry-env-row">
                 ${envs.map(e => `<button type="button" class="entry-seg-btn ${activeEnv === e.id ? 'on' : ''}" data-entry-env="${e.id}">${e.label}</button>`).join('')}
               </div>
             </div>

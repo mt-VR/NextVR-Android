@@ -324,3 +324,24 @@ test('o raio sai da PINÇA, não de dentro da mão (era "colado no dedão")', as
   assert.match(renderer, /private val beamEnd=FloatArray\(3\)/);
   assert.match(renderer, /private val beamOrigin=FloatArray\(2\)/);
 });
+
+test('o feixe começa FORA da mão, não em cima dos dedos', async () => {
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
+  // A mão e o feixe são desenhados no mesmo plano (z = −1): um feixe que nasce no ponto da pinça
+  // fica por cima dos dedos, e é isso que o usuário lê como "o raio está passando dentro da mão".
+  assert.match(renderer, /private fun beamPush\(b: FloatArray, hand: PhoneXrHands\.Hand\) \{/);
+  const push = renderer.slice(renderer.indexOf('private fun beamPush('),
+    renderer.indexOf('private fun handReach('));
+  // Só a ORIGEM anda: o destino (b[3..5], o alvo real do acerto) fica exatamente onde estava.
+  assert.match(push, /b\[0\] \+= dx \* push\n\s+b\[1\] \+= dy \* push\n\s+b\[2\] \+= dz \* push/);
+  assert.ok(!/b\[3\] \+=|b\[4\] \+=|b\[5\] \+=/.test(push), 'o destino do feixe não se move');
+  // A folga vem do tamanho da mão vista de frente (pulso → ponta do dedo médio), não de um número
+  // fixo: a mão encostada no rosto ocupa mais tela e precisa de mais folga.
+  assert.match(renderer, /private fun handReach\(hand: PhoneXrHands\.Hand\): Float \{/);
+  assert.match(push, /\(handReach\(hand\) \* BEAM_CLEAR\)\.coerceIn\(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX\)/);
+  assert.match(push, /\.coerceAtMost\(length \* \.34f\)/, 'num alvo encostado o feixe ainda alcança');
+  // E os dois caminhos do feixe empurram o começo, antes de desenhar.
+  assert.ok(renderer.split('beamPush(b,hand)').length - 1 === 2, 'ponteiro livre e pinça empurram o feixe');
+  assert.match(renderer, /beamPush\(b,hand\)\n\s+drawBeam\(b,true,true,false,position,fade\)/);
+  assert.match(renderer, /if\(!direct\) beamPush\(b,hand\)\n\s+drawBeam\(b,down,blueRay,noBeam,position,hFade\)/);
+});

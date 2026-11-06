@@ -128,6 +128,10 @@ export const SixDof = {
   _lastSentX: 0,
   _lastSentZ: 0,
   lastLatDx: 0,
+  /** Fluxo plausível que ainda não deu um passo: sai somado no próximo passo confirmado. */
+  carrySc: 0,
+  /** As três últimas escalas medidas (ver a concordância 2-de-3 em applyFlowScale). */
+  recentSc: [],
   depth: 1.25, // metros assumidos até aos objetos à frente (resposta 6DoF estável sem deriva espontânea)
 
   init() {
@@ -154,6 +158,8 @@ export const SixDof = {
     this.worldLocked = true;
     this.lastSc = 0;
     this.lastLatDx = 0;
+    this.carrySc = 0;
+    this.recentSc.length = 0;
   },
 
   reset() {
@@ -167,6 +173,8 @@ export const SixDof = {
     this.lastSc = 0;
     this.lastLatDx = 0;
     this.lastScAt = 0;
+    this.carrySc = 0;
+    this.recentSc.length = 0;
     this._lastSentX = 0;
     this._lastSentZ = 0;
     const cam = _getCam();
@@ -367,44 +375,70 @@ export const SixDof = {
     if (!cam) return;
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const hasDepthFlow = Number.isFinite(sc) && Math.abs(sc) >= 0.0028 && Math.abs(sc) <= 0.14;
-    if (!hasDepthFlow) {
+    const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
+    /**
+     * Duas bandas, uma regra. `EMIT_MIN` é o passo que anda agora, como sempre foi. Abaixo dele
+     * (até `PLAUSIBLE_MIN`) o fluxo deixou de ser jogado no lixo: passo lento produz escala de
+     * 0,001–0,0028 por quadro e era descartado inteiro, então caminhar devagar não movia NADA até o
+     * passo ficar rápido — o "6DoF às vezes não anda". Agora esse resto fica em `carrySc` e sai no
+     * primeiro passo confirmado, somado. O limiar para andar não muda, então não existe deriva nova:
+     * o que entra no carry é medida de verdade, e ele é zerado assim que a pessoa para.
+     */
+    const PLAUSIBLE_MIN = 0.0012, EMIT_MIN = 0.0028, FLOW_MAX = 0.14;
+    const stopAndLock = () => {
+      this.carrySc = 0;
       this.lastSc = 0;
+      this.recentSc.length = 0;
       this.lastLatDx = 0;
       if (this.worldLock) this.worldLocked = true;
-      return;
-    }
+    };
+    const plausible = Number.isFinite(sc) && Math.abs(sc) >= PLAUSIBLE_MIN && Math.abs(sc) <= FLOW_MAX;
+    if (!plausible) { stopAndLock(); return; }
 
     // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
-    if (Math.hypot(gx, gy) > 1.8) {
-      this.lastSc = 0;
-      this.lastLatDx = 0;
-      if (this.worldLock) this.worldLocked = true;
-      return;
-    }
+    if (Math.hypot(gx, gy) > 1.8) { stopAndLock(); return; }
 
-    const isMoving = movingOverride !== undefined ? Boolean(movingOverride) : Walk.moving();
     if (!isMoving) {
-      this.lastSc = 0;
-      this.lastLatDx = 0;
-      if (this.worldLock) {
-        this.pos.copy(this.anchorPos);
-        this.worldLocked = true;
-      }
+      stopAndLock();
+      if (this.worldLock) this.pos.copy(this.anchorPos);
       return;
     }
 
-    // Só conta se duas medições seguidas concordam em sinal e magnitude próxima (elimina completamente saltos/drift espontâneo)
+    /**
+     * Concordância em duas de três medições seguidas, em vez de exigir exatamente a anterior.
+     * A 15 Hz, um único quadro perdido (o prévio não concordava) jogava fora a medida BOA também, e
+     * o andar virava para-e-anda. Duas de três continua recusando um pico isolado — que é o que a
+     * regra existe para barrar — e o `carrySc` garante que a medida não confirmada não se perde.
+     */
     const prevSc = this.lastSc;
     this.lastSc = sc;
     this.lastScAt = nowMs;
+    this.recentSc.push(sc);
+    if (this.recentSc.length > 3) this.recentSc.shift();
+    let agree = 0;
+    for (let i = 0; i < this.recentSc.length; i++) {
+      const v = this.recentSc[i];
+      if (Math.sign(v) === Math.sign(sc) && Math.abs(v - sc) <= Math.max(0.045, Math.abs(sc) * 1.25)) agree++;
+    }
+    const confirmed = agree >= 2 || (prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
+        Math.abs(sc - prevSc) <= Math.max(0.045, Math.abs(sc) * 1.25));
 
-    if (prevSc === 0 || Math.sign(prevSc) !== Math.sign(sc) ||
-        Math.abs(sc - prevSc) > Math.max(0.045, Math.abs(sc) * 1.25)) {
+    // Medida guardada (não confirmada, ou pequena de mais para andar) — nunca é liberada depois de parar.
+    if (!confirmed) {
+      this.carrySc = Math.max(-FLOW_MAX, Math.min(FLOW_MAX, (this.carrySc || 0) + sc));
+      if (this.worldLock) this.worldLocked = true;
       return;
     }
 
-    const stepSc = (sc + prevSc) * 0.5;
+    const applied = (this.carrySc || 0) + sc;
+    if (Math.abs(applied) < EMIT_MIN) {
+      this.carrySc = applied;
+      if (this.worldLock) this.worldLocked = true;
+      return;
+    }
+    this.carrySc = 0;
+
+    const stepSc = applied * 0.5 + prevSc * 0.5;
     const step = Math.max(-0.085, Math.min(0.085, stepSc * this.depth));
     _sdFwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
     _sdFwd.y = 0;

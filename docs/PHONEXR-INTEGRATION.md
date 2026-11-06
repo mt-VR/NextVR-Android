@@ -54,8 +54,15 @@ workspace não é tocado: ao sair do jogo, o NextVR está exatamente como estava
 
 O passo 4 é limitado por tamanho (24 MB por dex) e só roda para quem pode ser Unity. Quando nenhuma
 pista aparece — APKs antigos, renomeados, plugins exóticos — a página **Configurações › PhoneXR ›
-Cardboard & VR Box** lista os apps instalados e abre qualquer um em tela cheia pelo mesmo caminho
-(`{cmd:'phone', pkg}` no `AppWindowController`).
+Cardboard & VR Box** lista os apps instalados (mais os jogos que o classificador já reconheceu) e abre
+qualquer um em tela cheia pelo mesmo caminho (`{cmd:'phone', pkg}` no `AppWindowController`).
+
+**Quando a lista é refeita.** Ler o APK de cada jogo é caro, então a biblioteca guarda a resposta em
+vez de reescanear a cada pintura. Ela é pedida de novo quando faz tempo (`ensureXrLibrary`, 15 s),
+quando o usuário pede (**Procurar jogos de novo**, na seção Cardboard & VR Box) e, o que resolve o caso
+comum, quando o Android avisa que um pacote entrou ou saiu (`XrGameController.watchPackages`). Antes
+disso a lista só era pedida enquanto não havia jogo NENHUM instalado: um jogo instalado com o NextVR
+aberto — como o Táxi Driver — não virava tile até reiniciar o app.
 
 ## 2. O que entra no aparelho
 

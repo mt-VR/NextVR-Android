@@ -224,6 +224,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         // cada quadro em vez de guardar o objeto: uma referencia velha aqui e uma cabeca congelada.
         pcLink.setHeadSource(out->{ SpatialRenderer r=renderer; return r!=null && r.copyHeadPose(out); });
         xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
+        // Um jogo instalado com o app aberto tem que virar tile sem reiniciar nada: o lado nativo
+        // avisa a shell quando um pacote entra ou sai (ver XrGameController.watchPackages).
+        xrGames.watchPackages();
         internalRecorder=new InternalEyeRecorder(this,(rec,sec,msg,savedPath)->main.post(()->{
             if(closed) return;
             if(msg!=null && !msg.isEmpty()) Toast.makeText(NextVrActivity.this,msg,Toast.LENGTH_SHORT).show();

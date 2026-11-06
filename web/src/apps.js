@@ -7,7 +7,7 @@ import { icon } from './reference-icons.js';
 import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, openApp, focusAppWindow, openWindowCount,
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
-  refreshXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
+  refreshXrLibrary, ensureXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen } from './xr-games.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
@@ -861,7 +861,14 @@ function buildXrPage(host) {
   const paintInstalled = () => {
     if (!pageLive) return;
     installed.innerHTML = '';
-    const apps = (androidApps() || []).slice()
+    // Duas fontes, uma lista: os apps instalados no aparelho (o que o usuário quer abrir) e os jogos
+    // de headset que o classificador já reconheceu. A segunda entra porque a primeira só chega quando
+    // a biblioteca do Android é carregada — e o Táxi Driver, que é reconhecido como Cardboard pelo
+    // próprio nome, tem que aparecer aqui de qualquer jeito.
+    const byPkg = new Map();
+    for (const app of (androidApps() || [])) byPkg.set(app.pkg, { pkg: app.pkg, label: app.label });
+    for (const game of (xrGames() || [])) if (!byPkg.has(game.package)) byPkg.set(game.package, { pkg: game.package, label: game.label });
+    const apps = [...byPkg.values()]
       .sort((a, b) => String(a.label || a.pkg).localeCompare(String(b.label || b.pkg)));
     if (!apps.length) {
       installed.append(el('p', 'note', t('xrCardboardEmpty')));
@@ -884,7 +891,16 @@ function buildXrPage(host) {
   // A lista de apps instalados chega pelo `appsState` (é a mesma de "Apps do Android").
   paintInstalled();
   card.append(installed);
+  // Re-scan à mão para quem instala um jogo com o app aberto: a biblioteca se atualiza sozinha, e
+  // este botão é o mesmo pedido sem esperar. Quando o jogo é reconhecido ele passa a aparecer aqui
+  // na hora, porque a seção escuta o estado de jogos (`on('xr', …)`).
+  const rescan = el('button', 'go', t('xrCardboardRescan'));
+  rescan.onclick = () => { refreshXrLibrary(); loadAndroidLibrary(true); toast(t('xrCardboardRescan')); };
+  card.append(rescan);
   on('appsState', paintInstalled);
+  // A lista de jogos de headset chega depois do primeiro desenho (o lado nativo lê os APKs): sem
+  // isto o Táxi só apareceria ao reabrir as configurações.
+  on('xr', paintInstalled);
   on('wins', () => { if (!card.isConnected) pageLive = false; });
   if (!xrRuntimeReady() && !s.runtimeBundled) {
     card.append(el('p', 'note', t('xrBundlingNote')));
@@ -2370,8 +2386,10 @@ function touchLib(id, silent) {
  * box, the sort and the "Recentes" filter treat it exactly like a web app.
  */
 function libItems() {
-  // PhoneXR games belong in the NextVR library; ordinary Android packages do not.
-  if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();
+  // PhoneXR games belong in the NextVR library; ordinary Android packages do not. A tile for a game
+  // installed while this app was open only exists after a re-scan, so the list is kept fresh here
+  // (throttled inside `ensureXrLibrary`: the scan reads every candidate APK natively).
+  if (window.NativeXR?.xrLibrary) ensureXrLibrary();
   const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
   let filtered = list;
   if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');

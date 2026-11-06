@@ -45,6 +45,16 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'ray-outside-6dof-dock-colors',
+    tag: 'NOVO · RAIO FORA DA MÃO DE VERDADE, 6DOF QUE ANDA DEVAGAR & CORES DA DOCK SEPARADAS',
+    time: 'Agora',
+    heading: 'O Raio Sai de Fora da Mão, o 6DoF Anda em Passo Lento e as Cores da Dock Têm Espaço',
+    desc: 'O RAIO: a mão e o feixe são desenhados no mesmo plano, então um feixe que começa no ponto da pinça fica por cima dos dedos e parece atravessar a mão. Agora o começo dele é empurrado para fora da silhueta, ao longo da própria linha do feixe — a folga vem do tamanho da mão visto de frente (pulso até a ponta do dedo médio), o destino não se move e num alvo encostado o feixe ainda alcança. O resto do desenho é exatamente o mesmo de antes. '
+      + 'O TÁXI (E QUALQUER JOGO CARDBOARD) NA BIBLIOTECA: a lista de jogos só era pedida quando não havia NENHUM jogo instalado, então um jogo instalado com o NextVR aberto não virava tile nenhuma até reiniciar o app — foi assim que ele "sumiu". Agora a biblioteca mantém a lista fresca, o Android avisa o app quando um pacote entra ou sai, e a seção Cardboard & VR Box das configurações mostra o jogo reconhecido mesmo antes de carregar a lista de apps do aparelho. '
+      + 'O 6DOF: passo lento dá uma escala de fluxo pequena (0,001–0,0028 por quadro) e ela era jogada fora inteira, então caminhar devagar não movia nada. Esse resto agora fica guardado e sai somado no primeiro passo confirmado — o limiar para andar continua exatamente o mesmo, então não entra deriva nova, e parar zera o acumulado. A confirmação passou a ser em duas de três medições: a 15 Hz, um quadro perdido descartava também a medida boa e o andar virava para-e-anda. '
+      + 'As CORES DA DOCK nas configurações estavam espremidas numa tira com 3 px de vão, com a célula inteira sobrando: agora vão três por fileira, com folga, e os liga/desliga da dock ficaram separados por uma linha. O ambiente do lado também respira.',
+  },
+  {
     id: 'cardboard-vr-box',
     tag: 'NOVO · JOGOS CARDBOARD / VR BOX (TÁXI DRIVER E CIA.) ABRINDO EM TELA CHEIA',
     time: 'Agora',

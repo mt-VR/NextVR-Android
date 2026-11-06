@@ -398,8 +398,21 @@ public final class FakeSixDof {
 
         // World Lock rigoroso: exige consenso radial real em múltiplos quadrantes da imagem e cabeça sem rotação rápida,
         // eliminando qualquer avanço ou deriva lateral espontânea ("indo para os lados ou pra frente do nada").
+        //
+        // Passo que anda agora. Abaixo disto existe uma banda que ainda é movimento de verdade: um
+        // passo lento dá 0,001–0,0028 por quadro e era zerado aqui, então caminhar devagar não movia
+        // nada (o "o 6DoF não anda"). Essa banda agora SAI daqui como foi medida, e quem acumula é a
+        // shell (SixDof.carrySc), que só anda quando a soma passa do limiar de sempre — o limiar para
+        // andar não mudou, então não entra deriva nova.
         boolean significantFlow = Math.abs(finalSc) >= 0.0028f && Math.abs(finalSc) <= 0.12f && radialAgree >= 5;
-        if (significantFlow && Math.hypot(gxSub, gySub) <= 1.8) {
+        boolean slowFlow = !significantFlow && Math.abs(finalSc) >= 0.0012f && Math.abs(finalSc) <= 0.12f
+                && radialAgree >= 5;
+        if (slowFlow && Math.hypot(gxSub, gySub) <= 1.8) {
+            // Medido, plausível, pequeno demais para andar: entregue cru. Nada de mexer em prevValidSc
+            // (a confirmação em dois quadros continua valendo para o passo normal) nem na âncora.
+            stationaryFrames = 0;
+            worldLocked = true;
+        } else if (significantFlow && Math.hypot(gxSub, gySub) <= 1.8) {
             stationaryFrames = 0;
             worldLocked = false;
             if (prevValidSc != 0f && (nowMs - prevValidMs) <= 220L && Math.signum(prevValidSc) == Math.signum(finalSc)) {

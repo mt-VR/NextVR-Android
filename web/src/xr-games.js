@@ -98,14 +98,35 @@ export function installXrGames() {
   on('lang', () => { askXrLibrary(); emit('xr', { ...state, games }); });
 }
 
+/** Quando a lista foi pedida pela última vez (ver [ensureXrLibrary]). */
+let lastAsk = 0;
+
 /** Asks the native side for the installed headset games; the answer is published asynchronously. */
-export function askXrLibrary() { command({ cmd: 'library' }); }
+export function askXrLibrary() { lastAsk = Date.now(); command({ cmd: 'library' }); }
 
 /** Force a re-scan (runtime installed/uninstalled, games added): the state follows on its own. */
 export function refreshXrLibrary() {
   gamesLoaded = false;
+  lastAsk = 0;
   command({ cmd: 'refresh' });
   askXrLibrary();
+}
+
+/**
+ * Pede a lista de novo, sem pressa: é o que a biblioteca chama toda vez que pinta.
+ *
+ * A lista vem do lado nativo, que lê o APK de cada jogo instalado — caro, feito fora da linha de
+ * execução principal. Então ela NÃO é pedida a cada pintura: uma vez, e depois só quando passou tempo
+ * suficiente para um app novo ter entrado (instalar um jogo com o NextVR aberto é o caso normal, e
+ * antes disso a tile simplesmente não aparecia até o app ser reiniciado — foi assim que o Táxi
+ * "sumiu").
+ */
+const LIBRARY_FRESH_MS = 15000;
+const LIBRARY_MIN_GAP_MS = 2500;
+export function ensureXrLibrary() {
+  const now = Date.now();
+  if (!gamesLoaded) { if (now - lastAsk >= LIBRARY_MIN_GAP_MS) askXrLibrary(); return; }
+  if (now - lastAsk >= LIBRARY_FRESH_MS) askXrLibrary();
 }
 
 /* ============================ comandos que a shell pede ============================ */

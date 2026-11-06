@@ -1375,3 +1375,45 @@ test('as configurações cabem em três abas, e a terceira rola até a vista', a
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--dockcolor\{grid-column:1;grid-row:1\}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--env\{grid-column:2;grid-row:1\}/);
 });
+
+test('6DoF não perde o passo lento nem o quadro não confirmado', async () => {
+  const sixdofSrc = readFileSync('web/src/sixdof.js', 'utf8');
+  const fakeSixDofJava = readFileSync('nextvr-android/src/main/java/com/nextvr/app/FakeSixDof.java', 'utf8');
+  // Duas bandas: o passo que anda agora (0.0028) continua sendo o mesmo limiar de sempre, então não
+  // entra deriva nova. O que era jogado fora abaixo dele (0.0012–0.0028) agora acumula em `carrySc`
+  // e sai somado no próximo passo confirmado — é o que faz o passo lento andar.
+  assert.ok(sixdofSrc.includes('const PLAUSIBLE_MIN = 0.0012, EMIT_MIN = 0.0028, FLOW_MAX = 0.14;'),
+    'sixdof.js separa a banda plausível do limiar que anda');
+  assert.ok(sixdofSrc.includes('carrySc') && sixdofSrc.includes('if (Math.abs(applied) < EMIT_MIN) {'),
+    'o resto de fluxo fica guardado até dar um passo inteiro');
+  // Guardado, nunca liberado depois: parar (ou fluxo implausível) zera o carry.
+  assert.ok(sixdofSrc.includes('const stopAndLock = () => {') && sixdofSrc.includes('this.carrySc = 0;'),
+    'parar zera o acumulado (nada anda sozinho depois)');
+  // Concordância em duas de três medições em vez da anterior exata: a 15 Hz um quadro perdido
+  // descartava também a medida boa, e o andar virava para-e-anda.
+  assert.ok(sixdofSrc.includes('this.recentSc.push(sc);') && sixdofSrc.includes('if (this.recentSc.length > 3) this.recentSc.shift();') && sixdofSrc.includes('const confirmed = agree >= 2 ||'),
+    'confirmação 2-de-3 substitui a exigência do quadro imediatamente anterior');
+  assert.ok(!sixdofSrc.includes('this.vel.'), 'sem inércia: nada de velocidade artificial');
+  // O lado nativo entrega a banda lenta em vez de zerá-la; quem acumula é a shell (uma camada só).
+  assert.ok(fakeSixDofJava.includes('boolean slowFlow = !significantFlow && Math.abs(finalSc) >= 0.0012f'),
+    'FakeSixDof.java entrega o fluxo pequeno medido, sem acumular duas vezes');
+  assert.ok(fakeSixDofJava.includes('Math.abs(finalSc) >= 0.0028f'),
+    'o limiar para andar no nativo continua 0.0028');
+});
+
+test('as cores da dock se espalham na célula das configurações (estavam "muito juntas")', async () => {
+  const html = readFileSync('web/index.html', 'utf8');
+  const entry = readFileSync('web/src/entry-menu.js', 'utf8');
+  // A célula da dock é larga e tem altura sobrando: as sete amostras vão em três por fileira com
+  // folga, em vez de sete botões espremidos numa tira (cada um com 3 px de vão).
+  assert.ok(entry.includes('<div class="entry-dock-colors">'), 'as amostras têm um contêiner próprio');
+  assert.ok(entry.includes('<div class="entry-dock-toggles">'), 'os liga/desliga ficam separados das cores');
+  assert.match(html, /\.entry-dock-colors\{\n\s+display:flex;flex-wrap:wrap;gap:9px 8px;align-items:stretch;justify-content:center;/);
+  assert.match(html, /\.entry-dock-colors \.entry-seg-btn\{\n\s+flex:0 0 calc\(33\.333% - 6px\);max-width:calc\(33\.333% - 6px\);/);
+  assert.match(html, /\.entry-dock-toggles\{\n\s+display:flex;flex-direction:column;gap:7px;padding-top:9px;/);
+  // E o ambiente do lado também respira.
+  assert.ok(entry.includes('<div class="entry-env-row">') && html.includes('.entry-env-row{display:flex;flex-wrap:wrap;gap:8px 7px'));
+  // O pacote embarcado carrega o mesmo CSS (senão a mudança não chega ao aparelho).
+  const bundleHtml = readFileSync('nextvr-android/src/main/assets/ui/index.html', 'utf8');
+  assert.ok(bundleHtml.includes('.entry-dock-colors{'), 'o APK embarca o CSS novo');
+});
