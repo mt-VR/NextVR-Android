@@ -369,7 +369,7 @@ public final class XrGameLibrary {
             // Alguns builds dizem o que são no próprio nome: `…taxidriver.cardboard`,
             // `1.0-cardboard-vr-v7`. É barato e é a única pista que sobra num APK cujo dex e cujas
             // bibliotecas não trazem nada reconhecível.
-            if (!cardboard && (looksCardboard(info.packageName) || looksCardboard(String.valueOf(info.versionName)))) {
+            if (!cardboard && (looksCardboard(info.packageName) || looksCardboard(versionNameOf(info.packageName)))) {
                 cardboard = true;
             }
 
@@ -399,6 +399,21 @@ public final class XrGameLibrary {
         if (gvr || daydreamDeclared) return Kind.DAYDREAM;
         if (declaredVr) return findsRuntime ? Kind.OPENXR : Kind.OPENXR_ORIGINAL;
         return null;
+    }
+
+    /**
+     * The declared version string of an installed package, or "" when the manager will not say.
+     *
+     * <p>{@code ApplicationInfo} carries no version name — that lives on {@code PackageInfo} — and a
+     * Cardboard build often names itself there ({@code 1.0-cardboard-vr-v7}).
+     */
+    private String versionNameOf(String packageName) {
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager().getPackageInfo(packageName, 0);
+            return info.versionName == null ? "" : info.versionName;
+        } catch (Throwable missing) {
+            return "";
+        }
     }
 
     /**

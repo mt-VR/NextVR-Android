@@ -265,7 +265,9 @@ test('o Táxi Driver (Unity + Cardboard, sem categoria de VR) é achado pelas pi
   // E, por último, o nome: o pacote do Táxi Driver termina em `.cardboard` e a versão diz
   // `1.0-cardboard-vr-v7`.
   assert.match(library, /static boolean looksCardboard\(String name\)/);
-  assert.match(library, /if \(!cardboard && \(looksCardboard\(info\.packageName\) \|\| looksCardboard\(String\.valueOf\(info\.versionName\)\)\)\)/);
+  // `ApplicationInfo` não tem versionName: a versão vem do `PackageInfo` (é onde o build se nomeia).
+  assert.match(library, /if \(!cardboard && \(looksCardboard\(info\.packageName\) \|\| looksCardboard\(versionNameOf\(info\.packageName\)\)\)\)/);
+  assert.match(library, /private String versionNameOf\(String packageName\) \{\n\s+try \{\n\s+android\.content\.pm\.PackageInfo info = context\.getPackageManager\(\)\.getPackageInfo\(packageName, 0\);/);
   // O probe só roda para quem pode ser Unity — não se abre o dex de todo app instalado.
   assert.match(library, /boolean mightBeUnity = !declaredVr && !openXr && !gvr && !cardboard && hasUnityLib\(libs\);/);
   assert.match(library, /if \(mightBeUnity\) cardboard = dexHasCardboard\(zip, names\);/);
