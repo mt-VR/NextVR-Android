@@ -3798,7 +3798,7 @@ void main() {
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZA\xC7\xD5ES \xB7 NOTIFICA\xC7\xD5ES</span>
-            <span class="entry-updates-badge">v2.0.0</span>
+            <span class="entry-updates-badge">v2.2.0</span>
           </div>
           <div class="entry-updates-list">
             ${lw.map(E=>`
