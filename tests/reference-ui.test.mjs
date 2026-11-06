@@ -382,9 +382,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),undefined,
       'the ring clears its open mark when it closes');
     assert.equal(await page.locator('.dock').isVisible(),true,'the dock is visible before, during and after the ring');
-    // 18 tiles: the 16 apps and tools that were already there plus PC Link and Cockpit VR — two
-    // NextVR apps (windows/pages of ours), not Android packages.
-    assert.equal(await page.locator('.lib-tile').count(),18,
+    // 21 tiles: the 16 apps and tools that were already there, plus PC Link and Cockpit VR, plus the
+    // three games that ship in the APK and live in the library too (Beat Saber, Hyper Dash, Roblox).
+    assert.equal(await page.locator('.lib-tile').count(),21,
       'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
       'installed Android packages never appear in the NextVR library');
@@ -403,15 +403,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),5,'Library cover art uses the screenshot five-column grid');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),18,'Apps filter shows every built-in app as a tile');
+    assert.equal(await page.locator('.lib-tile').count(),21,'Apps filter shows every built-in app as a tile');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),1,
-      'Games filter is the PhoneXR library plus the games that run full screen themselves; this mock '
-      + 'answers no runtime and has no Táxi installed, so Cockpit VR (which ships in the APK) is the one');
+    assert.equal(await page.locator('.lib-tile').count(),5,
+      'Games filter is the same games list as the Store (VRFS, Beat Saber, Hyper Dash, Roblox, Cockpit '
+      + 'VR) plus whatever PhoneXR found; this mock answers no runtime and has no Táxi installed');
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),18,'All restores the complete NextVR library without Android packages');
+    assert.equal(await page.locator('.lib-tile').count(),21,'All restores the complete NextVR library without Android packages');
     await page.locator('.dock [data-id="status"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
     assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');

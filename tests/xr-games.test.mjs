@@ -157,9 +157,12 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
     'the 3D sandbox module is deleted, not just unrouted');
   // A aba Jogos é a biblioteca do PhoneXR — mais o Táxi Driver, quando ele está instalado: é um
   // jogo de verdade no telefone (Cardboard), não uma tile de demonstração.
-  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr' \|\| x\.id === 'taxi-driver' \|\| x\.id === 'cockpit-vr'\);/,
-    'the Games filter is the PhoneXR library itself, plus the Cardboard games that run full screen'
-    + ' (Táxi Driver, Cockpit VR)');
+  // O filtro Jogos é UMA lista: todo jogo que tem card na Loja (derivado de QUEST_STORE_ITEMS) mais os
+  // jogos de headset que o PhoneXR encontrou. Nenhum jogo pode existir na Loja e faltar na biblioteca.
+  assert.match(apps, /const GAME_IDS = new Set\(QUEST_STORE_ITEMS\.filter\(item => item\.cat === 'games'\)\.map\(item => item\.id\)\);/,
+    'one source of truth for the games list');
+  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr' \|\| GAME_IDS\.has\(x\.id\)\);/,
+    'the Games filter is the PhoneXR library plus every game that has a store card');
   assert.match(apps, /libFilter === 'games' \? t\('libGamesEmpty'\)/,
     'the empty Games filter uses a localized explanation, not download instructions');
   // The store cannot sell what is gone: it points at the library, and games live in PhoneXR.

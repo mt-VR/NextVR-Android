@@ -67,6 +67,7 @@ const MENU_STORE_APPS = [
   { id: 'beat-vr', name: 'Beat Saber', cat: 'Modo VR Imediato · 4.9 ★', bg: '#070814', img: './beat-saber-logo.jpg' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'Ação · Arena VR · 4.8 ★', bg: '#0a1426', img: './hyper-dash-logo.jpg' },
   { id: 'roblox-vr', name: 'Roblox', cat: 'Ambiente Preto · 4.8 ★', bg: '#090d16', img: './roblox-logo.jpg' },
+  { id: 'cockpit-vr', name: 'Cockpit VR', cat: 'Voo · Mãos do jogo · VR Cardboard · 4.9 ★', bg: '#0b1220', img: './icons/cockpit-vr-logo.svg' },
   { id: 'tiktok', name: 'TikTok', cat: 'Vídeos Curtos · 4.9 ★', bg: '#000000', img: './tiktok-logo.jpg' },
   { id: 'youtube', name: 'YouTube VR', cat: 'Vídeo · 360° · 4.8 ★', bg: '#dc2626', img: './icons/youtube.svg' },
   { id: 'discord', name: 'Discord', cat: 'Social · Voz · 4.7 ★', bg: '#4f46e5', img: './icons/discord.svg' },
@@ -336,7 +337,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.2.0</span>
+            <span class="entry-updates-badge">v2.3.0</span>
           </div>
           <div class="entry-updates-list">
             ${ENTRY_UPDATES.map(u => `

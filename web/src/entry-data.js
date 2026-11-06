@@ -45,6 +45,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'library-store-games-hands',
+    tag: 'CORRIGIDO · BIBLIOTECA DE APPS DE VOLTA, TODOS OS JOGOS NA LOJA & MÃOS QUE VOLTAM',
+    time: 'Agora',
+    heading: 'A Biblioteca de Apps Voltou, Todos os Jogos Estão na Loja e o Rastreio de Mão se Recupera Sozinho',
+    desc: 'A BIBLIOTECA DE APPS: ela não tinha sumido — o botão dela na dock abria o ANEL, igual ao botão do anel, então só sobravam os apps grandes na tela. Agora o botão do ANEL abre o anel (e fecha no segundo toque) e o botão da BIBLIOTECA abre a biblioteca de verdade, a grade com busca, filtros e ordenação. Pedir a biblioteca com o anel aberto (pelo centro do anel, pela dock ou pela Loja) fecha o anel e abre a janela em vez de perdê-la, e segurar a bolinha continua sendo o atalho. '
+      + 'TODOS OS JOGOS NA LOJA: a vitrine ganhou a seção JOGOS DO NEXTVR com todos eles — VRFS, ShootTheDie, paintdrawer, Gorilla Tag, Beat Saber, Hyper Dash, Roblox, Cockpit VR e Táxi Driver —, cada um com card e o botão que abre; os apps ficam na seção de baixo. A lista é uma só: o filtro Jogos da biblioteca é a mesma lista da Loja, então nenhum jogo pode existir num lugar e faltar no outro (e Beat Saber, Hyper Dash e Roblox agora também têm tile na biblioteca). O carrossel da Loja na tela de entrada recebeu o Cockpit VR. '
+      + 'HAND TRACKING: ao devolver a câmera ao NextVR (depois do jogo HTML, de um app em tela cheia ou de uma sessão), o renderizador sai do modo de mão de jogo — que troca a silhueta e o ponteiro —, a pose antiga é descartada e a câmera é reaberta; se o WebView do jogo ainda estiver segurando a Camera2 por alguns quadros, uma segunda tentativa automática devolve o rastreio, em vez de a mão ficar muda. E toda volta do app ao primeiro plano rearma o rastreio, sem precisar fechar e abrir o NextVR.',
+  },
+  {
     id: 'cockpit-vr-planevr',
     tag: 'NOVO · COCKPIT VR (PLANEVR) NO NEXTVR: MENU PELAS MÃOS, VOO COM AS MÃOS DO JOGO',
     time: 'Agora',

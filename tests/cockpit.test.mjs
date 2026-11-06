@@ -108,7 +108,8 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   // Voltar/✕/pausa fecham o jogo e devolvem a câmera e as mãos.
   const close = activity.slice(activity.indexOf('void closeCockpitGame()'));
   assert.match(close, /restartTracking\(\);/, 'sair do jogo devolve a câmera e o rastreio de mão do NextVR');
-  assert.match(activity, /private void restartTracking\(\) \{\n\s+camera\.enableHands\(true\);/);
+  assert.match(activity, /private void restartTracking\(\) \{[\s\S]{0,900}?camera\.enableHands\(true\);/,
+    'restartTracking is the one place that hands the camera and the hand feed back to NextVR');
   assert.match(activity, /if\(cockpitView!=null\) \{ closeCockpitGame\(\); return; \}/,
     'o Voltar do Android sai do jogo antes de qualquer outra regra');
   assert.match(activity, /if\(cockpitView!=null\) closeCockpitGame\(\);/, 'sair do app também fecha o jogo');

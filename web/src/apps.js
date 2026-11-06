@@ -2326,7 +2326,9 @@ function buildStore() {
             </div>
           </div>
         </article>`;
-    }).join('');
+    });
+    const gameCards = cardsHtml.filter((_, i) => filteredItems[i].cat === 'games');
+    const appCards = cardsHtml.filter((_, i) => filteredItems[i].cat !== 'games');
 
     html += `
       <div class="st-quest-hero">
@@ -2348,14 +2350,23 @@ function buildStore() {
         </div>
       </div>
 
-      <div class="st-quest-section-head">
-        <h3 class="st-quest-section-title">Navegar por tudo</h3>
+      ${gameCards.length ? `<div class="st-quest-section-head">
+        <h3 class="st-quest-section-title">Jogos do NextVR · todos aqui</h3>
+        <span class="st-quest-sort-pill">${gameCards.length === 1 ? '1 jogo' : gameCards.length + ' jogos'} · todos abrem daqui</span>
+      </div>
+
+      <div class="st-quest-grid st-quest-grid-games">
+        ${gameCards.join('')}
+      </div>` : ''}
+
+      ${appCards.length ? `<div class="st-quest-section-head">
+        <h3 class="st-quest-section-title">${gameCards.length ? 'Apps' : 'Navegar por tudo'}</h3>
         <span class="st-quest-sort-pill">Ordenar por: Mais populares ⌄</span>
       </div>
 
       <div class="st-quest-grid">
-        ${cardsHtml}
-      </div>
+        ${appCards.join('')}
+      </div>` : ''}
       <p class="st-note" style="font-size:11px;opacity:.75;margin:8px 0 0">Jogos de headset (PhoneXR) aparecem embarcados na Biblioteca quando o runtime os encontra.</p>`;
   }
   root.innerHTML = html;
@@ -2432,15 +2443,36 @@ function touchLib(id, silent) {
  * that has to be pressed first — an installed app is one more tile among the others, and the search
  * box, the sort and the "Recentes" filter treat it exactly like a web app.
  */
+/*
+ * Os jogos que JÁ VÊM no pacote (Beat Saber, Hyper Dash, Roblox), como tiles da biblioteca.
+ *
+ * VRFS está em `LIB_APPS` (é um app do catálogo, com lugar no anel), o Cockpit VR tem a tile dele e
+ * Gorilla Tag, ShootTheDie e o Táxi dependem de estarem prontos no aparelho — por isso eles não estão
+ * aqui. O resto é derivado da Loja, então um jogo novo na Loja aparece na biblioteca sozinho.
+ */
+const BUILT_IN_GAME_IDS = ['beat-vr', 'hyper-vr', 'roblox-vr'];
+const GAME_IDS = new Set(QUEST_STORE_ITEMS.filter(item => item.cat === 'games').map(item => item.id));
+function builtInGameTiles() {
+  return BUILT_IN_GAME_IDS
+    .map(id => QUEST_STORE_ITEMS.find(item => item.id === id))
+    .filter(Boolean)
+    .map(item => ({
+      id: item.id, name: item.name, label: item.name, bg: item.bg,
+      imgUrl: item.isSvg ? item.img : item.img, kind: 'app',
+    }));
+}
 function libItems() {
   // PhoneXR games belong in the NextVR library; ordinary Android packages do not. A tile for a game
   // installed while this app was open only exists after a re-scan, so the list is kept fresh here
   // (throttled inside `ensureXrLibrary`: the scan reads every candidate APK natively).
   if (window.NativeXR?.xrLibrary) ensureXrLibrary();
   const taxi = taxiInstalled() ? [TAXI_DRIVER_ITEM] : [];
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), COCKPIT_VR_ITEM, ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), COCKPIT_VR_ITEM,
+    ...builtInGameTiles(), ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
   let filtered = list;
-  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr' || x.id === 'taxi-driver' || x.id === 'cockpit-vr');
+  // A aba Jogos é TODA a lista de jogos da Loja (derivada de um lugar só) mais os jogos de headset que
+  // o PhoneXR encontrou: nenhum jogo existe na Loja e falta na biblioteca, e vice-versa.
+  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr' || GAME_IDS.has(x.id));
   if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
   if (libFilter === 'games' && S.mrPistolInstalled) filtered = [...filtered, MR_PISTOL_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
@@ -2653,7 +2685,7 @@ function shizukuWindow() {
   return open({ id: 'shizuku', title: 'Apps do Android', node: body });
 }
 
-function libraryApp() {
+function libraryApp(attempt = 0) {
   const w = wins.find(x => x.id === 'library');
   if (w) {
     // Já aberta: traz para a frente SEM reconstruir o conteúdo. O repintar fechava o teclado de
@@ -2661,8 +2693,16 @@ function libraryApp() {
     if (w.hidden) { w.setHidden(false); paintLibrary(); }
     focus(w); css3d.render?.(scene, camera); return w;
   }
+  // O anel proíbe qualquer janela nova enquanto está aberto (`open` devolve null). Se a biblioteca
+  // for pedida com ele na tela — o centro do anel, o botão da dock, a Loja —, o anel sai primeiro e o
+  // pedido é refeito no quadro seguinte, em vez de a janela sumir sem aviso.
+  if (orbOpen()) closeOrbMenu();
   const body = el('div'); body.style.cssText = 'height:100%';
   const win = open({ id: 'library', title: t('apps'), node: body, w:1040, h:660, chrome:false, resizable:false });
+  if (!win) {
+    if (attempt < 3) setTimeout(() => libraryApp(attempt + 1), 180);
+    return null;
+  }
   paintLibrary();
   css3d.render?.(scene, camera);
   return win;
@@ -3833,7 +3873,10 @@ function makeDock() {
     { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },
     // Segurar a bolinha da biblioteca abre a BIBLIOTECA COMPLETA (a grade de todos os apps), que é
     // onde ficam os que não cabem nas dez casas do anel.
-    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot,
+    // O botão da BIBLIOTECA abre a BIBLIOTECA (a grade de todos os apps). Ele abria o ANEL, igual ao
+    // botão do anel, e por isso a biblioteca de apps "sumiu": só sobravam os apps grandes do anel.
+    // Segurar este botão continua sendo um atalho direto para ela.
+    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: () => libraryApp(),
       hold: () => { if (orbOpen()) closeOrbMenu(); libraryApp(); } },
   ]);
   syncVirtualEnvironmentDock();

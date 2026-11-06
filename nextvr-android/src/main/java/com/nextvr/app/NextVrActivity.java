@@ -714,7 +714,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         camera.enableHands(false);
         camera.stop();
         SpatialRenderer r=renderer;
-        if(r!=null) r.hands=null;
+        if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
         // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega, então a
         // janela dele só nasce depois que o aparelho devolve o dispositivo ao CameraManager; sem
         // essa espera o getUserMedia dele falha com NotReadableError ("câmera em uso por outro app").
@@ -758,11 +758,32 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         });
     }
 
-    /** As mãos voltam ao NextVR: o rastreio é rearmado e a câmera, reaberta. */
+    /**
+     * As mãos voltam ao NextVR: o rastreio é rearmado e a câmera, reaberta.
+     *
+     * <p>Três coisas podem deixar a mão muda depois de uma tela cheia qualquer (o jogo HTML, um app
+     * em tela inteira, uma sessão de jogo): a câmera ainda estar com quem a usou, o renderizador
+     * ficar no modo de mão de jogo (que troca a silhueta e o ponteiro) e uma pose velha continuar
+     * pendurada. As três são desarmadas aqui, e a abertura da câmera é tentada de novo um instante
+     * depois — `start` não faz nada quando a câmera já está aberta, então repetir é seguro.
+     */
     private void restartTracking() {
+        SpatialRenderer r=renderer;
+        if(r!=null) {
+            r.hands=null;
+            r.handRenderer.gameHandMode=false;
+            r.handRenderer.mrGameMode=false;
+            r.handRenderer.resetPresentation();
+        }
+        gameHandMode=false;
+        camera.gameHandMode=false;
+        camera.mrGameMode=false;
         camera.enableHands(true);
         camera.resetHandsState();
         startCamera();
+        // O WebView do jogo solta a Camera2 alguns quadros depois de ser destruído; se o aparelho
+        // ainda estiver com ele, o primeiro `open` falha. A segunda tentativa é a que devolve as mãos.
+        main.postDelayed(this::startCamera,1200);
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
@@ -823,7 +844,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         main.removeCallbacks(batterySyncTask);
         main.postDelayed(batterySyncTask,2500L);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
-        for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
+        for(WebSurface b:browsers.values()) b.resume(); startCamera();
+        // Toda volta ao primeiro plano rearma o rastreio de mão. Se alguma tela cheia (o jogo HTML) ou
+        // uma falha de rastreio o tinha desligado, é aqui que o feixe e o cursor voltam — sem precisar
+        // fechar e abrir o NextVR. `enableHands` é idempotente.
+        if(cockpitView==null) camera.enableHands(true);
+        immersive();
         if(appWindows!=null) appWindows.onShellResumed();
         // A hosted game keeps running across a pause: it is in its own task on its own display, and
         // the resume below re-attaches the same surface and restarts the hand feed — nothing has to

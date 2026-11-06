@@ -112,14 +112,19 @@ test('a dock ganha o botão 4-5-4 à esquerda da biblioteca, sem mexer no resto 
   assert.deepEqual([ys.filter(y => y === 5.4).length, ys.filter(y => y === 12).length, ys.filter(y => y === 18.6).length],
     [4, 5, 4], '4 em cima, 5 no meio, 4 embaixo');
   // O botão fica imediatamente À ESQUERDA do botão da biblioteca.
-  const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: openAppsDot,";
+  const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: () => libraryApp(),";
   const orbLine = "    { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },";
   assert.ok(apps.includes(orbLine) && apps.includes(libraryLine));
   assert.ok(apps.indexOf(orbLine) < apps.indexOf(libraryLine), 'o anel vem antes da biblioteca na dock');
-  // A bolinha da biblioteca também abre o anel (é "aonde era a antiga biblioteca de apps") e, tocada
-  // de novo, fecha: sem ✕ no meio dos apps, o próprio botão é o liga/desliga.
-  assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  if \(orbOpen\(\)\) \{ closeOrbMenu\(\); return null; \}\n  return openOrbMenu\(\);/);
-  // Segurar a bolinha abre a biblioteca completa, que é onde ficam os apps fora das dez casas.
+  // A BIBLIOTECA abre a biblioteca: o botão dela abria o anel, igual ao botão do anel, e era por isso
+  // que a grade de apps "tinha sumido" (só sobravam os apps grandes do anel).
+  assert.match(apps, /export function openAppsDot\(\) \{\n  if \(S\.orbRing === 0\) return libraryApp\(\);\n  if \(orbOpen\(\)\) \{ closeOrbMenu\(\); return null; \}\n  return openOrbMenu\(\);/,
+    'o botão do anel abre o anel, e tocado de novo fecha');
+  assert.match(apps, /function libraryApp\(attempt = 0\) \{/,
+    'a biblioteca é uma janela de verdade, e insiste se o anel ainda estiver na frente');
+  assert.match(apps, /if \(orbOpen\(\)\) closeOrbMenu\(\);\n  const body = el\('div'\); body\.style\.cssText = 'height:100%';\n  const win = open\(\{ id: 'library'/,
+    'pedir a biblioteca com o anel aberto fecha o anel em vez de perder a janela');
+  // Segurar a bolinha continua abrindo a biblioteca completa (atalho).
   assert.match(apps, /hold: \(\) => \{ if \(orbOpen\(\)\) closeOrbMenu\(\); libraryApp\(\); \}/);
   assert.match(apps, /window\.nextvrOpenLibrary = libraryApp;/);
 });
