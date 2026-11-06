@@ -46,13 +46,14 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'ray-outside-6dof-dock-colors',
-    tag: 'NOVO · RAIO FORA DA MÃO DE VERDADE, 6DOF QUE ANDA DEVAGAR & CORES DA DOCK SEPARADAS',
+    tag: 'NOVO · BOLINHA FORA DA MÃO, TÁXI DRIVER NA LOJA E NO MENU, LOGO NOVA, 6DOF EM PASSO LENTO',
     time: 'Agora',
-    heading: 'O Raio Sai de Fora da Mão, o 6DoF Anda em Passo Lento e as Cores da Dock Têm Espaço',
-    desc: 'O RAIO: a mão e o feixe são desenhados no mesmo plano, então um feixe que começa no ponto da pinça fica por cima dos dedos e parece atravessar a mão. Agora o começo dele é empurrado para fora da silhueta, ao longo da própria linha do feixe — a folga vem do tamanho da mão visto de frente (pulso até a ponta do dedo médio), o destino não se move e num alvo encostado o feixe ainda alcança. O resto do desenho é exatamente o mesmo de antes. '
-      + 'O TÁXI (E QUALQUER JOGO CARDBOARD) NA BIBLIOTECA: a lista de jogos só era pedida quando não havia NENHUM jogo instalado, então um jogo instalado com o NextVR aberto não virava tile nenhuma até reiniciar o app — foi assim que ele "sumiu". Agora a biblioteca mantém a lista fresca, o Android avisa o app quando um pacote entra ou sai, e a seção Cardboard & VR Box das configurações mostra o jogo reconhecido mesmo antes de carregar a lista de apps do aparelho. '
-      + 'O 6DOF: passo lento dá uma escala de fluxo pequena (0,001–0,0028 por quadro) e ela era jogada fora inteira, então caminhar devagar não movia nada. Esse resto agora fica guardado e sai somado no primeiro passo confirmado — o limiar para andar continua exatamente o mesmo, então não entra deriva nova, e parar zera o acumulado. A confirmação passou a ser em duas de três medições: a 15 Hz, um quadro perdido descartava também a medida boa e o andar virava para-e-anda. '
-      + 'As CORES DA DOCK nas configurações estavam espremidas numa tira com 3 px de vão, com a célula inteira sobrando: agora vão três por fileira, com folga, e os liga/desliga da dock ficaram separados por uma linha. O ambiente do lado também respira.',
+    heading: 'A Bolinha Sai de Fora da Mão, o Táxi Driver Entra pela Loja e pelo Menu, e a Logo Nova Chega',
+    desc: 'A BOLINHA/RAIO: a mão e o feixe são desenhados no mesmo plano, então a bolinha que escolhe apps nascia no ponto da pinça e ficava POR CIMA dos dedos — dentro da mão. Agora a folga é geométrica: o app monta a caixa da mão com os 21 landmarks, segue a linha do feixe e empurra o começo até o primeiro ponto em que ela sai da caixa, mais uma margem. Uma mão perto do rosto ocupa meia tela e antes engolia a bolinha de novo; um número fixo não resolvia. O destino do raio não muda, e num alvo encostado o feixe ainda alcança. '
+      + 'O TÁXI DRIVER está na LOJA (cartão com selo VR BOX, que diz se ele está instalado), num card do MENU PRINCIPAL e como tile da BIBLIOTECA quando está instalado — os três abrem o jogo em tela cheia no VR Box. O pacote procurado é com.manerai.taxidriver.cardboard; se o APK não estiver no aparelho, o app avisa em vez de fingir que abriu. '
+      + 'A LOGO NOVA do NextVR (a arte que você mandou) entrou na tela de entrada, no palco do menu principal e nas artes do pacote. '
+      + 'O 6DOF: passo lento dava uma escala de fluxo pequena (0,001–0,0028 por quadro) e ela era jogada fora inteira, então caminhar devagar não movia nada. Esse resto agora fica guardado e sai somado no primeiro passo confirmado — o limiar para andar continua 0,0028, então não entra deriva nova, e parar zera o acumulado. A confirmação passou a ser em duas de três medições: a 15 Hz, um quadro perdido descartava também a medida boa e o andar virava para-e-anda. '
+      + 'As CORES DA DOCK nas configurações estavam espremidas numa tira com 3 px de vão, com a célula inteira sobrando: agora vão três por fileira, com folga, e os liga/desliga ficaram separados por uma linha.',
   },
   {
     id: 'cardboard-vr-box',

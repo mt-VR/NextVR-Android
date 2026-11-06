@@ -60,6 +60,7 @@ const SVG_TIKTOK_VERIFIED = `
 </svg>`;
 
 const MENU_STORE_APPS = [
+  { id: 'taxi-driver', name: 'Taxi Driver VR', cat: 'Cardboard · VR Box · Tela cheia · 4.9 ★', bg: '#1a1205', img: './icons/taxi-driver-logo.jpg' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'MR · G18 & Alvos 3D · 4.9 ★', bg: '#080a0f', img: './icons/shootthedie-logo.jpg' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'Desenhar com Hand Tracking · 4.9 ★', bg: '#09090b', img: './icons/paintdrawer-logo.jpg' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'Chuteiras VR · Bola 3D · 4.9 ★', bg: '#052e16', img: './icons/vrfs-logo.jpg' },
@@ -296,6 +297,14 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
         </button>
 
+        <button type="button" class="entry-card entry-card--taxi" data-entry-act="taxi" title="Abrir o Taxi Driver VR no VR Box (tela cheia)">
+          <span class="entry-card-body">
+            <span class="entry-card-title"><img class="entry-card-taxi-logo" src="./icons/taxi-driver-logo.jpg" alt="" draggable="false" />Táxi Driver</span>
+            <span class="entry-card-state">VR BOX · TELA CHEIA</span>
+          </span>
+          <span class="entry-card-stripes" aria-hidden="true"><i></i><i></i></span>
+        </button>
+
         <button type="button" class="entry-card ${activeView === 'settings' ? 'entry-card--active' : ''}" data-entry-act="settings">
           <span class="entry-card-body">
             <span class="entry-card-title">${emT('settings')}</span>
@@ -331,6 +340,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     return `
       <div class="entry-brand-stage" data-entry-panel="brand">
         <div class="entry-brand-grid-bg" aria-hidden="true"></div>
+        <div class="entry-brand-logo-row">
+          <img class="entry-brand-logo" src="./icons/nextvr-halloween-logo.jpg" alt="NextVR" draggable="false" />
+        </div>
         <div class="entry-updates-feed" data-entry-updates role="region" aria-label="Atualizações NextVR">
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
@@ -860,6 +872,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         stopCountdown();
         activeView = activeView === 'store' ? 'home' : 'store';
         paint();
+      };
+    });
+    // Táxi Driver: um APK Cardboard instalado no telefone. O botão do menu principal entrega a tela
+    // a ele (quem abre de verdade é o apps.js, que conhece o pacote); aqui só se pede.
+    root.querySelectorAll('[data-entry-act="taxi"]').forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        stopCountdown();
+        emit('taxi-launch');
       };
     });
     root.querySelectorAll('[data-entry-act="hand-style"]').forEach(btn => {

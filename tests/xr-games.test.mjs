@@ -155,7 +155,9 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
   assert.ok(!xr.includes("from './game.js'"), 'the hosted-game module does not lean on the removed module');
   await assert.rejects(read('web/src/game.js'), { code: 'ENOENT' },
     'the 3D sandbox module is deleted, not just unrouted');
-  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr'\);/,
+  // A aba Jogos é a biblioteca do PhoneXR — mais o Táxi Driver, quando ele está instalado: é um
+  // jogo de verdade no telefone (Cardboard), não uma tile de demonstração.
+  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr' \|\| x\.id === 'taxi-driver'\);/,
     'the Games filter is the PhoneXR library itself');
   assert.match(apps, /libFilter === 'games' \? t\('libGamesEmpty'\)/,
     'the empty Games filter uses a localized explanation, not download instructions');
@@ -314,7 +316,7 @@ test('a shell pinta a tile do VR Box e oferece a tela cheia para qualquer app in
   assert.match(apps, /if \(launchAppFullScreen\(app\.pkg\)\) \{/);
   assert.match(apps, /installed\.append\(ytRow\(icon\('controller'\), escH\(app\.label \|\| app\.pkg\), escH\(app\.pkg\), open\)\);/);
   assert.match(apps, /loadAndroidLibrary\(true\);/);
-  assert.match(apps, /xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen \} from '\.\/xr-games\.js';/);
+  assert.match(apps, /xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,\n\s+TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver \} from '\.\/xr-games\.js';/);
   const core = await read(FILES.core);
   for (const key of ['xrCardboardBadge', 'xrFullScreenOpened', 'xrCardboard', 'xrCardboardNote',
     'xrCardboardOpen', 'xrCardboardLoad', 'xrCardboardEmpty', 'xrCardboardRescan']) {
@@ -364,4 +366,48 @@ test('a lista Cardboard das configurações mostra o jogo reconhecido mesmo sem 
   // E um re-scan à mão, para quem instala o jogo com o app aberto e não quer esperar.
   assert.match(apps, /const rescan = el\('button', 'go', t\('xrCardboardRescan'\)\);/);
   assert.match(apps, /rescan\.onclick = \(\) => \{ refreshXrLibrary\(\); loadAndroidLibrary\(true\); toast\(t\('xrCardboardRescan'\)\); \};/);
+});
+
+test('o Táxi Driver tem porta de entrada: Loja, menu principal e biblioteca', async () => {
+  const xr = await read(FILES.xr);
+  // O pacote do APK que o usuário instalou, e a capa da tile (para não ficar em duas iniciais).
+  assert.match(xr, /export const TAXI_PACKAGE = 'com\.manerai\.taxidriver\.cardboard';/);
+  assert.match(xr, /const XR_COVERS = Object\.freeze\(\{ \[TAXI_PACKAGE\]: TAXI_LOGO \}\);/);
+  // "Onde está o jogo?" respondido pelas duas listas: a de headset (classificado) e a do Android
+  // (instalado), com um palpite pelo nome para APK renomeado.
+  assert.match(xr, /export function taxiPackage\(\) \{/);
+  assert.match(xr, /if \(games\.some\(g => g\.package === TAXI_PACKAGE\)\) return TAXI_PACKAGE;/);
+  assert.match(xr, /if \(\(androidApps\(\) \|\| \[\]\)\.some\(a => a\.pkg === TAXI_PACKAGE\)\) return TAXI_PACKAGE;/);
+  assert.match(xr, /const guess = \(androidApps\(\) \|\| \[\]\)\.find\(a => \/taxi\.\?driver\/i\.test\(a\.pkg\)\);/);
+  // Classificado → o caminho normal do jogo; instalado mas não classificado → o startActivity do
+  // ícone. Sem instalado → false, para quem chamou avisar em vez de abrir nada.
+  assert.match(xr, /export function openTaxiDriver\(\) \{[\s\S]{0,220}if \(games\.some\(g => g\.package === pkg\)\) \{ launchXrGame\(pkg\); return true; \}/);
+  assert.match(xr, /return launchAppFullScreen\(pkg\);/);
+
+  const apps = await read(FILES.apps);
+  // Loja: cartão com selo VR BOX, e o botão diz se está instalado.
+  assert.match(apps, /\{ id: 'taxi-driver', name: TAXI_LABEL, cat: 'games', rating: '4\.9', reviews: '12 mil', tag: 'Cardboard · VR Box · Tela cheia', badge: 'VR BOX'/);
+  assert.match(apps, /const installedNow = item\.id === 'taxi-driver' && taxiInstalled\(\);/);
+  // Menu principal → o mesmo caminho (o card vive no entry-menu, a ação aqui).
+  assert.match(apps, /on\('taxi-launch', \(\) => \{/);
+  assert.match(apps, /'taxi-driver': \(\) => \{\n\s+if \(openTaxiDriver\(\)\) return;\n\s+toast\(t\('taxiNotInstalled'\)\);/);
+  // Biblioteca: tile só quando o jogo está instalado (nada de jogo fantasma).
+  assert.match(apps, /const TAXI_DRIVER_ITEM = \{[\s\S]{0,200}imgUrl: TAXI_LOGO/);
+  assert.match(apps, /const taxi = taxiInstalled\(\) \? \[TAXI_DRIVER_ITEM\] : \[\];/);
+
+  // O card no menu de entrada e o do grid da Store do menu.
+  const entry = await read('web/src/entry-menu.js');
+  assert.match(entry, /data-entry-act="taxi" title="Abrir o Taxi Driver VR no VR Box \(tela cheia\)"/);
+  assert.match(entry, /root\.querySelectorAll\('\[data-entry-act="taxi"\]'\)\.forEach\(btn => \{[\s\S]{0,200}emit\('taxi-launch'\);/);
+  assert.match(entry, /\{ id: 'taxi-driver', name: 'Taxi Driver VR', cat: 'Cardboard · VR Box · Tela cheia · 4\.9 ★'/);
+  // A logo nova no palco da marca e na tela de entrada.
+  assert.match(entry, /<img class="entry-brand-logo" src="\.\/icons\/nextvr-halloween-logo\.jpg"/);
+  const html = await read('web/index.html');
+  assert.match(html, /<div class="logo"><img src="\.\/icons\/nextvr-halloween-logo\.jpg" alt="NextVR"><\/div>/);
+  // Ambas as artes entram no pacote (senão a UI quebra no aparelho).
+  const build = await read('web/build.mjs');
+  assert.ok(build.includes("'nextvr-halloween-logo.jpg'") && build.includes("'taxi-driver-logo.jpg'"));
+  // Aviso honesto quando o APK não está instalado, nos três idiomas.
+  const core = await read(FILES.core);
+  assert.equal(core.split('    taxiNotInstalled:').length - 1, 3);
 });

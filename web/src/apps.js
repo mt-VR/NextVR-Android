@@ -8,7 +8,8 @@ import { installAndroidApps, androidApps, androidTileHtml, shizukuStatusRow, ope
   loadLibrary as loadAndroidLibrary } from './android-apps.js';
 import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,
   refreshXrLibrary, ensureXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
-  xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen } from './xr-games.js';
+  xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,
+  TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver } from './xr-games.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
@@ -1538,6 +1539,21 @@ const LIB_APPS = [
   // catálogo (e portanto no anel, com os mesmos 10 lugares) como qualquer outro app do NextVR.
   { id:'pclink', name:'PC Link', label:'PC Link', bg:'linear-gradient(145deg,#1d4ed8,#0b1224)', icon:'monitor' },
 ];
+/*
+ * O Táxi Driver, como tile da biblioteca.
+ *
+ * Ele NÃO está em LIB_APPS: não é um app do NextVR e não entra no catálogo nem no anel. É o atalho
+ * para um APK Cardboard instalado no telefone, e só aparece quando ele está instalado (a biblioteca
+ * não mostra jogo que não existe).
+ */
+const TAXI_DRIVER_ITEM = {
+  id: 'taxi-driver',
+  name: TAXI_LABEL,
+  label: TAXI_LABEL,
+  bg: '#1a1205',
+  imgUrl: TAXI_LOGO,
+  kind: 'app',
+};
 const GORILLA_TAG_ITEM = {
   id: 'gorilla-tag',
   name: 'Gorilla Tag',
@@ -2130,6 +2146,12 @@ const LIB_ACTIONS = {
   'roblox-vr': () => openRobloxVr(),
   roblox: () => openRobloxVr(),
   'hyper-vr': () => webBrowserFor('browser', 'Hyper Dash VR', 'https://immersiveweb.dev/'),
+  // Um jogo de fora do NextVR: o Táxi Driver é um APK Cardboard instalado no telefone e abre em tela
+  // cheia no VR Box (ver openTaxiDriver em xr-games.js). Sem ele instalado, o usuário é avisado.
+  'taxi-driver': () => {
+    if (openTaxiDriver()) return;
+    toast(t('taxiNotInstalled'));
+  },
 };
 
 /* ============ o anel de 10 apps da bolinha da dock ============ */
@@ -2192,6 +2214,8 @@ let gorillaFetchPct = null;
 const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 
 const QUEST_STORE_ITEMS = [
+  // Jogo de fora do NextVR, instalado no telefone: abre em tela cheia no VR Box (Cardboard).
+  { id: 'taxi-driver', name: TAXI_LABEL, cat: 'games', rating: '4.9', reviews: '12 mil', tag: 'Cardboard · VR Box · Tela cheia', badge: 'VR BOX', img: TAXI_LOGO, bg: 'linear-gradient(135deg,#1a1205,#f59e0b)' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
@@ -2257,9 +2281,13 @@ function buildStore() {
           ? `<img src="${item.img}" alt="${item.name}" style="width:48px;height:48px;object-fit:contain">`
           : `<img class="${isGorilla ? 'st-gorilla-logo' : ''}" src="${item.img}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;display:block">`;
 
+      // O Táxi é um APK instalado no telefone, não um download daqui: o botão diz se ele está lá.
+      const installedNow = item.id === 'taxi-driver' && taxiInstalled();
       const ctaHtml = isGorilla
         ? gorillaActionHtml
-        : `<button type="button" class="st-btn st-quest-card-btn" data-store-launch="${item.id}" style="background:rgba(255,255,255,.12);color:#f8fafc">Abrir</button>`;
+        : item.id === 'taxi-driver'
+          ? `<button type="button" class="st-btn st-quest-card-btn" data-store-launch="taxi-driver" style="background:${installedNow ? '#2563eb' : 'rgba(255,255,255,.12)'};color:#f8fafc">${installedNow ? 'ABRIR' : 'Abrir no VR Box'}</button>`
+          : `<button type="button" class="st-btn st-quest-card-btn" data-store-launch="${item.id}" style="background:rgba(255,255,255,.12);color:#f8fafc">Abrir</button>`;
 
       return `
         <article class="st-quest-card ${isGorilla ? 'st-gorilla-card' : ''}" ${isGorilla ? 'data-store-gorilla' : ''} data-store-card="${item.id}">
@@ -2390,9 +2418,10 @@ function libItems() {
   // installed while this app was open only exists after a re-scan, so the list is kept fresh here
   // (throttled inside `ensureXrLibrary`: the scan reads every candidate APK natively).
   if (window.NativeXR?.xrLibrary) ensureXrLibrary();
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
+  const taxi = taxiInstalled() ? [TAXI_DRIVER_ITEM] : [];
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
   let filtered = list;
-  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr');
+  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr' || x.id === 'taxi-driver');
   if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
   if (libFilter === 'games' && S.mrPistolInstalled) filtered = [...filtered, MR_PISTOL_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
@@ -3962,6 +3991,13 @@ on('store-app-launch', appId => {
   touchLib(appId, true);
   finishEntryMenu();
   const act = LIB_ACTIONS[appId];
+  if (act) act();
+});
+// O card "Táxi Driver" do menu principal: fecha o menu e entrega a tela ao jogo.
+on('taxi-launch', () => {
+  touchLib('taxi-driver', true);
+  finishEntryMenu();
+  const act = LIB_ACTIONS['taxi-driver'];
   if (act) act();
 });
 

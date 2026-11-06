@@ -28,6 +28,7 @@ import { TwoHandMenuChord } from './two-hand-chord.js';
 import { twoHandsPinching } from './two-hand-chord.js';
 import { icon } from './reference-icons.js';
 import { windowBox } from './app-window-box.js';
+import { androidApps } from './android-apps.js';
 
 const GAME_ID = 'nextvr-xr-game';
 const MENU_ID = 'nextvr-xr-menu';
@@ -165,6 +166,56 @@ export function setXrHandMode(mode) {
 }
 export function xrSelfTest() { command({ cmd: 'selftest' }); }
 
+/* ============================ Táxi Driver (Cardboard) ============================ */
+
+/**
+ * O jogo que o usuário pediu pelo nome, com o pacote do APK dele.
+ *
+ * Não é um app do NextVR: é um APK instalado no telefone, feito em Unity + Cardboard. Por isso ele
+ * não tem código aqui — o que existe é o atalho para abri-lo (Loja, menu principal e biblioteca) e o
+ * logo, para a tile não ser só duas iniciais.
+ */
+export const TAXI_PACKAGE = 'com.manerai.taxidriver.cardboard';
+export const TAXI_LABEL = 'Taxi Driver VR';
+export const TAXI_LOGO = './icons/taxi-driver-logo.jpg';
+
+/** Pacotes conhecidos que ganham capa na tile da biblioteca (o resto cai nas iniciais). */
+const XR_COVERS = Object.freeze({ [TAXI_PACKAGE]: TAXI_LOGO });
+
+/**
+ * O pacote do Táxi instalado neste telefone, ou null.
+ *
+ * São duas fontes porque são duas perguntas diferentes: a lista de jogos de headset (que o lado
+ * nativo monta lendo os APKs) diz que ele foi classificado, e a lista de apps do Android diz que ele
+ * está instalado mesmo que a classificação não tenha rodado ainda.
+ */
+export function taxiPackage() {
+  if (games.some(g => g.package === TAXI_PACKAGE)) return TAXI_PACKAGE;
+  if ((androidApps() || []).some(a => a.pkg === TAXI_PACKAGE)) return TAXI_PACKAGE;
+  // APK renomeado/atualizado: aceita qualquer pacote que se chame de táxi ou de Cardboard.
+  const guess = (androidApps() || []).find(a => /taxi.?driver/i.test(a.pkg));
+  return guess ? guess.pkg : null;
+}
+
+/** Whether the game is installed, so a tile/store card can say so instead of pretending. */
+export function taxiInstalled() {
+  return !!taxiPackage();
+}
+
+/**
+ * Abre o Táxi Driver no VR Box, do jeito que ele funciona: tela inteira.
+ *
+ * Classificado pelo lado nativo → `open` (ele decide: jogo de tela cheia não é hospedado, recebe o
+ * `startActivity` do próprio ícone). Não classificado mas instalado → o mesmo `startActivity` direto.
+ * Não instalado → false, e quem chamou diz ao usuário em vez de abrir nada.
+ */
+export function openTaxiDriver() {
+  const pkg = taxiPackage();
+  if (!pkg) return false;
+  if (games.some(g => g.package === pkg)) { launchXrGame(pkg); return true; }
+  return launchAppFullScreen(pkg);
+}
+
 /* ============================ itens e arquivo da biblioteca ============================ */
 
 /** The classified games, as library items: one kind of tile the Applications menu knows. */
@@ -174,7 +225,11 @@ export function xrLibraryItems() {
 }
 export function xrTileHtml(item) {
   const g = item.game;
-  const mark = `<span class="nm">${escape(`${(g.label || g.package).slice(0, 2)}`)}</span>`;
+  // Jogo conhecido ganha a capa dele; o resto cai nas duas iniciais do nome.
+  const cover = XR_COVERS[g.package];
+  const mark = cover
+    ? `<img src="${escape(cover)}" alt="" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">`
+    : `<span class="nm">${escape(`${(g.label || g.package).slice(0, 2)}`)}</span>`;
   const running = xrGamePkg() === g.package
     ? `<span class="lib-open">${escape(t('appOpen'))}</span>` : '';
   // Um jogo de tela cheia (Cardboard/Daydream) abre — só não dentro do nosso frame. Marcar ✕ nele
