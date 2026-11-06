@@ -45,6 +45,16 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'cockpit-vr-planevr',
+    tag: 'NOVO · COCKPIT VR (PLANEVR) NO NEXTVR: MENU PELAS MÃOS, VOO COM AS MÃOS DO JOGO',
+    time: 'Agora',
+    heading: 'O Cockpit VR Entrou no NextVR: Você Escolhe o Avião com as Mãos e o Jogo Assume a Câmera',
+    desc: 'O COCKPIT VR (o jogo de avião do planeVR que você mandou) agora é um jogo do NextVR, na LOJA e na BIBLIOTECA. '
+      + 'O MENU dele não é mais aquela tela cheia de "6DoF falso" e "Controle: NÃO": virou uma janela do NextVR, desenhada aqui dentro e operada pelo NOSSO rastreio de mão — aponte o feixe, faça a pinça e escolha entre os cinco aviões (Cessna 172, Super Tucano, F-22, F-117 e F-35), o modo (VR Cardboard ou tela única), o som, os gráficos leves, o assistente de voo, o motor ligado e o 6DoF do jogo (3DoF/6DoF e a força). '
+      + 'NO VOO a tela é toda do jogo, como ele foi feito para rodar: ele desenha os dois olhos com a distorção da lente do VR Box e rastreia as mãos com o MediaPipe DELE, usando a câmera do aparelho. Enquanto isso o rastreio de mão do NextVR está DESLIGADO — sem feixe, sem cursor, sem mão desenhada — e a nossa câmera é fechada antes de a página abrir, senão o jogo receberia "câmera em uso por outro app". '
+      + 'PARA SAIR: as duas mãos em pinça por dois segundos (o mesmo acorde de duas mãos que o NextVR já usa), o ✕ no alto da tela do jogo, ou o Voltar do Android — e o NextVR volta exatamente como estava, com a câmera e as mãos. O jogo precisa de internet na primeira abertura (three.js e MediaPipe vêm de CDN), e isso é avisado na tela dele.',
+  },
+  {
     id: 'ray-outside-6dof-dock-colors',
     tag: 'NOVO · RAIO FORA DA MÃO (ORDEM DE PINTURA), ÍCONE NOVO DO APP, TÁXI DRIVER NA LOJA, 6DOF EM PASSO LENTO',
     time: 'Agora',

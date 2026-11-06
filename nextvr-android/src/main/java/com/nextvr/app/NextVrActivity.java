@@ -128,6 +128,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private volatile int appBrightness=70;
     private WebView entryView;
     private volatile boolean entryVisible=true;
+    // A tela cheia de um jogo HTML com estéreo e mãos próprios (Cockpit VR). Enquanto ela existe,
+    // a câmera e o rastreio de mão DESTE app estão parados: são do jogo.
+    private WebView cockpitView;
     private volatile long vrSessionReadyAtMs=0L;
     private String pendingVrSettingsJson;
     private android.hardware.SensorManager sensorManager;
@@ -663,6 +666,104 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(!resumed || renderer==null || checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) return;
         camera.start(getWindowManager().getDefaultDisplay().getRotation());
     }
+
+    /* ======================= jogo HTML em tela cheia (Cockpit VR) ======================= */
+
+    /**
+     * Os ajustes escolhidos no menu do jogo, como query string da página — nomes e valores em lista
+     * branca. A shell não decide o que a página carrega; ela escolhe entre as opções que o jogo tem.
+     */
+    private static String queryFromJson(String json) {
+        JSONObject o;
+        try {
+            o=new JSONObject(json==null || json.trim().isEmpty()?"{}":json);
+        } catch(Throwable malformed) { return "air=cessna&mode=vr&snd=1&lq=0&as=1&ck=0&hsw=0&dof=6&d6s=1"; }
+        String air=o.optString("air","cessna");
+        if(!air.matches("[a-z0-9]{1,12}")) air="cessna";
+        String mode="mono".equals(o.optString("mode","vr"))?"mono":"vr";
+        String dof="3".equals(o.optString("dof","6"))?"3":"6";
+        String d6s=o.optString("d6s","1");
+        if(!"0.6".equals(d6s) && !"1.5".equals(d6s)) d6s="1";
+        StringBuilder out=new StringBuilder("air=").append(air).append("&mode=").append(mode)
+            .append("&dof=").append(dof).append("&d6s=").append(d6s);
+        // Ligados por padrão no jogo: som, assistente, ATC, chat de voz. Desligados: gráficos leves,
+        // motor ligado, mãos invertidas.
+        out.append("&snd=").append(o.optBoolean("snd",true)?"1":"0");
+        out.append("&as=").append(o.optBoolean("as",true)?"1":"0");
+        out.append("&atc=").append(o.optBoolean("atc",true)?"1":"0");
+        out.append("&vc=").append(o.optBoolean("vc",true)?"1":"0");
+        out.append("&lq=").append(o.optBoolean("lq",false)?"1":"0");
+        out.append("&ck=").append(o.optBoolean("ck",false)?"1":"0");
+        out.append("&hsw=").append(o.optBoolean("hsw",false)?"1":"0");
+        return out.toString();
+    }
+
+    /**
+     * Entrega a tela ao jogo HTML.
+     *
+     * <p>O Cockpit VR traz o próprio estéreo (dois olhos com a distorção da lente do VR Box) e o
+     * próprio rastreio de mão (MediaPipe na página, com a câmera do aparelho). Enquanto ele roda, o
+     * rastreio de mão DESTE app sai de cena — sem feixe, sem cursor, sem mão desenhada — e a câmera
+     * é fechada, porque é uma só no aparelho.
+     */
+    private void openCockpitGame(String query) {
+        if(closed || cockpitView!=null) return;
+        gameHandMode=false;
+        camera.gameHandMode=false;
+        camera.mrGameMode=false;
+        camera.enableHands(false);
+        camera.stop();
+        SpatialRenderer r=renderer;
+        if(r!=null) r.hands=null;
+        // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega, então a
+        // janela dele só nasce depois que o aparelho devolve o dispositivo ao CameraManager; sem
+        // essa espera o getUserMedia dele falha com NotReadableError ("câmera em uso por outro app").
+        main.postDelayed(()->showCockpitGame(query),900);
+    }
+
+    private void showCockpitGame(String query) {
+        if(closed || cockpitView!=null) return;
+        String url=WebSurface.ORIGIN+"/ui/cockpit/game.html"+(query==null || query.isEmpty()?"":"?"+query);
+        WebView view;
+        try { view=WebSurface.createFullscreenGameView(this,url,"cockpit"); }
+        catch(Throwable failed) { report("O jogo não abriu: "+failed.getMessage()); restartTracking(); return; }
+        android.view.ViewParent parent=glView.getParent();
+        if(!(parent instanceof android.view.ViewGroup)) { view.destroy(); restartTracking(); return; }
+        cockpitView=view;
+        ((android.view.ViewGroup)parent).addView(view,new android.widget.RelativeLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        view.bringToFront();
+        view.requestFocus();
+    }
+
+    /**
+     * Volta do jogo para o NextVR: a janela do jogo sai, a página morre (e com ela a câmera dela) e
+     * a câmera/rastreio de mão deste app voltam exatamente como estavam.
+     */
+    void closeCockpitGame() {
+        main.post(()->{
+            WebView view=cockpitView;
+            if(view==null) return;
+            cockpitView=null;
+            android.view.ViewParent parent=view.getParent();
+            if(parent instanceof android.view.ViewGroup) ((android.view.ViewGroup)parent).removeView(view);
+            try { view.stopLoading(); } catch(Throwable ignored) {}
+            try { view.loadUrl("about:blank"); } catch(Throwable ignored) {}
+            try { view.removeJavascriptInterface("NextVRGame"); } catch(Throwable ignored) {}
+            try { view.destroy(); } catch(Throwable ignored) {}
+            if(entryView!=null) entryView.setVisibility(entryVisible?View.VISIBLE:View.GONE);
+            if(closed) return;
+            restartTracking();
+            if(shell!=null && ready) shell.evaluate("window.nextvrResume&&window.nextvrResume()");
+        });
+    }
+
+    /** As mãos voltam ao NextVR: o rastreio é rearmado e a câmera, reaberta. */
+    private void restartTracking() {
+        camera.enableHands(true);
+        camera.resetHandsState();
+        startCamera();
+    }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
         if(code==10) {
@@ -736,6 +837,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onPause() {
         resumed=false; camera.stop();
+        // O jogo HTML não fica rodando com a câmera tomada enquanto o app está atrás: ele é fechado
+        // e a câmera é devolvida (o próximo onResume reabre tudo, inclusive o passthrough).
+        if(cockpitView!=null) closeCockpitGame();
         if(walkSensorsRegistered && sensorManager!=null) {
             try { sensorManager.unregisterListener(walkSensorListener); } catch(Throwable ignored) {}
             walkSensorsRegistered=false;
@@ -763,6 +867,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onDestroy() {
         closed=true; PerfLog.setStatusListener(null); releaseWeb();
+        if(cockpitView!=null) {
+            android.view.ViewParent parent=cockpitView.getParent();
+            if(parent instanceof android.view.ViewGroup) ((android.view.ViewGroup)parent).removeView(cockpitView);
+            try { cockpitView.stopLoading(); } catch(Throwable ignored) {}
+            try { cockpitView.removeJavascriptInterface("NextVRGame"); } catch(Throwable ignored) {}
+            try { cockpitView.destroy(); } catch(Throwable ignored) {}
+            cockpitView=null;
+        }
         if(entryView!=null) {
             entryView.stopLoading();
             entryView.removeJavascriptInterface("NativeXR");
@@ -951,6 +1063,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             else if(bitmap!=null) bitmap.recycle();
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
+        /**
+         * Abre um jogo HTML em tela cheia (o Cockpit VR), com os ajustes escolhidos no menu dele na
+         * shell já na URL: {@code {air:'f22',mode:'vr',snd:1,...}}.
+         *
+         * <p>A shell só manda o pedido. Quem para a câmera e o rastreio de mão do NextVR, mostra a
+         * tela do jogo e devolve tudo depois é esta activity — o mesmo lugar que já é dono da
+         * câmera, da cena e das janelas.
+         */
+        @JavascriptInterface public void cockpitGame(String json) {
+            if(closed) return;
+            final String query=queryFromJson(json);
+            main.post(()->openCockpitGame(query));
+        }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void setGameHandMode(boolean enabled) {
             gameHandMode=enabled;
@@ -1384,6 +1509,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      */
     private long lastBackAt=0L;
     @Override public void onBackPressed() {
+        // O jogo HTML em tela cheia é a tela do momento: voltar sai dele e devolve o NextVR (com a
+        // câmera e as mãos), antes de qualquer outra regra de voltar.
+        if(cockpitView!=null) { closeCockpitGame(); return; }
         if(!entryVisible && entryView!=null) {
             long now=SystemClock.uptimeMillis();
             if(now-lastBackAt<=2500L) { lastBackAt=0L; setEntryMenuVisible(true); return; }

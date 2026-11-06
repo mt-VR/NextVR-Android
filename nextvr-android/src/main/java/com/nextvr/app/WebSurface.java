@@ -177,7 +177,14 @@ final class WebSurface {
             String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav":"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            // A pasta do Cockpit VR é a única exceção, e ela existe por um motivo medido: o rastreio
+            // de mão do próprio jogo é o MediaPipe, que baixa o módulo de CDN e compila WASM na
+            // hora. Sem 'wasm-unsafe-eval' o Chromium recusa essa compilação e as mãos do jogo nunca
+            // sobem ("MediaPipe não carregou"). Essa página é servida daqui, do APK, e roda numa
+            // janela sem a ponte NativeXR — o resto da UI continua sem eval.
+            headers.put("Content-Security-Policy",path.startsWith("/ui/cockpit/")
+                ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob: mediastream: data:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; child-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'"
+                : "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
@@ -229,6 +236,75 @@ final class WebSurface {
         });
         entry.loadUrl(ENTRY_HOME);
         return entry;
+    }
+
+    /**
+     * A tela cheia de um jogo HTML que traz o próprio estéreo e o próprio rastreio de mão.
+     *
+     * <p>É o caso do Cockpit VR (o jogo de avião do planeVR): a página desenha os dois olhos com a
+     * distorção da lente do VR Box e lê a câmera para as mãos — o mesmo que ela faz aberta num
+     * navegador. Por isso ela recebe a tela inteira e uma janela própria, sem a ponte NativeXR (a
+     * shell continua dona dos menus e das permissões) e com a câmera concedida pelo
+     * {@code onPermissionRequest} desta janela, que é quem sabe que a página pediu captura.
+     *
+     * <p>Duas chamadas voltam para o app, e só duas: sair (o gesto de encerrar do próprio jogo) e
+     * uma mensagem de erro na tela do NextVR.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    static WebView createFullscreenGameView(NextVrActivity owner, String url, String tag) {
+        WebView game=new WebView(owner);
+        game.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
+        game.setBackgroundColor(Color.BLACK);
+        WebSettings settings=game.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setUseWideViewPort(false);
+        settings.setLoadWithOverviewMode(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        game.setVerticalScrollBarEnabled(false);
+        game.setHorizontalScrollBarEnabled(false);
+        game.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
+                Uri u=request.getUrl();
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return assetFromOwner(owner,u);
+                return null;
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
+                return !request.getUrl().toString().startsWith(ORIGIN);
+            }
+            @Override public void onPageFinished(WebView view,String address) {
+                android.util.Log.d("NextVR-GAME","loaded "+address);
+            }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {
+                if(request.isForMainFrame()) owner.report("O jogo não carregou: "+error.getDescription());
+            }
+        });
+        game.setWebChromeClient(new WebChromeClient() {
+            // O jogo liga a câmera do aparelho para as mãos dele. A permissão de captura é da
+            // PÁGINA do jogo, e só dela: nenhuma outra janela do NextVR pede câmera.
+            @Override public void onPermissionRequest(PermissionRequest request) { request.grant(request.getResources()); }
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                android.util.Log.d("NextVR-GAME",m.message()+" @"+m.lineNumber()); return true;
+            }
+        });
+        game.addJavascriptInterface(new GameBridge(owner),"NextVRGame");
+        game.loadUrl(url);
+        return game;
+    }
+
+    /** As duas chamadas que um jogo HTML hospedado tem para o app. */
+    public static final class GameBridge {
+        private final NextVrActivity owner;
+        GameBridge(NextVrActivity owner) { this.owner=owner; }
+        /** O gesto de encerrar do jogo (ou o ✕ da tela dele): o NextVR reassume a tela e a câmera. */
+        @android.webkit.JavascriptInterface public void exit() { if(owner!=null) owner.closeCockpitGame(); }
+        @android.webkit.JavascriptInterface public void report(String message) { if(owner!=null) owner.report(message); }
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the

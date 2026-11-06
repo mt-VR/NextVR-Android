@@ -10,6 +10,7 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   refreshXrLibrary, ensureXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,
   TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver } from './xr-games.js';
+import { openCockpitMenu, COCKPIT_LABEL, COCKPIT_LOGO } from './cockpit.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
@@ -1554,6 +1555,18 @@ const TAXI_DRIVER_ITEM = {
   imgUrl: TAXI_LOGO,
   kind: 'app',
 };
+/*
+ * O Cockpit VR na biblioteca: é um jogo do NextVR (a página viaja no APK), então a tile existe sempre
+ * — diferente do Táxi, que só aparece quando o APK dele está instalado no telefone.
+ */
+const COCKPIT_VR_ITEM = {
+  id: 'cockpit-vr',
+  name: COCKPIT_LABEL,
+  label: COCKPIT_LABEL,
+  bg: '#0b1220',
+  imgUrl: COCKPIT_LOGO,
+  kind: 'app',
+};
 const GORILLA_TAG_ITEM = {
   id: 'gorilla-tag',
   name: 'Gorilla Tag',
@@ -2152,6 +2165,9 @@ const LIB_ACTIONS = {
     if (openTaxiDriver()) return;
     toast(t('taxiNotInstalled'));
   },
+  // O Cockpit VR (o jogo de avião do planeVR) abre o MENU do jogo na shell, operado pelo rastreio de
+  // mão do NextVR; o voo em si roda na página do jogo, com o rastreio de mão dela (ver cockpit.js).
+  'cockpit-vr': () => openCockpitMenu(),
 };
 
 /* ============ o anel de 10 apps da bolinha da dock ============ */
@@ -2216,6 +2232,9 @@ const STORE_TABS = [['apps','Apps'],['horizon','Horizon+']];
 const QUEST_STORE_ITEMS = [
   // Jogo de fora do NextVR, instalado no telefone: abre em tela cheia no VR Box (Cardboard).
   { id: 'taxi-driver', name: TAXI_LABEL, cat: 'games', rating: '4.9', reviews: '12 mil', tag: 'Cardboard · VR Box · Tela cheia', badge: 'VR BOX', img: TAXI_LOGO, bg: 'linear-gradient(135deg,#1a1205,#f59e0b)' },
+  // Jogo HTML que traz o próprio estéreo e as próprias mãos (Cockpit VR / planeVR): o menu é do
+  // NextVR e o voo roda na página, em tela cheia, com o MediaPipe dela.
+  { id: 'cockpit-vr', name: COCKPIT_LABEL, cat: 'games', rating: '4.9', reviews: '2,1 mil', tag: 'Voo · Mãos do jogo · VR Cardboard', badge: 'NOVO', img: COCKPIT_LOGO, bg: 'linear-gradient(135deg,#0b1220,#0ea5e9)' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
   { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
@@ -2419,9 +2438,9 @@ function libItems() {
   // (throttled inside `ensureXrLibrary`: the scan reads every candidate APK natively).
   if (window.NativeXR?.xrLibrary) ensureXrLibrary();
   const taxi = taxiInstalled() ? [TAXI_DRIVER_ITEM] : [];
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
+  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), COCKPIT_VR_ITEM, ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
   let filtered = list;
-  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr' || x.id === 'taxi-driver');
+  if (libFilter === 'games') filtered = filtered.filter(x => x.kind === 'xr' || x.id === 'taxi-driver' || x.id === 'cockpit-vr');
   if (libFilter === 'games' && S.gorillaInstalled) filtered = [...filtered, GORILLA_TAG_ITEM];
   if (libFilter === 'games' && S.mrPistolInstalled) filtered = [...filtered, MR_PISTOL_ITEM];
   if (libFilter === 'apps') filtered = filtered.filter(x => x.kind === 'app');
