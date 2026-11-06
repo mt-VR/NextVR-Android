@@ -127,9 +127,11 @@ class PhoneXrHandRenderer {
     private val BEAM_CLEAR_MIN = .05f
     private val BEAM_CLEAR_MAX = .16f
     /** Margem, em NDC, entre a borda da mão e a bolinha do feixe: ela começa FORA, não encostada. */
-    private val BEAM_CLEAR_MARGIN = .035f
+    private val BEAM_CLEAR_MARGIN = .055f
     /** Teto da folga, como fração do caminho até o alvo: um alvo encostado ainda é alcançado. */
     private val BEAM_CLEAR_MAX_FRACTION = .30f
+    /** Folga mínima, em unidades do plano do olho: a bolinha (raio 0,016) nunca encosta no dedo. */
+    private val BEAM_CLEAR_MIN_WORLD = .072f
     private val acrossA=FloatArray(3)
     private val acrossB=FloatArray(3)
     private val quad=FloatArray(18)
@@ -222,7 +224,6 @@ class PhoneXrHandRenderer {
                     (tObj?.optJSONArray("end") != null)
                 m.blueOutline = (tObj?.optBoolean("blueOutline") == true)
             }
-            drawHandSkeletons(position,fade)
         } else { meshes=emptyList();meshPoints=emptyList();meshPool.clear() }
         // Missing/stalled tracking keeps a short visual outline and cursor, never a held click.
         if(visual==null)return
@@ -257,12 +258,15 @@ class PhoneXrHandRenderer {
                         val fy=(.5f-pts[25])*2f*sy
                         GLES20.glUniform1f(gradUniform,0f)
                         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                        drawPokeTip(target,fx,fy,hFade,position)
+                        queuePokeTip(target,fx,fy,hFade)
                     }
                 }
             }
             GLES20.glDisable(GLES20.GL_STENCIL_TEST)
             GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            // A mão por ÚLTIMO (ver o fim do outro caminho).
+            if(showSilhouette && visual!=null) drawHandSkeletons(position,fade)
+            drawQueuedPokeTips(position)
             return
         }
         // Beam positions are predicted to display time; pinch state is always the live one.
@@ -280,7 +284,7 @@ class PhoneXrHandRenderer {
                 val fy=(.5f-hand.points[25])*2f*sy
                 GLES20.glUniform1f(gradUniform,0f)
                 GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA)
-                drawPokeTip(target,fx,fy,hFade,position)
+                queuePokeTip(target,fx,fy,hFade)
             }
             // A predicted hand may keep the beam visible but can never press: no gesture is ever
             // triggered by the motion model, only by a live detection.
@@ -303,7 +307,39 @@ class PhoneXrHandRenderer {
         }
         GLES20.glDisable(GLES20.GL_STENCIL_TEST)
         GLES20.glBlendFunc(GLES20.GL_ONE,GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        /*
+         * A MÃO É PINTADA POR ÚLTIMO, DEPOIS DOS FEIXES.
+         *
+         * O desenho é em ordem de pintura (o teste de profundidade fica desligado neste passe): quem
+         * é desenhado por cima aparece na frente. Como a mão e o feixe estão no mesmo plano, pintar o
+         * feixe depois fazia a bolinha e o começo do raio aparecerem POR CIMA dos dedos — o "raio
+         * está passando dentro da mão". Invertendo a ordem, a silhueta cobre o pedaço que ainda
+         * encostar nela, e o que sobra é o raio saindo de fora. Os anéis de toque vêm em seguida,
+         * porque esses sim precisam aparecer sobre o dedo.
+         */
+        if(showSilhouette && visual!=null) drawHandSkeletons(position,fade)
+        drawQueuedPokeTips(position)
     }
+
+    /* Fila dos anéis de toque: no máximo um por mão (dois). Ver a ordem de pintura no fim de draw(). */
+    private val tipTargets=arrayOfNulls<JSONObject>(2)
+    private val tipX=FloatArray(2)
+    private val tipY=FloatArray(2)
+    private val tipFade=FloatArray(2)
+    private var tipCount=0
+
+    private fun queuePokeTip(target: JSONObject?, x: Float, y: Float, fade: Float) {
+        if(tipCount>=tipTargets.size) return
+        tipTargets[tipCount]=target; tipX[tipCount]=x; tipY[tipCount]=y; tipFade[tipCount]=fade
+        tipCount++
+    }
+
+    private fun drawQueuedPokeTips(position: Int) {
+        for(i in 0 until tipCount) drawPokeTip(tipTargets[i],tipX[i],tipY[i],tipFade[i],position)
+        tipCount=0
+        for(i in tipTargets.indices) tipTargets[i]=null
+    }
+
     /** Rebuild the hand meshes in place whenever the predicted pose moves. The tessellation
      * writes into pooled builders with zero per-frame allocation: a resting hand reuses the
      * exact same buffers and a moving hand rebuilds every display frame, so the silhouette
@@ -696,8 +732,8 @@ private fun beamPush(b: FloatArray, hand: PhoneXrHands.Hand, sx: Float, sy: Floa
     dx /= length; dy /= length; dz /= length
     // A caixa dá a FRAÇÃO do caminho até sair da mão; o fallback dá um tamanho em NDC, que serve
     // como fração do trecho do mesmo jeito (é o mesmo "pedaço da tela").
-    val push = (handExitPush(hand, b, sx, sy) ?: (handReach(hand) * BEAM_CLEAR)
-        .coerceIn(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX)) * length
+    val push = ((handExitPush(hand, b, sx, sy) ?: (handReach(hand) * BEAM_CLEAR)
+        .coerceIn(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX)) * length).coerceAtLeast(BEAM_CLEAR_MIN_WORLD)
     val clear = push.coerceAtMost(length * .30f)
     if (clear <= 0f) return
     b[0] += dx * clear

@@ -3993,13 +3993,6 @@ on('store-app-launch', appId => {
   const act = LIB_ACTIONS[appId];
   if (act) act();
 });
-// O card "Táxi Driver" do menu principal: fecha o menu e entrega a tela ao jogo.
-on('taxi-launch', () => {
-  touchLib('taxi-driver', true);
-  finishEntryMenu();
-  const act = LIB_ACTIONS['taxi-driver'];
-  if (act) act();
-});
 
 function mountFullscreenEntryMenu() {
   if (fullscreenEntryHost) fullscreenEntryHost.remove();

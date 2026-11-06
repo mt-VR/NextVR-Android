@@ -141,16 +141,19 @@ export function closeXrGame() { if (state.hosting) command({ cmd: 'close' }); }
 /**
  * Entrega a tela do celular a um app que desenha o próprio estéreo (Cardboard/VR Box).
  *
- * É o mesmo caminho do "abrir no celular" de uma janela de app: `startActivity` do ícone do app, sem
- * privilégio, sem runtime e sem display. Serve para qualquer apk que o classificador não reconheça —
- * o usuário aponta o jogo e ele abre como abriria pela gaveta, pronto para o VR Box.
+ * `startActivity` do ícone do app, sem privilégio, sem runtime e sem display — o mesmo
+ * `getLaunchIntentForPackage` da gaveta. Quem manda o pedido é o lado nativo do PhoneXR, que tem o
+ * `PackageManager` na mão e responde de volta quando não dá (`report` → aviso na tela). O caminho das
+ * janelas de app (`appsCommand`) depende do serviço de displays, que pode não existir; este não.
  */
 export function launchAppFullScreen(pkg) {
   if (!pkg) return false;
   const payload = JSON.stringify({ cmd: 'phone', pkg });
-  try { window.NativeXR?.appsCommand?.(payload); }
-  catch { return false; }
-  return true;
+  try {
+    if (window.NativeXR?.xrCommand) { window.NativeXR.xrCommand(payload); return true; }
+    if (window.NativeXR?.appsCommand) { window.NativeXR.appsCommand(payload); return true; }
+  } catch { return false; }
+  return false;
 }
 export function minimizeXrGame() { if (state.hosting) command({ cmd: 'minimize' }); }
 export function restoreXrGame() { if (state.hosting) command({ cmd: 'restore' }); }
@@ -191,10 +194,19 @@ const XR_COVERS = Object.freeze({ [TAXI_PACKAGE]: TAXI_LOGO });
  */
 export function taxiPackage() {
   if (games.some(g => g.package === TAXI_PACKAGE)) return TAXI_PACKAGE;
-  if ((androidApps() || []).some(a => a.pkg === TAXI_PACKAGE)) return TAXI_PACKAGE;
-  // APK renomeado/atualizado: aceita qualquer pacote que se chame de táxi ou de Cardboard.
-  const guess = (androidApps() || []).find(a => /taxi.?driver/i.test(a.pkg));
-  return guess ? guess.pkg : null;
+  const apps = androidApps() || [];
+  if (apps.some(a => a.pkg === TAXI_PACKAGE)) return TAXI_PACKAGE;
+  // APK renomeado/atualizado: aceita qualquer pacote que se chame de táxi.
+  const guess = apps.find(a => /taxi.?driver/i.test(a.pkg));
+  if (guess) return guess.pkg;
+  /*
+   * Nenhuma lista carregada ainda NÃO quer dizer "não instalado": no começo da sessão as duas chegam
+   * depois (o lado nativo lê os APKs). Devolver `null` aqui era o que fazia o botão dizer "não
+   * instalado" e não abrir nada com o jogo instalado. Então, sem informação, entrega-se o pacote: quem
+   * decide é o `PackageManager`, no lado nativo — se não existir, ele avisa na tela.
+   */
+  if (!gamesLoaded && apps.length === 0) return TAXI_PACKAGE;
+  return null;
 }
 
 /** Whether the game is installed, so a tile/store card can say so instead of pretending. */
@@ -212,7 +224,9 @@ export function taxiInstalled() {
 export function openTaxiDriver() {
   const pkg = taxiPackage();
   if (!pkg) return false;
-  if (games.some(g => g.package === pkg)) { launchXrGame(pkg); return true; }
+  // Sempre o caminho direto do `startActivity`, e não o `open` da sessão: hospedar um jogo de
+  // headset depende de runtime, display e serviço; um jogo Cardboard não precisa de nada disso e não
+  // pode falhar por causa de peça que ele não usa.
   return launchAppFullScreen(pkg);
 }
 

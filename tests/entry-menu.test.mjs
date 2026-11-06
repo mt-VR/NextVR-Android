@@ -310,13 +310,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForSelector('.entry-menu-root');
 
-    // 1. Verify initial state: 6 cards visible (Iniciar, Táxi Driver, Configurações, Hand tracking
-    // style, Colaboradores, Sobre), dock hidden
-    assert.equal(await page.locator('.entry-card').count(), 6);
-    assert.equal(await page.locator('[data-entry-act="taxi"]').count(), 1,
-      'o Táxi Driver entra pelo menu principal');
-    // E a logo nova está no palco da marca.
-    assert.equal(await page.locator('img.entry-brand-logo').getAttribute('src'), './icons/nextvr-halloween-logo.jpg');
+    // 1. Verify initial state: 5 cards visible, dock hidden
+    assert.equal(await page.locator('.entry-card').count(), 5);
+    assert.equal(await page.locator('[data-entry-act="taxi"]').count(), 0,
+      'o Táxi não tem card no menu principal (ele vive na Loja)');
     assert.equal(await page.locator('[data-hand-style-label]').innerText(), 'Mão desenhada');
 
     // 2. Toggle Hand tracking style: Mão desenhada -> Invisível -> Mão desenhada

@@ -345,7 +345,9 @@ test('o feixe começa FORA da mão, não em cima dos dedos', async () => {
     'a saída da caixa é analítica (slab), não um palpite');
   assert.match(box, /if \(hx < minX - m \|\| hx > maxX \+ m \|\| hy < minY - m \|\| hy > maxY \+ m\) return 0f/,
     'já fora da mão: nada a empurrar');
-  assert.match(renderer, /private val BEAM_CLEAR_MARGIN = \.035f/, 'a bolinha começa FORA, com margem');
+  assert.match(renderer, /private val BEAM_CLEAR_MARGIN = \.055f/, 'a bolinha começa FORA, com margem');
+  assert.match(renderer, /private val BEAM_CLEAR_MIN_WORLD = \.072f/,
+    'e nunca encosta no dedo, mesmo com a caixa apertada');
   assert.match(push, /\.coerceAtMost\(length \* \.30f\)/, 'num alvo encostado o feixe ainda alcança');
   // Sem landmarks, a aproximação antiga (tamanho da mão) cobre.
   assert.match(renderer, /private fun handReach\(hand: PhoneXrHands\.Hand\): Float \{/);
@@ -353,7 +355,20 @@ test('o feixe começa FORA da mão, não em cima dos dedos', async () => {
   assert.ok(renderer.split('beamPush(b,hand,sx,sy)').length - 1 === 2, 'ponteiro livre e pinça empurram o feixe');
   assert.match(renderer, /beamPush\(b,hand,sx,sy\)\n\s+drawBeam\(b,true,true,false,position,fade\)/);
   assert.match(renderer, /if\(!direct\) beamPush\(b,hand,sx,sy\)\n\s+drawBeam\(b,down,blueRay,noBeam,position,hFade\)/);
-  // E o pacote embarcado tem a mesma correção (senão o APK sai sem ela).
-  const bundle = await read('nextvr-android/src/main/assets/ui/app.js');
-  assert.ok(bundle.length > 1000);
+  /*
+   * E a ORDEM de pintura: o desenho aqui é em ordem (profundidade desligada neste passe), então quem
+   * é pintado depois aparece na frente. Pintar a mão DEPOIS do feixe é o que garante que o pedaço do
+   * raio que ainda encostar na silhueta fique escondido — sem isso a bolinha continua aparecendo por
+   * cima dos dedos, por mais que ela ande para fora.
+   */
+  const draw = renderer.slice(renderer.indexOf('fun draw(frame: PhoneXrHands.Frame'));
+  assert.ok(!/\n\s+drawHandSkeletons\(position,fade\)\n\s+\} else \{ meshes=emptyList\(\)/.test(draw),
+    'a mão não é mais pintada antes dos feixes');
+  const beamPart = draw.slice(draw.indexOf('Beam positions are predicted to display time'));
+  assert.match(beamPart, /if\(showSilhouette && visual!=null\) drawHandSkeletons\(position,fade\)\n\s+drawQueuedPokeTips\(position\)/,
+    'a silhueta é pintada no fim, por cima do feixe, e os anéis de toque por cima dela');
+  assert.match(draw, /if\(showSilhouette && visual!=null\) drawHandSkeletons\(position,fade\)\n\s+drawQueuedPokeTips\(position\)\n\s+return/,
+    'o caminho sem ponteiro segue a mesma ordem');
+  assert.match(renderer, /private fun queuePokeTip\(target: JSONObject\?, x: Float, y: Float, fade: Float\)/);
+  assert.match(renderer, /private fun drawQueuedPokeTips\(position: Int\) \{/);
 });

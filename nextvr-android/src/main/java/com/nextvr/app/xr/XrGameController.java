@@ -277,6 +277,14 @@ public final class XrGameController {
             // belongs to the window (menu, settings) and must not become a button in the game's
             // stream. Repeated only on edge: the shell sends it once per change, never per frame.
             case "hands-ui": hands.uiBlocked(command.optBoolean("blocked")); break;
+            // Entrega a tela do celular a um app instalado: o `startActivity` do próprio ícone. É o
+            // caminho dos jogos Cardboard/VR Box (o Táxi Driver) e de qualquer APK que o usuário
+            // aponte na página PhoneXR. Não passa por display, Shizuku nem runtime.
+            case "phone": {
+                final String target = command.optString("pkg", "");
+                offMain(() -> launchPhone(target));
+                break;
+            }
             default: env.report("Unknown XR command: " + name);
         }
     }
@@ -371,6 +379,31 @@ public final class XrGameController {
      * icon gives it, plus the app's own way out — and NextVR is exactly where it was when the user
      * returns, because nothing of the workspace was touched.
      */
+    /**
+     * Abre um app instalado na tela do aparelho, como o ícone dele na gaveta.
+     *
+     * <p>Não exige classificação: o usuário pode apontar qualquer pacote. O que se checa é o que o
+     * Android checa — se existe uma activity de launcher para ele. Quando não existe, o usuário é
+     * avisado com o nome do pacote, em vez de o toque não fazer nada (foi assim que o Táxi "não
+     * abria": a falha era silenciosa).
+     */
+    private void launchPhone(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return;
+        String label = packageName;
+        XrGameLibrary.Game known = library.find(packageName);
+        if (known != null) label = known.label;
+        if (!env.launchOnPhone(packageName)) {
+            problem = packageName + " has no launcher activity (not installed?)";
+            env.report("Não consegui abrir " + label + ": o app " + packageName
+                    + " não está instalado neste aparelho.");
+            publishState();
+            return;
+        }
+        problem = null;
+        external = known;
+        publishState();
+    }
+
     private void openFullScreen(XrGameLibrary.Game game) {
         hands.stop();
         current = null;

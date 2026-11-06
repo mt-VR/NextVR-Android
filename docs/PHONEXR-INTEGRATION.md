@@ -57,6 +57,11 @@ pista aparece — APKs antigos, renomeados, plugins exóticos — a página **Co
 Cardboard & VR Box** lista os apps instalados (mais os jogos que o classificador já reconheceu) e abre
 qualquer um em tela cheia pelo mesmo caminho (`{cmd:'phone', pkg}` no `AppWindowController`).
 
+**Abrir um jogo de tela cheia não passa pela lista.** O comando `{cmd:'phone', pkg}` vai para o
+`XrGameController`, que pergunta ao `PackageManager` se existe activity de launcher para aquele pacote
+e a inicia (`startActivity` do ícone). Não usa display, Shizuku nem runtime — e, quando o app não está
+instalado, avisa na tela com o nome do pacote, em vez de o toque não fazer nada.
+
 **Quando a lista é refeita.** Ler o APK de cada jogo é caro, então a biblioteca guarda a resposta em
 vez de reescanear a cada pintura. Ela é pedida de novo quando faz tempo (`ensureXrLibrary`, 15 s),
 quando o usuário pede (**Procurar jogos de novo**, na seção Cardboard & VR Box) e, o que resolve o caso

@@ -306,7 +306,10 @@ test('a shell pinta a tile do VR Box e oferece a tela cheia para qualquer app in
   // O caminho manual, para quando o APK não traz pista nenhuma: o mesmo `startActivity` do app.
   assert.match(xr, /export function launchAppFullScreen\(pkg\) \{/);
   assert.match(xr, /const payload = JSON\.stringify\(\{ cmd: 'phone', pkg \}\);/);
-  assert.match(xr, /window\.NativeXR\?\.appsCommand\?\.\(payload\)/);
+  // O pedido vai pelo lado nativo do PhoneXR (o que tem o PackageManager e responde quando falha);
+  // o caminho das janelas de app fica só como alternativa.
+  assert.match(xr, /if \(window\.NativeXR\?\.xrCommand\) \{ window\.NativeXR\.xrCommand\(payload\); return true; \}/);
+  assert.match(xr, /if \(window\.NativeXR\?\.appsCommand\) \{ window\.NativeXR\.appsCommand\(payload\); return true; \}/);
   // Aviso quando o jogo vai para a tela: sem isso o usuário acha que nada abriu.
   assert.match(xr, /if \(state\.external && state\.externalPackage && wasExternal !== state\.externalPackage\) \{/);
   assert.match(xr, /toast\(t\('xrFullScreenOpened'\)\.replace\('\{game\}', state\.externalGame \|\| state\.externalPackage\)\)/);
@@ -368,46 +371,52 @@ test('a lista Cardboard das configurações mostra o jogo reconhecido mesmo sem 
   assert.match(apps, /rescan\.onclick = \(\) => \{ refreshXrLibrary\(\); loadAndroidLibrary\(true\); toast\(t\('xrCardboardRescan'\)\); \};/);
 });
 
-test('o Táxi Driver tem porta de entrada: Loja, menu principal e biblioteca', async () => {
+test('o Táxi Driver tem porta de entrada: Loja e biblioteca (não no menu)', async () => {
   const xr = await read(FILES.xr);
   // O pacote do APK que o usuário instalou, e a capa da tile (para não ficar em duas iniciais).
   assert.match(xr, /export const TAXI_PACKAGE = 'com\.manerai\.taxidriver\.cardboard';/);
   assert.match(xr, /const XR_COVERS = Object\.freeze\(\{ \[TAXI_PACKAGE\]: TAXI_LOGO \}\);/);
-  // "Onde está o jogo?" respondido pelas duas listas: a de headset (classificado) e a do Android
-  // (instalado), com um palpite pelo nome para APK renomeado.
   assert.match(xr, /export function taxiPackage\(\) \{/);
-  assert.match(xr, /if \(games\.some\(g => g\.package === TAXI_PACKAGE\)\) return TAXI_PACKAGE;/);
-  assert.match(xr, /if \(\(androidApps\(\) \|\| \[\]\)\.some\(a => a\.pkg === TAXI_PACKAGE\)\) return TAXI_PACKAGE;/);
-  assert.match(xr, /const guess = \(androidApps\(\) \|\| \[\]\)\.find\(a => \/taxi\.\?driver\/i\.test\(a\.pkg\)\);/);
-  // Classificado → o caminho normal do jogo; instalado mas não classificado → o startActivity do
-  // ícone. Sem instalado → false, para quem chamou avisar em vez de abrir nada.
-  assert.match(xr, /export function openTaxiDriver\(\) \{[\s\S]{0,220}if \(games\.some\(g => g\.package === pkg\)\) \{ launchXrGame\(pkg\); return true; \}/);
-  assert.match(xr, /return launchAppFullScreen\(pkg\);/);
+  // "Não instalado" só quando ALGUMA lista carregou e não achou: no começo da sessão as duas chegam
+  // depois, e responder `null` era o que fazia o botão dizer "não instalado" com o jogo instalado.
+  assert.match(xr, /if \(!gamesLoaded && apps\.length === 0\) return TAXI_PACKAGE;/);
+  assert.match(xr, /const guess = apps\.find\(a => \/taxi\.\?driver\/i\.test\(a\.pkg\)\);/);
+  // Abrir é SEMPRE o `startActivity` direto: o jogo não depende de runtime, display nem Shizuku.
+  assert.match(xr, /export function openTaxiDriver\(\) \{\n\s+const pkg = taxiPackage\(\);\n\s+if \(!pkg\) return false;/);
+  assert.match(xr, /return launchAppFullScreen\(pkg\);\n\}/);
 
   const apps = await read(FILES.apps);
   // Loja: cartão com selo VR BOX, e o botão diz se está instalado.
   assert.match(apps, /\{ id: 'taxi-driver', name: TAXI_LABEL, cat: 'games', rating: '4\.9', reviews: '12 mil', tag: 'Cardboard · VR Box · Tela cheia', badge: 'VR BOX'/);
   assert.match(apps, /const installedNow = item\.id === 'taxi-driver' && taxiInstalled\(\);/);
-  // Menu principal → o mesmo caminho (o card vive no entry-menu, a ação aqui).
-  assert.match(apps, /on\('taxi-launch', \(\) => \{/);
-  assert.match(apps, /'taxi-driver': \(\) => \{\n\s+if \(openTaxiDriver\(\)\) return;\n\s+toast\(t\('taxiNotInstalled'\)\);/);
   // Biblioteca: tile só quando o jogo está instalado (nada de jogo fantasma).
   assert.match(apps, /const TAXI_DRIVER_ITEM = \{[\s\S]{0,200}imgUrl: TAXI_LOGO/);
   assert.match(apps, /const taxi = taxiInstalled\(\) \? \[TAXI_DRIVER_ITEM\] : \[\];/);
-
-  // O card no menu de entrada e o do grid da Store do menu.
+  assert.match(apps, /'taxi-driver': \(\) => \{\n\s+if \(openTaxiDriver\(\)\) return;\n\s+toast\(t\('taxiNotInstalled'\)\);/);
+  // O menu principal volta a ter cinco cards: o Táxi não tem card próprio lá (o pedido do usuário).
   const entry = await read('web/src/entry-menu.js');
-  assert.match(entry, /data-entry-act="taxi" title="Abrir o Taxi Driver VR no VR Box \(tela cheia\)"/);
-  assert.match(entry, /root\.querySelectorAll\('\[data-entry-act="taxi"\]'\)\.forEach\(btn => \{[\s\S]{0,200}emit\('taxi-launch'\);/);
+  assert.ok(!entry.includes('data-entry-act="taxi"'), 'sem card do Táxi na coluna do menu');
+  assert.ok(!entry.includes('entry-card--taxi'), 'sem CSS/estrutura do card do Táxi');
+  // Mas continua na Loja (a vitrine que se abre pelo menu).
   assert.match(entry, /\{ id: 'taxi-driver', name: 'Taxi Driver VR', cat: 'Cardboard · VR Box · Tela cheia · 4\.9 ★'/);
-  // A logo nova no palco da marca e na tela de entrada.
-  assert.match(entry, /<img class="entry-brand-logo" src="\.\/icons\/nextvr-halloween-logo\.jpg"/);
-  const html = await read('web/index.html');
-  assert.match(html, /<div class="logo"><img src="\.\/icons\/nextvr-halloween-logo\.jpg" alt="NextVR"><\/div>/);
-  // Ambas as artes entram no pacote (senão a UI quebra no aparelho).
-  const build = await read('web/build.mjs');
-  assert.ok(build.includes("'nextvr-halloween-logo.jpg'") && build.includes("'taxi-driver-logo.jpg'"));
   // Aviso honesto quando o APK não está instalado, nos três idiomas.
   const core = await read(FILES.core);
   assert.equal(core.split('    taxiNotInstalled:').length - 1, 3);
+});
+
+test('o ícone do app é a arte nova, e ela NÃO fica na tela de entrada', async () => {
+  // O logo novo é o ícone do launcher (todas as densidades), a partir da arte entregue em artwork/.
+  const source = await readFile(new URL('../artwork/nextvr-apk-logo.png', import.meta.url));
+  assert.equal(source.subarray(1, 4).toString('latin1'), 'PNG');
+  assert.ok(source.length > 500000, 'a arte é a imagem grande entregue, não um marcador');
+  for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+    const icon = await readFile(new URL(`../nextvr-android/src/main/res/drawable-${density}/nextvr_ic_launcher.png`, import.meta.url));
+    assert.equal(icon.subarray(1, 4).toString('latin1'), 'PNG', `${density} launcher icon exists`);
+  }
+  // Mas a tela de entrada continua com o logo de sempre: o usuário não pediu logo ali.
+  const html = await read('web/index.html');
+  assert.match(html, /<div class="logo"><img src="\.\/icons\/nextvr-n\.png" alt="NextVR"><\/div>/);
+  assert.ok(!html.includes('halloween'), 'nenhuma arte de logo na UI');
+  const entry = await read('web/src/entry-menu.js');
+  assert.ok(!entry.includes('entry-brand-logo-row'), 'sem logo no palco do menu principal');
 });

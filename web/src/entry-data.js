@@ -46,14 +46,13 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 export const ENTRY_UPDATES = Object.freeze([
   {
     id: 'ray-outside-6dof-dock-colors',
-    tag: 'NOVO · BOLINHA FORA DA MÃO, TÁXI DRIVER NA LOJA E NO MENU, LOGO NOVA, 6DOF EM PASSO LENTO',
+    tag: 'NOVO · RAIO FORA DA MÃO (ORDEM DE PINTURA), ÍCONE NOVO DO APP, TÁXI DRIVER NA LOJA, 6DOF EM PASSO LENTO',
     time: 'Agora',
-    heading: 'A Bolinha Sai de Fora da Mão, o Táxi Driver Entra pela Loja e pelo Menu, e a Logo Nova Chega',
-    desc: 'A BOLINHA/RAIO: a mão e o feixe são desenhados no mesmo plano, então a bolinha que escolhe apps nascia no ponto da pinça e ficava POR CIMA dos dedos — dentro da mão. Agora a folga é geométrica: o app monta a caixa da mão com os 21 landmarks, segue a linha do feixe e empurra o começo até o primeiro ponto em que ela sai da caixa, mais uma margem. Uma mão perto do rosto ocupa meia tela e antes engolia a bolinha de novo; um número fixo não resolvia. O destino do raio não muda, e num alvo encostado o feixe ainda alcança. '
-      + 'O TÁXI DRIVER está na LOJA (cartão com selo VR BOX, que diz se ele está instalado), num card do MENU PRINCIPAL e como tile da BIBLIOTECA quando está instalado — os três abrem o jogo em tela cheia no VR Box. O pacote procurado é com.manerai.taxidriver.cardboard; se o APK não estiver no aparelho, o app avisa em vez de fingir que abriu. '
-      + 'A LOGO NOVA do NextVR (a arte que você mandou) entrou na tela de entrada, no palco do menu principal e nas artes do pacote. '
-      + 'O 6DOF: passo lento dava uma escala de fluxo pequena (0,001–0,0028 por quadro) e ela era jogada fora inteira, então caminhar devagar não movia nada. Esse resto agora fica guardado e sai somado no primeiro passo confirmado — o limiar para andar continua 0,0028, então não entra deriva nova, e parar zera o acumulado. A confirmação passou a ser em duas de três medições: a 15 Hz, um quadro perdido descartava também a medida boa e o andar virava para-e-anda. '
-      + 'As CORES DA DOCK nas configurações estavam espremidas numa tira com 3 px de vão, com a célula inteira sobrando: agora vão três por fileira, com folga, e os liga/desliga ficaram separados por uma linha.',
+    heading: 'O Raio Sai de Fora da Mão, o Ícone do App é a Arte Nova e o Táxi Driver Abre pela Loja',
+    desc: 'O RAIO: o problema não era só onde ele começava. A mão e o feixe ficam no mesmo plano e o desenho é em ordem (profundidade desligada), então pintar o feixe DEPOIS da mão fazia a bolinha aparecer por cima dos dedos — dentro da mão. Agora a silhueta é pintada por ÚLTIMO, por cima do feixe: o que encostar nela fica escondido. E o começo do feixe é empurrado para fora da caixa da mão, medida nos 21 landmarks, com no mínimo 0,072 do plano do olho — a bolinha (raio 0,016) não tem como encostar no dedo. Os anéis de toque continuam por cima do dedo, que é onde eles precisam estar. '
+      + 'O ÍCONE DO APP agora é a arte nova do NextVR (a que você mandou), gerada em todas as densidades do launcher. Ela NÃO fica na tela de entrada — a tela de entrada voltou a ser o logo de sempre, como era antes. '
+      + 'O TÁXI DRIVER saiu do menu principal (o menu voltou a ter cinco cards) e continua na LOJA, com o selo VR BOX, e na BIBLIOTECA quando está instalado. E o "não abre" era um defeito de verdade: o botão só tentava abrir se o app já tivesse aparecido em alguma lista carregada, e no começo da sessão nenhuma lista chegou — então ele desistia calado. Agora quem decide é o próprio Android: o pedido vai para o lado nativo do NextVR, que pergunta ao sistema se existe a activity do jogo e a inicia; se não existir, aparece um aviso com o nome do pacote, em vez de o toque não fazer nada. '
+      + 'O 6DOF: passo lento deixou de ser descartado (o resto fica guardado e sai somado no passo confirmado, com o mesmo limiar de 0,0028 — sem deriva nova) e a confirmação passou a ser em duas de três medições. As CORES DA DOCK nas configurações vão três por fileira, com folga.',
   },
   {
     id: 'cardboard-vr-box',
