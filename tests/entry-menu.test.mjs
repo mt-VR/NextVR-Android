@@ -827,7 +827,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         hubFound: canOpenLibrary,
         libraryShell,
         dockBack,
-        dockLibraryFound: !!dockLibrary,
+        dockLibraryFound: !!dockRing,
         hadInstallBtn,
         storeLogo,
         inLibrary,
