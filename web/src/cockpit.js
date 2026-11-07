@@ -55,6 +55,58 @@ function savePrefs(prefs) {
 }
 
 /**
+ * ENTRA NO VOO AGORA, num avião sorteado.
+ *
+ *  Este é o caminho normal: a tile da biblioteca / o card da Loja chamam isto e o usuário já está
+ *  dentro do avião — sem passar por menu nenhum. O menu (`openCockpitMenu`) continua existindo para
+ *  ajustes, mas nada depende dele para voar; era ele que deixava a impressão de "o jogo não abre".
+ */
+let state = { what: 'inicial', detail: '' };
+
+export function launchCockpitGame() {
+  const prefs = { ...loadPrefs() };
+  const pool = COCKPIT_PLANES.filter(p => p.id !== prefs.air);
+  const pick = pool[Math.floor(Math.random() * pool.length)] || COCKPIT_PLANES[0];
+  prefs.air = pick.id;
+  savePrefs(prefs);
+  // A página avisa o nativo, e o nativo avisa aqui (window.nextvrCockpitState). Se nada chegar em
+  // 6 s, o usuário vê uma janela dizendo o que faltou — em vez de o toque não fazer nada, que foi
+  // exatamente o relato ("não inicia e nem o menu aparece").
+  state = { at: Date.now(), what: 'enviado' };
+  const started = startCockpitGame(prefs);
+  if (!started) { cockpitProblem('O app não tem a ponte do jogo (NativeXR.cockpitGame).'); return false; }
+  setTimeout(() => {
+    if (state.what === 'aberto') return;
+    cockpitProblem('O jogo não abriu. Etapa: ' + state.what + '. ' + (state.detail || ''));
+  }, 6000);
+  return true;
+}
+
+/** O que o lado nativo conta do jogo (aberto, falhou, saiu). Chamado por `nextvrCockpitState`. */
+if (typeof window !== 'undefined') {
+  window.nextvrCockpitState = (what, detail) => {
+    state = { at: Date.now(), what: String(what || ''), detail: detail ? String(detail) : '' };
+  };
+}
+
+/** Uma janela com o motivo, em vez de silêncio. */
+function cockpitProblem(text) {
+  try {
+    const node = document.createElement('div');
+    node.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:14px;color:#e9eef2;'
+      + 'font:500 14px/1.45 system-ui,sans-serif';
+    const h = document.createElement('b');
+    h.textContent = 'Cockpit VR não abriu';
+    const p = document.createElement('span');
+    p.textContent = text;
+    const again = button('TENTAR DE NOVO', () => { launchCockpitGame(); }, 'primary');
+    node.append(h, p, again);
+    open({ id: 'nextvr-cockpit-problem', title: 'Cockpit VR', node, w: 560, h: 360 });
+  } catch { /* sem janela: o toast já avisou */ }
+  toast('Cockpit VR não abriu: ' + text);
+}
+
+/**
  * Entrega a tela ao jogo com os ajustes do menu.
  *
  * A ponte só existe no app Android: sem ela (build web de teste) o usuário é avisado em vez de o
@@ -241,3 +293,7 @@ export function openCockpitMenu() {
   const win = open({ id: WIN_ID, title: 'Cockpit VR', node, w: 660, h: 780 });
   return win;
 }
+
+// O menu continua alcançável (ajustes de avião, som, gráficos), mas NÃO é o caminho para voar: a tile
+// e o card da Loja entram direto no avião sorteado (`launchCockpitGame`).
+if (typeof window !== 'undefined') window.nextvrCockpitMenu = openCockpitMenu;

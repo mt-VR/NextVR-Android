@@ -106,7 +106,9 @@ class PhoneXrHandRenderer {
     @JvmField @Volatile var virtualEnv=false
     @JvmField @Volatile var gameHandMode=false
     @JvmField @Volatile var mrGameMode=false
-    private val CURSOR_R=.016f
+    // Tamanho do ponteiro. Era .016 — grande demais na tela ("o raio tá muito grande"). O raio, a
+    // bolinha da ponta e o pingo da mão saem todos deste número, então um só encolhe os três.
+    private val CURSOR_R=.0095f
     // O feixe ia da mão até 42% do caminho do alvo (0.76 * 0.55): parecia um toco. Agora ele vai
     // quase ATÉ o alvo, e onde não há alvo o destino é o ponto apontado a 3 m — um raio de verdade.
     private val RAY_SHOWN=1.06f
@@ -880,7 +882,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                     val segments = 12
                     val startT = 0.12f
                     val endT = 0.94f * RAY_SHOWN
-                    val rayWidth = if (blueRay) .0032f else .0024f
+                    val rayWidth = if (blueRay) .0017f else .0013f
                     val boost = if (blueRay) 1f else .78f
                     val rayR = if (blueRay) .18f else HAND_CONTOUR_R
                     val rayG = if (blueRay) .62f else HAND_CONTOUR_G
@@ -910,7 +912,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
             if (b[6] < .5f) return
             // Bolinha branca sólida na ponta do raio (inner = 0f).
             val depth = -b[5]
-            val outer = (if (down || touching) .0095f else .0115f) * depth
+            val outer = (if (down || touching) .0058f else .0068f) * depth
             val inner = 0f
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
             GLES20.glUniform4f(color, 1f, 1f, 1f, fade)

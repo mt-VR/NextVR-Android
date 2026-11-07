@@ -10,7 +10,7 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   refreshXrLibrary, ensureXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,
   TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver } from './xr-games.js';
-import { openCockpitMenu, COCKPIT_LABEL, COCKPIT_LOGO } from './cockpit.js';
+import { launchCockpitGame, COCKPIT_LABEL, COCKPIT_LOGO } from './cockpit.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
 import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
@@ -2167,7 +2167,10 @@ const LIB_ACTIONS = {
   },
   // O Cockpit VR (o jogo de avião do planeVR) abre o MENU do jogo na shell, operado pelo rastreio de
   // mão do NextVR; o voo em si roda na página do jogo, com o rastreio de mão dela (ver cockpit.js).
-  'cockpit-vr': () => openCockpitMenu(),
+  // UM toque = DENTRO DO AVIÃO, num avião sorteado. O menu do Cockpit VR (janela da shell) deixou de
+  // ser o caminho para voar: ele era mais uma tela que podia não aparecer, e o pedido é explícito —
+  // "quando iniciar o jogo já entramos em um avião aleatório".
+  'cockpit-vr': () => launchCockpitGame(),
 };
 
 /* ============ o anel de 10 apps da bolinha da dock ============ */

@@ -328,6 +328,8 @@ final class WebSurface {
         /** O gesto de encerrar do jogo (ou o ✕ da tela dele): o NextVR reassume a tela e a câmera. */
         @android.webkit.JavascriptInterface public void exit() { if(owner!=null) owner.closeCockpitGame(); }
         @android.webkit.JavascriptInterface public void report(String message) { if(owner!=null) owner.report(message); }
+        /** Até onde a página chegou ("boot", "flight"): o app usa isto para saber se o voo montou. */
+        @android.webkit.JavascriptInterface public void stage(String stage) { if(owner!=null) owner.cockpitStage(stage); }
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the

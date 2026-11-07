@@ -330,6 +330,18 @@ test('o raio sai da PINÇA, não de dentro da mão (era "colado no dedão")', as
   assert.match(renderer, /private val beamOrigin=FloatArray\(2\)/);
 });
 
+test('o ponteiro é PEQUENO: raio fino e bolinha do tamanho de um ponto', async () => {
+  const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
+  // "porque o raio tá tão grande? deixa ele menor" — o ponteiro, o raio e a bolinha da ponta saem
+  // todos do mesmo raio de cursor. Eram .016 / .0032 / .0115 e foram reduzidos.
+  const cursor = Number((renderer.match(/private val CURSOR_R=([\d.]+)f/) || [])[1]);
+  assert.ok(cursor > 0 && cursor <= .011, `o raio do cursor é pequeno (${cursor})`);
+  const width = Number((renderer.match(/val rayWidth = if \(blueRay\) ([\d.]+)f else ([\d.]+)f/) || [])[1]);
+  assert.ok(width > 0 && width <= .002, `o raio é fino (${width})`);
+  const dot = Number((renderer.match(/val outer = \(if \(down \|\| touching\) ([\d.]+)f else ([\d.]+)f\) \* depth/) || [])[2]);
+  assert.ok(dot > 0 && dot <= .0075, `a bolinha da ponta é pequena (${dot})`);
+});
+
 test('o cursor (e o raio, e o clique) ficam À FRENTE da mão, não no meio da palma', async () => {
   const gestures = await read('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt');
   // O alvo do raio era o meio da palma: o feixe saía das pontas dos dedos e voltava para dentro da

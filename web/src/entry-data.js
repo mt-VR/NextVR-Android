@@ -45,6 +45,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'cockpit-vr-entra-direto',
+    tag: 'CORREÇÃO · COCKPIT VR: UM TOQUE E VOCÊ JÁ ESTÁ NO AVIÃO (AVIÃO SORTEADO) · RAIO MENOR',
+    time: 'Agora',
+    heading: 'Cockpit VR Sem Menu no Caminho: Toca no Jogo e o Voo Começa Num Avião Sorteado',
+    desc: 'PEDIU DIRETO E AGORA É DIRETO: tocar no Cockpit VR (na biblioteca ou na Loja) entra no voo na hora, com um avião SORTEADO entre os cinco — Cessna 172, Super Tucano, F-22, F-117 e F-35. O menu do NextVR deixou de ser o caminho para voar: ele era mais uma tela que podia não aparecer, e era exatamente isso que travava tudo ("não inicia e nem o menu do jogo aparece"). O menu continua existindo para ajustes, mas ninguém precisa passar por ele. '
+      + 'E SE ALGO DER ERRADO, APARECE NA TELA: quando o jogo abre, a página diz isso ao app; se o app não receber essa confirmação em 6 segundos, surge uma janela dizendo em que etapa parou, com o botão TENTAR DE NOVO. Dentro da janela do jogo, o primeiro que aparece é um aviso amarelo "Cockpit VR · abrindo o voo…": se você vir só ele, o HTML carregou e o problema é no script; se não vir nem ele, a janela não carregou. Sem mais tela preta em silêncio. '
+      + 'O RAIO FICOU MENOR: o ponteiro, o pingo na mão, a espessura do raio e a bolinha da ponta encolheram (o raio estava grosso e a bolinha grande demais na tela). Nada mudou no alcance nem em onde o clique cai — só no tamanho do que se vê.',
+  },
+  {
     id: 'cockpit-vr-voo-direto-e-raio',
     tag: 'CORREÇÃO · COCKPIT VR ABRE NO VOO DIRETO · CURSOR E RAIO SAEM DA MÃO (A BOLINHA NÃO FICA MAIS PRA DENTRO)',
     time: 'Agora',
