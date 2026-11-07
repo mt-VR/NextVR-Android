@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "build:ui": "node web/build.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "gorilla:server": "node server/gorilla-rush/server.mjs",
+    "gorilla:adapt": "node tools/gorilla-rush/adapt.mjs"
   },
   "devDependencies": {
     "@fontsource/inter": "5.2.8",

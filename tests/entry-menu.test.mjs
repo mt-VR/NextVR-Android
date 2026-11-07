@@ -1357,15 +1357,17 @@ test('o carregamento de 6 s pode ser pulado, e não só cancelado', async () => 
   assert.match(html, /\.entry-hud-skip\{/);
 });
 
-test('as configurações cabem em três abas, e a terceira rola até a vista', async () => {
+test('as configurações cabem em quatro abas, e a quarta é do Gorilla Tag', async () => {
   // "Cria uma 3 aba, pq as configurações já tá tudo apertado": a aba 1 fica com o básico, a 2 com as
   // mãos/gestos e a 3 com tela & dock (cor da dock, ordem de profundidade, dim do MR, FPS e ambientes).
   const read = path => readFileSync(path, 'utf8');
   const src = read('web/src/entry-menu.js');
-  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock']])
+  // A 4ª aba é o pedido desta rodada: "cria nas configurações uma 4 aba chamada gorilla tag e bota
+  // pra escolher a sala, as skins e as configurações do gorilla".
+  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock'], [4, 'Aba 4 · Gorilla Tag']])
     assert.ok(src.includes(`data-entry-settings-tab="${tab}">${label}</button>`), `a aba ${tab} existe com o nome ${label}`);
   const pages = [...src.matchAll(/data-entry-settings-page="(\d)"/g)].map(m => Number(m[1]));
-  assert.deepEqual(pages, [1, 2, 3], 'três páginas no carrossel');
+  assert.deepEqual(pages, [1, 2, 3, 4], 'quatro páginas no carrossel');
   // A aba 3 tem a própria grade (duas células lado a lado) e leva a cor da dock e os ambientes.
   assert.match(src, /entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3"/);
   const third = src.slice(src.indexOf('data-entry-settings-page="3"'));
@@ -1377,7 +1379,8 @@ test('as configurações cabem em três abas, e a terceira rola até a vista', a
   // a terceira aba ficava fora da vista, porque entre as páginas existe a folga do `gap`.
   assert.match(src, /const pageLeft = tab => settingsPages\(\)\[tab - 1\]\?\.offsetLeft \?\? 0;/);
   assert.match(src, /settingsCarousel\.scrollTo\(\{ left: targetX, behavior: 'smooth' \}\)/);
-  assert.match(src, /const nextTab = Math\.max\(1, Math\.min\(3, Number\(btn\.dataset\.entrySettingsTab\) \|\| 1\)\);/);
+  // O limite das abas acompanha o número de páginas: com `3` fixo a quarta aba nunca abria.
+  assert.match(src, /const nextTab = Math\.max\(1, Math\.min\(settingsPages\(\)\.length \|\| 4, Number\(btn\.dataset\.entrySettingsTab\) \|\| 1\)\);/);
   const html = read('web/index.html');
   assert.match(html, /\.entry-bento-grid--tab3\{\n    grid-template-columns:1fr 1fr;\n    grid-template-rows:1fr\n  \}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--dockcolor\{grid-column:1;grid-row:1\}/);

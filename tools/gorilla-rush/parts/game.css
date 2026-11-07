@@ -1,0 +1,14 @@
+/* NextVR · Gorilla Rush (o jogo HTML que o usuário entregou), dentro do app.
+ *
+ * Estas regras são NOSSAS, não do jogo: a faixa de estado (conectando / sala / sozinho), o aviso
+ * do gesto que abre o menu e o esconderijo do menu original (que só respondia a toque e por isso
+ * era inalcançável dentro do VR Box). Todo o resto do CSS do jogo fica como veio. */
+#nvb,#netst,#ighint{position:fixed;left:0;right:0;text-align:center;pointer-events:none;
+  font-family:GT,system-ui,sans-serif;text-transform:uppercase;z-index:12}
+#nvb{top:calc(52px + env(safe-area-inset-top,0px));display:none;font-size:15px;color:#eafff2;
+  text-shadow:0 1px 6px #000}
+#netst{top:calc(30px + env(safe-area-inset-top,0px));display:none;font-size:12px;letter-spacing:1px;
+  color:#3ddc84;text-shadow:0 1px 6px #000;opacity:.92}
+#ighint{top:calc(78px + env(safe-area-inset-top,0px));font-size:12px;color:#ffb020;
+  text-shadow:0 1px 6px #000;transition:opacity .6s;opacity:1}
+.nv-boot #lobby,.nv-boot #bg{display:none!important}

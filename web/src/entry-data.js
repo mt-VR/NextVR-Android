@@ -45,6 +45,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-rush-online',
+    tag: 'GORILLA RUSH NO LUGAR DO GORILLA TAG · 4ª ABA · ONLINE NO NOSSO SERVIDOR',
+    time: 'Agora',
+    heading: 'Gorilla Rush: o Jogo Entra Direto, a Skin e a Sala Ficam na Aba 4, e o Online é um Servidor Nosso',
+    desc: 'O GORILLA TAG QUE EXISTIA NO APP SAIU DA FRENTE: a tile da Biblioteca agora abre o GORILLA RUSH — o arquivo HTML que você entregou — em tela cheia, com o estéreo, o mapa e o rastreio de mão que já vêm dentro dele. '
+      + 'NADA DE SERVIÇO DE TERCEIROS: o online do jogo usava o PeerJS público. Ele saiu, e entrou o NOSSO servidor (server/gorilla-rush), que roda num PC da mesma rede Wi-Fi ou em qualquer VPS. '
+      + 'ENTRA SEM SKIN: o gorila nasce sem acessório nenhum; a cor, o óculos, o chapéu e a roupa são escolhidos de pé, antes de pôr o celular no VR Box. '
+      + 'A ABA 4 "GORILLA TAG" tem a sala (código ou pública), o modo (Casual, Pega-pego, Infecção), a skin, os gráficos, a tela de dois olhos, o movimento, o rastreio de mão e o endereço do servidor. O botão ENTRAR (JOIN) cai direto no jogo online, sem passar pela Biblioteca; quem quer jogar sozinho abre pela Biblioteca de Apps. '
+      + 'E DENTRO DO JOGO TEM MENU: segure as DUAS MÃOS paradas à frente por 1,2 s (ou dois dedos na tela) e um painel aparece no mundo — você MIRE COM A CABEÇA, pelo giroscópio, e fica 0,9 s em cima do botão para acionar. Sem toque, sem controle, sem sair do jogo.',
+  },
+  {
     id: 'raio-tamanho-build-62',
     tag: 'AJUSTE · O RAIO VOLTOU AO TAMANHO DA BUILD 62 (CURTO) — E A BOLINHA CONTINUA PEQUENA',
     time: 'Agora',

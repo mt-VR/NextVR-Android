@@ -188,8 +188,12 @@ test('nada de tela preta muda: o app sabe que o jogo abriu, e a página conta at
   assert.match(cockpit, /window\.nextvrCockpitState = \(what, detail\) => \{/);
   assert.match(cockpit, /cockpitProblem\('O jogo não abriu\. Etapa: ' \+ state\.what/);
   // Se o voo não montar em 12 s, o app TIRA o usuário da tela preta (e já disse o motivo).
-  assert.match(activity, /if\("flight"\.equals\(cockpitStage\)\) return;/);
-  assert.match(activity, /cockpitState\("falhou",why\);\s*report\("Cockpit VR: "\+why\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*closeCockpitGame\(\);/);
+  // A janela é a mesma para o Cockpit VR e para o Gorilla Rush: a etapa que diz "já está rodando"
+  // muda por página ("flight" no voo, "play" na partida).
+  assert.match(activity, /String ready="gorilla"\.equals\(gameKind\)\?"play":"flight";/);
+  assert.match(activity, /if\(ready\.equals\(cockpitStage\)\) return;/);
+  assert.match(activity, /String label="gorilla"\.equals\(gameKind\)\?"Gorilla Rush":"Cockpit VR";/);
+  assert.match(activity, /cockpitState\("falhou",why\);\s*report\(label\+": "\+why\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*closeCockpitGame\(\);/);
 });
 
 test('a rodada tem entrada no menu de Atualizações', async () => {

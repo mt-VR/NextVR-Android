@@ -131,6 +131,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     // A tela cheia de um jogo HTML com estéreo e mãos próprios (Cockpit VR). Enquanto ela existe,
     // a câmera e o rastreio de mão DESTE app estão parados: são do jogo.
     private WebView cockpitView;
+    // Qual página é a dona da tela cheia agora: "cockpit" (Cockpit VR) ou "gorilla" (Gorilla Rush).
+    // As duas usam a MESMA janela, o mesmo dono da câmera e o mesmo caminho de volta; o que muda é o
+    // arquivo que abre e a etapa que a página reporta quando já está rodando.
+    private volatile String gameKind="cockpit";
     // O voo do Cockpit VR precisa da câmera para as mãos do PRÓPRIO jogo: se o NextVR ainda não a
     // tem (o usuário nunca ligou o rastreio de mão), a permissão é pedida antes de a página abrir.
     private static final int REQUEST_GAME_CAMERA=12;
@@ -684,8 +688,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private void cockpitState(String what,String detail) {
         WebSurface target=shell;
         if(target==null) return;
+        String hook="gorilla".equals(gameKind)?"nextvrGorillaState":"nextvrCockpitState";
         try {
-            target.evaluate("window.nextvrCockpitState&&window.nextvrCockpitState("
+            target.evaluate("window."+hook+"&&window."+hook+"("
                 +JSONObject.quote(what)+","+JSONObject.quote(detail==null?"":detail)+")");
         } catch(Throwable ignored) {}
     }
@@ -731,6 +736,60 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
 
     /**
+     * Os ajustes do Gorilla Rush escolhidos na aba 4 das Configurações, como query string.
+     *
+     * <p>Lista branca de novo, pelo mesmo motivo do Cockpit: a shell escolhe entre as opções que o
+     * jogo tem, não inventa o que a página carrega. `srv` é o NOSSO servidor (WebSocket); sem ele o
+     * jogo entra sozinho e diz isso na tela.
+     */
+    private static String gorillaQueryFromJson(String json) {
+        JSONObject o;
+        try { o=new JSONObject(json==null || json.trim().isEmpty()?"{}":json); }
+        catch(Throwable malformed) { o=new JSONObject(); }
+        StringBuilder out=new StringBuilder();
+        String nick=o.optString("nick","").replaceAll("[^\\p{L}\\p{N} _-]"," ").trim();
+        if(nick.length()>12) nick=nick.substring(0,12);
+        String room=o.optString("room","").toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]","");
+        if(room.length()>8) room=room.substring(0,8);
+        String mode=o.optString("mode","cas");
+        if(!mode.equals("tag") && !mode.equals("inf")) mode="cas";
+        int gfx=o.optInt("gfx",0);
+        if(gfx<0 || gfx>2) gfx=0;
+        String col=o.optString("col","#ffffff");
+        if(!col.matches("#[0-9a-fA-F]{6}")) col="#ffffff";
+        String srv=o.optString("srv","").trim();
+        // Só WebSocket, e nunca http(s)/javascript: o valor vai direto para `new WebSocket()`
+        // dentro da página do jogo.
+        if(!srv.isEmpty() && !srv.matches("wss?://[^\\s\"'<>]{1,180}")) srv="";
+        String accG=o.optString("accG",""); if(!accG.equals("g_white")) accG="";
+        String accH=o.optString("accH","");
+        if(!(accH.equals("h_top")||accH.equals("h_party")||accH.equals("h_banana")||accH.equals("h_penguin"))) accH="";
+        String accC=o.optString("accC",""); if(!accC.equals("c_hawaii")) accC="";
+        double accY=Math.max(-8,Math.min(8,o.optDouble("accY",0)));
+        double accZ=Math.max(-8,Math.min(8,o.optDouble("accZ",0)));
+        appendQuery(out,"nick",nick);
+        appendQuery(out,"room",room);
+        appendQuery(out,"mode",mode);
+        appendQuery(out,"gfx",String.valueOf(gfx));
+        appendQuery(out,"vr",o.optBoolean("vr",true)?"1":"0");
+        appendQuery(out,"mv",o.optBoolean("mv",true)?"1":"0");
+        appendQuery(out,"ht",o.optBoolean("ht",false)?"1":"0");
+        appendQuery(out,"col",col);
+        appendQuery(out,"acc",accG+","+accH+","+accC+","+accY+","+accZ);
+        appendQuery(out,"srv",srv);
+        appendQuery(out,"solo",o.optBoolean("solo",false)?"1":"0");
+        appendQuery(out,"quick",o.optBoolean("quick",false)?"1":"0");
+        return out.toString();
+    }
+
+    private static void appendQuery(StringBuilder out,String key,String value) {
+        if(out.length()>0) out.append('&');
+        out.append(key).append('=');
+        try { out.append(java.net.URLEncoder.encode(value==null?"":value,"UTF-8")); }
+        catch(Throwable ignored) { }
+    }
+
+    /**
      * Entrega a tela ao jogo HTML.
      *
      * <p>O Cockpit VR traz o próprio estéreo (dois olhos com a distorção da lente do VR Box) e o
@@ -738,8 +797,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      * rastreio de mão DESTE app sai de cena — sem feixe, sem cursor, sem mão desenhada — e a câmera
      * é fechada, porque é uma só no aparelho.
      */
-    private void openCockpitGame(String query) {
+    private void openCockpitGame(String query) { openHtmlGame("cockpit",query); }
+
+    /**
+     * Abre o Gorilla Rush (o jogo HTML que o usuário entregou) em tela cheia.
+     *
+     * <p>Entra-se direto no jogo: o menu do jogo original só respondia a toque e por isso era
+     * inalcançável dentro do VR Box. Quem escolhe sala, skin e configurações é o NextVR (aba 4) e o
+     * menu de dentro do jogo, guiado pelo giroscópio.
+     */
+    private void openGorillaRush(String query) { openHtmlGame("gorilla",query); }
+
+    private void openHtmlGame(String kind,String query) {
         if(closed || cockpitView!=null || cockpitPending) return;
+        gameKind=kind;
         cockpitPending=true;
         // A permissão de câmera é pedida SEM travar a abertura. Ela é necessária para as mãos do
         // jogo (a concessão do WebView só vale se o APP já a tiver), mas esperar a resposta antes de
@@ -766,7 +837,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
 
     private void showCockpitGame(String query) {
         if(closed || cockpitView!=null) return;
-        String url=WebSurface.ORIGIN+"/ui/cockpit/game.html"+(query==null || query.isEmpty()?"":"?"+query);
+        String page="gorilla".equals(gameKind)?"/ui/gorilla-rush/game.html":"/ui/cockpit/game.html";
+        String url=WebSurface.ORIGIN+page+(query==null || query.isEmpty()?"":"?"+query);
         WebView view;
         try { view=WebSurface.createFullscreenGameView(this,url,"cockpit"); }
         catch(Throwable failed) {
@@ -797,15 +869,17 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         main.postDelayed(()->{
             WebView v=cockpitView;
             if(v==null) return;
-            if("flight".equals(cockpitStage)) return;   // a página já está voando
+            String ready="gorilla".equals(gameKind)?"play":"flight";
+            if(ready.equals(cockpitStage)) return;   // a página já está rodando (voo / partida)
             try {
                 v.evaluateJavascript("(function(){var n=document.getElementById('nvd');"
                     +"return (document.querySelector('canvas')?'ok':'SEM CANVAS')+' | '+(n?n.textContent:'')"
                     +"+' | '+(window.__lastErr||'')})()",value->{
                         if(v!=cockpitView) return;
+                        String label="gorilla".equals(gameKind)?"Gorilla Rush":"Cockpit VR";
                         String why="o jogo não montou a tela em 12 s. "+value;
                         cockpitState("falhou",why);
-                        report("Cockpit VR: "+why);
+                        report(label+": "+why);
                         // Tela preta não pode prender o usuário: sai do jogo e devolve o NextVR (com o
                         // motivo já dito). Se o jogo estiver só lento, ele volta a ser aberto na próxima.
                         closeCockpitGame();
@@ -874,7 +948,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // O voo já está na tela: a página do jogo levanta as mãos dela agora.
                 if(game!=null) game.evaluateJavascript("window.__nvRetryHands&&window.__nvRetryHands()",null);
             } else {
-                report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
+                report(("gorilla".equals(gameKind)?"Gorilla Rush":"Cockpit VR")
+                    +": sem a permissão de Câmera o jogo abre, mas as mãos dele não sobem.");
             }
             return;
         }
@@ -1195,6 +1270,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(closed) return;
             final String query=queryFromJson(json);
             main.post(()->openCockpitGame(query));
+        }
+        /**
+         * Abre o Gorilla Rush em tela cheia: {@code {room:'ABCDE',mode:'inf',srv:'ws://…',
+         * nick:'…',accG:'',accH:'',accC:'',col:'#ffffff',gfx:0,vr:true,solo:false}}.
+         *
+         * <p>Dois caminhos chegam aqui e os dois entram direto no jogo, sem passar pela biblioteca:
+         * o JOIN da aba 4 (online, com a sala) e a tile da biblioteca (sozinho).
+         */
+        @JavascriptInterface public void gorillaGame(String json) {
+            if(closed) return;
+            final String query=gorillaQueryFromJson(json);
+            main.post(()->openGorillaRush(query));
         }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void setGameHandMode(boolean enabled) {

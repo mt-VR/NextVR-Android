@@ -14,6 +14,10 @@ import {
   ENTRY_ABOUT_TEXT,
   ENTRY_UPDATES,
 } from './entry-data.js';
+import {
+  GORILLA_ACCESSORIES, GORILLA_COLORS, GORILLA_MODES,
+  gorillaPrefs, updateGorillaPrefs, launchGorillaRush,
+} from './gorilla-rush.js';
 
 export {
   ENTRY_VERSION,
@@ -337,7 +341,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.4.3</span>
+            <span class="entry-updates-badge">v2.5.0</span>
           </div>
           <div class="entry-updates-list">
             ${ENTRY_UPDATES.map(u => `
@@ -353,10 +357,10 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         </div>
         <div class="entry-brand-store-dock">
           <div class="entry-brand-store-info" data-entry-act="store" role="button" tabindex="0">
-            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-brand-store-thumb" draggable="false" />
+            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Rush" class="entry-brand-store-thumb" draggable="false" />
             <div class="entry-brand-store-meta">
               <span class="entry-brand-store-tag">STORE · EM DESTAQUE</span>
-              <strong class="entry-brand-store-name">Gorilla Tag VR</strong>
+              <strong class="entry-brand-store-name">Gorilla Rush VR</strong>
             </div>
           </div>
           <div class="entry-brand-store-actions">
@@ -375,7 +379,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
       ? `<button type="button" class="entry-btn entry-btn--primary" disabled>Baixando... ${storeGorillaPct}%</button>`
       : installed
       ? `<span class="entry-store-badge-ok" data-entry-gorilla-installed>✓ Na Biblioteca</span>
-         <button type="button" class="entry-btn entry-btn--primary" data-entry-play-gorilla>Jogar Gorilla Tag</button>`
+         <button type="button" class="entry-btn entry-btn--primary" data-entry-play-gorilla>Jogar Gorilla Rush</button>`
       : `<button type="button" class="entry-btn entry-btn--primary" data-entry-install-gorilla>BAIXAR</button>`;
 
     return `
@@ -398,11 +402,11 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
 
         <div class="entry-store-body">
           <div class="entry-store-featured" data-entry-store-gorilla>
-            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" class="entry-store-gorilla-logo" draggable="false" />
+            <img src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Rush" class="entry-store-gorilla-logo" draggable="false" />
             <div class="entry-store-featured-info">
-              <div class="entry-store-kicker">DESTAQUE VR · LENTES GOOGLE CARDBOARD 2015</div>
-              <div class="entry-store-title">Gorilla Tag</div>
-              <div class="entry-store-desc">Mapa da floresta 3D com locomoção física pelas mãos e braços de gorila em Hand Tracking. Ao baixar, vai para a Biblioteca de Apps.</div>
+              <div class="entry-store-kicker">DESTAQUE VR · MAPA + FÍSICA + ONLINE PRÓPRIO</div>
+              <div class="entry-store-title">Gorilla Rush</div>
+              <div class="entry-store-desc">O jogo HTML do Gorilla Rush rodando dentro do NextVR: mapa, física pelas mãos e online no NOSSO servidor. A Biblioteca abre SOZINHO; o JOIN da aba 4 (Gorilla Tag) entra na sala. Sem skin por padrão.</div>
               <div class="entry-store-actions">
                 ${actionHtml}
               </div>
@@ -471,6 +475,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 1 ? 'on' : ''}" data-entry-settings-tab="1">Aba 1 · Básico</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Mãos &amp; Gestos</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Tela &amp; Dock</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 4 ? 'on' : ''}" data-entry-settings-tab="4">Aba 4 · Gorilla Tag</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -579,8 +584,81 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               </div>
             </div>
           </div>
+
+          ${renderGorillaSettingsPage()}
         </div>
       </div>`;
+  };
+
+  /**
+   * ABA 4 · GORILLA TAG — a sala, a skin e as configurações do Gorilla Rush.
+   *
+   * Aqui o usuário escolhe TUDO de pé, antes de pôr o celular no VR Box: a skin (que na entrada é
+   * NENHUMA), a sala e o modo, o nosso servidor, e o JOIN que entra direto no jogo online sem
+   * passar pela biblioteca. Dentro do jogo, a mesma escolha de skin/configuração existe no menu
+   * guiado pelo giroscópio (segure as duas mãos à frente).
+   */
+  const renderGorillaSettingsPage = () => {
+    const g = gorillaPrefs();
+    const accLabel = (list, id) => (list.find(a => a.id === id) || list[0]).name;
+    const modeOf = id => GORILLA_MODES.find(m => m.id === id) || GORILLA_MODES[0];
+    return `
+    <div class="entry-bento-grid entry-bento-grid--tab4 entry-settings-page" data-entry-settings-page="4">
+      <div class="entry-bento-cell entry-bento-cell--gorilla-skin">
+        <div class="entry-bento-title">SKIN DO GORILA · ENTRA SEM NENHUMA</div>
+        <div class="entry-gorilla-colors">
+          ${GORILLA_COLORS.map(c => `<button type="button" class="entry-gorilla-sw ${g.col.toLowerCase() === c ? 'on' : ''}"
+            data-entry-gorilla-color="${c}" style="background:${c}" title="Cor ${c}"></button>`).join('')}
+        </div>
+        <div class="entry-gorilla-col">
+          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accG">Óculos: ${accLabel(GORILLA_ACCESSORIES.accG, g.accG)}</button>
+          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accH">Cabeça: ${accLabel(GORILLA_ACCESSORIES.accH, g.accH)}</button>
+          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accC">Roupa: ${accLabel(GORILLA_ACCESSORIES.accC, g.accC)}</button>
+        </div>
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--gorilla-room">
+        <div class="entry-bento-title">SALA · ${modeOf(g.mode).name.toUpperCase()}</div>
+        <input type="text" class="entry-login-input entry-gorilla-input" data-entry-gorilla-room
+          maxlength="8" placeholder="CÓDIGO DA SALA (VAZIO = PÚBLICA)" value="${escHtml(g.room)}" />
+        <div class="entry-seg-row entry-seg-row--compact">
+          ${GORILLA_MODES.map(m => `<button type="button" class="entry-seg-btn ${g.mode === m.id ? 'on' : ''}"
+            data-entry-gorilla-mode="${m.id}" title="${escHtml(m.desc)}">${m.name}</button>`).join('')}
+        </div>
+        <div class="entry-gorilla-actions">
+          <button type="button" class="entry-btn entry-btn--primary" data-entry-gorilla-join>ENTRAR (JOIN)</button>
+          <button type="button" class="entry-btn entry-btn--ghost" data-entry-gorilla-quick>SALA PÚBLICA</button>
+        </div>
+        <div class="entry-bento-hint">Sozinho? Abra pela Biblioteca de Apps — o JOIN daqui é o online.
+          Sem servidor configurado o jogo abre sozinho e avisa na tela.</div>
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--gorilla-cfg">
+        <div class="entry-bento-title">GORILA · CONFIGURAÇÕES</div>
+        <div class="entry-gorilla-col">
+          <div class="entry-seg-row entry-seg-row--compact">
+            ${['Baixo', 'Médio', 'Alto'].map((n, i) => `<button type="button" class="entry-seg-btn ${g.gfx === i ? 'on' : ''}"
+              data-entry-gorilla-gfx="${i}">Gráficos: ${n}</button>`).join('')}
+          </div>
+          <button type="button" class="entry-seg-btn ${g.vr ? 'on' : ''}" data-entry-gorilla-vr="${g.vr ? '0' : '1'}">
+            Tela: ${g.vr ? 'VR Box (2 olhos)' : 'Normal (1 olho)'}</button>
+          <button type="button" class="entry-seg-btn ${g.mv ? 'on' : ''}" data-entry-gorilla-mv="${g.mv ? '0' : '1'}">
+            Movimento: ${g.mv ? 'Mãos + toque' : 'Só as mãos'}</button>
+          <button type="button" class="entry-seg-btn ${g.ht ? 'on' : ''}" data-entry-gorilla-ht="${g.ht ? '0' : '1'}">
+            Rastreio de mão: ${g.ht ? 'Preciso' : 'Rápido'}</button>
+        </div>
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--gorilla-srv">
+        <div class="entry-bento-title">O NOSSO SERVIDOR (NÃO O DO GORILLA RUSH)</div>
+        <input type="text" class="entry-login-input entry-gorilla-input" data-entry-gorilla-srv
+          placeholder="ws://192.168.0.10:8787" value="${escHtml(g.srv)}" />
+        <input type="text" class="entry-login-input entry-gorilla-input" data-entry-gorilla-nick
+          maxlength="12" placeholder="SEU NOME NO JOGO" value="${escHtml(g.nick)}" />
+        <div class="entry-bento-hint">Rode <b>node server/gorilla-rush/server.mjs</b> no PC (mesmo Wi-Fi) ou
+          publique num VPS: o endereço que ele imprime vai aqui. Sem internet, o jogo entra sozinho.</div>
+      </div>
+    </div>`;
   };
 
   const renderCollaboratorsPanel = () => `
@@ -1144,9 +1222,66 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         }
       }, { passive: true });
     }
+    // ---- Aba 4 · Gorilla Tag: sala, skin, configurações e o JOIN que entra direto ----
+    // Tudo é gravado em `nextvrGorillaPrefs` (web/src/gorilla-rush.js) e vira a query string que o
+    // lado nativo monta para a página do jogo. Texto (sala, servidor, nome) salva sem repintar, para
+    // o teclado não perder o foco no meio da digitação.
+    const gorillaSave = patch => { updateGorillaPrefs(patch); };
+    root.querySelectorAll('[data-entry-gorilla-color]').forEach(btn => {
+      btn.onclick = () => {
+        gorillaSave({ col: btn.dataset.entryGorillaColor });
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-gorilla-acc]').forEach(btn => {
+      btn.onclick = () => {
+        const key = btn.dataset.entryGorillaAcc;
+        const list = GORILLA_ACCESSORIES[key] || [];
+        const g = gorillaPrefs();
+        const at = Math.max(0, list.findIndex(a => a.id === g[key]));
+        gorillaSave({ [key]: list[(at + 1) % list.length].id });
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-gorilla-mode]').forEach(btn => {
+      btn.onclick = () => {
+        gorillaSave({ mode: btn.dataset.entryGorillaMode });
+        paint();
+      };
+    });
+    root.querySelectorAll('[data-entry-gorilla-gfx]').forEach(btn => {
+      btn.onclick = () => {
+        gorillaSave({ gfx: Number(btn.dataset.entryGorillaGfx) || 0 });
+        paint();
+      };
+    });
+    for (const [attr, key] of [['data-entry-gorilla-vr', 'vr'], ['data-entry-gorilla-mv', 'mv'], ['data-entry-gorilla-ht', 'ht']]) {
+      root.querySelectorAll(`[${attr}]`).forEach(btn => {
+        btn.onclick = () => {
+          gorillaSave({ [key]: btn.getAttribute(attr) === '1' });
+          paint();
+        };
+      });
+    }
+    const bindText = (attr, key, transform) => {
+      root.querySelectorAll(`[${attr}]`).forEach(input => {
+        input.onchange = () => gorillaSave({ [key]: transform ? transform(input.value) : input.value });
+        input.onblur = () => gorillaSave({ [key]: transform ? transform(input.value) : input.value });
+      });
+    };
+    bindText('data-entry-gorilla-room', 'room', value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8));
+    bindText('data-entry-gorilla-srv', 'srv');
+    bindText('data-entry-gorilla-nick', 'nick', value => String(value || '').slice(0, 12));
+    root.querySelectorAll('[data-entry-gorilla-join]').forEach(btn => {
+      btn.onclick = () => launchGorillaRush({ mode: 'online' });
+    });
+    root.querySelectorAll('[data-entry-gorilla-quick]').forEach(btn => {
+      btn.onclick = () => launchGorillaRush({ mode: 'quick' });
+    });
+
     root.querySelectorAll('[data-entry-settings-tab]').forEach(btn => {
       btn.onclick = () => {
-        const nextTab = Math.max(1, Math.min(3, Number(btn.dataset.entrySettingsTab) || 1));
+        const nextTab = Math.max(1, Math.min(settingsPages().length || 4, Number(btn.dataset.entrySettingsTab) || 1));
         activeSettingsTab = nextTab;
         syncTabButtons();
         if (settingsCarousel) {
