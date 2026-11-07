@@ -341,7 +341,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.6.1</span>
+            <span class="entry-updates-badge">v2.6.2</span>
           </div>
           <div class="entry-updates-list">
             ${ENTRY_UPDATES.map(u => `

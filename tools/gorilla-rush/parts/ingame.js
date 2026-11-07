@@ -226,13 +226,60 @@ window.__nvRetryHands = () => {
   // do app e o jogo ficaria sem mãos (e sem o rastreio do NextVR).
   try { if (!camOn && !NV_NATIVE_HANDS) startCam(); } catch (e) { /* segue sem mãos */ }
 };
+// ---------- SETA NO CHÃO: para onde o gorila vai ----------
+//
+// "tá bem difícil de saber pra onde o gorilla vai": em primeira pessoa, com os braços ocupando a
+// parte de baixo da tela, nada no mundo dizia para onde o corpo aponta. Aqui entra uma seta discreta
+// no chão, ~1 m à frente dos pés, sempre alinhada com a direção do corpo — o mesmo desenho nos dois
+// olhos, sem texto nenhum na tela. Ela some fora da partida.
+const NVHEAD = (() => {
+  let mesh = null, mat = null;
+  function build() {
+    // Seta: cabo (um quadrilátero) + ponta (um triângulo), deitada no plano XZ, apontando -Z.
+    const v = new Float32Array([
+      -0.055, 0, -0.30, 0.055, 0, -0.30, 0.055, 0, -0.72,
+      -0.055, 0, -0.30, 0.055, 0, -0.72, -0.055, 0, -0.72,
+      -0.20, 0, -0.66, 0.20, 0, -0.66, 0, 0, -1.02,
+    ]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.computeBoundingSphere();
+    mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.42,
+      depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
+    });
+    mesh = new THREE.Mesh(g, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 2;
+    mesh.visible = false;
+    S.add(mesh);
+  }
+  const fw = V3();
+  return {
+    tick() {
+      try {
+        if (!mesh) build();
+        if (state != 'play') { mesh.visible = false; return; }
+        fw.set(0, 0, -1).applyQuaternion(cam.quaternion);
+        const h = Math.hypot(fw.x, fw.z);
+        if (h < 1e-4) { mesh.visible = false; return; }
+        fw.x /= h; fw.z /= h;
+        mesh.visible = true;
+        mesh.position.set(P.x, P.y - 1.08, P.z);
+        mesh.rotation.y = Math.atan2(-fw.x, -fw.z);
+      } catch (e) { /* sem seta o jogo continua */ }
+    },
+  };
+})();
+
 // Sonda para diagnóstico (e para o app saber em que pé está o jogo sem abrir o console).
 window.__nvGorilla = () => ({
   estado: state, rede: NET_STATE, sala: NET.code, anfitriao: !!NET.host,
   sozinho: SOLO, servidor: SRV_URL, erro: NET_ERR, menu: NVIG.isOpen,
   // O que a tela mostrava mal na 2.6.0: o boneco do gorila e as mãos.
   modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
-  nativo: NV_NATIVE_HANDS, olhos: vrView, proporcao: +(R.getPixelRatio() || 0),
+  seguradas: NV_HAND_HELD, seta: !!(NVHEAD && true),
+  nativo: NV_NATIVE_HANDS, olhos: vrView, lente: NVLENS && NVLENS.k1,
   tela: innerWidth + 'x' + innerHeight,
 });
 

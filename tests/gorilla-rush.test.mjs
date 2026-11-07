@@ -261,13 +261,22 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   // O three.js JÁ multiplica viewport/scissor pelo pixelRatio da sessão
   // (`setViewport` → `N.multiplyScalar(P)`). Multiplicar de novo aqui encolhia cada olho para um
   // quarto da tela, no canto: era o "as lentes estão assim" da 2.6.0.
-  assert.equal(/R\.getPixelRatio\(\)|Math\.round\(e \* hw/.test(lens), false,
+  // O pixel ratio SÓ pode aparecer no TAMANHO da textura do olho (device pixels); no recorte, que é
+  // em CSS, ele encolheria o olho para um quarto da tela.
+  assert.equal(lens.split('\n').some((l) => /setViewport|setScissor/.test(l) && !l.trim().startsWith('//') && /getPixelRatio|dpr/.test(l)), false,
     'o recorte dos olhos NÃO multiplica pelo pixel ratio outra vez');
-  assert.ok(lens.includes('const W = innerWidth, H = innerHeight, hw = W >> 1;'),
+  assert.equal(/Math\.round\(e \* hw/.test(lens), false, 'nem por outro caminho');
+  assert.ok(lens.includes('const dpr = R.getPixelRatio() || 1;') && lens.includes('ensure(Math.round(hw * dpr), Math.round(H * dpr));'),
+    'o pixel ratio é usado só no tamanho da textura do olho, como o three.js exige');
+  assert.equal(/const W = innerWidth, H = innerHeight, hw = (W >> 1|W \/ 2);/.test(lens), true,
     'os olhos são recortados em unidades de CSS, como o three.js espera');
-  assert.ok(lens.includes('cam.aspect = hw / H;'), 'cada olho vê meia tela, não a tela inteira');
-  // A correção é a lente do VR Box: nada de pré-distorção por cima (o NextVR também não faz).
-  assert.equal(/WebGLRenderTarget|barrel/i.test(lens), false, 'sem uma segunda distorção em cima da lente');
+  assert.ok(lens.includes('cam.aspect = tw / th;') || lens.includes('cam.aspect = hw / H;'),
+    'cada olho vê meia tela, não a tela inteira');
+  // Uma textura por olho e o passe de barril com os MESMOS k1/k2 do Cockpit: isso é a correção da
+  // lente Cardboard 2015, não uma "segunda distorção" por cima dela.
+  assert.ok(lens.includes('const K1 = 0.441, K2 = 0.156;'),
+    'os coeficientes são os da Cardboard v1, iguais aos do jogo de avião');
+  assert.ok(lens.includes('rt[e] = new THREE.WebGLRenderTarget('), 'uma textura por olho, meia tela cada');
   assert.ok(game.includes('function renderPlay(){if(NVLENS.on()){NVLENS.render();return}'),
     'o desenho do jogo passa pelas lentes do NextVR');
 

@@ -35,7 +35,9 @@ test('o menu do Cockpit VR é da shell: aviões e início, com a ponte nativa', 
   assert.match(menu, /prefs\.mode = 'mono'; launch\(\);/);
   assert.match(menu, /const ok = startCockpitGame\(prefs\);/);
   assert.match(menu, /position:sticky;top:0/, 'os botões de voar ficam presos no alto, sempre à vista');
-  assert.match(menu, /lq: true, as: true/, 'os gráficos leves vêm ligados por padrão');
+  // "deixa com maior qualidade": o cenário completo é o padrão agora; a fluidez vem da resolução
+  // adaptativa do jogo, não do modo leve.
+  assert.match(menu, /lq: false, as: true/, 'os gráficos leves vêm desligados (qualidade) e o assistente ligado');
   // A entrega da tela ao jogo vai pela ponte nativa, e falha ALTO quando ela não existe.
   assert.match(menu, /window\.NativeXR\.cockpitGame\(JSON\.stringify\(\{/,
     'o botão de iniciar entrega os ajustes ao lado nativo');
@@ -208,9 +210,58 @@ test('nada de tela preta muda: o app sabe que o jogo abriu, e a página conta at
   assert.match(activity, /cockpitState\("falhou",why\);\s*report\(label\+": "\+why\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*closeCockpitGame\(\);/);
 });
 
+test('o voo tem MAIS qualidade: 900 px por olho e a proporção exata da meia-tela', async () => {
+  const game = await read(FILES.game);
+  // "ajeita a qualidade do jogo de avião, deixa com maior qualidade": a textura de cada olho subiu de
+  // 560 px para 900 px de altura, e o céu/nuvens/cenário voltam a ser os completos por padrão.
+  assert.match(game, /RT_H=900/, 'a resolução base do olho é 900 px (era 560)');
+  assert.match(game, /makeRTs\(RT_H,2,RT_STEPS\[rtStep\]\)/, 'nasce já no degrau do aparelho, com MSAA 2');
+  // O olho é esticado para a METADE da tela no draw(); com proporção fixa (1.26) contra ~1.07 da tela
+  // a imagem saía alargada na horizontal — e gastava ~15 % de pixels à toa.
+  assert.match(game, /function rtW\(hh\)\{return Math\.max\(2,Math\.round\(hh\*\(Math\.max\(2,innerWidth\)\/2\)\/Math\.max\(2,innerHeight\)\)\)\}/,
+    'a textura do olho tem a proporção da meia-tela');
+  assert.match(game, /const hw=w\/2,aspE=hw\/Math\.max\(1,h\);/, 'e a câmera de cada olho usa essa mesma proporção');
+  assert.match(game, /eyeL\.aspect=eyeR\.aspect=aspE;eyeL\.updateProjectionMatrix\(\);eyeR\.updateProjectionMatrix\(\)/,
+    'com a projeção refeita (rotação troca a proporção)');
+});
+
+test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma realocação à toa', async () => {
+  const game = await read(FILES.game);
+  // O engasgo periódico era a resolução mudando a cada 1,2 s em passos de 6 %, e cada mudança
+  // realoca duas texturas. Agora são degraus, histerese larga e 4 s entre decisões.
+  assert.match(game, /const RT_STEPS=\[1,\.9,\.8,\.72,\.64,\.56,\.5,\.45\];/, 'a resolução anda em degraus fixos');
+  assert.match(game, /t-lastRs>\(adj<3\?1200:4000\)/, 'decisão a cada 4 s (1,2 s só na calibragem inicial)');
+  assert.match(game, /else if\(fAvg>26\)setStep\(rtStep\+1\)/, 'cai de degrau acima de 26 ms');
+  assert.match(game, /else if\(fAvg<17\)setStep\(rtStep-1\)/, 'e sobe abaixo de 17 ms (histerese larga)');
+  assert.match(game, /function applyRt\(\)\{const sc=RT_STEPS\[rtStep\];const nh=Math\.round\(baseH\*sc\),nw=rtW\(nh\);/,
+    'sem mexer em nada quando o tamanho não muda');
+  assert.match(game, /if\(baseH!==448\)makeRTs\(448,0\);/, 'entrar no voo de novo não refaz as texturas');
+  // O rastreio da mão da página é MediaPipe no thread principal: em voo, 20 Hz bastam (manche e piscar).
+  assert.match(game, /handInt=fAvg>26\?80:\(run\?45:33\);/, 'inferência a ~20 Hz durante o voo, ~12 Hz no menu');
+  assert.match(game, /if\(t-lastHandSeen>3000\)handInt=Math\.max\(handInt,120\)/, 'sem mão na tela, quase para');
+  // A sonda diz o que o aparelho escolheu, sem escrever nada na tela ("é só o jogo").
+  assert.match(game, /window\.__nvPerf=\(\)=>\(\{olho:lastRtH/, 'há uma sonda de desempenho para conferir no aparelho');
+  assert.equal(/<div id=\"nvperf\"/.test(game), false, 'e nada disso aparece na tela');
+  // 6DoF intacto: mexer na resolução não pode mexer no piso de emissão do rastreio.
+  const sixdof = await read('web/src/sixdof.js');
+  assert.ok(sixdof.includes('const PLAUSIBLE_MIN = 0.0012, EMIT_MIN = 0.0028, FLOW_MAX = 0.14;'),
+    'o piso de emissão do 6DoF continua 0.0028 (não desce com esta rodada)');
+});
+
 test('a rodada tem entrada no menu de Atualizações', async () => {
   const updates = await read(FILES.updates);
   assert.match(updates, /id: 'cockpit-vr-planevr'/,
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
+  // A rodada 2.6.2 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'cockpit-qualidade-e-sem-travamento'/,
+    'a qualidade e a fluidez do voo têm ficha no menu');
+  assert.match(updates, /900 px de altura \(era 560 px\)/, 'e a ficha diz o que mudou de verdade');
+  assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
+    'lentes, mãos grudadas, seta e Ryuzaki também');
+  const build = await read('nextvr-android/build.gradle');
+  assert.match(build, /versionCode 118/, 'o APK desta rodada é o 118');
+  assert.match(build, /versionName "2\.6\.2"/, 'e se chama 2.6.2 (a 2.6.1 é a que está publicada)');
+  const badge = await read('web/src/entry-menu.js');
+  assert.match(badge, /v2\.6\.2/, 'o selo da tela de entrada acompanha');
 });

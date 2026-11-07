@@ -123,10 +123,19 @@ const HP = "handPose(LM,'R',HO[1].d,HO[1].A,HO[1].c)}";
 MUST(html, HP, 'handPose (fim do bloco por quadro)');
 html = html.replace(HP, HP + '}');
 
+/* 3g. "quase sem sair": a mão segurada continua valendo para o jogo ------------------------- */
+// O laço do jogo considerava a mão perdida depois de 350 ms sem amostra nova. O rastreio do NextVR
+// perde e recupera a mão o tempo todo (mão na borda, uma na frente da outra), e cada perda levava o
+// braço de volta ao descanso: era o "as mãos quase nunca ficam". `parts/hands.js` segura a última
+// amostra boa por até 700 ms; aqui a janela do próprio jogo acompanha essa decisão.
+const HAND_WINDOW = 'on=!!xh||(s.p&&now-s.t<350)';
+MUST(html, HAND_WINDOW, 'janela de validade da mão no laço do jogo');
+html = html.replace(HAND_WINDOW, 'on=!!xh||(s.p&&now-s.t<900)');
+
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";
 MUST(html, LOOK_LINE, 'laço de quadro (look)');
-html = html.replace(LOOK_LINE, LOOK_LINE + 'NVIG.tick(dt);');
+html = html.replace(LOOK_LINE, LOOK_LINE + 'NVIG.tick(dt);NVHEAD.tick();');
 
 /* 5. CSS e elementos nossos -------------------------------------------------------------- */
 const css = await part('game.css');

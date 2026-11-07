@@ -13,6 +13,8 @@ export const ENTRY_COLLABORATORS = Object.freeze([
   // Pedido do usuário: "bota o nome welli com Verificado". Entra no fim da lista, com o mesmo selo
   // vermelho dos outros (o selo é o `data-collab-verified` que todo colaborador recebe).
   'welli',
+  // E depois: "bota o nome Ryuzaki com o verificado nos colaboradores".
+  'Ryuzaki',
 ]);
 
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
@@ -22,6 +24,7 @@ export const ENTRY_VERIFIED_NAMES = Object.freeze([
   'JocaVR',
   // Também vale no Login/Perfil: quem digitar "welli" ganha o selo verificado ao lado do nome.
   'welli',
+  'Ryuzaki',
 ]);
 
 export function isVerifiedProfileName(name) {
@@ -35,6 +38,7 @@ export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
   NanyGata: '',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
+  Ryuzaki: 'o estrategista do aurudo, sempre um passo à frente',
 });
 
 export const ENTRY_ABOUT_TITLE = 'NextVR — realidade aumentada';
@@ -49,6 +53,26 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'cockpit-qualidade-e-sem-travamento',
+    tag: 'COCKPIT VR · MAIOR QUALIDADE E MENOS TRAVAMENTO NO MESMO VOO · 900 PX POR OLHO',
+    time: 'Agora',
+    heading: 'O Jogo de Avião Ficou Mais Nítido e Parou de Engasgar no Meio do Voo',
+    desc: 'MAIS QUALIDADE: cada olho agora é desenhado em 900 px de altura (era 560 px) — quase o triplo de pixels — e o cenário completo volta a ser o padrão: campos, árvores e nuvens, sem o modo leve ligado por conta própria. A imagem também estava ALARGADA: o olho era desenhado numa proporção fixa (1,26) e esticado numa meia-tela de ~1,07, então tudo saía mais largo do que é. Agora a textura de cada olho nasce com a proporção exata da meia-tela e a câmera de cada olho usa essa mesma proporção — inclusive depois de girar o celular. '
+      + 'E MENOS TRAVAMENTO: o engasgo que voltava de tempos em tempos era eu mesmo. Para segurar o quadro, a resolução caía e subia a cada 1,2 segundo, em passos de 6 %, e cada mudança joga fora e recria duas texturas grandes — era isso que aparecia como um soluço no meio do voo. Agora a resolução anda em DEGRAUS fixos (1 · 0,9 · 0,8 · 0,72 · 0,64 · 0,56 · 0,5 · 0,45), com histerese larga (só cai acima de 26 ms por quadro, só sobe abaixo de 17 ms) e 4 segundos entre uma decisão e outra. Quando o tamanho não muda, nada é recriado. Celular mais fraco já começa num degrau abaixo, em vez de descobrir isso no meio do voo. '
+      + 'O RASTREIO DE MÃO DO JOGO: ele roda no mesmo thread do desenho e era o maior consumidor de quadro. Em voo passa a rodar a ~20 Hz (o suficiente para o manche e para piscar), sobe quando o aparelho está folgado e quase para quando não há mão na tela há 3 segundos. O 6DoF continua igual: o piso de emissão do passo lento não foi tocado. '
+      + 'PARA CONFERIR NO APARELHO, sem nada escrito na tela: abra a página do jogo e rode __nvPerf() — ele diz a resolução escolhida, o degrau, o MSAA, os milissegundos por quadro e o intervalo do rastreio de mão.',
+  },
+  {
+    id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki',
+    tag: 'GORILLA RUSH · LENTES DA CARDBOARD 2015 · MÃOS DO APP GRUDADAS NA MÃO · SETA DE DIREÇÃO · RYUZAKI VERIFICADO',
+    time: 'Agora',
+    heading: 'As Lentes do Google Cardboard no Gorilla Rush, a Mão que Não Some, a Seta que Diz Para Onde o Gorila Vai e o Ryuzaki Verificado',
+    desc: 'AS LENTES DO GOOGLE CARDBOARD 2015: o jogo de gorila passou a desenhar cada olho numa textura de meia tela e a corrigir a imagem com os coeficientes oficiais da lente Cardboard v1 (k1 0,441 · k2 0,156 · 80° por olho · 64 mm entre os olhos) — os MESMOS números que o jogo de avião usa e que já foram aprovados no seu VR Box. Nada de imagem pequena no canto: um olho em cada metade da tela. '
+      + 'AS MÃOS FICAM GRUDADAS: quando o rastreio do app perdia a mão por um instante, o braço do gorila despencava e a mão sumia — e era isso que dava a sensação de "não tem mão no jogo". Agora a última mão boa continua valendo por até 700 ms, com até 220 ms de continuação do movimento (a mão segue o caminho em vez de congelar), e ela entra no jogo no mesmo formato de 21 pontos que o jogo já usava. Quem rastreia é o NextVR: a câmera do jogo não abre, e o rastreio do NextVR só é desligado na interface — o jogo recebe os quadros dele. '
+      + 'A SETA PARA ONDE ELE VAI: um pedaço de seta no chão, discreto (42 % de opacidade), logo à frente do gorila e acompanhando a direção da cabeça — quando você olha para o lado, ela aponta para onde o gorila vai andar. Ela só existe durante a partida; fora do jogo não aparece nada. '
+      + 'E O RYUZAKI ENTRA VERIFICADO na lista de colaboradores, com o selo vermelho, ao lado do welli — o estrategista do aurudo, sempre um passo à frente.',
+  },
   {
     id: 'gorilla-rush-lentes-corrigidas-boneco',
     tag: 'CORREÇÃO · GORILLA RUSH: AS LENTES ESTÃO CERTAS, O GORILA TEM BRAÇOS DE NOVO E O HAND TRACKING MOVE O BRAÇO · ÍCONE NOVO',

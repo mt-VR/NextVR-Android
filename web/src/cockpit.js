@@ -32,10 +32,11 @@ export const COCKPIT_PLANES = Object.freeze([
 export const COCKPIT_LABEL = 'Cockpit VR';
 export const COCKPIT_LOGO = './icons/cockpit-vr-logo.svg';
 
-// `lq` (gráficos leves) nasce LIGADO: o jogo foi escrito para uma tela de PC e, num celular dentro
-// de um VR Box, o cenário cheio (1 400 campos, árvores, nuvens) derruba o quadro a ponto de parecer
-// travado. O menu continua com o interruptor, para quem quiser o cenário completo.
-const DEFAULTS = { air: 'cessna', mode: 'vr', snd: true, lq: true, as: true, ck: false, dof: '6', d6s: '1' };
+// `lq` (gráficos leves) nasce DESLIGADO: "ajeita a qualidade do jogo de avião, deixa com maior
+// qualidade". O cenário completo continua sendo o padrão, e quem não aguentar o quadro tem o
+// interruptor no menu. O que segura a fluidez agora é a resolução adaptativa do próprio jogo
+// (degraus com histerese) e o rastreio de mão da página a 20 Hz durante o voo — não mais o modo leve.
+const DEFAULTS = { air: 'cessna', mode: 'vr', snd: true, lq: false, as: true, ck: false, dof: '6', d6s: '1' };
 
 function loadPrefs() {
   try {

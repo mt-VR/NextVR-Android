@@ -14,8 +14,9 @@ Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, se
 NextVR — Mais que um app, uma nova forma de ver.`;
 
 test('entry menu constants match the exact collaborators order and about text', () => {
-  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']);
+  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli', 'Ryuzaki']);
   assert.ok(ENTRY_VERIFIED_NAMES.includes('welli'), 'welli entra com o selo de verificado');
+  assert.ok(ENTRY_VERIFIED_NAMES.includes('Ryuzaki'), 'Ryuzaki também entra com o selo de verificado');
   assert.ok(ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is restored in ENTRY_COLLABORATORS');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
@@ -45,7 +46,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     assert.ok(bundleSrc.includes(token), `bundled app.js includes ${token}`);
   }
 
-  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']) {
+  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli', 'Ryuzaki']) {
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
@@ -341,8 +342,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         color: getComputedStyle(el.querySelector('.entry-collab-name')).color,
       }));
     });
-    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']);
+    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli', 'Ryuzaki']);
     assert.equal(collabData.find(c => c.name === 'welli')?.hasRedVerified, true, 'welli aparece com o selo verificado');
+    assert.equal(collabData.find(c => c.name === 'Ryuzaki')?.hasRedVerified, true, 'Ryuzaki aparece com o selo verificado');
     assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has a red TikTok-style verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');

@@ -83,15 +83,18 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
-## Lentes e mãos (2.6.0)
+## Lentes e mãos (2.6.2)
 
 * **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
   MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
   IPD 64 mm (32 mm por lado) e meia tela por olho.
   **O recorte é em unidades de CSS, sem multiplicar pelo `pixelRatio`** — o `WebGLRenderer` já faz
   `viewport × pixelRatio` internamente; multiplicar de novo transformava cada olho num quarto de
-  tela, no canto inferior esquerdo (o defeito da 2.6.0). Não há pré-distorção: a correção é a lente
-  do VR Box, como no resto do app.
+  tela, no canto inferior esquerdo (o defeito da 2.6.0). O TAMANHO da textura, esse sim, é em pixels
+  de device (meia tela × `pixelRatio`), porque um render target não passa por essa multiplicação.
+* **Barril:** o passe de tela cheia aplica a distorção da lente Cardboard v1 com os coeficientes
+  oficiais (`k1 = 0,441`, `k2 = 0,156`) — os mesmos do `game.html` do Cockpit VR. É a correção que a
+  lente do VR Box desfaz; o que NÃO existe é uma segunda distorção por cima do desenho do jogo.
 * **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
   campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
   havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
@@ -105,6 +108,38 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
   em 21 landmarks e preenche os mesmos `slot[]` que o MediaPipe da página preenchia. Com a ponte
   nativa (`NV_NATIVE_HANDS`) a câmera do jogo **não abre** — nem ao entrar, nem em
   `__nvRetryHands` — porque só existe uma câmera no aparelho e ela é do app.
+* **Mão grudada:** quando o rastreio perde a mão por um instante, o jogo continua com a última mão
+  boa por até **700 ms** e, dentro desse tempo, projeta até **220 ms** de movimento pela velocidade —
+  o braço segue o caminho em vez de despencar. Isso vive em `parts/hands.js`
+  (`NV_HOLD_MS`/`NV_EXTRAP_MS`, `nvHoldHands`), não no laço de render: o jogo recebe quadro pronto.
+* **Seta de direção:** `NVHEAD` (`parts/ingame.js`) desenha um pedaço de seta no chão, à frente do
+  gorila (`P.y - 1.08`), com opacidade 0,42, seguindo a direção da cabeça. Ela só é desenhada com
+  `state == 'play'`; no menu do jogo não aparece nada.
+* **Sonda:** `window.__nvGorilla()` informa `seguradas` (mão mantida), `seta` e `lente` — é como se
+  confere, no aparelho, que o desenho é o do NextVR e que a mão não está sendo descartada.
+
+## Qualidade e fluidez do Cockpit VR (2.6.2)
+
+* **Resolução do olho:** `RT_H=900` (era 560) e a textura de cada olho nasce com a **proporção da
+  meia-tela** (`rtW()`), porque é para essa meia-tela que ela é esticada no `draw()`; com 1,26 fixo
+  contra ~1,07 da tela a imagem saía alargada e ~15 % dos pixels eram jogados fora. A câmera de cada
+  olho usa a mesma proporção (`eyeL.aspect = eyeR.aspect = aspE`) e a projeção é refeita na rotação.
+* **Degraus, não passos:** a resolução adaptativa anda em `RT_STEPS = [1, .9, .8, .72, .64, .56, .5,
+  .45]`, com histerese (`> 26 ms` desce, `< 17 ms` sobe) e **4 s entre decisões**. Antes ela mexia a
+  cada 1,2 s em passos de 6 %, e cada mudança realoca duas texturas grandes — era esse o engasgo
+  periódico. `applyRt()` não faz nada quando o tamanho não muda.
+* **Calibragem em dois tempos:** nos primeiros 1,5 s de voo um único salto grosso põe a resolução no
+  degrau que cabe no aparelho; depois só ajuste fino. Celular com ≤ 4 GB / ≤ 4 núcleos já começa em
+  0,8 em vez de 1.
+* **Rastreio de mão da página:** em voo roda a ~20 Hz (`handInt` 45 ms), cai para 12 Hz no menu, sobe
+  para 80 ms quando o quadro passa de 26 ms e quase para (120 ms) quando não há mão há 3 s. É
+  MediaPipe no thread principal: ele era o maior consumidor de quadro do voo.
+* **Gráficos leves:** `lq` nasce **desligado** (cenário completo); continua sendo interruptor do
+  menu, com teto de resolução (`rtCap`) para o adaptativo não subir acima do modo leve.
+* **Sonda:** `window.__nvPerf()` no `game.html` devolve `olho`, `largura`, `degrau`, `msaa`,
+  `quadroMs`, `maoMs`, `cullRaio` e `leve`. Nada é escrito na tela.
+* **O que NÃO mudou:** o piso de emissão do 6DoF (`EMIT_MIN = 0.0028`, em `web/src/sixdof.js`) — a
+  qualidade sobe pela resolução, não baixando o limiar do passo lento.
 
 ## Limites conhecidos
 
