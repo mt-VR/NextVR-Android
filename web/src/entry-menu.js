@@ -636,9 +636,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
   /**
    * ABA 4 · GORILLA TAG — a sala, a skin e as configurações do Gorilla Rush.
    *
-   * Aqui o usuário escolhe TUDO de pé, antes de pôr o celular no VR Box: a skin (que na entrada é
-   * NENHUMA), a sala e o modo, o nosso servidor, e o JOIN que entra direto no jogo online sem
-   * passar pela biblioteca. Dentro do jogo, a mesma escolha de skin/configuração existe no menu
+   * Aqui o usuário escolhe TUDO de pé, antes de pôr o celular no VR Box: a sala, o modo, a
+   * configuração do gorila e o nosso servidor, além do JOIN que entra direto no jogo online sem
+   * passar pela biblioteca. A skin (que na entrada é NENHUMA) mudou para a aba 5, separada. Dentro do jogo, a mesma escolha de skin/configuração existe no menu
    * guiado pelo giroscópio (segure as duas mãos à frente).
    */
   const renderGorillaSettingsPage = () => {
@@ -1259,16 +1259,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     root.querySelectorAll('[data-entry-gorilla-color]').forEach(btn => {
       btn.onclick = () => {
         gorillaSave({ col: btn.dataset.entryGorillaColor });
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-gorilla-acc]').forEach(btn => {
-      btn.onclick = () => {
-        const key = btn.dataset.entryGorillaAcc;
-        const list = GORILLA_ACCESSORIES[key] || [];
-        const g = gorillaPrefs();
-        const at = Math.max(0, list.findIndex(a => a.id === g[key]));
-        gorillaSave({ [key]: list[(at + 1) % list.length].id });
         paint();
       };
     });

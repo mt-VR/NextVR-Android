@@ -402,10 +402,23 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       });
     });
     await page.evaluate(() => document.querySelector('[data-entry-settings-tab="4"]').click());
-    for (const hook of ['[data-entry-gorilla-color]', '[data-entry-gorilla-acc="accH"]',
-      '[data-entry-gorilla-mode="inf"]', '[data-entry-gorilla-gfx="1"]', '[data-entry-gorilla-room]',
-      '[data-entry-gorilla-srv]', '[data-entry-gorilla-join]'])
+    for (const hook of ['[data-entry-gorilla-mode="inf"]', '[data-entry-gorilla-gfx="1"]',
+      '[data-entry-gorilla-room]', '[data-entry-gorilla-srv]', '[data-entry-gorilla-join]'])
       assert.equal(await page.locator(hook).count() > 0, true, `a aba 4 tem ${hook}`);
+    // 5b2. Aba 5 (Acessórios): cada peça no seu campo e cada opção no seu botão — "os acessórios
+    // tem que ficar separadinhos", nada de um botão que gira entre elas.
+    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="5"]').click());
+    assert.equal(await page.locator('[data-entry-settings-page="5"]').count(), 1, 'a aba 5 tem página própria');
+    for (const cell of ['acc-color', 'acc-glasses', 'acc-head', 'acc-clothes'])
+      assert.equal(await page.locator(`.entry-bento-cell--${cell}`).count(), 1, `a aba 5 tem o campo ${cell}`);
+    assert.equal(await page.locator('[data-entry-gorilla-acc]').count(), 0, 'a aba 5 não tem mais botão que gira');
+    const headChips = await page.locator('[data-entry-gorilla-acc-set^="accH:"]').count();
+    assert.ok(headChips >= 3, 'as opções de cabeça estão todas à vista');
+    await page.evaluate(() => document.querySelector('[data-entry-gorilla-acc-set="accH:h_top"]').click());
+    await new Promise(r => requestAnimationFrame(() => r()));
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvrGorillaPrefs') || '{}').accH), 'h_top',
+      'escolher um acessório grava a escolha, sem passar pelas outras');
+    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="4"]').click());
     // Sem servidor o JOIN não finge online: abre a janela do motivo.
     await page.evaluate(() => document.querySelector('[data-entry-gorilla-join]').click());
     await new Promise(r => setTimeout(r, 120));
@@ -423,7 +436,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       type('[data-entry-gorilla-room]', 'nv123');
       document.querySelector('[data-entry-gorilla-mode="inf"]').click();
       await new Promise(r => requestAnimationFrame(() => r()));
-      document.querySelector('[data-entry-gorilla-acc="accH"]').click();
+      document.querySelector('[data-entry-gorilla-acc-set="accH:h_top"]').click();
       await new Promise(r => requestAnimationFrame(() => r()));
       document.querySelector('[data-entry-gorilla-color="#e53935"]').click();
       await new Promise(r => requestAnimationFrame(() => r()));
@@ -437,6 +450,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(joinPayload.srv, 'ws://192.168.0.10:8787', 'e o servidor digitado vira um endereço WebSocket');
     assert.equal(joinPayload.solo, false, 'o JOIN é o caminho ONLINE (sozinho é pela Biblioteca)');
     assert.equal(joinPayload.col, '#e53935', 'e a cor da skin escolhida vai junto');
+    assert.equal(joinPayload.accH, 'h_top', 'o acessório escolhido na aba 5 vai junto');
 
     await page.evaluate(() => document.querySelector('[data-entry-settings-tab="1"]').click());
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
@@ -1351,6 +1365,9 @@ test('as configurações cabem em cinco abas: a 4ª é do Gorilla Tag e a 5ª é
     assert.ok(fifth.includes(`entry-bento-cell--${cell}`), `a aba 5 tem a célula ${cell}`);
   for (const key of ['accG', 'accH', 'accC'])
     assert.ok(fifth.includes(`chip('${key}'`), `a célula de ${key} lista as opções`);
+  // E não sobrou o botão que girava: a escolha é um clique só.
+  assert.equal(src.includes("root.querySelectorAll('[data-entry-gorilla-acc]')"), false,
+    'a aba não tem mais o botão de rodízio dos acessórios');
   assert.match(src, /data-entry-gorilla-acc-set="\$\{key\}:\$\{a\.id\}"/, 'e a escolha é direta, sem girar');
   const html = read('web/index.html');
   assert.match(html, /\.entry-bento-grid--tab5\{/);
