@@ -28,6 +28,7 @@ import { TwoHandMenuChord } from './two-hand-chord.js';
 import { twoHandsPinching } from './two-hand-chord.js';
 import { icon } from './reference-icons.js';
 import { windowBox } from './app-window-box.js';
+import { androidApps } from './android-apps.js';
 
 const GAME_ID = 'nextvr-xr-game';
 const MENU_ID = 'nextvr-xr-menu';
@@ -37,7 +38,7 @@ const MENU_ID = 'nextvr-xr-menu';
 const state = {
   runtime: 'missing', runtimeVersion: -1, runtimeBundled: false, vrapi: 'missing', broker: false,
   summary: '', hosting: false, display: -1, problem: null, handFeed: 0, handMode: 'controllers',
-  game: null, canvas: null,
+  game: null, canvas: null, external: false, externalGame: null, externalPackage: null,
 };
 let games = [], gamesProblem = null, gamesLoaded = false;   // jogos de headset instalados
 
@@ -62,10 +63,16 @@ export function applyState(json) {
   let next;
   try { next = JSON.parse(json); } catch { return; }
   if (!next || typeof next !== 'object') return;
+  const wasExternal = state.externalPackage;
   Object.assign(state, next);
   uiBlocked = null;
   if (state.hosting && state.game?.package) enterGame(state.game);
   else exitGame();
+  // O jogo foi entregue à tela do aparelho (Cardboard): a shell continua aqui, com o workspace
+  // intacto, e diz o que está acontecendo em vez de deixar o usuário achando que nada abriu.
+  if (state.external && state.externalPackage && wasExternal !== state.externalPackage) {
+    toast(t('xrFullScreenOpened').replace('{game}', state.externalGame || state.externalPackage));
+  }
   emit('xr', { ...state, games });
 }
 /** Chamado por XrGameController com a lista de jogos de headset instalados (string JSON). */
@@ -92,14 +99,35 @@ export function installXrGames() {
   on('lang', () => { askXrLibrary(); emit('xr', { ...state, games }); });
 }
 
+/** Quando a lista foi pedida pela última vez (ver [ensureXrLibrary]). */
+let lastAsk = 0;
+
 /** Asks the native side for the installed headset games; the answer is published asynchronously. */
-export function askXrLibrary() { command({ cmd: 'library' }); }
+export function askXrLibrary() { lastAsk = Date.now(); command({ cmd: 'library' }); }
 
 /** Force a re-scan (runtime installed/uninstalled, games added): the state follows on its own. */
 export function refreshXrLibrary() {
   gamesLoaded = false;
+  lastAsk = 0;
   command({ cmd: 'refresh' });
   askXrLibrary();
+}
+
+/**
+ * Pede a lista de novo, sem pressa: é o que a biblioteca chama toda vez que pinta.
+ *
+ * A lista vem do lado nativo, que lê o APK de cada jogo instalado — caro, feito fora da linha de
+ * execução principal. Então ela NÃO é pedida a cada pintura: uma vez, e depois só quando passou tempo
+ * suficiente para um app novo ter entrado (instalar um jogo com o NextVR aberto é o caso normal, e
+ * antes disso a tile simplesmente não aparecia até o app ser reiniciado — foi assim que o Táxi
+ * "sumiu").
+ */
+const LIBRARY_FRESH_MS = 15000;
+const LIBRARY_MIN_GAP_MS = 2500;
+export function ensureXrLibrary() {
+  const now = Date.now();
+  if (!gamesLoaded) { if (now - lastAsk >= LIBRARY_MIN_GAP_MS) askXrLibrary(); return; }
+  if (now - lastAsk >= LIBRARY_FRESH_MS) askXrLibrary();
 }
 
 /* ============================ comandos que a shell pede ============================ */
@@ -110,6 +138,23 @@ export function launchXrGame(pkg) {
   command({ cmd: 'open', package: pkg });
 }
 export function closeXrGame() { if (state.hosting) command({ cmd: 'close' }); }
+/**
+ * Entrega a tela do celular a um app que desenha o próprio estéreo (Cardboard/VR Box).
+ *
+ * `startActivity` do ícone do app, sem privilégio, sem runtime e sem display — o mesmo
+ * `getLaunchIntentForPackage` da gaveta. Quem manda o pedido é o lado nativo do PhoneXR, que tem o
+ * `PackageManager` na mão e responde de volta quando não dá (`report` → aviso na tela). O caminho das
+ * janelas de app (`appsCommand`) depende do serviço de displays, que pode não existir; este não.
+ */
+export function launchAppFullScreen(pkg) {
+  if (!pkg) return false;
+  const payload = JSON.stringify({ cmd: 'phone', pkg });
+  try {
+    if (window.NativeXR?.xrCommand) { window.NativeXR.xrCommand(payload); return true; }
+    if (window.NativeXR?.appsCommand) { window.NativeXR.appsCommand(payload); return true; }
+  } catch { return false; }
+  return false;
+}
 export function minimizeXrGame() { if (state.hosting) command({ cmd: 'minimize' }); }
 export function restoreXrGame() { if (state.hosting) command({ cmd: 'restore' }); }
 export function installXrRuntime() {
@@ -124,6 +169,67 @@ export function setXrHandMode(mode) {
 }
 export function xrSelfTest() { command({ cmd: 'selftest' }); }
 
+/* ============================ Táxi Driver (Cardboard) ============================ */
+
+/**
+ * O jogo que o usuário pediu pelo nome, com o pacote do APK dele.
+ *
+ * Não é um app do NextVR: é um APK instalado no telefone, feito em Unity + Cardboard. Por isso ele
+ * não tem código aqui — o que existe é o atalho para abri-lo (Loja, menu principal e biblioteca) e o
+ * logo, para a tile não ser só duas iniciais.
+ */
+export const TAXI_PACKAGE = 'com.manerai.taxidriver.cardboard';
+export const TAXI_LABEL = 'Taxi Driver VR';
+export const TAXI_LOGO = './icons/taxi-driver-logo.jpg';
+
+/** Pacotes conhecidos que ganham capa na tile da biblioteca (o resto cai nas iniciais). */
+const XR_COVERS = Object.freeze({ [TAXI_PACKAGE]: TAXI_LOGO });
+
+/**
+ * O pacote do Táxi instalado neste telefone, ou null.
+ *
+ * São duas fontes porque são duas perguntas diferentes: a lista de jogos de headset (que o lado
+ * nativo monta lendo os APKs) diz que ele foi classificado, e a lista de apps do Android diz que ele
+ * está instalado mesmo que a classificação não tenha rodado ainda.
+ */
+export function taxiPackage() {
+  if (games.some(g => g.package === TAXI_PACKAGE)) return TAXI_PACKAGE;
+  const apps = androidApps() || [];
+  if (apps.some(a => a.pkg === TAXI_PACKAGE)) return TAXI_PACKAGE;
+  // APK renomeado/atualizado: aceita qualquer pacote que se chame de táxi.
+  const guess = apps.find(a => /taxi.?driver/i.test(a.pkg));
+  if (guess) return guess.pkg;
+  /*
+   * Nenhuma lista carregada ainda NÃO quer dizer "não instalado": no começo da sessão as duas chegam
+   * depois (o lado nativo lê os APKs). Devolver `null` aqui era o que fazia o botão dizer "não
+   * instalado" e não abrir nada com o jogo instalado. Então, sem informação, entrega-se o pacote: quem
+   * decide é o `PackageManager`, no lado nativo — se não existir, ele avisa na tela.
+   */
+  if (!gamesLoaded && apps.length === 0) return TAXI_PACKAGE;
+  return null;
+}
+
+/** Whether the game is installed, so a tile/store card can say so instead of pretending. */
+export function taxiInstalled() {
+  return !!taxiPackage();
+}
+
+/**
+ * Abre o Táxi Driver no VR Box, do jeito que ele funciona: tela inteira.
+ *
+ * Classificado pelo lado nativo → `open` (ele decide: jogo de tela cheia não é hospedado, recebe o
+ * `startActivity` do próprio ícone). Não classificado mas instalado → o mesmo `startActivity` direto.
+ * Não instalado → false, e quem chamou diz ao usuário em vez de abrir nada.
+ */
+export function openTaxiDriver() {
+  const pkg = taxiPackage();
+  if (!pkg) return false;
+  // Sempre o caminho direto do `startActivity`, e não o `open` da sessão: hospedar um jogo de
+  // headset depende de runtime, display e serviço; um jogo Cardboard não precisa de nada disso e não
+  // pode falhar por causa de peça que ele não usa.
+  return launchAppFullScreen(pkg);
+}
+
 /* ============================ itens e arquivo da biblioteca ============================ */
 
 /** The classified games, as library items: one kind of tile the Applications menu knows. */
@@ -133,15 +239,24 @@ export function xrLibraryItems() {
 }
 export function xrTileHtml(item) {
   const g = item.game;
-  const mark = `<span class="nm">${escape(`${(g.label || g.package).slice(0, 2)}`)}</span>`;
+  // Jogo conhecido ganha a capa dele; o resto cai nas duas iniciais do nome.
+  const cover = XR_COVERS[g.package];
+  const mark = cover
+    ? `<img src="${escape(cover)}" alt="" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">`
+    : `<span class="nm">${escape(`${(g.label || g.package).slice(0, 2)}`)}</span>`;
   const running = xrGamePkg() === g.package
     ? `<span class="lib-open">${escape(t('appOpen'))}</span>` : '';
-  const hostable = g.hostable ? ''
+  // Um jogo de tela cheia (Cardboard/Daydream) abre — só não dentro do nosso frame. Marcar ✕ nele
+  // sería dizer que ele não funciona, e ele funciona: o que muda é quem entrega a imagem ao VR Box.
+  const fullScreen = g.fullScreen === true || g.kind === 'cardboard' || g.kind === 'daydream';
+  const hostable = g.hostable || fullScreen ? ''
     : `<span class="lib-sys" title="${escape(g.describe || t('xrNotHostable'))}">✕</span>`;
+  const boxBadge = fullScreen
+    ? `<span class="lib-vr" title="${escape(t('xrCardboardBadge'))}">VR BOX</span>` : `<span class="lib-vr">XR</span>`;
   return `<button class="lib-tile game" data-xr="${escape(g.package)}" aria-label="${escape(g.label || g.package)}">`
     + `<span class="lib-cover"><span class="lib-brand">${mark}</span>`
     + `<span class="lib-src" title="${escape(t('xrTitle'))}">${icon('controller')}</span>`
-    + hostable + running + `<span class="lib-vr">XR</span></span>`
+    + hostable + running + boxBadge + `</span>`
     + `<span class="lib-label">${escape(g.label || g.package)}</span></button>`;
 }
 const escape = value => String(value == null ? '' : value)

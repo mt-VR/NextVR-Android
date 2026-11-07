@@ -21,7 +21,7 @@ aparelho.
 | **OpenXR portado** (PhoneXR) | `libopenxr_loader.so` + catalog/runtime próprio dos PhoneXR | hospedado: display nossa, atividade nossa, o loader já resolve o runtime deste aparelho | a tile explica que falta o runtime |
 | **OpenXR de loja** (original) | `libopenxr_loader.so` sem runtime embutido, descobre o runtime pelo **broker** | só abre aqui com o runtime-broker do Khronos instalado; sem ele, **não abre na casca** — a tile marca e o launcher do runtime pode abrir na tela do celular | marca "✕" na tile, com o motivo |
 | **VrApi (Gear VR/Quest)** | `libvrapi.so`, `oculus.mobile.env` | com o driver VrApi (`com.oculus.systemdriver`) instalado, o adapter do phone-monado dá ao jogo a VrApi simulada | a tile marca o driver faltante |
-| **Daydream/Cardboard** | `libgvr.so`, `sundog-*`, `targetSdk` baixo | hospedado direto | a tile marca |
+| **Cardboard / Daydream (Google VR)** | `libgvr*.so`, `libcardboard*.so`, categoria `CARDBOARD`/`DAYDREAM`, classes `com/google/cardboard` no dex de um build Unity, ou o próprio nome do pacote/versão | **tela cheia no VR Box**, como o ícone do app na gaveta | — (não depende de nada) |
 | **App Android comum** | nada de VR nos libs/manifest | segue o fluxo normal de apps (`docs/ANDROID-APP-WINDOWS.md`) | — |
 
 A classificação vive em **`xr/XrGameLibrary.java`** (varre o APK: libs nativas, o
@@ -29,6 +29,45 @@ A classificação vive em **`xr/XrGameLibrary.java`** (varre o APK: libs nativas
 publicada pra shell com um `describe` e um `hostable` por jogo. Nos testes, `XrManifestTest` prende
 as regras (`targetSdk ≤ 29` dispensa o bloco `<queries>`; a partir de 30, quem não conhece o runtime
 não o vê, a menos que já cite o `runtime_broker` ou o pacote dele).
+
+### 1.1 Por que Cardboard/Daydream NÃO é hospedado
+
+Um jogo Cardboard (o Táxi Driver é um: Unity + Cardboard, `com.manerai.taxidriver.cardboard`) aplica
+**a distorção de lente do VR Box dentro da própria imagem** antes dela sair do app, e lê os sensores
+do celular por conta própria. Hospedá-lo numa janela nossa empilharia a nossa correção de lente sobre
+a dele — duas correções na mesma imagem dão borrão e franja de cor, não 3D — e o rastreamento dele
+brigaria com a câmera 6DoF da casca.
+
+Então esses jogos recebem a **tela inteira**: `XrGameController.openFullScreen` chama
+`Environment.launchOnPhone` (o mesmo `getLaunchIntentForPackage` + `startActivity` do ícone do app, sem
+Shizuku, sem runtime, sem display), para o feed de mãos e publica `external: true` no estado. O
+workspace não é tocado: ao sair do jogo, o NextVR está exatamente como estava.
+
+**Como um APK desses é reconhecido** (`XrGameLibrary.inspect`), em ordem:
+
+1. `libopenxr_loader.so` → OpenXR (hospedado);
+2. `libcardboard*.so` / `libGfxPluginCardboard.so`, ou categoria `com.google.intent.category.CARDBOARD` → **Cardboard**;
+3. `libgvr.so` / `libgvr_audio.so`, ou categoria `DAYDREAM` → **Daydream**;
+4. num build **Unity** (`libunity.so`) sem nenhuma pista acima: procura `com/google/cardboard` ou
+   `com/google/vr/sdk` nos `classes*.dex` (o plugin Cardboard é Java e não deixa biblioteca nativa);
+5. por último, o nome: pacote ou versão contendo `cardboard` (`…taxidriver.cardboard`, `1.0-cardboard-vr-v7`).
+
+O passo 4 é limitado por tamanho (24 MB por dex) e só roda para quem pode ser Unity. Quando nenhuma
+pista aparece — APKs antigos, renomeados, plugins exóticos — a página **Configurações › PhoneXR ›
+Cardboard & VR Box** lista os apps instalados (mais os jogos que o classificador já reconheceu) e abre
+qualquer um em tela cheia pelo mesmo caminho (`{cmd:'phone', pkg}` no `AppWindowController`).
+
+**Abrir um jogo de tela cheia não passa pela lista.** O comando `{cmd:'phone', pkg}` vai para o
+`XrGameController`, que pergunta ao `PackageManager` se existe activity de launcher para aquele pacote
+e a inicia (`startActivity` do ícone). Não usa display, Shizuku nem runtime — e, quando o app não está
+instalado, avisa na tela com o nome do pacote, em vez de o toque não fazer nada.
+
+**Quando a lista é refeita.** Ler o APK de cada jogo é caro, então a biblioteca guarda a resposta em
+vez de reescanear a cada pintura. Ela é pedida de novo quando faz tempo (`ensureXrLibrary`, 15 s),
+quando o usuário pede (**Procurar jogos de novo**, na seção Cardboard & VR Box) e, o que resolve o caso
+comum, quando o Android avisa que um pacote entrou ou saiu (`XrGameController.watchPackages`). Antes
+disso a lista só era pedida enquanto não havia jogo NENHUM instalado: um jogo instalado com o NextVR
+aberto — como o Táxi Driver — não virava tile até reiniciar o app.
 
 ## 2. O que entra no aparelho
 
@@ -169,3 +208,31 @@ Para regenerar os APKs dentro do projeto PhoneXR (não deste repositório):
 O pin vive em `nextvr-android/build.gradle` (URL raw da upstream no commit + sha256 conferido).
 Para apontá-lo para um build novo, troque os dois valores lá — o build recusa bytes que não
 conferem.
+
+## Cockpit VR (o jogo de avião do planeVR) como jogo HTML hospedado
+
+Diferente dos jogos OpenXR acima, o Cockpit VR não é um APK: é uma **página HTML** que desenha o
+próprio estéreo (dois olhos com a distorção da lente do VR Box) e rastreia as mãos com o MediaPipe
+*dela*, pela câmera do aparelho. Por isso ele não entra numa janela da shell — ele recebe a tela
+inteira:
+
+- `assets/ui/cockpit/game.html` — o jogo do usuário, com duas emendas do NextVR (o estado das mãos
+  em `window.__nvFrame`, para o gesto de sair, e o bloco final que lê os ajustes da URL e entra
+  direto no voo);
+- `assets/ui/cockpit/libs/` — **three.js, GLTFLoader, BufferGeometryUtils e cannon empacotados**, e
+  `libs/hands/` com o MediaPipe (wasm SIMD, `packed_assets.data`, `hand_landmark_lite.tflite`). Sem
+  eles a página ficava parada esperando a CDN e o voo nunca montava — com eles o voo monta sem
+  internet. Só o módulo **sem SIMD** do MediaPipe fica fora do pacote (tamanho): o `locateFile` da
+  página manda esse arquivo para a CDN;
+- `WebSurface.createFullscreenGameView()` — WebView em tela cheia sobre o `GLSurfaceView`, servindo
+  `/ui/` do APK (`application/wasm` para o `.wasm`, senão o `instantiateStreaming` recusa o módulo),
+  com a CSP da pasta `ui/cockpit/` liberando `wasm-unsafe-eval`, e concedendo a câmera que a página
+  pede (`onPermissionRequest`);
+- `NextVrActivity.openCockpitGame()/closeCockpitGame()` — a ordem importa: mãos do NextVR fora,
+  `camera.stop()`, 900 ms de espera (a Camera2 fecha em outro thread) e só então a página, que já vai
+  pedir a câmera. Sair devolve câmera e rastreio (`restartTracking()`).
+
+O menu (avião, modo, som, gráficos leves, assistente, motor) é uma janela da shell — `web/src/cockpit.js` —
+operada pelo rastreio de mão do NextVR; o voo em si usa as mãos do jogo. `tests/cockpit.test.mjs`
+guarda esse contrato e `tests/cockpit-game-boot.test.mjs` abre a página num Chromium com a rede
+externa bloqueada, para que "o jogo abre sem internet" seja medido, e não prometido.

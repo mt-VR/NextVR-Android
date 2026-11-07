@@ -1,0 +1,18 @@
+{
+  "name": "nextvr-pc-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NextVR PC Link — o lado Windows: descobre o celular, recebe rastreamento e envia o vídeo do SteamVR",
+  "type": "module",
+  "bin": {
+    "nextvr-pc-bridge": "bin/nextvr-pc-bridge.mjs"
+  },
+  "scripts": {
+    "start": "node bin/nextvr-pc-bridge.mjs",
+    "check": "node bin/nextvr-pc-bridge.mjs --check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

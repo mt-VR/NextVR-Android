@@ -53,6 +53,14 @@ public final class AppWindowController {
 
     public AppDisplayController displays() { return displays; }
 
+    /**
+     * Starts an app on the phone's own screen (the same call the "abrir no celular" action of an app
+     * window makes). Used by the headset-game path when a build draws its own stereo picture.
+     */
+    public boolean launchOnPhone(String packageName) {
+        return displays != null && displays.launchOnPhone(packageName);
+    }
+
     public ShizukuManager shizuku() { return shizuku; }
 
     public AndroidAppManager apps() { return apps; }

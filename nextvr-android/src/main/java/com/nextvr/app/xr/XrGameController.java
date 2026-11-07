@@ -87,6 +87,13 @@ public final class XrGameController {
         int[] phoneSize();
 
         int density();
+
+        /**
+         * Starts an app on the phone's own screen, the way its launcher icon does — no display, no
+         * privilege. This is how a build that draws its own stereo picture (Cardboard, Daydream) gets
+         * to the VR Box: it is handed the screen instead of being hosted inside our frame.
+         */
+        boolean launchOnPhone(String packageName);
     }
 
     private static final long SERVICE_WAIT_MS = 20_000;
@@ -100,11 +107,18 @@ public final class XrGameController {
     private final XrHandBridge hands;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** Avisa a lista nova quando um pacote entra ou sai; registrado sob demanda, ver {@link #watchPackages()}. */
+    private android.content.BroadcastReceiver packageWatcher;
 
     /** The one hosted game. A second open while one is running is refused, not queued: two OpenXR
      *  sessions on one phone is not something either runtime supports, and silently closing the first
      *  would lose whatever the user was in the middle of. */
     private volatile XrGameLibrary.Game current;
+    /**
+     * The game handed to the phone's own screen (Cardboard/Daydream), kept only so the shell can say
+     * which one it was. It is not hosted: no display, no surface, no hand feed.
+     */
+    private volatile XrGameLibrary.Game external;
     private int displayId = -1;
     private SurfaceTexture gameTexture;
     private Surface gameSurface;
@@ -150,7 +164,56 @@ public final class XrGameController {
         handMode = mode;
     }
 
+    /**
+     * Passa a acompanhar instalações e desinstalações e a republicar a lista de jogos quando uma
+     * acontece.
+     *
+     * <p>Ler o APK de cada jogo é caro, então a lista é montada uma vez e guardada na shell. O efeito
+     * colateral era o óbvio: instalar um jogo com o NextVR aberto não mostrava tile nenhuma até
+     * reiniciar o app — foi assim que o Táxi Driver "sumiu". O pacote mudou, a lista é refeita; é só
+     * isso. {@code ADDED} não é entregue a si mesmo de forma confiável em todas as versões, então
+     * {@code REPLACED} também conta (atualizar um apk instalado muda a versão, e a versão é uma das
+     * pistas que o classificador usa).
+     */
+    public void watchPackages() {
+        if (packageWatcher != null) return;
+        packageWatcher = new android.content.BroadcastReceiver() {
+            @Override public void onReceive(Context context, android.content.Intent intent) {
+                if (intent == null || intent.getData() == null) return;
+                if (intent.getBooleanExtra(android.content.Intent.EXTRA_REPLACING, false)) return;
+                offMain(XrGameController.this::publishLibrary);
+            }
+        };
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_REPLACED);
+        filter.addDataScheme("package");
+        try {
+            // API 33 exige declarar se um receptor dinâmico aceita apps de fora; este só quer os
+            // avisos do próprio sistema, então nunca é exportado.
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                env.context().registerReceiver(packageWatcher, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                env.context().registerReceiver(packageWatcher, filter);
+            }
+        } catch (Throwable refused) {
+            // Sem permissão de receber o aviso (ou contexto já morto): a lista continua sendo refeita
+            // quando a shell a pede, só não de graça.
+            packageWatcher = null;
+            Log.w(TAG, "package watch not available", refused);
+        }
+    }
+
     public void shutdown() {
+        if (packageWatcher != null) {
+            try {
+                env.context().unregisterReceiver(packageWatcher);
+            } catch (Throwable ignored) {
+                // Já foi desregistrado, ou o contexto morreu junto com a atividade.
+            }
+            packageWatcher = null;
+        }
         worker.shutdownNow();
         try {
             close();
@@ -174,6 +237,12 @@ public final class XrGameController {
 
     /** The activity is back: the very same surface re-attaches and the feed starts before the next frame. */
     public void onActivityResumed() {
+        // Voltamos de um jogo entregue à tela do aparelho (Cardboard): se o NextVR está na frente de
+        // novo, o jogo foi fechado, então o estado não pode continuar dizendo que ele está aberto.
+        if (external != null) {
+            external = null;
+            publishState();
+        }
         if (!hosting()) return;
         hands.start(handMode, true, true);
         restore();
@@ -208,6 +277,14 @@ public final class XrGameController {
             // belongs to the window (menu, settings) and must not become a button in the game's
             // stream. Repeated only on edge: the shell sends it once per change, never per frame.
             case "hands-ui": hands.uiBlocked(command.optBoolean("blocked")); break;
+            // Entrega a tela do celular a um app instalado: o `startActivity` do próprio ícone. É o
+            // caminho dos jogos Cardboard/VR Box (o Táxi Driver) e de qualquer APK que o usuário
+            // aponte na página PhoneXR. Não passa por display, Shizuku nem runtime.
+            case "phone": {
+                final String target = command.optString("pkg", "");
+                offMain(() -> launchPhone(target));
+                break;
+            }
             default: env.report("Unknown XR command: " + name);
         }
     }
@@ -247,6 +324,13 @@ public final class XrGameController {
             }
             // A game that tracks hands with the camera itself needs the camera to itself, and this
             // app's camera is the one that tracks every other hand in the session.
+            // Um jogo que desenha o próprio estéreo com a distorção do VR Box (Cardboard, Daydream) não
+            // é hospedado: ele recebe a tela inteira, como o ícone dele na gaveta do Android faria. Não
+            // precisa de runtime, de display nem de Shizuku.
+            if (game.fullScreen()) {
+                openFullScreen(game);
+                return;
+            }
             if (game.ownHandTracking) {
                 problem = game.label + " tracks hands with the camera itself; it needs the camera to itself.";
                 return;
@@ -284,6 +368,52 @@ public final class XrGameController {
             busy = false;
             publishState();
         }
+    }
+
+    /**
+     * Hands a Cardboard/Daydream game the phone's own screen.
+     *
+     * <p>No display is created and the hand feed stays off: this kind of game reads the phone's sensors
+     * itself and presses its own buttons (a cardboard box has no controllers), so a display of ours and
+     * a stream of hand packets would only fight it. What comes back is the same screen the launcher
+     * icon gives it, plus the app's own way out — and NextVR is exactly where it was when the user
+     * returns, because nothing of the workspace was touched.
+     */
+    /**
+     * Abre um app instalado na tela do aparelho, como o ícone dele na gaveta.
+     *
+     * <p>Não exige classificação: o usuário pode apontar qualquer pacote. O que se checa é o que o
+     * Android checa — se existe uma activity de launcher para ele. Quando não existe, o usuário é
+     * avisado com o nome do pacote, em vez de o toque não fazer nada (foi assim que o Táxi "não
+     * abria": a falha era silenciosa).
+     */
+    private void launchPhone(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return;
+        String label = packageName;
+        XrGameLibrary.Game known = library.find(packageName);
+        if (known != null) label = known.label;
+        if (!env.launchOnPhone(packageName)) {
+            problem = packageName + " has no launcher activity (not installed?)";
+            env.report("Não consegui abrir " + label + ": o app " + packageName
+                    + " não está instalado neste aparelho.");
+            publishState();
+            return;
+        }
+        problem = null;
+        external = known;
+        publishState();
+    }
+
+    private void openFullScreen(XrGameLibrary.Game game) {
+        hands.stop();
+        current = null;
+        external = game;
+        problem = null;
+        if (!env.launchOnPhone(game.packageName)) {
+            external = null;
+            problem = game.label + " has no launcher activity to start.";
+        }
+        publishState();
     }
 
     /**
@@ -358,6 +488,7 @@ public final class XrGameController {
     private void close() {
         XrGameLibrary.Game game = current;
         current = null;
+        external = null;
         hands.stop();
         if (displayId >= 0) {
             try {
@@ -479,6 +610,11 @@ public final class XrGameController {
             root.put("broker", runtime.brokerInstalled());
             root.put("summary", runtime.summary());
             root.put("hosting", current != null);
+            // Um jogo entregue à tela do aparelho não está hospedado, mas também não é "nada aberto":
+            // a shell usa isto para avisar que a tela cheia do VR Box é o jogo, não uma sessão nossa.
+            root.put("external", external != null);
+            root.put("externalGame", external == null ? JSONObject.NULL : external.label);
+            root.put("externalPackage", external == null ? JSONObject.NULL : external.packageName);
             root.put("display", displayId);
             root.put("problem", problem == null ? JSONObject.NULL : problem);
             root.put("handFeed", hands.packetsSent());
@@ -507,6 +643,7 @@ public final class XrGameController {
         game.put("headset", current.headset.title);
         game.put("describe", current.describe());
         game.put("surface", surfaceId(current.packageName));
+        game.put("fullScreen", current.fullScreen());
         game.put("purchase", current.checksPurchase);
         return game;
     }
@@ -523,6 +660,8 @@ public final class XrGameController {
                 item.put("headset", game.headset.title);
                 item.put("describe", game.describe());
                 item.put("hostable", game.hostable());
+                // "Tela cheia" é o que a shell pinta na tile: o jogo abre, só não é dentro do nosso frame.
+                item.put("fullScreen", game.fullScreen());
                 item.put("purchase", game.checksPurchase);
                 array.put(item);
             }

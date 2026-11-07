@@ -81,8 +81,12 @@ class SensorEventQueueReader {
   bool Start() {
     ASensorEventQueue_enableSensor(queue_, sensor_);
     const int min_delay = ASensor_getMinDelay(sensor_);
-    // Set sensor capture rate to the highest possible sampling rate.
-    ASensorEventQueue_setEventRate(queue_, sensor_, min_delay);
+    // Set sensor capture rate to the highest possible sampling rate, falling back to 200 Hz
+    // (5000 us) if Android 12+ rejects sub-5ms rates on a restricted sensor HAL.
+    if (ASensorEventQueue_setEventRate(queue_, sensor_, min_delay) < 0 &&
+        min_delay < 5000) {
+      ASensorEventQueue_setEventRate(queue_, sensor_, 5000);
+    }
     return true;
   }
 

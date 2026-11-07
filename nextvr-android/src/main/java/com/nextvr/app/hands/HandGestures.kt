@@ -80,15 +80,21 @@ object HandGestures {
         var others = 0
         for (i in FOLDED_TIPS.indices) if (d(0, FOLDED_TIPS[i]) < d(0, FOLDED_PIPS[i]) * 1.04f) others++
         val indexCurled = d(0, 8) < d(0, 6) * 1.04f
+        // When pinching sideways or at an angle (IMG_20261021_143724.jpg), the index finger bends
+        // toward the thumb while the fingertips stay out in front of the knuckles and touch closely.
+        val sidewaysPinchPose = gap < .42f && d(0, 8) > d(0, 5) * .72f && d(4, 8) < d(8, 12) * .92f
         // A fist has every finger folded. A pinch with the index bent and the other fingers open
         // (or closed) is not a fist.
-        val fist = indexCurled && others >= 2
-        // Winding of wrist -> index base -> pinky base: for the back camera, a right hand shows its
-        // back (palm toward the user) when this turns clockwise in image space.
+        val fist = indexCurled && others >= 2 && !sidewaysPinchPose
+        // Winding of wrist -> index base -> pinky base. A right hand with the PALM toward the camera
+        // shows the thumb on the image-right, so the index base sits right of the pinky base and this
+        // winding turns the other way; the side flips the reading. This was inverted (the same sign
+        // error that made the palm cursor appear on the back of the hand), so the 2D answer now
+        // agrees with PalmMenuPose's 3D one instead of contradicting it.
         val ax = p[5].x() - p[0].x(); val ay = p[5].y() - p[0].y()
         val bx = p[17].x() - p[0].x(); val by = p[17].y() - p[0].y()
         val cross = ax * by - ay * bx
-        val palmToFace = if (physicalLeft) cross < 0 else cross > 0
+        val palmToFace = if (physicalLeft) cross > 0 else cross < 0
         return Shape(
             pinch = !fist && gap < .42f,
             pinchStrength = strength,

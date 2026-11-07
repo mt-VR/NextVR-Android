@@ -29,6 +29,8 @@ import java.util.Map;
 final class WebSurface {
     static final String ORIGIN="https://appassets.androidplatform.net";
     static final String HOME=ORIGIN+"/ui/index.html";
+    static final String SHELL_HOME=HOME+"#onboarding=skip";
+    static final String ENTRY_HOME=HOME+"?fullscreen=1";
     final WebView web;
     final Presentation presentation;
     private final VirtualDisplay display;
@@ -38,15 +40,18 @@ final class WebSurface {
     private android.view.View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private long downTime;
-    final int width,height;
+    final int width,height,renderW,renderH;
     private final boolean shell;
     private boolean released;
     private static final String AUDIO_SCRIPT="(()=>{const contexts=[];for(const k of ['AudioContext','webkitAudioContext']){const C=window[k];if(C)window[k]=new Proxy(C,{construct(t,a){const c=Reflect.construct(t,a);contexts.push(c);return c;}});}window.__nextvrAudio=on=>{document.querySelectorAll('audio,video').forEach(e=>{if(!on){e.dataset.nextvrVolume=e.volume;e.volume=0;e.pause();}else if(e.dataset.nextvrVolume){e.volume=+e.dataset.nextvrVolume;delete e.dataset.nextvrVolume;}});contexts.forEach(c=>{try{on?c.resume():c.suspend();}catch{}});};})();";
     @SuppressLint("SetJavaScriptEnabled")
     WebSurface(NextVrActivity owner,SurfaceTexture texture,int width,int height,boolean shell,Object bridge,String url) {
         this.owner=owner; this.width=width; this.height=height; this.shell=shell;
-        texture.setDefaultBufferSize(width,height); surface=new Surface(texture);
-        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),width,height,160,surface,0);
+        this.renderW=shell?width:Math.min(2048,Math.round(width*1.35f));
+        this.renderH=shell?height:Math.min(1536,Math.round(height*1.35f));
+        int dpi=shell?160:216;
+        texture.setDefaultBufferSize(renderW,renderH); surface=new Surface(texture);
+        display=owner.getSystemService(DisplayManager.class).createVirtualDisplay("NextVR "+(shell?"spatial UI":"browser"),renderW,renderH,dpi,surface,0);
         if(display==null) throw new IllegalStateException("Cannot create HTML virtual display");
         presentation=new Presentation(owner,display.getDisplay());
         presentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -55,15 +60,18 @@ final class WebSurface {
         presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         web=new WebView(presentation.getContext());
+        web.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         web.setBackgroundColor(shell?Color.TRANSPARENT:Color.WHITE);
         web.setInitialScale(100);
-        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
+        WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        if(android.os.Build.VERSION.SDK_INT>=23) s.setOffscreenPreRaster(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(true); // Only SAF-selected photo URIs are granted.
         s.setMediaPlaybackRequiresUserGesture(false); // Native pinch is a real user action, not WebView JS activation.
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setUseWideViewPort(!shell); s.setLoadWithOverviewMode(!shell);
-        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); // Always pair the APK bridge with this APK's UI.
+        if(shell)s.setCacheMode(WebSettings.LOAD_NO_CACHE); else s.setCacheMode(WebSettings.LOAD_DEFAULT); // Always pair the APK bridge with this APK's UI.
         web.setVerticalScrollBarEnabled(false); web.setHorizontalScrollBarEnabled(false);
         if(shell) web.addJavascriptInterface(bridge,"NativeXR");
         /*
@@ -93,7 +101,7 @@ final class WebSurface {
                 return null;
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
-                if(shell) return !request.getUrl().toString().equals(HOME);
+                if(shell) return !request.getUrl().toString().startsWith(HOME);
                 return !isWebUrl(request.getUrl().toString());
             }
             @Override public void onPageFinished(WebView view,String address) {
@@ -133,9 +141,10 @@ final class WebSurface {
         });
         web.setDownloadListener((address,agent,disposition,mime,length)->owner.download(address,agent,disposition,mime));
         container=new FrameLayout(presentation.getContext()); container.setBackgroundColor(Color.TRANSPARENT);
+        container.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         container.addView(web,new FrameLayout.LayoutParams(-1,-1)); presentation.setContentView(container);
         presentation.show();
-        presentation.getWindow().setLayout(width,height);
+        presentation.getWindow().setLayout(renderW,renderH);
         // A Presentation on a private virtual display never receives window focus, so nothing here
         // would ever claim it. The page still needs the WebView focused to keep its own focused
         // element (and its :focus styling and scroll-into-view) alive between keyboard strokes.
@@ -161,18 +170,164 @@ final class WebSurface {
         return typingEngine;
     }
     static boolean isWebUrl(String url) { Uri uri=Uri.parse(url); return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) && uri.getHost()!=null; }
-    private WebResourceResponse asset(Uri uri) {
+    static WebResourceResponse assetFromOwner(NextVrActivity owner,Uri uri) { return assetFrom(owner,uri); }
+    /**
+     * A entrega dos assets de {@code /ui/} para qualquer tela do app.
+     *
+     * <p>A shell e a tela do jogo HTML (uma activity própria) servem a mesma pasta de dentro do APK;
+     * o que elas têm em comum é o {@code Context}. A checagem continua a mesma: nada fora de
+     * {@code /ui/}, nada com {@code ..}, e nenhum código remoto ganha a ponte NativeXR.
+     */
+    static WebResourceResponse assetFrom(android.content.Context context,Uri uri) {
+        if(context==null) return denied();
         String path=uri.getPath();
         if(path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
         try {
-            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":"application/octet-stream";
+            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav"
+                // O jogo do Cockpit VR traz o MediaPipe de dentro do APK: sem `application/wasm` o
+                // `WebAssembly.instantiateStreaming` recusa o módulo e as mãos do jogo não sobem.
+                :path.endsWith(".wasm")?"application/wasm"
+                :path.endsWith(".json")?"application/json"
+                :"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src https: blob:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            // A pasta do Cockpit VR é a única exceção, e ela existe por um motivo medido: o rastreio
+            // de mão do próprio jogo é o MediaPipe, que baixa o módulo de CDN e compila WASM na
+            // hora. Sem 'wasm-unsafe-eval' o Chromium recusa essa compilação e as mãos do jogo nunca
+            // sobem ("MediaPipe não carregou"). Essa página é servida daqui, do APK, e roda numa
+            // janela sem a ponte NativeXR — o resto da UI continua sem eval.
+            headers.put("Content-Security-Policy",path.startsWith("/ui/cockpit/")
+                ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob: mediastream: data:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; child-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'"
+                : "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
-            return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
+            return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,context.getAssets().open(path.substring(1)));
         } catch(Exception e) { return denied(); }
+    }
+    private WebResourceResponse asset(Uri uri) { return assetFromOwner(owner,uri); }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    static WebView createFullscreenEntryView(NextVrActivity owner,Object bridge) {
+        WebView entry=new WebView(owner);
+        entry.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
+        entry.setBackgroundColor(Color.parseColor("#070c1f"));
+        WebSettings s=entry.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        s.setSupportMultipleWindows(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setUseWideViewPort(false);
+        s.setLoadWithOverviewMode(false);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        entry.setVerticalScrollBarEnabled(false);
+        entry.setHorizontalScrollBarEnabled(false);
+        entry.addJavascriptInterface(bridge,"NativeXR");
+        entry.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
+                Uri u=request.getUrl();
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return assetFromOwner(owner,u);
+                return null;
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
+                return !request.getUrl().toString().startsWith(HOME);
+            }
+            @Override public void onPageFinished(WebView view,String address) {
+                if(owner!=null) owner.pushBatteryState(null);
+            }
+        });
+        entry.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                android.util.Log.d("NextVR-Entry",m.message()+" @"+m.lineNumber()); return true;
+            }
+            @Override public boolean onShowFileChooser(WebView v,ValueCallback<Uri[]> cb,FileChooserParams p) {
+                owner.chooseFiles(cb,p); return true;
+            }
+        });
+        entry.loadUrl(ENTRY_HOME);
+        return entry;
+    }
+
+    /**
+     * A tela cheia de um jogo HTML que traz o próprio estéreo e o próprio rastreio de mão.
+     *
+     * <p>É o caso do Cockpit VR (o jogo de avião do planeVR): a página desenha os dois olhos com a
+     * distorção da lente do VR Box e lê a câmera para as mãos — o mesmo que ela faz aberta num
+     * navegador. Por isso ela recebe a tela inteira e uma janela própria, sem a ponte NativeXR (a
+     * shell continua dona dos menus e das permissões) e com a câmera concedida pelo
+     * {@code onPermissionRequest} desta janela, que é quem sabe que a página pediu captura.
+     *
+     * <p>Duas chamadas voltam para o app, e só duas: sair (o gesto de encerrar do próprio jogo) e
+     * uma mensagem de erro na tela do NextVR.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    static WebView createFullscreenGameView(NextVrActivity owner, String url, String tag) {
+        WebView game=new WebView(owner);
+        game.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
+        game.setBackgroundColor(Color.BLACK);
+        game.setKeepScreenOn(true);
+        WebSettings settings=game.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setUseWideViewPort(false);
+        settings.setLoadWithOverviewMode(false);
+        // O jogo é servido do APK e a página não muda: nada de cache velho de uma rodada anterior.
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        game.setVerticalScrollBarEnabled(false);
+        game.setHorizontalScrollBarEnabled(false);
+        game.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request) {
+                Uri u=request.getUrl();
+                if(ORIGIN.equals(u.getScheme()+"://"+u.getHost())) return assetFromOwner(owner,u);
+                return null;
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
+                return !request.getUrl().toString().startsWith(ORIGIN);
+            }
+            @Override public void onPageFinished(WebView view,String address) {
+                android.util.Log.d("NextVR-GAME","loaded "+address);
+            }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {
+                // Só o documento do jogo interessa: as bibliotecas têm o próprio aviso na página.
+                if(request.isForMainFrame() && owner!=null) owner.report("O jogo não carregou: "+error.getDescription());
+            }
+        });
+        game.setWebChromeClient(new WebChromeClient() {
+            // O jogo liga a câmera do aparelho para as mãos dele. A permissão de captura é da
+            // PÁGINA do jogo, e só dela: nenhuma outra janela do NextVR pede câmera.
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                try { request.grant(request.getResources()); }
+                catch(Throwable denied) {
+                    try { request.deny(); } catch(Throwable ignored) {}
+                    if(owner!=null) owner.report("A câmera do jogo foi negada pelo Android: confira a permissão de Câmera do NextVR.");
+                }
+            }
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                android.util.Log.d("NextVR-GAME",m.message()+" @"+m.lineNumber()); return true;
+            }
+        });
+        game.addJavascriptInterface(new GameBridge(owner),"NextVRGame");
+        game.loadUrl(url);
+        return game;
+    }
+
+    /** As duas chamadas que um jogo HTML hospedado tem para o app. */
+    public static final class GameBridge {
+        private final NextVrActivity owner;
+        GameBridge(NextVrActivity owner) { this.owner=owner; }
+        /** O gesto de encerrar do jogo (ou o ✕ da tela dele): o NextVR reassume a tela e a câmera. */
+        @android.webkit.JavascriptInterface public void exit() { if(owner!=null) owner.closeCockpitGame(); }
+        @android.webkit.JavascriptInterface public void report(String message) { if(owner!=null) owner.report(message); }
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the
@@ -222,7 +377,8 @@ final class WebSurface {
         properties.id=0;
         properties.toolType=MotionEvent.TOOL_TYPE_FINGER;
         MotionEvent.PointerCoords coordinates=new MotionEvent.PointerCoords();
-        coordinates.x=x; coordinates.y=y;
+        coordinates.x=shell?x:(x*renderW/Math.max(1f,width));
+        coordinates.y=shell?y:(y*renderH/Math.max(1f,height));
         coordinates.pressure=(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL)?0f:1f;
         coordinates.size=1f;
         // WebView/Chromium classifies a default MotionEvent.obtain() as SOURCE_UNKNOWN. Give the

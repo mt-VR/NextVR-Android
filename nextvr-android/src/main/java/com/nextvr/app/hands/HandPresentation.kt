@@ -16,9 +16,13 @@ class HandPresentation {
         /** Last stretch of the retention during which the retained pose fades to zero. */
         const val FADE_NS = 200_000_000L
     }
-    private var lastVisible: PhoneXrHands.Frame? = null
+    @Volatile private var lastVisible: PhoneXrHands.Frame? = null
+    fun reset() {
+        lastVisible = null
+    }
     fun silhouette(frame: PhoneXrHands.Frame, nowNs: Long): PhoneXrHands.Frame? {
-        if(frame.hands.isNotEmpty() && frame.isFresh(nowNs)) { lastVisible=frame;return frame }
+        if(frame.hands.isEmpty()) { lastVisible=null;return null }
+        if(frame.isFresh(nowNs)) { lastVisible=frame;return frame }
         val previous=lastVisible
         if(previous==null || nowNs-previous.completedNs>retention(previous)) { lastVisible=null;return null }
         return previous

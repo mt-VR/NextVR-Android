@@ -8,8 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
-import bundledChromium from '@sparticuz/chromium';
+import { launchOrSkip } from './support/chromium.mjs';
 import * as THREE from 'three';
 
 const ACTION = { down: 0, up: 1, move: 2, cancel: 3 };
@@ -62,6 +61,27 @@ const nativeShim = () => {
   };
 };
 
+// O dedo indicador em 2D: o Toque Direto escolhe o alvo pela PONTA (landmark 8), exatamente como no
+// aparelho — `points[24], points[25]` é a projeção do `aim` na tela, com a cadeia punho/PIP/MCP
+// embaixo para o dedo estar realmente esticado. Sem isso a mão sintética só funcionava pelo raio.
+const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
+function pointingPoints(aim) {
+  const tx = aim.x / -aim.z, ty = (aim.y - EYE_Y) / -aim.z;
+  const x = .5 + tx / (2 * TAN_X), y = .5 - ty / (2 * TAN_Y);
+  const pts = new Array(63).fill(.5);
+  pts[0] = x; pts[1] = Math.min(.98, y + .24);   // punho
+  pts[15] = x - .008; pts[16] = Math.min(.95, y + .05); // MCP do indicador
+  pts[18] = x; pts[19] = Math.min(.95, y + .10); // PIP
+  pts[21] = x; pts[22] = Math.min(.95, y + .05); // MCP
+  pts[24] = x; pts[25] = y;                      // PONTA (landmark 8)
+  // Dedo médio dobrado: o MCP dele fica logo abaixo da ponta, não no meio da tela. Com um valor
+  // neutro (0.5) o meio da pinça caía numa linha vizinha e escolhia OUTRO idioma — o mesmo toque
+  // sem querer que a ponta nunca fez.
+  pts[12] = x + .010; pts[13] = Math.min(.95, y + .03);
+  pts[27] = x + .012; pts[28] = Math.min(.95, y + .06);
+  return pts;
+}
+
 // Fingertip (landmark 8, head offset 24..26) `depth` metres from the eye, along the ray to `aim`.
 function handAt(aim, depth, pinching) {
   const head = new Array(63).fill(0);
@@ -69,7 +89,7 @@ function handAt(aim, depth, pinching) {
   head[24] = dir.x * depth; head[25] = dir.y * depth; head[26] = dir.z * depth;
   return {
     hands: [{
-      id: 'right', left: false, points: Array.from({ length: 63 }, () => 0.5), head,
+      id: 'right', left: false, points: pointingPoints(aim), head,
       base: [0, -.2], aim: [aim.x / -aim.z, (aim.y - EYE_Y) / -aim.z], palm: [.5, .5], grab: [.5, .5],
       palmWidth: .2, pinching, fist: false, palmFacesEyes: false, menuEligible: false
     }]
@@ -81,7 +101,7 @@ async function openFreshPage(browser, url) {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(nativeShim);
-  await page.goto(url);
+  await page.goto(`${url}#onboarding=language`);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForFunction(() => window.__last?.panels.length >= 1);
@@ -126,7 +146,7 @@ function handAtOffset(aim, off, pinching) {
   head[24] = aim.x; head[25] = aim.y - EYE_Y; head[26] = aim.z + off;
   return {
     hands: [{
-      id: 'right', left: false, points: Array.from({ length: 63 }, () => 0.5), head,
+      id: 'right', left: false, points: pointingPoints(aim), head,
       base: [0, -.2], aim: [aim.x / -aim.z, (aim.y - EYE_Y) / -aim.z], palm: [.5, .5], grab: [.5, .5],
       palmWidth: .2, pinching, fist: false, palmFacesEyes: false, menuEligible: false
     }]
@@ -152,8 +172,8 @@ test('language window: a detected press and release remain distinct at a slow sa
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const samples = [handAt(aim, .60, false), handAt(aim, .60, true), handAt(aim, .60, false)];
@@ -182,8 +202,8 @@ test("language window: far ray pinch selects English", { timeout: 120000 }, asyn
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     const actions = await runSequence(page, aim, '0.60:0:700,0.60:1:700,0.60:0:700');
@@ -198,8 +218,8 @@ test('language window: hovering in the near band with a pinch still uses the far
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Bem à frente do vidro, fora da faixa de toque direto: quem decide é o raio distante.
@@ -214,8 +234,8 @@ test('language window: starting behind the glass never leaves a press stuck DOWN
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Começa atrás do vidro e vem para a frente: sem pinça, nada pode apertar.
@@ -234,8 +254,8 @@ test('language window: push through the glass selects once, and a held pinch can
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '[data-lang="en"]');
     // Chega, encosta (aperta), atravessa um dedo, volta a encostar e sai: soltar sobre a MESMA linha
@@ -252,8 +272,8 @@ test('language window: leaving direct-touch range releases and suppresses the he
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     const aim = await languageTarget(page, '.lq-welcome');
     // Encosta e aperta (o toque direto passa a ser dono da mão), e SÓ ENTÃO fecha a pinça: com o
@@ -273,8 +293,8 @@ test('language window: releasing a push while still pinched emits one UP and no 
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const { page, errors } = await openFreshPage(browser, `http://127.0.0.1:${server.address().port}/`);
     // The welcome heading is not a button, so this press must not close the window.
     const aim = await languageTarget(page, '.lq-welcome');

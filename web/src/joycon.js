@@ -13,6 +13,8 @@ const held = new Set();
 const ACTIONABLE = 'button:not(:disabled),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[role="button"], [tabindex]:not([tabindex="-1"])';
 
 function currentRoot() {
+  const fsEntry = document.getElementById('entry-fullscreen');
+  if (fsEntry && !fsEntry.hidden) return fsEntry;
   const win = focusedWin();
   if (win && !win.hidden) return win.el;
   const dock = document.querySelector('.dock');
@@ -77,7 +79,11 @@ function activate() {
 }
 
 function back() {
+  const fsBack = document.querySelector('#entry-fullscreen [data-entry-act="back"]');
+  if (fsBack) { fsBack.click(); mark(null); return; }
   const win = focusedWin();
+  const entryBack = win?.el?.querySelector('[data-entry-act="back"]');
+  if (entryBack) { entryBack.click(); mark(null); return; }
   if (win && !win.onboarding) { close(win); mark(null); return; }
   const active = document.activeElement;
   if (active && active !== document.body) active.blur();
@@ -124,6 +130,19 @@ function buttonDown(action, repeat) {
 }
 
 function onButton(action, down, repeat = 0) {
+  if (action === 'plus' && down && (window.__vrfsStereoOverlay || window.__gorillaStereoOverlay)) {
+    if (window.__vrfsStereoOverlay) window.__vrfsExit?.();
+    else window.__gorillaExit?.();
+    return;
+  }
+  if (window.__vrfsStereoOverlay && typeof window.__vrfsJoyconKey === 'function') {
+    window.__vrfsJoyconKey(action, down, repeat);
+    return;
+  }
+  if (window.__gorillaStereoOverlay && typeof window.__gorillaJoyconKey === 'function') {
+    window.__gorillaJoyconKey(action, down, repeat);
+    return;
+  }
   if (down) buttonDown(action, repeat);
   else held.delete(action);
 }
@@ -133,7 +152,15 @@ function axisDirection(x, y) {
   if (Math.abs(x) > Math.abs(y)) return x < 0 ? 'left' : 'right';
   return y < 0 ? 'up' : 'down';
 }
-function onAxes(x, y) {
+function onAxes(x, y, rx = 0, ry = 0, lt = 0, rt = 0) {
+  if (window.__vrfsStereoOverlay && typeof window.__vrfsJoyconAxes === 'function') {
+    window.__vrfsJoyconAxes(x, y, rx, ry, lt, rt);
+    return;
+  }
+  if (window.__gorillaStereoOverlay && typeof window.__gorillaJoyconAxes === 'function') {
+    window.__gorillaJoyconAxes(x, y, rx, ry, lt, rt);
+    return;
+  }
   const direction = axisDirection(x, y);
   if (!direction) { axesDirection = ''; axesRepeatAt = 0; return; }
   const now = performance.now();
@@ -148,10 +175,11 @@ function onAxes(x, y) {
 }
 
 export function installJoycon() {
-  if (!native || window.__nextvrJoyconInstalled) return;
+  if (window.__nextvrJoyconInstalled) return;
   window.__nextvrJoyconInstalled = true;
   window.__nextvrJoyconKey = onButton;
   window.__nextvrJoyconAxes = onAxes;
+  if (!native) return;
   window.addEventListener('blur', () => { held.clear(); axesDirection = ''; });
   window.addEventListener('gamepadconnected', event => {
     const name = event.gamepad?.id || 'Bluetooth gamepad';

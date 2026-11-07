@@ -49,7 +49,7 @@ import java.util.zip.ZipFile;
 public final class XrGameLibrary {
 
     public enum Kind {
-        OPENXR, OPENXR_ORIGINAL, VRAPI_READY, VRAPI_ORIGINAL, VRAPI_UNSUPPORTED, DAYDREAM
+        OPENXR, OPENXR_ORIGINAL, VRAPI_READY, VRAPI_ORIGINAL, VRAPI_UNSUPPORTED, DAYDREAM, CARDBOARD
     }
 
     /** Which headset a build was made for. Quest and Gear VR both draw through VrApi, so it is the
@@ -97,7 +97,24 @@ public final class XrGameLibrary {
          * display to use — so it takes the whole phone screen instead.
          */
         public boolean hostable() {
-            return kind == Kind.OPENXR || kind == Kind.VRAPI_READY || kind == Kind.DAYDREAM;
+            return kind == Kind.OPENXR || kind == Kind.VRAPI_READY;
+        }
+
+        /**
+         * Whether the game draws its own stereo picture straight to the phone's screen — Google Cardboard
+         * and Daydream builds, and any Cardboard-family APK the user points here.
+         *
+         * <p>These apply their <em>own</em> barrel distortion before the image leaves the app, sized for
+         * the lenses of a cardboard box. Hosting one inside our world would run the game's warp and then
+         * ours over it: two corrections on one picture, which is blur and colour fringing, not 3D. They
+         * also read the phone's own sensors for head tracking, which fights our 6DoF camera.
+         *
+         * <p>So they are handed the screen instead: the game opens full screen exactly as it would from
+         * the phone's launcher, the VR Box lenses finish the picture, and leaving it comes back here with
+         * the workspace untouched. No runtime, no Shizuku, no privilege at all.
+         */
+        public boolean fullScreen() {
+            return kind == Kind.CARDBOARD || kind == Kind.DAYDREAM;
         }
 
         /** Whether starting it needs the VrApi driver package installed as well as the runtime. */
@@ -119,8 +136,10 @@ public final class XrGameLibrary {
                 case VRAPI_UNSUPPORTED:
                     return headset.title + " · unsupported";
                 case DAYDREAM:
+                    return "Daydream · abre em tela cheia no VR Box (estéreo do próprio jogo)";
+                case CARDBOARD:
                 default:
-                    return "Daydream / Cardboard";
+                    return "Cardboard · abre em tela cheia no VR Box (estéreo do próprio jogo)";
             }
         }
     }
@@ -138,7 +157,23 @@ public final class XrGameLibrary {
     private static final String VRAPI = "libvrapi.so";
     private static final String GVR = "libgvr.so";
     private static final String GVR_AUDIO = "libgvr_audio.so";
+    /** The Cardboard SDK's own native half, in the several names its Unity and Java packaging use. */
+    private static final String[] CARDBOARD_LIBS = {
+            "libcardboard.so", "libCardboard.so", "libcardboard_unity.so", "libGfxPluginCardboard.so"};
+    /**
+     * Classes that only a Cardboard build carries, looked for in the dex of a Unity app.
+     *
+     * <p>A Unity game built with the Cardboard XR plugin ships no library we can recognise (the plugin
+     * is Java) and declares no VR intent category — its manifest is an ordinary Unity manifest. What it
+     * does carry, merged into its (small, il2cpp) dex, is the plugin's own package. Searching those
+     * bytes is what tells an otherwise invisible Cardboard build apart from a flat Unity game.
+     */
+    private static final byte[][] CARDBOARD_CLASSES = {
+            "com/google/cardboard".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "com/google/vr/sdk".getBytes(java.nio.charset.StandardCharsets.US_ASCII)};
     private static final String[] ARM_ABIS = {"arm64-v8a", "armeabi-v7a", "armeabi"};
+    /** How much of a dex file the Cardboard probe reads. See {@link #dexHasCardboard}. */
+    private static final long MAX_DEX_BYTES = 24L * 1024 * 1024;
 
     /** Oculus store entitlement libraries. Reported, never touched. */
     private static final String[] ENTITLEMENT = {
@@ -290,48 +325,162 @@ public final class XrGameLibrary {
 
             java.util.List<String> vrapi = new java.util.ArrayList<>();
             for (String name : libs) if (name.endsWith("/" + VRAPI)) vrapi.add(name);
-            if (vrapi.isEmpty()) {
-                boolean openXr = false;
-                boolean gvr = false;
-                for (String name : libs) {
-                    if (name.endsWith("/" + LOADER)) openXr = true;
-                    if (name.endsWith("/" + GVR) || name.endsWith("/" + GVR_AUDIO)) gvr = true;
-                }
-                boolean declaredVr = false;
-                for (String category : VR_CATEGORIES) {
-                    if (manifest.hasCategory(category)) {
-                        declaredVr = true;
-                        break;
+            if (!vrapi.isEmpty()) {
+                String folder = null;
+                for (String name : vrapi) {
+                    String candidate = name.substring("lib/".length());
+                    candidate = candidate.substring(0, candidate.indexOf('/'));
+                    for (String abi : ARM_ABIS) {
+                        if (abi.equals(candidate)) folder = candidate;
                     }
                 }
-                if (openXr || declaredVr) {
-                    result.kind = manifest.findsRuntime() ? Kind.OPENXR : Kind.OPENXR_ORIGINAL;
-                } else if (gvr) {
-                    result.kind = Kind.DAYDREAM;
-                } else {
-                    return null;
+                if (folder == null) {
+                    result.kind = Kind.VRAPI_UNSUPPORTED;
+                    return result;
                 }
+                // The patch that puts an OpenXR adapter in place of libvrapi also adds the loader beside
+                // it. A store build never carries one, so its absence is the marker of an unpatched game.
+                result.kind = libs.contains("lib/" + folder + "/" + LOADER) ? Kind.VRAPI_READY : Kind.VRAPI_ORIGINAL;
                 return result;
             }
-            String folder = null;
-            for (String name : vrapi) {
-                String candidate = name.substring("lib/".length());
-                candidate = candidate.substring(0, candidate.indexOf('/'));
-                for (String abi : ARM_ABIS) {
-                    if (abi.equals(candidate)) folder = candidate;
+            boolean openXr = false;
+            boolean gvr = false;
+            boolean cardboard = false;
+            for (String name : libs) {
+                String file = name.substring(name.lastIndexOf('/') + 1);
+                if (file.equals(LOADER)) openXr = true;
+                if (file.equals(GVR) || file.equals(GVR_AUDIO)) gvr = true;
+                for (String marker : CARDBOARD_LIBS) if (marker.equals(file)) cardboard = true;
+            }
+            boolean declaredVr = false;
+            for (String category : VR_CATEGORIES) {
+                if (manifest.hasCategory(category)) {
+                    declaredVr = true;
+                    break;
                 }
             }
-            if (folder == null) {
-                result.kind = Kind.VRAPI_UNSUPPORTED;
-                return result;
+            boolean cardboardDeclared = manifest.hasCategory("com.google.intent.category.CARDBOARD");
+            boolean daydreamDeclared = manifest.hasCategory("com.google.intent.category.DAYDREAM");
+            // A Unity Cardboard build looks like an ordinary game from the outside: no VR category, no
+            // native VR library (the plugin is Java). Its dex is what gives it away — and it is only
+            // worth opening for something that could be one: a Unity app with no other VR sign.
+            boolean mightBeUnity = !declaredVr && !openXr && !gvr && !cardboard && hasUnityLib(libs);
+            if (mightBeUnity) cardboard = dexHasCardboard(zip, names);
+            // Alguns builds dizem o que são no próprio nome: `…taxidriver.cardboard`,
+            // `1.0-cardboard-vr-v7`. É barato e é a única pista que sobra num APK cujo dex e cujas
+            // bibliotecas não trazem nada reconhecível.
+            if (!cardboard && (looksCardboard(info.packageName) || looksCardboard(versionNameOf(info.packageName)))) {
+                cardboard = true;
             }
-            // The patch that puts an OpenXR adapter in place of libvrapi also adds the loader beside
-            // it. A store build never carries one, so its absence is the marker of an unpatched game.
-            result.kind = libs.contains("lib/" + folder + "/" + LOADER) ? Kind.VRAPI_READY : Kind.VRAPI_ORIGINAL;
+
+            result.kind = kindOf(libs, manifest.findsRuntime(), openXr, declaredVr, gvr,
+                    cardboard, cardboardDeclared, daydreamDeclared);
+            if (result.kind == null) return null;
             return result;
         } catch (Throwable unreadable) {
             return null;
         }
+    }
+
+    /**
+     * Which kind of build this is, from the evidence an APK gives. Null when nothing here is a VR app.
+     *
+     * <p>The order is the whole rule. A VrApi or OpenXR loader is a real runtime client, so it wins over
+     * everything else: those are the ones that can be hosted. Cardboard and Daydream come next, because
+     * their own lens correction is baked into the picture and they are handed the screen instead. Only
+     * then does a bare VR intent category count, and a build that declares one but ships no loader is an
+     * unpatched OpenXR game.
+     */
+    public static Kind kindOf(java.util.List<String> libs, boolean findsRuntime, boolean openXr,
+                              boolean declaredVr, boolean gvr, boolean cardboard,
+                              boolean cardboardDeclared, boolean daydreamDeclared) {
+        if (openXr) return findsRuntime ? Kind.OPENXR : Kind.OPENXR_ORIGINAL;
+        if (cardboard || cardboardDeclared) return Kind.CARDBOARD;
+        if (gvr || daydreamDeclared) return Kind.DAYDREAM;
+        if (declaredVr) return findsRuntime ? Kind.OPENXR : Kind.OPENXR_ORIGINAL;
+        return null;
+    }
+
+    /**
+     * The declared version string of an installed package, or "" when the manager will not say.
+     *
+     * <p>{@code ApplicationInfo} carries no version name — that lives on {@code PackageInfo} — and a
+     * Cardboard build often names itself there ({@code 1.0-cardboard-vr-v7}).
+     */
+    private String versionNameOf(String packageName) {
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager().getPackageInfo(packageName, 0);
+            return info.versionName == null ? "" : info.versionName;
+        } catch (Throwable missing) {
+            return "";
+        }
+    }
+
+    /**
+     * Whether a name says Cardboard outright — a package like {@code com.manerai.taxidriver.cardboard}
+     * or a version such as {@code 1.0-cardboard-vr-v7}.
+     */
+    static boolean looksCardboard(String name) {
+        return name != null && name.toLowerCase(java.util.Locale.ROOT).contains("cardboard");
+    }
+
+    /** Whether the APK ships Unity's own engine library (the marker of a Unity build). */
+    static boolean hasUnityLib(java.util.List<String> libs) {
+        for (String name : libs) if (name.endsWith("/libunity.so")) return true;
+        return false;
+    }
+
+    /**
+     * Whether any of an APK's dex files mentions a Cardboard class.
+     *
+     * <p>Bounded on purpose: only dex files are looked at, and only the first 24 MB of each — a Unity
+     * il2cpp dex is a few hundred kilobytes, so the cap never bites on the case this is for and keeps a
+     * hostile 4 GB APK from being read whole.
+     */
+    static boolean dexHasCardboard(ZipFile zip, java.util.List<String> names) {
+        java.util.List<String> dexs = new java.util.ArrayList<>();
+        for (String name : names) if (name.startsWith("classes") && name.endsWith(".dex")) dexs.add(name);
+        java.util.Collections.sort(dexs);
+        for (String name : dexs) {
+            java.util.zip.ZipEntry entry = zip.getEntry(name);
+            if (entry == null) continue;
+            byte[] bytes;
+            try (java.io.InputStream in = zip.getInputStream(entry)) {
+                int size = (int) Math.min(entry.getSize() < 0 ? MAX_DEX_BYTES : entry.getSize(), MAX_DEX_BYTES);
+                if (size <= 0) continue;
+                // A plain read loop on purpose: `readNBytes` is API 33 on Android, and this app runs
+                // from API 21.
+                bytes = new byte[size];
+                int read = 0;
+                while (read < size) {
+                    int step = in.read(bytes, read, size - read);
+                    if (step <= 0) break;
+                    read += step;
+                }
+                if (read <= 0) continue;
+                if (read < size) bytes = java.util.Arrays.copyOf(bytes, read);
+            } catch (Throwable unreadable) {
+                continue;
+            }
+            for (byte[] needle : CARDBOARD_CLASSES) {
+                if (containsAscii(bytes, needle)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Plain byte search: the marker is ASCII, and a dex is not text. */
+    static boolean containsAscii(byte[] haystack, byte[] needle) {
+        if (haystack == null || needle == null || needle.length == 0) return false;
+        int last = haystack.length - needle.length;
+        outer:
+        for (int start = 0; start <= last; start++) {
+            for (int i = 0; i < needle.length; i++) {
+                if (haystack[start + i] != needle[i]) continue outer;
+            }
+            return true;
+        }
+        return false;
     }
 
     private static byte[] read(ZipFile zip, java.util.zip.ZipEntry entry) {

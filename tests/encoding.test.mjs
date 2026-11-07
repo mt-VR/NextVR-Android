@@ -6,6 +6,9 @@ import { TextDecoder } from 'node:util';
 
 const roots=['web','tests','docs','nextvr-android/src/main','README.md','package.json','build.gradle','settings.gradle','gradle.properties'];
 const binary=new Set(['.png','.jpg','.jpeg','.webp','.woff2','.wav','.task','.tflite','.zip','.so','.jar','.aar',
+  // O rastreio de mão do jogo do Cockpit VR viaja no APK (MediaPipe): wasm, .data e .binarypb são
+  // binários por definição e não passam pelo decodificador de texto.
+  '.wasm','.data','.binarypb',
   // The bundled PhoneXR runtime is a signed APK we ship verbatim (nextvr-android/build.gradle pins
   // its bytes) — binary by design, and self-checking via its sha256, so it never goes through the
   // decoder here.

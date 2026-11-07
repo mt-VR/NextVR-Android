@@ -1,0 +1,36 @@
+{
+	"jsonid": "input_profile",
+	"controller_type": "nextvr_hand",
+	"device_tracking_system_name": "nextvr",
+	"input_source": {
+		"/input/grab": {
+			"type": "button",
+			"click": {
+				"output": "/input/grab/click"
+			}
+		},
+		"/input/trigger": {
+			"type": "trigger",
+			"click": {
+				"output": "/input/trigger/click"
+			},
+			"value": {
+				"output": "/input/trigger/value"
+			}
+		},
+		"/input/skeleton/left": {
+			"type": "skeleton",
+			"skeleton": "/skeleton/hand/left"
+		},
+		"/input/skeleton/right": {
+			"type": "skeleton",
+			"skeleton": "/skeleton/hand/right"
+		}
+	},
+	"default_bindings": [
+		{
+			"controller_type": "nextvr_hand",
+			"binding_url": "bindings/nextvr_hand_generic.json"
+		}
+	]
+}

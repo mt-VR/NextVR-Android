@@ -63,6 +63,33 @@ to the Cardboard compositor. Browser contents run in isolated WebViews in the sa
 The headless Chromium test dependency needs standard Linux browser libraries (`libnss3`, `libnspr4`)
 on minimal development images. The Ubuntu CI runner already supplies them.
 
+## Direct Touch (poke interaction)
+
+The hand UI is touched the way a Meta Quest is: **the index finger has to reach the surface and push
+it**. Approaching a button only highlights it; contact shows a contact ring at the fingertip; pushing
+through the target's plane fires exactly one click, once per press, and the finger must leave the
+contact area before another click can happen. The old "select while passing by, click when the finger
+lifts" heuristics are gone from `windows.js` — they fired on tracking noise. Depth is measured in
+metres against the target's plane (the window surface, or the dock/keyboard plane), with an absolute
+threshold and a relative push, live samples only (never predicted ones). Pinch is **not** the click
+mechanism, and the pinch ray is untouched. States, thresholds, what happens on each kind of target
+and how to tune it: [`docs/DIRECT-TOUCH.md`](docs/DIRECT-TOUCH.md).
+
+## Palm cursor (the dot between thumb and index)
+
+The NextVR dot tracks the Meta Quest 3S behaviour: **it appears when the palm faces the camera/headset
+and disappears when the back of the hand does**, for either hand, each with its own cursor. Orientation
+is geometry, not the hand's height or finger pose: the palm plane comes from three 3D landmarks (wrist,
+index MCP, pinky MCP), the normal is oriented per hand (left and right mirror each other) and compared
+with the palm → eye direction via a dot product. A single gate per hand smooths it, applies hysteresis
+(a higher threshold to show, a lower one to hide), tolerates a short tracking miss and fades the dot
+out — it is never removed on the first bad frame. The dot keeps its old position between thumb and
+index, and the pinch trigger it already had (right: toggle Dock/Apps, left: brightness/volume window)
+is unchanged.
+
+Thresholds, the 2D fallback and the honest limits: [`docs/PALM-CURSOR.md`](docs/PALM-CURSOR.md).
+Tracking pipeline, filters, latency and every fix: [`docs/HAND-TRACKING.md`](docs/HAND-TRACKING.md).
+
 ## Latest UI/input update
 
 See [the interaction and floating-window revision](docs/UI-INTERACTION-REVISION.md) and the
@@ -105,6 +132,30 @@ Approved visual proposals (illustrative design references, not device screenshot
 ![Approved control-center design proposal](artwork/proposals/settings-control-center-proposal.png)
 
 ![Approved Shizuku-window design proposal](artwork/proposals/shizuku-window-proposal.png)
+
+## PC Link (SteamVR)
+
+The phone can act as the headset for a PC running SteamVR — not screen mirroring: the PC renders
+the game for this device, hardware-encodes it, the phone hardware-decodes it and shows one half per
+eye, while the head pose and both hands travel back at 60 Hz and move the game camera and its
+skeletal hands.
+
+Three separate programs, three separate builds ([`docs/PC-LINK.md`](docs/PC-LINK.md),
+protocol in [`pclink/PROTOCOL.md`](pclink/PROTOCOL.md)):
+
+* the Android side (`nextvr-android/src/main/java/com/nextvr/app/pclink/`) — discovery, control,
+  60 Hz tracking, MediaCodec into the eye texture;
+* the **NextVR PC Bridge** (`pc-bridge/`, Node ≥ 20, no dependencies) — discovery, one session at a
+  time, video fragmented below the MTU, and the 744-byte state block the driver reads;
+* the **NextVR SteamVR Driver** (`steamvr-driver/`, MSVC 2022 + Windows SDK) — a virtual HMD and two
+  hands publishing all 31 OpenVR bones, derived from the same 21 joints the app already tracks.
+
+Honest scope: everything above is code that exists and is tested where it can be (byte layouts on
+both sides, geometry, the skeleton builder, a real loopback session against a fake phone), but
+**nothing has been run against Windows, SteamVR or a headset from this repository's CI**.
+`XR_EXT_hand_tracking` is not implemented (Skeletal Input is OpenVR and does not imply it), audio is
+not transmitted, and USB is USB tethering — `adb forward` is TCP-only and cannot carry the UDP video
+or tracking.
 
 ## Games (PhoneXR)
 

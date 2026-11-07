@@ -47,6 +47,7 @@ import com.nextvr.app.apps.AppSessionManager;
 import com.nextvr.app.apps.AppSurfaceHost;
 import com.nextvr.app.apps.AppWindowController;
 import com.nextvr.app.apps.ShizukuManager;
+import com.nextvr.app.pclink.PcLink;
 import com.nextvr.app.xr.XrGameController;
 import com.nextvr.app.xr.XrHandBridge;
 import org.json.JSONArray;
@@ -113,6 +114,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      * camera, tracking, compositor and menus — stays alive underneath it. That is what lets the same
      * pinch that selects a window select something inside a game.
      */
+    private PcLink pcLink;
     private XrHandBridge xrHands;
     private XrGameController xrGames;
     /** Sessions this activity suspended because the whole VR activity was paused (not by the user). */
@@ -124,6 +126,72 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private int clickSound;
     private boolean soundReady,audioFocused;
     private volatile int appBrightness=70;
+    private WebView entryView;
+    private volatile boolean entryVisible=true;
+    // A tela cheia de um jogo HTML com estéreo e mãos próprios (Cockpit VR). Enquanto ela existe,
+    // a câmera e o rastreio de mão DESTE app estão parados: são do jogo.
+    private WebView cockpitView;
+    // O voo do Cockpit VR precisa da câmera para as mãos do PRÓPRIO jogo: se o NextVR ainda não a
+    // tem (o usuário nunca ligou o rastreio de mão), a permissão é pedida antes de a página abrir.
+    private static final int REQUEST_GAME_CAMERA=12;
+    private String pendingCockpitQuery=null;
+    private volatile long vrSessionReadyAtMs=0L;
+    private String pendingVrSettingsJson;
+    private android.hardware.SensorManager sensorManager;
+    private boolean walkSensorsRegistered=false;
+    private volatile boolean hasWalkAccel=false;
+    private volatile boolean hasLinearAccel=false;
+    private float gravX=Float.NaN, gravY=Float.NaN, gravZ=Float.NaN;
+    private float gravMag=Float.NaN;
+    private volatile float walkEnergy=0f;
+    private volatile long lastWalkStepMs=0L;
+    private volatile float gyroRate=0f;
+    private volatile boolean sixDofEnabled=true;
+    private volatile boolean sentZeroSixDof=false;
+    private volatile boolean gameHandMode=false;
+    private InternalEyeRecorder internalRecorder;
+    private final android.hardware.SensorEventListener walkSensorListener=new android.hardware.SensorEventListener() {
+        @Override public void onSensorChanged(android.hardware.SensorEvent event) {
+            if(event==null || event.values==null || event.values.length<3) return;
+            int type=event.sensor.getType();
+            if(type==android.hardware.Sensor.TYPE_ACCELEROMETER) {
+                hasWalkAccel=true;
+                float ax=event.values[0], ay=event.values[1], az=event.values[2];
+                float mag=(float)Math.sqrt(ax*ax+ay*ay+az*az);
+                if(Float.isNaN(gravX) || Float.isNaN(gravMag)) {
+                    gravX=ax; gravY=ay; gravZ=az; gravMag=mag;
+                } else {
+                    gravX=0.88f*gravX + 0.12f*ax;
+                    gravY=0.88f*gravY + 0.12f*ay;
+                    gravZ=0.88f*gravZ + 0.12f*az;
+                    gravMag=0.92f*gravMag + 0.08f*mag;
+                    // Usa exclusivamente o impacto escalar invariante à rotação da cabeça (|mag - gravMag|):
+                    // rodar a cabeça NÃO altera a magnitude da gravidade, impedindo que o 6DoF ande sozinho para os lados ou para a frente.
+                    float stepImpact=Math.abs(mag-gravMag);
+                    if(stepImpact>0.22f && gyroRate<0.85f) {
+                        walkEnergy=Math.min(4f, walkEnergy*0.86f + stepImpact*1.35f);
+                        if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    } else if(!hasLinearAccel) {
+                        walkEnergy*=0.84f;
+                    }
+                }
+            } else if(type==android.hardware.Sensor.TYPE_LINEAR_ACCELERATION) {
+                hasLinearAccel=true;
+                float lx=event.values[0], ly=event.values[1], lz=event.values[2];
+                float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
+                if(lmag>0.24f && gyroRate<0.85f) {
+                    walkEnergy=Math.min(4f, walkEnergy*0.86f + lmag*1.30f);
+                    if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                } else {
+                    walkEnergy*=0.84f;
+                }
+            } else if(type==android.hardware.Sensor.TYPE_GYROSCOPE) {
+                float gx=event.values[0], gy=event.values[1], gz=event.values[2];
+                gyroRate=(float)Math.sqrt(gx*gx+gy*gy+gz*gz);
+            }
+        }
+        @Override public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {}
+    };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -156,7 +224,30 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appSessions.setListener(appWindows::onSessionsChanged);
         androidApps.setIconBatchDone(appWindows::onIconBatchReady);
         xrHands=new XrHandBridge();
+        // PC Link: o mesmo rastreador de mãos que já move as janelas e os jogos deste app, falando
+        // com o NextVR PC Bridge. Ele nasce desligado — nada de socket aberto antes de o usuário pedir.
+        pcLink=new PcLink(android.os.Build.MODEL==null?"Android":"NextVR "+android.os.Build.MODEL);
+        // O renderer e recriado (girar a tela, trocar de superficie), entao a fonte le o campo a
+        // cada quadro em vez de guardar o objeto: uma referencia velha aqui e uma cabeca congelada.
+        pcLink.setHeadSource(out->{ SpatialRenderer r=renderer; return r!=null && r.copyHeadPose(out); });
         xrGames=new XrGameController(xrEnvironment,xrShell,xrHands);
+        // Um jogo instalado com o app aberto tem que virar tile sem reiniciar nada: o lado nativo
+        // avisa a shell quando um pacote entra ou sai (ver XrGameController.watchPackages).
+        xrGames.watchPackages();
+        internalRecorder=new InternalEyeRecorder(this,(rec,sec,msg,savedPath)->main.post(()->{
+            if(closed) return;
+            if(msg!=null && !msg.isEmpty()) Toast.makeText(NextVrActivity.this,msg,Toast.LENGTH_SHORT).show();
+            try {
+                JSONObject st=new JSONObject();
+                st.put("recording",rec);
+                st.put("seconds",sec);
+                st.put("message",msg==null?"":msg);
+                st.put("savedPath",savedPath==null?"":savedPath);
+                String js="window.nextvrOnInternalRecordState&&window.nextvrOnInternalRecordState("+st.toString()+")";
+                if(shell!=null && ready) shell.evaluate(js);
+                if(entryView!=null) entryView.evaluateJavascript(js,null);
+            } catch(Exception ignored) {}
+        }));
         // The icons are rendered in the background anyway; starting now means the first paint of the
         // Applications menu already has them instead of filling in after the user is looking at it.
         androidApps.warmIcons();
@@ -167,16 +258,58 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 if(r!=null && resumed && !closed)r.camera.offer(bitmap);else bitmap.recycle();
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
-                SpatialRenderer r=renderer;if(r!=null)r.hands=frame;
+                SpatialRenderer r=renderer;
+                if(entryVisible || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs) {
+                    if(r!=null) r.hands=null;
+                    return;
+                }
+                boolean inGame=gameHandMode;
+                if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
                 // being driven, and gating it here would mean a second rule for the same decision.
                 if(xrHands!=null) xrHands.offer(frame);
+                // PC Link guarda o quadro mais novo; quem envia é a thread dele, a 60 Hz.
+                if(pcLink!=null) pcLink.offer(frame);
                 // Serialize on the tracking thread. A latest-only script slot can erase DOWN or UP
                 // if another camera result arrives before the main-thread WebView drain runs.
                 float mx=r==null?1f:r.mappingX,my=r==null?1f:r.mappingY;
-                handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+frame.json()+","+mx+","+my+")");
+                // A previsão de apresentação (frame.predicted) fica SÓ para o desenho nativo, que a
+                // reconstrói a cada quadro de exibição. Mandar a versão extrapolada para o WebView
+                // somava duas extrapolações (a daqui e a do cursor do shell), e era isso que fazia a
+                // mão "passar do ponto" e voltar em movimento rápido. O shell prevê a partir do
+                // timestamp de CAPTURA que vem no pacote, com uma previsão só.
+                String payload=inGame?frame.gameJson():frame.json();
+                handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
+            }
+            @Override public void sixDof(float sc, float gx, float gy, float mx) {
+                long nowMs=android.os.SystemClock.elapsedRealtime();
+                if(!sixDofEnabled || entryVisible || nowMs<vrSessionReadyAtMs || Math.abs(sc)>0.12f) return;
+                boolean zeroFlow=Math.abs(sc)<0.0028f;
+                if(zeroFlow) {
+                    if(sentZeroSixDof) return;
+                    sentZeroSixDof=true;
+                } else {
+                    sentZeroSixDof=false;
+                }
+                // Exige caminhada física real no acelerômetro (walkEnergy > 0.16f nos últimos 650 ms) e cabeça estável:
+                // impede completamente que o 6DoF ande sozinho para a frente ou para os lados.
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && (nowMs-lastWalkStepMs)<650L);
+                boolean moving=accelMoving && gyroRate<0.85f && Math.hypot(gx,gy)<=1.8;
+                boolean worldLocked=!moving || zeroFlow;
+                if(!moving && sentZeroSixDof) return;
+                float adjSc=moving?sc:0f;
+                main.post(()->{
+                    if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
+                    shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");
+                });
+            }
+            @Override public void cameraDefocus(boolean defocused) {
+                main.post(()->{
+                    if(closed || !resumed || shell==null || !ready) return;
+                    shell.evaluate("window.nextvrOnCameraDefocus&&window.nextvrOnCameraDefocus("+defocused+")");
+                });
             }
             @Override public void stopped() {
                 SpatialRenderer r=renderer;if(r!=null){r.camera.clear();r.hands=null;}
@@ -191,16 +324,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             @Override public void onSurfaceCreated(GL10 gl,EGLConfig config) {
                 nativeOnSurfaceCreated(nativeApp);
                 SpatialRenderer previous=renderer;
-                SpatialRenderer fresh=new SpatialRenderer(); renderer=fresh;
+                if(internalRecorder!=null) internalRecorder.releaseGl();
+                SpatialRenderer fresh=new SpatialRenderer();
+                fresh.eyeRecorder=internalRecorder;
+                renderer=fresh;
                 main.post(()->{
                     if(closed || renderer!=fresh) return;
-                    camera.stop(); releaseWeb();
+                    releaseWeb();
                     if(previous!=null) {
                         previous.camera.release(); previous.atlas.surface.release(); previous.environment.release();
                         for(SpatialRenderer.Texture t:previous.browsers.values()) t.surface.release();
                     }
                     ready=false;
-                    shell=new WebSurface(NextVrActivity.this,fresh.atlas.surface,SpatialRenderer.ATLAS,SpatialRenderer.ATLAS,true,new Bridge(),WebSurface.HOME);
+                    shell=new WebSurface(NextVrActivity.this,fresh.atlas.surface,SpatialRenderer.ATLAS,SpatialRenderer.ATLAS,true,new Bridge(),WebSurface.SHELL_HOME);
                     // The previous GL context took every texture slot with it: the hosted apps keep
                     // running, their displays are simply re-pointed at the new surfaces.
                     if(appWindows!=null) appWindows.displays().rebindSurfaces();
@@ -211,6 +347,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             @Override public void onSurfaceChanged(GL10 gl,int w,int h) { nativeSetScreenParams(nativeApp,w,h); }
             @Override public void onDrawFrame(GL10 gl) { PerfLog.renderFrame(); SpatialRenderer r=renderer; if(r!=null) r.update(); nativeOnDrawFrame(nativeApp); }
         });
+        entryView=WebSurface.createFullscreenEntryView(this,new Bridge());
+        android.view.ViewParent parent=glView.getParent();
+        if(parent instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup)parent).addView(entryView,
+                new android.widget.RelativeLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        setEntryMenuVisible(true);
         // Não registre toque no GLSurfaceView: câmera e pose continuam ativas, mas somente os
         // resultados PhoneXR podem entrar na ponte de interação da UI espacial.
         immersive();
@@ -244,6 +389,24 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         @Override public void report(String message){ NextVrActivity.this.report(message); }
         @Override public int[] phoneSize(){ return NextVrActivity.this.phoneSize(); }
         @Override public int density(){ return getResources().getDisplayMetrics().densityDpi; }
+        /**
+         * Entrega a tela do celular a um jogo que desenha o próprio estéreo (Cardboard/Daydream): é o
+         * mesmo `startActivity` do ícone do app na gaveta, então não precisa de privilégio nenhum. Vai
+         * pelo `main` porque a sessão decide isso na thread de trabalho dela.
+         */
+        @Override public boolean launchOnPhone(String pkg){
+            if(pkg==null || pkg.isEmpty()) return false;
+            try{
+                final android.content.Intent intent=getPackageManager().getLaunchIntentForPackage(pkg);
+                if(intent==null) return false;
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    |android.content.Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                main.post(()->{ if(closed) return;
+                    try{ startActivity(intent); }
+                    catch(Throwable error){ report("Não consegui abrir o jogo: "+error.getMessage()); } });
+                return true;
+            }catch(Throwable missing){ return false; }
+        }
     };
     /** How the session talks to the shell WebView, from its own worker thread. */
     private final XrGameController.Shell xrShell=new XrGameController.Shell() {
@@ -332,15 +495,28 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(shell!=null && resumed && !closed) {
                 StringBuilder scripts=new StringBuilder();
                 if(batch.resetBeforeFrames())scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
-                for(HandFrameMailbox.FrameScript pending:batch.frames()) {
-                    com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
-                    if(frame.isFresh(SystemClock.elapsedRealtimeNanos())) {
-                        scripts.append(pending.script()).append(';');
+                long nowNs=SystemClock.elapsedRealtimeNanos();
+                if(gameHandMode && batch.frames().size()>1) {
+                    HandFrameMailbox.FrameScript newest=batch.frames().get(batch.frames().size()-1);
+                    com.nextvr.app.hands.PhoneXrHands.Frame frame=newest.frame();
+                    if(frame.isFresh(nowNs)) {
+                        scripts.append(newest.script()).append(';');
                         if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
                     } else {
-                        // A queued press that outlived its native validity must cancel, never click.
                         scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
                         stale++;
+                    }
+                } else {
+                    for(HandFrameMailbox.FrameScript pending:batch.frames()) {
+                        com.nextvr.app.hands.PhoneXrHands.Frame frame=pending.frame();
+                        if(frame.isFresh(nowNs)) {
+                            scripts.append(pending.script()).append(';');
+                            if(!frame.getHands().isEmpty())PerfLog.published(frame.getCompletedNs());
+                        } else {
+                            // A queued press that outlived its native validity must cancel, never click.
+                            scripts.append("window.nextvrHands&&window.nextvrHands({hands:[]});");
+                            stale++;
+                        }
                     }
                 }
                 // One WebView evaluation guarantees the ordered frame edges run in one JS task,
@@ -411,22 +587,229 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Keep public void drawEye(float[] view,float[] projection) { SpatialRenderer r=renderer; if(r!=null) { r.draw(view,projection); camera.scaleX=r.spanX/2;camera.scaleY=r.spanY/2; } }
     @Keep public void headPose(float[] view) {
         long now=SystemClock.uptimeMillis();
-        if(now-lastPose<30 || !posePending.compareAndSet(false,true)) return;
+        if(now-lastPose<10 || !posePending.compareAndSet(false,true)) return;
         lastPose=now;
-        StringBuilder json=new StringBuilder("["); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
+        StringBuilder json=new StringBuilder(192); json.append('['); for(int i=0;i<16;i++) { if(i>0) json.append(','); json.append(view[i]); } json.append(']');
         main.post(()->{ try { if(shell!=null && resumed) shell.evaluate("window.nextvrPose&&window.nextvrPose("+json+")"); } finally { posePending.set(false); } });
+    }
+    private boolean batteryReceiverRegistered=false;
+    private volatile Intent lastBatteryIntent=null;
+    private final Runnable batterySyncTask=new Runnable() {
+        @Override public void run() {
+            if(closed || !resumed) return;
+            pushBatteryState(null);
+            main.postDelayed(this,5000L);
+        }
+    };
+    private final android.content.BroadcastReceiver batteryReceiver=new android.content.BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context context,Intent intent) {
+            if(intent!=null) lastBatteryIntent=intent;
+            pushBatteryState(intent);
+        }
+    };
+    String readBatteryJson(Intent state) {
+        if(state!=null) lastBatteryIntent=state;
+        if(state==null) {
+            try { state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)); }
+            catch(Throwable ignored) {}
+            if(state!=null) lastBatteryIntent=state;
+            else state=lastBatteryIntent;
+        }
+        float ratio=-1f;
+        int bmCap=-1;
+        boolean charging=false;
+        try {
+            android.os.BatteryManager bm=getSystemService(android.os.BatteryManager.class);
+            if(bm!=null) {
+                int cap=bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY);
+                if(cap>0 && cap<=100) { bmCap=cap; ratio=cap/100f; }
+                if(Build.VERSION.SDK_INT>=23) charging=bm.isCharging();
+            }
+        } catch(Throwable ignored) {}
+        if(state!=null) {
+            int level=state.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1);
+            int scale=state.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,100);
+            int status=state.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,0);
+            int plugged=state.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0);
+            if(level>=0 && scale>0) {
+                float intentRatio=Math.max(0f,Math.min(1f,(float)level/scale));
+                if(bmCap<=0 || Math.abs(intentRatio*100f-bmCap)<=2f) ratio=intentRatio;
+            }
+            charging=charging || status==android.os.BatteryManager.BATTERY_STATUS_CHARGING
+                || status==android.os.BatteryManager.BATTERY_STATUS_FULL || plugged!=0;
+        }
+        if(ratio<0f) return "null";
+        int pct=Math.round(ratio*100f);
+        return "{\"level\":"+ratio+",\"percent\":"+pct+",\"charging\":"+charging+"}";
+    }
+    void pushBatteryState(Intent intent) {
+        final String json=readBatteryJson(intent);
+        if("null".equals(json)) return;
+        main.post(()->{
+            if(closed) return;
+            String js="window.nextvrBattery&&window.nextvrBattery("+json+")";
+            if(shell!=null && ready) shell.evaluate(js);
+            if(entryView!=null) entryView.evaluateJavascript(js,null);
+        });
     }
     void shellReady() {
         ready=true;
-        if(shell!=null) { shell.evaluate("window.nextvrResume&&window.nextvrResume()"); shell.audio(audioFocused); }
+        if(shell!=null) {
+            shell.evaluate("window.nextvrResume&&window.nextvrResume()");
+            shell.audio(audioFocused);
+            pushBatteryState(null);
+            if(!entryVisible) {
+                String arg=pendingVrSettingsJson==null?"null":JSONObject.quote(pendingVrSettingsJson);
+                shell.evaluate("window.nextvrEnterWorkspace&&window.nextvrEnterWorkspace("+arg+")");
+                pendingVrSettingsJson=null;
+            }
+        }
         pushAppState();
     }
     private void startCamera() {
         if(!resumed || renderer==null || checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) return;
         camera.start(getWindowManager().getDefaultDisplay().getRotation());
     }
+
+    /* ======================= jogo HTML em tela cheia (Cockpit VR) ======================= */
+
+    /**
+     * Os ajustes escolhidos no menu do jogo, como query string da página — nomes e valores em lista
+     * branca. A shell não decide o que a página carrega; ela escolhe entre as opções que o jogo tem.
+     */
+    private static String queryFromJson(String json) {
+        JSONObject o;
+        try {
+            o=new JSONObject(json==null || json.trim().isEmpty()?"{}":json);
+        } catch(Throwable malformed) { return "air=cessna&mode=vr&snd=1&lq=0&as=1&ck=0&hsw=0&dof=6&d6s=1"; }
+        String air=o.optString("air","cessna");
+        if(!air.matches("[a-z0-9]{1,12}")) air="cessna";
+        String mode="mono".equals(o.optString("mode","vr"))?"mono":"vr";
+        String dof="3".equals(o.optString("dof","6"))?"3":"6";
+        String d6s=o.optString("d6s","1");
+        if(!"0.6".equals(d6s) && !"1.5".equals(d6s)) d6s="1";
+        StringBuilder out=new StringBuilder("air=").append(air).append("&mode=").append(mode)
+            .append("&dof=").append(dof).append("&d6s=").append(d6s);
+        // Ligados por padrão no jogo: som, assistente, ATC, chat de voz. Desligados: gráficos leves,
+        // motor ligado, mãos invertidas.
+        out.append("&snd=").append(o.optBoolean("snd",true)?"1":"0");
+        out.append("&as=").append(o.optBoolean("as",true)?"1":"0");
+        out.append("&atc=").append(o.optBoolean("atc",true)?"1":"0");
+        out.append("&vc=").append(o.optBoolean("vc",true)?"1":"0");
+        out.append("&lq=").append(o.optBoolean("lq",false)?"1":"0");
+        out.append("&ck=").append(o.optBoolean("ck",false)?"1":"0");
+        out.append("&hsw=").append(o.optBoolean("hsw",false)?"1":"0");
+        return out.toString();
+    }
+
+    /**
+     * Entrega a tela ao jogo HTML.
+     *
+     * <p>O Cockpit VR traz o próprio estéreo (dois olhos com a distorção da lente do VR Box) e o
+     * próprio rastreio de mão (MediaPipe na página, com a câmera do aparelho). Enquanto ele roda, o
+     * rastreio de mão DESTE app sai de cena — sem feixe, sem cursor, sem mão desenhada — e a câmera
+     * é fechada, porque é uma só no aparelho.
+     */
+    private void openCockpitGame(String query) {
+        if(closed || cockpitView!=null) return;
+        // A concessão de câmera da página (onPermissionRequest do WebView) só vale se o APP já
+        // tiver a permissão. Sem esta checagem, quem nunca ligou o rastreio de mão abria o voo com
+        // as mãos do jogo mudas — e o jogo parecia "não funcionar".
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) {
+            pendingCockpitQuery=query;
+            report("Cockpit VR: permita a Câmera para as mãos do jogo.");
+            requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_GAME_CAMERA);
+            return;
+        }
+        gameHandMode=false;
+        camera.gameHandMode=false;
+        camera.mrGameMode=false;
+        camera.enableHands(false);
+        camera.stop();
+        SpatialRenderer r=renderer;
+        if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
+        // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega, então a
+        // janela dele só nasce depois que o aparelho devolve o dispositivo ao CameraManager; sem
+        // essa espera o getUserMedia dele falha com NotReadableError ("câmera em uso por outro app").
+        main.postDelayed(()->showCockpitGame(query),900);
+    }
+
+    private void showCockpitGame(String query) {
+        if(closed || cockpitView!=null) return;
+        String url=WebSurface.ORIGIN+"/ui/cockpit/game.html"+(query==null || query.isEmpty()?"":"?"+query);
+        WebView view;
+        try { view=WebSurface.createFullscreenGameView(this,url,"cockpit"); }
+        catch(Throwable failed) { report("O jogo não abriu: "+failed.getMessage()); restartTracking(); return; }
+        android.view.ViewParent parent=glView.getParent();
+        if(!(parent instanceof android.view.ViewGroup)) { view.destroy(); restartTracking(); return; }
+        cockpitView=view;
+        // O jogo é dono da tela inteira: o menu de entrada (se ainda estivesse à vista) sai da frente
+        // e volta no closeCockpitGame().
+        if(entryView!=null && entryVisible) entryView.setVisibility(View.GONE);
+        ((android.view.ViewGroup)parent).addView(view,new android.widget.RelativeLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        view.bringToFront();
+        view.requestFocus();
+    }
+
+    /**
+     * Volta do jogo para o NextVR: a janela do jogo sai, a página morre (e com ela a câmera dela) e
+     * a câmera/rastreio de mão deste app voltam exatamente como estavam.
+     */
+    void closeCockpitGame() {
+        main.post(()->{
+            WebView view=cockpitView;
+            if(view==null) return;
+            cockpitView=null;
+            android.view.ViewParent parent=view.getParent();
+            if(parent instanceof android.view.ViewGroup) ((android.view.ViewGroup)parent).removeView(view);
+            try { view.stopLoading(); } catch(Throwable ignored) {}
+            try { view.loadUrl("about:blank"); } catch(Throwable ignored) {}
+            try { view.removeJavascriptInterface("NextVRGame"); } catch(Throwable ignored) {}
+            try { view.destroy(); } catch(Throwable ignored) {}
+            if(entryView!=null) entryView.setVisibility(entryVisible?View.VISIBLE:View.GONE);
+            if(closed) return;
+            restartTracking();
+            if(shell!=null && ready) shell.evaluate("window.nextvrResume&&window.nextvrResume()");
+        });
+    }
+
+    /**
+     * As mãos voltam ao NextVR: o rastreio é rearmado e a câmera, reaberta.
+     *
+     * <p>Três coisas podem deixar a mão muda depois de uma tela cheia qualquer (o jogo HTML, um app
+     * em tela inteira, uma sessão de jogo): a câmera ainda estar com quem a usou, o renderizador
+     * ficar no modo de mão de jogo (que troca a silhueta e o ponteiro) e uma pose velha continuar
+     * pendurada. As três são desarmadas aqui, e a abertura da câmera é tentada de novo um instante
+     * depois — `start` não faz nada quando a câmera já está aberta, então repetir é seguro.
+     */
+    private void restartTracking() {
+        SpatialRenderer r=renderer;
+        if(r!=null) {
+            r.hands=null;
+            r.handRenderer.gameHandMode=false;
+            r.handRenderer.mrGameMode=false;
+            r.handRenderer.resetPresentation();
+        }
+        gameHandMode=false;
+        camera.gameHandMode=false;
+        camera.mrGameMode=false;
+        camera.enableHands(true);
+        camera.resetHandsState();
+        startCamera();
+        // O WebView do jogo solta a Camera2 alguns quadros depois de ser destruído; se o aparelho
+        // ainda estiver com ele, o primeiro `open` falha. A segunda tentativa é a que devolve as mãos.
+        main.postDelayed(this::startCamera,1200);
+    }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
+        if(code==REQUEST_GAME_CAMERA) {
+            String query=pendingCockpitQuery; pendingCockpitQuery=null;
+            if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
+            else report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
+            if(query!=null) openCockpitGame(query);
+            return;
+        }
         if(code==10) {
             if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
             else new AlertDialog.Builder(this).setTitle("Camera passthrough requires permission")
@@ -435,10 +818,63 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 .setNegativeButton("Exit",(d,w)->finish()).show();
         }
     }
+    void setEntryMenuVisible(boolean visible) {
+        entryVisible=visible;
+        if(entryView!=null) {
+            entryView.setVisibility(visible?View.VISIBLE:View.GONE);
+            if(visible) {
+                entryView.onResume();
+                entryView.bringToFront();
+                pushBatteryState(null);
+            } else if(shell!=null && resumed) {
+                shell.resume();
+                shell.evaluate("window.nextvrResume&&window.nextvrResume()");
+            }
+        }
+        int vrVisibility=visible?View.GONE:View.VISIBLE;
+        View back=findViewById(R.id.ui_back_button_holder);
+        View marker=findViewById(R.id.ui_alignment_marker);
+        View settings=findViewById(R.id.ui_settings_button_holder);
+        if(back!=null) back.setVisibility(vrVisibility);
+        if(marker!=null) marker.setVisibility(vrVisibility);
+        if(settings!=null) settings.setVisibility(vrVisibility);
+    }
+
     @Override protected void onResume() {
         super.onResume(); resumed=true; glView.onResume(); nativeOnResume(nativeApp);
+        if(entryView!=null && entryVisible) entryView.onResume();
+        if(!walkSensorsRegistered) {
+            try {
+                if(sensorManager==null) sensorManager=getSystemService(android.hardware.SensorManager.class);
+                if(sensorManager!=null) {
+                    android.hardware.Sensor acc=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+                    android.hardware.Sensor lin=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_LINEAR_ACCELERATION);
+                    android.hardware.Sensor gyr=sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
+                    if(acc!=null) sensorManager.registerListener(walkSensorListener,acc,android.hardware.SensorManager.SENSOR_DELAY_GAME);
+                    if(lin!=null) sensorManager.registerListener(walkSensorListener,lin,android.hardware.SensorManager.SENSOR_DELAY_GAME);
+                    if(gyr!=null) sensorManager.registerListener(walkSensorListener,gyr,android.hardware.SensorManager.SENSOR_DELAY_GAME);
+                    walkSensorsRegistered=true;
+                }
+            } catch(Throwable ignored) {}
+        }
+        if(!batteryReceiverRegistered) {
+            try {
+                Intent sticky=registerReceiver(batteryReceiver,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                batteryReceiverRegistered=true;
+                pushBatteryState(sticky);
+            } catch(Throwable ignored) {}
+        }
+        main.removeCallbacks(batterySyncTask);
+        main.postDelayed(batterySyncTask,2500L);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
-        for(WebSurface b:browsers.values()) b.resume(); startCamera(); immersive();
+        for(WebSurface b:browsers.values()) b.resume();
+        // Com o voo aberto, a câmera é do JOGO: reabrir a nossa aqui seria tomá-la dele.
+        if(cockpitView==null) startCamera();
+        // Toda volta ao primeiro plano rearma o rastreio de mão. Se alguma tela cheia (o jogo HTML) ou
+        // uma falha de rastreio o tinha desligado, é aqui que o feixe e o cursor voltam — sem precisar
+        // fechar e abrir o NextVR. `enableHands` é idempotente.
+        if(cockpitView==null) camera.enableHands(true);
+        immersive();
         if(appWindows!=null) appWindows.onShellResumed();
         // A hosted game keeps running across a pause: it is in its own task on its own display, and
         // the resume below re-attaches the same surface and restarts the hand feed — nothing has to
@@ -452,6 +888,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onPause() {
         resumed=false; camera.stop();
+        // O jogo HTML não fica rodando com a câmera tomada enquanto o app está atrás: ele é fechado
+        // e a câmera é devolvida (o próximo onResume reabre tudo, inclusive o passthrough).
+        if(cockpitView!=null) closeCockpitGame();
+        if(walkSensorsRegistered && sensorManager!=null) {
+            try { sensorManager.unregisterListener(walkSensorListener); } catch(Throwable ignored) {}
+            walkSensorsRegistered=false;
+        }
+        if(batteryReceiverRegistered) {
+            try { unregisterReceiver(batteryReceiver); } catch(Throwable ignored) {}
+            batteryReceiverRegistered=false;
+        }
+        main.removeCallbacks(batterySyncTask);
         // The windows are not being composited while the VR activity is paused: detaching the
         // displays' output surfaces stops the frame traffic without killing the app or its task.
         if(appSessions!=null) for(AppSession session:appSessions.sessions())
@@ -460,7 +908,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         // The hosted game follows the same rule as an app window: its display output detaches while
         // nothing composites it, and the hand feed stops with the camera (it has nothing new to
         // send — resume() restarts both, and the game's task never leaves its display).
+        if(internalRecorder!=null && internalRecorder.isRecording()) internalRecorder.stop();
         if(xrGames!=null) xrGames.onActivityPaused();
+        if(entryView!=null) entryView.onPause();
         if(shell!=null) { shell.evaluate("window.nextvrSuspend&&window.nextvrSuspend()"); shell.pause(); }
         for(WebSurface b:browsers.values()) b.pause();
         setAudioEnabled(false); audio.abandonAudioFocusRequest(focus);
@@ -468,11 +918,26 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override protected void onDestroy() {
         closed=true; PerfLog.setStatusListener(null); releaseWeb();
+        if(cockpitView!=null) {
+            android.view.ViewParent parent=cockpitView.getParent();
+            if(parent instanceof android.view.ViewGroup) ((android.view.ViewGroup)parent).removeView(cockpitView);
+            try { cockpitView.stopLoading(); } catch(Throwable ignored) {}
+            try { cockpitView.removeJavascriptInterface("NextVRGame"); } catch(Throwable ignored) {}
+            try { cockpitView.destroy(); } catch(Throwable ignored) {}
+            cockpitView=null;
+        }
+        if(entryView!=null) {
+            entryView.stopLoading();
+            entryView.removeJavascriptInterface("NativeXR");
+            entryView.destroy();
+            entryView=null;
+        }
         SpatialRenderer old=renderer; renderer=null;
         camera.destroy(()->{ if(old!=null) { old.camera.release(); old.atlas.surface.release(); for(SpatialRenderer.Texture t:old.browsers.values()) t.surface.release(); } });
         if(fileCallback!=null) { fileCallback.onReceiveValue(null); fileCallback=null; }
         if(appWindows!=null) appWindows.shutdown();
         if(xrGames!=null) xrGames.shutdown();
+        if(pcLink!=null) { pcLink.stop(); pcLink=null; }
         if(shizuku!=null) shizuku.stop();
         envLoader.shutdownNow();
         sounds.release(); nativeOnDestroy(nativeApp); nativeApp=0; super.onDestroy();
@@ -515,6 +980,34 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 else if(data.getData()!=null) values.add(data.getData());
             }
             fileCallback.onReceiveValue(values.isEmpty()?null:values.toArray(new Uri[0])); fileCallback=null;
+        }
+        if(request==21 && result==RESULT_OK && data!=null && data.getData()!=null) {
+            final Uri uri=data.getData();
+            try {
+                envLoader.execute(()->{
+                    try(InputStream in=getContentResolver().openInputStream(uri)) {
+                        if(in==null) return;
+                        Bitmap src=BitmapFactory.decodeStream(in);
+                        if(src==null) return;
+                        int side=Math.min(src.getWidth(),src.getHeight());
+                        int sx=(src.getWidth()-side)/2, sy=(src.getHeight()-side)/2;
+                        Bitmap crop=Bitmap.createBitmap(src,sx,sy,side,side);
+                        Bitmap scaled=Bitmap.createScaledBitmap(crop,160,160,true);
+                        if(crop!=src && crop!=scaled) crop.recycle();
+                        if(src!=scaled) src.recycle();
+                        java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+                        scaled.compress(Bitmap.CompressFormat.JPEG,86,out);
+                        scaled.recycle();
+                        String dataUrl="data:image/jpeg;base64,"+android.util.Base64.encodeToString(out.toByteArray(),android.util.Base64.NO_WRAP);
+                        String js="window.nextvrProfilePhoto&&window.nextvrProfilePhoto("+JSONObject.quote(dataUrl)+")";
+                        main.post(()->{
+                            if(closed) return;
+                            if(entryView!=null) entryView.evaluateJavascript(js,null);
+                            if(shell!=null && ready) shell.evaluate(js);
+                        });
+                    } catch(Exception e) { report("Não foi possível carregar a foto da galeria"); }
+                });
+            } catch(RejectedExecutionException ignored) {}
         }
     }
     void download(String url,String agent,String disposition,String mime) {
@@ -598,15 +1091,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
          * uma imagem borrada cobrindo a tela inteira.
          */
         @JavascriptInterface public void env(String id) {
-            if(id==null || !(id.equals("passthrough")||id.equals("lagoon")||id.equals("virtual")||id.equals("palm")
+            // Os 10 panoramas que existem de verdade em assets/env. Os antigos duplicados
+            // (lagoon/palm/tropical/lakeside eram a mesma cena; virtual era o dusk) saíram daqui e
+            // do pacote: o shell remapeia um id antigo salvo para o equivalente antes de chamar.
+            if(id==null || !(id.equals("passthrough")||id.equals("black")||id.equals("dark")
                     ||id.equals("sunset")||id.equals("dusk")||id.equals("night")||id.equals("space")
-                    ||id.equals("cinema")||id.equals("tropical")||id.equals("lakeside"))) return;
+                    ||id.equals("cinema")||id.equals("neon")||id.equals("street")
+                    ||id.equals("aether")||id.equals("studio")||id.equals("stadium")
+                    ||id.equals("tron")||id.equals("cyber")||id.equals("spa")
+                    ||id.equals("factory")||id.equals("skyline"))) return;
             try { envLoader.execute(()->loadEnvironment(id)); } catch(RejectedExecutionException e) { /* app fechando */ }
         }
         private void loadEnvironment(String environment) {
             Bitmap bitmap=null;
             try {
-                if(!environment.equals("passthrough")) {
+                if(!environment.equals("passthrough") && !environment.equals("black")) {
                     try(InputStream in=getAssets().open("env/"+environment+".jpg")) { bitmap=BitmapFactory.decodeStream(in); }
                 }
             } catch(Exception e) { report("Environment failed: "+e.getMessage()); return; }
@@ -615,9 +1114,52 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             else if(bitmap!=null) bitmap.recycle();
         }
         @JavascriptInterface public void hands(boolean enabled) { if(!closed)camera.enableHands(enabled); }
+        /**
+         * Abre um jogo HTML em tela cheia (o Cockpit VR), com os ajustes escolhidos no menu dele na
+         * shell já na URL: {@code {air:'f22',mode:'vr',snd:1,...}}.
+         *
+         * <p>A shell só manda o pedido. Quem para a câmera e o rastreio de mão do NextVR, mostra a
+         * tela do jogo e devolve tudo depois é esta activity — o mesmo lugar que já é dono da
+         * câmera, da cena e das janelas.
+         */
+        @JavascriptInterface public void cockpitGame(String json) {
+            if(closed) return;
+            final String query=queryFromJson(json);
+            main.post(()->openCockpitGame(query));
+        }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
+        @JavascriptInterface public void setGameHandMode(boolean enabled) {
+            gameHandMode=enabled;
+            if(!closed && camera!=null) {
+                camera.gameHandMode=enabled;
+                camera.mrGameMode=false;
+            }
+            SpatialRenderer r=renderer;
+            if(r!=null) {
+                r.handRenderer.gameHandMode=enabled;
+                r.handRenderer.mrGameMode=false;
+                if(enabled) r.hands=null;
+            }
+        }
+        @JavascriptInterface public void setMrGameMode(boolean enabled) {
+            gameHandMode=enabled;
+            if(!closed && camera!=null) {
+                camera.gameHandMode=enabled;
+                camera.mrGameMode=enabled;
+            }
+            SpatialRenderer r=renderer;
+            if(r!=null) {
+                r.handRenderer.gameHandMode=enabled;
+                r.handRenderer.mrGameMode=enabled;
+                if(enabled) r.hands=null;
+            }
+        }
+        @JavascriptInterface public void wideCamera(boolean enabled) {
+            SpatialRenderer r=renderer;if(r!=null)r.wideCamera=enabled;
+            if(!closed && camera!=null)camera.setWideCamera(enabled);
+        }
         @JavascriptInterface public void handTargets(String targets) { SpatialRenderer r=renderer;if(r!=null && targets.length()<32000)r.handTargets=targets; }
-        @JavascriptInterface public void click() { main.post(()->{ if(!resumed) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
+        @JavascriptInterface public void click() { if(gameHandMode) return; main.post(()->{ if(!resumed || gameHandMode) return; if(!audioFocused) requestAudio(); if(soundReady && audioFocused) sounds.play(clickSound,.25f,.25f,1,0,1); }); }
         /** Chamado apenas pelo adaptador PhoneXR do shell privilegiado; não há ponte de touchscreen. */
         @JavascriptInterface public void handTouch(String id,int action,float x,float y) {
             if(action!=MotionEvent.ACTION_DOWN && action!=MotionEvent.ACTION_UP && action!=MotionEvent.ACTION_MOVE && action!=MotionEvent.ACTION_CANCEL) return;
@@ -727,10 +1269,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             });
         }
         @JavascriptInterface public String battery() {
-            Intent state=registerReceiver(null,new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-            if(state==null) return "null";
-            int level=state.getIntExtra("level",0), scale=state.getIntExtra("scale",100), status=state.getIntExtra("status",0);
-            return "{\"level\":"+((float)level/Math.max(1,scale))+",\"charging\":"+(status==2||status==5)+"}";
+            return readBatteryJson(null);
         }
         /** Current Android media-stream volume, normalized for the Quick Settings slider. */
         @JavascriptInterface public int mediaVolumePercent() {
@@ -795,8 +1334,245 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             XrHandBridge.Mode chosen="hands".equals(mode)?XrHandBridge.Mode.HANDS:XrHandBridge.Mode.CONTROLLERS;
             main.post(()->{ if(xrGames!=null && !closed) xrGames.handMode(chosen); });
         }
+        /**
+         * Estado do PC Link, como JSON. Lido pela janela do PC Link a 2 Hz; tudo que ele traz vem de
+         * um socket de verdade (fase da conexão, pacotes enviados, frames decodificados, RTT medido).
+         */
+        @JavascriptInterface public String pcLinkState() {
+            PcLink link=pcLink;
+            return link==null?"{\"running\":false}":link.statusJson();
+        }
+        /**
+         * Comandos do PC Link: `{action:"connect",mode:"wifi"|"usb"|"auto",host:"192.168.0.10"}`,
+         * `{action:"disconnect"}`, `{action:"session",active:true,quality:"medium"}`,
+         * `{action:"quality"|"codec"|"calibrate"|"hands",...}`.
+         */
+        @JavascriptInterface public void pcLinkCommand(String json) {
+            if(json==null || json.length()>4000) return;
+            main.post(()->{ PcLink link=pcLink; if(link!=null && !closed) link.command(json); });
+        }
+        /**
+         * Liga o quadro do PC na tela do headset: cria o slot de textura (no thread do GL, como
+         * qualquer outra superfície deste app) e entrega o Surface ao decodificador.
+         *
+         * Desligar libera o slot: uma textura viva com um decoder parado é memória de GPU presa.
+         */
+        @JavascriptInterface public void pcLinkVideo(boolean enabled,int width,int height) {
+            main.post(()->{
+                if(closed) return;
+                PcLink link=pcLink;
+                if(link==null) return;
+                final int w=Math.max(64,Math.min(4096,width)), h=Math.max(64,Math.min(4096,height));
+                if(!enabled) {
+                    link.setSurface(null,w,h);
+                    SpatialRenderer target=renderer;
+                    if(target!=null) target.pcLinkEyes=false;
+                    release(SpatialRenderer.PC_LINK_TEXTURE);
+                    return;
+                }
+                acquire(SpatialRenderer.PC_LINK_TEXTURE,w,h,new com.nextvr.app.apps.AppSurfaceHost.Callback() {
+                    @Override public void ready(android.graphics.SurfaceTexture texture) {
+                        if(closed) return;
+                        PcLink current=pcLink; if(current==null) return;
+                        android.view.Surface surface=new android.view.Surface(texture);
+                        current.setSurface(surface,w,h);
+                        SpatialRenderer target=renderer;
+                        if(target!=null) target.pcLinkEyes=true;
+                    }
+                    @Override public void failed(String reason) {
+                        PcLink current=pcLink; if(current!=null) current.setSurface(null,w,h);
+                        report("PC Link video: "+reason);
+                    }
+                });
+            });
+        }
+        @JavascriptInterface public void setQuality(String quality) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.setQuality(quality);
+        }
+        @JavascriptInterface public void refocusCamera() {
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.triggerAutoFocus();
+        }
+        @JavascriptInterface public void setFingerTouch(boolean enabled) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.handRenderer.setShowPointer(!enabled);
+        }
+        /* Escurece só o MUNDO (câmera/panorama), nunca os apps: é o véu do anel de 10 apps visto de
+         * dentro do headset. `0` volta ao normal. */
+        @JavascriptInterface public void setSceneDim(float amount) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.sceneDim=Math.max(0f,Math.min(.82f,amount));
+        }
+        @JavascriptInterface public void setMrDim(boolean enabled) {
+            SpatialRenderer target=renderer;
+            if(target!=null) target.mrDim=enabled;
+        }
+        @JavascriptInterface public void setSingleHandMode(String mode) {
+            PassthroughCamera cam=camera;
+            if(cam!=null) cam.setSingleHandMode(mode);
+        }
+        @JavascriptInterface public boolean startInternalRecording() {
+            return internalRecorder!=null && internalRecorder.start();
+        }
+        @JavascriptInterface public void stopInternalRecording() {
+            if(internalRecorder!=null) internalRecorder.stop();
+        }
+        @JavascriptInterface public boolean toggleInternalRecording() {
+            return internalRecorder!=null && internalRecorder.toggle();
+        }
+        @JavascriptInterface public boolean isInternalRecording() {
+            return internalRecorder!=null && internalRecorder.isRecording();
+        }
+        @JavascriptInterface public int internalRecordingSeconds() {
+            return internalRecorder==null?0:internalRecorder.elapsedSeconds();
+        }
+        @JavascriptInterface public void sixDofOffset(float x, float y, float z) {
+            SpatialRenderer target=renderer;
+            if(target!=null && Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(z)) {
+                float cx=Math.max(-2.6f, Math.min(2.6f, x));
+                float cz=Math.max(-2.6f, Math.min(2.6f, z));
+                target.targetSixDofX=cx;
+                target.targetSixDofZ=cz;
+                if(target.sixDofX==0f && target.sixDofZ==0f) {
+                    target.sixDofX=cx*0.55f;
+                    target.sixDofZ=cz*0.55f;
+                }
+                target.sixDofY=0f;
+            }
+        }
+        @JavascriptInterface public void setSixDofEnabled(boolean enabled) {
+            sixDofEnabled=enabled;
+            if(!enabled) {
+                resetSixDof();
+            }
+        }
+        @JavascriptInterface public void resetSixDof() {
+            SpatialRenderer target=renderer;
+            if(target!=null) {
+                target.targetSixDofX=0f;
+                target.targetSixDofZ=0f;
+                target.sixDofX=0f;
+                target.sixDofY=0f;
+                target.sixDofZ=0f;
+                target.worldLocked=true;
+            }
+            if(camera!=null) camera.resetSixDof();
+        }
+        @JavascriptInterface public void startVrSession(String settingsJson) {
+            main.post(()->{
+                if(closed) return;
+                synchronized(Bridge.this) { cachedScene=null; cachedSpecs=null; }
+                pendingVrSettingsJson=settingsJson;
+                vrSessionReadyAtMs=android.os.SystemClock.elapsedRealtime()+650L;
+                handFrames.requestReset();
+                handFrames.drain();
+                if(camera!=null) camera.resetHandsState();
+                setEntryMenuVisible(false);
+                SpatialRenderer target=renderer;
+                if(target!=null) {
+                    target.hands=null;
+                    target.handRenderer.resetPresentation();
+                    boolean customEnv=false;
+                    if(settingsJson!=null) {
+                        try {
+                            JSONObject o=new JSONObject(settingsJson);
+                            boolean spatial=o.optBoolean("spatialLauncher",false) || o.optInt("spatialLauncher",0)==1;
+                            customEnv=!spatial && o.optBoolean("entryEnvChosen",false) && !"passthrough".equals(o.optString("env","passthrough"));
+                            boolean wide=o.optBoolean("wideCamera",false) || o.optInt("wideCamera",0)==1;
+                            target.wideCamera=wide;
+                            if(camera!=null)camera.setWideCamera(wide);
+                            if(o.has("quality")) target.setQuality(o.optString("quality","auto"));
+                            if(o.has("handDraw")) {
+                                boolean hd=o.optBoolean("handDraw",false) || o.optInt("handDraw",1)!=0;
+                                target.showHands=hd;
+                            }
+                            if(o.has("fingerTouch")) {
+                                boolean ft=o.optBoolean("fingerTouch",false) || o.optInt("fingerTouch",1)!=0;
+                                target.handRenderer.setShowPointer(!ft);
+                            }
+                            if(o.has("mrDim")) {
+                                target.mrDim=o.optBoolean("mrDim",false) || o.optInt("mrDim",0)!=0;
+                            }
+                            if(o.has("sixdof")) {
+                                sixDofEnabled=o.optBoolean("sixdof",true) || o.optInt("sixdof",1)!=0;
+                                if(!sixDofEnabled) resetSixDof();
+                            }
+                            if(o.has("singleHandMode") && camera!=null) {
+                                camera.setSingleHandMode(o.optString("singleHandMode","both"));
+                            }
+                        } catch(Exception ignored) {}
+                    }
+                    if(!customEnv) target.setEnvironment("passthrough",null);
+                }
+                if(shell!=null && ready) {
+                    String arg=pendingVrSettingsJson==null?"null":JSONObject.quote(pendingVrSettingsJson);
+                    shell.evaluate("window.nextvrEnterWorkspace&&window.nextvrEnterWorkspace("+arg+")");
+                    pendingVrSettingsJson=null;
+                }
+                startCamera();
+                immersive();
+            });
+        }
+        @JavascriptInterface public void openEntryMenu() {
+            main.post(()->{
+                if(closed) return;
+                handFrames.requestReset();
+                handFrames.drain();
+                if(camera!=null) camera.resetHandsState();
+                SpatialRenderer target=renderer;
+                if(target!=null) {
+                    target.hands=null;
+                    target.handRenderer.resetPresentation();
+                }
+                setEntryMenuVisible(true);
+                immersive();
+            });
+        }
+        @JavascriptInterface public void pickProfilePhoto() {
+            main.post(()->{
+                if(closed) return;
+                try {
+                    Intent pick=new Intent(Intent.ACTION_PICK,android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                    pick.setType("image/*");
+                    startActivityForResult(pick,21);
+                } catch(Exception first) {
+                    try {
+                        Intent doc=new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+                        startActivityForResult(doc,21);
+                    } catch(Exception second) {
+                        report("Galeria não encontrada neste aparelho");
+                    }
+                }
+            });
+        }
     }
-    public void closeSample(View v) { finish(); }
+    public void closeSample(View v) {
+        if(!entryVisible && entryView!=null) { setEntryMenuVisible(true); return; }
+        finish();
+    }
+    /**
+     * Voltar dentro da sessao. Antes o PRIMEIRO voltar ja derrubava tudo para o menu inicial — e no
+     * VR Box a tela do celular encosta no plastico, um toque acidental vira voltar do sistema. O
+     * usuario via a biblioteca de apps (ou qualquer app) "voltar ao menu principal do nada".
+     * Agora o primeiro voltar fecha o anel/o menu da mao/a janela em foco (o que o Android faria) e
+     * so o segundo, em ate 2,5 s, volta ao menu inicial.
+     */
+    private long lastBackAt=0L;
+    @Override public void onBackPressed() {
+        // O jogo HTML em tela cheia é a tela do momento: voltar sai dele e devolve o NextVR (com a
+        // câmera e as mãos), antes de qualquer outra regra de voltar.
+        if(cockpitView!=null) { closeCockpitGame(); return; }
+        if(!entryVisible && entryView!=null) {
+            long now=SystemClock.uptimeMillis();
+            if(now-lastBackAt<=2500L) { lastBackAt=0L; setEntryMenuVisible(true); return; }
+            lastBackAt=now;
+            WebSurface s=shell;
+            if(s!=null && ready && resumed) s.evaluate("window.nextvrBack&&window.nextvrBack()");
+            return;
+        }
+        super.onBackPressed();
+    }
     public void showSettings(View v) { PopupMenu menu=new PopupMenu(this,v); menu.getMenuInflater().inflate(R.menu.settings_menu,menu.getMenu()); menu.setOnMenuItemClickListener(this); menu.show(); }
     @Override public boolean onMenuItemClick(MenuItem item) {
         if(item.getItemId()==R.id.switch_viewer) { camera.stop(); nativeSwitchViewer(nativeApp); return true; }
@@ -814,8 +1590,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         int code = event.getKeyCode();
         boolean gamepad = isGamepadSource(event.getSource());
         String action = null;
-        if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) action = "home";
-        else if (gamepad) {
+        if (code == KeyEvent.KEYCODE_BUTTON_START || code == KeyEvent.KEYCODE_PLUS || code == KeyEvent.KEYCODE_EQUALS || code == KeyEvent.KEYCODE_NUMPAD_ADD) {
+            action = "plus";
+        } else if (code == KeyEvent.KEYCODE_BUTTON_SELECT || code == KeyEvent.KEYCODE_MINUS) {
+            action = "minus";
+        } else if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_HOME) {
+            action = "home";
+        } else if (gamepad) {
             switch (code) {
                 case KeyEvent.KEYCODE_DPAD_LEFT: action = "left"; break;
                 case KeyEvent.KEYCODE_DPAD_RIGHT: action = "right"; break;
@@ -823,14 +1604,27 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 case KeyEvent.KEYCODE_DPAD_DOWN: action = "down"; break;
                 case KeyEvent.KEYCODE_BUTTON_A: action = "accept"; break;
                 case KeyEvent.KEYCODE_BUTTON_B: action = "back"; break;
+                case KeyEvent.KEYCODE_BUTTON_X: action = "x"; break;
+                case KeyEvent.KEYCODE_BUTTON_Y: action = "y"; break;
+                case KeyEvent.KEYCODE_BUTTON_L1:
+                case KeyEvent.KEYCODE_BUTTON_THUMBL: action = "l1"; break;
+                case KeyEvent.KEYCODE_BUTTON_R1:
+                case KeyEvent.KEYCODE_BUTTON_THUMBR: action = "r1"; break;
+                case KeyEvent.KEYCODE_BUTTON_L2: action = "l2"; break;
+                case KeyEvent.KEYCODE_BUTTON_R2: action = "r2"; break;
                 default: break;
             }
         }
-        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME)) {
+        if (action != null && (gamepad || code == KeyEvent.KEYCODE_HOME || "plus".equals(action) || "minus".equals(action))) {
             final String command = action;
             final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
             final int repeat = event.getRepeatCount();
             main.post(() -> {
+                if (entryVisible && entryView != null && resumed) {
+                    entryView.evaluateJavascript("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
+                        + JSONObject.quote(command) + "," + down + "," + repeat + ")", null);
+                    return;
+                }
                 WebSurface surface = shell;
                 if (surface != null && ready && resumed)
                     surface.evaluate("window.__nextvrJoyconKey&&window.__nextvrJoyconKey("
@@ -850,13 +1644,28 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
             if (Math.abs(hatX) > Math.abs(x)) x = hatX;
             if (Math.abs(hatY) > Math.abs(y)) y = hatY;
+            float rx = event.getAxisValue(MotionEvent.AXIS_Z);
+            float ry = event.getAxisValue(MotionEvent.AXIS_RZ);
+            if (Math.abs(rx) < 0.05f) rx = event.getAxisValue(MotionEvent.AXIS_RX);
+            if (Math.abs(ry) < 0.05f) ry = event.getAxisValue(MotionEvent.AXIS_RY);
+            float lTrig = Math.max(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE));
+            float rTrig = Math.max(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS));
             final float stickX = Math.max(-1f, Math.min(1f, x));
             final float stickY = Math.max(-1f, Math.min(1f, y));
+            final float rightX = Math.max(-1f, Math.min(1f, rx));
+            final float rightY = Math.max(-1f, Math.min(1f, ry));
+            final float lt = Math.max(0f, Math.min(1f, lTrig));
+            final float rt = Math.max(0f, Math.min(1f, rTrig));
             main.post(() -> {
+                if (entryVisible && entryView != null && resumed) {
+                    entryView.evaluateJavascript("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
+                        + stickX + "," + stickY + "," + rightX + "," + rightY + "," + lt + "," + rt + ")", null);
+                    return;
+                }
                 WebSurface surface = shell;
                 if (surface != null && ready && resumed)
                     surface.evaluate("window.__nextvrJoyconAxes&&window.__nextvrJoyconAxes("
-                        + stickX + "," + stickY + ")");
+                        + stickX + "," + stickY + "," + rightX + "," + rightY + "," + lt + "," + rt + ")");
             });
             return true;
         }

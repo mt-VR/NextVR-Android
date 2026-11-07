@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
-import bundledChromium from '@sparticuz/chromium';
+import { launchOrSkip } from './support/chromium.mjs';
 import * as THREE from 'three';
 
 // CI runs this on a software renderer: the whole flow (boot, windows, hand input, keyboard, Android
@@ -17,19 +16,17 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
       // The shell's asset host serves the Android app icons from /apps/<file> (WebSurface); the test
       // server answers the same way with a real PNG, so a tile that loses its icon is a real failure.
       if(path.startsWith('apps/')) { res.setHeader('Content-Type','image/png'); res.end(await readFile(new URL('icons/nextvr-n.png',base))); return; }
-      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':path.endsWith('.png')?'image/png':'application/octet-stream');
+      // Uma logo de marca só existe como <img> se vier com o MIME de SVG (é o que o WebView faz
+      // com os assets .svg do APK); servida como octet-stream o navegador recusa desenhar.
+      res.setHeader('Content-Type',path.endsWith('.js')?'application/javascript':path.endsWith('.css')?'text/css':path.endsWith('.html')?'text/html':path.endsWith('.png')?'image/png':path.endsWith('.svg')?'image/svg+xml':'application/octet-stream');
       res.end(await readFile(new URL(path,base)));
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   let browser;
   try {
-    try {
-      browser=await chromium.launch({executablePath:await bundledChromium.executablePath(),args:bundledChromium.args,headless:true});
-    } catch(launchErr) {
-      t.skip('Chromium unavailable: '+launchErr.message?.slice(0,80));
-      return;
-    }
+    browser=await launchOrSkip(t);
+    if(!browser) return;
     const page=await browser.newPage({viewport:{width:4096,height:4096},deviceScaleFactor:1});
     const errors=[]; page.on('pageerror',e=>errors.push(e.message));
     // Validate native GLSL grammar/linking with ANGLE. Only the platform-specific OES sampler is
@@ -129,46 +126,72 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
         fist:false,palmFacesEyes:false,...extra}]};
     };
     const feed = async value => page.evaluate(h=>{clearInterval(window.__feed);window.__feed=setInterval(()=>window.nextvrHands(structuredClone(h)),100);},value);
-    // Like Meta's first-run flow: the dock is neither composited nor in the DOM yet, so the
-    // language picker is the only surface the hand can reach.
-    assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during language onboarding');
-    assert.equal(await page.locator('.dock').count(),0,'Meta-style onboarding shows only the language picker');
-    assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden until a language exists');
-    assert.equal(await page.locator('.win-title').innerText(),'Next VR');
+    /*
+     * O pegão do punho começa na BORDA DE SUBIDA (fechar a mão), e `feed` reenvia o MESMO quadro em
+     * loop: se o primeiro quadro do punho não acerta a janela — pose ainda assentando, matrizes do
+     * render velhas num runner lento — ele nunca mais tenta, e esperar o estado trava para sempre.
+     * Cada tentativa abre a mão (limpa a borda), fecha de novo e, opcionalmente, MOVE a palma em
+     * passos: é o movimento que ativa o arraste, então ele precisa acontecer depois de o punho
+     * consumir a janela, não antes.
+     */
+    const feedFistUntil = async (fistAt, open, predicate, { moves = 0, timeout = 24000 } = {}) => {
+      const started = Date.now();
+      while (Date.now() - started < timeout) {
+        await feed(open);
+        await page.waitForTimeout(140);
+        await feed(fistAt(0));
+        await page.waitForTimeout(170);
+        if (await page.evaluate(predicate)) return true;
+        for (let step = 1; step <= moves; step++) {
+          await feed(fistAt(step / moves));
+          await page.waitForTimeout(130);
+          if (await page.evaluate(predicate)) return true;
+        }
+      }
+      return false;
+    };
+    const fistAt = (x, y) => t => {
+      fist.hands[0].palm = fist.hands[0].grab = [x + (.62 - x) * t, y + (.45 - y) * t];
+      return fist;
+    };
+    // Entry menu onboarding: only the NextVR v2.0.0 entry menu window (+ HUD overlay) is composited.
+    assert.ok(await page.evaluate(()=>!window.__last.panels.some(p=>p.id==='dock')),'dock is hidden during entry menu onboarding');
+    assert.equal(await page.locator('.dock').count(),0,'entry menu onboarding shows only the entry menu');
+    assert.ok(await page.evaluate(()=>document.getElementById('stat').hidden),'status chrome is hidden while entry menu is open');
+    assert.equal(await page.locator('.entry-subtitle').innerText(),'ENTRE EM OUTRO MUNDO');
+    // Switch language to English in the entry menu basic settings so subsequent assertions run in English.
+    await page.evaluate(()=>{
+      document.querySelector('[data-entry-act="settings"]').click();
+      document.querySelector('[data-entry-lang="en"]').click();
+      document.querySelector('[data-entry-act="back"]').click();
+    });
     // Pose/gaze alone and the removed viewer callback cannot select setup; PhoneXR pinch can.
     await page.evaluate(()=>{window.nextvrResume();window.nextvrHands({hands:[]});});
-    const language=await page.evaluate(()=>{
-      const shell=document.querySelector('.win-shell'),button=shell.querySelector('[data-lang="en"]');
+    const entryStart=await page.evaluate(()=>{
+      const shell=document.querySelector('.win-shell[data-window-id="entry-menu"]'),button=shell.querySelector('[data-entry-act="start"]');
       const r=shell.getBoundingClientRect(),b=button.getBoundingClientRect();
-      const panel=window.__last.panels.filter(p=>!p.overlay)[0];   // dock hidden: the picker is first
+      const panel=window.__last.panels.filter(p=>!p.overlay)[0];
       return {matrix:panel.matrix,rect:panel.rect,glass:panel.glass,width:r.width,height:r.height,
         x:b.left+b.width/2-r.left-r.width/2,y:r.height/2-(b.top+b.height/2-r.top),buttonHeight:b.height};
     });
-    const languageMatrix=new THREE.Matrix4().fromArray(language.matrix);
-    const centre=new THREE.Vector3().setFromMatrixPosition(languageMatrix);
-    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Language window is close and at eye level');
-    const widthMetres=languageMatrix.elements[0]*language.glass[2];
-    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>60,'Portrait setup remains readable at eye distance');
-    // O piso é ditado pelo teto de 660 px do slot de textura no atlas nativo, que é o que permite os
-    // doze idiomas aparecerem de uma vez, como no print (~40 px = ~4 cm a 0,42 m ≈ 5,3 graus).
-    assert.ok(language.buttonHeight>=38,'Language rows stay large enough for a hand pinch');
-    assert.equal(await page.locator('.lang-option').count(),12,'the picker lists every language from the reference');
-    // No print todos os idiomas aparecem de uma vez; a lista não pode depender de rolagem (o toque
-    // por pinca não rola). Este número é o mais fácil de quebrar sem querer ao mexer no CSS.
-    const list=await page.evaluate(()=>{const l=document.querySelector('.lang-options');return {scroll:l.scrollHeight,client:l.clientHeight,rows:l.children.length};});
-    assert.ok(list.scroll<=list.client+1,`all twelve languages are visible at once: ${JSON.stringify(list)}`);
-    const languageTarget=new THREE.Vector3(language.x/language.rect[2],language.y/language.rect[3],0).applyMatrix4(languageMatrix);
-    const languageView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),languageTarget,new THREE.Vector3(0,1,0)).invert();
-    await page.evaluate(p=>window.nextvrPose(p),languageView.toArray());
+    const entryMatrix=new THREE.Matrix4().fromArray(entryStart.matrix);
+    const centre=new THREE.Vector3().setFromMatrixPosition(entryMatrix);
+    assert.ok(Math.abs(centre.y-1.55)<.001 && Math.abs(centre.z+.42)<.001,'Entry menu window is close and at eye level');
+    const widthMetres=entryMatrix.elements[0]*entryStart.glass[2];
+    assert.ok(2*Math.atan(widthMetres/2/.42)*180/Math.PI>60,'Entry menu remains readable at eye distance');
+    assert.ok(entryStart.buttonHeight>=38,'Entry menu cards stay large enough for a hand pinch');
+    const startTarget=new THREE.Vector3(entryStart.x/entryStart.rect[2],entryStart.y/entryStart.rect[3],0).applyMatrix4(entryMatrix);
+    const startView=new THREE.Matrix4().lookAt(new THREE.Vector3(0,1.55,0),startTarget,new THREE.Vector3(0,1,0)).invert();
+    await page.evaluate(p=>window.nextvrPose(p),startView.toArray());
     await page.waitForTimeout(1400);
-    assert.equal(await page.locator('.lang-option[aria-pressed="true"]').count(),1,'looking at setup never selects it');
+    assert.equal(await page.locator('.entry-menu-root').count(),1,'looking at entry menu never selects it');
     assert.equal(await page.evaluate(()=>typeof window.nextvrTrigger),'undefined','viewer/touchscreen trigger callback is absent');
     await feed(hand(.02));
     await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.down),null,{timeout:5000});
     assert.ok(await page.evaluate(()=>window.__handTargets.some(t=>t.id==='right'&&t.down)),
       'a live PhoneXR pinch reaches the native hand renderer as an active pointer target');
     await feed(hand(.4));
-    await page.waitForFunction(()=>!document.querySelector('.lang-option'));
+    await page.waitForFunction(()=>!document.querySelector('.entry-menu-root'));
     await page.evaluate(()=>clearInterval(window.__feed));
     const languageState=await page.evaluate(()=>JSON.parse(localStorage.getItem('nextvr.v1')));
     assert.equal(languageState.lang,'en');
@@ -178,8 +201,27 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // the dock returns with phone status, the virtual-environment shortcut and app tiles.
     await page.waitForFunction(()=>window.__last?.panels.some(p=>p.id==='dock'));
     const ids=await page.locator('.dock button[data-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
-    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','youtube','shizuku','library'],
-      'the compact dock keeps phone status and the Vision-style virtual-environment shortcut');
+    // O botão do ANEL (as treze bolinhas, 4-5-4) entra à ESQUERDA da biblioteca: a dock ganha um
+    // atalho, o resto da interface gráfica não muda.
+    // O PC Link entra logo depois de Configurações: é uma janela do NextVR como as outras (e o
+    // atalho para transformar o celular em headset do SteamVR).
+    assert.deepEqual(ids,['profile','status','virtual-environment','browser','store','discord','gallery','settings','pclink','youtube','shizuku','orb-apps','library'],
+      'the compact dock keeps phone status, the Vision-style virtual-environment shortcut and the ring button beside the library');
+    // O botão do anel é o das treze bolinhas: 4 em cima, 5 no meio, 4 embaixo, colado à esquerda da
+    // biblioteca — a dock não muda de tamanho nem de ordem, só ganha o atalho.
+    const ringButton = page.locator('.dock [data-id="orb-apps"]');
+    assert.equal(await ringButton.count(),1,'the dock gained one ring button');
+    assert.equal(await ringButton.locator('svg circle').count(),13,'the ring button draws the thirteen dots of the ring');
+    // As treze no desenho 4-5-4: quatro em cima, cinco no meio, quatro embaixo.
+    assert.deepEqual(await ringButton.locator('svg circle').evaluateAll(nodes => {
+      const rows = {};
+      for (const c of nodes) { const y = c.getAttribute('cy'); rows[y] = (rows[y] || 0) + 1; }
+      return Object.keys(rows).sort((a, b) => Number(a) - Number(b)).map(y => rows[y]);
+    }),[4,5,4],'4 em cima, 5 no meio, 4 embaixo');
+    assert.deepEqual(await page.evaluate(()=>{
+      const all=[...document.querySelectorAll('.dock button[data-id]')].map(n=>n.dataset.id);
+      return [all.indexOf('orb-apps'),all.indexOf('library')];
+    }),[11,12],'the ring button sits immediately to the left of the app library');
     assert.equal(await page.locator('.dock .dock-spacer').count(),1,
       'a small gap separates status and the app tiles');
     assert.equal(await page.locator('.dock .dock-tool').count(),1,
@@ -205,9 +247,146 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('.win-shell').count(),0,'the language window closed with the pick');
     assert.ok(await page.evaluate(()=>!document.getElementById('stat').hidden),'the whole shell is back after the pick');
     await page.evaluate(p=>window.nextvrPose(p),new THREE.Matrix4().toArray());
-    await page.locator('.dock [data-id="library"]').click();
-    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
-    assert.equal(await page.locator('.lib-tile').count(),16,
+    // A bolinha da dock (e o botão 4-5-4 ao lado dela) abre o ANEL de 13 apps SOLTOS no ambiente:
+    // sem janelinha aparecendo, sem barra embaixo, sem brilho, sem alça para mover. O ambiente
+    // escurece e cada ícone é um app do NextVR ou do Android instalado.
+    // O botão do ANEL abre o anel; o da BIBLIOTECA abre a biblioteca (antes os dois abriam o anel, e
+    // era por isso que a grade de apps "tinha sumido").
+    await page.locator('.dock [data-id="orb-apps"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
+    assert.equal(await page.locator('.orb-app').count(),13,'the ring shows thirteen apps');
+    assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.orb-row')].map(r=>r.querySelectorAll('.orb-app').length)),
+      [4,5,4],'4 em cima, 5 no meio, 4 embaixo');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),'1',
+      'the environment dims but stays visible behind the ring');
+    // No aparelho o escurecimento é do GL nativo (o véu do DOM é proibido: ele entrava na textura da
+    // HUD e virava a caixa preta). No navegador, o véu existe e é pintado.
+    assert.ok(await page.evaluate(()=>{
+      const veil = document.getElementById('scene-dim');
+      return !veil || parseFloat(getComputedStyle(veil).opacity) > 0;
+    }), 'the environment is dimmed by the native GL (no dark DOM veil in the headset)');
+    // A superfície que carrega os apps existe, mas é invisível: nada de vidro, moldura ou sombra.
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('.win-shell[data-window-id="orb-apps"]').length),1,
+      'the apps ride one invisible surface');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.win-shell[data-window-id="orb-apps"] .win')).backgroundColor),
+      'rgba(0, 0, 0, 0)','the window glass is invisible: the dimmed world shows through');
+    // Nenhum controle em volta dos apps: sem alça de mover, sem alça de tamanho, sem barra de
+    // brilho, sem barra de cinema, sem telinhas de encaixe. Eles são REMOVIDOS do documento.
+    assert.equal(await page.evaluate(()=>{
+      const shell=document.querySelector('.win-shell[data-window-id="orb-apps"]');
+      return ['.win-handle','.win-resize','.win-brightness-bar','.win-cinema-bar','.win-predefined-slots','.win-bar','.win-grab-arc']
+        .filter(sel=>shell.querySelector(sel)).length;
+    }),0,'no window chrome is left around the apps');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),'1',
+      'the ring marks the page as open');
+    // O brilho vive no quadrado do ícone (::before), não no botão: o NOME embaixo fica solto no ar,
+    // como na referência, e continua sendo o quadrado que se destaca no ambiente escurecido.
+    assert.ok(await page.locator('.orb-app').first().evaluate(e=>{
+      const square=getComputedStyle(e,'::before');
+      return square.boxShadow!=='none'&&square.backgroundImage!=='none';
+    }),'each app tile carries its own glow so it stands out in the dark');
+    // O tamanho é o da referência: ícone com o NOME EMBAIXO, não um thumb minúsculo.
+    // "APPS MAIORES E MAIS SEPARADOS": os ícones são grandes e as fileiras têm folga.
+    const tileSize = await page.locator('.orb-app').first().evaluate(e=>parseFloat(getComputedStyle(e).width));
+    assert.ok(tileSize >= 130 && tileSize <= 190, `the icons are the size of the reference (${tileSize}px)`);
+    const rowGap = await page.evaluate(()=>parseFloat(getComputedStyle(document.querySelector('.orb-row')).columnGap));
+    assert.ok(rowGap >= 32, `there is real air between the icons (${rowGap}px)`);
+    assert.ok(await page.locator('.orb-label').first().isVisible(), 'each icon carries its name underneath');
+    // Mais espaço entre os apps ("deixa um pouco mais espaçado").
+    assert.ok(rowGap >= 40, `more air between the columns now (${rowGap}px)`);
+    // As bolinhas de página: uma por página, pequenas, e a de agora branca.
+    const pagesInfo = await page.evaluate(()=>({
+      dots: document.querySelectorAll('.orb-pages i').length,
+      active: document.querySelectorAll('.orb-pages i.on').length,
+      total: Number(document.querySelector('.orb-root').dataset.pages),
+      activeColor: (() => { const d=document.querySelector('.orb-pages i.on'); return d ? getComputedStyle(d).backgroundColor : null; })(),
+    }));
+    assert.equal(pagesInfo.total > 1, true, 'the ring has more than one page of apps');
+    assert.equal(pagesInfo.dots, pagesInfo.total, 'one dot per page');
+    assert.equal(pagesInfo.active, 1, 'exactly one page is marked as current');
+    assert.equal(pagesInfo.activeColor, 'rgb(255, 255, 255)', 'the current page dot is white');
+    // Os apps do serviço mostram a logo de verdade, não a inicial.
+    await page.waitForFunction(()=>[...document.querySelectorAll('.orb-mark img')].every(i=>i.complete),null,{timeout:10000});
+    const brandLogos = await page.evaluate(()=>[...document.querySelectorAll('.orb-mark img')]
+      .map(i=>i.getAttribute('src')).filter(Boolean));
+    assert.ok(brandLogos.some(src=>/orb-youtube\.svg$/.test(src)), 'YouTube uses its real logo');
+    assert.ok(brandLogos.some(src=>/orb-twitch\.svg$/.test(src)), 'Twitch uses its real logo');
+    assert.ok(brandLogos.some(src=>/orb-netflix\.svg$/.test(src)), 'Netflix uses its real logo');
+    assert.equal(await page.locator('.orb-mark img').first().evaluate(i=>i.naturalWidth>0), true,
+      'the brand logo is a real image the tile keeps');
+    // A DOCK NÃO SOME: ela fica por baixo, e a janelinha nasce na frente dela.
+    assert.equal(await page.locator('.dock').isVisible(),true,
+      'the dock stays on screen (it just sits behind the ring window)');
+    // O print pediu a dock ESCURA com o ambiente: ela continua visível, só apagada atrás do anel.
+    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).filter),/brightness\(0?\.6/,
+      'the dock goes dark along with the environment while the ring is open');
+    // Com os apps gigantes abertos, a dock fica TRAVADA: nenhum app dela abre — só os do anel.
+    await page.locator('.dock [data-id="store"]').click();
+    await page.waitForTimeout(250);
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.win-shell[data-window-id="store"]')),false,
+      'a dock não abre app nenhum enquanto os apps gigantes estão abertos');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),true,
+      'e o anel continua aberto depois do toque na dock');
+    // ...mas as duas bolinhas continuam respondendo (são elas que abrem e fecham o anel).
+    assert.deepEqual(await page.evaluate(()=>{
+      const orb=document.querySelector('.orb-root');
+      return [!!orb, !!document.querySelector('.win-shell[data-window-id="orb-apps"]')];
+    }),[true,true],'o anel segue no ar');
+    // Nada de barra de status embaixo dos apps: nem TODOS, nem giroscópio, nem perfil, nem relógio,
+    // nem a linha branca ("tira a barrinha abaixo dela, aonde aparece giroscopio ativo").
+    assert.equal(await page.locator('.orb-root [data-orb-bar], .orb-root [data-orb-all], .orb-root [data-orb-gyro], .orb-root [data-orb-me], .orb-root [data-orb-clock], .orb-root [data-orb-close], .orb-root .orb-home-line').count(),0,
+      'nothing but the apps is drawn');
+    // Rolagem: treze ícones por página; com mais apps, a roda passa a página e a roda de volta volta.
+    assert.equal(await page.evaluate(()=>document.querySelector('.orb-root').dataset.page),'0');
+    assert.ok(await page.locator('.orb-app').count()<=13,'a page never shows more than thirteen icons');
+    const paging = await page.evaluate(()=>{
+      if (typeof window.nextvrOrbPage !== 'function') return { missing: true };
+      const before = document.querySelector('.orb-root').dataset.page;
+      window.nextvrOrbPage(1);
+      const after = document.querySelector('.orb-root').dataset.page;
+      // A roda do mouse é do documento (a camada é pointer-events:none): dispara um evento real.
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, bubbles: true, cancelable: true }));
+      const afterWheel = document.querySelector('.orb-root').dataset.page;
+      return { before, after, afterWheel };
+    });
+    assert.equal(paging.missing, undefined, 'the ring exposes paging');
+    // Com treze lugares a primeira página enche; com mais, virar a página continua valendo (roda e
+    // arrasto),
+    // sem bolinhas nem setas na tela.
+    assert.equal(await page.locator('.orb-dots').count(),0,'no page dots on screen');
+    assert.equal(await page.locator('[data-orb-page]').count(),0,'no page arrows on screen');
+    const back = await page.evaluate(()=>{
+      for (let i = 0; i < 6 && document.querySelector('.orb-root').dataset.page !== '0'; i++) window.nextvrOrbPage?.(-1);
+      return document.querySelector('.orb-root').dataset.page;
+    });
+    assert.equal(back,'0','the ring comes back to the first page');
+
+    // A biblioteca completa (os apps que não cabem nas treze casas) abre pela mesma bolinha, segurando-a.
+    const hubInfo = await page.evaluate(()=>({
+      openLibrary: typeof window.nextvrOpenLibrary === 'function',
+      shells: [...document.querySelectorAll('.win-shell')].map(s => s.dataset.windowId),
+    }));
+    assert.equal(hubInfo.openLibrary,true,'the full library has a way in (hold the library dot)');
+    await page.evaluate(()=>{ window.nextvrCloseOrbMenu(); window.nextvrOpenLibrary(); });
+    await page.waitForFunction(()=>!!document.querySelector('.lib-grid'),null,{timeout:8000}).catch(async error=>{
+      const info=await page.evaluate(()=>({err:window.__orbLastError||null,
+        shells:[...document.querySelectorAll('.win-shell')].map(s=>s.dataset.windowId),
+        orb:!!document.querySelector('.orb-root')}));
+      throw new Error(`the full library did not open: ${JSON.stringify({...info,hub:hubInfo})} / ${error.message}`);
+    });
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.orb-root')),false,'the ring closes on launch');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.sceneDim),undefined,
+      'closing the ring restores the environment brightness');
+    assert.equal(await page.locator('.dock .dock-app').first().isVisible(),true,
+      'the dock apps are still there (and never left) while the ring opens and closes');
+    assert.match(await page.locator('.dock').evaluate(e=>getComputedStyle(e).backgroundImage),/gradient\(/,
+      'the dock pill comes back with the apps');
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.orbOpen),undefined,
+      'the ring clears its open mark when it closes');
+    assert.equal(await page.locator('.dock').isVisible(),true,'the dock is visible before, during and after the ring');
+    // 21 tiles: the 16 apps and tools that were already there, plus PC Link and Cockpit VR, plus the
+    // three games that ship in the APK and live in the library too (Beat Saber, Hyper Dash, Roblox).
+    assert.equal(await page.locator('.lib-tile').count(),21,
       'the NextVR library contains its own apps and tools; Android apps are kept in Shizuku');
     assert.equal(await page.locator('.lib-tile.android').count(),0,
       'installed Android packages never appear in the NextVR library');
@@ -226,14 +405,15 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await page.waitForFunction(()=>{const g=document.querySelector('.lib-grid');return g&&g.getBoundingClientRect().width>0;},null,{timeout:5000});
     assert.equal(await page.locator('.lib-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),5,'Library cover art uses the screenshot five-column grid');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),16,'Apps filter shows every built-in app as a tile');
+    assert.equal(await page.locator('.lib-tile').count(),21,'Apps filter shows every built-in app as a tile');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),0,
-      'Games filter is the PhoneXR library itself; this mock answers no runtime, so nothing is here');
+    assert.equal(await page.locator('.lib-tile').count(),5,
+      'Games filter is the same games list as the Store (VRFS, Beat Saber, Hyper Dash, Roblox, Cockpit '
+      + 'VR) plus whatever PhoneXR found; this mock answers no runtime and has no Táxi installed');
     await page.locator('[data-filter]').click();
     assert.equal(await page.locator('.lib-tile').count(),0,'Recent filter starts empty until an app is launched');
     await page.locator('[data-filter]').click();
-    assert.equal(await page.locator('.lib-tile').count(),16,'All restores the complete NextVR library without Android packages');
+    assert.equal(await page.locator('.lib-tile').count(),21,'All restores the complete NextVR library without Android packages');
     await page.locator('.dock [data-id="status"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.quick-settings'));
     assert.equal(await page.locator('.qs-system [data-q-battery]').innerText(),'72%','quick settings use the native battery bridge value');
@@ -263,7 +443,7 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     assert.equal(await page.locator('iframe').count(),0,'Native browser does not create a privileged iframe');
     assert.equal(await page.locator('.win-shell').count(),3);
     const browserSpec=await page.evaluate(()=>window.__last.browsers.find(b=>b.id==='browser'));
-    assert.equal(browserSpec.url,'https://duckduckgo.com/');
+    assert.equal(browserSpec.url,'https://google.com/');
     assert.ok(browserSpec.width>900 && browserSpec.height>400);
     const chrome=await page.locator('.win-shell[data-window-id="browser"]').evaluate(shell=>{
       const bar=shell.querySelector('.win-bar'),field=shell.querySelector('.qb-urlfld');
@@ -411,13 +591,33 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     await feed(fist);await page.waitForTimeout(300);
     assert.equal(await page.locator('.win-shell.moving').count(),0,'closing a fist without moving does not drag');
     assert.equal(await page.evaluate(()=>window.__touches.filter(t=>t.action===0).length),0,'Fist is not a pinch');
-    await page.waitForFunction(()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden));
-    fist.hands[0].palm=fist.hands[0].grab=[.62,.45];
-    await feed(fist);
-    await page.waitForFunction(original=>{
-      const current=window.__last.panels.find(p=>p.id==='library').matrix;
-      return Math.abs(current[12]-original[12])>.03;
-    },lib);
+    // O punho precisa de mais de um quadro para o alvo ficar "consumido" pela janela; em runner
+    // lento o primeiro quadro só abre o gesto, então alimenta de novo antes de esperar.
+    // O arraste só começa quando o laço de quadro consome o pacote do punho, e a janela só entra em
+    // `.moving` depois que a mão ANDA: esperar os dois estados é determinístico, um tempo fixo não.
+    assert.ok(await feedFistUntil(fistAt(.5,.5),hand(.4),()=>window.__handTargets?.some(t=>t.id==='right'&&t.hidden)),
+      'the closed fist is consumed by the window (no ray target while it grabs)');
+    assert.ok(await feedFistUntil(fistAt(.5,.5),hand(.4),()=>document.querySelectorAll('.win-shell.moving').length===1,{moves:4}),
+      'the fist grab starts dragging the window');
+    // O laço acima pode terminar no PRIMEIRO quadro em que a janela entra em `.moving` — antes de o
+    // punho andar. Esperar um tempo fixo por um movimento que ninguém está mandando deixa o teste
+    // refém do relógio do runner (era isso que falhava de vez em quando, com tudo verde). Aqui a mão
+    // anda de verdade, quadro a quadro, num sentido só: começa de onde o punho parou e vai até o outro
+    // lado, até a janela sair do lugar (voltar para trás no meio do caminho não move nada).
+    const fistTo=(x,y)=>t=>{
+      fist.hands[0].palm=fist.hands[0].grab=[x+(.86-x)*t,y+(.62-y)*t];
+      return fist;
+    };
+    let windowMoved=false;
+    for(let step=1;step<=12&&!windowMoved;step++){
+      await feed(fistTo(.62,.45)(step/12));
+      await page.waitForTimeout(140);
+      windowMoved=await page.evaluate(original=>{
+        const current=window.__last.panels.find(p=>p.id==='library').matrix;
+        return Math.abs(current[12]-original[12])>.03;
+      },lib);
+    }
+    assert.ok(windowMoved,'a janela anda junto com o punho fechado');
     fist.hands[0].palm=fist.hands[0].grab=[.62,.99];
     await feed(fist);await page.waitForTimeout(500);
     await feed(hand(.4));
@@ -524,11 +724,40 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        reaches the app rather than becoming a synthetic click on the shell.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    await page.locator('.dock [data-id="library"]').click();
+    // O botão do anel abre os apps no ambiente; o da biblioteca (e o `nextvrOpenLibrary`) abre a
+    // biblioteca completa do NextVR.
+    await page.locator('.dock [data-id="orb-apps"]').click();
+    await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
+    await page.evaluate(()=>{ window.nextvrCloseOrbMenu(); window.nextvrOpenLibrary(); });
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));
     assert.equal(await page.locator('.lib-grid .lib-tile.android').count(),0,
       'the NextVR library does not mix device apps into its own grid');
-    await page.locator('.dock [data-id="shizuku"]').click();
+    // Diagnóstico: se a dock não responder aqui, o estado abaixo diz o porquê.
+    const dockState = await page.evaluate(() => {
+      const dock = document.querySelector('.dock');
+      const tile = document.querySelector('.dock [data-id="shizuku"]');
+      const lib = document.querySelector('.lib-grid');
+      return {
+        orbMark: document.documentElement.dataset.orbOpen || null,
+        openCalls: window.__orbOpenCalls || 0,
+        closeCalls: window.__orbCloseCalls || 0,
+        launchCalls: window.__orbLaunchCalls || 0,
+        lastHit: window.__orbLastHit || null,
+        lastTarget: window.__orbLastTarget || null,
+        lastError: window.__orbLastError || null,
+        orbRoot: !!document.querySelector('.orb-root'),
+        orbWindow: !!document.querySelector('.win-shell[data-window-id="orb-apps"]'),
+        dockDisplayAfter: (() => { const d = document.querySelector('.dock'); return d ? getComputedStyle(d).display : 'no dock'; })(),
+        dockDisplay: dock ? getComputedStyle(dock).display : 'no dock',
+        tileDisplay: tile ? getComputedStyle(tile).display : 'no tile',
+        tileRect: tile ? [tile.getBoundingClientRect().width, tile.getBoundingClientRect().height] : null,
+        libVisible: lib ? getComputedStyle(lib.closest('.win-shell') || lib).visibility : 'no lib',
+        shells: [...document.querySelectorAll('.win-shell')].map(s => `${s.dataset.windowId}:${getComputedStyle(s).visibility}`),
+      };
+    });
+    await page.locator('.dock [data-id="shizuku"]').click({timeout:15000}).catch(error => {
+      throw new Error(`a dock não respondeu: ${JSON.stringify(dockState)} / ${error.message}`);
+    });
     await page.waitForFunction(()=>!!document.querySelector('.android-app-grid'));
     assert.equal(await page.locator('.android-app-grid .lib-tile.android').count(),2,
       'both installed apps appear in the dedicated Shizuku launcher');

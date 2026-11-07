@@ -15,7 +15,7 @@
 //
 // There is no mirror button: the Shizuku launcher owns the Android app list and badge,
 // and a failed session names its reason instead of leaving a blank window (see sessionError).
-import { t, toast, on, emit, native } from './core.js';
+import { t, toast, on, emit, native, css3d, scene, camera } from './core.js';
 import { open, close, wins, focus, keyboard } from './windows.js';
 import { icon } from './reference-icons.js';
 import { fitDisplay, appHostPoint } from './display-fit.js';
@@ -121,6 +121,8 @@ function reconcile() {
     if (!live.has(s.pkg)) createWindow(s); else updateWindow(s);
   }
   for (const pkg of [...live.keys()]) if (!wanted.has(pkg)) closeWindow(pkg, true);
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
   scheduleSync(true);
 }
 
@@ -179,6 +181,9 @@ function createWindow(session) {
   const box = windowBox(session);
   const win = open({ id: appWindowId(session.pkg), title: session.title, node: body,
     w: box.w, h: box.h });
+  // Com o anel de 13 apps aberto nenhuma janelinha nasce (`open` devolve `null`): a sessão só passa a
+  // existir quando existe janela, senão o registro ficava com um buraco e o app sumia de vez.
+  if (!win) return;
   // The session is kept with the window: a rotation or a re-open needs the canvas it was created with
   // (the phone's own screen), and the shell must never fall back to guessing a size.
   live.set(session.pkg, { win, surface, status, badge, session });

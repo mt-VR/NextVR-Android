@@ -11,8 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
-import bundledChromium from '@sparticuz/chromium';
+import { launchOrSkip } from './support/chromium.mjs';
 import * as THREE from 'three';
 
 const IDENTITY = new THREE.Matrix4().toArray();
@@ -156,8 +155,8 @@ function battery() {
 test('the typing engine writes where the caret is, and the page can veto a key', { timeout: 120000 }, async t => {
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -313,8 +312,8 @@ test('the keyboard types into the focused field, repeats while held and follows 
   const server = await startServer();
   let browser;
   try {
-    try { browser = await chromium.launch({ executablePath: await bundledChromium.executablePath(), args: bundledChromium.args, headless: true }); }
-    catch (err) { t.skip('Chromium unavailable: ' + err.message?.slice(0, 80)); return; }
+    browser = await launchOrSkip(t);
+    if (!browser) return;
     const page = await browser.newPage({ viewport: { width: 4096, height: 4096 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -326,6 +325,8 @@ test('the keyboard types into the focused field, repeats while held and follows 
     await page.evaluate(p => { window.nextvrResume(); window.nextvrPose(p); window.nextvrHands({ hands: [] }); }, IDENTITY);
     await page.evaluate(() => { localStorage.setItem('nextvr.v1', JSON.stringify({ lang: 'en' })); });
     await page.reload();
+    await page.waitForSelector('[data-entry-act="start"]');
+    await page.evaluate(() => document.querySelector('[data-entry-act="start"]')?.click());
     await page.waitForFunction(() => window.__last?.panels.some(p => p.id === 'dock'));
     await page.evaluate(p => { window.nextvrResume(); window.nextvrPose(p); window.nextvrHands({ hands: [] }); }, IDENTITY);
     await page.waitForTimeout(300);

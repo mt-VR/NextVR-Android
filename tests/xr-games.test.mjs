@@ -103,7 +103,7 @@ test('the controller publishes the canvas and answers the hands-ui edge', async 
     'the shell reported a pinch over one of its windows: no buttons in the game for it');
   assert.match(controller, /public void onActivityPaused\(\) \{\n\s+if \(!hosting\(\)\) return;\n\s+hands\.stop\(\);\n\s+minimize\(\);/,
     'pause detaches the picture and stops feeding a game the last frame forever');
-  assert.match(controller, /public void onActivityResumed\(\) \{\n\s+if \(!hosting\(\)\) return;\n\s+hands\.start\(handMode, true, true\);\n\s+restore\(\);/);
+  assert.match(controller, /public void onActivityResumed\(\) \{\n[\s\S]{0,320}?if \(!hosting\(\)\) return;\n\s+hands\.start\(handMode, true, true\);\n\s+restore\(\);/);
 });
 
 test('the activity hands the game the pause and the resume', async () => {
@@ -131,7 +131,10 @@ test('headset games share the Applications menu, and the runtime rows only exist
   const apps = await read(FILES.apps);
   assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
   assert.match(apps, /installAndroidApps\(\);\ninstallJoycon\(\);\ninstallXrGames\(\);/);
-  assert.match(apps, /const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+  // A ordem mudou (apps primeiro, jogos de headset por último) porque a grade abria só com jogos e
+  // isso foi lido como "a biblioteca de apps sumiu". O conteúdo é o mesmo: apps + jogos, e nenhum
+  // pacote Android.
+  assert.match(apps, /const list = \[\.\.\.LIB_APPS\.map\(a => \(\{ \.\.\.a, kind: 'app' \}\)\)[\s\S]{0,400}?\.\.\.xrLibraryItems\(\)\]/,
     'the NextVR library is its own apps plus PhoneXR games; Android packages stay in Shizuku');
   assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,
     'one tile kind per origin, one row for each source');
@@ -155,8 +158,14 @@ test('the demo games are gone: PhoneXR is the games platform', async () => {
   assert.ok(!xr.includes("from './game.js'"), 'the hosted-game module does not lean on the removed module');
   await assert.rejects(read('web/src/game.js'), { code: 'ENOENT' },
     'the 3D sandbox module is deleted, not just unrouted');
-  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr'\);/,
-    'the Games filter is the PhoneXR library itself');
+  // A aba Jogos é a biblioteca do PhoneXR — mais o Táxi Driver, quando ele está instalado: é um
+  // jogo de verdade no telefone (Cardboard), não uma tile de demonstração.
+  // O filtro Jogos é UMA lista: todo jogo que tem card na Loja (derivado de QUEST_STORE_ITEMS) mais os
+  // jogos de headset que o PhoneXR encontrou. Nenhum jogo pode existir na Loja e faltar na biblioteca.
+  assert.match(apps, /const GAME_IDS = new Set\(QUEST_STORE_ITEMS\.filter\(item => item\.cat === 'games'\)\.map\(item => item\.id\)\);/,
+    'one source of truth for the games list');
+  assert.match(apps, /if \(libFilter === 'games'\) filtered = filtered\.filter\(x => x\.kind === 'xr' \|\| GAME_IDS\.has\(x\.id\)\);/,
+    'the Games filter is the PhoneXR library plus every game that has a store card');
   assert.match(apps, /libFilter === 'games' \? t\('libGamesEmpty'\)/,
     'the empty Games filter uses a localized explanation, not download instructions');
   // The store cannot sell what is gone: it points at the library, and games live in PhoneXR.
@@ -233,4 +242,188 @@ test('the bundled UI carries the embeddings: state push, panels, chords and no d
   }
   const html = await read(FILES.bundleHtml);
   assert.ok(html.includes('az-dot[data-state="outdated"]'), 'the runtime dot states ship with the page');
+});
+
+/* ============ Cardboard / VR Box: o jogo que desenha o próprio estéreo ============ */
+
+test('um jogo Cardboard é reconhecido e recebe a TELA, em vez de ser hospedado', async () => {
+  const library = await read(FILES.library);
+  // Uma classe própria: Cardboard e Daydream aplicam a correção de lente do VR Box DENTRO da imagem.
+  assert.match(library, /OPENXR, OPENXR_ORIGINAL, VRAPI_READY, VRAPI_ORIGINAL, VRAPI_UNSUPPORTED, DAYDREAM, CARDBOARD/);
+  assert.match(library, /public boolean fullScreen\(\) \{\n\s+return kind == Kind\.CARDBOARD \|\| kind == Kind\.DAYDREAM;\n\s+\}/);
+  // Hospedar um deles empilharia a nossa correção em cima da do jogo: eles saem do `hostable`.
+  assert.match(library, /public boolean hostable\(\) \{\n\s+return kind == Kind\.OPENXR \|\| kind == Kind\.VRAPI_READY;\n\s+\}/);
+  // As pistas, em ordem: um loader de verdade ganha; Cardboard/Daydream vêm antes de uma categoria solta.
+  assert.match(library, /public static Kind kindOf\(/);
+  const kindOf = library.slice(library.indexOf('public static Kind kindOf('), library.indexOf('/**\n     * Whether a name says Cardboard'));
+  assert.ok(kindOf.indexOf('if (openXr)') < kindOf.indexOf('if (cardboard || cardboardDeclared)'));
+  assert.ok(kindOf.indexOf('if (cardboard || cardboardDeclared)') < kindOf.indexOf('if (declaredVr)'));
+  assert.match(library, /case DAYDREAM:\n\s+return "Daydream · abre em tela cheia no VR Box \(estéreo do próprio jogo\)";/);
+  assert.match(library, /return "Cardboard · abre em tela cheia no VR Box \(estéreo do próprio jogo\)";/);
+});
+
+test('o Táxi Driver (Unity + Cardboard, sem categoria de VR) é achado pelas pistas do APK', async () => {
+  const library = await read(FILES.library);
+  // Bibliotecas nativas do SDK Cardboard, nos nomes que o empacotamento Java/Unity usa.
+  assert.match(library, /"libcardboard\.so", "libCardboard\.so", "libcardboard_unity\.so", "libGfxPluginCardboard\.so"/);
+  // Um build Unity + plugin Cardboard não tem NADA disso: o plugin é Java. O dex é a pista.
+  assert.match(library, /"com\/google\/cardboard"\.getBytes/);
+  assert.match(library, /"com\/google\/vr\/sdk"\.getBytes/);
+  assert.match(library, /static boolean dexHasCardboard\(ZipFile zip, java\.util\.List<String> names\)/);
+  assert.match(library, /private static final long MAX_DEX_BYTES = 24L \* 1024 \* 1024;/);
+  // E, por último, o nome: o pacote do Táxi Driver termina em `.cardboard` e a versão diz
+  // `1.0-cardboard-vr-v7`.
+  assert.match(library, /static boolean looksCardboard\(String name\)/);
+  // `ApplicationInfo` não tem versionName: a versão vem do `PackageInfo` (é onde o build se nomeia).
+  assert.match(library, /if \(!cardboard && \(looksCardboard\(info\.packageName\) \|\| looksCardboard\(versionNameOf\(info\.packageName\)\)\)\)/);
+  assert.match(library, /private String versionNameOf\(String packageName\) \{\n\s+try \{\n\s+android\.content\.pm\.PackageInfo info = context\.getPackageManager\(\)\.getPackageInfo\(packageName, 0\);/);
+  // O probe só roda para quem pode ser Unity — não se abre o dex de todo app instalado.
+  assert.match(library, /boolean mightBeUnity = !declaredVr && !openXr && !gvr && !cardboard && hasUnityLib\(libs\);/);
+  assert.match(library, /if \(mightBeUnity\) cardboard = dexHasCardboard\(zip, names\);/);
+});
+
+test('abrir um jogo de tela cheia entrega a tela do celular, sem runtime e sem display', async () => {
+  const controller = await read(FILES.controller);
+  // A entrega acontece ANTES de qualquer exigência de runtime/Shizuku.
+  const open = controller.slice(controller.indexOf('private void open(String packageName)'), controller.indexOf('private void openFullScreen('));
+  assert.ok(open.indexOf('if (game.fullScreen())') < open.indexOf('if (runtime.runtimeState() != XrRuntime.State.READY)'),
+    'a tela cheia não depende do runtime');
+  assert.match(controller, /private void openFullScreen\(XrGameLibrary\.Game game\) \{\n\s+hands\.stop\(\);\n\s+current = null;\n\s+external = game;/);
+  assert.match(controller, /if \(!env\.launchOnPhone\(game\.packageName\)\) \{/);
+  // O estado diz que não é uma sessão nossa, e qual jogo foi para a tela.
+  assert.match(controller, /root\.put\("external", external != null\);/);
+  assert.match(controller, /root\.put\("externalGame", external == null \? JSONObject\.NULL : external\.label\);/);
+  assert.match(controller, /item\.put\("fullScreen", game\.fullScreen\(\)\);/);
+  // O lado Android já tinha o caminho privilegio-zero: o ícone do app na gaveta.
+  assert.match(controller, /boolean launchOnPhone\(String packageName\);/);
+  const activity = await read(FILES.activity);
+  assert.match(activity, /@Override public boolean launchOnPhone\(String pkg\)\{/);
+  assert.match(activity, /final android\.content\.Intent intent=getPackageManager\(\)\.getLaunchIntentForPackage\(pkg\);/);
+  assert.match(activity, /android\.content\.Intent\.FLAG_ACTIVITY_NEW_TASK/);
+  const windows = await read('nextvr-android/src/main/java/com/nextvr/app/apps/AppWindowController.java');
+  assert.match(windows, /public boolean launchOnPhone\(String packageName\) \{\n\s+return displays != null && displays\.launchOnPhone\(packageName\);\n\s+\}/);
+});
+
+test('a shell pinta a tile do VR Box e oferece a tela cheia para qualquer app instalado', async () => {
+  const xr = await read(FILES.xr);
+  // Tela cheia não é "não abre": nada de ✕ na tile, e o selo diz onde ele abre.
+  assert.match(xr, /const fullScreen = g\.fullScreen === true \|\| g\.kind === 'cardboard' \|\| g\.kind === 'daydream';/);
+  assert.match(xr, /const hostable = g\.hostable \|\| fullScreen \? ''/);
+  assert.match(xr, /VR BOX/);
+  // O caminho manual, para quando o APK não traz pista nenhuma: o mesmo `startActivity` do app.
+  assert.match(xr, /export function launchAppFullScreen\(pkg\) \{/);
+  assert.match(xr, /const payload = JSON\.stringify\(\{ cmd: 'phone', pkg \}\);/);
+  // O pedido vai pelo lado nativo do PhoneXR (o que tem o PackageManager e responde quando falha);
+  // o caminho das janelas de app fica só como alternativa.
+  assert.match(xr, /if \(window\.NativeXR\?\.xrCommand\) \{ window\.NativeXR\.xrCommand\(payload\); return true; \}/);
+  assert.match(xr, /if \(window\.NativeXR\?\.appsCommand\) \{ window\.NativeXR\.appsCommand\(payload\); return true; \}/);
+  // Aviso quando o jogo vai para a tela: sem isso o usuário acha que nada abriu.
+  assert.match(xr, /if \(state\.external && state\.externalPackage && wasExternal !== state\.externalPackage\) \{/);
+  assert.match(xr, /toast\(t\('xrFullScreenOpened'\)\.replace\('\{game\}', state\.externalGame \|\| state\.externalPackage\)\)/);
+  // A página PhoneXR ganhou a seção, com a lista de apps instalados e o botão por app.
+  const apps = await read(FILES.apps);
+  assert.match(apps, /card\.append\(ytSection\(t\('xrCardboard'\)\)\);/);
+  assert.match(apps, /if \(launchAppFullScreen\(app\.pkg\)\) \{/);
+  assert.match(apps, /installed\.append\(ytRow\(icon\('controller'\), escH\(app\.label \|\| app\.pkg\), escH\(app\.pkg\), open\)\);/);
+  assert.match(apps, /loadAndroidLibrary\(true\);/);
+  assert.match(apps, /xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,\n\s+TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver \} from '\.\/xr-games\.js';/);
+  const core = await read(FILES.core);
+  for (const key of ['xrCardboardBadge', 'xrFullScreenOpened', 'xrCardboard', 'xrCardboardNote',
+    'xrCardboardOpen', 'xrCardboardLoad', 'xrCardboardEmpty', 'xrCardboardRescan']) {
+    assert.equal(core.split(`    ${key}:`).length - 1, 3, `${key} está traduzido em pt, en e es`);
+  }
+});
+
+test('voltar do jogo de tela cheia limpa o estado: ele não fica "aberto" para sempre', async () => {
+  const controller = await read(FILES.controller);
+  assert.match(controller, /if \(external != null\) \{\n\s+external = null;\n\s+publishState\(\);\n\s+\}\n\s+if \(!hosting\(\)\) return;/);
+  // E a entrega não deixa uma sessão hospedada pela metade.
+  assert.match(controller, /private void openFullScreen\(XrGameLibrary\.Game game\) \{\n\s+hands\.stop\(\);\n\s+current = null;/);
+  // Sair/fechar também limpa.
+  assert.match(controller, /private void close\(\) \{\n\s+XrGameLibrary\.Game game = current;\n\s+current = null;\n\s+external = null;/);
+});
+
+test('jogo instalado com o app aberto vira tile sem reiniciar (foi assim que o Táxi "sumiu")', async () => {
+  const xr = await read(FILES.xr);
+  // A lista vem do lado nativo, que abre o APK de cada jogo: é caro, então é pedida com folga — mas
+  // é pedida toda vez que a biblioteca pinta, e não só quando não há jogo nenhum (o caso que deixava
+  // um jogo recém-instalado invisível até reiniciar o NextVR).
+  assert.match(xr, /export function ensureXrLibrary\(\) \{/);
+  assert.match(xr, /const LIBRARY_FRESH_MS = 15000;\nconst LIBRARY_MIN_GAP_MS = 2500;/);
+  assert.match(xr, /if \(!gamesLoaded\) \{ if \(now - lastAsk >= LIBRARY_MIN_GAP_MS\) askXrLibrary\(\); return; \}\n  if \(now - lastAsk >= LIBRARY_FRESH_MS\) askXrLibrary\(\);/);
+  const apps = await read(FILES.apps);
+  assert.match(apps, /if \(window\.NativeXR\?\.xrLibrary\) ensureXrLibrary\(\);/);
+  assert.ok(!apps.includes('if (!xrGames().length && window.NativeXR?.xrLibrary) refreshXrLibrary();'),
+    'a condição que congelava a lista com um jogo instalado não existe mais');
+  // E o lado nativo avisa quando um pacote entra ou sai, então nem é preciso abrir a biblioteca.
+  const controller = await read(FILES.controller);
+  assert.match(controller, /public void watchPackages\(\) \{/);
+  assert.match(controller, /filter\.addAction\(android\.content\.Intent\.ACTION_PACKAGE_ADDED\);/);
+  assert.match(controller, /filter\.addAction\(android\.content\.Intent\.ACTION_PACKAGE_REMOVED\);/);
+  assert.match(controller, /filter\.addDataScheme\("package"\);/);
+  assert.match(controller, /offMain\(XrGameController\.this::publishLibrary\);/);
+  assert.match(controller, /env\.context\(\)\.unregisterReceiver\(packageWatcher\);/);
+  const activity = await read(FILES.activity);
+  assert.match(activity, /xrGames\.watchPackages\(\);/);
+});
+
+test('a lista Cardboard das configurações mostra o jogo reconhecido mesmo sem a biblioteca do Android', async () => {
+  const apps = await read(FILES.apps);
+  // Duas fontes: apps instalados e jogos de headset já classificados (o Táxi é reconhecido pelo
+  // nome, então aparece aqui antes de qualquer coisa ser carregada).
+  assert.match(apps, /for \(const game of \(xrGames\(\) \|\| \[\]\)\) if \(!byPkg\.has\(game\.package\)\) byPkg\.set\(game\.package, \{ pkg: game\.package, label: game\.label \}\);/);
+  assert.match(apps, /on\('xr', paintInstalled\);/);
+  // E um re-scan à mão, para quem instala o jogo com o app aberto e não quer esperar.
+  assert.match(apps, /const rescan = el\('button', 'go', t\('xrCardboardRescan'\)\);/);
+  assert.match(apps, /rescan\.onclick = \(\) => \{ refreshXrLibrary\(\); loadAndroidLibrary\(true\); toast\(t\('xrCardboardRescan'\)\); \};/);
+});
+
+test('o Táxi Driver tem porta de entrada: Loja e biblioteca (não no menu)', async () => {
+  const xr = await read(FILES.xr);
+  // O pacote do APK que o usuário instalou, e a capa da tile (para não ficar em duas iniciais).
+  assert.match(xr, /export const TAXI_PACKAGE = 'com\.manerai\.taxidriver\.cardboard';/);
+  assert.match(xr, /const XR_COVERS = Object\.freeze\(\{ \[TAXI_PACKAGE\]: TAXI_LOGO \}\);/);
+  assert.match(xr, /export function taxiPackage\(\) \{/);
+  // "Não instalado" só quando ALGUMA lista carregou e não achou: no começo da sessão as duas chegam
+  // depois, e responder `null` era o que fazia o botão dizer "não instalado" com o jogo instalado.
+  assert.match(xr, /if \(!gamesLoaded && apps\.length === 0\) return TAXI_PACKAGE;/);
+  assert.match(xr, /const guess = apps\.find\(a => \/taxi\.\?driver\/i\.test\(a\.pkg\)\);/);
+  // Abrir é SEMPRE o `startActivity` direto: o jogo não depende de runtime, display nem Shizuku.
+  assert.match(xr, /export function openTaxiDriver\(\) \{\n\s+const pkg = taxiPackage\(\);\n\s+if \(!pkg\) return false;/);
+  assert.match(xr, /return launchAppFullScreen\(pkg\);\n\}/);
+
+  const apps = await read(FILES.apps);
+  // Loja: cartão com selo VR BOX, e o botão diz se está instalado.
+  assert.match(apps, /\{ id: 'taxi-driver', name: TAXI_LABEL, cat: 'games', rating: '4\.9', reviews: '12 mil', tag: 'Cardboard · VR Box · Tela cheia', badge: 'VR BOX'/);
+  assert.match(apps, /const installedNow = item\.id === 'taxi-driver' && taxiInstalled\(\);/);
+  // Biblioteca: tile só quando o jogo está instalado (nada de jogo fantasma).
+  assert.match(apps, /const TAXI_DRIVER_ITEM = \{[\s\S]{0,200}imgUrl: TAXI_LOGO/);
+  assert.match(apps, /const taxi = taxiInstalled\(\) \? \[TAXI_DRIVER_ITEM\] : \[\];/);
+  assert.match(apps, /'taxi-driver': \(\) => \{\n\s+if \(openTaxiDriver\(\)\) return;\n\s+toast\(t\('taxiNotInstalled'\)\);/);
+  // O menu principal volta a ter cinco cards: o Táxi não tem card próprio lá (o pedido do usuário).
+  const entry = await read('web/src/entry-menu.js');
+  assert.ok(!entry.includes('data-entry-act="taxi"'), 'sem card do Táxi na coluna do menu');
+  assert.ok(!entry.includes('entry-card--taxi'), 'sem CSS/estrutura do card do Táxi');
+  // Mas continua na Loja (a vitrine que se abre pelo menu).
+  assert.match(entry, /\{ id: 'taxi-driver', name: 'Taxi Driver VR', cat: 'Cardboard · VR Box · Tela cheia · 4\.9 ★'/);
+  // Aviso honesto quando o APK não está instalado, nos três idiomas.
+  const core = await read(FILES.core);
+  assert.equal(core.split('    taxiNotInstalled:').length - 1, 3);
+});
+
+test('o ícone do app é a arte nova, e ela NÃO fica na tela de entrada', async () => {
+  // O logo novo é o ícone do launcher (todas as densidades), a partir da arte entregue em artwork/.
+  const source = await readFile(new URL('../artwork/nextvr-apk-logo.png', import.meta.url));
+  assert.equal(source.subarray(1, 4).toString('latin1'), 'PNG');
+  assert.ok(source.length > 500000, 'a arte é a imagem grande entregue, não um marcador');
+  for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+    const icon = await readFile(new URL(`../nextvr-android/src/main/res/drawable-${density}/nextvr_ic_launcher.png`, import.meta.url));
+    assert.equal(icon.subarray(1, 4).toString('latin1'), 'PNG', `${density} launcher icon exists`);
+  }
+  // Mas a tela de entrada continua com o logo de sempre: o usuário não pediu logo ali.
+  const html = await read('web/index.html');
+  assert.match(html, /<div class="logo"><img src="\.\/icons\/nextvr-n\.png" alt="NextVR"><\/div>/);
+  assert.ok(!html.includes('halloween'), 'nenhuma arte de logo na UI');
+  const entry = await read('web/src/entry-menu.js');
+  assert.ok(!entry.includes('entry-brand-logo-row'), 'sem logo no palco do menu principal');
 });
