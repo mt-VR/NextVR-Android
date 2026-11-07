@@ -112,7 +112,7 @@ test('a dock ganha o botão 4-5-4 à esquerda da biblioteca, sem mexer no resto 
   assert.deepEqual([ys.filter(y => y === 5.4).length, ys.filter(y => y === 12).length, ys.filter(y => y === 18.6).length],
     [4, 5, 4], '4 em cima, 5 no meio, 4 embaixo');
   // O botão fica imediatamente À ESQUERDA do botão da biblioteca.
-  const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: () => libraryApp(),";
+  const libraryLine = "    { id: 'library', win: 'library', launcher: true, label: t('apps'),";
   const orbLine = "    { id: 'orb-apps', win: 'orb-apps', label: t('apps'), svg: DK.orbDots, run: openAppsDot },";
   assert.ok(apps.includes(orbLine) && apps.includes(libraryLine));
   assert.ok(apps.indexOf(orbLine) < apps.indexOf(libraryLine), 'o anel vem antes da biblioteca na dock');

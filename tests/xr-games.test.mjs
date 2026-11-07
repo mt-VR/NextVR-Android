@@ -131,7 +131,10 @@ test('headset games share the Applications menu, and the runtime rows only exist
   const apps = await read(FILES.apps);
   assert.match(apps, /import \{ installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, phoneXrNotice,/);
   assert.match(apps, /installAndroidApps\(\);\ninstallJoycon\(\);\ninstallXrGames\(\);/);
-  assert.match(apps, /const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+  // A ordem mudou (apps primeiro, jogos de headset por último) porque a grade abria só com jogos e
+  // isso foi lido como "a biblioteca de apps sumiu". O conteúdo é o mesmo: apps + jogos, e nenhum
+  // pacote Android.
+  assert.match(apps, /const list = \[\.\.\.LIB_APPS\.map\(a => \(\{ \.\.\.a, kind: 'app' \}\)\)[\s\S]{0,400}?\.\.\.xrLibraryItems\(\)\]/,
     'the NextVR library is its own apps plus PhoneXR games; Android packages stay in Shizuku');
   assert.match(apps, /x\.kind === 'xr' \? xrTileHtml\(x\)/,
     'one tile kind per origin, one row for each source');

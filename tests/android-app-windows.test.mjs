@@ -813,7 +813,7 @@ test('Android apps are isolated in the dedicated Shizuku launcher', async () => 
     'the NextVR library has no Android category');
   assert.ok(!appsJs.includes("const android = androidApps().map"),
     'the NextVR library never merges installed packages into its own catalog');
-  assert.match(appsJs, /function libItems\(\)[\s\S]*?const list = \[\.\.\.xrLibraryItems\(\), \.\.\.LIB_APPS\.map/,
+  assert.match(appsJs, /function libItems\(\)[\s\S]*?const list = \[\.\.\.LIB_APPS\.map\(a => \(\{ \.\.\.a, kind: 'app' \}\)\)[\s\S]{0,400}?\.\.\.xrLibraryItems\(\)\]/,
     'the NextVR library includes its own apps and PhoneXR games only');
   assert.match(appsJs, /function shizukuWindow\(\)[\s\S]*?title: 'Apps do Android'/,
     'the single Shizuku launcher opens its own Android app window');

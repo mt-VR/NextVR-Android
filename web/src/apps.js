@@ -2467,8 +2467,14 @@ function libItems() {
   // (throttled inside `ensureXrLibrary`: the scan reads every candidate APK natively).
   if (window.NativeXR?.xrLibrary) ensureXrLibrary();
   const taxi = taxiInstalled() ? [TAXI_DRIVER_ITEM] : [];
-  const list = [...xrLibraryItems(), ...LIB_APPS.map(a => ({ ...a, kind: 'app' })), COCKPIT_VR_ITEM,
-    ...builtInGameTiles(), ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : [])];
+  // A ORDEM da grade é a ordem em que as coisas são vistas, e ela já foi o defeito relatado: com os
+  // jogos de headset na frente, quem abria a biblioteca via uma grade só de jogos e achava que a
+  // "biblioteca de apps" tinha sumido. Agora os apps do NextVR vêm PRIMEIRO (YouTube, Netflix,
+  // Discord, TikTok…), depois os jogos do pacote e, por último, os jogos que o PhoneXR achou no
+  // aparelho — todos continuam na mesma lista, sem filtro escondendo ninguém.
+  const list = [...LIB_APPS.map(a => ({ ...a, kind: 'app' })), COCKPIT_VR_ITEM, ...builtInGameTiles(),
+    ...taxi, ...(S.gorillaInstalled ? [GORILLA_TAG_ITEM] : []), ...(S.mrPistolInstalled ? [MR_PISTOL_ITEM] : []),
+    ...xrLibraryItems()];
   let filtered = list;
   // A aba Jogos é TODA a lista de jogos da Loja (derivada de um lugar só) mais os jogos de headset que
   // o PhoneXR encontrou: nenhum jogo existe na Loja e falta na biblioteca, e vice-versa.
@@ -3876,7 +3882,11 @@ function makeDock() {
     // O botão da BIBLIOTECA abre a BIBLIOTECA (a grade de todos os apps). Ele abria o ANEL, igual ao
     // botão do anel, e por isso a biblioteca de apps "sumiu": só sobravam os apps grandes do anel.
     // Segurar este botão continua sendo um atalho direto para ela.
-    { id: 'library', win: 'library', launcher: true, label: t('apps'), run: () => libraryApp(),
+    // Pedido explícito do usuário ("traz devolta a biblioteca de apps"): o botão da biblioteca abre a
+    // GRADE de apps — e se o anel estiver na frente, ele sai primeiro, porque `open()` devolve null
+    // com o anel aberto e a janela "sumia" sem aviso.
+    { id: 'library', win: 'library', launcher: true, label: t('apps'),
+      run: () => { if (orbOpen()) closeOrbMenu(); libraryApp(); },
       hold: () => { if (orbOpen()) closeOrbMenu(); libraryApp(); } },
   ]);
   syncVirtualEnvironmentDock();

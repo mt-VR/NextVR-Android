@@ -24,7 +24,9 @@ test('a biblioteca de apps volta a abrir pelo botão dela, e não o anel', async
   const apps = await read(FILES.apps);
   // O botão da dock: ANEL abre o anel, BIBLIOTECA abre a biblioteca.
   assert.match(apps, /\{ id: 'orb-apps', win: 'orb-apps', label: t\('apps'\), svg: DK\.orbDots, run: openAppsDot \},/);
-  assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\), run: \(\) => libraryApp\(\),/,
+  // O botão da biblioteca abre a GRADE de apps, e derruba o anel antes (com o anel aberto `open()`
+  // devolve null e a janela sumia sem aviso).
+  assert.match(apps, /\{ id: 'library', win: 'library', launcher: true, label: t\('apps'\),\n\s+run: \(\) => \{ if \(orbOpen\(\)\) closeOrbMenu\(\); libraryApp\(\); \},/,
     'the library button opens the app library again');
   // Pedir a biblioteca com o anel aberto fecha o anel e insiste: nenhum caminho perde a janela.
   assert.match(apps, /function libraryApp\(attempt = 0\) \{/);
