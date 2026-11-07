@@ -250,7 +250,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
     // A bolinha da dock (e o botão 4-5-4 ao lado dela) abre o ANEL de 13 apps SOLTOS no ambiente:
     // sem janelinha aparecendo, sem barra embaixo, sem brilho, sem alça para mover. O ambiente
     // escurece e cada ícone é um app do NextVR ou do Android instalado.
-    await page.locator('.dock [data-id="library"]').click();
+    // O botão do ANEL abre o anel; o da BIBLIOTECA abre a biblioteca (antes os dois abriam o anel, e
+    // era por isso que a grade de apps "tinha sumido").
+    await page.locator('.dock [data-id="orb-apps"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
     assert.equal(await page.locator('.orb-app').count(),13,'the ring shows thirteen apps');
     assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.orb-row')].map(r=>r.querySelectorAll('.orb-app').length)),
@@ -722,8 +724,9 @@ test('reference HTML boots, retains dock layout, spatial windows, native browser
        reaches the app rather than becoming a synthetic click on the shell.
        ============================================================================================= */
     await page.evaluate(()=>window.nextvrResume());
-    // A bolinha abre os apps no ambiente; segurá-la abre a biblioteca completa do NextVR.
-    await page.locator('.dock [data-id="library"]').click();
+    // O botão do anel abre os apps no ambiente; o da biblioteca (e o `nextvrOpenLibrary`) abre a
+    // biblioteca completa do NextVR.
+    await page.locator('.dock [data-id="orb-apps"]').click();
     await page.waitForFunction(()=>!!document.querySelector('.orb-root'));
     await page.evaluate(()=>{ window.nextvrCloseOrbMenu(); window.nextvrOpenLibrary(); });
     await page.waitForFunction(()=>!!document.querySelector('.lib-grid'));

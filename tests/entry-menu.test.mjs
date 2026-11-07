@@ -732,8 +732,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       window.__handVisualCalls = [];
       // A bolinha da dock abre os apps no ambiente; segurá-la abre a biblioteca completa, que é o
       // que este fluxo usa para achar o app instalado.
-      const dockLibrary = document.querySelector('.dock [data-id="library"]');
-      dockLibrary?.click();
+      // O anel tem botão próprio na dock; o botão da biblioteca agora abre a BIBLIOTECA (a grade),
+      // então quem abre o anel aqui é o botão do anel.
+      const dockRing = document.querySelector('.dock [data-id="orb-apps"]');
+      dockRing?.click();
       // O DOM de uma janela entra no documento no primeiro render do CSS3D (next frame), então o
       // anel (e o centro dele) só existem depois de um frame.
       await new Promise(r => requestAnimationFrame(() => r()));
@@ -865,7 +867,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       await new Promise(r => setTimeout(r, 80));
       const storeWin = document.querySelector('.win-shell[data-window-id="store"]');
       const pillTexts = [...storeWin.querySelectorAll('.st-quest-pill')].map(b => b.textContent.trim());
-      const hasBrowseAll = storeWin.textContent.includes('Navegar por tudo');
+      // A vitrine é organizada em duas seções: TODOS os jogos primeiro, depois os apps.
+      const hasBrowseAll = storeWin.textContent.includes('Jogos do NextVR');
+      const hasAppsSection = storeWin.textContent.includes('Navegar por tudo') || storeWin.textContent.includes('Apps');
       const cardIds = [...storeWin.querySelectorAll('[data-store-card]')].map(c => c.dataset.storeCard);
       const hasLogos =
         !!storeWin.querySelector('img[src*="beat-saber-logo.jpg"]') &&
@@ -1106,6 +1110,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       return {
         pillTexts,
         hasBrowseAll,
+        hasAppsSection,
         cardIds,
         hasLogos,
         winBarBg,
@@ -1136,7 +1141,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       ['Página inicial', 'Jogos', 'Apps', 'Lista de desejos'],
       'Store renders Meta Quest 3 top navigation pills'
     );
-    assert.equal(questAndFeatures.hasBrowseAll, true, 'Store renders "Navegar por tudo" section');
+    assert.equal(questAndFeatures.hasBrowseAll, true, 'Store renders the games section with every NextVR game');
+    assert.equal(questAndFeatures.hasAppsSection, true, 'Store keeps an apps section under the games');
     assert.equal(questAndFeatures.hasLogos, true, 'Store displays uploaded logos for Beat Saber, Hyper Dash VR, Roblox, and TikTok');
     assert.equal(questAndFeatures.winBarBg, 'rgba(0, 0, 0, 0)', 'Floating window top bar has no purple background');
     assert.equal(questAndFeatures.hasNewTabBtn, true, 'Floating window top bar has "+ Criar nova guia" option');
