@@ -26,6 +26,13 @@ object HandGestures {
      * of the frame height measures roughly .03-.05 here), so nothing legitimate is lost.
      */
     const val MIN_PALM = .008f
+    /**
+     * Quanto o alvo do raio é esticado para fora da mão, em comprimentos de palma (pulso até a base
+     * do dedo médio). A palma fica a ~0,75 e a ponta do dedo médio a ~2,1; com 1,8 o cursor cai a
+     * ~2,55 — um pouco À FRENTE das pontas dos dedos, onde a pessoa enxerga que está apontando, em
+     * vez de dentro da silhueta (o "raio pra dentro").
+     */
+    const val AIM_REACH = 1.8f
 
     data class Shape(
         /** Thumb and index tips together: click. */
@@ -42,8 +49,12 @@ object HandGestures {
         /** Palm width in image widths; bigger is closer to the camera. */
         val palmWidth: Float,
         /**
-         * Aim point between the thumb and index bases: follows the hand but not the fingertips, so
-         * the cursor stays put while the fingers pinch (a pinch no longer "jumps" the click).
+         * Para onde a mão APONTA, em coordenadas da imagem: o pulso cruzado com a base do dedo médio
+         * e esticado para FORA dos dedos (ver [AIM_REACH]).
+         *
+         *  Este ponto é o cursor, o destino do raio E o alvo do hit-test do clique — os três leem o
+         *  mesmo número, então o que se vê é onde se clica. Ele não usa as pontas dos dedos, então
+         *  fechar a pinça não move o cursor: o clique continua caindo onde caiu.
          */
         val aimX: Float = pinchX,
         val aimY: Float = pinchY,
@@ -95,6 +106,17 @@ object HandGestures {
         val bx = p[17].x() - p[0].x(); val by = p[17].y() - p[0].y()
         val cross = ax * by - ay * bx
         val palmToFace = if (physicalLeft) cross > 0 else cross < 0
+        val palmX = (p[0].x() + p[5].x() + p[9].x() + p[17].x()) / 4
+        val palmY = (p[0].y() + p[5].y() + p[9].y() + p[17].y()) / 4
+        // O eixo da mão: do pulso (0) através da base do dedo médio (9). A palma fica a ~0,75
+        // comprimentos de palma do pulso e a ponta do dedo médio (12) a ~1,9; somar AIM_REACH
+        // comprimentos de palma à palma põe o cursor (~2,3) um pouco À FRENTE das pontas dos dedos.
+        // Antes daqui o cursor era o meio da palma: o feixe saía das pontas dos dedos e voltava para
+        // a palma — desenhado por baixo da própria mão, era o "raio pra dentro" com a bolinha
+        // escondida. Mover a mão continua movendo o cursor 1:1; o que muda é que agora ele aparece
+        // fora da silhueta, no lugar para onde a mão aponta.
+        val aimX = (palmX + (p[9].x() - p[0].x()) * AIM_REACH).coerceIn(.02f, .98f)
+        val aimY = (palmY + (p[9].y() - p[0].y()) * AIM_REACH).coerceIn(.02f, .98f)
         return Shape(
             pinch = !fist && gap < .42f,
             pinchStrength = strength,
@@ -103,15 +125,15 @@ object HandGestures {
             pinchX = (p[4].x() + p[8].x()) / 2,
             pinchY = (p[4].y() + p[8].y()) / 2,
             palmWidth = palm,
-            aimX = p[2].x() * .3f + p[5].x() * .45f + (p[4].x() + p[8].x()) / 2 * .25f,
-            aimY = p[2].y() * .3f + p[5].y() * .45f + (p[4].y() + p[8].y()) / 2 * .25f,
+            aimX = aimX,
+            aimY = aimY,
             pinchGap = gap,
             indexX = p[8].x(),
             indexY = p[8].y(),
             indexExtended = d(0, 8) > d(0, 6) * 1.12f,
             pointing = d(0, 8) > d(0, 6) * 1.12f && d(0, 12) < d(0, 10) * 1.08f && d(0, 16) < d(0, 14) * 1.08f,
-            palmX = (p[0].x() + p[5].x() + p[9].x() + p[17].x()) / 4,
-            palmY = (p[0].y() + p[5].y() + p[9].y() + p[17].y()) / 4,
+            palmX = palmX,
+            palmY = palmY,
         )
     }
 

@@ -134,7 +134,6 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     // O voo do Cockpit VR precisa da câmera para as mãos do PRÓPRIO jogo: se o NextVR ainda não a
     // tem (o usuário nunca ligou o rastreio de mão), a permissão é pedida antes de a página abrir.
     private static final int REQUEST_GAME_CAMERA=12;
-    private String pendingCockpitQuery=null;
     private volatile long vrSessionReadyAtMs=0L;
     private String pendingVrSettingsJson;
     private android.hardware.SensorManager sensorManager;
@@ -712,15 +711,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      */
     private void openCockpitGame(String query) {
         if(closed || cockpitView!=null) return;
-        // A concessão de câmera da página (onPermissionRequest do WebView) só vale se o APP já
-        // tiver a permissão. Sem esta checagem, quem nunca ligou o rastreio de mão abria o voo com
-        // as mãos do jogo mudas — e o jogo parecia "não funcionar".
-        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) {
-            pendingCockpitQuery=query;
-            report("Cockpit VR: permita a Câmera para as mãos do jogo.");
+        // A permissão de câmera é pedida SEM travar a abertura. Ela é necessária para as mãos do
+        // jogo (a concessão do WebView só vale se o APP já a tiver), mas esperar a resposta antes de
+        // abrir a página prendia o voo no menu do NextVR quando o diálogo não voltava — era o
+        // "escolho o avião e não acontece nada". O voo abre, e quando o Android responde a página
+        // é avisada para levantar as mãos dela (`__nvRetryHands`).
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_GAME_CAMERA);
-            return;
-        }
         gameHandMode=false;
         camera.gameHandMode=false;
         camera.mrGameMode=false;
@@ -750,6 +747,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         view.bringToFront();
         view.requestFocus();
+        // Rede de segurança com o que a PÁGINA sabe: se em 12 s não houver canvas, o aviso traz a
+        // linha de estado do jogo (biblioteca que faltou, mão, câmera) em vez de a tela ficar parada
+        // sem explicação.
+        main.postDelayed(()->{
+            WebView v=cockpitView;
+            if(v==null) return;
+            try {
+                v.evaluateJavascript("(function(){var n=document.getElementById('nvd');"
+                    +"return (document.querySelector('canvas')?'ok':'SEM CANVAS')+' | '+(n?n.textContent:'')"
+                    +"+' | '+(window.__lastErr||'')})()",value->{
+                        if(value==null || value.contains("\"ok")) return;
+                        report("O voo não montou a tela. "+value);
+                    });
+            } catch(Throwable ignored) {}
+        },12000);
     }
 
     /**
@@ -804,10 +816,14 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
         if(code==REQUEST_GAME_CAMERA) {
-            String query=pendingCockpitQuery; pendingCockpitQuery=null;
-            if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
-            else report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
-            if(query!=null) openCockpitGame(query);
+            boolean granted=grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED;
+            WebView game=cockpitView;
+            if(granted) {
+                // O voo já está na tela: a página do jogo levanta as mãos dela agora.
+                if(game!=null) game.evaluate("window.__nvRetryHands&&window.__nvRetryHands()");
+            } else {
+                report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
+            }
             return;
         }
         if(code==10) {

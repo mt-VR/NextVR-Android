@@ -45,6 +45,16 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'cockpit-vr-voo-direto-e-raio',
+    tag: 'CORREÇÃO · COCKPIT VR ABRE NO VOO DIRETO · CURSOR E RAIO SAEM DA MÃO (A BOLINHA NÃO FICA MAIS PRA DENTRO)',
+    time: 'Agora',
+    heading: 'O Cockpit VR Entra no Avião na Primeira Pinça, e o Raio Aponta Para Onde Você Aponta',
+    desc: 'DUAS COISAS, e as duas eram visíveis na tela do aparelho. '
+      + 'PRIMEIRA: escolher o avião no menu do NextVR não abria o voo — a tela ficava no próprio menu. O motivo era o portão que eu tinha posto na rodada anterior: o app pedia a permissão de Câmera e só abria a página DEPOIS da resposta do Android. Quando o diálogo não voltava, o voo ficava esperando para sempre. Agora o voo abre na hora (a câmera é solta, a página entra em 0,9 s), a permissão é pedida em paralelo e, quando o Android responde, o jogo que já está na tela levanta as mãos dele sem precisar sair e entrar de novo. '
+      + 'SEGUNDA: o cursor (a bolinha) e o raio. O alvo do raio era o MEIO DA PALMA, então o feixe saía das pontas dos dedos e voltava para dentro da mão — desenhado por baixo da própria silhueta, era exatamente a "bolinha do raio pra dentro". Agora o alvo é a mão APONTADA: o pulso cruzado com a base do dedo médio, esticado para fora, o que põe o cursor à frente das pontas dos dedos. Mover a mão continua movendo o cursor igual (sem ganho, sem viés, sem tremor extra); o que muda é que ele aparece fora da mão, no lugar para onde você está apontando. E como o cursor, o destino do raio e o hit-test do clique leem o mesmo número, o que você vê é onde você clica. '
+      + 'Além disso: a folga do feixe para sair da silhueta subiu (com a mão perto da câmera ela ocupa metade da tela e o raio parava dentro dela), e a bolinha da ponta do raio agora aparece sempre no modo ponteiro, não só quando há um alvo embaixo. Se o voo não montar a tela em 12 segundos, o NextVR avisa na tela com o que o próprio jogo escreveu (biblioteca que faltou, mão, câmera) — em vez de ficar parado sem explicação.',
+  },
+  {
     id: 'cockpit-vr-voo-que-abre',
     tag: 'CORREÇÃO · COCKPIT VR (O JOGO DE AVIÃO): AGORA ABRE E VOA SEM DEPENDER DA INTERNET',
     time: 'Agora',

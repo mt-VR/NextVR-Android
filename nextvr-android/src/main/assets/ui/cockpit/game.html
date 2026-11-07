@@ -104,7 +104,7 @@ function load(urls,i,ok,fail){if(i>=urls.length)return fail();var s=document.cre
 function step(k){if(k>=order.length){run();return}var n=order[k];banner('Carregando bibliotecas… ('+(k+1)+'/'+order.length+')\nSe a internet estiver fraca, aguarde até 1 minuto.');
  load(U[n],0,function(){LS[n]=1;if(window.__nvLog)window.__nvLog('Bibliotecas: '+(k+1)+'/'+order.length+' ok');step(k+1)},function(){if(need[n])banner('Não consegui baixar a biblioteca "'+n+'".\nO jogo precisa de internet na primeira abertura (libere a internet para o app) ou tente de novo.',1);else step(k+1)})}
 function diag(){var t=document.getElementById('mainjs'),n=t?t.textContent.length:0;
- return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3341257 caracteres'+(n<3341257?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
+ return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3341268 caracteres'+(n<3341268?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
 function run(){banner('');if(window.__nvLog)window.__nvLog('Jogo iniciado: montando o voo…');var s=document.createElement('script');s.textContent=document.getElementById('mainjs').textContent;document.body.appendChild(s);
  setTimeout(function(){if(typeof window.pickAir!=='function')banner('O jogo não iniciou.\n'+diag(),1)},5000)}
 document.addEventListener('click',function(e){var c=e.target&&e.target.closest&&e.target.closest('.card');
@@ -1407,6 +1407,13 @@ resize();requestAnimationFrame(loop);
     document.body.appendChild(b);
     pills.push(b);
   });
+  /* A câmera pode ser liberada DEPOIS de a página abrir: o NextVR pede a permissão em paralelo, sem
+     travar o voo (esperar a resposta antes de abrir a página prendia o jogo no menu do NextVR). Quando
+     o Android responde, o NextVR chama isto: as mãos do jogo sobem sem precisar reabrir o voo. */
+  window.__nvRetryHands=function(){
+    try{ if(hp) return; }catch(e){}      /* já há uma tentativa em curso ou mãos no ar */
+    try{ hp=null; startHands(); }catch(e){}
+  };
   function exitGame(){
     try{ if(window.NextVRGame&&window.NextVRGame.exit){ window.NextVRGame.exit(); return } }catch(e){}
     try{ if(window.NextVRGame&&window.NextVRGame["exit"]){ window.NextVRGame["exit"](); return } }catch(e){}
@@ -1451,6 +1458,10 @@ resize();requestAnimationFrame(loop);
     try{ window.pickAir(air) }catch(e){ try{ window.pickAir('cessna') }catch(e2){} }
     document.getElementById('start').style.display='none';
     try{ window.go(mode!=='mono') }catch(e){}
+    /* A câmera do aparelho pode ainda estar com o NextVR nos primeiros quadros (ele a solta antes de
+       entregar a tela). A tentativa que falhou não pode ser a única: tenta de novo sem reabrir o voo. */
+    setTimeout(function(){ window.__nvRetryHands(); },3000);
+    setTimeout(function(){ window.__nvRetryHands(); },7000);
   })();
 })();
 </script>

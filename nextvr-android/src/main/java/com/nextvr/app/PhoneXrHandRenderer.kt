@@ -301,7 +301,10 @@ class PhoneXrHandRenderer {
             // qualquer velocidade.
             if(!direct) beamStart(hand,sx,sy,origin)
             b[0]=if(direct)0f else origin[0];b[1]=if(direct)0f else origin[1];b[2]=if(direct)0f else -1f
-            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
+            // A bolinha da ponta aparece SEMPRE (menos no Toque Direto, que tem o anel do dedo):
+            // ela é o cursor. Antes ela só existia quando havia um alvo sob o raio, e sem alvo a
+            // única marca do ponteiro era o pingo desenhado na mão — o "raio pra dentro".
+            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(fingerHover || noBeam)0f else 1f
             if(!direct) beamPush(b,hand,sx,sy)
             drawBeam(b,down,blueRay,noBeam,position,hFade)
         }
@@ -734,7 +737,9 @@ private fun beamPush(b: FloatArray, hand: PhoneXrHands.Hand, sx: Float, sy: Floa
     // como fração do trecho do mesmo jeito (é o mesmo "pedaço da tela").
     val push = ((handExitPush(hand, b, sx, sy) ?: (handReach(hand) * BEAM_CLEAR)
         .coerceIn(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX)) * length).coerceAtLeast(BEAM_CLEAR_MIN_WORLD)
-    val clear = push.coerceAtMost(length * .30f)
+    // O teto é generoso: com a mão perto da câmera a silhueta ocupa metade da tela e um teto de
+    // 30% parava o raio DENTRO dela, que é justamente o defeito que se via na tela.
+    val clear = push.coerceAtMost(length * .55f)
     if (clear <= 0f) return
     b[0] += dx * clear
     b[1] += dy * clear

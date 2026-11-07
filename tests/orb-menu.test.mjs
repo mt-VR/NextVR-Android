@@ -330,6 +330,21 @@ test('o raio sai da PINÇA, não de dentro da mão (era "colado no dedão")', as
   assert.match(renderer, /private val beamOrigin=FloatArray\(2\)/);
 });
 
+test('o cursor (e o raio, e o clique) ficam À FRENTE da mão, não no meio da palma', async () => {
+  const gestures = await read('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt');
+  // O alvo do raio era o meio da palma: o feixe saía das pontas dos dedos e voltava para dentro da
+  // mão — desenhado por baixo da silhueta, era o "raio pra dentro" que se via na tela do aparelho.
+  assert.match(gestures, /const val AIM_REACH = [\d.]+f/, 'a mão é esticada para fora por um fator declarado');
+  assert.match(gestures, /val aimX = \(palmX \+ \(p\[9\]\.x\(\) - p\[0\]\.x\(\)\) \* AIM_REACH\)\.coerceIn\(\.02f, \.98f\)/,
+    'aim = palma + eixo da mão (pulso -> base do dedo médio) * AIM_REACH');
+  assert.match(gestures, /val aimY = \(palmY \+ \(p\[9\]\.y\(\) - p\[0\]\.y\(\)\) \* AIM_REACH\)\.coerceIn\(\.02f, \.98f\)/);
+  // O mesmo número é o cursor, o destino do raio e o hit-test: nada de o que se vê divergir do que
+  // se clica. E as pontas dos dedos continuam sendo a ORIGEM do feixe (pinchX/pinchY).
+  assert.match(gestures, /pinchX = \(p\[4\]\.x\(\) \+ p\[8\]\.x\(\)\) \/ 2/);
+  const region = gestures.slice(gestures.indexOf('val palmX ='), gestures.indexOf('pinchGap = gap'));
+  assert.ok(!/p\[2\]\.x\(\) \* \.3f/.test(region),
+    'o ponto não é mais a média com a base do polegar (que caía dentro da palma)');
+});
 test('o feixe começa FORA da mão, não em cima dos dedos', async () => {
   const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
   // A mão e o feixe são desenhados no mesmo plano (z = −1): um feixe que nasce no ponto da pinça
@@ -353,7 +368,9 @@ test('o feixe começa FORA da mão, não em cima dos dedos', async () => {
   assert.match(renderer, /private val BEAM_CLEAR_MARGIN = \.055f/, 'a bolinha começa FORA, com margem');
   assert.match(renderer, /private val BEAM_CLEAR_MIN_WORLD = \.072f/,
     'e nunca encosta no dedo, mesmo com a caixa apertada');
-  assert.match(push, /\.coerceAtMost\(length \* \.30f\)/, 'num alvo encostado o feixe ainda alcança');
+  // O teto de folga é generoso (55%): com a mão perto da câmera a silhueta ocupa metade da tela,
+  // e um teto de 30% parava o raio DENTRO dela — o defeito era visível na tela do aparelho.
+  assert.match(push, /\.coerceAtMost\(length \* \.55f\)/, 'o feixe sai da mão mesmo quando ela enche a tela');
   // Sem landmarks, a aproximação antiga (tamanho da mão) cobre.
   assert.match(renderer, /private fun handReach\(hand: PhoneXrHands\.Hand\): Float \{/);
   // E os dois caminhos do feixe empurram o começo, antes de desenhar.

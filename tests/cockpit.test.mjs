@@ -102,11 +102,28 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   const activity = await read(FILES.activity);
   // Pedido da shell → o jogo, e só com ajustes em lista branca.
   assert.match(activity, /@JavascriptInterface public void cockpitGame\(String json\) \{/);
-  // As mãos do jogo dependem de o APP ter a permissão de câmera: ela é pedida antes de a página
-  // abrir (quem nunca ligou o rastreio de mão abria o voo com as mãos do jogo mudas).
+  // A permissão de câmera é pedida SEM travar a abertura: esperar a resposta antes de abrir a página
+  // prendia o voo no menu do NextVR ("escolho o avião e não acontece nada").
   assert.match(activity, /REQUEST_GAME_CAMERA=12/);
-  assert.match(activity, /if\(code==REQUEST_GAME_CAMERA\)[\s\S]{0,400}?if\(query!=null\) openCockpitGame\(query\);/,
-    'o voo abre depois da resposta da permissão, com ou sem ela');
+  const openGame = activity.slice(activity.indexOf('private void openCockpitGame(String query)'),
+    activity.indexOf('private void showCockpitGame(String query)'));
+  assert.match(openGame, /requestPermissions\(new String\[\]\{Manifest\.permission\.CAMERA\},REQUEST_GAME_CAMERA\)/,
+    'a permissão é pedida');
+  assert.ok(!/requestPermissions[^;]*;\s*return;/.test(openGame),
+    'pedir a permissão NÃO pode devolver antes de abrir o voo');
+  assert.match(openGame, /main\.postDelayed\(\(\)->showCockpitGame\(query\),900\)/,
+    'o voo abre logo depois de a câmera ser solta, sem esperar diálogo nenhum');
+  // Quando o Android responde, a página que já está na tela levanta as mãos dela.
+  assert.match(activity, /if\(code==REQUEST_GAME_CAMERA\)[\s\S]{0,500}?__nvRetryHands/,
+    'a resposta da permissão avisa o jogo que já está aberto');
+  const game = await read(FILES.game);
+  assert.match(game, /window\.__nvRetryHands=function\(\)\{/,
+    'e o jogo sabe levantar as mãos de novo sem reabrir o voo');
+  // Sem reabrir o voo, o jogo tenta a câmera de novo sozinho: o próximo quadro do aparelho pode
+  // ainda estar com a nossa Camera2.
+  assert.match(game, /try\{ if\(hp\) return; \}/, 'não abre uma segunda câmera por cima de uma tentativa em curso');
+  assert.match(game, /setTimeout\(function\(\)\{ window\.__nvRetryHands\(\); \},3000\);\n\s+setTimeout\(function\(\)\{ window\.__nvRetryHands\(\); \},7000\);/,
+    'o voo reabre as mãos dele em 3 s e em 7 s se a câmera estava ocupada');
   // Com o voo aberto, quem é dona da câmera é a página do jogo.
   assert.match(activity, /if\(cockpitView==null\) startCamera\(\);/, 'o NextVR não toma a câmera do jogo');
   assert.match(activity, /if\(entryView!=null && entryVisible\) entryView\.setVisibility\(View\.GONE\);/,
