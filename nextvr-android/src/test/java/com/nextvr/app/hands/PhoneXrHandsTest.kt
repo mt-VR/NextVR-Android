@@ -145,7 +145,8 @@ class PhoneXrHandsTest {
         // viés fixo no eixo Y (o antigo +25% mirando alto) e nada de amplificação por ombro.
         assertEquals(hand.baseX,hand.aimX,1e-5f)
         assertEquals(hand.baseY,hand.aimY,1e-5f)
-        assertEquals((hand.shape.aimY-.5f)*2f,hand.baseY,1e-5f)
+        // NDC do `base`: y inverte (0,5 = centro da tela), igual ao que o renderer desenha.
+        assertEquals((.5f-hand.shape.aimY)*2f,hand.baseY,1e-5f)
     }
     @Test fun briefMissIsBridgedByAPredictionThatHoldsButNeverStartsAGesture() {
         val engine=PhoneXrHands()
