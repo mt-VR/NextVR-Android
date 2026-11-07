@@ -301,10 +301,6 @@ final class WebSurface {
                 // Só o documento do jogo interessa: as bibliotecas têm o próprio aviso na página.
                 if(request.isMainFrame() && owner!=null) owner.report("O jogo não carregou: "+error.getDescription());
             }
-            @Override public void onRenderProcessGone(WebView view,android.webkit.RenderProcessGoneDetail detail) {
-                if(owner!=null) owner.report("O WebView do jogo foi encerrado pelo Android. Voltando ao NextVR.");
-                if(owner!=null) owner.closeCockpitGame();
-            }
         });
         game.setWebChromeClient(new WebChromeClient() {
             // O jogo liga a câmera do aparelho para as mãos dele. A permissão de captura é da
