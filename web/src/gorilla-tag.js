@@ -8,7 +8,7 @@ export const CARDBOARD_2015_LENS = Object.freeze({
   model: 'Google Cardboard 2015',
   k1: 0.22,
   k2: 0.24,
-  ipd: 0.064,
+  ipd: 0.067,
   fov: 80,
 });
 

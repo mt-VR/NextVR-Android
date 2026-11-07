@@ -801,7 +801,7 @@ function renderVrfsFrame(now) {
   if (useVR) {
     const halfW = W >> 1;
     const aspect = halfW / H;
-    const ipdHalf = (CARDBOARD_2015_LENS.ipd || 0.064) * 0.5;
+    const ipdHalf = (CARDBOARD_2015_LENS.ipd || 0.067) * 0.5;
     _rightVec.set(1, 0, 0).applyQuaternion(camera.quaternion);
 
     if (camL.aspect !== aspect) {

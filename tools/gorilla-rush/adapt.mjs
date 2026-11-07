@@ -132,6 +132,13 @@ const HAND_WINDOW = 'on=!!xh||(s.p&&now-s.t<350)';
 MUST(html, HAND_WINDOW, 'janela de validade da mão no laço do jogo');
 html = html.replace(HAND_WINDOW, 'on=!!xh||(s.p&&now-s.t<900)');
 
+/* 3h. O boneco: carregar o modelo por três caminhos e guardar o motivo se falhar ------------- */
+// A 2.6.2 tinha UMA tentativa e escrevia o erro num elemento que o CSS esconde; num aparelho onde a
+// textura embutida não carrega, o jogo ficava sem boneco e o app repetia "não carregou" sem motivo.
+const MODELO_OLD = "loader.parse(Uint8Array.from(atob(PLAYER_B64),c=>c.charCodeAt(0)).buffer,'',build,e=>st('Player error: '+e));";
+MUST(html, MODELO_OLD, 'carga do modelo do gorila');
+html = html.replace(MODELO_OLD, (await part('model.js')).trim());
+
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";
 MUST(html, LOOK_LINE, 'laço de quadro (look)');

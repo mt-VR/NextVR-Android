@@ -54,6 +54,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-boneco-lentes-67-bordas',
+    tag: 'CORREÇÃO · O BONECO DO GORILA CARREGA SEMPRE · LENTES CARDBOARD COM 67 MM · BORDAS ARREDONDADAS',
+    time: 'Agora',
+    heading: 'O Gorila Sem o Aviso de "Modelo Não Carregado", as Lentes com 67 mm e as Bordas Deixaram de Ser um Quadrado',
+    desc: 'O AVISO DO BONECO: o recado "o modelo do gorila não carregou" aparecia por TEMPO — 8 segundos depois de o jogo abrir, se o boneco ainda não estivesse na tela. Num celular que ainda está decodificando o mapa, 8 segundos não é falha: é demora, e o aviso aparecia sem haver problema. Agora o boneco é carregado em TRÊS caminhos, do mais compatível para o mais simples: primeiro pelas bordas por imagem clássica (o motor 3D tenta buscar a textura embutida por um caminho que o navegador do celular costuma recusar, e uma textura recusada derrubava o modelo INTEIRO); depois pelo caminho padrão; e, se os dois falharem, o corpo aparece sem as texturas — melhor um gorila branco do que nenhum. Só depois das três tentativas o app recebe um aviso, e agora ele vem com o MOTIVO real. Se estiver só demorando, o recado é outro ("ainda carregando", aos 30 s). '
+      + 'AS LENTES: a distância entre os olhos passou a 67 mm — era 64 mm — tanto no Gorilla Rush quanto no Cockpit VR, mantendo a lente do Google Cardboard 2015 (os mesmos coeficientes oficiais, k1 0,441 e k2 0,156) e os 80° por olho. '
+      + 'AS BORDAS: você estava certo, a imagem era um quadrado com moldura preta em volta. A correção da lente esticava a amostra para FORA da imagem em quase toda a tela, então só uma área pequena no meio aparecia — e o resto ficava preto, com o corte em esquadro. Agora a correção é medida pelo canto do olho: no canto a imagem encosta exatamente na borda, e a tela INTEIRA de cada olho fica preenchida. O último anel escurece em curva, como a lente redonda da caixa, em vez do corte reto que fazia o quadrado. E, para a imagem não encolher ao ser corrigida, cada olho é desenhado um pouco mais aberto do que o campo que você vê — o campo entregue continua sendo o do NextVR.',
+  },
+  {
     id: 'cockpit-qualidade-e-sem-travamento',
     tag: 'COCKPIT VR · MAIOR QUALIDADE E MENOS TRAVAMENTO NO MESMO VOO · 900 PX POR OLHO',
     time: 'Agora',

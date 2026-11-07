@@ -248,20 +248,45 @@ test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma r
     'o piso de emissão do 6DoF continua 0.0028 (não desce com esta rodada)');
 });
 
+test('lentes: Cardboard 2015 com 67 mm e a correção PREENCHENDO o olho (bordas arredondadas)', async () => {
+  const game = await read(FILES.game);
+  // "as lentes do Google cardboard e 67mm": o IPD do app e o do voo passam de 64 para 67 mm.
+  assert.match(game, /const IPD=\.067, SCR_W=\.145/, 'o voo usa 67 mm entre os olhos (era 64)');
+  const tag = await read('web/src/gorilla-tag.js');
+  assert.match(tag, /ipd: 0\.067,/, 'e o CARDBOARD_2015_LENS do NextVR também');
+  // "conserte as bordas, está quadrado": a correção é normalizada pelo canto do olho e por
+  // (1+k1+k2) — no canto a amostra encosta na borda da textura, então a imagem preenche o olho.
+  // A conta antiga (raio cru, escala por TX/TY) estourava para fora da textura e sobrava uma
+  // moldura preta com a imagem pequena no meio: era isso que parecia um quadrado.
+  // (o shader é um template literal: os coeficientes entram por ${K1}/${K2} na hora de montar)
+  assert.ok(game.includes('float f=(1.+${K1}*r2+${K2}*r2*r2)/(1.+${K1}+${K2});'),
+    'a correção é normalizada por (1+k1+k2), com os coeficientes da Cardboard v1');
+  assert.match(game, /K1=\.441, K2=\.156/, 'que são os oficiais (k1 .441 · k2 .156)');
+  assert.ok(game.includes('float rm=sqrt(1.+ar*ar);float rn=min(length(p)/rm,1.);'),
+    'o raio vai de 0 no centro a 1 no canto do olho');
+  assert.ok(game.includes('gl_FragColor=vec4(c*(1.-smoothstep(.90,1.,rn)),1.);'),
+    'e o canto arredonda em vez de cortar em esquadro');
+  assert.equal(/s\.x<0\.\|\|s\.x>1\./.test(game), false, 'o descarte que pintava de preto o resto do olho saiu');
+  assert.match(game, /dmat\.uniforms\.ar\.value=h\/Math\.max\(1,hw\);/, 'o desenho passa a proporção do olho para o shader');
+  assert.equal(/dmat\.uniforms\.(sz|c)\.value/.test(game), false, 'e não usa mais a escala/centro deslocados');
+});
+
 test('a rodada tem entrada no menu de Atualizações', async () => {
   const updates = await read(FILES.updates);
   assert.match(updates, /id: 'cockpit-vr-planevr'/,
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
   // A rodada 2.6.2 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'gorilla-boneco-lentes-67-bordas'/,
+    'o boneco, as lentes de 67 mm e as bordas têm ficha própria, no topo');
   assert.match(updates, /id: 'cockpit-qualidade-e-sem-travamento'/,
     'a qualidade e a fluidez do voo têm ficha no menu');
   assert.match(updates, /900 px de altura \(era 560 px\)/, 'e a ficha diz o que mudou de verdade');
   assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
     'lentes, mãos grudadas, seta e Ryuzaki também');
   const build = await read('nextvr-android/build.gradle');
-  assert.match(build, /versionCode 118/, 'o APK desta rodada é o 118');
-  assert.match(build, /versionName "2\.6\.2"/, 'e se chama 2.6.2 (a 2.6.1 é a que está publicada)');
+  assert.match(build, /versionCode 119/, 'o APK desta rodada é o 119');
+  assert.match(build, /versionName "2\.6\.3"/, 'e se chama 2.6.3 (a 2.6.2 é a que está publicada)');
   const badge = await read('web/src/entry-menu.js');
-  assert.match(badge, /v2\.6\.2/, 'o selo da tela de entrada acompanha');
+  assert.match(badge, /v2\.6\.3/, 'o selo da tela de entrada acompanha');
 });

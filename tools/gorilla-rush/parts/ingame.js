@@ -280,16 +280,28 @@ window.__nvGorilla = () => ({
   modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
   seguradas: NV_HAND_HELD, seta: !!(NVHEAD && true),
   nativo: NV_NATIVE_HANDS, olhos: vrView, lente: NVLENS && NVLENS.k1,
+  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov,
+  // Carregamento do boneco: quantas tentativas, por qual caminho e, se falhou, o motivo real.
+  carga: typeof NV_MODEL !== 'undefined' ? { ok: NV_MODEL.ok, tentativas: NV_MODEL.tentativas, modo: NV_MODEL.modo, erro: NV_MODEL.erro } : null,
   tela: innerWidth + 'x' + innerHeight,
 });
 
-// Se o modelo do gorila não carregar, isso PRECISA chegar ao usuário: a tela do jogo não escreve
-// nada (pedido: "é só o jogo"), então o aviso sai pela janela de problema do NextVR. Sem isto, um
-// GLB que falhou era um jogo sem boneco e sem explicação.
+// O BONECO: um aviso só quando o carregamento FALHOU de verdade.
+//
+// Na 2.6.2 este aviso saía por tempo: 8 s depois do arranque, se o modelo ainda não estivesse na
+// tela, o app mostrava "o modelo do gorila não carregou". Num celular que ainda está decodificando o
+// mapa, 8 s não é falha — é demora — e o recado aparecia sem haver problema nenhum (era o que o
+// usuário via). Agora quem decide é o carregador (`NV_MODEL`, em adapt.mjs): ele tenta três
+// caminhos e, só depois de os três falharem, o motivo REAL chega ao app. Enquanto está carregando,
+// o aviso é um "ainda carregando" de 30 s, e ele não acusa o jogo de estar sem boneco.
 setTimeout(() => {
   if (pl) return;
-  nvLog('o modelo do gorila não carregou (o jogo continua sem o boneco)');
-}, 8000);
+  if (typeof NV_MODEL === 'undefined') { nvLog('o boneco do gorila ainda não carregou'); return; }
+  if (NV_MODEL.erro) return;   // o carregador já avisou, com o motivo
+  const seg = Math.round((Date.now() - NV_MODEL.desde) / 1000);
+  if (NV_MODEL.ok) return;
+  nvLog('o boneco do gorila ainda está carregando (' + seg + ' s, tentativa ' + NV_MODEL.tentativas + ')');
+}, 30000);
 
 // ---------- ARRANQUE: entra direto, com o que o NextVR escolheu ----------
 //

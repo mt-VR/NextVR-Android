@@ -183,7 +183,107 @@ function refreshAcc(){if(LM)setAcc(LM,accList(myAcc))}
 $('accg').value=myAcc.g;$('acch').value=myAcc.h;myAcc.g=$('accg').value;myAcc.h=$('acch').value;$('accc').value=myAcc.c;myAcc.c=$('accc').value;$('ahy').value=myAcc.y;$('ahz').value=myAcc.z;
 const accSave=()=>{myAcc.g=$('accg').value;myAcc.h=$('acch').value;myAcc.c=$('accc').value;myAcc.y=+$('ahy').value;myAcc.z=+$('ahz').value;try{localStorage.setItem('gr_acc',JSON.stringify(myAcc))}catch(e){}refreshAcc()};
 ['accg','acch','accc'].forEach(i=>$(i).onchange=accSave);['ahy','ahz'].forEach(i=>$(i).oninput=accSave);
-loader.parse(Uint8Array.from(atob(PLAYER_B64),c=>c.charCodeAt(0)).buffer,'',build,e=>st('Player error: '+e));
+// ---------- O BONECO: carregar o modelo do gorila de três jeitos e dizer o motivo se falhar ----------
+//
+// Na 2.6.2 o modelo era carregado com uma linha só (`loader.parse(base64, '', build, aviso)`) e, se
+// aquela tentativa falhasse, o jogo ficava sem boneco com o erro escrito num elemento que o CSS
+// esconde (`#st`) — e o app só repetia "o modelo do gorila não carregou", sem motivo nenhum.
+//
+// Aqui são TRÊS CAMINHOS, do mais compatível para o mais pobrezinho, e o motivo real de cada um
+// fica em `NV_MODEL`, que a sonda `__nvGorilla()` mostra:
+//
+//   1. BORDAS POR <img> (`TextureLoader`). O `GLTFLoader` do three prefere `ImageBitmapLoader`, que
+//      baixa a textura embutida por `fetch()` de uma URL `blob:`. Navegador de celular e WebView
+//      recusam esse fetch mais vezes do que se imagina, e aí o modelo inteiro é rejeitado por causa
+//      da textura. Com o `<img>` clássico a imagem embutida carrega em qualquer lugar — é o caminho
+//      que este código usa primeiro. (`createImageBitmap` é escondido só durante o parse.)
+//   2. PADRÃO do three (com `ImageBitmap`), para o caso oposto: aparelho onde o `fetch` de blob
+//      funciona e o `<img>` não.
+//   3. SEM TEXTURAS: o GLB é remontado sem as imagens (o BIN e os bufferViews continuam os mesmos),
+//      então o corpo, o esqueleto e os braços aparecem em branco em vez de não aparecer nada.
+//
+// O aviso ao app só sai quando os TRÊS falharam, e vai com o motivo. Demora não é falha: quem avisa
+// de demora é o relógio de 30 s de `parts/ingame.js`, com outra mensagem.
+const NV_MODEL = { ok: false, tentativas: 0, modo: '', erro: '', desde: Date.now() };
+window.__nvModelo = NV_MODEL;
+
+const NV_MODOS = ['bordas por <img>', 'padrao do three', 'sem texturas'];
+
+/** JSON do GLB (cabeçalho de 12 bytes + chunks), sem depender do loader. */
+function nvGlbJson(buf) {
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546c67) return null;            // 'glTF'
+  if (dv.getUint32(16, true) !== 0x4e4f534a) return null;           // 'JSON'
+  const len = dv.getUint32(12, true);
+  return JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(buf, 20, len)));
+}
+
+/** O mesmo GLB, sem imagens/texturas: corpo e braços aparecem, mesmo sem cor. */
+function nvSemTexturas(buf) {
+  let dv, json;
+  try { dv = new DataView(buf); json = nvGlbJson(buf); } catch (e) { return buf; }
+  if (!json) return buf;
+  delete json.images; delete json.textures; delete json.samplers;
+  (json.materials || []).forEach((m) => {
+    delete m.normalTexture; delete m.occlusionTexture; delete m.emissiveTexture;
+    if (m.pbrMetallicRoughness) {
+      delete m.pbrMetallicRoughness.baseColorTexture;
+      delete m.pbrMetallicRoughness.metallicRoughnessTexture;
+    }
+  });
+  const cab = new TextEncoder().encode(JSON.stringify(json));
+  const sobra = (4 - (cab.length % 4)) % 4;
+  const binOff = 20 + dv.getUint32(12, true);
+  const resto = new Uint8Array(buf, binOff);                        // o BIN, byte a byte
+  const out = new Uint8Array(20 + cab.length + sobra + resto.length);
+  const o = new DataView(out.buffer);
+  o.setUint32(0, 0x46546c67, true); o.setUint32(4, 2, true); o.setUint32(8, out.length, true);
+  o.setUint32(12, cab.length + sobra, true); o.setUint32(16, 0x4e4f534a, true);
+  out.set(cab, 20);
+  for (let i = 0; i < sobra; i++) out[20 + cab.length + i] = 0x20;  // preenchimento com espaço
+  out.set(resto, 20 + cab.length + sobra);
+  return out.buffer;
+}
+
+function nvParseModelo(modo) {
+  NV_MODEL.tentativas++;
+  NV_MODEL.modo = NV_MODOS[modo] || '';
+  let guardado = null;
+  // Caminho 1: esconde `createImageBitmap` durante o parse para o three usar `TextureLoader`.
+  if (modo === 0) {
+    try { guardado = window.createImageBitmap; if (guardado) delete window.createImageBitmap; } catch (e) {}
+  }
+  const soltar = () => {
+    if (guardado) { try { window.createImageBitmap = guardado; } catch (e) {} guardado = null; }
+  };
+  const falhou = (err) => {
+    soltar();
+    const motivo = String((err && err.message) || err || 'erro desconhecido');
+    NV_MODEL.erro = motivo;
+    if (modo < 2) { setTimeout(() => nvParseModelo(modo + 1), 350); return; }
+    nvLog('o modelo do gorila não carregou depois de ' + NV_MODEL.tentativas + ' tentativas: ' + motivo);
+  };
+  try {
+    let buf = Uint8Array.from(atob(PLAYER_B64), (c) => c.charCodeAt(0)).buffer;
+    if (modo === 2) buf = nvSemTexturas(buf);
+    loader.parse(buf, '', (g) => {
+      soltar();
+      if (!g || !g.scene) { falhou('modelo vazio'); return; }
+      try {
+        build(g);
+        NV_MODEL.ok = !!pl;
+        NV_MODEL.erro = '';
+      } catch (e) {
+        NV_MODEL.erro = 'montagem: ' + ((e && e.message) || e);
+        nvLog('o modelo do gorila chegou, mas não montou: ' + NV_MODEL.erro);
+      }
+    }, falhou);
+  } catch (e) {
+    falhou(e);
+  }
+}
+
+nvParseModelo(0);
 const _q=new THREE.Quaternion();
 function aim(u,e,t){const pa=u.parent,a=pa.worldToLocal(u.getWorldPosition(V3())),c=pa.worldToLocal(e.getWorldPosition(V3())),tt=pa.worldToLocal(t.clone()),cu=c.sub(a),de=tt.sub(a);
  if(cu.lengthSq()<1e-12||de.lengthSq()<1e-12)return;u.quaternion.premultiply(_q.setFromUnitVectors(cu.normalize(),de.normalize()));u.updateMatrixWorld(true)}
@@ -681,47 +781,58 @@ window.__nvHandsInfo = function () {
     esquerda: !!slot[0].p, direita: !!slot[1].p,
   };
 };
-// ---------- LENTES: Google Cardboard 2015, as mesmas do jogo de avião ----------
+// ---------- LENTES: Google Cardboard 2015, IPD 67 mm, as mesmas do jogo de avião ----------
 //
-// Pedido do usuário: "bota lentes do Google cardboard 2015". São os coeficientes oficiais da lente
-// Cardboard v1 (k1 = 0,441 · k2 = 0,156) — os MESMOS que o Cockpit VR já usa (K1/K2 em
-// assets/ui/cockpit/game.html), e que na tela do aparelho já foram aprovados com o VR Box dele.
+// Pedido do usuário: "bota lentes do Google cardboard 2015" e, nesta rodada, "as lentes do Google
+// cardboard e 67mm e conserte as bordas, está quadrado". Então:
+//   * os coeficientes são os oficiais da lente Cardboard v1 (k1 = 0,441 · k2 = 0,156), os mesmos do
+//     Cockpit VR (K1/K2 em assets/ui/cockpit/game.html);
+//   * o IPD passou a 67 mm (era 64 mm), que é a distância que o usuário pediu;
+//   * as BORDAS deixaram de ser um quadrado: a correção agora preenche o olho inteiro (nenhuma
+//     moldura preta sobrando) e o canto arredonda, como a lente redonda da caixa.
 //
-// Como funciona: cada olho é desenhado numa textura do tamanho de MEIA tela e um passe de tela
-// cheia aplica a distorção de barril antes de mostrar. É o caminho do Cardboard SDK (e o do jogo de
-// avião): a lente da caixa "desfaz" o barril e a imagem fica reta, sem as bordas esticadas.
+// COMO FUNCIONA: cada olho é desenhado numa textura do tamanho de MEIA tela e um passe de tela cheia
+// aplica a distorção de barril antes de mostrar. É o caminho do Cardboard SDK (e o do jogo de avião):
+// a lente da caixa "desfaz" o barril e a imagem fica reta, sem as bordas esticadas.
 //
-// TRÊS CONTAS QUE NÃO PODEM ERRAR (cada uma já quebrou esta tela):
+// AS CONTAS QUE NÃO PODEM ERRAR (cada uma já quebrou esta tela):
 //   1. o recorte do passe final é em unidades de CSS — o WebGLRenderer JÁ multiplica o viewport pelo
 //      pixelRatio da sessão; multiplicar de novo aqui deixava dois quadradinhos no canto;
 //   2. o tamanho da textura de cada olho é em PIXELS de device (meia tela × pixelRatio), porque um
 //      render target não passa por essa multiplicação;
-//   3. o campo de visão por olho é o do NextVR (80°) e o IPD é 64 mm, como no resto do app.
+//   3. o raio da distorção é normalizado pelo CANTO do olho e multiplicado por 1/(1+k1+k2): assim o
+//      canto da tela encosta exatamente na borda da textura. Com a conta antiga (raio cru) a
+//      ampliação estourava, a amostra saía da textura e sobrava uma moldura preta — a imagem
+//      pequena e "quadrada" no meio do olho que o usuário viu;
+//   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (RENDER_FOV), porque a
+//      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo.
 const NVLENS = (() => {
-  const FOV = 80, IPD = 0.064;            // CARDBOARD_2015_LENS: fov 80 · ipd 0.064
+  const FOV = 80, IPD = 0.067;            // CARDBOARD_2015_LENS: fov 80 · ipd 0.067 (67 mm)
   const K1 = 0.441, K2 = 0.156;           // coeficientes oficiais da lente Cardboard v1
   const HALF_IPD = IPD / 2;
+  const DEG = Math.PI / 180;
   const eye = V3();
   let rt = [null, null], tw = 0, th = 0;
 
   const quadScene = new THREE.Scene();
   const quadCam = new THREE.Camera();
-  const uniforms = { tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, aspect: { value: 1 } };
+  const uniforms = { tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 } };
   const material = new THREE.ShaderMaterial({
     uniforms,
     depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: [
-      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, aspect;',
+      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar;',
       'void main(){',
-      // p vai de -1 a 1 na horizontal (já contando a proporção do olho) e na vertical.
-      '  vec2 p = vUv * 2.0 - 1.0; p.x /= aspect;',
-      '  float r2 = dot(p, p);',
-      '  float f = 1.0 + k1 * r2 + k2 * r2 * r2;',
-      '  vec2 q = p * f; q.x *= aspect;',
-      '  vec2 uv = q * 0.5 + 0.5;',
-      '  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }',
-      '  gl_FragColor = texture2D(tex, uv);',
+      // p vai de -1 a 1 no olho inteiro; `ar` é altura / meia-largura, usado só para normalizar o raio.
+      '  vec2 p = vUv * 2.0 - 1.0;',
+      '  float rm = sqrt(1.0 + ar * ar);',
+      '  float rn = min(length(p) / rm, 1.0);',
+      '  float r2 = rn * rn;',
+      '  float f = (1.0 + k1 * r2 + k2 * r2 * r2) / (1.0 + k1 + k2);',
+      '  vec3 c = texture2D(tex, p * f * 0.5 + 0.5).rgb;',
+      // Canto arredondado: a lente da caixa é redonda; com corte reto a borda ficava quadrada.
+      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.90, 1.0, rn)), 1.0);',
       '}',
     ].join('\n'),
   });
@@ -740,6 +851,17 @@ const NVLENS = (() => {
     }
   }
 
+  /**
+   * Campo que precisa ser DESENHADO para que, depois da correção, o olho entregue `FOV` no meio da
+   * borda (é lá que o fator da lente é menor, e é ele que manda no enquadramento).
+   */
+  function renderFov(ar) {
+    const rm = Math.sqrt(1 + ar * ar), rn = 1 / rm, r2 = rn * rn;
+    const fe = (1 + K1 * r2 + K2 * r2 * r2) / (1 + K1 + K2);
+    const t = Math.tan((FOV / 2) * DEG) / fe;
+    return 2 * Math.atan(t) / DEG;
+  }
+
   return {
     k1: K1, k2: K2, fov: FOV, ipd: IPD,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
@@ -750,8 +872,9 @@ const NVLENS = (() => {
       ensure(Math.round(hw * dpr), Math.round(H * dpr));
       const o = cam.position.clone();
       const savedFov = cam.fov, savedAspect = cam.aspect;
+      const ar = th / Math.max(1, tw);
       eye.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(HALF_IPD);
-      cam.fov = FOV;
+      cam.fov = renderFov(ar);
       cam.aspect = tw / th;
       cam.updateProjectionMatrix();
       for (let e = 0; e < 2; e++) {
@@ -767,7 +890,7 @@ const NVLENS = (() => {
       cam.updateProjectionMatrix();
       cam.updateMatrixWorld(true);
 
-      uniforms.aspect.value = tw / th;
+      uniforms.ar.value = ar;
       R.setScissorTest(true);
       for (let e = 0; e < 2; e++) {
         const x = e ? hw : 0, w = e ? W - hw : hw;
@@ -1064,16 +1187,28 @@ window.__nvGorilla = () => ({
   modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
   seguradas: NV_HAND_HELD, seta: !!(NVHEAD && true),
   nativo: NV_NATIVE_HANDS, olhos: vrView, lente: NVLENS && NVLENS.k1,
+  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov,
+  // Carregamento do boneco: quantas tentativas, por qual caminho e, se falhou, o motivo real.
+  carga: typeof NV_MODEL !== 'undefined' ? { ok: NV_MODEL.ok, tentativas: NV_MODEL.tentativas, modo: NV_MODEL.modo, erro: NV_MODEL.erro } : null,
   tela: innerWidth + 'x' + innerHeight,
 });
 
-// Se o modelo do gorila não carregar, isso PRECISA chegar ao usuário: a tela do jogo não escreve
-// nada (pedido: "é só o jogo"), então o aviso sai pela janela de problema do NextVR. Sem isto, um
-// GLB que falhou era um jogo sem boneco e sem explicação.
+// O BONECO: um aviso só quando o carregamento FALHOU de verdade.
+//
+// Na 2.6.2 este aviso saía por tempo: 8 s depois do arranque, se o modelo ainda não estivesse na
+// tela, o app mostrava "o modelo do gorila não carregou". Num celular que ainda está decodificando o
+// mapa, 8 s não é falha — é demora — e o recado aparecia sem haver problema nenhum (era o que o
+// usuário via). Agora quem decide é o carregador (`NV_MODEL`, em adapt.mjs): ele tenta três
+// caminhos e, só depois de os três falharem, o motivo REAL chega ao app. Enquanto está carregando,
+// o aviso é um "ainda carregando" de 30 s, e ele não acusa o jogo de estar sem boneco.
 setTimeout(() => {
   if (pl) return;
-  nvLog('o modelo do gorila não carregou (o jogo continua sem o boneco)');
-}, 8000);
+  if (typeof NV_MODEL === 'undefined') { nvLog('o boneco do gorila ainda não carregou'); return; }
+  if (NV_MODEL.erro) return;   // o carregador já avisou, com o motivo
+  const seg = Math.round((Date.now() - NV_MODEL.desde) / 1000);
+  if (NV_MODEL.ok) return;
+  nvLog('o boneco do gorila ainda está carregando (' + seg + ' s, tentativa ' + NV_MODEL.tentativas + ')');
+}, 30000);
 
 // ---------- ARRANQUE: entra direto, com o que o NextVR escolheu ----------
 //

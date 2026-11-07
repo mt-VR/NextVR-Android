@@ -83,11 +83,11 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
-## Lentes e mãos (2.6.2)
+## Lentes e mãos (2.6.3)
 
 * **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
   MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
-  IPD 64 mm (32 mm por lado) e meia tela por olho.
+  **IPD 67 mm** (33,5 mm por lado — era 64 mm até a 2.6.2) e meia tela por olho.
   **O recorte é em unidades de CSS, sem multiplicar pelo `pixelRatio`** — o `WebGLRenderer` já faz
   `viewport × pixelRatio` internamente; multiplicar de novo transformava cada olho num quarto de
   tela, no canto inferior esquerdo (o defeito da 2.6.0). O TAMANHO da textura, esse sim, é em pixels
@@ -95,6 +95,13 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
 * **Barril:** o passe de tela cheia aplica a distorção da lente Cardboard v1 com os coeficientes
   oficiais (`k1 = 0,441`, `k2 = 0,156`) — os mesmos do `game.html` do Cockpit VR. É a correção que a
   lente do VR Box desfaz; o que NÃO existe é uma segunda distorção por cima do desenho do jogo.
+* **Bordas (2.6.3):** o raio da correção é normalizado pelo **canto do olho** (`rn = min(|p|/rm, 1)`)
+  e dividido por `(1 + k1 + k2)`. No canto a amostra encosta exatamente na borda da textura, então a
+  imagem **preenche o olho**; antes a ampliação estourava, a amostra saía da textura e sobrava uma
+  moldura preta com a imagem pequena no meio (o "está quadrado" do usuário). O último anel do raio
+  (`smoothstep(0.90, 1.0, rn)`) escurece em curva, porque a lente da caixa é redonda e o corte reto
+  fazia um quadrado. Como a correção usa só a parte de dentro da textura, o olho é **desenhado mais
+  aberto** (`renderFov(ar)`), senão corrigir a lente encolhia o campo entregue.
 * **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
   campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
   havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
@@ -140,6 +147,26 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
   `quadroMs`, `maoMs`, `cullRaio` e `leve`. Nada é escrito na tela.
 * **O que NÃO mudou:** o piso de emissão do 6DoF (`EMIT_MIN = 0.0028`, em `web/src/sixdof.js`) — a
   qualidade sobe pela resolução, não baixando o limiar do passo lento.
+
+## O boneco: carga do modelo (2.6.3)
+
+O modelo do gorila vem embutido (`PLAYER_B64`) e é carregado em `parts/model.js`, em **três
+caminhos** — o primeiro que funcionar monta o boneco:
+
+1. **Bordas por `<img>`** (`TextureLoader`): o `GLTFLoader` do three prefere `ImageBitmapLoader`, que
+   busca a textura embutida por `fetch()` de uma URL `blob:`; em WebView de celular esse fetch falha
+   com mais frequência do que parece, e **uma textura que falha derruba o modelo inteiro**. Aqui o
+   `createImageBitmap` é escondido só durante o parse (`delete window.createImageBitmap`), o three
+   usa o `<img>` clássico e a textura carrega.
+2. **Padrão do three** (com `ImageBitmap`), para o aparelho onde é o `<img>` que falha.
+3. **Sem texturas**: o GLB é remontado sem `images`/`textures` (`nvSemTexturas`, com o BIN intacto) e
+   o corpo, o esqueleto e os braços aparecem em branco — melhor um gorila branco do que nenhum.
+
+O estado fica em `NV_MODEL` (ok · tentativas · modo · erro · desde) e a sonda `__nvGorilla().carga`
+mostra isso no aparelho. **O aviso de 8 s saiu:** ele disparava por tempo, num celular que ainda
+estava decodificando o mapa, e acusava "o modelo não carregou" sem haver falha. Agora só avisa quem
+falhou de verdade — depois das três tentativas, com o motivo real — e existe um aviso separado de
+"ainda carregando" aos 30 s.
 
 ## Limites conhecidos
 

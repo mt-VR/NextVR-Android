@@ -250,14 +250,30 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
 
   // "bota as mesmas lentes que tem no next": os números não são inventados aqui, são os do
-  // CARDBOARD_2015_LENS que o NextVR já usa nos jogos dele (fov 80 · ipd 0.064).
+  // CARDBOARD_2015_LENS que o NextVR já usa nos jogos dele (fov 80). O IPD é o que o usuário pediu
+  // nesta rodada: 67 mm ("as lentes do Google cardboard e 67mm").
   const fov = Number(/fov: ([\d.]+)/.exec(tag)?.[1]);
   const ipd = Number(/ipd: ([\d.]+)/.exec(tag)?.[1]);
   assert.equal(fov, 80);
-  assert.equal(ipd, 0.064);
+  assert.equal(ipd, 0.067);
   assert.ok(lens.includes(`const FOV = ${fov}, IPD = ${ipd};`), 'o jogo usa o mesmo FOV e o mesmo IPD do NextVR');
   assert.ok(lens.includes('const HALF_IPD = IPD / 2;') && lens.includes('multiplyScalar(HALF_IPD)'),
-    'cada olho fica a 32 mm do centro, como no NextVR');
+    'cada olho fica a 33,5 mm do centro (IPD de 67 mm)');
+
+  // "conserte as bordas, está quadrado": o raio da correção é normalizado pelo CANTO do olho e
+  // dividido por (1+k1+k2) — assim a amostra do canto encosta na borda da textura e a imagem
+  // PREENCHE o olho (antes sobrava uma moldura preta, com a imagem pequena e quadrada no meio).
+  assert.ok(lens.includes('float rn = min(length(p) / rm, 1.0);'), 'o raio vai de 0 no centro a 1 no canto');
+  assert.ok(lens.includes('float f = (1.0 + k1 * r2 + k2 * r2 * r2) / (1.0 + k1 + k2);'),
+    'a correção é normalizada por (1+k1+k2): no canto, a amostra é exatamente a borda da textura');
+  assert.equal(/uv\.x < 0\.0|gl_FragColor = vec4\(0\.0, 0\.0, 0\.0, 1\.0\)/.test(lens), false,
+    'não existe mais o descarte que deixava a moldura preta quadrada');
+  assert.ok(lens.includes('1.0 - smoothstep(0.90, 1.0, rn)'),
+    'e o canto arredonda (a lente da caixa é redonda), em vez de corte reto');
+  // Corrigir a lente usa só a parte de dentro da textura; por isso o olho é DESENHADO mais aberto,
+  // senão o campo visível encolhe. O campo entregue continua sendo o do NextVR (80°).
+  assert.ok(lens.includes('function renderFov(ar)') && lens.includes('cam.fov = renderFov(ar);'),
+    'o olho é desenhado mais aberto para o campo entregue continuar 80°');
   // O three.js JÁ multiplica viewport/scissor pelo pixelRatio da sessão
   // (`setViewport` → `N.multiplyScalar(P)`). Multiplicar de novo aqui encolhia cada olho para um
   // quarto da tela, no canto: era o "as lentes estão assim" da 2.6.0.
@@ -360,4 +376,97 @@ test('o ícone do app é a arte nova entregue (árvore, chapéu e presentes)', a
     assert.equal(icon.magic, 'PNG');
     assert.deepEqual([icon.w, icon.h], [side, side], `${density} tem o tamanho certo`);
   }
+});
+
+test('o boneco: três caminhos de carga, motivo real no aviso e fim do alarme falso de 8 s', async () => {
+  const part = read('tools/gorilla-rush/parts/model.js');
+  const ingame = read('tools/gorilla-rush/parts/ingame.js');
+  const game = read('nextvr-android/src/main/assets/ui/gorilla-rush/game.html');
+
+  // O caminho que sempre funciona primeiro: <img> clássico (TextureLoader), escondendo o
+  // `createImageBitmap` só durante o parse. Depois o padrão do three e, por último, sem texturas.
+  assert.ok(part.includes("const NV_MODOS = ['bordas por <img>', 'padrao do three', 'sem texturas'];"),
+    'são três caminhos, na ordem do mais compatível para o mais pobrezinho');
+  assert.ok(part.includes('delete window.createImageBitmap') && part.includes('window.createImageBitmap = guardado'),
+    'no primeiro caminho o ImageBitmap é escondido durante o parse e devolvido depois');
+  assert.ok(part.includes('if (modo < 2) { setTimeout(() => nvParseModelo(modo + 1), 350); return; }'),
+    'uma falha cai para o próximo caminho em vez de desistir');
+  assert.ok(part.includes('nvParseModelo(0);'), 'e o arranque já tenta o melhor caminho');
+
+  // O alarme de 8 s não existe mais: demora não é falha (era o recado que o usuário via aparecer).
+  assert.equal(ingame.includes('}, 8000);'), false, 'o aviso por tempo de 8 s saiu');
+  assert.ok(ingame.includes('}, 30000);') && ingame.includes('ainda está carregando'),
+    'sobrou só um \"ainda carregando\" de 30 s, com outra mensagem');
+  assert.ok(ingame.includes("if (NV_MODEL.erro) return;"), 'e quem falhou de verdade é quem avisa, com o motivo');
+  assert.ok(game.includes('nvParseModelo') && game.includes('nvSemTexturas') && game.includes('__nvModelo'),
+    'a página gerada leva o carregador novo');
+  assert.equal(game.includes('o modelo do gorila não carregou (o jogo continua sem o boneco)'), false,
+    'a frase antiga saiu do jogo');
+  assert.ok(game.includes('carga: typeof NV_MODEL'), 'e a sonda conta quantas tentativas e qual o motivo');
+
+  // ---------- a função que remonta o GLB sem texturas, exercitada de verdade ----------
+  const vm = await import('node:vm');
+  const json = {
+    asset: { version: '2.0' }, scenes: [{ nodes: [0] }], scene: 0,
+    nodes: [{ name: 'gorila', mesh: 0 }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 1, type: 'VEC3' }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: 12 }],
+    buffers: [{ byteLength: 12 }],
+    images: [{ bufferView: 1, mimeType: 'image/png' }],
+    textures: [{ source: 0 }], samplers: [{}],
+    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } }, normalTexture: { index: 0 } }],
+  };
+  const jb = Buffer.from(JSON.stringify(json), 'utf8');
+  const jpad = (4 - (jb.length % 4)) % 4;
+  const jc = Buffer.concat([jb, Buffer.alloc(jpad, 0x20)]);
+  const bin = Buffer.alloc(12, 7);
+  const glb = Buffer.alloc(12 + 8 + jc.length + 8 + bin.length);
+  glb.writeUInt32LE(0x46546c67, 0); glb.writeUInt32LE(2, 4); glb.writeUInt32LE(glb.length, 8);
+  glb.writeUInt32LE(jc.length, 12); glb.writeUInt32LE(0x4e4f534a, 16); jc.copy(glb, 20);
+  const bo = 20 + jc.length;
+  glb.writeUInt32LE(bin.length, bo); glb.writeUInt32LE(0x004e4942, bo + 4); bin.copy(glb, bo + 8);
+  const buffer = glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength);
+
+  const calls = [];
+  const sandbox = {
+    window: {}, document: {}, console, Date, JSON, Math, String, Number, Object, Array, Promise,
+    Uint8Array, Int8Array, Uint16Array, Uint32Array, Float32Array, DataView, ArrayBuffer,
+    TextDecoder, TextEncoder, atob, setTimeout: (fn) => fn(),
+    // o GLB de mentira, no mesmo formato base64 que a página carrega
+    PLAYER_B64: glb.toString('base64'), pl: null, BUF: buffer,
+    loader: {
+      parse(buf, path, ok, fail) {
+        calls.push(buf.byteLength);
+        if (calls.length < 3) fail(new Error('textura embutida falhou'));
+        else ok({ scene: { children: [] } });
+      },
+    },
+    nvLog() {},
+  };
+  // O `build()` do jogo é quem põe o boneco na cena (`pl`); aqui ele só marca que foi chamado.
+  sandbox.build = () => { sandbox.pl = { pronto: true }; };
+  sandbox.globalThis = sandbox;
+  const ctx = vm.createContext(sandbox);
+  vm.runInContext(part, ctx);
+  assert.deepEqual(calls.slice(0, 3).length, 3, 'as três tentativas aconteceram');
+  const estado = vm.runInContext('NV_MODEL', ctx);
+  assert.equal(estado.ok, true, 'a terceira tentativa montou o boneco (sem texturas) e o jogo tem corpo');
+  assert.equal(estado.tentativas, 3);
+  assert.equal(estado.modo, 'sem texturas');
+
+  // E o GLB remontado continua um GLB: mesmo BIN, sem imagens e sem texturas penduradas.
+  const semTex = vm.runInContext('nvSemTexturas(BUF)', ctx);
+  const dv = new DataView(semTex);
+  assert.equal(dv.getUint32(0, true), 0x46546c67, 'continua um GLB');
+  assert.equal(dv.getUint32(8, true), semTex.byteLength, 'o tamanho do cabeçalho bate com o arquivo');
+  const len = dv.getUint32(12, true);
+  const novo = JSON.parse(new TextDecoder().decode(new Uint8Array(semTex, 20, len)));
+  assert.equal(novo.images, undefined);
+  assert.equal(novo.textures, undefined);
+  assert.equal(novo.materials[0].pbrMetallicRoughness.baseColorTexture, undefined);
+  assert.equal(novo.materials[0].normalTexture, undefined);
+  assert.equal(novo.buffers[0].byteLength, 12, 'os dados (BIN) ficam intactos');
+  const binOff = 20 + len;
+  assert.equal(dv.getUint32(binOff + 4, true), 0x004e4942, 'o chunk BIN continua lá');
 });
