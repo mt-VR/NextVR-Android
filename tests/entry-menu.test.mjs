@@ -415,7 +415,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     const headChips = await page.locator('[data-entry-gorilla-acc-set^="accH:"]').count();
     assert.ok(headChips >= 3, 'as opções de cabeça estão todas à vista');
     await page.evaluate(() => document.querySelector('[data-entry-gorilla-acc-set="accH:h_top"]').click());
-    await new Promise(r => requestAnimationFrame(() => r()));
+    await new Promise(r => setTimeout(r, 40));
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvrGorillaPrefs') || '{}').accH), 'h_top',
       'escolher um acessório grava a escolha, sem passar pelas outras');
     await page.evaluate(() => document.querySelector('[data-entry-settings-tab="4"]').click());
