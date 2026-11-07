@@ -92,8 +92,9 @@ test('as mãos do NextVR voltam limpas depois de qualquer tela cheia', async () 
   assert.match(restart, /camera\.resetHandsState\(\);/);
   assert.match(restart, /startCamera\(\);\n\s+\/\/[^\n]*\n\s+\/\/[^\n]*\n\s+main\.postDelayed\(this::startCamera,1200\);/,
     'a segunda tentativa é o que devolve as mãos quando o Camera2 ainda está com o jogo');
-  // Toda volta ao primeiro plano rearma o rastreio (a não ser com o jogo HTML na frente).
-  assert.match(activity, /if\(cockpitView==null\) camera\.enableHands\(true\);/,
+  // Toda volta ao primeiro plano rearma o rastreio — exceto com o jogo HTML na frente, ou a caminho
+  // (`cockpitPending`: o diálogo de permissão pausa a activity e a câmera não pode ser tomada do jogo).
+  assert.match(activity, /if\(cockpitView==null && !cockpitPending\) camera\.enableHands\(true\);/,
     'voltar ao app rearma o rastreio de mão, sem reiniciar o NextVR');
   // Entrar no jogo também descarta a pose que estava na tela.
   assert.match(activity, /if\(r!=null\) \{ r\.hands=null; r\.handRenderer\.resetPresentation\(\); \}/);

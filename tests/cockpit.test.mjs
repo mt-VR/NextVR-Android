@@ -47,11 +47,20 @@ test('o menu do Cockpit VR é da shell: aviões e início, com a ponte nativa', 
   }
 });
 
-test('Loja e biblioteca abrem o menu, e o logo do jogo viaja no pacote', async () => {
+test('Loja e biblioteca ENTRAM NO VOO (avião sorteado), e o logo viaja no pacote', async () => {
   const apps = await read(FILES.apps);
-  assert.match(apps, /import \{ openCockpitMenu, COCKPIT_LABEL, COCKPIT_LOGO \} from '\.\/cockpit\.js';/);
-  assert.match(apps, /'cockpit-vr': \(\) => openCockpitMenu\(\),/,
-    'a ação da Loja e da tile da biblioteca é o menu do jogo');
+  const cockpit = await read(FILES.cockpit);
+  assert.match(apps, /import \{ launchCockpitGame, COCKPIT_LABEL, COCKPIT_LOGO \} from '\.\/cockpit\.js';/);
+  // Um toque = dentro do avião. O menu deixou de ser o caminho para voar: era mais uma tela que podia
+  // não aparecer, e foi exatamente o que travava tudo ("não inicia e nem o menu aparece").
+  assert.match(apps, /'cockpit-vr': \(\) => launchCockpitGame\(\),/,
+    'a ação da Loja e da tile da biblioteca entra no voo direto');
+  assert.match(cockpit, /export function launchCockpitGame\(\) \{/);
+  assert.match(cockpit, /const pick = pool\[Math\.floor\(Math\.random\(\) \* pool\.length\)\] \|\| COCKPIT_PLANES\[0\];/,
+    'o avião é sorteado');
+  assert.match(cockpit, /prefs\.air = pick\.id;/);
+  // O menu continua alcançável para ajustes, sem ser obrigatório.
+  assert.match(cockpit, /window\.nextvrCockpitMenu = openCockpitMenu;/);
   assert.match(apps, /\{ id: 'cockpit-vr', name: COCKPIT_LABEL, cat: 'games',/,
     'o Cockpit VR é um jogo na Loja');
   assert.match(apps, /const COCKPIT_VR_ITEM = \{[\s\S]*?id: 'cockpit-vr',/,
@@ -102,17 +111,44 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   const activity = await read(FILES.activity);
   // Pedido da shell → o jogo, e só com ajustes em lista branca.
   assert.match(activity, /@JavascriptInterface public void cockpitGame\(String json\) \{/);
-  // As mãos do jogo dependem de o APP ter a permissão de câmera: ela é pedida antes de a página
-  // abrir (quem nunca ligou o rastreio de mão abria o voo com as mãos do jogo mudas).
+  // A permissão de câmera é pedida SEM travar a abertura: esperar a resposta antes de abrir a página
+  // prendia o voo no menu do NextVR ("escolho o avião e não acontece nada").
   assert.match(activity, /REQUEST_GAME_CAMERA=12/);
-  assert.match(activity, /if\(code==REQUEST_GAME_CAMERA\)[\s\S]{0,400}?if\(query!=null\) openCockpitGame\(query\);/,
-    'o voo abre depois da resposta da permissão, com ou sem ela');
+  const openGame = activity.slice(activity.indexOf('private void openCockpitGame(String query)'),
+    activity.indexOf('private void showCockpitGame(String query)'));
+  assert.match(openGame, /requestPermissions\(new String\[\]\{Manifest\.permission\.CAMERA\},REQUEST_GAME_CAMERA\)/,
+    'a permissão é pedida');
+  assert.ok(!/requestPermissions[^;]*;\s*return;/.test(openGame),
+    'pedir a permissão NÃO pode devolver antes de abrir o voo');
+  assert.match(openGame, /main\.postDelayed\(\(\)->showCockpitGame\(query\),900\)/,
+    'o voo abre logo depois de a câmera ser solta, sem esperar diálogo nenhum');
+  // Quando o Android responde, a página que já está na tela levanta as mãos dela.
+  assert.match(activity, /if\(code==REQUEST_GAME_CAMERA\)[\s\S]{0,500}?__nvRetryHands/,
+    'a resposta da permissão avisa o jogo que já está aberto');
+  const game = await read(FILES.game);
+  assert.match(game, /window\.__nvRetryHands=function\(\)\{/,
+    'e o jogo sabe levantar as mãos de novo sem reabrir o voo');
+  // Sem reabrir o voo, o jogo tenta a câmera de novo sozinho: o próximo quadro do aparelho pode
+  // ainda estar com a nossa Camera2.
+  assert.match(game, /try\{ if\(hp\) return; \}/, 'não abre uma segunda câmera por cima de uma tentativa em curso');
+  assert.match(game, /setTimeout\(function\(\)\{ window\.__nvRetryHands\(\); \},3000\);\n\s+setTimeout\(function\(\)\{ window\.__nvRetryHands\(\); \},7000\);/,
+    'o voo reabre as mãos dele em 3 s e em 7 s se a câmera estava ocupada');
   // Com o voo aberto, quem é dona da câmera é a página do jogo.
-  assert.match(activity, /if\(cockpitView==null\) startCamera\(\);/, 'o NextVR não toma a câmera do jogo');
+  // A câmera é do jogo também enquanto a tela dele está A CAMINHO: o diálogo de permissão pausa a
+  // activity, o onResume reabria a nossa Camera2 e a página do jogo chegava depois sem câmera.
+  assert.match(activity, /if\(cockpitView==null && !cockpitPending\) startCamera\(\);/,
+    'o NextVR não toma a câmera do jogo (nem enquanto a tela dele está a caminho)');
+  assert.match(activity, /if\(cockpitView==null && !cockpitPending\) camera\.enableHands\(true\);/);
+  assert.match(activity, /main\.postDelayed\(\(\)->\{ if\(cockpitView==null\) cockpitPending=false; \},15000\);/,
+    'e o "a caminho" não fica ligado para sempre segurando a câmera');
   assert.match(activity, /if\(entryView!=null && entryVisible\) entryView\.setVisibility\(View\.GONE\);/,
     'o menu de entrada sai da frente do voo');
-  assert.match(activity, /if\(!air\.matches\("\[a-z0-9\]\{1,12\}"\)\) air="cessna";/,
+  assert.match(activity, /if\(air\.isEmpty\(\) \|\| "random"\.equals\(air\) \|\| !air\.matches\("\[a-z0-9\]\{1,12\}"\)\)/, 
     'a query string é montada por lista branca, não colada da shell');
+  // Sem avião escolhido (o caminho normal) o nativo também sorteia, entre os cinco da página.
+  assert.match(activity, /private static final String\[\] COCKPIT_PLANES=\{"cessna","tucano","f22","f117","f35"\};/);
+  assert.match(activity, /air=COCKPIT_PLANES\[rnd\.nextInt\(COCKPIT_PLANES\.length\)\];/,
+    'o avião é sorteado quando a shell não escolhe um');
   // A ordem que importa: mãos fora, câmera fechada, e só então a página (que já vai pedir a câmera).
   const open = activity.slice(activity.indexOf('private void openCockpitGame(String query)'));
   assert.ok(open.indexOf('camera.enableHands(false);') < open.indexOf('main.postDelayed(() -> showCockpitGame(query)')
@@ -129,6 +165,31 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   assert.match(activity, /if\(cockpitView!=null\) \{ closeCockpitGame\(\); return; \}/,
     'o Voltar do Android sai do jogo antes de qualquer outra regra');
   assert.match(activity, /if\(cockpitView!=null\) closeCockpitGame\(\);/, 'sair do app também fecha o jogo');
+});
+
+test('nada de tela preta muda: o app sabe que o jogo abriu, e a página conta até onde chegou', async () => {
+  const activity = await read(FILES.activity);
+  const surface = await read(FILES.webSurface);
+  const game = await read(FILES.game);
+  const cockpit = await read(FILES.cockpit);
+  // A página diz ao app que existe e que está voando; sem esse recado o app sabe que algo falhou.
+  assert.match(surface, /public void stage\(String stage\) \{ if\(owner!=null\) owner\.cockpitStage\(stage\); \}/);
+  assert.match(game, /function stage\(s\)\{try\{if\(window\.NextVRGame&&window\.NextVRGame\.stage\)window\.NextVRGame\.stage\(s\)\}catch\(e\)\{\}\}/);
+  assert.match(game, /stage\('boot'\);/);
+  assert.match(game, /stage\('flight'\);/);
+  // E o primeiro pixel da janela é o aviso de abertura: se ele não aparecer, a janela não carregou.
+  assert.match(game, /id="nvb"[\s\S]{0,200}Cockpit VR · abrindo o voo…/);
+  assert.match(game, /var bv=document\.getElementById\('nvb'\); if\(bv\) bv\.style\.display='none';/);
+  // O app conta o estado para a shell (que mostra uma janela se não receber "aberto" em 6 s).
+  assert.match(activity, /private void cockpitState\(String what,String detail\)/);
+  assert.match(activity, /cockpitState\("aberto",""\);/);
+  assert.match(activity, /cockpitState\("falhou",why\);/);
+  assert.match(activity, /cockpitState\("saiu",""\);/);
+  assert.match(cockpit, /window\.nextvrCockpitState = \(what, detail\) => \{/);
+  assert.match(cockpit, /cockpitProblem\('O jogo não abriu\. Etapa: ' \+ state\.what/);
+  // Se o voo não montar em 12 s, o app TIRA o usuário da tela preta (e já disse o motivo).
+  assert.match(activity, /if\("flight"\.equals\(cockpitStage\)\) return;/);
+  assert.match(activity, /cockpitState\("falhou",why\);\s*report\("Cockpit VR: "\+why\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*closeCockpitGame\(\);/);
 });
 
 test('a rodada tem entrada no menu de Atualizações', async () => {

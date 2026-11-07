@@ -45,6 +45,33 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'raio-tamanho-build-62',
+    tag: 'AJUSTE · O RAIO VOLTOU AO TAMANHO DA BUILD 62 (CURTO) — E A BOLINHA CONTINUA PEQUENA',
+    time: 'Agora',
+    heading: 'Raio do Ponteiro no Tamanho da Build 62: Curto, sem Ficar Fino Demais',
+    desc: 'O PEDIDO ERA DE TAMANHO, NÃO DE ESPESSURA: o raio estava indo quase até o alvo e tomando a tela, e a correção anterior tinha deixado ele FINO em vez de CURTO. Agora o trecho desenhado é exatamente o da BUILD 62: começa a 24% do caminho e termina a 42%, com a mesma espessura de antes (.0025 no raio azul da pinça, .0019 no ponteiro). '
+      + 'O QUE NÃO MUDOU: a bolinha e o pingo continuam pequenos (o ponteiro não voltou a ser grande), o cursor continua à frente da mão e o clique continua caindo onde a bolinha está — o destino do raio é o mesmo de antes, só o pedaço que se desenha é que ficou curto, igual à build 62.',
+  },
+  {
+    id: 'cockpit-vr-entra-direto',
+    tag: 'CORREÇÃO · COCKPIT VR: UM TOQUE E VOCÊ JÁ ESTÁ NO AVIÃO (AVIÃO SORTEADO) · RAIO MENOR',
+    time: 'Agora',
+    heading: 'Cockpit VR Sem Menu no Caminho: Toca no Jogo e o Voo Começa Num Avião Sorteado',
+    desc: 'PEDIU DIRETO E AGORA É DIRETO: tocar no Cockpit VR (na biblioteca ou na Loja) entra no voo na hora, com um avião SORTEADO entre os cinco — Cessna 172, Super Tucano, F-22, F-117 e F-35. O menu do NextVR deixou de ser o caminho para voar: ele era mais uma tela que podia não aparecer, e era exatamente isso que travava tudo ("não inicia e nem o menu do jogo aparece"). O menu continua existindo para ajustes, mas ninguém precisa passar por ele. '
+      + 'E SE ALGO DER ERRADO, APARECE NA TELA: quando o jogo abre, a página diz isso ao app; se o app não receber essa confirmação em 6 segundos, surge uma janela dizendo em que etapa parou, com o botão TENTAR DE NOVO. Dentro da janela do jogo, o primeiro que aparece é um aviso amarelo "Cockpit VR · abrindo o voo…": se você vir só ele, o HTML carregou e o problema é no script; se não vir nem ele, a janela não carregou. Sem mais tela preta em silêncio. '
+      + 'O RAIO FICOU MENOR: o ponteiro, o pingo na mão, a espessura do raio e a bolinha da ponta encolheram (o raio estava grosso e a bolinha grande demais na tela). Nada mudou no alcance nem em onde o clique cai — só no tamanho do que se vê.',
+  },
+  {
+    id: 'cockpit-vr-voo-direto-e-raio',
+    tag: 'CORREÇÃO · COCKPIT VR ABRE NO VOO DIRETO · CURSOR E RAIO SAEM DA MÃO (A BOLINHA NÃO FICA MAIS PRA DENTRO)',
+    time: 'Agora',
+    heading: 'O Cockpit VR Entra no Avião na Primeira Pinça, e o Raio Aponta Para Onde Você Aponta',
+    desc: 'DUAS COISAS, e as duas eram visíveis na tela do aparelho. '
+      + 'PRIMEIRA: escolher o avião no menu do NextVR não abria o voo — a tela ficava no próprio menu. O motivo era o portão que eu tinha posto na rodada anterior: o app pedia a permissão de Câmera e só abria a página DEPOIS da resposta do Android. Quando o diálogo não voltava, o voo ficava esperando para sempre. Agora o voo abre na hora (a câmera é solta, a página entra em 0,9 s), a permissão é pedida em paralelo e, quando o Android responde, o jogo que já está na tela levanta as mãos dele sem precisar sair e entrar de novo. '
+      + 'SEGUNDA: o cursor (a bolinha) e o raio. O alvo do raio era o MEIO DA PALMA, então o feixe saía das pontas dos dedos e voltava para dentro da mão — desenhado por baixo da própria silhueta, era exatamente a "bolinha do raio pra dentro". Agora o alvo é a mão APONTADA: o pulso cruzado com a base do dedo médio, esticado para fora, o que põe o cursor à frente das pontas dos dedos. Mover a mão continua movendo o cursor igual (sem ganho, sem viés, sem tremor extra); o que muda é que ele aparece fora da mão, no lugar para onde você está apontando. E como o cursor, o destino do raio e o hit-test do clique leem o mesmo número, o que você vê é onde você clica. '
+      + 'Além disso: a folga do feixe para sair da silhueta subiu (com a mão perto da câmera ela ocupa metade da tela e o raio parava dentro dela), e a bolinha da ponta do raio agora aparece sempre no modo ponteiro, não só quando há um alvo embaixo. Se o voo não montar a tela em 12 segundos, o NextVR avisa na tela com o que o próprio jogo escreveu (biblioteca que faltou, mão, câmera) — em vez de ficar parado sem explicação.',
+  },
+  {
     id: 'cockpit-vr-voo-que-abre',
     tag: 'CORREÇÃO · COCKPIT VR (O JOGO DE AVIÃO): AGORA ABRE E VOA SEM DEPENDER DA INTERNET',
     time: 'Agora',

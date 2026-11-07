@@ -55,6 +55,10 @@ canvas{display:block}
 <label class="lk2"><input type="checkbox" id="as" checked> Assistente de voo (estabiliza)</label>
 <label class="lk2"><input type="checkbox" id="hsw"> Inverter mãos (se a esquerda/direita estiver trocada)</label>
 <p id="cred" style="font-size:11px"></p><button id="bl" class="alt" style="min-width:200px;font-size:15px;padding:10px 16px">← Biblioteca de aviões</button></div>
+<!-- Aviso de abertura. É a PRIMEIRA coisa que a janela do jogo desenha: se o usuário vir só isto, o
+     HTML carregou e o problema está no script; se não vir nem isto, a janela nem carregou. -->
+<div id="nvb" style="position:fixed;left:0;right:0;top:0;z-index:9999998;padding:8px;text-align:center;
+  background:rgba(8,12,16,.85);color:#ffb020;font:700 13px/1.3 system-ui,sans-serif">Cockpit VR · abrindo o voo…</div>
 <div id="hud"><span id="h1"></span><span id="h2"></span></div>
 <video id="v" playsinline muted style="display:none"></video>
 <script>
@@ -104,7 +108,7 @@ function load(urls,i,ok,fail){if(i>=urls.length)return fail();var s=document.cre
 function step(k){if(k>=order.length){run();return}var n=order[k];banner('Carregando bibliotecas… ('+(k+1)+'/'+order.length+')\nSe a internet estiver fraca, aguarde até 1 minuto.');
  load(U[n],0,function(){LS[n]=1;if(window.__nvLog)window.__nvLog('Bibliotecas: '+(k+1)+'/'+order.length+' ok');step(k+1)},function(){if(need[n])banner('Não consegui baixar a biblioteca "'+n+'".\nO jogo precisa de internet na primeira abertura (libere a internet para o app) ou tente de novo.',1);else step(k+1)})}
 function diag(){var t=document.getElementById('mainjs'),n=t?t.textContent.length:0;
- return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3341257 caracteres'+(n<3341257?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
+ return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3341268 caracteres'+(n<3341268?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
 function run(){banner('');if(window.__nvLog)window.__nvLog('Jogo iniciado: montando o voo…');var s=document.createElement('script');s.textContent=document.getElementById('mainjs').textContent;document.body.appendChild(s);
  setTimeout(function(){if(typeof window.pickAir!=='function')banner('O jogo não iniciou.\n'+diag(),1)},5000)}
 document.addEventListener('click',function(e){var c=e.target&&e.target.closest&&e.target.closest('.card');
@@ -1378,6 +1382,9 @@ resize();requestAnimationFrame(loop);
    Sem parâmetros na URL o jogo abre como sempre foi (menu dele, para teste).
    ========================================================================= */
 (function(){
+  /* A página conta ao app até onde chegou (a janela nativa avisa o usuário se o voo não montar). */
+  function stage(s){try{if(window.NextVRGame&&window.NextVRGame.stage)window.NextVRGame.stage(s)}catch(e){}}
+  stage('boot');
   var q=new URLSearchParams(location.search||'');
   var hasSetup=q.has('air')||q.has('auto');
   if(!hasSetup) return;                 /* abre como sempre: menu do próprio jogo */
@@ -1407,6 +1414,13 @@ resize();requestAnimationFrame(loop);
     document.body.appendChild(b);
     pills.push(b);
   });
+  /* A câmera pode ser liberada DEPOIS de a página abrir: o NextVR pede a permissão em paralelo, sem
+     travar o voo (esperar a resposta antes de abrir a página prendia o jogo no menu do NextVR). Quando
+     o Android responde, o NextVR chama isto: as mãos do jogo sobem sem precisar reabrir o voo. */
+  window.__nvRetryHands=function(){
+    try{ if(hp) return; }catch(e){}      /* já há uma tentativa em curso ou mãos no ar */
+    try{ hp=null; startHands(); }catch(e){}
+  };
   function exitGame(){
     try{ if(window.NextVRGame&&window.NextVRGame.exit){ window.NextVRGame.exit(); return } }catch(e){}
     try{ if(window.NextVRGame&&window.NextVRGame["exit"]){ window.NextVRGame["exit"](); return } }catch(e){}
@@ -1451,6 +1465,12 @@ resize();requestAnimationFrame(loop);
     try{ window.pickAir(air) }catch(e){ try{ window.pickAir('cessna') }catch(e2){} }
     document.getElementById('start').style.display='none';
     try{ window.go(mode!=='mono') }catch(e){}
+    stage('flight');
+    var bv=document.getElementById('nvb'); if(bv) bv.style.display='none';
+    /* A câmera do aparelho pode ainda estar com o NextVR nos primeiros quadros (ele a solta antes de
+       entregar a tela). A tentativa que falhou não pode ser a única: tenta de novo sem reabrir o voo. */
+    setTimeout(function(){ window.__nvRetryHands(); },3000);
+    setTimeout(function(){ window.__nvRetryHands(); },7000);
   })();
 })();
 </script>

@@ -185,7 +185,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     windowsSrc.includes('updateLeftQuickMenuAttachment') &&
     gorillaSrc.includes('gorillaJoycon') &&
     gorillaSrc.includes('joyconLocked: true') &&
-    handRendererKt.includes('RAY_SHOWN=1.06f') &&
+    handRendererKt.includes('RAY_SHOWN=') &&
     !handRendererKt.includes('curvedFinger') &&
     appsSrc.includes('./icons/hz-browser.png') &&
     appsSrc.includes('./icons/hz-store.png') &&

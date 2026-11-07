@@ -127,14 +127,27 @@ class PhoneXrHandsTest {
     @Test fun nativeRearHandednessAndTheRayAimExactlyWhereTheHandPoints() {
         val hand=PhoneXrHands().process(result(points(.2f),1000),1f,1f).hands.single()
         assertTrue(hand.left) // raw MediaPipe Right is physical Left for an unmirrored rear image
-        val p=points(.2f);val expected=p[2].x()*.3f+p[5].x()*.45f+(p[4].x()+p[8].x())/2*.25f
-        assertEquals(expected,hand.shape.aimX,1e-5f)
+        val p=points(.2f)
+        // O cursor é a palma ESTICADA para fora ao longo do eixo pulso (0) -> base do dedo médio (9),
+        // por [HandGestures.AIM_REACH] comprimentos de palma. Com o meio da palma o feixe saía das
+        // pontas dos dedos e voltava para dentro dela ("a bolinha do raio pra dentro").
+        val palmX=(p[0].x()+p[5].x()+p[9].x()+p[17].x())/4
+        val palmY=(p[0].y()+p[5].y()+p[9].y()+p[17].y())/4
+        val expectedX=palmX+(p[9].x()-p[0].x())*HandGestures.AIM_REACH
+        val expectedY=palmY+(p[9].y()-p[0].y())*HandGestures.AIM_REACH
+        assertEquals(expectedX,hand.shape.aimX,1e-5f)
+        assertEquals(expectedY,hand.shape.aimY,1e-5f)
+        // À FRENTE das pontas dos dedos: o fixture aponta para cima (pulso em .85, ponta do médio em
+        // .22), então o cursor fica ACIMA da ponta, nunca no meio da mão.
+        // (JUnit tem assertTrue(mensagem, condição): a mensagem vem primeiro.)
+        assertTrue("o cursor fica acima das pontas dos dedos",hand.shape.aimY<p[12].y())
         assertNotEquals(hand.shape.pinchX,hand.shape.aimX)
-        // The published aim IS the hand's aim: no shoulder-anchored amplification (it used to push
-        // the ray 25% past the hand) and no fixed vertical bias (it used to aim +25% high), so the
-        // ray leaves the hand and stays with it. First sample: the filter returns it unchanged.
+        // `base` sai do MESMO ponto e, na primeira amostra, o filtro devolve o valor cru: nada de
+        // viés fixo no eixo Y (o antigo +25% mirando alto) e nada de amplificação por ombro.
         assertEquals(hand.baseX,hand.aimX,1e-5f)
         assertEquals(hand.baseY,hand.aimY,1e-5f)
+        // NDC do `base`: y inverte (0,5 = centro da tela), igual ao que o renderer desenha.
+        assertEquals((.5f-hand.shape.aimY)*2f,hand.baseY,1e-5f)
     }
     @Test fun briefMissIsBridgedByAPredictionThatHoldsButNeverStartsAGesture() {
         val engine=PhoneXrHands()
