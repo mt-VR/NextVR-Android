@@ -45,6 +45,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'cockpit-vr-voo-que-abre',
+    tag: 'CORREÇÃO · COCKPIT VR (O JOGO DE AVIÃO): AGORA ABRE E VOA SEM DEPENDER DA INTERNET',
+    time: 'Agora',
+    heading: 'O Cockpit VR Abre de Verdade: Bibliotecas e Rastreio de Mão Viajam no APK, e a Tela Diz o Que Está Acontecendo',
+    desc: 'O COCKPIT VR não abria — ou abria preto — por dois motivos concretos, e os dois saíram da frente. '
+      + 'PRIMEIRO: o jogo buscava o three.js (o motor 3D), o carregador de modelos e o MediaPipe (o rastreio de mão dele) em CDN, na internet. Sem rede, ou com a rede bloqueada para o app, a página ficava esperando e o voo nunca montava. Agora essas bibliotecas e o RASTREIO DE MÃO DO JOGO viajam dentro do APK, entregues com o tipo certo (application/wasm, sem o qual o Chromium recusa o módulo do MediaPipe), e a internet virou só plano B. '
+      + 'SEGUNDO: para as mãos do jogo funcionarem, o APP precisa ter a permissão de Câmera — antes, quem nunca tinha ligado o rastreio de mão do NextVR abria o voo com as mãos mudas. Agora a permissão é pedida antes de a página abrir, o NextVR solta a câmera antes de entregar a tela e não a toma de volta enquanto o voo estiver aberto. '
+      + 'E mais: os botões que entregam a tela (VOAR · VR CARDBOARD e TELA ÚNICA) subiram para o alto do menu do Cockpit VR, presos na janela; antes ficavam abaixo de cinco aviões e seis ajustes e ninguém achava o começo. Os gráficos leves vêm ligados (o cenário cheio num celular dentro do VR Box parece travado) e continuam com interruptor no menu. '
+      + 'Por fim, o jogo agora FALA na tela: no canto de baixo aparece uma linha de estado em português — quantas bibliotecas subiram, se o MediaPipe do jogo vê a mão e qual o recado da câmera. Se alguma etapa falhar, o motivo está escrito ali, em vez de uma tela preta.',
+  },
+  {
     id: 'library-store-games-hands',
     tag: 'CORRIGIDO · BIBLIOTECA DE APPS DE VOLTA, TODOS OS JOGOS NA LOJA & MÃOS QUE VOLTAM',
     time: 'Agora',

@@ -32,7 +32,10 @@ export const COCKPIT_PLANES = Object.freeze([
 export const COCKPIT_LABEL = 'Cockpit VR';
 export const COCKPIT_LOGO = './icons/cockpit-vr-logo.svg';
 
-const DEFAULTS = { air: 'cessna', mode: 'vr', snd: true, lq: false, as: true, ck: false, dof: '6', d6s: '1' };
+// `lq` (gráficos leves) nasce LIGADO: o jogo foi escrito para uma tela de PC e, num celular dentro
+// de um VR Box, o cenário cheio (1 400 campos, árvores, nuvens) derruba o quadro a ponto de parecer
+// travado. O menu continua com o interruptor, para quem quiser o cenário completo.
+const DEFAULTS = { air: 'cessna', mode: 'vr', snd: true, lq: true, as: true, ck: false, dof: '6', d6s: '1' };
 
 function loadPrefs() {
   try {
@@ -149,29 +152,56 @@ export function openCockpitMenu() {
 
   const head = document.createElement('div');
   head.innerHTML = `<div style="font:700 11px/1 system-ui,sans-serif;letter-spacing:.14em;color:#ffb020">PLANEVR · COCKPIT VR</div>
-    <p style="margin:8px 0 0;font:400 13px/1.45 system-ui,sans-serif;color:#aab6c0">Escolha o avião e comece.
-    Este menu é do NextVR: aponte com a mão e faça a pinça. No voo, o NextVR desliga o rastreio de mão
-    dele — quem pilota e aperta os botões é o rastreio da própria página do jogo.</p>`;
+    <p style="margin:6px 0 0;font:400 12px/1.4 system-ui,sans-serif;color:#aab6c0">Este menu é do NextVR:
+    aponte com a mão e faça a pinça. No voo, o NextVR desliga o rastreio de mão dele — quem pilota é o
+    rastreio da própria página do jogo.</p>`;
   node.append(head);
 
-  // --- os cinco aviões, como cartões grandes (um toque/pinça escolhe) ---
+  // --- OS BOTÕES DE VOAR FICAM NO ALTO, SEMPRE À VISTA ---------------------------
+  // Antes eles ficavam depois dos cinco aviões e dos seis ajustes: numa janela de VR isso é uma tela
+  // inteira de rolagem, e quem abria o Cockpit VR não achava como começar ("o jogo não abre").
+  const status = document.createElement('p');
+  status.style.cssText = 'margin:0;min-height:16px;font:600 12px/1.3 system-ui,sans-serif;color:#ffb020';
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:grid;grid-template-columns:1.35fr 1fr;gap:8px;position:sticky;top:0;'
+    + 'z-index:2;background:rgba(16,21,26,.92);padding:2px 0 4px';
+  const goVr = button('▶  VOAR · VR CARDBOARD', () => {
+    prefs.mode = 'vr'; launch();
+  }, 'primary');
+  const goMono = button('TELA ÚNICA', () => {
+    prefs.mode = 'mono'; launch();
+  });
+  actions.append(goVr, goMono);
+  node.append(actions, status);
+
+  function launch() {
+    status.style.color = '#ffb020';
+    status.textContent = 'Abrindo o voo… a tela do jogo assume em instantes.';
+    const ok = startCockpitGame(prefs);
+    if (!ok) status.textContent = 'Não consegui abrir o voo: o jogo roda no app do NextVR (Android).';
+  }
+
+  // --- os cinco aviões (um toque/pinça escolhe) ----------------------------------
+  const gridHead = document.createElement('div');
+  gridHead.style.cssText = 'font:600 12px/1 system-ui,sans-serif;color:#aab6c0;letter-spacing:.06em';
+  gridHead.textContent = 'AVIÃO';
   const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px';
   const cards = new Map();
   for (const plane of COCKPIT_PLANES) {
     const card = document.createElement('button');
     card.type = 'button';
     card.dataset.cockpitAir = plane.id;
-    card.style.cssText = 'text-align:left;padding:12px;border-radius:14px;cursor:pointer;min-height:86px;'
+    card.style.cssText = 'text-align:left;padding:9px 11px;border-radius:12px;cursor:pointer;min-height:62px;'
       + 'border:2px solid rgba(233,238,242,.16);background:rgba(255,255,255,.05);color:#e9eef2;'
-      + 'font:600 14px/1.2 system-ui,sans-serif';
-    card.innerHTML = `<b style="display:block;font-size:14px">${plane.name}</b>
-      <span style="display:block;margin-top:6px;font:400 11px/1.35 system-ui,sans-serif;color:#aab6c0">${plane.desc}</span>`;
+      + 'font:600 13px/1.2 system-ui,sans-serif';
+    card.innerHTML = `<b style="display:block;font-size:13px">${plane.name}</b>
+      <span style="display:block;margin-top:4px;font:400 10px/1.3 system-ui,sans-serif;color:#aab6c0">${plane.desc}</span>`;
     card.onclick = () => { prefs.air = plane.id; savePrefs(prefs); paintPick(); };
     cards.set(plane.id, card);
     grid.append(card);
   }
-  node.append(grid);
+  node.append(gridHead, grid);
 
   function paintPick() {
     for (const [id, card] of cards) {
@@ -182,34 +212,30 @@ export function openCockpitMenu() {
   }
   paintPick();
 
-  // --- ajustes que o jogo tinha na tela dele ---
+  // --- ajustes que o jogo tinha na tela dele (em duas colunas, para caber) --------
+  const optionsHead = document.createElement('div');
+  optionsHead.style.cssText = 'font:600 12px/1 system-ui,sans-serif;color:#aab6c0;letter-spacing:.06em';
+  optionsHead.textContent = 'AJUSTES';
   const options = document.createElement('div');
-  options.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  options.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px';
   options.append(
-    select('Cabeça no cockpit', [['6', '6DoF falso (o do jogo)'], ['3', '3DoF (só rotação)']],
+    select('Cabeça', [['6', '6DoF (do jogo)'], ['3', '3DoF']],
       prefs.dof, v => { prefs.dof = v; savePrefs(prefs); }),
-    select('Força do 6DoF', [['0.6', 'Fraco'], ['1', 'Médio'], ['1.5', 'Forte']],
+    select('6DoF', [['0.6', 'Fraco'], ['1', 'Médio'], ['1.5', 'Forte']],
       prefs.d6s, v => { prefs.d6s = v; savePrefs(prefs); }),
-    toggle('Sons do avião (motor e vento)', prefs.snd, v => { prefs.snd = v; savePrefs(prefs); }),
-    toggle('Gráficos leves (mais FPS)', prefs.lq, v => { prefs.lq = v; savePrefs(prefs); }),
-    toggle('Assistente de voo (estabiliza)', prefs.as, v => { prefs.as = v; savePrefs(prefs); }),
-    toggle('Começar com o motor ligado', prefs.ck, v => { prefs.ck = v; savePrefs(prefs); }),
+    toggle('Som do avião', prefs.snd, v => { prefs.snd = v; savePrefs(prefs); }),
+    toggle('Gráficos leves', prefs.lq, v => { prefs.lq = v; savePrefs(prefs); }),
+    toggle('Assistente de voo', prefs.as, v => { prefs.as = v; savePrefs(prefs); }),
+    toggle('Motor ligado', prefs.ck, v => { prefs.ck = v; savePrefs(prefs); }),
   );
-  node.append(options);
-
-  // --- iniciar: VR Cardboard (estéreo do jogo) ou tela única ---
-  node.append(button('▶  INICIAR VOO · VR CARDBOARD', () => {
-    prefs.mode = 'vr'; startCockpitGame(prefs);
-  }, 'primary'));
-  node.append(button('▶  TELA ÚNICA (teste, sem estéreo)', () => {
-    prefs.mode = 'mono'; startCockpitGame(prefs);
-  }));
+  node.append(optionsHead, options);
 
   const note = document.createElement('p');
-  note.style.cssText = 'margin:0 0 6px;font:400 11px/1.45 system-ui,sans-serif;color:#8d9aa5';
-  note.textContent = 'O jogo precisa de internet na primeira abertura (as bibliotecas three.js e o '
-    + 'MediaPipe vêm de CDN) e da permissão de câmera, que ele pede e o NextVR concede. Para sair do '
-    + 'voo: as duas mãos em pinça por dois segundos, o ✕ no alto da tela, ou o Voltar do Android.';
+  note.style.cssText = 'margin:2px 0 8px;font:400 11px/1.4 system-ui,sans-serif;color:#8d9aa5';
+  note.textContent = 'O jogo já vai no pacote — three.js, cannon e o rastreio de mão do MediaPipe estão '
+    + 'dentro do APK: nada é baixado. Ele pede a câmera e o NextVR concede. No canto da tela do voo há uma '
+    + 'linha de estado (bibliotecas, mãos, câmera). Para sair: as duas mãos em pinça por dois segundos, '
+    + 'o ✕ no alto da tela, ou o Voltar do Android.';
   node.append(note);
 
   const win = open({ id: WIN_ID, title: 'Cockpit VR', node, w: 660, h: 780 });

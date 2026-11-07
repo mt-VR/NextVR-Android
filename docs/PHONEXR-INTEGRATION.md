@@ -208,3 +208,31 @@ Para regenerar os APKs dentro do projeto PhoneXR (não deste repositório):
 O pin vive em `nextvr-android/build.gradle` (URL raw da upstream no commit + sha256 conferido).
 Para apontá-lo para um build novo, troque os dois valores lá — o build recusa bytes que não
 conferem.
+
+## Cockpit VR (o jogo de avião do planeVR) como jogo HTML hospedado
+
+Diferente dos jogos OpenXR acima, o Cockpit VR não é um APK: é uma **página HTML** que desenha o
+próprio estéreo (dois olhos com a distorção da lente do VR Box) e rastreia as mãos com o MediaPipe
+*dela*, pela câmera do aparelho. Por isso ele não entra numa janela da shell — ele recebe a tela
+inteira:
+
+- `assets/ui/cockpit/game.html` — o jogo do usuário, com duas emendas do NextVR (o estado das mãos
+  em `window.__nvFrame`, para o gesto de sair, e o bloco final que lê os ajustes da URL e entra
+  direto no voo);
+- `assets/ui/cockpit/libs/` — **three.js, GLTFLoader, BufferGeometryUtils e cannon empacotados**, e
+  `libs/hands/` com o MediaPipe (wasm SIMD, `packed_assets.data`, `hand_landmark_lite.tflite`). Sem
+  eles a página ficava parada esperando a CDN e o voo nunca montava — com eles o voo monta sem
+  internet. Só o módulo **sem SIMD** do MediaPipe fica fora do pacote (tamanho): o `locateFile` da
+  página manda esse arquivo para a CDN;
+- `WebSurface.createFullscreenGameView()` — WebView em tela cheia sobre o `GLSurfaceView`, servindo
+  `/ui/` do APK (`application/wasm` para o `.wasm`, senão o `instantiateStreaming` recusa o módulo),
+  com a CSP da pasta `ui/cockpit/` liberando `wasm-unsafe-eval`, e concedendo a câmera que a página
+  pede (`onPermissionRequest`);
+- `NextVrActivity.openCockpitGame()/closeCockpitGame()` — a ordem importa: mãos do NextVR fora,
+  `camera.stop()`, 900 ms de espera (a Camera2 fecha em outro thread) e só então a página, que já vai
+  pedir a câmera. Sair devolve câmera e rastreio (`restartTracking()`).
+
+O menu (avião, modo, som, gráficos leves, assistente, motor) é uma janela da shell — `web/src/cockpit.js` —
+operada pelo rastreio de mão do NextVR; o voo em si usa as mãos do jogo. `tests/cockpit.test.mjs`
+guarda esse contrato e `tests/cockpit-game-boot.test.mjs` abre a página num Chromium com a rede
+externa bloqueada, para que "o jogo abre sem internet" seja medido, e não prometido.

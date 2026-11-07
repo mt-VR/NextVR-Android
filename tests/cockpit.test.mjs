@@ -26,9 +26,16 @@ test('o menu do Cockpit VR é da shell: aviões e início, com a ponte nativa', 
   for (const air of ['cessna', 'tucano', 'f22', 'f117', 'f35']) {
     assert.ok(menu.includes(`id: '${air}'`), `o menu oferece o avião ${air}`);
   }
-  // Dois modos de verdade: VR Cardboard (estéreo do jogo) e tela única.
-  assert.match(menu, /prefs\.mode = 'vr'; startCockpitGame\(prefs\);/);
-  assert.match(menu, /prefs\.mode = 'mono'; startCockpitGame\(prefs\);/);
+  // Dois modos de verdade: VR Cardboard (estéreo do jogo) e tela única — e os botões que ENTREGAM a
+  // tela ficam no alto (antes ficavam abaixo de cinco aviões e seis ajustes: ninguém achava o
+  // começo, e "o jogo não abre" era isso).
+  assert.match(menu, /const goVr = button\('▶  VOAR · VR CARDBOARD'/);
+  assert.match(menu, /const goMono = button\('TELA ÚNICA'/);
+  assert.match(menu, /prefs\.mode = 'vr'; launch\(\);/);
+  assert.match(menu, /prefs\.mode = 'mono'; launch\(\);/);
+  assert.match(menu, /const ok = startCockpitGame\(prefs\);/);
+  assert.match(menu, /position:sticky;top:0/, 'os botões de voar ficam presos no alto, sempre à vista');
+  assert.match(menu, /lq: true, as: true/, 'os gráficos leves vêm ligados por padrão');
   // A entrega da tela ao jogo vai pela ponte nativa, e falha ALTO quando ela não existe.
   assert.match(menu, /window\.NativeXR\.cockpitGame\(JSON\.stringify\(\{/,
     'o botão de iniciar entrega os ajustes ao lado nativo');
@@ -88,13 +95,22 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   assert.match(surface, /script-src 'self' 'unsafe-inline' https:\/\/cdn\.jsdelivr\.net; style-src/,
     'a CSP antiga continua valendo para todo o resto da UI');
   assert.match(surface, /static WebView createFullscreenGameView\(NextVrActivity owner, String url, String tag\)/);
-  assert.match(surface, /@Override public void onPermissionRequest\(PermissionRequest request\) \{ request\.grant\(request\.getResources\(\)\); \}/,
+  assert.match(surface, /@Override public void onPermissionRequest\(PermissionRequest request\) \{\n                try \{ request\.grant\(request\.getResources\(\)\); \}/,
     'a câmera que o jogo pede é concedida na janela do jogo');
   assert.match(surface, /game\.addJavascriptInterface\(new GameBridge\(owner\),"NextVRGame"\);/);
 
   const activity = await read(FILES.activity);
   // Pedido da shell → o jogo, e só com ajustes em lista branca.
   assert.match(activity, /@JavascriptInterface public void cockpitGame\(String json\) \{/);
+  // As mãos do jogo dependem de o APP ter a permissão de câmera: ela é pedida antes de a página
+  // abrir (quem nunca ligou o rastreio de mão abria o voo com as mãos do jogo mudas).
+  assert.match(activity, /REQUEST_GAME_CAMERA=12/);
+  assert.match(activity, /if\(code==REQUEST_GAME_CAMERA\)[\s\S]{0,400}?if\(query!=null\) openCockpitGame\(query\);/,
+    'o voo abre depois da resposta da permissão, com ou sem ela');
+  // Com o voo aberto, quem é dona da câmera é a página do jogo.
+  assert.match(activity, /if\(cockpitView==null\) startCamera\(\);/, 'o NextVR não toma a câmera do jogo');
+  assert.match(activity, /if\(entryView!=null && entryVisible\) entryView\.setVisibility\(View\.GONE\);/,
+    'o menu de entrada sai da frente do voo');
   assert.match(activity, /if\(!air\.matches\("\[a-z0-9\]\{1,12\}"\)\) air="cessna";/,
     'a query string é montada por lista branca, não colada da shell');
   // A ordem que importa: mãos fora, câmera fechada, e só então a página (que já vai pedir a câmera).

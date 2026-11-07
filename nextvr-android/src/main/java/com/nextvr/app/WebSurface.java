@@ -170,11 +170,25 @@ final class WebSurface {
         return typingEngine;
     }
     static boolean isWebUrl(String url) { Uri uri=Uri.parse(url); return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) && uri.getHost()!=null; }
-    static WebResourceResponse assetFromOwner(NextVrActivity owner,Uri uri) {
+    static WebResourceResponse assetFromOwner(NextVrActivity owner,Uri uri) { return assetFrom(owner,uri); }
+    /**
+     * A entrega dos assets de {@code /ui/} para qualquer tela do app.
+     *
+     * <p>A shell e a tela do jogo HTML (uma activity própria) servem a mesma pasta de dentro do APK;
+     * o que elas têm em comum é o {@code Context}. A checagem continua a mesma: nada fora de
+     * {@code /ui/}, nada com {@code ..}, e nenhum código remoto ganha a ponte NativeXR.
+     */
+    static WebResourceResponse assetFrom(android.content.Context context,Uri uri) {
+        if(context==null) return denied();
         String path=uri.getPath();
-        if(owner==null || path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
+        if(path==null || path.contains("..") || !path.startsWith("/ui/")) return denied();
         try {
-            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav":"application/octet-stream";
+            String mime=path.endsWith(".html")?"text/html":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".woff2")?"font/woff2":path.endsWith(".svg")?"image/svg+xml":(path.endsWith(".jpg")||path.endsWith(".jpeg"))?"image/jpeg":path.endsWith(".png")?"image/png":path.endsWith(".wav")?"audio/wav"
+                // O jogo do Cockpit VR traz o MediaPipe de dentro do APK: sem `application/wasm` o
+                // `WebAssembly.instantiateStreaming` recusa o módulo e as mãos do jogo não sobem.
+                :path.endsWith(".wasm")?"application/wasm"
+                :path.endsWith(".json")?"application/json"
+                :"application/octet-stream";
             Map<String,String> headers=new HashMap<>();
             // No remote executable code or frames can acquire the privileged NativeXR bridge.
             // A pasta do Cockpit VR é a única exceção, e ela existe por um motivo medido: o rastreio
@@ -187,7 +201,7 @@ final class WebSurface {
                 : "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
-            return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,owner.getAssets().open(path.substring(1)));
+            return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,context.getAssets().open(path.substring(1)));
         } catch(Exception e) { return denied(); }
     }
     private WebResourceResponse asset(Uri uri) { return assetFromOwner(owner,uri); }
@@ -255,6 +269,7 @@ final class WebSurface {
         WebView game=new WebView(owner);
         game.setLayerType(android.view.View.LAYER_TYPE_HARDWARE,null);
         game.setBackgroundColor(Color.BLACK);
+        game.setKeepScreenOn(true);
         WebSettings settings=game.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -266,6 +281,7 @@ final class WebSurface {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setUseWideViewPort(false);
         settings.setLoadWithOverviewMode(false);
+        // O jogo é servido do APK e a página não muda: nada de cache velho de uma rodada anterior.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         game.setVerticalScrollBarEnabled(false);
         game.setHorizontalScrollBarEnabled(false);
@@ -282,13 +298,24 @@ final class WebSurface {
                 android.util.Log.d("NextVR-GAME","loaded "+address);
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {
-                if(request.isForMainFrame()) owner.report("O jogo não carregou: "+error.getDescription());
+                // Só o documento do jogo interessa: as bibliotecas têm o próprio aviso na página.
+                if(request.isMainFrame() && owner!=null) owner.report("O jogo não carregou: "+error.getDescription());
+            }
+            @Override public void onRenderProcessGone(WebView view,android.webkit.RenderProcessGoneDetail detail) {
+                if(owner!=null) owner.report("O WebView do jogo foi encerrado pelo Android. Voltando ao NextVR.");
+                if(owner!=null) owner.closeCockpitGame();
             }
         });
         game.setWebChromeClient(new WebChromeClient() {
             // O jogo liga a câmera do aparelho para as mãos dele. A permissão de captura é da
             // PÁGINA do jogo, e só dela: nenhuma outra janela do NextVR pede câmera.
-            @Override public void onPermissionRequest(PermissionRequest request) { request.grant(request.getResources()); }
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                try { request.grant(request.getResources()); }
+                catch(Throwable denied) {
+                    try { request.deny(); } catch(Throwable ignored) {}
+                    if(owner!=null) owner.report("A câmera do jogo foi negada pelo Android: confira a permissão de Câmera do NextVR.");
+                }
+            }
             @Override public boolean onConsoleMessage(ConsoleMessage m) {
                 android.util.Log.d("NextVR-GAME",m.message()+" @"+m.lineNumber()); return true;
             }

@@ -65,20 +65,33 @@ window.__askCam=function(){var m=navigator.mediaDevices;
   window.__cam.p=g({video:{facingMode:'environment',width:{ideal:480},height:{ideal:360}},audio:false}).catch(function(e){
     if(e&&(e.name==='OverconstrainedError'||e.name==='NotFoundError'))return g({video:true,audio:false});throw e});
   window.__cam.p.catch(function(e){window.__cam.err=e});};
+/* NextVR: uma linha de estado no canto da tela. Ela existe porque este jogo roda num aparelho sem
+   teclado e sem console: quando alguma etapa falha, o motivo tem de estar escrito NA TELA, em
+   português, em vez de a tela ficar preta. */
+window.__nvLog=(function(){var el=null;
+  function box(){if(el&&el.isConnected)return el;el=document.getElementById('nvd');
+    if(!el){el=document.createElement('div');el.id='nvd';
+      el.style.cssText='position:fixed;left:6px;bottom:6px;z-index:999998;max-width:64vw;padding:6px 9px;'
+        +'border-radius:9px;background:rgba(8,12,16,.66);color:#cfe3f2;text-align:left;'
+        +'font:600 10px/1.4 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none';
+      (document.body||document.documentElement).appendChild(el)}
+    return el}
+  return function(m){try{var e=box(),t=String(m==null?'':m);
+    if(e.textContent!==t)e.textContent=t;e.style.display=t?'block':'none'}catch(x){}}})();
 window.__askCam();
 window.addEventListener('error',function(e){var t=document.getElementById('ts'),x=e.target,
   m=x&&x.tagName==='SCRIPT'?'Falhou ao carregar: '+String(x.src||'').split('/').slice(-1)[0]+' (sem internet?)':'Erro no jogo: '+(e.message||'?')+' (linha '+e.lineno+')';
-  if(t)t.textContent=m;var l=document.getElementById('lerr');if(l)l.textContent=m;window.__lastErr=m;if(window.__banner)window.__banner(m,1)},true);
-window.addEventListener('unhandledrejection',function(e){var m='Erro: '+((e.reason&&e.reason.message)||e.reason||'?');window.__lastErr=m;if(window.__banner)window.__banner(m,1)});
+  if(t)t.textContent=m;var l=document.getElementById('lerr');if(l)l.textContent=m;window.__lastErr=m;if(window.__banner)window.__banner(m,1);if(window.__nvLog)window.__nvLog(m)},true);
+window.addEventListener('unhandledrejection',function(e){var m='Erro: '+((e.reason&&e.reason.message)||e.reason||'?');window.__lastErr=m;if(window.__banner)window.__banner(m,1);if(window.__nvLog)window.__nvLog(m)});
 </script>
 <script>
 (function(){
 var U={
- three:['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://unpkg.com/three@0.128.0/build/three.min.js','https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'],
- gltf:['https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js','https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js'],
- bgu:['https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js','https://unpkg.com/three@0.128.0/examples/js/utils/BufferGeometryUtils.js'],
- cannon:['https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js','https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js','https://unpkg.com/cannon@0.6.2/build/cannon.min.js'],
- hands:['https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js','https://unpkg.com/@mediapipe/hands@0.4.1675469240/hands.js']};
+ three:['./libs/three.min.js','https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://unpkg.com/three@0.128.0/build/three.min.js','https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'],
+ gltf:['./libs/GLTFLoader.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js','https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js'],
+ bgu:['./libs/BufferGeometryUtils.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js','https://unpkg.com/three@0.128.0/examples/js/utils/BufferGeometryUtils.js'],
+ cannon:['./libs/cannon.min.js','https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js','https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js','https://unpkg.com/cannon@0.6.2/build/cannon.min.js'],
+ hands:['./libs/hands/hands.js','https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js','https://unpkg.com/@mediapipe/hands@0.4.1675469240/hands.js']};
 var need={three:1,gltf:1,bgu:1,cannon:1},order=['three','gltf','bgu','cannon','hands'];
 function banner(m,bad){var b=document.getElementById('lbn');
  if(!b){if(!m)return;b=document.createElement('div');b.id='lbn';b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px 12px;font:600 14px system-ui,sans-serif;color:#fff;text-align:center;white-space:pre-wrap';(document.body||document.documentElement).appendChild(b)}
@@ -89,10 +102,10 @@ function load(urls,i,ok,fail){if(i>=urls.length)return fail();var s=document.cre
  function nx(){if(d)return;d=true;clearTimeout(t);s.onload=s.onerror=null;try{s.remove()}catch(e){}load(urls,i+1,ok,fail)}
  var t=setTimeout(nx,35000);s.onload=function(){if(d)return;d=true;clearTimeout(t);ok()};s.onerror=nx;s.src=urls[i];document.head.appendChild(s)}
 function step(k){if(k>=order.length){run();return}var n=order[k];banner('Carregando bibliotecas… ('+(k+1)+'/'+order.length+')\nSe a internet estiver fraca, aguarde até 1 minuto.');
- load(U[n],0,function(){LS[n]=1;step(k+1)},function(){if(need[n])banner('Não consegui baixar a biblioteca "'+n+'".\nO jogo precisa de internet na primeira abertura (libere a internet para o app) ou tente de novo.',1);else step(k+1)})}
+ load(U[n],0,function(){LS[n]=1;if(window.__nvLog)window.__nvLog('Bibliotecas: '+(k+1)+'/'+order.length+' ok');step(k+1)},function(){if(need[n])banner('Não consegui baixar a biblioteca "'+n+'".\nO jogo precisa de internet na primeira abertura (libere a internet para o app) ou tente de novo.',1);else step(k+1)})}
 function diag(){var t=document.getElementById('mainjs'),n=t?t.textContent.length:0;
- return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3340987 caracteres'+(n<3340987?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
-function run(){banner('');var s=document.createElement('script');s.textContent=document.getElementById('mainjs').textContent;document.body.appendChild(s);
+ return 'libs: '+order.map(function(k){return k+(LS[k]?'✓':'✗')}).join(' ')+'\nscript do jogo: '+n+' de 3341257 caracteres'+(n<3341257?' (ARQUIVO CORTADO!)':'')+'\n'+(window.__lastErr||'sem mensagem de erro')}
+function run(){banner('');if(window.__nvLog)window.__nvLog('Jogo iniciado: montando o voo…');var s=document.createElement('script');s.textContent=document.getElementById('mainjs').textContent;document.body.appendChild(s);
  setTimeout(function(){if(typeof window.pickAir!=='function')banner('O jogo não iniciou.\n'+diag(),1)},5000)}
 document.addEventListener('click',function(e){var c=e.target&&e.target.closest&&e.target.closest('.card');
  if(c&&typeof window.pickAir!=='function')banner('O jogo ainda não iniciou.\n'+diag(),1)},true);
@@ -1120,7 +1133,11 @@ async function initHands(){
   video.srcObject=st;await video.play();
   if(typeof Hands==='undefined'){setMsg('MediaPipe não carregou (sem internet?)');return false}
   setMsg('Carregando rastreio da mão…');
-  const hands=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/'+f});
+  /* O MediaPipe viaja no APK (libs/hands). O único arquivo que pode faltar nele é o módulo SEM
+     SIMD — guardado fora do pacote por tamanho —, e para esse o locateFile devolve a CDN. */
+    const hands=new Hands({locateFile:f=>/hands_solution_wasm_bin\.(js|wasm)$/.test(f)
+      ?'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/'+f
+      :'./libs/hands/'+f});
   hands.setOptions({maxNumHands:2,modelComplexity:HAND_QUALITY,minDetectionConfidence:.6,minTrackingConfidence:.5});
   hands.onResults(r=>{camMsg='';const L=r.multiHandLandmarks||[],hd=r.multiHandedness||[];let st0='';if(L.length)lastHandSeen=performance.now();
     const cx=pvOn?$('pv').getContext('2d'):null;if(cx)cx.drawImage(video,0,0,320,240);
@@ -1397,9 +1414,19 @@ resize();requestAnimationFrame(loop);
   }
   /* Duas mãos em pinça por 2 s = sair. É o mesmo acorde de duas mãos que o NextVR já usa nos
      próprios menus; uma pinça só continua sendo o clique dos botões do cockpit. */
-  var HOLD=2000, from=0;
+  var HOLD=2000, from=0, lastLog=0;
   window.__nvFrame=function(hs){
     if(!hs||typeof performance==='undefined') return;
+    /* A linha de estado mostra o que o jogo vê: as mãos do MediaPipe dele e o recado da câmera. */
+    var now0=performance.now();
+    if(now0-lastLog>450){lastLog=now0;
+      var vivo=function(h){return !!(h&&h.fresh&&(now0-h.t)<900)};
+      var mao=(vivo(hs.L)?'esquerda ':'')+(vivo(hs.R)?'direita':'');
+      var ts=document.getElementById('ts');
+      var recado=ts&&ts.textContent?ts.textContent:'';
+      window.__nvLog&&window.__nvLog(mao?('mãos do jogo: '+mao.trim()):('mãos do jogo: nenhuma'+(recado?' · '+recado:'')));
+      if(mao&&!window.__nvQuiet){window.__nvQuiet=setTimeout(function(){window.__nvLog&&window.__nvLog('')},15000)}
+    }
     var L=hs.L,R=hs.R,now=performance.now();
     var live=function(h){ return h&&h.fresh&&h.pinch&&(now-h.t)<800 };
     if(live(L)&&live(R)){ if(!from) from=now; } else from=0;

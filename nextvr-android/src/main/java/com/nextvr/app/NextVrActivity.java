@@ -131,6 +131,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     // A tela cheia de um jogo HTML com estéreo e mãos próprios (Cockpit VR). Enquanto ela existe,
     // a câmera e o rastreio de mão DESTE app estão parados: são do jogo.
     private WebView cockpitView;
+    // O voo do Cockpit VR precisa da câmera para as mãos do PRÓPRIO jogo: se o NextVR ainda não a
+    // tem (o usuário nunca ligou o rastreio de mão), a permissão é pedida antes de a página abrir.
+    private static final int REQUEST_GAME_CAMERA=12;
+    private String pendingCockpitQuery=null;
     private volatile long vrSessionReadyAtMs=0L;
     private String pendingVrSettingsJson;
     private android.hardware.SensorManager sensorManager;
@@ -708,6 +712,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      */
     private void openCockpitGame(String query) {
         if(closed || cockpitView!=null) return;
+        // A concessão de câmera da página (onPermissionRequest do WebView) só vale se o APP já
+        // tiver a permissão. Sem esta checagem, quem nunca ligou o rastreio de mão abria o voo com
+        // as mãos do jogo mudas — e o jogo parecia "não funcionar".
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) {
+            pendingCockpitQuery=query;
+            report("Cockpit VR: permita a Câmera para as mãos do jogo.");
+            requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_GAME_CAMERA);
+            return;
+        }
         gameHandMode=false;
         camera.gameHandMode=false;
         camera.mrGameMode=false;
@@ -730,6 +743,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         android.view.ViewParent parent=glView.getParent();
         if(!(parent instanceof android.view.ViewGroup)) { view.destroy(); restartTracking(); return; }
         cockpitView=view;
+        // O jogo é dono da tela inteira: o menu de entrada (se ainda estivesse à vista) sai da frente
+        // e volta no closeCockpitGame().
+        if(entryView!=null && entryVisible) entryView.setVisibility(View.GONE);
         ((android.view.ViewGroup)parent).addView(view,new android.widget.RelativeLayout.LayoutParams(
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         view.bringToFront();
@@ -787,6 +803,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
+        if(code==REQUEST_GAME_CAMERA) {
+            String query=pendingCockpitQuery; pendingCockpitQuery=null;
+            if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
+            else report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
+            if(query!=null) openCockpitGame(query);
+            return;
+        }
         if(code==10) {
             if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
             else new AlertDialog.Builder(this).setTitle("Camera passthrough requires permission")
@@ -844,7 +867,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         main.removeCallbacks(batterySyncTask);
         main.postDelayed(batterySyncTask,2500L);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
-        for(WebSurface b:browsers.values()) b.resume(); startCamera();
+        for(WebSurface b:browsers.values()) b.resume();
+        // Com o voo aberto, a câmera é do JOGO: reabrir a nossa aqui seria tomá-la dele.
+        if(cockpitView==null) startCamera();
         // Toda volta ao primeiro plano rearma o rastreio de mão. Se alguma tela cheia (o jogo HTML) ou
         // uma falha de rastreio o tinha desligado, é aqui que o feixe e o cursor voltam — sem precisar
         // fechar e abrir o NextVR. `enableHands` é idempotente.
