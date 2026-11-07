@@ -9,7 +9,7 @@
 // do NextVR, porque o jogo tem o rastreio dele (MediaPipe na própria página), e devolve tudo ao
 // sair. O online é o NOSSO servidor (`server/gorilla-rush`), nunca o serviço de terceiros do jogo
 // original; a sala, a skin e o resto vão na query string montada pelo lado nativo.
-import { toast, native } from './core.js';
+import { toast } from './core.js';
 import { open } from './windows.js';
 
 const STORE_KEY = 'nextvrGorillaPrefs';
@@ -97,7 +97,9 @@ if (typeof window !== 'undefined') {
 export function launchGorillaRush(options = {}) {
   const how = options.mode || 'solo';
   const prefs = loadPrefs();
-  if (!native || !window.NativeXR?.gorillaGame) {
+  // A ponte é consultada no momento do clique (e não pela cópia que o core guarda no carregamento):
+  // se ela não existir, o usuário é avisado em vez de o toque não fazer nada.
+  if (!window.NativeXR?.gorillaGame) {
     toast('O Gorilla Rush roda no app do NextVR (Android): ele precisa da câmera do aparelho para as mãos do jogo.');
     return false;
   }

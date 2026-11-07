@@ -363,12 +363,14 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.deepEqual(aboutParagraphs, [...ENTRY_ABOUT_PARAGRAPHS]);
     await page.evaluate(() => document.querySelector('[data-entry-act="back"]').click());
 
-    // 5. Configurações básicas (3 abas com arrasto lateral: Aba 1 · Básico, Aba 2 · Mãos & Gestos e
-    // Aba 3 · Tela & Dock — "as configurações já tá tudo apertado")
+    // 5. Configurações (4 abas com arrasto lateral: Básico, Mãos & Gestos, Tela & Dock e Gorilla Tag)
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
-    assert.equal(await page.locator('.entry-bento-cell').count(), 10);
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 3, '2D Initial Menu settings has 3 tabs');
+    // Quatro abas: a 4ª é o Gorilla Tag (sala, skin e configurações do jogo), com 4 células.
+    assert.equal(await page.locator('.entry-bento-cell').count(), 14);
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 4, 'o menu inicial tem 4 abas de configurações');
+    assert.equal(await page.locator('[data-entry-settings-page="4"] [data-entry-gorilla-join]').count(), 1,
+      'a aba 4 tem o JOIN que entra no online');
     // A terceira aba existe no documento e leva a cor da dock e os ambientes (o que apertava a aba 2).
     assert.equal(await page.locator('[data-entry-settings-page="3"] [data-entry-dock-color]').count(), 7,
       'a aba 3 traz as sete cores da dock');
@@ -389,6 +391,51 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const page3 = document.querySelector('[data-entry-settings-page="3"]');
       return Math.abs(car.scrollLeft - page3.offsetLeft) < 4;
     }), 'a aba 3 chega na vista do carrossel');
+    // 5b. Aba 4 (Gorilla Tag): skin, sala, configurações e o JOIN que entra no online. A ponte
+    // nativa é substituída por um espião — o que se testa aqui é o que a shell MANDA para o app.
+    await page.evaluate(() => {
+      window.__gorillaCalls = [];
+      window.NativeXR = Object.assign({}, window.NativeXR, {
+        gorillaGame: json => { window.__gorillaCalls.push(JSON.parse(json)); },
+      });
+    });
+    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="4"]').click());
+    for (const hook of ['[data-entry-gorilla-color]', '[data-entry-gorilla-acc="accH"]',
+      '[data-entry-gorilla-mode="inf"]', '[data-entry-gorilla-gfx="1"]', '[data-entry-gorilla-room]',
+      '[data-entry-gorilla-srv]', '[data-entry-gorilla-join]'])
+      assert.equal(await page.locator(hook).count() > 0, true, `a aba 4 tem ${hook}`);
+    // Sem servidor o JOIN não finge online: abre a janela do motivo.
+    await page.evaluate(() => document.querySelector('[data-entry-gorilla-join]').click());
+    await new Promise(r => setTimeout(r, 120));
+    assert.equal(await page.evaluate(() => window.__gorillaCalls.length), 0, 'sem servidor o JOIN não abre o jogo');
+    assert.equal(await page.locator('#nextvr-gorilla-problem, [data-window-id="nextvr-gorilla-problem"]').count() > 0, true,
+      'sem servidor, o JOIN explica o que falta em vez de não fazer nada');
+    // Com servidor, sala, modo e skin escolhidos, o JOIN manda tudo para a página do jogo.
+    const joinPayload = await page.evaluate(async () => {
+      const type = (sel, value) => {
+        const el = document.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
+      };
+      type('[data-entry-gorilla-srv]', '192.168.0.10:8787');
+      type('[data-entry-gorilla-room]', 'nv123');
+      document.querySelector('[data-entry-gorilla-mode="inf"]').click();
+      await new Promise(r => requestAnimationFrame(() => r()));
+      document.querySelector('[data-entry-gorilla-acc="accH"]').click();
+      await new Promise(r => requestAnimationFrame(() => r()));
+      document.querySelector('[data-entry-gorilla-color="#e53935"]').click();
+      await new Promise(r => requestAnimationFrame(() => r()));
+      document.querySelector('[data-entry-gorilla-join]').click();
+      await new Promise(r => setTimeout(r, 120));
+      return window.__gorillaCalls[window.__gorillaCalls.length - 1] || null;
+    });
+    assert.ok(joinPayload, 'o JOIN chama a ponte do jogo');
+    assert.equal(joinPayload.room, 'NV123', 'a sala vai em maiúsculas, como o protocolo do jogo espera');
+    assert.equal(joinPayload.mode, 'inf', 'o modo escolhido vai junto');
+    assert.equal(joinPayload.srv, 'ws://192.168.0.10:8787', 'e o servidor digitado vira um endereço WebSocket');
+    assert.equal(joinPayload.solo, false, 'o JOIN é o caminho ONLINE (sozinho é pela Biblioteca)');
+    assert.equal(joinPayload.col, '#e53935', 'e a cor da skin escolhida vai junto');
+
     await page.evaluate(() => document.querySelector('[data-entry-settings-tab="1"]').click());
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
     assert.equal(await page.locator('[data-entry-lang="ru"]').count(), 1, 'Russian language option (RU) replaces French');
@@ -726,140 +773,47 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(browserHoldFlow.incognitoActive, true, 'Selecionar + GUIA ANÔNIMA abre o navegador em modo Guia Anônima');
     assert.equal(browserHoldFlow.newTabActive, true, 'Selecionar + NOVA GUIA abre o navegador em modo Nova Guia');
 
-    // 6d. Store -> Download Gorilla Tag -> appears in App Library -> clicking opens "Entrando no Gorilla Tag" -> enters Gorilla Tag with Google Cardboard 2015 lenses, invisible skeleton hand tracking, and exits via two-hand finger-gun gesture
+    // 6d. Loja -> BAIXAR o Gorilla Rush -> ele aparece na Biblioteca -> a tile abre o JOGO SOZINHO
+    // (é o caminho de quem não quer sala). O JOIN é o outro caminho, testado na aba 4 acima.
     const gorillaFlow = await page.evaluate(async () => {
-      window.__gorillaFastTest = true;
-      window.__handVisualCalls = [];
-      // A bolinha da dock abre os apps no ambiente; segurá-la abre a biblioteca completa, que é o
-      // que este fluxo usa para achar o app instalado.
-      // O anel tem botão próprio na dock; o botão da biblioteca agora abre a BIBLIOTECA (a grade),
-      // então quem abre o anel aqui é o botão do anel.
+      window.__gorillaCalls = [];
+      window.NativeXR = Object.assign({}, window.NativeXR, {
+        gorillaGame: json => { window.__gorillaCalls.push(JSON.parse(json)); },
+      });
       const dockRing = document.querySelector('.dock [data-id="orb-apps"]');
       dockRing?.click();
-      // O DOM de uma janela entra no documento no primeiro render do CSS3D (next frame), então o
-      // anel (e o centro dele) só existem depois de um frame.
       await new Promise(r => requestAnimationFrame(() => r()));
-      const orbOpen = !!document.querySelector('.orb-root');
-      const orbShell = !!document.querySelector('#hud #orb-layer');
-      const orbCalls = window.__orbOpenCalls || 0;
-      const canOpenLibrary = typeof window.nextvrOpenLibrary === 'function';
-      if (canOpenLibrary) { window.nextvrCloseOrbMenu?.(); window.nextvrOpenLibrary(); }
+      if (typeof window.nextvrOpenLibrary === 'function') { window.nextvrCloseOrbMenu?.(); window.nextvrOpenLibrary(); }
       await new Promise(r => requestAnimationFrame(() => r()));
-      const libraryOpenError = window.__orbLastError || null;
-      const libraryShell = !!document.querySelector('.win-shell[data-window-id="library"]');
-      const dockBack = (() => { const d = document.querySelector('.dock'); return d ? getComputedStyle(d).display !== 'none' : false; })();
       document.querySelector('.dock [data-id="store"]')?.click();
       await new Promise(r => setTimeout(r, 80));
       const installBtn = document.querySelector('[data-window-id="store"] [data-install-gorilla], [data-install-gorilla]');
       const hadInstallBtn = !!installBtn;
       const storeLogo = !!document.querySelector('[data-store-gorilla] img[src*="gorilla-tag-logo.jpg"]');
       installBtn?.click();
-      await new Promise(r => setTimeout(r, 80));
+      await new Promise(r => setTimeout(r, 120));
       const libTile = document.querySelector('[data-window-id="library"] .lib-tile[data-app="gorilla-tag"], .lib-tile[data-app="gorilla-tag"]');
       const inLibrary = !!libTile;
       const libLogo = !!libTile?.querySelector('img[src*="gorilla-tag-logo.jpg"]');
+      const tileLabel = libTile?.textContent?.trim() || '';
       libTile?.click();
-      const overlay = document.getElementById('gorilla-overlay');
-      const enteringText = overlay?.querySelector('[data-gorilla-entering]')?.textContent || '';
-      const lenses = overlay?.dataset?.cardboardLenses || '';
-      const stageInitial = overlay?.dataset?.gorillaStage || '';
-      const skeletonHiddenInGame = window.__handVisualCalls.includes(false) && !document.getElementById('gorilla-hand-canvas');
-      await new Promise(r => setTimeout(r, 400));
-      const stageAfter = overlay?.dataset?.gorillaStage || '';
-
-      // Helper to build a 21-landmark hand for Pose 1 (finger gun) or Pose 2 (trigger pulled / index closed)
-      const mkFingerGunHand = (id, xOff, indexOpen) => {
-        const pts = new Array(63).fill(0);
-        const setPt = (idx, x, y, z = 0) => {
-          pts[idx * 3] = x + xOff;
-          pts[idx * 3 + 1] = y;
-          pts[idx * 3 + 2] = z;
-        };
-        for (let i = 0; i < 21; i++) setPt(i, 0.5, 0.6, 0);
-        setPt(0, 0.50, 0.70);
-        setPt(1, 0.46, 0.65);
-        setPt(2, 0.43, 0.60);
-        setPt(3, 0.40, 0.55);
-        setPt(4, 0.35, 0.48); // Thumb extended
-        setPt(5, 0.47, 0.55);
-        setPt(6, 0.47, 0.48);
-        setPt(7, 0.47, 0.43);
-        setPt(8, indexOpen ? 0.47 : 0.48, indexOpen ? 0.36 : 0.54); // Index extended (gun) vs closed (trigger)
-        setPt(9, 0.50, 0.55);
-        setPt(10, 0.50, 0.48);
-        setPt(12, 0.50, 0.56); // Middle closed
-        setPt(13, 0.53, 0.56);
-        setPt(14, 0.53, 0.49);
-        setPt(16, 0.53, 0.57); // Ring closed
-        setPt(17, 0.56, 0.58);
-        setPt(18, 0.56, 0.51);
-        setPt(20, 0.56, 0.59); // Pinky closed
-        return {
-          id,
-          left: id === 'left',
-          pinching: false,
-          pinch: 0.4,
-          fist: false,
-          aim: [0, 0],
-          palm: [0.5 + xOff, 0.55, 0.3],
-          ring: [0.5 + xOff, 0.55],
-          points: pts,
-        };
-      };
-
-      // Pose 1 & Pose 2: Showing hands (including finger-gun or trigger poses) must NOT exit Gorilla Tag automatically
-      window.nextvrHands({ hands: [mkFingerGunHand('left', -0.15, true), mkFingerGunHand('right', 0.15, true)] });
-      await new Promise(r => setTimeout(r, 60));
-      const stillOpenOnGun = overlay?.dataset?.gorillaStage === 'playing' && overlay?.style?.display !== 'none';
-
-      window.nextvrHands({ hands: [mkFingerGunHand('left', -0.15, false), mkFingerGunHand('right', 0.15, false)] });
-      await new Promise(r => setTimeout(r, 60));
-      const stillOpenOnTrigger = overlay?.dataset?.gorillaStage === 'playing' && overlay?.style?.display !== 'none';
-      const rightArmCoinCounter = window.__gorillaRightArmCoinCounter?.attachedTo === 'right-arm' && Number(overlay?.dataset?.gorillaRightArmCoins) >= 100;
-      document.querySelector('[data-gorilla-exit]')?.click();
-      const exitedOnBtn = overlay?.dataset?.gorillaStage === 'idle' && overlay?.style?.display === 'none' && !window.__gorillaStereoOverlay;
-
+      await new Promise(r => setTimeout(r, 120));
       return {
-        libraryOpenError,
-        orbOpen,
-        orbShell,
-        orbCalls,
-        hubFound: canOpenLibrary,
-        libraryShell,
-        dockBack,
-        dockLibraryFound: !!dockRing,
-        hadInstallBtn,
-        storeLogo,
-        inLibrary,
-        libLogo,
-        enteringText,
-        lenses,
-        stageInitial,
-        stageAfter,
-        skeletonHiddenInGame,
-        stillOpenOnGun,
-        stillOpenOnTrigger,
-        rightArmCoinCounter,
-        exitedOnBtn,
+        hadInstallBtn, storeLogo, inLibrary, libLogo, tileLabel,
+        payload: window.__gorillaCalls[window.__gorillaCalls.length - 1] || null,
       };
     });
-    assert.equal(gorillaFlow.hadInstallBtn, true, 'Gorilla Tag has a BAIXAR button in the Store');
-    assert.equal(gorillaFlow.storeLogo, true, 'Gorilla Tag Store card uses gorilla-tag-logo.jpg');
-    assert.equal(gorillaFlow.inLibrary, true,
-      `Downloading Gorilla Tag in the Store adds it to the App Library (${
-        JSON.stringify({orb:gorillaFlow.orbOpen,layer:gorillaFlow.orbShell,calls:gorillaFlow.orbCalls,
-          hub:gorillaFlow.hubFound,dock:gorillaFlow.dockLibraryFound,dockBack:gorillaFlow.dockBack,
-          shell:gorillaFlow.libraryShell,err:gorillaFlow.libraryOpenError})})`);
-    assert.equal(gorillaFlow.libLogo, true, 'Gorilla Tag App Library tile uses gorilla-tag-logo.jpg');
-    assert.equal(gorillaFlow.enteringText, 'Entrando no Gorilla Tag', 'Opening Gorilla Tag displays "Entrando no Gorilla Tag"');
-    assert.equal(gorillaFlow.lenses, '2015', 'Gorilla Tag renders with Google Cardboard 2015 stereo lenses');
-    assert.equal(gorillaFlow.stageInitial, 'entering', 'Gorilla Tag starts in the "Entrando no Gorilla Tag" transition');
-    assert.equal(gorillaFlow.stageAfter, 'playing', 'Gorilla Tag transitions from "Entrando no Gorilla Tag" into the game');
-    assert.equal(gorillaFlow.skeletonHiddenInGame, true, 'Skeleton Hand Tracking overlay is invisible inside Gorilla Tag');
-    assert.equal(gorillaFlow.stillOpenOnGun, true, 'Showing hands in Gorilla Tag does not exit prematurely');
-    assert.equal(gorillaFlow.stillOpenOnTrigger, true, 'Hand gestures never exit Gorilla Tag automatically');
-    assert.equal(gorillaFlow.rightArmCoinCounter, true, 'Gorilla Tag renders a 3D coin counter on the Gorilla right arm');
-    assert.equal(gorillaFlow.exitedOnBtn, true, 'Gorilla Tag exits cleanly via the exit control');
+    assert.equal(gorillaFlow.hadInstallBtn, true, 'o Gorilla Rush tem o botão BAIXAR na Loja');
+    assert.equal(gorillaFlow.storeLogo, true, 'o card da Loja usa a arte do Gorilla');
+    assert.equal(gorillaFlow.inLibrary, true, 'baixar na Loja coloca o jogo na Biblioteca de Apps');
+    assert.equal(gorillaFlow.libLogo, true, 'a tile da Biblioteca usa a mesma arte');
+    assert.ok(gorillaFlow.payload, 'a tile da Biblioteca abre o Gorilla Rush (ponte nativa do jogo)');
+    assert.equal(gorillaFlow.payload.solo, true, 'pela Biblioteca o jogo abre SOZINHO, como o usuário pediu');
+    assert.equal(gorillaFlow.payload.room, '', 'sem sala: sozinho não entra em sala nenhuma');
+    assert.equal(gorillaFlow.payload.srv, '', 'e sem servidor: offline de verdade, não meia-boca');
+    assert.equal(gorillaFlow.payload.accG, '' , 'entra sem skin: nenhum acessório');
+    assert.equal(gorillaFlow.payload.accH, '', 'entra sem skin: nenhum chapéu');
+    assert.equal(gorillaFlow.payload.accC, '', 'entra sem skin: nenhuma roupa');
 
     // 6b. Store Meta Quest 3 UI, Beat Saber auto-VR, Roblox black environment, Gun gesture logo & Settings option, and clean window header
     const questAndFeatures = await page.evaluate(async () => {
