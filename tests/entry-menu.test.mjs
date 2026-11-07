@@ -776,6 +776,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 6d. Loja -> BAIXAR o Gorilla Rush -> ele aparece na Biblioteca -> a tile abre o JOGO SOZINHO
     // (é o caminho de quem não quer sala). O JOIN é o outro caminho, testado na aba 4 acima.
     const gorillaFlow = await page.evaluate(async () => {
+      // Estado de jogador novo: nenhuma skin escolhida. (A aba 4 acima escolheu um chapéu, e isso
+      // fica salvo de propósito — skin escolhida é skin que o jogo usa.)
+      try { localStorage.removeItem('nextvrGorillaPrefs'); } catch (e) {}
       window.__gorillaCalls = [];
       window.NativeXR = Object.assign({}, window.NativeXR, {
         gorillaGame: json => { window.__gorillaCalls.push(JSON.parse(json)); },
