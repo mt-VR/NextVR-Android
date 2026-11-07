@@ -820,7 +820,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             WebView game=cockpitView;
             if(granted) {
                 // O voo já está na tela: a página do jogo levanta as mãos dela agora.
-                if(game!=null) game.evaluate("window.__nvRetryHands&&window.__nvRetryHands()");
+                if(game!=null) game.evaluateJavascript("window.__nvRetryHands&&window.__nvRetryHands()",null);
             } else {
                 report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
             }
