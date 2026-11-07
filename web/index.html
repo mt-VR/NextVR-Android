@@ -1329,10 +1329,20 @@
     grid-template-columns:1fr 1fr;
     grid-template-rows:1fr 1fr
   }
-  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-skin{grid-column:1;grid-row:1}
-  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-room{grid-column:2;grid-row:1}
-  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-cfg{grid-column:1;grid-row:2}
-  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-srv{grid-column:2;grid-row:2}
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-room{grid-column:2;grid-row:1 / 3}
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-cfg{grid-column:1;grid-row:1}
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-srv{grid-column:1;grid-row:2}
+  /* Aba 5 · Acessórios: cada acessório no seu bloco (cor, óculos, cabeça, roupa), todos à vista. */
+  .entry-bento-grid--tab5{
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr 1fr
+  }
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-color{grid-column:1;grid-row:1}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-glasses{grid-column:2;grid-row:1}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-head{grid-column:1;grid-row:2}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-clothes{grid-column:2;grid-row:2}
+  .entry-gorilla-acc-row{display:flex;flex-wrap:wrap;gap:6px}
+  .entry-gorilla-acc-row .entry-seg-btn{flex:1 1 auto;min-width:104px}
   .entry-gorilla-col{display:flex;flex-direction:column;gap:6px;min-height:0}
   .entry-gorilla-colors{display:flex;gap:6px;flex-wrap:wrap;padding:2px 0}
   .entry-gorilla-sw{

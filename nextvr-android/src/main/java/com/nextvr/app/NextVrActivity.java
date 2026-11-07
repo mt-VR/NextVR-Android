@@ -274,7 +274,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     if(r!=null) r.hands=null;
                     return;
                 }
-                boolean inGame=gameHandMode;
+                // O Gorilla Rush desenha as mãos dele (o gorila), então o app não desenha a
+                // silhueta por cima — mas o quadro é necessário: é ele que alimenta o jogo.
+                final boolean gorillaGame="gorilla".equals(gameKind) && cockpitView!=null;
+                boolean inGame=gameHandMode || gorillaGame;
                 if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
@@ -290,6 +293,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // somava duas extrapolações (a daqui e a do cursor do shell), e era isso que fazia a
                 // mão "passar do ponto" e voltar em movimento rápido. O shell prevê a partir do
                 // timestamp de CAPTURA que vem no pacote, com uma previsão só.
+                if(gorillaGame) {
+                    // O jogo é dono da tela: nada de mão no shell, só no jogo.
+                    offerGorillaHands(frame.gameJson());
+                    return;
+                }
                 String payload=inGame?frame.gameJson():frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
@@ -695,8 +703,32 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         } catch(Throwable ignored) {}
     }
 
-    /** A página do jogo diz até onde ela chegou ("boot", "flight"); o lado nativo só escuta. */
+    /** A página do jogo diz até onde ela chegou ("boot", "flight", "play"); o nativo só escuta. */
     void cockpitStage(String stage) { cockpitStage=stage==null?"":stage; }
+
+    // As mãos do Gorilla Rush vêm daqui: o quadro mais novo do rastreio do NextVR espera o próximo
+    // giro do main thread, e só UM envio fica pendente (o rastreio roda a 30 Hz e o WebView não
+    // precisa de fila —. jogar fora o quadro velho é o que mantém o gorila colado na mão).
+    private volatile String gorillaHandsJson;
+    private volatile boolean gorillaHandsPosted;
+
+    /** O rastreio (outro thread) deixa o quadro aqui; o main thread empurra para a página do jogo. */
+    private void offerGorillaHands(String json) {
+        if(json==null || json.isEmpty()) return;
+        gorillaHandsJson=json;
+        if(gorillaHandsPosted) return;
+        gorillaHandsPosted=true;
+        main.post(this::flushGorillaHands);
+    }
+
+    private void flushGorillaHands() {
+        gorillaHandsPosted=false;
+        WebView view=cockpitView;
+        String json=gorillaHandsJson;
+        if(view==null || json==null || !"gorilla".equals(gameKind) || closed) return;
+        try { view.evaluateJavascript("window.__nvHands&&window.__nvHands("+json+")",null); }
+        catch(Throwable ignored) { }
+    }
 
     /** Os aviões que a página do Cockpit VR traz (ids de `GLBS`, em game.html). */
     private static final String[] COCKPIT_PLANES={"cessna","tucano","f22","f117","f35"};
@@ -822,14 +854,29 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         gameHandMode=false;
         camera.gameHandMode=false;
         camera.mrGameMode=false;
-        camera.enableHands(false);
-        camera.stop();
         SpatialRenderer r=renderer;
-        if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
-        // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega, então a
-        // janela dele só nasce depois que o aparelho devolve o dispositivo ao CameraManager; sem
-        // essa espera o getUserMedia dele falha com NotReadableError ("câmera em uso por outro app").
-        main.postDelayed(()->showCockpitGame(query),900);
+        final boolean gorilla="gorilla".equals(kind);
+        if(gorilla) {
+            // O GORILLA RUSH NÃO TEM RASTREIO PRÓPRIO: a câmera continua com o NextVR e as mãos que
+            // o app já rastreia são empurradas para a página (`window.__nvHands`). Antes o jogo
+            // abria a câmera dele, esbarrava na câmera do app e ficava SEM mãos — era o
+            // "bota Hand tracking nele, pq ele tá sem".
+            camera.enableHands(true);
+            camera.resetHandsState();
+            if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
+            startCamera();
+            main.postDelayed(this::startCamera,700);
+            main.postDelayed(()->showCockpitGame(query),300);
+        } else {
+            camera.enableHands(false);
+            camera.stop();
+            if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
+            // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega,
+            // então a janela dele só nasce depois que o aparelho devolve o dispositivo ao
+            // CameraManager; sem essa espera o getUserMedia dele falha com NotReadableError
+            // ("câmera em uso por outro app").
+            main.postDelayed(()->showCockpitGame(query),900);
+        }
         // Rede de segurança: se a janela não nascer (activity destruída, exceção em outro thread), o
         // "a caminho" não pode ficar ligado para sempre segurando a câmera do NextVR.
         main.postDelayed(()->{ if(cockpitView==null) cockpitPending=false; },15000);

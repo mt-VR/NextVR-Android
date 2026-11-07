@@ -10,6 +10,9 @@ export const ENTRY_COLLABORATORS = Object.freeze([
   'Faylan',
   'NanyGata',
   'JocaVR',
+  // Pedido do usuário: "bota o nome welli com Verificado". Entra no fim da lista, com o mesmo selo
+  // vermelho dos outros (o selo é o `data-collab-verified` que todo colaborador recebe).
+  'welli',
 ]);
 
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
@@ -17,6 +20,8 @@ export const ENTRY_VERIFIED_NAMES = Object.freeze([
   'Faylan',
   'NanyGata',
   'JocaVR',
+  // Também vale no Login/Perfil: quem digitar "welli" ganha o selo verificado ao lado do nome.
+  'welli',
 ]);
 
 export function isVerifiedProfileName(name) {
@@ -44,6 +49,17 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'gorilla-rush-lentes-maos',
+    tag: 'GORILLA RUSH · MESMAS LENTES DO NEXTVR · HAND TRACKING DO APP · TELA SÓ COM O JOGO · ABA 5 DOS ACESSÓRIOS',
+    time: 'Agora',
+    heading: 'O Gorilla Rush Recebe as Lentes e as Mãos do NextVR, a Tela Fica Só com o Jogo e os Acessórios Ganham a Aba 5',
+    desc: 'AS MESMAS LENTES: o jogo desenhava os dois olhos dele com FOV 70 e sem contar o pixel ratio da tela, e no aparelho isso saía torto. Agora o desenho passa pelas lentes do NextVR — os MESMOS números da Cardboard 2015 que o app usa nos jogos dele: 80° por olho, 64 mm entre os olhos e meia tela por olho, com o recorte medido no buffer de verdade. É a lente do VR Box que fecha a imagem, como no resto do NextVR. '
+      + 'HAND TRACKING DE VERDADE: antes o jogo abria a câmera dele e o MediaPipe dele — só que a câmera do aparelho é UMA e estava com o app, então o jogo ficava sem mãos. Agora quem rastreia é o NextVR (o mesmo rastreio das mãos da interface, com os 21 pontos e o filtro que já existia) e cada quadro é entregue ao jogo no formato que ele já entendia. A câmera do jogo não abre mais. '
+      + 'SEM TEXTO NA TELA: saíram a faixa de estado, o contador de FPS, o aviso de carregamento e o nome da sala. Sobrou o jogo. O estado (conectando, sozinho, sala) vai para o diagnóstico e para o app, que mostra a janela de problema quando a partida não abre — erro continua visível, só não fica escrito por cima do gorila. '
+      + 'ABA 5 · ACESSÓRIOS: os acessórios saíram da aba do Gorilla Tag e ganharam uma aba só deles, cada um no seu campo — COR, ÓCULOS, CABEÇA e ROUPA — com todas as opções à vista para escolher direto, sem botão que fica girando entre elas. A primeira opção de cada campo continua NENHUM. '
+      + 'E O WELLI ENTRA VERIFICADO: o nome dele aparece na lista de colaboradores com o selo de verificado, como os outros.',
+  },
   {
     id: 'gorilla-rush-online',
     tag: 'GORILLA RUSH NO LUGAR DO GORILLA TAG · 4ª ABA · ONLINE NO NOSSO SERVIDOR',

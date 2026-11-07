@@ -1,1 +1,2 @@
-<div id="netst"></div><div id="nvb"></div><div id="ighint">MENU: SEGURE AS DUAS MÃOS À FRENTE · OU DOIS DEDOS NA TELA</div>
+<!-- Nada de texto na tela: os elementos do jogo que mostravam recado (#st do carregamento, #hud da
+     infecção) e as faixas de estado do NextVR são escondidos pelo game.css. -->

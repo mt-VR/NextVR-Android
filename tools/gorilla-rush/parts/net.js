@@ -4,8 +4,8 @@
 // estado. Isso é serviço de terceiro, não abre sem internet e não é nosso. Aqui o online é um
 // WebSocket para o NOSSO relé (o arquivo `server/gorilla-rush/server.mjs`), que roda no PC da
 // mesma rede ou num VPS. O protocolo é o mesmo: o primeiro da sala é o anfitrião, ele recebe o
-// estado dos outros (`p`) e devolve o mundo (`s`). Sem servidor configurado, o jogo entra sozinho
-// e diz isso na tela — nunca finge que está online.
+// estado dos outros (`p`) e devolve o mundo (`s`). Sem servidor configurado, o jogo entra sozinho —
+// nunca finge que está online.
 let SOCK = null, SRV_URL = '', NET_STATE = 'offline', NET_ERR = '', SOLO = true, JOINING = null;
 let ROOM_CODE = '', ROOM_PUBLIC = false;
 
@@ -16,30 +16,31 @@ function nvUrl(raw) {
   return u.replace(/\/+$/, '');
 }
 
-/** Faixa de estado do jogo (conectando, sozinho, sala…): é o que o usuário vê, sem caixa preta. */
-function nvBanner(txt) {
-  const el = $('nvb');
-  if (!el) return;
-  if (!txt) { el.style.display = 'none'; return; }
-  el.textContent = txt;
-  el.style.display = 'block';
+/**
+ * O estado do jogo NÃO vai para a tela.
+ *
+ * Pedido do usuário: "tira os textos que fica na tela, é só o jogo". Então nada de faixa de
+ * "conectando", "sozinho" ou nome de sala por cima do gorila. O que continua existindo é o
+ * diagnóstico para quem precisa dele: o console e o app (ponte `NextVRGame.report`), que é quem
+ * mostra a janela de problema se a partida não abrir.
+ */
+function nvLog(text) {
+  try { console.log('[gorilla] ' + text); } catch (e) {}
+  try { if (typeof NextVRGame !== 'undefined' && NextVRGame && NextVRGame.report) NextVRGame.report('Gorilla Rush: ' + text); } catch (e) {}
 }
+function nvBanner(text) { if (text) nvLog(text); }
 
 function nvFail(why) {
   NET_ERR = why || '';
-  nvBanner('');
-  const el = $('netst');
-  if (el) { el.style.display = 'block'; el.textContent = 'SOZINHO · ' + (NET_ERR || 'sem servidor'); }
+  navigatorService(why);
 }
-
 function nvOnline(code, host) {
   NET_STATE = 'online';
-  nvBanner('');
-  const el = $('netst');
-  if (el) {
-    el.style.display = 'block';
-    el.textContent = (host ? 'SALA ' : 'SALA ') + code + ' · ' + (host ? 'ANFITRIÃO' : 'CONVIDADO');
-  }
+  navigatorService((host ? 'anfitrião' : 'convidado') + ' da sala ' + code);
+}
+/** Um só lugar que registra o estado (console + app); a tela fica limpa. */
+function navigatorService(text) {
+  if (text) nvLog(text);
 }
 
 function nvSend(obj) {
@@ -127,8 +128,11 @@ async function enter(mode, vr) {
   try { localStorage.setItem('gr_nick', me.nick); } catch (e) {}
   ['qj', 'jn'].forEach(i => { const b = $(i); if (b) b.disabled = true; });
   try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); } catch (e) {}
-  try { if (!R.xr.isPresenting) await startCam(); }
-  catch (e) { nvBanner('SEM CÂMERA · ARRASTE PARA OLHAR · O MENU ABRE COM UM TOQUE DUPLO'); }
+  // Câmera: uma só no aparelho, e ela é do NextVR. Quando a ponte nativa existe (`NV_NATIVE_HANDS`)
+  // o jogo NÃO abre a câmera dele: as mãos chegam por `window.__nvHands` (parts/hands.js). Só na
+  // build web, sem app, ele usa o próprio MediaPipe.
+  try { if (!R.xr.isPresenting && !NV_NATIVE_HANDS) await startCam(); }
+  catch (e) { nvLog('sem câmera própria: arraste para olhar'); }
 
   // `mode`: 'solo' (biblioteca), 'quick' (sala pública) ou 'join' (código da sala).
   const want = mode == 'quick' ? 'quick' : (mode == 'join' ? 'join' : 'solo');

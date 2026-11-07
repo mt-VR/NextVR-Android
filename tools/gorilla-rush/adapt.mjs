@@ -90,6 +90,16 @@ MUST(html, 'function startGame(){', 'início de startGame()');
 html = html.replace('function startGame(){',
   "function startGame(){try{if(typeof NextVRGame!=='undefined'&&NextVRGame&&NextVRGame.stage)NextVRGame.stage('play')}catch(e){}");
 
+/* 3c. Mãos: as do NextVR, não uma segunda câmera ----------------------------------------- */
+// A câmera do aparelho é uma só, e quem a usa é o NextVR (MediaPipe nativo). O `enter()` que abre o
+// jogo já é o nosso (parts/net.js) e lá a câmera própria só abre quando NÃO há ponte nativa.
+
+/* 3d. Lentes: a mesma correção do Cardboard 2015 que o NextVR usa ------------------------- */
+const RENDER_PLAY = 'function renderPlay(){if(!vrView||R.xr.isPresenting){R.render(S,cam);return}';
+MUST(html, RENDER_PLAY, 'renderPlay() do jogo');
+html = html.replace(RENDER_PLAY,
+  'function renderPlay(){if(NVLENS.on()){NVLENS.render();return}if(!vrView||R.xr.isPresenting){R.render(S,cam);return}');
+
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";
 MUST(html, LOOK_LINE, 'laço de quadro (look)');
@@ -105,9 +115,11 @@ html = html.replace('<div id="hud"></div>', '<div id="hud"></div>\n' + frag);
 
 /* 6. Arranque: o menu do jogo sai do caminho, entra o nosso ------------------------------- */
 const ingame = await part('ingame.js');
+const hands = await part('hands.js');
+const lens = await part('lens.js');
 const BOOT_MARK = 'requestAnimationFrame(frame);loadMap();';
 MUST(html, BOOT_MARK, 'arranque do jogo');
-html = html.replace(BOOT_MARK, ingame.trim() + '\n' + BOOT_MARK);
+html = html.replace(BOOT_MARK, [hands, lens, ingame].map(t => t.trim()).join('\n') + '\n' + BOOT_MARK);
 
 /* 7. Fora a telemetria do Netlify -------------------------------------------------------- */
 html = html.replace(/<script async src="\/\.netlify\/scripts\/[^"]*"[^>]*><\/script>\s*/g, '');

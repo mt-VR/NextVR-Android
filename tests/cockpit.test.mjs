@@ -150,13 +150,25 @@ test('no lado nativo: câmera e mãos do NextVR param enquanto o jogo roda', asy
   assert.match(activity, /air=COCKPIT_PLANES\[rnd\.nextInt\(COCKPIT_PLANES\.length\)\];/,
     'o avião é sorteado quando a shell não escolhe um');
   // A ordem que importa: mãos fora, câmera fechada, e só então a página (que já vai pedir a câmera).
+  // O GORILLA RUSH é a exceção e ela está explícita no mesmo lugar: ele NÃO tem rastreio próprio,
+  // então a câmera e as mãos continuam com o NextVR e os quadros vão para a página.
   const open = activity.slice(activity.indexOf('private void openCockpitGame(String query)'));
-  assert.ok(open.indexOf('camera.enableHands(false);') < open.indexOf('main.postDelayed(() -> showCockpitGame(query)')
-    || open.indexOf('camera.enableHands(false);') < open.indexOf('main.postDelayed(()->showCockpitGame(query)'),
-    'o rastreio de mão do NextVR sai antes da tela do jogo');
-  assert.match(open, /camera\.stop\(\);/, 'e o Camera2 é fechado: a câmera do aparelho é uma só');
+  assert.match(open, /final boolean gorilla="gorilla"\.equals\(kind\);/,
+    'o mesmo lugar decide a câmera de cada jogo');
+  const cockpitBranch = open.slice(open.indexOf('} else {'), open.indexOf('main.postDelayed(()->showCockpitGame(query),900);'));
+  assert.match(cockpitBranch, /camera\.enableHands\(false\);/, 'o rastreio de mão do NextVR sai antes da tela do Cockpit');
+  assert.match(cockpitBranch, /camera\.stop\(\);/, 'e o Camera2 é fechado: a câmera do aparelho é uma só');
   assert.match(open, /main\.postDelayed\(\(\)->showCockpitGame\(query\),900\)/,
-    'a página espera o aparelho devolver a câmera (senão o getUserMedia dela falha)');
+    'a página do Cockpit espera o aparelho devolver a câmera (senão o getUserMedia dela falha)');
+  // Gorilla Rush: câmera do app fica, e o quadro de mãos é empurrado para a página.
+  const gorillaBranch = open.slice(open.indexOf('if(gorilla) {'), open.indexOf('} else {'));
+  assert.match(gorillaBranch, /camera\.enableHands\(true\);/, 'o Gorilla Rush usa o rastreio de mão do NextVR');
+  assert.match(gorillaBranch, /startCamera\(\);/, 'e a câmera continua com o app');
+  assert.match(gorillaBranch, /main\.postDelayed\(\(\)->showCockpitGame\(query\),300\);/, 'a página abre já com a câmera pronta');
+  assert.match(activity, /private void offerGorillaHands\(String json\)/);
+  assert.match(activity, /window\.__nvHands&&window\.__nvHands\(/, 'os 21 landmarks vão para o jogo a cada quadro');
+  assert.match(activity, /if\(gorillaGame\) \{[\s\S]{0,200}?offerGorillaHands\(frame\.gameJson\(\)\);/,
+    'o quadro do rastreio é o do jogo (gameJson: points/palm/pinching)');
   // Voltar/✕/pausa fecham o jogo e devolvem a câmera e as mãos.
   const close = activity.slice(activity.indexOf('void closeCockpitGame()'));
   assert.match(close, /restartTracking\(\);/, 'sair do jogo devolve a câmera e o rastreio de mão do NextVR');

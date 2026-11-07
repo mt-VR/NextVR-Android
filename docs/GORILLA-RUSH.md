@@ -49,18 +49,23 @@ O que o adaptador muda, e só isso:
 | Configurações → aba 4 → **ENTRAR (JOIN)** | **online**, na sala do código (ou sala pública se o campo estiver vazio) |
 
 Sem servidor configurado, o JOIN **avisa** em vez de fingir; e o jogo, quando não consegue entrar,
-escreve "SOZINHO · <motivo>" na tela.
+joga sozinho e registra o motivo no diagnóstico e no app (nada é escrito por cima do jogo — pedido:
+"tira os textos que fica na tela, é só o jogo").
 
-## A aba 4 (Gorilla Tag)
+## A aba 4 (Gorilla Tag) e a aba 5 (Acessórios)
 
 `Configurações → Aba 4 · Gorilla Tag`:
 
-* **Skin** — 8 cores, óculos, cabeça e roupa (a primeira opção de cada é *Nenhum*).
 * **Sala** — código (8 caracteres), modo (Casual / Pega-pego / Infecção), `ENTRAR (JOIN)` e
   `SALA PÚBLICA`.
 * **Gorila** — gráficos (baixo/médio/alto), tela de dois olhos ou normal, movimento (só mãos ou
   mãos+toque), rastreio de mão (rápido/preciso).
 * **O nosso servidor** — endereço (`ws://…`, aceita digitar só `IP:porta`) e o nome no jogo.
+
+`Configurações → Aba 5 · Acessórios` — os acessórios do boneco **separados**, um campo por peça
+(*cor*, *óculos*, *cabeça*, *roupa*), cada campo com todas as opções à vista (`data-entry-gorilla-acc-set`).
+Nada de botão que gira entre as opções: escolhe-se direto, e a primeira opção de cada campo é
+**Nenhum**.
 
 As escolhas ficam em `localStorage.nextvrGorillaPrefs` (`web/src/gorilla-rush.js`) e viram a query
 string montada em `NextVrActivity.gorillaQueryFromJson` (lista branca: sala, modo, cor, acessórios,
@@ -78,10 +83,25 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
+## Lentes e mãos (2.6.0)
+
+* **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
+  MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
+  IPD 64 mm (32 mm por lado), meia tela por olho e o recorte medido no buffer de verdade
+  (`R.getPixelRatio()`) — o FOV 70 e a divisão em pixels de CSS do jogo original saíam tortos no
+  aparelho. Não há pré-distorção: a correção é a lente do VR Box, como no resto do app.
+* **Mãos:** quem rastreia é o NextVR. O quadro de `PhoneXrHands.gameJson()` sai da thread de
+  rastreio, espera um giro do main thread (`offerGorillaHands`/`flushGorillaHands`, um quadro
+  pendente só) e chega à página em `window.__nvHands(json)`; `parts/hands.js` converte os 63 floats
+  em 21 landmarks e preenche os mesmos `slot[]` que o MediaPipe da página preenchia. Com a ponte
+  nativa (`NV_NATIVE_HANDS`) a câmera do jogo **não abre** — nem ao entrar, nem em
+  `__nvRetryHands` — porque só existe uma câmera no aparelho e ela é do app.
+
 ## Limites conhecidos
 
-* O rastreio de mão do jogo é o MediaPipe **da página**, com a câmera traseira — igual ao Cockpit.
-  O NextVR para o próprio rastreio enquanto o jogo está na tela.
+* Como as mãos vêm do rastreio do app, o alcance e o enquadramento dependem da câmera do NextVR
+  (mesma usada pela interface). Fora do APK — a página sozinha no navegador — o jogo ainda abre o
+  MediaPipe dele, para não ficar sem mãos.
 * O servidor é relé, não autoridade: quem simula o pega-pego é o cliente do anfitrião (como era no
   jogo original). Se o anfitrião sai, o servidor promove o próximo e a partida continua.
 * Sem headset no ambiente de desenvolvimento: o que os testes garantem é o protocolo, a fiação da

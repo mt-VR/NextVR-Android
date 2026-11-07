@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ENTRY_COLLABORATORS, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT, ENTRY_UPDATES } from '../web/src/entry-data.js';
+import { ENTRY_COLLABORATORS, ENTRY_VERIFIED_NAMES, ENTRY_COLLABORATOR_BIOS, ENTRY_ABOUT_TITLE, ENTRY_ABOUT_PARAGRAPHS, ENTRY_ABOUT_TEXT, ENTRY_UPDATES } from '../web/src/entry-data.js';
 
 const EXPECTED_ABOUT_TEXT = `NextVR — realidade aumentada
 
@@ -14,7 +14,8 @@ Estamos desenvolvendo o NextVR para levar a realidade virtual a mais pessoas, se
 NextVR — Mais que um app, uma nova forma de ver.`;
 
 test('entry menu constants match the exact collaborators order and about text', () => {
-  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
+  assert.deepEqual([...ENTRY_COLLABORATORS], ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']);
+  assert.ok(ENTRY_VERIFIED_NAMES.includes('welli'), 'welli entra com o selo de verificado');
   assert.ok(ENTRY_COLLABORATORS.includes('NanyGata'), 'NanyGata is restored in ENTRY_COLLABORATORS');
   assert.equal(ENTRY_COLLABORATOR_BIOS.NeyVR, 'o Dono absoluto mais aurudo do planeta.');
   assert.equal(ENTRY_COLLABORATOR_BIOS.Faylan, 'o desenvolvedor mais sabido de todo o universo muita aura');
@@ -44,7 +45,7 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
     assert.ok(bundleSrc.includes(token), `bundled app.js includes ${token}`);
   }
 
-  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']) {
+  for (const name of ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']) {
     assert.ok(entryMenuSrc.includes(name), `entry-menu.js includes collaborator ${name}`);
     assert.ok(bundleSrc.includes(name), `bundled app.js includes collaborator ${name}`);
   }
@@ -340,7 +341,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
         color: getComputedStyle(el.querySelector('.entry-collab-name')).color,
       }));
     });
-    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR']);
+    assert.deepEqual(collabData.map(c => c.name), ['NeyVR', 'Faylan', 'NanyGata', 'JocaVR', 'welli']);
+    assert.equal(collabData.find(c => c.name === 'welli')?.hasRedVerified, true, 'welli aparece com o selo verificado');
     assert.ok(collabData.every(c => c.hasRedVerified), 'Every collaborator item has a red TikTok-style verified badge');
     assert.equal(collabData.find(c => c.name === 'NeyVR')?.bio, 'o Dono absoluto mais aurudo do planeta.');
     assert.equal(collabData.find(c => c.name === 'Faylan')?.bio, 'o desenvolvedor mais sabido de todo o universo muita aura');
@@ -367,8 +369,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
     // Quatro abas: a 4ª é o Gorilla Tag (sala, skin e configurações do jogo), com 4 células.
-    assert.equal(await page.locator('.entry-bento-cell').count(), 14);
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 4, 'o menu inicial tem 4 abas de configurações');
+    assert.equal(await page.locator('.entry-bento-cell').count(), 17);
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 5, 'o menu inicial tem 5 abas de configurações');
     assert.equal(await page.locator('[data-entry-settings-page="4"] [data-entry-gorilla-join]').count(), 1,
       'a aba 4 tem o JOIN que entra no online');
     // A terceira aba existe no documento e leva a cor da dock e os ambientes (o que apertava a aba 2).
@@ -1314,17 +1316,21 @@ test('o carregamento de 6 s pode ser pulado, e não só cancelado', async () => 
   assert.match(html, /\.entry-hud-skip\{/);
 });
 
-test('as configurações cabem em quatro abas, e a quarta é do Gorilla Tag', async () => {
+test('as configurações cabem em cinco abas: a 4ª é do Gorilla Tag e a 5ª é dos acessórios', async () => {
   // "Cria uma 3 aba, pq as configurações já tá tudo apertado": a aba 1 fica com o básico, a 2 com as
   // mãos/gestos e a 3 com tela & dock (cor da dock, ordem de profundidade, dim do MR, FPS e ambientes).
   const read = path => readFileSync(path, 'utf8');
   const src = read('web/src/entry-menu.js');
   // A 4ª aba é o pedido desta rodada: "cria nas configurações uma 4 aba chamada gorilla tag e bota
   // pra escolher a sala, as skins e as configurações do gorilla".
-  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock'], [4, 'Aba 4 · Gorilla Tag']])
+  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock'], [4, 'Aba 4 · Gorilla Tag'], [5, 'Aba 5 · Acessórios']])
     assert.ok(src.includes(`data-entry-settings-tab="${tab}">${label}</button>`), `a aba ${tab} existe com o nome ${label}`);
   const pages = [...src.matchAll(/data-entry-settings-page="(\d)"/g)].map(m => Number(m[1]));
-  assert.deepEqual(pages, [1, 2, 3, 4], 'quatro páginas no carrossel');
+  // No ARQUIVO a página 5 é declarada antes da 4 (cada uma no seu `render…`), mas no carrossel a
+  // ordem é a da interpolação: 4 (Gorilla Tag) e depois 5 (Acessórios).
+  assert.deepEqual([...pages].sort(), [1, 2, 3, 4, 5], 'cinco páginas no carrossel');
+  assert.ok(src.indexOf('${renderGorillaSettingsPage()}') < src.indexOf('${renderGorillaAccessoriesPage()}'),
+    'a aba dos acessórios vem depois da aba do Gorilla Tag');
   // A aba 3 tem a própria grade (duas células lado a lado) e leva a cor da dock e os ambientes.
   assert.match(src, /entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3"/);
   const third = src.slice(src.indexOf('data-entry-settings-page="3"'));
@@ -1338,7 +1344,16 @@ test('as configurações cabem em quatro abas, e a quarta é do Gorilla Tag', as
   assert.match(src, /settingsCarousel\.scrollTo\(\{ left: targetX, behavior: 'smooth' \}\)/);
   // O limite das abas acompanha o número de páginas: com `3` fixo a quarta aba nunca abria.
   assert.match(src, /const nextTab = Math\.max\(1, Math\.min\(settingsPages\(\)\.length \|\| 4, Number\(btn\.dataset\.entrySettingsTab\) \|\| 1\)\);/);
+  // O pedido: "os acessórios tem que ficar separadinhos" — um bloco por acessório, com todas as
+  // opções à vista (nada de um botão que gira entre elas).
+  const fifth = src.slice(src.indexOf('data-entry-settings-page="5"'));
+  for (const cell of ['acc-color', 'acc-glasses', 'acc-head', 'acc-clothes'])
+    assert.ok(fifth.includes(`entry-bento-cell--${cell}`), `a aba 5 tem a célula ${cell}`);
+  for (const key of ['accG', 'accH', 'accC'])
+    assert.ok(fifth.includes(`chip('${key}'`), `a célula de ${key} lista as opções`);
+  assert.match(src, /data-entry-gorilla-acc-set="\$\{key\}:\$\{a\.id\}"/, 'e a escolha é direta, sem girar');
   const html = read('web/index.html');
+  assert.match(html, /\.entry-bento-grid--tab5\{/);
   assert.match(html, /\.entry-bento-grid--tab3\{\n    grid-template-columns:1fr 1fr;\n    grid-template-rows:1fr\n  \}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--dockcolor\{grid-column:1;grid-row:1\}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--env\{grid-column:2;grid-row:1\}/);

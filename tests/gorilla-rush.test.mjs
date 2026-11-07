@@ -239,3 +239,54 @@ test('a aba 4 escolhe sala, skin e configurações, e o JOIN entra no online sem
   // O estado do jogo volta para a shell (a janela de problema depende disso).
   assert.ok(gorilla.includes('window.nextvrGorillaState = (what, detail) => {'), 'o app conta o que houve com o jogo');
 });
+
+test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo', () => {
+  const game = read(GAME);
+  const lens = read('tools/gorilla-rush/parts/lens.js');
+  const hands = read('tools/gorilla-rush/parts/hands.js');
+  const net = read('tools/gorilla-rush/parts/net.js');
+  const css = read('tools/gorilla-rush/parts/game.css');
+  const tag = read('web/src/gorilla-tag.js');
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+
+  // "bota as mesmas lentes que tem no next": os números não são inventados aqui, são os do
+  // CARDBOARD_2015_LENS que o NextVR já usa nos jogos dele (fov 80 · ipd 0.064).
+  const fov = Number(/fov: ([\d.]+)/.exec(tag)?.[1]);
+  const ipd = Number(/ipd: ([\d.]+)/.exec(tag)?.[1]);
+  assert.equal(fov, 80);
+  assert.equal(ipd, 0.064);
+  assert.ok(lens.includes(`const FOV = ${fov}, IPD = ${ipd};`), 'o jogo usa o mesmo FOV e o mesmo IPD do NextVR');
+  assert.ok(lens.includes('const HALF_IPD = IPD / 2;') && lens.includes('multiplyScalar(HALF_IPD)'),
+    'cada olho fica a 32 mm do centro, como no NextVR');
+  assert.ok(lens.includes('const dpr = R.getPixelRatio() || 1;') && lens.includes('Math.round(e * hw * dpr)'),
+    'o recorte dos olhos conta o pixel ratio (senão o olho direito sai do lugar no aparelho)');
+  assert.ok(lens.includes('cam.aspect = hw / H;'), 'cada olho vê meia tela, não a tela inteira');
+  // A correção é a lente do VR Box: nada de pré-distorção por cima (o NextVR também não faz).
+  assert.equal(/WebGLRenderTarget|barrel/i.test(lens), false, 'sem uma segunda distorção em cima da lente');
+  assert.ok(game.includes('function renderPlay(){if(NVLENS.on()){NVLENS.render();return}'),
+    'o desenho do jogo passa pelas lentes do NextVR');
+
+  // "bota Hand tracking nele, pq ele tá sem": quem rastreia é o app e o jogo recebe o quadro pronto.
+  assert.ok(hands.includes('window.__nvHands = function (frame)'), 'a página aceita as mãos do app');
+  assert.ok(hands.includes('for (let k = 0; k < 21; k++)'), 'nos 21 landmarks do MediaPipe (mesmo formato do jogo)');
+  assert.ok(hands.includes('NV_NATIVE_HANDS') && hands.includes('Object.assign(slot[i]'),
+    'o quadro cai nos slots que o gorila já usava');
+  assert.ok(game.includes('if (!camOn && !NV_NATIVE_HANDS) startCam()'),
+    'a câmera do próprio jogo não é aberta quando o app é quem rastreia');
+  assert.ok(net.includes('if (!R.xr.isPresenting && !NV_NATIVE_HANDS) await startCam()'),
+    'nem ao entrar na partida (uma câmera só no aparelho, e ela é do NextVR)');
+  assert.ok(activity.includes('offerGorillaHands(frame.gameJson())'),
+    'o rastreio do NextVR manda o quadro para o jogo');
+  assert.ok(activity.includes('window.__nvHands&&window.__nvHands('),
+    'e o empurra como o formato que a página entende');
+  assert.ok(activity.includes('final boolean gorilla="gorilla".equals(kind);') && activity.includes('camera.enableHands(true);'),
+    'no Gorilla Rush o rastreio fica ligado; no Cockpit continua desligado');
+
+  // "tira os textos que fica na tela, é só o jogo": as faixas saem por CSS e nada é escrito nelas.
+  assert.ok(css.includes('#nvb,#netst,#ighint,#st,#hud{display:none!important}'),
+    'faixa de estado, dica, HUD e contador não aparecem');
+  assert.equal(/<div id="(nvb|netst|ighint)"/.test(game), false, 'e os elementos das faixas nem existem na página');
+  assert.equal(/\$\('(nvb|netst|ighint)'\)/.test(net), false, 'o online não escreve mais na tela');
+  assert.ok(net.includes('function nvLog(text)') && net.includes('NextVRGame.report'),
+    'o estado vai para o console e para o app, que é quem mostra a janela de problema');
+});

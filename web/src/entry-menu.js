@@ -476,6 +476,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Mãos &amp; Gestos</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Tela &amp; Dock</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 4 ? 'on' : ''}" data-entry-settings-tab="4">Aba 4 · Gorilla Tag</button>
+              <button type="button" class="entry-settings-tab ${activeSettingsTab === 5 ? 'on' : ''}" data-entry-settings-tab="5">Aba 5 · Acessórios</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -586,8 +587,50 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
 
           ${renderGorillaSettingsPage()}
+          ${renderGorillaAccessoriesPage()}
         </div>
       </div>`;
+  };
+
+  /**
+   * ABA 5 · ACESSÓRIOS — a skin do gorila, com cada acessório no seu próprio bloco.
+   *
+   * Pedido do usuário: "os acessórios tem que ficar separadinhos". Então nada de um botão que gira
+   * entre as opções: cada acessório (cor, óculos, cabeça, roupa) tem a sua célula e TODAS as opções
+   * à vista — é só ir escolhendo. A primeira opção de cada um é "Nenhum", porque o gorila entra sem
+   * skin nenhuma.
+   */
+  const renderGorillaAccessoriesPage = () => {
+    const g = gorillaPrefs();
+    const chip = (key, list) => `<div class="entry-gorilla-acc-row">${list.map(a => `
+      <button type="button" class="entry-seg-btn ${(g[key] || '') === a.id ? 'on' : ''}"
+        data-entry-gorilla-acc-set="${key}:${a.id}" title="${escHtml(a.name)}">${escHtml(a.name)}</button>`).join('')}</div>`;
+    return `
+    <div class="entry-bento-grid entry-bento-grid--tab5 entry-settings-page" data-entry-settings-page="5">
+      <div class="entry-bento-cell entry-bento-cell--acc-color">
+        <div class="entry-bento-title">COR DO GORILA</div>
+        <div class="entry-gorilla-colors">
+          ${GORILLA_COLORS.map(c => `<button type="button" class="entry-gorilla-sw ${g.col.toLowerCase() === c ? 'on' : ''}"
+            data-entry-gorilla-color="${c}" style="background:${c}" title="Cor ${c}"></button>`).join('')}
+        </div>
+        <div class="entry-bento-hint">A cor muda o pelo, não é acessório. O resto fica nas outras células.</div>
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--acc-glasses">
+        <div class="entry-bento-title">ÓCULOS</div>
+        ${chip('accG', GORILLA_ACCESSORIES.accG)}
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--acc-head">
+        <div class="entry-bento-title">NA CABEÇA</div>
+        ${chip('accH', GORILLA_ACCESSORIES.accH)}
+      </div>
+
+      <div class="entry-bento-cell entry-bento-cell--acc-clothes">
+        <div class="entry-bento-title">ROUPA</div>
+        ${chip('accC', GORILLA_ACCESSORIES.accC)}
+      </div>
+    </div>`;
   };
 
   /**
@@ -600,23 +643,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
    */
   const renderGorillaSettingsPage = () => {
     const g = gorillaPrefs();
-    const accLabel = (list, id) => (list.find(a => a.id === id) || list[0]).name;
     const modeOf = id => GORILLA_MODES.find(m => m.id === id) || GORILLA_MODES[0];
     return `
     <div class="entry-bento-grid entry-bento-grid--tab4 entry-settings-page" data-entry-settings-page="4">
-      <div class="entry-bento-cell entry-bento-cell--gorilla-skin">
-        <div class="entry-bento-title">SKIN DO GORILA · ENTRA SEM NENHUMA</div>
-        <div class="entry-gorilla-colors">
-          ${GORILLA_COLORS.map(c => `<button type="button" class="entry-gorilla-sw ${g.col.toLowerCase() === c ? 'on' : ''}"
-            data-entry-gorilla-color="${c}" style="background:${c}" title="Cor ${c}"></button>`).join('')}
-        </div>
-        <div class="entry-gorilla-col">
-          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accG">Óculos: ${accLabel(GORILLA_ACCESSORIES.accG, g.accG)}</button>
-          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accH">Cabeça: ${accLabel(GORILLA_ACCESSORIES.accH, g.accH)}</button>
-          <button type="button" class="entry-seg-btn" data-entry-gorilla-acc="accC">Roupa: ${accLabel(GORILLA_ACCESSORIES.accC, g.accC)}</button>
-        </div>
-      </div>
-
       <div class="entry-bento-cell entry-bento-cell--gorilla-room">
         <div class="entry-bento-title">SALA · ${modeOf(g.mode).name.toUpperCase()}</div>
         <input type="text" class="entry-login-input entry-gorilla-input" data-entry-gorilla-room
@@ -1240,6 +1269,15 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         const g = gorillaPrefs();
         const at = Math.max(0, list.findIndex(a => a.id === g[key]));
         gorillaSave({ [key]: list[(at + 1) % list.length].id });
+        paint();
+      };
+    });
+    // Aba 5: cada acessório é um botão de escolha direta ("accH:h_top"), com todas as opções à vista.
+    root.querySelectorAll('[data-entry-gorilla-acc-set]').forEach(btn => {
+      btn.onclick = () => {
+        const [key, id] = String(btn.dataset.entryGorillaAccSet || '').split(':');
+        if (!key) return;
+        gorillaSave({ [key]: id || '' });
         paint();
       };
     });

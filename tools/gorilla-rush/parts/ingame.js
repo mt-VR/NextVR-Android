@@ -221,7 +221,11 @@ addEventListener('keydown', e => { if (state == 'play' && (e.key === 'm' || e.ke
  * A ponte com o app (o mesmo nome que o Cockpit VR usa): quando o Android concede a câmera DEPOIS de
  * a página abrir, o lado nativo chama isto para o rastreio de mão subir sem recarregar o jogo.
  */
-window.__nvRetryHands = () => { try { if (!camOn) startCam(); } catch (e) { /* segue sem mãos */ } };
+window.__nvRetryHands = () => {
+  // Com a ponte nativa as mãos já vêm do NextVR: abrir a câmera do jogo aqui tiraria a câmera
+  // do app e o jogo ficaria sem mãos (e sem o rastreio do NextVR).
+  try { if (!camOn && !NV_NATIVE_HANDS) startCam(); } catch (e) { /* segue sem mãos */ }
+};
 // Sonda para diagnóstico (e para o app saber em que pé está o jogo sem abrir o console).
 window.__nvGorilla = () => ({
   estado: state, rede: NET_STATE, sala: NET.code, anfitriao: !!NET.host,
@@ -272,12 +276,5 @@ window.__nvGorilla = () => ({
 
   try { if (typeof NextVRGame !== 'undefined' && NextVRGame && NextVRGame.stage) NextVRGame.stage('boot'); } catch (e) {}
   if (SOLO) nvFail('sem servidor · jogando sozinho');
-  // O aviso do gesto sai de cena sozinho: o jogo não é um tutorial.
-  setTimeout(() => {
-    const hint = $('ighint');
-    if (!hint) return;
-    hint.style.opacity = '0';
-    setTimeout(() => hint.remove(), 900);
-  }, 15000);
   enter(START_MODE);
 })();
