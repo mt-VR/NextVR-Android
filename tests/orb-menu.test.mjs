@@ -269,11 +269,12 @@ test('a pinça tem raio, inclusive com o Toque Direto ligado ("o Next tá sem pi
   // O feixe vai até o alvo; sem alvo, até 3 m (antes morria a 1,2 m: um toco).
   assert.match(windows, /const RAY_FAR = 3;/);
   assert.match(windows, /const end=hit \? hit\.point\.toArray\(\)\s*\n\s*: pinchRay \? r\.ray\.at\(RAY_FAR, new THREE\.Vector3\(\)\)\.toArray\(\) : null;/);
-  // E no render nativo o feixe cobre quase todo o caminho da mão até o alvo, não 42%.
+  // No render nativo o pedaço de raio desenhado é o da build 62 (curto). O DESTINO continua sendo o
+  // alvo real — ou, sem alvo, 3 m à frente —, então o alcance do clique não mudou com o tamanho.
   assert.match(windows, /RAY_FAR = 3/);
   const renderer0 = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
-  assert.match(renderer0, /private val RAY_SHOWN=1\.06f/);
-  assert.match(renderer0, /val endT = 0\.94f \* RAY_SHOWN/);
+  assert.match(renderer0, /private val RAY_SHOWN=\.55f/);
+  assert.match(renderer0, /val endT = 0\.76f \* RAY_SHOWN/);
   assert.match(windows, /\.\.\.\(pinchRay\?\{pinchRay:true\}:\{\}\)/);
   // Durante a pinça a mão continua visível para o raio, mesmo com o alvo já consumido pelo toque.
   assert.match(windows, /if\(!h\.pinching\)\{targets\.push\(\{id:h\.id,hidden:true,blueOutline,\.\.\.pokeFields\}\);continue;\}/);
@@ -330,16 +331,18 @@ test('o raio sai da PINÇA, não de dentro da mão (era "colado no dedão")', as
   assert.match(renderer, /private val beamOrigin=FloatArray\(2\)/);
 });
 
-test('o ponteiro é PEQUENO: raio fino e bolinha do tamanho de um ponto', async () => {
+test('o raio é o da build 62 (curto) e a bolinha da ponta continua pequena', async () => {
   const renderer = await read('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt');
-  // "porque o raio tá tão grande? deixa ele menor" — o ponteiro, o raio e a bolinha da ponta saem
-  // todos do mesmo raio de cursor. Eram .016 / .0032 / .0115 e foram reduzidos.
+  // "diminui o TAMANHO do raio, não é pra deixar ele mais fino — deixa o raio igual da build 62,
+  // mas só o raio". Na build 62 (versionCode 62, commit 9743d709) o trecho desenhado ia de 24% a
+  // 42% do caminho até o alvo, com o raio de .0025/.0019. Foi esticado até quase o alvo em 2.4.x e
+  // agora voltou — só o raio: a bolinha/pingo continuam pequenos (CURSOR_R .0095, não .016).
+  assert.match(renderer, /private val RAY_SHOWN=\.55f/);
+  assert.match(renderer, /val startT = 0\.24f/);
+  assert.match(renderer, /val endT = 0\.76f \* RAY_SHOWN/);
+  assert.match(renderer, /val rayWidth = if \(blueRay\) \.0025f else \.0019f/);
   const cursor = Number((renderer.match(/private val CURSOR_R=([\d.]+)f/) || [])[1]);
-  assert.ok(cursor > 0 && cursor <= .011, `o raio do cursor é pequeno (${cursor})`);
-  const width = Number((renderer.match(/val rayWidth = if \(blueRay\) ([\d.]+)f else ([\d.]+)f/) || [])[1]);
-  assert.ok(width > 0 && width <= .002, `o raio é fino (${width})`);
-  const dot = Number((renderer.match(/val outer = \(if \(down \|\| touching\) ([\d.]+)f else ([\d.]+)f\) \* depth/) || [])[2]);
-  assert.ok(dot > 0 && dot <= .0075, `a bolinha da ponta é pequena (${dot})`);
+  assert.ok(cursor > 0 && cursor <= .011, `a bolinha/pingo continuam pequenos (${cursor})`);
 });
 
 test('o cursor (e o raio, e o clique) ficam À FRENTE da mão, não no meio da palma', async () => {

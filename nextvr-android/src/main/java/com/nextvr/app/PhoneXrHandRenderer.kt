@@ -109,9 +109,11 @@ class PhoneXrHandRenderer {
     // Tamanho do ponteiro. Era .016 — grande demais na tela ("o raio tá muito grande"). O raio, a
     // bolinha da ponta e o pingo da mão saem todos deste número, então um só encolhe os três.
     private val CURSOR_R=.0095f
-    // O feixe ia da mão até 42% do caminho do alvo (0.76 * 0.55): parecia um toco. Agora ele vai
-    // quase ATÉ o alvo, e onde não há alvo o destino é o ponto apontado a 3 m — um raio de verdade.
-    private val RAY_SHOWN=1.06f
+    // TAMANHO do raio, como na build 62: o trecho desenhado vai de 24% a 42% do caminho até o alvo
+    // (0.76 * 0.55). Ele tinha sido esticado até quase o alvo, e o pedido foi voltar: "diminui o
+    // TAMANHO do raio, não é pra deixar ele mais fino — deixa o raio igual da build 62, mas só o
+    // raio". O alcance (onde o clique cai) não muda: só o pedaço de raio que se vê.
+    private val RAY_SHOWN=.55f
     /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
     private val MESH_REBUILD_EPSILON=0f
     /** Rebuild every display frame with zero throttling. */
@@ -880,9 +882,10 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
                     val segments = 12
-                    val startT = 0.12f
-                    val endT = 0.94f * RAY_SHOWN
-                    val rayWidth = if (blueRay) .0017f else .0013f
+                    // Os mesmos números da build 62 (o raio curto, grosso e centrado na mão).
+                    val startT = 0.24f
+                    val endT = 0.76f * RAY_SHOWN
+                    val rayWidth = if (blueRay) .0025f else .0019f
                     val boost = if (blueRay) 1f else .78f
                     val rayR = if (blueRay) .18f else HAND_CONTOUR_R
                     val rayG = if (blueRay) .62f else HAND_CONTOUR_G

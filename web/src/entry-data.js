@@ -45,6 +45,14 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'raio-tamanho-build-62',
+    tag: 'AJUSTE · O RAIO VOLTOU AO TAMANHO DA BUILD 62 (CURTO) — E A BOLINHA CONTINUA PEQUENA',
+    time: 'Agora',
+    heading: 'Raio do Ponteiro no Tamanho da Build 62: Curto, sem Ficar Fino Demais',
+    desc: 'O PEDIDO ERA DE TAMANHO, NÃO DE ESPESSURA: o raio estava indo quase até o alvo e tomando a tela, e a correção anterior tinha deixado ele FINO em vez de CURTO. Agora o trecho desenhado é exatamente o da BUILD 62: começa a 24% do caminho e termina a 42%, com a mesma espessura de antes (.0025 no raio azul da pinça, .0019 no ponteiro). '
+      + 'O QUE NÃO MUDOU: a bolinha e o pingo continuam pequenos (o ponteiro não voltou a ser grande), o cursor continua à frente da mão e o clique continua caindo onde a bolinha está — o destino do raio é o mesmo de antes, só o pedaço que se desenha é que ficou curto, igual à build 62.',
+  },
+  {
     id: 'cockpit-vr-entra-direto',
     tag: 'CORREÇÃO · COCKPIT VR: UM TOQUE E VOCÊ JÁ ESTÁ NO AVIÃO (AVIÃO SORTEADO) · RAIO MENOR',
     time: 'Agora',
