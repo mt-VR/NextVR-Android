@@ -2,13 +2,15 @@
 //
 // O NextVR desenha os olhos lado a lado com os números da lente Cardboard 2015
 // (`CARDBOARD_2015_LENS` em web/src/gorilla-tag.js): FOV 80° por olho, IPD 64 mm (32 mm para cada
-// lado), meio-ecrã por olho e nada de pré-distorção — a correção é a própria lente do VR Box, que
-// fica na frente do vidro. O jogo original fazia a estereoscopia dele com FOV 70 e com os olhos
-// calculados sobre a largura CHEIA do canvas sem contar o pixel ratio: no aparelho com dpr > 1 o
-// olho direito saía fora de lugar e a imagem ficava "sem lente".
+// lado) e meia-ecrã por olho. O jogo original fazia a estereoscopia dele com FOV 70 — daí a imagem
+// parecer "sem lente" e mais estreita que o resto do app.
 //
-// Por isso o desenho do jogo passa a sair por aqui: mesmos 80°/64 mm do NextVR e recorte por olho
-// medido no buffer de verdade (`R.getPixelRatio()`), que é o que a shell faz com as duas câmeras.
+// O QUE NÃO SE FAZ AQUI: multiplicar por `getPixelRatio()`. O three.js JÁ multiplica o viewport e o
+// scissor pelo pixel ratio da sessão (`setViewport` ×  pixelRatio, dentro do renderer), então passar
+// pixels de device transformava cada olho em um oitavo da tela — dois retângulos pequenos no canto
+// inferior esquerdo, que é exatamente o que aparecia no aparelho. As coordenadas abaixo são as de
+// CSS (as mesmas que o `renderPlay()` original usava e que funcionavam): largura/altura da janela,
+// olho esquerdo na metade esquerda, olho direito na metade direita.
 const NVLENS = (() => {
   const FOV = 80, IPD = 0.064;          // CARDBOARD_2015_LENS: fov 80 · ipd 0.064
   const HALF_IPD = IPD / 2;
@@ -18,20 +20,19 @@ const NVLENS = (() => {
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {
-      const W = innerWidth, H = innerHeight, hw = W / 2;
-      const dpr = R.getPixelRatio() || 1;
-      const fullW = Math.round(W * dpr), fullH = Math.round(H * dpr);
+      const W = innerWidth, H = innerHeight, hw = W >> 1;
       const o = cam.position.clone();
+      // Os olhos ficam 32 mm para cada lado da cabeça, como as duas câmeras do NextVR.
       eye.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(HALF_IPD);
+      // Cada olho vê meia tela: 80° de campo e a proporção de MEIA largura (não da tela inteira).
       cam.fov = FOV;
       cam.aspect = hw / H;
       cam.updateProjectionMatrix();
       R.setScissorTest(true);
       for (let e = 0; e < 2; e++) {
-        const x = Math.round(e * hw * dpr);
-        const w = Math.round((e ? W - hw : hw) * dpr);
-        R.setViewport(x, 0, w, fullH);
-        R.setScissor(x, 0, w, fullH);
+        const x = e ? hw : 0, w = e ? W - hw : hw;
+        R.setViewport(x, 0, w, H);
+        R.setScissor(x, 0, w, H);
         cam.position.copy(o).addScaledVector(eye, e ? 1 : -1);
         cam.updateMatrixWorld();
         R.render(S, cam);
@@ -39,7 +40,7 @@ const NVLENS = (() => {
       cam.position.copy(o);
       cam.updateMatrixWorld();
       R.setScissorTest(false);
-      R.setViewport(0, 0, fullW, fullH);
+      R.setViewport(0, 0, W, H);
     },
   };
 })();

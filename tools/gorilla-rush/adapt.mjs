@@ -100,6 +100,29 @@ MUST(html, RENDER_PLAY, 'renderPlay() do jogo');
 html = html.replace(RENDER_PLAY,
   'function renderPlay(){if(NVLENS.on()){NVLENS.render();return}if(!vrView||R.xr.isPresenting){R.render(S,cam);return}');
 
+/* 3e. Braços à vista: as mãos descansam na frente, não penduradas abaixo do campo de visão --- */
+// O jogo punha as mãos em repouso 1,05 m ABAIXO da câmera, com z 0,02: fora da tela. Sem mãos
+// rastreadas o gorila ficava sem braço nenhum à vista. Agora elas descansam à frente e abaixo, como
+// no Gorilla Tag — é onde a mão de verdade vai aparecer quando o NextVR mandar o quadro.
+const REST_OLD = 'hl=[V3(-.22,-1.05,.02),V3(.22,-1.05,.02)]';
+MUST(html, REST_OLD, 'descanso das mãos (hl)');
+html = html.replace(REST_OLD, 'hl=[V3(-.32,-.62,.5),V3(.32,-.62,.5)]');
+const GOAL_OLD = 'V3(i?.22:-.22,-1.05,.02)';
+MUST(html, GOAL_OLD, 'destino das mãos sem detecção');
+html = html.replace(GOAL_OLD, 'V3(i?.32:-.32,-.62,.5)');
+
+/* 3f. O modelo pode chegar depois: sem ele o jogo não pode parar de desenhar ---------------- */
+// `LM` só existe quando o GLB do gorila terminou de carregar. Sem esta guarda, um quadro antes
+// disso lançava dentro de `setBlob(LM.blob,…)` e o laço morria ANTES de desenhar — tela preta (ou
+// congelada no último quadro). Com a guarda, o mundo continua desenhando e o gorila entra quando
+// estiver pronto.
+const BLOB = 'setBlob(LM.blob,P.x,P.y-1.1,P.z,g||hit(V3(P.x,P.y,P.z),DOWN,14));';
+MUST(html, BLOB, 'setBlob do jogador');
+html = html.replace(BLOB, 'if(LM){' + BLOB);
+const HP = "handPose(LM,'R',HO[1].d,HO[1].A,HO[1].c)}";
+MUST(html, HP, 'handPose (fim do bloco por quadro)');
+html = html.replace(HP, HP + '}');
+
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";
 MUST(html, LOOK_LINE, 'laço de quadro (look)');

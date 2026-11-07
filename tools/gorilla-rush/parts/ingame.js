@@ -230,7 +230,19 @@ window.__nvRetryHands = () => {
 window.__nvGorilla = () => ({
   estado: state, rede: NET_STATE, sala: NET.code, anfitriao: !!NET.host,
   sozinho: SOLO, servidor: SRV_URL, erro: NET_ERR, menu: NVIG.isOpen,
+  // O que a tela mostrava mal na 2.6.0: o boneco do gorila e as mãos.
+  modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
+  nativo: NV_NATIVE_HANDS, olhos: vrView, proporcao: +(R.getPixelRatio() || 0),
+  tela: innerWidth + 'x' + innerHeight,
 });
+
+// Se o modelo do gorila não carregar, isso PRECISA chegar ao usuário: a tela do jogo não escreve
+// nada (pedido: "é só o jogo"), então o aviso sai pela janela de problema do NextVR. Sem isto, um
+// GLB que falhou era um jogo sem boneco e sem explicação.
+setTimeout(() => {
+  if (pl) return;
+  nvLog('o modelo do gorila não carregou (o jogo continua sem o boneco)');
+}, 8000);
 
 // ---------- ARRANQUE: entra direto, com o que o NextVR escolheu ----------
 //

@@ -270,13 +270,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;
-                if(entryVisible || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs) {
-                    if(r!=null) r.hands=null;
-                    return;
-                }
                 // O Gorilla Rush desenha as mãos dele (o gorila), então o app não desenha a
                 // silhueta por cima — mas o quadro é necessário: é ele que alimenta o jogo.
                 final boolean gorillaGame="gorilla".equals(gameKind) && cockpitView!=null;
+                // O portão do menu de entrada vale para a INTERFACE (nada de cursor sobre o menu),
+                // não para o jogo: o JOIN da aba 4 abre o Gorilla Rush com o menu de entrada ainda
+                // marcado como visível, e o jogo ficava SEM mãos justamente nesse caminho — os
+                // braços do gorila só apareciam quando se entrava pela Biblioteca.
+                if(!gorillaGame && (entryVisible
+                        || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs)) {
+                    if(r!=null) r.hands=null;
+                    return;
+                }
                 boolean inGame=gameHandMode || gorillaGame;
                 if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus

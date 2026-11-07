@@ -258,8 +258,13 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   assert.ok(lens.includes(`const FOV = ${fov}, IPD = ${ipd};`), 'o jogo usa o mesmo FOV e o mesmo IPD do NextVR');
   assert.ok(lens.includes('const HALF_IPD = IPD / 2;') && lens.includes('multiplyScalar(HALF_IPD)'),
     'cada olho fica a 32 mm do centro, como no NextVR');
-  assert.ok(lens.includes('const dpr = R.getPixelRatio() || 1;') && lens.includes('Math.round(e * hw * dpr)'),
-    'o recorte dos olhos conta o pixel ratio (senão o olho direito sai do lugar no aparelho)');
+  // O three.js JÁ multiplica viewport/scissor pelo pixelRatio da sessão
+  // (`setViewport` → `N.multiplyScalar(P)`). Multiplicar de novo aqui encolhia cada olho para um
+  // quarto da tela, no canto: era o "as lentes estão assim" da 2.6.0.
+  assert.equal(/R\.getPixelRatio\(\)|Math\.round\(e \* hw/.test(lens), false,
+    'o recorte dos olhos NÃO multiplica pelo pixel ratio outra vez');
+  assert.ok(lens.includes('const W = innerWidth, H = innerHeight, hw = W >> 1;'),
+    'os olhos são recortados em unidades de CSS, como o three.js espera');
   assert.ok(lens.includes('cam.aspect = hw / H;'), 'cada olho vê meia tela, não a tela inteira');
   // A correção é a lente do VR Box: nada de pré-distorção por cima (o NextVR também não faz).
   assert.equal(/WebGLRenderTarget|barrel/i.test(lens), false, 'sem uma segunda distorção em cima da lente');
@@ -289,4 +294,61 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   assert.equal(/\$\('(nvb|netst|ighint)'\)/.test(net), false, 'o online não escreve mais na tela');
   assert.ok(net.includes('function nvLog(text)') && net.includes('NextVRGame.report'),
     'o estado vai para o console e para o app, que é quem mostra a janela de problema');
+});
+
+test('o boneco e os braços: o gorila não pode "sumir" e a mão move o braço', () => {
+  const adapt = read('tools/gorilla-rush/adapt.mjs');
+  const game = read(GAME);
+  const hands = read('tools/gorilla-rush/parts/hands.js');
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+
+  // As mãos em repouso eram 1,05 m ABAIXO da câmera com z 0,02 — fora do campo de visão. Sem mãos
+  // rastreadas (o caminho do JOIN) o resultado era um jogo sem braço e sem boneco à vista.
+  assert.ok(adapt.includes("const REST_OLD = 'hl=[V3(-.22,-1.05,.02),V3(.22,-1.05,.02)]'"),
+    'o adaptador sabe qual era o descanso antigo');
+  assert.equal(game.includes('hl=[V3(-.22,-1.05,.02)'), false, 'o descanso fora da tela saiu');
+  assert.ok(game.includes('hl=[V3(-.32,-.62,.5),V3(.32,-.62,.5)]'),
+    'as mãos descansam à frente e à vista, como no Gorilla Tag');
+  assert.ok(game.includes('V3(i?.32:-.32,-.62,.5)'), 'e o destino sem detecção é o mesmo lugar');
+
+  // `LM` só existe depois que o GLB do gorila carrega. Um quadro antes disso lançava no meio do
+  // laço e o `renderPlay()` nunca era alcançado: tela preta (o "boneco sumiu" e o jogo parado).
+  assert.ok(game.includes('if(LM){setBlob(LM.blob'), 'o laço não quebra enquanto o modelo não chega');
+  assert.match(game, /handPose\(LM,'R',HO\[1\]\.d,HO\[1\]\.A,HO\[1\]\.c\)\}\}/,
+    'e o bloco que depende do modelo fecha no lugar certo');
+  assert.ok(game.includes('o modelo do gorila não carregou'),
+    'se o GLB falhar, o aviso chega ao app em vez de um jogo sem boneco e sem explicação');
+
+  // A mão que move o braço é a do lado certo: quem diz esquerda/direita é o rastreio do app, não a
+  // posição x na imagem (com as mãos cruzadas ela trocava os braços).
+  assert.ok(hands.includes("typeof h.left === 'boolean' ? (h.left ? 0 : 1)"),
+    'a lateralidade vem do rastreio nativo');
+  assert.equal(hands.includes('hs.sort((a, b) => a.x - b.x)'), false, 'sem ordenar por x (troca os braços)');
+
+  // O JOIN da aba 4 abre o jogo com o menu de entrada ainda visível. O portão de mãos do app é da
+  // interface, não do jogo: com ele na frente, esse caminho ficava sem nenhum quadro de mão.
+  assert.ok(activity.includes('final boolean gorillaGame="gorilla".equals(gameKind) && cockpitView!=null;'),
+    'o quadro sabe quando é o Gorilla Rush');
+  assert.ok(activity.includes('if(!gorillaGame && (entryVisible'),
+    'e o portão do menu de entrada não vale para o jogo');
+});
+
+test('o ícone do app é a arte nova entregue (árvore, chapéu e presentes)', async () => {
+  const { createHash } = await import('node:crypto');
+  // Quadrada, grande e exatamente o arquivo que o usuário entregou ("bota esse ícone novo no nextVR").
+  const buf = readFileSync('artwork/nextvr-apk-logo.png');
+  assert.equal(createHash('sha256').update(buf).digest('hex'),
+    '67e7ec61062142bc44578d2c674209120940beb40dca3962811b54d10d2684dd',
+    'a arte do launcher é o PNG entregue nesta rodada');
+  const png = (p) => {
+    const b = readFileSync(p);
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), magic: b.subarray(1, 4).toString('latin1') };
+  };
+  assert.equal(png('artwork/nextvr-apk-logo.png').magic, 'PNG');
+  assert.deepEqual([png('artwork/nextvr-apk-logo.png').w, png('artwork/nextvr-apk-logo.png').h], [1254, 1254]);
+  for (const [density, side] of [['mdpi', 48], ['hdpi', 72], ['xhdpi', 96], ['xxhdpi', 144], ['xxxhdpi', 192]]) {
+    const icon = png(`nextvr-android/src/main/res/drawable-${density}/nextvr_ic_launcher.png`);
+    assert.equal(icon.magic, 'PNG');
+    assert.deepEqual([icon.w, icon.h], [side, side], `${density} tem o tamanho certo`);
+  }
 });

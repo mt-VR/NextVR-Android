@@ -50,6 +50,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-rush-lentes-corrigidas-boneco',
+    tag: 'CORREÇÃO · GORILLA RUSH: AS LENTES ESTÃO CERTAS, O GORILA TEM BRAÇOS DE NOVO E O HAND TRACKING MOVE O BRAÇO · ÍCONE NOVO',
+    time: 'Agora',
+    heading: 'As Lentes Cabem na Tela, o Gorila Voltou a Ter Braços na Frente e a Sua Mão Move o Braço Dele',
+    desc: 'AS LENTES: o que aparecia eram DOIS QUADRADINHOS no canto de baixo, com o resto preto. O motivo era conta dobrada: o motor 3D já multiplica a área de desenho pela densidade da tela, e eu multiplicava de novo — cada olho ficava com um quarto da tela em vez de metade. Agora o desenho usa as unidades de tela normais, com os mesmos 80° por olho e os mesmos 64 mm entre os olhos da lente Cardboard 2015 do NextVR: olho esquerdo na metade esquerda, olho direito na metade direita, tela cheia. '
+      + 'O BONECO: ele não tinha "sumido" do jogo — ele nunca chegava a aparecer. As duas mãos em repouso ficavam 1,05 m ABAIXO da câmera e praticamente coladas no corpo (z 0,02), fora de qualquer campo de visão; sem mão rastreada, não havia braço nenhum à vista. Agora elas descansam à frente e abaixo, como no Gorilla Tag, e é ali que a sua mão aparece. '
+      + 'O HAND TRACKING: quem entrava pelo botão ENTRAR da aba 4 podia ficar com o jogo SEM mãos para sempre. O rastreio do app tinha um portão "o menu de entrada está à vista? então não manda mão", e o JOIN abre o jogo justamente antes de esse menu sair da frente — os quadros eram jogados fora nesse caminho (pela Biblioteca funcionava). O portão continua valendo para a interface e deixou de valer para o jogo. Além disso, quem manda em qual braço é qual é o rastreio (esquerda/direita de verdade), não a posição na imagem: com as mãos cruzadas os braços não trocam mais. '
+      + 'MAIS DUAS COISAS QUE APARECERAM NO CAMINHO: se o modelo do gorila ainda não tivesse carregado, um quadro do jogo quebrava o laço antes de desenhar (tela preta na largada) — agora o mundo desenha e o boneco entra quando chega; e se o modelo não carregar, isso vira aviso na janela do app em vez de um jogo sem boneco e sem explicação. '
+      + 'E O ÍCONE NOVO: a árvore de Natal com o chapéu do Papai Noel no logo roxo é o ícone do aplicativo, em todas as densidades.',
+  },
+  {
     id: 'gorilla-rush-lentes-maos',
     tag: 'GORILLA RUSH · MESMAS LENTES DO NEXTVR · HAND TRACKING DO APP · TELA SÓ COM O JOGO · ABA 5 DOS ACESSÓRIOS',
     time: 'Agora',

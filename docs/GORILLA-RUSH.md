@@ -87,9 +87,18 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
 
 * **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
   MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
-  IPD 64 mm (32 mm por lado), meia tela por olho e o recorte medido no buffer de verdade
-  (`R.getPixelRatio()`) — o FOV 70 e a divisão em pixels de CSS do jogo original saíam tortos no
-  aparelho. Não há pré-distorção: a correção é a lente do VR Box, como no resto do app.
+  IPD 64 mm (32 mm por lado) e meia tela por olho.
+  **O recorte é em unidades de CSS, sem multiplicar pelo `pixelRatio`** — o `WebGLRenderer` já faz
+  `viewport × pixelRatio` internamente; multiplicar de novo transformava cada olho num quarto de
+  tela, no canto inferior esquerdo (o defeito da 2.6.0). Não há pré-distorção: a correção é a lente
+  do VR Box, como no resto do app.
+* **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
+  campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
+  havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
+* **Robustez do laço:** o bloco por quadro que toca o modelo (`LM`) é guardado por `if(LM){…}` — o
+  GLB carrega depois do primeiro quadro, e antes um quadro sem modelo quebrava o laço antes do
+  `renderPlay()`. Se o modelo não chegar em 8 s, o jogo registra o motivo (`nvLog`), que o app mostra
+  na janela de problema.
 * **Mãos:** quem rastreia é o NextVR. O quadro de `PhoneXrHands.gameJson()` sai da thread de
   rastreio, espera um giro do main thread (`offerGorillaHands`/`flushGorillaHands`, um quadro
   pendente só) e chega à página em `window.__nvHands(json)`; `parts/hands.js` converte os 63 floats
