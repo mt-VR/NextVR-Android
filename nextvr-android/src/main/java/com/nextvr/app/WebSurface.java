@@ -299,7 +299,7 @@ final class WebSurface {
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {
                 // Só o documento do jogo interessa: as bibliotecas têm o próprio aviso na página.
-                if(request.isMainFrame() && owner!=null) owner.report("O jogo não carregou: "+error.getDescription());
+                if(request.isForMainFrame() && owner!=null) owner.report("O jogo não carregou: "+error.getDescription());
             }
         });
         game.setWebChromeClient(new WebChromeClient() {
