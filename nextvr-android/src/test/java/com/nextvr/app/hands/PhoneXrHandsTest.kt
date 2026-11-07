@@ -139,7 +139,8 @@ class PhoneXrHandsTest {
         assertEquals(expectedY,hand.shape.aimY,1e-5f)
         // À FRENTE das pontas dos dedos: o fixture aponta para cima (pulso em .85, ponta do médio em
         // .22), então o cursor fica ACIMA da ponta, nunca no meio da mão.
-        assertTrue(hand.shape.aimY<p[12].y(),"o cursor fica acima das pontas dos dedos")
+        // (JUnit tem assertTrue(mensagem, condição): a mensagem vem primeiro.)
+        assertTrue("o cursor fica acima das pontas dos dedos",hand.shape.aimY<p[12].y())
         assertNotEquals(hand.shape.pinchX,hand.shape.aimX)
         // `base` sai do MESMO ponto e, na primeira amostra, o filtro devolve o valor cru: nada de
         // viés fixo no eixo Y (o antigo +25% mirando alto) e nada de amplificação por ombro.
