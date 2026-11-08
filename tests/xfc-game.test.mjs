@@ -167,7 +167,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
-      if (message.type() === 'error') errors.push(message.text());
+      if (message.type() === 'error') errors.push(`${message.text()} @ ${message.location()?.url ?? 'inline'}`);
     });
 
     // As telas trocam de imagem: esperar o carregamento delas evita medir um
@@ -318,7 +318,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
-      if (message.type() === 'error') errors.push(message.text());
+      if (message.type() === 'error') errors.push(`${message.text()} @ ${message.location()?.url ?? 'inline'}`);
     });
 
     await page.goto(url, { waitUntil: 'domcontentloaded' });
