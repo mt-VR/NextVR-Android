@@ -254,9 +254,23 @@ jobs:
 
       # Diagnostics are best-effort, but validation is not: the build/test steps use
       # continue-on-error so their logs can be published before the job fails.
+      # A anotação abaixo é de propósito: o log do job mora num blob do Azure e não abre em todo
+      # lugar, então os últimos erros de /tmp/build.log vão como ANOTAÇÕES da rodada — que aparecem
+      # direto na aba do commit e na API. Sem isso, "Process completed with exit code 1." era tudo
+      # que sobrava para descobrir o que falhou.
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
-        run: exit 1
+        run: |
+          echo "::error::etapas: ui=${{ steps.ui.outcome }} build=${{ steps.build.outcome }} verify=${{ steps.verify.outcome }} sign=${{ steps.sign.outcome }}"
+          if [ -f /tmp/build.log ]; then
+            sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\r//g' /tmp/build.log \
+              | grep -nE '(^|\b)(FAIL|failing|not ok|ERROR|error:|Error:|Exception|error\[|e: |não |falhou|exit code)' \
+              | tail -25 | cut -c1-900 \
+              | while IFS= read -r L; do echo "::error::${L}"; done
+          else
+            echo "::error::sem /tmp/build.log"
+          fi
+          exit 1
 
       - name: Publish debug APK to apk-dist branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
