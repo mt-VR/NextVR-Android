@@ -17,12 +17,35 @@ function drawPitch(context, width, height) {
   const toZ = z => (z + PITCH.halfWidth) * scale;
   const line = LINE * scale;
 
-  // Gramado listrado.
-  const bands = 14;
+  // Gramado listrado com faixas de corte (direções alternadas).
+  const bands = 12;
   const bandWidth = width / bands;
   for (let band = 0; band < bands; band += 1) {
-    context.fillStyle = band % 2 === 0 ? '#3d9a45' : '#348a3c';
+    context.fillStyle = band % 2 === 0 ? '#46a24e' : '#37913f';
     context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
+    // Corte: faixas mais claras em uma direção, mais escuras na outra.
+    context.fillStyle = band % 2 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
+    context.fillRect(band * bandWidth, 0, bandWidth / 2, height);
+  }
+  // Manchas de uso e variação de tom (semente estável para não "fervilhar").
+  let seed = 1234567;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let index = 0; index < 5200; index += 1) {
+    const x = rand() * width;
+    const y = rand() * height;
+    const size = 1 + rand() * 3.2;
+    context.fillStyle = rand() < 0.5 ? 'rgba(255,255,255,0.055)' : 'rgba(0,40,10,0.075)';
+    context.beginPath();
+    context.ellipse(x, y, size * 2.6, size, rand() * Math.PI, 0, Math.PI * 2);
+    context.fill();
+  }
+  // Serrilhado suave nas bordas das faixas (o look "mow stripes").
+  for (let band = 1; band < bands; band += 1) {
+    context.fillStyle = 'rgba(255,255,255,0.05)';
+    context.fillRect(band * bandWidth - 1.5, 0, 3, height);
   }
 
   // Variação suave para o gramado não ficar chapado.
@@ -378,7 +401,7 @@ function buildGoal(side) {
 
   // Fundo da rede.
   const back = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.width, GOAL.height), netMaterial);
-  back.position.set(-side * GOAL.depth, GOAL.height / 2, 0);
+  back.position.set(side * GOAL.depth, GOAL.height / 2, 0);
   back.rotation.y = Math.PI / 2;
   back.material = netMaterial.clone();
   back.material.map = netTexture.clone();
@@ -394,7 +417,7 @@ function buildGoal(side) {
     material.map.repeat.set(GOAL.depth / 2, GOAL.height / 2);
     material.map.needsUpdate = true;
     sidePanel.material = material;
-    sidePanel.position.set(-side * GOAL.depth / 2, GOAL.height / 2, z);
+    sidePanel.position.set(side * GOAL.depth / 2, GOAL.height / 2, z);
     sidePanel.rotation.y = side > 0 ? 0 : Math.PI;
     group.add(sidePanel);
   }
@@ -407,7 +430,7 @@ function buildGoal(side) {
   topMaterial.map.needsUpdate = true;
   top.material = topMaterial;
   top.rotation.x = -Math.PI / 2;
-  top.position.set(-side * GOAL.depth / 2, GOAL.height, 0);
+  top.position.set(side * GOAL.depth / 2, GOAL.height, 0);
   group.add(top);
 
   group.position.x = side * PITCH.halfLength;
@@ -452,6 +475,7 @@ export function buildStadium(scene, options = {}) {
     new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false })
   );
   sky.position.y = -40;
+  sky.name = 'xfc-sky';
   group.add(sky);
 
   // Gramado.

@@ -2,6 +2,7 @@
 // duração da partida. É o atalho do menu para um confronto direto.
 
 import { el, svg, ICONS, padButton } from '../ui/dom.js';
+import { createStadiumPicker } from '../ui/stadiumcta.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
@@ -100,6 +101,29 @@ export function quickMatchScreen(ctx) {
     );
   }
 
+  // O estádio escolhido envolve a partida — e é o próprio botão de entrar.
+  const stadiumPicker = createStadiumPicker({
+    size: 'md',
+    onEnter(stadium) {
+      const home = getTeam(selection.home);
+      const away = getTeam(selection.away);
+      if (home.id === away.id) {
+        ctx.toast('Escolha dois clubes diferentes.', { variant: 'warn' });
+        return;
+      }
+      const chosen = DURATIONS.find(item => item.id === duration) || DURATIONS[1];
+      ctx.go('play', {
+        home: home.id,
+        away: away.id,
+        homeKit: kits[home.id] ?? 0,
+        awayKit: kits[away.id] ?? 0,
+        minutes: chosen.minutes,
+        difficulty,
+        stadium
+      });
+    }
+  });
+
   const node = el('div', { class: 'screen screen--quick' },
     el('header', { class: 'topbar' },
       el('span', { class: 'topbar__mark', html: xfcWordmark() }),
@@ -126,28 +150,7 @@ export function quickMatchScreen(ctx) {
         el('span', { class: 'hint' }, padButton('circle', 'Back'), el('span', { text: 'Back' }))
       ),
       el('div', { class: 'quick__actions' },
-        el('button', {
-          class: 'btn btn--primary',
-          type: 'button',
-          onClick() {
-            const home = getTeam(selection.home);
-            const away = getTeam(selection.away);
-            if (home.id === away.id) {
-              ctx.toast('Escolha dois clubes diferentes.', { variant: 'warn' });
-              return;
-            }
-            const chosen = DURATIONS.find(item => item.id === duration) || DURATIONS[1];
-            ctx.go('play', {
-              home: home.id,
-              away: away.id,
-              homeKit: kits[home.id] ?? 0,
-              awayKit: kits[away.id] ?? 0,
-              minutes: chosen.minutes,
-              difficulty
-            });
-          }
-        }, 'INICIAR PARTIDA'),
-        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'VOLTAR AO MENU')
+        stadiumPicker.node
       )
     )
   );
@@ -197,7 +200,7 @@ export function quickMatchScreen(ctx) {
         return true;
       }
       if (event.key === 'Enter') {
-        node.querySelector('.btn--primary').click();
+        node.querySelector('.stadium-cta').click();
         return true;
       }
       return false;

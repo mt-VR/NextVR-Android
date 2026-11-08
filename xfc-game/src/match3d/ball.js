@@ -188,6 +188,26 @@ export function createBall(scene) {
         }
       }
 
+      // A rede segura a bola dentro do gol (fundo, laterais e teto).
+      if (Math.abs(position.x) > PITCH.halfLength && Math.abs(position.z) < GOAL.width / 2 + 0.25 && position.y < GOAL.height + 0.35) {
+        const back = PITCH.halfLength + GOAL.depth - 0.28;
+        if (Math.abs(position.x) > back) {
+          position.x = Math.sign(position.x) * back;
+          velocity.x *= -0.16;
+          velocity.y *= 0.55;
+          velocity.z *= 0.5;
+        }
+        const sideLimit = GOAL.width / 2 - 0.02;
+        if (Math.abs(position.z) > sideLimit) {
+          position.z = Math.sign(position.z) * sideLimit;
+          velocity.z *= -0.3;
+        }
+        if (position.y > GOAL.height) {
+          position.y = GOAL.height;
+          velocity.y = Math.min(0, velocity.y) * 0.3;
+        }
+      }
+
       // Limites da arena (as laterais tratam as regras depois).
       position.x = Math.max(-PITCH.halfLength - 6, Math.min(PITCH.halfLength + 6, position.x));
       position.z = Math.max(-PITCH.halfWidth - 6, Math.min(PITCH.halfWidth + 6, position.z));

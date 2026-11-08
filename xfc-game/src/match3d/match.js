@@ -106,6 +106,27 @@ export function createMatch(options = {}) {
     onEvent(event);
   }
 
+  /**
+   * Clareza do corredor de passe entre dois pontos: 1 = livre, 0 = travado.
+   * Mede a menor distância de um adversário ao segmento do passe.
+   */
+  function laneClearance(fromX, fromZ, toX, toZ, rivalSide) {
+    const dx = toX - fromX;
+    const dz = toZ - fromZ;
+    const lengthSq = dx * dx + dz * dz;
+    if (lengthSq < 0.01) return 1;
+    let worst = 1;
+    for (const rival of members(rivalSide)) {
+      const t = Math.max(0, Math.min(1, ((rival.x - fromX) * dx + (rival.z - fromZ) * dz) / lengthSq));
+      const projX = fromX + t * dx;
+      const projZ = fromZ + t * dz;
+      const distance = Math.hypot(rival.x - projX, rival.z - projZ);
+      const clearance = Math.max(0, Math.min(1, (distance - 0.9) / 2.6));
+      if (clearance < worst) worst = clearance;
+    }
+    return worst;
+  }
+
   function openSpace(player) {
     let closest = Infinity;
     for (const rival of members(opponentOf(player.side))) {
@@ -229,8 +250,13 @@ export function createMatch(options = {}) {
   /** Passe entre dois jogadores (com verificação de impedimento). */
   function kickBall(player, target, { power = 18, lob = false } = {}) {
     if (!target) return;
-    const dx = target.x - player.x;
-    const dz = target.z - player.z;
+    // Passe à frente (leading): mira onde o companheiro VAI estar, não onde
+    // ele está — a bola chega no pé.
+    const lead = 0.38;
+    const aimX = target.x + (target.vx || 0) * lead;
+    const aimZ = target.z + (target.vz || 0) * lead;
+    const dx = aimX - player.x;
+    const dz = aimZ - player.z;
     const distance = Math.hypot(dx, dz) || 1;
     const direction = { x: dx / distance, z: dz / distance };
     const offside = isOffside(player, target);
@@ -262,18 +288,26 @@ export function createMatch(options = {}) {
     return sign * target.x > secondLast + 0.4;
   }
 
-  /** Finalização. */
-  function shootBall(player, { power = 22, spread = 0, target = null } = {}) {
+  /**
+   * Finalização. Três tipos, como nos jogos de futebol:
+   *  - normal (toque): colocado no canto do gol quando o analógico aponta;
+   *  - forte (segurar e carregar): mais veloz, mais difícil de defender;
+   *  - colocado (arrastar para baixo no botão): carburação mínima, mira exata
+   *    no ângulo — o clássico chute colocado.
+   */
+  function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null } = {}) {
     const sign = attackSign(player.side);
     const goalTarget = target || { x: sign * PITCH.halfLength, z: (rng() - 0.5) * 4 };
     const dx = goalTarget.x - player.x;
     const dz = goalTarget.z - player.z;
     const distance = Math.hypot(dx, dz) || 1;
     const angle = Math.atan2(dz, dx) + spread;
-    ball.kick({ x: Math.cos(angle), z: Math.sin(angle) }, Math.max(14, power), 0.12 + rng() * 0.1);
+    const launch = lift ?? (kind === 'placed' ? 0.085 : 0.12 + rng() * 0.1);
+    ball.kick({ x: Math.cos(angle), z: Math.sin(angle) }, Math.max(13, power), launch);
     ball.state.lastTouch = player;
+    ball.state.lastShotKind = kind;
     player.model.kick();
-    emit({ type: 'shot', team: player.side, player });
+    emit({ type: 'shot', team: player.side, player, kind });
   }
 
   /** Desarme: tenta tomar a bola; se falhar, é falta. */
@@ -308,7 +342,8 @@ export function createMatch(options = {}) {
       if (teams[offender.side].cards[offender.id] >= 2) card = 'red';
     }
 
-    refereeSignal(card === 'none' ? 1.0 : 1.6);
+    refereeSignal(card === 'none' ? 1.0 : 0.6);
+    if (card !== 'none') refereeModel.showCard(card === 'red' ? 'red' : 'yellow', 1.7);
     emit({
       type: 'foul',
       team: offender.side,
@@ -473,12 +508,18 @@ export function createMatch(options = {}) {
     let best = null;
     let bestScore = -Infinity;
     const sign = attackSign(player.side);
+    const rivalSide = opponentOf(player.side);
     for (const mate of mates) {
       const forwardness = sign * (mate.x - player.x);
       const open = openSpace(mate);
       const distance = Math.hypot(mate.x - player.x, mate.z - player.z);
       if (distance > 45) continue;
-      const score = (forward ? forwardness * 1.5 : forwardness * 0.8) + open * 1.5 - distance * 0.05;
+      // Corredor livre vale mais que correr na direção certa com a linha fechada.
+      const lane = laneClearance(player.x, player.z, mate.x, mate.z, rivalSide);
+      const offsidePenalty = isOffside(player, mate) ? 30 : 0;
+      const ovrBonus = (mate.ovr || 75) * 0.015;
+      const score = (forward ? forwardness * 1.5 : forwardness * 0.8)
+        + open * 1.35 + lane * 2.1 - distance * 0.05 + ovrBonus - offsidePenalty;
       if (score > bestScore) {
         bestScore = score;
         best = mate;
@@ -650,11 +691,12 @@ export function createMatch(options = {}) {
     },
     kickBall,
     shootBall,
+    diveKeeper: (keeper, dir) => diveKeeper(keeper, dir),
     tackle,
     isUserControlled,
 
     /** Comando do jogador (vindo dos controles ou do teclado). */
-    command(name) {
+    command(name, opts) {
       const player = controlled[userSide];
       if (!player || !player.active) return;
       const owner = ball.state.owner;
@@ -669,8 +711,24 @@ export function createMatch(options = {}) {
         }
       } else if (name === 'shoot') {
         if (owner === player) {
-          const target = { x: sign * PITCH.halfLength, z: input.moveX * sign * 6 };
-          shootBall(player, { power: 24, target });
+          // payload: { strength: 0..1, placed: bool } vindo do botão de chute.
+          const strength = Math.max(0, Math.min(1, opts?.strength ?? 0.45));
+          const placed = Boolean(opts?.placed);
+          const stick = Math.abs(input.moveZ) > 0.25 ? Math.sign(input.moveZ) : 0;
+          const signX = attackSign(userSide);
+          if (placed) {
+            // Chute colocado: vai no ângulo escolhido no analógico (ou no canto
+            // mais aberto se o analógico estiver neutro), rasteiro e seco.
+            const sidePick = stick !== 0 ? -stick : rng() < 0.5 ? -1 : 1;
+            const target = { x: signX * PITCH.halfLength, z: sidePick * (GOAL.width / 2 - 0.75) };
+            shootBall(player, { power: 21.5, spread: 0.012, target, kind: 'placed', lift: 0.09 });
+          } else {
+            // Força carregada: 15..31 m/s; mira acompanha o analógico.
+            const lateral = stick !== 0 ? -stick * 3.1 : (rng() - 0.5) * 2.4;
+            const power = 15 + strength * 16.5;
+            const spread = 0.03 + strength * 0.055;
+            shootBall(player, { power, spread, target: { x: signX * PITCH.halfLength, z: lateral }, kind: strength > 0.62 ? 'power' : 'normal' });
+          }
         } else {
           runToBall(player);
         }
@@ -853,6 +911,7 @@ export function createMatch(options = {}) {
   function update(dt) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.
     if (paused) return;
+    elapsedWorldTime += dt;
     // Relógio.
     if (phase.name === 'play') {
       // O relógio corre em minutos de jogo: o fator é por minuto real.
@@ -916,6 +975,28 @@ export function createMatch(options = {}) {
     ais.home.update(dt);
     ais.away.update(dt);
 
+    // Colisão entre jogadores: ninguém atravessa ninguém (separação suave).
+    for (let index = 0; index < allPlayers.length; index += 1) {
+      const a = allPlayers[index];
+      if (!a.active) continue;
+      for (let other = index + 1; other < allPlayers.length; other += 1) {
+        const b = allPlayers[other];
+        if (!b.active) continue;
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance > 0.001 && distance < 0.66) {
+          const overlap = (0.66 - distance) * 0.5;
+          const nx = dx / distance;
+          const nz = dz / distance;
+          a.x -= nx * overlap;
+          a.z -= nz * overlap;
+          b.x += nx * overlap;
+          b.z += nz * overlap;
+        }
+      }
+    }
+
     // Física e domínio de bola.
     ball.update(dt, allPlayers);
     handlePossession();
@@ -968,12 +1049,13 @@ export function createMatch(options = {}) {
     const bursting = (player.burst ?? 0) > 0;
     if (bursting) player.burst = Math.max(0, (player.burst ?? 0) - dt);
     const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
-    const sign = attackSign(userSide);
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      // O analógico é relativo ao ataque: "para cima" vai para o gol adversário.
-      const worldDx = input.moveZ * sign;
-      const worldDz = input.moveX * sign;
+      // Analógico relativo à TELA: para cima sobe a tela (lado oposto), para
+      // a direita vai para a direita — o boneco corre exatamente para onde
+      // o dedo aponta, sem inversões.
+      const worldDx = input.moveX;
+      const worldDz = -input.moveZ;
       const targetX = player.x + worldDx * 6;
       const targetZ = player.z + worldDz * 6;
       steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 0.2, turn: 14 });
@@ -1041,10 +1123,11 @@ export function createMatch(options = {}) {
         // chance de chegar na bola.
         const keeper = members(opponentOf(scoringSide)).find(player => player.isKeeper && player.active);
         if (keeper && keeperSaves(keeper, position)) {
+          diveKeeper(keeper, Math.sign(position.z - keeper.z) || (position.z >= 0 ? 1 : -1));
           ball.state.position.x = side * (PITCH.halfLength - 0.5);
-          ball.state.velocity.set(-side * 5, 4.5, Math.sign(position.z || 1) * 6);
+          ball.state.velocity.set(-side * 5.5, 4.8, Math.sign(position.z || 1) * 6.5);
           ball.state.owner = null;
-          emit({ type: 'save', team: keeper.side, player: keeper, minute: clock.minutes });
+          emit({ type: 'save', team: keeper.side, player: keeper, minute: clock.minutes, kind: ball.state.lastShotKind || 'normal' });
         } else {
           scoreGoal(scoringSide, touch);
         }
@@ -1064,39 +1147,74 @@ export function createMatch(options = {}) {
     }
   }
 
-  /** O goleiro alcança a bola? */
+  /** Mergulho do goleiro: animação de defesa para o lado (com recarga). */
+  function diveKeeper(keeper, dir = 1) {
+    if (!keeper || !keeper.model) return;
+    const now = state_time();
+    if (keeper.diveCooldown && now - keeper.diveCooldown < 0.75) return;
+    keeper.diveCooldown = now;
+    keeper.model.dive?.(dir >= 0 ? 1 : -1);
+  }
+
+  // Relógio simples para recargas de animação (segundos de partida).
+  let elapsedWorldTime = 0;
+  function state_time() {
+    return elapsedWorldTime;
+  }
+
+  /** O goleiro alcança a bola? (tipo do chute, altura e colocação) */
   function keeperSaves(keeper, position) {
-    const reach = 2.3;
+    const reach = 2.35;
     const distance = Math.abs(position.z - keeper.z);
+    // Esticão para o lado: mais longe, menor a chance.
     if (distance > reach) return false;
-    const chance = 0.3 + 0.35 * (1 - distance / reach);
-    return rng() < chance;
+    const kind = ball.state.lastShotKind || 'normal';
+    // Chute rasteiro no chão é defensável; no ângulo alto, quase não.
+    const highBall = position.y > 1.55;
+    const heightFactor = highBall ? 0.78 : 1.08;
+    const kindFactor = kind === 'placed' ? 0.72 : kind === 'power' ? 0.8 : 1.0;
+    // Alcance maior para chutes rente ao goleiro (reação mínima).
+    const chance = (0.3 + 0.38 * (1 - distance / reach)) * heightFactor * kindFactor;
+    return rng() < Math.min(0.92, Math.max(0.12, chance));
   }
 
   /**
-   * Câmera de transmissão aérea inclinada, no estilo EA Sports FC Mobile:
-   * vista lateral alta do campo (lado maior), objetiva longa que abraça
-   * grande parte do gramado, acompanhando a bola com suavidade.
+   * Câmera de transmissão aérea inclinada, no estilo EA Sports FC Mobile, com
+   * zoom dinâmico: quando a jogada se aproxima da lateral inferior da tela
+   * (a mais próxima da câmera), a câmera recua, sobe e abre a objetiva para
+   * enquadrar a bola, os jogadores e todo o gramado — nunca deixa a partida
+   * sair pela parte de baixo do quadro. Nos extremos do comprimento, leve
+   * recuo para abarcar mais campo.
    */
   function updateCamera(dt) {
     const position = ball.state.position;
-    const desiredX = Math.max(-34, Math.min(34, position.x * 0.72));
-    const desiredZ = 36.2;
-    const desiredY = 25.5 + Math.min(2.5, Math.abs(position.x) * 0.03);
+    const nearT = Math.min(1, Math.abs(position.z) / PITCH.halfWidth); // 0 centro · 1 na lateral
+    const endT = Math.min(1, Math.abs(position.x) / PITCH.halfLength); // 0 meio · 1 fundo
+    const desiredX = Math.max(-40, Math.min(40, position.x * 0.78));
+    const desiredZ = 36.2 + nearT * 5.4 + endT * 1.2;
+    const desiredY = 25.5 + nearT * 3.8 + Math.min(2.5, Math.abs(position.x) * 0.03);
+    const desiredFov = 44 + nearT * 5.5 + endT * 1.5;
 
     const camera = engine.camera;
     if (!cameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
-      cameraTarget.set(position.x, 0, 0);
+      cameraTarget.set(position.x, 0, position.z * 0.48);
+      camera.fov = desiredFov;
+      camera.updateProjectionMatrix();
       cameraReady = true;
     }
     const smoothing = 1 - Math.pow(0.0016, dt);
     camera.position.x += (desiredX - camera.position.x) * smoothing;
     camera.position.y += (desiredY - camera.position.y) * smoothing;
     camera.position.z += (desiredZ - camera.position.z) * smoothing;
+    // Zoom suave sem saltos de enquadramento.
+    if (Math.abs(camera.fov - desiredFov) > 0.05) {
+      camera.fov += (desiredFov - camera.fov) * Math.min(1, 3.2 * dt);
+      camera.updateProjectionMatrix();
+    }
 
-    cameraTarget.x += (Math.max(-40, Math.min(40, position.x * 0.82)) - cameraTarget.x) * smoothing;
-    cameraTarget.z += (position.z * 0.35 - cameraTarget.z) * smoothing;
+    cameraTarget.x += (Math.max(-42, Math.min(42, position.x * 0.85)) - cameraTarget.x) * smoothing;
+    cameraTarget.z += (position.z * 0.48 - cameraTarget.z) * smoothing;
     camera.lookAt(cameraTarget.x, 0, cameraTarget.z);
   }
 

@@ -13,6 +13,7 @@ import { createControls } from '../match3d/controls.js';
 import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
 import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
+import { STADIUMS, attachStadiumDome } from '../match3d/stadiums.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
@@ -51,35 +52,78 @@ export function playScreen(ctx, params = {}) {
   const stageBox = el('div', { class: 'play__stage' }, canvas, overlay);
   const node = el('div', { class: 'screen screen--play' }, stageBox);
 
-  // ------------------------------------------------------------- pré-jogo --
+  // ---------------------------------------------------- pré-jogo imersivo --
 
-  function prematchOverlay() {
-    return el('div', { class: 'prematch' },
-      el('div', { class: 'prematch__teams' },
-        el('div', { class: 'prematch__team prematch__team--home' },
-          el('img', { class: 'prematch__crest', src: home.crest, alt: `Escudo do ${home.name}` }),
-          el('b', { class: 'prematch__name', text: home.name })
-        ),
-        el('div', { class: 'prematch__x' },
-          el('span', { class: 'prematch__x-mark', text: 'X' }),
-          el('span', { class: 'prematch__vs', text: 'PARTIDA RÁPIDA' })
-        ),
-        el('div', { class: 'prematch__team prematch__team--away' },
-          el('b', { class: 'prematch__name', text: away.name }),
-          el('img', { class: 'prematch__crest', src: away.crest, alt: `Escudo do ${away.name}` })
-        )
-      ),
-      el('div', { class: 'prematch__info' },
-        el('span', { text: away.stadium }),
-        el('span', { class: 'prematch__duration', text: `${minutes} MIN POR TEMPO` })
-      ),
-      el('button', {
-        class: 'btn btn--primary prematch__cta',
-        type: 'button',
-        onClick: () => startMatch()
-      }, 'COMEÇAR PARTIDA'),
-      el('p', { class: 'prematch__hint', text: 'Analógico para mover · PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e TROCAR nos botões.' })
+  // Estádio escolhido nas telas anteriores (senão, sorteia um).
+  const paramStadium = Number(params.stadium);
+  let stadiumIndex = Number.isFinite(paramStadium) && paramStadium >= 0 && paramStadium < STADIUMS.length
+    ? Math.floor(paramStadium)
+    : Math.floor(Math.random() * STADIUMS.length);
+  let dome = null;
+
+  /** Pré-jogo: a foto do estádio envolvendo o 3D — toque na tela entra. */
+  function prematchShowcase() {
+    const stadiumName = el('b', { class: 'showcase__name' });
+    const stadiumTag = el('span', { class: 'showcase__tag' });
+    const dots = el('div', { class: 'showcase__dots' },
+      STADIUMS.map(() => el('i', { class: 'showcase__dot' }))
     );
+
+    function refresh() {
+      const stadium = STADIUMS[stadiumIndex];
+      stadiumName.textContent = stadium.name;
+      stadiumTag.textContent = stadium.tag;
+      [...dots.children].forEach((dot, index) => {
+        dot.classList.toggle('is-active', index === stadiumIndex);
+      });
+    }
+
+    const arrow = (direction, symbol) => el('button', {
+      class: 'showcase__arrow',
+      type: 'button',
+      'aria-label': direction === 1 ? 'Próximo estádio' : 'Estádio anterior',
+      onClick: event => {
+        event.stopPropagation();
+        stadiumIndex = (stadiumIndex + direction + STADIUMS.length) % STADIUMS.length;
+        dome?.setStadium(stadiumIndex);
+        refresh();
+      }
+    }, symbol);
+
+    refresh();
+
+    const root = el('div', { class: 'prematch prematch--showcase', onClick: () => startMatch() },
+      el('div', { class: 'showcase__chip', text: 'XF CHAMPIONS LEAGUE' }),
+      el('div', { class: 'showcase__plaque' },
+        el('span', { class: 'showcase__label', text: 'ESTÁDIO OFICIAL' }),
+        stadiumName,
+        stadiumTag,
+        el('div', { class: 'showcase__matchup' },
+          el('img', { src: home.crest, alt: '' }),
+          el('span', { text: `${(home.shortName || home.name).toUpperCase?.() || home.name.toUpperCase()}  ×  ${(away.shortName || away.name).toUpperCase?.() || away.name.toUpperCase()}` }),
+          el('img', { src: away.crest, alt: '' })
+        ),
+        dots
+      ),
+      el('div', { class: 'showcase__arrows' },
+        arrow(-1, '‹'),
+        arrow(1, '›')
+      ),
+      el('div', { class: 'showcase__enter', text: 'TOQUE PARA ENTRAR EM CAMPO' })
+    );
+
+    // O estádio escolhido toma a tela (a arte oficial atrás de tudo).
+    const photoRefresh = () => {
+      root.style.backgroundImage =
+        'linear-gradient(180deg, rgba(2, 10, 18, 0.16) 0%, rgba(2, 10, 18, 0.08) 42%, rgba(2, 10, 18, 0.74) 100%), '
+        + `url("${STADIUMS[stadiumIndex].file}")`;
+    };
+    photoRefresh();
+    // As setas trocam o palco: o fundo acompanha a troca.
+    root.querySelectorAll('.showcase__arrow').forEach(button => {
+      button.addEventListener('click', () => photoRefresh());
+    });
+    return root;
   }
 
   // --------------------------------------------------------------- partida --
@@ -102,12 +146,12 @@ export function playScreen(ctx, params = {}) {
     hud = createHud({ root: stageBox, home, away });
     controls = createControls({
       root: stageBox,
-      onCommand: name => {
+      onCommand: (name, payload) => {
         if (paused || stage !== 'live') return;
         if (name === 'pass') kickSound(0.5);
         else if (name === 'lob') kickSound(0.65);
         else if (name === 'shoot') kickSound(0.9);
-        match.world.command(name);
+        match.world.command(name, payload);
       },
       onMove: (x, z) => {
         if (paused || stage !== 'live') return;
@@ -122,8 +166,16 @@ export function playScreen(ctx, params = {}) {
     // Os controles só entram depois do pré-jogo.
     controls.setEnabled(false);
     match.start();
+    // O jogo fica congelado no pré-jogo — o relógio só corre quando o
+    // usuário toca para entrar em campo. O laço de render também para:
+    // a arte do estádio está por cima do canvas, então cada quadro em
+    // software cairia no vazio — e travaria o fio de eventos da página.
+    match.world.setPaused(true);
+    match.engine.stop();
     // Gancho de testes: permite inspecionar o motor da partida no navegador.
     window.__xfcMatch = match;
+    // O estádio escolhido envolve o 3D (atrás da arquibancada).
+    dome = attachStadiumDome(match.engine.scene, stadiumIndex);
   }
 
   function handleEvent(event) {
@@ -180,6 +232,8 @@ export function playScreen(ctx, params = {}) {
   function startMatch() {
     whistle('triple');
     stage = 'live';
+    match?.world.setPaused(false);
+    match?.engine.start();
     overlay.replaceChildren();
     overlay.classList.remove('is-visible');
     match?.world.setCameraMode('play');
@@ -290,7 +344,8 @@ export function playScreen(ctx, params = {}) {
             homeKit: params.homeKit ?? 0,
             awayKit: params.awayKit ?? 0,
             minutes,
-            difficulty
+            difficulty,
+            stadium: params.stadium
           })
         }, 'REJOGAR'),
         el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'VOLTAR AO MENU')
@@ -327,7 +382,7 @@ export function playScreen(ctx, params = {}) {
   // ------------------------------------------------------------- montagem --
 
   buildMatch();
-  overlay.replaceChildren(prematchOverlay());
+  overlay.replaceChildren(prematchShowcase());
   overlay.classList.add('is-visible');
   hud?.node.classList.remove('is-visible');
 
@@ -363,7 +418,8 @@ export function playScreen(ctx, params = {}) {
           return true;
         }
         if (stage === 'prematch') {
-          startMatch();
+          if (event.key === 'Escape' || event.key === 'Backspace') ctx.go('menu');
+          else startMatch();
           return true;
         }
         ctx.go('menu');
@@ -373,6 +429,7 @@ export function playScreen(ctx, params = {}) {
     },
     unmount() {
       clearInterval(timer);
+      dome?.dispose();
       controls?.dispose();
       hud?.dispose();
       match?.dispose();

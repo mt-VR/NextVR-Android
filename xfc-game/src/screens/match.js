@@ -3,13 +3,14 @@
 
 import { el, padButton } from '../ui/dom.js';
 import { getTeam } from '../data/teams.js';
+import { createStadiumPicker } from '../ui/stadiumcta.js';
 
 export function matchScreen(ctx, params = {}) {
   const home = getTeam(params.home) || getTeam(ctx.state.selection.home);
   const away = getTeam(params.away) || getTeam(ctx.state.selection.away);
   const venue = away ? away.stadium : 'Estádio a definir';
 
-  function startMatch() {
+  function startMatch(stadium) {
     if (!home || !away || home.id === away.id) {
       ctx.go('kickoff');
       return;
@@ -20,9 +21,19 @@ export function matchScreen(ctx, params = {}) {
       homeKit: ctx.state.kits[home.id] ?? 0,
       awayKit: ctx.state.kits[away.id] ?? 0,
       minutes: 6,
-      difficulty: 'normal'
+      difficulty: 'normal',
+      stadium
     });
   }
+
+  const stadiumPicker = createStadiumPicker({
+    size: 'lg',
+    initialIndex: ctx.state?.settings?.stadium ?? null,
+    onChange(stadium) {
+      if (ctx.state?.settings) ctx.state.settings.stadium = stadium;
+    },
+    onEnter: startMatch
+  });
 
   const node = el('div', { class: 'screen screen--match' },
     el('header', { class: 'topbar' },
@@ -49,11 +60,8 @@ export function matchScreen(ctx, params = {}) {
         class: 'match__note',
         text: 'Uniformes definidos, bola rolando: a mesma experiência 3D das Partidas Rápidas aguarda — controle um atleta por vez e leve a decisão para o apito final.'
       }),
-      el('div', { class: 'hints' },
-        el('button', { class: 'btn btn--primary', type: 'button', onClick: startMatch }, 'Iniciar partida'),
-        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('kickoff') }, 'Voltar aos times'),
-        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'Menu principal')
-      )
+      stadiumPicker.node,
+      el('button', { class: 'match__back', type: 'button', onClick: () => ctx.go('kickoff') }, '‹ VOLTAR AOS TIMES')
     ),
     el('footer', { class: 'footer' },
       el('div', { class: 'hints' },
@@ -66,7 +74,7 @@ export function matchScreen(ctx, params = {}) {
     node,
     onKey(event) {
       if (event.key === 'Enter') {
-        startMatch();
+        startMatch(stadiumPicker.index);
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {

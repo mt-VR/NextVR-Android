@@ -30,12 +30,58 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   );
   const zone = el('div', { class: 'controls__stick-zone' });
 
+  // ------------------------------------------------- chute carregado --
+  // Toque rápido: chute normal. Segura: carrega a força. Arrasta para baixo
+  // durante o toque: chute colocado no ângulo (como no FC Mobile).
+  const SHOOT_FULL_MS = 1050;
+  const SHOOT_MIN_STRENGTH = 0.3;
+  let shootCharge = null;
+  let shootButton = null;
+
+  function shootUi(button, strength, placed, charging) {
+    button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
+    button.classList.toggle('is-charging', Boolean(charging));
+    button.classList.toggle('is-placed', Boolean(charging && placed));
+  }
+
   const buttons = BUTTONS.map(item => {
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
       type: 'button',
       dataset: { command: item.id }
     }, el('span', { text: item.label }));
+    if (item.id === 'shoot') shootButton = button;
+
+    if (item.id === 'shoot') {
+      button.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.setPointerCapture?.(event.pointerId);
+        shootCharge = { startY: event.clientY, startedAt: performance.now(), strength: 0, placed: false };
+        shootUi(button, 0, false, true);
+      });
+      button.addEventListener('pointermove', event => {
+        if (!shootCharge) return;
+        const elapsed = performance.now() - shootCharge.startedAt;
+        shootCharge.strength = Math.max(0, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
+        if (event.clientY - shootCharge.startY > 30) shootCharge.placed = true;
+        shootUi(button, shootCharge.strength, shootCharge.placed, true);
+      });
+      const shootRelease = () => {
+        if (!shootCharge) return;
+        const payload = {
+          strength: Math.max(SHOOT_MIN_STRENGTH, shootCharge.strength),
+          placed: shootCharge.placed
+        };
+        shootCharge = null;
+        shootUi(button, 0, false, false);
+        onCommand('shoot', payload);
+      };
+      button.addEventListener('pointerup', shootRelease);
+      button.addEventListener('pointercancel', shootRelease);
+      return button;
+    }
+
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
       event.stopPropagation();
@@ -132,19 +178,23 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   const KEY_COMMANDS = {
     KeyJ: 'pass',
     Space: 'pass',
-    KeyK: 'shoot',
-    KeyL: 'shoot',
     KeyE: 'lob',
     KeyR: 'dribble',
     KeyF: 'tackle',
     Tab: 'switch',
     KeyQ: 'switch'
   };
+  let shootKeyStartedAt = null;
 
   function onKeyDown(event) {
     if (event.repeat) return;
     keys.add(event.code);
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(true);
+    if (event.code === 'KeyK' || event.code === 'KeyL') {
+      if (shootKeyStartedAt === null) shootKeyStartedAt = performance.now();
+      event.preventDefault();
+      return;
+    }
     const command = KEY_COMMANDS[event.code];
     if (command) {
       onCommand(command);
@@ -155,6 +205,14 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   function onKeyUp(event) {
     keys.delete(event.code);
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(false);
+    if (event.code === 'KeyK' || event.code === 'KeyL') {
+      if (shootKeyStartedAt !== null) {
+        const elapsed = performance.now() - shootKeyStartedAt;
+        const strength = Math.max(SHOOT_MIN_STRENGTH, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
+        shootKeyStartedAt = null;
+        onCommand('shoot', { strength, placed: false });
+      }
+    }
   }
 
   function readKeyboard() {

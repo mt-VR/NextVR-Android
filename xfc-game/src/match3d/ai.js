@@ -167,7 +167,25 @@ export function createTeamAI({ side, world }) {
     return best;
   }
 
-  /** Melhor companheiro para um passe. */
+  /** Melhor companheiro para um passe (corredor livre e companheiro em movimento). */
+  function laneClearance(fromX, fromZ, toX, toZ) {
+    const dx = toX - fromX;
+    const dz = toZ - fromZ;
+    const lengthSq = dx * dx + dz * dz;
+    if (lengthSq < 0.01) return 1;
+    let worst = 1;
+    for (const rival of opponents()) {
+      if (!rival.active) continue;
+      const t = Math.max(0, Math.min(1, ((rival.x - fromX) * dx + (rival.z - fromZ) * dz) / lengthSq));
+      const projX = fromX + t * dx;
+      const projZ = fromZ + t * dz;
+      const distance = Math.hypot(rival.x - projX, rival.z - projZ);
+      const clearance = Math.max(0, Math.min(1, (distance - 0.9) / 2.6));
+      if (clearance < worst) worst = clearance;
+    }
+    return worst;
+  }
+
   function bestPassTarget(player, forward = false) {
     const mates = members().filter(mate => mate !== player && mate.active);
     let best = null;
@@ -180,9 +198,10 @@ export function createTeamAI({ side, world }) {
       if (forward) {
         if (d < 12 || d > 40) continue;
       } else if (d < 4 || d > 24) continue;
+      const lane = laneClearance(player.x, player.z, mate.x, mate.z);
       // O passe prefere quem está à frente: o time precisa avançar.
-      let score = forwardness * 1.7 + open * 0.6 - d * 0.05;
-      if (forward) score = forwardness * 2.2 + open * 0.4 - d * 0.02;
+      let score = forwardness * 1.7 + open * 0.6 + lane * 2.2 - d * 0.05;
+      if (forward) score = forwardness * 2.2 + open * 0.4 + lane * 1.6 - d * 0.02;
       if (score > bestScore) {
         bestScore = score;
         best = mate;
@@ -243,6 +262,7 @@ export function createTeamAI({ side, world }) {
         targetZ = Math.max(-6.5, Math.min(6.5, ball.position.z * 0.32));
         const shotSpeed = Math.hypot(ball.velocity.x, ball.velocity.z);
         const towardsMyGoal = (myGoal - ball.position.x) * ball.velocity.x > 0;
+        player.gkDiveCd = Math.max(0, (player.gkDiveCd ?? 0) - dt);
         if (shotSpeed > 9 && towardsMyGoal) {
           // Mergulho para cortar o chute — o alcance do goleiro é limitado,
           // então os chutes nos cantos saem.
@@ -253,6 +273,11 @@ export function createTeamAI({ side, world }) {
           targetX = predictedX;
           targetZ = player.z + Math.max(-reach, Math.min(reach, predictedZ - player.z));
           speed = CHASE_SPEED * 1.35;
+          // Precisa se esticar: toca a defesa (animação de mergulho).
+          if (shotSpeed > 12.5 && Math.abs(predictedZ - player.z) > 1.05 && player.gkDiveCd === 0 && world.diveKeeper) {
+            world.diveKeeper(player, Math.sign(predictedZ - player.z) || 1);
+            player.gkDiveCd = 0.9;
+          }
         } else if (inBox && chaserDistance < 90) {
           targetX = ball.position.x;
           targetZ = ball.position.z;
@@ -279,7 +304,8 @@ export function createTeamAI({ side, world }) {
         const supports = owner && owner.side === side;
         if (supports) {
           const forwardness = (targetX - player.x) * attackSign;
-          if (forwardness < 4) targetX += attackSign * 6;
+          const isAttacker = shape.role === 'ST' || shape.role === 'LW' || shape.role === 'RW' || shape.role === 'CAM';
+          if (forwardness < 4) targetX += attackSign * (isAttacker ? 8.5 : 5);
           if (Math.abs(targetZ) > 16) targetZ *= 0.6;
         }
         // A defesa marca o adversário da zona.

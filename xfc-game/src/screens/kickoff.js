@@ -8,6 +8,7 @@
 // “AWAY” ficam na vertical nas pontas da tela.
 
 import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
+import { createStadiumPicker } from '../ui/stadiumcta.js';
 import { xfcWordmark, leagueBadgeSvg } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
@@ -214,18 +215,26 @@ export function kickoffScreen(ctx) {
     paint();
   }
 
-  const startButton = el('button', {
-    class: 'btn btn--accent', type: 'button',
-    onClick() {
+  // O estádio é a porta para a partida: texturizado com a arte oficial,
+  // sem botão de “Iniciar partida”. A escolha vale para o confronto.
+  const startButton = createStadiumPicker({
+    size: 'sm',
+    caption: 'CONTINUAR',
+    initialIndex: state.settings.stadium ?? null,
+    onChange(stadium) {
+      state.settings.stadium = stadium;
+    },
+    onEnter(stadium) {
       const home = getTeam(state.selection.home);
       const away = getTeam(state.selection.away);
       if (!home || !away) {
         ctx.toast('Escolha os dois times para começar.', { variant: 'warn' });
         return;
       }
+      state.settings.stadium = stadium;
       ctx.go('match', { home: home.id, away: away.id });
     }
-  }, 'Iniciar partida');
+  }).node;
 
   const squadButton = el('button', {
     class: 'btn', type: 'button',
@@ -339,9 +348,7 @@ export function kickoffScreen(ctx) {
         return true;
       }
       if (event.key === 'Enter') {
-        const home = getTeam(state.selection.home);
-        const away = getTeam(state.selection.away);
-        if (home && away) ctx.go('match', { home: home.id, away: away.id });
+        node.querySelector('.stadium-cta')?.click();
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
