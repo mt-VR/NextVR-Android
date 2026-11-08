@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  checks: write
 
 jobs:
   build:
@@ -38,7 +39,46 @@ jobs:
         run: npm ci
 
       - name: Run the XFC tests
-        run: node --test tests/xfc-game.test.mjs
+        id: xfc-tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --test tests/xfc-game.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # O relatório dos testes vai para um check-run próprio: assim o resultado do
+      # XFC fica legível na aba de checks do PR, mesmo quando a suíte do app de VR
+      # (que roda no workflow da Android CI) está instável.
+      - name: Publish the XFC test report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          CONCLUSION=success
+          if [ "$(steps.xfc-tests.outputs.exit || echo 1)" != "0" ]; then
+            CONCLUSION=failure
+          fi
+          {
+            echo '### XFC — resultado dos testes'
+            echo ''
+            echo '```'
+            tail -n 120 /tmp/xfc-tests.log || true
+            echo '```'
+          } > /tmp/xfc-summary.md
+          jq -n \
+            --arg title "XFC — testes do jogo" \
+            --arg summary "$(cat /tmp/xfc-summary.md)" \
+            --arg head_sha "$GITHUB_SHA" \
+            --arg conclusion "$CONCLUSION" \
+            '{name: $title, head_sha: $head_sha, status: "completed", conclusion: $conclusion,
+              output: {title: $title, summary: $summary}}' > /tmp/xfc-check.json
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/xfc-check.json \
+            --jq '"check-run: \(.html_url) (\(.conclusion))"'
+
+      - name: Fail when the XFC tests fail
+        if: steps.xfc-tests.outputs.exit != '0'
+        run: exit 1
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v6
