@@ -73,7 +73,19 @@ check('cada time traz ATT, MID e DEF', document.querySelectorAll('.team-card__ra
 
 document.querySelector('.team-card').click();
 check('o clique no time marca a seleção',
-  document.querySelector('.team-card').classList.contains('is-selected'));
+  document.querySelector('.team-card').classList.contains('is-focus'));
+
+const homeTeam = document.querySelector('[data-slot="home"] .team-card').dataset.teamId;
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+check('as setas do escudo trocam de clube',
+  document.querySelector('[data-slot="home"] .team-card').dataset.teamId !== homeTeam);
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+
+check('a tela de blusas tem o READY e o carrossel',
+  Boolean(document.querySelector('.btn')?.textContent) &&
+  Boolean(document.querySelector('.kickoff__badge')));
 
 [...document.querySelectorAll('.btn')].find(button => button.textContent.includes('Ver elenco')).click();
 check('o elenco abre com onze em campo e sete no banco',

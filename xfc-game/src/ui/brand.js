@@ -31,3 +31,34 @@ export function xfcWordmark({ className = '', title = 'XFC' } = {}) {
     ${XFC_WORDMARK}
   </svg>`;
 }
+
+/**
+ * Emblema da liga que fica abaixo do cartão do time (como na referência).
+ * É um escudo genérico com o nome da liga — os escudos oficiais dos bancos
+ * não são usados no protótipo.
+ */
+let badgeSequence = 0;
+
+export function leagueBadgeSvg(league, { className = '' } = {}) {
+  badgeSequence += 1;
+  const id = `league-${badgeSequence}`;
+  const label = String(league || '').trim();
+  const words = label.split(/\s+/).filter(Boolean);
+  const short = words.length > 1
+    ? words.map(word => word[0]).join('').slice(0, 4)
+    : label.slice(0, 9);
+
+  return `<svg class="league-badge ${className}".trim() viewBox="0 0 64 78" role="img" aria-label="Emblema da liga ${label}">
+    <defs>
+      <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2b6ec4"/>
+        <stop offset="55%" stop-color="#14427f"/>
+        <stop offset="100%" stop-color="#0b2850"/>
+      </linearGradient>
+    </defs>
+    <path d="M4,5 L60,5 L60,41 C60,59 44,69 32,73 C20,69 4,59 4,41 Z" fill="url(#${id})" stroke="rgba(255,255,255,0.8)" stroke-width="2.4"/>
+    <path d="M12,14 L52,14 L52,40 C52,52 42,60 32,63 C22,60 12,52 12,40 Z" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.4"/>
+    <text x="32" y="42" text-anchor="middle" font-family="Inter, 'Arial Black', sans-serif" font-weight="800"
+      font-size="${short.length > 3 ? 13 : 17}" letter-spacing="0.06em" fill="#ffffff">${short.toUpperCase()}</text>
+  </svg>`;
+}

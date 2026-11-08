@@ -19,11 +19,14 @@ Nesta primeira etapa o jogo tem **o menu**:
    lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
    arte do jogador no gramado à direita, título *Dive straight into the action*
    e o botão *Enter Kick Off*.
-3. **Kick Off / Classic Match** — colunas HOME e AWAY com país, escudo grande
-   em destaque sobre um cartão levemente transparente, estrelas, ATT/MID/DEF e
-   liga; as setas ao lado do escudo trocam de clube e a linha da blusa troca o
-   uniforme; no meio, Advantage Settings, Live Form e RANDOMISE; “HOME” e
-   “AWAY” na vertical nas pontas.
+3. **Kick Off / Classic Match (Select Teams)** — estádio escuro com o painel
+   verde grande no centro; em cada lado, a barra `Men's Teams` / `Women's
+   Teams`, a barra do país (nome no meio, bandeira na direita) e o cartão do
+   clube: nome, **escudo em destaque** com as setas dos lados (que trocam de
+   clube), estrelas, ATT/MID/DEF e a liga — tudo sobre um cartão levemente
+   transparente, com o emblema da liga e o trocador de blusa logo abaixo. No
+   meio, o interruptor de mando de campo, Advantage Settings, a mentalidade e
+   o Live Form; “HOME” e “AWAY” na vertical nas pontas da tela.
 4. **Escolher blusas (Select Kits)** — o jogador de cada lado veste o uniforme
    escolhido, o texto READY fica no centro e, ao lado, o carrossel com a blusa
    anterior, a atual e a próxima (as setas trocam; o Tab alterna entre HOME e
