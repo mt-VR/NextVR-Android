@@ -37,7 +37,6 @@ export function matchScreen(ctx, params = {}) {
         text: 'O confronto está pronto. As partidas, os estádios e a tabela do campeonato entram na próxima etapa do XFC — por enquanto o jogo para no menu.'
       }),
       el('div', { class: 'hints' },
-        el('span', { class: 'hint' }, padButton('circle', 'Back'), el('span', { text: 'Voltar aos times' })),
         el('button', { class: 'btn btn--primary', type: 'button', onClick: () => ctx.go('kickoff') }, 'Voltar aos times'),
         el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'Menu principal')
       )
