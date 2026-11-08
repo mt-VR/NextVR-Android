@@ -1,5 +1,6 @@
-// Intro do XFC: selo da XF Esports + logotipo do jogo, com a barra de
-// carregamento que antecede o menu principal.
+// Intro do XFC: selo circular da XF Esports + logotipo XFC, lado a lado,
+// sobre o fundo geométrico azul/verde, com a barra de carregamento que
+// antecede o menu principal.
 
 import { el } from '../ui/dom.js';
 import { xfEsportesBadge, xfcWordmark } from '../ui/brand.js';
@@ -8,8 +9,6 @@ export function introScreen(ctx) {
   let timer = null;
 
   const node = el('div', { class: 'screen screen--intro' },
-    el('div', { class: 'intro__sweep' }),
-    el('div', { class: 'intro__vignette' }),
     el('div', { class: 'intro__content' },
       el('div', { class: 'intro__lockup' },
         el('div', { class: 'intro__badge', html: xfEsportesBadge() }),
@@ -18,7 +17,8 @@ export function introScreen(ctx) {
       el('p', { class: 'intro__tagline', text: 'XF Esports' }),
       el('div', { class: 'intro__loading' }, el('span')),
       el('div', { class: 'intro__hint', text: 'Pressione Enter para continuar' })
-    )
+    ),
+    el('div', { class: 'intro__vignette' })
   );
 
   const advance = () => {

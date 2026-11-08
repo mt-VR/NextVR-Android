@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- O jogo roda offline: todo o conteúdo vem do próprio APK, sem internet. -->
+    <!-- O jogo roda offline: todo o conteúdo vem do próprio APK, sem internet.
+         E deitado: o XFC é um jogo de futebol em paisagem, como nas referências. -->
 
     <application
         android:allowBackup="true"
@@ -16,7 +17,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="fullUser">
+            android:screenOrientation="sensorLandscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

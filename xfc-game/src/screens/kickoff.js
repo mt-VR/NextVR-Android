@@ -1,7 +1,9 @@
-// Escolha de times do Kick Off: coluna HOME, coluna AWAY e o carousel com os
-// dois clubes que existem no XFC por enquanto.
+// Escolha de times do Kick Off: a tela "Classic Match / Select Teams" do FC,
+// com as colunas HOME e AWAY, o cartão do time (escudo, estrelas, ATT/MID/DEF)
+// e a coluna do meio com Advantage Settings, Live Form e Randomise.
 
 import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
+import { xfcWordmark } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 
 export function kickoffScreen(ctx) {
@@ -11,76 +13,107 @@ export function kickoffScreen(ctx) {
   state.settings.focus ||= 'home';
 
   let focusSide = state.settings.focus === 'away' ? 'away' : 'home';
-  let cursor = { home: 0, away: 1 };
+  const cursor = { home: 0, away: 1 };
 
   function teamIndexFor(side) {
-    const current = state.selection[side];
-    const index = TEAMS.findIndex(team => team.id === current);
+    const index = TEAMS.findIndex(team => team.id === state.selection[side]);
     return index < 0 ? 0 : index;
   }
 
   function card(team, side) {
-    const node = el('div', {
+    return el('div', {
       class: `team-card${state.selection[side] === team.id ? ' is-selected' : ''}`,
       dataset: { teamId: team.id, side },
       role: 'button',
       tabindex: '0',
       onClick() {
         state.selection[side] = team.id;
+        cursor[side] = teamIndexFor(side);
         paint();
       }
     },
-      el('img', { class: 'team-card__crest', src: team.crest, alt: `Escudo do ${team.name}` }),
       el('div', { class: 'team-card__name', text: team.name }),
-      el('div', { class: 'team-card__stars' }, starRow(team.stars, { size: 20 })),
+      el('img', { class: 'team-card__crest', src: team.crest, alt: `Escudo do ${team.name}` }),
+      el('div', { class: 'team-card__stars' }, starRow(team.stars, { size: 18 })),
       el('div', { class: 'team-card__ratings' },
         el('div', { class: 'team-card__rating' }, el('b', { text: String(team.ratings.att) }), el('span', { text: 'ATT' })),
         el('div', { class: 'team-card__rating' }, el('b', { text: String(team.ratings.mid) }), el('span', { text: 'MID' })),
         el('div', { class: 'team-card__rating' }, el('b', { text: String(team.ratings.def) }), el('span', { text: 'DEF' }))
       ),
-      el('div', { class: 'team-card__league', text: team.league })
-    );
-    return node;
-  }
-
-  function picker(side, label) {
-    const arrowPrev = el('button', {
-      class: 'picker-arrow', type: 'button', 'aria-label': `Time anterior (${label})`,
-      onClick() {
-        cursor[side] = (cursor[side] - 1 + TEAMS.length) % TEAMS.length;
-        state.selection[side] = TEAMS[cursor[side]].id;
-        paint();
-      }
-    }, svg(ICONS.chevronLeft));
-
-    const arrowNext = el('button', {
-      class: 'picker-arrow', type: 'button', 'aria-label': `Próximo time (${label})`,
-      onClick() {
-        cursor[side] = (cursor[side] + 1) % TEAMS.length;
-        state.selection[side] = TEAMS[cursor[side]].id;
-        paint();
-      }
-    }, svg(ICONS.chevronRight));
-
-    return el('div', { class: 'team-picker', dataset: { picker: side } },
-      arrowPrev,
-      el('div', { class: 'team-card__slot', dataset: { slot: side } }),
-      arrowNext
+      el('div', { class: 'team-card__league', text: team.league }),
+      el('div', { class: 'team-card__kit' },
+        el('button', {
+          class: 'picker-arrow', type: 'button', 'aria-label': `Kit anterior (${team.name})`,
+          onClick(event) {
+            event.stopPropagation();
+            ctx.toast('Os kits dos clubes chegam na próxima etapa.');
+          }
+        }, svg(ICONS.chevronLeft)),
+        el('span', { text: 'Home Kit' }),
+        el('button', {
+          class: 'picker-arrow', type: 'button', 'aria-label': `Próximo kit (${team.name})`,
+          onClick(event) {
+            event.stopPropagation();
+            ctx.toast('Os kits dos clubes chegam na próxima etapa.');
+          }
+        }, svg(ICONS.chevronRight))
+      )
     );
   }
 
-  const liveFormToggle = el('button', {
-    class: 'toggle', type: 'button',
+  function side(sideName, label) {
+    const column = el('div', { class: `kickoff__side kickoff__side--${sideName}` },
+      el('div', { class: 'kickoff__tabs' },
+        el('span', { class: 'kickoff__tab is-active' }, el('span', { class: 'kickoff__tab-dot' }), el('span', { text: "Men's Teams" })),
+        el('span', { class: 'kickoff__tab' }, el('span', { text: "Women's Teams" }))
+      ),
+      el('div', { class: 'kickoff__country', dataset: { country: sideName } }),
+      el('div', { class: 'kickoff__slot', dataset: { slot: sideName } })
+    );
+    column.dataset.side = label;
+    return column;
+  }
+
+  const liveForm = el('button', {
+    class: 'kickoff__option', type: 'button',
     onClick() {
       state.settings.liveForm = !state.settings.liveForm;
       paint();
     }
-  }, el('span', { text: 'Live Form' }), el('span', { class: 'toggle__track' }));
+  },
+    el('span', { text: 'Live Form' }),
+    el('span', { class: 'kickoff__toggle' }, el('b', { class: 'kickoff__toggle-value', text: 'Off' }))
+  );
 
-  const options = el('div', { class: 'kickoff__options' },
-    el('div', { class: 'kickoff__option' }, svg(ICONS.ball), el('span', { text: 'Off' })),
-    el('div', { class: 'kickoff__option' }, svg(ICONS.gear), el('span', { text: 'Advantage Settings' })),
-    liveFormToggle
+  const middle = el('div', { class: 'kickoff__middle' },
+    el('button', {
+      class: 'kickoff__swap', type: 'button', 'aria-label': 'Trocar os times de lado',
+      onClick() {
+        const home = state.selection.home;
+        state.selection.home = state.selection.away;
+        state.selection.away = home;
+        cursor.home = teamIndexFor('home');
+        cursor.away = teamIndexFor('away');
+        paint();
+      }
+    }, '⇄'),
+    el('button', {
+      class: 'kickoff__option', type: 'button',
+      onClick() {
+        ctx.toast('Advantage Settings chegam na próxima etapa.');
+      }
+    }, el('span', { text: 'Advantage' }), el('span', { text: 'Settings' })),
+    liveForm,
+    el('button', {
+      class: 'kickoff__random', type: 'button',
+      onClick() {
+        state.selection.home = TEAMS[0].id;
+        state.selection.away = TEAMS[1].id;
+        cursor.home = 0;
+        cursor.away = 1;
+        paint();
+      }
+    }, 'RANDOMISE')
   );
 
   const startButton = el('button', {
@@ -104,47 +137,51 @@ export function kickoffScreen(ctx) {
     }
   }, 'Ver elenco');
 
-  const body = el('div', { class: 'kickoff__body' },
-    el('div', { class: 'kickoff__side' },
-      el('span', { class: 'side-label', text: 'Home' }),
-      picker('home', 'Home')
-    ),
-    options,
-    el('div', { class: 'kickoff__side' },
-      el('span', { class: 'side-label', text: 'Away' }),
-      picker('away', 'Away')
-    )
-  );
-
-  const footer = el('footer', { class: 'kickoff__footer' },
+  const footer = el('footer', { class: 'footer' },
     el('div', { class: 'hints' },
       el('span', { class: 'hint' }, padButton('cross', 'Select'), el('span', { text: 'Select' })),
       el('span', { class: 'hint' }, padButton('circle', 'Back'), el('span', { text: 'Back' })),
       el('span', { class: 'hint' }, padButton('triangle', 'Randomise'), el('span', { text: 'Randomise' }))
     ),
-    el('div', { class: 'kickoff__actions' }, squadButton, startButton)
+    el('div', { class: 'hints' },
+      el('span', { class: 'hint hint--muted' }, el('span', { class: 'hint__key', text: 'Hold' }), el('span', { text: 'Ver elenco' })),
+      squadButton,
+      startButton
+    )
   );
 
   const node = el('div', { class: 'screen screen--kickoff' },
-    el('div', { class: 'kickoff__tabs' },
-      el('span', { text: 'Kick Off' }),
-      el('span', { class: 'kickoff__tabs-sep' }),
-      el('span', { class: 'is-active', text: 'Classic Match' }),
-      el('span', { class: 'kickoff__tabs-sep' }),
-      el('span', { text: 'Select Teams' })
+    el('header', { class: 'topbar' },
+      el('span', { class: 'topbar__mark', html: xfcWordmark() }),
+      el('span', { class: 'topbar__title', text: 'Classic Match' }),
+      el('span', { class: 'topbar__sep', text: '|' }),
+      el('span', { class: 'topbar__subtitle', text: 'Select Teams' })
     ),
-    body,
+    el('div', { class: 'kickoff__stage' },
+      el('span', { class: 'kickoff__edge kickoff__edge--home', text: 'HOME' }),
+      side('home', 'Home'),
+      middle,
+      side('away', 'Away'),
+      el('span', { class: 'kickoff__edge kickoff__edge--away', text: 'AWAY' })
+    ),
     footer
   );
 
   function paint() {
-    for (const side of ['home', 'away']) {
-      const slot = node.querySelector(`[data-slot="${side}"]`);
+    for (const sideName of ['home', 'away']) {
+      const slot = node.querySelector(`[data-slot="${sideName}"]`);
       if (!slot) continue;
-      const team = TEAMS[cursor[side]] || TEAMS[0];
-      slot.replaceChildren(card(team, side));
+      const team = TEAMS[cursor[sideName]] || TEAMS[0];
+      slot.replaceChildren(card(team, sideName));
+      const country = node.querySelector(`[data-country="${sideName}"]`);
+      if (country) {
+        country.replaceChildren(
+          el('span', { text: team.country }),
+          el('span', { class: 'kickoff__flag' })
+        );
+      }
     }
-    liveFormToggle.classList.toggle('is-on', state.settings.liveForm);
+    liveForm.querySelector('.kickoff__toggle-value').textContent = state.settings.liveForm ? 'On' : 'Off';
     node.dataset.focus = focusSide;
   }
 
@@ -155,9 +192,8 @@ export function kickoffScreen(ctx) {
     onKey(event) {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         const step = event.key === 'ArrowLeft' ? -1 : 1;
-        const side = focusSide;
-        cursor[side] = (cursor[side] + step + TEAMS.length) % TEAMS.length;
-        state.selection[side] = TEAMS[cursor[side]].id;
+        cursor[focusSide] = (cursor[focusSide] + step + TEAMS.length) % TEAMS.length;
+        state.selection[focusSide] = TEAMS[cursor[focusSide]].id;
         paint();
         return true;
       }

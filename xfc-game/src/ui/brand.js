@@ -3,18 +3,18 @@
 // As duas marcas são desenhadas em SVG (sem arquivo binário) para ficarem nítidas
 // em qualquer resolução e permitirem recolher por CSS.
 
-const XF_MARK = `<g transform="translate(50 34)">
-  <path d="M-26,-16 L-13,-16 L-5,-2 L3,-16 L16,-16 L4,2 L18,20 L4,20 L-5,8 L-15,20 L-29,20 L-16,2 Z" fill="currentColor"/>
-  <path d="M20,-16 L52,-16 L52,-7 L29,-7 L29,1 L48,1 L48,10 L29,10 L29,20 L20,20 Z" fill="currentColor"/>
+const XF_MARK = `<g transform="translate(38.5 34)">
+  <path d="M-26,-16 L-13,-16 L-5,-2 L3,-16 L16,-16 L4,2 L18,20 L4,20 L-5,8 L-15,20 L-29,20 L-16,2 Z" fill="#0b1016"/>
+  <path d="M20,-16 L52,-16 L52,-7 L29,-7 L29,1 L48,1 L48,10 L29,10 L29,20 L20,20 Z" fill="#0b1016"/>
 </g>`;
 
-/** Selo circular "XF ESPORTES" usado no canto superior do menu. */
+/** Selo circular "XF ESPORTES" usado na intro e no canto superior do menu. */
 export function xfEsportesBadge({ className = '', title = 'XF Esports' } = {}) {
   return `<svg class="brand-badge ${className}" viewBox="0 0 100 100" role="img" aria-label="${title}">
     <circle cx="50" cy="50" r="49" fill="#ffffff"/>
     ${XF_MARK}
-    <text x="50" y="79" text-anchor="middle" font-family="Inter, 'Arial Black', sans-serif"
-      font-weight="800" font-size="15.5" letter-spacing="0.6" fill="currentColor">ESPORTES</text>
+    <text x="50" y="78" text-anchor="middle" font-family="Inter, 'Arial Black', sans-serif"
+      font-weight="800" font-size="14.5" letter-spacing="0.2" fill="#0b1016">ESPORTES</text>
   </svg>`;
 }
 

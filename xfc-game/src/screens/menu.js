@@ -1,8 +1,9 @@
-// Menu principal do XFC: a lista de modos à esquerda, o destaque central com o
-// botão de Kick Off e a barra de XP no topo.
+// Menu principal do XFC: marca no canto superior esquerdo, barra de XP à
+// direita, lista de modos na coluna esquerda, destaque do KICK OFF no centro
+// com a arte do jogador à direita e as dicas de controle no rodapé.
 //
-// Só o Kick Off está liberado nesta etapa — os outros modos ainda não existem e
-// avisam que chegam na próxima fase.
+// Só o Kick Off está liberado nesta etapa — os outros modos avisam que chegam
+// na próxima fase.
 
 import { el, svg, ICONS, padButton, padIcon } from '../ui/dom.js';
 import { xfEsportesBadge, xfcWordmark } from '../ui/brand.js';
@@ -33,8 +34,7 @@ export function menuScreen(ctx) {
         paint();
         activate(item);
       }
-    }, item.label);
-    if (!item.available) button.appendChild(el('span', { class: 'menu__soon', text: 'em breve' }));
+    }, el('span', { text: item.label }));
     return button;
   });
 
@@ -75,8 +75,8 @@ export function menuScreen(ctx) {
       el('div', { class: 'menu__wordmark', html: xfcWordmark() })
     ),
     el('div', { class: 'menu__xp' },
-      el('span', { class: 'menu__xp-level', text: `LVL ${ctx.state.profile.level}` }),
       el('div', { class: 'menu__xp-track' }, xpFill),
+      el('span', { class: 'menu__xp-level', text: `LVL ${ctx.state.profile.level}` }),
       el('div', { class: 'menu__xp-chip' },
         el('span', { class: 'menu__xp-badge', text: 'XP' }),
         el('span', { class: 'menu__xp-text', text: `${formatXp(ctx.state.profile.xp)}/${formatXp(ctx.state.profile.xpMax)}` })
@@ -99,7 +99,11 @@ export function menuScreen(ctx) {
 
   const node = el('div', { class: 'screen screen--menu' },
     topbar,
-    el('div', { class: 'menu__body' }, rail, nav, hero),
+    el('div', { class: 'menu__body' },
+      rail,
+      nav,
+      hero
+    ),
     footer
   );
 
