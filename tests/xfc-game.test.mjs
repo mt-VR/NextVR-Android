@@ -16,10 +16,11 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem dezoito clubes, com onze em campo e sete reservas em cada um', () => {
-  assert.equal(TEAMS.length, 18, 'o jogo oferece dezoito clubes');
+test('XFC tem vinte e um clubes, com onze em campo e sete reservas em cada um', () => {
+  assert.equal(TEAMS.length, 21, 'o jogo oferece vinte e um clubes');
   assert.deepEqual(TEAMS.map(team => team.id), [
     'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
+    'flamengo', 'palmeiras', 'corinthians',
     'aston-villa', 'brentford', 'panathinaikos', 'river-plate', 'levante', 'huddersfield-town',
     'eintracht-frankfurt', 'queens-park-rangers', 'wrexham', 'sheffield-united',
     'northampton-town', 'rotherham-united', 'wycombe-wanderers', 'rkc-waalwijk'
