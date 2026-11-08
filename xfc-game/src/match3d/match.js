@@ -653,6 +653,39 @@ export function createMatch(options = {}) {
     return `${minutes}'${String(seconds).padStart(2, '0')}`;
   }
 
+  // Marcador azul de seleção: um anel luminoso sob o atleta controlado,
+  // como no EA Sports FC Mobile.
+  const markerRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.38, 0.55, 30),
+    new THREE.MeshBasicMaterial({ color: 0x19c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
+  );
+  markerRing.rotation.x = -Math.PI / 2;
+  markerRing.position.y = 0.035;
+  const markerDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(0.38, 26),
+    new THREE.MeshBasicMaterial({ color: 0x19c8ff, transparent: true, opacity: 0.22, depthWrite: false })
+  );
+  markerDisc.rotation.x = -Math.PI / 2;
+  markerDisc.position.y = 0.032;
+  markerRing.visible = markerDisc.visible = false;
+  engine.scene.add(markerRing, markerDisc);
+  let markerPulse = 0;
+
+  function updateMarker(dt) {
+    const player = controlled[userSide];
+    if (!player || !player.active) {
+      markerRing.visible = markerDisc.visible = false;
+      return;
+    }
+    markerPulse += dt * 5.2;
+    const pulse = 1 + Math.sin(markerPulse) * 0.07;
+    markerRing.scale.setScalar(pulse);
+    markerDisc.scale.setScalar(pulse);
+    markerRing.position.set(player.x, 0.035, player.z);
+    markerDisc.position.set(player.x, 0.032, player.z);
+    markerRing.visible = markerDisc.visible = true;
+  }
+
   // ----------------------------------------------------------------- update --
 
   function update(dt) {
@@ -736,6 +769,9 @@ export function createMatch(options = {}) {
       player.model.update(dt, { speed, moving: speed > 0.25 });
       player.model.lookAt(ball.state.position);
     }
+
+    // Marcador azul acompanha o atleta controlado.
+    updateMarker(dt);
 
     if (cameraMode === 'cinematic') updateCinematicCamera(dt);
     else if (cameraMode === 'manual' && manualCamera) {
@@ -863,29 +899,31 @@ export function createMatch(options = {}) {
     return rng() < chance;
   }
 
-  /** Câmera de transmissão: segue a bola com suavização. */
+  /**
+   * Câmera de transmissão aérea inclinada, no estilo EA Sports FC Mobile:
+   * vista lateral alta do campo (lado maior), objetiva longa que abraça
+   * grande parte do gramado, acompanhando a bola com suavidade.
+   */
   function updateCamera(dt) {
     const position = ball.state.position;
-    const sign = attackSign(userSide);
-    // Câmera de transmissão: mais próxima e inclinada, como no FC Mobile.
-    const desiredX = position.x * 0.72 - sign * 28;
-    const desiredZ = position.z * 0.5;
-    const desiredY = 15.6 + Math.min(6, Math.abs(position.x) * 0.06);
+    const desiredX = Math.max(-36, Math.min(36, position.x * 0.72));
+    const desiredZ = 38;
+    const desiredY = 23 + Math.min(3.5, Math.abs(position.x) * 0.035);
 
     const camera = engine.camera;
     if (!cameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
-      cameraTarget.set(position.x, 0.8, position.z);
+      cameraTarget.set(position.x, 0, 0);
       cameraReady = true;
     }
     const smoothing = 1 - Math.pow(0.0016, dt);
-    camera.position.x += (Math.max(-52, Math.min(52, desiredX)) - camera.position.x) * smoothing;
+    camera.position.x += (desiredX - camera.position.x) * smoothing;
     camera.position.y += (desiredY - camera.position.y) * smoothing;
-    camera.position.z += (Math.max(-32, Math.min(32, desiredZ)) - camera.position.z) * smoothing;
+    camera.position.z += (desiredZ - camera.position.z) * smoothing;
 
-    cameraTarget.x += (position.x * 0.9 - cameraTarget.x) * smoothing;
-    cameraTarget.z += (position.z * 0.9 - cameraTarget.z) * smoothing;
-    camera.lookAt(cameraTarget.x, 1.2, cameraTarget.z);
+    cameraTarget.x += (Math.max(-40, Math.min(40, position.x * 0.82)) - cameraTarget.x) * smoothing;
+    cameraTarget.z += (position.z * 0.35 - cameraTarget.z) * smoothing;
+    camera.lookAt(cameraTarget.x, 0, cameraTarget.z);
   }
 
   function snapshotStats() {
@@ -912,6 +950,11 @@ export function createMatch(options = {}) {
     },
     dispose() {
       world.dispose?.();
+      engine.scene.remove(markerRing, markerDisc);
+      markerRing.geometry.dispose();
+      markerRing.material.dispose();
+      markerDisc.geometry.dispose();
+      markerDisc.material.dispose();
       engine.stop();
       for (const player of allPlayers) player.model.dispose();
       ball.dispose();

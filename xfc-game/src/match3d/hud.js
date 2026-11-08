@@ -51,6 +51,22 @@ export function createHud({ root, home, away }) {
   );
 
   // Cartão do jogador controlado (número, nome, OVR e condição).
+  // Adversário mais próximo da bola (o segundo nome dos prints).
+  const foeNumber = el('b', { class: 'hud__player-no hud__player-no--foe', text: '—' });
+  const foeName = el('span', { class: 'hud__player-name', text: '—' });
+  const foeOvr = el('b', { text: '—' });
+  const foeBarFill = el('i');
+  const foeChip = el('div', { class: 'hud__foe' },
+    el('div', { class: 'hud__player-meta hud__player-meta--foe' },
+      foeName,
+      el('div', { class: 'hud__player-sub' },
+        el('span', { class: 'hud__player-ovr' }, foeOvr, el('em', { text: 'OVR' })),
+        el('span', { class: 'hud__player-bar hud__player-bar--foe' }, foeBarFill)
+      )
+    ),
+    foeNumber
+  );
+
   const chipNumber = el('b', { class: 'hud__player-no', text: '10' });
   const chipName = el('span', { class: 'hud__player-name', text: 'ATLETA' });
   const chipOvr = el('b', { text: '—' });
@@ -80,6 +96,7 @@ export function createHud({ root, home, away }) {
   const node = el('div', { class: 'hud' },
     scoreboard,
     playerChip,
+    foeChip,
     tag,
     feed,
     radar,
@@ -89,6 +106,7 @@ export function createHud({ root, home, away }) {
 
   const context = radarCanvas.getContext('2d');
   let lastChipId = null;
+  let lastFoeId = null;
 
   function drawRadar(players, ball, controlled) {
     const width = radarCanvas.width;
@@ -136,6 +154,34 @@ export function createHud({ root, home, away }) {
     }
   }
 
+  function paintFoe(foe) {
+    if (!foe) return;
+    const id = `${foe.side}-${foe.number}-${foe.name}`;
+    if (id === lastFoeId) return;
+    lastFoeId = id;
+    foeNumber.textContent = String(foe.number);
+    foeName.textContent = String(foe.name).toUpperCase();
+    const ovr = foe.ovr || 0;
+    foeOvr.textContent = ovr ? String(ovr) : '—';
+    foeBarFill.style.width = `${Math.min(100, Math.max(6, (ovr / 99) * 100))}%`;
+  }
+
+  function nearestOpponent(players, ball, controlledPlayer) {
+    if (!ball) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const player of players || []) {
+      if (!player.active) continue;
+      if (controlledPlayer && player.side === controlledPlayer.side) continue;
+      const distance = Math.hypot(player.x - ball.x, player.z - ball.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = player;
+      }
+    }
+    return best;
+  }
+
   function paintChip(player) {
     if (!player) return;
     const id = `${player.side}-${player.number}-${player.name}`;
@@ -162,6 +208,7 @@ export function createHud({ root, home, away }) {
       const player = controlled?.player || null;
       drawRadar(players, ball, player);
       paintChip(player);
+      paintFoe(nearestOpponent(players, ball, player));
       if (controlled?.visible && player) {
         tagName.textContent = String(player.name).toUpperCase();
         tag.style.left = `${controlled.x}px`;

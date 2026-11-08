@@ -86,38 +86,118 @@ function drawPitch(context, width, height) {
   }
 }
 
-/** Textura da torcida: pontos coloridos em fileiras de assentos. */
+/** Textura da torcida: dois anéis de assentos, setores do mandante e do visitante. */
 function drawCrowd(context, width, height) {
-  context.fillStyle = '#41597c';
+  context.fillStyle = '#3a4c68';
   context.fillRect(0, 0, width, height);
-  const rows = 22;
+
+  // Muro divisor entre o anel inferior e o superior.
+  const tierSplit = 0.44;
+  context.fillStyle = '#202c3e';
+  context.fillRect(0, height * tierSplit - 7, width, 14);
+  context.fillStyle = 'rgba(255,255,255,0.16)';
+  context.fillRect(0, height * tierSplit - 8, width, 2);
+  context.fillRect(0, height * tierSplit + 6, width, 2);
+
+  const rows = 26;
   const rowHeight = height / rows;
+  const seats = 66;
+  const seatWidth = width / seats;
+
+  // Setores: as duas pontas pertencem ao visitante (rubro/amarelo);
+  // as laterais, ao mandante (azul/branco), com um miolo amarelo na cabeceira.
+  const isAwaySection = u => u < 0.14 || (u > 0.43 && u < 0.57) || u > 0.86;
+
   for (let row = 0; row < rows; row += 1) {
-    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)';
+    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.22)';
     context.fillRect(0, row * rowHeight, width, rowHeight * 0.5);
-    const seats = 52;
     for (let seat = 0; seat < seats; seat += 1) {
-      if (Math.random() < 0.06) continue;
+      if (Math.random() < 0.07) continue;
+      const u = seat / seats;
+      const away = isAwaySection(u);
       const hue = Math.random();
-      const color = hue < 0.3
-        ? `rgba(${225 + Math.random() * 30},${55 + Math.random() * 70},${60 + Math.random() * 45},1)`
-        : hue < 0.55
-          ? `rgba(${55 + Math.random() * 70},${135 + Math.random() * 80},${215 + Math.random() * 40},1)`
-          : hue < 0.78
-            ? `rgba(242,242,242,0.95)`
-            : `rgba(245,${205 + Math.random() * 45},${80},1)`;
+      let color;
+      if (away) {
+        // Setor do visitante: predominância rubra e amarela.
+        color = hue < 0.4
+          ? `rgba(${222 + Math.random() * 30},${40 + Math.random() * 30},${46 + Math.random() * 25},1)`
+          : hue < 0.72
+            ? `rgba(245,${205 + Math.random() * 40},${70},1)`
+            : 'rgba(240,240,240,0.95)';
+      } else {
+        // Setor do mandante: predominância azul e branca.
+        color = hue < 0.46
+          ? `rgba(${45 + Math.random() * 40},${118 + Math.random() * 60},${205 + Math.random() * 45},1)`
+          : hue < 0.74
+            ? 'rgba(240,243,247,0.95)'
+            : hue < 0.88
+              ? `rgba(${120 + Math.random() * 40},${215 + Math.random() * 35},255,1)`
+              : `rgba(${18 + Math.random() * 25},${40 + Math.random() * 30},${80 + Math.random() * 40},1)`;
+      }
       context.fillStyle = color;
-      const x = (seat + 0.5) * (width / seats) + (Math.random() - 0.5) * 4;
+      const x = (seat + 0.5) * seatWidth + (Math.random() - 0.5) * 4;
       const y = row * rowHeight + rowHeight * 0.6;
       context.beginPath();
       context.arc(x, y, rowHeight * 0.34, 0, Math.PI * 2);
       context.fill();
       // Ombros: a silhueta da torcida.
-      context.fillStyle = 'rgba(20,26,36,0.55)';
+      context.fillStyle = 'rgba(18,24,34,0.6)';
       context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.34, rowHeight * 0.3, rowHeight * 0.26, 0, 0, Math.PI * 2);
+      context.ellipse(x, y + rowHeight * 0.32, rowHeight * 0.3, rowHeight * 0.24, 0, 0, Math.PI * 2);
       context.fill();
     }
+  }
+}
+
+/** Faixa azul com a marca XFC na frente das arquibancadas (como a dos estádios de verdade). */
+function drawBanner(context, width, height) {
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, '#12466f');
+  gradient.addColorStop(0.5, '#0d3355');
+  gradient.addColorStop(1, '#081f36');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+  // Fio de luz entre a faixa e a torcida.
+  context.fillStyle = 'rgba(120,220,255,0.5)';
+  context.fillRect(0, 0, width, 4);
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  // Escudo simplificado da XFC.
+  const cx = width / 2;
+  context.strokeStyle = 'rgba(255,255,255,0.85)';
+  context.lineWidth = height * 0.05;
+  context.beginPath();
+  context.arc(cx, height * 0.5, height * 0.31, 0, Math.PI * 2);
+  context.stroke();
+  context.fillStyle = '#ffffff';
+  context.font = `900 ${height * 0.42}px Inter, sans-serif`;
+  context.fillText('XFC', cx, height * 0.47);
+  context.fillStyle = 'rgba(255,255,255,0.62)';
+  context.font = `600 ${height * 0.11}px Inter, sans-serif`;
+  context.fillText('F O U N D A T I O N', cx, height * 0.78);
+  // Marca d'água repetida ao longo da faixa.
+  context.fillStyle = 'rgba(255,255,255,0.28)';
+  context.font = `700 ${height * 0.2}px Inter, sans-serif`;
+  for (const side of [-1, 1]) {
+    context.fillText('XF ESPORTES', cx + side * width * 0.31, height * 0.5);
+  }
+}
+
+/** Letreiro de LED na borda do telhado das arquibancadas. */
+function drawLed(context, width, height) {
+  context.fillStyle = '#04121f';
+  context.fillRect(0, 0, width, height);
+  const segments = ['XF ESPORTES', 'XFC', 'XFC FOUNDATION'];
+  const colors = ['#38f0a4', '#3fd7ff', '#ffffff'];
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  const count = 4;
+  const cell = width / count;
+  for (let index = 0; index < count; index += 1) {
+    const which = index % segments.length;
+    context.fillStyle = colors[which];
+    context.font = `800 ${height * 0.52}px Inter, sans-serif`;
+    context.fillText(segments[which], cell * index + cell / 2, height * 0.52);
   }
 }
 
@@ -241,6 +321,24 @@ function buildStand(width, depth, height, texture, options = {}) {
 
   group.rotation.y = rotation;
   group.position.set(position[0], position[1], position[2]);
+  return group;
+}
+
+function buildCornerFlag(x, z) {
+  const group = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 1.6, 8),
+    new THREE.MeshLambertMaterial({ color: 0xf4f6f8 })
+  );
+  pole.position.y = 0.8;
+  group.add(pole);
+  const flag = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.4, 0.26),
+    new THREE.MeshLambertMaterial({ color: 0x2ef0a8, emissive: 0x0d5a34, side: THREE.DoubleSide })
+  );
+  flag.position.set(0.21, 1.42, 0);
+  group.add(flag);
+  group.position.set(x, 0, z);
   return group;
 }
 
@@ -377,10 +475,10 @@ export function buildStadium(scene, options = {}) {
   crowdTexture.repeat.set(4, 1.4);
 
   const standOptions = [
-    { width: PITCH.length + 18, depth: 16, height: 15, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 9)] },
-    { width: PITCH.length + 18, depth: 16, height: 15, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + 9] },
-    { width: PITCH.width + 18, depth: 16, height: 15, rotation: Math.PI / 2, position: [-(PITCH.halfLength + 9), 0, 0] },
-    { width: PITCH.width + 18, depth: 16, height: 15, rotation: -Math.PI / 2, position: [PITCH.halfLength + 9, 0, 0] }
+    { width: PITCH.length + 26, depth: 17, height: 17, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
+    { width: PITCH.length + 26, depth: 17, height: 17, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + 12] },
+    { width: PITCH.width + 26, depth: 17, height: 17, rotation: Math.PI / 2, position: [-(PITCH.halfLength + 12), 0, 0] },
+    { width: PITCH.width + 26, depth: 17, height: 17, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
   ];
   for (const option of standOptions) {
     group.add(buildStand(option.width, option.depth, option.height, crowdTexture, option));
@@ -390,13 +488,13 @@ export function buildStadium(scene, options = {}) {
   const adTexture = canvasTexture(1024, 96, drawAds);
   adTexture.wrapS = THREE.RepeatWrapping;
   adTexture.repeat.set(6, 1);
-  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x2c4438 });
+  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x35543f });
   const adHeight = 1.1;
   const ads = [
-    { size: [PITCH.length, adHeight], position: [0, adHeight / 2, -(PITCH.halfWidth + 1.6)] },
-    { size: [PITCH.length, adHeight], position: [0, adHeight / 2, PITCH.halfWidth + 1.6] },
-    { size: [PITCH.width, adHeight], position: [-(PITCH.halfLength + 1.6), adHeight / 2, 0] },
-    { size: [PITCH.width, adHeight], position: [PITCH.halfLength + 1.6, adHeight / 2, 0] }
+    { size: [PITCH.length, adHeight], position: [0, adHeight / 2, -(PITCH.halfWidth + 1.9)] },
+    { size: [PITCH.length, adHeight], position: [0, adHeight / 2, PITCH.halfWidth + 1.9] },
+    { size: [PITCH.width, adHeight], position: [-(PITCH.halfLength + 2.35), adHeight / 2, 0] },
+    { size: [PITCH.width, adHeight], position: [PITCH.halfLength + 2.35, adHeight / 2, 0] }
   ];
   for (const ad of ads) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ad.size[0], ad.size[1]), adMaterial);
@@ -406,12 +504,48 @@ export function buildStadium(scene, options = {}) {
     group.add(mesh);
   }
 
+  // Faixa azul da XFC aplicada na face do muro das arquibancadas.
+  const bannerTexture = canvasTexture(2048, 200, drawBanner);
+  const bannerMaterial = new THREE.MeshLambertMaterial({ map: bannerTexture, emissive: 0x0e2a42 });
+  // Letreiro de LED correndo no topo do muro.
+  const ledTexture = canvasTexture(2048, 64, drawLed);
+  ledTexture.wrapS = THREE.RepeatWrapping;
+  ledTexture.repeat.set(2, 1);
+  const ledMaterial = new THREE.MeshBasicMaterial({ map: ledTexture });
+  for (const side of [-1, 1]) {
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.length + 20, 2.3), bannerMaterial);
+    banner.position.set(0, 1.18, side * (PITCH.halfWidth + 2.55));
+    if (side > 0) banner.rotation.y = Math.PI;
+    group.add(banner);
+    const led = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.length + 20, 0.66), ledMaterial);
+    led.position.set(0, 2.78, side * (PITCH.halfWidth + 2.5));
+    if (side > 0) led.rotation.y = Math.PI;
+    group.add(led);
+  }
+  for (const side of [-1, 1]) {
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.width + 20, 2.3), bannerMaterial);
+    banner.position.set(side * (PITCH.halfLength + 3.55), 1.18, 0);
+    banner.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    group.add(banner);
+    const led = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.width + 20, 0.66), ledMaterial);
+    led.position.set(side * (PITCH.halfLength + 3.5), 2.78, 0);
+    led.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    group.add(led);
+  }
+
   // Gols.
   const goals = { home: buildGoal(-1), away: buildGoal(1) };
   group.add(goals.home, goals.away);
 
+  // Bandeirinhas de escanteio.
+  for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
+    for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
+      group.add(buildCornerFlag(x, z));
+    }
+  }
+
   // Refletores.
-  for (const x of [-(PITCH.halfLength + 20), PITCH.halfLength + 20]) {
+  for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
     for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
       group.add(buildFloodlight(x, z));
     }

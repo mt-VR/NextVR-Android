@@ -365,6 +365,33 @@
   transition: width 240ms ease;
 }
 
+.hud__foe {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 16px;
+  border-right: 3px solid #ff5a5a;
+  border-radius: 8px;
+  background: linear-gradient(270deg, rgba(34, 10, 12, 0.92) 0%, rgba(34, 10, 12, 0.55) 72%, transparent 100%);
+}
+
+.hud__player-meta--foe {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hud__player-no--foe {
+  background: linear-gradient(160deg, #ff6a6a, #c93a3a);
+  color: #fff;
+}
+
+.hud__player-bar--foe i {
+  background: linear-gradient(90deg, #ff5a5a, #ffb0a0);
+}
+
 /* --------------------------------------- nome sobre a cabeça do atleta -- */
 
 .hud__tag {
@@ -551,10 +578,10 @@
 
 .controls__buttons {
   position: absolute;
-  right: 24px;
-  bottom: 18px;
+  right: 14px;
+  bottom: 74px;
   width: 340px;
-  height: 268px;
+  height: 344px;
   pointer-events: none;
 }
 
@@ -583,69 +610,71 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
 }
 
-/* CHUTE — o botão principal, grande em cima à direita */
+/* CHUTE — o botão principal, grande no alto à direita */
 .ctrl-btn--shoot {
-  right: 16px;
-  bottom: 178px;
-  width: 86px;
-  height: 86px;
+  right: 14px;
+  bottom: 226px;
+  width: 94px;
+  height: 94px;
   font-size: 11px;
   border-color: rgba(255, 255, 255, 0.85);
   background: rgba(23, 34, 46, 0.78);
 }
 
-/* ENFIADA — amarelo */
+/* DRIBLE — amarelo, grande à esquerda do CHUTE */
 .ctrl-btn--lob {
-  right: 120px;
-  bottom: 152px;
-  width: 68px;
-  height: 68px;
+  right: 132px;
+  bottom: 204px;
+  width: 78px;
+  height: 78px;
   border-color: rgba(245, 197, 24, 0.85);
   background: rgba(74, 58, 8, 0.62);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 197, 24, 0.22);
 }
 
-/* PASSE — verde */
+/* PASSE — verde, grande embaixo à esquerda */
 .ctrl-btn--pass {
-  right: 24px;
-  bottom: 58px;
-  width: 80px;
-  height: 80px;
+  right: 18px;
+  bottom: 60px;
+  width: 90px;
+  height: 90px;
+  font-size: 11px;
   border-color: rgba(46, 240, 168, 0.8);
   background: rgba(11, 66, 48, 0.66);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(46, 240, 168, 0.25);
 }
 
-/* DESARME — laranja */
+/* CORRER — ciano, grande à direita (segurar para disparar) */
+.ctrl-btn--sprint {
+  right: 224px;
+  bottom: 96px;
+  width: 82px;
+  height: 82px;
+  border-color: rgba(63, 215, 255, 0.75);
+  background: rgba(10, 52, 76, 0.66);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.22);
+}
+
+/* DESARME — pequeno, laranja */
 .ctrl-btn--tackle {
-  right: 120px;
-  bottom: 38px;
-  width: 64px;
-  height: 64px;
+  right: 138px;
+  bottom: 30px;
+  width: 58px;
+  height: 58px;
+  font-size: 8px;
   border-color: rgba(255, 159, 67, 0.78);
   background: rgba(78, 38, 12, 0.62);
 }
 
 /* TROCAR — pequeno, neutro */
 .ctrl-btn--switch {
-  right: 228px;
-  bottom: 184px;
-  width: 55px;
-  height: 55px;
+  right: 238px;
+  bottom: 224px;
+  width: 54px;
+  height: 54px;
   font-size: 8px;
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(20, 32, 46, 0.72);
-}
-
-/* PIQUE — ciano (segurar para correr) */
-.ctrl-btn--sprint {
-  right: 224px;
-  bottom: 66px;
-  width: 66px;
-  height: 66px;
-  border-color: rgba(63, 215, 255, 0.75);
-  background: rgba(10, 52, 76, 0.66);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.22);
 }
 
 /* ------------------------------------------------------- pausa e resultado -- */

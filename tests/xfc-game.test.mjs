@@ -259,6 +259,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'o analógico fica fixo no canto inferior esquerdo');
     assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
+    assert.ok(await page.locator('.hud__foe').isVisible(),
+      'o adversário mais próximo aparece no canto inferior direito');
     assert.equal(await page.locator('.hud__tag.is-visible').count(), 1,
       'a etiqueta do nome aparece sobre o atleta controlado');
 
@@ -326,6 +328,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       'o analógico fica fixo no canto inferior esquerdo');
     assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
+    assert.ok(await page.locator('.hud__foe').isVisible(),
+      'o adversário mais próximo aparece no canto inferior direito');
 
     // A simulação realmente roda: o relógio anda, a bola se mexe e o placar
     // existe para as duas equipes.
