@@ -149,25 +149,27 @@ jobs:
           if ! gh release view "$TAG" > /dev/null 2>&1; then
             gh release create "$TAG" --title "XFC menu v1" --notes "$NOTES"
           fi
-          # Os dois arquivos sobem com o nome final (o Gradle chama o APK de
-          # app-release.apk), trocando o anterior quando ele existe.
-          upload() {
-            file="$1"
-            name="$2"
-            old=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-              --jq ".assets[] | select(.name == \"$name\") | .id" | head -n 1)
-            if [ -n "$old" ]; then
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old" > /dev/null
-            fi
-            gh api --method POST \
-              "repos/$GITHUB_REPOSITORY/releases/$TAG/assets?name=$name" \
-              -H "Content-Type: application/octet-stream" \
-              --input "$file" > /dev/null
-            echo "release: $name ($(stat -c %s "$file") bytes)"
+          # O `gh release upload` funciona; o nome do arquivo do Gradle é
+          # app-release.apk, então o anexo é renomeado para xfc.apk logo depois
+          # (o link direto do arquivo não muda quando o nome muda).
+          drop_asset() {
+            for id in $(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq ".assets[] | select(.name == \"$1\") | .id"); do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" > /dev/null
+              echo "removido o anexo antigo: $1"
+            done
           }
-          upload "$APK" "xfc.apk"
-          upload "$GITHUB_WORKSPACE/xfc-game.zip" "xfc-game.zip"
-          gh release view "$TAG" --json url --jq .url
+          drop_asset "xfc.apk"
+          drop_asset "app-release.apk"
+          gh release upload "$TAG" "$APK" --clobber
+          gh release upload "$TAG" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" --clobber
+          apk_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name == "app-release.apk") | .id' | head -n 1)
+          if [ -n "$apk_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$apk_id" \
+              -f name=xfc.apk -f label="XFC — aplicativo Android" --jq .name
+          fi
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) bytes  \(.url)"'
 
       - name: Upload the APK and the zip as workflow artifacts
         uses: actions/upload-artifact@v7
