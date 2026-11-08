@@ -18,7 +18,7 @@ export const STADIUMS = [
     capacity: '78.838',
     tag: 'A MAIOR CATEDRAL DO FUTEBOL',
     file: 'assets/stadiums/maracana.jpg',
-    model: { roof: 'open-ring', facade: 0x8d7d5c, facadeTex: null, led: '#ffe6a8', height: 19.5, arch: null, poles: false, weave: false }
+    model: { roof: 'ring', facade: 0x8d7d5c, facadeTex: null, led: '#ffe6a8', height: 19.5, arch: null, poles: false, weave: false }
   },
   {
     id: 'morumbis',
