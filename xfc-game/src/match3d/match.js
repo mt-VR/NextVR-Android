@@ -56,8 +56,8 @@ export function createMatch(options = {}) {
 
   const allPlayers = [];
   const stats = {
-    home: { shots: 0, corners: 0, fouls: 0, cards: 0 },
-    away: { shots: 0, corners: 0, fouls: 0, cards: 0 }
+    home: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 },
+    away: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 }
   };
   const possession = { home: 0, away: 0 };
   let paused = false;
@@ -95,6 +95,12 @@ export function createMatch(options = {}) {
 
   function emit(event) {
     if (event.type === 'shot') stats[event.team].shots += 1;
+    if (event.type === 'pass') stats[event.team].passes += 1;
+    if (event.type === 'goal') stats[event.team].shotsOn += 1;
+    if (event.type === 'save') {
+      stats[event.team].saves += 1;
+      stats[opponentOf(event.team)].shotsOn += 1;
+    }
     if (event.type === 'restart' && event.kind === 'corner') stats[event.team].corners += 1;
     if (event.type === 'foul') stats[event.team].fouls += 1;
     if (event.type === 'card') stats[event.team].cards += 1;
@@ -273,7 +279,9 @@ export function createMatch(options = {}) {
     if (!owner || owner.side === player.side) return;
     const distance = Math.hypot(owner.x - player.x, owner.z - player.z);
     if (distance > 2.4) return;
-    if (rng() < aiAccuracy * 0.5) {
+    // Portador em arrancada de drible resiste muito mais ao desarme.
+    const resistance = (owner.burst ?? 0) > 0 ? 0.22 : 0.5;
+    if (rng() < aiAccuracy * resistance) {
       ball.attachTo(player);
       ball.state.lastTouch = player;
       player.model.kick();
@@ -519,6 +527,27 @@ export function createMatch(options = {}) {
     });
   }
 
+  // Árbitro: boneco de preto com camisa acentuada em amarelo. Aparece no
+  // apito inicial e no apito final — como na transmissão.
+  const refereeModel = createPlayer3D({
+    kit: { primary: '#161a20', secondary: '#161a20', accent: '#f5c518', pattern: 'solid' },
+    number: 1,
+    isKeeper: false,
+    skinTone: '#c98d5f',
+    hairColor: '#1f1712'
+  });
+  refereeModel.root.visible = false;
+  engine.scene.add(refereeModel.root);
+
+  function updateReferee() {
+    const show = phase.name === 'kickoff' || phase.name === 'fulltime';
+    refereeModel.root.visible = show;
+    if (!show) return;
+    if (phase.name === 'kickoff') refereeModel.root.position.set(1.9, 0, 0.4);
+    else refereeModel.root.position.set(-1.6, 0, 0.4);
+    refereeModel.update(0.016, { speed: 0, moving: false });
+  }
+
   // ------------------------------------------------------------------ mundo --
 
   const world = {
@@ -573,6 +602,10 @@ export function createMatch(options = {}) {
       } else if (name === 'tackle') {
         if (owner && owner.side !== userSide) tackle(player);
         else runToBall(player);
+      } else if (name === 'dribble') {
+        // Arrancada: 0,75s de velocidade extra e muito mais difícil de ser
+        // desarmado — o clássico "passa pelo marcador".
+        player.burst = Math.max(player.burst ?? 0, 0.75);
       } else if (name === 'switch') {
         switchPlayer();
       }
@@ -770,6 +803,9 @@ export function createMatch(options = {}) {
       player.model.lookAt(ball.state.position);
     }
 
+    // Árbitro em cena nas retomadas importantes.
+    updateReferee();
+
     // Marcador azul acompanha o atleta controlado.
     updateMarker(dt);
 
@@ -783,21 +819,24 @@ export function createMatch(options = {}) {
   /** Câmera cinematográfica: uma volta sobre o estádio. */
   function updateCinematicCamera(dt) {
     cinematicAngle += dt * 0.16;
-    const radius = 46;
+    // Volta por cima do gramado, sem atravessar arquibancada nem telhado.
+    const radius = 29;
     const camera = engine.camera;
     camera.position.set(
       Math.cos(cinematicAngle) * radius,
-      15 + Math.sin(cinematicAngle * 0.7) * 4,
-      Math.sin(cinematicAngle) * radius * 0.72
+      22 + Math.sin(cinematicAngle * 0.7) * 3,
+      Math.sin(cinematicAngle) * radius * 0.75
     );
-    camera.lookAt(0, 2.5, 0);
+    camera.lookAt(0, 0, 0);
   }
 
   /** O jogador controlado responde ao analógico. */
   function updateHuman(dt) {
     const player = controlled[userSide];
     if (!player || !player.active) return;
-    const speed = input.sprint ? HUMAN_SPRINT : HUMAN_SPEED;
+    const bursting = (player.burst ?? 0) > 0;
+    if (bursting) player.burst = Math.max(0, (player.burst ?? 0) - dt);
+    const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
     const sign = attackSign(userSide);
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
@@ -843,6 +882,9 @@ export function createMatch(options = {}) {
       }
     }
     if (best) {
+      // Passe certo: o recebedor domina a bola do próprio time.
+      const last = ball.state.lastTouch;
+      if (last && last !== best && last.side === best.side) stats[best.side].passesOn += 1;
       ball.attachTo(best);
       ball.state.lastTouch = best;
       if (best.side === userSide) controlled[userSide] = best;
@@ -906,9 +948,9 @@ export function createMatch(options = {}) {
    */
   function updateCamera(dt) {
     const position = ball.state.position;
-    const desiredX = Math.max(-36, Math.min(36, position.x * 0.72));
-    const desiredZ = 38;
-    const desiredY = 23 + Math.min(3.5, Math.abs(position.x) * 0.035);
+    const desiredX = Math.max(-34, Math.min(34, position.x * 0.72));
+    const desiredZ = 36.2;
+    const desiredY = 25.5 + Math.min(2.5, Math.abs(position.x) * 0.03);
 
     const camera = engine.camera;
     if (!cameraReady) {
@@ -950,6 +992,8 @@ export function createMatch(options = {}) {
     },
     dispose() {
       world.dispose?.();
+      engine.scene.remove(refereeModel.root);
+      refereeModel.dispose?.();
       engine.scene.remove(markerRing, markerDisc);
       markerRing.geometry.dispose();
       markerRing.material.dispose();

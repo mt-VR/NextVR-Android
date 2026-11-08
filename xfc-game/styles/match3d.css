@@ -54,8 +54,8 @@
   justify-content: center;
   gap: 22px;
   background:
-    radial-gradient(ellipse at 50% 40%, rgba(46, 240, 168, 0.16), transparent 62%),
-    linear-gradient(180deg, rgba(2, 10, 20, 0.92) 0%, rgba(2, 10, 20, 0.72) 45%, rgba(2, 10, 20, 0.95) 100%);
+    radial-gradient(ellipse at 50% 38%, rgba(46, 240, 168, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(2, 10, 20, 0.9) 0%, rgba(2, 10, 20, 0.38) 34%, rgba(2, 10, 20, 0.3) 55%, rgba(2, 10, 20, 0.92) 100%);
   animation: prematch-in 520ms ease both;
 }
 
@@ -667,7 +667,7 @@
 /* CHUTE — o botão principal, grande no alto à direita */
 .ctrl-btn--shoot {
   right: 14px;
-  bottom: 226px;
+  bottom: 250px;
   width: 94px;
   height: 94px;
   font-size: 11px;
@@ -675,21 +675,32 @@
   background: rgba(23, 34, 46, 0.78);
 }
 
-/* DRIBLE — amarelo, grande à esquerda do CHUTE */
+/* ENFIADA — amarelo, grande à esquerda do CHUTE */
 .ctrl-btn--lob {
-  right: 132px;
-  bottom: 204px;
-  width: 78px;
-  height: 78px;
+  right: 128px;
+  bottom: 214px;
+  width: 74px;
+  height: 74px;
   border-color: rgba(245, 197, 24, 0.85);
   background: rgba(74, 58, 8, 0.62);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 197, 24, 0.22);
 }
 
+/* DRIBLE — branco, pequeno no alto, como no FC Mobile (skill move) */
+.ctrl-btn--dribble {
+  right: 238px;
+  bottom: 250px;
+  width: 62px;
+  height: 62px;
+  font-size: 9px;
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(31, 41, 54, 0.72);
+}
+
 /* PASSE — verde, grande embaixo à esquerda */
 .ctrl-btn--pass {
   right: 18px;
-  bottom: 60px;
+  bottom: 84px;
   width: 90px;
   height: 90px;
   font-size: 11px;
@@ -700,8 +711,8 @@
 
 /* CORRER — ciano, grande à direita (segurar para disparar) */
 .ctrl-btn--sprint {
-  right: 224px;
-  bottom: 96px;
+  right: 226px;
+  bottom: 128px;
   width: 82px;
   height: 82px;
   border-color: rgba(63, 215, 255, 0.75);
@@ -711,8 +722,8 @@
 
 /* DESARME — pequeno, laranja */
 .ctrl-btn--tackle {
-  right: 138px;
-  bottom: 30px;
+  right: 134px;
+  bottom: 40px;
   width: 58px;
   height: 58px;
   font-size: 8px;
@@ -722,13 +733,48 @@
 
 /* TROCAR — pequeno, neutro */
 .ctrl-btn--switch {
-  right: 238px;
-  bottom: 224px;
+  right: 242px;
+  bottom: 44px;
   width: 54px;
   height: 54px;
   font-size: 8px;
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(20, 32, 46, 0.72);
+}
+
+.result__stats {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 460px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: rgba(4, 18, 30, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.result__stat {
+  display: grid;
+  grid-template-columns: 74px 1fr 74px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.result__stat span:last-child {
+  text-align: right;
+}
+
+.result__stat-label {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------- pausa e resultado -- */
@@ -867,8 +913,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  width: 250px;
+  gap: 12px;
+  width: 230px;
   opacity: 0.58;
   transition: opacity 300ms ease;
 }
@@ -887,8 +933,8 @@
 }
 
 .result__crest {
-  width: 132px;
-  height: 132px;
+  width: 108px;
+  height: 108px;
   object-fit: contain;
   transition: transform 260ms ease, filter 260ms ease;
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.6));
@@ -911,7 +957,7 @@
 }
 
 .result__score b {
-  font-size: 126px;
+  font-size: 104px;
   font-weight: 800;
   line-height: 0.95;
   color: #ffffff;
