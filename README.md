@@ -47,6 +47,20 @@ Without it every runner generates a fresh key and installing a new round over th
 fails with *App not installed*. The first install after this change needs the previous build
 uninstalled once, because that one was signed with a generated key.
 
+## XFC — the XF Esports football game
+
+`xfc-game/` holds **XFC**, the XF Esports football game — a regular football game, not VR. This
+stage ships the menu: the splash, the main menu, the Kick Off team picker (FC Barcelona vs Real
+Madrid, with the real crests and the players' faces) and the squad screen. It is a self-contained
+web app (HTML, CSS and ES modules, no build step) and does not touch the NextVR/VR code.
+
+```bash
+node xfc-game/serve.mjs               # http://127.0.0.1:8080
+node --test tests/xfc-game.test.mjs   # dados do elenco e fluxo das telas
+```
+
+See [`xfc-game/README.md`](xfc-game/README.md) for the structure and the credits of the images.
+
 ## Develop the reference UI
 
 ```bash
@@ -239,6 +253,7 @@ procedure and log summariser: [`tools/perf/README.md`](tools/perf/README.md).
 | `nextvr-android/src/main/jni/nextvr_app.cc` | Existing Cardboard orientation, stereo framebuffer and distortion infrastructure |
 | `sdk/`, `java_api/`, `proto/`, `third_party/` | Vendored official Cardboard SDK |
 | `tests/` | Reference UI browser tests and spatial/security invariants |
+| `xfc-game/` | XFC football game: splash, main menu, Kick Off team picker and squad screens (standalone web app) |
 
 ## Attribution
 

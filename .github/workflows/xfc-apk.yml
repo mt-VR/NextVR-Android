@@ -1,0 +1,182 @@
+name: XFC APK
+
+# Gera o APK do XFC (jogo de futebol da XF Esports) e publica o APK + o zip do
+# jogo para download direto. O build do XFC é isolado: `./gradlew -p xfc-game/android`
+# não toca no app de VR do NextVR.
+
+on:
+  push:
+    branches: [ "arena/c478325b-nextvr-android" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  checks: write
+
+jobs:
+  build:
+    name: Build XFC APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install the test dependencies
+        run: npm ci
+
+      - name: Run the XFC tests
+        id: xfc-tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --test tests/xfc-game.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # O relatório dos testes vai para um check-run próprio: assim o resultado do
+      # XFC fica legível na aba de checks do PR, mesmo quando a suíte do app de VR
+      # (que roda no workflow da Android CI) está instável.
+      - name: Publish the XFC test report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          CONCLUSION=success
+          if [ "${{ steps.xfc-tests.outputs.exit }}" != "0" ]; then
+            CONCLUSION=failure
+          fi
+          {
+            echo '### XFC — resultado dos testes'
+            echo ''
+            echo '```'
+            tail -n 120 /tmp/xfc-tests.log || true
+            echo '```'
+          } > /tmp/xfc-summary.md
+          jq -n \
+            --arg title "XFC — testes do jogo" \
+            --arg summary "$(cat /tmp/xfc-summary.md)" \
+            --arg head_sha "$GITHUB_SHA" \
+            --arg conclusion "$CONCLUSION" \
+            '{name: $title, head_sha: $head_sha, status: "completed", conclusion: $conclusion,
+              output: {title: $title, summary: $summary}}' > /tmp/xfc-check.json
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/xfc-check.json \
+            --jq '"check-run: \(.html_url) (\(.conclusion))"'
+
+      - name: Fail when the XFC tests fail
+        if: steps.xfc-tests.outputs.exit != '0'
+        run: exit 1
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build XFC APK
+        run: ./gradlew -p xfc-game/android assembleRelease --no-daemon --stacktrace
+
+      - name: Check the game is inside the APK
+        run: |
+          set -e
+          APK=$(find xfc-game/android/app/build/outputs/apk -name '*.apk' -print -quit)
+          test -n "$APK"
+          echo "APK: $APK ($(stat -c %s "$APK") bytes)"
+          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|assets/crests/.*\.png)$' | sort
+
+      - name: Package the game as a zip
+        run: |
+          set -e
+          cd xfc-game
+          zip -r ../xfc-game.zip index.html styles src assets serve.mjs README.md -x '*.DS_Store'
+          cd ..
+          ls -l xfc-game.zip
+
+      - name: Publish to the xfc-dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
+          test -n "$APK"
+          rm -rf /tmp/xfc-dist && mkdir -p /tmp/xfc-dist/dist && cd /tmp/xfc-dist
+          git init -q -b xfc-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$APK" dist/xfc.apk
+          cp "$GITHUB_WORKSPACE/xfc-game.zip" dist/xfc-game.zip
+          SIZE=$(stat -c %s "$APK")
+          MD5=$(md5sum "$APK" | cut -d' ' -f1)
+          printf 'XFC APK built by run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
+          cat dist/build.txt
+          git add dist
+          git commit -qm "XFC APK from run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4; do
+            if git push --force origin xfc-dist; then
+              break
+            fi
+            echo "xfc-dist push failed (attempt $attempt); retrying"
+            sleep $((attempt * 4))
+          done
+          echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
+
+      - name: Publish the release with the direct download links
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
+          TAG=xfc-menu-v1
+          NOTES=$(cat <<'EOF'
+          XFC — o jogo de futebol da XF Esports (menu: intro, menu principal, Kick Off e elenco).
+
+          * `xfc.apk` — aplicativo Android (o jogo roda offline dentro do APK).
+          * `xfc-game.zip` — o jogo em HTML/CSS/JS, para rodar no navegador (`node serve.mjs`).
+          EOF
+          )
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --title "XFC menu v1" --notes "$NOTES"
+          fi
+          # O `gh release upload` funciona; o nome do arquivo do Gradle é
+          # app-release.apk, então o anexo é renomeado para xfc.apk logo depois
+          # (o link direto do arquivo não muda quando o nome muda).
+          drop_asset() {
+            for id in $(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq ".assets[] | select(.name == \"$1\") | .id"); do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" > /dev/null
+              echo "removido o anexo antigo: $1"
+            done
+          }
+          drop_asset "xfc.apk"
+          drop_asset "app-release.apk"
+          gh release upload "$TAG" "$APK" --clobber
+          gh release upload "$TAG" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" --clobber
+          apk_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name == "app-release.apk") | .id' | head -n 1)
+          if [ -n "$apk_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$apk_id" \
+              -f name=xfc.apk -f label="XFC — aplicativo Android" --jq .name
+          fi
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) bytes  \(.url)"'
+
+      - name: Upload the APK and the zip as workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: xfc-apk
+          path: |
+            xfc-game/android/app/build/outputs/apk/release/*.apk
+            xfc-game.zip
+          if-no-files-found: error
+          retention-days: 30
