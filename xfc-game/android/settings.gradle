@@ -1,0 +1,25 @@
+// Build isolado do aplicativo Android do XFC.
+//
+// Este projeto NÃO faz parte do build do NextVR (o settings.gradle da raiz do
+// repositório continua incluindo apenas ':sdk' e ':nextvr-android'). Ele é
+// construído separadamente:
+//
+//   ./gradlew -p xfc-game/android assembleRelease
+//
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'xfc-android'
+include ':app'

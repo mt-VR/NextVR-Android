@@ -1,0 +1,114 @@
+name: XFC APK
+
+# Gera o APK do XFC (jogo de futebol da XF Esports) e publica o APK + o zip do
+# jogo para download direto. O build do XFC é isolado: `./gradlew -p xfc-game/android`
+# não toca no app de VR do NextVR.
+
+on:
+  push:
+    branches: [ "arena/c478325b-nextvr-android" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build XFC APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build XFC APK
+        run: ./gradlew -p xfc-game/android assembleRelease --no-daemon --stacktrace
+
+      - name: Check the game is inside the APK
+        run: |
+          set -e
+          APK=$(find xfc-game/android/app/build/outputs/apk -name '*.apk' -print -quit)
+          test -n "$APK"
+          echo "APK: $APK ($(stat -c %s "$APK") bytes)"
+          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|assets/crests/.*\.png)$' | sort
+
+      - name: Package the game as a zip
+        run: |
+          set -e
+          cd xfc-game
+          zip -r ../xfc-game.zip index.html styles src assets serve.mjs README.md -x '*.DS_Store'
+          cd ..
+          ls -l xfc-game.zip
+
+      - name: Publish to the xfc-dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
+          test -n "$APK"
+          rm -rf /tmp/xfc-dist && mkdir -p /tmp/xfc-dist/dist && cd /tmp/xfc-dist
+          git init -q -b xfc-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$APK" dist/xfc.apk
+          cp "$GITHUB_WORKSPACE/xfc-game.zip" dist/xfc-game.zip
+          SIZE=$(stat -c %s "$APK")
+          MD5=$(md5sum "$APK" | cut -d' ' -f1)
+          printf 'XFC APK built by run %s from commit %s\nsize: %s bytes\nmd5: %s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$SIZE" "$MD5" > dist/build.txt
+          cat dist/build.txt
+          git add dist
+          git commit -qm "XFC APK from run $GITHUB_RUN_ID ($GITHUB_SHA)"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4; do
+            if git push --force origin xfc-dist; then
+              break
+            fi
+            echo "xfc-dist push failed (attempt $attempt); retrying"
+            sleep $((attempt * 4))
+          done
+          echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
+
+      - name: Publish the release with the direct download links
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
+          TAG=xfc-menu-v1
+          NOTES=$(cat <<'EOF'
+          XFC — o jogo de futebol da XF Esports (menu: intro, menu principal, Kick Off e elenco).
+
+          * `xfc.apk` — aplicativo Android (o jogo roda offline dentro do APK).
+          * `xfc-game.zip` — o jogo em HTML/CSS/JS, para rodar no navegador (`node serve.mjs`).
+          EOF
+          )
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$APK#xfc.apk" --clobber
+            gh release upload "$TAG" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" --clobber
+          else
+            gh release create "$TAG" "$APK#xfc.apk" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" \
+              --title "XFC menu v1" --notes "$NOTES"
+          fi
+          gh release view "$TAG" --json url --jq .url
+
+      - name: Upload the APK and the zip as workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: xfc-apk
+          path: |
+            xfc-game/android/app/build/outputs/apk/release/*.apk
+            xfc-game.zip
+          if-no-files-found: error
+          retention-days: 30

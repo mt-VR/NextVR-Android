@@ -1,0 +1,73 @@
+apply plugin: 'com.android.application'
+
+// O app do XFC é uma casca: o jogo (HTML/CSS/JS) vai dentro do APK e roda em
+// um WebView que serve os arquivos do próprio pacote. Não há dependências
+// externas — nem androidx — para o APK ficar pequeno e o build não depender de
+// repositórios além do Google/Maven Central.
+
+def gameRoot = file('../../')
+def stagedAssets = layout.buildDirectory.dir('generated/gameAssets')
+
+android {
+    compileSdk = 35
+    namespace = 'com.xfesports.xfc'
+
+    defaultConfig {
+        applicationId "com.xfesports.xfc"
+        minSdkVersion 26
+        targetSdkVersion 35
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        debug {
+            // A mesma chave de depuração do repositório: o APK do XFC continua
+            // instalando por cima da versão anterior, mesmo depois de um novo
+            // build no CI.
+            storeFile rootProject.file('../../signing/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // Sem ofuscação: o APK é distribuído direto para o celular.
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    sourceSets {
+        main {
+            // O jogo é copiado para a pasta de build antes de empacotar.
+            assets.srcDirs = [stagedAssets.get().asFile]
+        }
+    }
+}
+
+// Copia o jogo (index.html, styles, src e assets) para a pasta de assets do APK.
+tasks.register('stageGameAssets', Copy) {
+    from(gameRoot) {
+        include 'index.html'
+        include 'styles/**'
+        include 'src/**'
+        include 'assets/**'
+        exclude '**/.DS_Store'
+    }
+    into stagedAssets.map { it.dir('game') }
+}
+
+tasks.named('preBuild') {
+    dependsOn 'stageGameAssets'
+}

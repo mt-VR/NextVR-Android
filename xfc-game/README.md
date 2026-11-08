@@ -32,6 +32,29 @@ Não há build: o jogo é HTML + CSS + JavaScript (módulos ES) puro, servido
 estaticamente. Abrir `index.html` direto pelo `file://` não funciona — os
 módulos ES exigem HTTP.
 
+## App Android (APK)
+
+`xfc-game/android/` é uma casca Android que embute o jogo no APK e o roda
+offline em um WebView (os arquivos são servidos sob a origem virtual
+`https://xfc.local/`, porque módulos ES não funcionam em `file://`).
+
+```bash
+# build isolado: não interfere no build do NextVR
+./gradlew -p xfc-game/android assembleRelease
+# → xfc-game/android/app/build/outputs/apk/release/app-release.apk
+```
+
+O workflow [`xfc-apk.yml`](../.github/workflows/xfc-apk.yml) faz esse build no
+CI e publica:
+
+| Arquivo | Link |
+| --- | --- |
+| APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
+| Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
+
+A release [`xfc-menu-v1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v1)
+também tem os dois arquivos anexados.
+
 ## Controles
 
 | Ação | Teclado | Mouse |

@@ -23,3 +23,9 @@ test-results/
 
 # Python tooling scratch (tools/bench, tools/perf)
 __pycache__/
+
+# XFC: build local do app Android (o jogo copiado para o APK fica em build/)
+xfc-game/android/build/
+xfc-game/android/app/build/
+xfc-game/android/.gradle/
+xfc-game.zip

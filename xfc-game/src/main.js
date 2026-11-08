@@ -44,6 +44,9 @@ export function go(name, params = {}) {
   host.appendChild(screen.node);
   current = screen;
   state.lastScreen = name;
+  // A tela atual fica exposta no <body> para o app Android (botão "voltar")
+  // saber se deve voltar uma tela do jogo ou fechar o aplicativo.
+  document.body.dataset.screen = name;
   requestAnimationFrame(() => screen.node.classList.add('is-visible'));
   screen.mount?.();
 }
