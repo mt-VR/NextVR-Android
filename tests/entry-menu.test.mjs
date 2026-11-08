@@ -823,9 +823,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(gorillaFlow.payload.solo, true, 'pela Biblioteca o jogo abre SOZINHO, como o usuário pediu');
     assert.equal(gorillaFlow.payload.room, '', 'sem sala: sozinho não entra em sala nenhuma');
     assert.equal(gorillaFlow.payload.srv, '', 'e sem servidor: offline de verdade, não meia-boca');
-    assert.equal(gorillaFlow.payload.accG, '' , 'entra sem skin: nenhum acessório');
-    assert.equal(gorillaFlow.payload.accH, '', 'entra sem skin: nenhum chapéu');
-    assert.equal(gorillaFlow.payload.accC, '', 'entra sem skin: nenhuma roupa');
+    // A aparência NÃO vai mais no payload: o menu do próprio jogo é que escolhe (STYLE), e o app
+    // não tem mais como dizer "sem skin" — ele simplesmente não manda nada.
+    for (const chave of ['col', 'accG', 'accH', 'accC', 'accY', 'accZ'])
+      assert.equal(chave in gorillaFlow.payload, false, `entra sem aparência do app: ${chave} não vai`);
 
     // 6b. Store Meta Quest 3 UI, Beat Saber auto-VR, Roblox black environment, Gun gesture logo & Settings option, and clean window header
     const questAndFeatures = await page.evaluate(async () => {
