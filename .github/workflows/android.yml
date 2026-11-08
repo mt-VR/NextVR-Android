@@ -90,17 +90,20 @@ jobs:
             exit 1
           fi
           echo "ui: bundle commitado está em dia") 2>&1 | tee /tmp/ui.log | tee -a /tmp/build.log
-          rc=$?
-          # Quando esta etapa falha, o MOTIVO tem de sair como ANOTAÇÃO: o log do job é servido por
-          # um blob que não abre em todo lugar, e "Process completed with exit code 1" não diz nada.
-          if [ "$rc" != "0" ]; then
-            BODY=$(sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/ui.log \
-              | grep -E '^(not ok|# Subtest|# fail)|error:|Error:|FAIL|✗' \
-              | head -14 | cut -c1-400 \
-              | awk 'NR>1{printf "%%0A"} {printf "%s",$0}')
-            echo "::error::passo UI falhou (exit $rc): ${BODY}"
-          fi
-          exit $rc
+
+      # Quando a etapa da interface falha, o MOTIVO tem de sair como ANOTAÇÃO: o log do job é
+      # servido por um blob que não abre em todo lugar, e "Process completed with exit code 1" não
+      # diz nada. Este passo roda DEPOIS (o `bash -e` do passo anterior derruba ele mesmo), e lê o
+      # /tmp/ui.log que o `tee` já gravou até o ponto da falha.
+      - name: Diagnóstico da etapa da interface
+        if: steps.ui.outcome != 'success'
+        continue-on-error: true
+        run: |
+          BODY=$(sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/ui.log \
+            | grep -E '^(not ok|# Subtest|# fail)|error:|Error:|FAIL|✗|DIFERENTE' \
+            | head -14 | cut -c1-400 \
+            | awk 'NR>1{printf "%%0A"} {printf "%s",$0}')
+          echo "::error::passo UI falhou: ${BODY:-<sem saída em /tmp/ui.log>}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
