@@ -521,6 +521,15 @@
   color: #ffffff;
 }
 
+.kickoff__country-crest {
+  position: absolute;
+  left: 10px;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
 .kickoff__flag {
   position: absolute;
   right: 10px;
@@ -587,6 +596,19 @@
 .kickoff__kit-thumb svg {
   width: 100%;
   height: 100%;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+
+.kickoff__kit-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.kickoff__kit-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
 }
 
@@ -1358,6 +1380,8 @@
 .kits__preview-figure {
   height: 400px;
   display: grid;
+  /* A linha ocupa a caixa inteira: assim a foto do jogador respeita a altura. */
+  grid-template-rows: 100%;
   place-items: end center;
 }
 
@@ -1365,6 +1389,27 @@
   height: 100%;
   width: auto;
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.55));
+}
+
+.kits__preview-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.kits__preview-render {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.55));
+}
+
+.kits__shirt-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.5));
 }
 
 .kits__preview-team {
@@ -1414,7 +1459,7 @@
 .kits__carousel {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 22px;
 }
 
 .kits__row {
@@ -1439,18 +1484,26 @@
 
 .kits__shirt {
   height: 118px;
+  width: 132px;
   display: grid;
   place-items: center;
 }
 
 .kits__tile--main .kits__shirt {
   height: 168px;
+  width: 172px;
 }
 
 .kits__shirt svg {
   height: 100%;
   width: auto;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.5));
+}
+
+.kits__shirt-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .kits__tile-name {
@@ -1463,6 +1516,10 @@
 }
 
 .kits__arrow {
+  /* Fica acima da blusa em destaque, que é maior que a própria caixa. */
+  position: relative;
+  z-index: 3;
+  flex: none;
   display: grid;
   place-items: center;
   width: 28px;

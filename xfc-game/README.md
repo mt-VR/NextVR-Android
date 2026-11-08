@@ -38,11 +38,20 @@ Nesta primeira etapa o jogo tem **o menu**:
 6. **Preparação da partida** — mostra o confronto e avisa que as partidas,
    estádios e campeonato chegam na próxima etapa.
 
-Por enquanto existem **quatro times: FC Barcelona e Real Madrid (com os
-retratos reais dos jogadores), Ibis Esporte e Paraná Clube**. Todos têm escudo
-e **três blusas** cada (principal, reserva e terceiro), desenhadas em SVG pelo
-próprio jogo a partir das cores dos escudos — por isso ficam nítidas em
-qualquer tela e não pesam o pacote.
+Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
+retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
+com nomes reais; os outros catorze clubes (Aston Villa, Brentford,
+Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt,
+Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham
+United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir
+de pools de nomes de cada país.
+
+Todos têm **escudo** e **três blusas** (principal, reserva e terceiro). As
+blusas continuam sendo desenhadas em SVG pelo próprio jogo a partir das cores
+dos escudos — nítidas em qualquer tela e sem pesar o pacote. Para os clubes
+cuja foto de uniforme veio no **pacote de imagens do XFC**, a foto real do
+jogador de corpo inteiro aparece na tela de escolher blusas e o recorte da
+camisa vira a miniatura do uniforme na tela de escolha de times.
 
 ## Como rodar
 
@@ -98,8 +107,8 @@ xfc-game/
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
 │   ├── state.js          perfil, XP, seleção de times e blusas
-│   ├── data/teams.js     os quatro clubes, elencos, médias e formação
-│   ├── data/kits.js      as blusas (SVG) de cada clube
+│   ├── data/teams.js     os dezoito clubes, elencos, médias e formação
+│   ├── data/kits.js      as blusas (SVG) de cada clube + as fotos do pacote
 │   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
 │   └── screens/          intro, menu, kickoff, kits, squad, match
 ├── assets/
@@ -107,7 +116,7 @@ xfc-game/
 │   ├── brand/            ícones da marca
 │   ├── crests/           escudos dos clubes
 │   ├── fonts/            Inter (OFL)
-│   └── players/          retratos dos jogadores
+│   └── players/          retratos dos jogadores e fotos de uniforme (kits/)
 └── tools/screenshots.mjs captura das telas (tela grande e celular deitado)
 ```
 
@@ -125,6 +134,6 @@ continuam valendo.
 
 ## Créditos das imagens
 
-Retratos e escudos têm origem externa e estão creditados em
-[`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
+Retratos, escudos e fotos de uniforme têm origem externa e estão creditados
+em [`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
 [`assets/crests/CREDITS.md`](assets/crests/CREDITS.md).

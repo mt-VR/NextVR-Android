@@ -6,6 +6,12 @@ original e a licença exacta ( Creative Commons BY-SA / BY / domínio público).
 
 As duas artes de fundo e a marca `XF ESPORTES` / `XFC` são do próprio projeto.
 
+As fotos de corpo inteiro em [`kits/`](kits/) (Eintracht Frankfurt, Queens
+Park Rangers, Wrexham, Rotherham United, Wycombe Wanderers, Sheffield United e
+Huddersfield Town) vieram do **pacote de imagens da XF Esportes**; o nome de
+cada arquivo identifica o clube. O recorte `*-shirt.png` é a camisa usada
+nessas fotos.
+
 | Jogador | Fonte |
 | --- | --- |
 | Marc-André ter Stegen | https://commons.wikimedia.org/wiki/Category:Marc-Andr%C3%A9_ter_Stegen |

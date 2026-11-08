@@ -299,6 +299,230 @@ export const TEAMS = [
   }
 ];
 
+// ---------------------------------------------------------------------------
+// Clubes que entraram com o pacote de imagens (escudos e fotos de jogador).
+// Os elencos são gerados: cada clube recebe nomes do seu país, notas coerentes
+// com a posição e retrato de reserva mostrando as iniciais.
+// ---------------------------------------------------------------------------
+
+const FIRST_NAMES = {
+  en: 'Jack Harry Oliver George Charlie Jacob Thomas Alfie Archie Finley Louie Ryan Callum Reece Connor Tyler Ethan Marcus'.split(' '),
+  es: 'Álvaro Pablo Sergio Iker Unai Dani Hugo Marco Rubén Adrián Gonzalo Carlos Aarón Jorge'.split(' '),
+  gr: 'Nikos Giorgos Kostas Vangelis Petros Dimitris Anastasios Christos Apostolos Manolis Filippos'.split(' '),
+  ar: 'Joaquín Agustín Santiago Facundo Lautaro Enzo Gabriel Nahuel Thiago Nicolás Lucas Matías'.split(' '),
+  de: 'Jonas Leon Tim Niklas Kai Florian Max Luca Elias Felix Julian Marvin'.split(' '),
+  nl: 'Daan Sem Ruben Thijs Luuk Stijn Bas Jelle Mats Rick Niels Ferry Joost'.split(' '),
+  gb: 'Ethan Alfie Owen Harry Mason Callum Louie Rhys Guto Ethan Kian Harvey'.split(' ')
+};
+
+const LAST_NAMES = {
+  en: 'Hughes|Bennett|Walker|Chapman|Fletcher|Davies|Palmer|Barnes|Norris|Webster|Hayward|Spencer|Bishop|Carroll|Doyle|Heaton|Pennington|Langley|Whitfield|Ashby|Mercer'.split('|'),
+  es: 'García|Martínez|López|Sánchez|Pérez|Gómez|Ruiz|Díaz|Moreno|Álvarez|Romero|Navarro|Torres|Vargas|Iglesias|Cabrera'.split('|'),
+  gr: 'Papadopoulos|Nikolaidis|Georgiou|Vasileiou|Antoniou|Makris|Dimitriadis|Christodoulou|Stavrou|Karagiannis|Papadias|Galanopoulos'.split('|'),
+  ar: 'González|Rodríguez|Fernández|López|Martínez|Hernández|Gómez|Sánchez|Romero|Díaz|Alvarez|Peralta|Benítez'.split('|'),
+  de: 'Müller|Schmidt|Schneider|Fischer|Weber|Meyer|Wagner|Becker|Hoffmann|Schäfer|Koch|Bauer|Richter|Klein|Winkler'.split('|'),
+  nl: 'de Jong|van Dijk|Bakker|Janssen|Visser|Smit|Meijer|Dekker|van den Berg|Vos|Peters|Hendriks|de Boer|Willemsen|Kuipers'.split('|'),
+  gb: 'Jones|Williams|Davies|Evans|Thomas|Roberts|Hughes|Morgan|Griffith|Lloyd|Ellis|Vaughan|Jenkins|PARRY'.split('|')
+};
+
+const FORMATION_SLOTS = ['GK', 'RB', 'CB', 'CB', 'LB', 'CM', 'CDM', 'CAM', 'LW', 'ST', 'RW'];
+const BENCH_SLOTS = ['GK', 'RB', 'CB', 'CM', 'LW', 'ST', 'CM'];
+
+const POSITION_ROLE = {
+  GK: 'Shot Stopper', RB: 'Fullback', CB: 'Stopper', LB: 'Fullback', CM: 'Box-to-Box',
+  CDM: 'Anchor', CAM: 'Advanced Playmaker', LW: 'Winger', RW: 'Winger', ST: 'Complete Forward'
+};
+
+const POSITION_FOCUS = {
+  GK: 'Support', RB: 'Attack', CB: 'Support', LB: 'Support', CM: 'Attack',
+  CDM: 'Support', CAM: 'Attack', LW: 'Attack', RW: 'Attack', ST: 'Attack'
+};
+
+const POSITION_BIAS = {
+  GK: { pace: -14, shooting: -36, passing: -10, dribbling: -20, defending: 8, physical: 6 },
+  RB: { pace: 10, shooting: -4, passing: 2, dribbling: 6, defending: 2, physical: 0 },
+  CB: { pace: -6, shooting: -16, passing: -2, dribbling: -12, defending: 15, physical: 10 },
+  LB: { pace: 10, shooting: -4, passing: 2, dribbling: 6, defending: 2, physical: 0 },
+  CM: { pace: 2, shooting: 0, passing: 10, dribbling: 4, defending: 0, physical: 0 },
+  CDM: { pace: -4, shooting: -8, passing: 4, dribbling: -2, defending: 10, physical: 8 },
+  CAM: { pace: 4, shooting: 8, passing: 12, dribbling: 10, defending: -16, physical: -6 },
+  LW: { pace: 14, shooting: 4, passing: 4, dribbling: 12, defending: -18, physical: -8 },
+  RW: { pace: 14, shooting: 4, passing: 4, dribbling: 12, defending: -18, physical: -8 },
+  ST: { pace: 8, shooting: 16, passing: -2, dribbling: 8, defending: -22, physical: 6 }
+};
+
+const clamp = value => Math.max(24, Math.min(95, value));
+
+/** Monta um elenco completo (onze em campo + sete reservas) para um clube. */
+function generatedSquad(clubId, pool, offset, base) {
+  const firsts = FIRST_NAMES[pool];
+  const lasts = LAST_NAMES[pool];
+
+  function player(position, index, number, tier) {
+    const first = firsts[(offset * 3 + index * 5) % firsts.length];
+    const last = lasts[(offset + index) % lasts.length];
+    // "de Jong" vira "Jong" no cartão do campo.
+    const short = last.split(' ').pop();
+    const ovr = clamp(base + tier + ((index * 7 + offset * 5) % 5) - 2);
+    const bias = POSITION_BIAS[position];
+    const stats = {
+      pace: clamp(ovr - 6 + bias.pace),
+      shooting: clamp(ovr - 6 + bias.shooting),
+      passing: clamp(ovr - 6 + bias.passing),
+      dribbling: clamp(ovr - 6 + bias.dribbling),
+      defending: clamp(ovr - 6 + bias.defending),
+      physical: clamp(ovr - 6 + bias.physical)
+    };
+    return {
+      id: `${clubId}-${short.toLowerCase().replace(/[^a-z]/g, '')}-${index}`,
+      name: short,
+      fullName: `${first} ${last}`,
+      number,
+      pos: position,
+      ovr,
+      potential: clamp(ovr + 2 + (index % 4)),
+      form: (index % 5 === 0 ? 'W' : 'D'),
+      age: 20 + ((index * 3 + offset) % 14),
+      height: 168 + ((index * 5 + offset) % 26),
+      foot: index % 3 === 0 ? 'Left' : 'Right',
+      role: POSITION_ROLE[position],
+      focus: POSITION_FOCUS[position],
+      celebration: 'None',
+      photo: null,
+      stats
+    };
+  }
+
+  const numbers = [1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11];
+  const players = FORMATION_SLOTS.map((position, index) => player(position, index, numbers[index], 0));
+  const substitutes = BENCH_SLOTS.map((position, index) => player(position, index + 11, 12 + index, -4));
+  return { players, substitutes };
+}
+
+const EXTRA_CLUBS = [
+  {
+    id: 'aston-villa', name: 'Aston Villa', shortName: 'Villa', nickname: 'Villans', city: 'Birmingham',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'Premier League', stadium: 'Villa Park', crest: 'assets/crests/aston-villa.png',
+    colors: { primary: '#670e36', secondary: '#95bfe5', accent: '#f4f4f4' },
+    ratings: { att: 84, mid: 83, def: 82, ovr: 83 }, stars: 4, pool: 'en', offset: 0
+  },
+  {
+    id: 'brentford', name: 'Brentford', shortName: 'Brentford', nickname: 'Bees', city: 'Londres',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'Premier League', stadium: 'Gtech Community Stadium', crest: 'assets/crests/brentford.png',
+    colors: { primary: '#e30613', secondary: '#ffffff', accent: '#111111' },
+    ratings: { att: 79, mid: 78, def: 79, ovr: 79 }, stars: 3, pool: 'en', offset: 4
+  },
+  {
+    id: 'panathinaikos', name: 'Panathinaikos', shortName: 'Pana', nickname: 'Greens', city: 'Atenas',
+    country: 'Grécia', flag: 'gr', league: 'Super League Greece', stadium: 'Georgios Karaiskakis Stadium',
+    crest: 'assets/crests/panathinaikos.png',
+    colors: { primary: '#00843d', secondary: '#ffffff', accent: '#00532a' },
+    ratings: { att: 78, mid: 78, def: 78, ovr: 78 }, stars: 3, pool: 'gr', offset: 0
+  },
+  {
+    id: 'river-plate', name: 'River Plate', shortName: 'River', nickname: 'Millonarios', city: 'Buenos Aires',
+    country: 'Argentina', flag: 'ar', league: 'Liga Profesional', stadium: 'Estadio Monumental',
+    crest: 'assets/crests/river-plate.png',
+    colors: { primary: '#f4f4f4', secondary: '#d21c3a', accent: '#0d2c54' },
+    ratings: { att: 82, mid: 82, def: 81, ovr: 82 }, stars: 4, pool: 'ar', offset: 0
+  },
+  {
+    id: 'levante', name: 'Levante UD', shortName: 'Levante', nickname: 'Granotas', city: 'Valência',
+    country: 'Espanha', flag: 'es', countryCrest: 'assets/crests/espanha.png',
+    league: 'LaLiga', stadium: 'Estadi Ciutat de València', crest: 'assets/crests/levante.png',
+    colors: { primary: '#b3121b', secondary: '#f5c400', accent: '#0b3b8c' },
+    ratings: { att: 76, mid: 76, def: 76, ovr: 76 }, stars: 3, pool: 'es', offset: 3
+  },
+  {
+    id: 'huddersfield-town', name: 'Huddersfield Town', shortName: 'Huddersfield', nickname: 'Terriers', city: 'Huddersfield',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL Championship', stadium: 'John Smiths Stadium', crest: 'assets/crests/huddersfield-town.png',
+    colors: { primary: '#0e63ad', secondary: '#f4f4f4', accent: '#f26522' },
+    ratings: { att: 74, mid: 74, def: 73, ovr: 74 }, stars: 3, pool: 'en', offset: 8
+  },
+  {
+    id: 'eintracht-frankfurt', name: 'Eintracht Frankfurt', shortName: 'Frankfurt', nickname: 'Adler', city: 'Frankfurt',
+    country: 'Alemanha', flag: 'de', league: 'Bundesliga', stadium: 'Deutsche Bank Park',
+    crest: 'assets/crests/eintracht-frankfurt.png',
+    colors: { primary: '#e1000f', secondary: '#f4f4f4', accent: '#111111' },
+    ratings: { att: 83, mid: 82, def: 81, ovr: 82 }, stars: 4, pool: 'de', offset: 0
+  },
+  {
+    id: 'queens-park-rangers', name: 'Queens Park Rangers', shortName: 'QPR', nickname: 'Hoops', city: 'Londres',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL Championship', stadium: 'Kiyan Prince Foundation Stadium', crest: 'assets/crests/queens-park-rangers.png',
+    colors: { primary: '#1b2a63', secondary: '#f4f4f4', accent: '#d31245' },
+    ratings: { att: 77, mid: 77, def: 77, ovr: 77 }, stars: 3, pool: 'en', offset: 12
+  },
+  {
+    id: 'wrexham', name: 'Wrexham', shortName: 'Wrexham', nickname: 'Dragons', city: 'Wrexham',
+    country: 'País de Gales', flag: 'gb', league: 'EFL League One', stadium: 'STōK Cae Ras',
+    crest: 'assets/crests/wrexham.png',
+    colors: { primary: '#f2f2f0', secondary: '#00843d', accent: '#d31245' },
+    ratings: { att: 73, mid: 73, def: 72, ovr: 73 }, stars: 3, pool: 'gb', offset: 0
+  },
+  {
+    id: 'sheffield-united', name: 'Sheffield United', shortName: 'Sheffield', nickname: 'Blades', city: 'Sheffield',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL Championship', stadium: 'Bramall Lane', crest: 'assets/crests/sheffield-united.png',
+    colors: { primary: '#1b1b1b', secondary: '#d31245', accent: '#f4f4f4' },
+    ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, stars: 3, pool: 'en', offset: 16
+  },
+  {
+    id: 'northampton-town', name: 'Northampton Town', shortName: 'Northampton', nickname: 'Cobblers', city: 'Northampton',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL League One', stadium: 'Sixfields Stadium', crest: 'assets/crests/northampton-town.png',
+    colors: { primary: '#6b1f3b', secondary: '#f4f4f4', accent: '#f4f4f4' },
+    ratings: { att: 70, mid: 70, def: 70, ovr: 70 }, stars: 2, pool: 'en', offset: 2
+  },
+  {
+    id: 'rotherham-united', name: 'Rotherham United', shortName: 'Rotherham', nickname: 'Millers', city: 'Rotherham',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL League One', stadium: 'New York Stadium', crest: 'assets/crests/rotherham-united.png',
+    colors: { primary: '#1b1b1b', secondary: '#20a37a', accent: '#d31245' },
+    ratings: { att: 71, mid: 71, def: 72, ovr: 71 }, stars: 2, pool: 'en', offset: 6
+  },
+  {
+    id: 'wycombe-wanderers', name: 'Wycombe Wanderers', shortName: 'Wycombe', nickname: 'Chairboys', city: 'High Wycombe',
+    country: 'Inglaterra', flag: 'en', countryCrest: 'assets/crests/inglaterra.png',
+    league: 'EFL League One', stadium: 'Adams Park', crest: 'assets/crests/wycombe-wanderers.png',
+    colors: { primary: '#7a4a2b', secondary: '#1b3f94', accent: '#f7c92e' },
+    ratings: { att: 72, mid: 71, def: 70, ovr: 71 }, stars: 2, pool: 'en', offset: 10
+  },
+  {
+    id: 'rkc-waalwijk', name: 'RKC Waalwijk', shortName: 'RKC', nickname: 'Rookies', city: 'Waalwijk',
+    country: 'Países Baixos', flag: 'nl', league: 'Eredivisie', stadium: 'Polman Stadion',
+    crest: 'assets/crests/rkc-waalwijk.png',
+    colors: { primary: '#1b4f9c', secondary: '#f4f4f4', accent: '#f7c92e' },
+    ratings: { att: 74, mid: 73, def: 73, ovr: 73 }, stars: 3, pool: 'nl', offset: 0
+  }
+];
+
+for (const club of EXTRA_CLUBS) {
+  const squad = generatedSquad(club.id, club.pool, club.offset, club.ratings.ovr);
+  TEAMS.push({
+    id: club.id,
+    name: club.name,
+    shortName: club.shortName,
+    nickname: club.nickname,
+    city: club.city,
+    country: club.country,
+    flag: club.flag,
+    countryCrest: club.countryCrest || null,
+    league: club.league,
+    stadium: club.stadium,
+    crest: club.crest,
+    colors: club.colors,
+    ratings: club.ratings,
+    stars: club.stars,
+    formation: '4-3-3',
+    players: squad.players,
+    substitutes: squad.substitutes
+  });
+}
+
 /** Times disponíveis no carousel da tela de escolha. */
 export const TEAM_IDS = TEAMS.map(team => team.id);
 

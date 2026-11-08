@@ -64,6 +64,17 @@ for (const viewport of VIEWPORTS) {
   await page.keyboard.press('Escape');
   await page.click('.btn:has-text("Iniciar partida")');
   await shot('09-match');
+  await page.keyboard.press('Escape');
+  // Um clube do pacote de imagens (Wrexham), com a blusa real do jogador.
+  const homeCard = '.kickoff__slot[data-slot="home"] .team-card__name';
+  for (let i = 0; i < 25; i += 1) {
+    const name = await page.locator(homeCard).first().textContent();
+    if (name.includes('Wrexham')) break;
+    await page.click('.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child');
+  }
+  await shot('10-kickoff-wrexham');
+  await page.click('.btn:has-text("Blusas")');
+  await shot('11-kits-wrexham');
   await page.close();
   await browser.close();
 }

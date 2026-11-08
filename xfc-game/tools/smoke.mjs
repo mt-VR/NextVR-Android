@@ -82,6 +82,15 @@ check('as setas do escudo trocam de clube',
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+check('o carousel passa pelos clubes do pacote',
+  ['aston-villa', 'brentford', 'panathinaikos', 'river-plate'].includes(
+    document.querySelector('[data-slot="home"] .team-card').dataset.teamId));
+// Volta para o Barcelona para seguir o resto do roteiro.
+for (let step = 0; step < 4; step += 1) {
+  document.querySelector('[data-slot="home"] .picker-arrow--crest:first-child').click();
+}
+check('a seta anterior devolve o Barcelona',
+  document.querySelector('[data-slot="home"] .team-card').dataset.teamId === 'fc-barcelona');
 
 check('a tela de blusas tem o READY e o carrossel',
   Boolean(document.querySelector('.btn')?.textContent) &&

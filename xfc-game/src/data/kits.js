@@ -25,6 +25,124 @@ export const KITS = {
     { id: 'home', name: 'Home', pattern: 'stripes', colors: { primary: '#d0112b', secondary: '#f2f2f0', trim: '#141414' } },
     { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f2f2f0', secondary: '#d0112b', trim: '#d0112b' } },
     { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#141414', secondary: '#d0112b', trim: '#d0112b' } }
+  ],
+
+  // Clubes do pacote de imagens: as blusas vindo com a foto real do jogador
+  // (quando existe) e as reservas desenhadas em SVG.
+  brentford: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#e30613', secondary: '#ffffff', trim: '#111111' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f2f2f0', secondary: '#111111', trim: '#e30613' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#f5d000', secondary: '#111111', trim: '#111111' } }
+  ],
+  panathinaikos: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#00843d', secondary: '#ffffff', trim: '#00532a' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f2f2f0', secondary: '#00843d', trim: '#00843d' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#00532a', secondary: '#f5d000', trim: '#f5d000' } }
+  ],
+  'river-plate': [
+    { id: 'home', name: 'Home', pattern: 'sash', colors: { primary: '#f4f4f4', secondary: '#d21c3a', trim: '#0d2c54' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#d21c3a', secondary: '#f4f4f4', trim: '#0d2c54' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0d2c54', secondary: '#f4f4f4', trim: '#d21c3a' } }
+  ],
+  levante: [
+    { id: 'home', name: 'Home', pattern: 'stripes', colors: { primary: '#b3121b', secondary: '#f5c400', trim: '#0b3b8c' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#0b3b8c', secondary: '#f4f4f4', trim: '#b3121b' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#b3121b', trim: '#f5c400' } }
+  ],
+  'aston-villa': [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#670e36', secondary: '#95bfe5', trim: '#f4f4f4' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#95bfe5', trim: '#670e36' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#f6eb61', secondary: '#670e36', trim: '#111111' } }
+  ],
+  'huddersfield-town': [
+    { id: 'home', name: 'Home', pattern: 'stripes', colors: { primary: '#0e63ad', secondary: '#f4f4f4', trim: '#0b3b8c' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#0e63ad', trim: '#0e63ad' } },
+    {
+      id: 'third', name: 'Third', pattern: 'solid',
+      colors: { primary: '#f26522', secondary: '#1b1b1b', trim: '#f4f4f4' },
+      render: 'assets/players/kits/huddersfield-town.png',
+      shirt: 'assets/players/kits/huddersfield-town-shirt.png'
+    }
+  ],
+  'northampton-town': [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#6b1f3b', secondary: '#f4f4f4', trim: '#f4f4f4' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#6b1f3b', trim: '#6b1f3b' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#1c3f94', secondary: '#f4f4f4', trim: '#f4f4f4' } }
+  ],
+  'rkc-waalwijk': [
+    { id: 'home', name: 'Home', pattern: 'stripes', colors: { primary: '#1b4f9c', secondary: '#f4f4f4', trim: '#f7c92e' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f7c92e', secondary: '#1b1b1b', trim: '#1b1b1b' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#d21c3a', secondary: '#f4f4f4', trim: '#f4f4f4' } }
+  ],
+  'eintracht-frankfurt': [
+    {
+      id: 'home', name: 'Home', pattern: 'check',
+      colors: { primary: '#e1000f', secondary: '#f4f4f4', trim: '#111111' },
+      render: 'assets/players/kits/eintracht-frankfurt.png',
+      shirt: 'assets/players/kits/eintracht-frankfurt-shirt.png'
+    },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#1c1c1c', secondary: '#f4f4f4', trim: '#e1000f' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#e1000f', trim: '#111111' } }
+  ],
+  'queens-park-rangers': [
+    {
+      id: 'home', name: 'Home', pattern: 'solid',
+      colors: { primary: '#1b2a63', secondary: '#f4f4f4', trim: '#d31245' },
+      render: 'assets/players/kits/queens-park-rangers.png',
+      shirt: 'assets/players/kits/queens-park-rangers-shirt.png'
+    },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#1b2a63', trim: '#1b2a63' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0d2c54', secondary: '#f4f4f4', trim: '#d31245' } }
+  ],
+  wrexham: [
+    {
+      id: 'home', name: 'Home', pattern: 'solid',
+      colors: { primary: '#f2f2f0', secondary: '#d31245', trim: '#00843d' },
+      render: 'assets/players/kits/wrexham-home.png',
+      shirt: 'assets/players/kits/wrexham-home-shirt.png'
+    },
+    {
+      id: 'away', name: 'Away', pattern: 'solid',
+      colors: { primary: '#00843d', secondary: '#f4f4f4', trim: '#d31245' },
+      render: 'assets/players/kits/wrexham-away.png',
+      shirt: 'assets/players/kits/wrexham-away-shirt.png'
+    },
+    {
+      id: 'third', name: 'Third', pattern: 'solid',
+      colors: { primary: '#e0459b', secondary: '#00843d', trim: '#f4f4f4' },
+      render: 'assets/players/kits/wrexham-third.png',
+      shirt: 'assets/players/kits/wrexham-third-shirt.png'
+    }
+  ],
+  'rotherham-united': [
+    {
+      id: 'home', name: 'Home', pattern: 'solid',
+      colors: { primary: '#1b1b1b', secondary: '#20a37a', trim: '#d31245' },
+      render: 'assets/players/kits/rotherham-united.png',
+      shirt: 'assets/players/kits/rotherham-united-shirt.png'
+    },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#1b1b1b', trim: '#20a37a' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#d31245', secondary: '#f4f4f4', trim: '#1b1b1b' } }
+  ],
+  'wycombe-wanderers': [
+    {
+      id: 'home', name: 'Home', pattern: 'solid',
+      colors: { primary: '#7a4a2b', secondary: '#1b3f94', trim: '#f4f4f4' },
+      render: 'assets/players/kits/wycombe-wanderers.png',
+      shirt: 'assets/players/kits/wycombe-wanderers-shirt.png'
+    },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#1b3f94', secondary: '#f4f4f4', trim: '#f7c92e' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#1b3f94', trim: '#7a4a2b' } }
+  ],
+  'sheffield-united': [
+    {
+      id: 'home', name: 'Home', pattern: 'stripes',
+      colors: { primary: '#1b1b1b', secondary: '#d31245', trim: '#f4f4f4' },
+      render: 'assets/players/kits/sheffield-united.png',
+      shirt: 'assets/players/kits/sheffield-united-shirt.png'
+    },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#d31245', trim: '#1b1b1b' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0d2c54', secondary: '#f4f4f4', trim: '#d31245' } }
   ]
 };
 
@@ -36,6 +154,16 @@ export function kitsOf(teamId) {
 /** Uniforme inicial (o principal) de um time. */
 export function defaultKit(teamId) {
   return kitsOf(teamId)[0] || null;
+}
+
+/** Foto do jogador de corpo inteiro vestindo a blusa (quando existe). */
+export function kitRender(kit) {
+  return kit?.render || null;
+}
+
+/** Recorte só da camisa, usado no carrossel da tela de blusas. */
+export function kitShirt(kit) {
+  return kit?.shirt || null;
 }
 
 const SHIRT_PATH = 'M78,22 L34,40 L8,86 L46,106 L54,84 L54,232 L166,232 L166,84 L174,106 L212,86 L186,40 L142,22 C134,38 86,38 78,22 Z';
@@ -63,6 +191,22 @@ function shirtMarkup(kit, clipId) {
     const band = bodyWidth / 6;
     for (let i = 0; i < 6; i += 1) {
       stripes.push(`<rect x="${(bodyLeft + i * band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="240" fill="${i % 2 === 0 ? primary : secondary}"/>`);
+    }
+  }
+
+  if (kit.pattern === 'sash') {
+    // Faixa diagonal cruzando o peito.
+    stripes.push(`<path d="M54,0 L106,0 L166,240 L114,240 Z" fill="${secondary}"/>`);
+  }
+
+  if (kit.pattern === 'check') {
+    // Xadrez (Eintracht).
+    const size = 26;
+    for (let row = 0; row < 10; row += 1) {
+      for (let column = 0; column < 5; column += 1) {
+        if ((row + column) % 2 === 0) continue;
+        stripes.push(`<rect x="${(54 + column * size).toFixed(1)}" y="${(row * size).toFixed(1)}" width="${size}" height="${size}" fill="${secondary}"/>`);
+      }
     }
   }
 

@@ -12,8 +12,14 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem Barcelona, Real Madrid, Ibis e Paraná, com onze em campo e sete reservas', () => {
-  assert.deepEqual(TEAMS.map(team => team.id), ['fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube']);
+test('XFC tem dezoito clubes, com onze em campo e sete reservas em cada um', () => {
+  assert.equal(TEAMS.length, 18, 'o jogo oferece dezoito clubes');
+  assert.deepEqual(TEAMS.map(team => team.id), [
+    'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
+    'aston-villa', 'brentford', 'panathinaikos', 'river-plate', 'levante', 'huddersfield-town',
+    'eintracht-frankfurt', 'queens-park-rangers', 'wrexham', 'sheffield-united',
+    'northampton-town', 'rotherham-united', 'wycombe-wanderers', 'rkc-waalwijk'
+  ]);
   for (const team of TEAMS) {
     assert.equal(team.players.length, 11, `${team.name} entra em campo com onze`);
     assert.equal(team.substitutes.length, 7, `${team.name} tem sete reservas`);
@@ -56,6 +62,19 @@ test('todo clube tem escudo e três blusas no pacote', () => {
     }
     assert.ok(defaultKit(team.id), `${team.name} tem blusa principal`);
   }
+});
+
+test('as blusas com foto do pacote têm o render e o recorte no disco', () => {
+  const withPhoto = [];
+  for (const team of TEAMS) {
+    for (const kit of kitsOf(team.id)) {
+      if (!kit.render) continue;
+      withPhoto.push(kit);
+      assert.ok(existsSync(new URL(kit.render, GAME_ROOT)), `render existe: ${kit.render}`);
+      assert.ok(existsSync(new URL(kit.shirt, GAME_ROOT)), `recorte existe: ${kit.shirt}`);
+    }
+  }
+  assert.ok(withPhoto.length >= 9, `há blusas com foto do pacote: ${withPhoto.length}`);
 });
 
 test('as estrelas do cartão de time vão de zero a cinco', () => {
@@ -128,15 +147,21 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // As setas ao lado do escudo trocam de clube: os clubes brasileiros entram
     // na escolha de times.
     const nextClub = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+    const prevClub = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:first-child';
+    const homeName = () => page.locator('.team-card__name').first().textContent();
     await page.click(nextClub);
     await page.click(nextClub);
-    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Ibis Esporte'),
-      'Ibis Esporte aparece na escolha de times');
+    assert.ok((await homeName()).includes('Ibis Esporte'), 'Ibis Esporte aparece na escolha de times');
     await page.click(nextClub);
-    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Paraná Clube'),
-      'Paraná Clube aparece na escolha de times');
+    assert.ok((await homeName()).includes('Paraná Clube'), 'Paraná Clube aparece na escolha de times');
     await page.click(nextClub);
-    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('FC Barcelona'),
+    assert.ok((await homeName()).includes('Aston Villa'), 'os clubes do pacote também entram no carousel');
+    await page.click(prevClub);
+    assert.ok((await homeName()).includes('Paraná Clube'), 'a seta anterior volta um clube');
+    await page.click(prevClub);
+    await page.click(prevClub);
+    await page.click(prevClub);
+    assert.ok((await homeName()).includes('FC Barcelona'),
       'a troca de clube volta para o Barcelona');
 
     // Tela de blusas: READY, carrossel com três uniformes e a prévia dos dois
@@ -146,6 +171,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok((await page.locator('.kits__ready').textContent()).includes('READY'), 'a tela de blusas tem READY');
     assert.equal(await page.locator('.kits__row .kits__tile').count(), 3, 'o carrossel mostra três blusas');
     assert.equal(await page.locator('.kits__preview-figure svg').count(), 2, 'os dois jogadores vestem o uniforme');
+    assert.equal(await page.locator('.kits__preview-figure img').count(), 0,
+      'sem foto de pacote, a prévia usa o desenho em SVG');
     await page.click('.kits__arrow:last-child');
     assert.ok((await page.locator('.kits__tile-name').nth(1).textContent()).length > 0, 'a blusa escolhida tem nome');
     await page.keyboard.press('Escape');

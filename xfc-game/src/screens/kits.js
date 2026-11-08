@@ -8,7 +8,7 @@
 import { el, svg, ICONS, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
-import { kitsOf, kitSvg, kitFigureSvg } from '../data/kits.js';
+import { kitsOf, kitSvg, kitFigureSvg, kitRender, kitShirt } from '../data/kits.js';
 
 export function kitsScreen(ctx, params = {}) {
   const state = ctx.state;
@@ -45,8 +45,13 @@ export function kitsScreen(ctx, params = {}) {
     const current = list[index];
     const next = list[(index + 1) % list.length];
 
+    // O carrossel mostra a foto da camisa quando o clube tem (o resto é SVG).
     const tile = (kit, kind) => el('div', { class: `kits__tile kits__tile--${kind}` },
-      el('div', { class: 'kits__shirt', html: kitSvg(kit) }),
+      el('div', { class: 'kits__shirt' },
+        kitShirt(kit)
+          ? el('img', { class: 'kits__shirt-photo', src: kitShirt(kit), alt: `Blusa ${kit.name}` })
+          : el('span', { class: 'kits__shirt-svg', html: kitSvg(kit) })
+      ),
       el('span', { class: 'kits__tile-name', text: kit.name })
     );
 
@@ -84,8 +89,15 @@ export function kitsScreen(ctx, params = {}) {
     const team = teamFor(side);
     const list = kitsFor(side);
     const kit = list[indexFor(side)];
+    // Com a foto do jogador no pacote de imagens, o preview é o próprio jogador
+    // de corpo inteiro vestindo a blusa; sem foto, o boneco desenhado em SVG.
+    const render = kitRender(kit);
     return el('div', { class: `kits__preview kits__preview--${side}` },
-      el('div', { class: 'kits__preview-figure', html: kitFigureSvg(kit, { width: 260 }) }),
+      el('div', { class: 'kits__preview-figure' },
+        render
+          ? el('img', { class: 'kits__preview-render', src: render, alt: `Jogador do ${team?.name} com a blusa ${kit?.name}` })
+          : el('span', { class: 'kits__preview-svg', html: kitFigureSvg(kit, { width: 260 }) })
+      ),
       el('div', { class: 'kits__preview-team' },
         el('img', { class: 'kits__preview-crest', src: team?.crest, alt: `Escudo do ${team?.name}` }),
         el('b', { text: team?.name || '—' })

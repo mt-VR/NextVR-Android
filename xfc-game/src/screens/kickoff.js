@@ -10,7 +10,7 @@
 import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
 import { xfcWordmark, leagueBadgeSvg } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
-import { kitsOf, kitSvg } from '../data/kits.js';
+import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
 import { flagSvg } from '../ui/flags.js';
 
 const MENTALITIES = [
@@ -112,7 +112,13 @@ export function kickoffScreen(ctx) {
       el('div', { class: 'kickoff__league-logo', html: leagueBadgeSvg(team.league) }),
       el('div', { class: 'kickoff__kit' },
         kitArrow(-1),
-        kit ? el('span', { class: 'kickoff__kit-thumb', html: kitSvg(kit, { width: 24 }) }) : null,
+        kit
+          ? el('span', { class: 'kickoff__kit-thumb' },
+            kitShirt(kit)
+              ? el('img', { src: kitShirt(kit), alt: `Blusa ${kit.name}` })
+              : el('span', { class: 'kickoff__kit-svg', html: kitSvg(kit, { width: 24 }) })
+          )
+          : null,
         el('span', { class: 'kickoff__kit-name', text: kit ? `${kit.name} Kit` : 'Home Kit' }),
         kitArrow(1)
       )
@@ -297,10 +303,13 @@ export function kickoffScreen(ctx) {
 
       const country = node.querySelector(`[data-country="${sideName}"]`);
       if (country) {
-        country.replaceChildren(
+        country.replaceChildren(...[
+          team.countryCrest
+            ? el('img', { class: 'kickoff__country-crest', src: team.countryCrest, alt: `Escudo de ${team.country}` })
+            : null,
           el('span', { class: 'kickoff__country-name', text: team.country }),
           el('span', { class: 'kickoff__flag' }, flagSvg(team.flag || 'es'))
-        );
+        ].filter(Boolean));
       }
     }
     homeSwitch.querySelector('.kickoff__switch-value').textContent = swapped ? 'On' : 'Off';
