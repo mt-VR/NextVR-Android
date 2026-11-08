@@ -45,14 +45,22 @@ Nesta primeira etapa o jogo tem **o menu**:
    transmissão no canto superior esquerdo (escudo, sigla, gols e relógio);
    cartão do jogador controlado no canto inferior esquerdo (número, nome, OVR
    e condição) e o **adversário mais próximo da bola** no canto inferior
-   direito; radar tático no centro inferior; quatro botões grandes
-   (PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e TROCAR — atalhos: J, K, E, R, Shift, F, Tab); **anel azul**
-   sob o atleta controlado e **analógico fixo** no canto inferior esquerdo.
-   Áudio procedural sintetizado no aparelho (apito do árbitro no início, no
-   intervalo, no impedimento e no fim; festa da torcida a cada gol; batida da
-   bola nos chutes; aplausos no apito final). O autor do gol comemora com os
-   braços para o alto e a torcida faz a festa; o árbitro aparece no círculo
-   central no apito inicial e no apito final.
+   direito; **barra de posse de bola** sob o relógio; radar tático no centro
+   inferior; os sete botões (PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e
+   TROCAR — atalhos: J, K, E, R, Shift, F, Tab); **anel azul luminoso com seta
+   flutuante** sob/acima do atleta controlado e **anel dourado** sob o dono da
+   bola (o destaque muda sozinho quando você troca de jogador); **analógico
+   fixo** no canto inferior esquerdo. A orientação do campo é única para todo
+   o motor (mandante ataca +x e defende o gol de -x): os jogadores olham para
+   onde correm — nada de correr de costas —, o assistente/árbitro central
+   entra em campo de uniforme preto e amarelo, segue a jogada com inteligência
+   (fica atrás da linha da bola e de lado, sem pisar nos jogadores) e levanta
+   o braço apitando no início, no intervalo, nas faltas, nos cartões, nos
+   impedimentos, nas retomadas e no fim. Áudio procedural sintetizado no
+   aparelho (apito do árbitro no início, no intervalo, no impedimento e no
+   fim; festa da torcida a cada gol; batida da bola nos chutes; aplausos no
+   apito final). O autor do gol comemora com os braços para o alto e a torcida
+   faz a festa.
    Os bonecos de FC Barcelona e Real Madrid usam os **retratos reais** dos
    jogadores como rosto. Ao fim do tempo, a tela de resultado mostra os
    **escudos dos dois clubes** e o placar final sobre um fundo de estádio

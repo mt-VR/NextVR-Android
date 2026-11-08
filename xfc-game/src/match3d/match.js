@@ -10,8 +10,9 @@ import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
 import { createPlayer3D, lookFor } from './player.js';
 import { createTeamAI } from './ai.js';
-import { steerPlayer, faceTowards, playerSpeed } from './movement.js';
+import { steerPlayer, faceTowards, faceVelocity, playerSpeed } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
+import { attackSign, insidePenaltyAreaFor } from './sides.js';
 
 const HUMAN_SPEED = 6.6;
 const HUMAN_SPRINT = 8.4;
@@ -89,8 +90,6 @@ export function createMatch(options = {}) {
 
   const members = side => teams[side].players.filter(player => player.active);
   const opponentOf = side => (side === 'home' ? 'away' : 'home');
-  const attackSign = side => (side === 'home' ? 1 : -1);
-  const ownGoalX = side => (side === 'home' ? -PITCH.halfLength : PITCH.halfLength);
   const isUserControlled = player => player?.side === userSide && controlled[userSide] === player;
 
   function emit(event) {
@@ -115,9 +114,10 @@ export function createMatch(options = {}) {
     return Math.min(closest, 12);
   }
 
+  // A grande área do DEFENSOR (quem cometeu a falta) — antes o cálculo usava
+  // o eixo do atacante e apontava a pequena área do adversário.
   function insidePenaltyArea(x, z, defendingSide) {
-    const sign = attackSign(defendingSide);
-    return sign * x > PITCH.halfLength - 16.5 && Math.abs(z) < 20.16;
+    return insidePenaltyAreaFor(x, z, defendingSide);
   }
 
   function lastTouch() {
@@ -181,6 +181,8 @@ export function createMatch(options = {}) {
         isKeeper,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
+        hairStyle: look.hairStyle,
+        heightScale: look.heightScale,
         // O retrato real do atleta vira o rosto do boneco.
         photo: data.photo || null
       });
@@ -242,6 +244,7 @@ export function createMatch(options = {}) {
     player.model.kick();
     emit({ type: 'pass', team: player.side, player, target });
     if (offside) {
+      refereeSignal(1.3);
       emit({ type: 'offside', team: opponentOf(player.side), player: target, minute: clock.minutes });
       setRestart('freekick', opponentOf(player.side), target.x, target.z);
     }
@@ -305,6 +308,7 @@ export function createMatch(options = {}) {
       if (teams[offender.side].cards[offender.id] >= 2) card = 'red';
     }
 
+    refereeSignal(card === 'none' ? 1.0 : 1.6);
     emit({
       type: 'foul',
       team: offender.side,
@@ -334,6 +338,7 @@ export function createMatch(options = {}) {
     phase.name = 'restart';
     phase.timer = 0;
     phase.restart = { type, side, x, z, taker: null, ready: false };
+    refereeSignal(1.1);
     emit({ type: 'restart', kind: type, team: side });
   }
 
@@ -487,6 +492,11 @@ export function createMatch(options = {}) {
     phase.name = 'kickoff';
     phase.timer = 0;
     phase.restart = null;
+    referee.x = 2.4;
+    referee.z = 0.6;
+    referee.vx = 0;
+    referee.vz = 0;
+    refereeSignal(side === 'home' ? 1.4 : 0.9);
     const sign = attackSign(side);
     const team = teams[side];
     const kicker = team.players.find(player => player.role === 'ST') || team.players[9];
@@ -527,25 +537,97 @@ export function createMatch(options = {}) {
     });
   }
 
-  // Árbitro: boneco de preto com camisa acentuada em amarelo. Aparece no
-  // apito inicial e no apito final — como na transmissão.
+  // Árbitro: uniforme preto com acentos amarelos — distinto dos dois times.
+  // Ele entra em campo, acompanha a jogada de perto e apita nas paralisações
+  // (retomadas, impedimentos, faltas, cartões e início/fim de jogo).
   const refereeModel = createPlayer3D({
-    kit: { primary: '#161a20', secondary: '#161a20', accent: '#f5c518', pattern: 'solid' },
+    kit: { primary: '#161a20', secondary: '#101319', accent: '#f5c518', pattern: 'solid' },
     number: 1,
     isKeeper: false,
     skinTone: '#c98d5f',
-    hairColor: '#1f1712'
+    hairColor: '#1f1712',
+    hairStyle: 'short',
+    heightScale: 1.03
   });
-  refereeModel.root.visible = false;
   engine.scene.add(refereeModel.root);
+  const referee = {
+    x: 2.4,
+    z: 0.6,
+    vx: 0,
+    vz: 0,
+    facingAngle: Math.PI / 2,
+    facing: new THREE.Vector3(1, 0, 0),
+    root: refereeModel.root,
+    turnLean: 0
+  };
+  refereeModel.root.position.set(referee.x, 0, referee.z);
 
-  function updateReferee() {
-    const show = phase.name === 'kickoff' || phase.name === 'fulltime';
-    refereeModel.root.visible = show;
-    if (!show) return;
-    if (phase.name === 'kickoff') refereeModel.root.position.set(1.9, 0, 0.4);
-    else refereeModel.root.position.set(-1.6, 0, 0.4);
-    refereeModel.update(0.016, { speed: 0, moving: false });
+  /** Ponto inteligente para o árbitro: atrás da jogada, de lado para ver tudo. */
+  function refereeTarget() {
+    const position = ball.state.position;
+    const velocity = ball.state.velocity;
+    const ballSpeed = Math.hypot(velocity.x, velocity.z);
+    let dirX = 0.7;
+    let dirZ = 0;
+    if (ballSpeed > 1.6) {
+      dirX = velocity.x / ballSpeed;
+      dirZ = velocity.z / ballSpeed;
+    } else {
+      const owner = ball.state.owner;
+      if (owner) {
+        dirX = attackSign(owner.side);
+        dirZ = 0;
+      }
+    }
+    // Fica atrás da linha da bola e desloca-se para o lado com mais visão.
+    const flank = position.z >= 0 ? -1 : 1;
+    let targetX = position.x - dirX * 3.4 - dirZ * flank * 2.4;
+    let targetZ = position.z - dirZ * 3.4 + dirX * flank * 2.4;
+    // Nunca em cima de um jogador: abre espaço se alguém estiver no ponto.
+    for (const player of allPlayers) {
+      if (!player.active) continue;
+      const dx = targetX - player.x;
+      const dz = targetZ - player.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < 1.5 && distance > 0.001) {
+        const push = (1.5 - distance) / distance;
+        targetX += dx * push;
+        targetZ += dz * push;
+      }
+    }
+    return {
+      x: Math.max(-PITCH.halfLength + 1.5, Math.min(PITCH.halfLength - 1.5, targetX)),
+      z: Math.max(-PITCH.halfWidth + 1.5, Math.min(PITCH.halfWidth - 1.5, targetZ))
+    };
+  }
+
+  function updateReferee(dt) {
+    // No apito inicial e no fim ele fica junto ao círculo central.
+    if (phase.name === 'kickoff' || phase.name === 'fulltime') {
+      referee.vx *= 0.8;
+      referee.vz *= 0.8;
+      const targetX = phase.name === 'kickoff' ? 2.4 : -1.8;
+      steerPlayer(referee, targetX, 0.6, dt, 4.5, { arrive: 0.3 });
+      faceTowards(referee, ball.state.position.x, ball.state.position.z, dt, 8);
+      refereeModel.root.position.set(referee.x, 0, referee.z);
+      const speed = playerSpeed(referee);
+      refereeModel.update(dt, { speed, moving: speed > 0.4, lean: referee.turnLean || 0 });
+      refereeModel.lookAt(ball.state.position);
+      return;
+    }
+    const target = refereeTarget();
+    // O árbitro corre o suficiente para não ficar para trás.
+    steerPlayer(referee, target.x, target.z, dt, 7.3, { arrive: 0.9, turn: 11 });
+    if (!faceVelocity(referee, dt, 10)) faceTowards(referee, ball.state.position.x, ball.state.position.z, dt, 9);
+    refereeModel.root.position.set(referee.x, 0, referee.z);
+    const speed = playerSpeed(referee);
+    refereeModel.update(dt, { speed, moving: speed > 0.35, lean: referee.turnLean || 0 });
+    refereeModel.lookAt(ball.state.position);
+  }
+
+  /** Apito visível do árbitro (braço para cima) nas paralisações. */
+  function refereeSignal(duration = 1.15) {
+    refereeModel.signal(duration);
   }
 
   // ------------------------------------------------------------------ mundo --
@@ -662,8 +744,14 @@ export function createMatch(options = {}) {
         score: [teams.home.score, teams.away.score],
         minutes: clock.minutes,
         display: formatClock(),
-        half: clock.half,
-        phase: phase.name
+          half: clock.half,
+        phase: phase.name,
+        poss: (() => {
+          const total = possession.home + possession.away;
+          return total > 1
+            ? [Math.round((possession.home / total) * 100), Math.round((possession.away / total) * 100)]
+            : [50, 50];
+        })()
       };
     }
   };
@@ -686,8 +774,9 @@ export function createMatch(options = {}) {
     return `${minutes}'${String(seconds).padStart(2, '0')}`;
   }
 
-  // Marcador azul de seleção: um anel luminoso sob o atleta controlado,
-  // como no EA Sports FC Mobile.
+  // Marcador azul de seleção no estilo EA Sports FC Mobile: anel luminoso sob
+  // o atleta controlado + seta flutuante sobre a cabeça. O portador da bola
+  // ganha um anel dourado. Trocar de jogador dispara um pulso de destaque.
   const markerRing = new THREE.Mesh(
     new THREE.RingGeometry(0.38, 0.55, 30),
     new THREE.MeshBasicMaterial({ color: 0x19c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
@@ -700,23 +789,63 @@ export function createMatch(options = {}) {
   );
   markerDisc.rotation.x = -Math.PI / 2;
   markerDisc.position.y = 0.032;
-  markerRing.visible = markerDisc.visible = false;
-  engine.scene.add(markerRing, markerDisc);
+
+  // Seta (cone) apontando para baixo, flutuando sobre o controlado.
+  const markerChevron = new THREE.Mesh(
+    new THREE.ConeGeometry(0.17, 0.38, 4),
+    new THREE.MeshBasicMaterial({ color: 0x2ad4ff, transparent: true, opacity: 0.96, depthWrite: false })
+  );
+  markerChevron.rotation.x = Math.PI;
+
+  // Anel dourado: quem está com a posse da bola.
+  const carrierRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.52, 0.66, 28),
+    new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })
+  );
+  carrierRing.rotation.x = -Math.PI / 2;
+  carrierRing.position.y = 0.028;
+
+  markerRing.visible = markerDisc.visible = markerChevron.visible = carrierRing.visible = false;
+  engine.scene.add(markerRing, markerDisc, markerChevron, carrierRing);
   let markerPulse = 0;
+  let markerTime = 0;
+  let lastControlledId = null;
+  let switchFlash = 0;
 
   function updateMarker(dt) {
+    markerTime += dt;
     const player = controlled[userSide];
     if (!player || !player.active) {
-      markerRing.visible = markerDisc.visible = false;
-      return;
+      markerRing.visible = markerDisc.visible = markerChevron.visible = false;
+    } else {
+      // Troca de jogador: pulso rápido de destaque.
+      if (player.id !== lastControlledId) {
+        switchFlash = 0.85;
+        lastControlledId = player.id;
+      }
+      switchFlash = Math.max(0, switchFlash - dt);
+      markerPulse += dt * 5.2;
+      const pulse = 1 + Math.sin(markerPulse) * 0.07 + switchFlash * 0.65;
+      markerRing.scale.setScalar(pulse);
+      markerDisc.scale.setScalar(pulse);
+      markerRing.material.opacity = 0.75 + switchFlash * 0.25;
+      markerRing.position.set(player.x, 0.035, player.z);
+      markerDisc.position.set(player.x, 0.032, player.z);
+      // Seta flutuante com balanço suave.
+      markerChevron.position.set(player.x, 2.62 + Math.sin(markerTime * 2.7) * 0.1 + switchFlash * 0.35, player.z);
+      markerChevron.rotation.y = markerTime * 1.5;
+      markerChevron.scale.setScalar(1 + switchFlash * 0.6);
+      markerRing.visible = markerDisc.visible = markerChevron.visible = true;
     }
-    markerPulse += dt * 5.2;
-    const pulse = 1 + Math.sin(markerPulse) * 0.07;
-    markerRing.scale.setScalar(pulse);
-    markerDisc.scale.setScalar(pulse);
-    markerRing.position.set(player.x, 0.035, player.z);
-    markerDisc.position.set(player.x, 0.032, player.z);
-    markerRing.visible = markerDisc.visible = true;
+    // O anel dourado segue o dono da bola (de qualquer time).
+    const owner = ball.state.owner;
+    if (owner && owner.active) {
+      carrierRing.position.set(owner.x, 0.028, owner.z);
+      carrierRing.material.opacity = 0.72 + Math.sin(markerTime * 6) * 0.18;
+      carrierRing.visible = true;
+    } else {
+      carrierRing.visible = false;
+    }
   }
 
   // ----------------------------------------------------------------- update --
@@ -732,11 +861,13 @@ export function createMatch(options = {}) {
         clock.added = 2;
         phase.name = 'halftime';
         phase.timer = 0;
+        refereeSignal(1.6);
         emit({ type: 'halftime', score: [teams.home.score, teams.away.score], stats: snapshotStats() });
       } else if (clock.half === 2 && clock.minutes >= 90 + clock.added) {
         clock.added = 4;
         phase.name = 'fulltime';
         phase.timer = 0;
+        refereeSignal(1.8);
         emit({
           type: 'fulltime',
           score: [teams.home.score, teams.away.score],
@@ -799,12 +930,12 @@ export function createMatch(options = {}) {
       player.root.position.set(player.x, 0, player.z);
       player.root.visible = player.active;
       const speed = playerSpeed(player);
-      player.model.update(dt, { speed, moving: speed > 0.25 });
+      player.model.update(dt, { speed, moving: speed > 0.25, lean: player.turnLean || 0 });
       player.model.lookAt(ball.state.position);
     }
 
-    // Árbitro em cena nas retomadas importantes.
-    updateReferee();
+    // Árbitro acompanhando a jogada o tempo todo.
+    updateReferee(dt);
 
     // Marcador azul acompanha o atleta controlado.
     updateMarker(dt);
@@ -849,7 +980,8 @@ export function createMatch(options = {}) {
     }
     // Sem comando do jogador, a IA comanda este atleta (ele não trava).
     player.sprint = input.sprint || (player.sprint && !world.hasInput());
-    faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
+    // Quem está em movimento olha para onde corre — nunca corre de costas.
+    if (!faceVelocity(player, dt, 11)) faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
   }
 
   /** Quem está perto da bola assume o domínio. */
@@ -994,11 +1126,15 @@ export function createMatch(options = {}) {
       world.dispose?.();
       engine.scene.remove(refereeModel.root);
       refereeModel.dispose?.();
-      engine.scene.remove(markerRing, markerDisc);
+      engine.scene.remove(markerRing, markerDisc, markerChevron, carrierRing);
       markerRing.geometry.dispose();
       markerRing.material.dispose();
       markerDisc.geometry.dispose();
       markerDisc.material.dispose();
+      markerChevron.geometry.dispose();
+      markerChevron.material.dispose();
+      carrierRing.geometry.dispose();
+      carrierRing.material.dispose();
       engine.stop();
       for (const player of allPlayers) player.model.dispose();
       ball.dispose();

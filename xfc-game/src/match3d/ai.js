@@ -5,16 +5,17 @@
 // mais próximo busca a bola, os companions acompanham e a defesa marca.
 
 import { PITCH, GOAL, FORMATION_433 } from './constants.js';
-import { steerPlayer, faceTowards, playerSpeed, clampToPitch } from './movement.js';
+import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
+import { attackSign as attackSignOf, ownGoalX as ownGoalXOf, attackedGoalX } from './sides.js';
 
 const RUN_SPEED = 6.3;
 const SPRINT_SPEED = 8.1;
 const CHASE_SPEED = 7.4;
 
 export function createTeamAI({ side, world }) {
-  const attackSign = side === 'home' ? 1 : -1;
-  const goalX = attackSign * PITCH.halfLength;
-  const ownGoalX = -attackSign * PITCH.halfLength;
+  const attackSign = attackSignOf(side);
+  const goalX = attackedGoalX(side);
+  const ownGoalX = ownGoalXOf(side);
 
   function members() {
     return world.members(side);
@@ -224,7 +225,9 @@ export function createTeamAI({ side, world }) {
       // comando, a IA assume para o time não travar com a bola.
       if (world.isUserControlled(player) && world.hasInput()) continue;
       if (player === owner) {
-        faceTowards(player, ball.position.x, ball.position.z, dt);
+        // Com a bola no pé, o atleta olha para frente (a condução) e só
+        // encara a bola quando está praticamente parado.
+        if (!faceVelocity(player, dt, 10)) faceTowards(player, goalX, player.z, dt, 6);
         continue;
       }
 
@@ -256,7 +259,7 @@ export function createTeamAI({ side, world }) {
           speed = CHASE_SPEED;
         }
         if (world.ball.state.owner === player) {
-          faceTowards(player, ball.position.x, ball.position.z, dt);
+          if (!faceVelocity(player, dt, 10)) faceTowards(player, attackSign > 0 ? PITCH.halfLength : -PITCH.halfLength, 0, dt, 6);
           continue;
         }
       } else if (player === chaser && !owner) {
@@ -292,7 +295,7 @@ export function createTeamAI({ side, world }) {
       targetZ = Math.max(-PITCH.halfWidth - 4, Math.min(PITCH.halfWidth + 4, targetZ));
 
       steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 1.4 });
-      faceTowards(player, ball.position.x, ball.position.z, dt);
+      if (!faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
     }
   }
 

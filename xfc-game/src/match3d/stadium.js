@@ -39,7 +39,10 @@ function drawPitch(context, width, height) {
   context.lineCap = 'butt';
 
   const rect = (x0, z0, x1, z1) => {
-    context.strokeRect(toX(x0), toZ(z0), (x1 - x0) * scale, (z1 - z0) * scale);
+    // Normaliza: área pode vir com os cantos invertidos (gol de cada lado).
+    const left = Math.min(toX(x0), toX(x1));
+    const top = Math.min(toZ(z0), toZ(z1));
+    context.strokeRect(left, top, Math.abs(x1 - x0) * scale, Math.abs(z1 - z0) * scale);
   };
 
   // contorno do campo
@@ -458,6 +461,7 @@ export function buildStadium(scene, options = {}) {
     new THREE.MeshLambertMaterial({ map: pitchTexture })
   );
   pitch.rotation.x = -Math.PI / 2;
+  pitch.receiveShadow = true;
   group.add(pitch);
 
   // Faixa de grama fora das linhas.
@@ -555,8 +559,18 @@ export function buildStadium(scene, options = {}) {
   // Luzes.
   const hemisphere = new THREE.HemisphereLight(0xaed4ff, 0x367a3c, 1.05);
   scene.add(hemisphere);
-  const key = new THREE.DirectionalLight(0xfff6e4, 1.35);
+  const key = new THREE.DirectionalLight(0xfff6e4, 1.5);
   key.position.set(-45, 70, 40);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -75;
+  key.shadow.camera.right = 75;
+  key.shadow.camera.top = 60;
+  key.shadow.camera.bottom = -60;
+  key.shadow.camera.near = 10;
+  key.shadow.camera.far = 220;
+  key.shadow.bias = -0.00045;
+  key.shadow.normalBias = 0.6;
   scene.add(key);
   const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5);
   fill.position.set(50, 40, -45);

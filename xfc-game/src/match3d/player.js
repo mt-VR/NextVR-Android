@@ -1,14 +1,16 @@
-// Jogador 3D: boneco humanóide com uniforme, chuteira, meias e animação de
-// corrida. Nada de cubos: cabeça, tronco, braços e pernas são cápsulas e
-// esferas, com o desenho do uniforme (listras, faixa, xadrez) aplicado como
-// textura.
+// Jogador 3D: atleta humanóide com proporções de jogo (1,80 m), uniforme
+// desenhado em textura (listras, faixa, xadrez), botas com sola, meias com
+// canelito, rostos trabalhados (olhos, sobrancelhas, nariz e boca) e
+// penteados variados. Quem tem retrato real do atleta ganha o rosto na
+// frente da cabeça.
 
 import { THREE, canvasTexture } from './engine.js';
 
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
+const HAIR_STYLES = ['short', 'afro', 'mohawk', 'side', 'bob', 'bald'];
 
-/** Textura do uniforme: listras, faixa diagonal ou xadrez. */
+/** Textura do uniforme: listras, faixa diagonal ou xadrez + sombreamento. */
 function drawKitTexture(context, width, height, kit) {
   const { primary, secondary, accent, pattern } = kit;
   context.fillStyle = primary;
@@ -35,7 +37,29 @@ function drawKitTexture(context, width, height, kit) {
         if ((row + column) % 2 === 0) context.fillRect((column / cells) * width, (row / cells) * height, width / cells, height / cells);
       }
     }
+  } else if (pattern === 'hoops') {
+    context.fillStyle = secondary;
+    const bands = 4;
+    for (let band = 0; band < bands; band += 1) {
+      context.fillRect(0, (band / bands) * height + height * 0.06, width, height / (bands * 2.6));
+    }
   }
+
+  // Sombreamento vertical: dá volume ao tronco.
+  const shade = context.createLinearGradient(0, 0, 0, height);
+  shade.addColorStop(0, 'rgba(255,255,255,0.16)');
+  shade.addColorStop(0.45, 'rgba(0,0,0,0)');
+  shade.addColorStop(1, 'rgba(0,0,0,0.24)');
+  context.fillStyle = shade;
+  context.fillRect(0, 0, width, height);
+  // Sombra lateral: estreita as laterais como uma camisa de verdade.
+  const sides = context.createLinearGradient(0, 0, width, 0);
+  sides.addColorStop(0, 'rgba(0,0,0,0.28)');
+  sides.addColorStop(0.18, 'rgba(0,0,0,0)');
+  sides.addColorStop(0.82, 'rgba(0,0,0,0)');
+  sides.addColorStop(1, 'rgba(0,0,0,0.28)');
+  context.fillStyle = sides;
+  context.fillRect(0, 0, width, height);
 
   // Gola e punhos na cor de destaque.
   context.fillStyle = accent;
@@ -67,8 +91,8 @@ function roundedClip(context, width, height, radius) {
 
 /**
  * Pinta o rosto do atleta (retrato real) num escudo curvo na frente da
- * cabeça. Enquanto a foto não chega, o boneco fica com o rosto liso da cor
- * média — a partida não espera o disco para começar.
+ * cabeça. Enquanto a foto não chega, o boneco fica com o rosto desenhado
+ * (olhos, sobrancelhas, nariz e boca) — a partida não espera o disco.
  */
 function applyFacePhoto(head, photoUrl, skinMaterial) {
   const image = new Image();
@@ -84,15 +108,12 @@ function applyFacePhoto(head, photoUrl, skinMaterial) {
     context.save();
     roundedClip(context, width, height, 30);
     context.clip();
-    // Recorte "cover" com viés para o topo: o rosto ocupa o terço de cima
-    // dos retratos.
     const scale = Math.max(width / image.width, height / image.height);
     const drawWidth = image.width * scale;
     const drawHeight = image.height * scale;
     const offsetX = (width - drawWidth) / 2;
     const offsetY = Math.min(0, (height - drawHeight) * 0.18);
     context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-    // Sombra suave embaixo para casar com o pescoço.
     const shade = context.createLinearGradient(0, height * 0.72, 0, height);
     shade.addColorStop(0, 'rgba(0,0,0,0)');
     shade.addColorStop(1, 'rgba(0,0,0,0.3)');
@@ -126,8 +147,6 @@ function applyFacePhoto(head, photoUrl, skinMaterial) {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
     const material = new THREE.MeshLambertMaterial({ map: texture, transparent: true, depthWrite: false });
-    // Escudo curvo que abraça a esfera da cabeça — precisa ficar FORA dela
-    // (o crânio tem raio 0,107 e o cabelo 0,113).
     const theta = 1.32;
     const shield = new THREE.Mesh(
       new THREE.CylinderGeometry(0.1145, 0.1145, 0.182, 20, 1, true, -theta / 2, theta),
@@ -138,10 +157,56 @@ function applyFacePhoto(head, photoUrl, skinMaterial) {
 
     // O retrato real substitui os olhos desenhados.
     for (const child of [...head.children]) {
-      if (child.userData.facePart === 'eye') child.visible = false;
+      if (child.userData.facePart === 'eye' || child.userData.facePart === 'brow') child.visible = false;
     }
   };
   image.src = photoUrl;
+}
+
+/** Constrói o penteado do atleta a partir do estilo sorteado. */
+function buildHair(style, hairMaterial) {
+  switch (style) {
+    case 'afro': {
+      const afro = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 9), hairMaterial);
+      afro.position.set(0, 0.035, -0.012);
+      afro.scale.set(1.02, 0.96, 1.02);
+      return afro;
+    }
+    case 'mohawk': {
+      const mohawk = new THREE.Mesh(new THREE.SphereGeometry(0.118, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), hairMaterial);
+      mohawk.position.set(0, 0.02, -0.01);
+      mohawk.scale.set(0.42, 0.9, 1.02);
+      return mohawk;
+    }
+    case 'side': {
+      const side = new THREE.Mesh(new THREE.SphereGeometry(0.114, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairMaterial);
+      side.position.set(0.02, 0.012, -0.01);
+      side.scale.set(1.0, 0.9, 1.0);
+      return side;
+    }
+    case 'bob': {
+      const group = new THREE.Group();
+      const top = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.54), hairMaterial);
+      top.position.set(0, 0.014, -0.008);
+      top.scale.set(0.96, 1.0, 1.02);
+      group.add(top);
+      // O cabelo desce atrás da nuca.
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.055), hairMaterial);
+      back.position.set(0, -0.075, -0.088);
+      back.rotation.x = 0.18;
+      group.add(back);
+      return group;
+    }
+    case 'bald':
+      return null;
+    case 'short':
+    default: {
+      const short = new THREE.Mesh(new THREE.SphereGeometry(0.113, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMaterial);
+      short.position.set(0, 0.012, -0.008);
+      short.scale.set(0.95, 0.98, 1.0);
+      return short;
+    }
+  }
 }
 
 /**
@@ -152,6 +217,8 @@ function applyFacePhoto(head, photoUrl, skinMaterial) {
  * @param {number} options.number número da camisa
  * @param {boolean} options.isKeeper usa a roupa do goleiro
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
+ * @param {string} [options.hairStyle] penteado (short, afro, mohawk, side, bob, bald)
+ * @param {number} [options.heightScale] variação de altura (0.94–1.07)
  */
 export function createPlayer3D(options = {}) {
   const {
@@ -160,6 +227,8 @@ export function createPlayer3D(options = {}) {
     isKeeper = false,
     skinTone = SKIN_TONES[0],
     hairColor = HAIR_COLORS[0],
+    hairStyle = 'short',
+    heightScale = 1,
     photo = null
   } = options;
 
@@ -184,16 +253,31 @@ export function createPlayer3D(options = {}) {
     drawKitTexture(context, width, height, { primary, secondary, accent, pattern: kit.pattern }));
   const jerseyMaterial = new THREE.MeshLambertMaterial({ map: jerseyTexture });
   const shortsMaterial = new THREE.MeshLambertMaterial({ color: secondary });
+  const shortsTrim = new THREE.MeshLambertMaterial({ color: accent });
   const socksMaterial = new THREE.MeshLambertMaterial({ color: accent });
+  const sockBand = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
   const bootMaterial = new THREE.MeshLambertMaterial({ color: 0x14181d });
+  const soleMaterial = new THREE.MeshLambertMaterial({ color: accent === '#ffffff' || accent === '#fff' ? 0xf4f6f8 : accent });
   const skinMaterial = new THREE.MeshLambertMaterial({ color: skinTone });
   const hairMaterial = new THREE.MeshLambertMaterial({ color: hairColor });
 
+  // Pescoço e ombros (deltoides) — dão silhueta de atleta, não de boneco.
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.09, 10), skinMaterial);
+  neck.position.y = 1.475;
+  body.add(neck);
+
   // Tronco.
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.165, 0.27, 4, 12), jerseyMaterial);
-  torso.position.y = 1.2;
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.168, 0.28, 4, 12), jerseyMaterial);
+  torso.position.y = 1.21;
   torso.scale.set(1, 1, 0.72);
   body.add(torso);
+
+  for (const side of [-1, 1]) {
+    const deltoid = new THREE.Mesh(new THREE.SphereGeometry(0.078, 10, 8), jerseyMaterial);
+    deltoid.position.set(0.182 * side, 1.415, 0);
+    deltoid.scale.set(0.9, 0.9, 0.9);
+    body.add(deltoid);
+  }
 
   // Número nas costas.
   const numberMaterial = new THREE.MeshBasicMaterial({
@@ -202,37 +286,54 @@ export function createPlayer3D(options = {}) {
     depthWrite: false
   });
   const numberPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26), numberMaterial);
-  numberPlane.position.set(0, 1.26, -0.128);
+  numberPlane.position.set(0, 1.27, -0.128);
   numberPlane.rotation.y = Math.PI;
   body.add(numberPlane);
 
-  // Shorts.
+  // Shorts + canelito da barra na cor de destaque.
   const shorts = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.28, 12), shortsMaterial);
-  shorts.position.y = 0.95;
+  shorts.position.y = 0.955;
   shorts.scale.set(1, 1, 0.78);
   body.add(shorts);
+  const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.168, 0.168, 0.045, 12), shortsTrim);
+  trim.position.y = 0.825;
+  trim.scale.set(1, 1, 0.78);
+  body.add(trim);
 
   // Cabeça, cabelo e rosto.
   const head = new THREE.Group();
-  head.position.y = 1.6;
+  head.position.y = 1.61;
   body.add(head);
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.107, 14, 12), skinMaterial);
   skull.scale.set(0.92, 1.06, 0.96);
   head.add(skull);
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.113, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMaterial);
-  hair.position.set(0, 0.012, -0.008);
-  hair.scale.set(0.95, 0.98, 1.0);
-  head.add(hair);
 
-  // Olhos: dão leitura de rosto mesmo à distância (somem quando o retrato
-  // real está presente).
+  const hair = buildHair(hairStyle, hairMaterial);
+  if (hair) head.add(hair);
+
+  // Rosto: olhos, sobrancelhas, nariz e boca (somem com o retrato real).
   const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x14181d });
+  const browMaterial = new THREE.MeshBasicMaterial({ color: hairColor });
+  const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x4a2c1e });
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5), eyeMaterial);
-    eye.position.set(0.042 * side, 0.018, 0.093);
+    eye.position.set(0.042 * side, 0.014, 0.093);
     eye.userData.facePart = 'eye';
     head.add(eye);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.011, 0.012), browMaterial);
+    brow.position.set(0.042 * side, 0.048, 0.0975);
+    brow.userData.facePart = 'brow';
+    head.add(brow);
   }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.034, 6), skinMaterial);
+  nose.position.set(0, -0.012, 0.1065);
+  nose.rotation.x = Math.PI / 2.15;
+  nose.userData.facePart = 'nose';
+  head.add(nose);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.009, 0.012), mouthMaterial);
+  mouth.position.set(0, -0.052, 0.0985);
+  mouth.userData.facePart = 'mouth';
+  head.add(mouth);
 
   // Retrato real do atleta vira o rosto do boneco.
   if (photo) applyFacePhoto(head, photo, skinMaterial);
@@ -241,19 +342,19 @@ export function createPlayer3D(options = {}) {
   const arms = [];
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Group();
-    shoulder.position.set(0.2 * side, 1.4, 0);
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.2, 3, 8), jerseyMaterial);
-    upper.position.y = -0.13;
+    shoulder.position.set(0.205 * side, 1.41, 0);
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.21, 3, 8), jerseyMaterial);
+    upper.position.y = -0.135;
     shoulder.add(upper);
     const forearm = new THREE.Group();
-    forearm.position.y = -0.26;
-    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.18, 3, 8), skinMaterial);
-    lower.position.y = -0.11;
+    forearm.position.y = -0.27;
+    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.19, 3, 8), skinMaterial);
+    lower.position.y = -0.115;
     forearm.add(lower);
-    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), isKeeper
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.056, 8, 6), isKeeper
       ? new THREE.MeshLambertMaterial({ color: 0xf25c2a })
       : skinMaterial);
-    glove.position.y = -0.23;
+    glove.position.y = -0.24;
     forearm.add(glove);
     shoulder.add(forearm);
     body.add(shoulder);
@@ -264,30 +365,45 @@ export function createPlayer3D(options = {}) {
   const legs = [];
   for (const side of [-1, 1]) {
     const hip = new THREE.Group();
-    hip.position.set(0.095 * side, 0.9, 0);
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.28, 3, 8), skinMaterial);
-    thigh.position.y = -0.17;
+    hip.position.set(0.096 * side, 0.91, 0);
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.074, 0.3, 3, 8), skinMaterial);
+    thigh.position.y = -0.18;
     hip.add(thigh);
     const knee = new THREE.Group();
-    knee.position.y = -0.33;
-    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.058, 0.22, 3, 8), socksMaterial);
-    shin.position.y = -0.16;
+    knee.position.y = -0.345;
+    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.059, 0.235, 3, 8), socksMaterial);
+    shin.position.y = -0.17;
     knee.add(shin);
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.25), bootMaterial);
-    boot.position.set(0, -0.3, 0.04);
+    // Canelito branco no topo da meia.
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0615, 0.0615, 0.05, 10), sockBand);
+    band.position.y = -0.06;
+    knee.add(band);
+    // Chuteira: corpo escuro, sola clara.
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.075, 0.26), bootMaterial);
+    boot.position.set(0, -0.315, 0.045);
     knee.add(boot);
+    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.024, 0.265), soleMaterial);
+    sole.position.set(0, -0.35, 0.045);
+    knee.add(sole);
     hip.add(knee);
     body.add(hip);
     legs.push({ hip, knee });
   }
 
-  // Modelos maiores na tela, como nos prints de referência.
-  root.scale.setScalar(1.15);
+  // Variação de altura por atleta (0,94–1,07) e os modelos maiores na tela.
+  root.scale.setScalar(1.15 * heightScale);
+
+  // Jogadores projetam sombra (motor 3D com sombras ativadas).
+  root.traverse(object => {
+    if (object.isMesh) object.castShadow = true;
+  });
+  shadow.castShadow = false;
 
   let phase = Math.random() * Math.PI * 2;
   let kickTimer = 0;
   let lookTarget = null;
   let celebrateTimer = 0;
+  let signalTimer = 0;
 
   const api = {
     root,
@@ -299,8 +415,30 @@ export function createPlayer3D(options = {}) {
     celebrate(duration = 2.6) {
       celebrateTimer = duration;
     },
+    /** Sinal de arbitragem: o braço direito sobe apitando. */
+    signal(duration = 1.1) {
+      signalTimer = duration;
+    },
     /** Anima a corrida: a velocidade define o balanço das pernas. */
-    update(dt, { speed = 0, moving = false } = {}) {
+    update(dt, { speed = 0, moving = false, lean = 0 } = {}) {
+      // Sinal do árbitro tem prioridade sobre a pose neutra.
+      if (signalTimer > 0) {
+        signalTimer = Math.max(0, signalTimer - dt);
+        body.position.y = 0;
+        body.rotation.x = 0.02;
+        body.rotation.z = 0;
+        arms[1].shoulder.rotation.x = -2.7;
+        arms[1].shoulder.rotation.z = -0.35;
+        arms[1].forearm.rotation.x = 0.4;
+        arms[0].shoulder.rotation.x = -0.9;
+        arms[0].shoulder.rotation.z = 0.16;
+        arms[0].forearm.rotation.x = 0.75;
+        head.rotation.y = 0;
+        head.rotation.x = -0.28;
+        legs[0].hip.rotation.x = legs[1].hip.rotation.x = 0.06;
+        legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.12;
+        return;
+      }
       if (celebrateTimer > 0) {
         celebrateTimer = Math.max(0, celebrateTimer - dt);
         body.position.y = Math.abs(Math.sin(celebrateTimer * 5.4)) * 0.22;
@@ -333,9 +471,9 @@ export function createPlayer3D(options = {}) {
       arms[0].forearm.rotation.x = -0.25 - Math.abs(wave) * 0.2;
       arms[1].forearm.rotation.x = -0.25 - Math.abs(wave) * 0.2;
 
-      // Balanço do tronco e agachamento da corrida.
+      // Balanço do tronco e inclinação na curva (giro natural).
       body.position.y = moving ? Math.abs(Math.sin(phase)) * 0.035 * (0.5 + rate) : Math.sin(phase * 0.4) * 0.006;
-      body.rotation.z = moving ? wave * 0.04 : 0;
+      body.rotation.z = moving ? wave * 0.04 + lean : lean * 0.6;
       body.rotation.x = moving ? 0.08 + rate * 0.06 : 0.01;
 
       // Chute: a perna da frente avança e volta.
@@ -382,12 +520,18 @@ export function createPlayer3D(options = {}) {
   return api;
 }
 
-export { SKIN_TONES, HAIR_COLORS };
+export { SKIN_TONES, HAIR_COLORS, HAIR_STYLES };
 
-/** Cor de cabelo e tom de pele sorteados para o elenco (evita iguais). */
+/**
+ * Aparência sorteada para o elenco (evita iguais): pele, cabelo, penteado e
+ * altura. Determinística pelo índice — cada atleta tem sempre a mesma cara.
+ */
 export function lookFor(index) {
+  const seed = (index + 1) * 2654435761 % 4294967296;
   return {
     skinTone: SKIN_TONES[(index * 3 + (index % 4)) % SKIN_TONES.length],
-    hairColor: HAIR_COLORS[(index * 3 + 1) % 5]
+    hairColor: HAIR_COLORS[(index * 5 + 2) % HAIR_COLORS.length],
+    hairStyle: HAIR_STYLES[seed % HAIR_STYLES.length],
+    heightScale: 0.94 + (seed % 130) / 1000
   };
 }
