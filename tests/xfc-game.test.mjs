@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, join, normalize, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { launchOrSkip } from './support/chromium.mjs';
@@ -82,6 +85,51 @@ test('as estrelas do cartão de time vão de zero a cinco', () => {
   assert.deepEqual(starSlots(4.5), ['full', 'full', 'full', 'full', 'half']);
   assert.deepEqual(starSlots(3.2), ['full', 'full', 'full', 'empty', 'empty']);
   assert.equal(getTeam('nao-existe'), null);
+});
+
+test('todo import estático do jogo resolve para um arquivo do pacote', async () => {
+  // Regressão do bug da "tela azul": o zip e o APK eram empacotados sem o
+  // vendor/three.module.min.js; sem ele o grafo de módulos não carrega e nada
+  // do jogo executa. Aqui todos os imports relativos de src/ são resolvidos
+  // no disco para garantir que o pacote do jogo está fechado.
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const gameRoot = join(root, 'xfc-game');
+  const sourceFiles = [];
+  const walk = async dir => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) sourceFiles.push(full);
+    }
+  };
+  await walk(join(gameRoot, 'src'));
+  sourceFiles.push(join(gameRoot, 'serve.mjs'));
+
+  const specifiers = /(?:import|export)[^'"]*?\bfrom\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]/g;
+  const missing = [];
+  for (const file of sourceFiles) {
+    const text = await readFile(file, 'utf8');
+    for (const match of text.matchAll(specifiers)) {
+      const specifier = match[1] || match[2];
+      if (!specifier || !specifier.startsWith('.')) continue;
+      const target = normalize(join(dirname(file), specifier));
+      if (!existsSync(target)) missing.push(`${relative(gameRoot, file)} -> ${specifier}`);
+    }
+  }
+  assert.deepEqual(missing, [], `imports sem arquivo: ${missing.join(', ')}`);
+
+  // O three.js do vendor/ é a dependência clássica do motor 3D.
+  assert.ok(existsSync(join(gameRoot, 'vendor/three.module.min.js')),
+    'vendor/three.module.min.js precisa existir no repositório');
+
+  // O empacotamento do CI não pode mais pular o vendor/ nem o bundle offline.
+  const workflow = await readFile(join(root, '.github/workflows/xfc-apk.yml'), 'utf8');
+  assert.ok(/zip\s+-r\s+\.\.\/xfc-game\.zip[^\n]*vendor/.test(workflow),
+    'o zip do jogo precisa incluir a pasta vendor/');
+  assert.ok(workflow.includes('app.bundle.js'),
+    'o zip do jogo precisa incluir o app.bundle.js (suporte ao file://)');
+  assert.ok(workflow.includes('assets/game/vendor/three'),
+    'a checagem do APK precisa exigir o three.js dentro do pacote');
 });
 
 test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco', { timeout: 180000 }, async (t) => {

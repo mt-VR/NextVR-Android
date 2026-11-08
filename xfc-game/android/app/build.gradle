@@ -56,13 +56,16 @@ android {
     }
 }
 
-// Copia o jogo (index.html, styles, src e assets) para a pasta de assets do APK.
+// Copia o jogo (index.html, styles, src, assets e vendor) para a pasta de
+// assets do APK. O vendor/ (three.js) é obrigatório: sem ele o grafo de
+// módulos ES não carrega e o jogo abre só com o fundo azul.
 tasks.register('stageGameAssets', Copy) {
     from(gameRoot) {
         include 'index.html'
         include 'styles/**'
         include 'src/**'
         include 'assets/**'
+        include 'vendor/**'
         exclude '**/.DS_Store'
     }
     into stagedAssets.map { it.dir('game') }

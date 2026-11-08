@@ -21,6 +21,38 @@
         <div id="toasts" class="toasts" aria-live="polite"></div>
       </div>
     </div>
-    <script type="module" src="src/main.js"></script>
+    <noscript>
+      <div class="boot-help"><h1>XFC</h1><p>O XFC precisa de JavaScript para rodar.</p></div>
+    </noscript>
+    <script>
+      // Rede de segurança para o file:// (jogo descompactado com duplo clique):
+      // navegadores bloqueiam módulos ES no disco, então o módulo principal
+      // nunca sobe e sobra só o fundo azul. Aqui, se o módulo não marcar
+      // `__xfcBooted`, injetamos o bundle clássico (app.bundle.js), que o CI
+      // empacota junto com o jogo. Sem o bundle, mostramos as instruções.
+      window.__xfcBooted = false;
+      window.__xfcBootFallback = function () {
+        if (window.__xfcBooted || window.__xfcFallbackInjected) return;
+        window.__xfcFallbackInjected = true;
+        var host = document.getElementById('screen');
+        var script = document.createElement('script');
+        script.src = 'app.bundle.js';
+        script.onerror = function () {
+          if (!host || host.firstChild) return;
+          host.innerHTML =
+            '<div class="boot-help"><h1>XFC</h1>'
+            + '<p>Não deu para carregar o jogo neste navegador.</p>'
+            + '<p>Abra pela pasta com um servidor local: <code>node xfc-game/serve.mjs</code> e acesse <code>http://127.0.0.1:8080</code>, ou instale o aplicativo Android (<code>xfc.apk</code>).</p>'
+            + '</div>';
+        };
+        document.body.appendChild(script);
+      };
+      // Caminho rápido: se o próprio <script type="module"> falhar ao carregar,
+      // cai no fallback na hora.
+      window.addEventListener('load', function () {
+        window.setTimeout(window.__xfcBootFallback, 2500);
+      });
+    </script>
+    <script type="module" src="src/main.js" onerror="window.__xfcBootFallback()"></script>
   </body>
 </html>
