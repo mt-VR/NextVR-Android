@@ -2,7 +2,7 @@
 // 4-3-3, o banco de reservas e o painel do jogador selecionado à direita —
 // no mesmo desenho da tela de elenco do FC.
 
-import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
+import { el, svg, ICONS, padButton, starRow, initialsOf } from '../ui/dom.js';
 import { getTeam, FORMATION_433, POSITION_LABELS } from '../data/teams.js';
 
 const ATTRIBUTE_LABELS = [
@@ -15,6 +15,15 @@ const ATTRIBUTE_LABELS = [
 ];
 
 const PLAYSTYLES = ['F', 'T', 'P', 'L', 'S', 'C'];
+
+/** Retrato do jogador (ou as iniciais, quando o elenco ainda não tem foto). */
+function portraitOf(player) {
+  if (!player.photo) {
+    return el('span', { class: 'avatar avatar--empty' },
+      el('span', { class: 'avatar__initials', text: initialsOf(player.name) }));
+  }
+  return el('img', { src: player.photo, alt: `Retrato de ${player.fullName}` });
+}
 
 function starsFilled(value) {
   return Math.max(1, Math.min(5, Math.round(value / 20)));
@@ -50,7 +59,7 @@ export function squadScreen(ctx, params = {}) {
     },
       el('div', { class: 'pitch-player__portrait' },
         el('span', { class: 'pitch-player__ovr', text: String(player.ovr) }),
-        el('img', { src: player.photo, alt: `Retrato de ${player.fullName}` })
+        portraitOf(player)
       ),
       el('span', { class: 'pitch-player__name', text: player.name })
     );
@@ -70,7 +79,7 @@ export function squadScreen(ctx, params = {}) {
   },
     el('div', { class: 'bench__portrait' },
       el('span', { class: 'bench__ovr', text: String(player.ovr) }),
-      el('img', { src: player.photo, alt: `Retrato de ${player.fullName}` })
+      portraitOf(player)
     ),
     el('span', { class: 'bench__name', text: player.name })
   )));

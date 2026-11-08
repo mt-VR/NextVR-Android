@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
+import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
@@ -11,8 +12,8 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem apenas Barcelona e Real Madrid, com onze em campo e sete reservas', () => {
-  assert.deepEqual(TEAMS.map(team => team.id), ['fc-barcelona', 'real-madrid']);
+test('XFC tem Barcelona, Real Madrid, Ibis e Paraná, com onze em campo e sete reservas', () => {
+  assert.deepEqual(TEAMS.map(team => team.id), ['fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube']);
   for (const team of TEAMS) {
     assert.equal(team.players.length, 11, `${team.name} entra em campo com onze`);
     assert.equal(team.substitutes.length, 7, `${team.name} tem sete reservas`);
@@ -27,14 +28,34 @@ test('XFC tem apenas Barcelona e Real Madrid, com onze em campo e sete reservas'
   }
 });
 
-test('todo jogador tem retrato disponível no pacote de assets', () => {
+test('todo jogador com retrato tem a imagem disponível no pacote de assets', () => {
   const missing = [];
+  let semFoto = 0;
   for (const team of TEAMS) {
     for (const player of [...team.players, ...team.substitutes]) {
+      // Os clubes novos entraram sem retrato: o jogo mostra as iniciais.
+      if (!player.photo) {
+        semFoto += 1;
+        continue;
+      }
       if (!existsSync(new URL(player.photo, GAME_ROOT))) missing.push(player.photo);
     }
   }
   assert.deepEqual(missing, [], `retratos ausentes: ${missing.join(', ')}`);
+  assert.ok(semFoto > 0, 'os clubes sem retrato usam as iniciais');
+});
+
+test('todo clube tem escudo e três blusas no pacote', () => {
+  for (const team of TEAMS) {
+    assert.ok(existsSync(new URL(team.crest, GAME_ROOT)), `escudo existe: ${team.crest}`);
+    const kits = kitsOf(team.id);
+    assert.equal(kits.length, 3, `${team.name} tem três blusas`);
+    for (const kit of kits) {
+      assert.ok(kit.colors.primary && kit.colors.secondary, `${team.name}: blusa com cores`);
+      assert.ok(kitSvg(kit).includes('<svg'), `${team.name}: blusa desenhada em SVG`);
+    }
+    assert.ok(defaultKit(team.id), `${team.name} tem blusa principal`);
+  }
 });
 
 test('as estrelas do cartão de time vão de zero a cinco', () => {
@@ -103,6 +124,32 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.equal(await page.locator('.team-card__rating b').count(), 6, 'cada time mostra ATT, MID e DEF');
     await imagesReady();
     assert.ok(await page.locator('.team-card__crest').first().isVisible(), 'os escudos aparecem');
+
+    // As setas ao lado do escudo trocam de clube: os clubes brasileiros entram
+    // na escolha de times.
+    const nextClub = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+    await page.click(nextClub);
+    await page.click(nextClub);
+    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Ibis Esporte'),
+      'Ibis Esporte aparece na escolha de times');
+    await page.click(nextClub);
+    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Paraná Clube'),
+      'Paraná Clube aparece na escolha de times');
+    await page.click(nextClub);
+    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('FC Barcelona'),
+      'a troca de clube volta para o Barcelona');
+
+    // Tela de blusas: READY, carrossel com três uniformes e a prévia dos dois
+    // jogadores (um de cada lado).
+    await page.click('.btn:has-text("Blusas")');
+    await page.waitForSelector('.screen--kits');
+    assert.ok((await page.locator('.kits__ready').textContent()).includes('READY'), 'a tela de blusas tem READY');
+    assert.equal(await page.locator('.kits__row .kits__tile').count(), 3, 'o carrossel mostra três blusas');
+    assert.equal(await page.locator('.kits__preview-figure svg').count(), 2, 'os dois jogadores vestem o uniforme');
+    await page.click('.kits__arrow:last-child');
+    assert.ok((await page.locator('.kits__tile-name').nth(1).textContent()).length > 0, 'a blusa escolhida tem nome');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--kickoff');
 
     // Escolha do confronto e ida para o elenco.
     await page.click('.team-card:has-text("FC Barcelona")');

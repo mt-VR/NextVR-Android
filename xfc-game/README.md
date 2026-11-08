@@ -19,18 +19,27 @@ Nesta primeira etapa o jogo tem **o menu**:
    lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
    arte do jogador no gramado à direita, título *Dive straight into the action*
    e o botão *Enter Kick Off*.
-3. **Kick Off / Classic Match** — colunas HOME e AWAY com país, escudo grande,
-   estrelas, ATT/MID/DEF e liga; no meio, Advantage Settings, Live Form e
-   RANDOMISE; “HOME” e “AWAY” na vertical nas pontas.
-4. **Elenco (Team Management)** — abas no topo, o campo com a formação 4-3-3
+3. **Kick Off / Classic Match** — colunas HOME e AWAY com país, escudo grande
+   em destaque sobre um cartão levemente transparente, estrelas, ATT/MID/DEF e
+   liga; as setas ao lado do escudo trocam de clube e a linha da blusa troca o
+   uniforme; no meio, Advantage Settings, Live Form e RANDOMISE; “HOME” e
+   “AWAY” na vertical nas pontas.
+4. **Escolher blusas (Select Kits)** — o jogador de cada lado veste o uniforme
+   escolhido, o texto READY fica no centro e, ao lado, o carrossel com a blusa
+   anterior, a atual e a próxima (as setas trocam; o Tab alterna entre HOME e
+   AWAY).
+5. **Elenco (Team Management)** — abas no topo, o campo com a formação 4-3-3
    (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
    painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
    papel, foco, pé, skill moves e weak foot.
-5. **Preparação da partida** — mostra o confronto e avisa que as partidas,
+6. **Preparação da partida** — mostra o confronto e avisa que as partidas,
    estádios e campeonato chegam na próxima etapa.
 
-Por enquanto existem **dois times: FC Barcelona e Real Madrid**, com os
-elenos, os escudos e os retratos dos jogadores.
+Por enquanto existem **quatro times: FC Barcelona e Real Madrid (com os
+retratos reais dos jogadores), Ibis Esporte e Paraná Clube**. Todos têm escudo
+e **três blusas** cada (principal, reserva e terceiro), desenhadas em SVG pelo
+próprio jogo a partir das cores dos escudos — por isso ficam nítidas em
+qualquer tela e não pesam o pacote.
 
 ## Como rodar
 
@@ -72,6 +81,7 @@ também tem os dois arquivos anexados.
 | Ação | Teclado | Mouse |
 | --- | --- | --- |
 | Navegar | setas | clicar nos itens |
+| Trocar de blusa | `←` `→` (com `Tab` entre HOME e AWAY) | setas do carrossel |
 | Confirmar | `Enter` | clicar |
 | Voltar | `Esc` / `Backspace` | — |
 
@@ -84,10 +94,11 @@ xfc-game/
 ├── styles/               base.css (palco, tipografia, botões) e screens.css (telas)
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
-│   ├── state.js          perfil, XP e seleção de times
-│   ├── data/teams.js     os dois clubes, elencos, médias e formação
-│   ├── ui/               helpers de DOM e as marcas (SVG)
-│   └── screens/          intro, menu, kickoff, squad, match
+│   ├── state.js          perfil, XP, seleção de times e blusas
+│   ├── data/teams.js     os quatro clubes, elencos, médias e formação
+│   ├── data/kits.js      as blusas (SVG) de cada clube
+│   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
+│   └── screens/          intro, menu, kickoff, kits, squad, match
 ├── assets/
 │   ├── bg/               fundos da intro e do menu
 │   ├── brand/            ícones da marca
@@ -112,4 +123,5 @@ continuam valendo.
 ## Créditos das imagens
 
 Retratos e escudos têm origem externa e estão creditados em
-[`assets/players/CREDITS.md`](assets/players/CREDITS.md).
+[`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
+[`assets/crests/CREDITS.md`](assets/crests/CREDITS.md).

@@ -30,7 +30,9 @@ export function createState() {
   return {
     profile: loadProfile(),
     selection: { home: null, away: null },
-    settings: { liveForm: false, kits: 'home', focus: 'home' },
+    // Blusa escolhida por time (índice em KITS[teamId]).
+    kits: {},
+    settings: { liveForm: false, focus: 'home' },
     lastScreen: 'intro'
   };
 }

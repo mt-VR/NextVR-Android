@@ -45,11 +45,25 @@ for (const viewport of VIEWPORTS) {
   await shot('02-menu');
   await page.click('.menu__cta');
   await shot('03-kickoff');
+  await page.click('.btn:has-text("Blusas")');
+  await shot('04-kits');
+  await page.keyboard.press('Escape');
   await page.click('.btn:has-text("Ver elenco")');
-  await shot('04-squad');
+  await shot('05-squad');
+  await page.keyboard.press('Escape');
+  // Troca o time da casa pelo Ibis (as setas ao lado do escudo mudam de clube).
+  const homeCrest = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+  await page.click(homeCrest);
+  await page.click(homeCrest);
+  await shot('06-kickoff-ibis');
+  await page.click('.btn:has-text("Ver elenco")');
+  await shot('07-squad-ibis');
+  await page.keyboard.press('Escape');
+  await page.click('.btn:has-text("Blusas")');
+  await shot('08-kits-ibis');
   await page.keyboard.press('Escape');
   await page.click('.btn:has-text("Iniciar partida")');
-  await shot('05-match');
+  await shot('09-match');
   await page.close();
   await browser.close();
 }

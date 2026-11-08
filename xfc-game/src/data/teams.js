@@ -42,6 +42,7 @@ export const TEAMS = [
     nickname: 'Barça',
     city: 'Barcelona',
     country: 'Espanha',
+    flag: 'es',
     league: 'LaLiga',
     stadium: 'Estadi Olímpic Lluís Companys',
     crest: 'assets/crests/fc-barcelona.png',
@@ -134,6 +135,7 @@ export const TEAMS = [
     nickname: 'Los Blancos',
     city: 'Madrid',
     country: 'Espanha',
+    flag: 'es',
     league: 'LaLiga',
     stadium: 'Santiago Bernabéu',
     crest: 'assets/crests/real-madrid.png',
@@ -217,6 +219,82 @@ export const TEAMS = [
       { id: 'madrid-endrick', name: 'Endrick', fullName: 'Endrick Rodrigues dos Santos', number: 16, pos: 'ST', ovr: 79, potential: 90, form: 'D', age: 19, height: 173, foot: 'Right', role: 'Pressing Forward', focus: 'Attack', celebration: 'None', photo: photo('endrick'), stats: { pace: 88, shooting: 80, passing: 72, dribbling: 82, defending: 35, physical: 74 } },
       { id: 'madrid-alaba', name: 'Alaba', fullName: 'David Alaba', number: 6, pos: 'CB', ovr: 82, potential: 82, form: 'D', age: 33, height: 187, foot: 'Left', role: 'Stopper', focus: 'Support', celebration: 'None', photo: photo('david-alaba'), stats: { pace: 80, shooting: 66, passing: 78, dribbling: 76, defending: 84, physical: 86 } },
       { id: 'madrid-navas', name: 'Navas', fullName: 'Keylor Navas', number: 13, pos: 'GK', ovr: 79, potential: 79, form: 'D', age: 38, height: 185, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: photo('keylor-navas'), stats: { pace: 56, shooting: 28, passing: 76, dribbling: 62, defending: 34, physical: 80 } }
+    ]
+  },
+  {
+    id: 'ibis-esporte',
+    name: 'Ibis Esporte',
+    shortName: 'Ibis',
+    nickname: 'Ibis',
+    city: 'Sobral',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série C',
+    stadium: 'Estádio Plácido Aderaldo Castelo (Pladão)',
+    crest: 'assets/crests/ibis-esporte.png',
+    colors: { primary: '#c8102e', secondary: '#141414', accent: '#ffffff' },
+    ratings: { att: 71, mid: 70, def: 72, ovr: 71 },
+    stars: 3,
+    formation: '4-3-3',
+    players: [
+      { id: 'ibis-matheus', name: 'Matheus', fullName: 'Matheus Ferreira Santos', number: 1, pos: 'GK', ovr: 70, potential: 71, form: 'D', age: 29, height: 189, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 54, shooting: 26, passing: 68, dribbling: 58, defending: 32, physical: 76 } },
+      { id: 'ibis-diego', name: 'Diego', fullName: 'Diego Ferreira de Souza', number: 2, pos: 'RB', ovr: 69, potential: 70, form: 'D', age: 26, height: 176, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 82, shooting: 58, passing: 70, dribbling: 71, defending: 70, physical: 68 } },
+      { id: 'ibis-lucas', name: 'Lucas', fullName: 'Lucas Almeida de Jesus', number: 3, pos: 'CB', ovr: 71, potential: 73, form: 'D', age: 28, height: 185, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 72, shooting: 48, passing: 68, dribbling: 60, defending: 76, physical: 80 } },
+      { id: 'ibis-jefferson', name: 'Jefferson', fullName: 'Jefferson Luís Nascimento', number: 4, pos: 'CB', ovr: 70, potential: 71, form: 'D', age: 31, height: 187, foot: 'Left', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 68, shooting: 44, passing: 70, dribbling: 58, defending: 74, physical: 78 } },
+      { id: 'ibis-alemao', name: 'Alemão', fullName: 'Alemão Oliveira da Silva', number: 6, pos: 'LB', ovr: 68, potential: 70, form: 'D', age: 24, height: 174, foot: 'Left', role: 'Fullback', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 85, shooting: 52, passing: 71, dribbling: 72, defending: 66, physical: 64 } },
+      { id: 'ibis-nando', name: 'Nando', fullName: 'Fernando Nando da Costa', number: 8, pos: 'CM', ovr: 70, potential: 72, form: 'D', age: 27, height: 178, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 74, shooting: 68, passing: 76, dribbling: 74, defending: 68, physical: 72 } },
+      { id: 'ibis-kleber', name: 'Kleber', fullName: 'Kleber Ribeiro Mattos', number: 5, pos: 'CDM', ovr: 69, potential: 70, form: 'D', age: 30, height: 181, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 66, shooting: 52, passing: 72, dribbling: 62, defending: 76, physical: 78 } },
+      { id: 'ibis-esquerdinha', name: 'Esquerdinha', fullName: 'Rafael Esquerdinha Lopes', number: 10, pos: 'CAM', ovr: 73, potential: 76, form: 'W', age: 22, height: 170, foot: 'Left', role: 'Advanced Playmaker', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 74, passing: 80, dribbling: 84, defending: 38, physical: 58 } },
+      { id: 'ibis-carlinhos', name: 'Carlinhos', fullName: 'Carlinhos Alves de Souza', number: 7, pos: 'LW', ovr: 72, potential: 74, form: 'D', age: 25, height: 172, foot: 'Right', role: 'Inside Forward', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 86, shooting: 70, passing: 74, dribbling: 80, defending: 36, physical: 62 } },
+      { id: 'ibis-paulinho', name: 'Paulinho', fullName: 'Paulo Roberto Alves', number: 9, pos: 'ST', ovr: 74, potential: 77, form: 'W', age: 23, height: 179, foot: 'Right', role: 'Pressing Forward', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 84, shooting: 78, passing: 68, dribbling: 76, defending: 32, physical: 74 } },
+      { id: 'ibis-rafa', name: 'Rafa', fullName: 'Rafael Edson Costa', number: 11, pos: 'RW', ovr: 71, potential: 74, form: 'D', age: 21, height: 175, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 88, shooting: 68, passing: 72, dribbling: 78, defending: 34, physical: 60 } }
+    ],
+    substitutes: [
+      { id: 'ibis-ze-roberto', name: 'Zé Roberto', fullName: 'José Roberto da Silva', number: 12, pos: 'GK', ovr: 66, potential: 67, form: 'D', age: 33, height: 186, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 50, shooting: 24, passing: 62, dribbling: 52, defending: 30, physical: 72 } },
+      { id: 'ibis-dodo', name: 'Dodô', fullName: 'Douglas Souza Lima', number: 14, pos: 'RB', ovr: 65, potential: 67, form: 'D', age: 20, height: 173, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 84, shooting: 50, passing: 64, dribbling: 68, defending: 62, physical: 58 } },
+      { id: 'ibis-ze-carlos', name: 'Zé Carlos', fullName: 'José Carlos Ferreira', number: 13, pos: 'CB', ovr: 66, potential: 68, form: 'D', age: 27, height: 182, foot: 'Left', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 68, shooting: 40, passing: 66, dribbling: 56, defending: 70, physical: 74 } },
+      { id: 'ibis-tata', name: 'Tatá', fullName: 'Gustavo Oliveira Tatá', number: 15, pos: 'CM', ovr: 67, potential: 70, form: 'D', age: 24, height: 177, foot: 'Right', role: 'Deep-lying Playmaker', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 60, passing: 78, dribbling: 72, defending: 64, physical: 66 } },
+      { id: 'ibis-nene', name: 'Nenê', fullName: 'Wesley Nene dos Santos', number: 17, pos: 'LW', ovr: 69, potential: 72, form: 'D', age: 21, height: 168, foot: 'Right', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 88, shooting: 64, passing: 68, dribbling: 82, defending: 30, physical: 54 } },
+      { id: 'ibis-wesley', name: 'Wesley', fullName: 'Wesley Ribeiro de Lima', number: 19, pos: 'ST', ovr: 70, potential: 73, form: 'D', age: 22, height: 180, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 74, passing: 62, dribbling: 66, defending: 34, physical: 82 } },
+      { id: 'ibis-ruan', name: 'Ruan', fullName: 'Ruan Sousa Pereira', number: 18, pos: 'CM', ovr: 66, potential: 68, form: 'D', age: 26, height: 180, foot: 'Right', role: 'Carrilero', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 72, shooting: 56, passing: 72, dribbling: 66, defending: 70, physical: 74 } }
+    ]
+  },
+  {
+    id: 'parana-clube',
+    name: 'Paraná Clube',
+    shortName: 'Paraná',
+    nickname: 'Paraná',
+    city: 'Curitiba',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série C',
+    stadium: 'Estádio Durival Britto e Silva (Vila Capanema)',
+    crest: 'assets/crests/parana-clube.png',
+    colors: { primary: '#d0112b', secondary: '#f2f2f0', accent: '#141414' },
+    ratings: { att: 70, mid: 69, def: 71, ovr: 70 },
+    stars: 3,
+    formation: '4-3-3',
+    players: [
+      { id: 'parana-joao-ricardo', name: 'João Ricardo', fullName: 'João Ricardo dos Santos', number: 1, pos: 'GK', ovr: 71, potential: 72, form: 'D', age: 32, height: 191, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 52, shooting: 25, passing: 70, dribbling: 56, defending: 34, physical: 78 } },
+      { id: 'parana-rafinha', name: 'Rafinha', fullName: 'Rafael Rocha da Silva', number: 2, pos: 'RB', ovr: 68, potential: 69, form: 'D', age: 27, height: 174, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 80, shooting: 56, passing: 70, dribbling: 70, defending: 70, physical: 66 } },
+      { id: 'parana-nilson', name: 'Nilson', fullName: 'Nilson Antônio de Souza', number: 3, pos: 'CB', ovr: 70, potential: 72, form: 'D', age: 29, height: 184, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 46, passing: 66, dribbling: 58, defending: 75, physical: 80 } },
+      { id: 'parana-vitor', name: 'Vitor', fullName: 'Vitor Hugo Gomes', number: 4, pos: 'CB', ovr: 69, potential: 71, form: 'D', age: 26, height: 183, foot: 'Left', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 46, passing: 72, dribbling: 60, defending: 72, physical: 76 } },
+      { id: 'parana-marcelo', name: 'Marcelo', fullName: 'Marcelo Ferreira da Silva', number: 6, pos: 'LB', ovr: 67, potential: 69, form: 'D', age: 25, height: 175, foot: 'Left', role: 'Fullback', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 84, shooting: 50, passing: 70, dribbling: 70, defending: 65, physical: 64 } },
+      { id: 'parana-junior', name: 'Júnior', fullName: 'Júnior Alves de Oliveira', number: 8, pos: 'CM', ovr: 70, potential: 72, form: 'D', age: 28, height: 177, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 72, shooting: 66, passing: 76, dribbling: 74, defending: 68, physical: 72 } },
+      { id: 'parana-caca', name: 'Cacá', fullName: 'Cacá Ferreira Bezerra', number: 5, pos: 'CDM', ovr: 69, potential: 70, form: 'D', age: 29, height: 182, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 68, shooting: 50, passing: 72, dribbling: 62, defending: 76, physical: 78 } },
+      { id: 'parana-tiago', name: 'Tiago', fullName: 'Tiago Antônio Marques', number: 10, pos: 'CAM', ovr: 72, potential: 75, form: 'D', age: 23, height: 171, foot: 'Right', role: 'Advanced Playmaker', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 72, passing: 80, dribbling: 82, defending: 38, physical: 58 } },
+      { id: 'parana-lele', name: 'Lelê', fullName: 'Rafael Martins Lelê', number: 7, pos: 'LW', ovr: 71, potential: 73, form: 'D', age: 24, height: 171, foot: 'Right', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 86, shooting: 68, passing: 72, dribbling: 80, defending: 34, physical: 58 } },
+      { id: 'parana-denis', name: 'Denis', fullName: 'Denis Ribeiro da Silva', number: 9, pos: 'ST', ovr: 73, potential: 76, form: 'D', age: 26, height: 183, foot: 'Right', role: 'Complete Forward', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 78, passing: 70, dribbling: 74, defending: 36, physical: 80 } },
+      { id: 'parana-washington', name: 'Washington', fullName: 'Washington Gomes do Nascimento', number: 11, pos: 'RW', ovr: 70, potential: 73, form: 'D', age: 22, height: 174, foot: 'Left', role: 'Inside Forward', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 84, shooting: 70, passing: 72, dribbling: 80, defending: 34, physical: 60 } }
+    ],
+    substitutes: [
+      { id: 'parana-rafael', name: 'Rafael', fullName: 'Rafael de Oliveira Souza', number: 12, pos: 'GK', ovr: 65, potential: 67, form: 'D', age: 34, height: 185, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 48, shooting: 22, passing: 60, dribbling: 50, defending: 28, physical: 70 } },
+      { id: 'parana-wesley', name: 'Wesley', fullName: 'Wesley dos Santos Lima', number: 14, pos: 'RB', ovr: 64, potential: 66, form: 'D', age: 21, height: 172, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 83, shooting: 48, passing: 62, dribbling: 66, defending: 60, physical: 56 } },
+      { id: 'parana-anderson', name: 'Anderson', fullName: 'Anderson Ferreira Costa', number: 13, pos: 'CB', ovr: 65, potential: 67, form: 'D', age: 28, height: 180, foot: 'Left', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 66, shooting: 38, passing: 64, dribbling: 54, defending: 68, physical: 72 } },
+      { id: 'parana-murilo', name: 'Murilo', fullName: 'Murilo Alexandre Costa', number: 15, pos: 'CM', ovr: 66, potential: 69, form: 'D', age: 25, height: 176, foot: 'Right', role: 'Deep-lying Playmaker', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 68, shooting: 58, passing: 76, dribbling: 70, defending: 64, physical: 66 } },
+      { id: 'parana-eder', name: 'Éder', fullName: 'Éder Leite Barbosa', number: 17, pos: 'LW', ovr: 68, potential: 71, form: 'D', age: 20, height: 169, foot: 'Right', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 87, shooting: 62, passing: 66, dribbling: 80, defending: 30, physical: 52 } },
+      { id: 'parana-juninho', name: 'Juninho', fullName: 'Juninho Pereira da Silva', number: 19, pos: 'ST', ovr: 69, potential: 72, form: 'D', age: 23, height: 181, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 72, shooting: 72, passing: 60, dribbling: 62, defending: 34, physical: 82 } },
+      { id: 'parana-regis', name: 'Régis', fullName: 'Régis Alves Monteiro', number: 18, pos: 'CM', ovr: 65, potential: 67, form: 'D', age: 27, height: 179, foot: 'Right', role: 'Carrilero', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 54, passing: 70, dribbling: 64, defending: 68, physical: 72 } }
     ]
   }
 ];

@@ -5,6 +5,8 @@
 import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
+import { kitsOf, kitSvg } from '../data/kits.js';
+import { flagSvg } from '../ui/flags.js';
 
 export function kickoffScreen(ctx) {
   const state = ctx.state;
@@ -21,6 +23,40 @@ export function kickoffScreen(ctx) {
   }
 
   function card(team, side) {
+    const kits = kitsOf(team.id);
+    const kitIndex = Math.max(0, Math.min(kits.length - 1, state.kits[team.id] ?? 0));
+    const kit = kits[kitIndex] || null;
+
+    // As setas ao lado do escudo trocam de clube (como no jogo de referência).
+    function clubArrow(delta) {
+      return el('button', {
+        class: 'picker-arrow picker-arrow--crest', type: 'button',
+        'aria-label': delta < 0 ? `Time anterior (${team.name})` : `Próximo time (${team.name})`,
+        onClick(event) {
+          event.stopPropagation();
+          const index = TEAMS.findIndex(item => item.id === state.selection[side]);
+          const next = (index + delta + TEAMS.length) % TEAMS.length;
+          cursor[side] = next;
+          state.selection[side] = TEAMS[next].id;
+          paint();
+        }
+      }, svg(delta < 0 ? ICONS.chevronLeft : ICONS.chevronRight));
+    }
+
+    // E as setas da linha de blusa trocam o uniforme do clube.
+    function kitArrow(delta) {
+      return el('button', {
+        class: 'picker-arrow', type: 'button',
+        'aria-label': delta < 0 ? `Blusa anterior (${team.name})` : `Próxima blusa (${team.name})`,
+        onClick(event) {
+          event.stopPropagation();
+          if (!kits.length) return;
+          state.kits[team.id] = (kitIndex + delta + kits.length) % kits.length;
+          paint();
+        }
+      }, svg(delta < 0 ? ICONS.chevronLeft : ICONS.chevronRight));
+    }
+
     return el('div', {
       class: `team-card${state.selection[side] === team.id ? ' is-selected' : ''}`,
       dataset: { teamId: team.id, side },
@@ -33,7 +69,11 @@ export function kickoffScreen(ctx) {
       }
     },
       el('div', { class: 'team-card__name', text: team.name }),
-      el('img', { class: 'team-card__crest', src: team.crest, alt: `Escudo do ${team.name}` }),
+      el('div', { class: 'team-card__crest-wrap' },
+        clubArrow(-1),
+        el('img', { class: 'team-card__crest', src: team.crest, alt: `Escudo do ${team.name}` }),
+        clubArrow(1)
+      ),
       el('div', { class: 'team-card__stars' }, starRow(team.stars, { size: 18 })),
       el('div', { class: 'team-card__ratings' },
         el('div', { class: 'team-card__rating' }, el('b', { text: String(team.ratings.att) }), el('span', { text: 'ATT' })),
@@ -42,21 +82,10 @@ export function kickoffScreen(ctx) {
       ),
       el('div', { class: 'team-card__league', text: team.league }),
       el('div', { class: 'team-card__kit' },
-        el('button', {
-          class: 'picker-arrow', type: 'button', 'aria-label': `Kit anterior (${team.name})`,
-          onClick(event) {
-            event.stopPropagation();
-            ctx.toast('Os kits dos clubes chegam na próxima etapa.');
-          }
-        }, svg(ICONS.chevronLeft)),
-        el('span', { text: 'Home Kit' }),
-        el('button', {
-          class: 'picker-arrow', type: 'button', 'aria-label': `Próximo kit (${team.name})`,
-          onClick(event) {
-            event.stopPropagation();
-            ctx.toast('Os kits dos clubes chegam na próxima etapa.');
-          }
-        }, svg(ICONS.chevronRight))
+        kitArrow(-1),
+        kit ? el('span', { class: 'team-card__kit-thumb', html: kitSvg(kit, { width: 44 }) }) : null,
+        el('span', { text: kit ? `${kit.name} Kit` : 'Home Kit' }),
+        kitArrow(1)
       )
     );
   }
@@ -137,6 +166,17 @@ export function kickoffScreen(ctx) {
     }
   }, 'Ver elenco');
 
+  const kitsButton = el('button', {
+    class: 'btn btn--ghost', type: 'button',
+    onClick() {
+      ctx.go('kits', {
+        home: state.selection.home,
+        away: state.selection.away,
+        focus: focusSide
+      });
+    }
+  }, 'Blusas');
+
   const footer = el('footer', { class: 'footer' },
     el('div', { class: 'hints' },
       el('span', { class: 'hint' }, padButton('cross', 'Select'), el('span', { text: 'Select' })),
@@ -145,6 +185,7 @@ export function kickoffScreen(ctx) {
     ),
     el('div', { class: 'hints' },
       el('span', { class: 'hint hint--muted' }, el('span', { class: 'hint__key', text: 'Hold' }), el('span', { text: 'Ver elenco' })),
+      kitsButton,
       squadButton,
       startButton
     )
@@ -177,7 +218,7 @@ export function kickoffScreen(ctx) {
       if (country) {
         country.replaceChildren(
           el('span', { text: team.country }),
-          el('span', { class: 'kickoff__flag' })
+          el('span', { class: 'kickoff__flag' }, flagSvg(team.flag || 'es'))
         );
       }
     }

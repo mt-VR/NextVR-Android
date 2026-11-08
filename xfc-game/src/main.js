@@ -8,6 +8,7 @@ import { el, clear } from './ui/dom.js';
 import { introScreen } from './screens/intro.js';
 import { menuScreen } from './screens/menu.js';
 import { kickoffScreen } from './screens/kickoff.js';
+import { kitsScreen } from './screens/kits.js';
 import { squadScreen } from './screens/squad.js';
 import { matchScreen } from './screens/match.js';
 
@@ -21,6 +22,7 @@ const registry = {
   intro: introScreen,
   menu: menuScreen,
   kickoff: kickoffScreen,
+  kits: kitsScreen,
   squad: squadScreen,
   match: matchScreen
 };
