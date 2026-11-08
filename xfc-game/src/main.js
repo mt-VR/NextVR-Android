@@ -50,10 +50,6 @@ function fitStage() {
   app.style.setProperty('--stage-w', `${Math.round(width / scale)}px`);
 }
 
-window.addEventListener('resize', fitStage);
-window.addEventListener('orientationchange', () => setTimeout(fitStage, 120));
-fitStage();
-
 /** Mostra um aviso rápido no rodapé da tela. */
 export function toast(message, { variant = 'info', duration = 2800 } = {}) {
   if (!toastHost) return;
@@ -80,12 +76,25 @@ export function go(name, params = {}) {
   screen.mount?.();
 }
 
-window.addEventListener('keydown', event => {
-  if (!current) return;
-  const handled = current.onKey?.(event);
-  if (handled) event.preventDefault();
-});
+// Rede de segurança para o file://: quem abre o index.html descompactado com
+// um duplo clique não consegue carregar módulos ES, e o watchdog do index.html
+// injeta o bundle clássico (app.bundle.js). Se esse bundle já subiu o jogo, o
+// módulo não repete listeners nem telas.
+//
+// `window.__xfcBooted` é a marca compartilhada entre os dois caminhos de boot.
+function boot() {
+  if (window.__xfcBooted) return;
+  window.__xfcBooted = true;
+  window.addEventListener('resize', fitStage);
+  window.addEventListener('orientationchange', () => setTimeout(fitStage, 120));
+  fitStage();
+  window.addEventListener('keydown', event => {
+    if (!current) return;
+    const handled = current.onKey?.(event);
+    if (handled) event.preventDefault();
+  });
+  window.addEventListener('beforeunload', () => saveProfile(state));
+  go('intro');
+}
 
-window.addEventListener('beforeunload', () => saveProfile(state));
-
-go('intro');
+boot();

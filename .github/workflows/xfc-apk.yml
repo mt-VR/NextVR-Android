@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "arena/c478325b-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android" ]
   workflow_dispatch:
 
 permissions:
@@ -92,15 +92,36 @@ jobs:
           APK=$(find xfc-game/android/app/build/outputs/apk -name '*.apk' -print -quit)
           test -n "$APK"
           echo "APK: $APK ($(stat -c %s "$APK") bytes)"
-          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|assets/crests/.*\.png)$' | sort
+          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|vendor/three\.module\.min\.js|assets/crests/.*\.png)$' | sort
+          # O vendor/ é obrigatório: sem o three.js o grafo de módulos do jogo
+          # não carrega e o app abre só com o fundo azul.
+          unzip -Z1 "$APK" | grep -q '^assets/game/vendor/three\.module\.min\.js$'
+
+      - name: Build the offline bundle (file:// support)
+        # Gera o app.bundle.js que o index.html injeta quando os módulos ES
+        # não sobem (ex.: duplo clique no index.html descompactado).
+        run: node xfc-game/tools/build-bundle.mjs
 
       - name: Package the game as a zip
         run: |
           set -e
           cd xfc-game
-          zip -r ../xfc-game.zip index.html styles src assets serve.mjs README.md -x '*.DS_Store'
+          zip -r ../xfc-game.zip index.html styles src assets vendor serve.mjs README.md app.bundle.js -x '*.DS_Store'
           cd ..
           ls -l xfc-game.zip
+
+      - name: Check the zip is a complete, unpacked-ready game
+        run: |
+          set -e
+          for required in index.html src/main.js styles/base.css \
+                          vendor/three.module.min.js app.bundle.js \
+                          assets/brand/xfc-icon.svg; do
+            if ! unzip -Z1 xfc-game.zip | grep -Fxq "$required"; then
+              echo "::error::faltando no xfc-game.zip: $required"
+              exit 1
+            fi
+          done
+          echo "zip completo: index.html, src, styles, assets, vendor e app.bundle.js"
 
       - name: Publish to the xfc-dist branch
         env:

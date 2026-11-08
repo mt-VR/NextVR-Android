@@ -62,8 +62,11 @@ node xfc-game/serve.mjs --port 9000 --host 0.0.0.0
 ```
 
 Não há build: o jogo é HTML + CSS + JavaScript (módulos ES) puro, servido
-estaticamente. Abrir `index.html` direto pelo `file://` não funciona — os
-módulos ES exigem HTTP.
+estaticamente. Abrir `index.html` direto pelo `file://` não roda os módulos
+ES — por isso o `index.html` tem uma rede de segurança: se o módulo principal
+não subir, ele injeta o `app.bundle.js` (o jogo empacotado num único script
+clássico, que o CI gera com esbuild e inclui no zip). Na falta do bundle, a
+página mostra as instruções em vez de ficar numa tela azul.
 
 ## App Android (APK)
 
@@ -111,14 +114,21 @@ xfc-game/
 │   ├── data/kits.js      as blusas (SVG) de cada clube + as fotos do pacote
 │   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
 │   └── screens/          intro, menu, kickoff, kits, squad, match
+├── vendor/               three.js r169 (offline; entra no APK e no zip — sem ele o jogo não sobe)
 ├── assets/
 │   ├── bg/               fundos da intro e do menu
 │   ├── brand/            ícones da marca
 │   ├── crests/           escudos dos clubes
 │   ├── fonts/            Inter (OFL)
 │   └── players/          retratos dos jogadores e fotos de uniforme (kits/)
+├── tools/build-bundle.mjs gera o app.bundle.js (IIFE) usado no zip para o file://
 └── tools/screenshots.mjs captura das telas (tela grande e celular deitado)
 ```
+
+O `app.bundle.js` não é commitado: quem o gera é o CI (passo “Build the
+offline bundle” do workflow `xfc-apk.yml`), e ele entra apenas no zip do jogo.
+Rodando `node xfc-game/tools/build-bundle.mjs` localmente, o arquivo aparece
+na pasta do jogo (e é servido pelo `serve.mjs` como qualquer outro arquivo).
 
 ## Testes
 

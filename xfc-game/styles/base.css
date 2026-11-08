@@ -436,3 +436,42 @@ img {
   font-weight: 800;
   color: rgba(255, 255, 255, 0.78);
 }
+
+/* Instruções mostradas quando nem os módulos ES nem o bundle carregam
+   (ex.: arquivo aberto direto no disco sem o app.bundle.js ao lado). */
+.boot-help {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  background: #041426;
+  color: #eef5f8;
+  z-index: 5;
+}
+
+.boot-help h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.boot-help p {
+  margin: 0;
+  max-width: 520px;
+  color: #9fb3c0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.boot-help code {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
