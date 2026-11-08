@@ -280,7 +280,19 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     try {
       await page.waitForSelector('.screen--play', { timeout: 30000 });
     } catch (error) {
-      throw new Error(`${error.message}\nErros coletados até aqui:\n${JSON.stringify(errors, null, 2)}`);
+      const dump = await page.evaluate(() => {
+        const node = document.querySelector('.screen--play');
+        const rect = node?.getBoundingClientRect();
+        return {
+          exists: Boolean(node),
+          className: node?.className ?? null,
+          opacity: node ? getComputedStyle(node).opacity : null,
+          rect: rect ? [rect.x, rect.y, rect.width, rect.height] : null,
+          screens: [...document.querySelectorAll('.screen')].map(s => s.className),
+          bodyText: document.body.innerText.replace(/\s+/g, ' ').slice(0, 400)
+        };
+      }).catch(e => ({ evaluateFailed: String(e) }));
+      throw new Error(`${error.message}\nPalco:\n${JSON.stringify(dump, null, 2)}\nErros:\n${JSON.stringify(errors)}`);
     }
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
@@ -349,7 +361,19 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     try {
       await page.waitForSelector('.screen--play', { timeout: 30000 });
     } catch (error) {
-      throw new Error(`${error.message}\nErros coletados até aqui:\n${JSON.stringify(errors, null, 2)}`);
+      const dump = await page.evaluate(() => {
+        const node = document.querySelector('.screen--play');
+        const rect = node?.getBoundingClientRect();
+        return {
+          exists: Boolean(node),
+          className: node?.className ?? null,
+          opacity: node ? getComputedStyle(node).opacity : null,
+          rect: rect ? [rect.x, rect.y, rect.width, rect.height] : null,
+          screens: [...document.querySelectorAll('.screen')].map(s => s.className),
+          bodyText: document.body.innerText.replace(/\s+/g, ' ').slice(0, 400)
+        };
+      }).catch(e => ({ evaluateFailed: String(e) }));
+      throw new Error(`${error.message}\nPalco:\n${JSON.stringify(dump, null, 2)}\nErros:\n${JSON.stringify(errors)}`);
     }
 
     // Pré-jogo imersivo: o estádio toma a tela, com o confronto no centro.
