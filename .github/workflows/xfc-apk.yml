@@ -146,13 +146,27 @@ jobs:
           * `xfc-game.zip` — o jogo em HTML/CSS/JS, para rodar no navegador (`node serve.mjs`).
           EOF
           )
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$APK#xfc.apk" --clobber
-            gh release upload "$TAG" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" --clobber
-          else
-            gh release create "$TAG" "$APK#xfc.apk" "$GITHUB_WORKSPACE/xfc-game.zip#xfc-game.zip" \
-              --title "XFC menu v1" --notes "$NOTES"
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --title "XFC menu v1" --notes "$NOTES"
           fi
+          # Os dois arquivos sobem com o nome final (o Gradle chama o APK de
+          # app-release.apk), trocando o anterior quando ele existe.
+          upload() {
+            file="$1"
+            name="$2"
+            old=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq ".assets[] | select(.name == \"$name\") | .id" | head -n 1)
+            if [ -n "$old" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old" > /dev/null
+            fi
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/releases/$TAG/assets?name=$name" \
+              -H "Content-Type: application/octet-stream" \
+              --input "$file" > /dev/null
+            echo "release: $name ($(stat -c %s "$file") bytes)"
+          }
+          upload "$APK" "xfc.apk"
+          upload "$GITHUB_WORKSPACE/xfc-game.zip" "xfc-game.zip"
           gh release view "$TAG" --json url --jq .url
 
       - name: Upload the APK and the zip as workflow artifacts
