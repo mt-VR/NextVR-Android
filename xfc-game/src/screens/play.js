@@ -167,8 +167,11 @@ export function playScreen(ctx, params = {}) {
     controls.setEnabled(false);
     match.start();
     // O jogo fica congelado no pré-jogo — o relógio só corre quando o
-    // usuário toca para entrar em campo.
+    // usuário toca para entrar em campo. O laço de render também para:
+    // a arte do estádio está por cima do canvas, então cada quadro em
+    // software cairia no vazio — e travaria o fio de eventos da página.
     match.world.setPaused(true);
+    match.engine.stop();
     // Gancho de testes: permite inspecionar o motor da partida no navegador.
     window.__xfcMatch = match;
     // O estádio escolhido envolve o 3D (atrás da arquibancada).
@@ -230,6 +233,7 @@ export function playScreen(ctx, params = {}) {
     whistle('triple');
     stage = 'live';
     match?.world.setPaused(false);
+    match?.engine.start();
     overlay.replaceChildren();
     overlay.classList.remove('is-visible');
     match?.world.setCameraMode('play');

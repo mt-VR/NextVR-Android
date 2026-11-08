@@ -92,9 +92,9 @@ export function createEngine(canvas, options = {}) {
     camera,
     state,
     clock,
-    /** Liga o laço de animação. */
+    /** Liga o laço de animação (retoma com o update já registrado). */
     start(step) {
-      update = step;
+      if (step) update = step;
       if (running) return;
       running = true;
       clock.start();
