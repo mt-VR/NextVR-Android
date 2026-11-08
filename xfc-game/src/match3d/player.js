@@ -281,6 +281,9 @@ export function createPlayer3D(options = {}) {
     legs.push({ hip, knee });
   }
 
+  // Modelos maiores na tela, como nos prints de referência.
+  root.scale.setScalar(1.15);
+
   let phase = Math.random() * Math.PI * 2;
   let kickTimer = 0;
   let lookTarget = null;

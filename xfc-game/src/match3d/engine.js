@@ -20,7 +20,7 @@ const QUALITY_STEPS = [1.5, 1.25, 1, 0.75, 0.6];
 
 export function createEngine(canvas, options = {}) {
   const {
-    fov = 50,
+    fov = 44,
     near = 0.5,
     far = 600,
     pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5),

@@ -77,7 +77,7 @@ export function playScreen(ctx, params = {}) {
         type: 'button',
         onClick: () => startMatch()
       }, 'COMEÇAR PARTIDA'),
-      el('p', { class: 'prematch__hint', text: 'Analógico para mover · PASSE, CHUTE, ENFIADA, DESARME e TROCAR nos botões.' })
+      el('p', { class: 'prematch__hint', text: 'Analógico para mover · PASSE, CHUTE, DRIBLE, CORRER, DESARME e TROCAR nos botões.' })
     );
   }
 
