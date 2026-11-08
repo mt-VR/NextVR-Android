@@ -56,7 +56,7 @@ jobs:
         run: |
           set -e
           CONCLUSION=success
-          if [ "$(steps.xfc-tests.outputs.exit || echo 1)" != "0" ]; then
+          if [ "${{ steps.xfc-tests.outputs.exit }}" != "0" ]; then
             CONCLUSION=failure
           fi
           {
