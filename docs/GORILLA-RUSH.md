@@ -83,34 +83,27 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
-## Lentes e mãos (2.6.5)
+## Lentes e mãos (2.6.6 — o jeito do WebXR)
 
-* **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
-  MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
-  **IPD 67 mm** (33,5 mm por lado — era 64 mm até a 2.6.2) e meia tela por olho.
-  **O recorte é em unidades de CSS, sem multiplicar pelo `pixelRatio`** — o `WebGLRenderer` já faz
-  `viewport × pixelRatio` internamente; multiplicar de novo transformava cada olho num quarto de
-  tela, no canto inferior esquerdo (o defeito da 2.6.0). O TAMANHO da textura, esse sim, é em pixels
-  de device (meia tela × `pixelRatio`), porque um render target não passa por essa multiplicação.
-* **Barril:** o passe de tela cheia aplica a distorção da lente Cardboard v1 com os coeficientes
-  oficiais (`k1 = 0,441`, `k2 = 0,156`) — os mesmos do `game.html` do Cockpit VR. É a correção que a
-  lente do VR Box desfaz; o que NÃO existe é uma segunda distorção por cima do desenho do jogo.
-* **Tamanho e correção (desde a 2.6.4):** a correção é a do SDK do Cardboard —
-  `sdk/distortion_mesh.cc` mapeia conteúdo da textura em `DistortInverse(t)`, então para um pixel de
-  tela em `tan s` a amostra é `t = s·(1+k1·s²+k2·s⁴)`: **multiplica** o raio. A 2.6.3 dividia por
-  `(1+k1+k2)`, o que **ampliava o centro em 1,6×** — era o "diminuí as lentes" do usuário. A imagem
-  ocupa **86 % do olho** (`LENS_FILL`). Como a correção usa só a parte de dentro da textura, o olho é
-  **desenhado mais aberto** (`renderFov`), com o `fov` vertical do three derivado do horizontal de
-  49,4°. Por construção, na borda do recorte a amostra cai exatamente na borda da textura
-  (`0,86 · tan(40°)/0,86 = tan 40°` e `Distort(tan 40°) = tan 49,4°`).
-* **Formato (2.6.5):** "as lentes não são circulares, são assim, tipo a do WebXR". O recorte era um
-  círculo (`smoothstep(0.92, 1.0, r)`) e passou a ser um **retângulo de cantos arredondados** — a
-  forma que o próprio mesh de distorção do Cardboard desenha e a que o NextVR mostra fora do jogo:
-  distância assinada de caixa arredondada, com canto de **26 % da meia-largura** (`LENS_CORNER`) e a
-  vertical na mesma unidade da horizontal (`vec2 b = vec2(fill, fill * ar)`), para o canto ser
-  redondo de verdade e não uma elipse. **O mesmo recorte vale no Cockpit VR** (`LN_CORNER` em
-  `assets/ui/cockpit/game.html`): as lentes são as mesmas nos dois jogos.
-* **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
+* **A regra (2.6.6):** "as lentes não são assim, são igual a do webXr". No WebXR a página **não
+  desenha lente nenhuma**: ela desenha cada olho de tela cheia e quem curva a imagem é a lente
+  física do visor. Então o passe de distorção **saiu inteiro** — o círculo da 2.6.4 e o retângulo
+  arredondado da 2.6.5 eram tentativas de desenhar a lente na tela, e nenhuma das duas é o que o
+  NextVR faz. Não existe mais recorte, máscara, anel preto, `ShaderMaterial` nem `WebGLRenderTarget`
+  no caminho do jogo (`grep -c "ShaderMaterial\|smoothstep" parts/lens.js` → 0).
+* **O que ficou:** o **preset** da Cardboard 2015 — FOV 80° por olho e **IPD 67 mm** (33,5 mm por
+  lado). `k1 = 0,441` e `k2 = 0,156` continuam registrados e aparecem na sonda (`__nvGorilla().lente`),
+  porque é o visor que o jogador tem na mão; eles não desenham mais nada.
+* **Desenho:** em `parts/lens.js`, `render()` faz, para cada olho, `R.setScissor(x, 0, w, H)` com
+  `x = 0` / `w = metade da tela` (olho esquerdo) e `x = metade` / `w = metade` (direito), câmera
+  deslocada de `±IPD/2` no eixo direito dela, `cam.aspect = meiaTela / altura` e
+  `cam.fov = 2·atan(tan(40°)/aspect)`. Nada de textura intermediária: o jogo desenha **duas vezes**,
+  não quatro (eram dois desenhos no alvo + dois do passe).
+* **O Cockpit VR usa a mesma conta:** `LN_FOV = 80`, `LN_TH = tan(40°)`, `renderer.render(scene, eye)`
+  por olho com scissor. O `applyRt()` do jogo de avião virou no-op (`if(!rtL)return`) e `makeRTs()`
+  também: não há mais alvo de render. Os degraus de resolução (`RT_STEPS`) ficaram registrados, mas
+  sem alvo não há realocação — o que também tirou o soluço que eles causavam.
+* **Braços:** as mãos em repouso ficam à frente e abaixo* **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
   campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
   havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
 * **Robustez do laço:** o bloco por quadro que toca o modelo (`LM`) é guardado por `if(LM){…}` — o
@@ -228,6 +221,45 @@ Agora:
   mapa) e, por segurança, refaz o raio de 80 m acima dele; o jogador nasce **1,12 m acima do chão**;
 * a cada quadro, um raio de 8 m acima dos pés devolve o jogador para cima do terreno se ele acabar
   embaixo dele (queda, mapa recarregado, nascimento herdado).
+
+## O corpo visto de dentro: por que "o gorilla não aparece" (2.6.6)
+
+O `build()` foi medido no Node, contra o GLB de verdade (texturas removidas para caber na memória):
+ele **não lança**, devolve `pl` e `LM`, chama `chk()` uma vez, e a caixa do mundo é
+`[[-0,47 · -1,30 · -0,30], [0,45 · 0,41 · 0,29]]` — com os ossos `maoL`, `maoR`, `cabeca`, `corpo`,
+`ombroL`, escala 1,313, até 2 filhos. Ou seja: o boneco era montado. O problema estava em como ele
+era **visto**, e havia dois caminhos para "não aparece":
+
+* **Câmera dentro do corpo.** A caixa acima mostra que o peito do jogador envolve a origem — que é
+  onde fica a câmera. O modelo do HTML antigo é de duas faces (`doubleSided`), então de dentro do
+  peito a câmera desenhava o **lado de dentro** do pelo: uma parede que tapava o mapa ou, dependendo
+  do ângulo, nada. `nvFrenteSo(pl)` (`parts/esqueleto.js`) força `THREE.FrontSide` nos materiais do
+  corpo do jogador — é o que qualquer jogo em primeira pessoa faz — e é chamado depois de
+  `cloneMats(pl, mats); paint(mats, color)` em `adapt.mjs`.
+* **Modelo órfão na origem.** Quando uma etapa de `build()` falhava no meio, o modelo pela metade
+  **ficava na cena** — plantado na origem do mundo, embaixo do mapa — enquanto `LM` continuava
+  apontando para o corpo reserva já removido. `nvModeloFalhou(e)` (`parts/model.js`) remove o modelo
+  pela metade, zera `pl`/`LM` e chama `nvCorpoReserva()` de novo, com o motivo em `NV_MODEL`. A
+  ordem de `build()` também mudou: a reserva só **sai** no fim (`chk();nvCorpoSai()`), depois de
+  tudo dar certo.
+
+## O menu do jogo voltou a ser o menu do jogo (2.6.6)
+
+"o jogo HTML só vai participar do next ... o menu inicial do gorilla vai continuar". A 2.6.5 escondia
+`#lobby`/`#bg` via `.nv-boot` e ligava a partida sozinha. Agora:
+
+* `parts/game.css` não esconde mais nada; a página usa a classe `nv-boot-lobby` (só o "modo de jogo"
+  por cima do menu);
+* `enter()` só automático com `auto=1` (JOIN/sala) ou quando `START_MODE !== 'solo'`; a biblioteca
+  abre no menu do jogo, com STYLE e PLAY;
+* o menu de dentro do jogo (mirado pelo giroscópio, `NVIG`) perdeu a parte de aparência e ficou com
+  GORÁFICOS · TELA · MOVIMENTO · RASTREIO · SALA · SAIR DA SALA · VOLTAR AO JOGO · SAIR DO JOGO;
+* **aparência saiu das Configurações do app**: a Aba 5 (acessórios) foi apagada de
+  `web/src/entry-menu.js` (`renderGorillaAccessoriesPage`, os handlers `data-entry-gorilla-color` e
+  `data-entry-gorilla-acc-set`), `web/src/gorilla-rush.js` não manda mais `col`/`accG/accH/accC`/`accY`
+  no payload, e `NextVrActivity.gorillaQueryFromJson()` não os repassa mais para a página;
+* `NextVRGame.stage('lobby')` marca o menu como "o jogo abriu" — sem isso o vigia de 12 s do app
+  fecharia o jogo enquanto o jogador ainda escolhia a aparência.
 
 ## Limites conhecidos
 

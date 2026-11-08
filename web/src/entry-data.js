@@ -54,6 +54,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-lentes-webxr-menu-do-jogo-gorila-visivel',
+    tag: 'CORREÇÃO · LENTES COMO AS DO WEBXR · GORILA NA TELA · MENU DE APARÊNCIA DE VOLTA AO JOGO',
+    time: 'Agora',
+    heading: 'As Lentes Ficaram Como as do WebXR, o Gorila Apareceu e a Aparência Voltou para o Menu do Jogo',
+    desc: 'AS LENTES: você estava certo de novo — o retângulo arredondado da rodada anterior também não era a lente do WebXR. No WebXR a página NÃO desenha lente nenhuma: ela desenha cada olho de tela cheia, e quem curva a imagem é a lente física do visor. Era isso que faltava aqui: o passe de correção com recorte saiu INTEIRO (não é mais um formato novo, é a ausência da máscara). Cada olho é agora uma metade da tela, do tamanho dela, desenhada direto, sem textura intermediária — o que também gastou metade dos desenhos por quadro. O que continua valendo é o preset da Cardboard 2015: 80° de campo por olho e 67 mm entre os olhos. O mesmo foi feito no jogo de avião. '
+      + 'O GORILA: o corpo do jogador envolve a câmera (o peito vai de -1,30 m a +0,41 m em volta dos olhos), e o modelo que veio do HTML antigo é de duas faces — de dentro do próprio corpo a câmera via o LADO DE DENTRO do pelo, uma parede que tapava o mapa (ou nada). Agora o corpo do jogador descarta as faces de trás e só as de frente aparecem: é assim que os jogos em primeira pessoa desenham o corpo. E a montagem do modelo ganhou rede de segurança: se alguma etapa falhar, o modelo pela metade sai da cena e o CORPO RESERVA volta — antes ele ficava plantado na origem do mundo, embaixo do mapa, com o jogo apontando para um boneco que já não existia. '
+      + 'A APARÊNCIA: como você pediu, o jogo HTML agora só participa pelo NextVR, e o menu de escolher a aparência SAIU das Configurações (a aba 5 inteira, com as cores, os óculos, o chapéu e a roupa). O MENU INICIAL DO GORILA CONTINUA: é ele que abre agora quando você entra, com STYLE e PLAY, e é lá que a aparência é escolhida. O app não manda mais cor nem acessório para o jogo. O rastreio de mão continua sendo o do NextVR, mexendo os braços dele.',
+  },
+  {
     id: 'gorilla-modelo-antigo-lentes-retangulo-chao',
     tag: 'CORREÇÃO · O GORILA DO HTML ANTIGO ENTROU NO JOGO · LENTES COMO AS DO APP · NASCIMENTO NO CHÃO',
     time: 'Agora',

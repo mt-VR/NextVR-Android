@@ -109,10 +109,13 @@ export function launchGorillaRush(options = {}) {
     return false;
   }
   state = { at: Date.now(), what: 'enviado', detail: '' };
+  // A APARÊNCIA NÃO VAI MAIS DAQUI. "o menu de escolher a aparência vai sair das configurações ...
+  // o menu inicial do gorilla vai continuar": cor, óculos, chapéu e roupa são escolhidos no menu do
+  // próprio jogo (STYLE), no arranque dele. O app manda só o que é da partida: nome, sala, modo,
+  // servidor, gráficos e tela.
   const payload = {
     nick: prefs.nick, room: how === 'solo' ? '' : prefs.room, mode: prefs.mode,
-    srv: how === 'solo' ? '' : prefs.srv, col: prefs.col,
-    accG: prefs.accG, accH: prefs.accH, accC: prefs.accC, accY: prefs.accY, accZ: prefs.accZ,
+    srv: how === 'solo' ? '' : prefs.srv,
     gfx: prefs.gfx, vr: !!prefs.vr, mv: !!prefs.mv, ht: !!prefs.ht,
     solo: how === 'solo', quick: how === 'quick' || (how === 'online' && !prefs.room),
   };
@@ -123,8 +126,8 @@ export function launchGorillaRush(options = {}) {
     return false;
   }
   toast(how === 'solo'
-    ? 'Gorilla Rush: entrando sozinho (sem skin). O menu do jogo abre segurando as duas mãos à frente.'
-    : 'Gorilla Rush: entrando na sala. O menu do jogo abre segurando as duas mãos à frente.');
+    ? 'Gorilla Rush: o menu do jogo abre — é lá que se escolhe a aparência e se aperta PLAY.'
+    : 'Gorilla Rush: entrando na sala do nosso servidor.');
   // Falha visível: se em 6 s o jogo não disser que abriu, o usuário vê o motivo em vez de nada.
   setTimeout(() => {
     if (state.what === 'aberto') return;

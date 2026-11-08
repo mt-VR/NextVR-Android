@@ -792,18 +792,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         if(!mode.equals("tag") && !mode.equals("inf")) mode="cas";
         int gfx=o.optInt("gfx",0);
         if(gfx<0 || gfx>2) gfx=0;
-        String col=o.optString("col","#ffffff");
-        if(!col.matches("#[0-9a-fA-F]{6}")) col="#ffffff";
         String srv=o.optString("srv","").trim();
         // Só WebSocket, e nunca http(s)/javascript: o valor vai direto para `new WebSocket()`
         // dentro da página do jogo.
         if(!srv.isEmpty() && !srv.matches("wss?://[^\\s\"'<>]{1,180}")) srv="";
-        String accG=o.optString("accG",""); if(!accG.equals("g_white")) accG="";
-        String accH=o.optString("accH","");
-        if(!(accH.equals("h_top")||accH.equals("h_party")||accH.equals("h_banana")||accH.equals("h_penguin"))) accH="";
-        String accC=o.optString("accC",""); if(!accC.equals("c_hawaii")) accC="";
-        double accY=Math.max(-8,Math.min(8,o.optDouble("accY",0)));
-        double accZ=Math.max(-8,Math.min(8,o.optDouble("accZ",0)));
         appendQuery(out,"nick",nick);
         appendQuery(out,"room",room);
         appendQuery(out,"mode",mode);
@@ -811,8 +803,8 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         appendQuery(out,"vr",o.optBoolean("vr",true)?"1":"0");
         appendQuery(out,"mv",o.optBoolean("mv",true)?"1":"0");
         appendQuery(out,"ht",o.optBoolean("ht",false)?"1":"0");
-        appendQuery(out,"col",col);
-        appendQuery(out,"acc",accG+","+accH+","+accC+","+accY+","+accZ);
+        // A aparência é do menu do PRÓPRIO jogo: o app não manda cor nem acessório (se mandasse,
+        // sobrescreveria a escolha feita no STYLE do gorila).
         appendQuery(out,"srv",srv);
         appendQuery(out,"solo",o.optBoolean("solo",false)?"1":"0");
         appendQuery(out,"quick",o.optBoolean("quick",false)?"1":"0");
@@ -922,7 +914,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             WebView v=cockpitView;
             if(v==null) return;
             String ready="gorilla".equals(gameKind)?"play":"flight";
+            // O Gorilla Rush abre no MENU DO JOGO (é lá que se escolhe a aparência), e a partida só
+            // começa quando o jogador aperta PLAY: as duas etapas contam como "o jogo abriu".
             if(ready.equals(cockpitStage)) return;   // a página já está rodando (voo / partida)
+            if("gorilla".equals(gameKind) && "lobby".equals(cockpitStage)) return;
             try {
                 v.evaluateJavascript("(function(){var n=document.getElementById('nvd');"
                     +"return (document.querySelector('canvas')?'ok':'SEM CANVAS')+' | '+(n?n.textContent:'')"
@@ -1325,7 +1320,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
         /**
          * Abre o Gorilla Rush em tela cheia: {@code {room:'ABCDE',mode:'inf',srv:'ws://…',
-         * nick:'…',accG:'',accH:'',accC:'',col:'#ffffff',gfx:0,vr:true,solo:false}}.
+         * nick:'…',gfx:0,vr:true,solo:false}}.
          *
          * <p>Dois caminhos chegam aqui e os dois entram direto no jogo, sem passar pela biblioteca:
          * o JOIN da aba 4 (online, com a sala) e a tile da biblioteca (sozinho).

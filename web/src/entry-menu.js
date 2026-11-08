@@ -15,7 +15,7 @@ import {
   ENTRY_UPDATES,
 } from './entry-data.js';
 import {
-  GORILLA_ACCESSORIES, GORILLA_COLORS, GORILLA_MODES,
+  GORILLA_MODES,
   gorillaPrefs, updateGorillaPrefs, launchGorillaRush,
 } from './gorilla-rush.js';
 
@@ -341,7 +341,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.6.5</span>
+            <span class="entry-updates-badge">v2.6.6</span>
           </div>
           <div class="entry-updates-list">
             ${ENTRY_UPDATES.map(u => `
@@ -476,7 +476,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 2 ? 'on' : ''}" data-entry-settings-tab="2">Aba 2 · Mãos &amp; Gestos</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 3 ? 'on' : ''}" data-entry-settings-tab="3">Aba 3 · Tela &amp; Dock</button>
               <button type="button" class="entry-settings-tab ${activeSettingsTab === 4 ? 'on' : ''}" data-entry-settings-tab="4">Aba 4 · Gorilla Tag</button>
-              <button type="button" class="entry-settings-tab ${activeSettingsTab === 5 ? 'on' : ''}" data-entry-settings-tab="5">Aba 5 · Acessórios</button>
             </div>
           </div>
           <div class="entry-subpanel-actions">
@@ -587,59 +586,16 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           </div>
 
           ${renderGorillaSettingsPage()}
-          ${renderGorillaAccessoriesPage()}
         </div>
       </div>`;
   };
 
   /**
-   * ABA 5 · ACESSÓRIOS — a skin do gorila, com cada acessório no seu próprio bloco.
-   *
-   * Pedido do usuário: "os acessórios tem que ficar separadinhos". Então nada de um botão que gira
-   * entre as opções: cada acessório (cor, óculos, cabeça, roupa) tem a sua célula e TODAS as opções
-   * à vista — é só ir escolhendo. A primeira opção de cada um é "Nenhum", porque o gorila entra sem
-   * skin nenhuma.
-   */
-  const renderGorillaAccessoriesPage = () => {
-    const g = gorillaPrefs();
-    const chip = (key, list) => `<div class="entry-gorilla-acc-row">${list.map(a => `
-      <button type="button" class="entry-seg-btn ${(g[key] || '') === a.id ? 'on' : ''}"
-        data-entry-gorilla-acc-set="${key}:${a.id}" title="${escHtml(a.name)}">${escHtml(a.name)}</button>`).join('')}</div>`;
-    return `
-    <div class="entry-bento-grid entry-bento-grid--tab5 entry-settings-page" data-entry-settings-page="5">
-      <div class="entry-bento-cell entry-bento-cell--acc-color">
-        <div class="entry-bento-title">COR DO GORILA</div>
-        <div class="entry-gorilla-colors">
-          ${GORILLA_COLORS.map(c => `<button type="button" class="entry-gorilla-sw ${g.col.toLowerCase() === c ? 'on' : ''}"
-            data-entry-gorilla-color="${c}" style="background:${c}" title="Cor ${c}"></button>`).join('')}
-        </div>
-        <div class="entry-bento-hint">A cor muda o pelo, não é acessório. O resto fica nas outras células.</div>
-      </div>
-
-      <div class="entry-bento-cell entry-bento-cell--acc-glasses">
-        <div class="entry-bento-title">ÓCULOS</div>
-        ${chip('accG', GORILLA_ACCESSORIES.accG)}
-      </div>
-
-      <div class="entry-bento-cell entry-bento-cell--acc-head">
-        <div class="entry-bento-title">NA CABEÇA</div>
-        ${chip('accH', GORILLA_ACCESSORIES.accH)}
-      </div>
-
-      <div class="entry-bento-cell entry-bento-cell--acc-clothes">
-        <div class="entry-bento-title">ROUPA</div>
-        ${chip('accC', GORILLA_ACCESSORIES.accC)}
-      </div>
-    </div>`;
-  };
-
-  /**
    * ABA 4 · GORILLA TAG — a sala, a skin e as configurações do Gorilla Rush.
    *
-   * Aqui o usuário escolhe TUDO de pé, antes de pôr o celular no VR Box: a sala, o modo, a
-   * configuração do gorila e o nosso servidor, além do JOIN que entra direto no jogo online sem
-   * passar pela biblioteca. A skin (que na entrada é NENHUMA) mudou para a aba 5, separada. Dentro do jogo, a mesma escolha de skin/configuração existe no menu
-   * guiado pelo giroscópio (segure as duas mãos à frente).
+   * Aqui o usuário escolhe a sala, o modo e a configuração do jogo, e o JOIN entra direto no jogo
+   * online. A APARÊNCIA (cor, óculos, chapéu, roupa) não está aqui: ela ficou onde sempre esteve,
+   * no menu inicial do próprio jogo — é lá que se escolhe e se aperta PLAY.
    */
   const renderGorillaSettingsPage = () => {
     const g = gorillaPrefs();
@@ -1256,21 +1212,9 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
     // lado nativo monta para a página do jogo. Texto (sala, servidor, nome) salva sem repintar, para
     // o teclado não perder o foco no meio da digitação.
     const gorillaSave = patch => { updateGorillaPrefs(patch); };
-    root.querySelectorAll('[data-entry-gorilla-color]').forEach(btn => {
-      btn.onclick = () => {
-        gorillaSave({ col: btn.dataset.entryGorillaColor });
-        paint();
-      };
-    });
-    // Aba 5: cada acessório é um botão de escolha direta ("accH:h_top"), com todas as opções à vista.
-    root.querySelectorAll('[data-entry-gorilla-acc-set]').forEach(btn => {
-      btn.onclick = () => {
-        const [key, id] = String(btn.dataset.entryGorillaAccSet || '').split(':');
-        if (!key) return;
-        gorillaSave({ [key]: id || '' });
-        paint();
-      };
-    });
+    // A APARÊNCIA SAIU DAS CONFIGURAÇÕES: "o menu de escolher a aparência vai sair das
+    // configurações ... o menu inicial do gorilla vai continuar". Cor, óculos, chapéu e roupa são
+    // escolhidos no menu do PRÓPRIO jogo (STYLE), que continua abrindo normalmente.
     root.querySelectorAll('[data-entry-gorilla-mode]').forEach(btn => {
       btn.onclick = () => {
         gorillaSave({ mode: btn.dataset.entryGorillaMode });

@@ -60,6 +60,26 @@ function nvSemTexturas(buf) {
   return out.buffer;
 }
 
+/**
+ * O modelo chegou, mas a montagem falhou no meio.
+ *
+ * Sem isto, um erro dentro de `build()` deixava o modelo recém-carregado plantado na ORIGEM DO MUNDO
+ * (0,0,0) — embaixo do mapa — e o `LM` apontando para a reserva que `nvCorpoSai()` já tinha tirado.
+ * Resultado: mapa na tela, gorila em lugar nenhum. Foi o "o modelo do gorilla n carrega, e fica
+ * embaixo da terra". Agora o modelo pela metade sai de cena, a reserva volta e o motivo real vai
+ * para a sonda.
+ */
+function nvModeloFalhou(e) {
+  const motivo = 'montagem: ' + ((e && e.message) || e);
+  NV_MODEL.erro = motivo;
+  NV_MODEL.ok = false;
+  try { if (pl && pl.parent) pl.parent.remove(pl); } catch (_) {}
+  pl = null; LM = null;
+  // Devolve o corpo reserva: ou é o modelo do jogo, ou é este — nunca o vazio.
+  try { nvCorpoReserva(); } catch (_) {}
+  nvLog('o modelo do gorila chegou, mas não montou: ' + motivo);
+}
+
 function nvParseModelo(modo) {
   NV_MODEL.tentativas++;
   NV_MODEL.modo = NV_MODOS[modo] || '';

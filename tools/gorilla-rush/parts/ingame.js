@@ -9,17 +9,11 @@
 // "mostrar as mãos"), ou toque com dois dedos na tela, ou a tecla M.
 var QNICK = '', QROOM = '', QMODE = 'cas', START_MODE = 'solo', BOOTED = false, HANDSOBJ = null;
 
+// O MENU DESTE ARQUIVO NÃO ESCOLHE MAIS APARÊNCIA.
+// "o menu de escolher a aparência vai sair das configurações ... o menu inicial do gorilla vai
+// continuar": a cor, os óculos, o chapéu e a roupa ficam onde sempre estiveram — no menu do PRÓPRIO
+// jogo (STYLE). Aqui sobrou só o que o app precisa: tela (VR/normal), sala e sair.
 const IGW = 1024, IGH = 640, IG_DWELL = 0.9;
-const ACCS = {
-  g: ['', 'g_white'],
-  h: ['', 'h_top', 'h_party', 'h_banana', 'h_penguin'],
-  c: ['', 'c_hawaii'],
-};
-const ACCNAME = {
-  '': 'NENHUM', g_white: 'ÓCULOS BRANCOS', h_top: 'CARTOLA', h_party: 'CHAPÉU DE FESTA',
-  h_banana: 'CASCA DE BANANA', h_penguin: 'CHAPÉU DE PINGUIM', c_hawaii: 'CAMISETA HAVAiana',
-};
-const COLORS = ['#ffffff', '#3a2a20', '#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#ff7043'];
 
 const NVIG = (() => {
   const canvas = document.createElement('canvas');
@@ -52,20 +46,15 @@ const NVIG = (() => {
 
   function build() {
     items.length = 0;
-    // SKIN
-    button('title:skin', 'SKIN', 24, 92, 476, 34, '#0b1410');
-    COLORS.forEach((hex, i) => button('color:' + hex, '', 32 + i * 58, 136, 50, 50, hex));
-    button('accg', 'ÓCULOS · ' + ACCNAME[myAcc.g], 24, 200, 476, 54);
-    button('acch', 'CABEÇA · ' + ACCNAME[myAcc.h], 24, 262, 476, 54);
-    button('accc', 'ROUPA · ' + (myAcc.c === 'c_hawaii' ? 'CAMISETA HAVAiana' : ACCNAME[myAcc.c]), 24, 324, 476, 54);
-    button('title:cfg', 'GORILA · CONFIGURAÇÕES', 524, 92, 476, 34, '#0b1410');
-    button('gfx', 'GRÁFICOS · ' + ['BAIXO', 'MÉDIO', 'ALTO'][gfx], 524, 136, 476, 54);
-    button('screen', 'TELA · ' + (vrOn ? 'VR BOX (2 OLHOS)' : 'NORMAL (1 OLHO)'), 524, 198, 476, 54);
-    button('move', 'MOVIMENTO · ' + (assist ? 'MÃOS + TOQUE' : 'SÓ MÃOS'), 524, 260, 476, 54);
-    button('hands', 'RASTREIO · ' + ($('ht').value == '1' ? 'PRECISO' : 'RÁPIDO'), 524, 322, 476, 54);
-    button('room', 'SALA · ' + (NET_STATE === 'online' ? (NET.code + ' ' + (NET.host ? '(ANFITRIÃO)' : '')) : 'SOZINHO'), 524, 384, 476, 54,
+    // A aparência (cor, óculos, chapéu, roupa) NÃO está aqui: ela é do menu do próprio jogo.
+    button('title:cfg', 'GORILA · CONFIGURAÇÕES', 24, 92, 976, 34, '#0b1410');
+    button('gfx', 'GRÁFICOS · ' + ['BAIXO', 'MÉDIO', 'ALTO'][gfx], 24, 140, 476, 54);
+    button('screen', 'TELA · ' + (vrOn ? 'VR BOX (2 OLHOS)' : 'NORMAL (1 OLHO)'), 24, 202, 476, 54);
+    button('move', 'MOVIMENTO · ' + (assist ? 'MÃOS + TOQUE' : 'SÓ MÃOS'), 24, 264, 476, 54);
+    button('hands', 'RASTREIO · ' + ($('ht').value == '1' ? 'PRECISO' : 'RÁPIDO'), 24, 326, 476, 54);
+    button('room', 'SALA · ' + (NET_STATE === 'online' ? (NET.code + ' ' + (NET.host ? '(ANFITRIÃO)' : '')) : 'SOZINHO'), 524, 140, 476, 54,
       NET_STATE === 'online' ? '#3ddc84' : '#8b949e');
-    button('leave', NET_STATE === 'online' ? 'SAIR DA SALA' : 'SEM SALA · JOGANDO SOZINHO', 524, 446, 476, 54, '#8b949e');
+    button('leave', NET_STATE === 'online' ? 'SAIR DA SALA' : 'SEM SALA · JOGANDO SOZINHO', 524, 202, 476, 54, '#8b949e');
     button('close', 'VOLTAR AO JOGO', 524, 524, 232, 62);
     button('exit', 'SAIR DO JOGO', 768, 524, 232, 62, '#ff7043');
   }
@@ -84,15 +73,6 @@ const NVIG = (() => {
 
     for (const it of items) {
       const isHover = hover === it.id;
-      if (it.id.startsWith('color:')) {
-        ctx.fillStyle = it.tint;
-        ctx.beginPath(); ctx.arc(it.x + it.w / 2, it.y + it.h / 2, it.w / 2 - 3, 0, 7); ctx.fill();
-        if (isHover) { ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 5; ctx.stroke(); }
-        if (it.tint.toLowerCase() === '#' + String(color).toLowerCase().replace('#', '')) {
-          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
-        }
-        continue;
-      }
       if (it.id.startsWith('title:')) {
         ctx.fillStyle = 'rgba(61,220,132,.9)'; ctx.font = 'bold 24px system-ui,sans-serif';
         ctx.fillText(it.label, it.x, it.y + 26);
@@ -140,14 +120,7 @@ const NVIG = (() => {
   function say(text) { note = text; noteAt = performance.now(); }
 
   function activate(id) {
-    if (id.startsWith('color:')) { setColor(id.slice(6)); try { localStorage.setItem('gr_col', id.slice(6)); } catch (e) {} }
-    else if (id === 'accg' || id === 'acch' || id === 'accc') {
-      const key = id.slice(3);
-      const list = ACCS[key];
-      myAcc[key] = list[(list.indexOf(myAcc[key] || '') + 1) % list.length];
-      try { localStorage.setItem('gr_acc', JSON.stringify(myAcc)); } catch (e) {}
-      refreshAcc(); say('SKIN SALVA');
-    } else if (id === 'gfx') {
+    if (id === 'gfx') {
       gfx = (gfx + 1) % 3;
       dpr = prCap(); rs(); R.shadowMap.enabled = gfx > 0; sun.castShadow = gfx > 0;
       mapMeshes.forEach(m => { m.material.needsUpdate = true; });
@@ -293,23 +266,23 @@ setTimeout(() => {
   const gx = $('gfx'); if (gx) gx.value = String(gfx);
   const vs = $('vr'); if (vs) vs.value = vrOn ? '1' : '0';
 
-  if (q.get('col')) setColor(q.get('col'));
-  if (q.has('acc')) {
-    const parts = (q.get('acc') || '').split(',').map(s => s.trim());
-    myAcc.g = ACCS.g.includes(parts[0]) ? parts[0] : '';
-    myAcc.h = ACCS.h.includes(parts[1]) ? parts[1] : '';
-    myAcc.c = ACCS.c.includes(parts[2]) ? parts[2] : '';
-    myAcc.y = num(parts[3], 0); myAcc.z = num(parts[4], 0);
-    try { localStorage.setItem('gr_acc', JSON.stringify(myAcc)); } catch (e) {}
-    refreshAcc();
-  }
-  // O menu do jogo original não aparece: o NextVR é o menu.
-  const lobby = $('lobby'); if (lobby) lobby.style.display = 'none';
-  const bg = $('bg'); if (bg) bg.style.display = 'none';
-  const pick = $('pick'); if (pick) pick.classList.remove('on');
-  document.documentElement.classList.add('nv-boot');
+  /* A aparência é a do menu do jogo ("STYLE"). O NextVR não manda mais acessório nenhum: sem skin
+     escolhida no app, o gorila entra como o jogo o desenha. */
+  /* O MENU INICIAL DO GORILLA CONTINUA.
+     "o jogo HTML só vai participar do next ... o menu inicial do gorilla vai continuar": o NextVR não
+     engole mais o menu do jogo. Ele abre na tela de início do próprio jogo — é lá que se escolhe a
+     aparência (STYLE) e se aperta PLAY. O NextVR entra com as lentes e o rastreio de mão; quem manda
+     no jogo é o jogo. O único caso em que ele pula o menu é quando o app pede (`auto=1`, do JOIN da
+     aba do Gorilla): aí já existe sala e hora marcada. */
+  const lobby = $('lobby'); if (lobby) lobby.style.display = '';
+  const bg = $('bg'); if (bg) bg.style.display = '';
+  document.documentElement.classList.add('nv-boot-lobby');
 
-  try { if (typeof NextVRGame !== 'undefined' && NextVRGame && NextVRGame.stage) NextVRGame.stage('boot'); } catch (e) {}
+  /* A tela de início do jogo também conta como "o jogo abriu": sem isto o vigia de 12 s do app
+     fecharia o jogo por achar que ele nunca montou (a partida só começa quando o jogador aperta
+     PLAY, no menu do jogo). */
+  try { if (typeof NextVRGame !== 'undefined' && NextVRGame && NextVRGame.stage) NextVRGame.stage('lobby'); } catch (e) {}
   if (SOLO) nvFail('sem servidor · jogando sozinho');
-  enter(START_MODE);
+  // Sem `auto`, quem começa a partida é o PLAY do menu do jogo (e o STYLE dele).
+  if (q.get('auto') === '1' || START_MODE !== 'solo') enter(START_MODE);
 })();

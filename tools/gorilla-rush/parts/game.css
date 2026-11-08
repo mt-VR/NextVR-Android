@@ -6,4 +6,5 @@
  * de problema do NextVR quando a partida não abre.
  */
 #nvb,#netst,#ighint,#st,#hud{display:none!important}
-.nv-boot #lobby,.nv-boot #bg{display:none!important}
+/* O menu inicial do jogo FICA (pedido: "o menu inicial do gorilla vai continuar"). O NextVR só
+   entra com as lentes e o rastreio de mão — nada de esconder a tela de início do próprio jogo. */

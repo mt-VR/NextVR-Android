@@ -234,8 +234,8 @@ test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma r
   assert.match(game, /t-lastRs>\(adj<3\?1200:4000\)/, 'decisão a cada 4 s (1,2 s só na calibragem inicial)');
   assert.match(game, /else if\(fAvg>26\)setStep\(rtStep\+1\)/, 'cai de degrau acima de 26 ms');
   assert.match(game, /else if\(fAvg<17\)setStep\(rtStep-1\)/, 'e sobe abaixo de 17 ms (histerese larga)');
-  assert.match(game, /function applyRt\(\)\{const sc=RT_STEPS\[rtStep\];const nh=Math\.round\(baseH\*sc\),nw=rtW\(nh\);/,
-    'sem mexer em nada quando o tamanho não muda');
+  assert.match(game, /function applyRt\(\)\{if\(!rtL\)return;const sc=RT_STEPS\[rtStep\];const nh=Math\.round\(baseH\*sc\),nw=rtW\(nh\);/,
+    'sem mexer em nada quando o tamanho não muda (e sem render target não há o que mexer)');
   assert.match(game, /if\(baseH!==448\)makeRTs\(448,0\);/, 'entrar no voo de novo não refaz as texturas');
   // O rastreio da mão da página é MediaPipe no thread principal: em voo, 20 Hz bastam (manche e piscar).
   assert.match(game, /handInt=fAvg>26\?80:\(run\?45:33\);/, 'inferência a ~20 Hz durante o voo, ~12 Hz no menu');
@@ -255,32 +255,20 @@ test('lentes: 67 mm, a conta do SDK do Cardboard e o retângulo de cantos redond
   assert.match(game, /const IPD=\.067, SCR_W=\.145/, 'o voo usa 67 mm entre os olhos (era 64)');
   const tag = await read('web/src/gorilla-tag.js');
   assert.match(tag, /ipd: 0\.067,/, 'e o CARDBOARD_2015_LENS do NextVR também');
-  // "conserte as bordas, está quadrado": a correção é normalizada pelo canto do olho e por
-  // (1+k1+k2) — no canto a amostra encosta na borda da textura, então a imagem preenche o olho.
-  // A conta antiga (raio cru, escala por TX/TY) estourava para fora da textura e sobrava uma
-  // moldura preta com a imagem pequena no meio: era isso que parecia um quadrado.
-  // (o shader é um template literal: os coeficientes entram por ${K1}/${K2} na hora de montar)
-  // A conta é a do SDK: para um pixel de tela em tan s, amostra t = s·(1+k1·s²+k2·s⁴) — MULTIPLICA
-  // o raio, então a imagem fica MENOR que a tela (o 2.6.3 dividia por (1+k1+k2) e ampliava o centro
-  // em 1,6×: era o "as lentes estão grandes demais").
-  assert.match(game, /K1=\.441, K2=\.156/, 'os coeficientes oficiais da Cardboard v1');
-  assert.ok(game.includes('float f=1.+${K1}*s2+${K2}*s2*s2;'),
-    'a correção multiplica o raio (Distort do SDK), não divide');
-  assert.equal(game.includes('/(1.+${K1}+${K2})'), false, 'a divisão que ampliava o centro saiu');
-  // Tamanho: 80° de campo dentro de 86 % do olho (a proporção do próprio SDK).
-  assert.match(game, /LN_FOV=80, LN_FILL=0\.86/, 'o campo entregue é 80° e a imagem ocupa 86 % do olho');
-  assert.ok(game.includes('LN_TE=LN_TH/LN_FILL'), 'a borda corresponde a tan(40°)/0,86');
-  assert.ok(game.includes('vec2 q=p*f*(th/tt);'), 'a amostra é radial e normalizada pela textura');
-  // "as lentes não são circulares, são assim, tipo a do WebXR": o recorte é caixa arredondada.
-  assert.match(game, /LN_FILL=0\.86, LN_CORNER=0\.26/, 'o canto redondo é 26 % da meia-largura');
-  assert.ok(game.includes('float rc=min(corner,min(b.x,b.y)*.9);'),
-    'e o recorte é a distância assinada de uma caixa de cantos redondos');
-  assert.equal(game.includes('smoothstep(.92,1.,r)'), false, 'nada de recorte circular');
-  assert.match(game, /dmat\.uniforms\.ar\.value=h\/Math\.max\(1,hw\);/, 'o desenho passa a proporção do olho para o shader');
-  assert.equal(/dmat\.uniforms\.(sz|c)\.value/.test(game), false, 'e não usa mais a escala/centro deslocados');
-  // O `fov` do three é vertical: sai do horizontal de 49,4° dividido pela proporção do olho.
-  assert.ok(game.includes('const eyeFov=(asp)=>2*Math.atan(LN_TT/Math.max(.05,asp))*180/Math.PI,'),
+  // "as lentes não são assim, são igual a do webXr": no WebXR a página não desenha lente nenhuma.
+  // O passe de distorção com recorte saiu; ficou o PRESET da Cardboard 2015 (80° por olho, 67 mm) e
+  // um desenho por olho, de tela cheia.
+  assert.equal(game.includes('ShaderMaterial({uniforms:{t:'), false, 'não existe mais passe de lente');
+  assert.match(game, /const LN_FOV=80, LN_TH=Math\.tan\(\(LN_FOV\/2\)\*Math\.PI\/180\);/,
+    'o campo entregue é o da Cardboard 2015 (80°)');
+  assert.ok(game.includes('renderer.render(scene,eyeL);') && game.includes('renderer.render(scene,eyeR);'),
+    'cada olho é desenhado direto na tela');
+  assert.ok(game.includes('const eyeFov=(asp)=>2*Math.atan(LN_TH/Math.max(.05,asp))*180/Math.PI,'),
     'o campo vertical do olho deriva do horizontal da lente');
+  assert.ok(game.includes('renderer.setScissor(0,0,hw,h);renderer.render(scene,eyeL);'),
+    'meia tela por olho, sem recorte no meio');
+  // O `fov` do three é vertical: sai do horizontal (80°) dividido pela proporção do olho.
+  assert.equal(game.includes('LN_TT'), false, 'não existe mais campo de textura (nem correção)');
 });
 
 test('a rodada tem entrada no menu de Atualizações', async () => {
@@ -289,8 +277,10 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
   // A rodada 2.6.2 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'gorilla-lentes-webxr-menu-do-jogo-gorila-visivel'/,
+    'a rodada 2.6.6 tem ficha própria, no topo (lentes do WebXR, gorila visível, menu do jogo)');
   assert.match(updates, /id: 'gorilla-modelo-antigo-lentes-retangulo-chao'/,
-    'o gorila do HTML antigo, as lentes retangulares e o nascimento no chão têm ficha, no topo');
+    'e a do gorila do HTML antigo continua logo abaixo');
   assert.match(updates, /id: 'gorilla-corpo-reserva-lentes-menores'/,
     'e a do corpo reserva continua lá, logo abaixo');
   assert.match(updates, /id: 'gorilla-boneco-lentes-67-bordas'/,
@@ -301,8 +291,8 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
   assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
     'lentes, mãos grudadas, seta e Ryuzaki também');
   const build = await read('nextvr-android/build.gradle');
-  assert.match(build, /versionCode 121/, 'o APK desta rodada é o 121');
-  assert.match(build, /versionName "2\.6\.5"/, 'e se chama 2.6.5 (a 2.6.4 não chegou a ser publicada)');
+  assert.match(build, /versionCode 122/, 'o APK desta rodada é o 122');
+  assert.match(build, /versionName "2\.6\.6"/, 'e se chama 2.6.6');
   const badge = await read('web/src/entry-menu.js');
-  assert.match(badge, /v2\.6\.5/, 'o selo da tela de entrada acompanha');
+  assert.match(badge, /v2\.6\.6/, 'o selo da tela de entrada acompanha');
 });

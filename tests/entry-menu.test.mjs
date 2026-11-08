@@ -1332,21 +1332,23 @@ test('o carregamento de 6 s pode ser pulado, e não só cancelado', async () => 
   assert.match(html, /\.entry-hud-skip\{/);
 });
 
-test('as configurações cabem em cinco abas: a 4ª é do Gorilla Tag e a 5ª é dos acessórios', async () => {
+test('as configurações cabem em quatro abas: a 4ª é do Gorilla Tag e a aparência saiu do app', async () => {
   // "Cria uma 3 aba, pq as configurações já tá tudo apertado": a aba 1 fica com o básico, a 2 com as
   // mãos/gestos e a 3 com tela & dock (cor da dock, ordem de profundidade, dim do MR, FPS e ambientes).
+  // A 4ª é do Gorilla Tag. A antiga 5ª (acessórios/aparência) SAIU: "o menu de escolher a aparência
+  // vai sair das configurações ... o menu inicial do gorilla vai continuar" — cor, óculos, chapéu e
+  // roupa são escolhidos no menu do próprio jogo.
   const read = path => readFileSync(path, 'utf8');
   const src = read('web/src/entry-menu.js');
-  // A 4ª aba é o pedido desta rodada: "cria nas configurações uma 4 aba chamada gorilla tag e bota
-  // pra escolher a sala, as skins e as configurações do gorilla".
-  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'], [3, 'Aba 3 · Tela &amp; Dock'], [4, 'Aba 4 · Gorilla Tag'], [5, 'Aba 5 · Acessórios']])
+  for (const [tab, label] of [[1, 'Aba 1 · Básico'], [2, 'Aba 2 · Mãos &amp; Gestos'],
+    [3, 'Aba 3 · Tela &amp; Dock'], [4, 'Aba 4 · Gorilla Tag']])
     assert.ok(src.includes(`data-entry-settings-tab="${tab}">${label}</button>`), `a aba ${tab} existe com o nome ${label}`);
+  assert.equal(src.includes('Aba 5 · Acessórios'), false, 'não existe mais a aba de acessórios');
   const pages = [...src.matchAll(/data-entry-settings-page="(\d)"/g)].map(m => Number(m[1]));
-  // No ARQUIVO a página 5 é declarada antes da 4 (cada uma no seu `render…`), mas no carrossel a
-  // ordem é a da interpolação: 4 (Gorilla Tag) e depois 5 (Acessórios).
-  assert.deepEqual([...pages].sort(), [1, 2, 3, 4, 5], 'cinco páginas no carrossel');
-  assert.ok(src.indexOf('${renderGorillaSettingsPage()}') < src.indexOf('${renderGorillaAccessoriesPage()}'),
-    'a aba dos acessórios vem depois da aba do Gorilla Tag');
+  assert.deepEqual([...pages].sort(), [1, 2, 3, 4], 'quatro páginas no carrossel');
+  assert.equal(src.includes('renderGorillaAccessoriesPage'), false, 'a página de acessórios saiu do código');
+  for (const saiu of ['data-entry-gorilla-color', 'data-entry-gorilla-acc-set', 'GORILLA_ACCESSORIES'])
+    assert.equal(src.includes(saiu), false, `as Configurações não têm mais ${saiu}`);
   // A aba 3 tem a própria grade (duas células lado a lado) e leva a cor da dock e os ambientes.
   assert.match(src, /entry-bento-grid--tab3 entry-settings-page" data-entry-settings-page="3"/);
   const third = src.slice(src.indexOf('data-entry-settings-page="3"'));
@@ -1360,19 +1362,12 @@ test('as configurações cabem em cinco abas: a 4ª é do Gorilla Tag e a 5ª é
   assert.match(src, /settingsCarousel\.scrollTo\(\{ left: targetX, behavior: 'smooth' \}\)/);
   // O limite das abas acompanha o número de páginas: com `3` fixo a quarta aba nunca abria.
   assert.match(src, /const nextTab = Math\.max\(1, Math\.min\(settingsPages\(\)\.length \|\| 4, Number\(btn\.dataset\.entrySettingsTab\) \|\| 1\)\);/);
-  // O pedido: "os acessórios tem que ficar separadinhos" — um bloco por acessório, com todas as
-  // opções à vista (nada de um botão que gira entre elas).
-  const fifth = src.slice(src.indexOf('data-entry-settings-page="5"'));
-  for (const cell of ['acc-color', 'acc-glasses', 'acc-head', 'acc-clothes'])
-    assert.ok(fifth.includes(`entry-bento-cell--${cell}`), `a aba 5 tem a célula ${cell}`);
-  for (const key of ['accG', 'accH', 'accC'])
-    assert.ok(fifth.includes(`chip('${key}'`), `a célula de ${key} lista as opções`);
-  // E não sobrou o botão que girava: a escolha é um clique só.
-  assert.equal(src.includes("root.querySelectorAll('[data-entry-gorilla-acc]')"), false,
-    'a aba não tem mais o botão de rodízio dos acessórios');
-  assert.match(src, /data-entry-gorilla-acc-set="\$\{key\}:\$\{a\.id\}"/, 'e a escolha é direta, sem girar');
+  // A aba 4 continua com sala, modo, gráficos, tela, movimento, rastreio, servidor e o JOIN.
+  for (const hook of ['data-entry-gorilla-room', 'data-entry-gorilla-mode', 'data-entry-gorilla-gfx',
+    'data-entry-gorilla-vr', 'data-entry-gorilla-mv', 'data-entry-gorilla-ht',
+    'data-entry-gorilla-srv', 'data-entry-gorilla-nick', 'data-entry-gorilla-join'])
+    assert.ok(src.includes(hook), `a aba 4 tem ${hook}`);
   const html = read('web/index.html');
-  assert.match(html, /\.entry-bento-grid--tab5\{/);
   assert.match(html, /\.entry-bento-grid--tab3\{\n    grid-template-columns:1fr 1fr;\n    grid-template-rows:1fr\n  \}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--dockcolor\{grid-column:1;grid-row:1\}/);
   assert.match(html, /\.entry-bento-grid--tab3 \.entry-bento-cell--env\{grid-column:2;grid-row:1\}/);

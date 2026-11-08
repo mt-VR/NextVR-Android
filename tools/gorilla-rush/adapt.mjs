@@ -159,9 +159,19 @@ html = html.replace(MODELO_OLD, [
 /* 3i. O modelo de verdade chega: a reserva sai de cena ------------------------------------- */
 const BUILD_OLD = 'function build(g){pl=g.scene;';
 MUST(html, BUILD_OLD, 'build() do modelo');
-// 1) a reserva sai de cena; 2) o esqueleto do modelo antigo é traduzido para os nomes que o jogo
-// procura (antes de `cloneMats`/`paint`, que dependem do nome do material); 3) segue o build normal.
-html = html.replace(BUILD_OLD, 'function build(g){nvCorpoSai();g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;');
+// 1) o esqueleto do modelo do HTML antigo é traduzido para os nomes que o jogo procura (antes de
+//    `cloneMats`/`paint`, que dependem do nome do material); 2) segue o build normal; 3) só no FIM a
+//    reserva sai de cena; 4) se a montagem falhar, `nvModeloFalhou` tira o modelo pela metade (que,
+//    sem isso, ficava plantado na origem do mundo, embaixo do mapa) e devolve a reserva.
+html = html.replace(BUILD_OLD, 'function build(g){try{g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;');
+const BUILD_END = ' chk()}';
+MUST(html, BUILD_END, 'fim do build()');
+html = html.replace(BUILD_END, ' chk();nvCorpoSai()}catch(e){nvModeloFalhou(e)}}');
+// Em primeira pessoa a câmera está DENTRO do peito: com o material `doubleSided` do GLB ela via o
+// lado de dentro do corpo (parede de pelo) em vez dos braços.
+const CLONE = 'cloneMats(pl,mats);paint(mats,color);';
+MUST(html, CLONE, 'cloneMats/paint do build()');
+html = html.replace(CLONE, CLONE + 'nvFrenteSo(pl);');
 
 /* 3j. O NASCIMENTO: no chão do mapa, não numa coordenada fixa ------------------------------- */
 // "fica embaixo da terra": `spawnPos()` devolvia coordenadas fixas (3,60 · 6,30 · -6,49 para quem
@@ -187,6 +197,17 @@ const FLOOR_OLD = 'if(P.y<floorMin){P.copy(spawnPos());vel.set(0,0,0)}';
 MUST(html, FLOOR_OLD, 'resgate por floorMin');
 html = html.replace(FLOOR_OLD, FLOOR_OLD +
   '\n {const ac=hit(V3(P.x,P.y+8,P.z),DOWN,80);if(ac&&ac.point.y>P.y-1.05){P.y=ac.point.y+1.12;if(vel.y<0)vel.y=0}}');
+
+/* 3l. A tela de início do jogo na proporção certa ------------------------------------------ */
+// O menu inicial do gorila continua (pedido: "o menu inicial do gorilla vai continuar"). Ele desenha
+// o boneco girando atrás do HTML do jogo; com o modo VR ligado a câmera ficaria com a proporção de
+// MEIA tela (a da partida) e o boneco sairia espremido. Aqui ele é desenhado na proporção inteira.
+const LOBBY_DRAW = 'cam.position.set(0,.8,2.8);cam.lookAt(0,.65,0);R.render(S,cam);return';
+MUST(html, LOBBY_DRAW, 'desenho da tela de início');
+html = html.replace(LOBBY_DRAW,
+  'cam.position.set(0,.8,2.8);cam.lookAt(0,.65,0);' +
+  '{const a0=cam.aspect,f0=cam.fov;cam.aspect=innerWidth/Math.max(1,innerHeight);cam.fov=70;' +
+  'cam.updateProjectionMatrix();R.render(S,cam);cam.aspect=a0;cam.fov=f0;cam.updateProjectionMatrix()}return');
 
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";

@@ -166,15 +166,24 @@ test('o jogo é o HTML do usuário, mas sem PeerJS, sem CDN e sem o menu que nin
   assert.ok(game.includes("new WebSocket(url)"), 'o online fala WebSocket com o nosso servidor');
   assert.ok(game.includes('nvConnect') && game.includes('server/gorilla-rush/server.mjs'),
     'o código aponta para o servidor deste repositório');
-  // O que travava o jogador no VR Box: menu só de toque. Agora o NextVR entra direto e há um menu
-  // dentro do jogo, mirado pelo giroscópio.
+  // O MENU INICIAL DO GORILA CONTINUA: "o jogo HTML só vai participar do next ... o menu inicial do
+  // gorilla vai continuar". A página não esconde mais a tela de início do jogo, e é lá que se
+  // escolhe a aparência (STYLE) e se aperta PLAY.
+  assert.ok(game.includes("lobby.style.display = ''"), 'a tela de início do jogo NÃO é escondida');
+  assert.equal(game.includes("lobby.style.display = 'none'"), false, 'e nada a esconde por outro caminho');
+  assert.ok(game.includes("classList.add('nv-boot-lobby')"), 'a página prepara o modo de jogo em cima do menu');
+  assert.ok(game.includes("if (q.get('auto') === '1' || START_MODE !== 'solo') enter(START_MODE);"),
+    'só o JOIN/sala entra sozinho; a biblioteca abre no menu do jogo');
+  // A aparência é do jogo: o app não manda mais cor nem acessório.
+  assert.equal(game.includes("q.has('acc')"), false, 'o NextVR não manda mais acessório');
+  assert.equal(game.includes("ACCS = {"), false, 'nem existe lista de acessórios no nosso código');
+  // O menu de dentro do jogo (mirado pelo giroscópio) continua, mas SEM a parte de aparência.
   assert.ok(game.includes('NVIG'), 'existe o menu dentro do jogo');
   assert.ok(game.includes('ray.setFromCamera({ x: 0, y: 0 }, cam)'), 'a mira do menu é o centro do olhar (giroscópio)');
   assert.ok(game.includes('IG_DWELL'), 'e o botão aciona por permanência, sem toque');
-  assert.ok(game.includes("$('lobby')") && game.includes("lobby.style.display = 'none'"), 'o lobby só-de-toque sai da frente');
-  // Entrar sem skin é o padrão; a skin vem das Configurações → aba 4.
-  assert.ok(game.includes("ACCS = {") && game.includes("g: ['', 'g_white']"), 'a primeira opção de skin é NENHUMA');
-  assert.ok(game.includes("q.has('acc')") && game.includes('myAcc.g = ACCS.g.includes'), 'a skin chega por parâmetro do menu do NextVR');
+  assert.equal(game.includes("button('color:'"), false, 'o menu do app não escolhe mais cor');
+  assert.equal(game.includes("button('accg'"), false, 'nem acessório');
+  assert.ok(game.includes("'GORILA · CONFIGURAÇÕES'"), 'só as configurações da partida ficaram nele');
   // A ponte com o app: etapa para o watchdog e saída da tela cheia.
   assert.ok(game.includes("NextVRGame.stage('play')"), 'a página avisa quando a partida começou');
   assert.ok(game.includes('NextVRGame.exit'), 'sair do jogo devolve a tela ao NextVR');
@@ -191,12 +200,12 @@ test('a ponte nativa abre o Gorilla Rush na mesma janela do Cockpit, com lista b
     'o Gorilla Rush usa a MESMA janela de jogo em tela cheia do Cockpit VR');
   assert.ok(activity.includes('"/ui/gorilla-rush/game.html"'), 'a página é a do pacote');
   assert.ok(activity.includes('private static String gorillaQueryFromJson(String json)'), 'os ajustes viram query string');
-  // Lista branca: sala, cor, acessórios, servidor — o resto é descartado.
-  for (const key of ['"room"', '"mode"', '"srv"', '"col"', '"acc"', '"solo"', '"quick"'])
+  // Lista branca: sala, modo, servidor, gráficos, tela e mãos — o resto é descartado.
+  for (const key of ['"room"', '"mode"', '"srv"', '"gfx"', '"vr"', '"mv"', '"ht"', '"solo"', '"quick"'])
     assert.ok(activity.includes('appendQuery(out,' + key), `a query leva ${key}`);
-  assert.ok(activity.includes('if(!col.matches("#[0-9a-fA-F]{6}")) col="#ffffff";'), 'cor fora do formato cai no branco');
-  assert.ok(activity.includes('if(!accH.equals("h_top")||') === false && activity.includes('||accH.equals("h_penguin")'),
-    'só os acessórios que existem no jogo passam');
+  // A APARÊNCIA NÃO PASSA MAIS PELO APP: ela é escolhida no menu do próprio jogo.
+  assert.equal(activity.includes('appendQuery(out,"col"'), false, 'o app não manda mais cor');
+  assert.equal(activity.includes('appendQuery(out,"acc"'), false, 'nem acessório');
   // O valor vai direto para `new WebSocket()` na página: só esquema ws/wss entra.
   assert.ok(activity.includes('!srv.matches("wss?://[^'), 'o servidor só pode ser WebSocket (nunca http/javascript)');
   // O jogo é servido do APK (https://appassets…) e fala com o nosso servidor por ws:// (LAN, sem
@@ -221,9 +230,13 @@ test('a aba 4 escolhe sala, skin e configurações, e o JOIN entra no online sem
   const apps = read('web/src/apps.js');
   // A aba existe e tem o que o usuário pediu.
   assert.ok(menu.includes('data-entry-settings-tab="4">Aba 4 · Gorilla Tag</button>'), 'a 4ª aba se chama Gorilla Tag');
-  for (const hook of ['data-entry-gorilla-room', 'data-entry-gorilla-mode', 'data-entry-gorilla-color',
-    'data-entry-gorilla-acc', 'data-entry-gorilla-gfx', 'data-entry-gorilla-srv', 'data-entry-gorilla-join'])
+  for (const hook of ['data-entry-gorilla-room', 'data-entry-gorilla-mode',
+    'data-entry-gorilla-gfx', 'data-entry-gorilla-srv', 'data-entry-gorilla-join'])
     assert.ok(menu.includes(hook), `a aba 4 tem ${hook}`);
+  // "o menu de escolher a aparência vai sair das configurações": cor, óculos, chapéu e roupa não
+  // estão mais aqui — eles moraram a vida inteira no STYLE do próprio jogo.
+  for (const saiu of ['data-entry-gorilla-color', 'data-entry-gorilla-acc-set', 'data-entry-settings-tab="5"'])
+    assert.equal(menu.includes(saiu), false, `as Configurações não têm mais ${saiu}`);
   assert.ok(menu.includes("btn.onclick = () => launchGorillaRush({ mode: 'online' });"), 'o JOIN entra direto no online');
   assert.ok(menu.includes("btn.onclick = () => launchGorillaRush({ mode: 'quick' });"), 'e há a sala pública');
   // A biblioteca é o caminho de quem quer jogar sozinho.
@@ -233,8 +246,10 @@ test('a aba 4 escolhe sala, skin e configurações, e o JOIN entra no online sem
   // O jogo em si: nenhuma promessa de online sem servidor.
   assert.ok(gorilla.includes("if (how !== 'solo' && !prefs.srv)"), 'sem servidor, o JOIN avisa em vez de fingir');
   assert.ok(gorilla.includes('gorillaProblem('), 'e toda falha abre uma janela com o motivo');
-  // Sem skin por padrão, e o endereço do servidor é normalizado (o usuário pode digitar só IP:porta).
-  assert.ok(gorilla.includes("col: '#ffffff', accG: '', accH: '', accC: ''"), 'entra sem skin nenhuma');
+  // O endereço do servidor é normalizado (o usuário pode digitar só IP:porta) e a aparência não
+  // viaja no payload: quem decide é o menu do jogo.
+  assert.equal(/accG: prefs\.accG|col: prefs\.col/.test(gorilla), false, 'a aparência não vai no payload');
+  assert.ok(gorilla.includes("if (how !== 'solo' && !prefs.srv)"), 'o JOIN sem servidor avisa');
   assert.ok(gorilla.includes("return 'ws://' + srv.replace(/\\/+$/, '');"), 'IP:porta vira ws://IP:porta');
   // O estado do jogo volta para a shell (a janela de problema depende disso).
   assert.ok(gorilla.includes('window.nextvrGorillaState = (what, detail) => {'), 'o app conta o que houve com o jogo');
@@ -260,34 +275,24 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   assert.ok(lens.includes('const HALF_IPD = IPD / 2;') && lens.includes('multiplyScalar(HALF_IPD)'),
     'cada olho fica a 33,5 mm do centro (IPD de 67 mm)');
 
-  // "conserte as bordas, está quadrado": o raio da correção é normalizado pelo CANTO do olho e
-  // dividido por (1+k1+k2) — assim a amostra do canto encosta na borda da textura e a imagem
-  // PREENCHE o olho (antes sobrava uma moldura preta, com a imagem pequena e quadrada no meio).
-  // A correção é a do SDK do Cardboard: amostra = raio · (1 + k1·r² + k2·r⁴), ou seja, MULTIPLICA —
-  // a imagem fica MENOR que a tela e o que passa da textura vira preto. Dividir por (1+k1+k2), como
-  // na 2.6.3, ampliava o centro em 1,6× (o "as lentes estão grandes").
-  assert.ok(lens.includes('float f = 1.0 + k1 * s2 + k2 * s2 * s2;'), 'a correção multiplica o raio');
-  assert.equal(lens.includes('(1.0 + k1 + k2)'), false, 'nada de dividir pelo total (ampliava o centro)');
-  // Tamanho: a imagem ocupa 86 % do olho (`LENS_FILL`), como na interface do NextVR fora do jogo.
-  assert.ok(lens.includes('const LENS_FILL = 0.86;'), 'a imagem ocupa 86 % do olho');
-  assert.ok(lens.includes('const TAN_EDGE = TAN_HALF / LENS_FILL;'), 'e a borda é tan(40°)/0,86');
-  // "as lentes não são circulares, são assim, tipo a do WebXR": o recorte é um RETÂNGULO DE CANTOS
-  // ARREDONDADOS (a forma que o mesh de distorção do Cardboard desenha), não um círculo.
-  assert.ok(lens.includes('float sd = length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - rc;'),
-    'o recorte é uma caixa de cantos redondos (distância assinada de caixa arredondada)');
-  assert.ok(lens.includes('vec2 b = vec2(fill, fill * ar);'),
-    'do tamanho da imagem (86 %) e com a vertical na mesma unidade da horizontal');
-  assert.ok(lens.includes('const LENS_CORNER = 0.26;'), 'com o canto redondo de 26 % da meia-largura');
-  assert.equal(lens.includes('smoothstep(0.92, 1.0, r)'), false, 'nada de recorte circular');
+  // "as lentes não são assim, são igual a do webXr": no WebXR a página NÃO desenha lente nenhuma —
+  // ela desenha cada olho de tela cheia e quem curva é a lente do visor. Foi o que saiu daqui: o
+  // passe de distorção com recorte (o círculo da 2.6.4 e o retângulo arredondado da 2.6.5).
+  assert.equal(lens.includes('ShaderMaterial'), false, 'não existe mais passe de distorção');
+  assert.equal(lens.includes('smoothstep'), false, 'nem recorte em volta da imagem');
+  assert.equal(/LENS_FILL|LENS_CORNER|tanEdge|TAN_EDGE/.test(lens), false, 'nem máscara, nem anel preto');
+  // O que fica é o PRESET da Cardboard 2015: 80° de campo por olho e 67 mm entre os olhos.
+  assert.ok(lens.includes('const FOV = 80, IPD = 0.067;'), 'o campo e o IPD do visor Cardboard 2015');
+  assert.ok(lens.includes('const TAN_HALF = Math.tan((FOV / 2) * DEG);'), 'o campo horizontal em tan');
+  assert.ok(lens.includes('cam.fov = renderFov(aspect);'), 'e o `fov` vertical derivado dele');
+  assert.ok(lens.includes('R.setScissor(x, 0, w, H);'), 'um recorte por olho, de tela cheia');
+  assert.equal(lens.includes('WebGLRenderTarget'), false, 'sem textura fora de tela (metade dos desenhos)');
   const cockpit = read('nextvr-android/src/main/assets/ui/cockpit/game.html');
-  assert.ok(cockpit.includes('LN_CORNER=0.26') && cockpit.includes('float rc=min(corner,min(b.x,b.y)*.9)'),
-    'o jogo de avião usa o mesmo recorte (as lentes são as mesmas nos dois)');
-  assert.equal(/uv\.x < 0\.0|gl_FragColor = vec4\(0\.0, 0\.0, 0\.0, 1\.0\)/.test(lens), false,
-    'não existe mais o descarte que deixava a moldura preta quadrada');
-  // Corrigir a lente usa só a parte de dentro da textura; por isso o olho é DESENHADO mais aberto,
-  // senão o campo visível encolhe. O campo entregue continua sendo o do NextVR (80°).
-  assert.ok(lens.includes('function renderFov(aspect)') && lens.includes('cam.fov = renderFov(tw / Math.max(1, th));'),
-    'o olho é desenhado mais aberto (e com o campo vertical, que é o que o three usa)');
+  assert.equal(cockpit.includes('ShaderMaterial({uniforms:{t:'), false, 'o avião não tem mais passe de lente');
+  assert.ok(cockpit.includes('const LN_FOV=80, LN_TH=Math.tan((LN_FOV/2)*Math.PI/180);'),
+    'o avião usa o mesmo preset da Cardboard 2015');
+  assert.ok(cockpit.includes('renderer.render(scene,eyeL);') && cockpit.includes('renderer.render(scene,eyeR);'),
+    'e desenha cada olho direto na tela');
   // O three.js JÁ multiplica viewport/scissor pelo pixelRatio da sessão
   // (`setViewport` → `N.multiplyScalar(P)`). Multiplicar de novo aqui encolhia cada olho para um
   // quarto da tela, no canto: era o "as lentes estão assim" da 2.6.0.
@@ -296,17 +301,15 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   assert.equal(lens.split('\n').some((l) => /setViewport|setScissor/.test(l) && !l.trim().startsWith('//') && /getPixelRatio|dpr/.test(l)), false,
     'o recorte dos olhos NÃO multiplica pelo pixel ratio outra vez');
   assert.equal(/Math\.round\(e \* hw/.test(lens), false, 'nem por outro caminho');
-  assert.ok(lens.includes('const dpr = R.getPixelRatio() || 1;') && lens.includes('ensure(Math.round(hw * dpr), Math.round(H * dpr));'),
-    'o pixel ratio é usado só no tamanho da textura do olho, como o three.js exige');
-  assert.equal(/const W = innerWidth, H = innerHeight, hw = (W >> 1|W \/ 2);/.test(lens), true,
-    'os olhos são recortados em unidades de CSS, como o three.js espera');
-  assert.ok(lens.includes('cam.aspect = tw / th;') || lens.includes('cam.aspect = hw / H;'),
+  // Sem render target não há pixel ratio para multiplicar: o desenho é direto na tela, em unidades
+  // de CSS, que é o que o three.js espera.
+  assert.equal(/getPixelRatio|dpr|hw \* dpr/.test(lens), false, 'nada de pixel ratio (não há mais textura de olho)');
+  assert.ok(lens.includes('cam.aspect = aspect;') && lens.includes('const aspect = hw / Math.max(1, H);'),
     'cada olho vê meia tela, não a tela inteira');
-  // Uma textura por olho e o passe de barril com os MESMOS k1/k2 do Cockpit: isso é a correção da
-  // lente Cardboard 2015, não uma "segunda distorção" por cima dela.
+  // Os coeficientes da Cardboard v1 continuam registrados (para a sonda), mas não desenham mais
+  // nada: quem curva a imagem é a lente do visor, como no WebXR.
   assert.ok(lens.includes('const K1 = 0.441, K2 = 0.156;'),
     'os coeficientes são os da Cardboard v1, iguais aos do jogo de avião');
-  assert.ok(lens.includes('rt[e] = new THREE.WebGLRenderTarget('), 'uma textura por olho, meia tela cada');
   assert.ok(game.includes('function renderPlay(){if(NVLENS.on()){NVLENS.render();return}'),
     'o desenho do jogo passa pelas lentes do NextVR');
 
@@ -493,8 +496,10 @@ test('o corpo reserva: existe boneco desde o primeiro quadro, com os nomes que o
   // "Ainda tá sem modelo de gorilla": o corpo de primitivas entra ANTES da carga do GLB, e o modelo
   // de verdade o descarta quando chega. Ou é o gorila original, ou é este — nunca o vazio.
   assert.ok(adapt.includes("(await part('corpo.js')).trim()"), 'o adaptador embute o corpo reserva');
-  assert.ok(adapt.includes('function build(g){nvCorpoSai();g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;'),
-    'e o modelo real tira a reserva de cena (traduzindo antes o esqueleto dele)');
+  assert.ok(adapt.includes('function build(g){try{g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;'),
+    'o modelo real traduz o esqueleto antes de montar');
+  assert.ok(adapt.includes("' chk();nvCorpoSai()}catch(e){nvModeloFalhou(e)}}'"),
+    'e a reserva só sai quando a montagem termina (erro devolve o corpo reserva)');
   assert.ok(corpo.includes('nvCorpoReserva();'), 'a reserva é montada no arranque');
 
   // Os nomes dos ossos são os do GLB, então rig()/arm2()/handPose() funcionam sem mudança.
@@ -760,4 +765,42 @@ test('o gorila nasce no chão do mapa (não embaixo da terra) e a seta do chão 
   assert.ok(ingame.includes('const NVHEAD = { tick() {}, visivel: false };'),
     'o nome continua, invisível, para a sonda não quebrar');
   assert.ok(game.includes('seguradas: NV_HAND_HELD, seta: false,'), 'e a sonda diz que não há seta');
+});
+
+test('o gorila aparece: a câmera não fica vendo o lado de dentro do corpo, e o erro devolve a reserva', async () => {
+  const game = read(GAME);
+  const esq = read('tools/gorilla-rush/parts/esqueleto.js');
+  const modelo = read('tools/gorilla-rush/parts/model.js');
+  const adapt = read('tools/gorilla-rush/adapt.mjs');
+  const menu = read('web/src/entry-menu.js');
+
+  // O MENU INICIAL DO JOGO CONTINUA (é nele que o gorila aparece e a aparência é escolhida).
+  assert.ok(game.includes("lobby.style.display = ''"), 'a tela de início do jogo é mostrada');
+  assert.ok(game.includes('NextVRGame.stage(\'lobby\')'), 'e ela conta como "o jogo abriu"');
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+  assert.ok(activity.includes('if("gorilla".equals(gameKind) && "lobby".equals(cockpitStage)) return;'),
+    'o vigia de 12 s do app aceita o menu do jogo como pronto (senão fecharia o jogo no menu)');
+  // A aparência saiu das Configurações e vive no menu do jogo.
+  assert.equal(menu.includes('data-entry-settings-tab="5"'), false, 'não existe mais a aba de acessórios');
+  assert.equal(menu.includes('data-entry-gorilla-acc-set'), false, 'nem os botões de acessório');
+
+  // VISTO DE DENTRO: a câmera do jogo fica dentro do peito (o corpo vai de -1,3 m a +0,4 m em volta
+  // dos olhos). Com o `doubleSided` do GLB ela via o lado de dentro do próprio corpo — parede de
+  // pelo, ou nada. As faces de trás são descartadas para o corpo do jogador.
+  assert.ok(esq.includes('function nvFrenteSo(raiz)'), 'existe a função que põe as faces de frente');
+  assert.ok(esq.includes('m.side = THREE.FrontSide'), 'e ela descarta as faces de trás');
+  assert.ok(adapt.includes("html = html.replace(CLONE, CLONE + 'nvFrenteSo(pl);')"),
+    'o build() aplica isso no corpo do jogador');
+
+  // ERRO NA MONTAGEM: o modelo pela metade saía da cena e a reserva voltava (antes ele ficava
+  // plantado na origem do mundo, embaixo do mapa, e o LM apontava para a reserva já removida).
+  assert.ok(modelo.includes('function nvModeloFalhou(e)'), 'existe o caminho de falha da montagem');
+  assert.ok(modelo.includes('if (pl && pl.parent) pl.parent.remove(pl);'), 'o modelo pela metade sai de cena');
+  assert.ok(modelo.includes('pl = null; LM = null;') && modelo.includes('nvCorpoReserva();'),
+    'e o corpo reserva volta, para nunca ficar vazio');
+  assert.ok(game.includes('chk();nvCorpoSai()}catch(e){nvModeloFalhou(e)}'), 'o build() é o que chama isso');
+
+  // O corpo reserva continua pronto para voltar (o guarda dele não pode impedir a volta).
+  assert.ok(read('tools/gorilla-rush/parts/corpo.js').includes('if (pl || LM) return false;'),
+    'a reserva só se monta quando não há boneco');
 });

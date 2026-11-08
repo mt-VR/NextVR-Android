@@ -86,3 +86,26 @@ function nvRenomeia(raiz) {
   NV_ESQ.modelo = ossos.map((b) => b.name).slice(0, 3).join(',');
   return NV_ESQ;
 }
+
+/**
+ * O GORILA VISTO DE DENTRO: só as faces da frente.
+ *
+ * Em primeira pessoa a câmera fica DENTRO do peito do gorila (o corpo dele vai de 1,3 m abaixo dos
+ * olhos a 0,4 m acima, e o peito fica 30 cm à frente do rosto). Com o material `doubleSided` que vem
+ * no GLB, a câmera via o LADO DE DENTRO do próprio corpo — uma parede de pelo escuro, ou, dependendo
+ * do driver, nada. Era mais um jeito de "o gorila não aparecer". Descartando as faces de trás, o
+ * corpo do jogador deixa de existir quando olhado de dentro e os braços (que estão fora dele)
+ * aparecem normalmente. Para os outros jogadores nada muda: eles são vistos de fora.
+ */
+function nvFrenteSo(raiz) {
+  if (!raiz) return 0;
+  let n = 0;
+  raiz.traverse((o) => {
+    if (!o.isMesh) return;
+    const lista = Array.isArray(o.material) ? o.material : [o.material];
+    lista.forEach((m) => {
+      if (m && m.side !== THREE.FrontSide) { m.side = THREE.FrontSide; m.needsUpdate = true; n++; }
+    });
+  });
+  return n;
+}
