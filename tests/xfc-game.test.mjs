@@ -245,6 +245,23 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--match');
     assert.ok((await page.locator('.match__teams').textContent()).includes('FC Barcelona'), 'o confronto mostra o Barcelona');
 
+    // Preparar a partida leva ao jogo 3D de verdade — com o HUD de transmissão,
+    // o analógico fixo e o cartão do jogador controlado.
+    await page.click('.btn:has-text("Iniciar partida")');
+    await page.waitForSelector('.screen--play', { timeout: 15000 });
+    assert.ok(await page.locator('.prematch__cta').isVisible(), 'a partida abre no pré-jogo');
+    await page.click('.prematch__cta');
+    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    const boardBox = await page.locator('.hud__scoreboard').boundingBox();
+    assert.ok(boardBox && boardBox.x < 40, 'o placar fica no canto superior esquerdo');
+    const stickBox = await page.locator('.controls__stick').boundingBox();
+    assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
+      'o analógico fica fixo no canto inferior esquerdo');
+    assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
+      'o cartão mostra o nome do atleta controlado');
+    assert.equal(await page.locator('.hud__tag.is-visible').count(), 1,
+      'a etiqueta do nome aparece sobre o atleta controlado');
+
     // O favicon não é servido pelo servidor do jogo: o ruído dele não interessa.
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a tela não deve gerar erro de console: ${realErrors.join(' | ')}`);
@@ -304,6 +321,11 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(await page.locator('.hud__radar').isVisible(), 'o radar aparece no HUD');
     assert.equal(await page.locator('.ctrl-btn').count(), 6, 'há os seis botões de ação');
     assert.ok(await page.locator('.controls__stick-zone').count(), 'há o analógico virtual');
+    const quickStickBox = await page.locator('.controls__stick').boundingBox();
+    assert.ok(quickStickBox && quickStickBox.x < 260 && quickStickBox.y > 460,
+      'o analógico fica fixo no canto inferior esquerdo');
+    assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
+      'o cartão mostra o nome do atleta controlado');
 
     // A simulação realmente roda: o relógio anda, a bola se mexe e o placar
     // existe para as duas equipes.
