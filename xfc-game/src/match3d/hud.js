@@ -52,16 +52,17 @@ export function createHud({ root, home, away }) {
 
   // Cartão do jogador controlado (número, nome, OVR e condição).
   // Adversário mais próximo da bola (o segundo nome dos prints).
-  const foeNumber = el('b', { class: 'hud__player-no hud__player-no--foe', text: '—' });
-  const foeName = el('span', { class: 'hud__player-name', text: '—' });
+  // Classes próprias: o cartão do atleta controlado já usa .hud__player-*.
+  const foeNumber = el('b', { class: 'hud__foe-no', text: '—' });
+  const foeName = el('span', { class: 'hud__foe-name', text: '—' });
   const foeOvr = el('b', { text: '—' });
   const foeBarFill = el('i');
   const foeChip = el('div', { class: 'hud__foe' },
-    el('div', { class: 'hud__player-meta hud__player-meta--foe' },
+    el('div', { class: 'hud__foe-meta' },
       foeName,
-      el('div', { class: 'hud__player-sub' },
-        el('span', { class: 'hud__player-ovr' }, foeOvr, el('em', { text: 'OVR' })),
-        el('span', { class: 'hud__player-bar hud__player-bar--foe' }, foeBarFill)
+      el('div', { class: 'hud__foe-sub' },
+        el('span', { class: 'hud__foe-ovr' }, foeOvr, el('em', { text: 'OVR' })),
+        el('span', { class: 'hud__foe-bar' }, foeBarFill)
       )
     ),
     foeNumber

@@ -257,7 +257,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const stickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
       'o analógico fica fixo no canto inferior esquerdo');
-    assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
+    assert.ok((await page.locator('.hud__player .hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
@@ -326,7 +326,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     const quickStickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(quickStickBox && quickStickBox.x < 260 && quickStickBox.y > 460,
       'o analógico fica fixo no canto inferior esquerdo');
-    assert.ok((await page.locator('.hud__player-name').textContent()).trim().length > 1,
+    assert.ok((await page.locator('.hud__player .hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
