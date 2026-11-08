@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "arena/c478325b-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android" ]
   workflow_dispatch:
 
 permissions:
