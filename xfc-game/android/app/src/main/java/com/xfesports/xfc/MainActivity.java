@@ -141,10 +141,11 @@ public class MainActivity extends Activity {
             }
             String assetPath = ASSET_ROOT + "/" + path;
             try {
+                // Construtor de três argumentos: é o único que existe com
+                // InputStream e status 200 (os cabeçalhos customizados exigiriam
+                // o construtor de seis argumentos).
                 InputStream stream = assets.open(assetPath);
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Cache-Control", "no-store");
-                return new WebResourceResponse(mimeTypeOf(path), "utf-8", stream, headers);
+                return new WebResourceResponse(mimeTypeOf(path), "utf-8", stream);
             } catch (IOException error) {
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
                         new HashMap<String, String>(), null);
