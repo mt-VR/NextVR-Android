@@ -16,7 +16,8 @@ const DEAD_ZONE = 0.16;
 const BUTTONS = [
   { id: 'pass', label: 'PASSE', className: 'ctrl-btn--pass' },
   { id: 'shoot', label: 'CHUTE', className: 'ctrl-btn--shoot' },
-  { id: 'lob', label: 'DRIBLE', className: 'ctrl-btn--lob' },
+  { id: 'lob', label: 'ENFIADA', className: 'ctrl-btn--lob' },
+  { id: 'dribble', label: 'DRIBLE', className: 'ctrl-btn--dribble' },
   { id: 'tackle', label: 'DESARME', className: 'ctrl-btn--tackle' },
   { id: 'switch', label: 'TROCAR', className: 'ctrl-btn--switch' },
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
@@ -134,6 +135,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     KeyK: 'shoot',
     KeyL: 'shoot',
     KeyE: 'lob',
+    KeyR: 'dribble',
     KeyF: 'tackle',
     Tab: 'switch',
     KeyQ: 'switch'

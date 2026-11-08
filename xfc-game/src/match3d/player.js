@@ -287,6 +287,7 @@ export function createPlayer3D(options = {}) {
   let phase = Math.random() * Math.PI * 2;
   let kickTimer = 0;
   let lookTarget = null;
+  let celebrateTimer = 0;
 
   const api = {
     root,
@@ -294,8 +295,27 @@ export function createPlayer3D(options = {}) {
     head,
     legs,
     arms,
+    /** Comemoração de gol: braços para o alto e pulo curto. */
+    celebrate(duration = 2.6) {
+      celebrateTimer = duration;
+    },
     /** Anima a corrida: a velocidade define o balanço das pernas. */
     update(dt, { speed = 0, moving = false } = {}) {
+      if (celebrateTimer > 0) {
+        celebrateTimer = Math.max(0, celebrateTimer - dt);
+        body.position.y = Math.abs(Math.sin(celebrateTimer * 5.4)) * 0.22;
+        body.rotation.x = -0.05;
+        body.rotation.z = 0;
+        arms[0].shoulder.rotation.x = -2.35;
+        arms[1].shoulder.rotation.x = -2.35;
+        arms[0].shoulder.rotation.z = 0.55;
+        arms[1].shoulder.rotation.z = -0.55;
+        arms[0].forearm.rotation.x = -0.5;
+        arms[1].forearm.rotation.x = -0.5;
+        head.rotation.x = -0.2;
+        return;
+      }
+      head.rotation.x = 0;
       const rate = Math.min(speed / 6, 1.6);
       if (moving) phase += dt * (4 + rate * 9);
       const swing = moving ? 0.28 + rate * 0.55 : 0.06;

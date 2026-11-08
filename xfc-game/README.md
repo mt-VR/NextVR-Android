@@ -14,7 +14,9 @@ rotação em paisagem (`sensorLandscape`).
 Nesta primeira etapa o jogo tem **o menu**:
 
 1. **Intro** — selo circular da XF Esports + logotipo XFC lado a lado sobre o
-   fundo geométrico azul/verde.
+   fundo geométrico azul/verde, com a barra de carregamento.
+1.1 **Abertura** — o atleta destaque (Neymar Jr.) em tela cheia, com o botão
+   **Entrar** sobre a arte; clicar nele leva ao menu principal.
 2. **Menu principal** — marca no canto superior esquerdo, barra de XP à direita,
    lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
    arte do jogador no gramado à direita, título *Dive straight into the action*
@@ -44,12 +46,20 @@ Nesta primeira etapa o jogo tem **o menu**:
    cartão do jogador controlado no canto inferior esquerdo (número, nome, OVR
    e condição) e o **adversário mais próximo da bola** no canto inferior
    direito; radar tático no centro inferior; quatro botões grandes
-   (PASSE, CHUTE, DRIBLE e CORRER) com DESARME e TROCAR menores; **anel azul**
+   (PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e TROCAR — atalhos: J, K, E, R, Shift, F, Tab); **anel azul**
    sob o atleta controlado e **analógico fixo** no canto inferior esquerdo.
+   Áudio procedural sintetizado no aparelho (apito do árbitro no início, no
+   intervalo, no impedimento e no fim; festa da torcida a cada gol; batida da
+   bola nos chutes; aplausos no apito final). O autor do gol comemora com os
+   braços para o alto e a torcida faz a festa; o árbitro aparece no círculo
+   central no apito inicial e no apito final.
    Os bonecos de FC Barcelona e Real Madrid usam os **retratos reais** dos
    jogadores como rosto. Ao fim do tempo, a tela de resultado mostra os
    **escudos dos dois clubes** e o placar final sobre um fundo de estádio
-   escuro, no estilo dos cartões de resultado.
+   escuro, no estilo dos cartões de resultado. A tela de resultado traz,
+   embaixo do placar, as estatísticas completas da partida (posse de bola,
+   finalizações, chutes ao gol, passes certos, defesas, escanteios, faltas e
+   cartões), além de REJOGAR e VOLTAR AO MENU.
 
 Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
 retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
@@ -65,6 +75,7 @@ dos escudos — nítidas em qualquer tela e sem pesar o pacote. Para os clubes
 cuja foto de uniforme veio no **pacote de imagens do XFC**, a foto real do
 jogador de corpo inteiro aparece na tela de escolher blusas e o recorte da
 camisa vira a miniatura do uniforme na tela de escolha de times.
+
 
 ## Como rodar
 
@@ -85,7 +96,9 @@ página mostra as instruções em vez de ficar numa tela azul.
 
 `xfc-game/android/` é uma casca Android que embute o jogo no APK e o roda
 offline em um WebView (os arquivos são servidos sob a origem virtual
-`https://xfc.local/`, porque módulos ES não funcionam em `file://`).
+`https://xfc.local/`, porque módulos ES não funcionam em `file://`). O ícone
+do aplicativo é a arte oficial do XFC (Neymar Jr. com a camisa da seleção, em
+`res/mipmap-*`, adaptativo para Android 8+).
 
 ```bash
 # build isolado: não interfere no build do NextVR

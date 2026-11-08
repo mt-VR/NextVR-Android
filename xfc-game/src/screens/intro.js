@@ -24,7 +24,7 @@ export function introScreen(ctx) {
   const advance = () => {
     if (timer) clearTimeout(timer);
     timer = null;
-    ctx.go('menu');
+    ctx.go('launch');
   };
 
   return {

@@ -12,6 +12,7 @@ import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
 import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
+import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
@@ -77,7 +78,7 @@ export function playScreen(ctx, params = {}) {
         type: 'button',
         onClick: () => startMatch()
       }, 'COMEÇAR PARTIDA'),
-      el('p', { class: 'prematch__hint', text: 'Analógico para mover · PASSE, CHUTE, DRIBLE, CORRER, DESARME e TROCAR nos botões.' })
+      el('p', { class: 'prematch__hint', text: 'Analógico para mover · PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e TROCAR nos botões.' })
     );
   }
 
@@ -103,6 +104,9 @@ export function playScreen(ctx, params = {}) {
       root: stageBox,
       onCommand: name => {
         if (paused || stage !== 'live') return;
+        if (name === 'pass') kickSound(0.5);
+        else if (name === 'lob') kickSound(0.65);
+        else if (name === 'shoot') kickSound(0.9);
         match.world.command(name);
       },
       onMove: (x, z) => {
@@ -127,23 +131,35 @@ export function playScreen(ctx, params = {}) {
     switch (event.type) {
       case 'goal': {
         const team = event.team === 'home' ? home : away;
-        hud.showBanner(`GOOOL! ${team.name}`, 'goal', 2600);
+        const [homeScore, awayScore] = event.score;
+        cheer({ duration: 2.8, peak: 0.55 });
+        hud.showBanner(`GOOOL DO ${team.name.toUpperCase()}!  ${homeScore} × ${awayScore}`, 'goal', 3000);
         hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${event.scorer?.name || ''}`, 'goal');
+        // O autor do gol comemora de verdade (braços ao alto).
+        try {
+          const scorer = event.scorer;
+          if (scorer?.model?.celebrate) scorer.model.celebrate(2.7);
+        } catch { /* comemoração é detalhe */ }
         break;
       }
       case 'card': {
         const team = event.team === 'home' ? home : away;
         const color = event.color === 'red' ? '🟥' : '🟨';
+        if (event.color === 'red') boo();
+        else whistle('short');
         hud.pushEvent(`${color} ${event.minute}' ${team.name} — ${event.player.name}`, event.color);
+        break;
+      }
+      case 'offside': {
+        whistle('double');
+        hud.pushEvent('🚩 Impedimento', 'info');
         break;
       }
       case 'foul':
         hud.pushEvent(`🚨 ${Math.floor(event.minute)}' Falta de ${event.player.name}`, 'foul');
         break;
-      case 'offside':
-        hud.pushEvent(`🚩 Impedimento`, 'info');
-        break;
       case 'halftime':
+        whistle('double');
         hud.showBanner('INTERVALO', 'info', 2600);
         match?.world.setPaused(true);
         setTimeout(() => {
@@ -151,6 +167,7 @@ export function playScreen(ctx, params = {}) {
         }, 1200);
         break;
       case 'fulltime':
+        whistle('long');
         setTimeout(() => {
           if (stage === 'live') showResult(event);
         }, 900);
@@ -161,6 +178,7 @@ export function playScreen(ctx, params = {}) {
   }
 
   function startMatch() {
+    whistle('triple');
     stage = 'live';
     overlay.replaceChildren();
     overlay.classList.remove('is-visible');
@@ -201,6 +219,14 @@ export function playScreen(ctx, params = {}) {
     overlay.classList.add('is-visible');
   }
 
+  function resultStatLine(label, homeValue, awayValue) {
+    return el('div', { class: 'result__stat' },
+      el('span', { text: String(homeValue) }),
+      el('span', { class: 'result__stat-label', text: label }),
+      el('span', { text: String(awayValue) })
+    );
+  }
+
   function statLine(label, homeValue, awayValue) {
     return el('div', { class: 'pause__stat' },
       el('span', { text: String(homeValue) }),
@@ -213,6 +239,7 @@ export function playScreen(ctx, params = {}) {
     stage = 'result';
     controls?.setEnabled(false);
     hud?.node.classList.remove('is-visible');
+    applause();
     const [homeScore, awayScore] = event.score;
     const winner = homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away';
     const champion = winner === 'home' ? home : winner === 'away' ? away : null;
@@ -234,6 +261,16 @@ export function playScreen(ctx, params = {}) {
           el('b', { class: 'result__name', text: away.name }),
           el('img', { class: 'result__crest', src: away.crest, alt: `Escudo do ${away.name}` })
         )
+      ),
+      el('div', { class: 'result__stats' },
+        resultStatLine('Posse de bola', `${event.stats?.home.possession ?? 50}%`, `${event.stats?.away.possession ?? 50}%`),
+        resultStatLine('Finalizações', event.stats?.home.shots ?? 0, event.stats?.away.shots ?? 0),
+        resultStatLine('Chutes ao gol', event.stats?.home.shotsOn ?? 0, event.stats?.away.shotsOn ?? 0),
+        resultStatLine('Passes certos', event.stats?.home.passesOn ?? 0, event.stats?.away.passesOn ?? 0),
+        resultStatLine('Defesas', event.stats?.home.saves ?? 0, event.stats?.away.saves ?? 0),
+        resultStatLine('Escanteios', event.stats?.home.corners ?? 0, event.stats?.away.corners ?? 0),
+        resultStatLine('Faltas', event.stats?.home.fouls ?? 0, event.stats?.away.fouls ?? 0),
+        resultStatLine('Cartões', event.stats?.home.cards ?? 0, event.stats?.away.cards ?? 0)
       ),
       champion
         ? el('div', { class: 'result__winner' },

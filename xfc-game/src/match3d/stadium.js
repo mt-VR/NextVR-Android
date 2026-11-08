@@ -308,9 +308,10 @@ function buildStand(width, depth, height, texture, options = {}) {
   back.position.set(0, height / 2, -depth / 2 - 0.6);
   group.add(back);
 
-  // Cobertura.
+  // Cobertura (alinhada com o muro, sem balançar para cima do gramado —
+  // o balanço aparecia no enquadramento da câmera como uma faixa escura).
   const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 2, 0.9, depth + 8), roofMaterial);
-  roof.position.set(0, height + 5.4, -1.4);
+  roof.position.set(0, height + 5.4, -3.6);
   group.add(roof);
 
   for (let column = -2; column <= 2; column += 1) {

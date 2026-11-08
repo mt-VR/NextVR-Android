@@ -172,6 +172,12 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       await page.keyboard.press('Enter');
     }
 
+    // Tela de abertura (Neymar): "Entrar" leva ao menu principal.
+    await page.waitForSelector('.screen--launch', { timeout: 15000 });
+    assert.ok(await page.locator('.launch__art').isVisible(), 'a arte da tela de abertura aparece');
+    assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
+    await page.click('.launch__enter');
+
     // Menu: lista de modos com KICK OFF liberado e os demais marcados como futuros.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     const navLabels = await page.locator('.menu__item').allTextContents();
@@ -290,6 +296,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
 
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--launch', { timeout: 15000 });
+    await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
 
     // O menu ganha o modo PARTIDAS RÁPIDAS (o jogo de futebol 3D).
@@ -321,7 +329,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(await page.locator('.hud__score').count(), 2, 'o placar mostra os dois placares');
     assert.ok(await page.locator('.hud__clock').isVisible(), 'o placar mostra o relógio');
     assert.ok(await page.locator('.hud__radar').isVisible(), 'o radar aparece no HUD');
-    assert.equal(await page.locator('.ctrl-btn').count(), 6, 'há os seis botões de ação');
+    assert.equal(await page.locator('.ctrl-btn').count(), 7, 'há os sete botões de ação');
     assert.ok(await page.locator('.controls__stick-zone').count(), 'há o analógico virtual');
     const quickStickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(quickStickBox && quickStickBox.x < 260 && quickStickBox.y > 460,
@@ -381,6 +389,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(await page.locator('.result__crest').count() === 2, 'o resultado mostra os dois escudos');
     assert.ok(await page.locator('.btn:has-text("REJOGAR")').count(), 'o resultado tem REJOGAR');
     assert.ok(await page.locator('.btn:has-text("VOLTAR AO MENU")').count(), 'o resultado tem VOLTAR AO MENU');
+    assert.equal(await page.locator('.result__stat').count(), 8, 'a tela de resultado traz as estatísticas da partida');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);

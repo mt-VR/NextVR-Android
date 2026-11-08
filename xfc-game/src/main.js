@@ -6,6 +6,7 @@
 import { createState, saveProfile } from './state.js';
 import { el, clear } from './ui/dom.js';
 import { introScreen } from './screens/intro.js';
+import { launchScreen } from './screens/launch.js';
 import { menuScreen } from './screens/menu.js';
 import { kickoffScreen } from './screens/kickoff.js';
 import { kitsScreen } from './screens/kits.js';
@@ -13,6 +14,12 @@ import { squadScreen } from './screens/squad.js';
 import { matchScreen } from './screens/match.js';
 import { quickMatchScreen } from './screens/quickmatch.js';
 import { playScreen } from './screens/play.js';
+import { unlockAudio } from './audio.js';
+
+// O áudio (apito, torcida) só pode começar após um gesto do usuário.
+for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
+  window.addEventListener(eventName, unlockAudio, { once: true, passive: true });
+}
 
 const app = document.querySelector('.app');
 const host = document.getElementById('screen');
@@ -22,6 +29,7 @@ export const state = createState();
 
 const registry = {
   intro: introScreen,
+  launch: launchScreen,
   menu: menuScreen,
   kickoff: kickoffScreen,
   kits: kitsScreen,
