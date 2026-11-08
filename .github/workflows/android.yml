@@ -99,9 +99,11 @@ jobs:
         if: steps.ui.outcome != 'success'
         continue-on-error: true
         run: |
+          # O bloco de erro do node --test (a asserção que caiu, com a mensagem) vem logo DEPOIS
+          # da linha "not ok": é ele que diz o que consertar.
           BODY=$(sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/ui.log \
-            | grep -E '^not ok|^# fail|error:|Error:|FAIL|DIFERENTE|✖' \
-            | tail -14 | cut -c1-500 \
+            | awk '/^not ok/{show=28} show>0{print;show--}' \
+            | head -30 | cut -c1-500 \
             | awk 'NR>1{printf "%%0A"} {printf "%s",$0}')
           echo "::error::passo UI falhou: ${BODY:-<sem saída em /tmp/ui.log>}"
           TAIL=$(tail -6 /tmp/ui.log | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\r//g' \
