@@ -11,6 +11,8 @@ import { kickoffScreen } from './screens/kickoff.js';
 import { kitsScreen } from './screens/kits.js';
 import { squadScreen } from './screens/squad.js';
 import { matchScreen } from './screens/match.js';
+import { quickMatchScreen } from './screens/quickmatch.js';
+import { playScreen } from './screens/play.js';
 
 const app = document.querySelector('.app');
 const host = document.getElementById('screen');
@@ -24,7 +26,9 @@ const registry = {
   kickoff: kickoffScreen,
   kits: kitsScreen,
   squad: squadScreen,
-  match: matchScreen
+  match: matchScreen,
+  quick: quickMatchScreen,
+  play: playScreen
 };
 
 let current = null;

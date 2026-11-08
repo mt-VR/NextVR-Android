@@ -12,6 +12,7 @@ import { formatXp } from '../state.js';
 const MENU_ITEMS = [
   { id: 'news', label: 'FC NEWS' },
   { id: 'kickoff', label: 'KICK OFF', available: true },
+  { id: 'quick', label: 'PARTIDAS RÁPIDAS', available: true },
   { id: 'grounds', label: 'THE GROUNDS' },
   { id: 'ultimate', label: 'ULTIMATE TEAM' },
   { id: 'learn', label: 'LEARN TO PLAY' },
@@ -50,7 +51,7 @@ export function menuScreen(ctx) {
   const hero = el('section', { class: 'menu__hero' },
     el('h1', { class: 'menu__headline', text: 'Dive straight into the action' }),
     el('div', { class: 'menu__sub' },
-      el('button', { type: 'button', text: 'Quick matches', onClick: () => ctx.go('kickoff') }),
+      el('button', { type: 'button', text: 'Quick matches', onClick: () => ctx.go('quick') }),
       el('span', { text: '•' }),
       el('button', { type: 'button', text: 'Couch Co-op', onClick: () => ctx.toast('Couch Co-op chega na próxima etapa.') }),
       el('span', { text: '•' }),
@@ -108,11 +109,13 @@ export function menuScreen(ctx) {
   );
 
   function activate(item) {
-    if (item.available) {
-      ctx.go('kickoff');
+    if (!item.available) {
+      ctx.toast(`${item.label} chega na próxima etapa do XFC.`, { variant: 'warn' });
       return;
     }
-    ctx.toast(`${item.label} chega na próxima etapa do XFC.`, { variant: 'warn' });
+    // KICK OFF abre o fluxo completo (times, blusas, elenco); PARTIDAS
+    // RÁPIDAS vai direto para o confronto jogável.
+    ctx.go(item.id === 'quick' ? 'quick' : 'kickoff');
   }
 
   function paint() {

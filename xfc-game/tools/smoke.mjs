@@ -58,11 +58,28 @@ check('a intro mostra a marca XF Esportes e o XFC',
 
 press('Enter');
 check('Enter leva ao menu', document.querySelector('.screen--menu'));
-check('o menu lista KICK OFF e os outros modos',
-  document.querySelectorAll('.menu__item').length === 9);
-check('apenas KICK OFF está liberado',
-  document.querySelectorAll('.menu__item--available').length === 1);
+check('o menu lista KICK OFF, PARTIDAS RÁPIDAS e os outros modos',
+  document.querySelectorAll('.menu__item').length === 10);
+check('KICK OFF e PARTIDAS RÁPIDAS estão liberados',
+  document.querySelectorAll('.menu__item--available').length === 2);
 check('a barra de XP mostra 3K/3K', document.querySelector('.menu__xp-text')?.textContent.includes('3K/3K'));
+
+// O atalho de PARTIDAS RÁPIDAS abre o confronto jogável em 3D.
+const quick = [...document.querySelectorAll('.menu__item')]
+  .find(item => item.textContent.includes('RÁPIDAS'));
+quick.click();
+check('PARTIDAS RÁPIDAS abre a tela do confronto',
+  Boolean(document.querySelector('.screen--quick')));
+check('a tela traz HOME e AWAY com escudo e blusas',
+  document.querySelectorAll('.quick__panel').length === 2 &&
+  document.querySelectorAll('.quick__crest').length === 2 &&
+  document.querySelectorAll('.quick__kit').length >= 6);
+check('há o INICIAR PARTIDA',
+  [...document.querySelectorAll('.btn')].some(button => button.textContent.includes('INICIAR PARTIDA')));
+// A partida em si roda em WebGL: quem confere isso é o teste de navegador
+// (tests/xfc-game.test.mjs). Aqui só voltamos ao menu.
+document.querySelector('.quick__actions .btn:last-child').click();
+check('VOLTAR AO MENU funciona', Boolean(document.querySelector('.screen--menu')));
 
 document.querySelector('.menu__cta').click();
 check('o botão leva ao Kick Off', document.querySelector('.screen--kickoff'));

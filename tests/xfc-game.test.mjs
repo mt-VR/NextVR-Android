@@ -129,8 +129,10 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const navLabels = await page.locator('.menu__item').allTextContents();
     assert.ok(navLabels.some(label => label.includes('KICK OFF')), 'o menu tem KICK OFF');
     assert.ok(navLabels.some(label => label.includes('ULTIMATE TEAM')), 'o menu tem os demais modos');
-    assert.equal(await page.locator('.menu__item--dim').count(), navLabels.length - 1,
-      'apenas o KICK OFF está liberado nesta etapa');
+    assert.equal(await page.locator('.menu__item--available').count(), 2,
+      'KICK OFF e PARTIDAS RÁPIDAS estão liberados nesta etapa');
+    assert.equal(await page.locator('.menu__item--dim').count(), navLabels.length - 2,
+      'os demais modos seguem como futuros');
     assert.ok(await page.locator('.menu__wordmark svg').isVisible(), 'o menu mostra a marca XFC');
     assert.ok((await page.locator('.menu__xp-text').textContent()).includes('3K/3K'), 'a barra de XP mostra 3K/3K');
 
@@ -198,6 +200,116 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // O favicon não é servido pelo servidor do jogo: o ruído dele não interessa.
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a tela não deve gerar erro de console: ${realErrors.join(' | ')}`);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout: 180000 }, async (t) => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) {
+    server.close();
+    return;
+  }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--menu', { timeout: 15000 });
+
+    // O menu ganha o modo PARTIDAS RÁPIDAS (o jogo de futebol 3D).
+    const quickItem = page.locator('.menu__item', { hasText: /RÁPIDAS/i }).first();
+    assert.ok(await quickItem.count(), 'o menu lista PARTIDAS RÁPIDAS');
+    await quickItem.click();
+    await page.waitForSelector('.screen--quick', { timeout: 15000 });
+    assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
+    assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
+    assert.ok(await page.locator('.quick__kit').count() >= 6, 'cada lado oferece as blusas do clube');
+    assert.ok(await page.locator('.btn:has-text("INICIAR PARTIDA")').count(), 'há o botão INICIAR PARTIDA');
+
+    // Duração e dificuldade são ajustáveis antes de começar.
+    await page.locator('.quick__option', { hasText: 'CURTA' }).first().click();
+    await page.locator('.quick__option', { hasText: 'FÁCIL' }).first().click();
+
+    await page.click('.quick__actions .btn--primary');
+    await page.waitForSelector('.screen--play', { timeout: 15000 });
+
+    // Pré-jogo: os dois escudos, o X no centro e o CTA.
+    assert.equal(await page.locator('.prematch__crest').count(), 2, 'o pré-jogo mostra os dois escudos');
+    assert.ok(await page.locator('.prematch__x-mark').isVisible(), 'o pré-jogo mostra o X no centro');
+    assert.ok(await page.locator('.prematch__cta').isVisible(), 'o pré-jogo tem o botão de começar');
+    await page.click('.prematch__cta');
+
+    // Partida: HUD, radar e controles na tela.
+    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    assert.equal(await page.locator('.hud__crest').count(), 2, 'o placar mostra os dois escudos');
+    assert.equal(await page.locator('.hud__score').count(), 2, 'o placar mostra os dois placares');
+    assert.ok(await page.locator('.hud__clock').isVisible(), 'o placar mostra o relógio');
+    assert.ok(await page.locator('.hud__radar').isVisible(), 'o radar aparece no HUD');
+    assert.equal(await page.locator('.ctrl-btn').count(), 6, 'há os seis botões de ação');
+    assert.ok(await page.locator('.controls__stick-zone').count(), 'há o analógico virtual');
+
+    // A simulação realmente roda: o relógio anda, a bola se mexe e o placar
+    // existe para as duas equipes.
+    const running = await page.evaluate(async () => {
+      const match = window.__xfcMatch;
+      const before = match.world.snapshot();
+      for (let index = 0; index < 600; index += 1) match.world.tick(1 / 60);
+      const after = match.world.snapshot();
+      return {
+        before,
+        after,
+        ball: { x: match.ball.state.position.x, z: match.ball.state.position.z },
+        players: match.world.members('home').length + match.world.members('away').length,
+        keeperHome: match.world.members('home').filter(player => player.isKeeper).length
+      };
+    });
+    assert.equal(running.players, 22, 'a partida tem onze jogadores em cada time');
+    assert.equal(running.keeperHome, 1, 'cada time tem um goleiro');
+    assert.ok(running.after.minutes > running.before.minutes, 'o relógio avança durante a partida');
+    assert.ok(Number.isFinite(running.ball.x) && Number.isFinite(running.ball.z), 'a bola fica dentro do campo');
+    assert.equal(running.after.score.length, 2, 'o placar tem os dois times');
+
+    // O jogo pausa no intervalo: o jogador volta com o botão do segundo tempo.
+    await page.evaluate(async () => {
+      const match = window.__xfcMatch;
+      for (let index = 0; index < 60000; index += 1) {
+        match.world.tick(1 / 60);
+        if (match.phase.name === 'halftime') break;
+      }
+    });
+    await page.waitForSelector('.pause__title', { timeout: 20000 });
+    assert.ok((await page.locator('.pause__title').textContent()).includes('INTERVALO'),
+      'o intervalo aparece no meio da partida');
+    await page.click('.pause .btn--primary');
+
+    // O resultado aparece ao fim do tempo, com o placar e o botão de rejogar.
+    const finished = await page.evaluate(async () => {
+      const match = window.__xfcMatch;
+      for (let index = 0; index < 60000; index += 1) {
+        match.world.tick(1 / 60);
+        if (match.phase.name === 'fulltime') break;
+      }
+      return match.world.snapshot();
+    });
+    assert.equal(finished.phase, 'fulltime', 'a partida termina');
+    assert.ok(finished.display.startsWith('9'), `o relógio marca o fim do tempo: ${finished.display}`);
+    await page.waitForSelector('.result__title', { timeout: 20000 });
+    assert.equal((await page.locator('.result__title').textContent()).trim(), 'FIM DE JOGO');
+    assert.ok(await page.locator('.result__crest').count() === 2, 'o resultado mostra os dois escudos');
+    assert.ok(await page.locator('.btn:has-text("REJOGAR")').count(), 'o resultado tem REJOGAR');
+    assert.ok(await page.locator('.btn:has-text("VOLTAR AO MENU")').count(), 'o resultado tem VOLTAR AO MENU');
+
+    const realErrors = errors.filter(message => !/favicon/i.test(message));
+    assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);
   } finally {
     await browser.close();
     server.close();

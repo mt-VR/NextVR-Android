@@ -11,7 +11,8 @@ import { chromium } from '@playwright/test';
 import { launchChromium } from '../../tests/support/chromium.mjs';
 import { startXfcServer } from '../serve.mjs';
 
-const outDir = process.argv[2] || new URL('../screenshots/', import.meta.url).pathname;
+const target = process.argv[2] || new URL('../screenshots/', import.meta.url).pathname;
+const outDir = target.endsWith('/') ? target : `${target}/`;
 await mkdir(outDir, { recursive: true });
 
 const VIEWPORTS = [
@@ -75,6 +76,18 @@ for (const viewport of VIEWPORTS) {
   await shot('10-kickoff-wrexham');
   await page.click('.btn:has-text("Blusas")');
   await shot('11-kits-wrexham');
+  await page.keyboard.press('Escape');
+
+  // Partidas rápidas: escolha do confronto, pré-jogo e a partida em 3D.
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.screen--menu');
+  await page.click('.menu__item:has-text("RÁPIDAS")');
+  await shot('12-quick');
+  await page.click('.quick__actions .btn--primary');
+  await shot('13-prematch');
+  await page.click('.prematch__cta');
+  await shot('14-match3d');
   await page.close();
   await browser.close();
 }
