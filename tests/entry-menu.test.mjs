@@ -372,7 +372,10 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
     // Quatro abas: a 4ª é o Gorilla Tag (sala, skin e configurações do jogo), com 4 células.
     assert.equal(await page.locator('.entry-bento-cell').count(), 17);
-    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 5, 'o menu inicial tem 5 abas de configurações');
+    // "o menu de escolher a aparência vai sair das configurações": a antiga 5ª aba (acessórios)
+    // não existe mais — a aparência é escolhida no menu do próprio jogo.
+    assert.equal(await page.locator('[data-entry-settings-tab]').count(), 4, 'o menu inicial tem 4 abas de configurações');
+    assert.equal(await page.locator('[data-entry-settings-tab="5"]').count(), 0, 'e a aba de acessórios não existe mais');
     assert.equal(await page.locator('[data-entry-settings-page="4"] [data-entry-gorilla-join]').count(), 1,
       'a aba 4 tem o JOIN que entra no online');
     // A terceira aba existe no documento e leva a cor da dock e os ambientes (o que apertava a aba 2).
@@ -395,8 +398,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       const page3 = document.querySelector('[data-entry-settings-page="3"]');
       return Math.abs(car.scrollLeft - page3.offsetLeft) < 4;
     }), 'a aba 3 chega na vista do carrossel');
-    // 5b. Aba 4 (Gorilla Tag): skin, sala, configurações e o JOIN que entra no online. A ponte
-    // nativa é substituída por um espião — o que se testa aqui é o que a shell MANDA para o app.
+    // 5b. Aba 4 (Gorilla Tag): sala, modo, gráficos, tela, rastreio, servidor e o JOIN que entra no
+    // online — SEM aparência, que agora é do menu do jogo. A ponte nativa é substituída por um
+    // espião: o que se testa aqui é o que a shell MANDA para o app.
     await page.evaluate(() => {
       window.__gorillaCalls = [];
       window.NativeXR = Object.assign({}, window.NativeXR, {
@@ -407,27 +411,17 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     for (const hook of ['[data-entry-gorilla-mode="inf"]', '[data-entry-gorilla-gfx="1"]',
       '[data-entry-gorilla-room]', '[data-entry-gorilla-srv]', '[data-entry-gorilla-join]'])
       assert.equal(await page.locator(hook).count() > 0, true, `a aba 4 tem ${hook}`);
-    // 5b2. Aba 5 (Acessórios): cada peça no seu campo e cada opção no seu botão — "os acessórios
-    // tem que ficar separadinhos", nada de um botão que gira entre elas.
-    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="5"]').click());
-    assert.equal(await page.locator('[data-entry-settings-page="5"]').count(), 1, 'a aba 5 tem página própria');
-    for (const cell of ['acc-color', 'acc-glasses', 'acc-head', 'acc-clothes'])
-      assert.equal(await page.locator(`.entry-bento-cell--${cell}`).count(), 1, `a aba 5 tem o campo ${cell}`);
-    assert.equal(await page.locator('[data-entry-gorilla-acc]').count(), 0, 'a aba 5 não tem mais botão que gira');
-    const headChips = await page.locator('[data-entry-gorilla-acc-set^="accH:"]').count();
-    assert.ok(headChips >= 3, 'as opções de cabeça estão todas à vista');
-    await page.evaluate(() => document.querySelector('[data-entry-gorilla-acc-set="accH:h_top"]').click());
-    await new Promise(r => setTimeout(r, 40));
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nextvrGorillaPrefs') || '{}').accH), 'h_top',
-      'escolher um acessório grava a escolha, sem passar pelas outras');
-    await page.evaluate(() => document.querySelector('[data-entry-settings-tab="4"]').click());
+    // 5b2. A aparência saiu daqui: nenhuma cor e nenhum acessório nas Configurações do app.
+    assert.equal(await page.locator('[data-entry-settings-page="5"]').count(), 0, 'não existe página de acessórios');
+    assert.equal(await page.locator('[data-entry-gorilla-color]').count(), 0, 'nem botões de cor');
+    assert.equal(await page.locator('[data-entry-gorilla-acc-set]').count(), 0, 'nem botões de acessório');
     // Sem servidor o JOIN não finge online: abre a janela do motivo.
     await page.evaluate(() => document.querySelector('[data-entry-gorilla-join]').click());
     await new Promise(r => setTimeout(r, 120));
     assert.equal(await page.evaluate(() => window.__gorillaCalls.length), 0, 'sem servidor o JOIN não abre o jogo');
     assert.equal(await page.locator('#nextvr-gorilla-problem, [data-window-id="nextvr-gorilla-problem"]').count() > 0, true,
       'sem servidor, o JOIN explica o que falta em vez de não fazer nada');
-    // Com servidor, sala, modo e skin escolhidos, o JOIN manda tudo para a página do jogo.
+    // Com servidor, sala e modo escolhidos, o JOIN manda a partida para a página do jogo — e SÓ ela.
     const joinPayload = await page.evaluate(async () => {
       const type = (sel, value) => {
         const el = document.querySelector(sel);
@@ -438,10 +432,6 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       type('[data-entry-gorilla-room]', 'nv123');
       document.querySelector('[data-entry-gorilla-mode="inf"]').click();
       await new Promise(r => requestAnimationFrame(() => r()));
-      document.querySelector('[data-entry-gorilla-acc-set="accH:h_top"]').click();
-      await new Promise(r => requestAnimationFrame(() => r()));
-      document.querySelector('[data-entry-gorilla-color="#e53935"]').click();
-      await new Promise(r => requestAnimationFrame(() => r()));
       document.querySelector('[data-entry-gorilla-join]').click();
       await new Promise(r => setTimeout(r, 120));
       return window.__gorillaCalls[window.__gorillaCalls.length - 1] || null;
@@ -451,8 +441,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(joinPayload.mode, 'inf', 'o modo escolhido vai junto');
     assert.equal(joinPayload.srv, 'ws://192.168.0.10:8787', 'e o servidor digitado vira um endereço WebSocket');
     assert.equal(joinPayload.solo, false, 'o JOIN é o caminho ONLINE (sozinho é pela Biblioteca)');
-    assert.equal(joinPayload.col, '#e53935', 'e a cor da skin escolhida vai junto');
-    assert.equal(joinPayload.accH, 'h_top', 'o acessório escolhido na aba 5 vai junto');
+    // A aparência NÃO viaja: quem escolhe é o menu do jogo (STYLE), e o app não sobrescreve.
+    assert.equal('col' in joinPayload, false, 'nenhuma cor vai no payload');
+    assert.equal('accH' in joinPayload, false, 'nenhum acessório vai no payload');
 
     await page.evaluate(() => document.querySelector('[data-entry-settings-tab="1"]').click());
     assert.equal(await page.locator('[data-entry-internal-rec]').count(), 0, 'Internal recording is in in-game settings, not in 2D initial menu');
