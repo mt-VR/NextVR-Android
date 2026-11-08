@@ -249,7 +249,7 @@ test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma r
     'o piso de emissão do 6DoF continua 0.0028 (não desce com esta rodada)');
 });
 
-test('lentes: 67 mm, a conta do SDK do Cardboard e o círculo de 86 % (mesmo tamanho do app)', async () => {
+test('lentes: 67 mm, a conta do SDK do Cardboard e o retângulo de cantos redondos (como o app)', async () => {
   const game = await read(FILES.game);
   // "as lentes do Google cardboard e 67mm": o IPD do app e o do voo passam de 64 para 67 mm.
   assert.match(game, /const IPD=\.067, SCR_W=\.145/, 'o voo usa 67 mm entre os olhos (era 64)');
@@ -267,11 +267,15 @@ test('lentes: 67 mm, a conta do SDK do Cardboard e o círculo de 86 % (mesmo tam
   assert.ok(game.includes('float f=1.+${K1}*s2+${K2}*s2*s2;'),
     'a correção multiplica o raio (Distort do SDK), não divide');
   assert.equal(game.includes('/(1.+${K1}+${K2})'), false, 'a divisão que ampliava o centro saiu');
-  // Tamanho: 80° de campo dentro de um círculo de 86 % do raio do olho (a proporção do próprio SDK).
-  assert.match(game, /LN_FOV=80, LN_FILL=0\.86/, 'o campo entregue é 80° e o círculo, 86 % do olho');
-  assert.ok(game.includes('LN_TE=LN_TH/LN_FILL'), 'a borda do olho corresponde a tan(40°)/0,86');
-  assert.ok(game.includes('vec2 q=p*f*(th/tt);float r=length(q);'), 'a amostra é radial e normalizada pela textura');
-  assert.ok(game.includes('c*(1.-smoothstep(.92,1.,r))'), 'e a imagem fecha em curva (lente redonda)');
+  // Tamanho: 80° de campo dentro de 86 % do olho (a proporção do próprio SDK).
+  assert.match(game, /LN_FOV=80, LN_FILL=0\.86/, 'o campo entregue é 80° e a imagem ocupa 86 % do olho');
+  assert.ok(game.includes('LN_TE=LN_TH/LN_FILL'), 'a borda corresponde a tan(40°)/0,86');
+  assert.ok(game.includes('vec2 q=p*f*(th/tt);'), 'a amostra é radial e normalizada pela textura');
+  // "as lentes não são circulares, são assim, tipo a do WebXR": o recorte é caixa arredondada.
+  assert.match(game, /LN_FILL=0\.86, LN_CORNER=0\.26/, 'o canto redondo é 26 % da meia-largura');
+  assert.ok(game.includes('float rc=min(corner,min(b.x,b.y)*.9);'),
+    'e o recorte é a distância assinada de uma caixa de cantos redondos');
+  assert.equal(game.includes('smoothstep(.92,1.,r)'), false, 'nada de recorte circular');
   assert.match(game, /dmat\.uniforms\.ar\.value=h\/Math\.max\(1,hw\);/, 'o desenho passa a proporção do olho para o shader');
   assert.equal(/dmat\.uniforms\.(sz|c)\.value/.test(game), false, 'e não usa mais a escala/centro deslocados');
   // O `fov` do three é vertical: sai do horizontal de 49,4° dividido pela proporção do olho.
@@ -285,8 +289,10 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
   // A rodada 2.6.2 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'gorilla-modelo-antigo-lentes-retangulo-chao'/,
+    'o gorila do HTML antigo, as lentes retangulares e o nascimento no chão têm ficha, no topo');
   assert.match(updates, /id: 'gorilla-corpo-reserva-lentes-menores'/,
-    'o corpo reserva e as lentes menores têm ficha, no topo');
+    'e a do corpo reserva continua lá, logo abaixo');
   assert.match(updates, /id: 'gorilla-boneco-lentes-67-bordas'/,
     'o boneco, as lentes de 67 mm e as bordas têm ficha própria, no topo');
   assert.match(updates, /id: 'cockpit-qualidade-e-sem-travamento'/,
@@ -295,8 +301,8 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
   assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
     'lentes, mãos grudadas, seta e Ryuzaki também');
   const build = await read('nextvr-android/build.gradle');
-  assert.match(build, /versionCode 120/, 'o APK desta rodada é o 120');
-  assert.match(build, /versionName "2\.6\.4"/, 'e se chama 2.6.4 (a 2.6.3 é a que está publicada)');
+  assert.match(build, /versionCode 121/, 'o APK desta rodada é o 121');
+  assert.match(build, /versionName "2\.6\.5"/, 'e se chama 2.6.5 (a 2.6.4 não chegou a ser publicada)');
   const badge = await read('web/src/entry-menu.js');
-  assert.match(badge, /v2\.6\.4/, 'o selo da tela de entrada acompanha');
+  assert.match(badge, /v2\.6\.5/, 'o selo da tela de entrada acompanha');
 });

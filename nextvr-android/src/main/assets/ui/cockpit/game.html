@@ -305,7 +305,7 @@ const rig=new THREE.Group(); rig.position.set(-.3,1.85,.3); rig.rotation.y=Math.
 const cam=new THREE.PerspectiveCamera(70,1,.05,3000); rig.add(cam);
 /* 80° é o campo ENTREGUE (perfil Cardboard v1, o mesmo do resto do app); a textura precisa cobrir
    Distort(tan 40°) ≈ 49,4° por lado, senão a correção encolheria o campo. */
-const LN_FOV=80, LN_FILL=0.86, LN_TH=Math.tan((LN_FOV/2)*Math.PI/180), LN_TE=LN_TH/LN_FILL,
+const LN_FOV=80, LN_FILL=0.86, LN_CORNER=0.26, LN_TH=Math.tan((LN_FOV/2)*Math.PI/180), LN_TE=LN_TH/LN_FILL,
   LN_TT=LN_TH*(1.+K1*LN_TH*LN_TH+K2*Math.pow(LN_TH,4));
 /* `fov` do three é VERTICAL: sai do horizontal que a lente define (49,4°) dividido pela proporção do
    olho, e é recalculado em draw() quando a proporção muda (rotação do celular). */
@@ -340,13 +340,18 @@ makeRTs(RT_H,2,RT_STEPS[rtStep]);
    TAN_HALF = tan(40°) é o campo por lado; TAN_TEX = Distort(TAN_HALF) ≈ 1,164 (~49,4°) é o campo
    que a textura precisa cobrir. O círculo da imagem fica em 86 % do raio do olho (LENS_FILL), que é
    a proporção do próprio SDK — assim o voo tem o MESMO tamanho de imagem que o NextVR fora do jogo. */
-const dmat=new THREE.ShaderMaterial({uniforms:{t:{value:null},ar:{value:1},th:{value:LN_TE},tt:{value:LN_TT}},
+const dmat=new THREE.ShaderMaterial({uniforms:{t:{value:null},ar:{value:1},th:{value:LN_TE},tt:{value:LN_TT},fill:{value:LN_FILL},corner:{value:LN_CORNER}},
   vertexShader:'varying vec2 u;void main(){u=uv;gl_Position=vec4(position.xy*2.,0.,1.);}',
-  fragmentShader:`varying vec2 u;uniform sampler2D t;uniform float ar,th,tt;
+  fragmentShader:`varying vec2 u;uniform sampler2D t;uniform float ar,th,tt,fill,corner;
   void main(){vec2 p=u*2.-1.;float s=length(vec2(p.x,p.y*ar))*th;float s2=s*s;
-  float f=1.+${K1}*s2+${K2}*s2*s2;vec2 q=p*f*(th/tt);float r=length(q);
+  float f=1.+${K1}*s2+${K2}*s2*s2;vec2 q=p*f*(th/tt);
   vec3 c=texture2D(t,clamp(q*.5+.5,0.,1.)).rgb;
-  gl_FragColor=vec4(c*(1.-smoothstep(.92,1.,r)),1.);}`,depthTest:false,depthWrite:false});
+  /* RECORTE do NextVR: retângulo de cantos arredondados, não círculo (o formato do mesh de
+     distorção do Cardboard). lg=1 dentro, 0 fora. */
+  vec2 b=vec2(fill,fill*ar);float rc=min(corner,min(b.x,b.y)*.9);
+  vec2 d=abs(vec2(p.x,p.y*ar))-(b-rc);
+  float sd=length(max(d,vec2(0.)))+min(max(d.x,d.y),0.)-rc;
+  gl_FragColor=vec4(c*(1.-smoothstep(-.010,.004,sd)),1.);}`,depthTest:false,depthWrite:false});
 const quad=new THREE.Mesh(new THREE.PlaneGeometry(1,1),dmat);quad.frustumCulled=false;
 const qScene=new THREE.Scene();qScene.add(quad);const qCam=new THREE.Camera();
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();}

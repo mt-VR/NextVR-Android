@@ -54,6 +54,16 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-modelo-antigo-lentes-retangulo-chao',
+    tag: 'CORREÇÃO · O GORILA DO HTML ANTIGO ENTROU NO JOGO · LENTES COMO AS DO APP · NASCIMENTO NO CHÃO',
+    time: 'Agora',
+    heading: 'O Gorila É o do Jogo Antigo, as Lentes Ficaram Como as do NextVR e Ele Nasce no Chão',
+    desc: 'O GORILA: você pediu e está feito — o modelo do gorila é o do HTML antigo, o mesmo que você jogava. Ele saiu de dentro daquele arquivo (o rig que viaja comprimido nele, "Customizable Gorilla Tag Monkey Model", de YouthfulPat501, licença CC-BY-4.0) e entrou no jogo no lugar do modelo que não aparecia. Os nomes dos ossos dele são outros, então o jogo traduz o esqueleto na chegada e cria o osso da palma que faltava: com isso a sua mão continua movendo o braço dele pelo mesmo caminho de sempre — é o nosso personagem, e quem mexe os braços é o rastreio de mão. '
+      + 'EMBAIXO DA TERRA: o jogador nascia numa coordenada fixa que cai DENTRO do terreno — começava enterrado, sem ver o mapa e sem ver o próprio corpo, e o resgate devolvia para o mesmo lugar. Agora o nascimento vem do próprio mapa (um raio de cima para baixo acha o chão) e existe resgate: se o jogador acabar sob o terreno, ele sobe para cima dele. '
+      + 'A SETA: a seta do chão saiu, como você pediu. '
+      + 'AS LENTES: não são mais um círculo. O recorte passou a ser um RETÂNGULO DE CANTOS ARREDONDADOS, que é o formato que o NextVR desenha fora do jogo (e o do WebXR) — mesmas contas, mesmo tamanho de imagem, outro formato. O mesmo ajuste foi feito no jogo de avião.',
+  },
+  {
     id: 'gorilla-corpo-reserva-lentes-menores',
     tag: 'CORREÇÃO · O GORILA NUNCA FICA SEM BONECO · LENTES MENORES, NO TAMANHO DA INTERFACE DO NEXTVR',
     time: 'Agora',

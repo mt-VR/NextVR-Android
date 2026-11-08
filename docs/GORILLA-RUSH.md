@@ -83,7 +83,7 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
-## Lentes e mãos (2.6.4)
+## Lentes e mãos (2.6.5)
 
 * **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
   MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
@@ -95,15 +95,21 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
 * **Barril:** o passe de tela cheia aplica a distorção da lente Cardboard v1 com os coeficientes
   oficiais (`k1 = 0,441`, `k2 = 0,156`) — os mesmos do `game.html` do Cockpit VR. É a correção que a
   lente do VR Box desfaz; o que NÃO existe é uma segunda distorção por cima do desenho do jogo.
-* **Tamanho e bordas (2.6.4):** a correção é a do SDK do Cardboard — `sdk/distortion_mesh.cc` mapeia
-  conteúdo da textura em `DistortInverse(t)`, então para um pixel de tela em `tan s` a amostra é
-  `t = s·(1+k1·s²+k2·s⁴)`: **multiplica** o raio. A imagem fica *menor* que a tela e o que passa da
-  textura vira preto. A 2.6.3 dividia por `(1+k1+k2)`, o que **ampliava o centro em 1,6×** — era o
-  "diminuí as lentes" do usuário. O círculo da imagem ocupa **86 % do raio do olho** (`LENS_FILL`),
-  que é a proporção a que o próprio SDK chega para o Cardboard v1 e a mesma da interface do NextVR
-  fora do jogo; em volta fica o anel preto com corte em curva (`smoothstep(0.92, 1.0, r)`), não em
-  esquadro. Como a correção usa só a parte de dentro da textura, o olho é **desenhado mais aberto**
-  (`renderFov`), com o `fov` vertical do three derivado do horizontal de 49,4°.
+* **Tamanho e correção (desde a 2.6.4):** a correção é a do SDK do Cardboard —
+  `sdk/distortion_mesh.cc` mapeia conteúdo da textura em `DistortInverse(t)`, então para um pixel de
+  tela em `tan s` a amostra é `t = s·(1+k1·s²+k2·s⁴)`: **multiplica** o raio. A 2.6.3 dividia por
+  `(1+k1+k2)`, o que **ampliava o centro em 1,6×** — era o "diminuí as lentes" do usuário. A imagem
+  ocupa **86 % do olho** (`LENS_FILL`). Como a correção usa só a parte de dentro da textura, o olho é
+  **desenhado mais aberto** (`renderFov`), com o `fov` vertical do three derivado do horizontal de
+  49,4°. Por construção, na borda do recorte a amostra cai exatamente na borda da textura
+  (`0,86 · tan(40°)/0,86 = tan 40°` e `Distort(tan 40°) = tan 49,4°`).
+* **Formato (2.6.5):** "as lentes não são circulares, são assim, tipo a do WebXR". O recorte era um
+  círculo (`smoothstep(0.92, 1.0, r)`) e passou a ser um **retângulo de cantos arredondados** — a
+  forma que o próprio mesh de distorção do Cardboard desenha e a que o NextVR mostra fora do jogo:
+  distância assinada de caixa arredondada, com canto de **26 % da meia-largura** (`LENS_CORNER`) e a
+  vertical na mesma unidade da horizontal (`vec2 b = vec2(fill, fill * ar)`), para o canto ser
+  redondo de verdade e não uma elipse. **O mesmo recorte vale no Cockpit VR** (`LN_CORNER` em
+  `assets/ui/cockpit/game.html`): as lentes são as mesmas nos dois jogos.
 * **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
   campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
   havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
@@ -121,9 +127,10 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
   boa por até **700 ms** e, dentro desse tempo, projeta até **220 ms** de movimento pela velocidade —
   o braço segue o caminho em vez de despencar. Isso vive em `parts/hands.js`
   (`NV_HOLD_MS`/`NV_EXTRAP_MS`, `nvHoldHands`), não no laço de render: o jogo recebe quadro pronto.
-* **Seta de direção:** `NVHEAD` (`parts/ingame.js`) desenha um pedaço de seta no chão, à frente do
-  gorila (`P.y - 1.08`), com opacidade 0,42, seguindo a direção da cabeça. Ela só é desenhada com
-  `state == 'play'`; no menu do jogo não aparece nada.
+* **Seta de direção: fora.** A seta no chão existia porque "tá bem difícil de saber pra onde o
+  gorilla vai". Em 2.6.5 o usuário pediu para tirar ("tira a seta que fica embaixo") e ela saiu do
+  laço e da geometria; `NVHEAD` ficou como objeto inerte (`tick()` vazio) para a sonda
+  `__nvGorilla()` não quebrar em quem já a consulta. `seta` na sonda agora é sempre `false`.
 * **Sonda:** `window.__nvGorilla()` informa `seguradas` (mão mantida), `seta` e `lente` — é como se
   confere, no aparelho, que o desenho é o do NextVR e que a mão não está sendo descartada.
 
@@ -149,6 +156,32 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
   `quadroMs`, `maoMs`, `cullRaio` e `leve`. Nada é escrito na tela.
 * **O que NÃO mudou:** o piso de emissão do 6DoF (`EMIT_MIN = 0.0028`, em `web/src/sixdof.js`) — a
   qualidade sobe pela resolução, não baixando o limiar do passo lento.
+
+## O modelo do gorila: o do HTML antigo (2.6.5)
+
+Pedido do usuário: **"entra no HTML antigo, pega o modelo do gorilla e põe no jogo, o nosso personagem
+é o gorilla, e mexemos o braço dele com o Hand"**.
+
+* **De onde veio:** o HTML antigo (`gorilla-tag-mapa-gorila-handtracking.html`) carrega o rig dentro
+  da constante `RIG_GZ` (base64 + gzip). Extraído, são **331 688 bytes** de glTF 2.0 —
+  "Customizable Gorilla Tag Monkey Model", de **YouthfulPat501** (Sketchfab, **CC-BY-4.0**), com
+  **15 ossos**, 3 malhas com pele e 3 texturas embutidas (jpeg). Ele está em
+  `tools/gorilla-rush/assets/gorila-tag.glb` e é o `PLAYER_B64` do jogo gerado, byte por byte
+  (o `adapt.mjs` escreve a base64 do arquivo; o teste compara os dois).
+* **O esqueleto é traduzido:** os ossos dele têm outro nome — `Upper Arm R_6`, `Lower Arm R_5`,
+  `Wrist R_4`, `Main_13`, `Head_0` — e não existem palma nem dedo do meio. `parts/esqueleto.js`
+  (`nvRenomeia`) roda na chegada do modelo, ANTES de `cloneMats`/`rig`, e traduz para os nomes que o
+  jogo já procura (`upper_arm_R_04`, `forearm_R_06`, `hand_R_05`, `body_01`, `head_02`,
+  `f_index_01_*`, `f_middle_01_*`) e **cria o osso da palma** (`palm_02_*`), filho do pulso,
+  apontando para os dedos. O nome do material do tronco vira `darkfur`, que é o que o `paint()`
+  colore. A tradução é idempotente: o modelo anterior (que já usa os nomes de destino) passaria
+  intacto, e rodar duas vezes não muda nada.
+* **Nada mais mudou:** `rig()`, `arm2()`, `handPose()`, `faceCam()`, `placeLab()` e `mkModel()`
+  continuam iguais — é por isso que **a mão do NextVR move o braço do gorila**: o alvo da mão vai
+  para `arm2()`, que resolve a IK nos ossos do modelo, seja ele qual for. O `build()` normaliza o
+  tamanho pelo comprimento do braço (`s0 = 1/(r1+r2)`), então o modelo entra no mesmo 1 m de alcance
+  do resto do jogo. O corpo reserva (`corpo.js`) fica como rede de segurança: ou é o modelo do HTML
+  antigo, ou é o reserva — nunca o vazio.
 
 ## O boneco: carga do modelo e corpo reserva (2.6.4)
 
@@ -182,6 +215,19 @@ mostra isso no aparelho. **O aviso de 8 s saiu:** ele disparava por tempo, num c
 estava decodificando o mapa, e acusava "o modelo não carregou" sem haver falha. Agora só avisa quem
 falhou de verdade — depois das três tentativas, com o motivo real — e existe um aviso separado de
 "ainda carregando" aos 30 s.
+
+## Nascimento no chão (2.6.5)
+
+"o modelo do gorilla n carrega, e fica embaixo da terra". O `spawnPos()` do jogo devolvia coordenadas
+fixas (`3,60 · 6,30 · -6,49` para quem já jogou, `59,32 · 17,21 · -23,61` para quem é novo). Se elas
+caem dentro do terreno, o jogador começa **enterrado**: não vê o mapa, não vê o próprio corpo, e o
+resgate por `floorMin` o devolvia para o mesmo lugar — daí a impressão de "o modelo não carrega".
+Agora:
+
+* `spawnPos()` usa o ponto que o `loadMap()` **já calculava** (`spawn`, um raio para baixo sobre o
+  mapa) e, por segurança, refaz o raio de 80 m acima dele; o jogador nasce **1,12 m acima do chão**;
+* a cada quadro, um raio de 8 m acima dos pés devolve o jogador para cima do terreno se ele acabar
+  embaixo dele (queda, mapa recarregado, nascimento herdado).
 
 ## Limites conhecidos
 

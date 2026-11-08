@@ -26,10 +26,14 @@
 //      grandes demais" que o usuário viu;
 //   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (renderFov), porque a
 //      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo;
-//   5. o TAMANHO: o círculo da imagem ocupa 86 % do raio do olho (`LENS_FILL`), que é a proporção que
-//      o próprio SDK chega para o Cardboard v1 (o conteúdo de 40° cai em ~86 % da tela). É o "deixa
-//      no mesmo tamanho do NextVR fora do jogo": a interface do app usa este mesmo perfil, então a
-//      imagem do jogo e a do app ficam do mesmo tamanho, com o anel preto em volta.
+//   5. o TAMANHO: a imagem ocupa 86 % do olho (`LENS_FILL`). Em 2.6.4 esse recorte era um CÍRCULO
+//      e o usuário corrigiu: "as lentes não são circulares, são assim, tipo a do WebXR". O formato
+//      do NextVR é um RETÂNGULO DE CANTOS ARREDONDADOS — é a forma que o mesh de distorção do
+//      Cardboard desenha (os cantos do conteúdo caem para dentro, as bordas ficam retas). Agora o
+//      recorte é uma caixa arredondada do mesmo tamanho da imagem: mesmas contas, outro formato;
+//   6. por construção, na borda do retângulo a amostra cai EXATAMENTE na borda da textura
+//      (`0,86 · tan(40°)/0,86 = tan 40°` e `Distort(tan 40°) = tan 49,4° = tanTexture`): a imagem
+//      chega até o recorte sem sobra preta no meio e sem esticar.
 const NVLENS = (() => {
   const FOV = 80, IPD = 0.067;            // CARDBOARD_2015_LENS: fov 80 · ipd 0.067 (67 mm)
   const K1 = 0.441, K2 = 0.156;           // coeficientes oficiais da lente Cardboard v1
@@ -43,7 +47,8 @@ const NVLENS = (() => {
   // tan(40°) = o campo que o perfil Cardboard v1 entrega por lado; tanTexture = o que a textura
   // precisa cobrir para que, depois do Distort, a imagem chegue até a borda (≈ 49,4°).
   const RAD = Math.PI / 180;
-  const LENS_FILL = 0.86;                         // o círculo da imagem dentro do olho
+  const LENS_FILL = 0.86;                         // quanto do olho a imagem ocupa
+  const LENS_CORNER = 0.26;                       // raio do canto, em fração da meia-largura
   const TAN_HALF = Math.tan((FOV / 2) * RAD);     // 40°, o campo que o perfil entrega
   const DIST = (t) => t * (1 + K1 * t * t + K2 * Math.pow(t, 4));
   const TAN_TEX = DIST(TAN_HALF);                 // ≈ 1,164 (~49,4°) — o que a textura cobre
@@ -51,13 +56,14 @@ const NVLENS = (() => {
   const uniforms = {
     tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 },
     tanEdge: { value: TAN_EDGE }, tanTexture: { value: TAN_TEX },
+    fill: { value: LENS_FILL }, corner: { value: LENS_CORNER },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
     depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: [
-      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar, tanEdge, tanTexture;',
+      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar, tanEdge, tanTexture, fill, corner;',
       'void main(){',
       // p vai de -1 a 1 no olho inteiro; `ar` = altura / meia-largura (só corrige a vertical).
       '  vec2 p = vUv * 2.0 - 1.0;',
@@ -65,10 +71,15 @@ const NVLENS = (() => {
       '  float s2 = s * s;',
       '  float f = 1.0 + k1 * s2 + k2 * s2 * s2;',            // t = s · f  (Distort do SDK)
       '  vec2 t = p * f * (tanEdge / tanTexture);',           // -1..1 na textura
-      '  float r = length(t);',
       '  vec3 c = texture2D(tex, clamp(t * 0.5 + 0.5, 0.0, 1.0)).rgb;',
-      // Onde a textura acaba (40° de campo) a imagem fecha em curva: a lente da caixa é redonda.
-      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.92, 1.0, r)), 1.0);',
+      // O RECORTE é o do NextVR: retângulo de cantos arredondados, NÃO um círculo ("as lentes não
+      // são circulares, são tipo a do WebXR"). `ar` põe a vertical na mesma unidade da horizontal,
+      // então o canto é redondo de verdade e não uma elipse.
+      '  vec2 b = vec2(fill, fill * ar);',                    // meia-largura / meia-altura da imagem
+      '  float rc = min(corner, min(b.x, b.y) * 0.9);',       // o canto nunca come a imagem toda
+      '  vec2 d = abs(vec2(p.x, p.y * ar)) - (b - rc);',
+      '  float sd = length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - rc;',
+      '  gl_FragColor = vec4(c * (1.0 - smoothstep(-0.010, 0.004, sd)), 1.0);',
       '}',
     ].join('\n'),
   });
@@ -97,7 +108,7 @@ const NVLENS = (() => {
   }
 
   return {
-    k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: LENS_FILL, tanTex: TAN_TEX,
+    k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: LENS_FILL, corner: LENS_CORNER, tanTex: TAN_TEX,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {

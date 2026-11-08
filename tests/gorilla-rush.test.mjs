@@ -268,12 +268,20 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   // na 2.6.3, ampliava o centro em 1,6× (o "as lentes estão grandes").
   assert.ok(lens.includes('float f = 1.0 + k1 * s2 + k2 * s2 * s2;'), 'a correção multiplica o raio');
   assert.equal(lens.includes('(1.0 + k1 + k2)'), false, 'nada de dividir pelo total (ampliava o centro)');
-  // Tamanho: o círculo da imagem em 86 % do raio do olho — a proporção que o próprio SDK chega para
-  // o Cardboard v1, e a mesma da interface do NextVR fora do jogo.
-  assert.ok(lens.includes('const LENS_FILL = 0.86;'), 'o círculo ocupa 86 % do olho');
-  assert.ok(lens.includes('const TAN_EDGE = TAN_HALF / LENS_FILL;'), 'e a borda do olho é tan(40°)/0,86');
-  assert.ok(lens.includes('1.0 - smoothstep(0.92, 1.0, r)'),
-    'a imagem fecha em curva (a lente da caixa é redonda), em vez de corte reto');
+  // Tamanho: a imagem ocupa 86 % do olho (`LENS_FILL`), como na interface do NextVR fora do jogo.
+  assert.ok(lens.includes('const LENS_FILL = 0.86;'), 'a imagem ocupa 86 % do olho');
+  assert.ok(lens.includes('const TAN_EDGE = TAN_HALF / LENS_FILL;'), 'e a borda é tan(40°)/0,86');
+  // "as lentes não são circulares, são assim, tipo a do WebXR": o recorte é um RETÂNGULO DE CANTOS
+  // ARREDONDADOS (a forma que o mesh de distorção do Cardboard desenha), não um círculo.
+  assert.ok(lens.includes('float sd = length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - rc;'),
+    'o recorte é uma caixa de cantos redondos (distância assinada de caixa arredondada)');
+  assert.ok(lens.includes('vec2 b = vec2(fill, fill * ar);'),
+    'do tamanho da imagem (86 %) e com a vertical na mesma unidade da horizontal');
+  assert.ok(lens.includes('const LENS_CORNER = 0.26;'), 'com o canto redondo de 26 % da meia-largura');
+  assert.equal(lens.includes('smoothstep(0.92, 1.0, r)'), false, 'nada de recorte circular');
+  const cockpit = read('nextvr-android/src/main/assets/ui/cockpit/game.html');
+  assert.ok(cockpit.includes('LN_CORNER=0.26') && cockpit.includes('float rc=min(corner,min(b.x,b.y)*.9)'),
+    'o jogo de avião usa o mesmo recorte (as lentes são as mesmas nos dois)');
   assert.equal(/uv\.x < 0\.0|gl_FragColor = vec4\(0\.0, 0\.0, 0\.0, 1\.0\)/.test(lens), false,
     'não existe mais o descarte que deixava a moldura preta quadrada');
   // Corrigir a lente usa só a parte de dentro da textura; por isso o olho é DESENHADO mais aberto,
@@ -485,7 +493,8 @@ test('o corpo reserva: existe boneco desde o primeiro quadro, com os nomes que o
   // "Ainda tá sem modelo de gorilla": o corpo de primitivas entra ANTES da carga do GLB, e o modelo
   // de verdade o descarta quando chega. Ou é o gorila original, ou é este — nunca o vazio.
   assert.ok(adapt.includes("(await part('corpo.js')).trim()"), 'o adaptador embute o corpo reserva');
-  assert.ok(adapt.includes('function build(g){nvCorpoSai();pl=g.scene;'), 'e o modelo real tira a reserva de cena');
+  assert.ok(adapt.includes('function build(g){nvCorpoSai();g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;'),
+    'e o modelo real tira a reserva de cena (traduzindo antes o esqueleto dele)');
   assert.ok(corpo.includes('nvCorpoReserva();'), 'a reserva é montada no arranque');
 
   // Os nomes dos ossos são os do GLB, então rig()/arm2()/handPose() funcionam sem mudança.
@@ -563,4 +572,192 @@ test('o corpo reserva: existe boneco desde o primeiro quadro, com os nomes que o
   const depois = vm.runInContext('({ ativo: NV_CORPO.ativo, pai: !!NV_CORPO.raiz.parent })', ctx);
   assert.equal(depois.ativo, false, 'a reserva é desativada');
   assert.equal(depois.pai, false, 'e sai do grupo do jogador quando o GLB monta');
+});
+
+test('o gorila é o modelo do HTML antigo, com os ossos traduzidos e o braço seguindo a mão', async () => {
+  const vm = await import('node:vm');
+  const game = read(GAME);
+  const esq = read('tools/gorilla-rush/parts/esqueleto.js');
+  const adapt = read('tools/gorilla-rush/adapt.mjs');
+  const glb = readFileSync('tools/gorilla-rush/assets/gorila-tag.glb');
+
+  // "entra no HTML antigo, pega o modelo do gorilla e põe no jogo": o GLB é arquivo do projeto (saiu
+  // do `RIG_GZ` daquele HTML) e é ELE que viaja no jogo, byte por byte.
+  const b64 = /const PLAYER_B64="([A-Za-z0-9+/=]+)"/.exec(game)?.[1];
+  assert.ok(b64, 'o jogo tem o modelo embutido');
+  const dentro = Buffer.from(b64, 'base64');
+  assert.equal(dentro.length, glb.length, 'o modelo do jogo é o do `assets/gorila-tag.glb`');
+  assert.equal(dentro.equals(glb), true, 'byte por byte (nada de outro modelo no lugar)');
+  assert.ok(adapt.includes("resolve(here, 'assets/gorila-tag.glb')"), 'e o adaptador é quem o põe lá');
+  // O modelo do HTML antigo: "Customizable Gorilla Tag Monkey Model" (YouthfulPat501, CC-BY-4.0).
+  const cab = dentro.subarray(0, 12).toString('latin1');
+  assert.equal(cab.slice(0, 4), 'glTF');
+  const json = JSON.parse(dentro.subarray(20, 20 + dentro.readUInt32LE(12)).toString('utf8'));
+  assert.match(json.asset.extras.title, /Gorilla Tag/i);
+  assert.match(json.asset.extras.author, /YouthfulPat501/);
+  assert.equal(json.skins[0].joints.length, 15, 'quinze ossos, como no HTML antigo');
+
+  // ---------- no three r128 que viaja no APK: o modelo real, traduzido e montado ----------
+  const sb = {
+    console, Math, Object, Array, JSON, String, Number, Promise, Date,
+    Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float32Array, Float64Array,
+    DataView, ArrayBuffer, TextDecoder, TextEncoder, setTimeout, performance,
+    document: { fonts: { ready: Promise.resolve() } },
+  };
+  sb.window = sb; sb.self = sb; sb.globalThis = sb;
+  const ctx = vm.createContext(sb);
+  vm.runInContext(read('nextvr-android/src/main/assets/ui/cockpit/libs/three.min.js'), ctx);
+  vm.runInContext(read('nextvr-android/src/main/assets/ui/cockpit/libs/GLTFLoader.js'), ctx);
+  const THREE = sb.THREE;
+  assert.equal(THREE.REVISION, '128', 'é o three que vai no APK');
+
+  // Sem as texturas (o sandbox não tem `<img>`): o esqueleto e a pele são os mesmos.
+  const u8 = new Uint8Array(glb);
+  const jl = new DataView(u8.buffer).getUint32(12, true);
+  const j2 = JSON.parse(new TextDecoder().decode(u8.subarray(20, 20 + jl)));
+  delete j2.images; delete j2.textures; delete j2.samplers;
+  (j2.materials || []).forEach((m) => {
+    delete m.normalTexture; delete m.occlusionTexture; delete m.emissiveTexture;
+    if (m.pbrMetallicRoughness) {
+      delete m.pbrMetallicRoughness.baseColorTexture;
+      delete m.pbrMetallicRoughness.metallicRoughnessTexture;
+    }
+  });
+  const cabJ = new TextEncoder().encode(JSON.stringify(j2));
+  const sobra = (4 - (cabJ.length % 4)) % 4;
+  const resto = u8.subarray(20 + jl);
+  const novo = new Uint8Array(20 + cabJ.length + sobra + resto.length);
+  const dv = new DataView(novo.buffer);
+  dv.setUint32(0, 0x46546c67, true); dv.setUint32(4, 2, true); dv.setUint32(8, novo.length, true);
+  dv.setUint32(12, cabJ.length + sobra, true); dv.setUint32(16, 0x4e4f534a, true);
+  novo.set(cabJ, 20);
+  for (let i = 0; i < sobra; i++) novo[20 + cabJ.length + i] = 0x20;
+  novo.set(resto, 20 + cabJ.length + sobra);
+  sb.__buf = novo.buffer;
+  vm.runInContext("var __g=null,__e=null;new THREE.GLTFLoader().parse(__buf,'',function(g){__g=g},function(e){__e=String(e&&e.message||e)});", ctx);
+  await new Promise((r) => setTimeout(r, 400));
+  const cena = vm.runInContext('__g&&__g.scene', ctx);
+  assert.ok(cena, 'o modelo do HTML antigo abre no three do APK: ' + vm.runInContext('__e||""', ctx));
+
+  // O jogo procura outros nomes de osso: sem a tradução, o gorila ficaria SEM braços.
+  sb.__raiz = cena;
+  const antes = vm.runInContext(`(()=>{const b=[];__raiz.traverse(o=>{if(o.isBone)b.push(o.name)});return b})()`, ctx);
+  assert.ok(antes.some((n) => /Upper_Arm_L/.test(n)), 'os nomes que vêm no arquivo são os do HTML antigo');
+  sb.V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+  sb._q = new THREE.Quaternion(); sb._wq = new THREE.Quaternion();
+  sb.L1 = 0.5; sb.L2 = 0.5; sb.ARM = 1;
+  sb.cam = new THREE.PerspectiveCamera(70, 1, 0.05, 500);
+  sb.S = new THREE.Scene(); sb.pg = new THREE.Group();
+  sb.S.add(sb.cam); sb.S.add(sb.pg);
+  vm.runInContext(esq, ctx);
+  vm.runInContext('nvRenomeia(__raiz)', ctx);
+  const depois = vm.runInContext(`(()=>{const b=[];__raiz.traverse(o=>{if(o.isBone)b.push(o.name)});return b})()`, ctx);
+  for (const osso of ['body_01', 'head_02', 'upper_arm_L_04', 'forearm_L_06', 'hand_L_05',
+    'upper_arm_R_04', 'forearm_R_06', 'hand_R_05', 'palm_02_L_014', 'palm_02_R_028',
+    'f_index_01_L_008', 'f_middle_01_L_015']) {
+    assert.ok(depois.includes(osso), 'o osso ' + osso + ' existe com o nome que o jogo usa');
+  }
+  // Rodar de novo não estraga (a tradução é idempotente) e o modelo anterior passaria intacto.
+  const n1 = depois.length;
+  vm.runInContext('nvRenomeia(__raiz)', ctx);
+  assert.equal(vm.runInContext(`(()=>{let n=0;__raiz.traverse(o=>{if(o.isBone)n++});return n})()`, ctx), n1,
+    'a segunda passada não cria nem renomeia nada');
+
+  // ---------- rig + IK do próprio jogo ----------
+  const trecho = (ini, fim) => {
+    const a = game.indexOf(ini);
+    const b = game.indexOf(fim, a + ini.length);
+    assert.ok(a > 0 && b > a, 'trecho do jogo: ' + ini);
+    return game.slice(a, b);
+  };
+  const iHP = game.indexOf('function handPose(M,k,d,A,cv){');
+  let nivel = 0, j = iHP;
+  for (; j < game.length; j++) {
+    if (game[j] === '{') nivel++;
+    else if (game[j] === '}') { nivel--; if (nivel === 0) { j++; break; } }
+  }
+  vm.runInContext([
+    'const REST={};',
+    trecho('function rig(o){', 'const REST={}'),
+    trecho('function aim(', 'function arm2('),
+    trecho('function arm2(', 'function rotLocal('),
+    trecho('function rotLocal(', 'const _wq='),
+    game.slice(iHP, j),
+  ].join('\n'), ctx);
+
+  const M = vm.runInContext('rig(__raiz)', ctx);
+  for (const k of ['uL', 'fL', 'hL', 'uR', 'fR', 'hR', 'head', 'pmL', 'pmR', 'ixL', 'ixR', 'mdL', 'mdR']) {
+    assert.ok(M[k], 'o jogo encontra ' + k + ' no modelo do HTML antigo');
+  }
+
+  // build(): o modelo é normalizado pelo comprimento do braço (serve qualquer um dos dois).
+  const W = (b) => b.getWorldPosition(new THREE.Vector3());
+  const r1 = W(M.uL).distanceTo(W(M.fL)), r2 = W(M.fL).distanceTo(W(M.hL));
+  const sL = W(M.uL), sR = W(M.uR), hLw = W(M.hL), hRw = W(M.hR);
+  const hd = W(M.head), bd = W(__cena().getObjectByName('body_01'));
+  function __cena() { return cena; }
+  const Rr = hRw.clone().sub(hLw).normalize(), Up = hd.clone().sub(bd).normalize();
+  const Bk = Rr.clone().cross(Up).normalize(), U2 = Bk.clone().cross(Rr).normalize();
+  const qM = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(Rr, U2, Bk)).invert();
+  const s0 = 1 / (r1 + r2), mid = sL.clone().add(sR).multiplyScalar(0.5);
+  const frente = new THREE.Vector3(0, 0, 1).applyQuaternion(qM);
+  assert.ok(frente.z < -0.9, 'o gorila fica de frente para o jogo (frente local +Z -> -Z do mundo)');
+  cena.scale.setScalar(s0);
+  cena.quaternion.copy(qM);
+  cena.position.copy(mid.applyQuaternion(qM).multiplyScalar(-s0));
+  sb.pg.add(cena);
+  sb.pg.updateMatrixWorld(true);
+  ctx.L1 = r1 * s0; ctx.L2 = r2 * s0; ctx.ARM = (ctx.L1 + ctx.L2) * 0.98;
+  M.o = cena; M.g = sb.pg; ctx.LM = M;
+  assert.ok(ctx.L1 > 0.4 && ctx.L2 > 0.4, 'braço de tamanho humano depois da normalização');
+  assert.ok(Math.abs(ctx.L1 + ctx.L2 - 1) < 0.02, 'e com 1 m de alcance, como o resto do jogo');
+
+  // A mão de verdade (o alvo do NextVR) move o braço do gorila e chega no alvo.
+  const ik = vm.runInContext(`
+    (() => {
+      const fw = V3(0,0,-1), rt = V3(1,0,0);
+      const alvo = V3(-0.30, -0.42, -0.55);
+      const antes = LM.hL.getWorldPosition(V3()).clone();
+      arm2(LM, 'L', alvo, fw, rt, 1);
+      LM.o.updateMatrixWorld(true);
+      const mao = LM.hL.getWorldPosition(V3());
+      handPose(LM, 'L', fw, V3(0,1,0), [0.3,0.3,0.3]);
+      LM.o.updateMatrixWorld(true);
+      const outro = LM.hR.getWorldPosition(V3()).clone();
+      arm2(LM, 'R', V3(0.30, -0.42, -0.55), fw, rt, 1);
+      LM.o.updateMatrixWorld(true);
+      return { erro: +mao.distanceTo(alvo).toFixed(3), moveu: +mao.distanceTo(antes).toFixed(3),
+               dir: LM.hR.getWorldPosition(V3()).distanceTo(outro) };
+    })()`, ctx);
+  assert.ok(ik.erro < 0.03, `a mão chega no alvo (erro ${ik.erro} m)`);
+  assert.ok(ik.moveu > 0.3, 'o braço saiu do lugar quando a mão se moveu');
+  assert.ok(ik.dir > 0.2, 'e o outro braço também responde');
+});
+
+test('o gorila nasce no chão do mapa (não embaixo da terra) e a seta do chão saiu', () => {
+  const game = read(GAME);
+  const ingame = read('tools/gorilla-rush/parts/ingame.js');
+  const adapt = read('tools/gorilla-rush/adapt.mjs');
+
+  // "fica embaixo da terra": o nascimento era coordenada fixa, de outro mapa. Se ela cai dentro do
+  // terreno, o jogador começa enterrado e não vê o mapa NEM o próprio corpo.
+  assert.equal(game.includes('V3(59.32,17.21,-23.61)'), false, 'o nascimento fixo do novato saiu');
+  assert.equal(game.includes('return isNewbie?V3('), false, 'e o do veterano também');
+  assert.ok(game.includes('const base=(spawn&&spawn.clone)?spawn.clone():V3(3.60,6.30,-6.49);'),
+    'quem manda no nascimento é o ponto que o `loadMap()` calculou sobre o mapa');
+  assert.ok(game.includes('const g0=hit(V3(base.x,alto,base.z),DOWN,alto-Math.min(base.y,floorMin)+400);'),
+    'com um raio de cima para baixo, que acha o chão de verdade');
+  assert.ok(game.includes('return V3(base.x,g0?g0.point.y+1.12:base.y,base.z);'),
+    'e o jogador nasce 1,12 m acima dele (a altura dos olhos)');
+
+  // Se ainda assim ele acabar sob o terreno (queda, mapa recarregado), sobe.
+  assert.ok(adapt.includes('const ac=hit(V3(P.x,P.y+8,P.z),DOWN,80);if(ac&&ac.point.y>P.y-1.05){P.y=ac.point.y+1.12'),
+    'e existe resgate: o chão acima dos pés devolve o jogador para cima dele');
+
+  // "tira a seta que fica embaixo": nem o desenho, nem o laço.
+  assert.equal(game.includes('NVHEAD.tick()'), false, 'a seta não é mais desenhada');
+  assert.equal(ingame.includes('0.055, 0, -0.30'), false, 'e a geometria da seta saiu do jogo');
+  assert.ok(ingame.includes('const NVHEAD = { tick() {}, visivel: false };'),
+    'o nome continua, invisível, para a sonda não quebrar');
+  assert.ok(game.includes('seguradas: NV_HAND_HELD, seta: false,'), 'e a sonda diz que não há seta');
 });

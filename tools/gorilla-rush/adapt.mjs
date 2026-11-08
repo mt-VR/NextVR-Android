@@ -132,6 +132,17 @@ const HAND_WINDOW = 'on=!!xh||(s.p&&now-s.t<350)';
 MUST(html, HAND_WINDOW, 'janela de validade da mão no laço do jogo');
 html = html.replace(HAND_WINDOW, 'on=!!xh||(s.p&&now-s.t<900)');
 
+/* 3g2. O GORILA: o modelo do HTML antigo, com o esqueleto traduzido -------------------------- */
+// Pedido do usuário: "entra no HTML antigo, pega o modelo do gorilla e põe no jogo, o nosso
+// personagem é o gorilla". O GLB saiu da constante `RIG_GZ` do HTML antigo (gunzip + base64) e está
+// em `assets/gorila-tag.glb` — "Customizable Gorilla Tag Monkey Model", YouthfulPat501, CC-BY-4.0.
+// Ele entra no lugar do `PLAYER_B64` que veio dentro do HTML do jogo.
+const glb = await readFile(resolve(here, 'assets/gorila-tag.glb'));
+const B64 = glb.toString('base64');
+const PLAYER_ANTIGO = /const PLAYER_B64="[A-Za-z0-9+/=]+"/;
+if (!PLAYER_ANTIGO.test(html)) throw new Error('âncora não encontrada: PLAYER_B64 do gorila');
+html = html.replace(PLAYER_ANTIGO, () => 'const PLAYER_B64="' + B64 + '"');
+
 /* 3h. O boneco: carregar o modelo por três caminhos e guardar o motivo se falhar ------------- */
 // A 2.6.2 tinha UMA tentativa e escrevia o erro num elemento que o CSS esconde; num aparelho onde a
 // textura embutida não carrega, o jogo ficava sem boneco e o app repetia "não carregou" sem motivo.
@@ -139,17 +150,49 @@ const MODELO_OLD = "loader.parse(Uint8Array.from(atob(PLAYER_B64),c=>c.charCodeA
 MUST(html, MODELO_OLD, 'carga do modelo do gorila');
 // O corpo reserva entra ANTES da carga: assim existe boneco desde o primeiro quadro, mesmo que o
 // GLB nunca chegue. Quando o modelo de verdade monta, `build()` descarta a reserva.
-html = html.replace(MODELO_OLD, (await part('corpo.js')).trim() + '\n' + (await part('model.js')).trim());
+html = html.replace(MODELO_OLD, [
+  (await part('esqueleto.js')).trim(),   // traduz os nomes de osso do modelo do HTML antigo
+  (await part('corpo.js')).trim(),       // corpo reserva (existe boneco desde o 1º quadro)
+  (await part('model.js')).trim(),       // três caminhos de carga, com o motivo real no aviso
+].join('\n'));
 
 /* 3i. O modelo de verdade chega: a reserva sai de cena ------------------------------------- */
 const BUILD_OLD = 'function build(g){pl=g.scene;';
 MUST(html, BUILD_OLD, 'build() do modelo');
-html = html.replace(BUILD_OLD, 'function build(g){nvCorpoSai();pl=g.scene;');
+// 1) a reserva sai de cena; 2) o esqueleto do modelo antigo é traduzido para os nomes que o jogo
+// procura (antes de `cloneMats`/`paint`, que dependem do nome do material); 3) segue o build normal.
+html = html.replace(BUILD_OLD, 'function build(g){nvCorpoSai();g&&g.scene&&nvRenomeia(g.scene);pl=g.scene;');
+
+/* 3j. O NASCIMENTO: no chão do mapa, não numa coordenada fixa ------------------------------- */
+// "fica embaixo da terra": `spawnPos()` devolvia coordenadas fixas (3,60 · 6,30 · -6,49 para quem
+// já jogou, 59,32 · 17,21 · -23,61 para quem é novo). Se elas caem dentro do terreno, o jogador
+// começa enterrado — sem ver o mapa e sem ver o próprio corpo — e o resgate por `floorMin` o
+// devolvia para o mesmo lugar. O `loadMap()` JÁ calcula um nascimento bom (`spawn`, com raio para
+// baixo sobre o mapa); agora é ele que manda, com um raio de segurança do alto.
+const SPAWN_OLD = 'function spawnPos(){return isNewbie?V3(59.32,17.21,-23.61):V3(3.60,6.30,-6.49)}';
+MUST(html, SPAWN_OLD, 'spawnPos()');
+html = html.replace(SPAWN_OLD, [
+  'function spawnPos(){',
+  '  const base=(spawn&&spawn.clone)?spawn.clone():V3(3.60,6.30,-6.49);',
+  '  const alto=base.y+80;',
+  '  const g0=hit(V3(base.x,alto,base.z),DOWN,alto-Math.min(base.y,floorMin)+400);',
+  '  return V3(base.x,g0?g0.point.y+1.12:base.y,base.z);',
+  '}',
+].join('\n'));
+
+/* 3k. Chão garantido: se o jogador acabar sob o terreno, ele sobe ---------------------------- */
+// Vale para queda, mapa recarregado e nascimento herdado: um raio de 8 m acima dos pés encontra o
+// chão e, se ele estiver acima dos pés, o jogador sobe para cima dele em vez de cair no vazio.
+const FLOOR_OLD = 'if(P.y<floorMin){P.copy(spawnPos());vel.set(0,0,0)}';
+MUST(html, FLOOR_OLD, 'resgate por floorMin');
+html = html.replace(FLOOR_OLD, FLOOR_OLD +
+  '\n {const ac=hit(V3(P.x,P.y+8,P.z),DOWN,80);if(ac&&ac.point.y>P.y-1.05){P.y=ac.point.y+1.12;if(vel.y<0)vel.y=0}}');
 
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";
 MUST(html, LOOK_LINE, 'laço de quadro (look)');
-html = html.replace(LOOK_LINE, LOOK_LINE + 'NVIG.tick(dt);NVHEAD.tick();');
+// "tira a seta que fica embaixo": a seta do chão saiu do jogo.
+html = html.replace(LOOK_LINE, LOOK_LINE + 'NVIG.tick(dt);');
 
 /* 5. CSS e elementos nossos -------------------------------------------------------------- */
 const css = await part('game.css');
