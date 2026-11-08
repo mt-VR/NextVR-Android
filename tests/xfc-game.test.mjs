@@ -270,16 +270,16 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // O confronto leva para a tela de preparação da partida.
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
-    await page.click('.btn:has-text("Iniciar partida")');
+    await page.click('.screen--kickoff .stadium-cta');
     await page.waitForSelector('.screen--match');
     assert.ok((await page.locator('.match__teams').textContent()).includes('FC Barcelona'), 'o confronto mostra o Barcelona');
 
     // Preparar a partida leva ao jogo 3D de verdade — com o HUD de transmissão,
     // o analógico fixo e o cartão do jogador controlado.
-    await page.click('.btn:has-text("Iniciar partida")');
+    await page.click('.stadium-cta');
     await page.waitForSelector('.screen--play', { timeout: 15000 });
-    assert.ok(await page.locator('.prematch__cta').isVisible(), 'a partida abre no pré-jogo');
-    await page.click('.prematch__cta');
+    assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
+    await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
     assert.ok(boardBox && boardBox.x < 40, 'o placar fica no canto superior esquerdo');
@@ -335,20 +335,21 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
     assert.ok(await page.locator('.quick__kit').count() >= 6, 'cada lado oferece as blusas do clube');
-    assert.ok(await page.locator('.btn:has-text("INICIAR PARTIDA")').count(), 'há o botão INICIAR PARTIDA');
+    assert.ok(await page.locator('.stadium-cta').count(), 'a tela oferece o estádio como botão de entrar');
 
     // Duração e dificuldade são ajustáveis antes de começar.
     await page.locator('.quick__option', { hasText: 'CURTA' }).first().click();
     await page.locator('.quick__option', { hasText: 'FÁCIL' }).first().click();
 
-    await page.click('.quick__actions .btn--primary');
+    await page.click('.quick__actions .stadium-cta');
     await page.waitForSelector('.screen--play', { timeout: 15000 });
 
-    // Pré-jogo: os dois escudos, o X no centro e o CTA.
-    assert.equal(await page.locator('.prematch__crest').count(), 2, 'o pré-jogo mostra os dois escudos');
-    assert.ok(await page.locator('.prematch__x-mark').isVisible(), 'o pré-jogo mostra o X no centro');
-    assert.ok(await page.locator('.prematch__cta').isVisible(), 'o pré-jogo tem o botão de começar');
-    await page.click('.prematch__cta');
+    // Pré-jogo imersivo: o estádio toma a tela, com o confronto no centro.
+    assert.ok(await page.locator('.showcase__chip').isVisible(), 'o pré-jogo abre com o selo da liga');
+    assert.equal(await page.locator('.showcase__matchup img').count(), 2, 'o pré-jogo mostra os dois escudos');
+    assert.ok(await page.locator('.showcase__enter').isVisible(), 'o pré-jogo convida a entrar em campo');
+    assert.equal(await page.locator('.showcase__arrow').count(), 2, 'as setas trocam o estádio');
+    await page.click('.showcase__enter');
 
     // Partida: HUD, radar e controles na tela.
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
@@ -388,6 +389,26 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(running.after.minutes > running.before.minutes, 'o relógio avança durante a partida');
     assert.ok(Number.isFinite(running.ball.x) && Number.isFinite(running.ball.z), 'a bola fica dentro do campo');
     assert.equal(running.after.score.length, 2, 'o placar tem os dois times');
+
+    // Chute carregado sai como tiro forte: o analógico não influencia,
+    // quem manda é o botão seguro (strength 1 => 'power').
+    const shotKind = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const shooter = match.world.members('home').find(player => !player.isKeeper);
+      match.controlled.home = shooter;
+      match.ball.attachTo(shooter);
+      match.world.command('shoot', { strength: 1, placed: false });
+      return match.ball.state.lastShotKind;
+    });
+    assert.equal(shotKind, 'power', 'o tiro carregado sai como chute forte');
+
+    // A defesa mergulhada do goleiro não pode derrubar a simulação.
+    await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const keeper = match.world.members('away').find(player => player.isKeeper);
+      match.world.diveKeeper(keeper, 1);
+      for (let index = 0; index < 90; index += 1) match.world.tick(1 / 60);
+    });
 
     // O jogo pausa no intervalo: o jogador volta com o botão do segundo tempo.
     await page.evaluate(async () => {

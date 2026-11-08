@@ -390,6 +390,15 @@ export function createPlayer3D(options = {}) {
     legs.push({ hip, knee });
   }
 
+  // Cartão do árbitro (amarelo/vermelho) — oculto até o apito da falta.
+  const cardMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.095, 0.135),
+    new THREE.MeshBasicMaterial({ color: 0xf5c518, side: THREE.DoubleSide })
+  );
+  cardMesh.position.set(0, -0.265, 0.02);
+  cardMesh.visible = false;
+  arms[1].forearm.add(cardMesh);
+
   // Variação de altura por atleta (0,94–1,07) e os modelos maiores na tela.
   root.scale.setScalar(1.15 * heightScale);
 
@@ -404,6 +413,9 @@ export function createPlayer3D(options = {}) {
   let lookTarget = null;
   let celebrateTimer = 0;
   let signalTimer = 0;
+  let diveTimer = 0;
+  let diveDir = 1;
+  let cardTimer = 0;
 
   const api = {
     root,
@@ -419,8 +431,65 @@ export function createPlayer3D(options = {}) {
     signal(duration = 1.1) {
       signalTimer = duration;
     },
+    /** Mostra o cartão (amarelo ou vermelho) na mão direita. */
+    showCard(color = 'yellow', duration = 1.7) {
+      cardTimer = duration;
+      cardMesh.visible = true;
+      cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
+    },
+    /** Mergulho do goleiro para o lado (defesa rasteira ou aérea). */
+    dive(dir = 1) {
+      diveTimer = 0.95;
+      diveDir = dir >= 0 ? 1 : -1;
+    },
     /** Anima a corrida: a velocidade define o balanço das pernas. */
     update(dt, { speed = 0, moving = false, lean = 0 } = {}) {
+      // Mergulho do goleiro: corpo para o lado, braços esticados.
+      if (diveTimer > 0) {
+        diveTimer = Math.max(0, diveTimer - dt);
+        const progress = 1 - diveTimer / 0.95;
+        const arc = Math.sin(Math.PI * Math.min(1, progress * 1.06));
+        body.position.y = arc * 0.34;
+        body.rotation.x = -0.22 - arc * 0.15;
+        body.rotation.z = diveDir * (0.35 + arc * 0.85);
+        // Braço do lado da defesa estica para cima; o outro segura o corpo.
+        const lead = diveDir > 0 ? arms[1] : arms[0];
+        const trail = diveDir > 0 ? arms[0] : arms[1];
+        lead.shoulder.rotation.x = -2.55;
+        lead.shoulder.rotation.z = -diveDir * 0.55;
+        lead.forearm.rotation.x = -0.25;
+        trail.shoulder.rotation.x = -1.15;
+        trail.shoulder.rotation.z = diveDir * 0.85;
+        trail.forearm.rotation.x = -1.05;
+        // Pernas abertas no esticão.
+        legs[0].hip.rotation.x = 0.35 + arc * 0.3;
+        legs[1].hip.rotation.x = -0.28 - arc * 0.22;
+        legs[0].knee.rotation.x = 0.5;
+        legs[1].knee.rotation.x = 0.2;
+        head.rotation.x = -0.15;
+        head.rotation.y = diveDir * 0.3;
+        return;
+      }
+      // Cartão ao alto: o árbitro mostra amarelo/vermelho para a torcida ver.
+      if (cardTimer > 0) {
+        cardTimer = Math.max(0, cardTimer - dt);
+        if (cardTimer === 0) cardMesh.visible = false;
+        body.position.y = 0;
+        body.rotation.x = 0.03;
+        body.rotation.z = 0;
+        arms[1].shoulder.rotation.x = -2.85;
+        arms[1].shoulder.rotation.z = -0.32;
+        arms[1].forearm.rotation.x = 0.12;
+        arms[0].shoulder.rotation.x = -0.55;
+        arms[0].shoulder.rotation.z = 0.18;
+        arms[0].forearm.rotation.x = 0.95;
+        legs[0].hip.rotation.x = 0.06;
+        legs[1].hip.rotation.x = -0.06;
+        legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.14;
+        head.rotation.x = -0.32;
+        head.rotation.y = 0;
+        return;
+      }
       // Sinal do árbitro tem prioridade sobre a pose neutra.
       if (signalTimer > 0) {
         signalTimer = Math.max(0, signalTimer - dt);

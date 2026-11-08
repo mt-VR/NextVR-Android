@@ -37,8 +37,11 @@ Nesta primeira etapa o jogo tem **o menu**:
    (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
    painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
    papel, foco, pé, skill moves e weak foot.
-6. **Preparação da partida** — mostra o confronto; o botão *Iniciar partida*
-   abre o jogo 3D de verdade, com os times e uniformes escolhidos.
+6. **Preparação da partida** — o confronto aparece sobre o fundo do estádio;
+   o botão **é o estádio**: a foto do estádio oficial (com setas para trocar)
+   toma a tela e, ao tocar nele, abre o jogo 3D de verdade, com os times,
+   uniformes e estádio escolhidos. Não há botão de “Iniciar partida”: o
+   próprio estádio é o convite.
 7. **Partida 3D** — o mesmo jogo das Partidas Rápidas: câmera de transmissão
    **aérea inclinada, lateral** (como no EA Sports FC Mobile — não é atrás do
    jogador), acompanhando a bola e abraçando quase todo o gramado; placar de
@@ -68,6 +71,26 @@ Nesta primeira etapa o jogo tem **o menu**:
    embaixo do placar, as estatísticas completas da partida (posse de bola,
    finalizações, chutes ao gol, passes certos, defesas, escanteios, faltas e
    cartões), além de REJOGAR e VOLTAR AO MENU.
+   Antes de apitar o início, o **pré-jogo** abre em tela cheia com a arte do
+   estádio escolhido: selo *XF Champions League*, o nome e o apelido do
+   estádio, o confronto (escudos + sigla × sigla), as setas laterais para
+   trocar de palco e o convite **TOQUE PARA ENTRAR EM CAMPO** — tocar na tela
+   entra direto em jogo.
+   O horizonte do 3D também é o próprio estádio: uma cúpula texturizada com a
+   arte do palco envolve todo o campo (nada de céu chapado).
+   **Chutes com personalidade** — tocar no botão CHUTE parte de primeira;
+   **segurar** carrega a força (o anel amarelo enche; soltar dispara o chute
+   forte, mais rápido e mais difícil de defender); **arrastar para baixo**
+   sobre o botão converte-o no **chute colocado** rasteiro no ângulo, do lado
+   indicado pelo analógico (anel ciano). No teclado, segure K para carregar e
+   solte para disparar.
+   **Goleiros mergulham** para defender (esticão para os lados, com recarga),
+   **faltas viram cartão** (amarelo/vermelho) para quem cometeu, o **passe
+   sai à frente** (a bola chega no pé do companheiro em movimento), a IA
+   **prefere companheiros livres** (penaliza impedidos e premia corredores de
+   passe limpos), os atacantes **se desmarcam** com arrancadas de apoio e a
+   bola **não atravessa a rede** (bate na malha, nas laterais do contorno e no
+   travessão).
 
 Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
 retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
@@ -76,6 +99,25 @@ Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt,
 Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham
 United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir
 de pools de nomes de cada país.
+
+## Estádios
+
+As sete artes de estádio enviadas pelo estúdio viraram os palcos oficiais do
+jogo (as repetidas foram descartadas). O estádio escolhido veste o pré-jogo
+(tela cheia) e a cúpula do 3D:
+
+| # | Nome | Arte |
+|---|------|------|
+| 1 | Coloseu Dourado | estadio-aereo.jpg |
+| 2 | Arena do Sol | estadio-por-do-sol.jpg |
+| 3 | Coloseu do Anoitecer | estadio-aereo-alto.jpg |
+| 4 | Estádio da Vila | estadio-entardecer.jpg |
+| 5 | Arena Rubro-Negra | estadio-rubro-negro.jpg |
+| 6 | Arena Vermelha | estadio-arena-vermelha.jpg |
+| 7 | Estádio Noturno | estadio-noturno.jpg |
+
+No confronto e nas Partidas Rápidas, o próprio estádio é o botão de entrar;
+no pré-jogo, as setas laterais trocam o palco antes de apitar.
 
 Todos têm **escudo** e **três blusas** (principal, reserva e terceiro). As
 blusas continuam sendo desenhadas em SVG pelo próprio jogo a partir das cores
