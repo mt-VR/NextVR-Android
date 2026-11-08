@@ -92,7 +92,7 @@ export function playScreen(ctx, params = {}) {
 
     refresh();
 
-    return el('div', { class: 'prematch prematch--showcase', onClick: () => startMatch() },
+    const root = el('div', { class: 'prematch prematch--showcase', onClick: () => startMatch() },
       el('div', { class: 'showcase__chip', text: 'XF CHAMPIONS LEAGUE' }),
       el('div', { class: 'showcase__plaque' },
         el('span', { class: 'showcase__label', text: 'ESTÁDIO OFICIAL' }),
@@ -111,6 +111,17 @@ export function playScreen(ctx, params = {}) {
       ),
       el('div', { class: 'showcase__enter', text: 'TOQUE PARA ENTRAR EM CAMPO' })
     );
+
+    // O estádio escolhido toma a tela (a arte oficial atrás de tudo).
+    const photoRefresh = () => {
+      root.style.setProperty('--showcase-photo', `url("${STADIUMS[stadiumIndex].file}")`);
+    };
+    photoRefresh();
+    // As setas trocam o palco: o fundo acompanha a troca.
+    root.querySelectorAll('.showcase__arrow').forEach(button => {
+      button.addEventListener('click', () => photoRefresh());
+    });
+    return root;
   }
 
   // --------------------------------------------------------------- partida --
@@ -153,6 +164,9 @@ export function playScreen(ctx, params = {}) {
     // Os controles só entram depois do pré-jogo.
     controls.setEnabled(false);
     match.start();
+    // O jogo fica congelado no pré-jogo — o relógio só corre quando o
+    // usuário toca para entrar em campo.
+    match.world.setPaused(true);
     // Gancho de testes: permite inspecionar o motor da partida no navegador.
     window.__xfcMatch = match;
     // O estádio escolhido envolve o 3D (atrás da arquibancada).
@@ -213,6 +227,7 @@ export function playScreen(ctx, params = {}) {
   function startMatch() {
     whistle('triple');
     stage = 'live';
+    match?.world.setPaused(false);
     overlay.replaceChildren();
     overlay.classList.remove('is-visible');
     match?.world.setCameraMode('play');
