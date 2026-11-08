@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Escudo do Flamengo">
+  <defs>
+    <clipPath id="fla-badge">
+      <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#fla-badge)">
+    <rect x="0" y="0" width="120" height="120" fill="#c8102e"/>
+    <rect x="0" y="40" width="120" height="10" fill="#141414"/>
+    <rect x="0" y="70" width="120" height="10" fill="#141414"/>
+    <circle cx="60" cy="55" r="26" fill="none" stroke="#ffd84a" stroke-width="3"/>
+    <text x="60" y="63" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#141414">FLA</text>
+    <text x="60" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" letter-spacing="2" fill="#ffd84a">ESTRELADO</text>
+  </g>
+  <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z" fill="none" stroke="#141414" stroke-width="3"/>
+</svg>

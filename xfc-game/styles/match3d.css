@@ -278,14 +278,26 @@
 }
 
 .hud__live {
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--accent);
-  color: #04131f;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 60, 60, 0.16);
+  color: #ff7a7a;
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.18em;
-  animation: hud-live 1.7s ease-in-out infinite;
+}
+
+.hud__live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b3b;
+  box-shadow: 0 0 8px rgba(255, 59, 59, 0.8);
+  animation: hud-live 1.4s ease-in-out infinite;
 }
 
 @keyframes hud-live {
@@ -693,60 +705,63 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
 }
 
-/* CHUTE — o botão principal, grande no alto à direita */
+/* CHUTE — o botão principal, grande no alto à direita (marrom/laranja) */
 .ctrl-btn--shoot {
   right: 14px;
   bottom: 250px;
   width: 94px;
   height: 94px;
   font-size: 11px;
-  border-color: rgba(255, 255, 255, 0.85);
-  background: rgba(23, 34, 46, 0.78);
+  border-color: rgba(255, 159, 67, 0.9);
+  background: rgba(96, 48, 12, 0.82);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.3);
 }
 
-/* ENFIADA — amarelo, grande à esquerda do CHUTE */
+/* ENFIADA — dourado, grande à esquerda do CHUTE */
 .ctrl-btn--lob {
   right: 128px;
   bottom: 214px;
   width: 74px;
   height: 74px;
-  border-color: rgba(245, 197, 24, 0.85);
-  background: rgba(74, 58, 8, 0.62);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 197, 24, 0.22);
+  border-color: rgba(245, 197, 24, 0.95);
+  background: rgba(82, 62, 6, 0.72);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.3);
 }
 
-/* DRIBLE — branco, pequeno no alto, como no FC Mobile (skill move) */
+/* PIQUE & FINTA — dribble verde grande, como no FC Mobile (skill move) */
 .ctrl-btn--dribble {
-  right: 238px;
+  right: 214px;
   bottom: 250px;
-  width: 62px;
-  height: 62px;
+  width: 78px;
+  height: 78px;
   font-size: 9px;
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(31, 41, 54, 0.72);
+  border-color: rgba(46, 240, 168, 0.9);
+  background: rgba(10, 78, 56, 0.82);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(46, 240, 168, 0.3);
 }
 
-/* PASSE — verde, grande embaixo à esquerda */
+/* PASSE — azul, grande embaixo à esquerda (como nos prints) */
 .ctrl-btn--pass {
   right: 18px;
   bottom: 84px;
   width: 90px;
   height: 90px;
   font-size: 11px;
-  border-color: rgba(46, 240, 168, 0.8);
-  background: rgba(11, 66, 48, 0.66);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(46, 240, 168, 0.25);
+  border-color: rgba(63, 215, 255, 0.9);
+  background: rgba(10, 48, 84, 0.78);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.3);
 }
 
-/* CORRER — ciano, grande à direita (segurar para disparar) */
+/* CORRER — ciano, menor (utilidade, segurar para disparar) */
 .ctrl-btn--sprint {
-  right: 226px;
-  bottom: 128px;
-  width: 82px;
-  height: 82px;
-  border-color: rgba(63, 215, 255, 0.75);
-  background: rgba(10, 52, 76, 0.66);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.22);
+  right: 246px;
+  bottom: 120px;
+  width: 64px;
+  height: 64px;
+  font-size: 9px;
+  border-color: rgba(63, 215, 255, 0.85);
+  background: rgba(10, 52, 76, 0.72);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.25);
 }
 
 /* DESARME — pequeno, laranja */

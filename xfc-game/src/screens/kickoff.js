@@ -8,7 +8,7 @@
 // “AWAY” ficam na vertical nas pontas da tela.
 
 import { el, svg, ICONS, padButton, starRow } from '../ui/dom.js';
-import { createStadiumPicker } from '../ui/stadiumcta.js';
+import { createContinueButton } from '../ui/continuebtn.js';
 import { xfcWordmark, leagueBadgeSvg } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
@@ -215,24 +215,21 @@ export function kickoffScreen(ctx) {
     paint();
   }
 
-  // O estádio é a porta para a partida: texturizado com a arte oficial,
-  // sem botão de “Iniciar partida”. A escolha vale para o confronto.
-  const startButton = createStadiumPicker({
-    size: 'sm',
-    caption: 'CONTINUAR',
-    initialIndex: state.settings.stadium ?? null,
-    onChange(stadium) {
-      state.settings.stadium = stadium;
-    },
-    onEnter(stadium) {
+  // CONTINUAR leva à escolha de estádios: a partida começa ao tocar a
+  // galeria dos seis estádios.
+  const startButton = createContinueButton({
+    onEnter() {
       const home = getTeam(state.selection.home);
       const away = getTeam(state.selection.away);
       if (!home || !away) {
         ctx.toast('Escolha os dois times para começar.', { variant: 'warn' });
         return;
       }
-      state.settings.stadium = stadium;
-      ctx.go('match', { home: home.id, away: away.id });
+      ctx.go('stadiums', {
+        returnTo: 'kickoff',
+        home: home.id,
+        away: away.id
+      });
     }
   }).node;
 
@@ -348,7 +345,7 @@ export function kickoffScreen(ctx) {
         return true;
       }
       if (event.key === 'Enter') {
-        node.querySelector('.stadium-cta')?.click();
+        node.querySelector('.continue-btn')?.click();
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {

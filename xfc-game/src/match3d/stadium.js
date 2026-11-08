@@ -6,17 +6,89 @@
 
 import { THREE, canvasTexture } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
+import { STADIUMS } from './stadiums.js';
 
 const LINE = 0.12; // espessura das linhas em metros
 const PX_PER_METER = 2048 / PITCH.length;
 
-/** Desenha o gramado com as marcações oficiais de campo. */
-function drawPitch(context, width, height) {
-  const scale = width / PITCH.length;
-  const toX = x => (x + PITCH.halfLength) * scale;
-  const toZ = z => (z + PITCH.halfWidth) * scale;
-  const line = LINE * scale;
+/** Carrega o gramado real (foto do usuário) — em cache de módulo para não
+ *  recarregar entre partidas. A foto não existe ainda? O gramado procedural
+ *  de antes continua sendo o plano B. */
+let grassImagePromise = null;
+function preloadGrass() {
+  if (grassImagePromise) return grassImagePromise;
+  grassImagePromise = new Promise(resolve => {
+    if (typeof Image === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = 'assets/textures/grass.jpg';
+  });
+  return grassImagePromise;
+}
 
+/** Textura da fachada das arquibancadas: cor sólida, "ribs" (mornéis verticais,
+ *  como o MorumBis) ou "weave" (teia em diagonal, como a Arena da Amazônia). */
+function drawFacade(context, width, height, kind, baseColor) {
+  context.fillStyle = baseColor;
+  context.fillRect(0, 0, width, height);
+  if (kind === 'ribs') {
+    const fins = 26;
+    for (let fin = 0; fin < fins; fin += 1) {
+      const x = (fin / fins) * width;
+      const w = width / fins;
+      context.fillStyle = fin % 2 === 0 ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.28)';
+      context.fillRect(x, 0, w * 0.42, height);
+    }
+    context.fillStyle = 'rgba(255,255,255,0.08)';
+    for (let row = 1; row < 14; row += 1) {
+      context.fillRect(0, (row / 14) * height, width, 2);
+    }
+  } else if (kind === 'weave') {
+    context.strokeStyle = 'rgba(255,255,255,0.2)';
+    context.lineWidth = 6;
+    const step = 44;
+    for (let x = -height; x < width; x += step) {
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x + height, height);
+      context.stroke();
+    }
+    context.strokeStyle = 'rgba(0,0,0,0.24)';
+    for (let x = 0; x < width + height; x += step) {
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x - height, height);
+      context.stroke();
+    }
+  }
+}
+
+/** Desenha a base do gramado: foto real do gramado (quando já carregou) ou o
+ *  gramado procedural de antes. */
+function drawPitchBase(context, width, height, grassImage) {
+  if (grassImage) {
+    // Gramado real: a foto do usuário é aplicada em faixas (repeat), sem
+    // distorcer o esquema. As faixas de corte e as linhas vem depois.
+    const tileW = grassImage.width;
+    const tileH = grassImage.height;
+    for (let x = 0; x < width; x += tileW) {
+      for (let y = 0; y < height; y += tileH) {
+        context.drawImage(grassImage, x, y, tileW, tileH);
+      }
+    }
+    // Um gradiente escuro nas laterais (como na transmissão).
+    const gradient = context.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+    gradient.addColorStop(0.5, 'rgba(0,0,0,0.03)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.14)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+    return;
+  }
   // Gramado listrado com faixas de corte (direções alternadas).
   const bands = 12;
   const bandWidth = width / bands;
@@ -42,7 +114,20 @@ function drawPitch(context, width, height) {
     context.ellipse(x, y, size * 2.6, size, rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
   }
+}
+
+/** Desenha o gramado com as marcações oficiais de campo. */
+function drawPitch(context, width, height, grassImage) {
+  const scale = width / PITCH.length;
+  const toX = x => (x + PITCH.halfLength) * scale;
+  const toZ = z => (z + PITCH.halfWidth) * scale;
+  const line = LINE * scale;
+
+  drawPitchBase(context, width, height, grassImage);
+
   // Serrilhado suave nas bordas das faixas (o look "mow stripes").
+  const bands = 12;
+  const bandWidth = width / bands;
   for (let band = 1; band < bands; band += 1) {
     context.fillStyle = 'rgba(255,255,255,0.05)';
     context.fillRect(band * bandWidth - 1.5, 0, 3, height);
@@ -307,11 +392,19 @@ function drawSky(context, width, height) {
 
 function buildStand(width, depth, height, texture, options = {}) {
   const group = new THREE.Group();
-  const { rotation = 0, position = [0, 0, 0] } = options;
+  const { rotation = 0, position = [0, 0, 0], model = {} } = options;
+
+  // O modelo do estádio (vem de STADIUMS[i].model): a cobertura e a
+  // fachada mudam conforme a praça — cada estádio tem seu próprio bowl.
+  const roofMode = model.roof || 'box';
+  const facadeColor = model.facade ?? 0x2c3a48;
+  const facadeKind = model.facadeTex || null;
 
   const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x3d5273 });
-  const concreteMaterial = new THREE.MeshLambertMaterial({ color: 0x2c3a48 });
-  const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x16212c });
+  const concreteMaterial = new THREE.MeshLambertMaterial({ color: facadeColor });
+  const roofMaterial = new THREE.MeshLambertMaterial({
+    color: roofMode === 'arch' ? 0xf4f4f2 : 0x16212c
+  });
 
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
@@ -329,16 +422,63 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.rotation.x = angle;
   group.add(slope);
 
-  // Fundo da arquibancada.
-  const back = new THREE.Mesh(new THREE.BoxGeometry(width, height, 1), concreteMaterial);
+  // Fundo da arquibancada (com fachada texturizada quando o modelo pede).
+  const back = facadeKind
+    ? new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, 1),
+      new THREE.MeshLambertMaterial({
+        map: canvasTexture(256, 128, (context, w, h) => drawFacade(context, w, h, facadeKind, '#2c3a48')),
+        emissive: 0x1a2430
+      }))
+    : new THREE.Mesh(new THREE.BoxGeometry(width, height, 1), concreteMaterial);
   back.position.set(0, height / 2, -depth / 2 - 0.6);
   group.add(back);
 
-  // Cobertura (alinhada com o muro, sem balançar para cima do gramado —
-  // o balanço aparecia no enquadramento da câmera como uma faixa escura).
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 2, 0.9, depth + 8), roofMaterial);
-  roof.position.set(0, height + 5.4, -3.6);
-  group.add(roof);
+  // Cobertura: cada modelo tem seu jeito (box, open, arch, plate).
+  if (roofMode === 'box') {
+    // Cobertura box (a de sempre, alinhada com o muro).
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 2, 0.9, depth + 8), roofMaterial);
+    roof.position.set(0, height + 5.4, -3.6);
+    group.add(roof);
+  } else if (roofMode === 'plate') {
+    // Cobertura plana tipo bandeja (Mané Garrincha): slab mais baixa,
+    // sustentada por torres nos cantos.
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 3, 0.7, depth + 10), roofMaterial);
+    roof.position.set(0, height + 3.2, -3.6);
+    group.add(roof);
+    for (const column of [-0.42, 0.42]) {
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(1.2, height + 3, 1.2), concreteMaterial);
+      tower.position.set(column * width, height + 1.5, depth / 2 - 0.5);
+      group.add(tower);
+    }
+  } else if (roofMode === 'arch') {
+    // Arco de treliça branca (Nilton Santos): um arco parabólico de
+    // sustentação sobre a arquibancada, com tirantes até o topo.
+    const spans = 14;
+    const points = [];
+    for (let i = 0; i <= spans; i += 1) {
+      const t = i / spans;
+      const x = -width / 2 + t * width;
+      const y = height + 7 + (1 - Math.pow(2 * t - 1, 2)) * 10;
+      points.push(new THREE.Vector3(x, y, 0));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const arc = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.35, 8), roofMaterial);
+    group.add(arc);
+    for (let i = 1; i < spans; i += 3) {
+      const t = i / spans;
+      const x = -width / 2 + t * width;
+      const y = height + 7 + (1 - Math.pow(2 * t - 1, 2)) * 10;
+      const strut = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, y - height - 7 + (1 - Math.pow(2 * t - 1, 2)) * 10, 0.25),
+        concreteMaterial
+      );
+      strut.position.set(x, height + (y - height) / 2 + 7, 0);
+      group.add(strut);
+    }
+  }
+  // roofMode === 'open' (MorumBis, Arena da Amazônia): sem cobertura, só
+  // a borda do anel — o céu aparece por cima da arquibancada.
 
   for (let column = -2; column <= 2; column += 1) {
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.7, height + 5, 0.7), concreteMaterial);
@@ -463,10 +603,17 @@ function buildFloodlight(x, z) {
 /**
  * Monta o estádio completo na cena.
  * Devolve os objetos que o motor de partida precisa (gol, placas, bola).
+ *
+ * `options.stadium` é o índice do estádio na lista de STADIUMS: cada estádio
+ * tem o seu próprio modelo 3D de arquibancada/cobertura.
  */
 export function buildStadium(scene, options = {}) {
   const group = new THREE.Group();
   scene.add(group);
+
+  // Modelo do estádio: cobertura, fachada, altura e LED mudam por praça.
+  const model = STADIUMS[options.stadium]?.model || {};
+  const standHeight = model.height || 17;
 
   // Céu.
   const skyTexture = canvasTexture(1024, 512, drawSky);
@@ -479,7 +626,14 @@ export function buildStadium(scene, options = {}) {
   group.add(sky);
 
   // Gramado.
-  const pitchTexture = canvasTexture(2048, 1328, drawPitch);
+  const pitchCanvas = document.createElement('canvas');
+  pitchCanvas.width = 2048;
+  pitchCanvas.height = 1328;
+  const pitchContext = pitchCanvas.getContext('2d');
+  drawPitch(pitchContext, 2048, 1328);
+  const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
+  pitchTexture.colorSpace = THREE.SRGBColorSpace;
+  pitchTexture.anisotropy = 2;
   const pitch = new THREE.Mesh(
     new THREE.PlaneGeometry(PITCH.length, PITCH.width),
     new THREE.MeshLambertMaterial({ map: pitchTexture })
@@ -487,6 +641,14 @@ export function buildStadium(scene, options = {}) {
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
+
+  // Gramado real: quando a foto do usuário carrega, o gramado é
+  // redesenhado com ela (as linhas e as faixas de corte permanecem).
+  preloadGrass().then(image => {
+    if (!image) return;
+    drawPitch(pitchContext, 2048, 1328, image);
+    pitchTexture.needsUpdate = true;
+  });
 
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
@@ -504,13 +666,52 @@ export function buildStadium(scene, options = {}) {
   crowdTexture.repeat.set(4, 1.4);
 
   const standOptions = [
-    { width: PITCH.length + 26, depth: 17, height: 17, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
-    { width: PITCH.length + 26, depth: 17, height: 17, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + 12] },
-    { width: PITCH.width + 26, depth: 17, height: 17, rotation: Math.PI / 2, position: [-(PITCH.halfLength + 12), 0, 0] },
-    { width: PITCH.width + 26, depth: 17, height: 17, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
+    { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
+    { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + 12] },
+    { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: Math.PI / 2, position: [-(PITCH.halfLength + 12), 0, 0] },
+    { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
   ];
   for (const option of standOptions) {
-    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, option));
+    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, { ...option, model }));
+  }
+
+  // Cobertura de anel (Maracanã): coroa inclinada sobre as
+  // arquibancadas, sem cobrir o gramado.
+  if (model.roof === 'ring') {
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(78, 66, 7, 40, 1, true),
+      new THREE.MeshLambertMaterial({ color: 0xe2e0d8, side: THREE.DoubleSide })
+    );
+    ring.scale.z = 0.73;
+    ring.position.set(0, standHeight + 8.5, 0);
+    ring.rotation.x = 0.1;
+    group.add(ring);
+  }
+
+  // Anel de mastros brancos inclinados (Mineirão): postes em volta da
+  // arquibancada sustentando um cabo de anel no topo.
+  if (model.poles) {
+    const poleMaterial = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
+    const radius = 64;
+    const poleTop = standHeight + 9;
+    for (let i = 0; i < 16; i += 1) {
+      const angle = (i / 16) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius * 0.72;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 9, 8), poleMaterial);
+      pole.position.set(x, (standHeight + poleTop) / 2, z);
+      pole.rotation.z = -Math.cos(angle) * 0.14;
+      pole.rotation.x = Math.sin(angle) * 0.14;
+      group.add(pole);
+    }
+    const cable = new THREE.Mesh(
+      new THREE.TorusGeometry(radius, 0.12, 8, 32),
+      new THREE.MeshLambertMaterial({ color: 0xd8d8d8 })
+    );
+    cable.rotation.x = Math.PI / 2;
+    cable.scale.z = 0.72;
+    cable.position.y = poleTop;
+    group.add(cable);
   }
 
   // Placas de publicidade.
@@ -540,7 +741,10 @@ export function buildStadium(scene, options = {}) {
   const ledTexture = canvasTexture(2048, 64, drawLed);
   ledTexture.wrapS = THREE.RepeatWrapping;
   ledTexture.repeat.set(2, 1);
-  const ledMaterial = new THREE.MeshBasicMaterial({ map: ledTexture });
+  const ledMaterial = new THREE.MeshBasicMaterial({
+    map: ledTexture,
+    color: model.led ? new THREE.Color(model.led) : 0xffffff
+  });
   for (const side of [-1, 1]) {
     const banner = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.length + 20, 2.3), bannerMaterial);
     banner.position.set(0, 1.18, side * (PITCH.halfWidth + 2.55));

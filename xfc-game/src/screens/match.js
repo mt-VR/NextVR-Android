@@ -1,39 +1,35 @@
 // Tela de preparação da partida ("Classic Match"): mostra o confronto
 // escolhido no Kick Off e abre o mesmo jogo 3D usado pelas Partidas Rápidas.
+//
+// CONTINUAR leva à escolha de estádios: a partida começa ao tocar a galeria.
 
 import { el, padButton } from '../ui/dom.js';
 import { getTeam } from '../data/teams.js';
-import { createStadiumPicker } from '../ui/stadiumcta.js';
+import { createContinueButton } from '../ui/continuebtn.js';
 
 export function matchScreen(ctx, params = {}) {
   const home = getTeam(params.home) || getTeam(ctx.state.selection.home);
   const away = getTeam(params.away) || getTeam(ctx.state.selection.away);
   const venue = away ? away.stadium : 'Estádio a definir';
 
-  function startMatch(stadium) {
-    if (!home || !away || home.id === away.id) {
-      ctx.go('kickoff');
-      return;
+  // CONTINUAR → galeria de estádios → partida.
+  const continueButton = createContinueButton({
+    onEnter() {
+      if (!home || !away || home.id === away.id) {
+        ctx.go('kickoff');
+        return;
+      }
+      ctx.go('stadiums', {
+        returnTo: 'match',
+        home: home.id,
+        away: away.id,
+        homeKit: ctx.state.kits[home.id] ?? 0,
+        awayKit: ctx.state.kits[away.id] ?? 0,
+        minutes: 6,
+        difficulty: 'normal'
+      });
     }
-    ctx.go('play', {
-      home: home.id,
-      away: away.id,
-      homeKit: ctx.state.kits[home.id] ?? 0,
-      awayKit: ctx.state.kits[away.id] ?? 0,
-      minutes: 6,
-      difficulty: 'normal',
-      stadium
-    });
-  }
-
-  const stadiumPicker = createStadiumPicker({
-    size: 'lg',
-    initialIndex: ctx.state?.settings?.stadium ?? null,
-    onChange(stadium) {
-      if (ctx.state?.settings) ctx.state.settings.stadium = stadium;
-    },
-    onEnter: startMatch
-  });
+  }).node;
 
   const node = el('div', { class: 'screen screen--match' },
     el('header', { class: 'topbar' },
@@ -60,7 +56,7 @@ export function matchScreen(ctx, params = {}) {
         class: 'match__note',
         text: 'Uniformes definidos, bola rolando: a mesma experiência 3D das Partidas Rápidas aguarda — controle um atleta por vez e leve a decisão para o apito final.'
       }),
-      stadiumPicker.node,
+      continueButton,
       el('button', { class: 'match__back', type: 'button', onClick: () => ctx.go('kickoff') }, '‹ VOLTAR AOS TIMES')
     ),
     el('footer', { class: 'footer' },
@@ -74,7 +70,7 @@ export function matchScreen(ctx, params = {}) {
     node,
     onKey(event) {
       if (event.key === 'Enter') {
-        startMatch(stadiumPicker.index);
+        continueButton.click();
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {

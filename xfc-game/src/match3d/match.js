@@ -39,11 +39,12 @@ export function createMatch(options = {}) {
     onEvent = () => {},
     minutes = 6,
     difficulty = 'normal',
-    userSide = 'home'
+    userSide = 'home',
+    stadium = 0
   } = options;
 
   const engine = createEngine(canvas);
-  const stadium = buildStadium(engine.scene);
+  const stadiumMesh = buildStadium(engine.scene, { stadium });
   const ball = createBall(engine.scene);
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
@@ -1256,7 +1257,7 @@ export function createMatch(options = {}) {
       engine.stop();
       for (const player of allPlayers) player.model.dispose();
       ball.dispose();
-      stadium.dispose();
+      stadiumMesh.dispose();
       engine.dispose();
     },
     get controlled() {

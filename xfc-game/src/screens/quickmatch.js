@@ -2,7 +2,7 @@
 // duração da partida. É o atalho do menu para um confronto direto.
 
 import { el, svg, ICONS, padButton } from '../ui/dom.js';
-import { createStadiumPicker } from '../ui/stadiumcta.js';
+import { createContinueButton } from '../ui/continuebtn.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
@@ -101,10 +101,10 @@ export function quickMatchScreen(ctx) {
     );
   }
 
-  // O estádio escolhido envolve a partida — e é o próprio botão de entrar.
-  const stadiumPicker = createStadiumPicker({
-    size: 'md',
-    onEnter(stadium) {
+  // CONTINUAR leva à escolha de estádios: a partida começa ao tocar a
+  // galeria dos seis estádios.
+  const continueButton = createContinueButton({
+    onEnter() {
       const home = getTeam(selection.home);
       const away = getTeam(selection.away);
       if (home.id === away.id) {
@@ -112,17 +112,17 @@ export function quickMatchScreen(ctx) {
         return;
       }
       const chosen = DURATIONS.find(item => item.id === duration) || DURATIONS[1];
-      ctx.go('play', {
+      ctx.go('stadiums', {
+        returnTo: 'quick',
         home: home.id,
         away: away.id,
         homeKit: kits[home.id] ?? 0,
         awayKit: kits[away.id] ?? 0,
         minutes: chosen.minutes,
-        difficulty,
-        stadium
+        difficulty
       });
     }
-  });
+  }).node;
 
   const node = el('div', { class: 'screen screen--quick' },
     el('header', { class: 'topbar' },
@@ -150,7 +150,7 @@ export function quickMatchScreen(ctx) {
         el('span', { class: 'hint' }, padButton('circle', 'Back'), el('span', { text: 'Back' }))
       ),
       el('div', { class: 'quick__actions' },
-        stadiumPicker.node
+        continueButton
       )
     )
   );
@@ -200,7 +200,7 @@ export function quickMatchScreen(ctx) {
         return true;
       }
       if (event.key === 'Enter') {
-        node.querySelector('.stadium-cta').click();
+        node.querySelector('.continue-btn')?.click();
         return true;
       }
       return false;

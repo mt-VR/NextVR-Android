@@ -143,7 +143,23 @@ export const KITS = {
     },
     { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f4', secondary: '#d31245', trim: '#1b1b1b' } },
     { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0d2c54', secondary: '#f4f4f4', trim: '#d31245' } }
-  ]
+  ],
+  flamengo: [
+    { id: 'home', name: 'Home', pattern: 'stripes', colors: { primary: '#c8102e', secondary: '#141414', trim: '#ffd84a' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#141414', trim: '#c8102e' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0d2c54', secondary: '#f4f4f2', trim: '#c8102e' } }
+  ],
+  palmeiras: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#00843d', secondary: '#f4f4f2', trim: '#003d1e' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#00843d', trim: '#003d1e' } },
+    { id: 'third', name: 'Third', pattern: 'solid', colors: { primary: '#0a1f5c', secondary: '#f4f4f2', trim: '#f5d000' } }
+  ],
+  corinthians: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#141414', secondary: '#f4f4f2', trim: '#141414' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#141414', trim: '#0a5c9c' } },
+    { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: '#0a5c9c', secondary: '#f4f4f2', trim: '#141414' } }
+  ],
+
 };
 
 /** Os três uniformes de um time (ou uma lista vazia, se o time não tiver). */

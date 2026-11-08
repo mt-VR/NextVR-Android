@@ -16,10 +16,11 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem dezoito clubes, com onze em campo e sete reservas em cada um', () => {
-  assert.equal(TEAMS.length, 18, 'o jogo oferece dezoito clubes');
+test('XFC tem vinte e um clubes, com onze em campo e sete reservas em cada um', () => {
+  assert.equal(TEAMS.length, 21, 'o jogo oferece vinte e um clubes');
   assert.deepEqual(TEAMS.map(team => team.id), [
     'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
+    'flamengo', 'palmeiras', 'corinthians',
     'aston-villa', 'brentford', 'panathinaikos', 'river-plate', 'levante', 'huddersfield-town',
     'eintracht-frankfurt', 'queens-park-rangers', 'wrexham', 'sheffield-united',
     'northampton-town', 'rotherham-united', 'wycombe-wanderers', 'rkc-waalwijk'
@@ -234,9 +235,18 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.click(nextClub);
     assert.ok((await homeName()).includes('Paraná Clube'), 'Paraná Clube aparece na escolha de times');
     await page.click(nextClub);
+    assert.ok((await homeName()).includes('Flamengo'), 'Flamengo aparece na escolha de times');
+    await page.click(nextClub);
+    assert.ok((await homeName()).includes('Palmeiras'), 'Palmeiras aparece na escolha de times');
+    await page.click(nextClub);
+    assert.ok((await homeName()).includes('Corinthians'), 'Corinthians aparece na escolha de times');
+    await page.click(nextClub);
     assert.ok((await homeName()).includes('Aston Villa'), 'os clubes do pacote também entram no carousel');
     await page.click(prevClub);
-    assert.ok((await homeName()).includes('Paraná Clube'), 'a seta anterior volta um clube');
+    assert.ok((await homeName()).includes('Corinthians'), 'a seta anterior volta um clube');
+    await page.click(prevClub);
+    await page.click(prevClub);
+    await page.click(prevClub);
     await page.click(prevClub);
     await page.click(prevClub);
     await page.click(prevClub);
@@ -267,16 +277,16 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.equal(await page.locator('.bench__slot').count(), 7, 'o banco mostra sete reservas');
     assert.ok((await page.locator('.player-panel__name').textContent()).length > 2, 'o painel mostra o jogador selecionado');
 
-    // O confronto leva para a tela de preparação da partida.
+    // CONTINUAR leva à escolha de estádios (galeria dos seis estádios).
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
-    await page.click('.screen--kickoff .stadium-cta', { noWaitAfter: true });
-    await page.waitForSelector('.screen--match');
-    assert.ok((await page.locator('.match__teams').textContent()).includes('FC Barcelona'), 'o confronto mostra o Barcelona');
+    await page.click('.screen--kickoff .continue-btn', { noWaitAfter: true });
+    await page.waitForSelector('.screen--stadiums', { timeout: 15000 });
+    assert.equal(await page.locator('.stadiums__card').count(), 6, 'a galeria mostra os seis estádios');
+    await page.click('.stadiums__card:first-child', { noWaitAfter: true });
 
-    // Preparar a partida leva ao jogo 3D de verdade — com o HUD de transmissão,
-    // o analógico fixo e o cartão do jogador controlado.
-    await page.click('.screen--match .stadium-cta', { noWaitAfter: true });
+    // Tocar no cartão do estádio leva ao jogo 3D de verdade — com o HUD de
+    // transmissão, o analógico fixo e o cartão do jogador controlado.
     try {
       await page.waitForSelector('.screen--play', { timeout: 30000 });
     } catch (error) {
@@ -351,13 +361,16 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
     assert.ok(await page.locator('.quick__kit').count() >= 6, 'cada lado oferece as blusas do clube');
-    assert.ok(await page.locator('.stadium-cta').count(), 'a tela oferece o estádio como botão de entrar');
+    assert.ok(await page.locator('.continue-btn').count(), 'a tela oferece o CONTINUAR');
 
     // Duração e dificuldade são ajustáveis antes de começar.
     await page.locator('.quick__option', { hasText: 'CURTA' }).first().click();
     await page.locator('.quick__option', { hasText: 'FÁCIL' }).first().click();
 
-    await page.click('.quick__actions .stadium-cta', { noWaitAfter: true });
+    await page.click('.quick__actions .continue-btn', { noWaitAfter: true });
+    await page.waitForSelector('.screen--stadiums', { timeout: 15000 });
+    assert.equal(await page.locator('.stadiums__card').count(), 6, 'a galeria mostra os seis estádios');
+    await page.click('.stadiums__card:first-child', { noWaitAfter: true });
     try {
       await page.waitForSelector('.screen--play', { timeout: 30000 });
     } catch (error) {
