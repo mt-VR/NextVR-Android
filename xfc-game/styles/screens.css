@@ -1586,7 +1586,6 @@
 /* ------------------------------- pré-jogo: o estádio é o botão de entrar -- */
 
 .stadium-cta {
-  --stadium-photo: none;
   position: relative;
   display: block;
   overflow: hidden;
@@ -1596,6 +1595,11 @@
   cursor: pointer;
   text-align: left;
   transition: transform 160ms ease, box-shadow 220ms ease, border-color 160ms ease;
+}
+
+.stadium-cta {
+  background-size: cover;
+  background-position: center 32%;
 }
 
 .stadium-cta--md {
@@ -1608,24 +1612,10 @@
   height: 168px;
 }
 
-.stadium-cta::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--stadium-photo);
-  background-size: cover;
-  background-position: center 32%;
-  transition: transform 420ms ease;
-}
-
 .stadium-cta:hover {
   transform: translateY(-2px);
   border-color: var(--accent, #2ef0a8);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 34px rgba(46, 240, 168, 0.22);
-}
-
-.stadium-cta:hover::before {
-  transform: scale(1.045);
 }
 
 .stadium-cta__shade {

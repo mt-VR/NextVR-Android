@@ -114,7 +114,9 @@ export function playScreen(ctx, params = {}) {
 
     // O estádio escolhido toma a tela (a arte oficial atrás de tudo).
     const photoRefresh = () => {
-      root.style.setProperty('--showcase-photo', `url("${STADIUMS[stadiumIndex].file}")`);
+      root.style.backgroundImage =
+        'linear-gradient(180deg, rgba(2, 10, 18, 0.16) 0%, rgba(2, 10, 18, 0.08) 42%, rgba(2, 10, 18, 0.74) 100%), '
+        + `url("${STADIUMS[stadiumIndex].file}")`;
     };
     photoRefresh();
     // As setas trocam o palco: o fundo acompanha a troca.

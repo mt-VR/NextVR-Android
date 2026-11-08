@@ -270,13 +270,13 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // O confronto leva para a tela de preparação da partida.
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
-    await page.click('.screen--kickoff .stadium-cta');
+    await page.click('.screen--kickoff .stadium-cta', { noWaitAfter: true });
     await page.waitForSelector('.screen--match');
     assert.ok((await page.locator('.match__teams').textContent()).includes('FC Barcelona'), 'o confronto mostra o Barcelona');
 
     // Preparar a partida leva ao jogo 3D de verdade — com o HUD de transmissão,
     // o analógico fixo e o cartão do jogador controlado.
-    await page.click('.stadium-cta');
+    await page.click('.screen--match .stadium-cta', { noWaitAfter: true });
     await page.waitForSelector('.screen--play', { timeout: 15000 });
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
@@ -341,7 +341,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.locator('.quick__option', { hasText: 'CURTA' }).first().click();
     await page.locator('.quick__option', { hasText: 'FÁCIL' }).first().click();
 
-    await page.click('.quick__actions .stadium-cta');
+    await page.click('.quick__actions .stadium-cta', { noWaitAfter: true });
     await page.waitForSelector('.screen--play', { timeout: 15000 });
 
     // Pré-jogo imersivo: o estádio toma a tela, com o confronto no centro.

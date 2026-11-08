@@ -35,7 +35,12 @@ export function createStadiumPicker({ onEnter, size = 'md', initialIndex = null,
   function paint() {
     const stadium = STADIUMS[index];
     // A arte aparece texturizada no próprio botão (cama + cobertura).
-    button.style.setProperty('--stadium-photo', `url("${stadium.file}")`);
+    // backgroundImage inline: a URL resolve contra a página (não contra a
+    // folha de estilo — senão viraria /styles/assets/...).
+    button.style.backgroundImage =
+      'linear-gradient(90deg, rgba(2, 10, 18, 0.88) 0%, rgba(2, 10, 18, 0.42) 52%, rgba(2, 10, 18, 0) 100%), '
+      + 'linear-gradient(180deg, rgba(2, 10, 18, 0) 46%, rgba(2, 10, 18, 0.8) 100%), '
+      + `url("${stadium.file}")`;
     name.textContent = stadium.name;
     tag.textContent = stadium.tag;
     [...dots.children].forEach((dot, dotIndex) => {
