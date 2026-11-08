@@ -150,7 +150,7 @@ function mkLabel(t){const c=document.createElement('canvas');c.width=256;c.heigh
  const m=new THREE.Mesh(new THREE.PlaneGeometry(.46,.115),new THREE.MeshBasicMaterial({map:tx,transparent:true,depthWrite:false,depthTest:true,toneMapped:false}));m.renderOrder=5;m.position.set(0,.5,0);m.userData={c,tx};setLabel(m,t);return m}
 function setLabel(m,t){const c=m.userData.c,x=c.getContext('2d');x.clearRect(0,0,256,64);x.font='40px GT,system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';x.lineWidth=8;x.strokeStyle='#000';t=String(t).toUpperCase();x.strokeText(t,128,34);x.fillStyle='#fff';x.fillText(t,128,34);m.userData.tx.needsUpdate=true}
 function mkModel(hex,nick){const o=THREE.SkeletonUtils.clone(pl),m=[];{const rm=[];o.traverse(x=>{if(x.userData&&x.userData.acc)rm.push(x)});rm.forEach(x=>x.parent&&x.parent.remove(x))}cloneMats(o,m);paint(m,hex);const g=new THREE.Group();g.add(o);S.add(g);const M=rig(o);Object.assign(M,{g,o,m});M.head.scale.copy(LM.hs);M.pnL=LM.pnL;M.pnR=LM.pnR;M.lab=mkLabel(nick);g.add(M.lab);placeLab(M,g);M.blob=mkBlob();return M}
-function build(g){pl=g.scene;cloneMats(pl,mats);paint(mats,color);pg.add(pl);S.add(pg);pg.updateMatrixWorld(true);
+function build(g){nvCorpoSai();pl=g.scene;cloneMats(pl,mats);paint(mats,color);pg.add(pl);S.add(pg);pg.updateMatrixWorld(true);
  const M=rig(pl),W=b=>b.getWorldPosition(V3());
  const sL=W(M.uL),sR=W(M.uR),hL=W(M.hL),hR=W(M.hR),hd=W(M.head),bd=W(pl.getObjectByName('body_01'));
  const r1=W(M.uL).distanceTo(W(M.fL)),r2=W(M.fL).distanceTo(W(M.hL)),Rr=hR.clone().sub(hL).normalize(),Up=hd.clone().sub(bd).normalize();
@@ -183,6 +183,136 @@ function refreshAcc(){if(LM)setAcc(LM,accList(myAcc))}
 $('accg').value=myAcc.g;$('acch').value=myAcc.h;myAcc.g=$('accg').value;myAcc.h=$('acch').value;$('accc').value=myAcc.c;myAcc.c=$('accc').value;$('ahy').value=myAcc.y;$('ahz').value=myAcc.z;
 const accSave=()=>{myAcc.g=$('accg').value;myAcc.h=$('acch').value;myAcc.c=$('accc').value;myAcc.y=+$('ahy').value;myAcc.z=+$('ahz').value;try{localStorage.setItem('gr_acc',JSON.stringify(myAcc))}catch(e){}refreshAcc()};
 ['accg','acch','accc'].forEach(i=>$(i).onchange=accSave);['ahy','ahz'].forEach(i=>$(i).oninput=accSave);
+// ---------- CORPO RESERVA: o gorila NUNCA fica sem boneco ----------
+//
+// "Ainda tá sem modelo de gorilla." O modelo grande (PLAYER_B64) é um GLB de 238 KB com duas
+// texturas embutidas, carregado por `loader.parse`. Se qualquer etapa dele falhar no aparelho
+// (textura, blob:, memória, driver), o jogo ficava SEM corpo e SEM braços — e o único aviso ao
+// usuário era a janela de problema, que ele já não queria ver.
+//
+// Aqui o corpo existe desde o primeiro quadro, montado com primitivas (tronco, cabeça, olhos,
+// braços e mãos), com o MESMO esqueleto por nome que o modelo real: `upper_arm_L`, `forearm_L`,
+// `hand_L`, `head`, `body_01` e os ossos da mão (`palm_02_L`, `f_index_01_L`, `f_middle_01_L`).
+// Como os nomes são os mesmos, `rig()`, `arm2()`, `handPose()`, `faceCam()`, `placeLab()`,
+// `setBlob()` e a IK das mãos funcionam sem uma linha de mudança — o boneco responde às mãos do
+// NextVR igual ao modelo original.
+//
+// Quando o GLB termina de carregar, `build()` chama `nvCorpoSai()` e o modelo de verdade entra no
+// lugar (a reserva é descartada). Ou seja: ou é o gorila original, ou é este — nunca o vazio.
+const NV_CORPO = { ativo: false, saida: false };
+
+function nvCorpoSai() {
+  NV_CORPO.saida = true;
+  if (!NV_CORPO.ativo) return;
+  const raiz = NV_CORPO.raiz;
+  NV_CORPO.ativo = false;
+  if (!raiz) return;
+  try { if (raiz.parent) raiz.parent.remove(raiz); } catch (e) {}
+  try {
+    raiz.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material.dispose) o.material.dispose();
+    });
+  } catch (e) {}
+}
+
+/** Monta o corpo reserva e devolve o `LM` que o resto do jogo espera. */
+function nvCorpoReserva() {
+  if (pl || LM) return false;
+  const R = 0.42, R2 = 0.40;                  // braço e antebraço, como o Gorilla Tag
+  const escuro = new THREE.MeshLambertMaterial({ color: 0x3b3b40 }); escuro.name = 'darkfur';
+  const claro = new THREE.MeshLambertMaterial({ color: 0x9a9aa2 }); claro.name = 'lightfur';
+  const pele = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
+  const branco = new THREE.MeshBasicMaterial({ color: 0xf2f2ea });
+  const preto = new THREE.MeshBasicMaterial({ color: 0x101014 });
+
+  const raiz = new THREE.Group();             // é o `pl`: o corpo inteiro, na origem do jogador
+  const esqueleto = new THREE.Bone(); esqueleto.name = 'body_01';
+
+  // Tronco: um cilindro achatado descendo do peito para os quadris.
+  const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.245, 0.52, 16), escuro);
+  tronco.position.set(0, -0.10, 0);
+  tronco.castShadow = true;
+  esqueleto.add(tronco);
+
+  // Cabeça: esfera levemente achatada, focinho e dois olhos (é o que dá a leitura de "gorila").
+  const cabeca = new THREE.Bone(); cabeca.name = 'head_02'; cabeca.position.set(0, 0.30, 0.01);
+  const cranio = new THREE.Mesh(new THREE.SphereGeometry(0.165, 18, 14), escuro);
+  cranio.scale.set(1, 0.94, 1.04); cranio.castShadow = true;
+  const focinho = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 10), claro);
+  focinho.position.set(0, -0.045, 0.115); focinho.scale.set(1.15, 0.8, 1);
+  const olho = (x) => {
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), branco);
+    o.position.set(x, 0.035, 0.135);
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), preto);
+    p.position.set(0, 0, 0.022); o.add(p);
+    return o;
+  };
+  const orelha = (x) => {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), pele);
+    e.position.set(x, 0.01, -0.02); e.scale.set(0.6, 1, 0.8);
+    return e;
+  };
+  cabeca.add(cranio, focinho, olho(-0.058), olho(0.058), orelha(-0.16), orelha(0.16));
+  esqueleto.add(cabeca);
+
+  // Braços: cada osso carrega o pedaço que ele move. O osso do antebraço fica na ponta do braço e
+  // o da mão na ponta do antebraço — é a geometria que `arm2()` espera para apontar com a IK.
+  function braco(lado) {
+    const sinal = lado === 'L' ? -1 : 1;
+    const ombro = new THREE.Bone(); ombro.name = 'shoulder_' + lado + '_03';
+    ombro.position.set(sinal * 0.195, 0.235, 0);
+    const bracoB = new THREE.Bone(); bracoB.name = 'upper_arm_' + lado + '_04';
+    const ante = new THREE.Bone(); ante.name = 'forearm_' + lado + '_06'; ante.position.set(0, -R, 0);
+    const mao = new THREE.Bone(); mao.name = 'hand_' + lado + '_05'; mao.position.set(0, -R2, 0);
+
+    const mBraco = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, R, 12), escuro);
+    mBraco.position.set(0, -R / 2, 0); mBraco.castShadow = true;
+    const mAnte = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.046, R2, 12), escuro);
+    mAnte.position.set(0, -R2 / 2, 0); mAnte.castShadow = true;
+    const mPunho = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), pele);
+    mPunho.position.set(0, -0.03, 0); mPunho.scale.set(1, 1.1, 0.85); mPunho.castShadow = true;
+
+    bracoB.add(mBraco); ante.add(mAnte); mao.add(mPunho);
+    ombro.add(bracoB); bracoB.add(ante); ante.add(mao);
+
+    // Ossos da mão que `handPose()` procura (mesmos nomes do GLB; sem malha, só orientação).
+    const palma = new THREE.Bone(); palma.name = 'palm_02_' + lado + '_014'; palma.position.set(0, -0.055, 0.02);
+    const indice = new THREE.Bone(); indice.name = 'f_index_01_' + lado + '_008'; indice.position.set(-0.03, -0.10, 0.04);
+    const medio = new THREE.Bone(); medio.name = 'f_middle_01_' + lado + '_015'; medio.position.set(0.005, -0.10, 0.04);
+    mao.add(palma, indice, medio);
+
+    esqueleto.add(ombro);
+    return { u: bracoB, f: ante, h: mao, pm: palma, ix: indice, md: medio };
+  }
+  const esq = braco('L'), dir = braco('R');
+
+  raiz.add(esqueleto);
+  pg.add(raiz);
+  raiz.updateMatrixWorld(true);
+
+  const M = {
+    uL: esq.u, fL: esq.f, hL: esq.h, uR: dir.u, fR: dir.f, hR: dir.h,
+    pmL: esq.pm, ixL: esq.ix, mdL: esq.md, pmR: dir.pm, ixR: dir.ix, mdR: dir.md,
+    head: cabeca,
+  };
+  pl = raiz;
+  mats.length = 0; mats.push(escuro, claro);
+  L1 = R; L2 = R2; ARM = (L1 + L2) * 0.98;
+  LM = Object.assign(M, { g: pg, o: raiz, m: mats, reserva: true });
+  LM.hs = LM.head.scale.clone();
+  LM.lab = mkLabel('Gorilla');
+  pg.add(LM.lab);
+  placeLab(LM, pg);
+  LM.blob = mkBlob();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { LM.nk = null; });
+  NV_CORPO.ativo = true;
+  NV_CORPO.raiz = raiz;
+  chk();
+  return true;
+}
+
+nvCorpoReserva();
 // ---------- O BONECO: carregar o modelo do gorila de três jeitos e dizer o motivo se falhar ----------
 //
 // Na 2.6.2 o modelo era carregado com uma linha só (`loader.parse(base64, '', build, aviso)`) e, se
@@ -788,8 +918,10 @@ window.__nvHandsInfo = function () {
 //   * os coeficientes são os oficiais da lente Cardboard v1 (k1 = 0,441 · k2 = 0,156), os mesmos do
 //     Cockpit VR (K1/K2 em assets/ui/cockpit/game.html);
 //   * o IPD passou a 67 mm (era 64 mm), que é a distância que o usuário pediu;
-//   * as BORDAS deixaram de ser um quadrado: a correção agora preenche o olho inteiro (nenhuma
-//     moldura preta sobrando) e o canto arredonda, como a lente redonda da caixa.
+//   * as BORDAS deixaram de ser um quadrado e o TAMANHO passou a ser o do NextVR fora do jogo: a
+//     correção usa a MESMA conta do SDK do Cardboard (`sdk/distortion_mesh.cc`,
+//     `sdk/lens_distortion.cc`), na direção certa — a imagem ENCOLHE em relação à tela, sobra um
+//     anel preto redondo e o mundo fica no tamanho em que o NextVR já desenha a interface dele.
 //
 // COMO FUNCIONA: cada olho é desenhado numa textura do tamanho de MEIA tela e um passe de tela cheia
 // aplica a distorção de barril antes de mostrar. É o caminho do Cardboard SDK (e o do jogo de avião):
@@ -800,12 +932,17 @@ window.__nvHandsInfo = function () {
 //      pixelRatio da sessão; multiplicar de novo aqui deixava dois quadradinhos no canto;
 //   2. o tamanho da textura de cada olho é em PIXELS de device (meia tela × pixelRatio), porque um
 //      render target não passa por essa multiplicação;
-//   3. o raio da distorção é normalizado pelo CANTO do olho e multiplicado por 1/(1+k1+k2): assim o
-//      canto da tela encosta exatamente na borda da textura. Com a conta antiga (raio cru) a
-//      ampliação estourava, a amostra saía da textura e sobrava uma moldura preta — a imagem
-//      pequena e "quadrada" no meio do olho que o usuário viu;
-//   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (RENDER_FOV), porque a
-//      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo.
+//   3. a DIREÇÃO da correção. O SDK mapeia conteúdo da textura (tan t) para a tela em
+//      `DistortInverse(t)`, então para um pixel de tela em tan s a amostra é `t = s·(1+k1·s²+k2·s⁴)`
+//      — MULTIPLICA o raio, ou seja, a imagem fica MENOR que a tela e as bordas caem em preto. A
+//      versão 2.6.3 dividia por (1+k1+k2): isso AMPLIAVA o centro em 1,6× e era o "as lentes estão
+//      grandes demais" que o usuário viu;
+//   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (renderFov), porque a
+//      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo;
+//   5. o TAMANHO: o círculo da imagem ocupa 86 % do raio do olho (`LENS_FILL`), que é a proporção que
+//      o próprio SDK chega para o Cardboard v1 (o conteúdo de 40° cai em ~86 % da tela). É o "deixa
+//      no mesmo tamanho do NextVR fora do jogo": a interface do app usa este mesmo perfil, então a
+//      imagem do jogo e a do app ficam do mesmo tamanho, com o anel preto em volta.
 const NVLENS = (() => {
   const FOV = 80, IPD = 0.067;            // CARDBOARD_2015_LENS: fov 80 · ipd 0.067 (67 mm)
   const K1 = 0.441, K2 = 0.156;           // coeficientes oficiais da lente Cardboard v1
@@ -816,23 +953,35 @@ const NVLENS = (() => {
 
   const quadScene = new THREE.Scene();
   const quadCam = new THREE.Camera();
-  const uniforms = { tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 } };
+  // tan(40°) = o campo que o perfil Cardboard v1 entrega por lado; tanTexture = o que a textura
+  // precisa cobrir para que, depois do Distort, a imagem chegue até a borda (≈ 49,4°).
+  const RAD = Math.PI / 180;
+  const LENS_FILL = 0.86;                         // o círculo da imagem dentro do olho
+  const TAN_HALF = Math.tan((FOV / 2) * RAD);     // 40°, o campo que o perfil entrega
+  const DIST = (t) => t * (1 + K1 * t * t + K2 * Math.pow(t, 4));
+  const TAN_TEX = DIST(TAN_HALF);                 // ≈ 1,164 (~49,4°) — o que a textura cobre
+  const TAN_EDGE = TAN_HALF / LENS_FILL;          // tan do ângulo na borda do olho
+  const uniforms = {
+    tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 },
+    tanEdge: { value: TAN_EDGE }, tanTexture: { value: TAN_TEX },
+  };
   const material = new THREE.ShaderMaterial({
     uniforms,
     depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: [
-      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar;',
+      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar, tanEdge, tanTexture;',
       'void main(){',
-      // p vai de -1 a 1 no olho inteiro; `ar` é altura / meia-largura, usado só para normalizar o raio.
+      // p vai de -1 a 1 no olho inteiro; `ar` = altura / meia-largura (só corrige a vertical).
       '  vec2 p = vUv * 2.0 - 1.0;',
-      '  float rm = sqrt(1.0 + ar * ar);',
-      '  float rn = min(length(p) / rm, 1.0);',
-      '  float r2 = rn * rn;',
-      '  float f = (1.0 + k1 * r2 + k2 * r2 * r2) / (1.0 + k1 + k2);',
-      '  vec3 c = texture2D(tex, p * f * 0.5 + 0.5).rgb;',
-      // Canto arredondado: a lente da caixa é redonda; com corte reto a borda ficava quadrada.
-      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.90, 1.0, rn)), 1.0);',
+      '  float s = length(vec2(p.x, p.y * ar)) * tanEdge;',   // tan do ângulo deste pixel na tela
+      '  float s2 = s * s;',
+      '  float f = 1.0 + k1 * s2 + k2 * s2 * s2;',            // t = s · f  (Distort do SDK)
+      '  vec2 t = p * f * (tanEdge / tanTexture);',           // -1..1 na textura
+      '  float r = length(t);',
+      '  vec3 c = texture2D(tex, clamp(t * 0.5 + 0.5, 0.0, 1.0)).rgb;',
+      // Onde a textura acaba (40° de campo) a imagem fecha em curva: a lente da caixa é redonda.
+      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.92, 1.0, r)), 1.0);',
       '}',
     ].join('\n'),
   });
@@ -855,15 +1004,13 @@ const NVLENS = (() => {
    * Campo que precisa ser DESENHADO para que, depois da correção, o olho entregue `FOV` no meio da
    * borda (é lá que o fator da lente é menor, e é ele que manda no enquadramento).
    */
-  function renderFov(ar) {
-    const rm = Math.sqrt(1 + ar * ar), rn = 1 / rm, r2 = rn * rn;
-    const fe = (1 + K1 * r2 + K2 * r2 * r2) / (1 + K1 + K2);
-    const t = Math.tan((FOV / 2) * DEG) / fe;
-    return 2 * Math.atan(t) / DEG;
+  /** O `fov` de uma PerspectiveCamera do three é VERTICAL: deriva do horizontal que a lente define. */
+  function renderFov(aspect) {
+    return 2 * Math.atan(TAN_TEX / Math.max(0.01, aspect)) / DEG;
   }
 
   return {
-    k1: K1, k2: K2, fov: FOV, ipd: IPD,
+    k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: LENS_FILL, tanTex: TAN_TEX,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {
@@ -874,7 +1021,7 @@ const NVLENS = (() => {
       const savedFov = cam.fov, savedAspect = cam.aspect;
       const ar = th / Math.max(1, tw);
       eye.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(HALF_IPD);
-      cam.fov = renderFov(ar);
+      cam.fov = renderFov(tw / Math.max(1, th));
       cam.aspect = tw / th;
       cam.updateProjectionMatrix();
       for (let e = 0; e < 2; e++) {
@@ -1187,7 +1334,10 @@ window.__nvGorilla = () => ({
   modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
   seguradas: NV_HAND_HELD, seta: !!(NVHEAD && true),
   nativo: NV_NATIVE_HANDS, olhos: vrView, lente: NVLENS && NVLENS.k1,
-  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov,
+  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov, circulo: NVLENS && NVLENS.fill,
+  // Corpo: o reserva (primitivas) está no lugar ou o modelo original já entrou?
+  reserva: !!(typeof NV_CORPO !== 'undefined' && NV_CORPO.ativo),
+  corpo: !!(typeof pl !== 'undefined' && pl),
   // Carregamento do boneco: quantas tentativas, por qual caminho e, se falhou, o motivo real.
   carga: typeof NV_MODEL !== 'undefined' ? { ok: NV_MODEL.ok, tentativas: NV_MODEL.tentativas, modo: NV_MODEL.modo, erro: NV_MODEL.erro } : null,
   tela: innerWidth + 'x' + innerHeight,

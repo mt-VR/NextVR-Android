@@ -221,8 +221,9 @@ test('o voo tem MAIS qualidade: 900 px por olho e a proporção exata da meia-te
   assert.match(game, /function rtW\(hh\)\{return Math\.max\(2,Math\.round\(hh\*\(Math\.max\(2,innerWidth\)\/2\)\/Math\.max\(2,innerHeight\)\)\)\}/,
     'a textura do olho tem a proporção da meia-tela');
   assert.match(game, /const hw=w\/2,aspE=hw\/Math\.max\(1,h\);/, 'e a câmera de cada olho usa essa mesma proporção');
-  assert.match(game, /eyeL\.aspect=eyeR\.aspect=aspE;eyeL\.updateProjectionMatrix\(\);eyeR\.updateProjectionMatrix\(\)/,
-    'com a projeção refeita (rotação troca a proporção)');
+  assert.match(game, /eyeL\.aspect=eyeR\.aspect=aspE;eyeL\.fov=eyeR\.fov=eyeFov\(aspE\);/,
+    'com a projeção refeita (rotação troca a proporção E o campo vertical)');
+  assert.match(game, /eyeL\.updateProjectionMatrix\(\);eyeR\.updateProjectionMatrix\(\)/, 'e a matriz refeita');
 });
 
 test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma realocação à toa', async () => {
@@ -248,7 +249,7 @@ test('e MENOS travamento: degraus com histerese, mão a 20 Hz em voo e nenhuma r
     'o piso de emissão do 6DoF continua 0.0028 (não desce com esta rodada)');
 });
 
-test('lentes: Cardboard 2015 com 67 mm e a correção PREENCHENDO o olho (bordas arredondadas)', async () => {
+test('lentes: 67 mm, a conta do SDK do Cardboard e o círculo de 86 % (mesmo tamanho do app)', async () => {
   const game = await read(FILES.game);
   // "as lentes do Google cardboard e 67mm": o IPD do app e o do voo passam de 64 para 67 mm.
   assert.match(game, /const IPD=\.067, SCR_W=\.145/, 'o voo usa 67 mm entre os olhos (era 64)');
@@ -259,16 +260,23 @@ test('lentes: Cardboard 2015 com 67 mm e a correção PREENCHENDO o olho (bordas
   // A conta antiga (raio cru, escala por TX/TY) estourava para fora da textura e sobrava uma
   // moldura preta com a imagem pequena no meio: era isso que parecia um quadrado.
   // (o shader é um template literal: os coeficientes entram por ${K1}/${K2} na hora de montar)
-  assert.ok(game.includes('float f=(1.+${K1}*r2+${K2}*r2*r2)/(1.+${K1}+${K2});'),
-    'a correção é normalizada por (1+k1+k2), com os coeficientes da Cardboard v1');
-  assert.match(game, /K1=\.441, K2=\.156/, 'que são os oficiais (k1 .441 · k2 .156)');
-  assert.ok(game.includes('float rm=sqrt(1.+ar*ar);float rn=min(length(p)/rm,1.);'),
-    'o raio vai de 0 no centro a 1 no canto do olho');
-  assert.ok(game.includes('gl_FragColor=vec4(c*(1.-smoothstep(.90,1.,rn)),1.);'),
-    'e o canto arredonda em vez de cortar em esquadro');
-  assert.equal(/s\.x<0\.\|\|s\.x>1\./.test(game), false, 'o descarte que pintava de preto o resto do olho saiu');
+  // A conta é a do SDK: para um pixel de tela em tan s, amostra t = s·(1+k1·s²+k2·s⁴) — MULTIPLICA
+  // o raio, então a imagem fica MENOR que a tela (o 2.6.3 dividia por (1+k1+k2) e ampliava o centro
+  // em 1,6×: era o "as lentes estão grandes demais").
+  assert.match(game, /K1=\.441, K2=\.156/, 'os coeficientes oficiais da Cardboard v1');
+  assert.ok(game.includes('float f=1.+${K1}*s2+${K2}*s2*s2;'),
+    'a correção multiplica o raio (Distort do SDK), não divide');
+  assert.equal(game.includes('/(1.+${K1}+${K2})'), false, 'a divisão que ampliava o centro saiu');
+  // Tamanho: 80° de campo dentro de um círculo de 86 % do raio do olho (a proporção do próprio SDK).
+  assert.match(game, /LN_FOV=80, LN_FILL=0\.86/, 'o campo entregue é 80° e o círculo, 86 % do olho');
+  assert.ok(game.includes('LN_TE=LN_TH/LN_FILL'), 'a borda do olho corresponde a tan(40°)/0,86');
+  assert.ok(game.includes('vec2 q=p*f*(th/tt);float r=length(q);'), 'a amostra é radial e normalizada pela textura');
+  assert.ok(game.includes('c*(1.-smoothstep(.92,1.,r))'), 'e a imagem fecha em curva (lente redonda)');
   assert.match(game, /dmat\.uniforms\.ar\.value=h\/Math\.max\(1,hw\);/, 'o desenho passa a proporção do olho para o shader');
   assert.equal(/dmat\.uniforms\.(sz|c)\.value/.test(game), false, 'e não usa mais a escala/centro deslocados');
+  // O `fov` do three é vertical: sai do horizontal de 49,4° dividido pela proporção do olho.
+  assert.ok(game.includes('const eyeFov=(asp)=>2*Math.atan(LN_TT/Math.max(.05,asp))*180/Math.PI,'),
+    'o campo vertical do olho deriva do horizontal da lente');
 });
 
 test('a rodada tem entrada no menu de Atualizações', async () => {
@@ -277,6 +285,8 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
   // A rodada 2.6.2 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'gorilla-corpo-reserva-lentes-menores'/,
+    'o corpo reserva e as lentes menores têm ficha, no topo');
   assert.match(updates, /id: 'gorilla-boneco-lentes-67-bordas'/,
     'o boneco, as lentes de 67 mm e as bordas têm ficha própria, no topo');
   assert.match(updates, /id: 'cockpit-qualidade-e-sem-travamento'/,
@@ -285,8 +295,8 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
   assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
     'lentes, mãos grudadas, seta e Ryuzaki também');
   const build = await read('nextvr-android/build.gradle');
-  assert.match(build, /versionCode 119/, 'o APK desta rodada é o 119');
-  assert.match(build, /versionName "2\.6\.3"/, 'e se chama 2.6.3 (a 2.6.2 é a que está publicada)');
+  assert.match(build, /versionCode 120/, 'o APK desta rodada é o 120');
+  assert.match(build, /versionName "2\.6\.4"/, 'e se chama 2.6.4 (a 2.6.3 é a que está publicada)');
   const badge = await read('web/src/entry-menu.js');
-  assert.match(badge, /v2\.6\.3/, 'o selo da tela de entrada acompanha');
+  assert.match(badge, /v2\.6\.4/, 'o selo da tela de entrada acompanha');
 });

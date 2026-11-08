@@ -263,17 +263,23 @@ test('as lentes são as do NextVR, as mãos vêm do app e a tela é só o jogo',
   // "conserte as bordas, está quadrado": o raio da correção é normalizado pelo CANTO do olho e
   // dividido por (1+k1+k2) — assim a amostra do canto encosta na borda da textura e a imagem
   // PREENCHE o olho (antes sobrava uma moldura preta, com a imagem pequena e quadrada no meio).
-  assert.ok(lens.includes('float rn = min(length(p) / rm, 1.0);'), 'o raio vai de 0 no centro a 1 no canto');
-  assert.ok(lens.includes('float f = (1.0 + k1 * r2 + k2 * r2 * r2) / (1.0 + k1 + k2);'),
-    'a correção é normalizada por (1+k1+k2): no canto, a amostra é exatamente a borda da textura');
+  // A correção é a do SDK do Cardboard: amostra = raio · (1 + k1·r² + k2·r⁴), ou seja, MULTIPLICA —
+  // a imagem fica MENOR que a tela e o que passa da textura vira preto. Dividir por (1+k1+k2), como
+  // na 2.6.3, ampliava o centro em 1,6× (o "as lentes estão grandes").
+  assert.ok(lens.includes('float f = 1.0 + k1 * s2 + k2 * s2 * s2;'), 'a correção multiplica o raio');
+  assert.equal(lens.includes('(1.0 + k1 + k2)'), false, 'nada de dividir pelo total (ampliava o centro)');
+  // Tamanho: o círculo da imagem em 86 % do raio do olho — a proporção que o próprio SDK chega para
+  // o Cardboard v1, e a mesma da interface do NextVR fora do jogo.
+  assert.ok(lens.includes('const LENS_FILL = 0.86;'), 'o círculo ocupa 86 % do olho');
+  assert.ok(lens.includes('const TAN_EDGE = TAN_HALF / LENS_FILL;'), 'e a borda do olho é tan(40°)/0,86');
+  assert.ok(lens.includes('1.0 - smoothstep(0.92, 1.0, r)'),
+    'a imagem fecha em curva (a lente da caixa é redonda), em vez de corte reto');
   assert.equal(/uv\.x < 0\.0|gl_FragColor = vec4\(0\.0, 0\.0, 0\.0, 1\.0\)/.test(lens), false,
     'não existe mais o descarte que deixava a moldura preta quadrada');
-  assert.ok(lens.includes('1.0 - smoothstep(0.90, 1.0, rn)'),
-    'e o canto arredonda (a lente da caixa é redonda), em vez de corte reto');
   // Corrigir a lente usa só a parte de dentro da textura; por isso o olho é DESENHADO mais aberto,
   // senão o campo visível encolhe. O campo entregue continua sendo o do NextVR (80°).
-  assert.ok(lens.includes('function renderFov(ar)') && lens.includes('cam.fov = renderFov(ar);'),
-    'o olho é desenhado mais aberto para o campo entregue continuar 80°');
+  assert.ok(lens.includes('function renderFov(aspect)') && lens.includes('cam.fov = renderFov(tw / Math.max(1, th));'),
+    'o olho é desenhado mais aberto (e com o campo vertical, que é o que o three usa)');
   // O three.js JÁ multiplica viewport/scissor pelo pixelRatio da sessão
   // (`setViewport` → `N.multiplyScalar(P)`). Multiplicar de novo aqui encolhia cada olho para um
   // quarto da tela, no canto: era o "as lentes estão assim" da 2.6.0.
@@ -469,4 +475,92 @@ test('o boneco: três caminhos de carga, motivo real no aviso e fim do alarme fa
   assert.equal(novo.buffers[0].byteLength, 12, 'os dados (BIN) ficam intactos');
   const binOff = 20 + len;
   assert.equal(dv.getUint32(binOff + 4, true), 0x004e4942, 'o chunk BIN continua lá');
+});
+
+test('o corpo reserva: existe boneco desde o primeiro quadro, com os nomes que o jogo já usa', async () => {
+  const corpo = read('tools/gorilla-rush/parts/corpo.js');
+  const game = read(GAME);
+  const adapt = read('tools/gorilla-rush/adapt.mjs');
+
+  // "Ainda tá sem modelo de gorilla": o corpo de primitivas entra ANTES da carga do GLB, e o modelo
+  // de verdade o descarta quando chega. Ou é o gorila original, ou é este — nunca o vazio.
+  assert.ok(adapt.includes("(await part('corpo.js')).trim()"), 'o adaptador embute o corpo reserva');
+  assert.ok(adapt.includes('function build(g){nvCorpoSai();pl=g.scene;'), 'e o modelo real tira a reserva de cena');
+  assert.ok(corpo.includes('nvCorpoReserva();'), 'a reserva é montada no arranque');
+
+  // Os nomes dos ossos são os do GLB, então rig()/arm2()/handPose() funcionam sem mudança.
+  for (const osso of ['upper_arm_', 'forearm_', 'hand_', 'head_02', 'body_01', 'palm_02_', 'f_index_01_', 'f_middle_01_']) {
+    assert.ok(corpo.includes(osso), `o corpo reserva tem o osso ${osso}`);
+  }
+  assert.ok(corpo.includes("escuro.name = 'darkfur'") && corpo.includes("claro.name = 'lightfur'"),
+    'e os materiais têm os nomes que paint() colore');
+
+  // ---------- exercitado de verdade, com o three do projeto e a IK do jogo ----------
+  const vm = await import('node:vm');
+  // O MESMO three que viaja no APK (r128), não o do node_modules.
+  const threeSrc = read('nextvr-android/src/main/assets/ui/cockpit/libs/three.min.js');
+  const s0 = game.indexOf('function aim(u,e,t){');
+  const s1 = game.indexOf('function rotLocal(', s0);
+  assert.ok(s0 > 0 && s1 > s0, 'a IK do jogo está no arquivo gerado');
+  const ik = game.slice(s0, s1);
+
+  const sb = {
+    console, Math, Object, Array, JSON, String, Number, Promise, Date,
+    document: { fonts: { ready: Promise.resolve() } },
+  };
+  sb.window = sb; sb.self = sb; sb.globalThis = sb;
+  const ctx = vm.createContext(sb);
+  vm.runInContext(threeSrc, ctx);
+  const THREE = sb.THREE;
+  assert.ok(THREE && THREE.REVISION === '128', 'o three é o mesmo do APK (r128)');
+  sb.V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  sb._q = new THREE.Quaternion(); sb._wq = new THREE.Quaternion();
+  sb.S = new THREE.Scene();
+  sb.pg = new THREE.Group(); sb.S.add(sb.pg);
+  sb.pl = null; sb.LM = null; sb.mats = []; sb.L1 = 0; sb.L2 = 0; sb.ARM = 1;
+  let chk = false;
+  sb.chk = () => { chk = true; };
+  sb.mkLabel = () => new THREE.Object3D();
+  sb.placeLab = () => {}; sb.mkBlob = () => new THREE.Object3D();
+  vm.runInContext(corpo, ctx);
+  vm.runInContext(ik, ctx);
+
+  const estado = vm.runInContext('({ pl: !!pl, lm: !!LM, l1: L1, l2: L2, ativo: NV_CORPO.ativo })', ctx);
+  assert.equal(estado.pl, true, 'o jogo passa a ter "pl" (modelo) sem o GLB');
+  assert.equal(estado.lm, true, 'e o "LM" que o laço por quadro usa');
+  assert.equal(estado.ativo, true);
+  assert.equal(chk, true, 'e a interface é liberada como se o modelo tivesse chegado');
+  assert.ok(estado.l1 > 0.3 && estado.l2 > 0.3, 'com braços de tamanho humano (não 1 cm nem 3 m)');
+
+  // A mesma busca que rig() faz, nos mesmos nomes.
+  const achou = vm.runInContext(`
+    (() => { const b = {}; LM.o.traverse(x => { if (x.isBone) b[x.name] = x; });
+      const F = p => Object.values(b).find(x => x.name.startsWith(p));
+      const g = n => Object.values(b).find(x => new RegExp('^' + n + '_\\\\d+$').test(x.name));
+      return { uL: !!F('upper_arm_L'), fL: !!F('forearm_L'), hL: !!F('hand_L'), uR: !!F('upper_arm_R'),
+               hR: !!F('hand_R'), head: !!F('head'), pmL: !!g('palm_02_L'), ixL: !!g('f_index_01_L'),
+               mdL: !!g('f_middle_01_L'), body: !!LM.o.getObjectByName('body_01') }; })()`, ctx);
+  for (const [k, v] of Object.entries(achou)) assert.equal(v, true, `o jogo encontra o osso ${k}`);
+
+  // IK de verdade: a mão vai para o alvo (dentro do alcance do braço) e os braços mudam de pose.
+  const ik2 = vm.runInContext(`
+    (() => {
+      pg.position.set(0, 2.8, 0); pg.updateMatrixWorld(true);
+      const fw = V3(0, 0, 1), rt = V3(1, 0, 0);
+      const antes = LM.hL.getWorldPosition(V3()).clone();
+      const T = V3(-0.30, 2.45, 0.45);
+      arm2(LM, 'L', T, fw, rt, 1); LM.o.updateMatrixWorld(true);
+      const mao = LM.hL.getWorldPosition(V3());
+      return { erro: +mao.distanceTo(T).toFixed(3), moveu: +mao.distanceTo(antes).toFixed(3),
+               alcance: +(L1 + L2).toFixed(2) };
+    })()`, ctx);
+  assert.ok(ik2.erro < 0.12, `a mão chega no alvo (erro ${ik2.erro} m)`);
+  assert.ok(ik2.moveu > 0.2, 'e o braço saiu da pose de descanso (a mão move o braço)');
+  assert.equal(ik2.alcance > 0.7, true, 'com alcance compatível com os alvos do jogo');
+
+  // O modelo real chegando: a reserva sai.
+  vm.runInContext('nvCorpoSai()', ctx);
+  const depois = vm.runInContext('({ ativo: NV_CORPO.ativo, pai: !!NV_CORPO.raiz.parent })', ctx);
+  assert.equal(depois.ativo, false, 'a reserva é desativada');
+  assert.equal(depois.pai, false, 'e sai do grupo do jogador quando o GLB monta');
 });

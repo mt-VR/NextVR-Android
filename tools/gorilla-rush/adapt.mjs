@@ -137,7 +137,14 @@ html = html.replace(HAND_WINDOW, 'on=!!xh||(s.p&&now-s.t<900)');
 // textura embutida não carrega, o jogo ficava sem boneco e o app repetia "não carregou" sem motivo.
 const MODELO_OLD = "loader.parse(Uint8Array.from(atob(PLAYER_B64),c=>c.charCodeAt(0)).buffer,'',build,e=>st('Player error: '+e));";
 MUST(html, MODELO_OLD, 'carga do modelo do gorila');
-html = html.replace(MODELO_OLD, (await part('model.js')).trim());
+// O corpo reserva entra ANTES da carga: assim existe boneco desde o primeiro quadro, mesmo que o
+// GLB nunca chegue. Quando o modelo de verdade monta, `build()` descarta a reserva.
+html = html.replace(MODELO_OLD, (await part('corpo.js')).trim() + '\n' + (await part('model.js')).trim());
+
+/* 3i. O modelo de verdade chega: a reserva sai de cena ------------------------------------- */
+const BUILD_OLD = 'function build(g){pl=g.scene;';
+MUST(html, BUILD_OLD, 'build() do modelo');
+html = html.replace(BUILD_OLD, 'function build(g){nvCorpoSai();pl=g.scene;');
 
 /* 4. Menu dentro do jogo, no laço de quadro ---------------------------------------------- */
 const LOOK_LINE = "if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();";

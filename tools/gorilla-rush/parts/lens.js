@@ -5,8 +5,10 @@
 //   * os coeficientes são os oficiais da lente Cardboard v1 (k1 = 0,441 · k2 = 0,156), os mesmos do
 //     Cockpit VR (K1/K2 em assets/ui/cockpit/game.html);
 //   * o IPD passou a 67 mm (era 64 mm), que é a distância que o usuário pediu;
-//   * as BORDAS deixaram de ser um quadrado: a correção agora preenche o olho inteiro (nenhuma
-//     moldura preta sobrando) e o canto arredonda, como a lente redonda da caixa.
+//   * as BORDAS deixaram de ser um quadrado e o TAMANHO passou a ser o do NextVR fora do jogo: a
+//     correção usa a MESMA conta do SDK do Cardboard (`sdk/distortion_mesh.cc`,
+//     `sdk/lens_distortion.cc`), na direção certa — a imagem ENCOLHE em relação à tela, sobra um
+//     anel preto redondo e o mundo fica no tamanho em que o NextVR já desenha a interface dele.
 //
 // COMO FUNCIONA: cada olho é desenhado numa textura do tamanho de MEIA tela e um passe de tela cheia
 // aplica a distorção de barril antes de mostrar. É o caminho do Cardboard SDK (e o do jogo de avião):
@@ -17,12 +19,17 @@
 //      pixelRatio da sessão; multiplicar de novo aqui deixava dois quadradinhos no canto;
 //   2. o tamanho da textura de cada olho é em PIXELS de device (meia tela × pixelRatio), porque um
 //      render target não passa por essa multiplicação;
-//   3. o raio da distorção é normalizado pelo CANTO do olho e multiplicado por 1/(1+k1+k2): assim o
-//      canto da tela encosta exatamente na borda da textura. Com a conta antiga (raio cru) a
-//      ampliação estourava, a amostra saía da textura e sobrava uma moldura preta — a imagem
-//      pequena e "quadrada" no meio do olho que o usuário viu;
-//   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (RENDER_FOV), porque a
-//      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo.
+//   3. a DIREÇÃO da correção. O SDK mapeia conteúdo da textura (tan t) para a tela em
+//      `DistortInverse(t)`, então para um pixel de tela em tan s a amostra é `t = s·(1+k1·s²+k2·s⁴)`
+//      — MULTIPLICA o raio, ou seja, a imagem fica MENOR que a tela e as bordas caem em preto. A
+//      versão 2.6.3 dividia por (1+k1+k2): isso AMPLIAVA o centro em 1,6× e era o "as lentes estão
+//      grandes demais" que o usuário viu;
+//   4. o olho é DESENHADO mais aberto do que o campo que se quer entregar (renderFov), porque a
+//      correção usa só a parte de dentro da textura. Sem isso, corrigir a lente encolhia o campo;
+//   5. o TAMANHO: o círculo da imagem ocupa 86 % do raio do olho (`LENS_FILL`), que é a proporção que
+//      o próprio SDK chega para o Cardboard v1 (o conteúdo de 40° cai em ~86 % da tela). É o "deixa
+//      no mesmo tamanho do NextVR fora do jogo": a interface do app usa este mesmo perfil, então a
+//      imagem do jogo e a do app ficam do mesmo tamanho, com o anel preto em volta.
 const NVLENS = (() => {
   const FOV = 80, IPD = 0.067;            // CARDBOARD_2015_LENS: fov 80 · ipd 0.067 (67 mm)
   const K1 = 0.441, K2 = 0.156;           // coeficientes oficiais da lente Cardboard v1
@@ -33,23 +40,35 @@ const NVLENS = (() => {
 
   const quadScene = new THREE.Scene();
   const quadCam = new THREE.Camera();
-  const uniforms = { tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 } };
+  // tan(40°) = o campo que o perfil Cardboard v1 entrega por lado; tanTexture = o que a textura
+  // precisa cobrir para que, depois do Distort, a imagem chegue até a borda (≈ 49,4°).
+  const RAD = Math.PI / 180;
+  const LENS_FILL = 0.86;                         // o círculo da imagem dentro do olho
+  const TAN_HALF = Math.tan((FOV / 2) * RAD);     // 40°, o campo que o perfil entrega
+  const DIST = (t) => t * (1 + K1 * t * t + K2 * Math.pow(t, 4));
+  const TAN_TEX = DIST(TAN_HALF);                 // ≈ 1,164 (~49,4°) — o que a textura cobre
+  const TAN_EDGE = TAN_HALF / LENS_FILL;          // tan do ângulo na borda do olho
+  const uniforms = {
+    tex: { value: null }, k1: { value: K1 }, k2: { value: K2 }, ar: { value: 1 },
+    tanEdge: { value: TAN_EDGE }, tanTexture: { value: TAN_TEX },
+  };
   const material = new THREE.ShaderMaterial({
     uniforms,
     depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: [
-      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar;',
+      'varying vec2 vUv; uniform sampler2D tex; uniform float k1, k2, ar, tanEdge, tanTexture;',
       'void main(){',
-      // p vai de -1 a 1 no olho inteiro; `ar` é altura / meia-largura, usado só para normalizar o raio.
+      // p vai de -1 a 1 no olho inteiro; `ar` = altura / meia-largura (só corrige a vertical).
       '  vec2 p = vUv * 2.0 - 1.0;',
-      '  float rm = sqrt(1.0 + ar * ar);',
-      '  float rn = min(length(p) / rm, 1.0);',
-      '  float r2 = rn * rn;',
-      '  float f = (1.0 + k1 * r2 + k2 * r2 * r2) / (1.0 + k1 + k2);',
-      '  vec3 c = texture2D(tex, p * f * 0.5 + 0.5).rgb;',
-      // Canto arredondado: a lente da caixa é redonda; com corte reto a borda ficava quadrada.
-      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.90, 1.0, rn)), 1.0);',
+      '  float s = length(vec2(p.x, p.y * ar)) * tanEdge;',   // tan do ângulo deste pixel na tela
+      '  float s2 = s * s;',
+      '  float f = 1.0 + k1 * s2 + k2 * s2 * s2;',            // t = s · f  (Distort do SDK)
+      '  vec2 t = p * f * (tanEdge / tanTexture);',           // -1..1 na textura
+      '  float r = length(t);',
+      '  vec3 c = texture2D(tex, clamp(t * 0.5 + 0.5, 0.0, 1.0)).rgb;',
+      // Onde a textura acaba (40° de campo) a imagem fecha em curva: a lente da caixa é redonda.
+      '  gl_FragColor = vec4(c * (1.0 - smoothstep(0.92, 1.0, r)), 1.0);',
       '}',
     ].join('\n'),
   });
@@ -72,15 +91,13 @@ const NVLENS = (() => {
    * Campo que precisa ser DESENHADO para que, depois da correção, o olho entregue `FOV` no meio da
    * borda (é lá que o fator da lente é menor, e é ele que manda no enquadramento).
    */
-  function renderFov(ar) {
-    const rm = Math.sqrt(1 + ar * ar), rn = 1 / rm, r2 = rn * rn;
-    const fe = (1 + K1 * r2 + K2 * r2 * r2) / (1 + K1 + K2);
-    const t = Math.tan((FOV / 2) * DEG) / fe;
-    return 2 * Math.atan(t) / DEG;
+  /** O `fov` de uma PerspectiveCamera do three é VERTICAL: deriva do horizontal que a lente define. */
+  function renderFov(aspect) {
+    return 2 * Math.atan(TAN_TEX / Math.max(0.01, aspect)) / DEG;
   }
 
   return {
-    k1: K1, k2: K2, fov: FOV, ipd: IPD,
+    k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: LENS_FILL, tanTex: TAN_TEX,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {
@@ -91,7 +108,7 @@ const NVLENS = (() => {
       const savedFov = cam.fov, savedAspect = cam.aspect;
       const ar = th / Math.max(1, tw);
       eye.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(HALF_IPD);
-      cam.fov = renderFov(ar);
+      cam.fov = renderFov(tw / Math.max(1, th));
       cam.aspect = tw / th;
       cam.updateProjectionMatrix();
       for (let e = 0; e < 2; e++) {

@@ -54,6 +54,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'gorilla-corpo-reserva-lentes-menores',
+    tag: 'CORREÇÃO · O GORILA NUNCA FICA SEM BONECO · LENTES MENORES, NO TAMANHO DA INTERFACE DO NEXTVR',
+    time: 'Agora',
+    heading: 'O Gorila Tem Corpo Sempre, e as Lentes Ficaram no Tamanho do NextVR Fora do Jogo',
+    desc: 'O BONECO: o modelo do gorila é um arquivo grande, com as texturas embutidas, e quando alguma etapa dele falha no aparelho o jogo ficava SEM corpo e SEM braços. Agora existe um CORPO RESERVA, montado com formas simples (tronco, cabeça com olhos, braços e mãos), que aparece desde o primeiro quadro — antes mesmo de o modelo grande terminar de carregar. Ele usa os MESMOS nomes de ossos do modelo original, então a sua mão continua movendo o braço dele exatamente igual. Quando o modelo de verdade chega, ele toma o lugar do reserva: ou é o gorila original, ou é este — nunca o vazio. '
+      + 'AS LENTES: você pediu para diminuir, e o erro era meu. A correção da lente estava aplicada ao contrário e AMPLIAVA o centro da imagem em 1,6 vez — por isso tudo parecia grande. Agora a conta é a mesma do SDK do Cardboard que o NextVR usa fora do jogo: a imagem fica um pouco menor que a tela e o círculo dela ocupa 86 % do olho, com o anel preto em curva em volta. É o mesmo tamanho da interface do NextVR, com os mesmos 67 mm entre os olhos e os 80° de campo. '
+      + 'O mesmo ajuste foi feito no jogo de avião, que usa a mesma lente.',
+  },
+  {
     id: 'gorilla-boneco-lentes-67-bordas',
     tag: 'CORREÇÃO · O BONECO DO GORILA CARREGA SEMPRE · LENTES CARDBOARD COM 67 MM · BORDAS ARREDONDADAS',
     time: 'Agora',

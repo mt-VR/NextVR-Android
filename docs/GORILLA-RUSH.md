@@ -83,7 +83,7 @@ página --NextVRGame.exit()-->  closeCockpitGame() → câmera e mãos do NextVR
 O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o watchdog espera
 (`flight` x `play`) e o gancho da shell (`nextvrCockpitState` x `nextvrGorillaState`).
 
-## Lentes e mãos (2.6.3)
+## Lentes e mãos (2.6.4)
 
 * **Lentes:** o desenho do jogo passa por `NVLENS` (`tools/gorilla-rush/parts/lens.js`), com os
   MESMOS números da Cardboard 2015 que o NextVR usa (`web/src/gorilla-tag.js`): FOV 80° por olho,
@@ -95,13 +95,15 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
 * **Barril:** o passe de tela cheia aplica a distorção da lente Cardboard v1 com os coeficientes
   oficiais (`k1 = 0,441`, `k2 = 0,156`) — os mesmos do `game.html` do Cockpit VR. É a correção que a
   lente do VR Box desfaz; o que NÃO existe é uma segunda distorção por cima do desenho do jogo.
-* **Bordas (2.6.3):** o raio da correção é normalizado pelo **canto do olho** (`rn = min(|p|/rm, 1)`)
-  e dividido por `(1 + k1 + k2)`. No canto a amostra encosta exatamente na borda da textura, então a
-  imagem **preenche o olho**; antes a ampliação estourava, a amostra saía da textura e sobrava uma
-  moldura preta com a imagem pequena no meio (o "está quadrado" do usuário). O último anel do raio
-  (`smoothstep(0.90, 1.0, rn)`) escurece em curva, porque a lente da caixa é redonda e o corte reto
-  fazia um quadrado. Como a correção usa só a parte de dentro da textura, o olho é **desenhado mais
-  aberto** (`renderFov(ar)`), senão corrigir a lente encolhia o campo entregue.
+* **Tamanho e bordas (2.6.4):** a correção é a do SDK do Cardboard — `sdk/distortion_mesh.cc` mapeia
+  conteúdo da textura em `DistortInverse(t)`, então para um pixel de tela em `tan s` a amostra é
+  `t = s·(1+k1·s²+k2·s⁴)`: **multiplica** o raio. A imagem fica *menor* que a tela e o que passa da
+  textura vira preto. A 2.6.3 dividia por `(1+k1+k2)`, o que **ampliava o centro em 1,6×** — era o
+  "diminuí as lentes" do usuário. O círculo da imagem ocupa **86 % do raio do olho** (`LENS_FILL`),
+  que é a proporção a que o próprio SDK chega para o Cardboard v1 e a mesma da interface do NextVR
+  fora do jogo; em volta fica o anel preto com corte em curva (`smoothstep(0.92, 1.0, r)`), não em
+  esquadro. Como a correção usa só a parte de dentro da textura, o olho é **desenhado mais aberto**
+  (`renderFov`), com o `fov` vertical do three derivado do horizontal de 49,4°.
 * **Braços:** as mãos em repouso ficam à frente e abaixo (`hl=[V3(-.32,-.62,.5),…]`), dentro do
   campo de visão, como no Gorilla Tag. Sem isso (o original usava `-1.05` em `y` e `z 0.02`) não
   havia braço nenhum à vista enquanto nenhuma mão fosse detectada.
@@ -148,7 +150,20 @@ O `gameKind` ("cockpit" | "gorilla") decide a página que abre, a etapa que o wa
 * **O que NÃO mudou:** o piso de emissão do 6DoF (`EMIT_MIN = 0.0028`, em `web/src/sixdof.js`) — a
   qualidade sobe pela resolução, não baixando o limiar do passo lento.
 
-## O boneco: carga do modelo (2.6.3)
+## O boneco: carga do modelo e corpo reserva (2.6.4)
+
+**Corpo reserva (`parts/corpo.js`).** "Ainda tá sem modelo de gorilla": o GLB é um arquivo de 238 KB
+com duas texturas embutidas, e se qualquer etapa dele falhar no aparelho o jogo ficava **sem corpo e
+sem braços**, com o único aviso na janela de problema. Agora o corpo existe **desde o primeiro
+quadro**, montado com primitivas (tronco, cabeça, olhos, braços, mãos) e com o **mesmo esqueleto por
+nome** que o modelo real — `upper_arm_L`, `forearm_L`, `hand_L`, `head_02`, `body_01`, `palm_02_L`,
+`f_index_01_L`, `f_middle_01_L`. Como os nomes são os mesmos, `rig()`, `arm2()`, `handPose()`,
+`faceCam()`, `placeLab()` e `setBlob()` funcionam sem mudança: o boneco reserva **responde à IK das
+mãos** igual ao original (teste do projeto roda a IK do próprio jogo e mede a mão no alvo). Quando o
+GLB termina de carregar, `build()` chama `nvCorpoSai()` e o modelo de verdade entra no lugar. Ou é o
+gorila original, ou é o reserva — nunca o vazio. A sonda `__nvGorilla()` mostra `corpo` e `reserva`.
+
+
 
 O modelo do gorila vem embutido (`PLAYER_B64`) e é carregado em `parts/model.js`, em **três
 caminhos** — o primeiro que funcionar monta o boneco:

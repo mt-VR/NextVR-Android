@@ -303,7 +303,14 @@ function lowGfx(){cullR=2300;rtCap=RT_STEPS.length-1;rtStep=rtCap;rtS=RT_STEPS[r
 // ===== Câmera, olhos e distorção Cardboard =====
 const rig=new THREE.Group(); rig.position.set(-.3,1.85,.3); rig.rotation.y=Math.PI; scene.add(rig);
 const cam=new THREE.PerspectiveCamera(70,1,.05,3000); rig.add(cam);
-const eyeFov=2*Math.atan(TY)*180/Math.PI, eyeL=new THREE.PerspectiveCamera(eyeFov,TX/TY,.05,3000), eyeR=eyeL.clone();
+/* 80° é o campo ENTREGUE (perfil Cardboard v1, o mesmo do resto do app); a textura precisa cobrir
+   Distort(tan 40°) ≈ 49,4° por lado, senão a correção encolheria o campo. */
+const LN_FOV=80, LN_FILL=0.86, LN_TH=Math.tan((LN_FOV/2)*Math.PI/180), LN_TE=LN_TH/LN_FILL,
+  LN_TT=LN_TH*(1.+K1*LN_TH*LN_TH+K2*Math.pow(LN_TH,4));
+/* `fov` do three é VERTICAL: sai do horizontal que a lente define (49,4°) dividido pela proporção do
+   olho, e é recalculado em draw() quando a proporção muda (rotação do celular). */
+const eyeFov=(asp)=>2*Math.atan(LN_TT/Math.max(.05,asp))*180/Math.PI,
+  eyeL=new THREE.PerspectiveCamera(eyeFov(TX/TY),TX/TY,.05,3000), eyeR=eyeL.clone();
 eyeL.position.x=-IPD/2; eyeR.position.x=IPD/2; cam.add(eyeL,eyeR);
 const W2=renderer.capabilities.isWebGL2;let RTW=0,baseH=RT_H,rtL=null,rtR=null;
 /* QUALIDADE x FLUIDEZ: a resolução dos olhos é escolhida em DEGRAUS (nunca a cada 1,2 s em passos de
@@ -323,18 +330,23 @@ function makeRTs(h,smp,sc){if(rtL){rtL.dispose();rtR.dispose()}/* h = resoluçã
   const C=(W2&&smp>0)?THREE.WebGLMultisampleRenderTarget:THREE.WebGLRenderTarget;rtL=new C(w2,h2);rtR=new C(w2,h2);
   if(W2&&smp>0){rtL.samples=rtR.samples=smp}}
 makeRTs(RT_H,2,RT_STEPS[rtStep]);
-/* CORREÇÃO DA LENTE (Cardboard 2015: k1 .441 / k2 .156), agora normalizada.
-   O raio vai de 0 no centro do olho a 1 no CANTO da tela, e a amostra é dividida por (1+k1+k2):
-   no canto a amostra encosta exatamente na borda da textura, então a correção PREENCHE o olho —
-   nada de imagem pequena no meio com moldura preta (que era o "está quadrado" da 2.6.2). O canto
-   arredonda no último anel, porque a lente da caixa é redonda e o corte reto ficava quadrado. */
-const dmat=new THREE.ShaderMaterial({uniforms:{t:{value:null},ar:{value:1}},
+/* CORREÇÃO DA LENTE — a MESMA conta do SDK do Cardboard (sdk/distortion_mesh.cc), e na direção
+   certa. O SDK leva conteúdo da textura (tan t) para a tela em DistortInverse(t), então para um
+   pixel de tela em tan s a amostra é t = s·(1+k1·s²+k2·s⁴): o raio MULTIPLICA, a imagem fica MENOR
+   que a tela e o que passa da textura vira preto. Era isso que faltava: a 2.6.3 dividia por
+   (1+k1+k2) e AMPLIAVA o centro em 1,6× ("as lentes estão grandes demais"). Assim o tamanho fica o
+   do NextVR fora do jogo: 80° de campo chegando a ~86 % do raio do olho, anel preto em curva em
+   volta (a lente da caixa é redonda) e nada de corte em esquadro.
+   TAN_HALF = tan(40°) é o campo por lado; TAN_TEX = Distort(TAN_HALF) ≈ 1,164 (~49,4°) é o campo
+   que a textura precisa cobrir. O círculo da imagem fica em 86 % do raio do olho (LENS_FILL), que é
+   a proporção do próprio SDK — assim o voo tem o MESMO tamanho de imagem que o NextVR fora do jogo. */
+const dmat=new THREE.ShaderMaterial({uniforms:{t:{value:null},ar:{value:1},th:{value:LN_TE},tt:{value:LN_TT}},
   vertexShader:'varying vec2 u;void main(){u=uv;gl_Position=vec4(position.xy*2.,0.,1.);}',
-  fragmentShader:`varying vec2 u;uniform sampler2D t;uniform float ar;
-  void main(){vec2 p=u*2.-1.;float rm=sqrt(1.+ar*ar);float rn=min(length(p)/rm,1.);float r2=rn*rn;
-  float f=(1.+${K1}*r2+${K2}*r2*r2)/(1.+${K1}+${K2});
-  vec3 c=texture2D(t,p*f*.5+.5).rgb;
-  gl_FragColor=vec4(c*(1.-smoothstep(.90,1.,rn)),1.);}`,depthTest:false,depthWrite:false});
+  fragmentShader:`varying vec2 u;uniform sampler2D t;uniform float ar,th,tt;
+  void main(){vec2 p=u*2.-1.;float s=length(vec2(p.x,p.y*ar))*th;float s2=s*s;
+  float f=1.+${K1}*s2+${K2}*s2*s2;vec2 q=p*f*(th/tt);float r=length(q);
+  vec3 c=texture2D(t,clamp(q*.5+.5,0.,1.)).rgb;
+  gl_FragColor=vec4(c*(1.-smoothstep(.92,1.,r)),1.);}`,depthTest:false,depthWrite:false});
 const quad=new THREE.Mesh(new THREE.PlaneGeometry(1,1),dmat);quad.frustumCulled=false;
 const qScene=new THREE.Scene();qScene.add(quad);const qCam=new THREE.Camera();
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();}
@@ -344,7 +356,8 @@ function draw(){const w=innerWidth,h=innerHeight;scene.updateMatrixWorld();
   const hw=w/2,aspE=hw/Math.max(1,h);
   /* O olho tem que ter a proporção da meia-tela; com 1.26 fixo contra ~1.07 da tela a imagem saía
      esticada na horizontal. Na rotação a proporção muda e o RT é refeito uma única vez. */
-  if(Math.abs(eyeL.aspect-aspE)>1e-3){eyeL.aspect=eyeR.aspect=aspE;eyeL.updateProjectionMatrix();eyeR.updateProjectionMatrix();if(rtL)applyRt()}
+  if(Math.abs(eyeL.aspect-aspE)>1e-3){eyeL.aspect=eyeR.aspect=aspE;eyeL.fov=eyeR.fov=eyeFov(aspE);
+    eyeL.updateProjectionMatrix();eyeR.updateProjectionMatrix();if(rtL)applyRt()}
   renderer.setScissorTest(false);
   renderer.setRenderTarget(rtL);renderer.render(scene,eyeL);renderer.setRenderTarget(rtR);renderer.render(scene,eyeR);renderer.setRenderTarget(null);
   renderer.setScissorTest(true);dmat.uniforms.ar.value=h/Math.max(1,hw);

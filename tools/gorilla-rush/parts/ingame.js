@@ -280,7 +280,10 @@ window.__nvGorilla = () => ({
   modelo: !!pl, bracos: !!(LM && LM.uL && LM.uR), maos: NV_HAND_FRAMES,
   seguradas: NV_HAND_HELD, seta: !!(NVHEAD && true),
   nativo: NV_NATIVE_HANDS, olhos: vrView, lente: NVLENS && NVLENS.k1,
-  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov,
+  ipd: NVLENS && NVLENS.ipd, campo: NVLENS && NVLENS.fov, circulo: NVLENS && NVLENS.fill,
+  // Corpo: o reserva (primitivas) está no lugar ou o modelo original já entrou?
+  reserva: !!(typeof NV_CORPO !== 'undefined' && NV_CORPO.ativo),
+  corpo: !!(typeof pl !== 'undefined' && pl),
   // Carregamento do boneco: quantas tentativas, por qual caminho e, se falhou, o motivo real.
   carga: typeof NV_MODEL !== 'undefined' ? { ok: NV_MODEL.ok, tentativas: NV_MODEL.tentativas, modo: NV_MODEL.modo, erro: NV_MODEL.erro } : null,
   tela: innerWidth + 'x' + innerHeight,
