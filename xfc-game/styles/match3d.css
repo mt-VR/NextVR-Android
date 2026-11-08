@@ -1194,3 +1194,182 @@
   gap: 12px;
   align-items: center;
 }
+
+/* ========================================== HUD PROFISSIONAL · XFC v2 ==== */
+/* Camada de polimento por cima da base: vidro, brilho e acabamento de transmissão. */
+
+.hud__scoreboard {
+  filter: drop-shadow(0 14px 34px rgba(0, 0, 0, 0.68)) drop-shadow(0 0 22px rgba(46, 240, 168, 0.08));
+}
+
+.hud__sc-main {
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 13px;
+  background: linear-gradient(165deg, rgba(16, 34, 52, 0.96) 0%, rgba(6, 16, 27, 0.97) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.hud__crest {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.hud__score {
+  font-size: 28px;
+  min-width: 20px;
+  background: linear-gradient(180deg, #ffffff 30%, #bfe8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hud__sc-foot {
+  padding: 4px 12px 4px 6px;
+  border-radius: 8px;
+  background: rgba(3, 12, 21, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.hud__clock {
+  font-size: 16px;
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(63, 215, 255, 0.45);
+}
+
+.hud__half {
+  color: #9fdcc8;
+}
+
+.hud__live {
+  background: linear-gradient(180deg, #ff5a5a 0%, #e0293f 100%);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 60, 70, 0.6);
+  border-radius: 4px;
+  padding: 3px 7px;
+  animation: hud-live 1.35s ease-in-out infinite;
+}
+
+.hud__sc-bar {
+  height: 3px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(90deg, #2ef0a8 0%, #3fd7ff 40%, #8a5cff 75%, transparent 100%);
+  opacity: 1;
+}
+
+/* Posse de bola sob o placar */
+.hud__poss {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(3, 12, 21, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hud__poss-pct {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #2ef0a8;
+  font-variant-numeric: tabular-nums;
+  min-width: 22px;
+}
+
+.hud__poss-pct--away {
+  color: #ff6b81;
+  text-align: right;
+}
+
+.hud__poss-track {
+  position: relative;
+  width: 108px;
+  height: 4px;
+  border-radius: 3px;
+  background: #ff4655;
+  overflow: hidden;
+}
+
+.hud__poss-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: linear-gradient(90deg, #2ef0a8, #3fd7ff);
+  border-radius: 3px 0 0 3px;
+  transition: width 300ms ease;
+}
+
+/* Cartão do jogador: vidro com filete luminoso */
+.hud__player {
+  padding: 10px 22px 10px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(100deg, rgba(6, 20, 33, 0.96) 0%, rgba(6, 20, 33, 0.75) 60%, transparent 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hud__player-no {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #2ef0a8 0%, #17b977 100%);
+  box-shadow: 0 0 16px rgba(46, 240, 168, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.hud__player-name {
+  font-size: 14px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Radar tático com moldura de transmissão */
+.hud__radar-wrap {
+  border-radius: 12px;
+  border: 1px solid rgba(63, 215, 255, 0.35);
+  background: rgba(4, 20, 16, 0.72);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 26px rgba(63, 215, 255, 0.14);
+}
+
+/* Botões de ação: profundidade e brilho tátil */
+.ctrl-btn {
+  background: linear-gradient(165deg, rgba(22, 42, 60, 0.82) 0%, rgba(7, 20, 32, 0.82) 100%);
+  backdrop-filter: blur(4px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), inset 0 2px 2px rgba(255, 255, 255, 0.16), inset 0 -3px 6px rgba(0, 0, 0, 0.4);
+}
+
+.ctrl-btn:active,
+.ctrl-btn.is-active {
+  transform: scale(0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 26px rgba(46, 240, 168, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.2);
+}
+
+.ctrl-btn--shoot {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(165deg, rgba(66, 80, 98, 0.9) 0%, rgba(28, 36, 48, 0.9) 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 90, 90, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.2);
+}
+
+.ctrl-btn--pass {
+  background: linear-gradient(165deg, rgba(18, 96, 66, 0.9) 0%, rgba(8, 46, 32, 0.9) 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 20px rgba(46, 240, 168, 0.32), inset 0 2px 2px rgba(255, 255, 255, 0.18);
+}
+
+.ctrl-btn--lob {
+  background: linear-gradient(165deg, rgba(96, 74, 10, 0.9) 0%, rgba(56, 42, 6, 0.9) 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(245, 197, 24, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.18);
+}
+
+/* Gols e avisos centrais com mais impacto */
+.hud__banner--goal {
+  background: linear-gradient(180deg, rgba(6, 60, 38, 0.92), rgba(3, 30, 20, 0.92));
+  border: 1px solid rgba(46, 240, 168, 0.75);
+  box-shadow: 0 0 60px rgba(46, 240, 168, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}

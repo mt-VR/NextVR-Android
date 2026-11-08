@@ -38,7 +38,7 @@ export function createBall(scene) {
     new THREE.SphereGeometry(BALL.radius, 18, 14),
     new THREE.MeshPhongMaterial({ map: texture, shininess: 26, specular: 0x444444 })
   );
-  mesh.castShadow = false;
+  mesh.castShadow = true;
   scene.add(mesh);
 
   const shadow = new THREE.Mesh(

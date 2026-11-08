@@ -30,6 +30,16 @@ export function createHud({ root, home, away }) {
   const awayScore = el('b', { class: 'hud__score', text: '0' });
   const clock = el('span', { class: 'hud__clock', text: "0'00" });
   const halfLabel = el('span', { class: 'hud__half', text: '1º TEMPO' });
+  // Barra de posse: mandante preenche a partir da esquerda, visitante o resto.
+  const possHomePct = el('b', { class: 'hud__poss-pct', text: '50%' });
+  const possFill = el('i', { class: 'hud__poss-fill' });
+  const possTrack = el('div', { class: 'hud__poss-track' }, possFill);
+  const possAwayPct = el('b', { class: 'hud__poss-pct hud__poss-pct--away', text: '50%' });
+  const possessionBar = el('div', { class: 'hud__poss', role: 'img', 'aria-label': 'Posse de bola' },
+    possHomePct,
+    possTrack,
+    possAwayPct
+  );
 
   // Placar estilo transmissão: SIGLA gols – gols SIGLA, com o relógio embaixo.
   const scoreboard = el('div', { class: 'hud__scoreboard' },
@@ -47,6 +57,7 @@ export function createHud({ root, home, away }) {
       clock,
       halfLabel
     ),
+    possessionBar,
     el('div', { class: 'hud__sc-bar' })
   );
 
@@ -135,9 +146,10 @@ export function createHud({ root, home, away }) {
     for (const player of players || []) {
       if (!player.active) continue;
       const isControlled = controlled && player === controlled;
-      context.fillStyle = player.side === 'home' ? '#2ef0a8' : '#3fd7ff';
+      // Goleiros em dourado, de linha: cor do time — leitura imediata.
+      context.fillStyle = player.isKeeper ? '#ffd24a' : player.side === 'home' ? '#2ef0a8' : '#3fd7ff';
       context.beginPath();
-      context.arc(toX(player.x), toZ(player.z), player.isKeeper ? 2.4 : 3, 0, Math.PI * 2);
+      context.arc(toX(player.x), toZ(player.z), player.isKeeper ? 3.4 : 3, 0, Math.PI * 2);
       context.fill();
       if (isControlled) {
         context.strokeStyle = '#ffffff';
@@ -204,8 +216,13 @@ export function createHud({ root, home, away }) {
       homeScore.textContent = String(snapshot.score[0]);
       awayScore.textContent = String(snapshot.score[1]);
       clock.textContent = snapshot.display;
-      const half = snapshot.half === 1 ? '1º TEMPO' : '2º TEMPO';
-      if (halfLabel.textContent !== half) halfLabel.textContent = half;
+      const half = snapshot.half === 1 ? '1º TEMPO' : snapshot.half === 2 ? '2º TEMPO' : '';
+      const halfText = snapshot.phase === 'halftime' ? 'INTERVALO' : snapshot.phase === 'fulltime' ? 'FIM DE JOGO' : half;
+      if (halfLabel.textContent !== halfText) halfLabel.textContent = halfText;
+      const poss = Array.isArray(snapshot.poss) ? snapshot.poss : [50, 50];
+      possFill.style.width = `${Math.max(0, Math.min(100, poss[0]))}%`;
+      possHomePct.textContent = `${poss[0]}%`;
+      possAwayPct.textContent = `${poss[1]}%`;
       const player = controlled?.player || null;
       drawRadar(players, ball, player);
       paintChip(player);

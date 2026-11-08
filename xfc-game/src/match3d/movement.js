@@ -39,14 +39,45 @@ export function clampToPitch(player, margin = 1.2) {
 
 /** Vira o modelo do jogador para um ponto do campo. */
 export function faceTowards(player, x, z, dt, turnSpeed = 9) {
-  const angle = Math.atan2(x - player.x, z - player.z);
+  const dx = x - player.x;
+  const dz = z - player.z;
+  // Alvo em cima do jogador: mantém a orientação (evita giro no lugar).
+  if (Math.hypot(dx, dz) < 0.35) return;
+  const angle = Math.atan2(dx, dz);
   let difference = angle - player.facingAngle;
   while (difference > Math.PI) difference -= Math.PI * 2;
   while (difference < -Math.PI) difference += Math.PI * 2;
+  // Inclinação do corpo na curva (animação de giro natural).
+  player.turnLean = Math.max(-0.32, Math.min(0.32, -difference * 0.55));
   player.facingAngle += difference * Math.min(1, turnSpeed * dt);
   player.root.rotation.y = player.facingAngle;
   player.facing.x = Math.sin(player.facingAngle);
   player.facing.z = Math.cos(player.facingAngle);
+}
+
+/**
+ * Faz o jogador olhar para onde está correndo. Só vira de verdade quando a
+ * velocidade é relevante — parado, o atleta mantém a orientação e olha a
+ * bola (evita o "corredor de costas").
+ *
+ * @returns {boolean} true quando o modelo foi orientado pela velocidade
+ */
+export function faceVelocity(player, dt, turnSpeed = 10, minSpeed = 1.1) {
+  const speed = Math.hypot(player.vx, player.vz);
+  if (speed < minSpeed) {
+    player.turnLean *= Math.max(0, 1 - 6 * dt);
+    return false;
+  }
+  const angle = Math.atan2(player.vx, player.vz);
+  let difference = angle - player.facingAngle;
+  while (difference > Math.PI) difference -= Math.PI * 2;
+  while (difference < -Math.PI) difference += Math.PI * 2;
+  player.turnLean = Math.max(-0.32, Math.min(0.32, -difference * 0.55));
+  player.facingAngle += difference * Math.min(1, turnSpeed * dt);
+  player.root.rotation.y = player.facingAngle;
+  player.facing.x = Math.sin(player.facingAngle);
+  player.facing.z = Math.cos(player.facingAngle);
+  return true;
 }
 
 /** Velocidade escalar do jogador no quadro. */

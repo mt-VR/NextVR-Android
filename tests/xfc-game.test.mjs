@@ -6,6 +6,7 @@ import { dirname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
+import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
@@ -35,6 +36,28 @@ test('XFC tem dezoito clubes, com onze em campo e sete reservas em cada um', () 
       assert.equal(player.stats.pace >= 0 && player.stats.pace <= 99, true);
     }
   }
+});
+
+test('orientação do campo: a casa ataca +X, cada time defende o próprio gol', () => {
+  assert.equal(attackSign('home'), 1);
+  assert.equal(attackSign('away'), -1);
+  assert.equal(defendSign('home'), -1);
+  assert.equal(defendSign('away'), 1);
+  assert.equal(ownGoalX('home'), -52.5);
+  assert.equal(ownGoalX('away'), 52.5);
+  assert.equal(attackedGoalX('home'), 52.5);
+  assert.equal(attackedGoalX('away'), -52.5);
+  // Grande área do mandante fica na borda esquerda; a do visitante, na direita.
+  assert.equal(insidePenaltyAreaFor(-45, 0, 'home'), true);
+  assert.equal(insidePenaltyAreaFor(45, 0, 'home'), false);
+  assert.equal(insidePenaltyAreaFor(45, 0, 'away'), true);
+  assert.equal(insidePenaltyAreaFor(-45, 0, 'away'), false);
+  assert.equal(insidePenaltyAreaFor(-45, 25, 'home'), false, 'fora do corredor da área');
+  // Pequena área alinhada ao gol defendido.
+  assert.equal(insideGoalAreaFor(-50, 0, 'home'), true);
+  assert.equal(insideGoalAreaFor(-46, 0, 'home'), false);
+  assert.equal(insideGoalAreaFor(50, 0, 'away'), true);
+  assert.equal(insideGoalAreaFor(46, 0, 'away'), false);
 });
 
 test('todo jogador com retrato tem a imagem disponível no pacote de assets', () => {
@@ -267,6 +290,10 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'o cartão mostra o nome do atleta controlado');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
+    assert.ok(await page.locator('.hud__poss').isVisible(),
+      'o HUD mostra a barra de posse de bola');
+    assert.equal(await page.locator('.hud__poss-fill').count(), 1,
+      'a barra de posse tem o preenchimento do mandante');
     assert.equal(await page.locator('.hud__tag.is-visible').count(), 1,
       'a etiqueta do nome aparece sobre o atleta controlado');
 
@@ -338,6 +365,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       'o cartão mostra o nome do atleta controlado');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
+    assert.ok(await page.locator('.hud__poss').isVisible(),
+      'o HUD mostra a barra de posse de bola');
 
     // A simulação realmente roda: o relógio anda, a bola se mexe e o placar
     // existe para as duas equipes.
