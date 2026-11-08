@@ -5,15 +5,27 @@ repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
 realidade virtual — é uma pasta à parte, com os seus próprios assets, estilos e
 testes.
 
+O jogo é **deitado (paisagem)**, como nas referências do FC: as telas são
+desenhadas num palco fixo de **1280x720** e escaladas pela JS para caber na
+tela. Num celular deitado (20:9) o palco fica mais largo que 1280, então as
+telas ganham espaço em vez de ficarem apertadas, e o app Android trava a
+rotação em paisagem (`sensorLandscape`).
+
 Nesta primeira etapa o jogo tem **o menu**:
 
-1. **Intro** — selo da XF Esports + logotipo do XFC sobre o fundo geométrico.
-2. **Menu principal** — lista de modos (KICK OFF liberado, os demais marcados
-   como “em breve”), barra de XP no topo e o botão *Enter Kick Off*.
-3. **Kick Off / Classic Match** — escolha de times: HOME e AWAY com escudo,
-   estrelas e ATT/MID/DEF.
-4. **Elenco (Team Management)** — o campo com a formação 4-3-3, o banco de
-   reservas e o painel de atributos do jogador.
+1. **Intro** — selo circular da XF Esports + logotipo XFC lado a lado sobre o
+   fundo geométrico azul/verde.
+2. **Menu principal** — marca no canto superior esquerdo, barra de XP à direita,
+   lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
+   arte do jogador no gramado à direita, título *Dive straight into the action*
+   e o botão *Enter Kick Off*.
+3. **Kick Off / Classic Match** — colunas HOME e AWAY com país, escudo grande,
+   estrelas, ATT/MID/DEF e liga; no meio, Advantage Settings, Live Form e
+   RANDOMISE; “HOME” e “AWAY” na vertical nas pontas.
+4. **Elenco (Team Management)** — abas no topo, o campo com a formação 4-3-3
+   (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
+   painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
+   papel, foco, pé, skill moves e weak foot.
 5. **Preparação da partida** — mostra o confronto e avisa que as partidas,
    estádios e campeonato chegam na próxima etapa.
 
@@ -69,7 +81,7 @@ também tem os dois arquivos anexados.
 xfc-game/
 ├── index.html            casca da página
 ├── serve.mjs             servidor estático (também usado pelos testes)
-├── styles/               base.css (tipografia, botões) e screens.css (telas)
+├── styles/               base.css (palco, tipografia, botões) e screens.css (telas)
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
 │   ├── state.js          perfil, XP e seleção de times
@@ -82,7 +94,7 @@ xfc-game/
 │   ├── crests/           escudos dos clubes
 │   ├── fonts/            Inter (OFL)
 │   └── players/          retratos dos jogadores
-└── tools/screenshots.mjs captura das telas para conferência
+└── tools/screenshots.mjs captura das telas (tela grande e celular deitado)
 ```
 
 ## Testes
