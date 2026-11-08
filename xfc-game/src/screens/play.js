@@ -141,7 +141,8 @@ export function playScreen(ctx, params = {}) {
       awayKit,
       minutes,
       difficulty,
-      onEvent: handleEvent
+      onEvent: handleEvent,
+      stadium: stadiumIndex
     });
     hud = createHud({ root: stageBox, home, away });
     controls = createControls({

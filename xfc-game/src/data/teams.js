@@ -296,10 +296,126 @@ export const TEAMS = [
       { id: 'parana-juninho', name: 'Juninho', fullName: 'Juninho Pereira da Silva', number: 19, pos: 'ST', ovr: 69, potential: 72, form: 'D', age: 23, height: 181, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 72, shooting: 72, passing: 60, dribbling: 62, defending: 34, physical: 82 } },
       { id: 'parana-regis', name: 'Régis', fullName: 'Régis Alves Monteiro', number: 18, pos: 'CM', ovr: 65, potential: 67, form: 'D', age: 27, height: 179, foot: 'Right', role: 'Carrilero', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 54, passing: 70, dribbling: 64, defending: 68, physical: 72 } }
     ]
-  }
-];
+  },
+  {
+    id: 'flamengo',
+    name: 'Flamengo',
+    shortName: 'Flamengo',
+    nickname: 'Mengo',
+    city: 'Rio de Janeiro',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série A',
+    stadium: 'Maracanã',
+    crest: 'assets/crests/flamengo.svg',
+    colors: { primary: '#c8102e', secondary: '#141414', accent: '#ffd84a' },
+    ratings: { att: 88, mid: 85, def: 83, ovr: 85 },
+    stars: 4.5,
+    formation: '4-3-3',
+    players: [
+      { id: 'fla-weverton', name: 'Weverton', fullName: 'Weverton Pereira da Costa', number: 1, pos: 'GK', ovr: 85, potential: 86, form: 'W', age: 38, height: 191, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: photo('fla-01'), stats: { pace: 52, shooting: 24, passing: 72, dribbling: 54, defending: 30, physical: 82 } },
+      { id: 'fla-matheuzinho', name: 'Matheuzinho', fullName: 'Matheus do Carmo Pereira', number: 2, pos: 'RB', ovr: 80, potential: 83, form: 'W', age: 25, height: 176, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('fla-02'), stats: { pace: 86, shooting: 62, passing: 74, dribbling: 78, defending: 72, physical: 74 } },
+      { id: 'fla-leo-pereira', name: 'Léo Pereira', fullName: 'Leonardo Pereira da Silva', number: 4, pos: 'CB', ovr: 83, potential: 84, form: 'W', age: 28, height: 187, foot: 'Right', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: photo('fla-03'), stats: { pace: 78, shooting: 56, passing: 76, dribbling: 72, defending: 85, physical: 86 } },
+      { id: 'fla-fabricio-bruno', name: 'Fabrício Bruno', fullName: 'Fabrício Bruno Sperotto', number: 6, pos: 'CB', ovr: 84, potential: 85, form: 'W', age: 29, height: 186, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: photo('fla-04'), stats: { pace: 74, shooting: 48, passing: 70, dribbling: 66, defending: 87, physical: 88 } },
+      { id: 'fla-ayrton-lucas', name: 'Ayrton Lucas', fullName: 'Ayrton Lucas Dantas Pinheiro', number: 16, pos: 'LB', ovr: 81, potential: 83, form: 'W', age: 27, height: 178, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('fla-05'), stats: { pace: 87, shooting: 60, passing: 74, dribbling: 80, defending: 70, physical: 74 } },
+      { id: 'fla-gerson', name: 'Gerson', fullName: 'Gerson Domingos da Silva', number: 8, pos: 'CM', ovr: 85, potential: 87, form: 'W', age: 28, height: 180, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: photo('fla-06'), stats: { pace: 80, shooting: 76, passing: 86, dribbling: 84, defending: 72, physical: 76 } },
+      { id: 'fla-ataide', name: 'Ataíde', fullName: 'João Ataíde Vidal', number: 5, pos: 'CDM', ovr: 83, potential: 86, form: 'W', age: 23, height: 184, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: photo('fla-07'), stats: { pace: 72, shooting: 60, passing: 80, dribbling: 72, defending: 85, physical: 86 } },
+      { id: 'fla-delgado', name: 'Delgado', fullName: 'Jorge Delgado Padilla', number: 19, pos: 'CAM', ovr: 82, potential: 84, form: 'W', age: 26, height: 179, foot: 'Left', role: 'Advanced Playmaker', focus: 'Attack', celebration: 'None', photo: photo('fla-08'), stats: { pace: 78, shooting: 74, passing: 86, dribbling: 84, defending: 58, physical: 72 } },
+      { id: 'fla-luiz-henrique', name: 'Luiz Henrique', fullName: 'Luiz Henrique Santana', number: 21, pos: 'RW', ovr: 82, potential: 85, form: 'W', age: 24, height: 181, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: photo('fla-09'), stats: { pace: 86, shooting: 74, passing: 76, dribbling: 85, defending: 42, physical: 74 } },
+      { id: 'fla-everton-ribeiro', name: 'Everton Ribeiro', fullName: 'Everton Ribeiro Campos', number: 7, pos: 'LW', ovr: 83, potential: 84, form: 'W', age: 35, height: 171, foot: 'Left', role: 'Inside Forward', focus: 'Attack', celebration: 'None', photo: photo('fla-10'), stats: { pace: 80, shooting: 76, passing: 84, dribbling: 86, defending: 44, physical: 68 } },
+      { id: 'fla-pedro', name: 'Pedro', fullName: 'Pedro Guilherme Abreu dos Santos', number: 9, pos: 'ST', ovr: 87, potential: 88, form: 'W', age: 28, height: 183, foot: 'Right', role: 'Advanced Forward', focus: 'Attack', celebration: 'None', photo: photo('fla-11'), stats: { pace: 80, shooting: 88, passing: 76, dribbling: 82, defending: 42, physical: 80 } }
+    ],
+    substitutes: [
+      { id: 'fla-hugo', name: 'Hugo Souza', fullName: 'Hugo Souza Calissta', number: 37, pos: 'GK', ovr: 74, potential: 77, form: 'D', age: 23, height: 190, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 50, shooting: 22, passing: 66, dribbling: 50, defending: 28, physical: 76 } },
+      { id: 'fla-varela', name: 'Varela', fullName: 'Matías Varela', number: 23, pos: 'RB', ovr: 78, potential: 80, form: 'W', age: 26, height: 175, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 85, shooting: 60, passing: 72, dribbling: 78, defending: 70, physical: 74 } },
+      { id: 'fla-caceres', name: 'Cáceres', fullName: 'Marcos Andrés Cáceres', number: 3, pos: 'CB', ovr: 79, potential: 81, form: 'W', age: 33, height: 187, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 70, shooting: 44, passing: 68, dribbling: 62, defending: 83, physical: 84 } },
+      { id: 'fla-cleiton', name: 'Cleiton', fullName: 'Cleiton da Silva Barbosa', number: 24, pos: 'CB', ovr: 76, potential: 78, form: 'D', age: 28, height: 185, foot: 'Left', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 74, shooting: 46, passing: 72, dribbling: 66, defending: 79, physical: 82 } },
+      { id: 'fla-igor', name: 'Igor Torres', fullName: 'Igor Torres Morais', number: 27, pos: 'LB', ovr: 75, potential: 78, form: 'D', age: 21, height: 176, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 83, shooting: 54, passing: 70, dribbling: 74, defending: 68, physical: 70 } },
+      { id: 'fla-erick', name: 'Erick', fullName: 'Erick Lopes da Silva', number: 17, pos: 'CM', ovr: 77, potential: 80, form: 'W', age: 25, height: 178, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 70, passing: 80, dribbling: 78, defending: 70, physical: 74 } },
+      { id: 'fla-thiago-batista', name: 'Thiago Batista', fullName: 'Thiago Batista Teixeira', number: 31, pos: 'ST', ovr: 75, potential: 79, form: 'D', age: 23, height: 182, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 74, shooting: 74, passing: 62, dribbling: 66, defending: 34, physical: 84 } }
+    ]
+  },
+  {
+    id: 'palmeiras',
+    name: 'Palmeiras',
+    shortName: 'Palmeiras',
+    nickname: 'Verdão',
+    city: 'São Paulo',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série A',
+    stadium: 'MorumBis',
+    crest: 'assets/crests/palmeiras.svg',
+    colors: { primary: '#00843d', secondary: '#f4f4f4', accent: '#f5d000' },
+    ratings: { att: 85, mid: 86, def: 86, ovr: 86 },
+    stars: 4.5,
+    formation: '4-3-3',
+    players: [
+      { id: 'pal-weverton', name: 'Weverton', fullName: 'Weverton Ramalho da Rocha', number: 1, pos: 'GK', ovr: 84, potential: 85, form: 'W', age: 38, height: 190, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: photo('pal-01'), stats: { pace: 50, shooting: 22, passing: 70, dribbling: 52, defending: 28, physical: 80 } },
+      { id: 'pal-mayke', name: 'Mayke', fullName: 'Mayke Rodrigo Pacheco de Oliveira', number: 2, pos: 'RB', ovr: 80, potential: 82, form: 'W', age: 32, height: 176, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('pal-02'), stats: { pace: 84, shooting: 58, passing: 72, dribbling: 76, defending: 72, physical: 74 } },
+      { id: 'pal-gomez', name: 'Gustavo Gómez', fullName: 'Gustavo Gómez Araújo', number: 3, pos: 'CB', ovr: 85, potential: 86, form: 'W', age: 33, height: 187, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: photo('pal-03'), stats: { pace: 72, shooting: 46, passing: 72, dribbling: 66, defending: 88, physical: 88 } },
+      { id: 'pal-murilo', name: 'Murilo', fullName: 'Murilo Nascimento de Sá', number: 6, pos: 'CB', ovr: 83, potential: 85, form: 'W', age: 25, height: 186, foot: 'Right', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: photo('pal-04'), stats: { pace: 76, shooting: 50, passing: 76, dribbling: 70, defending: 85, physical: 86 } },
+      { id: 'pal-piquerez', name: 'Piquerez', fullName: 'Vanderson da Silva Brito', number: 14, pos: 'LB', ovr: 81, potential: 83, form: 'W', age: 27, height: 177, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('pal-05'), stats: { pace: 85, shooting: 58, passing: 74, dribbling: 78, defending: 72, physical: 74 } },
+      { id: 'pal-ze-rafael', name: 'Zé Rafael', fullName: 'José Rafael dos Santos', number: 8, pos: 'CM', ovr: 82, potential: 84, form: 'W', age: 31, height: 178, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: photo('pal-06'), stats: { pace: 76, shooting: 74, passing: 84, dribbling: 80, defending: 72, physical: 74 } },
+      { id: 'pal-menino', name: 'Menino', fullName: 'Gabriel Menino Barcellos', number: 20, pos: 'CDM', ovr: 82, potential: 85, form: 'W', age: 25, height: 182, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: photo('pal-07'), stats: { pace: 74, shooting: 64, passing: 82, dribbling: 76, defending: 82, physical: 82 } },
+      { id: 'pal-veiga', name: 'Raphael Veiga', fullName: 'Raphael Souza Veiga', number: 10, pos: 'CAM', ovr: 84, potential: 86, form: 'W', age: 30, height: 180, foot: 'Left', role: 'Advanced Playmaker', focus: 'Attack', celebration: 'None', photo: photo('pal-08'), stats: { pace: 74, shooting: 78, passing: 88, dribbling: 84, defending: 60, physical: 72 } },
+      { id: 'pal-rony', name: 'Rony', fullName: 'Rony Alejandro Reyna Robles', number: 10, pos: 'RW', ovr: 82, potential: 84, form: 'W', age: 30, height: 172, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: photo('pal-09'), stats: { pace: 86, shooting: 74, passing: 76, dribbling: 84, defending: 42, physical: 70 } },
+      { id: 'pal-lazaro', name: 'Lazaro', fullName: 'Lazaro Vinícius Alves Barros', number: 17, pos: 'LW', ovr: 80, potential: 84, form: 'W', age: 24, height: 176, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: photo('pal-10'), stats: { pace: 86, shooting: 70, passing: 72, dribbling: 82, defending: 40, physical: 72 } },
+      { id: 'pal-endrick', name: 'Endrick', fullName: 'Endrick Felipe Moreira Silva', number: 9, pos: 'ST', ovr: 83, potential: 90, form: 'W', age: 19, height: 181, foot: 'Right', role: 'Advanced Forward', focus: 'Attack', celebration: 'None', photo: photo('pal-11'), stats: { pace: 82, shooting: 84, passing: 72, dribbling: 80, defending: 40, physical: 82 } }
+    ],
+    substitutes: [
+      { id: 'pal-lomba', name: 'Lomba', fullName: 'Marcelo Lomba Correa', number: 21, pos: 'GK', ovr: 76, potential: 78, form: 'D', age: 38, height: 188, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 48, shooting: 20, passing: 64, dribbling: 48, defending: 26, physical: 74 } },
+      { id: 'pal-vanderson', name: 'Vanderson', fullName: 'Vanderson de Almeida Balthazar', number: 2, pos: 'RB', ovr: 78, potential: 82, form: 'W', age: 23, height: 175, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 85, shooting: 56, passing: 72, dribbling: 76, defending: 70, physical: 72 } },
+      { id: 'pal-luan', name: 'Luan', fullName: 'Luan Correa de Freitas', number: 4, pos: 'CB', ovr: 78, potential: 80, form: 'D', age: 28, height: 186, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 72, shooting: 44, passing: 68, dribbling: 62, defending: 81, physical: 84 } },
+      { id: 'pal-naves', name: 'Naves', fullName: 'Bruno Naves Lima', number: 26, pos: 'CB', ovr: 75, potential: 78, form: 'D', age: 24, height: 184, foot: 'Left', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 74, shooting: 46, passing: 70, dribbling: 64, defending: 78, physical: 80 } },
+      { id: 'pal-mauricio', name: 'Maurício', fullName: 'Maurício Antônio Caetano', number: 13, pos: 'LB', ovr: 76, potential: 79, form: 'D', age: 27, height: 179, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 82, shooting: 54, passing: 72, dribbling: 74, defending: 70, physical: 74 } },
+      { id: 'pal-danilo', name: 'Danilo', fullName: 'Danilo da Silva Teixeira', number: 28, pos: 'CM', ovr: 79, potential: 82, form: 'W', age: 26, height: 180, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 72, passing: 82, dribbling: 80, defending: 72, physical: 76 } },
+      { id: 'pal-flaco', name: 'Flaco López', fullName: 'Flaco Andrés López', number: 19, pos: 'ST', ovr: 78, potential: 81, form: 'W', age: 26, height: 183, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 78, passing: 66, dribbling: 70, defending: 34, physical: 82 } }
+    ]
+  },
+  {
+    id: 'corinthians',
+    name: 'Corinthians',
+    shortName: 'Corinthians',
+    nickname: 'Timão',
+    city: 'São Paulo',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série A',
+    stadium: 'Neo Química Arena',
+    crest: 'assets/crests/corinthians.svg',
+    colors: { primary: '#141414', secondary: '#f4f4f4', accent: '#0a5c9c' },
+    ratings: { att: 83, mid: 82, def: 82, ovr: 82 },
+    stars: 4.5,
+    formation: '4-3-3',
+    players: [
+      { id: 'cor-caca', name: 'Cacá', fullName: 'Cacá Carvalho Alves', number: 1, pos: 'GK', ovr: 82, potential: 84, form: 'W', age: 29, height: 190, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: photo('cor-01'), stats: { pace: 50, shooting: 22, passing: 68, dribbling: 52, defending: 28, physical: 80 } },
+      { id: 'cor-igor-torres', name: 'Igor Torres', fullName: 'Igor Torres Morais', number: 2, pos: 'RB', ovr: 79, potential: 82, form: 'W', age: 24, height: 176, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('cor-02'), stats: { pace: 84, shooting: 58, passing: 72, dribbling: 76, defending: 70, physical: 74 } },
+      { id: 'cor-verissimo', name: 'Veríssimo', fullName: 'Lucas Eduardo Veríssimo da Silva', number: 3, pos: 'CB', ovr: 82, potential: 84, form: 'W', age: 30, height: 187, foot: 'Right', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: photo('cor-03'), stats: { pace: 74, shooting: 48, passing: 76, dribbling: 70, defending: 84, physical: 84 } },
+      { id: 'cor-robert-renan', name: 'Robert Renan', fullName: 'Robert Renan Barros de Alencar', number: 4, pos: 'CB', ovr: 80, potential: 85, form: 'W', age: 22, height: 188, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: photo('cor-04'), stats: { pace: 72, shooting: 44, passing: 70, dribbling: 64, defending: 83, physical: 86 } },
+      { id: 'cor-hugo', name: 'Hugo', fullName: 'Hugo Souza Calissta', number: 5, pos: 'LB', ovr: 78, potential: 81, form: 'W', age: 21, height: 178, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: photo('cor-05'), stats: { pace: 83, shooting: 54, passing: 72, dribbling: 76, defending: 68, physical: 74 } },
+      { id: 'cor-lucas-pereira', name: 'Lucas Pereira', fullName: 'Lucas Pereira Vasconcelos', number: 6, pos: 'CM', ovr: 79, potential: 82, form: 'W', age: 26, height: 179, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: photo('cor-06'), stats: { pace: 76, shooting: 72, passing: 80, dribbling: 78, defending: 70, physical: 74 } },
+      { id: 'cor-romulo', name: 'Rômulo', fullName: 'Rômulo Caio Nascimento', number: 7, pos: 'CDM', ovr: 80, potential: 83, form: 'W', age: 26, height: 183, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: photo('cor-07'), stats: { pace: 72, shooting: 62, passing: 78, dribbling: 72, defending: 82, physical: 84 } },
+      { id: 'cor-andre-luis', name: 'André Luis', fullName: 'André Luiz Silva da Costa', number: 8, pos: 'CAM', ovr: 81, potential: 84, form: 'W', age: 32, height: 177, foot: 'Left', role: 'Advanced Playmaker', focus: 'Attack', celebration: 'None', photo: photo('cor-08'), stats: { pace: 76, shooting: 76, passing: 84, dribbling: 82, defending: 58, physical: 72 } },
+      { id: 'cor-romero', name: 'Romero', fullName: 'Romero Roberto Almirón', number: 10, pos: 'RW', ovr: 81, potential: 83, form: 'W', age: 30, height: 180, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: photo('cor-09'), stats: { pace: 84, shooting: 72, passing: 76, dribbling: 82, defending: 42, physical: 74 } },
+      { id: 'cor-yuri-alberto', name: 'Yuri Alberto', fullName: 'Yuri Alberto Monteiro da Silva', number: 9, pos: 'ST', ovr: 82, potential: 84, form: 'W', age: 24, height: 182, foot: 'Right', role: 'Advanced Forward', focus: 'Attack', celebration: 'None', photo: photo('cor-10'), stats: { pace: 80, shooting: 84, passing: 74, dribbling: 78, defending: 42, physical: 80 } },
+      { id: 'cor-pedro-henrique', name: 'Pedro Henrique', fullName: 'Pedro Henrique de Oliveira', number: 11, pos: 'LW', ovr: 78, potential: 82, form: 'D', age: 26, height: 177, foot: 'Right', role: 'Winger', focus: 'Attack', celebration: 'None', photo: photo('cor-11'), stats: { pace: 84, shooting: 68, passing: 72, dribbling: 80, defending: 40, physical: 72 } }
+    ],
+    substitutes: [
+      { id: 'cor-matheus-donelli', name: 'Donelli', fullName: 'Matheus Donelli', number: 37, pos: 'GK', ovr: 76, potential: 80, form: 'D', age: 23, height: 190, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 52, shooting: 22, passing: 66, dribbling: 50, defending: 28, physical: 78 } },
+      { id: 'cor-igor-torres2', name: 'Igor Torres', fullName: 'Igor Torres Morais', number: 39, pos: 'RB', ovr: 75, potential: 79, form: 'D', age: 21, height: 175, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 83, shooting: 54, passing: 70, dribbling: 74, defending: 68, physical: 70 } },
+      { id: 'cor-mateus', name: 'Mateus', fullName: 'Mateus Gardim Coelho', number: 27, pos: 'CB', ovr: 76, potential: 80, form: 'D', age: 22, height: 185, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 72, shooting: 44, passing: 68, dribbling: 62, defending: 80, physical: 82 } },
+      { id: 'cor-caetano', name: 'Caetano', fullName: 'Caetano Alves Pereira', number: 26, pos: 'CB', ovr: 77, potential: 80, form: 'W', age: 24, height: 186, foot: 'Left', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 74, shooting: 46, passing: 72, dribbling: 66, defending: 80, physical: 82 } },
+      { id: 'cor-wendel', name: 'Wendel', fullName: 'Wendel Rafael da Silva', number: 13, pos: 'LB', ovr: 75, potential: 79, form: 'D', age: 25, height: 178, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 82, shooting: 52, passing: 72, dribbling: 74, defending: 68, physical: 72 } },
+      { id: 'cor-antonio', name: 'Antônio', fullName: 'Antônio Édson da Silva', number: 17, pos: 'CM', ovr: 77, potential: 80, form: 'W', age: 24, height: 180, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 70, passing: 80, dribbling: 78, defending: 70, physical: 74 } },
+      { id: 'cor-caio', name: 'Caio', fullName: 'Caio Alexandre Alves Pereira', number: 19, pos: 'ST', ovr: 76, potential: 80, form: 'D', age: 22, height: 183, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 74, passing: 64, dribbling: 68, defending: 34, physical: 82 } }
+    ]
+  },
 
 // ---------------------------------------------------------------------------
+];
+
+
 // Clubes que entraram com o pacote de imagens (escudos e fotos de jogador).
 // Os elencos são gerados: cada clube recebe nomes do seu país, notas coerentes
 // com a posição e retrato de reserva mostrando as iniciais.

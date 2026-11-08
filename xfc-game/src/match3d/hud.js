@@ -146,24 +146,44 @@ export function createHud({ root, home, away }) {
     for (const player of players || []) {
       if (!player.active) continue;
       const isControlled = controlled && player === controlled;
-      // Goleiros em dourado, de linha: cor do time — leitura imediata.
+      const cx = toX(player.x);
+      const cz = toZ(player.z);
+      if (isControlled) {
+        // O atleta controlado ganha um anel verde, como no FC Mobile.
+        context.strokeStyle = '#2ef0a8';
+        context.lineWidth = 1.8;
+        context.beginPath();
+        context.arc(cx, cz, 5.5, 0, Math.PI * 2);
+        context.stroke();
+        context.fillStyle = '#2ef0a8';
+        context.beginPath();
+        context.arc(cx, cz, 2.6, 0, Math.PI * 2);
+        context.fill();
+        continue;
+      }
+      // Adversários são triângulos (como nos prints de referência);
+      // goleiros em círculos dourados.
       context.fillStyle = player.isKeeper ? '#ffd24a' : player.side === 'home' ? '#2ef0a8' : '#3fd7ff';
       context.beginPath();
-      context.arc(toX(player.x), toZ(player.z), player.isKeeper ? 3.4 : 3, 0, Math.PI * 2);
-      context.fill();
-      if (isControlled) {
-        context.strokeStyle = '#ffffff';
-        context.lineWidth = 1.6;
-        context.beginPath();
-        context.arc(toX(player.x), toZ(player.z), 5, 0, Math.PI * 2);
-        context.stroke();
+      if (player.isKeeper) {
+        context.arc(cx, cz, 3.2, 0, Math.PI * 2);
+      } else {
+        context.moveTo(cx, cz - 3.4);
+        context.lineTo(cx + 3, cz + 2.2);
+        context.lineTo(cx - 3, cz + 2.2);
       }
+      context.closePath();
+      context.fill();
     }
     if (ball) {
-      context.fillStyle = '#ffffff';
+      // Bola em amarelo para destoar do verde/azul dos times.
+      context.fillStyle = '#ffd84a';
       context.beginPath();
       context.arc(toX(ball.x), toZ(ball.z), 2.2, 0, Math.PI * 2);
       context.fill();
+      context.strokeStyle = 'rgba(0,0,0,0.35)';
+      context.lineWidth = 0.8;
+      context.stroke();
     }
   }
 

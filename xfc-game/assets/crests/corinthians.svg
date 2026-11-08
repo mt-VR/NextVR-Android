@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Escudo do Corinthians">
+  <defs>
+    <clipPath id="cor-badge">
+      <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#cor-badge)">
+    <rect x="0" y="0" width="120" height="120" fill="#141414"/>
+    <circle cx="60" cy="55" r="26" fill="none" stroke="#f4f4f2" stroke-width="3"/>
+    <text x="60" y="63" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#f4f4f2">COR</text>
+    <text x="60" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" font-weight="700" letter-spacing="2" fill="#0a5c9c">ATLETICO</text>
+  </g>
+  <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z" fill="none" stroke="#f4f4f2" stroke-width="3"/>
+</svg>
