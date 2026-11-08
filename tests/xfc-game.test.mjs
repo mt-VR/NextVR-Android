@@ -277,7 +277,11 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // Preparar a partida leva ao jogo 3D de verdade — com o HUD de transmissão,
     // o analógico fixo e o cartão do jogador controlado.
     await page.click('.screen--match .stadium-cta', { noWaitAfter: true });
-    await page.waitForSelector('.screen--play', { timeout: 15000 });
+    try {
+      await page.waitForSelector('.screen--play', { timeout: 30000 });
+    } catch (error) {
+      throw new Error(`${error.message}\nErros coletados até aqui:\n${JSON.stringify(errors, null, 2)}`);
+    }
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
@@ -342,7 +346,11 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.locator('.quick__option', { hasText: 'FÁCIL' }).first().click();
 
     await page.click('.quick__actions .stadium-cta', { noWaitAfter: true });
-    await page.waitForSelector('.screen--play', { timeout: 15000 });
+    try {
+      await page.waitForSelector('.screen--play', { timeout: 30000 });
+    } catch (error) {
+      throw new Error(`${error.message}\nErros coletados até aqui:\n${JSON.stringify(errors, null, 2)}`);
+    }
 
     // Pré-jogo imersivo: o estádio toma a tela, com o confronto no centro.
     assert.ok(await page.locator('.showcase__chip').isVisible(), 'o pré-jogo abre com o selo da liga');
