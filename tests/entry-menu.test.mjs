@@ -370,8 +370,9 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     // 5. Configurações (4 abas com arrasto lateral: Básico, Mãos & Gestos, Tela & Dock e Gorilla Tag)
     await page.evaluate(() => document.querySelector('[data-entry-act="settings"]').click());
     assert.equal(await page.locator('[data-entry-panel="settings"] .entry-subpanel-title').innerText(), 'Configurações básicas');
-    // Quatro abas: a 4ª é o Gorilla Tag (sala, skin e configurações do jogo), com 4 células.
-    assert.equal(await page.locator('.entry-bento-cell').count(), 17);
+    // Quatro abas: a 4ª é o Gorilla Tag (sala, gráficos e configurações do jogo). As quatro
+    // células da antiga aba de acessórios (cor, óculos, cabeça e roupa) saíram com ela.
+    assert.equal(await page.locator('.entry-bento-cell').count(), 13);
     // "o menu de escolher a aparência vai sair das configurações": a antiga 5ª aba (acessórios)
     // não existe mais — a aparência é escolhida no menu do próprio jogo.
     assert.equal(await page.locator('[data-entry-settings-tab]').count(), 4, 'o menu inicial tem 4 abas de configurações');
