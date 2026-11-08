@@ -54,6 +54,96 @@ function numberTexture(number, color) {
   });
 }
 
+/** Caminho redondo (usado no recorte do rosto). */
+function roundedClip(context, width, height, radius) {
+  context.beginPath();
+  context.moveTo(radius, 0);
+  context.arcTo(width, 0, width, height, radius);
+  context.arcTo(width, height, 0, height, radius * 1.4);
+  context.arcTo(0, height, 0, 0, radius * 1.4);
+  context.arcTo(0, 0, width, 0, radius);
+  context.closePath();
+}
+
+/**
+ * Pinta o rosto do atleta (retrato real) num escudo curvo na frente da
+ * cabeça. Enquanto a foto não chega, o boneco fica com o rosto liso da cor
+ * média — a partida não espera o disco para começar.
+ */
+function applyFacePhoto(head, photoUrl, skinMaterial) {
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    const width = 144;
+    const height = 168;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, width, height);
+    context.save();
+    roundedClip(context, width, height, 30);
+    context.clip();
+    // Recorte "cover" com viés para o topo: o rosto ocupa o terço de cima
+    // dos retratos.
+    const scale = Math.max(width / image.width, height / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const offsetX = (width - drawWidth) / 2;
+    const offsetY = Math.min(0, (height - drawHeight) * 0.18);
+    context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+    // Sombra suave embaixo para casar com o pescoço.
+    const shade = context.createLinearGradient(0, height * 0.72, 0, height);
+    shade.addColorStop(0, 'rgba(0,0,0,0)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.3)');
+    context.fillStyle = shade;
+    context.fillRect(0, 0, width, height);
+    context.restore();
+
+    // Tom médio do retrato vira a cor da pele do resto do corpo.
+    try {
+      const probe = document.createElement('canvas');
+      probe.width = 8;
+      probe.height = 8;
+      const probeContext = probe.getContext('2d');
+      probeContext.drawImage(canvas, 40, 64, 64, 64, 0, 0, 8, 8);
+      const data = probeContext.getImageData(0, 0, 8, 8).data;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let index = 0; index < data.length; index += 4) {
+        r += data[index];
+        g += data[index + 1];
+        b += data[index + 2];
+      }
+      const count = data.length / 4;
+      skinMaterial.color.setRGB((r / count) / 255, (g / count) / 255, (b / count) / 255, THREE.SRGBColorSpace);
+    } catch {
+      // Foto inacessível para leitura: mantém o tom padrão.
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    const material = new THREE.MeshLambertMaterial({ map: texture, transparent: true, depthWrite: false });
+    // Escudo curvo que abraça a esfera da cabeça — precisa ficar FORA dela
+    // (o crânio tem raio 0,107 e o cabelo 0,113).
+    const theta = 1.32;
+    const shield = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1145, 0.1145, 0.182, 20, 1, true, -theta / 2, theta),
+      material
+    );
+    shield.position.y = 0.008;
+    head.add(shield);
+
+    // O retrato real substitui os olhos desenhados.
+    for (const child of [...head.children]) {
+      if (child.userData.facePart === 'eye') child.visible = false;
+    }
+  };
+  image.src = photoUrl;
+}
+
 /**
  * Cria o modelo 3D de um jogador.
  *
@@ -61,6 +151,7 @@ function numberTexture(number, color) {
  * @param {object} options.kit cores e padrão do uniforme
  * @param {number} options.number número da camisa
  * @param {boolean} options.isKeeper usa a roupa do goleiro
+ * @param {string} [options.photo] retrato do atleta (os jogadores reais)
  */
 export function createPlayer3D(options = {}) {
   const {
@@ -68,7 +159,8 @@ export function createPlayer3D(options = {}) {
     number = 10,
     isKeeper = false,
     skinTone = SKIN_TONES[0],
-    hairColor = HAIR_COLORS[0]
+    hairColor = HAIR_COLORS[0],
+    photo = null
   } = options;
 
   const primary = isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary;
@@ -132,13 +224,18 @@ export function createPlayer3D(options = {}) {
   hair.scale.set(0.95, 0.98, 1.0);
   head.add(hair);
 
-  // Olhos: dão leitura de rosto mesmo à distância.
+  // Olhos: dão leitura de rosto mesmo à distância (somem quando o retrato
+  // real está presente).
   const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x14181d });
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5), eyeMaterial);
     eye.position.set(0.042 * side, 0.018, 0.093);
+    eye.userData.facePart = 'eye';
     head.add(eye);
   }
+
+  // Retrato real do atleta vira o rosto do boneco.
+  if (photo) applyFacePhoto(head, photo, skinMaterial);
 
   // Braços.
   const arms = [];

@@ -121,27 +121,42 @@ function drawCrowd(context, width, height) {
   }
 }
 
-/** Placas de publicidade em volta do campo. */
+/** Placas de publicidade em volta do campo (marcas próprias do XFC). */
 function drawAds(context, width, height) {
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#0f3b2c');
-  gradient.addColorStop(0.5, '#0d2f3f');
-  gradient.addColorStop(1, '#0a1f2b');
+  gradient.addColorStop(0, '#0e3a63');
+  gradient.addColorStop(0.5, '#123a5e');
+  gradient.addColorStop(1, '#0a2740');
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
   const slots = 6;
   for (let slot = 0; slot < slots; slot += 1) {
     const x = (slot / slots) * width;
     const w = width / slots;
-    context.fillStyle = 'rgba(46,240,168,0.85)';
-    context.font = `bold ${height * 0.42}px Inter, sans-serif`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('XFC', x + w / 2, height * 0.52);
-    context.fillStyle = 'rgba(255,255,255,0.72)';
-    context.font = `600 ${height * 0.2}px Inter, sans-serif`;
-    context.fillText('XF ESPORTES', x + w / 2, height * 0.78);
-    context.strokeStyle = 'rgba(255,255,255,0.14)';
+    if (slot % 2 === 0) {
+      // Faixa azul com a "XFC FOUNDATION" (a versão própria da fundação
+      // beneficente que aparece nos estádios de verdade).
+      context.fillStyle = '#164a7a';
+      context.fillRect(x + 3, 3, w - 6, height - 6);
+      context.fillStyle = '#ffffff';
+      context.font = `800 ${height * 0.36}px Inter, sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('XFC FOUNDATION', x + w / 2, height * 0.46);
+      context.fillStyle = 'rgba(255,255,255,0.7)';
+      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
+      context.fillText('FUTBOL PARA TODOS', x + w / 2, height * 0.76);
+    } else {
+      context.fillStyle = 'rgba(46,240,168,0.9)';
+      context.font = `800 ${height * 0.4}px Inter, sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('XF ESPORTES', x + w / 2, height * 0.44);
+      context.fillStyle = 'rgba(255,255,255,0.75)';
+      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
+      context.fillText('XF CHAMPIONS LEAGUE', x + w / 2, height * 0.74);
+    }
+    context.strokeStyle = 'rgba(255,255,255,0.16)';
     context.lineWidth = 2;
     context.strokeRect(x + 4, 4, w - 8, height - 8);
   }

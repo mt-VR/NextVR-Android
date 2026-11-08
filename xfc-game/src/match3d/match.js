@@ -174,7 +174,9 @@ export function createMatch(options = {}) {
         number: data.number || index + 1,
         isKeeper,
         skinTone: look.skinTone,
-        hairColor: look.hairColor
+        hairColor: look.hairColor,
+        // O retrato real do atleta vira o rosto do boneco.
+        photo: data.photo || null
       });
       engine.scene.add(model.root);
 
@@ -190,6 +192,7 @@ export function createMatch(options = {}) {
         order: index,
         role,
         isKeeper,
+        ovr: data.ovr || null,
         // O goleiro cobre mais espaço que um jogador de linha.
         reach: isKeeper ? 0.95 : 0.52,
         active: true,
@@ -865,9 +868,9 @@ export function createMatch(options = {}) {
     const position = ball.state.position;
     const sign = attackSign(userSide);
     // Câmera de transmissão: mais próxima e inclinada, como no FC Mobile.
-    const desiredX = position.x * 0.72 - sign * 27;
+    const desiredX = position.x * 0.72 - sign * 28;
     const desiredZ = position.z * 0.5;
-    const desiredY = 14.5 + Math.min(6, Math.abs(position.x) * 0.06);
+    const desiredY = 15.6 + Math.min(6, Math.abs(position.x) * 0.06);
 
     const camera = engine.camera;
     if (!cameraReady) {

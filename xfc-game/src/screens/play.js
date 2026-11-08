@@ -11,9 +11,21 @@ import { kitsOf } from '../data/kits.js';
 import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
 import { createHud } from '../match3d/hud.js';
+import * as THREE from '../../vendor/three.module.min.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
+const projection = new THREE.Vector3();
+
+/** Projeta um ponto do mundo 3D para as coordenadas do palco (1280x720). */
+function projectToStage(camera, position) {
+  projection.set(position.x, position.y, position.z).project(camera);
+  return {
+    x: (projection.x * 0.5 + 0.5) * STAGE_WIDTH,
+    y: (-projection.y * 0.5 + 0.5) * STAGE_HEIGHT,
+    visible: projection.z < 1 && projection.z > -1
+  };
+}
 
 export function playScreen(ctx, params = {}) {
   const home = getTeam(params.home) || getTeam(ctx.state.selection.home);
@@ -215,7 +227,7 @@ export function playScreen(ctx, params = {}) {
         ),
         el('div', { class: 'result__score' },
           el('b', { text: String(homeScore) }),
-          el('span', { text: 'X' }),
+          el('span', { text: '×' }),
           el('b', { text: String(awayScore) })
         ),
         el('div', { class: `result__team${winner === 'away' ? ' is-winner' : ''}` },
@@ -286,10 +298,22 @@ export function playScreen(ctx, params = {}) {
     if (!match) return;
     const snapshot = match.world.snapshot();
     lastSnapshot = snapshot;
-    hud?.update(snapshot, match.world.members('home').concat(match.world.members('away')), {
+    // Etiqueta sobre a cabeça do atleta controlado (como no eFootball).
+    const all = match.world.members('home').concat(match.world.members('away'));
+    const controlledPlayer = all.find(player => match.world.isUserControlled(player)) || null;
+    let controlled = null;
+    if (controlledPlayer) {
+      const point = projectToStage(match.engine.camera, {
+        x: controlledPlayer.root.position.x,
+        y: 2.32,
+        z: controlledPlayer.root.position.z
+      });
+      controlled = { player: controlledPlayer, ...point };
+    }
+    hud?.update(snapshot, all, {
       x: match.ball.state.position.x,
       z: match.ball.state.position.z
-    });
+    }, controlled);
   };
   const timer = setInterval(frame, 120);
 

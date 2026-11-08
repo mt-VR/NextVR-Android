@@ -1,10 +1,16 @@
-// Controles da partida: analógico virtual à esquerda e botões à direita,
-// como no FC Mobile. Funciona com toque (o caso do Android) e também com o
-// teclado, para jogar no navegador do computador.
+// Controles da partida: analógico virtual fixo no canto inferior esquerdo e
+// botões de ação à direita, como no FC Mobile e no eFootball (os prints de
+// referência). Funciona com toque (o caso do Android) e também com o teclado,
+// para jogar no navegador do computador.
+//
+// O analógico NÃO é flutuante: a base fica sempre no mesmo lugar (canto
+// inferior esquerdo, como nos prints) e o vetor é medido a partir do centro
+// dele.
 
 import { el } from '../ui/dom.js';
 
-const STICK_RADIUS = 58;
+const STICK_BASE = 128;   // diâmetro da base, em px do palco
+const STICK_RADIUS = 44;  // alcance do knob, em px do palco
 const DEAD_ZONE = 0.16;
 
 const BUTTONS = [
@@ -56,44 +62,37 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     stick,
     el('div', { class: 'controls__buttons' }, buttons)
   );
+  stick.classList.add('is-visible');
   root.appendChild(container);
 
   const knob = stick.querySelector('.controls__stick-knob');
   let pointerId = null;
-  let originX = 0;
-  let originY = 0;
+
+  function stickCenter() {
+    const box = stick.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2, scale: box.width / STICK_BASE };
+  }
 
   function resetStick() {
     pointerId = null;
-    stick.classList.remove('is-visible');
     knob.style.transform = 'translate(-50%, -50%)';
     onMove(0, 0);
   }
 
-  zone.addEventListener('pointerdown', event => {
-    if (pointerId !== null) return;
-    pointerId = event.pointerId;
-    originX = event.clientX;
-    originY = event.clientY;
-    const box = zone.getBoundingClientRect();
-    stick.style.left = `${event.clientX - box.left}px`;
-    stick.style.top = `${event.clientY - box.top}px`;
-    stick.classList.add('is-visible');
-    zone.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  });
-
-  zone.addEventListener('pointermove', event => {
-    if (event.pointerId !== pointerId) return;
-    let dx = event.clientX - originX;
-    let dy = event.clientY - originY;
+  function vectorFrom(event) {
+    const center = stickCenter();
+    let dx = (event.clientX - center.x) / center.scale;
+    let dy = (event.clientY - center.y) / center.scale;
     const distance = Math.hypot(dx, dy);
     if (distance > STICK_RADIUS) {
       dx = (dx / distance) * STICK_RADIUS;
       dy = (dy / distance) * STICK_RADIUS;
     }
-    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    return { dx, dy };
+  }
 
+  function applyVector(dx, dy) {
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     const nx = dx / STICK_RADIUS;
     const ny = dy / STICK_RADIUS;
     const magnitude = Math.hypot(nx, ny);
@@ -103,6 +102,21 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     }
     // "Para cima" no analógico é avançar (moveZ positivo).
     onMove(nx, -ny);
+  }
+
+  zone.addEventListener('pointerdown', event => {
+    if (pointerId !== null) return;
+    pointerId = event.pointerId;
+    zone.setPointerCapture(event.pointerId);
+    const { dx, dy } = vectorFrom(event);
+    applyVector(dx, dy);
+    event.preventDefault();
+  });
+
+  zone.addEventListener('pointermove', event => {
+    if (event.pointerId !== pointerId) return;
+    const { dx, dy } = vectorFrom(event);
+    applyVector(dx, dy);
   });
 
   zone.addEventListener('pointerup', event => {

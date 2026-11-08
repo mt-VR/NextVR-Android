@@ -1,7 +1,5 @@
-// Tela de preparação da partida: mostra o confronto escolhido.
-//
-// O motor de partida ainda não existe — esta tela deixa claro o que vem na
-// próxima etapa do XFC, em vez de fingir que a partida já está pronta.
+// Tela de preparação da partida ("Classic Match"): mostra o confronto
+// escolhido no Kick Off e abre o mesmo jogo 3D usado pelas Partidas Rápidas.
 
 import { el, padButton } from '../ui/dom.js';
 import { getTeam } from '../data/teams.js';
@@ -10,6 +8,21 @@ export function matchScreen(ctx, params = {}) {
   const home = getTeam(params.home) || getTeam(ctx.state.selection.home);
   const away = getTeam(params.away) || getTeam(ctx.state.selection.away);
   const venue = away ? away.stadium : 'Estádio a definir';
+
+  function startMatch() {
+    if (!home || !away || home.id === away.id) {
+      ctx.go('kickoff');
+      return;
+    }
+    ctx.go('play', {
+      home: home.id,
+      away: away.id,
+      homeKit: ctx.state.kits[home.id] ?? 0,
+      awayKit: ctx.state.kits[away.id] ?? 0,
+      minutes: 6,
+      difficulty: 'normal'
+    });
+  }
 
   const node = el('div', { class: 'screen screen--match' },
     el('header', { class: 'topbar' },
@@ -34,10 +47,11 @@ export function matchScreen(ctx, params = {}) {
       el('span', { class: 'match__venue', text: venue }),
       el('p', {
         class: 'match__note',
-        text: 'O confronto está pronto. As partidas, os estádios e a tabela do campeonato entram na próxima etapa do XFC — por enquanto o jogo para no menu.'
+        text: 'Uniformes definidos, bola rolando: a mesma experiência 3D das Partidas Rápidas aguarda — controle um atleta por vez e leve a decisão para o apito final.'
       }),
       el('div', { class: 'hints' },
-        el('button', { class: 'btn btn--primary', type: 'button', onClick: () => ctx.go('kickoff') }, 'Voltar aos times'),
+        el('button', { class: 'btn btn--primary', type: 'button', onClick: startMatch }, 'Iniciar partida'),
+        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('kickoff') }, 'Voltar aos times'),
         el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'Menu principal')
       )
     ),
@@ -51,7 +65,11 @@ export function matchScreen(ctx, params = {}) {
   return {
     node,
     onKey(event) {
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'Enter') {
+      if (event.key === 'Enter') {
+        startMatch();
+        return true;
+      }
+      if (event.key === 'Escape' || event.key === 'Backspace') {
         ctx.go('kickoff');
         return true;
       }

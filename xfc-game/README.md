@@ -35,8 +35,18 @@ Nesta primeira etapa o jogo tem **o menu**:
    (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
    painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
    papel, foco, pé, skill moves e weak foot.
-6. **Preparação da partida** — mostra o confronto e avisa que as partidas,
-   estádios e campeonato chegam na próxima etapa.
+6. **Preparação da partida** — mostra o confronto; o botão *Iniciar partida*
+   abre o jogo 3D de verdade, com os times e uniformes escolhidos.
+7. **Partida 3D** — o mesmo jogo das Partidas Rápidas: câmera de transmissão,
+   placar de transmissão no canto superior esquerdo (sigla, gols e relógio),
+   cartão do jogador controlado no canto inferior esquerdo (número, nome, OVR
+   e condição), radar tático no centro inferior, botões de ação no estilo FC
+   Mobile/eFootball (PASSE, CHUTE, ENFIADA, DESARME, TROCAR e CORRER) e o
+   **analógico fixo** no canto inferior esquerdo — ele não se move: o vetor é
+   medido a partir do centro dele. Os bonecos de FC Barcelona e Real Madrid
+   usam os **retratos reais** dos jogadores como rosto. Ao fim do tempo, a
+   tela de resultado mostra os **escudos dos dois clubes** e o placar final
+   sobre um fundo de estádio escuro, no estilo dos cartões de resultado.
 
 Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
 retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
