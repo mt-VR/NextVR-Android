@@ -1287,18 +1287,23 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.click('.pause .btn--primary');
 
     // O resultado aparece ao fim do tempo, com o placar e o botão de rejogar.
-    const finished = await page.evaluate(async () => {
+    // Espera a saída do segundo tempo, então avança o relógio até o fim de forma
+    // determinística: milhares de retomadas aleatórias não devem tornar o teste
+    // dependente do acaso nem deixá-lo parado esperando um cobrador humano.
+    const secondHalfStarted = await page.evaluate(() => {
       const match = window.__xfcMatch;
-      for (let index = 0; index < 60000; index += 1) {
+      for (let index = 0; index < 900; index += 1) {
         match.world.tick(1 / 60);
-        if (match.phase.name === 'kickoff' && match.phase.side === match.world.userSide) {
-          match.world.command('pass');
-        } else if (match.phase.name === 'restart' && match.phase.restart?.ready
-          && match.phase.restart.side === match.world.userSide) {
-          match.world.command('pass');
-        }
-        if (match.phase.name === 'fulltime') break;
+        if (match.phase.name === 'play' && match.clock.half === 2) return true;
       }
+      return false;
+    });
+    assert.equal(secondHalfStarted, true, 'o segundo tempo começa depois do intervalo');
+    const finished = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      match.clock.minutes = 90;
+      match.clock.added = 0;
+      match.world.tick(1 / 60);
       return match.world.snapshot();
     });
     assert.equal(finished.phase, 'fulltime', 'a partida termina');
