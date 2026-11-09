@@ -751,6 +751,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const match = window.__xfcMatch;
       const shooter = match.world.members('home').find(player => !player.isKeeper);
       match.controlled.home = shooter;
+      match.phase.name = 'play';
+      match.phase.restart = null;
       match.ball.attachTo(shooter);
       match.world.command('shoot', { strength: 1, placed: false });
       return match.ball.state.lastShotKind;
