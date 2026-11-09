@@ -542,6 +542,28 @@ function buildHair(style, hairMaterial) {
       mohawk.scale.set(0.42, 0.9, 1.02);
       return mohawk;
     }
+    case 'neymar': {
+      // Topo baixo com laterais raspadas e crista de cones facetados — uma
+      // silhueta low-poly inspirada no moicano espetado do Santos de 2014.
+      const crest = new THREE.Group();
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.116, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.48),
+        hairMaterial
+      );
+      cap.position.set(0, 0.012, -0.008);
+      cap.scale.set(0.9, 0.9, 0.98);
+      crest.add(cap);
+      for (let index = 0; index < 8; index += 1) {
+        const z = 0.043 - index * 0.023;
+        const height = 0.072 + (index % 3) * 0.018;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.023, height, 5), hairMaterial);
+        spike.position.set(index % 2 ? -0.008 : 0.008, 0.075 + height * 0.22, z);
+        spike.rotation.x = 0.28;
+        spike.rotation.z = (index % 2 ? -1 : 1) * 0.08;
+        crest.add(spike);
+      }
+      return crest;
+    }
     case 'side': {
       const side = new THREE.Mesh(new THREE.SphereGeometry(0.114, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairMaterial);
       side.position.set(0.02, 0.012, -0.01);
@@ -581,7 +603,7 @@ function buildHair(style, hairMaterial) {
  * @param {number} options.number número da camisa
  * @param {boolean} options.isKeeper usa a roupa do goleiro
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
- * @param {string} [options.hairStyle] penteado (short, afro, mohawk, side, bob, bald)
+ * @param {string} [options.hairStyle] penteado (short, afro, mohawk, neymar, side, bob, bald)
  * @param {number} [options.heightScale] variação de altura (0.94–1.07)
  */
 export function createPlayer3D(options = {}) {

@@ -175,18 +175,20 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.2
+          TAG=xfc-gameplay-v0.5.3
           NOTES=$(printf '%s\n' \
-            "XFC 27 — câmeras, faltas e comemorações v0.5.2 (versionCode 8), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3 (versionCode 9), build do commit ${GITHUB_SHA}." \
             "" \
-            "Pênaltis usam uma câmera central atrás do batedor; faltas mostram a chance de gol e um quadrado de contato: os lados aplicam curva, em cima gera chute rasteiro e embaixo eleva a bola, com a trajetória prevista no campo. A câmera do treino agora acompanha o jogador por trás." \
+            "Escolha uma das 32 seleções com elencos da Copa de 2022, dispute uma fase de grupos sorteada e avance pelas oitavas, quartas, semifinais e final. O carrossel de modos inclui UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away e Best of Series." \
             "" \
-            "Inclui os escudos enviados do Flamengo e do Palmeiras e cinco comemorações de gol diferentes, com companheiros reagindo. Mantém a IA de goleiro e as melhorias de bolas paradas da v0.5.1. O APK roda offline e o pacote web também está anexado.")
+            "Adiciona Corinthians e Santos com os escudos enviados, além de um Neymar low-poly com penteado espetado inspirado na referência. A câmera Pro do treino mantém o enquadramento quando o analógico move o jogador, e a iluminação do estádio recebe camadas de luz branca quente e preenchimento frio para um visual de transmissão." \
+            "" \
+            "Mantém as melhorias anteriores de goleiros, bolas paradas e comemorações. O APK roda offline e o pacote web também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — câmeras, faltas e comemorações v0.5.2" \
+            gh release create "$TAG" --title "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — câmeras, faltas e comemorações v0.5.2" \
+            gh release edit "$TAG" --title "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

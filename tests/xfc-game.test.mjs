@@ -5,7 +5,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
-import { createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, USER_NATIONAL_TEAM_ID } from '../xfc-game/src/data/worldcup.js';
+import { NATIONAL_TEAMS, GROUP_NAMES, createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, getNationalTeam } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
@@ -18,11 +18,11 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem vinte e um clubes, com onze em campo e sete reservas em cada um', () => {
-  assert.equal(TEAMS.length, 21, 'o jogo oferece vinte e um clubes');
+test('XFC tem vinte e dois clubes, com onze em campo e sete reservas em cada um', () => {
+  assert.equal(TEAMS.length, 22, 'o jogo oferece vinte e dois clubes');
   assert.deepEqual(TEAMS.map(team => team.id), [
     'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
-    'flamengo', 'palmeiras', 'corinthians',
+    'flamengo', 'palmeiras', 'corinthians', 'santos',
     'aston-villa', 'brentford', 'panathinaikos', 'river-plate', 'levante', 'huddersfield-town',
     'eintracht-frankfurt', 'queens-park-rangers', 'wrexham', 'sheffield-united',
     'northampton-town', 'rotherham-united', 'wycombe-wanderers', 'rkc-waalwijk'
@@ -84,45 +84,122 @@ test('orientação do campo: a casa ataca +X, cada time defende o próprio gol',
   assert.equal(insideGoalAreaFor(46, 0, 'away'), false);
 });
 
-test('campanha da Copa sorteia grupos, joga três partidas e avança até a final', () => {
-  const campaign = createWorldCupCampaign({ mode: '2027', seed: 314159 });
-  assert.equal(campaign.groupMatches.length, 12, 'os dois grupos têm seis partidas cada');
+test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
+  assert.equal(NATIONAL_TEAMS.length, 32, 'a edição traz os 32 países da Copa de 2022');
+  assert.deepEqual(NATIONAL_TEAMS.map(team => team.id), [
+    'qatar', 'ecuador', 'senegal', 'netherlands', 'england', 'usa', 'iran', 'wales',
+    'argentina', 'saudi-arabia', 'mexico', 'poland', 'france', 'australia', 'denmark', 'tunisia',
+    'spain', 'costa-rica', 'germany', 'japan', 'belgium', 'canada', 'morocco', 'croatia',
+    'brazil', 'serbia', 'switzerland', 'cameroon', 'portugal', 'ghana', 'uruguay', 'south-korea'
+  ]);
+  for (const team of NATIONAL_TEAMS) {
+    assert.equal(team.players.length, 11, `${team.name} tem onze titulares`);
+    assert.equal(team.players.filter(player => player.position === 'GK').length, 1, `${team.name} tem um goleiro`);
+    assert.equal(new Set(team.players.map(player => player.number)).size, 11, `${team.name} não repete números na escalação`);
+    assert.ok(team.players.every(player => player.number > 0 && player.rating >= 60 && player.rating <= 99),
+      `${team.name} traz números e notas de titulares válidos`);
+    assert.ok(team.colors.primary && team.colors.secondary, `${team.name} tem cores de uniforme próprias`);
+  }
+  assert.ok(getNationalTeam('brazil').players.some(player => player.name === 'Neymar Jr.'),
+    'a seleção brasileira usa nomes da geração de 2022');
+  assert.ok(getNationalTeam('argentina').players.some(player => player.name === 'Lionel Messi'),
+    'a Argentina usa nomes da geração de 2022');
+});
+
+test('campanha da Copa sorteia a seleção escolhida em um grupo e avança por toda a chave', () => {
+  const campaign = createWorldCupCampaign({ mode: '2027', seed: 314159, teamId: 'argentina' });
+  assert.equal(campaign.userTeamId, 'argentina', 'o usuário controla a seleção que escolheu');
+  assert.equal(Object.keys(campaign.groups).length, 8, 'a Copa tem oito grupos');
+  assert.ok(GROUP_NAMES.every(group => campaign.groups[group].length === 4), 'cada grupo tem quatro seleções');
+  assert.equal(campaign.groupMatches.length, 48, 'os oito grupos disputam seis partidas cada');
   assert.equal(campaign.groupMatches.filter(match => match.playable).length, 3,
-    'as três partidas do Brasil ficam jogáveis');
+    'a seleção do usuário disputa os três jogos do seu grupo');
   assert.ok(campaign.groupMatches.filter(match => !match.playable).every(match => match.played),
-    'os outros jogos entram como resultados simulados');
+    'as outras partidas de grupo entram simuladas na classificação');
+  assert.ok(GROUP_NAMES.includes(campaign.userGroup), 'a seleção recebe grupo no sorteio');
 
   let match = nextCampaignMatch(campaign);
   while (campaign.stage === 'group') {
-    assert.ok(match, 'há uma próxima partida do Brasil na fase de grupos');
-    const brazilAtHome = match.home === USER_NATIONAL_TEAM_ID;
-    recordCampaignMatchResult(campaign, match.id, brazilAtHome ? 10 : 0, brazilAtHome ? 0 : 10);
+    assert.ok(match, 'há uma próxima partida da seleção na fase de grupos');
+    recordCampaignMatchResult(campaign, match.id,
+      match.home === campaign.userTeamId ? 10 : 0,
+      match.away === campaign.userTeamId ? 10 : 0);
     match = nextCampaignMatch(campaign);
   }
-  assert.equal(campaign.stage, 'semifinal', 'três vitórias classificam o Brasil para a semifinal');
-  const table = campaignStandings(campaign, campaign.groups.A.includes(USER_NATIONAL_TEAM_ID) ? 'A' : 'B');
-  assert.equal(table.find(team => team.id === USER_NATIONAL_TEAM_ID).played, 3,
+  assert.equal(campaign.stage, 'round-of-16', 'três vitórias classificam a seleção às oitavas');
+  const table = campaignStandings(campaign, campaign.userGroup);
+  assert.equal(table.find(team => team.id === campaign.userTeamId).played, 3,
     'a tabela registra os três jogos disputados');
 
-  const semifinal = nextCampaignMatch(campaign);
-  assert.ok(semifinal, 'o Brasil recebe uma semifinal jogável');
-  recordCampaignMatchResult(campaign, semifinal.id,
-    semifinal.home === USER_NATIONAL_TEAM_ID ? 3 : 0,
-    semifinal.away === USER_NATIONAL_TEAM_ID ? 3 : 0);
-  assert.equal(campaign.stage, 'final', 'vencer a semifinal cria a partida final');
-
-  const final = nextCampaignMatch(campaign);
-  assert.ok(final && final.stage === 'final', 'a final fica disponível para jogar');
-  recordCampaignMatchResult(campaign, final.id, 2, 0);
-  assert.equal(campaign.stage, 'champion', 'o resultado final encerra a campanha como campeã');
+  const expectedRounds = [
+    ['round-of-16', 8], ['quarterfinals', 4], ['semifinals', 2], ['final', 1]
+  ];
+  for (const [stage, size] of expectedRounds) {
+    assert.equal(campaign.stage, stage, `a campanha avança para ${stage}`);
+    assert.equal(campaign.knockoutMatches.filter(item => item.stage === stage).length, size,
+      `${stage} tem ${size} confrontos na chave`);
+    match = nextCampaignMatch(campaign);
+    assert.ok(match && match.stage === stage, `${stage} tem uma partida jogável da seleção`);
+    recordCampaignMatchResult(campaign, match.id,
+      match.home === campaign.userTeamId ? 10 : 0,
+      match.away === campaign.userTeamId ? 10 : 0);
+  }
+  assert.equal(campaign.stage, 'champion', 'vencer a final encerra a campanha como campeã');
   assert.equal(campaign.completed, true);
+  assert.equal(nextCampaignMatch(campaign), null, 'uma campanha concluída não oferece outra partida');
 });
 
-test('novo sorteio da Copa não repete os mesmos grupos consecutivos', () => {
-  const first = createWorldCupCampaign({ seed: 77123 });
-  const second = createWorldCupCampaign({ seed: first.seed, previousGroups: first.groups });
-  const normalize = groups => [groups.A, groups.B].map(ids => [...ids].sort().join(',')).sort().join('|');
+test('perder a final encerra a campanha como vice-campeã', () => {
+  const campaign = createWorldCupCampaign({ teamId: 'brazil', seed: 481516 });
+  while (campaign.stage === 'group') {
+    const match = nextCampaignMatch(campaign);
+    assert.ok(match, 'a seleção tem partidas de grupo pendentes');
+    recordCampaignMatchResult(campaign, match.id,
+      match.home === campaign.userTeamId ? 10 : 0,
+      match.away === campaign.userTeamId ? 10 : 0);
+  }
+  while (campaign.stage !== 'final') {
+    const match = nextCampaignMatch(campaign);
+    assert.ok(match, 'a seleção qualificada disputa o mata-mata');
+    recordCampaignMatchResult(campaign, match.id,
+      match.home === campaign.userTeamId ? 10 : 0,
+      match.away === campaign.userTeamId ? 10 : 0);
+  }
+  const final = nextCampaignMatch(campaign);
+  assert.ok(final, 'a seleção chega à partida final');
+  recordCampaignMatchResult(campaign, final.id,
+    final.home === campaign.userTeamId ? 0 : 2,
+    final.away === campaign.userTeamId ? 0 : 2);
+  assert.equal(campaign.stage, 'runnerup', 'a derrota na decisão registra o segundo lugar');
+  assert.equal(campaign.completed, true);
+  assert.equal(nextCampaignMatch(campaign), null, 'a campanha de vice-campeã está encerrada');
+});
+
+test('a campanha termina na fase de grupos quando a seleção não fica entre as duas primeiras', () => {
+  const campaign = createWorldCupCampaign({ teamId: 'qatar', seed: 90210 });
+  for (let index = 0; index < 3; index += 1) {
+    const match = nextCampaignMatch(campaign);
+    assert.ok(match, 'a seleção tem três jogos de grupo para disputar');
+    recordCampaignMatchResult(campaign, match.id,
+      match.home === campaign.userTeamId ? 0 : 1,
+      match.away === campaign.userTeamId ? 0 : 1);
+  }
+  assert.equal(campaign.stage, 'eliminated', 'a seleção eliminada não entra no mata-mata');
+  assert.equal(campaign.eliminatedIn, 'group');
+  assert.equal(campaign.completed, true);
+  assert.deepEqual(campaign.knockoutMatches, [], 'nenhuma partida eliminatória é criada após a eliminação');
+  assert.equal(nextCampaignMatch(campaign), null, 'a campanha encerrada não libera outra partida');
+});
+
+test('o sorteio muda de grupo entre campanhas e evita repetir a chave completa', () => {
+  const first = createWorldCupCampaign({ seed: 77123, teamId: 'brazil' });
+  const second = createWorldCupCampaign({ seed: first.seed, previousGroups: first.groups, teamId: 'brazil' });
+  const normalize = groups => Object.values(groups).map(ids => [...ids].sort().join(',')).sort().join('|');
   assert.notEqual(normalize(first.groups), normalize(second.groups));
+  const assignments = new Set(Array.from({ length: 20 }, (_, index) =>
+    createWorldCupCampaign({ seed: index + 1, teamId: 'brazil' }).userGroup
+  ));
+  assert.ok(assignments.size > 1, 'o Brasil não fica preso a um grupo fixo');
 });
 
 test('todo jogador com retrato tem a imagem disponível no pacote de assets', () => {
@@ -142,16 +219,26 @@ test('todo jogador com retrato tem a imagem disponível no pacote de assets', ()
   assert.ok(semFoto > 0, 'os clubes sem retrato usam as iniciais');
 });
 
-test('os escudos enviados do Flamengo e do Palmeiras são os usados pelo elenco', async () => {
-  const flamengo = getTeam('flamengo');
-  const palmeiras = getTeam('palmeiras');
-  assert.equal(flamengo.crest, 'assets/crests/flamengo.png');
-  assert.equal(palmeiras.crest, 'assets/crests/palmeiras.png');
-  for (const team of [flamengo, palmeiras]) {
+test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar estão ligados aos dados', async () => {
+  const brazilianClubs = [
+    ['flamengo', 'assets/crests/flamengo.png'],
+    ['palmeiras', 'assets/crests/palmeiras.png'],
+    ['corinthians', 'assets/crests/corinthians.png'],
+    ['santos', 'assets/crests/santos.png']
+  ];
+  for (const [id, crest] of brazilianClubs) {
+    const team = getTeam(id);
+    assert.equal(team.crest, crest);
     const png = await readFile(new URL(team.crest, GAME_ROOT));
     assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${team.name}: arquivo PNG válido`);
-    assert.equal(png[25], 6, `${team.name}: PNG mantém transparência no fundo do escudo`);
+    assert.ok([4, 6].includes(png[25]), `${team.name}: PNG mantém canal alfa no escudo`);
   }
+  const santos = getTeam('santos');
+  const neymar = santos.players.find(player => player.name === 'Neymar Jr.');
+  assert.deepEqual(neymar.appearance, {
+    skinTone: '#bd8868', hairColor: '#241b15', hairStyle: 'neymar', heightScale: 1.01
+  }, 'Neymar tem um visual low-poly próprio com crista espetada');
+  assert.equal(kitsOf('santos').length, 3, 'Santos tem uniforme principal, reserva e terceiro');
 });
 
 test('todo clube tem escudo e três blusas no pacote', () => {
@@ -332,13 +419,23 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    assert.equal(await page.locator('.modes__option').count(), 6, 'a tela lista os modos e o Centro de Treino');
+    assert.equal(await page.locator('.modes__option').count(), 12, 'o carrossel lista torneios e modos de jogo');
+    for (const option of ['uefa-champions-league', 'conmebol-libertadores', 'cup-final', 'home-away', 'best-of-series']) {
+      assert.equal(await page.locator(`.modes__option[data-option="${option}"]`).count(), 1,
+        `${option} aparece no carrossel de torneios`);
+    }
     assert.ok(await page.locator('.modes__option[data-option="training"]').isVisible(),
       'o Centro de Treino fica acessível pelos modos de jogo');
     assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
     await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--worldcup');
-    assert.ok(await page.locator('.worldcup__group').isVisible(), 'o modo Copa abre o grupo');
+    assert.equal(await page.locator('.worldcup__select-team').count(), 32,
+      'antes do sorteio, a pessoa escolhe entre as 32 seleções');
+    await page.locator('.worldcup__select-team[data-team-id="argentina"]').click();
+    await page.locator('.worldcup__start-campaign').click();
+    await page.waitForSelector('.worldcup__group-tabs');
+    assert.equal(await page.locator('.worldcup__group-tab').count(), 8, 'a campanha mostra os oito grupos sorteados');
+    assert.ok(await page.locator('.worldcup__group').isVisible(), 'o modo Copa abre o grupo sorteado');
     assert.equal(await page.locator('.worldcup__standings-row').count(), 4, 'a tabela lista as quatro seleções do grupo');
     const firstStanding = page.locator('.worldcup__standings-row').first();
     const rankBox = await firstStanding.locator('.worldcup__standings-rank').boundingBox();
@@ -348,19 +445,23 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.equal(await page.locator('.worldcup__fixture').count(), 6,
       'a fase de grupos mostra os seis jogos do grupo');
     assert.equal(await page.locator('.worldcup__play-match').count(), 1,
-      'a próxima partida do Brasil pode ser iniciada');
+      'a próxima partida da Argentina pode ser iniciada');
     const campaignMatchId = await page.locator('.worldcup__play-match').getAttribute('data-match-id');
     await page.locator('.worldcup__play-match').click();
     await page.waitForSelector('.screen--play');
     await page.waitForFunction(() => window.__xfcMatch?.teams?.home?.players?.length === 11);
+    const occupiedSlots = await page.evaluate(() => ['home', 'away'].map(side =>
+      new Set(window.__xfcMatch.teams[side].players.map(player => player.index)).size
+    ));
+    assert.deepEqual(occupiedSlots, [11, 11], 'cada XI nacional ocupa onze posições distintas no 4-3-3');
     const countryMatch = await page.locator('.showcase__matchup').textContent();
-    assert.ok(countryMatch?.toUpperCase().includes('BRASIL'), 'a partida de campanha abre com as seleções corretas');
+    assert.ok(countryMatch?.toUpperCase().includes('ARGENTINA'), 'a partida de campanha abre com as seleções corretas');
     assert.equal(await page.locator('.showcase__crest.team-mark--flag').count(), 2,
       'as bandeiras das duas seleções aparecem no pré-jogo');
     await page.click('.showcase__enter');
     await page.evaluate(() => {
       const match = window.__xfcMatch;
-      const userIsHome = match.teams.home.info.id === 'brazil';
+      const userIsHome = match.teams.home.info.id === 'argentina';
       match.world.setPaused(false);
       match.teams.home.score = userIsHome ? 1 : 0;
       match.teams.away.score = userIsHome ? 0 : 1;
@@ -379,7 +480,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       };
     }, campaignMatchId);
     assert.ok(persistedResult.match?.played, 'o apito final registra o jogo na campanha salva');
-    assert.equal(persistedResult.match.winner, 'brazil', 'o resultado da partida conta para a classificação');
+    assert.equal(persistedResult.match.winner, 'argentina', 'o resultado da partida conta para a classificação');
     assert.ok(persistedResult.coins > coinsAfterPurchase, 'a partida da Copa também recompensa moedas');
     await page.click('.result__actions .btn:has-text("CONTINUAR COPA")');
     await page.waitForSelector('.screen--worldcup');
@@ -392,6 +493,13 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
 
     // Kick Off continua acessível pela tela de modos.
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--kickoff');
+    assert.equal(await page.locator('.topbar__title').textContent(), 'UEFA Champions League',
+      'a escolha do torneio chega ao pré-jogo de clubes');
+    await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');
     await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
     await page.locator('.modes__cta').click();
@@ -420,9 +528,13 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.click(nextClub);
     assert.ok((await homeName()).includes('Corinthians'), 'Corinthians aparece na escolha de times');
     await page.click(nextClub);
+    assert.ok((await homeName()).includes('Santos'), 'Santos entra no carousel com seu próprio escudo');
+    await page.click(nextClub);
     assert.ok((await homeName()).includes('Aston Villa'), 'os clubes do pacote também entram no carousel');
     await page.click(prevClub);
-    assert.ok((await homeName()).includes('Corinthians'), 'a seta anterior volta um clube');
+    assert.ok((await homeName()).includes('Santos'), 'a seta anterior volta ao Santos');
+    await page.click(prevClub);
+    assert.ok((await homeName()).includes('Corinthians'), 'a seta anterior volta ao Corinthians');
     await page.click(prevClub);
     await page.click(prevClub);
     await page.click(prevClub);
@@ -1183,14 +1295,28 @@ test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/c
     const movement = await page.evaluate(() => {
       const match = window.__xfcTrainingMatch;
       const player = match.controlled.home;
-      const startX = player.x;
-      match.world.input.moveX = 1;
-      match.world.tick(0.05);
-      match.world.input.moveX = 0;
-      return { burst: player.burst, moved: player.x > startX };
+      const startZ = player.z;
+      const startYaw = match.engine.camera.rotation.y;
+      const startFacingZ = player.facing.z;
+      match.world.input.moveZ = 1;
+      for (let frame = 0; frame < 8; frame += 1) match.world.tick(0.05);
+      match.world.input.moveZ = 0;
+      const yawChange = Math.atan2(
+        Math.sin(match.engine.camera.rotation.y - startYaw),
+        Math.cos(match.engine.camera.rotation.y - startYaw)
+      );
+      return {
+        burst: player.burst,
+        moved: player.z < startZ - 0.05,
+        turned: Math.abs(player.facing.z - startFacingZ) > 0.2,
+        cameraYawChange: yawChange
+      };
     });
     assert.ok(movement.burst > 0, 'DRIBLE ativa a arrancada');
     assert.equal(movement.moved, true, 'o analógico move o jogador controlável');
+    assert.equal(movement.turned, true, 'o jogador pode virar quando o analógico muda de direção');
+    assert.ok(Math.abs(movement.cameraYawChange) < 0.01,
+      'o analógico move o atleta sem girar a câmera Pro');
 
     await page.locator('.ctrl-btn--shoot').click();
     const shot = await page.evaluate(() => ({

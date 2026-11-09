@@ -82,6 +82,7 @@ export function createMatch(options = {}) {
     enabled: Boolean(options.training),
     player: null,
     keeper: null,
+    cameraForward: null,
     shotActive: false,
     shotElapsed: 0,
     stats: { shots: 0, goals: 0, saves: 0, misses: 0 }
@@ -232,11 +233,11 @@ export function createMatch(options = {}) {
       const pos = String(data.pos || data.position || '').toUpperCase();
       const list = byRole.get(pos);
       let slot = null;
-      if (list && list.length) {
-        slot = list.shift();
-      } else {
-        slot = slots.find(candidate => !candidate.taken) || slots[index];
+      if (list?.length) {
+        const available = list.findIndex(candidate => !candidate.taken);
+        if (available >= 0) slot = list.splice(available, 1)[0];
       }
+      if (!slot) slot = slots.find(candidate => !candidate.taken) || slots[index];
       slot.taken = true;
       return { data, index, slot, slotIndex: slots.indexOf(slot) };
     });
@@ -247,7 +248,10 @@ export function createMatch(options = {}) {
     assignSlots(lineup).forEach(({ data, index, slot, slotIndex }) => {
       const role = slot.role;
       const isKeeper = role === 'GK';
-      const look = lookFor(index + (team.side === 'away' ? 3 : 0));
+      const look = {
+        ...lookFor(index + (team.side === 'away' ? 3 : 0)),
+        ...(data.appearance || {})
+      };
       const model = createPlayer3D({
         kit: kitFor(team, team.kit, isKeeper),
         number: data.number || index + 1,
@@ -1885,6 +1889,8 @@ export function createMatch(options = {}) {
     player.z = 0;
     player.facingAngle = Math.PI / 2;
     player.facing.set(1, 0, 0);
+    // A câmera Pro mantém esse eixo de orientação; o analógico só muda o atleta.
+    training.cameraForward = { x: player.facing.x, z: player.facing.z };
     player.root.rotation.y = player.facingAngle;
     player.root.position.set(player.x, 0, player.z);
     keeper.x = PITCH.halfLength - 1.2;
@@ -1931,18 +1937,15 @@ export function createMatch(options = {}) {
     if (!player) return;
     const camera = engine.camera;
     const sign = attackSign('home');
-    const facingX = player.facing?.x ?? sign;
-    const facingZ = player.facing?.z ?? 0;
-    const facingLength = Math.hypot(facingX, facingZ) || 1;
-    const forwardX = facingX / facingLength;
-    const forwardZ = facingZ / facingLength;
-    // A câmera acompanha a direção do jogador, sempre atrás em vez de ao lado.
+    const cameraForward = training.cameraForward || { x: sign, z: 0 };
+    const facingLength = Math.hypot(cameraForward.x, cameraForward.z) || 1;
+    const forwardX = cameraForward.x / facingLength;
+    const forwardZ = cameraForward.z / facingLength;
+    // A câmera acompanha o atleta, mas mantém o yaw inicial da câmera Pro.
     const desiredX = player.x - forwardX * 8;
     const desiredY = 4.55;
     const desiredZ = player.z - forwardZ * 8;
-    const targetX = player.x + forwardX * 8;
     const targetY = 1.15;
-    const targetZ = player.z + forwardZ * 8;
     if (!trainingCameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
       camera.fov = 55;
@@ -1954,7 +1957,13 @@ export function createMatch(options = {}) {
       camera.position.y += (desiredY - camera.position.y) * smoothing;
       camera.position.z += (desiredZ - camera.position.z) * smoothing;
     }
-    camera.lookAt(targetX, targetY, targetZ);
+    // O alvo é derivado da posição atual da câmera, não do analógico; assim o
+    // smoothing acompanha o jogador sem produzir uma guinada transitória.
+    camera.lookAt(
+      camera.position.x + forwardX * 16,
+      targetY,
+      camera.position.z + forwardZ * 16
+    );
   }
 
   function finishTrainingAttempt(result) {

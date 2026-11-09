@@ -35,7 +35,7 @@ const NATIONAL_COLORS = {
 
 function playableNationalTeam(team) {
   if (!team) return null;
-  const colors = NATIONAL_COLORS[team.id] || NATIONAL_COLORS.brazil;
+  const colors = team.colors || NATIONAL_COLORS[team.id] || NATIONAL_COLORS.brazil;
   const players = (team.players || []).map((player, index) => {
     const rating = player.rating || 75;
     const position = player.position || 'CM';
@@ -194,7 +194,7 @@ export function playScreen(ctx, params = {}) {
     refresh();
 
     const root = el('div', { class: 'prematch prematch--showcase', onClick: () => startMatch() },
-      el('div', { class: 'showcase__chip', text: 'XF CHAMPIONS LEAGUE' }),
+      el('div', { class: 'showcase__chip', text: params.competition?.title || (params.worldCupMatchId ? 'XFC WORLD CUP™' : 'XFC MATCH DAY') }),
       el('div', { class: 'showcase__plaque' },
         el('span', { class: 'showcase__label', text: 'ESTÁDIO OFICIAL' }),
         stadiumName,
@@ -553,10 +553,16 @@ export function playScreen(ctx, params = {}) {
               awayKit: params.awayKit ?? 0,
               minutes,
               difficulty,
-              stadium: params.stadium
+              stadium: params.stadium,
+              competition: params.competition || null,
+              returnTo: params.returnTo || 'menu'
             })
           }, 'REJOGAR'),
-        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'VOLTAR AO MENU')
+        el('button', {
+          class: 'btn',
+          type: 'button',
+          onClick: () => ctx.go(params.returnTo || 'menu')
+        }, params.returnTo === 'modes' ? 'VOLTAR AOS MODOS' : 'VOLTAR AO MENU')
       )
     ));
     overlay.classList.add('is-visible');

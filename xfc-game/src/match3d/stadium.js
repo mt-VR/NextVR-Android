@@ -845,11 +845,12 @@ export function buildStadium(scene, options = {}) {
     }
   }
 
-  // Luzes.
-  const hemisphere = new THREE.HemisphereLight(0xaed4ff, 0x367a3c, 1.05);
+  // Iluminação de transmissão: key branco-quente, fill frio e uma luz cruzada
+  // aberta deixam gramado, rostos e uniformes legíveis sem achatar as sombras.
+  const hemisphere = new THREE.HemisphereLight(0xd9edff, 0x467b46, 1.15);
   scene.add(hemisphere);
-  const key = new THREE.DirectionalLight(0xfff6e4, 1.5);
-  key.position.set(-45, 70, 40);
+  const key = new THREE.DirectionalLight(0xfff8e9, 1.7);
+  key.position.set(-42, 72, 34);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   key.shadow.camera.left = -75;
@@ -861,10 +862,13 @@ export function buildStadium(scene, options = {}) {
   key.shadow.bias = -0.00045;
   key.shadow.normalBias = 0.6;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5);
-  fill.position.set(50, 40, -45);
+  const fill = new THREE.DirectionalLight(0xc5dcff, 0.65);
+  fill.position.set(48, 46, -42);
   scene.add(fill);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.22);
+  const crossFill = new THREE.DirectionalLight(0xeaf4ff, 0.28);
+  crossFill.position.set(-8, 58, -54);
+  scene.add(crossFill);
+  const ambient = new THREE.AmbientLight(0xf5f8ff, 0.26);
   scene.add(ambient);
 
   return {

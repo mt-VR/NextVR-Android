@@ -2447,6 +2447,39 @@
 .worldcup__new-campaign:hover { border-color: #ff80b0; color: #ffacc8; }
 .worldcup__trophy { border: 1px solid rgba(255,216,74,.24); background: linear-gradient(130deg,rgba(106,65,7,.22),rgba(30,12,22,.58)); }
 
+/* Seleção nacional e sorteio em oito grupos. */
+.worldcup__selection-hero { position: relative; z-index: 1; margin: 4px 28px 18px; }
+.worldcup__selection-title { margin: 6px 0; color: #fff; font-size: 34px; font-weight: 950; letter-spacing: -.03em; }
+.worldcup__selection-copy { max-width: 670px; margin: 0; color: rgba(255,255,255,.7); font-size: 13px; line-height: 1.5; }
+.worldcup__selection-layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) 270px; align-items: start; gap: 18px; margin: 0 28px 42px; }
+.worldcup__select-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; max-height: 465px; padding: 1px 5px 4px 1px; overflow-y: auto; overscroll-behavior: contain; }
+.worldcup__select-team { min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr); grid-template-rows: auto auto; align-items: center; column-gap: 9px; row-gap: 4px; padding: 10px 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.045); color: #fff; text-align: left; cursor: pointer; transition: border-color 140ms ease,background 140ms ease,transform 140ms ease; }
+.worldcup__select-team:hover { transform: translateY(-2px); border-color: rgba(255,128,180,.62); }
+.worldcup__select-team.is-selected { border-color: #ff88b7; background: linear-gradient(135deg,rgba(255,64,128,.25),rgba(255,64,128,.1)); box-shadow: inset 0 0 18px rgba(255,64,128,.08),0 0 14px rgba(255,64,128,.12); }
+.worldcup__select-team .worldcup__team-flag { grid-row: 1 / span 2; }
+.worldcup__select-team .worldcup__team-flag svg { width: 28px; height: 19px; }
+.worldcup__select-name { overflow: hidden; color: rgba(255,255,255,.92); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.worldcup__select-stars { color: #ffd849; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
+.worldcup__selection-aside { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid rgba(255,128,180,.26); border-radius: 10px; background: linear-gradient(145deg,rgba(96,4,39,.56),rgba(18,7,22,.88)); box-shadow: inset 0 0 28px rgba(255,64,128,.06); }
+.worldcup__selected-team { display: flex; align-items: center; gap: 12px; min-height: 66px; }
+.worldcup__selected-flag svg { width: 56px; height: 38px; border-radius: 5px; box-shadow: 0 5px 14px rgba(0,0,0,.36); }
+.worldcup__selected-copy { display: flex; flex-direction: column; gap: 3px; }
+.worldcup__selected-name { color: #fff; font-size: 20px; font-weight: 900; }
+.worldcup__selected-stars { color: #ffd849; font-size: 11px; }
+.worldcup__draw-note { margin: 0; color: rgba(255,255,255,.6); font-size: 11px; line-height: 1.45; }
+.worldcup__start-campaign { min-height: 45px; padding: 11px 12px; border: 1px solid rgba(255,255,255,.28); border-radius: 6px; background: linear-gradient(120deg,#ff4382,#be1658); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .06em; cursor: pointer; }
+.worldcup__start-campaign:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(255,64,128,.3); }
+.worldcup__all-groups { display: flex; flex-direction: column; gap: 12px; }
+.worldcup__group-tabs { display: flex; gap: 7px; padding: 2px 1px 7px; overflow-x: auto; scrollbar-width: none; }
+.worldcup__group-tabs::-webkit-scrollbar { display: none; }
+.worldcup__group-tab { flex: 1 0 82px; min-height: 36px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; background: rgba(255,255,255,.04); color: rgba(255,255,255,.66); font-size: 9px; font-weight: 900; letter-spacing: .08em; cursor: pointer; }
+.worldcup__group-tab.is-user-group { border-color: rgba(255,128,180,.34); color: #ffc0d7; }
+.worldcup__group-tab.is-active { border-color: #ff80b0; background: linear-gradient(135deg,#ff4080,#bd1658); color: #fff; box-shadow: 0 0 15px rgba(255,64,128,.2); }
+.worldcup__group-panel { display: flex; flex-direction: column; gap: 18px; }
+.worldcup__group-panel .worldcup__group,.worldcup__group-panel .worldcup__standings,.worldcup__group-panel .worldcup__fixtures { margin: 0; }
+.worldcup__group-panel .worldcup__standings-row.is-user-team { outline: 1px solid rgba(255,128,180,.25); outline-offset: -1px; }
+.worldcup__knockout-round { margin-top: 8px; }
+
 /* Confetes e partículas do botão X Entrar. */
 .launch__particles { position: absolute; inset: 0; z-index: 5; overflow: hidden; pointer-events: none; }
 .launch__particle { position: absolute; left: 24%; top: 58%; width: 6px; height: 11px; border-radius: 2px; opacity: 0; background: #5ff0c0; box-shadow: 0 0 12px currentColor; animation: launch-particle 560ms cubic-bezier(.16,.7,.25,1) var(--delay,0ms) both; }
@@ -2469,6 +2502,12 @@
   .ultimate__cards { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; padding: 10px 16px 20px; }
   .ultimate-card { min-height: 230px; padding: 11px; }
   .worldcup__campaign-hero { margin: 0 16px 14px; }
+  .worldcup__selection-hero { margin: 4px 16px 14px; }
+  .worldcup__selection-layout { grid-template-columns: 1fr; margin: 0 16px 36px; }
+  .worldcup__select-grid { grid-template-columns: repeat(3,minmax(0,1fr)); max-height: 310px; }
+  .worldcup__selection-aside { position: static; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+  .worldcup__draw-note { grid-column: 1; }
+  .worldcup__start-campaign { grid-column: 2; grid-row: 1 / span 2; }
   .worldcup__fixture { grid-template-columns: minmax(0,1fr) 100px; }
   .worldcup__fixture-status { display: none; }
   .worldcup__play-match { min-width: 96px; font-size: 8px; }
@@ -2486,4 +2525,10 @@
   .worldcup__campaign-title { font-size: 20px; }
   .worldcup__campaign-badge { min-width: 64px; }
   .worldcup__campaign-badge svg { width: 30px; }
+  .worldcup__selection-title { font-size: 24px; }
+  .worldcup__select-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+  .worldcup__select-team { padding: 8px; }
+  .worldcup__select-name { font-size: 10px; }
+  .worldcup__selection-aside { grid-template-columns: 1fr; }
+  .worldcup__draw-note,.worldcup__start-campaign { grid-column: 1; grid-row: auto; }
 }

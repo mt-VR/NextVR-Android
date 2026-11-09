@@ -159,6 +159,11 @@ export const KITS = {
     { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#141414', trim: '#0a5c9c' } },
     { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: '#0a5c9c', secondary: '#f4f4f2', trim: '#141414' } }
   ],
+  santos: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#17191c', trim: '#17191c' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#17191c', secondary: '#f4f4f2', trim: '#f4f4f2' } },
+    { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: '#f4f4f2', secondary: '#17191c', trim: '#b8bcc2' } }
+  ],
 
 };
 

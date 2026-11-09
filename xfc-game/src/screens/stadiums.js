@@ -19,7 +19,9 @@ export function stadiumsScreen(ctx, params = {}) {
       awayKit: params.awayKit ?? 0,
       minutes: params.minutes ?? 6,
       difficulty: params.difficulty ?? 'normal',
-      stadium: index
+      stadium: index,
+      competition: params.competition || null,
+      returnTo: params.competitionReturnTo || 'menu'
     });
   }
 
@@ -60,7 +62,12 @@ export function stadiumsScreen(ctx, params = {}) {
     node,
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go(returnTo, { home: params.home, away: params.away });
+        ctx.go(returnTo, {
+          home: params.home,
+          away: params.away,
+          competition: params.competition || null,
+          returnTo: params.competitionReturnTo || 'menu'
+        });
         return true;
       }
       if (event.key === 'Enter') {

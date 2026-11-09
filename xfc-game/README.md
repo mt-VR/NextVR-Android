@@ -16,20 +16,15 @@ O XFC já reúne as telas principais e a partida de futebol em 3D:
 1. **Intro e abertura** — marca XF Esports/XFC e a arte do atleta; Entrar leva ao menu.
 2. **Menu inicial** — hub de futebol com estádio em tela cheia, navegação vertical, Kick Off destacado, barra de XP e atalhos para os modos e configurações.
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
-4. **Modos de jogo** — a Copa do Mundo (edição ao vivo e 2027), World Cup Kick Off e partidas rápidas estão acessíveis no seletor.
-5. **Kick Off / Classic Match** — escolha de clubes, estádio, uniformes e elenco; o fluxo existente de blusas e gestão de equipe continua disponível.
-6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
-7. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
+4. **Modos e torneios** — carrossel com Copa do Mundo, UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away, Best of Series, Copa América e partidas rápidas.
+5. **Copa do Mundo jogável** — escolha uma das 32 seleções de 2022; o jogo sorteia aleatoriamente o grupo. Dispute os três jogos da fase de grupos; os dois primeiros de cada grupo avançam às oitavas, quartas, semifinais e final. A campanha termina se a seleção não se classificar.
+6. **Kick Off / Classic Match** — escolha entre 22 clubes, incluindo Corinthians e Santos, selecione estádio e uniforme e consulte os elencos.
+7. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
+8. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
 
-A simulação inclui árbitro 3D com apito, gestos, cartões e expulsão, contagem disciplinar na HUD e carrinho manual com colisão, recuperação e penalidades conforme a jogada. A IA não toma o controle do atleta humano nem executa carrinhos por ele. A câmera de transmissão enquadra a ação mais de perto e acompanha a bola suavemente. Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o botão CARRINHO é manual e o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
+A simulação inclui árbitro 3D com apito, gestos, cartões e expulsão, contagem disciplinar na HUD e carrinho manual com colisão, recuperação e penalidades conforme a jogada. A IA não toma o controle do atleta humano nem executa carrinhos por ele. A câmera de transmissão enquadra a ação mais de perto e acompanha a bola suavemente; no centro de treino, a câmera Pro conserva o enquadramento e o yaw ao mover o atleta com o analógico. A iluminação em camadas do estádio combina luz principal quente e preenchimentos frios para um visual de transmissão. Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o botão CARRINHO é manual e o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
 
-Por enquanto existem **vinte e um times**. FC Barcelona e Real Madrid (com os
-retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
-com nomes reais; os outros catorze clubes (Aston Villa, Brentford,
-Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt,
-Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham
-United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir
-de pools de nomes de cada país.
+O elenco reúne **22 clubes**: FC Barcelona e Real Madrid têm retratos de jogadores; Ibis Esporte, Paraná Clube, Flamengo, Palmeiras, Corinthians e Santos contam com elencos próprios (Corinthians e Santos usam os escudos enviados pelo usuário). Os outros catorze clubes (Aston Villa, Brentford, Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt, Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir de pools de nomes de cada país. No Santos, Neymar tem um penteado 3D low-poly dedicado, inspirado na referência fornecida.
 
 ## Estádios
 
@@ -66,12 +61,13 @@ node xfc-game/serve.mjs            # http://127.0.0.1:8080
 node xfc-game/serve.mjs --port 9000 --host 0.0.0.0
 ```
 
-Não há build: o jogo é HTML + CSS + JavaScript (módulos ES) puro, servido
-estaticamente. Abrir `index.html` direto pelo `file://` não roda os módulos
-ES — por isso o `index.html` tem uma rede de segurança: se o módulo principal
-não subir, ele injeta o `app.bundle.js` (o jogo empacotado num único script
-clássico, que o CI gera com esbuild e inclui no zip). Na falta do bundle, a
-página mostra as instruções em vez de ficar numa tela azul.
+Não há build de desenvolvimento: o jogo é HTML + CSS + JavaScript (módulos ES)
+puro, servido estaticamente. Abrir `index.html` direto pelo `file://` não roda
+os módulos ES — por isso o `index.html` tem uma rede de segurança: se o módulo
+principal não subir, ele injeta o `app.bundle.js` (um script clássico gerado
+com esbuild). O bundle é mantido junto do código e regenerado no CI antes de
+ser incluído no zip. Na falta dele, a página mostra instruções em vez de ficar
+numa tela azul.
 
 ## App Android (APK)
 
@@ -92,13 +88,13 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.2/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.2/xfc-game.zip` |
+| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.3/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.3/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.2`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.2)
-traz a câmera central por trás do cobrador de pênalti, o controle de contato e a trajetória de faltas, a câmera de treino atrás do jogador, os escudos enviados do Flamengo e Palmeiras, e cinco estilos de comemoração com reações dos companheiros (versionCode 8). Mantém as melhorias de goleiros e bolas paradas da versão anterior; o CI publica o APK offline e o pacote web na release.
+A release [`xfc-gameplay-v0.5.3`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.3)
+traz a Copa do Mundo jogável com 32 seleções e eliminatórias, novos modos de torneio, Corinthians e Santos com os escudos enviados, um Neymar low-poly com penteado dedicado, câmera Pro fixa no treino e iluminação de estádio em estilo de transmissão (versionCode 9). O APK roda offline e o CI também anexa o jogo web completo.
 
-A release anterior [`xfc-gameplay-v0.5.1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.1)
+A release anterior [`xfc-gameplay-v0.5.2`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.2)
 permanece disponível para quem precisa do APK anterior.
 
 ## Controles
@@ -122,10 +118,11 @@ xfc-game/
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
 │   ├── state.js          perfil, XP, seleção de times e blusas
-│   ├── data/teams.js     os vinte e um clubes, elencos, médias e formação
+│   ├── data/teams.js     os 22 clubes, elencos, médias e formação
+│   ├── data/worldcup.js  seleções de 2022, grupos e progressão da campanha
 │   ├── data/kits.js      as blusas (SVG) de cada clube + as fotos do pacote
-│   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
-│   └── screens/          intro, menu, kickoff, kits, squad, match
+│   ├── ui/               helpers de DOM, marcas e bandeiras (SVG)
+│   └── screens/          intro, menu, modos, Copa, kickoff, partida
 ├── vendor/               three.js r169 (offline; entra no APK e no zip — sem ele o jogo não sobe)
 ├── assets/
 │   ├── bg/               fundos da intro e do menu
@@ -137,10 +134,10 @@ xfc-game/
 └── tools/screenshots.mjs captura das telas (tela grande e celular deitado)
 ```
 
-O `app.bundle.js` não é commitado: quem o gera é o CI (passo “Build the
-offline bundle” do workflow `xfc-apk.yml`), e ele entra apenas no zip do jogo.
-Rodando `node xfc-game/tools/build-bundle.mjs` localmente, o arquivo aparece
-na pasta do jogo (e é servido pelo `serve.mjs` como qualquer outro arquivo).
+O `app.bundle.js` é mantido junto do código-fonte para suporte imediato ao
+`file://`; o workflow `xfc-apk.yml` o regenera no passo “Build the offline
+bundle” antes de anexar o zip. Para atualizá-lo localmente, rode
+`node xfc-game/tools/build-bundle.mjs`; o servidor estático também o serve.
 
 ## Testes
 
@@ -149,7 +146,7 @@ npm test                       # roda a suíte inteira do repositório
 node --test tests/xfc-game.test.mjs
 ```
 
-Os testes do XFC verificam os dados dos elencos (times,Notas, retratos no
+Os testes do XFC verificam os dados dos elencos (times, notas, retratos no
 disco) e percorrem as telas no Chromium empacotado do projeto. Se o Chromium
 não puder rodar na máquina, o teste de interface é pulado — os de dados
 continuam valendo.

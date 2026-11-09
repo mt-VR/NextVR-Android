@@ -20,8 +20,10 @@ const MENTALITIES = [
   { id: 'M', label: 'Meio-campo' }
 ];
 
-export function kickoffScreen(ctx) {
+export function kickoffScreen(ctx, params = {}) {
   const state = ctx.state;
+  const competition = params.competition || null;
+  const returnTo = params.returnTo || 'menu';
   state.selection.home ||= TEAMS[0].id;
   state.selection.away ||= TEAMS[1].id;
   state.settings.focus ||= 'home';
@@ -228,7 +230,9 @@ export function kickoffScreen(ctx) {
       ctx.go('stadiums', {
         returnTo: 'kickoff',
         home: home.id,
-        away: away.id
+        away: away.id,
+        competition,
+        competitionReturnTo: returnTo
       });
     }
   }).node;
@@ -278,9 +282,9 @@ export function kickoffScreen(ctx) {
   const node = el('div', { class: 'screen screen--kickoff' },
     el('header', { class: 'topbar' },
       el('span', { class: 'topbar__mark', html: xfcWordmark() }),
-      el('span', { class: 'topbar__title', text: 'Classic Match' }),
+      el('span', { class: 'topbar__title', text: competition?.title || 'Classic Match' }),
       el('span', { class: 'topbar__sep', text: '|' }),
-      el('span', { class: 'topbar__subtitle', text: 'Select Teams' })
+      el('span', { class: 'topbar__subtitle', text: competition?.format || 'Select Teams' })
     ),
     el('div', { class: 'kickoff__stage' },
       el('span', { class: 'kickoff__edge kickoff__edge--home', text: 'HOME' }),
@@ -349,7 +353,7 @@ export function kickoffScreen(ctx) {
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('menu');
+        ctx.go(returnTo);
         return true;
       }
       return false;
