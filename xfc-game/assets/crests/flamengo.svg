@@ -1,16 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Escudo do Flamengo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="120" height="140" role="img" aria-label="Escudo do Flamengo">
   <defs>
     <clipPath id="fla-badge">
-      <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z"/>
+      <path d="M60 4 L108 20 V66 C108 96 84 118 60 130 C36 118 12 96 12 66 V20 Z"/>
     </clipPath>
+    <linearGradient id="fla-red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e60026"/>
+      <stop offset="100%" stop-color="#b3001c"/>
+    </linearGradient>
   </defs>
   <g clip-path="url(#fla-badge)">
-    <rect x="0" y="0" width="120" height="120" fill="#c8102e"/>
-    <rect x="0" y="40" width="120" height="10" fill="#141414"/>
-    <rect x="0" y="70" width="120" height="10" fill="#141414"/>
-    <circle cx="60" cy="55" r="26" fill="none" stroke="#ffd84a" stroke-width="3"/>
-    <text x="60" y="63" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#141414">FLA</text>
-    <text x="60" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" letter-spacing="2" fill="#ffd84a">ESTRELADO</text>
+    <!-- Fundo vermelho -->
+    <rect x="0" y="0" width="120" height="140" fill="url(#fla-red)"/>
+    <!-- Faixas pretas horizontais (bandeira) -->
+    <rect x="0" y="38" width="120" height="9" fill="#141414"/>
+    <rect x="0" y="68" width="120" height="9" fill="#141414"/>
+    <!-- Bordas internas das faixas -->
+    <rect x="0" y="36" width="120" height="2" fill="#1a1a1a"/>
+    <rect x="0" y="66" width="120" height="2" fill="#1a1a1a"/>
+    <!-- Anel amarelo -->
+    <circle cx="60" cy="58" r="26" fill="none" stroke="#ffd84a" stroke-width="3.5"/>
+    <circle cx="60" cy="58" r="23" fill="none" stroke="#ffd84a" stroke-width="1.5"/>
+    <!-- Estrela no topo (estrelado) -->
+    <path d="M60 22 L62.6 30.5 L71.5 31.2 L64.8 36.8 L66.5 45.7 L60 40.5 L53.5 45.7 L55.2 36.8 L48.5 31.2 L57.4 30.5 Z" fill="#ffd84a"/>
+    <!-- Texto -->
+    <text x="60" y="64" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="20" font-weight="900" fill="#141414">FLA</text>
+    <text x="60" y="106" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" letter-spacing="1.5" fill="#ffd84a">ESTRELADO</text>
   </g>
-  <path d="M60 6 L108 22 V62 C108 92 84 112 60 120 C36 112 12 92 12 62 V22 Z" fill="none" stroke="#141414" stroke-width="3"/>
+  <!-- Borda externa do escudo -->
+  <path d="M60 4 L108 20 V66 C108 96 84 118 60 130 C36 118 12 96 12 66 V20 Z" fill="none" stroke="#141414" stroke-width="3.5"/>
 </svg>

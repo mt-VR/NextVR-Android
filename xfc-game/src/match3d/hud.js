@@ -100,6 +100,9 @@ export function createHud({ root, home, away }) {
     tagName
   );
 
+  // Etiquetas de nome sobre a cabeça de TODOS os jogadores (não só o controlado).
+  const nameTagsLayer = el('div', { class: 'hud__tags-layer' });
+
   const radarCanvas = el('canvas', { class: 'hud__radar', width: 208, height: 132 });
   const radar = el('div', { class: 'hud__radar-wrap' }, radarCanvas);
   const feed = el('div', { class: 'hud__feed' });
@@ -110,6 +113,7 @@ export function createHud({ root, home, away }) {
     playerChip,
     foeChip,
     tag,
+    nameTagsLayer,
     feed,
     radar,
     banner
@@ -119,6 +123,7 @@ export function createHud({ root, home, away }) {
   const context = radarCanvas.getContext('2d');
   let lastChipId = null;
   let lastFoeId = null;
+  const nameTagEls = new Map(); // player.id → { el, x, y }
 
   function drawRadar(players, ball, controlled) {
     const width = radarCanvas.width;
@@ -167,10 +172,15 @@ export function createHud({ root, home, away }) {
       context.beginPath();
       if (player.isKeeper) {
         context.arc(cx, cz, 3.2, 0, Math.PI * 2);
+      } else if (player.side === 'home') {
+        // Home: quadrado (diferenciação visual)
+        context.rect(cx - 2.8, cz - 2.8, 5.6, 5.6);
       } else {
+        // Away: losango
         context.moveTo(cx, cz - 3.4);
-        context.lineTo(cx + 3, cz + 2.2);
-        context.lineTo(cx - 3, cz + 2.2);
+        context.lineTo(cx + 3, cz);
+        context.lineTo(cx, cz + 3.4);
+        context.lineTo(cx - 3, cz);
       }
       context.closePath();
       context.fill();
@@ -247,6 +257,43 @@ export function createHud({ root, home, away }) {
       drawRadar(players, ball, player);
       paintChip(player);
       paintFoe(nearestOpponent(players, ball, player));
+
+      // Tags de nome para TODOS os jogadores ativos
+      for (const p of players || []) {
+        if (!p.active) continue;
+        if (!p.visible) {
+          const existing = nameTagEls.get(p.id);
+          if (existing) {
+            existing.el.classList.remove('is-visible');
+          }
+          continue;
+        }
+        let entry = nameTagEls.get(p.id);
+        if (!entry) {
+          const tagEl = el('div', { class: 'hud__nametag' },
+            el('span', { class: 'hud__nametag-num', text: String(p.number) }),
+            el('span', { class: 'hud__nametag-name', text: String(p.name).toUpperCase() })
+          );
+          entry = { el: tagEl, x: 0, y: 0 };
+          nameTagEls.set(p.id, entry);
+          nameTagsLayer.appendChild(tagEl);
+        }
+        const isControlled = controlled?.player && p.id === controlled.player.id;
+        entry.el.classList.toggle('is-controlled', !!isControlled);
+        entry.el.classList.add('is-visible');
+        entry.el.style.left = `${p.x}px`;
+        entry.el.style.top = `${p.y}px`;
+      }
+      // Remove tags de jogadores inativos
+      for (const [id, entry] of nameTagEls) {
+        const stillActive = (players || []).some(p => p.id === id && p.active && p.visible);
+        if (!stillActive) {
+          entry.el.remove();
+          nameTagEls.delete(id);
+        }
+      }
+
+      // Tag do jogador controlado (cartão inferior — mantém a original)
       if (controlled?.visible && player) {
         tagName.textContent = String(player.name).toUpperCase();
         tag.style.left = `${controlled.x}px`;
