@@ -943,7 +943,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const victim = match.teams.away.players.find(player => !player.isKeeper);
       const previousControl = match.controlled.home;
       match.controlled.home = offender;
-      for (const player of players) player.active = player === offender || player === victim;
+      for (const player of players) player.active = player.side === 'home' || player === victim;
       offender.x = 27; offender.z = 0; offender.root.position.set(27, 0, 0);
       victim.x = 28; victim.z = 0; victim.root.position.set(28, 0, 0);
       let firstYellowAt = null;
