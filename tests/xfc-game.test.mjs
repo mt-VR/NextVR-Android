@@ -679,6 +679,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
 
     // Partida: HUD, radar e controles na tela.
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    const kickoffAccepted = await page.evaluate(() => window.__xfcMatch.world.command('pass'));
+    assert.ok(kickoffAccepted, 'a saída aguarda e começa com o passe explícito do jogador');
     await page.waitForTimeout(2200); // cruza pelo menos uma janela de amostragem de FPS
     const stableBuffer = await page.evaluate(() => ({
       ratio: window.__xfcMatch.engine.renderer.getPixelRatio(),

@@ -48,9 +48,12 @@ jobs:
         id: xfc-tests
         continue-on-error: true
         run: |
-          set -o pipefail
+          # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
+          set +e
           node --test tests/xfc-game.test.mjs 2>&1 | tee /tmp/xfc-tests.log
-          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          TEST_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
 
       # O relatório dos testes vai para um check-run próprio: assim o resultado do
       # XFC fica legível na aba de checks do PR, mesmo quando a suíte do app de VR
@@ -83,7 +86,7 @@ jobs:
             --jq '"check-run: \(.html_url) (\(.conclusion))"'
 
       - name: Fail when the XFC tests fail
-        if: steps.xfc-tests.outputs.exit != '0'
+        if: steps.xfc-tests.outputs.exit == '' || steps.xfc-tests.outputs.exit != '0'
         run: exit 1
 
       - name: Set up Gradle cache
@@ -176,6 +179,9 @@ jobs:
             "O APK roda offline e instala como atualização da versão anterior; o pacote web do jogo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
             gh release create "$TAG" --title "XFC 27 — jogabilidade v0.5.0" \
+              --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
+          else
+            gh release edit "$TAG" --title "XFC 27 — jogabilidade v0.5.0" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
