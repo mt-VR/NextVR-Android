@@ -391,9 +391,30 @@ export function playScreen(ctx, params = {}) {
     if (!match) return;
     const snapshot = match.world.snapshot();
     lastSnapshot = snapshot;
-    // Etiqueta sobre a cabeça do atleta controlado (como no eFootball).
+    // Etiquetas sobre a cabeça de TODOS os atletas (como no eFootball/FC Mobile).
     const all = match.world.members('home').concat(match.world.members('away'));
     const controlledPlayer = all.find(player => match.world.isUserControlled(player)) || null;
+    // Projetar posição de todos os jogadores para o stage
+    const projectedPlayers = all.map(player => {
+      const point = projectToStage(match.engine.camera, {
+        x: player.root.position.x,
+        y: 2.32,
+        z: player.root.position.z
+      });
+      // Verificar se está atrás do plano da câmera (não mostrar nome)
+      const visible = point.z > 0 && point.x > 20 && point.x < 1260 && point.y > 20 && point.y < 700;
+      return {
+        id: player.id || `${player.side}-${player.number}`,
+        number: player.number,
+        name: player.name,
+        side: player.side,
+        active: player.active !== false,
+        visible,
+        x: point.x,
+        y: point.y,
+        z: point.z
+      };
+    });
     let controlled = null;
     if (controlledPlayer) {
       const point = projectToStage(match.engine.camera, {
@@ -401,9 +422,9 @@ export function playScreen(ctx, params = {}) {
         y: 2.32,
         z: controlledPlayer.root.position.z
       });
-      controlled = { player: controlledPlayer, ...point };
+      controlled = { player: controlledPlayer, x: point.x, y: point.y, z: point.z, visible: point.z > 0 };
     }
-    hud?.update(snapshot, all, {
+    hud?.update(snapshot, projectedPlayers, {
       x: match.ball.state.position.x,
       z: match.ball.state.position.z
     }, controlled);
