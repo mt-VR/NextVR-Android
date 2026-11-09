@@ -175,20 +175,18 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.4
+          TAG=xfc-gameplay-v0.5.5
           NOTES=$(printf '%s\n' \
-            "XFC 27 — apresentação 3D v0.5.4 (versionCode 10), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — atletas humanoides 3D v0.5.5 (versionCode 11), build do commit ${GITHUB_SHA}." \
             "" \
-            "Refina os atletas com uniformes de frente e costas, escudos, nomes e números num atlas compartilhado, além de reduzir a contagem de malhas no perfil móvel." \
+            "Reconstrói todos os atletas com o mesmo rig humanoide: tronco atlético, cabeça e pescoço proporcionais, membros articulados, mãos com dedos e kit 3D. O perfil móvel conserva a anatomia e reduz a tesselação. As animações de jogo foram mantidas e adaptadas aos novos pivôs." \
             "" \
-            "Fixa o lado da câmera de transmissão e mantém os controles no mesmo referencial. Bola, previsão do goleiro e bolas paradas compartilham gravidade, arrasto e efeito Magnus; o gesto lateral também controla a curva do chute." \
-            "" \
-            "Adiciona perfis de luz para dia, entardecer e noite, melhora o gramado no Android e reforça a liberação de recursos de jogadores e estádios. Mantém a Copa do Mundo e os modos anteriores. O APK roda offline e o pacote web completo também está anexado.")
+            "Mantém a Copa do Mundo, os modos anteriores, a câmera Pro, os estádios e a física compartilhada da bola. O APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — apresentação 3D v0.5.4" \
+            gh release create "$TAG" --title "XFC 27 — atletas humanoides 3D v0.5.5" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — apresentação 3D v0.5.4" \
+            gh release edit "$TAG" --title "XFC 27 — atletas humanoides 3D v0.5.5" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
