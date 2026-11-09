@@ -13,6 +13,7 @@ import { xfcWordmark, leagueBadgeSvg } from '../ui/brand.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
 import { flagSvg } from '../ui/flags.js';
+import { modeHomeButton } from '../ui/mode-home.js';
 
 const MENTALITIES = [
   { id: 'A', label: 'Ataque' },
@@ -280,6 +281,7 @@ export function kickoffScreen(ctx, params = {}) {
   );
 
   const node = el('div', { class: 'screen screen--kickoff' },
+    modeHomeButton(ctx),
     el('header', { class: 'topbar' },
       el('span', { class: 'topbar__mark', html: xfcWordmark() }),
       el('span', { class: 'topbar__title', text: competition?.title || 'Classic Match' }),

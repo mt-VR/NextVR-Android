@@ -109,8 +109,8 @@ const MODES = [
     id: 'training',
     label: 'CENTRO DE TREINO',
     title: 'Centro de Treino XFC',
-    subtitle: 'Controle um jogador, pratique dribles e finalize contra o goleiro.',
-    eyebrow: 'CÂMERA PRO  •  TREINO LIVRE',
+    subtitle: 'Escolha entre faltas livres, pênaltis ou treino coletivo com seus companheiros.',
+    eyebrow: 'CENTRO DE TREINO  •  3 EXERCÍCIOS JOGÁVEIS',
     action: 'training',
     mark: '⚽'
   },

@@ -175,36 +175,101 @@ function uniformTextureFor({ number, name, crest, teamName, sponsor, brand, prim
 }
 
 function faceTextureFor() {
-  return cachedTexture(FACE_TEXTURES, 'footballer-face-features-v2', () => canvasTexture(128, 128, context => {
+  return cachedTexture(FACE_TEXTURES, 'footballer-face-features-v3', () => canvasTexture(128, 128, context => {
     context.clearRect(0, 0, 128, 128);
-    context.fillStyle = 'rgba(20,24,29,0.96)';
+
+    // Sombras delicadas da órbita e das maçãs do rosto dão profundidade sem
+    // substituir o crânio, o nariz e as orelhas 3D do rig.
     for (const x of [39, 89]) {
+      const socket = context.createRadialGradient(x, 51, 2, x, 53, 16);
+      socket.addColorStop(0, 'rgba(62,42,34,.18)');
+      socket.addColorStop(1, 'rgba(62,42,34,0)');
+      context.fillStyle = socket;
       context.beginPath();
-      context.arc(x, 53, 5.5, 0, Math.PI * 2);
+      context.ellipse(x, 55, 15, 12, 0, 0, Math.PI * 2);
       context.fill();
     }
-    context.strokeStyle = 'rgba(35,24,19,0.88)';
-    context.lineWidth = 5;
+
+    // Sobrancelhas levemente assimétricas.
     context.lineCap = 'round';
-    for (const x of [39, 89]) {
+    for (const [x, tilt] of [[39, -1], [89, 1]]) {
+      context.strokeStyle = 'rgba(49,34,27,.87)';
+      context.lineWidth = 4.4;
       context.beginPath();
-      context.moveTo(x - 12, 39);
-      context.lineTo(x + 10, 37);
+      context.moveTo(x - 12, 39 + tilt * 1.1);
+      context.quadraticCurveTo(x, 34.5, x + 11, 38.5 - tilt * 0.6);
+      context.stroke();
+      context.strokeStyle = 'rgba(184,145,111,.28)';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(x - 10, 40 + tilt);
+      context.quadraticCurveTo(x, 37, x + 9, 39);
       context.stroke();
     }
-    context.fillStyle = 'rgba(99,65,46,0.72)';
+
+    // Olhos com esclera, íris, pupila e um pequeno reflexo.
+    for (const [x, gaze] of [[39, 0.7], [89, -0.4]]) {
+      context.fillStyle = 'rgba(248,244,232,.97)';
+      context.beginPath();
+      context.ellipse(x, 52, 8.7, 4.5, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = 'rgba(63,45,34,.98)';
+      context.beginPath();
+      context.arc(x + gaze, 52, 2.9, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = 'rgba(17,22,25,.98)';
+      context.beginPath();
+      context.arc(x + gaze, 52, 1.45, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = 'rgba(255,255,255,.92)';
+      context.beginPath();
+      context.arc(x + gaze - 0.8, 50.9, 0.85, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = 'rgba(74,48,37,.65)';
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.ellipse(x, 52, 8.7, 4.5, 0, Math.PI, Math.PI * 2);
+      context.stroke();
+    }
+
+    // Sombra do nariz, com narinas sutis (o volume principal é uma malha 3D).
+    const bridge = context.createLinearGradient(58, 54, 70, 73);
+    bridge.addColorStop(0, 'rgba(255,231,202,0)');
+    bridge.addColorStop(0.55, 'rgba(84,56,40,.22)');
+    bridge.addColorStop(1, 'rgba(68,42,32,.35)');
+    context.fillStyle = bridge;
     context.beginPath();
-    context.moveTo(64, 50);
-    context.lineTo(58, 73);
-    context.lineTo(68, 73);
+    context.moveTo(61, 55);
+    context.quadraticCurveTo(63, 67, 57, 74);
+    context.quadraticCurveTo(63, 78, 70, 73);
+    context.quadraticCurveTo(66, 65, 66, 55);
     context.closePath();
     context.fill();
-    context.strokeStyle = 'rgba(82,42,39,0.9)';
-    context.lineWidth = 4;
+    context.fillStyle = 'rgba(62,39,31,.52)';
+    for (const x of [59, 68]) {
+      context.beginPath();
+      context.ellipse(x, 75, 1.6, 0.8, 0, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    // Lábios naturais e linha da boca em vez de um traço geométrico marcado.
+    context.strokeStyle = 'rgba(112,61,54,.82)';
+    context.lineWidth = 2.2;
     context.beginPath();
-    context.moveTo(52, 91);
-    context.quadraticCurveTo(64, 96, 76, 91);
+    context.moveTo(51, 91);
+    context.quadraticCurveTo(58, 87.5, 64, 90.2);
+    context.quadraticCurveTo(70, 87.8, 77, 91);
     context.stroke();
+    context.strokeStyle = 'rgba(180,105,91,.62)';
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.moveTo(53, 93);
+    context.quadraticCurveTo(64, 98, 75, 93);
+    context.stroke();
+    context.fillStyle = 'rgba(80,55,43,.12)';
+    context.beginPath();
+    context.ellipse(64, 104, 14, 4, 0, 0, Math.PI * 2);
+    context.fill();
   }));
 }
 
@@ -304,6 +369,39 @@ function drawKitTexture(context, width, height, kit) {
       context.fillRect(0, (band / bands) * height + height * 0.06, width, height / (bands * 2.6));
     }
   }
+
+  // Microtrama do tecido e pespontos discretos: detalhe de perto, sem virar
+  // ruído visual na câmera de transmissão.
+  context.save();
+  context.globalAlpha = 0.12;
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 0.55;
+  for (let y = 2; y < height; y += 5) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y + 1.5);
+    context.stroke();
+  }
+  context.globalAlpha = 0.09;
+  context.strokeStyle = secondary;
+  context.lineWidth = 0.7;
+  for (let x = 7; x < width; x += 9) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+  context.globalAlpha = 0.34;
+  context.setLineDash([3, 3]);
+  context.strokeStyle = accent;
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(width * 0.05, height * 0.14);
+  context.lineTo(width * 0.05, height * 0.88);
+  context.moveTo(width * 0.95, height * 0.14);
+  context.lineTo(width * 0.95, height * 0.88);
+  context.stroke();
+  context.restore();
 
   // Sombreamento vertical: dá volume ao tronco.
   const shade = context.createLinearGradient(0, 0, 0, height);
@@ -764,12 +862,14 @@ export function createPlayer3D(options = {}) {
       specular: 0x332820,
       shininess: 13
     });
-  const faceFeatureMaterial = new THREE.MeshBasicMaterial({
+  const faceFeatureMaterial = new THREE.MeshLambertMaterial({
     map: faceTextureFor(),
     transparent: true,
     side: THREE.DoubleSide,
-    depthWrite: false,
-    toneMapped: false
+    depthWrite: false
+  });
+  const earShadeMaterial = new THREE.MeshLambertMaterial({
+    color: new THREE.Color(skinTone).multiplyScalar(0.72)
   });
 
   // Caixa torácica atlética: ombros largos, cintura enxuta e volume real em 3D.
@@ -803,11 +903,15 @@ export function createPlayer3D(options = {}) {
     body.add(shoulderCap);
   }
 
-  // Pescoço visível e gola justa, sem alargar a silhueta da camisa.
-  const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.043, 0.048, 0.15, jointSegments),
-    skinMaterial
-  );
+  // Pescoço levemente trapezoidal, modelado por anéis anatômicos (não um cilindro).
+  const neck = new THREE.Mesh(ringGeometry([
+    { y: -0.075, rx: 0.044, rz: 0.041 },
+    { y: -0.052, rx: 0.046, rz: 0.043 },
+    { y: -0.015, rx: 0.043, rz: 0.04 },
+    { y: 0.028, rx: 0.047, rz: 0.042 },
+    { y: 0.06, rx: 0.058, rz: 0.048 },
+    { y: 0.075, rx: 0.062, rz: 0.05 }
+  ], jointSegments), skinMaterial);
   neck.name = 'xfc-player-neck';
   neck.position.y = 1.47;
   body.add(neck);
@@ -859,6 +963,11 @@ export function createPlayer3D(options = {}) {
     ear.position.set(0.087 * side, -0.002, 0);
     ear.scale.set(0.024, 0.032, 0.019);
     head.add(ear);
+    const innerEar = new THREE.Mesh(ellipsoidGeometry(7, 5), earShadeMaterial);
+    innerEar.name = side < 0 ? 'xfc-player-left-ear-detail' : 'xfc-player-right-ear-detail';
+    innerEar.position.set(0.093 * side, -0.001, 0.015);
+    innerEar.scale.set(0.009, 0.018, 0.006);
+    head.add(innerEar);
   }
   const hair = buildHair(hairStyle, hairMaterial);
   if (hair) {
@@ -1021,6 +1130,16 @@ export function createPlayer3D(options = {}) {
     sockBand.rotation.x = Math.PI / 2;
     sockBand.position.y = -0.083;
     knee.add(sockBand);
+    for (const ribY of [-0.124, -0.17]) {
+      const rib = new THREE.Mesh(
+        new THREE.TorusGeometry(0.046, 0.0018, 3, lowDetail ? 8 : 12),
+        sockBandMaterial
+      );
+      rib.name = 'xfc-player-sock-rib';
+      rib.rotation.x = Math.PI / 2;
+      rib.position.y = ribY;
+      knee.add(rib);
+    }
 
     const foot = new THREE.Group();
     foot.name = side < 0 ? 'xfc-player-left-ankle' : 'xfc-player-right-ankle';

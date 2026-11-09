@@ -72,7 +72,7 @@ export function createMatch(options = {}) {
     lowPower: engine.lowPower,
     timeOfDay: options.timeOfDay
   });
-  const ball = createBall(engine.scene);
+  const ball = createBall(engine.scene, { lowPower: engine.lowPower });
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
   const rng = options.seed ? makeRng(options.seed) : Math.random;
@@ -91,12 +91,16 @@ export function createMatch(options = {}) {
   const possession = { home: 0, away: 0 };
   const training = {
     enabled: Boolean(options.training),
+    drill: options.trainingDrill || options.training?.drill || 'penalty',
     player: null,
     keeper: null,
+    wallPlayers: [],
     cameraForward: null,
     shotActive: false,
     shotElapsed: 0,
-    stats: { shots: 0, goals: 0, saves: 0, misses: 0 }
+    attemptIndex: 0,
+    passChain: 0,
+    stats: { shots: 0, goals: 0, saves: 0, misses: 0, passes: 0, completedPasses: 0, combinations: 0 }
   };
   let paused = false;
 
@@ -187,6 +191,7 @@ export function createMatch(options = {}) {
       if (event.type === 'training-goal') training.stats.goals += 1;
       if (event.type === 'training-save') training.stats.saves += 1;
       if (event.type === 'training-miss') training.stats.misses += 1;
+      if (event.type === 'pass') training.stats.passes += 1;
     }
     onEvent(event);
   }
@@ -390,6 +395,9 @@ export function createMatch(options = {}) {
     });
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
+    if (training.enabled && training.drill === 'team' && player.side === userSide) {
+      training.lastPassFrom = player.id;
+    }
     player.model.kick(lob ? 'cross' : through ? 'through' : 'pass');
     emit({ type: 'pass', team: player.side, player, target, through });
     if (offside) {
@@ -447,7 +455,9 @@ export function createMatch(options = {}) {
     );
     ball.state.lastTouch = player;
     ball.state.lastShotKind = kind;
-    if (training.enabled && player === training.player) {
+    if (training.enabled && player.side === userSide) {
+      training.player = player;
+      training.passChain = 0;
       training.shotActive = true;
       training.shotElapsed = 0;
     }
@@ -1536,6 +1546,9 @@ export function createMatch(options = {}) {
     attackSign,
     userSide,
     trainingMode: training.enabled,
+    get trainingDrill() {
+      return training.drill;
+    },
     get trainingStats() {
       return { ...training.stats };
     },
@@ -1609,7 +1622,10 @@ export function createMatch(options = {}) {
           best = player;
         }
       }
-      if (best) controlled[userSide] = best;
+      if (best) {
+        controlled[userSide] = best;
+        if (training.enabled && training.drill === 'team') training.player = best;
+      }
     },
 
     /** Ajusta a mira, força e técnica da bola parada sob controle humano. */
@@ -1910,7 +1926,7 @@ export function createMatch(options = {}) {
 
   // ------------------------------------------------------------ centro treino --
 
-  /** Deixa apenas um atacante e o goleiro ativos, com a bola dominada. */
+  /** Prepara um exercício com participantes e posições próprias do fundamento. */
   function prepareTraining() {
     if (!training.enabled) return null;
     const player = teams.home.players.find(item => item.role === 'ST' && !item.isKeeper)
@@ -1918,39 +1934,90 @@ export function createMatch(options = {}) {
     const keeper = teams.away.players.find(item => item.isKeeper);
     if (!player || !keeper) return null;
 
+    const drill = training.drill;
+    const scenarios = [
+      { distance: 22, z: -2.8 },
+      { distance: 25, z: 8.5 },
+      { distance: 28, z: -10.5 },
+      { distance: 31, z: 3.8 }
+    ];
+    const scenario = drill === 'freekick'
+      ? scenarios[training.attemptIndex % scenarios.length]
+      : null;
+    if (scenario) training.attemptIndex += 1;
+
     training.player = player;
     training.keeper = keeper;
+    training.wallPlayers = drill === 'freekick'
+      ? teams.away.players.filter(item => !item.isKeeper).slice(0, 4)
+      : [];
     training.shotActive = false;
     training.shotElapsed = 0;
+    training.passChain = 0;
+    training.lastPassFrom = null;
+
+    const practicePlayers = drill === 'team'
+      ? teams.home.players.filter(item => !item.isKeeper)
+      : [player];
+    const activePlayers = new Set([keeper, ...practicePlayers, ...training.wallPlayers]);
     for (const item of allPlayers) {
-      item.active = item === player || item === keeper;
+      item.active = activePlayers.has(item);
       item.root.visible = item.active;
       item.vx = 0;
       item.vz = 0;
       item.sprint = false;
       item.burst = 0;
       item.turnLean = 0;
+      item.slideTackle = null;
     }
 
-    player.x = 32;
-    player.z = 0;
-    player.facingAngle = Math.PI / 2;
-    player.facing.set(1, 0, 0);
-    // O eixo da câmera Pro define avanço/direita do analógico em todo o treino.
-    training.cameraForward = { x: player.facing.x, z: player.facing.z };
-    player.root.rotation.y = player.facingAngle;
-    player.root.position.set(player.x, 0, player.z);
-    keeper.x = PITCH.halfLength - 1.2;
-    keeper.z = 0;
-    keeper.facingAngle = -Math.PI / 2;
-    keeper.facing.set(-1, 0, 0);
-    keeper.root.rotation.y = keeper.facingAngle;
-    keeper.root.position.set(keeper.x, 0, keeper.z);
+    const face = (item, direction) => {
+      item.facingAngle = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
+      item.facing.set(direction, 0, 0);
+      item.root.rotation.y = item.facingAngle;
+    };
+    const place = (item, x, z, direction = 1) => {
+      item.x = x;
+      item.z = z;
+      item.vx = 0;
+      item.vz = 0;
+      face(item, direction);
+      item.root.position.set(x, 0, z);
+    };
+
+    if (drill === 'freekick') {
+      place(player, PITCH.halfLength - scenario.distance, scenario.z, 1);
+      // A barreira fica a 9,15 m do ponto da falta, centrada na linha do chute.
+      const wallX = PITCH.halfLength - 9.15;
+      const ballX = player.x + 0.45;
+      const wallFraction = Math.max(0.12, Math.min(0.72,
+        (wallX - ballX) / Math.max(1, PITCH.halfLength - ballX)));
+      const wallCenterZ = scenario.z * (1 - wallFraction);
+      const wallOffsets = [-1.15, -0.38, 0.38, 1.15];
+      training.wallPlayers.forEach((wallPlayer, index) => {
+        place(wallPlayer, wallX, wallCenterZ + wallOffsets[index], -1);
+      });
+    } else if (drill === 'penalty') {
+      // O ponto fica a 11 m da linha do gol; a bola presa ao pé fica à frente.
+      place(player, PITCH.halfLength - 11.45, 0, 1);
+    } else {
+      // Pequeno campo de ataque em 4-3-3: os dez jogadores de linha ocupam
+      // corredores separados e formam opções curtas, diagonais e em profundidade.
+      for (const teammate of practicePlayers) {
+        const base = FORMATION_433[teammate.index] || FORMATION_433[9];
+        const x = 16 + (base.x + 48) * 0.32;
+        const z = base.z * 0.75;
+        place(teammate, x, z, 1);
+      }
+    }
+
+    place(keeper, PITCH.halfLength - 1.2, 0, -1);
     controlled.home = player;
     controlled.away = null;
     input.moveX = 0;
     input.moveZ = 0;
     input.sprint = false;
+    training.cameraForward = { x: 1, z: 0 };
     phase.name = 'play';
     phase.timer = 0;
     phase.restart = null;
@@ -1966,20 +2033,29 @@ export function createMatch(options = {}) {
     cameraReady = false;
     trainingCameraReady = false;
     manualCamera = null;
-    return { player, keeper, stats: { ...training.stats } };
+    return {
+      player,
+      keeper,
+      drill,
+      wall: [...training.wallPlayers],
+      teammates: practicePlayers.filter(item => item !== player),
+      stats: { ...training.stats }
+    };
   }
 
   function updateTrainingActors(dt) {
-    for (const player of [training.player, training.keeper]) {
-      if (!player?.active) continue;
+    for (const player of allPlayers) {
+      if (!player.active) continue;
       player.root.position.set(player.x, 0, player.z);
       player.model.update(dt, modelMovementState(player));
-      player.model.lookAt(ball.state.position);
+      if (player === training.player || player.isKeeper || training.wallPlayers.includes(player)) {
+        player.model.lookAt(ball.state.position);
+      }
     }
   }
 
   function updateTrainingCamera(dt) {
-    const player = training.player;
+    const player = controlled[userSide] || training.player;
     if (!player) return;
     const camera = engine.camera;
     const cameraForward = training.cameraForward || { x: 1, z: 0 };
@@ -1994,9 +2070,6 @@ export function createMatch(options = {}) {
     const desiredY = 4.7 + Math.min(0.3, speed * 0.035);
     const desiredZ = player.z - forwardZ * cameraDistance;
 
-    // Mantém o atacante no terço inferior e desloca o olhar apenas um pouco
-    // para a bola, para enquadrar o lance sem deixar a câmera girar junto com
-    // os comandos do analógico.
     const ballDx = ball.state.position.x - player.x;
     const ballDz = ball.state.position.z - player.z;
     const ballAhead = ballDx * forwardX + ballDz * forwardZ;
@@ -2050,6 +2123,26 @@ export function createMatch(options = {}) {
     }
   }
 
+  function receiveTrainingBall(receiver) {
+    const passFrom = training.lastPassFrom;
+    if (training.drill === 'team' && passFrom && receiver.id !== passFrom) {
+      training.stats.completedPasses += 1;
+      training.passChain += 1;
+      if (training.passChain >= 2) training.stats.combinations += 1;
+      emit({ type: 'training-reception', team: 'home', player: receiver });
+    } else if (training.drill === 'team') {
+      training.passChain = 0;
+    }
+    training.lastPassFrom = null;
+    ball.attachTo(receiver);
+    ball.state.lastTouch = receiver;
+    receiver.model.receive?.();
+    if (receiver.side === userSide) {
+      controlled[userSide] = receiver;
+      training.player = receiver;
+    }
+  }
+
   function updateTraining(dt) {
     if (phase.name.startsWith('training-')) {
       elapsedWorldTime += dt;
@@ -2063,17 +2156,27 @@ export function createMatch(options = {}) {
     }
 
     elapsedWorldTime += dt;
-    const player = training.player;
+    const player = controlled[userSide] || training.player;
     const keeper = training.keeper;
     if (!player || !keeper) return;
     updateKeeperReach(keeper);
 
     updateHuman(dt);
-    // O atacante permanece na zona de finalização; o goleiro acompanha o
-    // ângulo e, após o chute, reage ao ponto de cruzamento da trajetória.
-    player.x = Math.max(20, Math.min(PITCH.halfLength - 4.5, player.x));
-    player.z = Math.max(-26, Math.min(26, player.z));
-    if (Math.hypot(player.vx, player.vz) < 1.1) faceTowards(player, PITCH.halfLength, player.z * 0.2, dt, 8);
+    if (training.drill === 'team') {
+      ais.home.update(dt);
+    }
+
+    const [minX, maxX, maxZ] = training.drill === 'team'
+      ? [5, PITCH.halfLength - 1.2, 31]
+      : training.drill === 'penalty'
+        ? [PITCH.halfLength - 17, PITCH.halfLength - 8, 4]
+        : [18, PITCH.halfLength - 3.5, 28];
+    player.x = Math.max(minX, Math.min(maxX, player.x));
+    player.z = Math.max(-maxZ, Math.min(maxZ, player.z));
+    if (Math.hypot(player.vx, player.vz) < 1.1) {
+      faceTowards(player, PITCH.halfLength, player.z * 0.2, dt, 8);
+    }
+
     const keeperGoalX = ownGoalXOf(keeper.side);
     const keeperAttackSign = attackSign(keeper.side);
     const prediction = training.shotActive
@@ -2088,17 +2191,19 @@ export function createMatch(options = {}) {
     const keeperSpeed = prediction?.onTarget ? 7.2 : 5.8;
     steerPlayer(keeper, keeperTarget.x, keeperTarget.z, dt, keeperSpeed, { arrive: 0.24, turn: 9 });
     if (!faceVelocity(keeper, dt, 10)) faceTowards(keeper, ball.state.position.x, ball.state.position.z, dt, 9);
-    player.root.position.set(player.x, 0, player.z);
     keeper.root.position.set(keeper.x, 0, keeper.z);
 
-    ball.update(dt, [player, keeper]);
+    const actors = allPlayers.filter(item => item.active);
+    ball.update(dt, actors);
     const position = ball.state.position;
-    if (!training.shotActive && !ball.state.owner && position.y < 1.8
-      && Math.hypot(player.x - position.x, player.z - position.z) < 1.2
-      && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 8) {
-      ball.attachTo(player);
-      ball.state.lastTouch = player;
-      player.model.receive?.();
+    if (training.drill === 'team' && !training.shotActive && !ball.state.owner
+      && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 12) {
+      const receiver = teams.home.players
+        .filter(item => item.active)
+        .map(item => ({ player: item, distance: Math.hypot(item.x - position.x, item.z - position.z) }))
+        .filter(item => item.distance < 1.18)
+        .sort((a, b) => a.distance - b.distance)[0]?.player;
+      if (receiver) receiveTrainingBall(receiver);
     }
 
     if (training.shotActive) {

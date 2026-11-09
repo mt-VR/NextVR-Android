@@ -9,35 +9,153 @@ import { applyBallAirForces, curveSpinRate } from './physics.js';
 const GROUND_FRICTION = 5.4;
 
 function drawBall(context, width, height) {
-  context.fillStyle = '#f7f7f4';
+  context.fillStyle = '#f4f3ed';
   context.fillRect(0, 0, width, height);
-  context.fillStyle = '#1b1f24';
-  // Gomos escuros espalhados (textura esférica approximada).
-  const spots = [
-    [0.5, 0.18, 0.11], [0.18, 0.4, 0.09], [0.82, 0.42, 0.09],
-    [0.42, 0.68, 0.1], [0.76, 0.82, 0.08], [0.12, 0.86, 0.07]
-  ];
-  for (const [x, y, radius] of spots) {
+
+  // Base perolada com relevo fino de microfibra; a iluminação 3D continua a
+  // definir a forma esférica, a textura acrescenta apenas os gomos e costuras.
+  const base = context.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, '#ffffff');
+  base.addColorStop(0.46, '#f5f4ee');
+  base.addColorStop(1, '#dedfd9');
+  context.fillStyle = base;
+  context.fillRect(0, 0, width, height);
+
+  let seed = 0x27fc2026;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let index = 0; index < 2500; index += 1) {
+    const x = random() * width;
+    const y = random() * height;
+    const radius = 0.35 + random() * 0.75;
+    context.fillStyle = random() > 0.5 ? 'rgba(25,39,45,.07)' : 'rgba(255,255,255,.48)';
     context.beginPath();
-    context.arc(x * width, y * height, radius * width, 0, Math.PI * 2);
+    context.arc(x, y, radius, 0, Math.PI * 2);
     context.fill();
   }
-  context.strokeStyle = 'rgba(30,34,40,0.55)';
-  context.lineWidth = width * 0.012;
-  for (let line = 0; line < 5; line += 1) {
+
+  const hexPath = (cx, cy, rx, ry) => {
     context.beginPath();
-    context.moveTo(0, (line / 5) * height);
-    context.lineTo(width, ((line + 1) / 5) * height);
+    for (let corner = 0; corner < 6; corner += 1) {
+      const angle = (Math.PI / 3) * corner + Math.PI / 6;
+      const x = cx + Math.cos(angle) * rx;
+      const y = cy + Math.sin(angle) * ry;
+      if (corner === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    }
+    context.closePath();
+  };
+
+  // Gomos hexagonais com variação de branco e uma dupla costura em relevo.
+  const columns = 8;
+  const cellX = width / columns;
+  const cellY = height / 6;
+  for (let row = -1; row <= 6; row += 1) {
+    for (let column = -1; column <= columns; column += 1) {
+      const cx = column * cellX + (row % 2 ? cellX * 0.5 : 0) + cellX * 0.5;
+      const cy = row * cellY + cellY * 0.5;
+      hexPath(cx, cy, cellX * 0.49, cellY * 0.47);
+      context.fillStyle = ['#fbfaf5', '#f0f1ec', '#f7f6f0'][(row - column + 12) % 3];
+      context.fill();
+      context.lineJoin = 'round';
+      context.strokeStyle = 'rgba(12,24,30,.48)';
+      context.lineWidth = Math.max(2.4, width * 0.0036);
+      context.stroke();
+      hexPath(cx, cy, cellX * 0.465, cellY * 0.445);
+      context.strokeStyle = 'rgba(255,255,255,.82)';
+      context.lineWidth = Math.max(0.8, width * 0.00115);
+      context.stroke();
+    }
+  }
+
+  // Painéis pentagonais escuros característicos, sobrepostos ao encontro dos
+  // hexágonos. Repetição horizontal para que a emenda U=0/1 continue limpa.
+  const pentagons = [
+    [0.5, 0.17], [0.15, 0.34], [0.85, 0.34], [0.32, 0.54], [0.68, 0.54],
+    [0.5, 0.82], [0.04, 0.72], [0.96, 0.72], [0.25, 0.94], [0.75, 0.94],
+    [0.05, 0.08], [0.95, 0.08]
+  ];
+  for (const [u, v] of pentagons) {
+    const cx = u * width;
+    const cy = v * height;
+    for (const wrap of [-width, 0, width]) {
+      context.beginPath();
+      for (let corner = 0; corner < 5; corner += 1) {
+        const angle = -Math.PI / 2 + (corner / 5) * Math.PI * 2;
+        const px = cx + wrap + Math.cos(angle) * width * 0.032;
+        const py = cy + Math.sin(angle) * height * 0.055;
+        if (corner === 0) context.moveTo(px, py);
+        else context.lineTo(px, py);
+      }
+      context.closePath();
+      const panel = context.createLinearGradient(cx - width * 0.03, cy - height * 0.05,
+        cx + width * 0.03, cy + height * 0.05);
+      panel.addColorStop(0, '#303b40');
+      panel.addColorStop(0.52, '#10171b');
+      panel.addColorStop(1, '#20292d');
+      context.fillStyle = panel;
+      context.fill();
+      context.strokeStyle = 'rgba(4,11,15,.82)';
+      context.lineWidth = Math.max(1.5, width * 0.0021);
+      context.stroke();
+      context.strokeStyle = 'rgba(255,255,255,.44)';
+      context.lineWidth = Math.max(0.8, width * 0.0009);
+      context.stroke();
+    }
+  }
+
+  // Discreet colored speed arcs and a tiny XFC mark add a current match-ball
+  // finish without turning the entire ball into a flat graphic.
+  context.save();
+  context.globalAlpha = 0.78;
+  context.strokeStyle = '#21bca1';
+  context.lineWidth = Math.max(2, width * 0.003);
+  for (const [cx, cy, direction] of [[0.31, 0.53, 1], [0.69, 0.23, -1], [0.88, 0.86, 1]]) {
+    context.beginPath();
+    context.moveTo(cx * width - 15, cy * height + direction * 8);
+    context.quadraticCurveTo(cx * width, cy * height - direction * 12,
+      cx * width + 17, cy * height + direction * 3);
     context.stroke();
   }
+  context.restore();
+  context.save();
+  context.translate(width * 0.55, height * 0.51);
+  context.rotate(-0.08);
+  context.fillStyle = 'rgba(20, 99, 101, .9)';
+  context.font = `900 ${Math.round(width * 0.018)}px Inter, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('XFC', 0, 0);
+  context.restore();
+
+  // Vinheta sutil dos polos, própria da projeção esférica UV.
+  const poles = context.createLinearGradient(0, 0, 0, height);
+  poles.addColorStop(0, 'rgba(28,42,48,.14)');
+  poles.addColorStop(0.12, 'rgba(255,255,255,0)');
+  poles.addColorStop(0.88, 'rgba(255,255,255,0)');
+  poles.addColorStop(1, 'rgba(28,42,48,.12)');
+  context.fillStyle = poles;
+  context.fillRect(0, 0, width, height);
 }
 
-export function createBall(scene) {
-  const texture = canvasTexture(256, 256, drawBall);
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(BALL.radius, 18, 14),
-    new THREE.MeshPhongMaterial({ map: texture, shininess: 26, specular: 0x444444 })
-  );
+export function createBall(scene, { lowPower = false } = {}) {
+  const texture = canvasTexture(lowPower ? 768 : 1024, lowPower ? 384 : 512, drawBall);
+  texture.anisotropy = lowPower ? 2 : 8;
+  const geometry = new THREE.SphereGeometry(BALL.radius, lowPower ? 36 : 56, lowPower ? 24 : 36);
+  geometry.computeBoundingSphere();
+  const material = lowPower
+    ? new THREE.MeshPhongMaterial({ map: texture, shininess: 34, specular: 0x60676a })
+    : new THREE.MeshPhysicalMaterial({
+      map: texture, roughness: 0.34, metalness: 0.015, clearcoat: 0.18,
+      clearcoatRoughness: 0.48, specularIntensity: 0.48, specularColor: 0xc8d4d8
+    });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'xfc-match-ball';
+  mesh.userData.spherical = true;
+  mesh.userData.radius = BALL.radius;
+  mesh.userData.panelTexture = 'xfc-pro-match-ball-v2';
   mesh.castShadow = true;
   scene.add(mesh);
   const rollAxis = new THREE.Vector3();

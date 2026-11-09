@@ -7,6 +7,7 @@
 import { el } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { STADIUMS } from '../match3d/stadiums.js';
+import { modeHomeButton } from '../ui/mode-home.js';
 
 export function stadiumsScreen(ctx, params = {}) {
   const returnTo = params.returnTo || 'kickoff';
@@ -26,6 +27,7 @@ export function stadiumsScreen(ctx, params = {}) {
   }
 
   const node = el('div', { class: 'screen screen--stadiums' },
+    modeHomeButton(ctx),
     el('header', { class: 'topbar' },
       el('span', { class: 'topbar__mark', html: xfcWordmark() }),
       el('span', { class: 'topbar__title', text: 'Classic Match' }),

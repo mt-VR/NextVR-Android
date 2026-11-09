@@ -4,6 +4,7 @@
 import { el, starRow } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { flagSvg } from '../ui/flags.js';
+import { modeHomeButton } from '../ui/mode-home.js';
 import { saveProfile } from '../state.js';
 import {
   NATIONAL_TEAMS,
@@ -110,6 +111,7 @@ function teamSelectionScreen(ctx, { mode, returnTo, previousCampaign }) {
   selectTeam(selectedTeamId);
   const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
   const node = el('div', { class: 'screen screen--worldcup worldcup--select' },
+    modeHomeButton(ctx),
     header(ctx, returnTo, 'Escolha da seleção'),
     el('section', { class: 'worldcup__selection-hero' },
       el('span', { class: 'worldcup__eyebrow', text: `XFC WORLD CUP™ ${mode === 'live' ? '2026' : '2027'} · 32 SELEÇÕES` }),
@@ -379,6 +381,7 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
 
   const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
   const node = el('div', { class: 'screen screen--worldcup' },
+    modeHomeButton(ctx),
     header(ctx, returnTo, `${campaign.year} · ${phaseName}`),
     lead,
     hero,

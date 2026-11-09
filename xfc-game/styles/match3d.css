@@ -2059,3 +2059,137 @@
 @media (pointer: coarse) {
   .hud__setpiece { backdrop-filter: none; }
 }
+
+/* Direct route back to the game's mode selector (never browser-history back). */
+.mode-home-button {
+  position: absolute;
+  z-index: 50;
+  top: 14px;
+  right: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(125, 206, 255, .62);
+  border-radius: 4px;
+  background: linear-gradient(110deg, rgba(4, 24, 53, .95), rgba(7, 75, 119, .92));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .36), inset 0 0 14px rgba(48, 162, 255, .12);
+  color: #fff;
+  font: 900 9px/1 Inter, sans-serif;
+  letter-spacing: .09em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+.mode-home-button:hover,
+.mode-home-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: #d5f4ff;
+  background: linear-gradient(110deg, rgba(5, 42, 79, .98), rgba(9, 112, 165, .96));
+  outline: none;
+}
+.mode-home-button__icon { color: #7ee7ff; font-size: 17px; line-height: .7; }
+.mode-home-button--training { top: 63px; }
+
+/* Training drill selector shares the broadcast-blue XFC match language. */
+.screen--training-select {
+  overflow: hidden;
+  justify-content: center;
+  color: #fff;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(26, 107, 146, .36), transparent 58%),
+    linear-gradient(135deg, #061324, #09283c 52%, #071120);
+}
+.training-select__brand {
+  position: absolute;
+  top: 28px;
+  left: 5%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.training-select__eyebrow { color: #75e8c2; font-size: 9px; font-weight: 900; letter-spacing: .22em; }
+.training-select__brand h1 { margin: 0; font-size: 31px; font-weight: 900; letter-spacing: -.03em; }
+.training-select__copy { max-width: 680px; margin: 0 auto 24px; color: rgba(235, 247, 255, .7); font-size: 13px; line-height: 1.5; text-align: center; }
+.training-select__grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: min(1060px, 88%);
+  margin: 25px auto 0;
+}
+.training-select__choice {
+  position: relative;
+  min-height: 238px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px 22px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(132, 211, 244, .3);
+  background: linear-gradient(145deg, rgba(15, 48, 67, .93), rgba(5, 20, 34, .94));
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.training-select__choice::after {
+  content: '';
+  position: absolute;
+  right: -18px;
+  bottom: -38px;
+  width: 150px;
+  height: 150px;
+  border: 1px solid rgba(88, 207, 201, .2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 17px rgba(88, 207, 201, .045), 0 0 0 36px rgba(88, 207, 201, .035);
+}
+.training-select__choice:hover,
+.training-select__choice.is-focused,
+.training-select__choice:focus-visible {
+  transform: translateY(-4px);
+  border-color: #74e2c1;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .32), 0 0 24px rgba(53, 212, 170, .12);
+  outline: none;
+}
+.training-select__number { color: #74e2c1; font-size: 10px; font-weight: 900; letter-spacing: .18em; }
+.training-select__icon { margin: 14px 0 13px; color: #e8ffff; font-size: 36px; line-height: 1; text-shadow: 0 0 22px rgba(75, 228, 193, .3); }
+.training-select__title { margin-bottom: 9px; font-size: 17px; font-style: italic; font-weight: 900; letter-spacing: .035em; }
+.training-select__description { max-width: 270px; color: rgba(232, 245, 250, .7); font-size: 11px; line-height: 1.5; }
+.training-select__start { margin-top: auto; padding-top: 18px; color: #7ce9c4; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.training-select__footer { position: absolute; bottom: 28px; left: 5%; color: rgba(255,255,255,.52); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.training-select__footer b { color: #85ebc9; }
+.training-select__back { position: absolute; left: 5%; bottom: 60px; min-height: 34px; padding: 0 13px; border: 1px solid rgba(255,255,255,.22); color: #fff; background: rgba(4,14,26,.68); font-size: 9px; font-weight: 900; letter-spacing: .1em; cursor: pointer; }
+.training-select__back:hover { border-color: #fff; }
+
+.training__stage--team .ctrl-btn--pass,
+.training__stage--team .ctrl-btn--lob,
+.training__stage--team .ctrl-btn--switch { display: grid; }
+.training__stage--team .ctrl-btn--pass { right: 185px; bottom: 62px; }
+.training__stage--team .ctrl-btn--lob { right: 97px; bottom: 180px; }
+.training__stage--team .ctrl-btn--switch { right: 0; bottom: 7px; }
+.training__stage--team .training__instructions { gap: 9px; }
+.training__stage .training__roster { position: absolute; z-index: 10; top: 183px; left: 50%; transform: translateX(-50%); color: rgba(230,247,255,.78); font-size: 7px; font-weight: 900; letter-spacing: .14em; text-shadow: 0 2px 5px #000; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .mode-home-button { top: 8px; right: 8px; min-height: 30px; padding: 0 7px; gap: 4px; font-size: 7px; }
+  .mode-home-button__icon { font-size: 14px; }
+  .mode-home-button--training { top: 44px; }
+  .training-select__brand { top: 15px; left: 4%; }
+  .training-select__brand h1 { font-size: 22px; }
+  .training-select__copy { max-width: 86%; margin-bottom: 10px; font-size: 10px; }
+  .training-select__grid { width: 92%; gap: 7px; margin-top: 14px; }
+  .training-select__choice { min-height: 218px; padding: 14px 12px; }
+  .training-select__title { font-size: 12px; }
+  .training-select__description { font-size: 9px; }
+  .training-select__icon { font-size: 27px; }
+  .training-select__footer { bottom: 12px; font-size: 7px; }
+  .training-select__back { bottom: 34px; left: 4%; min-height: 28px; font-size: 7px; }
+  .training__header { grid-template-columns: auto minmax(90px,1fr) auto auto; }
+  .training__stage--team .training__instructions { top: 156px; }
+  .training__stage .training__roster { top: 185px; font-size: 6px; }
+}

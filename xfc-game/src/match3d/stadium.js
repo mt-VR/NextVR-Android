@@ -542,8 +542,163 @@ function drawSky(context, width, height, timeOfDay = 'night') {
   }
 }
 
+/** Pequenos espectadores instanciados: silhuetas e roupas em cores variadas. */
+function addStandCrowd(group, width, depth, height, lowPower = false) {
+  const rows = lowPower ? 3 : 5;
+  const columns = Math.max(16, Math.floor(width / (lowPower ? 4.6 : 3.5)));
+  const count = rows * columns;
+  const bodies = new THREE.InstancedMesh(
+    new THREE.CapsuleGeometry(0.115, 0.23, 2, 6),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
+    count
+  );
+  const heads = new THREE.InstancedMesh(
+    new THREE.SphereGeometry(0.105, lowPower ? 6 : 8, lowPower ? 5 : 7),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10110f }),
+    count
+  );
+  bodies.name = 'xfc-crowd-simplified-bodies';
+  heads.name = 'xfc-crowd-simplified-heads';
+  bodies.castShadow = false;
+  heads.castShadow = false;
+  const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
+  const skin = [0xe4b995, 0xc98e64, 0x9e6849, 0xf0ccaa, 0x784c37, 0xd6a17b];
+  const pose = new THREE.Object3D();
+  const slopeAngle = 0.46;
+  const wallHeight = 2.4;
+  const seatHeight = height - wallHeight;
+  const slopeCenterY = wallHeight + seatHeight / 2;
+  const slopeCenterZ = -0.6;
+  let instance = 0;
+  let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let row = 0; row < rows; row += 1) {
+    const z = depth * 0.42 - row * (depth * 0.205);
+    const surfaceY = slopeCenterY + 0.55 * Math.cos(slopeAngle)
+      - (z - slopeCenterZ) * Math.tan(slopeAngle);
+    for (let column = 0; column < columns; column += 1) {
+      const spacing = width / columns;
+      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.18) * spacing;
+      pose.position.set(x, surfaceY + 0.24, z);
+      pose.rotation.set(0, (random() - 0.5) * 0.24, 0);
+      pose.scale.set(0.84, 0.9 + random() * 0.16, 0.76);
+      pose.updateMatrix();
+      bodies.setMatrixAt(instance, pose.matrix);
+      bodies.setColorAt(instance, new THREE.Color(shirts[Math.floor(random() * shirts.length)]));
+
+      pose.position.set(x, surfaceY + 0.61, z - 0.035);
+      pose.rotation.set(0, 0, 0);
+      pose.scale.setScalar(0.92 + random() * 0.16);
+      pose.updateMatrix();
+      heads.setMatrixAt(instance, pose.matrix);
+      heads.setColorAt(instance, new THREE.Color(skin[Math.floor(random() * skin.length)]));
+      instance += 1;
+    }
+  }
+  bodies.instanceMatrix.needsUpdate = true;
+  heads.instanceMatrix.needsUpdate = true;
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+  group.add(bodies, heads);
+}
+
+/** Banco técnico coberto, com assentos repetidos e estrutura metálica simples. */
+function buildSidelineBench(x, z, side) {
+  const group = new THREE.Group();
+  group.name = 'xfc-sideline-bench';
+  const frame = new THREE.MeshLambertMaterial({ color: 0x27333b });
+  const seat = new THREE.MeshLambertMaterial({ color: 0x163e52, emissive: 0x07131a });
+  const cushion = new THREE.MeshLambertMaterial({ color: side < 0 ? 0x28c5a4 : 0x2d89ec });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x9fc9d6, transparent: true, opacity: 0.32, side: THREE.DoubleSide });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(15.8, 0.22, 2.6), frame);
+  base.position.y = 0.22;
+  group.add(base);
+
+  for (const postX of [-7.55, 7.55]) {
+    for (const postZ of [-1.05, 1.05]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 3.55, 0.13), frame);
+      post.position.set(postX, 1.95, postZ);
+      group.add(post);
+    }
+  }
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(16.3, 0.24, 3.2), frame);
+  canopy.position.set(0, 3.78, 0);
+  group.add(canopy);
+  const canopyTop = new THREE.Mesh(new THREE.BoxGeometry(16.0, 0.12, 3.0), cushion);
+  canopyTop.position.set(0, 3.95, 0);
+  group.add(canopyTop);
+  const backGlass = new THREE.Mesh(new THREE.BoxGeometry(15.4, 2.8, 0.045), glass);
+  backGlass.position.set(0, 1.95, -1.18);
+  group.add(backGlass);
+  for (let index = 0; index < 8; index += 1) {
+    const seatX = -6.65 + index * 1.9;
+    const chair = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.18, 0.66), cushion);
+    chair.position.set(seatX, 1.0, 0.12);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.8, 0.15), seat);
+    back.position.set(seatX, 1.42, -0.22);
+    group.add(chair, back);
+  }
+  group.rotation.y = side < 0 ? 0 : Math.PI;
+  group.position.set(x, 0, z);
+  return group;
+}
+
+/** Vestiário decorativo ao fundo da arena, com janelas e letreiro legível. */
+function buildLockerRoom() {
+  const group = new THREE.Group();
+  group.name = 'xfc-locker-room';
+  const wall = new THREE.MeshLambertMaterial({ color: 0x203748, emissive: 0x07121b });
+  const trim = new THREE.MeshLambertMaterial({ color: 0x8aaab4 });
+  const glass = new THREE.MeshPhongMaterial({ color: 0x68c4d2, emissive: 0x12333c, transparent: true, opacity: 0.72, shininess: 46 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x0d1c26 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(34, 10, 8.5), wall);
+  body.position.y = 5;
+  group.add(body);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(36, 0.7, 10), trim);
+  roof.position.set(0, 10.35, 0);
+  group.add(roof);
+  const entrance = new THREE.Mesh(new THREE.BoxGeometry(3.1, 4.5, 0.18), dark);
+  entrance.position.set(0, 2.35, 4.34);
+  group.add(entrance);
+  const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(2.25, 3.75, 0.1), glass);
+  doorGlass.position.set(0, 2.18, 4.48);
+  group.add(doorGlass);
+  for (const x of [-11, -6, 6, 11]) {
+    const window = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.3, 0.12), glass);
+    window.position.set(x, 4.55, 4.34);
+    group.add(window);
+    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.14, 0.19), trim);
+    windowFrame.position.set(x, 5.77, 4.35);
+    group.add(windowFrame);
+  }
+  const signTexture = canvasTexture(768, 128, (context, width, height) => {
+    context.fillStyle = '#0b2535';
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = '#46d1b2';
+    context.lineWidth = 8;
+    context.strokeRect(5, 5, width - 10, height - 10);
+    context.fillStyle = '#ecfffa';
+    context.font = '900 56px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('VESTIÁRIOS  ·  XFC', width / 2, height / 2 + 1);
+  });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(15.5, 2.55), new THREE.MeshBasicMaterial({ map: signTexture }));
+  sign.position.set(0, 6.78, 4.39);
+  group.add(sign);
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(35, 0.36, 9), dark);
+  foundation.position.set(0, 0.1, 0);
+  group.add(foundation);
+  group.position.set(0, 0, -(PITCH.halfWidth + 31));
+  return group;
+}
+
 function buildStand(width, depth, height, texture, options = {}) {
   const group = new THREE.Group();
+  group.name = 'xfc-stadium-stand';
   const { rotation = 0, position = [0, 0, 0], model = {}, simple = false } = options;
 
   // O modelo do estádio (vem de STADIUMS[i].model): a cobertura e a
@@ -573,6 +728,7 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.position.set(0, wallHeight + seatHeight / 2, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
+  addStandCrowd(group, width, depth, height, simple);
 
   // Fundo da arquibancada. No celular, um atlas pequeno com nervuras mantém
   // leitura arquitetônica sem adicionar malhas ou custo de iluminação.
@@ -907,6 +1063,15 @@ export function buildStadium(scene, options = {}) {
       simple: lowPower,
       facadeMaterial
     }));
+  }
+
+  // Estruturas fora do gramado: vestiário ao fundo e bancos técnicos cobertos
+  // ao longo das duas laterais, sem alterar colisões nem regras da partida.
+  group.add(buildLockerRoom());
+  for (const side of [-1, 1]) {
+    for (const x of [-18, 18]) {
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 7.2), side));
+    }
   }
 
   // Cobertura de anel (Maracanã): coroa inclinada sobre as

@@ -4,6 +4,7 @@
 import { el, svg, ICONS, padButton } from '../ui/dom.js';
 import { createContinueButton } from '../ui/continuebtn.js';
 import { xfcWordmark } from '../ui/brand.js';
+import { modeHomeButton } from '../ui/mode-home.js';
 import { TEAMS, getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitShirt } from '../data/kits.js';
 
@@ -125,6 +126,7 @@ export function quickMatchScreen(ctx) {
   }).node;
 
   const node = el('div', { class: 'screen screen--quick' },
+    modeHomeButton(ctx),
     el('header', { class: 'topbar' },
       el('span', { class: 'topbar__mark', html: xfcWordmark() }),
       el('span', { class: 'topbar__title', text: 'Classic Match' }),

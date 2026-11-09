@@ -43,8 +43,8 @@ const MENU_ITEMS = [
     id: 'learn',
     label: 'LEARN TO PLAY',
     headline: 'Make every touch count',
-    subtitle: 'Controle um jogador, pratique dribles e finalize contra o goleiro.',
-    action: 'Start Training',
+    subtitle: 'Pratique faltas, pênaltis, passes e jogadas coletivas no Centro de Treino.',
+    action: 'Choose Training',
     target: 'training',
     params: { returnTo: 'menu' }
   },

@@ -562,7 +562,12 @@ export function playScreen(ctx, params = {}) {
           class: 'btn',
           type: 'button',
           onClick: () => ctx.go(params.returnTo || 'menu')
-        }, params.returnTo === 'modes' ? 'VOLTAR AOS MODOS' : 'VOLTAR AO MENU')
+        }, params.returnTo === 'modes' ? 'VOLTAR AOS MODOS' : 'VOLTAR AO MENU'),
+        el('button', {
+          class: 'btn',
+          type: 'button',
+          onClick: () => ctx.go('modes')
+        }, 'VOLTAR AO INÍCIO')
       )
     ));
     overlay.classList.add('is-visible');
@@ -672,7 +677,8 @@ export function playScreen(ctx, params = {}) {
         ['CARTÕES', stats.home.cards, stats.away.cards]
       ]) },
       { id: 'settings', icon: '⚙', title: 'CONFIGURAÇÕES', sub: 'Controles e câmera', action: () => setPauseDetail('CONFIGURAÇÕES', 'Analógico esquerdo: movimentação · passe: J/Space · chute: K/L · corrida: Shift. No celular, use o analógico e os botões de ação na tela.') },
-      { id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA', sub: 'Voltar ao menu principal', danger: true, action: () => ctx.go('menu') }
+      { id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA', sub: 'Voltar ao menu principal', danger: true, action: () => ctx.go('menu') },
+      { id: 'mode-home', icon: '⌂', title: 'VOLTAR AO INÍCIO', sub: 'Ir direto à seleção de modos', action: () => ctx.go('modes') }
     ];
     const tiles = el('div', { class: 'pause__tiles' }, ...options.map((option, index) => el('button', {
       class: `pause__tile${option.primary ? ' is-primary' : ''}${option.danger ? ' is-danger' : ''}${index === 0 ? ' is-selected' : ''}`,

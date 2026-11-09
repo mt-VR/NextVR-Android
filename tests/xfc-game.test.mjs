@@ -18,6 +18,8 @@ import {
   worldMovementFromStick
 } from '../xfc-game/src/match3d/camera.js';
 import { predictGoalkeeperIntercept } from '../xfc-game/src/match3d/goalkeeper.js';
+import { createTeamAI } from '../xfc-game/src/match3d/ai.js';
+import { FORMATION_433 as MATCH_FORMATION_433 } from '../xfc-game/src/match3d/constants.js';
 import { predictTrajectory } from '../xfc-game/src/match3d/set-pieces.js';
 import { lightingProfileFor } from '../xfc-game/src/match3d/stadium.js';
 import { launchOrSkip } from './support/chromium.mjs';
@@ -50,6 +52,62 @@ test('XFC tem vinte e dois clubes, com onze em campo e sete reservas em cada um'
       assert.equal(player.stats.pace >= 0 && player.stats.pace <= 99, true);
     }
   }
+});
+
+test('a IA preserva largura, cria opções de passe e recompõe o bloco sem a bola', () => {
+  const makePlayer = (side, index, slot) => ({
+    id: `${side}-${index}`,
+    side,
+    index,
+    role: slot.role,
+    isKeeper: slot.role === 'GK',
+    isGK: slot.role === 'GK',
+    active: true,
+    x: slot.x * (side === 'home' ? 1 : -1),
+    z: slot.z,
+    vx: 0,
+    vz: 0,
+    facingAngle: side === 'home' ? Math.PI / 2 : -Math.PI / 2,
+    facing: { x: side === 'home' ? 1 : -1, z: 0 },
+    root: { rotation: { y: 0 } },
+    sprint: false
+  });
+  const home = MATCH_FORMATION_433.map((slot, index) => makePlayer('home', index, slot));
+  const away = MATCH_FORMATION_433.map((slot, index) => makePlayer('away', index, slot));
+  const owner = home.find(player => player.role === 'ST');
+  const awayOwner = away.find(player => player.role === 'ST');
+  const world = {
+    ball: {
+      state: {
+        position: { x: 30, y: 0.11, z: 0 },
+        velocity: { x: 0, y: 0, z: 0 },
+        owner
+      }
+    },
+    members: side => (side === 'home' ? home : away).filter(player => player.active),
+    isUserControlled: player => player === owner,
+    isPlayable: () => true,
+    openSpace(player) {
+      const rivalSide = player.side === 'home' ? away : home;
+      return Math.min(12, ...rivalSide.map(rival => Math.hypot(rival.x - player.x, rival.z - player.z)));
+    },
+    rng: () => 0.5,
+    kickBall() {}, shootBall() {}, tackle() {}, diveKeeper() {}
+  };
+  const ai = createTeamAI({ side: 'home', world });
+  for (let frame = 0; frame < 240; frame += 1) ai.update(1 / 60);
+  const leftWing = home.find(player => player.role === 'LW');
+  const rightWing = home.find(player => player.role === 'RW');
+  assert.ok(leftWing.z > 16 && rightWing.z < -16,
+    'as pontas mantêm os corredores externos em posse da bola');
+  assert.ok(Math.max(...home.map(player => player.z)) - Math.min(...home.map(player => player.z)) > 32,
+    'o time se distribui pela largura em vez de se acumular ao redor do portador');
+  const recoveryStartX = leftWing.x;
+  world.ball.state.position.x = -31;
+  world.ball.state.owner = awayOwner;
+  for (let frame = 0; frame < 120; frame += 1) ai.update(1 / 60);
+  assert.ok(leftWing.x < recoveryStartX - 2,
+    'a ponta recua para recompor o bloco defensivo quando o adversário recupera a bola');
 });
 
 test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o buffer WebGL', () => {
@@ -1114,7 +1172,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.waitForSelector('.pause--fc');
     assert.ok(await page.locator('.pause__scoreline').isVisible(), 'a pausa mantém o placar no topo');
     assert.equal(await page.locator('.pause__lineup-player').count(), 11, 'a pausa mostra a escalação completa');
-    assert.equal(await page.locator('.pause__tile').count(), 6, 'a pausa mostra as opções em blocos');
+    assert.equal(await page.locator('.pause__tile').count(), 7, 'a pausa mostra as seis opções da partida e o retorno direto aos modos');
     assert.ok(!(await page.locator('.pause__detail').textContent()).includes('false'),
       'a pausa não deixa booleanos soltos no painel de detalhes');
     await page.locator('.pause__tile[data-pause-action="facts"]').click();
@@ -1504,7 +1562,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
   }
 });
 
-test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/chute', { timeout: 90000 }, async (t) => {
+test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', { timeout: 90000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) {
@@ -1524,7 +1582,11 @@ test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/c
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="learn"]').click();
-    await page.waitForSelector('.screen--training');
+    await page.waitForSelector('.screen--training-select');
+    assert.equal(await page.locator('.training-select__choice').count(), 3,
+      'o Centro de Treino oferece faltas livres, pênaltis e treino coletivo');
+    await page.locator('.training-select__choice[data-drill="penalty"]').click();
+    await page.waitForSelector('.screen--training .training__stage[data-drill="penalty"]');
     await page.waitForFunction(() => window.__xfcTrainingMatch?.world.trainingMode === true);
 
     const setup = await page.evaluate(() => {
@@ -1641,6 +1703,152 @@ test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/c
     assert.deepEqual(realErrors, [], `o Centro de Treino não deve gerar erro: ${realErrors.join(' | ')}`);
     await page.locator('.training__exit').click();
     await page.waitForSelector('.screen--menu');
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno direto aos modos', { timeout: 120000 }, async (t) => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) {
+    server.close();
+    return;
+  }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push(`${message.text()} @ ${message.location()?.url ?? 'inline'}`);
+    });
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--launch');
+    await page.click('.launch__enter');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="tournament"]').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="training"]').click();
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--training-select');
+    assert.equal(await page.locator('.training-select__choice').count(), 3,
+      'a seleção apresenta exatamente os três exercícios pedidos');
+
+    await page.locator('.training-select__choice[data-drill="freekick"]').click();
+    await page.waitForSelector('.training__stage[data-drill="freekick"]');
+    const freeKick = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      const wall = match.world.members('away').filter(player => !player.isKeeper);
+      const player = match.controlled.home;
+      return {
+        drill: match.world.trainingDrill,
+        home: match.world.members('home').length,
+        away: match.world.members('away').length,
+        wall: wall.length,
+        keeper: match.world.members('away').some(player => player.isKeeper),
+        ballDistance: 52.5 - match.ball.state.position.x,
+        keeperX: match.world.members('away').find(player => player.isKeeper).x,
+        ballShape: match.ball.mesh.geometry.type,
+        ballRadius: match.ball.mesh.geometry.parameters.radius,
+        sphereSegments: match.ball.mesh.geometry.parameters.widthSegments,
+        panelTexture: match.ball.mesh.userData.panelTexture,
+        lockerRoom: Boolean(match.engine.scene.getObjectByName('xfc-locker-room')),
+        bench: Boolean(match.engine.scene.getObjectByName('xfc-sideline-bench')),
+        '3dCrowd': Boolean(match.engine.scene.getObjectByName('xfc-crowd-simplified-bodies')),
+        wallSpread: Math.max(...wall.map(item => item.z)) - Math.min(...wall.map(item => item.z)),
+        playerX: player.x
+      };
+    });
+    assert.equal(freeKick.drill, 'freekick');
+    assert.equal(freeKick.home, 1, 'a cobrança livre usa um batedor controlável');
+    assert.equal(freeKick.away, 5, 'a falta monta quatro defensores em barreira e um goleiro');
+    assert.equal(freeKick.wall, 4, 'a barreira tem quatro jogadores ativos');
+    assert.equal(freeKick.keeper, true);
+    assert.ok(freeKick.ballDistance >= 21 && freeKick.ballDistance <= 32,
+      'a primeira falta começa a uma distância realista do gol');
+    assert.ok(freeKick.keeperX > 50, 'o goleiro começa posicionado na linha');
+    assert.ok(freeKick.wallSpread > 2, 'a barreira ocupa largura diante do gol');
+    assert.equal(freeKick.ballShape, 'SphereGeometry', 'a bola continua sendo uma malha esférica');
+    assert.ok(freeKick.ballRadius > 0.1 && freeKick.ballRadius < 0.12, 'o raio oficial da bola é preservado');
+    assert.ok(freeKick.sphereSegments >= 32, 'a superfície esférica tem tesselação suave');
+    assert.equal(freeKick.panelTexture, 'xfc-pro-match-ball-v2', 'a bola usa o novo atlas de painéis e costuras');
+    assert.equal(freeKick.lockerRoom, true, 'o vestiário 3D está presente no estádio');
+    assert.equal(freeKick.bench, true, 'os bancos de beira de campo estão presentes');
+    assert.equal(freeKick['3dCrowd'], true, 'a arquibancada inclui modelos 3D instanciados de torcedores');
+    assert.ok(await page.locator('.mode-home-button').isVisible(), 'a tela de treino oferece retorno direto à seleção de modos');
+    await page.locator('.ctrl-btn--shoot').click();
+    await page.waitForFunction(() => window.__xfcTrainingMatch?.world.trainingStats.shots === 1);
+
+    await page.locator('.mode-home-button').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="training"]').click();
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--training-select');
+    await page.locator('.training-select__choice[data-drill="penalty"]').click();
+    await page.waitForSelector('.training__stage[data-drill="penalty"]');
+    const penalty = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      return {
+        drill: match.world.trainingDrill,
+        attackers: match.world.members('home').length,
+        defenders: match.world.members('away').length,
+        keeper: match.world.members('away')[0]?.isKeeper,
+        markDistance: 52.5 - match.ball.state.position.x
+      };
+    });
+    assert.equal(penalty.drill, 'penalty');
+    assert.equal(penalty.attackers, 1);
+    assert.equal(penalty.defenders, 1);
+    assert.equal(penalty.keeper, true);
+    assert.ok(Math.abs(penalty.markDistance - 11) < 0.2, 'a bola começa na marca oficial de pênalti');
+
+    await page.locator('.mode-home-button').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="training"]').click();
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--training-select');
+    await page.locator('.training-select__choice[data-drill="team"]').click();
+    await page.waitForSelector('.training__stage[data-drill="team"]');
+    assert.ok(await page.locator('.ctrl-btn--pass').isVisible(), 'o treino coletivo expõe um comando de passe funcional');
+    const practice = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      match.engine.stop();
+      const home = match.world.members('home');
+      const start = match.controlled.home;
+      const startX = start.x;
+      const zRange = Math.max(...home.map(player => player.z)) - Math.min(...home.map(player => player.z));
+      match.world.input.moveZ = 1;
+      for (let frame = 0; frame < 10; frame += 1) match.world.tick(0.05);
+      const moved = start.x > startX + 0.05;
+      match.world.input.moveZ = 0;
+      const passAccepted = match.world.command('pass');
+      const passCount = match.world.trainingStats.passes;
+      for (let frame = 0; frame < 240; frame += 1) match.world.tick(1 / 60);
+      return {
+        drill: match.world.trainingDrill,
+        home: match.world.members('home').length,
+        away: match.world.members('away').length,
+        spread: zRange,
+        moved,
+        passAccepted,
+        passCount,
+        completedPasses: match.world.trainingStats.completedPasses,
+        combinations: match.world.trainingStats.combinations
+      };
+    });
+    assert.equal(practice.drill, 'team');
+    assert.equal(practice.home, 10, 'o treino coletivo ativa os dez jogadores de linha da equipe');
+    assert.equal(practice.away, 1, 'o goleiro continua ativo para defender as finalizações');
+    assert.ok(practice.spread > 25, 'os companheiros começam distribuídos em faixas distintas');
+    assert.equal(practice.moved, true, 'o analógico move o jogador no exercício coletivo');
+    assert.equal(practice.passAccepted, true, 'o passe encontra um companheiro ativo');
+    assert.equal(practice.passCount, 1, 'o passe é contabilizado no treino');
+    assert.ok(practice.completedPasses >= 1, 'um companheiro recebe a bola e completa a troca');
+
+    const realErrors = errors.filter(message => !/favicon/i.test(message));
+    assert.deepEqual(realErrors, [], `os exercícios não devem gerar erros: ${realErrors.join(' | ')}`);
   } finally {
     await browser.close();
     server.close();
