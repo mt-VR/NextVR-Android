@@ -1051,6 +1051,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     // Enfiada é um passe rasteiro guiado para espaço à frente, nunca um cruzamento.
     const passBehavior = await page.evaluate(() => {
       const match = window.__xfcMatch;
+      match.phase.name = 'play';
+      match.phase.restart = null;
       const home = match.world.members('home');
       const passer = home.find(player => player.role === 'CM');
       const receiver = home.find(player => player.role === 'ST');
