@@ -161,7 +161,7 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
