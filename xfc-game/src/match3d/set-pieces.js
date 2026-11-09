@@ -5,6 +5,24 @@ import { GOAL, PITCH } from './constants.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+/** Converte o ponto de contato escolhido no quadrado em efeito e altura. */
+export function strikeFromImpact({ x = 0, y = 0 } = {}) {
+  const impactX = clamp(Number.isFinite(Number(x)) ? Number(x) : 0, -1, 1);
+  const impactY = clamp(Number.isFinite(Number(y)) ? Number(y) : 0, -1, 1);
+  return {
+    impactX,
+    impactY,
+    curve: impactX,
+    // Tocar em cima da bola mantém o chute baixo; por baixo dá mais elevação.
+    lift: Number((0.075 + ((impactY + 1) / 2) * 0.15).toFixed(3))
+  };
+}
+
+/** Posição vertical do cursor correspondente à altura de uma cobrança. */
+export function impactYFromLift(lift = 0.15) {
+  return clamp(((Number(lift) - 0.075) / 0.15) * 2 - 1, -1, 1);
+}
+
 function distanceToSegment(pointX, pointZ, startX, startZ, endX, endZ) {
   const dx = endX - startX;
   const dz = endZ - startZ;
@@ -22,7 +40,9 @@ export function evaluateFreeKick({
   shooting = 70,
   precision = shooting,
   aim = 0,
-  wall = []
+  wall = [],
+  curve = 0,
+  lift = 0.15
 } = {}) {
   const sign = attackSign < 0 ? -1 : 1;
   const targetZ = clamp(aim, -1, 1) * (GOAL.width / 2 - 0.42);
@@ -42,13 +62,20 @@ export function evaluateFreeKick({
   const rangeQuality = clamp(1 - Math.max(0, distance - 16) / 52, 0.12, 1);
   const angleQuality = clamp(Math.cos(angleDegrees * Math.PI / 180), 0.24, 1);
   const attributeQuality = clamp(0.72 + (Number(shooting) - 50) / 190, 0.5, 1.13);
+  const liftValue = Number.isFinite(Number(lift))
+    ? clamp(Number(lift), 0.075, 0.225)
+    : 0.15;
+  const trajectoryRisk = Math.abs(clamp(Number(curve) || 0, -1, 1)) * 4.5
+    + Math.abs(liftValue - 0.15) * 8;
   const chancePercent = clamp(
-    3 + 31 * Math.pow(rangeQuality, 1.48) * angleQuality * attributeQuality * laneQuality,
+    3 + 31 * Math.pow(rangeQuality, 1.48) * angleQuality * attributeQuality * laneQuality
+      - trajectoryRisk * 0.28,
     1,
     44
   );
   const precisionPercent = clamp(
-    48 + Number(precision) * 0.43 - distance * 0.43 - angleDegrees * 0.19 - wallPressure * 12,
+    48 + Number(precision) * 0.43 - distance * 0.43 - angleDegrees * 0.19
+      - wallPressure * 12 - trajectoryRisk * 0.85,
     12,
     96
   );

@@ -7,6 +7,8 @@ menu do XFC — pertencem aos respectivos clubes.
 | --- | --- | --- |
 | FC Barcelona | `fc-barcelona.png` | marca oficial do clube (uso apenas ilustrativo) |
 | Real Madrid | `real-madrid.png` | marca oficial do clube (uso apenas ilustrativo) |
+| Flamengo | `flamengo.png` | imagem enviada pelo usuário |
+| Palmeiras | `palmeiras.png` | imagem enviada pelo usuário |
 | Ibis Esporte | `ibis-esporte.png` | https://vectorportal.com/pt/vector/logotipo-do-vetor-do-clube-de-esporte-de-ibis/1498 |
 | Paraná Clube | `parana-clube.png` | https://logodownload.org/parana-clube-logo-escudo/ |
 | Aston Villa | `aston-villa.png` | pacote de imagens do XFC |

@@ -329,8 +329,17 @@ export function playScreen(ctx, params = {}) {
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
           const scorer = event.scorer;
-          if (scorer?.model?.celebrate) scorer.model.celebrate(3.4);
-        } catch { /* comemoração é detalhe */ }
+          const celebration = event.celebration || 'classic';
+          scorer?.model?.celebrate?.(3.4, celebration);
+          const teammates = scorer ? (match?.teams?.[event.team]?.players || [])
+            .filter(player => player.active && player !== scorer)
+            .sort((a, b) => Math.hypot(a.x - scorer.x, a.z - scorer.z)
+              - Math.hypot(b.x - scorer.x, b.z - scorer.z))
+            .slice(0, 2) : [];
+          teammates.forEach((player, index) => {
+            player.model.celebrate?.(2.6, index === 0 ? 'airplane' : 'point');
+          });
+        } catch { /* comemorações são detalhe visual */ }
         break;
       }
       case 'kickoff': {

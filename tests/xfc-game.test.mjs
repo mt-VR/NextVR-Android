@@ -142,6 +142,18 @@ test('todo jogador com retrato tem a imagem disponível no pacote de assets', ()
   assert.ok(semFoto > 0, 'os clubes sem retrato usam as iniciais');
 });
 
+test('os escudos enviados do Flamengo e do Palmeiras são os usados pelo elenco', async () => {
+  const flamengo = getTeam('flamengo');
+  const palmeiras = getTeam('palmeiras');
+  assert.equal(flamengo.crest, 'assets/crests/flamengo.png');
+  assert.equal(palmeiras.crest, 'assets/crests/palmeiras.png');
+  for (const team of [flamengo, palmeiras]) {
+    const png = await readFile(new URL(team.crest, GAME_ROOT));
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${team.name}: arquivo PNG válido`);
+    assert.equal(png[25], 6, `${team.name}: PNG mantém transparência no fundo do escudo`);
+  }
+});
+
 test('todo clube tem escudo e três blusas no pacote', () => {
   for (const team of TEAMS) {
     assert.ok(existsSync(new URL(team.crest, GAME_ROOT)), `escudo existe: ${team.crest}`);
@@ -1143,6 +1155,21 @@ test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/c
       ownsBall: true,
       keeper: true
     }, 'o exercício começa com um atacante e o goleiro esperando no gol em câmera Pro');
+    const cameraPose = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      const player = match.controlled.home;
+      const camera = match.engine.camera.position;
+      const forwardX = player.facing.x;
+      const forwardZ = player.facing.z;
+      const dx = camera.x - player.x;
+      const dz = camera.z - player.z;
+      return {
+        behind: dx * forwardX + dz * forwardZ,
+        lateral: dx * -forwardZ + dz * forwardX
+      };
+    });
+    assert.ok(cameraPose.behind < -7.5, 'a câmera fica atrás da direção em que o jogador está olhando');
+    assert.ok(Math.abs(cameraPose.lateral) < 1, 'a câmera não fica deslocada para a lateral');
     assert.ok(await page.locator('.training__stats').isVisible(), 'o treino mostra chutes, gols e defesas');
     assert.ok((await page.locator('.training__instructions').textContent()).includes('CÂMERA PRO'),
       'as instruções identificam a câmera Pro');

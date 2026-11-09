@@ -18,8 +18,8 @@ O XFC já reúne as telas principais e a partida de futebol em 3D:
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
 4. **Modos de jogo** — a Copa do Mundo (edição ao vivo e 2027), World Cup Kick Off e partidas rápidas estão acessíveis no seletor.
 5. **Kick Off / Classic Match** — escolha de clubes, estádio, uniformes e elenco; o fluxo existente de blusas e gestão de equipe continua disponível.
-6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
-7. **Comemoração de gol** — câmera fecha no autor, acompanha a corrida e destaca seu nome na chamada de gol e na HUD.
+6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
+7. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
 
 A simulação inclui árbitro 3D com apito, gestos, cartões e expulsão, contagem disciplinar na HUD e carrinho manual com colisão, recuperação e penalidades conforme a jogada. A IA não toma o controle do atleta humano nem executa carrinhos por ele. A câmera de transmissão enquadra a ação mais de perto e acompanha a bola suavemente. Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o botão CARRINHO é manual e o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
 
@@ -92,13 +92,13 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.1/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.1/xfc-game.zip` |
+| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.2/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.2/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.1)
-contém os goleiros com leitura de trajetória, mergulhos integrados à física e as melhorias de bolas
-paradas (versionCode 7), com APK e pacote web anexados. A versão anterior
-[`xfc-gameplay-v0.5.0`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.0)
+A release [`xfc-gameplay-v0.5.2`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.2)
+traz a câmera central por trás do cobrador de pênalti, o controle de contato e a trajetória de faltas, a câmera de treino atrás do jogador, os escudos enviados do Flamengo e Palmeiras, e cinco estilos de comemoração com reações dos companheiros (versionCode 8). Mantém as melhorias de goleiros e bolas paradas da versão anterior; o CI publica o APK offline e o pacote web na release.
+
+A release anterior [`xfc-gameplay-v0.5.1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.1)
 permanece disponível para quem precisa do APK anterior.
 
 ## Controles

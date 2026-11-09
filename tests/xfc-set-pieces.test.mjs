@@ -5,7 +5,9 @@ import {
   cornerTarget,
   evaluateFreeKick,
   evaluatePenalty,
-  predictTrajectory
+  impactYFromLift,
+  predictTrajectory,
+  strikeFromImpact
 } from '../xfc-game/src/match3d/set-pieces.js';
 
 test('chance e precisão de falta respondem à distância, ao ângulo, à barreira e aos atributos', () => {
@@ -39,6 +41,37 @@ test('mira de falta permanece dentro do gol em qualquer ajuste', () => {
     assert.ok(Math.abs(metrics.target.z) < GOAL.width / 2, 'a mira não passa por fora da trave');
     assert.equal(metrics.target.x, PITCH.halfLength);
   }
+});
+
+test('a chance de falta também reflete o efeito e a altura escolhidos', () => {
+  const neutral = evaluateFreeKick({ x: 34, z: 0, shooting: 85, precision: 85 });
+  const complex = evaluateFreeKick({
+    x: 34,
+    z: 0,
+    shooting: 85,
+    precision: 85,
+    curve: 0.85,
+    lift: 0.22
+  });
+  assert.ok(complex.chancePercent < neutral.chancePercent);
+  assert.ok(complex.precisionPercent < neutral.precisionPercent);
+});
+
+test('ponto de contato controla chute rasteiro, elevação e curva para os dois lados', () => {
+  const topLeft = strikeFromImpact({ x: -0.8, y: -1 });
+  const bottomRight = strikeFromImpact({ x: 0.8, y: 1 });
+  const center = strikeFromImpact({ x: 0, y: 0 });
+
+  assert.equal(topLeft.curve, -0.8, 'o canto esquerdo do quadrado aplica curva à esquerda');
+  assert.equal(bottomRight.curve, 0.8, 'o canto direito aplica curva para o outro lado');
+  assert.ok(topLeft.lift < center.lift && center.lift < bottomRight.lift,
+    'bater na parte de cima mantém a bola baixa; embaixo levanta a trajetória');
+  assert.equal(topLeft.lift, 0.075);
+  assert.equal(center.curve, 0, 'o ponto neutro mantém o chute reto');
+  assert.equal(center.lift, 0.15);
+  assert.equal(bottomRight.lift, 0.225);
+  assert.equal(strikeFromImpact({ x: -2, y: 2 }).impactY, 1, 'o cursor fica dentro do quadrado');
+  assert.ok(Math.abs(impactYFromLift(center.lift)) < 0.01, 'a altura volta à posição vertical do cursor');
 });
 
 test('pênalti considera o goleiro e o canto selecionado', () => {

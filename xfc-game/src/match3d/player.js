@@ -9,6 +9,69 @@ import { THREE, canvasTexture } from './engine.js';
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
 const HAIR_STYLES = ['short', 'afro', 'mohawk', 'side', 'bob', 'bald'];
+const CELEBRATION_STYLES = new Set(['classic', 'airplane', 'point', 'knee-slide', 'fist-pump']);
+
+/** Poses compartilhadas pelos modelos detalhado e econômico do celular. */
+function applyCelebrationPose({ style, phase, running, body, arms, legs, head }) {
+  const wave = Math.sin(phase);
+  const stride = running ? wave : Math.sin(phase * 0.7) * 0.12;
+  const hop = Math.abs(Math.sin(phase * 2));
+  body.position.y = running ? hop * 0.095 : hop * (style === 'fist-pump' ? 0.22 : 0.14);
+  body.rotation.x = running ? 0.04 : -0.05;
+  body.rotation.z = running ? wave * 0.025 : 0;
+  arms[0].shoulder.rotation.x = -2.25 - stride * 0.11;
+  arms[1].shoulder.rotation.x = -2.25 + stride * 0.11;
+  arms[0].shoulder.rotation.z = 0.52;
+  arms[1].shoulder.rotation.z = -0.52;
+  arms[0].forearm.rotation.x = -0.45;
+  arms[1].forearm.rotation.x = -0.45;
+  legs[0].hip.rotation.x = running ? stride * 0.48 : 0.05;
+  legs[1].hip.rotation.x = running ? -stride * 0.48 : 0.05;
+  legs[0].knee.rotation.x = running ? Math.max(0, -stride) * 0.72 : 0.08;
+  legs[1].knee.rotation.x = running ? Math.max(0, stride) * 0.72 : 0.08;
+  head.rotation.x = -0.2;
+
+  if (style === 'airplane') {
+    arms[0].shoulder.rotation.x = -0.32 - stride * 0.08;
+    arms[1].shoulder.rotation.x = -0.32 + stride * 0.08;
+    arms[0].shoulder.rotation.z = -0.98;
+    arms[1].shoulder.rotation.z = 0.98;
+    arms[0].forearm.rotation.x = arms[1].forearm.rotation.x = 0.08;
+    body.rotation.x = 0.1;
+  } else if (style === 'point') {
+    arms[0].shoulder.rotation.x = -1.05;
+    arms[0].shoulder.rotation.z = 0.62;
+    arms[0].forearm.rotation.x = -0.55;
+    arms[1].shoulder.rotation.x = -2.88 + Math.sin(phase * 0.65) * 0.12;
+    arms[1].shoulder.rotation.z = -0.3;
+    arms[1].forearm.rotation.x = -0.56;
+  } else if (style === 'knee-slide') {
+    body.position.y = -0.045 + hop * 0.025;
+    body.rotation.x = 0.46;
+    arms[0].shoulder.rotation.x = -1.52;
+    arms[1].shoulder.rotation.x = -1.52;
+    arms[0].shoulder.rotation.z = -0.82;
+    arms[1].shoulder.rotation.z = 0.82;
+    arms[0].forearm.rotation.x = arms[1].forearm.rotation.x = -0.2;
+    legs[0].hip.rotation.x = 0.9;
+    legs[0].knee.rotation.x = -0.88;
+    legs[1].hip.rotation.x = -0.18;
+    legs[1].knee.rotation.x = -0.34;
+  } else if (style === 'fist-pump') {
+    body.position.y = hop * 0.22;
+    body.rotation.x = -0.08;
+    arms[0].shoulder.rotation.x = -2.72 + Math.sin(phase + Math.PI) * 0.28;
+    arms[0].shoulder.rotation.z = 0.34;
+    arms[0].forearm.rotation.x = -1.1;
+    arms[1].shoulder.rotation.x = -1.5 + Math.sin(phase) * 0.25;
+    arms[1].shoulder.rotation.z = -0.32;
+    arms[1].forearm.rotation.x = -0.92;
+    legs[0].hip.rotation.x = 0.32 + Math.max(0, wave) * 0.3;
+    legs[1].hip.rotation.x = -0.24 - Math.max(0, -wave) * 0.3;
+    legs[0].knee.rotation.x = 0.32;
+    legs[1].knee.rotation.x = 0.32;
+  }
+}
 
 /** Textura do uniforme: listras, faixa diagonal ou xadrez + sombreamento. */
 function drawKitTexture(context, width, height, kit) {
@@ -167,6 +230,8 @@ function createSimplePlayer3D(options = {}) {
   let lookTarget = null;
   let kickTimer = 0;
   let celebrateTimer = 0;
+  let celebrateStyle = 'classic';
+  let celebrateElapsed = 0;
   let signalTimer = 0;
   let diveTimer = 0;
   let diveDir = 1;
@@ -181,7 +246,11 @@ function createSimplePlayer3D(options = {}) {
 
   return {
     root, body, head, legs, arms,
-    celebrate(duration = 2.6) { celebrateTimer = duration; },
+    celebrate(duration = 2.6, style = 'classic') {
+      celebrateTimer = duration;
+      celebrateStyle = CELEBRATION_STYLES.has(style) ? style : 'classic';
+      celebrateElapsed = 0;
+    },
     signal(duration = 1.1) { signalTimer = duration; },
     prepareCard(duration = 0.58) {
       signalTimer = 0;
@@ -318,13 +387,20 @@ function createSimplePlayer3D(options = {}) {
       }
       if (celebrateTimer > 0) {
         celebrateTimer = Math.max(0, celebrateTimer - dt);
-        phase += dt * (moving ? 8 : 2);
-        const wave = Math.sin(phase);
-        body.position.y = Math.abs(Math.sin(phase * 2)) * (moving ? 0.08 : 0.14);
-        arms[0].shoulder.rotation.x = -2.15 - wave * 0.1;
-        arms[1].shoulder.rotation.x = -2.15 + wave * 0.1;
-        legs[0].hip.rotation.x = moving ? wave * 0.35 : 0.05;
-        legs[1].hip.rotation.x = moving ? -wave * 0.35 : 0.05;
+        celebrateElapsed += dt;
+        const settled = (celebrateStyle === 'knee-slide' && celebrateElapsed > 0.62)
+          || (celebrateStyle === 'fist-pump' && celebrateElapsed > 0.65);
+        const celebratingRun = moving && speed > 0.45 && !settled;
+        phase += dt * (celebratingRun ? 6 + Math.min(speed / 6, 1) * 4 : celebrateStyle === 'fist-pump' ? 7 : 2);
+        applyCelebrationPose({
+          style: celebrateStyle,
+          phase,
+          running: celebratingRun,
+          body,
+          arms,
+          legs,
+          head
+        });
         return;
       }
 
@@ -341,6 +417,11 @@ function createSimplePlayer3D(options = {}) {
         legs[1].knee.rotation.x = Math.max(0, wave) * swing;
         arms[0].shoulder.rotation.x = -wave * swing * 0.7;
         arms[1].shoulder.rotation.x = wave * swing * 0.7;
+        arms[0].shoulder.rotation.z = 0;
+        arms[1].shoulder.rotation.z = 0;
+        arms[0].forearm.rotation.x = 0;
+        arms[1].forearm.rotation.x = 0;
+        head.rotation.x = 0;
       }
       body.position.y = moving ? Math.abs(Math.sin(phase)) * 0.025 : 0;
       body.rotation.x = 0;
@@ -736,6 +817,8 @@ export function createPlayer3D(options = {}) {
   let kickTimer = 0;
   let lookTarget = null;
   let celebrateTimer = 0;
+  let celebrateStyle = 'classic';
+  let celebrateElapsed = 0;
   let signalTimer = 0;
   let diveTimer = 0;
   let diveDir = 1;
@@ -755,8 +838,10 @@ export function createPlayer3D(options = {}) {
     legs,
     arms,
     /** Comemoração de gol: braços para o alto e pulo curto. */
-    celebrate(duration = 2.6) {
+    celebrate(duration = 2.6, style = 'classic') {
       celebrateTimer = duration;
+      celebrateStyle = CELEBRATION_STYLES.has(style) ? style : 'classic';
+      celebrateElapsed = 0;
     },
     /** Sinal de arbitragem: o braço direito sobe apitando. */
     signal(duration = 1.1) {
@@ -957,25 +1042,20 @@ export function createPlayer3D(options = {}) {
       }
       if (celebrateTimer > 0) {
         celebrateTimer = Math.max(0, celebrateTimer - dt);
-        const celebratingRun = moving && speed > 0.45;
-        if (celebratingRun) phase += dt * (6 + Math.min(speed / 6, 1) * 4);
-        const stride = celebratingRun ? Math.sin(phase) : Math.sin(phase * 0.7) * 0.12;
-        body.position.y = celebratingRun
-          ? Math.abs(Math.sin(phase * 2)) * 0.095
-          : Math.abs(Math.sin(celebrateTimer * 5.4)) * 0.16;
-        body.rotation.x = celebratingRun ? 0.04 : -0.05;
-        body.rotation.z = celebratingRun ? Math.sin(phase) * 0.025 : 0;
-        arms[0].shoulder.rotation.x = -2.25 - stride * 0.11;
-        arms[1].shoulder.rotation.x = -2.25 + stride * 0.11;
-        arms[0].shoulder.rotation.z = 0.52;
-        arms[1].shoulder.rotation.z = -0.52;
-        arms[0].forearm.rotation.x = -0.45;
-        arms[1].forearm.rotation.x = -0.45;
-        legs[0].hip.rotation.x = celebratingRun ? stride * 0.48 : 0.05;
-        legs[1].hip.rotation.x = celebratingRun ? -stride * 0.48 : 0.05;
-        legs[0].knee.rotation.x = celebratingRun ? Math.max(0, -stride) * 0.72 : 0.08;
-        legs[1].knee.rotation.x = celebratingRun ? Math.max(0, stride) * 0.72 : 0.08;
-        head.rotation.x = -0.2;
+        celebrateElapsed += dt;
+        const settled = (celebrateStyle === 'knee-slide' && celebrateElapsed > 0.62)
+          || (celebrateStyle === 'fist-pump' && celebrateElapsed > 0.65);
+        const celebratingRun = moving && speed > 0.45 && !settled;
+        phase += dt * (celebratingRun ? 6 + Math.min(speed / 6, 1) * 4 : celebrateStyle === 'fist-pump' ? 7 : 2);
+        applyCelebrationPose({
+          style: celebrateStyle,
+          phase,
+          running: celebratingRun,
+          body,
+          arms,
+          legs,
+          head
+        });
         return;
       }
       head.rotation.x = 0;

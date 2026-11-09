@@ -175,18 +175,18 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.1
+          TAG=xfc-gameplay-v0.5.2
           NOTES=$(printf '%s\n' \
-            "XFC 27 — goleiros e bolas paradas v0.5.1 (versionCode 7), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — câmeras, faltas e comemorações v0.5.2 (versionCode 8), build do commit ${GITHUB_SHA}." \
             "" \
-            "A IA do goleiro prevê a trajetória com gravidade, arrasto, curva e quique; reposiciona-se e mergulha no tempo e direção adequados, com alcance físico integrado à bola. Inclui cobranças configuráveis de faltas, pênaltis e escanteios, trajetória de prévia, câmera e reações disciplinares." \
+            "Pênaltis usam uma câmera central atrás do batedor; faltas mostram a chance de gol e um quadrado de contato: os lados aplicam curva, em cima gera chute rasteiro e embaixo eleva a bola, com a trajetória prevista no campo. A câmera do treino agora acompanha o jogador por trás." \
             "" \
-            "O APK roda offline, instala sobre a versão anterior e o pacote web do jogo também está anexado.")
+            "Inclui os escudos enviados do Flamengo e do Palmeiras e cinco comemorações de gol diferentes, com companheiros reagindo. Mantém a IA de goleiro e as melhorias de bolas paradas da v0.5.1. O APK roda offline e o pacote web também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — goleiros e bolas paradas v0.5.1" \
+            gh release create "$TAG" --title "XFC 27 — câmeras, faltas e comemorações v0.5.2" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — goleiros e bolas paradas v0.5.1" \
+            gh release edit "$TAG" --title "XFC 27 — câmeras, faltas e comemorações v0.5.2" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
