@@ -202,20 +202,18 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Menu: lista de modos com KICK OFF liberado e os demais marcados como futuros.
+    // Menu XFC 27: identidade neon vermelho/magenta, Neymar 3D, items funcionais.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     const navLabels = await page.locator('.menu__item').allTextContents();
     assert.ok(navLabels.some(label => label.includes('KICK OFF')), 'o menu tem KICK OFF');
-    assert.ok(navLabels.some(label => label.includes('ULTIMATE TEAM')), 'o menu tem os demais modos');
-    assert.equal(await page.locator('.menu__item--available').count(), 2,
-      'KICK OFF e PARTIDAS RÁPIDAS estão liberados nesta etapa');
-    assert.equal(await page.locator('.menu__item--dim').count(), navLabels.length - 2,
-      'os demais modos seguem como futuros');
-    assert.ok(await page.locator('.menu__wordmark svg').isVisible(), 'o menu mostra a marca XFC');
-    assert.ok((await page.locator('.menu__xp-text').textContent()).includes('3K/3K'), 'a barra de XP mostra 3K/3K');
+    assert.ok(navLabels.some(label => label.includes('COPA DO MUNDO')), 'o menu tem a Copa do Mundo');
+    assert.ok(navLabels.some(label => label.includes('PARTIDAS RÁPIDAS')), 'o menu tem PARTIDAS RÁPIDAS');
+    assert.ok(await page.locator('.menu__logo-xfc .brand-wordmark').count() > 0, 'o menu mostra a marca XFC');
+    assert.ok(await page.locator('.menu__player-num').count() > 0, 'o menu mostra o Neymar 3D');
+    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o título XFC 27');
 
     // Kick Off: os dois times disponíveis, com escudo, estrelas e ATT/MID/DEF.
-    await page.click('.menu__cta');
+    await page.locator('.menu__item', { hasText: /KICK OFF/i }).first().click();
     await page.waitForSelector('.screen--kickoff');
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
