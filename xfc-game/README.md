@@ -88,14 +88,14 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.5/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.5/xfc-game.zip` |
+| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.5)
-combina os modos anteriores com o rebuild humanoide de todos os atletas: tronco e membros anatômicos articulados, mãos com dedos, kit 3D e perfil móvel com tesselação reduzida, preservando as animações. Inclui ainda a Copa do Mundo, câmera Pro, iluminação de transmissão, física compartilhada e estádios com perfis de dia, entardecer e noite (versionCode 11). O APK roda offline e o CI também anexa o jogo web completo.
+A release [`xfc-gameplay-v0.5.6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.6)
+reúne o rig humanoide compartilhado e os modos anteriores, corrige o analógico do Treino Livre para seguir a câmera sem alterar partidas comuns, suaviza o acompanhamento da câmera e acrescenta animação de recepção. O perfil completo usa materiais com reflexos discretos para tecido e chuteiras; no celular, a tesselação e os materiais econômicos são mantidos. Também refina gramado, torcida, publicidade, fachadas e sombras para reduzir ruído visual (versionCode 12). O APK roda offline e o CI anexa o jogo web completo.
 
-A release anterior [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4)
-permanece disponível para quem precisa da versão anterior.
+A versão [`xfc-gameplay-v0.5.5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.5)
+continua disponível, assim como a release anterior [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4).
 
 ## Controles
 
