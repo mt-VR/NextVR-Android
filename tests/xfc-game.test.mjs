@@ -68,7 +68,7 @@ test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o bu
   assert.equal(desktop.initialPixelRatio, 1.5, 'a resolução desktop continua limitada a 1,5');
 });
 
-test('modelos simples e detalhados compartilham kit sem descartar textura ainda em uso', () => {
+test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anima sem deformações', () => {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const previousImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
   const gradient = { addColorStop() {} };
@@ -84,6 +84,10 @@ test('modelos simples e detalhados compartilham kit sem descartar textura ainda 
     set(target, key, value) { target[key] = value; return true; }
   });
   const models = [];
+  class TestImage {
+    constructor() { this.width = 144; this.height = 168; }
+    set src(value) { this.url = value; this.onload?.(); }
+  }
 
   try {
     Object.defineProperty(globalThis, 'document', {
@@ -100,14 +104,27 @@ test('modelos simples e detalhados compartilham kit sem descartar textura ainda 
     Object.defineProperty(globalThis, 'Image', {
       configurable: true,
       writable: true,
-      value: undefined
+      value: TestImage
     });
 
     const kit = { primary: '#224488', secondary: '#112233', accent: '#ffee55', pattern: 'stripes' };
     models.push(
-      createPlayer3D({ simplified: true, kit, number: 10, teamName: 'XFC' }),
-      createPlayer3D({ simplified: true, kit, number: 9, teamName: 'XFC' }),
-      createPlayer3D({ simplified: false, kit, number: 8, teamName: 'XFC', preferredFoot: 'Left' })
+      createPlayer3D({
+        simplified: true,
+        kit,
+        number: 10,
+        teamName: 'XFC',
+        photo: 'assets/test-player-photo.png'
+      }),
+      createPlayer3D({ simplified: true, kit, number: 9, teamName: 'XFC', hairStyle: 'afro' }),
+      createPlayer3D({
+        simplified: false,
+        kit,
+        number: 8,
+        teamName: 'XFC',
+        preferredFoot: 'Left',
+        photo: 'assets/test-player-photo.png'
+      })
     );
     let jerseyTexture = null;
     models[0].root.traverse(node => {
@@ -118,15 +135,90 @@ test('modelos simples e detalhados compartilham kit sem descartar textura ainda 
     });
 
     assert.ok(jerseyTexture, 'o uniforme é desenhado em uma textura compartilhada');
-    let simpleMeshCount = 0;
-    models[0].root.traverse(object => { if (object.isMesh) simpleMeshCount += 1; });
-    assert.ok(simpleMeshCount <= 20,
-      'o modelo Android mantém no máximo vinte malhas por atleta');
+    const anatomy = [
+      'xfc-player-torso',
+      'xfc-player-neck',
+      'xfc-player-skull',
+      'xfc-player-nose',
+      'xfc-player-left-ear',
+      'xfc-player-right-ear',
+      'xfc-player-upper-arm',
+      'xfc-player-forearm',
+      'xfc-player-palm',
+      'xfc-player-fingers',
+      'xfc-player-thigh',
+      'xfc-player-kneecap',
+      'xfc-player-calf',
+      'xfc-player-sock',
+      'xfc-player-boot'
+    ];
+    for (const [index, model] of models.entries()) {
+      assert.equal(model.root.userData.modelId, 'xfc-footballer-v2');
+      assert.equal(model.root.userData.rigVersion, 2);
+      assert.equal(model.root.userData.detailLevel, index < 2 ? 'mobile' : 'full');
+      assert.equal(model.legs.length, 2, 'o atleta tem duas pernas articuladas');
+      assert.equal(model.arms.length, 2, 'o atleta tem dois braços articulados');
+      const names = new Set();
+      let fingerMeshes = 0;
+      model.root.traverse(object => {
+        if (object.name) names.add(object.name);
+        if (object.name === 'xfc-player-fingers') {
+          fingerMeshes += 1;
+          assert.equal(object.userData.fingerCount, 5);
+        }
+      });
+      for (const part of anatomy) {
+        assert.ok(names.has(part), `${model.root.userData.detailLevel} inclui ${part}`);
+      }
+      assert.equal(fingerMeshes, 2, 'as duas mãos conservam cinco dedos cada');
+    }
+
+    const mobileTorso = models[0].root.getObjectByName('xfc-player-torso');
+    const fullTorso = models[2].root.getObjectByName('xfc-player-torso');
+    assert.ok(mobileTorso.geometry.attributes.position.count
+      < fullTorso.geometry.attributes.position.count,
+    'o perfil Android reduz a tesselação sem trocar a anatomia do jogador');
+    assert.equal(models[0].root.getObjectByName('xfc-player-face-photo'), undefined,
+      'o perfil móvel evita carregar o retrato e mantém o atlas facial');
+    const photoFace = models[2].root.getObjectByName('xfc-player-face-photo');
+    assert.ok(photoFace, 'o retrato detalhado acompanha a superfície elipsoidal do rosto');
+    assert.equal(models[2].root.getObjectByName('xfc-player-face-features').visible, false,
+      'o retrato substitui os traços desenhados sem ocultar a cabeça 3D');
+    assert.equal(models[2].root.getObjectByName('xfc-player-nose').visible, false,
+      'o nariz 3D não atravessa a superfície do retrato');
+    assert.equal(models[0].root.getObjectByName('xfc-player-nose').visible, true,
+      'o perfil móvel conserva o nariz 3D quando omite o retrato');
     assert.equal(jerseyTexture.userData.references, 3);
-    models[0].header();
-    models[0].update(1 / 60, { ownsBall: true, protecting: true, speed: 1 });
+
+    models[0].header(0.02);
+    models[0].update(0.03, { ownsBall: true, protecting: true, speed: 1 });
+    models[0].signal(0.02);
+    models[0].update(0.03);
+    models[0].prepareCard(0.02);
+    models[0].update(0.03);
+    models[0].showCard('red', 0.02);
+    models[0].update(0.03);
+    models[0].dive(-1);
+    models[0].update(1);
+    models[0].slideTackle(1, 0.02);
+    models[0].update(0.03);
+    models[0].react('fall', 0.02);
+    models[0].update(0.03);
+    models[0].celebrate(0.02, 'fist-pump');
+    models[0].update(0.03);
+    models[0].update(1 / 60, { moving: true, ownsBall: true, speed: 1 });
     models[2].kick('shot');
-    models[2].update(1 / 60, { speed: 2, moving: true });
+    models[2].update(0.1, { speed: 2, moving: true });
+    assert.ok(models[2].legs[0].hip.rotation.x < 0,
+      'a perna dominante mantém o ciclo de chute articulado');
+    for (const model of models) {
+      model.root.traverse(object => {
+        for (const value of [
+          object.position.x, object.position.y, object.position.z,
+          object.rotation.x, object.rotation.y, object.rotation.z
+        ]) assert.ok(Number.isFinite(value), `${object.name || object.type} não deforma com NaN`);
+      });
+    }
 
     models[0].dispose();
     assert.equal(jerseyTexture.userData.references, 2,
