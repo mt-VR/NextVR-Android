@@ -44,7 +44,7 @@ export function createMatch(options = {}) {
   } = options;
 
   const engine = createEngine(canvas);
-  const stadiumMesh = buildStadium(engine.scene, { stadium });
+  const stadiumMesh = buildStadium(engine.scene, { stadium, lowPower: engine.lowPower });
   const ball = createBall(engine.scene);
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
@@ -62,6 +62,14 @@ export function createMatch(options = {}) {
     away: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 }
   };
   const possession = { home: 0, away: 0 };
+  const training = {
+    enabled: Boolean(options.training),
+    player: null,
+    keeper: null,
+    shotActive: false,
+    shotElapsed: 0,
+    stats: { shots: 0, goals: 0, saves: 0, misses: 0 }
+  };
   let paused = false;
 
   const clock = {
@@ -88,6 +96,7 @@ export function createMatch(options = {}) {
   let manualCamera = null;
   let goalScorer = null;
   let goalCameraReady = false;
+  let trainingCameraReady = false;
 
   // ------------------------------------------------------------- utilidades --
 
@@ -106,6 +115,12 @@ export function createMatch(options = {}) {
     if (event.type === 'restart' && event.kind === 'corner') stats[event.team].corners += 1;
     if (event.type === 'foul') stats[event.team].fouls += 1;
     if (event.type === 'card') stats[event.team].cards += 1;
+    if (training.enabled) {
+      if (event.type === 'shot') training.stats.shots += 1;
+      if (event.type === 'training-goal') training.stats.goals += 1;
+      if (event.type === 'training-save') training.stats.saves += 1;
+      if (event.type === 'training-miss') training.stats.misses += 1;
+    }
     onEvent(event);
   }
 
@@ -203,6 +218,7 @@ export function createMatch(options = {}) {
         kit: kitFor(team, team.kit, isKeeper),
         number: data.number || index + 1,
         isKeeper,
+        simplified: options.simplifiedPlayers ?? engine.lowPower,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
@@ -329,6 +345,10 @@ export function createMatch(options = {}) {
     ball.state.spin.y = Math.max(-1, Math.min(1, curve)) * effectivePower * 0.62;
     ball.state.lastTouch = player;
     ball.state.lastShotKind = kind;
+    if (training.enabled && player === training.player) {
+      training.shotActive = true;
+      training.shotElapsed = 0;
+    }
     player.model.kick();
     emit({ type: 'shot', team: player.side, player, kind });
   }
@@ -662,6 +682,7 @@ export function createMatch(options = {}) {
     kit: { primary: '#161a20', secondary: '#101319', accent: '#f5c518', pattern: 'solid' },
     number: 1,
     isKeeper: false,
+    simplified: options.simplifiedPlayers ?? engine.lowPower,
     skinTone: '#c98d5f',
     hairColor: '#1f1712',
     hairStyle: 'short',
@@ -762,6 +783,14 @@ export function createMatch(options = {}) {
     openSpace,
     attackSign,
     userSide,
+    trainingMode: training.enabled,
+    get trainingStats() {
+      return { ...training.stats };
+    },
+    get cameraMode() {
+      return cameraMode;
+    },
+    prepareTraining,
     /** Há comando do jogador? (se não, a IA cuida do jogador controlado) */
     hasInput() {
       return Math.hypot(input.moveX, input.moveZ) > 0.12;
@@ -865,6 +894,7 @@ export function createMatch(options = {}) {
     setCameraMode(mode) {
       cameraMode = mode;
       if (mode === 'play') cameraReady = false;
+      if (mode === 'pro') trainingCameraReady = false;
     },
 
     /** Congela a câmera num ponto (capturas de tela e testes). */
@@ -1052,11 +1082,189 @@ export function createMatch(options = {}) {
     camera.lookAt(cameraTarget.x, 1.25, cameraTarget.z);
   }
 
+  // ------------------------------------------------------------ centro treino --
+
+  /** Deixa apenas um atacante e o goleiro ativos, com a bola dominada. */
+  function prepareTraining() {
+    if (!training.enabled) return null;
+    const player = teams.home.players.find(item => item.role === 'ST' && !item.isKeeper)
+      || teams.home.players.find(item => !item.isKeeper);
+    const keeper = teams.away.players.find(item => item.isKeeper);
+    if (!player || !keeper) return null;
+
+    training.player = player;
+    training.keeper = keeper;
+    training.shotActive = false;
+    training.shotElapsed = 0;
+    for (const item of allPlayers) {
+      item.active = item === player || item === keeper;
+      item.root.visible = item.active;
+      item.vx = 0;
+      item.vz = 0;
+      item.sprint = false;
+      item.burst = 0;
+      item.turnLean = 0;
+    }
+
+    player.x = 32;
+    player.z = 0;
+    player.facingAngle = Math.PI / 2;
+    player.facing.set(1, 0, 0);
+    player.root.rotation.y = player.facingAngle;
+    player.root.position.set(player.x, 0, player.z);
+    keeper.x = PITCH.halfLength - 1.2;
+    keeper.z = 0;
+    keeper.facingAngle = -Math.PI / 2;
+    keeper.facing.set(-1, 0, 0);
+    keeper.root.rotation.y = keeper.facingAngle;
+    keeper.root.position.set(keeper.x, 0, keeper.z);
+    controlled.home = player;
+    controlled.away = null;
+    input.moveX = 0;
+    input.moveZ = 0;
+    input.sprint = false;
+    phase.name = 'play';
+    phase.timer = 0;
+    phase.restart = null;
+    clock.minutes = 0;
+    clock.half = 1;
+    clock.added = 0;
+    ball.reset(player.x, player.z);
+    ball.attachTo(player);
+    ball.state.lastTouch = player;
+    ball.state.lastShotKind = null;
+    refereeModel.root.visible = false;
+    cameraMode = 'pro';
+    cameraReady = false;
+    trainingCameraReady = false;
+    manualCamera = null;
+    return { player, keeper, stats: { ...training.stats } };
+  }
+
+  function updateTrainingActors(dt) {
+    for (const player of [training.player, training.keeper]) {
+      if (!player?.active) continue;
+      player.root.position.set(player.x, 0, player.z);
+      const speed = playerSpeed(player);
+      player.model.update(dt, { speed, moving: speed > 0.25, lean: player.turnLean || 0 });
+      player.model.lookAt(ball.state.position);
+    }
+  }
+
+  function updateTrainingCamera(dt) {
+    const player = training.player;
+    if (!player) return;
+    const camera = engine.camera;
+    const sign = attackSign('home');
+    const desiredX = player.x - sign * 7.4;
+    const desiredY = 5.2;
+    const desiredZ = player.z + 8.5;
+    const targetX = player.x + sign * 5.2;
+    const targetY = 1.2;
+    const targetZ = player.z;
+    if (!trainingCameraReady) {
+      camera.position.set(desiredX, desiredY, desiredZ);
+      camera.fov = 55;
+      camera.updateProjectionMatrix();
+      trainingCameraReady = true;
+    } else {
+      const smoothing = 1 - Math.pow(0.002, dt);
+      camera.position.x += (desiredX - camera.position.x) * smoothing;
+      camera.position.y += (desiredY - camera.position.y) * smoothing;
+      camera.position.z += (desiredZ - camera.position.z) * smoothing;
+    }
+    camera.lookAt(targetX, targetY, targetZ);
+  }
+
+  function finishTrainingAttempt(result) {
+    if (!training.shotActive) return;
+    training.shotActive = false;
+    phase.name = `training-${result}`;
+    phase.timer = 0;
+    ball.state.owner = null;
+    ball.state.guidance = null;
+    ball.state.velocity.set(0, 0, 0);
+    ball.state.spin.set(0, 0, 0);
+    const player = result === 'save' ? training.keeper : training.player;
+    if (result === 'save') {
+      emit({ type: 'training-save', team: 'away', player, kind: ball.state.lastShotKind });
+    } else if (result === 'goal') {
+      emit({ type: 'training-goal', team: 'home', player, kind: ball.state.lastShotKind });
+    } else {
+      emit({ type: 'training-miss', team: 'home', player, kind: ball.state.lastShotKind });
+    }
+  }
+
+  function updateTraining(dt) {
+    if (phase.name.startsWith('training-')) {
+      phase.timer += dt;
+      updateTrainingActors(dt);
+      updateMarker(dt);
+      updateTrainingCamera(dt);
+      if (phase.timer > 1.55) prepareTraining();
+      return;
+    }
+
+    elapsedWorldTime += dt;
+    const player = training.player;
+    const keeper = training.keeper;
+    if (!player || !keeper) return;
+
+    updateHuman(dt);
+    // O exercício mantém o atacante na zona de finalização e o goleiro na
+    // linha. Só o corpo do goleiro reage ao chute; a IA não o tira do gol.
+    player.x = Math.max(20, Math.min(PITCH.halfLength - 4.5, player.x));
+    player.z = Math.max(-26, Math.min(26, player.z));
+    if (Math.hypot(player.vx, player.vz) < 1.1) faceTowards(player, PITCH.halfLength, player.z * 0.2, dt, 8);
+    keeper.x = PITCH.halfLength - 1.2;
+    keeper.z = 0;
+    keeper.vx = 0;
+    keeper.vz = 0;
+    player.root.position.set(player.x, 0, player.z);
+    keeper.root.position.set(keeper.x, 0, keeper.z);
+
+    ball.update(dt, [player, keeper]);
+    const position = ball.state.position;
+    if (!training.shotActive && !ball.state.owner && position.y < 1.8
+      && Math.hypot(player.x - position.x, player.z - position.z) < 1.2
+      && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 8) {
+      ball.attachTo(player);
+      ball.state.lastTouch = player;
+    }
+
+    if (training.shotActive) {
+      training.shotElapsed += dt;
+      if (position.x >= PITCH.halfLength) {
+        const insideGoal = Math.abs(position.z) < GOAL.width / 2 && position.y < GOAL.height;
+        if (insideGoal && keeperSaves(keeper, position)) {
+          diveKeeper(keeper, Math.sign(position.z - keeper.z) || 1);
+          finishTrainingAttempt('save');
+        } else if (insideGoal) {
+          finishTrainingAttempt('goal');
+        } else if (position.x > PITCH.halfLength + 1.2) {
+          finishTrainingAttempt('miss');
+        }
+      }
+      if (training.shotActive && (Math.abs(position.z) > PITCH.halfWidth + 1
+        || position.y > GOAL.height + 8 || training.shotElapsed > 3.8)) {
+        finishTrainingAttempt('miss');
+      }
+    }
+
+    updateTrainingActors(dt);
+    updateMarker(dt);
+    updateTrainingCamera(dt);
+  }
+
   // ----------------------------------------------------------------- update --
 
   function update(dt) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.
     if (paused) return;
+    if (training.enabled) {
+      updateTraining(dt);
+      return;
+    }
     elapsedWorldTime += dt;
     // Relógio.
     if (phase.name === 'play') {

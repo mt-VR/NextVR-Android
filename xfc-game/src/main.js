@@ -19,6 +19,7 @@ import { worldCupScreen } from './screens/worldcup.js';
 import { modesScreen } from './screens/modes.js';
 import { customiseScreen } from './screens/customise.js';
 import { ultimateTeamScreen } from './screens/ultimate.js';
+import { trainingScreen } from './screens/training.js';
 import { unlockAudio } from './audio.js';
 
 // O áudio (apito, torcida) só pode começar após um gesto do usuário.
@@ -46,7 +47,8 @@ const registry = {
   modes: modesScreen,
   customise: customiseScreen,
   worldcup: worldCupScreen,
-  ultimate: ultimateTeamScreen
+  ultimate: ultimateTeamScreen,
+  training: trainingScreen
 };
 
 let current = null;

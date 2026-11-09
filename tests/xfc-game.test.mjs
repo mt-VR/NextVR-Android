@@ -8,6 +8,7 @@ import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/t
 import { createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, USER_NATIONAL_TEAM_ID } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
+import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
@@ -38,6 +39,27 @@ test('XFC tem vinte e um clubes, com onze em campo e sete reservas em cada um', 
       assert.equal(player.stats.pace >= 0 && player.stats.pace <= 99, true);
     }
   }
+});
+
+test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o buffer WebGL', () => {
+  assert.deepEqual(qualityStepsFor(1), [1, 0.85, 0.7, 0.6],
+    'desktop ainda pode descer a resolução, nunca saltar para 1,25');
+  assert.deepEqual(qualityStepsFor(0.9, true), [0.9],
+    'o perfil móvel mantém o mesmo buffer durante a partida');
+  const mobile = rendererProfileFor({
+    devicePixelRatio: 3,
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36',
+    pointerCoarse: true,
+    hardwareConcurrency: 8,
+    deviceMemory: 6
+  });
+  assert.equal(mobile.lowPower, true, 'o WebView Android usa o perfil econômico');
+  assert.equal(mobile.initialPixelRatio, 0.6, 'o aparelho móvel começa na resolução econômica estável');
+  assert.deepEqual(mobile.qualitySteps, [0.6],
+    'o celular não redimensiona o buffer WebGL no meio da partida');
+  const desktop = rendererProfileFor({ devicePixelRatio: 2, hardwareConcurrency: 8, deviceMemory: 8 });
+  assert.equal(desktop.lowPower, false, 'desktop potente mantém o perfil de qualidade');
+  assert.equal(desktop.initialPixelRatio, 1.5, 'a resolução desktop continua limitada a 1,5');
 });
 
 test('orientação do campo: a casa ataca +X, cada time defende o próprio gol', () => {
@@ -298,7 +320,9 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    assert.equal(await page.locator('.modes__option').count(), 5, 'a tela lista os modos');
+    assert.equal(await page.locator('.modes__option').count(), 6, 'a tela lista os modos e o Centro de Treino');
+    assert.ok(await page.locator('.modes__option[data-option="training"]').isVisible(),
+      'o Centro de Treino fica acessível pelos modos de jogo');
     assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
     await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--worldcup');
@@ -447,6 +471,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       }).catch(e => ({ evaluateFailed: String(e) }));
       throw new Error(`${error.message}\nPalco:\n${JSON.stringify(dump, null, 2)}\nErros:\n${JSON.stringify(errors)}`);
     }
+    await page.waitForSelector('.showcase__enter', { timeout: 30000 });
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
@@ -525,7 +550,13 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     return;
   }
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      userAgent: 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36'
+    });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
@@ -572,6 +603,29 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       }).catch(e => ({ evaluateFailed: String(e) }));
       throw new Error(`${error.message}\nPalco:\n${JSON.stringify(dump, null, 2)}\nErros:\n${JSON.stringify(errors)}`);
     }
+    await page.waitForSelector('.showcase__enter', { timeout: 30000 });
+
+    // No Android, a tela nova entra sem um fade/scale da página inteira e o
+    // buffer WebGL começa no perfil fixo (sem redimensionamento em seguida).
+    const mobileStartup = await page.evaluate(() => {
+      const engine = window.__xfcMatch.engine;
+      const screen = document.querySelector('.screen--play');
+      const prompt = document.querySelector('.showcase__enter');
+      return {
+        lowPower: engine.lowPower,
+        pixelRatio: engine.renderer.getPixelRatio(),
+        qualitySteps: engine.profile.qualitySteps,
+        screenTransition: getComputedStyle(screen).transitionDuration,
+        screenTransform: getComputedStyle(screen).transform,
+        promptAnimation: getComputedStyle(prompt).animationName
+      };
+    });
+    assert.equal(mobileStartup.lowPower, true, 'o teste está usando o perfil Android');
+    assert.equal(mobileStartup.pixelRatio, 0.6, 'o buffer WebGL começa no tamanho estável');
+    assert.deepEqual(mobileStartup.qualitySteps, [0.6], 'o buffer não tem níveis que o redimensionem durante o jogo');
+    assert.equal(mobileStartup.screenTransition, '0s', 'a tela inteira não ganha fade/scale no WebView touch');
+    assert.equal(mobileStartup.screenTransform, 'none', 'a tela não é transformada durante a troca');
+    assert.equal(mobileStartup.promptAnimation, 'none', 'a chamada para entrar em campo não pisca no celular');
 
     // Pré-jogo imersivo: o estádio toma a tela, com o confronto no centro.
     assert.ok(await page.locator('.showcase__chip').isVisible(), 'o pré-jogo abre com o selo da liga');
@@ -582,6 +636,14 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
 
     // Partida: HUD, radar e controles na tela.
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    await page.waitForTimeout(2200); // cruza pelo menos uma janela de amostragem de FPS
+    const stableBuffer = await page.evaluate(() => ({
+      ratio: window.__xfcMatch.engine.renderer.getPixelRatio(),
+      quality: window.__xfcMatch.engine.state.quality,
+      size: [window.__xfcMatch.engine.renderer.domElement.width, window.__xfcMatch.engine.renderer.domElement.height]
+    }));
+    assert.deepEqual(stableBuffer, { ratio: 0.6, quality: 0, size: [768, 432] },
+      'o WebView não redimensiona nem limpa o buffer durante a partida');
     assert.equal(await page.locator('.hud__crest').count(), 2, 'o placar mostra os dois escudos');
     assert.equal(await page.locator('.hud__score').count(), 2, 'o placar mostra os dois placares');
     assert.ok(await page.locator('.hud__clock').isVisible(), 'o placar mostra o relógio');
@@ -598,8 +660,14 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(await page.locator('.hud__poss').isVisible(),
       'o HUD mostra a barra de posse de bola');
 
-    // O painel de pausa segue a referência: placar, formação e blocos de opções.
-    await page.keyboard.press('Escape');
+    // O painel de pausa segue a referência: botão visível no topo direito,
+    // placar, formação e blocos de opções.
+    const pauseButton = page.locator('.play__pause-button');
+    assert.ok(await pauseButton.isVisible(), 'o botão de pausa fica visível durante a partida');
+    const pauseBox = await pauseButton.boundingBox();
+    assert.ok(pauseBox && pauseBox.x > 1100 && pauseBox.y < 70,
+      'o botão de pausa fica no canto superior direito');
+    await pauseButton.click();
     await page.waitForSelector('.pause--fc');
     assert.ok(await page.locator('.pause__scoreline').isVisible(), 'a pausa mantém o placar no topo');
     assert.equal(await page.locator('.pause__lineup-player').count(), 11, 'a pausa mostra a escalação completa');
@@ -863,6 +931,105 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/chute', { timeout: 90000 }, async (t) => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) {
+    server.close();
+    return;
+  }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push(`${message.text()} @ ${message.location()?.url ?? 'inline'}`);
+    });
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--launch');
+    await page.click('.launch__enter');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="learn"]').click();
+    await page.waitForSelector('.screen--training');
+    await page.waitForFunction(() => window.__xfcTrainingMatch?.world.trainingMode === true);
+
+    const setup = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      return {
+        homeActive: match.world.members('home').length,
+        awayActive: match.world.members('away').length,
+        camera: match.world.cameraMode,
+        player: match.controlled.home?.role,
+        ownsBall: match.ball.state.owner === match.controlled.home,
+        keeper: match.world.members('away')[0]?.isKeeper
+      };
+    });
+    assert.deepEqual(setup, {
+      homeActive: 1,
+      awayActive: 1,
+      camera: 'pro',
+      player: 'ST',
+      ownsBall: true,
+      keeper: true
+    }, 'o exercício começa com um atacante e o goleiro esperando no gol em câmera Pro');
+    assert.ok(await page.locator('.training__stats').isVisible(), 'o treino mostra chutes, gols e defesas');
+    assert.ok((await page.locator('.training__instructions').textContent()).includes('CÂMERA PRO'),
+      'as instruções identificam a câmera Pro');
+    for (const selector of ['.ctrl-btn--dribble', '.ctrl-btn--shoot', '.ctrl-btn--sprint']) {
+      assert.ok(await page.locator(selector).isVisible(), `${selector} fica disponível no treino`);
+    }
+    assert.equal(await page.locator('.ctrl-btn--pass').isVisible(), false,
+      'o treino não mostra um passe sem companheiros ativos');
+
+    await page.locator('.ctrl-btn--dribble').click();
+    const movement = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      const player = match.controlled.home;
+      const startX = player.x;
+      match.world.input.moveX = 1;
+      match.world.tick(0.05);
+      match.world.input.moveX = 0;
+      return { burst: player.burst, moved: player.x > startX };
+    });
+    assert.ok(movement.burst > 0, 'DRIBLE ativa a arrancada');
+    assert.equal(movement.moved, true, 'o analógico move o jogador controlável');
+
+    await page.locator('.ctrl-btn--shoot').click();
+    const shot = await page.evaluate(() => ({
+      count: window.__xfcTrainingMatch.world.trainingStats.shots,
+      ballReleased: window.__xfcTrainingMatch.ball.state.owner === null
+    }));
+    assert.equal(shot.count, 1, 'CHUTE registra uma tentativa');
+    assert.equal(shot.ballReleased, true, 'CHUTE solta a bola para o gol');
+    await page.locator('.training__reset').click();
+    await page.waitForFunction(() => {
+      const match = window.__xfcTrainingMatch;
+      return match?.ball.state.owner === match?.controlled.home;
+    });
+    assert.equal((await page.locator('.training__status').textContent()).includes('REINICIADO'), true,
+      'o exercício pode ser recomeçado sem sair da tela');
+    const outcome = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      match.engine.stop();
+      match.world.command('shoot', { strength: 1 });
+      for (let index = 0; index < 240; index += 1) match.world.tick(1 / 60);
+      const stats = match.world.trainingStats;
+      return { goals: stats.goals, saves: stats.saves, misses: stats.misses };
+    });
+    assert.ok(outcome.goals + outcome.saves + outcome.misses > 0,
+      'o chute conclui o exercício com gol, defesa do goleiro ou tentativa para fora');
+
+    const realErrors = errors.filter(message => !/favicon/i.test(message));
+    assert.deepEqual(realErrors, [], `o Centro de Treino não deve gerar erro: ${realErrors.join(' | ')}`);
+    await page.locator('.training__exit').click();
+    await page.waitForSelector('.screen--menu');
   } finally {
     await browser.close();
     server.close();

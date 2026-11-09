@@ -43,9 +43,10 @@ const MENU_ITEMS = [
     id: 'learn',
     label: 'LEARN TO PLAY',
     headline: 'Make every touch count',
-    subtitle: 'Learn the controls and get ready for your next match.',
-    action: 'Start Learning',
-    notice: 'Training is being prepared. Kick Off is ready to play.'
+    subtitle: 'Controle um jogador, pratique dribles e finalize contra o goleiro.',
+    action: 'Start Training',
+    target: 'training',
+    params: { returnTo: 'menu' }
   },
   {
     id: 'seasons',

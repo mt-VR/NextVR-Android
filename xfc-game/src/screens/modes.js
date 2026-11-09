@@ -41,6 +41,14 @@ const MODES = [
     action: 'quick'
   },
   {
+    id: 'training',
+    label: 'CENTRO DE TREINO',
+    title: 'Centro de Treino XFC',
+    subtitle: 'Controle um jogador, pratique dribles e finalize contra o goleiro.',
+    eyebrow: 'CÂMERA PRO  •  TREINO LIVRE',
+    action: 'training'
+  },
+  {
     id: 'customise',
     label: 'CUSTOMISE',
     title: 'Personalize seu XFC',
@@ -115,7 +123,7 @@ export function modesScreen(ctx) {
     onClick() { select(index); }
   },
     el('span', { class: 'modes__option-label', text: item.label }),
-    el('span', { class: 'modes__option-mark', text: item.id.startsWith('worldcup') ? '♜' : item.id === 'customise' ? '⚙' : '↗' })
+    el('span', { class: 'modes__option-mark', text: item.id.startsWith('worldcup') ? '♜' : item.id === 'customise' ? '⚙' : item.id === 'training' ? '⚽' : '↗' })
   ));
   const tabs = el('nav', { class: 'modes__options', 'aria-label': 'Modos de jogo' }, ...optionButtons);
 
@@ -155,7 +163,7 @@ export function modesScreen(ctx) {
     heroSub.textContent = item.subtitle;
     detailTitle.textContent = item.id.startsWith('worldcup') ? 'XFC WORLD CUP™ 2027' : item.label;
     detailGroup.textContent = item.id.startsWith('worldcup') ? 'GROUP A' : 'XFC 27';
-    cta.querySelector('span:nth-child(2)').textContent = item.action === 'customise' ? 'CUSTOMISE' : item.action === 'quick' ? 'PLAY ONLINE' : item.action === 'kickoff' ? 'KICK OFF' : 'TAKE ME THERE';
+    cta.querySelector('span:nth-child(2)').textContent = item.action === 'customise' ? 'CUSTOMISE' : item.action === 'quick' ? 'PLAY ONLINE' : item.action === 'kickoff' ? 'KICK OFF' : item.action === 'training' ? 'TREINAR' : 'TAKE ME THERE';
     breadcrumb.lastElementChild.textContent = item.label;
   }
 
@@ -164,6 +172,7 @@ export function modesScreen(ctx) {
     if (item.action === 'worldcup') ctx.go('worldcup', { mode: item.mode, returnTo: 'modes' });
     else if (item.action === 'kickoff') ctx.go('kickoff');
     else if (item.action === 'quick') ctx.go('quick');
+    else if (item.action === 'training') ctx.go('training', { returnTo: 'modes' });
     else ctx.go('customise');
   }
 

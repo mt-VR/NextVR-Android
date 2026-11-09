@@ -90,6 +90,176 @@ function roundedClip(context, width, height, radius) {
 }
 
 /**
+ * Modelo leve para WebView/celular: preserva silhueta humana e animações, mas
+ * evita dezenas de malhas e texturas por atleta (o elenco tem 22 jogadores).
+ */
+function createSimplePlayer3D(options = {}) {
+  const {
+    kit = { primary: '#2ef0a8', secondary: '#0b2b3a', accent: '#ffffff', pattern: 'solid' },
+    number = 10,
+    isKeeper = false,
+    skinTone = SKIN_TONES[0],
+    hairColor = HAIR_COLORS[0],
+    hairStyle = 'short',
+    heightScale = 1
+  } = options;
+  const primary = isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary;
+  const secondary = isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary;
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  const jersey = new THREE.MeshLambertMaterial({ color: primary });
+  const shorts = new THREE.MeshLambertMaterial({ color: secondary });
+  const skin = new THREE.MeshLambertMaterial({ color: skinTone });
+  const hairMaterial = new THREE.MeshLambertMaterial({ color: hairColor });
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.42, 2, 7), jersey);
+  torso.position.y = 1.18;
+  torso.scale.z = 0.78;
+  body.add(torso);
+
+  const head = new THREE.Group();
+  head.position.y = 1.65;
+  body.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.112, 8, 6), skin);
+  skull.scale.set(0.94, 1.05, 0.95);
+  head.add(skull);
+  const hair = buildHair(hairStyle, hairMaterial);
+  if (hair) head.add(hair);
+
+  const arms = [];
+  for (const side of [-1, 1]) {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(0.22 * side, 1.4, 0);
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(isKeeper ? 0.065 : 0.057, 0.43, 2, 6), jersey);
+    arm.position.y = -0.22;
+    arm.scale.z = 0.86;
+    shoulder.add(arm);
+    // O antebraço continua sendo um pivô para o gesto do árbitro/cartão.
+    const forearm = new THREE.Group();
+    forearm.position.y = -0.42;
+    shoulder.add(forearm);
+    body.add(shoulder);
+    arms.push({ shoulder, forearm });
+  }
+
+  const legs = [];
+  for (const side of [-1, 1]) {
+    const hip = new THREE.Group();
+    hip.position.set(0.095 * side, 0.84, 0);
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.067, 0.61, 2, 6), shorts);
+    leg.position.y = -0.32;
+    hip.add(leg);
+    const knee = new THREE.Group();
+    knee.position.y = -0.58;
+    hip.add(knee);
+    body.add(hip);
+    legs.push({ hip, knee });
+  }
+
+  const cardMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.13),
+    new THREE.MeshBasicMaterial({ color: 0xf5c518, side: THREE.DoubleSide }));
+  cardMesh.position.set(0, -0.27, 0.02);
+  cardMesh.visible = false;
+  arms[1].forearm.add(cardMesh);
+  root.scale.setScalar(1.15 * heightScale);
+  let phase = number * 0.37;
+  let lookTarget = null;
+  let kickTimer = 0;
+  let celebrateTimer = 0;
+  let signalTimer = 0;
+  let diveTimer = 0;
+  let diveDir = 1;
+  let cardTimer = 0;
+
+  return {
+    root, body, head, legs, arms,
+    celebrate(duration = 2.6) { celebrateTimer = duration; },
+    signal(duration = 1.1) { signalTimer = duration; },
+    showCard(color = 'yellow', duration = 1.7) {
+      cardTimer = duration;
+      cardMesh.visible = true;
+      cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
+    },
+    dive(dir = 1) { diveTimer = 0.95; diveDir = dir >= 0 ? 1 : -1; },
+    update(dt, { speed = 0, moving = false, lean = 0 } = {}) {
+      if (diveTimer > 0) {
+        diveTimer = Math.max(0, diveTimer - dt);
+        const arc = Math.sin(Math.PI * Math.min(1, (1 - diveTimer / 0.95) * 1.06));
+        body.position.y = arc * 0.32;
+        body.rotation.z = diveDir * (0.32 + arc * 0.82);
+        arms[diveDir > 0 ? 1 : 0].shoulder.rotation.x = -2.2;
+        arms[diveDir > 0 ? 0 : 1].shoulder.rotation.x = -1.1;
+        legs[0].hip.rotation.x = 0.32 + arc * 0.25;
+        legs[1].hip.rotation.x = -0.24 - arc * 0.2;
+        return;
+      }
+      if (cardTimer > 0) {
+        cardTimer = Math.max(0, cardTimer - dt);
+        if (!cardTimer) cardMesh.visible = false;
+      }
+      if (signalTimer > 0) {
+        signalTimer = Math.max(0, signalTimer - dt);
+        arms[1].shoulder.rotation.x = -2.65;
+        arms[0].shoulder.rotation.x = -0.65;
+        return;
+      }
+      if (celebrateTimer > 0) {
+        celebrateTimer = Math.max(0, celebrateTimer - dt);
+        phase += dt * (moving ? 8 : 2);
+        const wave = Math.sin(phase);
+        body.position.y = Math.abs(Math.sin(phase * 2)) * (moving ? 0.08 : 0.14);
+        arms[0].shoulder.rotation.x = -2.15 - wave * 0.1;
+        arms[1].shoulder.rotation.x = -2.15 + wave * 0.1;
+        legs[0].hip.rotation.x = moving ? wave * 0.35 : 0.05;
+        legs[1].hip.rotation.x = moving ? -wave * 0.35 : 0.05;
+        return;
+      }
+
+      if (cardTimer > 0) {
+        arms[1].shoulder.rotation.x = -2.7;
+        arms[0].shoulder.rotation.x = -0.5;
+      } else {
+        phase += dt * (moving ? 7 + Math.min(speed, 8) : 1.3);
+        const wave = Math.sin(phase);
+        const swing = moving ? 0.35 : 0.045;
+        legs[0].hip.rotation.x = wave * swing;
+        legs[1].hip.rotation.x = -wave * swing;
+        legs[0].knee.rotation.x = Math.max(0, -wave) * swing;
+        legs[1].knee.rotation.x = Math.max(0, wave) * swing;
+        arms[0].shoulder.rotation.x = -wave * swing * 0.7;
+        arms[1].shoulder.rotation.x = wave * swing * 0.7;
+      }
+      body.position.y = moving ? Math.abs(Math.sin(phase)) * 0.025 : 0;
+      body.rotation.z = lean * 0.6;
+      if (kickTimer > 0) {
+        kickTimer = Math.max(0, kickTimer - dt);
+        legs[1].hip.rotation.x = -1.05 * (kickTimer / 0.32);
+      }
+      if (lookTarget) {
+        const dx = lookTarget.x - root.position.x;
+        const dz = lookTarget.z - root.position.z;
+        head.rotation.y = Math.max(-0.8, Math.min(0.8, Math.atan2(dx, dz) - root.rotation.y));
+      }
+    },
+    kick() { kickTimer = 0.32; },
+    lookAt(target) { lookTarget = target; },
+    dispose() {
+      root.traverse(object => {
+        object.geometry?.dispose();
+        for (const material of Array.isArray(object.material) ? object.material || [] : object.material ? [object.material] : []) {
+          for (const key of Object.keys(material)) {
+            if (material[key]?.isTexture) material[key].dispose();
+          }
+          material.dispose();
+        }
+      });
+      root.parent?.remove(root);
+    }
+  };
+}
+
+/**
  * Pinta o rosto do atleta (retrato real) num escudo curvo na frente da
  * cabeça. Enquanto a foto não chega, o boneco fica com o rosto desenhado
  * (olhos, sobrancelhas, nariz e boca) — a partida não espera o disco.
@@ -221,6 +391,7 @@ function buildHair(style, hairMaterial) {
  * @param {number} [options.heightScale] variação de altura (0.94–1.07)
  */
 export function createPlayer3D(options = {}) {
+  if (options.simplified) return createSimplePlayer3D(options);
   const {
     kit = { primary: '#2ef0a8', secondary: '#0b2b3a', accent: '#ffffff', pattern: 'solid' },
     number = 10,

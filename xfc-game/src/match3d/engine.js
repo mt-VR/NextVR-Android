@@ -16,30 +16,80 @@ export { THREE };
 export const STAGE_WIDTH = 1280;
 export const STAGE_HEIGHT = 720;
 
-const QUALITY_STEPS = [1.5, 1.25, 1, 0.75, 0.6];
+const MAX_FRAME_DELTA = 0.1;
+const LOW_POWER_PIXEL_RATIO = 0.6;
+const QUALITY_STEPS = [1.5, 1.25, 1, 0.85, 0.7, 0.6];
+
+/**
+ * Perfil inicial para o WebView: aparelhos móveis começam com uma resolução
+ * fixa e sem MSAA/sombras. Redimensionar o buffer WebGL durante a partida
+ * pode provocar quadros brancos/piscadas em alguns WebViews Android, então o
+ * perfil móvel não troca de pixel ratio depois que o campo aparece.
+ */
+export function rendererProfileFor({
+  devicePixelRatio = 1,
+  userAgent = '',
+  pointerCoarse = false,
+  hardwareConcurrency = 0,
+  deviceMemory = 0
+} = {}) {
+  const smallDevice = (Number(hardwareConcurrency) > 0 && Number(hardwareConcurrency) <= 4)
+    || (Number(deviceMemory) > 0 && Number(deviceMemory) <= 4);
+  const lowPower = Boolean(pointerCoarse || smallDevice || /Android|iPhone|iPad|iPod/i.test(userAgent));
+  // O celular entra direto no perfil econômico final. Assim o WebGL cria seu
+  // buffer uma vez, sem a sequência de redimensionamentos que causava piscadas.
+  const cap = lowPower ? LOW_POWER_PIXEL_RATIO : 1.5;
+  const initialPixelRatio = Math.max(0.5, Math.min(Number(devicePixelRatio) || 1, cap));
+  return {
+    lowPower,
+    initialPixelRatio,
+    qualitySteps: qualityStepsFor(initialPixelRatio, lowPower)
+  };
+}
+
+/** Cria níveis descendentes; o perfil móvel fica fixo para não recriar o buffer. */
+export function qualityStepsFor(initialPixelRatio, lowPower = false) {
+  const initial = Math.max(0.5, Math.min(Number(initialPixelRatio) || 1, 1.5));
+  if (lowPower) return [initial];
+  return [initial, ...QUALITY_STEPS.filter(step => step < initial - 0.001)];
+}
 
 export function createEngine(canvas, options = {}) {
   const {
     fov = 44,
     near = 0.5,
     far = 600,
-    pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5),
+    pixelRatio,
     background = 0x08131f
   } = options;
 
+  const device = globalThis.navigator || {};
+  const pointerCoarse = Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
+  const profile = rendererProfileFor({
+    devicePixelRatio: window.devicePixelRatio || 1,
+    userAgent: device.userAgent || '',
+    pointerCoarse,
+    hardwareConcurrency: device.hardwareConcurrency || 0,
+    deviceMemory: device.deviceMemory || 0
+  });
+  const lowPower = options.lowPower ?? profile.lowPower;
+  const ratioCap = lowPower ? LOW_POWER_PIXEL_RATIO : 1.5;
+  const initialPixelRatio = Math.max(0.5, Math.min(pixelRatio ?? profile.initialPixelRatio, ratioCap));
+  const qualitySteps = qualityStepsFor(initialPixelRatio, lowPower);
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias: options.antialias ?? !lowPower,
     alpha: false,
     powerPreference: 'high-performance',
     stencil: false
   });
-  renderer.setPixelRatio(pixelRatio);
+  renderer.setPixelRatio(initialPixelRatio);
   renderer.setSize(STAGE_WIDTH, STAGE_HEIGHT, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = options.shadows ?? !lowPower;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
@@ -54,34 +104,59 @@ export function createEngine(canvas, options = {}) {
   let raf = 0;
   let running = false;
   let update = null;
-  const state = { fps: 60, quality: 0, frames: 0, elapsed: 0 };
+  const state = { fps: 60, quality: 0, frames: 0, elapsed: 0, pixelRatio: initialPixelRatio };
   let sampleTime = 0;
   let sampleFrames = 0;
+  let recoverySamples = 0;
+
+  function applyQuality(index) {
+    const nextRatio = qualitySteps[index];
+    if (Math.abs(renderer.getPixelRatio() - nextRatio) > 0.001) {
+      renderer.setPixelRatio(nextRatio);
+    }
+    if (options.shadows === undefined) {
+      // Ao perder desempenho, a primeira degradação também remove o passe de
+      // sombra (que custa caro no WebView). Só reativa após recuperação estável.
+      renderer.shadowMap.enabled = !lowPower && index === 0;
+    }
+    state.quality = index;
+    state.pixelRatio = nextRatio;
+  }
 
   /** Mede os quadros e baixa a resolução quando o aparelho não dá conta. */
-  function sampleQuality(dt) {
-    sampleTime += dt;
+  function sampleQuality(realFrameTime) {
+    sampleTime += realFrameTime;
     sampleFrames += 1;
     if (sampleTime < 2) return;
     const fps = sampleFrames / sampleTime;
     state.fps = fps;
     sampleTime = 0;
     sampleFrames = 0;
-    if (fps < 34 && state.quality < QUALITY_STEPS.length - 1) {
-      state.quality += 1;
-      renderer.setPixelRatio(QUALITY_STEPS[state.quality]);
+    if (fps < 34 && state.quality < qualitySteps.length - 1) {
+      recoverySamples = 0;
+      applyQuality(state.quality + 1);
     } else if (fps > 56 && state.quality > 0) {
-      state.quality -= 1;
-      renderer.setPixelRatio(QUALITY_STEPS[state.quality]);
+      recoverySamples += 1;
+      if (recoverySamples >= 3) {
+        recoverySamples = 0;
+        applyQuality(state.quality - 1);
+      }
+    } else {
+      recoverySamples = 0;
     }
   }
 
   function frame() {
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(clock.getDelta(), 0.05);
-    state.elapsed += dt;
+    const realFrameTime = Math.max(0, clock.getDelta() || 0);
+    // Um passo maior permite que a partida continue avançando em aparelhos
+    // que oscilam abaixo de 20 FPS, sem deixar a física saltar quadros longos.
+    const dt = Math.min(realFrameTime, MAX_FRAME_DELTA);
+    state.elapsed += realFrameTime;
     state.frames += 1;
-    sampleQuality(dt);
+    // Use o tempo real aqui: limitar dt para a física mascarava quadros muito
+    // lentos (4 FPS eram medidos como ~20), impedindo a queda de qualidade.
+    sampleQuality(realFrameTime);
     update?.(dt, state);
     renderer.render(scene, camera);
   }
@@ -92,6 +167,8 @@ export function createEngine(canvas, options = {}) {
     camera,
     state,
     clock,
+    lowPower,
+    profile: { lowPower, initialPixelRatio, qualitySteps: [...qualitySteps] },
     /** Liga o laço de animação (retoma com o update já registrado). */
     start(step) {
       if (step) update = step;

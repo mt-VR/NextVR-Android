@@ -54,7 +54,7 @@ function drawFacade(context, width, height, kind, baseColor) {
  * manchas de uso e milhares de pequenos traços de folhas. Não depende de uma
  * imagem pronta/PNG para o campo parecer um gramado.
  */
-function drawPitchBase(context, width, height) {
+function drawPitchBase(context, width, height, lowPower = false) {
   let seed = 0x27f00d;
   const rand = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -79,8 +79,9 @@ function drawPitchBase(context, width, height) {
     context.fillRect(band * bandWidth, 0, bandWidth, height);
   }
 
-  // Marcas largas e suaves de uso e variações de pigmento, sem ruído pontilhado.
-  for (let index = 0; index < 3200; index += 1) {
+  // Marcas longas e suaves de uso e variações de pigmento, sem ruído pontilhado.
+  const wearMarks = lowPower ? 800 : 3200;
+  for (let index = 0; index < wearMarks; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
     const radius = 6 + rand() * 20;
@@ -94,7 +95,8 @@ function drawPitchBase(context, width, height) {
 
   // Folhas finas em tons verdes naturais e com direção variada; translucidez
   // baixa para formar textura de relva, não manchas pretas no enquadramento alto.
-  for (let index = 0; index < 16000; index += 1) {
+  const grassStrokes = lowPower ? 4000 : 16000;
+  for (let index = 0; index < grassStrokes; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
     const length = 3 + rand() * 9;
@@ -120,13 +122,13 @@ function drawPitchBase(context, width, height) {
 }
 
 /** Desenha o gramado com as marcações oficiais de campo. */
-function drawPitch(context, width, height) {
+function drawPitch(context, width, height, lowPower = false) {
   const scale = width / PITCH.length;
   const toX = x => (x + PITCH.halfLength) * scale;
   const toZ = z => (z + PITCH.halfWidth) * scale;
   const line = LINE * scale;
 
-  drawPitchBase(context, width, height);
+  drawPitchBase(context, width, height, lowPower);
 
   // Serrilhado suave nas bordas das faixas (o look "mow stripes").
   const bands = 12;
@@ -443,7 +445,7 @@ function drawSky(context, width, height) {
 
 function buildStand(width, depth, height, texture, options = {}) {
   const group = new THREE.Group();
-  const { rotation = 0, position = [0, 0, 0], model = {} } = options;
+  const { rotation = 0, position = [0, 0, 0], model = {}, simple = false } = options;
 
   // O modelo do estádio (vem de STADIUMS[i].model): a cobertura e a
   // fachada mudam conforme a praça — cada estádio tem seu próprio bowl.
@@ -474,7 +476,7 @@ function buildStand(width, depth, height, texture, options = {}) {
   group.add(slope);
 
   // Fundo da arquibancada (com fachada texturizada quando o modelo pede).
-  const back = facadeKind
+  const back = !simple && facadeKind
     ? new THREE.Mesh(
       new THREE.BoxGeometry(width, height, 1),
       new THREE.MeshLambertMaterial({
@@ -484,6 +486,12 @@ function buildStand(width, depth, height, texture, options = {}) {
     : new THREE.Mesh(new THREE.BoxGeometry(width, height, 1), concreteMaterial);
   back.position.set(0, height / 2, -depth / 2 - 0.6);
   group.add(back);
+
+  if (simple) {
+    group.rotation.y = rotation;
+    group.position.set(position[0], position[1], position[2]);
+    return group;
+  }
 
   // Cobertura: cada modelo tem seu jeito (box, open, arch, plate).
   if (roofMode === 'box') {
@@ -660,6 +668,7 @@ function buildFloodlight(x, z) {
  */
 export function buildStadium(scene, options = {}) {
   const group = new THREE.Group();
+  const lowPower = Boolean(options.lowPower);
   scene.add(group);
 
   // Modelo do estádio: cobertura, fachada, altura e LED mudam por praça.
@@ -676,15 +685,18 @@ export function buildStadium(scene, options = {}) {
   sky.name = 'xfc-sky';
   group.add(sky);
 
-  // Gramado.
+  // Gramado. Em WebViews econômicos, a textura e as lâminas usam menos
+  // detalhe: o campo continua marcado, sem gastar CPU/GPU em pixels invisíveis.
   const pitchCanvas = document.createElement('canvas');
-  pitchCanvas.width = 2048;
-  pitchCanvas.height = 1328;
+  const pitchWidth = lowPower ? 1536 : 2048;
+  const pitchHeight = lowPower ? 996 : 1328;
+  pitchCanvas.width = pitchWidth;
+  pitchCanvas.height = pitchHeight;
   const pitchContext = pitchCanvas.getContext('2d');
-  drawPitch(pitchContext, 2048, 1328);
+  drawPitch(pitchContext, pitchWidth, pitchHeight, lowPower);
   const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
   pitchTexture.colorSpace = THREE.SRGBColorSpace;
-  pitchTexture.anisotropy = 2;
+  pitchTexture.anisotropy = lowPower ? 1 : 2;
   const pitch = new THREE.Mesh(
     new THREE.PlaneGeometry(PITCH.length, PITCH.width),
     new THREE.MeshLambertMaterial({ map: pitchTexture })
@@ -692,7 +704,7 @@ export function buildStadium(scene, options = {}) {
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
-  addGrassBlades(group);
+  addGrassBlades(group, lowPower ? 1800 : 7600);
 
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
@@ -716,12 +728,16 @@ export function buildStadium(scene, options = {}) {
     { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
   ];
   for (const option of standOptions) {
-    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, { ...option, model }));
+    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
+      ...option,
+      model,
+      simple: lowPower
+    }));
   }
 
   // Cobertura de anel (Maracanã): coroa inclinada sobre as
   // arquibancadas, sem cobrir o gramado.
-  if (model.roof === 'ring') {
+  if (!lowPower && model.roof === 'ring') {
     const ring = new THREE.Mesh(
       new THREE.CylinderGeometry(78, 66, 7, 40, 1, true),
       new THREE.MeshLambertMaterial({ color: 0xe2e0d8, side: THREE.DoubleSide })
@@ -734,7 +750,7 @@ export function buildStadium(scene, options = {}) {
 
   // Anel de mastros brancos inclinados (Mineirão): postes em volta da
   // arquibancada sustentando um cabo de anel no topo.
-  if (model.poles) {
+  if (!lowPower && model.poles) {
     const poleMaterial = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
     const radius = 64;
     const poleTop = standHeight + 9;
@@ -814,17 +830,18 @@ export function buildStadium(scene, options = {}) {
   const goals = { home: buildGoal(-1), away: buildGoal(1) };
   group.add(goals.home, goals.away);
 
-  // Bandeirinhas de escanteio.
-  for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
-    for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
-      group.add(buildCornerFlag(x, z));
+  // Bandeirinhas e refletores distantes: removidos no perfil econômico,
+  // pois quase não aparecem na câmera de jogo e somam muitas chamadas 3D.
+  if (!lowPower) {
+    for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
+      for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
+        group.add(buildCornerFlag(x, z));
+      }
     }
-  }
-
-  // Refletores.
-  for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
-    for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
-      group.add(buildFloodlight(x, z));
+    for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
+      for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
+        group.add(buildFloodlight(x, z));
+      }
     }
   }
 

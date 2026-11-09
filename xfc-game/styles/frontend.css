@@ -561,7 +561,7 @@
   right: 4.5%;
   bottom: 11.8%;
   display: grid;
-  grid-template-columns: repeat(5,minmax(0,1fr));
+  grid-template-columns: repeat(6,minmax(0,1fr));
   gap: 7px;
 }
 

@@ -132,7 +132,26 @@ export function playScreen(ctx, params = {}) {
 
   const overlay = el('div', { class: 'play__overlay' });
   const stageBox = el('div', { class: 'play__stage' }, canvas, overlay);
+  const pauseButton = el('button', {
+    class: 'play__pause-button',
+    type: 'button',
+    dataset: { pauseButton: 'true' },
+    'aria-label': 'Pausar partida',
+    'aria-hidden': 'true',
+    disabled: true,
+    onClick: () => showPause()
+  },
+    el('span', { class: 'play__pause-icon', 'aria-hidden': 'true', text: 'Ⅱ' }),
+    el('span', { class: 'play__pause-label', text: 'PAUSAR' })
+  );
+  stageBox.appendChild(pauseButton);
   const node = el('div', { class: 'screen screen--play' }, stageBox);
+
+  function setPauseButtonVisible(visible) {
+    pauseButton.classList.toggle('is-visible', visible);
+    pauseButton.disabled = !visible;
+    pauseButton.setAttribute('aria-hidden', String(!visible));
+  }
 
   // ---------------------------------------------------- pré-jogo imersivo --
 
@@ -213,6 +232,11 @@ export function playScreen(ctx, params = {}) {
   let match = null;
   let hud = null;
   let controls = null;
+  let timer = 0;
+  let initializeFrame = 0;
+  let initializeTimer = 0;
+  let initialized = false;
+  let unmounted = false;
 
   function buildMatch() {
     match = createMatch({
@@ -344,6 +368,7 @@ export function playScreen(ctx, params = {}) {
   function startMatch() {
     whistle('triple');
     stage = 'live';
+    setPauseButtonVisible(true);
     match?.world.setPaused(false);
     match?.engine.start();
     overlay.replaceChildren();
@@ -355,6 +380,7 @@ export function playScreen(ctx, params = {}) {
 
   function showHalftime(event) {
     stage = 'halftime';
+    setPauseButtonVisible(false);
     match?.world.setPaused(true);
     controls?.setEnabled(false);
     overlay.replaceChildren(el('div', { class: 'pause' },
@@ -376,6 +402,7 @@ export function playScreen(ctx, params = {}) {
         type: 'button',
         onClick: () => {
           stage = 'live';
+          setPauseButtonVisible(true);
           match?.world.setPaused(false);
           overlay.replaceChildren();
           controls?.setEnabled(true);
@@ -403,6 +430,7 @@ export function playScreen(ctx, params = {}) {
 
   function showResult(event) {
     stage = 'result';
+    setPauseButtonVisible(false);
     controls?.setEnabled(false);
     hud?.node.classList.remove('is-visible');
     applause();
@@ -489,6 +517,7 @@ export function playScreen(ctx, params = {}) {
   function showPause() {
     stage = 'paused';
     paused = true;
+    setPauseButtonVisible(false);
     match?.world.setPaused(true);
     controls?.setEnabled(false);
     const snapshot = match?.world.snapshot() || lastSnapshot;
@@ -637,6 +666,7 @@ export function playScreen(ctx, params = {}) {
   function resumeMatch() {
     stage = 'live';
     paused = false;
+    setPauseButtonVisible(true);
     match?.world.setPaused(false);
     overlay.replaceChildren();
     overlay.classList.remove('is-visible');
@@ -645,10 +675,14 @@ export function playScreen(ctx, params = {}) {
 
   // ------------------------------------------------------------- montagem --
 
-  buildMatch();
-  overlay.replaceChildren(prematchShowcase());
+  // Primeiro publica uma tela estável. A criação do contexto WebGL, do estádio
+  // e dos modelos pesa na CPU; ela acontece só depois que a tela anterior foi
+  // retirada do host e o WebView já teve oportunidade de pintar este estado.
+  overlay.replaceChildren(el('div', { class: 'play__loading' },
+    el('b', { text: 'PREPARANDO O CAMPO' }),
+    el('span', { text: 'Aguarde um instante para a partida carregar.' })
+  ));
   overlay.classList.add('is-visible');
-  hud?.node.classList.remove('is-visible');
 
   const frame = () => {
     if (!match) return;
@@ -692,10 +726,32 @@ export function playScreen(ctx, params = {}) {
       z: match.ball.state.position.z
     }, controlled);
   };
-  const timer = setInterval(frame, 120);
-
   return {
     node,
+    mount() {
+      if (initialized || unmounted) return;
+      initialized = true;
+      // Um requestAnimationFrame + uma tarefa separada deixam o fundo e a
+      // mensagem de carregamento aparecerem antes do trabalho pesado do WebGL.
+      initializeFrame = requestAnimationFrame(() => {
+        initializeTimer = setTimeout(() => {
+          if (unmounted) return;
+          try {
+            buildMatch();
+            overlay.replaceChildren(prematchShowcase());
+            hud?.node.classList.remove('is-visible');
+            timer = setInterval(frame, 120);
+          } catch (error) {
+            console.error('XFC: não foi possível preparar a partida 3D', error);
+            overlay.replaceChildren(el('div', { class: 'play__loading play__loading--error' },
+              el('b', { text: 'NÃO FOI POSSÍVEL ABRIR A PARTIDA' }),
+              el('span', { text: 'Volte ao menu e tente novamente.' }),
+              el('button', { class: 'btn btn--primary', type: 'button', onClick: () => ctx.go('menu') }, 'VOLTAR AO MENU')
+            ));
+          }
+        }, 0);
+      });
+    },
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
         if (stage === 'live') {
@@ -716,6 +772,9 @@ export function playScreen(ctx, params = {}) {
       return false;
     },
     unmount() {
+      unmounted = true;
+      cancelAnimationFrame(initializeFrame);
+      clearTimeout(initializeTimer);
       clearInterval(timer);
       dome?.dispose();
       controls?.dispose();

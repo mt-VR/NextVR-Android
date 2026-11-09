@@ -25,6 +25,35 @@
   display: block;
 }
 
+.play__pause-button {
+  position: absolute;
+  z-index: 8;
+  top: 18px;
+  right: 20px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 8px;
+  background: rgba(3, 14, 24, 0.82);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.play__pause-button.is-visible { display: flex; }
+.play__pause-button:hover { border-color: #fff; background: rgba(16, 37, 53, 0.94); }
+.play__pause-button:active { transform: scale(0.96); }
+.play__pause-icon { font-size: 19px; line-height: 1; }
+
 .play__overlay {
   position: absolute;
   inset: 0;
@@ -41,6 +70,136 @@
 
 .play__overlay > * {
   pointer-events: auto;
+}
+
+.play__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(390px, 88%);
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  background: rgba(3,15,26,.94);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 14px 38px rgba(0,0,0,.38);
+}
+.play__loading>b { color: #7ef0c6; font-size: 12px; font-weight: 900; letter-spacing: .15em; }
+.play__loading>span { color: rgba(255,255,255,.72); font-size: 11px; line-height: 1.5; }
+.play__loading--error>b { color: #ffb5b5; }
+.play__loading .btn { margin-top: 5px; }
+
+/* ---------------------- centro de treino: câmera Pro, drible e chute -- */
+
+.screen--training { background: #04101c; }
+.training__stage { background: #04101c; }
+.training__header {
+  position: absolute;
+  z-index: 12;
+  top: 15px;
+  left: 20px;
+  right: 20px;
+  display: grid;
+  grid-template-columns: auto minmax(210px, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+.training__exit,
+.training__reset {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(255,255,255,.36);
+  background: rgba(2,12,21,.82);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.training__exit:hover,
+.training__reset:hover { border-color: #fff; background: rgba(16,37,53,.94); }
+.training__title { text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+.training__eyebrow { color: #82f2cc; font-size: 8px; font-weight: 900; letter-spacing: .2em; }
+.training__title h1 { margin: 2px 0 0; font-size: 18px; font-weight: 900; letter-spacing: .08em; }
+.training__stats { display: flex; gap: 7px; }
+.training__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 57px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(2,12,21,.76);
+  color: #fff;
+}
+.training__stat b { font-size: 15px; line-height: 1.1; }
+.training__stat span { color: rgba(255,255,255,.6); font-size: 6px; font-weight: 900; letter-spacing: .12em; }
+.training__status {
+  position: absolute;
+  z-index: 11;
+  top: 89px;
+  left: 50%;
+  max-width: min(720px, 76%);
+  margin: 0;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(46,240,168,.34);
+  border-radius: 999px;
+  background: rgba(2,13,18,.78);
+  color: #eafff6;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-align: center;
+  text-shadow: 0 2px 5px #000;
+  pointer-events: none;
+}
+.training__instructions {
+  position: absolute;
+  z-index: 10;
+  top: 139px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 11px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 6px;
+  background: rgba(2,12,21,.58);
+  color: rgba(255,255,255,.73);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.training__camera-badge { color: #78eac3; }
+.training__stage .hud__scoreboard,
+.training__stage .hud__foe,
+.training__stage .hud__radar-wrap { display: none; }
+.training__stage .hud__player { bottom: 18px; left: 18px; }
+.training__stage .ctrl-btn--pass,
+.training__stage .ctrl-btn--lob,
+.training__stage .ctrl-btn--tackle,
+.training__stage .ctrl-btn--switch { display: none; }
+.training__stage .ctrl-btn--shoot { right: 18px; bottom: 204px; }
+.training__stage .ctrl-btn--dribble { right: 119px; bottom: 211px; }
+.training__stage .ctrl-btn--sprint { right: 34px; bottom: 128px; }
+
+@media (max-width: 760px) {
+  .training__header { left: 9px; right: 9px; grid-template-columns: auto 1fr auto; gap: 6px; }
+  .training__title h1 { font-size: 13px; }
+  .training__eyebrow { font-size: 6px; }
+  .training__stats { grid-column: 2 / 3; grid-row: 2; justify-content: center; }
+  .training__stat { min-width: 42px; padding: 3px 5px; }
+  .training__exit,.training__reset { min-height: 32px; padding: 0 8px; font-size: 7px; }
+  .training__status { top: 104px; max-width: 88%; font-size: 7px; }
+  .training__instructions { top: 145px; gap: 6px; max-width: 94%; font-size: 6px; }
 }
 
 /* ------------------- estádios: pré-jogo imersivo, toque na tela ---- */
@@ -200,6 +359,14 @@
 @keyframes showcase-enter {
   0%, 100% { opacity: 0.75; }
   50% { opacity: 1; box-shadow: 0 0 30px rgba(46, 240, 168, 0.3); }
+}
+
+/* No toque, a chamada não pulsa: a interface fica estável enquanto o WebGL
+   inicia a partida, sem animações de opacidade sobre a tela toda. */
+@media (pointer: coarse) {
+  .showcase__enter { animation: none; opacity: 1; }
+  .play__overlay,
+  .hud { transition: none; }
 }
 
 /* ------------------------------------------------------------------ HUD -- */

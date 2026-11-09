@@ -119,6 +119,16 @@ img {
   transform: none;
 }
 
+/* Evita criar camadas de tela cheias durante o fade/scale no WebView Android.
+   Em alguns aparelhos isso causa quadros brancos ao trocar de modo. */
+@media (pointer: coarse) {
+  .screen,
+  .screen.is-visible {
+    transform: none;
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------- barras ----- */
 
 .topbar {
