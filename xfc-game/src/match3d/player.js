@@ -729,18 +729,41 @@ export function createPlayer3D(options = {}) {
     accent,
     pattern: kit.pattern || 'solid'
   });
-  const jerseyMaterial = new THREE.MeshLambertMaterial({ map: jerseyTexture });
-  const shortsMaterial = new THREE.MeshLambertMaterial({ color: secondary });
+  // No perfil completo, reflexos discretos ajudam a ler o volume do tecido,
+  // dos shorts, da pele e das chuteiras. O celular conserva Lambert para
+  // limitar custo e manter o mesmo rig e as mesmas cores do uniforme.
+  const jerseyMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ map: jerseyTexture })
+    : new THREE.MeshPhongMaterial({ map: jerseyTexture, specular: 0x272b2d, shininess: 9 });
+  const shortsMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: secondary })
+    : new THREE.MeshPhongMaterial({ color: secondary, specular: 0x20272a, shininess: 8 });
   const shortsTrimMaterial = new THREE.MeshLambertMaterial({ color: accent });
   const socksMaterial = new THREE.MeshLambertMaterial({ color: accent });
   const sockBandMaterial = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
-  const bootMaterial = new THREE.MeshLambertMaterial({ color: 0x171b20 });
-  const soleMaterial = new THREE.MeshLambertMaterial({
-    color: accent === '#ffffff' || accent === '#fff' ? 0xe9edf0 : accent
-  });
-  const skinMaterial = new THREE.MeshLambertMaterial({ color: skinTone });
-  const hairMaterial = new THREE.MeshLambertMaterial({ color: hairColor });
-  const handMaterial = new THREE.MeshLambertMaterial({ color: isKeeper ? 0xf25c2a : skinTone });
+  const bootMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: 0x171b20 })
+    : new THREE.MeshPhongMaterial({ color: 0x171b20, specular: 0x50545a, shininess: 28 });
+  const soleMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: accent === '#ffffff' || accent === '#fff' ? 0xe9edf0 : accent })
+    : new THREE.MeshPhongMaterial({
+      color: accent === '#ffffff' || accent === '#fff' ? 0xe9edf0 : accent,
+      specular: 0x272a2c,
+      shininess: 16
+    });
+  const skinMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: skinTone })
+    : new THREE.MeshPhongMaterial({ color: skinTone, specular: 0x332820, shininess: 13 });
+  const hairMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: hairColor })
+    : new THREE.MeshPhongMaterial({ color: hairColor, specular: 0x171512, shininess: 18 });
+  const handMaterial = lowDetail
+    ? new THREE.MeshLambertMaterial({ color: isKeeper ? 0xf25c2a : skinTone })
+    : new THREE.MeshPhongMaterial({
+      color: isKeeper ? 0xf25c2a : skinTone,
+      specular: 0x332820,
+      shininess: 13
+    });
   const faceFeatureMaterial = new THREE.MeshBasicMaterial({
     map: faceTextureFor(),
     transparent: true,
@@ -1083,6 +1106,8 @@ export function createPlayer3D(options = {}) {
   let slideTimer = 0;
   let slideDuration = 0.82;
   let slideDir = 1;
+  let receiveTimer = 0;
+  let receiveDuration = 0.42;
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
@@ -1130,6 +1155,11 @@ export function createPlayer3D(options = {}) {
       slideTimer = duration;
       reactionTimer = 0;
     },
+    /** Primeiro toque de recepção: abre os braços e amortece o tronco. */
+    receive(duration = 0.42) {
+      receiveDuration = Math.max(0.16, Number(duration) || 0.42);
+      receiveTimer = receiveDuration;
+    },
     /** Queda, impacto, protesto ou caminhada de expulsão. */
     react(kind = 'fall', duration = 0.82) {
       if (kind === 'ejected') {
@@ -1145,6 +1175,11 @@ export function createPlayer3D(options = {}) {
     /** Anima a corrida: a velocidade define o balanço das pernas. */
     update(dt, { speed = 0, moving = false, lean = 0, ownsBall = false, protecting = false } = {}) {
       for (const leg of legs) leg.foot.rotation.x = 0;
+      receiveTimer = Math.max(0, receiveTimer - dt);
+      const receiveProgress = 1 - receiveTimer / receiveDuration;
+      const receiveEnvelope = receiveTimer > 0
+        ? Math.sin(Math.PI * Math.max(0, Math.min(1, receiveProgress)))
+        : 0;
       // Mergulho do goleiro: corpo para o lado, braços esticados.
       if (diveTimer > 0) {
         diveTimer = Math.max(0, diveTimer - dt);
@@ -1366,6 +1401,16 @@ export function createPlayer3D(options = {}) {
         arms[0].forearm.rotation.x = -0.56;
         arms[1].forearm.rotation.x = -0.56;
         body.rotation.x += 0.04;
+      }
+      if (receiveEnvelope > 0.01) {
+        const cushion = receiveEnvelope;
+        body.rotation.x -= cushion * 0.065;
+        arms[0].shoulder.rotation.x = -0.28 - cushion * 0.58;
+        arms[1].shoulder.rotation.x = -0.28 - cushion * 0.58;
+        arms[0].shoulder.rotation.z = 0.28;
+        arms[1].shoulder.rotation.z = -0.28;
+        arms[0].forearm.rotation.x = -0.4 - cushion * 0.18;
+        arms[1].forearm.rotation.x = -0.4 - cushion * 0.18;
       }
 
       // A cabeça acompanha a bola.

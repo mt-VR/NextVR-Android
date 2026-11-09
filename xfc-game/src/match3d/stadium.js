@@ -105,6 +105,23 @@ function drawFacade(context, width, height, kind, baseColor) {
       context.lineTo(x - height, height);
       context.stroke();
     }
+  } else if (kind === 'panels') {
+    // Revestimento de concreto com juntas largas e variação tonal suave;
+    // evita uma parede lisa sem virar faixas escuras na câmera do celular.
+    const columns = 14;
+    const columnWidth = width / columns;
+    for (let column = 0; column < columns; column += 1) {
+      context.fillStyle = column % 2 === 0
+        ? 'rgba(255,255,255,0.035)'
+        : 'rgba(0,0,0,0.025)';
+      context.fillRect(column * columnWidth, 0, columnWidth, height);
+      context.fillStyle = 'rgba(8,14,20,0.12)';
+      context.fillRect(column * columnWidth, 0, 1, height);
+    }
+    context.fillStyle = 'rgba(255,255,255,0.075)';
+    for (let row = 1; row < 7; row += 1) {
+      context.fillRect(0, (row / 7) * height, width, 1.5);
+    }
   }
 }
 
@@ -156,7 +173,7 @@ function drawPitchBase(context, width, height, lowPower = false) {
 
   // Grão fino verde, sem pixels negros/escuros de contraste alto. O detalhe é
   // deliberadamente subpixel na câmera de transmissão para evitar cintilação.
-  const grassStrokes = lowPower ? 1800 : 6200;
+  const grassStrokes = lowPower ? 3000 : 9800;
   for (let index = 0; index < grassStrokes; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
@@ -276,61 +293,62 @@ function drawCrowd(context, width, height) {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
   };
-  context.fillStyle = '#3a4c68';
+  context.fillStyle = '#25354a';
   context.fillRect(0, 0, width, height);
 
   // Muro divisor entre o anel inferior e o superior.
-  const tierSplit = 0.44;
+  const tierSplit = 0.46;
   context.fillStyle = '#202c3e';
   context.fillRect(0, height * tierSplit - 7, width, 14);
   context.fillStyle = 'rgba(255,255,255,0.16)';
   context.fillRect(0, height * tierSplit - 8, width, 2);
   context.fillRect(0, height * tierSplit + 6, width, 2);
 
-  const rows = 26;
+  const rows = 24;
   const rowHeight = height / rows;
-  const seats = 66;
+  const seats = 88;
   const seatWidth = width / seats;
+  const homeColors = ['#2872b8', '#4388c7', '#dfe9f2', '#1a426e', '#78add5'];
+  const awayColors = ['#b92d43', '#d7434b', '#e4b94d', '#eee7d9', '#713447'];
+  const skinColors = ['#f0c49c', '#d99d70', '#b77950', '#8e5e41', '#68452f'];
 
   // Setores: as duas pontas pertencem ao visitante (rubro/amarelo);
   // as laterais, ao mandante (azul/branco), com um miolo amarelo na cabeceira.
   const isAwaySection = u => u < 0.14 || (u > 0.43 && u < 0.57) || u > 0.86;
 
   for (let row = 0; row < rows; row += 1) {
-    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.22)';
-    context.fillRect(0, row * rowHeight, width, rowHeight * 0.5);
+    const rowY = row * rowHeight;
+    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.14)';
+    context.fillRect(0, rowY, width, rowHeight * 0.24);
     for (let seat = 0; seat < seats; seat += 1) {
-      if (rand() < 0.07) continue;
-      const u = seat / seats;
+      if (rand() < 0.045) continue;
+      const u = (seat + 0.5) / seats;
       const away = isAwaySection(u);
-      const hue = rand();
-      let color;
-      if (away) {
-        color = hue < 0.4
-          ? `rgba(${222 + rand() * 30},${40 + rand() * 30},${46 + rand() * 25},1)`
-          : hue < 0.72
-            ? `rgba(245,${205 + rand() * 40},${70},1)`
-            : 'rgba(240,240,240,0.95)';
-      } else {
-        color = hue < 0.46
-          ? `rgba(${45 + rand() * 40},${118 + rand() * 60},${205 + rand() * 45},1)`
-          : hue < 0.74
-            ? 'rgba(240,243,247,0.95)'
-            : hue < 0.88
-              ? `rgba(${120 + rand() * 40},${215 + rand() * 35},255,1)`
-              : `rgba(${18 + rand() * 25},${40 + rand() * 30},${80 + rand() * 40},1)`;
+      const palette = away ? awayColors : homeColors;
+      const jersey = palette[Math.floor(rand() * palette.length)];
+      const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 2.4;
+      const y = rowY + rowHeight * 0.57;
+
+      // Tronco, mangas e cabeça em camadas formam silhuetas de torcedores,
+      // em vez dos antigos pontos de cor que viravam ruído à distância.
+      context.fillStyle = 'rgba(12,19,29,0.62)';
+      context.beginPath();
+      context.ellipse(x, y + rowHeight * 0.2, seatWidth * 0.39, rowHeight * 0.24, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = jersey;
+      context.beginPath();
+      context.ellipse(x, y + rowHeight * 0.15, seatWidth * 0.34, rowHeight * 0.21, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = skinColors[Math.floor(rand() * skinColors.length)];
+      context.beginPath();
+      context.arc(x, y - rowHeight * 0.11, rowHeight * 0.14, 0, Math.PI * 2);
+      context.fill();
+
+      // Pequena variação de luz nas camisas sem manchas escuras de alto contraste.
+      if (rand() < 0.24) {
+        context.fillStyle = 'rgba(255,255,255,0.3)';
+        context.fillRect(x - seatWidth * 0.24, y + rowHeight * 0.1, seatWidth * 0.48, 1);
       }
-      context.fillStyle = color;
-      const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 4;
-      const y = row * rowHeight + rowHeight * 0.6;
-      context.beginPath();
-      context.arc(x, y, rowHeight * 0.34, 0, Math.PI * 2);
-      context.fill();
-      // Ombros: a silhueta da torcida.
-      context.fillStyle = 'rgba(18,24,34,0.6)';
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.32, rowHeight * 0.3, rowHeight * 0.24, 0, 0, Math.PI * 2);
-      context.fill();
     }
   }
 
@@ -432,44 +450,52 @@ function drawLed(context, width, height) {
   }
 }
 
-/** Placas de publicidade em volta do campo (marcas próprias do XFC). */
+/** Placas de publicidade XFC com quatro painéis legíveis em cada lateral. */
 function drawAds(context, width, height) {
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#0e3a63');
-  gradient.addColorStop(0.5, '#123a5e');
-  gradient.addColorStop(1, '#0a2740');
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
-  const slots = 6;
+  const slots = 4;
+  const cell = width / slots;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+
   for (let slot = 0; slot < slots; slot += 1) {
-    const x = (slot / slots) * width;
-    const w = width / slots;
-    if (slot % 2 === 0) {
-      // Faixa azul com a "XFC FOUNDATION" (a versão própria da fundação
-      // beneficente que aparece nos estádios de verdade).
-      context.fillStyle = '#164a7a';
-      context.fillRect(x + 3, 3, w - 6, height - 6);
-      context.fillStyle = '#ffffff';
-      context.font = `800 ${height * 0.36}px Inter, sans-serif`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText('XFC FOUNDATION', x + w / 2, height * 0.46);
-      context.fillStyle = 'rgba(255,255,255,0.7)';
-      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
-      context.fillText('FUTBOL PARA TODOS', x + w / 2, height * 0.76);
+    const x = slot * cell;
+    const isFoundation = slot % 2 === 0;
+    const gradient = context.createLinearGradient(0, 0, 0, height);
+    if (isFoundation) {
+      gradient.addColorStop(0, '#175183');
+      gradient.addColorStop(0.52, '#103d66');
+      gradient.addColorStop(1, '#0a2b49');
     } else {
-      context.fillStyle = 'rgba(46,240,168,0.9)';
-      context.font = `800 ${height * 0.4}px Inter, sans-serif`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText('XF ESPORTES', x + w / 2, height * 0.44);
-      context.fillStyle = 'rgba(255,255,255,0.75)';
-      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
-      context.fillText('XF CHAMPIONS LEAGUE', x + w / 2, height * 0.74);
+      gradient.addColorStop(0, '#087d57');
+      gradient.addColorStop(0.52, '#07583f');
+      gradient.addColorStop(1, '#073c31');
     }
-    context.strokeStyle = 'rgba(255,255,255,0.16)';
+    context.fillStyle = gradient;
+    context.fillRect(x, 0, cell, height);
+
+    // Barra de cor e pequeno monograma dão leitura de placa física, sem
+    // repetir texto comprimido ao longo de todo o campo.
+    context.fillStyle = isFoundation ? '#55d5ff' : '#42f0ab';
+    context.fillRect(x + 2, 2, cell - 4, Math.max(3, height * 0.08));
+    context.fillStyle = isFoundation ? '#ffffff' : '#dfffee';
+    context.font = `900 ${height * 0.3}px Inter, sans-serif`;
+    context.fillText(
+      isFoundation ? 'XFC FOUNDATION' : 'XF ESPORTES',
+      x + cell / 2,
+      height * 0.47,
+      cell * 0.9
+    );
+    context.fillStyle = 'rgba(255,255,255,0.78)';
+    context.font = `600 ${height * 0.17}px Inter, sans-serif`;
+    context.fillText(
+      isFoundation ? 'FUTEBOL PARA TODOS' : 'XF CHAMPIONS LEAGUE',
+      x + cell / 2,
+      height * 0.77,
+      cell * 0.9
+    );
+    context.strokeStyle = 'rgba(255,255,255,0.3)';
     context.lineWidth = 2;
-    context.strokeRect(x + 4, 4, w - 8, height - 8);
+    context.strokeRect(x + 3, 3, cell - 6, height - 6);
   }
 }
 
@@ -524,9 +550,9 @@ function buildStand(width, depth, height, texture, options = {}) {
   // fachada mudam conforme a praça — cada estádio tem seu próprio bowl.
   const roofMode = model.roof || 'box';
   const facadeColor = model.facade ?? 0x2c3a48;
-  const facadeKind = model.facadeTex || null;
+  const facadeMaterial = options.facadeMaterial || null;
 
-  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x3d5273 });
+  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
   const concreteMaterial = new THREE.MeshLambertMaterial({ color: facadeColor });
   const roofMaterial = new THREE.MeshLambertMaterial({
     color: roofMode === 'arch' ? 0xf4f4f2 : 0x16212c
@@ -548,16 +574,17 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.rotation.x = angle;
   group.add(slope);
 
-  // Fundo da arquibancada (com fachada texturizada quando o modelo pede).
-  const back = !simple && facadeKind
-    ? new THREE.Mesh(
-      new THREE.BoxGeometry(width, height, 1),
-      new THREE.MeshLambertMaterial({
-        map: canvasTexture(256, 128, (context, w, h) => drawFacade(context, w, h, facadeKind, '#2c3a48')),
-        emissive: 0x1a2430
-      }))
-    : new THREE.Mesh(new THREE.BoxGeometry(width, height, 1), concreteMaterial);
-  back.position.set(0, height / 2, -depth / 2 - 0.6);
+  // Fundo da arquibancada. No celular, um atlas pequeno com nervuras mantém
+  // leitura arquitetônica sem adicionar malhas ou custo de iluminação.
+  const backMaterials = facadeMaterial
+    ? [concreteMaterial, concreteMaterial, concreteMaterial, concreteMaterial,
+      facadeMaterial, concreteMaterial]
+    : concreteMaterial;
+  // A platibanda não deve atravessar a arquibancada inteira: isso virava uma
+  // parede maciça acima da torcida na câmera baixa do treino.
+  const backHeight = Math.max(wallHeight + 0.4, height * 0.18);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(width, backHeight, 1), backMaterials);
+  back.position.set(0, backHeight / 2, -depth / 2 - 0.6);
   group.add(back);
 
   if (simple) {
@@ -856,10 +883,16 @@ export function buildStadium(scene, options = {}) {
   group.add(surround);
 
   // Arquibancadas.
-  const crowdTexture = canvasTexture(512, 512, drawCrowd);
+  const crowdTexture = canvasTexture(1024, 512, drawCrowd);
   crowdTexture.wrapS = THREE.RepeatWrapping;
   crowdTexture.wrapT = THREE.RepeatWrapping;
-  crowdTexture.repeat.set(4, 1.4);
+  crowdTexture.repeat.set(3.2, 1.15);
+  const facadeBase = `#${new THREE.Color(model.facade ?? 0x2c3a48).getHexString()}`;
+  const facadeMaterial = new THREE.MeshLambertMaterial({
+    map: canvasTexture(512, 256, (context, width, height) =>
+      drawFacade(context, width, height, model.facadeTex || 'panels', facadeBase)),
+    emissive: 0x080d13
+  });
 
   const standOptions = [
     { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
@@ -871,7 +904,8 @@ export function buildStadium(scene, options = {}) {
     group.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
       ...option,
       model,
-      simple: lowPower
+      simple: lowPower,
+      facadeMaterial
     }));
   }
 
@@ -915,10 +949,8 @@ export function buildStadium(scene, options = {}) {
   }
 
   // Placas de publicidade.
-  const adTexture = canvasTexture(1024, 96, drawAds);
-  adTexture.wrapS = THREE.RepeatWrapping;
-  adTexture.repeat.set(6, 1);
-  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x35543f });
+  const adTexture = canvasTexture(1024, 128, drawAds);
+  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x07140d });
   const adHeight = 1.1;
   const ads = [
     { size: [PITCH.length, adHeight], position: [0, adHeight / 2, -(PITCH.halfWidth + 1.9)] },
@@ -936,7 +968,7 @@ export function buildStadium(scene, options = {}) {
 
   // Faixa azul da XFC aplicada na face do muro das arquibancadas.
   const bannerTexture = canvasTexture(2048, 200, drawBanner);
-  const bannerMaterial = new THREE.MeshLambertMaterial({ map: bannerTexture, emissive: 0x0e2a42 });
+  const bannerMaterial = new THREE.MeshLambertMaterial({ map: bannerTexture, emissive: 0x071722 });
   // Letreiro de LED correndo no topo do muro.
   const ledTexture = canvasTexture(2048, 64, drawLed);
   ledTexture.wrapS = THREE.RepeatWrapping;
@@ -1003,8 +1035,10 @@ export function buildStadium(scene, options = {}) {
   key.shadow.camera.bottom = -60;
   key.shadow.camera.near = 10;
   key.shadow.camera.far = 220;
-  key.shadow.bias = -0.00045;
-  key.shadow.normalBias = 0.6;
+  // Viés moderado: um deslocamento grande destaca a sombra do gramado e
+  // cria manchas escuras soltas perto dos atletas.
+  key.shadow.bias = -0.00018;
+  key.shadow.normalBias = 0.04;
   group.add(key);
   const fill = new THREE.DirectionalLight(lighting.fillColor, lighting.fillIntensity);
   fill.position.set(48, 46, -42);

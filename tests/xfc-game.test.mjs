@@ -11,7 +11,12 @@ import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, 
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
 import { createPlayer3D } from '../xfc-game/src/match3d/player.js';
 import { applyBallAirForces, curveSpinRate } from '../xfc-game/src/match3d/physics.js';
-import { broadcastCameraPose, cornerCameraPose, worldMovementFromStick } from '../xfc-game/src/match3d/camera.js';
+import {
+  broadcastCameraPose,
+  cameraRelativeMovementFromStick,
+  cornerCameraPose,
+  worldMovementFromStick
+} from '../xfc-game/src/match3d/camera.js';
 import { predictGoalkeeperIntercept } from '../xfc-game/src/match3d/goalkeeper.js';
 import { predictTrajectory } from '../xfc-game/src/match3d/set-pieces.js';
 import { lightingProfileFor } from '../xfc-game/src/match3d/stadium.js';
@@ -156,6 +161,11 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       assert.equal(model.root.userData.modelId, 'xfc-footballer-v2');
       assert.equal(model.root.userData.rigVersion, 2);
       assert.equal(model.root.userData.detailLevel, index < 2 ? 'mobile' : 'full');
+      const shirtMaterial = model.root.getObjectByName('xfc-player-torso').material;
+      assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index < 2,
+        'o perfil móvel mantém tecido econômico e o completo usa reflexo de tecido');
+      assert.equal(Boolean(shirtMaterial.isMeshPhongMaterial), index >= 2,
+        'o material do uniforme mantém a paleta do kit com volume no perfil completo');
       assert.equal(model.legs.length, 2, 'o atleta tem duas pernas articuladas');
       assert.equal(model.arms.length, 2, 'o atleta tem dois braços articulados');
       const names = new Set();
@@ -207,6 +217,11 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
     models[0].celebrate(0.02, 'fist-pump');
     models[0].update(0.03);
     models[0].update(1 / 60, { moving: true, ownsBall: true, speed: 1 });
+    models[1].receive();
+    models[1].update(0.12, { moving: true, speed: 1 });
+    assert.ok(models[1].arms[0].shoulder.rotation.x < -0.55
+      && models[1].arms[1].shoulder.rotation.x < -0.55,
+    'o primeiro toque de recepção amortece o corpo e abre os braços');
     models[2].kick('shot');
     models[2].update(0.1, { speed: 2, moving: true });
     assert.ok(models[2].legs[0].hip.rotation.x < 0,
@@ -280,11 +295,25 @@ test('previsão do goleiro e linha de bola parada seguem a mesma física curva',
   'a prévia do escanteio mostra a curva real, não uma parábola decorativa');
 });
 
-test('câmera fixa conserva o referencial vertical do analógico e enquadra o escanteio', () => {
+test('o treino move pelo referencial da câmera sem mudar o analógico da transmissão', () => {
+  const training = (x, z, forwardX = 1, forwardZ = 0) =>
+    cameraRelativeMovementFromStick(x, z, forwardX, forwardZ);
+  assert.deepEqual(training(0, 1), { x: 1, z: 0 },
+    'cima avança na direção da câmera Pro');
+  assert.deepEqual(training(0, -1), { x: -1, z: 0 },
+    'baixo recua na direção oposta da câmera Pro');
+  assert.deepEqual(training(1, 0), { x: 0, z: 1 },
+    'direita acompanha a direita da tela');
+  assert.deepEqual(training(-1, 0), { x: 0, z: -1 },
+    'esquerda acompanha a esquerda da tela');
+  assert.deepEqual(training(1, 1), { x: 1, z: 1 },
+    'a diagonal combina avanço e direita sem enviesar o movimento');
+  assert.deepEqual(training(0, 1, 0, -1), { x: 0, z: -1 },
+    'o eixo de movimento acompanha câmeras Pro com outro yaw');
   assert.deepEqual(worldMovementFromStick(0, 1), { x: 0, z: -1 },
-    'cima no stick continua avançando para o mesmo lado do gramado');
+    'o referencial fixo das partidas não muda');
   assert.deepEqual(worldMovementFromStick(0, -1), { x: 0, z: 1 },
-    'baixo no stick continua recuando para o mesmo lado do gramado');
+    'baixo continua recuando no campo nas partidas comuns');
   const nearCamera = broadcastCameraPose({ x: 0, y: 0.11, z: 22 });
   const farCamera = broadcastCameraPose({ x: 0, y: 0.11, z: -22 });
   assert.ok(nearCamera.position.z > 0 && farCamera.position.z > 0,
@@ -1545,25 +1574,40 @@ test('Centro de Treino: câmera Pro, um atacante, goleiro e prática de drible/c
     const movement = await page.evaluate(() => {
       const match = window.__xfcTrainingMatch;
       const player = match.controlled.home;
-      const startZ = player.z;
+      const startX = player.x;
       const startYaw = match.engine.camera.rotation.y;
-      const startFacingZ = player.facing.z;
       match.world.input.moveZ = 1;
       for (let frame = 0; frame < 8; frame += 1) match.world.tick(0.05);
+      const forwardMoved = player.x > startX + 0.05;
+      const burstAfterForward = player.burst;
+
+      // A direita da tela deve continuar sendo direita mesmo depois de avançar.
+      const startZ = player.z;
+      player.vx = player.vz = 0;
+      player.facingAngle = Math.PI / 2;
+      player.facing.set(1, 0, 0);
+      player.root.rotation.y = player.facingAngle;
       match.world.input.moveZ = 0;
+      match.world.input.moveX = 1;
+      for (let frame = 0; frame < 8; frame += 1) match.world.tick(0.05);
+      const rightMoved = player.z > startZ + 0.05;
+      const turned = player.facing.z > 0.2;
+      match.world.input.moveX = 0;
       const yawChange = Math.atan2(
         Math.sin(match.engine.camera.rotation.y - startYaw),
         Math.cos(match.engine.camera.rotation.y - startYaw)
       );
       return {
-        burst: player.burst,
-        moved: player.z < startZ - 0.05,
-        turned: Math.abs(player.facing.z - startFacingZ) > 0.2,
+        burst: burstAfterForward,
+        forwardMoved,
+        rightMoved,
+        turned,
         cameraYawChange: yawChange
       };
     });
     assert.ok(movement.burst > 0, 'DRIBLE ativa a arrancada');
-    assert.equal(movement.moved, true, 'o analógico move o jogador controlável');
+    assert.equal(movement.forwardMoved, true, 'cima no analógico avança na direção do gol');
+    assert.equal(movement.rightMoved, true, 'direita no analógico acompanha a tela');
     assert.equal(movement.turned, true, 'o jogador pode virar quando o analógico muda de direção');
     assert.ok(Math.abs(movement.cameraYawChange) < 0.01,
       'o analógico move o atleta sem girar a câmera Pro');

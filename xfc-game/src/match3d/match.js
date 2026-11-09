@@ -12,7 +12,13 @@ import { createPlayer3D, lookFor } from './player.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
-import { BROADCAST_CAMERA_SIDE, broadcastCameraPose, cornerCameraPose, worldMovementFromStick } from './camera.js';
+import {
+  BROADCAST_CAMERA_SIDE,
+  broadcastCameraPose,
+  cameraRelativeMovementFromStick,
+  cornerCameraPose,
+  worldMovementFromStick
+} from './camera.js';
 import { attackSign, insidePenaltyAreaFor, ownGoalX as ownGoalXOf } from './sides.js';
 import {
   goalkeeperDiveDirection,
@@ -1930,7 +1936,7 @@ export function createMatch(options = {}) {
     player.z = 0;
     player.facingAngle = Math.PI / 2;
     player.facing.set(1, 0, 0);
-    // A câmera Pro mantém esse eixo de orientação; o analógico só muda o atleta.
+    // O eixo da câmera Pro define avanço/direita do analógico em todo o treino.
     training.cameraForward = { x: player.facing.x, z: player.facing.z };
     player.root.rotation.y = player.facingAngle;
     player.root.position.set(player.x, 0, player.z);
@@ -1976,34 +1982,52 @@ export function createMatch(options = {}) {
     const player = training.player;
     if (!player) return;
     const camera = engine.camera;
-    const sign = attackSign('home');
-    const cameraForward = training.cameraForward || { x: sign, z: 0 };
+    const cameraForward = training.cameraForward || { x: 1, z: 0 };
     const facingLength = Math.hypot(cameraForward.x, cameraForward.z) || 1;
     const forwardX = cameraForward.x / facingLength;
     const forwardZ = cameraForward.z / facingLength;
-    // A câmera acompanha o atleta, mas mantém o yaw inicial da câmera Pro.
-    const desiredX = player.x - forwardX * 8;
-    const desiredY = 4.55;
-    const desiredZ = player.z - forwardZ * 8;
-    const targetY = 1.15;
+    const rightX = -forwardZ;
+    const rightZ = forwardX;
+    const speed = playerSpeed(player);
+    const cameraDistance = 9.2 + Math.min(1.2, speed * 0.1);
+    const desiredX = player.x - forwardX * cameraDistance;
+    const desiredY = 4.7 + Math.min(0.3, speed * 0.035);
+    const desiredZ = player.z - forwardZ * cameraDistance;
+
+    // Mantém o atacante no terço inferior e desloca o olhar apenas um pouco
+    // para a bola, para enquadrar o lance sem deixar a câmera girar junto com
+    // os comandos do analógico.
+    const ballDx = ball.state.position.x - player.x;
+    const ballDz = ball.state.position.z - player.z;
+    const ballAhead = ballDx * forwardX + ballDz * forwardZ;
+    const ballLateral = ballDx * rightX + ballDz * rightZ;
+    const lead = Math.max(7.5, Math.min(13, 8.8 + ballAhead * 0.2));
+    const lateral = Math.max(-1.4, Math.min(1.4, ballLateral * 0.12));
+    const targetX = player.x + forwardX * lead + rightX * lateral;
+    const targetY = 1.2 + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
+    const targetZ = player.z + forwardZ * lead + rightZ * lateral;
+    const targetFov = training.shotActive ? 56 : 52;
+
     if (!trainingCameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
-      camera.fov = 55;
+      cameraTarget.set(targetX, targetY, targetZ);
+      camera.fov = targetFov;
       camera.updateProjectionMatrix();
       trainingCameraReady = true;
     } else {
-      const smoothing = 1 - Math.pow(0.002, dt);
-      camera.position.x += (desiredX - camera.position.x) * smoothing;
-      camera.position.y += (desiredY - camera.position.y) * smoothing;
-      camera.position.z += (desiredZ - camera.position.z) * smoothing;
+      const positionBlend = 1 - Math.exp(-dt * 5.2);
+      const focusBlend = 1 - Math.exp(-dt * 5.8);
+      camera.position.x += (desiredX - camera.position.x) * positionBlend;
+      camera.position.y += (desiredY - camera.position.y) * positionBlend;
+      camera.position.z += (desiredZ - camera.position.z) * positionBlend;
+      cameraTarget.x += (targetX - cameraTarget.x) * focusBlend;
+      cameraTarget.y += (targetY - cameraTarget.y) * focusBlend;
+      cameraTarget.z += (targetZ - cameraTarget.z) * focusBlend;
+      const fovBlend = 1 - Math.exp(-dt * 3.2);
+      camera.fov += (targetFov - camera.fov) * fovBlend;
+      if (Math.abs(camera.fov - targetFov) > 0.02) camera.updateProjectionMatrix();
     }
-    // O alvo é derivado da posição atual da câmera, não do analógico; assim o
-    // smoothing acompanha o jogador sem produzir uma guinada transitória.
-    camera.lookAt(
-      camera.position.x + forwardX * 16,
-      targetY,
-      camera.position.z + forwardZ * 16
-    );
+    camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   }
 
   function finishTrainingAttempt(result) {
@@ -2074,6 +2098,7 @@ export function createMatch(options = {}) {
       && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 8) {
       ball.attachTo(player);
       ball.state.lastTouch = player;
+      player.model.receive?.();
     }
 
     if (training.shotActive) {
@@ -2320,9 +2345,16 @@ export function createMatch(options = {}) {
     const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      const { x: worldDx, z: worldDz } = worldMovementFromStick(input.moveX, input.moveZ);
-      const targetX = player.x + worldDx * 6;
-      const targetZ = player.z + worldDz * 6;
+      const movement = training.enabled
+        ? cameraRelativeMovementFromStick(
+          input.moveX,
+          input.moveZ,
+          training.cameraForward?.x ?? 1,
+          training.cameraForward?.z ?? 0
+        )
+        : worldMovementFromStick(input.moveX, input.moveZ);
+      const targetX = player.x + movement.x * 6;
+      const targetZ = player.z + movement.z * 6;
       steerPlayer(player, targetX, targetZ, dt, speed * Math.min(1, magnitude), { arrive: 0.2, turn: 10 });
     } else {
       const damping = Math.exp(-dt * 8.5);
@@ -2372,6 +2404,7 @@ export function createMatch(options = {}) {
       if (last && last !== best && last.side === best.side) stats[best.side].passesOn += 1;
       ball.attachTo(best);
       ball.state.lastTouch = best;
+      best.model.receive?.();
       if (best.side === userSide) controlled[userSide] = best;
     }
   }
