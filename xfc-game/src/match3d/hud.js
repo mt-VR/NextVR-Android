@@ -33,7 +33,7 @@ function teamMark(team) {
   );
 }
 
-export function createHud({ root, home, away }) {
+export function createHud({ root, home, away, userSide = 'home', onSetPieceChange = () => {} }) {
   const homeCrest = teamMark(home);
   const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
@@ -132,6 +132,87 @@ export function createHud({ root, home, away }) {
   const feed = el('div', { class: 'hud__feed' });
   const banner = el('div', { class: 'hud__banner' });
 
+  const setPieceState = { aim: 0, power: 0.72, curve: 0, kind: 'placed' };
+  const setPieceTitle = el('b', { class: 'hud__setpiece-title', text: 'BOLA PARADA' });
+  const setPieceChanceLabel = el('span', { class: 'hud__setpiece-chance-label', text: 'CHANCE DE GOL' });
+  const setPieceChance = el('b', { class: 'hud__setpiece-chance', text: '—%' });
+  const setPiecePrecision = el('b', { class: 'hud__setpiece-precision', text: '—%' });
+  const setPiecePrecisionBar = el('i', { class: 'hud__setpiece-precision-fill' });
+  const setPieceDistance = el('span', { class: 'hud__setpiece-distance', text: '— m' });
+  const setPieceWall = el('span', { class: 'hud__setpiece-wall', text: '' });
+  const setPieceAimValue = el('b', { text: 'CENTRO' });
+  const setPiecePowerValue = el('b', { text: '72%' });
+  const setPieceCurveValue = el('b', { text: '0°' });
+  const setPieceAim = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--aim',
+    type: 'range', min: '-100', max: '100', step: '1', value: '0',
+    'aria-label': 'Direção da cobrança',
+    onInput: event => {
+      setPieceState.aim = Number(event.currentTarget.value) / 100;
+      setPieceAimValue.textContent = setPieceState.aim === 0
+        ? 'CENTRO' : setPieceState.aim < 0 ? 'ESQUERDA' : 'DIREITA';
+      onSetPieceChange({ ...setPieceState });
+    }
+  });
+  const setPiecePower = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--power',
+    type: 'range', min: '30', max: '100', step: '1', value: '72',
+    'aria-label': 'Força da cobrança',
+    onInput: event => {
+      setPieceState.power = Number(event.currentTarget.value) / 100;
+      setPiecePowerValue.textContent = `${event.currentTarget.value}%`;
+      onSetPieceChange({ ...setPieceState });
+    }
+  });
+  const setPieceCurve = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--curve',
+    type: 'range', min: '-100', max: '100', step: '1', value: '0',
+    'aria-label': 'Curva da bola',
+    onInput: event => {
+      setPieceState.curve = Number(event.currentTarget.value) / 100;
+      setPieceCurveValue.textContent = `${Math.round(Math.abs(setPieceState.curve) * 100)}% ${setPieceState.curve < 0 ? '←' : setPieceState.curve > 0 ? '→' : '—'}`;
+      onSetPieceChange({ ...setPieceState });
+    }
+  });
+  const setPieceKinds = ['placed', 'power', 'curved'].map((kind, index) => el('button', {
+    class: `hud__setpiece-kind${kind === 'placed' ? ' is-selected' : ''}`,
+    type: 'button',
+    dataset: { kind },
+    'aria-pressed': kind === 'placed' ? 'true' : 'false',
+    onClick: () => {
+      setPieceState.kind = kind;
+      for (const button of setPieceKinds) {
+        const selected = button.dataset.kind === kind;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      }
+      onSetPieceChange({ ...setPieceState });
+    }
+  }, ['COLOCADA', 'FORTE', 'CURVADA'][index]));
+  const setPiecePanel = el('section', { class: 'hud__setpiece', 'aria-label': 'Ajustes de bola parada' },
+    el('div', { class: 'hud__setpiece-head' },
+      el('div', { class: 'hud__setpiece-heading' },
+        el('span', { text: 'XFC · SET PIECE' }),
+        setPieceTitle
+      ),
+      el('div', { class: 'hud__setpiece-chance-box' }, setPieceChanceLabel, setPieceChance)
+    ),
+    el('div', { class: 'hud__setpiece-meta' }, setPieceDistance, setPieceWall),
+    el('div', { class: 'hud__setpiece-precision-row' },
+      el('span', { text: 'PRECISÃO' }),
+      el('span', { class: 'hud__setpiece-precision-meter' }, setPiecePrecisionBar),
+      setPiecePrecision
+    ),
+    el('div', { class: 'hud__setpiece-kinds', role: 'group', 'aria-label': 'Técnica de cobrança' }, setPieceKinds),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'MIRA' }), setPieceAim, setPieceAimValue),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'FORÇA' }), setPiecePower, setPiecePowerValue),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'CURVA' }), setPieceCurve, setPieceCurveValue),
+    el('small', { class: 'hud__setpiece-hint', text: 'Ajuste a trajetória; CHUTE confirma a cobrança.' })
+  );
+
   const node = el('div', { class: 'hud' },
     scoreboard,
     playerChip,
@@ -140,7 +221,8 @@ export function createHud({ root, home, away }) {
     nameTagsLayer,
     feed,
     radar,
-    banner
+    banner,
+    setPiecePanel
   );
   root.appendChild(node);
 
@@ -282,6 +364,40 @@ export function createHud({ root, home, away }) {
       homeRedCards.textContent = String(cards.home?.red ?? 0);
       awayYellowCards.textContent = String(cards.away?.yellow ?? 0);
       awayRedCards.textContent = String(cards.away?.red ?? 0);
+
+      const restart = snapshot.restart;
+      const analysis = restart?.analysis;
+      const setPieceVisible = Boolean(restart?.ready && restart.side === userSide && analysis
+        && ['freekick', 'penalty', 'corner'].includes(restart.type));
+      setPiecePanel.classList.toggle('is-visible', setPieceVisible);
+      if (setPieceVisible) {
+        const title = restart.type === 'freekick' ? 'FALTA DIRETA'
+          : restart.type === 'penalty' ? 'PÊNALTI' : 'ESCANTEIO';
+        setPieceTitle.textContent = title;
+        setPieceChanceLabel.textContent = analysis.label || 'CHANCE DE GOL';
+        setPieceChance.textContent = `${analysis.chancePercent}%`;
+        setPieceDistance.textContent = `${Number(analysis.distance).toFixed(1)} m${restart.type === 'corner' ? ' · ÁREA' : ` · ${Math.round(analysis.angleDegrees || 0)}°`}`;
+        setPieceWall.textContent = restart.type === 'freekick' ? `BARREIRA ${analysis.wallCount ?? 0}` : '';
+        setPiecePrecision.textContent = `${analysis.precisionPercent}%`;
+        setPiecePrecisionBar.style.width = `${analysis.precisionPercent}%`;
+        setPieceState.aim = analysis.aim ?? 0;
+        setPieceState.power = analysis.power ?? 0.72;
+        setPieceState.curve = analysis.curve ?? 0;
+        setPieceState.kind = analysis.kind || 'placed';
+        if (document.activeElement !== setPieceAim) setPieceAim.value = String(Math.round(setPieceState.aim * 100));
+        if (document.activeElement !== setPiecePower) setPiecePower.value = String(Math.round(setPieceState.power * 100));
+        if (document.activeElement !== setPieceCurve) setPieceCurve.value = String(Math.round(setPieceState.curve * 100));
+        setPieceAimValue.textContent = setPieceState.aim === 0
+          ? 'CENTRO' : setPieceState.aim < 0 ? 'ESQUERDA' : 'DIREITA';
+        setPiecePowerValue.textContent = `${Math.round(setPieceState.power * 100)}%`;
+        setPieceCurveValue.textContent = `${Math.round(Math.abs(setPieceState.curve) * 100)}% ${setPieceState.curve < 0 ? '←' : setPieceState.curve > 0 ? '→' : '—'}`;
+        for (const button of setPieceKinds) {
+          const selected = button.dataset.kind === setPieceState.kind;
+          button.classList.toggle('is-selected', selected);
+          button.setAttribute('aria-pressed', String(selected));
+        }
+      }
+
       const player = controlled?.player || null;
       const goalScorer = snapshot.phase === 'goal' ? snapshot.scorer : null;
       const focusPlayer = goalScorer || player;

@@ -58,6 +58,9 @@ export function createBall(scene) {
     // Evita que o mesmo jogador "mate" o chute em vários quadros seguidos.
     lastCollision: null,
     lastCollisionAt: -1,
+    // Identifica cada passe/chute para que o goleiro não repita o mergulho
+    // várias vezes durante a mesma trajetória.
+    flightId: 0,
     guidance: null
   };
 
@@ -77,6 +80,7 @@ export function createBall(scene) {
     reset,
     /** Chute: aplica velocidade e um pouco de efeito. */
     kick(direction, power = 18, lift = 0.18, { guide = null } = {}) {
+      state.flightId += 1;
       state.velocity.set(
         direction.x * power,
         power * lift,
@@ -177,7 +181,8 @@ export function createBall(scene) {
         const dz = position.z - player.root.position.z;
         const distance = Math.hypot(dx, dz);
         const reach = (player.reach || 0.52) + BALL.radius;
-        if (distance < reach && position.y < 1.8) {
+        const reachHeight = player.reachHeight || 1.8;
+        if (distance < reach && position.y < reachHeight) {
           const nx = distance > 0.001 ? dx / distance : 1;
           const nz = distance > 0.001 ? dz / distance : 0;
           const push = reach - distance;

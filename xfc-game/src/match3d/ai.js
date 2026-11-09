@@ -4,13 +4,20 @@
 // futebol simples: quem está com a bola decide (chuta, passa ou dribla), o
 // mais próximo busca a bola, os companions acompanham e a defesa marca.
 
-import { PITCH, GOAL, FORMATION_433 } from './constants.js';
-import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
+import { PITCH, FORMATION_433 } from './constants.js';
+import { steerPlayer, faceTowards, faceVelocity } from './movement.js';
 import { attackSign as attackSignOf, ownGoalX as ownGoalXOf, attackedGoalX } from './sides.js';
+import {
+  goalkeeperDiveDirection,
+  goalkeeperPositionTarget,
+  predictGoalkeeperIntercept
+} from './goalkeeper.js';
 
 const RUN_SPEED = 6.3;
 const SPRINT_SPEED = 8.1;
 const CHASE_SPEED = 7.4;
+const KEEPER_POSITION_SPEED = 5.8;
+const KEEPER_REACTION_SPEED = 7.2;
 
 export function createTeamAI({ side, world }) {
   const attackSign = attackSignOf(side);
@@ -257,40 +264,33 @@ export function createTeamAI({ side, world }) {
       let speed = player.sprint ? SPRINT_SPEED : RUN_SPEED;
 
       if (player.isGK) {
-        // O goleiro fica na linha entre a bola e o gol.
         const inBox = Math.abs(ball.position.x - myGoal) < 17 && Math.abs(ball.position.z) < 22;
-        targetX = myGoal + attackSign * 1.6;
-        targetZ = Math.max(-6.5, Math.min(6.5, ball.position.z * 0.32));
-        const shotSpeed = Math.hypot(ball.velocity.x, ball.velocity.z);
-        const towardsMyGoal = (myGoal - ball.position.x) * ball.velocity.x > 0;
-        player.gkDiveCd = Math.max(0, (player.gkDiveCd ?? 0) - dt);
-        if (shotSpeed > 9 && towardsMyGoal) {
-          // Mergulho para cortar o chute — o alcance do goleiro é limitado,
-          // então os chutes nos cantos saem.
-          const travel = Math.abs(ball.position.x - myGoal) / Math.max(6, Math.abs(ball.velocity.x));
-          const predictedX = ball.position.x + ball.velocity.x * travel * 0.45;
-          const predictedZ = ball.position.z + ball.velocity.z * travel * 0.45;
-          const reach = 3.1;
-          const fieldOffset = Math.max(1.15, Math.min(6, (predictedX - myGoal) * attackSign));
-          // O goleiro acompanha a trajetória, mas permanece sempre à frente da
-          // linha de gol — nunca corre para dentro da rede.
-          targetX = myGoal + attackSign * fieldOffset;
-          targetZ = player.z + Math.max(-reach, Math.min(reach, predictedZ - player.z));
-          speed = CHASE_SPEED * 1.35;
-          // Precisa se esticar: toca a defesa (animação de mergulho).
-          if (shotSpeed > 12.5 && Math.abs(predictedZ - player.z) > 1.05 && player.gkDiveCd === 0 && world.diveKeeper) {
-            world.diveKeeper(player, Math.sign(predictedZ - player.z) || 1);
-            player.gkDiveCd = 0.9;
+        const prediction = owner ? null : predictGoalkeeperIntercept(ball, myGoal);
+        const baseTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign);
+        targetX = baseTarget.x;
+        targetZ = baseTarget.z;
+        speed = KEEPER_POSITION_SPEED;
+
+        if (prediction?.onTarget) {
+          // O goleiro lê o ponto real de cruzamento (altura, curva e quique),
+          // mas sempre se desloca com aceleração — nunca teleporta para a bola.
+          const saveTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign, prediction);
+          targetX = saveTarget.x;
+          targetZ = saveTarget.z;
+          speed = KEEPER_REACTION_SPEED;
+          const flightId = ball.flightId ?? 0;
+          const diveDirection = goalkeeperDiveDirection(player, prediction, flightId);
+          if (diveDirection && world.diveKeeper) {
+            world.diveKeeper(player, diveDirection, flightId);
           }
-        } else if (inBox && chaserDistance < 90) {
-          const fieldOffset = Math.max(1.15, Math.min(6, (ball.position.x - myGoal) * attackSign));
-          targetX = myGoal + attackSign * fieldOffset;
-          targetZ = Math.max(-7, Math.min(7, ball.position.z));
+        } else if (!owner && inBox && player === chaser
+          && ball.position.y < 1.7
+          && Math.hypot(ball.position.x - player.x, ball.position.z - player.z) < 7.5) {
+          // Só sai da linha para recolher uma bola solta quando é o defensor
+          // mais bem colocado; não larga o gol para disputar uma bola distante.
+          targetX = ball.position.x + ball.velocity.x * 0.16;
+          targetZ = ball.position.z + ball.velocity.z * 0.16;
           speed = CHASE_SPEED;
-        }
-        if (world.ball.state.owner === player) {
-          if (!faceVelocity(player, dt, 10)) faceTowards(player, attackSign > 0 ? PITCH.halfLength : -PITCH.halfLength, 0, dt, 6);
-          continue;
         }
       } else if (player === chaser && !owner) {
         // Persegue a bola com uma pequena antecipação.

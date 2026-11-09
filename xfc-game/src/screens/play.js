@@ -251,7 +251,13 @@ export function playScreen(ctx, params = {}) {
       onEvent: handleEvent,
       stadium: stadiumIndex
     });
-    hud = createHud({ root: stageBox, home, away });
+    hud = createHud({
+      root: stageBox,
+      home,
+      away,
+      userSide,
+      onSetPieceChange: options => match?.world.setPieceOptions(options)
+    });
     controls = createControls({
       root: stageBox,
       onCommand: (name, payload) => {
@@ -345,6 +351,7 @@ export function playScreen(ctx, params = {}) {
         break;
       }
       case 'foul': {
+        whistle(event.card === 'red' ? 'double' : 'short');
         const names = {
           slide: 'carrinho',
           challenge: 'entrada',

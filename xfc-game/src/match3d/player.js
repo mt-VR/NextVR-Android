@@ -171,6 +171,7 @@ function createSimplePlayer3D(options = {}) {
   let diveTimer = 0;
   let diveDir = 1;
   let cardTimer = 0;
+  let cardPrepTimer = 0;
   let slideTimer = 0;
   let slideDuration = 0.82;
   let slideDir = 1;
@@ -182,8 +183,15 @@ function createSimplePlayer3D(options = {}) {
     root, body, head, legs, arms,
     celebrate(duration = 2.6) { celebrateTimer = duration; },
     signal(duration = 1.1) { signalTimer = duration; },
+    prepareCard(duration = 0.58) {
+      signalTimer = 0;
+      cardTimer = 0;
+      cardMesh.visible = false;
+      cardPrepTimer = duration;
+    },
     showCard(color = 'yellow', duration = 1.7) {
       signalTimer = 0;
+      cardPrepTimer = 0;
       cardTimer = duration;
       cardMesh.visible = true;
       cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
@@ -216,6 +224,20 @@ function createSimplePlayer3D(options = {}) {
         arms[diveDir > 0 ? 0 : 1].shoulder.rotation.x = -1.1;
         legs[0].hip.rotation.x = 0.32 + arc * 0.25;
         legs[1].hip.rotation.x = -0.24 - arc * 0.2;
+        return;
+      }
+      if (cardPrepTimer > 0) {
+        cardPrepTimer = Math.max(0, cardPrepTimer - dt);
+        const reach = 1 - cardPrepTimer / 0.58;
+        arms[1].shoulder.rotation.x = -0.2 - reach * 0.55;
+        arms[1].shoulder.rotation.z = -0.22;
+        arms[1].forearm.rotation.x = -0.32 - reach * 0.42;
+        arms[0].shoulder.rotation.x = -0.18;
+        arms[0].forearm.rotation.x = 0.12;
+        body.position.y = 0;
+        body.rotation.x = 0.035;
+        body.rotation.z = 0;
+        head.rotation.x = 0.08;
         return;
       }
       if (cardTimer > 0) {
@@ -267,6 +289,18 @@ function createSimplePlayer3D(options = {}) {
         body.position.y = reactionKind === 'fall' ? 0.02 + pulse * 0.12 : pulse * 0.04;
         body.rotation.x = reactionKind === 'fall' ? 0.58 * pulse : 0.08 * pulse;
         body.rotation.z = reactionKind === 'fall' ? slideDir * 0.72 * pulse : slideDir * 0.12 * pulse;
+        if (reactionKind === 'separate') {
+          body.rotation.x = -0.055 * pulse;
+          body.rotation.z = slideDir * 0.06 * pulse;
+          arms[0].shoulder.rotation.x = -1.2;
+          arms[1].shoulder.rotation.x = -1.2;
+          arms[0].shoulder.rotation.z = 0.58;
+          arms[1].shoulder.rotation.z = -0.58;
+          arms[0].forearm.rotation.x = -0.24;
+          arms[1].forearm.rotation.x = -0.24;
+          head.rotation.x = -0.08;
+          return;
+        }
         if (reactionKind === 'fall') {
           arms[0].shoulder.rotation.x = -1.65;
           arms[1].shoulder.rotation.x = -1.1;
@@ -706,6 +740,7 @@ export function createPlayer3D(options = {}) {
   let diveTimer = 0;
   let diveDir = 1;
   let cardTimer = 0;
+  let cardPrepTimer = 0;
   let slideTimer = 0;
   let slideDuration = 0.82;
   let slideDir = 1;
@@ -728,8 +763,15 @@ export function createPlayer3D(options = {}) {
       signalTimer = duration;
     },
     /** Mostra o cartão (amarelo ou vermelho) na mão direita. */
+    prepareCard(duration = 0.58) {
+      signalTimer = 0;
+      cardTimer = 0;
+      cardMesh.visible = false;
+      cardPrepTimer = duration;
+    },
     showCard(color = 'yellow', duration = 1.7) {
       signalTimer = 0;
+      cardPrepTimer = 0;
       cardTimer = duration;
       cardMesh.visible = true;
       cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
@@ -787,6 +829,20 @@ export function createPlayer3D(options = {}) {
         return;
       }
       // Cartão ao alto: o árbitro mostra amarelo/vermelho para a torcida ver.
+      if (cardPrepTimer > 0) {
+        cardPrepTimer = Math.max(0, cardPrepTimer - dt);
+        const reach = 1 - cardPrepTimer / 0.58;
+        arms[1].shoulder.rotation.x = -0.2 - reach * 0.55;
+        arms[1].shoulder.rotation.z = -0.22;
+        arms[1].forearm.rotation.x = -0.32 - reach * 0.42;
+        arms[0].shoulder.rotation.x = -0.18;
+        arms[0].forearm.rotation.x = 0.12;
+        body.position.y = 0;
+        body.rotation.x = 0.035;
+        body.rotation.z = 0;
+        head.rotation.x = 0.08;
+        return;
+      }
       if (cardTimer > 0) {
         cardTimer = Math.max(0, cardTimer - dt);
         if (cardTimer === 0) cardMesh.visible = false;
@@ -865,6 +921,18 @@ export function createPlayer3D(options = {}) {
         body.position.y = reactionKind === 'fall' ? 0.04 + pulse * 0.12 : pulse * 0.04;
         body.rotation.x = reactionKind === 'fall' ? 0.54 * pulse : 0.08 * pulse;
         body.rotation.z = reactionKind === 'fall' ? slideDir * 0.82 * pulse : slideDir * 0.12 * pulse;
+        if (reactionKind === 'separate') {
+          body.rotation.x = -0.055 * pulse;
+          body.rotation.z = slideDir * 0.06 * pulse;
+          arms[0].shoulder.rotation.x = -1.2;
+          arms[1].shoulder.rotation.x = -1.2;
+          arms[0].shoulder.rotation.z = 0.58;
+          arms[1].shoulder.rotation.z = -0.58;
+          arms[0].forearm.rotation.x = -0.24;
+          arms[1].forearm.rotation.x = -0.24;
+          head.rotation.x = -0.08;
+          return;
+        }
         if (reactionKind === 'fall') {
           arms[0].shoulder.rotation.x = -1.8;
           arms[1].shoulder.rotation.x = -1.28;
