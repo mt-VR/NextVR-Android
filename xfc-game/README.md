@@ -95,8 +95,10 @@ CI e publica:
 | APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
 | Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
 
-A release [`xfc-menu-v5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v5)
-publica o hub atualizado (v0.4.0) e também tem os dois arquivos anexados.
+A release [`xfc-menu-v6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v6)
+publica a correção de cintilação ao entrar na partida (v0.4.1) e também tem
+os dois arquivos anexados. O APK pode ser baixado diretamente em
+[`xfc.apk`](https://github.com/mt-VR/NextVR-Android/releases/download/xfc-menu-v6/xfc.apk).
 
 ## Controles
 

@@ -167,10 +167,10 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-menu-v5
-          NOTES="XFC 27 com o hub de futebol atualizado para corresponder à referência visual. Versão 0.4.0 (versionCode 4), build do commit ${GITHUB_SHA}. O APK roda offline; também inclui o pacote web do jogo."
+          TAG=xfc-menu-v6
+          NOTES="XFC 27 com correção da cintilação ao entrar na partida e inicialização mais suave no Android. Versão 0.4.1 (versionCode 5), build do commit ${GITHUB_SHA}. O APK roda offline; também inclui o pacote web do jogo."
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — football hub v0.4.0" \
+            gh release create "$TAG" --title "XFC 27 — correção de cintilação v0.4.1" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
