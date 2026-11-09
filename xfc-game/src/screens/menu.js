@@ -115,7 +115,8 @@ export function menuScreen(ctx) {
   let sceneTime = 0;
 
   function setupNeymar3D() {
-    engine3d = createEngine(canvas3d, {
+    try {
+      engine3d = createEngine(canvas3d, {
       fov: 38,
       background: 0x000000,
       pixelRatio: Math.min(window.devicePixelRatio || 1, 1.25)
@@ -191,6 +192,13 @@ export function menuScreen(ctx) {
       neymarModel.root.position.y = breathe;
       neymarModel.root.rotation.y = -0.3 + Math.sin(sceneTime * 0.5) * 0.1;
     });
+    } catch (error) {
+      // WebGL pode não estar disponível (ex: headless sem GPU). O menu ainda
+      // funciona sem o 3D: só o jogador não é renderizado.
+      console.warn('menu 3D não disponível:', error?.message || error);
+      engine3d = null;
+      neymarModel = null;
+    }
   }
 
   function addPlayerOverlays() {
@@ -355,12 +363,17 @@ export function menuScreen(ctx) {
     if (particleRaf) cancelAnimationFrame(particleRaf);
     particleRaf = null;
     if (engine3d) {
-      engine3d.stop();
-      if (neymarModel) {
-        neymarModel.dispose();
+      try {
+        engine3d.stop();
+        if (neymarModel) {
+          neymarModel.dispose();
+        }
+        engine3d.dispose();
+      } catch (error) {
+        // cleanup best-effort
       }
-      engine3d.dispose();
       engine3d = null;
+      neymarModel = null;
     }
   }
 
