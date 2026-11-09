@@ -787,6 +787,7 @@
 .hud__event--yellow { border-left-color: #f5c518; }
 .hud__event--red { border-left-color: #ff4d4d; }
 .hud__event--foul { border-left-color: #ff9f43; }
+.hud__event--restart { border-left-color: #67d8ff; }
 
 .hud__event.is-out {
   opacity: 0;
@@ -825,6 +826,9 @@
   text-shadow: 0 0 30px rgba(46, 240, 168, 0.6);
   animation: hud-goal 700ms ease;
 }
+.hud__banner--foul { color: #ffd27d; border-color: rgba(255,159,67,.7); }
+.hud__banner--restart { color: #a6e9ff; border-color: rgba(103,216,255,.65); }
+.hud__banner--red { color: #ff7279; border-color: rgba(255,77,91,.75); }
 
 @keyframes hud-goal {
   0% { transform: translate(-50%, -50%) scale(0.7); }
@@ -1568,6 +1572,24 @@
   transition: width 300ms ease;
 }
 
+/* Disciplina visível durante o jogo: contagem real de advertências e expulsões. */
+.hud__cards {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 6px;
+  background: rgba(3,12,21,.82);
+}
+.hud__cards-team { display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,.78); }
+.hud__cards-team strong { min-width: 22px; color: rgba(255,255,255,.56); font-size: 7px; letter-spacing: .08em; }
+.hud__cards-team b { min-width: 8px; font-size: 8px; font-variant-numeric: tabular-nums; }
+.hud__card-chip { display: inline-block; width: 6px; height: 9px; border-radius: 1px; }
+.hud__card-chip--yellow { background: #ffd84a; box-shadow: 0 0 5px rgba(255,216,74,.45); }
+.hud__card-chip--red { background: #ff4d5b; box-shadow: 0 0 5px rgba(255,77,91,.4); }
+
 /* Cartão do jogador: vidro com filete luminoso */
 .hud__player {
   padding: 10px 22px 10px 10px;
@@ -1737,6 +1759,19 @@
 .ctrl-btn--shoot.is-power { border-color: #ff4f3c; box-shadow: 0 0 28px rgba(255,79,60,.78), inset 0 0 18px rgba(255,79,60,.3); }
 .ctrl-btn__gesture { grid-row: 2; }
 .ctrl-btn--shoot > span:first-child { grid-row: 1; }
+
+/* CARRINHO é uma ação defensiva clara, com área de toque maior e separada. */
+.ctrl-btn--tackle {
+  right: 120px;
+  bottom: 32px;
+  width: 76px;
+  height: 76px;
+  font-size: 8px;
+  border-color: rgba(255, 159, 67, .88);
+  background: linear-gradient(165deg, rgba(122, 61, 17, .92), rgba(63, 31, 10, .92));
+  box-shadow: 0 10px 22px rgba(0,0,0,.55), 0 0 18px rgba(255,159,67,.25);
+}
+.ctrl-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
 /* Pausa inspirada no painel do jogo: placar, formação e blocos de opções. */
 .pause--fc {

@@ -216,8 +216,9 @@ export function createTeamAI({ side, world }) {
 
     // Quem está com a bola (do meu time) decide — exceto o jogador que está
     // sob controle do usuário, que é movido pelos controles.
-    const humanHasControl = world.isUserControlled(owner) && world.hasInput();
-    // Só decide jogadas com a bola em jogo (nem na saída, nem em paralisações).
+    const humanHasControl = world.isUserControlled(owner);
+    // O portador controlado não chuta nem passa por decisão automática, mesmo
+    // quando o analógico está solto: ações ofensivas são sempre explícitas.
     if (owner && owner.side === side && !humanHasControl && world.isPlayable()) {
       onBall(owner, dt);
     }
@@ -240,9 +241,9 @@ export function createTeamAI({ side, world }) {
 
     for (const player of members()) {
       if (!player.active) continue;
-      // O jogador controlado pelo usuário é movido pelos controles; sem
-      // comando, a IA assume para o time não travar com a bola.
-      if (world.isUserControlled(player) && world.hasInput()) continue;
+      // O jogador humano fica sob controle direto e nunca recebe movimento
+      // ofensivo automático; carrinhos também são reservados ao comando humano.
+      if (player.slideTackle || world.isUserControlled(player)) continue;
       if (player === owner) {
         // Com a bola no pé, o atleta olha para frente (a condução) e só
         // encara a bola quando está praticamente parado.

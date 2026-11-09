@@ -10,7 +10,7 @@ import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
 import { createPlayer3D, lookFor } from './player.js';
 import { createTeamAI } from './ai.js';
-import { steerPlayer, faceTowards, faceVelocity, playerSpeed } from './movement.js';
+import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
 import { attackSign, insidePenaltyAreaFor } from './sides.js';
 
@@ -82,12 +82,14 @@ export function createMatch(options = {}) {
   const phase = {
     name: 'kickoff',
     timer: 0,
+    side: 'home',
     restart: null,
     conceding: 'away'
   };
 
   const input = { moveX: 0, moveZ: 0, sprint: false };
   const controlled = { home: null, away: null };
+  let refereeDecision = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   let cameraReady = false;
   // 'play' (transmissão) ou 'cinematic' (volta sobre o estádio).
@@ -135,6 +137,7 @@ export function createMatch(options = {}) {
     if (lengthSq < 0.01) return 1;
     let worst = 1;
     for (const rival of members(rivalSide)) {
+      if (!rival.active) continue;
       const t = Math.max(0, Math.min(1, ((rival.x - fromX) * dx + (rival.z - fromZ) * dz) / lengthSq));
       const projX = fromX + t * dx;
       const projZ = fromZ + t * dz;
@@ -148,6 +151,7 @@ export function createMatch(options = {}) {
   function openSpace(player) {
     let closest = Infinity;
     for (const rival of members(opponentOf(player.side))) {
+      if (!rival.active) continue;
       closest = Math.min(closest, Math.hypot(rival.x - player.x, rival.z - player.z));
     }
     return Math.min(closest, 12);
@@ -254,6 +258,11 @@ export function createMatch(options = {}) {
         facing: new THREE.Vector3(sign, 0, 0),
         facingAngle: sign > 0 ? Math.PI / 2 : -Math.PI / 2,
         sprint: false,
+        yellowCards: 0,
+        redCard: false,
+        dismissal: null,
+        slideTackle: null,
+        slideCooldownUntil: 0,
         root: model.root,
         model
       };
@@ -312,7 +321,7 @@ export function createMatch(options = {}) {
   function isOffside(passer, target) {
     const sign = attackSign(passer.side);
     if (sign * (target.x - passer.x) < 1.5) return false;
-    const rivals = members(opponentOf(passer.side)).filter(player => !player.isKeeper);
+    const rivals = members(opponentOf(passer.side)).filter(player => player.active);
     let secondLast = -Infinity;
     for (const rival of rivals) {
       secondLast = Math.max(secondLast, sign * rival.x);
@@ -353,82 +362,253 @@ export function createMatch(options = {}) {
     emit({ type: 'shot', team: player.side, player, kind });
   }
 
-  /** Desarme: tenta tomar a bola; se falhar, é falta. */
+  /** Desarme em pé, usado pela IA; o carrinho fica reservado ao toque humano. */
   function tackle(player) {
     const owner = ball.state.owner;
-    if (!owner || owner.side === player.side) return;
+    if (!owner || owner.side === player.side || phase.name !== 'play') return false;
     const distance = Math.hypot(owner.x - player.x, owner.z - player.z);
-    if (distance > 2.4) return;
-    // Portador em arrancada de drible resiste muito mais ao desarme.
+    if (distance > 2.4) return false;
+    const dx = player.x - owner.x;
+    const dz = player.z - owner.z;
+    const behind = (owner.facing?.x || 0) * dx + (owner.facing?.z || 0) * dz < -0.15;
+    const dangerous = Math.abs(owner.x) > PITCH.halfLength - 30;
     const resistance = (owner.burst ?? 0) > 0 ? 0.22 : 0.5;
     if (rng() < aiAccuracy * resistance) {
       ball.attachTo(player);
       ball.state.lastTouch = player;
       player.model.kick();
-      emit({ type: 'tackle', team: player.side, player });
-    } else if (rng() < 0.45) {
-      // Desarme errado: às vezes é só um bote, às vezes é falta.
-      commitFoul(player, owner);
+      emit({ type: 'tackle', team: player.side, player, kind: 'standing', clean: true });
+      return true;
+    }
+    if (behind || dangerous || playerSpeed(player) > 7.2 || rng() < 0.28) {
+      commitFoul(player, owner, {
+        kind: 'challenge',
+        behind,
+        dangerous,
+        severity: behind ? 0.82 : dangerous ? 0.68 : 0.42
+      });
+    }
+    return false;
+  }
+
+  /** Inicia um carrinho direcional somente após comando explícito do usuário. */
+  function startSlideTackle(player) {
+    if (!player?.active || player.slideTackle || phase.name !== 'play'
+      || elapsedWorldTime < player.slideCooldownUntil) return false;
+    const owner = ball.state.owner;
+    if (owner && owner.side === player.side) return false;
+    const target = owner || ball.state.position;
+    if (target === ball.state.position && ball.state.position.y > 1.8) return false;
+    const dx = target.x - player.x;
+    const dz = target.z - player.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < 0.1 || distance > 6.2) return false;
+
+    const directionX = dx / distance;
+    const directionZ = dz / distance;
+    player.slideCooldownUntil = elapsedWorldTime + 1.05;
+    player.slideTackle = {
+      directionX,
+      directionZ,
+      speed: 8.6,
+      timer: 0,
+      duration: 0.82,
+      resolved: false
+    };
+    player.sprint = false;
+    player.model.slideTackle?.(directionZ < 0 ? -1 : 1);
+    return true;
+  }
+
+  /** Avança os carrinhos, resolve o contato e recupera o jogador no gramado. */
+  function updateSlideTackles(dt) {
+    for (const player of allPlayers) {
+      if (phase.name !== 'play') break;
+      const slide = player.slideTackle;
+      if (!slide || !player.active) continue;
+      const progress = Math.min(1, slide.timer / slide.duration);
+      const speed = slide.speed * Math.pow(Math.max(0, 1 - progress), 0.7);
+      player.vx = slide.directionX * speed;
+      player.vz = slide.directionZ * speed;
+      player.x += player.vx * dt;
+      player.z += player.vz * dt;
+      clampToPitch(player, 0.6);
+      slide.timer = Math.min(slide.duration, slide.timer + dt);
+
+      if (!slide.resolved && phase.name === 'play') {
+        const owner = ball.state.owner;
+        if (owner && owner.side !== player.side) {
+          const distance = Math.hypot(owner.x - player.x, owner.z - player.z);
+          if (distance < 1.15) {
+            slide.resolved = true;
+            const dx = player.x - owner.x;
+            const dz = player.z - owner.z;
+            const behind = (owner.facing?.x || 0) * dx + (owner.facing?.z || 0) * dz < -0.15;
+            const dangerous = Math.abs(owner.x) > PITCH.halfLength - 25;
+            const severe = behind && dangerous && slide.speed >= 8.2;
+            const reckless = behind || ((owner.burst ?? 0) > 0 && slide.speed >= 8.2);
+            if (reckless) {
+              commitFoul(player, owner, {
+                kind: 'slide',
+                behind,
+                dangerous: dangerous || behind,
+                severity: severe ? 1 : behind ? 0.88 : 0.72,
+                directRed: severe
+              });
+            } else if (rng() < 0.68) {
+              ball.state.owner = null;
+              ball.kick({ x: slide.directionX, z: slide.directionZ }, 5.8, 0.035);
+              ball.state.lastTouch = player;
+              if (player.side === userSide) controlled[userSide] = player;
+              player.model.kick();
+              owner.model.react?.('bump', 0.62);
+              emit({ type: 'tackle', team: player.side, player, kind: 'slide', clean: true });
+            } else {
+              owner.model.react?.('bump', 0.48);
+            }
+          }
+        } else if (!owner && ball.state.position.y < 1.65
+          && Math.hypot(ball.state.position.x - player.x, ball.state.position.z - player.z) < 0.9) {
+          slide.resolved = true;
+          ball.attachTo(player);
+          ball.state.lastTouch = player;
+          if (player.side === userSide) controlled[userSide] = player;
+          emit({ type: 'tackle', team: player.side, player, kind: 'slide', clean: true });
+        }
+      }
+
+      if (slide.timer >= slide.duration) {
+        player.slideTackle = null;
+        player.vx *= 0.25;
+        player.vz *= 0.25;
+      }
     }
   }
 
-  /** Falta: cartão, pênalti ou tiro livre. */
-  function commitFoul(offender, victim) {
-    // Só há falta com a bola em jogo (nada de pênalti em cima de tiro livre).
-    if (phase.name !== 'play') return;
-    const dangerous = Math.abs(victim.x) > PITCH.halfLength - 30;
-    // Carrinho perigoso dá amarelo sempre; uma segunda advertência vira
-    // vermelho e o atleta é retirado do campo.
-    let card = dangerous || rng() < 0.16 ? 'yellow' : 'none';
+  /** Cancela o movimento físico de carrinhos quando a bola sai de jogo. */
+  function clearSlideTackles() {
+    for (const player of allPlayers) {
+      if (!player.slideTackle) continue;
+      player.slideTackle = null;
+      player.vx = 0;
+      player.vz = 0;
+    }
+  }
 
-    if (card === 'yellow') {
-      teams[offender.side].cards[offender.id] = (teams[offender.side].cards[offender.id] || 0) + 1;
-      if (teams[offender.side].cards[offender.id] >= 2) card = 'red';
+  /** Falta com vantagem disciplinar, cartão e bola parada após a decisão. */
+  function commitFoul(offender, victim, detail = {}) {
+    if (phase.name !== 'play' || !offender?.active || !victim?.active) return false;
+    const nearGoal = Math.abs(victim.x) > PITCH.halfLength - 30;
+    const dangerous = detail.dangerous ?? nearGoal;
+    const behind = Boolean(detail.behind);
+    const severity = Math.max(0, Math.min(1, Number(detail.severity) || 0));
+    const previousYellows = offender.yellowCards ?? teams[offender.side].cards[offender.id] ?? 0;
+    let card = 'none';
+    let secondYellow = false;
+
+    if (detail.directRed) {
+      card = 'red';
+    } else if (detail.forceYellow || dangerous || behind || severity >= 0.78 || rng() < 0.08) {
+      offender.yellowCards = previousYellows + 1;
+      teams[offender.side].cards[offender.id] = offender.yellowCards;
+      card = offender.yellowCards >= 2 ? 'red' : 'yellow';
+      secondYellow = card === 'red';
     }
 
-    refereeSignal(card === 'none' ? 1.0 : 0.6);
-    if (card !== 'none') refereeModel.showCard(card === 'red' ? 'red' : 'yellow', 1.7);
+    refereeDecision = {
+      stage: 'approach',
+      timer: 0,
+      offender,
+      victim,
+      card,
+      shown: false
+    };
+    victim.model.react?.('fall', severity >= 0.7 ? 1.15 : 0.82);
+    if (!offender.slideTackle) offender.model.react?.('protest', 0.9);
+
     emit({
       type: 'foul',
       team: offender.side,
       player: offender,
       victim,
+      kind: detail.kind || 'contact',
+      severity,
+      behind,
+      dangerous,
       card,
-      minute: clock.minutes
+      minute: clock.minutes,
+      location: { x: victim.x, z: victim.z }
     });
 
     if (card === 'red') {
+      offender.redCard = true;
+      const exitZ = Math.sign(offender.z || 1) * (PITCH.halfWidth + 1.2);
+      const exitDuration = Math.max(2.5, Math.abs(exitZ - offender.z) / 4.2 + 0.35);
+      offender.dismissal = { timer: 0, duration: exitDuration, exitZ };
       offender.active = false;
+      offender.vx = 0;
+      offender.vz = 0;
+      offender.model.react?.('ejected', exitDuration);
+      if (controlled[offender.side] === offender) {
+        const replacement = members(offender.side)
+          .filter(player => player.active && !player.isKeeper)
+          .sort((a, b) => Math.hypot(a.x - ball.state.position.x, a.z - ball.state.position.z)
+            - Math.hypot(b.x - ball.state.position.x, b.z - ball.state.position.z))[0]
+          || members(offender.side).find(player => player.active) || null;
+        controlled[offender.side] = replacement;
+      }
+      if (secondYellow) {
+        emit({ type: 'card', team: offender.side, player: offender, color: 'yellow', minute: clock.minutes });
+      }
       emit({ type: 'card', team: offender.side, player: offender, color: 'red', minute: clock.minutes });
-      if (controlled[offender.side] === offender) controlled[offender.side] = null;
     } else if (card === 'yellow') {
       emit({ type: 'card', team: offender.side, player: offender, color: 'yellow', minute: clock.minutes });
     }
 
     const inBox = insidePenaltyArea(victim.x, victim.z, offender.side);
-    if (inBox) setRestart('penalty', victim.side, victim.x, victim.z);
-    else setRestart('freekick', victim.side, victim.x, victim.z);
+    const kind = inBox ? 'penalty' : 'freekick';
+    setRestart(kind, victim.side, victim.x, victim.z, { waitForReferee: true, foulKind: detail.kind || 'contact' });
+    return true;
   }
 
   /** Prepara uma retomada de jogo. */
-  function setRestart(type, side, x, z) {
-    // Nada de retomadas depois do fim do jogo.
+  function setRestart(type, side, x, z, options = {}) {
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
+    clearSlideTackles();
     phase.name = 'restart';
     phase.timer = 0;
-    phase.restart = { type, side, x, z, taker: null, ready: false };
-    refereeSignal(1.1);
-    emit({ type: 'restart', kind: type, team: side });
+    phase.restart = {
+      type,
+      side,
+      x,
+      z,
+      taker: null,
+      ready: false,
+      waitForReferee: Boolean(options.waitForReferee),
+      foulKind: options.foulKind || null
+    };
+    for (const player of allPlayers) {
+      if (!player.active) continue;
+      player.vx = 0;
+      player.vz = 0;
+      player.sprint = false;
+    }
+    ball.state.position.set(x, BALL.radius, z);
+    ball.state.velocity.set(0, 0, 0);
+    ball.state.guidance = null;
+    ball.state.owner = null;
+    if (!phase.restart.waitForReferee) refereeSignal(1.1);
+    emit({ type: 'restart', kind: type, team: side, x, z, foulKind: phase.restart.foulKind });
   }
 
   /** Coloca o cobrador em posição e a bola no ponto da retomada. */
   function setupRestart(restart) {
     const side = restart.side;
     const sign = attackSign(side);
-    const keepers = members(side).filter(player => player.isKeeper);
+    const keepers = members(side).filter(player => player.active && player.isKeeper);
     const candidates = restart.type === 'goalkick' && keepers.length
       ? keepers
-      : members(side).filter(player => !player.isKeeper || restart.type === 'penalty');
+      : members(side).filter(player => player.active && (!player.isKeeper || restart.type === 'penalty'));
     let taker = null;
     let best = Infinity;
     for (const player of candidates) {
@@ -466,10 +646,8 @@ export function createMatch(options = {}) {
 
     // No escanteio, os atacantes se posicionam na área para o cruzamento.
     if (restart.type === 'corner') {
-      const sign = attackSign(side);
       const attackers = members(side)
-        .filter(player => player !== taker && !player.isKeeper)
-        // Os mais adiantados no ataque entram primeiro na área.
+        .filter(player => player.active && player !== taker && !player.isKeeper)
         .sort((a, b) => (sign * b.x) - (sign * a.x));
       const spots = [
         { x: sign * (PITCH.halfLength - 9), z: 0 },
@@ -483,6 +661,30 @@ export function createMatch(options = {}) {
         player.vx = 0;
         player.vz = 0;
       });
+    } else if (restart.type === 'freekick') {
+      // Três defensores montam uma barreira a 9,15 m entre a bola e o gol.
+      const goalDistance = Math.abs(sign * PITCH.halfLength - placeX);
+      const wallDistance = Math.min(9.15, Math.max(2.2, goalDistance - 1.8));
+      const wallX = placeX + sign * wallDistance;
+      const defenders = members(opponentOf(side))
+        .filter(player => player.active && !player.isKeeper)
+        .sort((a, b) => Math.hypot(a.x - wallX, a.z - placeZ) - Math.hypot(b.x - wallX, b.z - placeZ));
+      defenders.slice(0, 3).forEach((player, index) => {
+        player.x = wallX;
+        player.z = Math.max(-PITCH.halfWidth + 1, Math.min(PITCH.halfWidth - 1,
+          placeZ + (index - 1) * 0.82));
+        player.vx = 0;
+        player.vz = 0;
+      });
+    } else if (restart.type === 'penalty') {
+      const keeper = members(opponentOf(side)).find(player => player.active && player.isKeeper);
+      if (keeper) {
+        keeper.x = sign * (PITCH.halfLength - 0.55);
+        keeper.z = 0;
+        keeper.vx = 0;
+        keeper.vz = 0;
+        faceTowards(keeper, placeX, placeZ, 1, 12);
+      }
     }
     ball.state.position.set(placeX, BALL.radius, placeZ);
     ball.state.velocity.set(0, 0, 0);
@@ -492,17 +694,14 @@ export function createMatch(options = {}) {
     restart.ready = true;
   }
 
-  /** Executa a retomada de jogo (automática ou pelo jogador). */
+  /** A IA cobra suas bolas paradas; o usuário escolhe passe ou chute direto. */
   function playRestart(dt) {
     const restart = phase.restart;
     if (!restart || !restart.taker) return;
     phase.timer += dt;
     const taker = restart.taker;
     const humanTakes = taker.side === userSide && controlled[userSide] === taker;
-    // O jogador humano decide a retomada; depois de alguns segundos o jogo
-    // executa sozinho para a partida nunca travar.
-    if (humanTakes && phase.timer < 4.5) return;
-    if (phase.timer < 1.1) return;
+    if (humanTakes || phase.timer < 1.1) return;
 
     if (restart.type === 'penalty') {
       const sign = attackSign(taker.side);
@@ -535,8 +734,11 @@ export function createMatch(options = {}) {
         if (mate) kickBall(taker, mate, { power: 14 });
       }
     }
-    phase.name = 'play';
-    phase.restart = null;
+    if (phase.restart === restart) {
+      phase.name = 'play';
+      phase.restart = null;
+      phase.timer = 0;
+    }
   }
 
   /** Companheiro próximo, para retomas de bola curtas. */
@@ -557,7 +759,7 @@ export function createMatch(options = {}) {
   }
 
   function bestTeammateFor(player, forward = false) {
-    const mates = members(player.side).filter(mate => mate !== player);
+    const mates = members(player.side).filter(mate => mate.active && mate !== player);
     let best = null;
     let bestScore = -Infinity;
     const sign = attackSign(player.side);
@@ -588,7 +790,7 @@ export function createMatch(options = {}) {
     let best = null;
     let bestScore = -Infinity;
     for (const mate of members(player.side)) {
-      if (mate === player || mate.isKeeper) continue;
+      if (!mate.active || mate === player || mate.isKeeper) continue;
       const forwardness = sign * (mate.x - player.x);
       const lateral = Math.abs(mate.z - player.z);
       const distance = Math.hypot(mate.x - player.x, mate.z - player.z);
@@ -610,7 +812,7 @@ export function createMatch(options = {}) {
     // Sem corredor perfeito disponível, não transforma ENFIADA em cruzamento:
     // procura um companheiro não impedido e conduz a bola pelo chão à frente.
     return members(player.side)
-      .filter(mate => mate !== player && !mate.isKeeper && !isOffside(player, mate))
+      .filter(mate => mate.active && mate !== player && !mate.isKeeper && !isOffside(player, mate))
       .sort((a, b) => {
         const score = mate => sign * (mate.x - player.x)
           - Math.abs(mate.z - player.z) * 0.35
@@ -621,10 +823,12 @@ export function createMatch(options = {}) {
 
   /** Saída de bola. */
   function kickoff(side) {
+    clearSlideTackles();
     goalScorer = null;
     goalCameraReady = false;
     phase.name = 'kickoff';
     phase.timer = 0;
+    phase.side = side;
     phase.restart = null;
     referee.x = 2.4;
     referee.z = 0.6;
@@ -632,16 +836,31 @@ export function createMatch(options = {}) {
     referee.vz = 0;
     refereeSignal(side === 'home' ? 1.4 : 0.9);
     const sign = attackSign(side);
-    const team = teams[side];
-    const kicker = team.players.find(player => player.role === 'ST') || team.players[9];
-    const partners = team.players.filter(player => player !== kicker);
+    const available = members(side).filter(player => player.active);
+    const kicker = available.find(player => player.role === 'ST' && !player.isKeeper)
+      || available.find(player => !player.isKeeper)
+      || available[0];
+    if (!kicker) return;
+    const partners = available.filter(player => player !== kicker);
     partners.forEach(player => {
       const base = FORMATION_433[player.index] || FORMATION_433[1];
-      player.x = base.x * sign;
+      // Os companheiros do cobrador ficam no próprio campo durante a saída.
+      player.x = sign * Math.min(-1.2, base.x);
       player.z = base.z;
       player.vx = 0;
       player.vz = 0;
+      player.sprint = false;
     });
+    for (const player of members(opponentOf(side))) {
+      if (!player.active) continue;
+      const base = FORMATION_433[player.index] || FORMATION_433[1];
+      // O adversário permanece no próprio campo e fora do círculo central.
+      player.x = sign * Math.max(9.5, Math.abs(base.x));
+      player.z = base.z;
+      player.vx = 0;
+      player.vz = 0;
+      player.sprint = false;
+    }
     kicker.x = -0.6 * sign;
     kicker.z = 0.4;
     kicker.vx = 0;
@@ -656,6 +875,7 @@ export function createMatch(options = {}) {
 
   /** Gol! */
   function scoreGoal(side, scorer) {
+    clearSlideTackles();
     teams[side].score += 1;
     phase.name = 'goal';
     phase.timer = 0;
@@ -701,8 +921,18 @@ export function createMatch(options = {}) {
   };
   refereeModel.root.position.set(referee.x, 0, referee.z);
 
-  /** Ponto inteligente para o árbitro: atrás da jogada, de lado para ver tudo. */
+  /** Ponto inteligente: aproxima-se do incidente durante a decisão; senão acompanha a bola. */
   function refereeTarget() {
+    if (refereeDecision) {
+      const subject = refereeDecision.offender || refereeDecision.victim;
+      const side = Math.sign((refereeDecision.victim?.z ?? subject?.z ?? 0) || 1);
+      const targetX = (subject?.x ?? ball.state.position.x) - 0.55;
+      const targetZ = (subject?.z ?? ball.state.position.z) + side * 1.35;
+      return {
+        x: Math.max(-PITCH.halfLength + 1.5, Math.min(PITCH.halfLength - 1.5, targetX)),
+        z: Math.max(-PITCH.halfWidth + 1.5, Math.min(PITCH.halfWidth - 1.5, targetZ))
+      };
+    }
     const position = ball.state.position;
     const velocity = ball.state.velocity;
     const ballSpeed = Math.hypot(velocity.x, velocity.z);
@@ -741,23 +971,47 @@ export function createMatch(options = {}) {
   }
 
   function updateReferee(dt) {
+    if (refereeDecision) {
+      const decision = refereeDecision;
+      const subject = decision.offender || decision.victim;
+      if (decision.stage === 'approach') {
+        decision.timer += dt;
+        const target = refereeTarget();
+        steerPlayer(referee, target.x, target.z, dt, 5.8, { arrive: 0.45, turn: 12 });
+        faceTowards(referee, subject.x, subject.z, dt, 10);
+        if (Math.hypot(referee.x - target.x, referee.z - target.z) < 0.8 || decision.timer > 1.9) {
+          decision.stage = 'signal';
+          decision.timer = 0;
+          refereeModel.signal(1.1);
+        }
+      } else {
+        decision.timer += dt;
+        referee.vx *= Math.exp(-dt * 8);
+        referee.vz *= Math.exp(-dt * 8);
+        faceTowards(referee, subject.x, subject.z, dt, 10);
+        if (decision.card !== 'none' && !decision.shown && decision.timer > 0.18) {
+          refereeModel.showCard(decision.card, 1.8);
+          decision.shown = true;
+        }
+        if (decision.timer > 1.25) refereeDecision = null;
+      }
+      refereeModel.root.position.set(referee.x, 0, referee.z);
+      const speed = playerSpeed(referee);
+      refereeModel.update(dt, { speed, moving: speed > 0.35, lean: referee.turnLean || 0 });
+      refereeModel.lookAt(subject);
+      return;
+    }
+
     // No apito inicial e no fim ele fica junto ao círculo central.
     if (phase.name === 'kickoff' || phase.name === 'fulltime') {
-      referee.vx *= 0.8;
-      referee.vz *= 0.8;
       const targetX = phase.name === 'kickoff' ? 2.4 : -1.8;
       steerPlayer(referee, targetX, 0.6, dt, 4.5, { arrive: 0.3 });
       faceTowards(referee, ball.state.position.x, ball.state.position.z, dt, 8);
-      refereeModel.root.position.set(referee.x, 0, referee.z);
-      const speed = playerSpeed(referee);
-      refereeModel.update(dt, { speed, moving: speed > 0.4, lean: referee.turnLean || 0 });
-      refereeModel.lookAt(ball.state.position);
-      return;
+    } else {
+      const target = refereeTarget();
+      steerPlayer(referee, target.x, target.z, dt, 7.3, { arrive: 0.9, turn: 11 });
+      if (!faceVelocity(referee, dt, 10)) faceTowards(referee, ball.state.position.x, ball.state.position.z, dt, 9);
     }
-    const target = refereeTarget();
-    // O árbitro corre o suficiente para não ficar para trás.
-    steerPlayer(referee, target.x, target.z, dt, 7.3, { arrive: 0.9, turn: 11 });
-    if (!faceVelocity(referee, dt, 10)) faceTowards(referee, ball.state.position.x, ball.state.position.z, dt, 9);
     refereeModel.root.position.set(referee.x, 0, referee.z);
     const speed = playerSpeed(referee);
     refereeModel.update(dt, { speed, moving: speed > 0.35, lean: referee.turnLean || 0 });
@@ -767,6 +1021,119 @@ export function createMatch(options = {}) {
   /** Apito visível do árbitro (braço para cima) nas paralisações. */
   function refereeSignal(duration = 1.15) {
     refereeModel.signal(duration);
+  }
+
+  /** Finalização manual: só é chamada por um toque/tecla de chute. */
+  function shootUser(player, opts = {}, direct = false) {
+    const strength = Math.max(0, Math.min(1, opts.strength ?? 0.45));
+    const shotKind = opts.kind || (opts.placed ? 'placed' : 'normal');
+    const stick = Math.abs(input.moveZ) > 0.25 ? Math.sign(input.moveZ) : 0;
+    const sign = attackSign(player.side);
+
+    if (direct) {
+      const lateral = stick ? -stick * (opts.restartType === 'penalty' ? 1.25 : 2.3) : 0;
+      const distanceToGoal = Math.abs(sign * PITCH.halfLength - player.x);
+      const power = opts.restartType === 'penalty'
+        ? 21 + strength * 5
+        : 22 + Math.min(6, distanceToGoal * 0.1) + strength * 7;
+      shootBall(player, {
+        power,
+        spread: shotKind === 'placed' ? 0.004 : 0.012,
+        target: { x: sign * PITCH.halfLength, z: lateral },
+        kind: shotKind === 'placed' ? 'placed' : shotKind === 'curved' ? 'curved' : 'direct',
+        lift: shotKind === 'placed' ? 0.085 : shotKind === 'curved' ? 0.23 : 0.14,
+        curve: shotKind === 'curved' ? (stick ? -stick : 0.45) : 0
+      });
+      return true;
+    }
+
+    if (shotKind === 'placed' || opts.placed) {
+      const sidePick = stick !== 0 ? -stick : rng() < 0.5 ? -1 : 1;
+      const target = { x: sign * PITCH.halfLength, z: sidePick * (GOAL.width / 2 - 0.75) };
+      shootBall(player, { power: 20.5 + strength * 2, spread: 0.008, target, kind: 'placed', lift: 0.085 });
+    } else if (shotKind === 'curved') {
+      const lateral = stick !== 0 ? -stick * 2.4 : (rng() < 0.5 ? -1 : 1) * 1.2;
+      shootBall(player, {
+        power: 18 + strength * 12,
+        spread: 0.012,
+        target: { x: sign * PITCH.halfLength, z: lateral },
+        kind: 'curved',
+        lift: 0.28 + strength * 0.18,
+        curve: stick ? -stick : (rng() < 0.5 ? -1 : 1)
+      });
+    } else if (shotKind === 'power') {
+      const lateral = stick !== 0 ? -stick * 2.1 : (rng() - 0.5) * 1.4;
+      shootBall(player, {
+        power: 31 + strength * 7,
+        spread: 0.012 + strength * 0.014,
+        target: { x: sign * PITCH.halfLength, z: lateral },
+        kind: 'power',
+        lift: 0.14
+      });
+    } else {
+      const lateral = stick !== 0 ? -stick * 3.1 : (rng() - 0.5) * 2.4;
+      const power = 15 + strength * 16.5;
+      const spread = 0.03 + strength * 0.055;
+      shootBall(player, { power, spread, target: { x: sign * PITCH.halfLength, z: lateral }, kind: strength > 0.62 ? 'power' : 'normal' });
+    }
+    return true;
+  }
+
+  function finishHumanRestart(restart) {
+    if (phase.restart !== restart) return;
+    phase.name = 'play';
+    phase.restart = null;
+    phase.timer = 0;
+  }
+
+  function performHumanRestart(name, opts, restart) {
+    const taker = restart?.taker;
+    if (!restart?.ready || restart.side !== userSide || !taker || controlled[userSide] !== taker) return false;
+    let acted = false;
+    if (name === 'shoot') {
+      acted = shootUser(taker, { ...opts, restartType: restart.type }, true);
+    } else if (name === 'pass') {
+      const mate = nearbyTeammateFor(taker, { min: 1.2, max: 13 }) || bestTeammateFor(taker);
+      if (mate) {
+        kickBall(taker, mate, { power: restart.type === 'goalkick' ? 15 : 12 });
+        acted = true;
+      }
+    } else if (name === 'lob') {
+      const mate = nearbyTeammateFor(taker, { min: 5, max: 28 })
+        || bestThroughTarget(taker)
+        || bestTeammateFor(taker, true);
+      if (mate) {
+        kickBall(taker, mate, { lob: true, power: 16 });
+        acted = true;
+      }
+    }
+    if (acted) finishHumanRestart(restart);
+    return acted;
+  }
+
+  function performHumanKickoff(name, opts, player) {
+    if (phase.side !== userSide || ball.state.owner !== player) return false;
+    let acted = false;
+    if (name === 'shoot') {
+      acted = shootUser(player, opts, false);
+    } else if (name === 'pass') {
+      const mate = nearbyTeammateFor(player, { min: 1.2, max: 18 }) || bestTeammateFor(player, true);
+      if (mate) {
+        kickBall(player, mate, { power: 14 });
+        acted = true;
+      }
+    } else if (name === 'lob') {
+      const mate = bestThroughTarget(player) || bestTeammateFor(player, true);
+      if (mate) {
+        kickBall(player, mate, { through: true, power: 20 });
+        acted = true;
+      }
+    }
+    if (acted && phase.name === 'kickoff') {
+      phase.name = 'play';
+      phase.timer = 0;
+    }
+    return acted;
   }
 
   // ------------------------------------------------------------------ mundo --
@@ -791,7 +1158,7 @@ export function createMatch(options = {}) {
       return cameraMode;
     },
     prepareTraining,
-    /** Há comando do jogador? (se não, a IA cuida do jogador controlado) */
+    /** Entrada de movimento explícita; a IA não decide ações do atleta humano. */
     hasInput() {
       return Math.hypot(input.moveX, input.moveZ) > 0.12;
     },
@@ -799,84 +1166,54 @@ export function createMatch(options = {}) {
     shootBall,
     diveKeeper: (keeper, dir) => diveKeeper(keeper, dir),
     tackle,
+    slideTackle: startSlideTackle,
     isUserControlled,
 
-    /** Comando do jogador (vindo dos controles ou do teclado). */
-    command(name, opts) {
+    /** Nenhum passe/chute é gerado sem um comando explícito do usuário. */
+    command(name, opts = {}) {
+      if (paused) return false;
       const player = controlled[userSide];
-      if (!player || !player.active) return;
-      const owner = ball.state.owner;
-      const sign = attackSign(userSide);
+      if (!player?.active) return false;
 
+      if (phase.name === 'restart') return performHumanRestart(name, opts, phase.restart);
+      if (phase.name === 'kickoff') return performHumanKickoff(name, opts, player);
+      if (phase.name !== 'play') return false;
+
+      const owner = ball.state.owner;
       if (name === 'pass') {
-        if (owner === player) {
-          const mate = bestTeammateFor(player);
-          if (mate) kickBall(player, mate, { power: 19 });
-        } else {
-          runToBall(player);
-        }
-      } else if (name === 'shoot') {
-        if (owner === player) {
-          // Segurar carrega a força; gestos separados: para baixo colocado,
-          // para cima alto/curvado e contra a corrida superchute.
-          const strength = Math.max(0, Math.min(1, opts?.strength ?? 0.45));
-          const shotKind = opts?.kind || (opts?.placed ? 'placed' : 'normal');
-          const stick = Math.abs(input.moveZ) > 0.25 ? Math.sign(input.moveZ) : 0;
-          const signX = attackSign(userSide);
-          if (shotKind === 'placed' || opts?.placed) {
-            const sidePick = stick !== 0 ? -stick : rng() < 0.5 ? -1 : 1;
-            const target = { x: signX * PITCH.halfLength, z: sidePick * (GOAL.width / 2 - 0.75) };
-            shootBall(player, { power: 20.5 + strength * 2, spread: 0.008, target, kind: 'placed', lift: 0.085 });
-          } else if (shotKind === 'curved') {
-            const lateral = stick !== 0 ? -stick * 2.4 : (rng() < 0.5 ? -1 : 1) * 1.2;
-            shootBall(player, {
-              power: 18 + strength * 12,
-              spread: 0.012,
-              target: { x: signX * PITCH.halfLength, z: lateral },
-              kind: 'curved',
-              lift: 0.28 + strength * 0.18,
-              curve: stick ? -stick : (rng() < 0.5 ? -1 : 1)
-            });
-          } else if (shotKind === 'power') {
-            const lateral = stick !== 0 ? -stick * 2.1 : (rng() - 0.5) * 1.4;
-            shootBall(player, {
-              power: 31 + strength * 7,
-              spread: 0.012 + strength * 0.014,
-              target: { x: signX * PITCH.halfLength, z: lateral },
-              kind: 'power',
-              lift: 0.14
-            });
-          } else {
-            const lateral = stick !== 0 ? -stick * 3.1 : (rng() - 0.5) * 2.4;
-            const power = 15 + strength * 16.5;
-            const spread = 0.03 + strength * 0.055;
-            shootBall(player, { power, spread, target: { x: signX * PITCH.halfLength, z: lateral }, kind: strength > 0.62 ? 'power' : 'normal' });
-          }
-        } else {
-          runToBall(player);
-        }
-      } else if (name === 'lob') {
-        if (owner === player) {
-          const mate = bestThroughTarget(player);
-          if (mate) kickBall(player, mate, { through: true, power: 23 });
-        } else {
-          runToBall(player);
-        }
-      } else if (name === 'tackle') {
-        if (owner && owner.side !== userSide) tackle(player);
-        else runToBall(player);
-      } else if (name === 'dribble') {
-        // Arrancada: 0,75s de velocidade extra e muito mais difícil de ser
-        // desarmado — o clássico "passa pelo marcador".
-        player.burst = Math.max(player.burst ?? 0, 0.75);
-      } else if (name === 'switch') {
-        world.switchPlayer();
+        if (owner !== player) return false;
+        const mate = bestTeammateFor(player);
+        if (!mate) return false;
+        kickBall(player, mate, { power: 19 });
+        return true;
       }
+      if (name === 'shoot') {
+        if (owner !== player) return false;
+        return shootUser(player, opts, false);
+      }
+      if (name === 'lob') {
+        if (owner !== player) return false;
+        const mate = bestThroughTarget(player);
+        if (!mate) return false;
+        kickBall(player, mate, { through: true, power: 23 });
+        return true;
+      }
+      if (name === 'tackle') return startSlideTackle(player);
+      if (name === 'dribble') {
+        if (owner !== player) return false;
+        player.burst = Math.max(player.burst ?? 0, 0.75);
+        return true;
+      }
+      if (name === 'switch') {
+        world.switchPlayer();
+        return true;
+      }
+      return false;
     },
 
     /** Troca o jogador controlado para o mais próximo da bola. */
     switchPlayer() {
-      const list = members(userSide).filter(player => player !== controlled[userSide]);
+      const list = members(userSide).filter(player => player.active && player !== controlled[userSide]);
       let best = null;
       let bestDistance = Infinity;
       const position = ball.state.position;
@@ -928,6 +1265,25 @@ export function createMatch(options = {}) {
         display: formatClock(),
           half: clock.half,
         phase: phase.name,
+        kickoffSide: phase.name === 'kickoff' ? phase.side : null,
+        restart: phase.restart ? {
+          type: phase.restart.type,
+          side: phase.restart.side,
+          ready: phase.restart.ready,
+          takerId: phase.restart.taker?.id || null,
+          x: phase.restart.x,
+          z: phase.restart.z
+        } : null,
+        discipline: {
+          home: {
+            yellow: teams.home.players.reduce((total, player) => total + (player.yellowCards || 0), 0),
+            red: teams.home.players.filter(player => player.redCard).length
+          },
+          away: {
+            yellow: teams.away.players.reduce((total, player) => total + (player.yellowCards || 0), 0),
+            red: teams.away.players.filter(player => player.redCard).length
+          }
+        },
         scorer: phase.name === 'goal' && goalScorer ? {
           id: goalScorer.id,
           name: goalScorer.name,
@@ -950,11 +1306,6 @@ export function createMatch(options = {}) {
     home: createTeamAI({ side: 'home', world }),
     away: createTeamAI({ side: 'away', world })
   };
-
-  function runToBall(player) {
-    const target = ball.state.position;
-    steerPlayer(player, target.x, target.z, 0.016, HUMAN_SPEED);
-  }
 
   function formatClock() {
     const limit = clock.half === 1 ? 45 + clock.added : 90 + clock.added;
@@ -1299,24 +1650,34 @@ export function createMatch(options = {}) {
       phase.timer += dt;
     }
 
-    // Fases.
+    if (phase.name !== 'play') clearSlideTackles();
+
+    // Fases. A saída do time humano é aguardada; as retomadas humanas também
+    // ficam sob controle do jogador até PASSE ou CHUTE serem pressionados.
     if (phase.name === 'kickoff') {
       phase.timer += dt;
-      const kicker = ball.state.owner;
-      if (phase.timer > 1.6) {
-        phase.name = 'play';
-        phase.timer = 0;
-        if (kicker) {
-          const mate = nearbyTeammateFor(kicker, { min: 7, max: 18 })
-            || bestTeammateFor(kicker, true)
-            || bestTeammateFor(kicker);
-          if (mate) kickBall(kicker, mate, { power: 14 });
-          else ball.state.owner = null;
+      if (phase.side !== userSide && phase.timer > 1.15) {
+        const kicker = ball.state.owner;
+        const mate = kicker && (nearbyTeammateFor(kicker, { min: 7, max: 18 })
+          || bestTeammateFor(kicker, true)
+          || bestTeammateFor(kicker));
+        if (kicker && mate) kickBall(kicker, mate, { power: 14 });
+        else if (kicker) ball.state.owner = null;
+        if (phase.name === 'kickoff') {
+          phase.name = 'play';
+          phase.timer = 0;
         }
       }
     } else if (phase.name === 'restart') {
-      if (!phase.restart?.ready) setupRestart(phase.restart);
-      else playRestart(dt);
+      if (!phase.restart?.ready) {
+        phase.timer += dt;
+        if (!phase.restart?.waitForReferee || !refereeDecision) {
+          setupRestart(phase.restart);
+          phase.timer = 0;
+        }
+      } else {
+        playRestart(dt);
+      }
     } else if (phase.name === 'goal') {
       phase.timer += dt;
       if (phase.timer > 3.2) kickoff(phase.conceding);
@@ -1324,24 +1685,25 @@ export function createMatch(options = {}) {
 
     if (phase.name === 'goal') {
       updateGoalCelebration(dt);
-    } else {
-      // Comandos do jogador.
-      updateHuman(dt);
+    } else if (phase.name === 'play') {
+      updateSlideTackles(dt);
+      if (phase.name === 'play') updateHuman(dt);
+      if (phase.name === 'play') {
+        ais.home.update(dt);
+        ais.away.update(dt);
+      }
 
-      // IA dos dois times.
-      ais.home.update(dt);
-      ais.away.update(dt);
-
-      // Colisão entre jogadores: ninguém atravessa ninguém (separação suave).
-      for (let index = 0; index < allPlayers.length; index += 1) {
+      // Colisão entre jogadores, com arbitragem de cargas pelo corpo perto da bola.
+      for (let index = 0; index < allPlayers.length && phase.name === 'play'; index += 1) {
         const a = allPlayers[index];
         if (!a.active) continue;
-        for (let other = index + 1; other < allPlayers.length; other += 1) {
+        for (let other = index + 1; other < allPlayers.length && phase.name === 'play'; other += 1) {
           const b = allPlayers[other];
           if (!b.active) continue;
           const dx = b.x - a.x;
           const dz = b.z - a.z;
           const distance = Math.hypot(dx, dz);
+          if (distance > 0.001 && distance < 0.78 && detectIllegalBodyContact(a, b, distance)) break;
           if (distance > 0.001 && distance < 0.66) {
             const overlap = (0.66 - distance) * 0.5;
             const nx = dx / distance;
@@ -1354,20 +1716,23 @@ export function createMatch(options = {}) {
         }
       }
 
-      // Física e domínio de bola.
-      ball.update(dt, allPlayers);
-      handlePossession();
-      handleBoundaries();
+      // Só a fase em jogo atualiza física, domínio e limites do campo.
+      if (phase.name === 'play') {
+        ball.update(dt, allPlayers);
+        handlePossession();
+        handleBoundaries();
+      }
     }
 
     // Posse para o resumo.
     const owner = ball.state.owner;
     if (owner) possession[owner.side] += dt;
 
-    // Sincroniza os modelos 3D.
+    // Sincroniza os modelos 3D e mantém o expulso visível enquanto sai do campo.
+    updateDismissals(dt);
     for (const player of allPlayers) {
       player.root.position.set(player.x, 0, player.z);
-      player.root.visible = player.active;
+      player.root.visible = player.active || Boolean(player.dismissal);
       const speed = playerSpeed(player);
       player.model.update(dt, { speed, moving: speed > 0.25, lean: player.turnLean || 0 });
       player.model.lookAt(ball.state.position);
@@ -1401,27 +1766,72 @@ export function createMatch(options = {}) {
     camera.lookAt(0, 0, 0);
   }
 
-  /** O jogador controlado responde ao analógico. */
+  /** Colisões rápidas com o portador são arbitradas como carga/empurrão. */
+  function detectIllegalBodyContact(a, b, distance) {
+    if (phase.name !== 'play' || a.side === b.side || distance > 0.78) return false;
+    const owner = ball.state.owner;
+    const offender = owner === a ? b : owner === b ? a : null;
+    if (!owner || !offender || offender.slideTackle) return false;
+    const speed = playerSpeed(offender);
+    if (speed < 7.55) return false;
+    const dx = owner.x - offender.x;
+    const dz = owner.z - offender.z;
+    const closing = ((offender.vx - owner.vx) * dx + (offender.vz - owner.vz) * dz) / Math.max(0.1, distance);
+    if (closing < 4.8) return false;
+    const behind = (owner.facing?.x || 0) * -dx + (owner.facing?.z || 0) * -dz < -0.15;
+    if (!behind && speed < 8.1) return false;
+    const dangerous = Math.abs(owner.x) > PITCH.halfLength - 25;
+    const severity = Math.min(1, speed / 9 + (behind ? 0.18 : 0));
+    return commitFoul(offender, owner, {
+      kind: behind ? 'charge-from-behind' : 'charge',
+      behind,
+      dangerous: dangerous || behind,
+      severity,
+      directRed: behind && dangerous && speed >= 8.25
+    });
+  }
+
+  /** O jogador expulso deixa o campo caminhando enquanto sai da lógica da partida. */
+  function updateDismissals(dt) {
+    for (const player of allPlayers) {
+      const dismissal = player.dismissal;
+      if (!dismissal) continue;
+      dismissal.timer += dt;
+      if (dismissal.timer >= dismissal.duration) {
+        player.dismissal = null;
+        player.vx = 0;
+        player.vz = 0;
+        continue;
+      }
+      steerPlayer(player, player.x, dismissal.exitZ, dt, 4.2, { arrive: 0.2, turn: 8 });
+      if (!faceVelocity(player, dt, 8)) faceTowards(player, player.x, dismissal.exitZ, dt, 8);
+    }
+  }
+
+  /** O jogador controlado responde ao analógico sem acelerações bruscas. */
   function updateHuman(dt) {
     const player = controlled[userSide];
-    if (!player || !player.active) return;
+    if (!player?.active || player.slideTackle) return;
     const bursting = (player.burst ?? 0) > 0;
-    if (bursting) player.burst = Math.max(0, (player.burst ?? 0) - dt);
+    if (bursting) player.burst = Math.max(0, player.burst - dt);
     const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      // Analógico relativo à TELA: para cima sobe a tela (lado oposto), para
-      // a direita vai para a direita — o boneco corre exatamente para onde
-      // o dedo aponta, sem inversões.
       const worldDx = input.moveX;
       const worldDz = -input.moveZ;
       const targetX = player.x + worldDx * 6;
       const targetZ = player.z + worldDz * 6;
-      steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 0.2, turn: 14 });
+      steerPlayer(player, targetX, targetZ, dt, speed * Math.min(1, magnitude), { arrive: 0.2, turn: 10 });
+    } else {
+      const damping = Math.exp(-dt * 8.5);
+      player.vx *= damping;
+      player.vz *= damping;
+      player.x += player.vx * dt;
+      player.z += player.vz * dt;
+      clampToPitch(player, 1.2);
+      if (Math.hypot(player.vx, player.vz) < 0.035) player.vx = player.vz = 0;
     }
-    // Sem comando do jogador, a IA comanda este atleta (ele não trava).
-    player.sprint = input.sprint || (player.sprint && !world.hasInput());
-    // Quem está em movimento olha para onde corre — nunca corre de costas.
+    player.sprint = Boolean(input.sprint && magnitude > 0.12);
     if (!faceVelocity(player, dt, 11)) faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
   }
 
@@ -1553,9 +1963,9 @@ export function createMatch(options = {}) {
     const nearT = Math.min(1, Math.abs(position.z) / PITCH.halfWidth); // 0 centro · 1 na lateral
     const endT = Math.min(1, Math.abs(position.x) / PITCH.halfLength); // 0 meio · 1 fundo
     const desiredX = Math.max(-40, Math.min(40, position.x * 0.78));
-    const desiredZ = 36.2 + nearT * 5.4 + endT * 1.2;
-    const desiredY = 25.5 + nearT * 3.8 + Math.min(2.5, Math.abs(position.x) * 0.03);
-    const desiredFov = 44 + nearT * 5.5 + endT * 1.5;
+    const desiredZ = 30 + nearT * 3.7 + endT * 0.8;
+    const desiredY = 21.5 + nearT * 2.7 + Math.min(2.2, Math.abs(position.x) * 0.025);
+    const desiredFov = 48 + nearT * 4.5 + endT * 0.5;
 
     const camera = engine.camera;
     if (!cameraReady) {

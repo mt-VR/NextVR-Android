@@ -327,6 +327,10 @@ export function playScreen(ctx, params = {}) {
         } catch { /* comemoração é detalhe */ }
         break;
       }
+      case 'kickoff': {
+        if (event.team === userSide) hud.showBanner('SAÍDA • PASSE OU CHUTE PARA COMEÇAR', 'restart', 3200);
+        break;
+      }
       case 'card': {
         const team = event.team === 'home' ? home : away;
         const color = event.color === 'red' ? '🟥' : '🟨';
@@ -340,9 +344,34 @@ export function playScreen(ctx, params = {}) {
         hud.pushEvent('🚩 Impedimento', 'info');
         break;
       }
-      case 'foul':
-        hud.pushEvent(`🚨 ${Math.floor(event.minute)}' Falta de ${event.player.name}`, 'foul');
+      case 'foul': {
+        const names = {
+          slide: 'carrinho',
+          challenge: 'entrada',
+          charge: 'carga',
+          'charge-from-behind': 'carga por trás',
+          contact: 'contato irregular'
+        };
+        const label = names[event.kind] || 'contato irregular';
+        const decision = event.card === 'red' ? ' • VERMELHO' : event.card === 'yellow' ? ' • AMARELO' : '';
+        hud.showBanner(`FALTA • ${label}${decision}`, event.card === 'red' ? 'red' : 'foul', 2300);
+        hud.pushEvent(`🚨 ${Math.floor(event.minute)}' ${event.player.name} • ${label}`, 'foul');
         break;
+      }
+      case 'restart': {
+        if (event.team === userSide) {
+          const instructions = {
+            penalty: ['PÊNALTI • CHUTE OU PASSE', 'PÊNALTI • escolha CHUTE ou PASSE'],
+            freekick: ['FALTA • PASSE OU CHUTE DIRETO', 'FALTA • escolha PASSE, ENFIADA ou CHUTE'],
+            corner: ['ESCANTEIO • PASSE OU CRUZAMENTO', 'ESCANTEIO • escolha PASSE, ENFIADA ou CHUTE'],
+            goalkick: ['TIRO DE META • PASSE OU LANÇAMENTO', 'TIRO DE META • escolha PASSE ou ENFIADA'],
+            throwin: ['LATERAL • PASSE OU LANÇAMENTO', 'LATERAL • escolha PASSE ou ENFIADA']
+          }[event.kind] || ['BOLA PARADA • PASSE OU CHUTE', 'BOLA PARADA • escolha PASSE ou CHUTE'];
+          hud.showBanner(instructions[0], 'restart', 3200);
+          hud.pushEvent(instructions[1], 'restart');
+        }
+        break;
+      }
       case 'halftime':
         whistle('double');
         hud.showBanner('INTERVALO', 'info', 2600);
@@ -376,6 +405,9 @@ export function playScreen(ctx, params = {}) {
     match?.world.setCameraMode('play');
     hud?.node.classList.add('is-visible');
     controls?.setEnabled(true);
+    if (match?.phase.name === 'kickoff' && match.phase.side === userSide) {
+      hud?.showBanner('SAÍDA • PASSE OU CHUTE PARA COMEÇAR', 'restart', 3200);
+    }
   }
 
   function showHalftime(event) {

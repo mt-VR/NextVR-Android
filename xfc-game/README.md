@@ -18,10 +18,10 @@ O XFC já reúne as telas principais e a partida de futebol em 3D:
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
 4. **Modos de jogo** — a Copa do Mundo (edição ao vivo e 2027), World Cup Kick Off e partidas rápidas estão acessíveis no seletor.
 5. **Kick Off / Classic Match** — escolha de clubes, estádio, uniformes e elenco; o fluxo existente de blusas e gestão de equipe continua disponível.
-6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados).
+6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
 7. **Comemoração de gol** — câmera fecha no autor, acompanha a corrida e destaca seu nome na chamada de gol e na HUD.
 
-Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
+A simulação inclui árbitro 3D com apito, gestos, cartões e expulsão, contagem disciplinar na HUD e carrinho manual com colisão, recuperação e penalidades conforme a jogada. A IA não toma o controle do atleta humano nem executa carrinhos por ele. A câmera de transmissão enquadra a ação mais de perto e acompanha a bola suavemente. Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o botão CARRINHO é manual e o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
 
 Por enquanto existem **vinte e um times**. FC Barcelona e Real Madrid (com os
 retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
@@ -95,10 +95,12 @@ CI e publica:
 | APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
 | Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
 
-A release [`xfc-menu-v6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v6)
-publica a correção de cintilação ao entrar na partida (v0.4.1) e também tem
-os dois arquivos anexados. O APK pode ser baixado diretamente em
-[`xfc.apk`](https://github.com/mt-VR/NextVR-Android/releases/download/xfc-menu-v6/xfc.apk).
+A release [`xfc-gameplay-v0.5.0`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.0)
+publica a atualização de jogabilidade v0.5.0 (versionCode 6), com APK e pacote web anexados. O APK
+pode ser baixado diretamente em
+[`xfc.apk`](https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.0/xfc.apk).
+A versão anterior [`xfc-menu-v6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v6)
+(v0.4.1) permanece como baseline da correção de cintilação e não contém esta atualização de jogo.
 
 ## Controles
 
@@ -108,6 +110,8 @@ os dois arquivos anexados. O APK pode ser baixado diretamente em
 | Trocar de blusa | `←` `→` (com `Tab` entre HOME e AWAY) | setas do carrossel |
 | Confirmar | `Enter` | clicar |
 | Voltar | `Esc` / `Backspace` | — |
+
+Na partida: mova com `WASD` ou setas; `J`/`Espaço` passe, segure `K` ou `L` para carregar o chute, `E` para enfiada, `R` para drible, `F` para carrinho manual, `Tab`/`Q` para trocar de atleta e `Shift` para correr. No Android, as mesmas ações aparecem nos botões touch.
 
 ## Estrutura
 
@@ -119,7 +123,7 @@ xfc-game/
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
 │   ├── state.js          perfil, XP, seleção de times e blusas
-│   ├── data/teams.js     os dezoito clubes, elencos, médias e formação
+│   ├── data/teams.js     os vinte e um clubes, elencos, médias e formação
 │   ├── data/kits.js      as blusas (SVG) de cada clube + as fotos do pacote
 │   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
 │   └── screens/          intro, menu, kickoff, kits, squad, match

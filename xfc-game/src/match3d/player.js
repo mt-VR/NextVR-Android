@@ -171,17 +171,41 @@ function createSimplePlayer3D(options = {}) {
   let diveTimer = 0;
   let diveDir = 1;
   let cardTimer = 0;
+  let slideTimer = 0;
+  let slideDuration = 0.82;
+  let slideDir = 1;
+  let reactionTimer = 0;
+  let reactionDuration = 0;
+  let reactionKind = '';
 
   return {
     root, body, head, legs, arms,
     celebrate(duration = 2.6) { celebrateTimer = duration; },
     signal(duration = 1.1) { signalTimer = duration; },
     showCard(color = 'yellow', duration = 1.7) {
+      signalTimer = 0;
       cardTimer = duration;
       cardMesh.visible = true;
       cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
     },
     dive(dir = 1) { diveTimer = 0.95; diveDir = dir >= 0 ? 1 : -1; },
+    slideTackle(dir = 1, duration = 0.82) {
+      slideDir = dir >= 0 ? 1 : -1;
+      slideDuration = duration;
+      slideTimer = duration;
+      reactionTimer = 0;
+    },
+    react(kind = 'fall', duration = 0.82) {
+      if (kind === 'ejected') {
+        slideTimer = 0;
+        diveTimer = 0;
+        cardTimer = 0;
+        signalTimer = 0;
+      }
+      reactionKind = kind;
+      reactionDuration = duration;
+      reactionTimer = duration;
+    },
     update(dt, { speed = 0, moving = false, lean = 0 } = {}) {
       if (diveTimer > 0) {
         diveTimer = Math.max(0, diveTimer - dt);
@@ -202,6 +226,60 @@ function createSimplePlayer3D(options = {}) {
         signalTimer = Math.max(0, signalTimer - dt);
         arms[1].shoulder.rotation.x = -2.65;
         arms[0].shoulder.rotation.x = -0.65;
+        return;
+      }
+      if (slideTimer > 0) {
+        slideTimer = Math.max(0, slideTimer - dt);
+        const progress = 1 - slideTimer / Math.max(0.01, slideDuration);
+        const recovery = Math.max(0, Math.min(1, (progress - 0.58) / 0.42));
+        body.position.y = 0.02 + recovery * 0.08;
+        body.rotation.x = 0.38 * (1 - recovery);
+        body.rotation.z = slideDir * 1.05 * (1 - recovery);
+        arms[0].shoulder.rotation.x = -1.45;
+        arms[1].shoulder.rotation.x = -1.45;
+        arms[0].shoulder.rotation.z = slideDir * 0.38;
+        arms[1].shoulder.rotation.z = slideDir * 0.38;
+        legs[0].hip.rotation.x = 0.88 * (1 - recovery) - 0.15 * recovery;
+        legs[1].hip.rotation.x = -0.75 * (1 - recovery) + 0.12 * recovery;
+        legs[0].knee.rotation.x = 0.48 * (1 - recovery);
+        legs[1].knee.rotation.x = 0.28 * (1 - recovery);
+        return;
+      }
+      if (reactionTimer > 0) {
+        reactionTimer = Math.max(0, reactionTimer - dt);
+        const progress = 1 - reactionTimer / Math.max(0.01, reactionDuration);
+        const pulse = Math.sin(Math.PI * Math.min(1, progress * 1.35));
+        if (reactionKind === 'ejected') {
+          phase += dt * (moving ? 5.5 : 1.2);
+          const step = Math.sin(phase);
+          body.position.y = moving ? Math.abs(Math.sin(phase * 2)) * 0.018 : 0;
+          body.rotation.x = 0.035;
+          body.rotation.z = 0;
+          arms[0].shoulder.rotation.x = -step * 0.16;
+          arms[1].shoulder.rotation.x = step * 0.16;
+          legs[0].hip.rotation.x = step * 0.2;
+          legs[1].hip.rotation.x = -step * 0.2;
+          legs[0].knee.rotation.x = Math.max(0, -step) * 0.16;
+          legs[1].knee.rotation.x = Math.max(0, step) * 0.16;
+          head.rotation.x = -0.16;
+          return;
+        }
+        body.position.y = reactionKind === 'fall' ? 0.02 + pulse * 0.12 : pulse * 0.04;
+        body.rotation.x = reactionKind === 'fall' ? 0.58 * pulse : 0.08 * pulse;
+        body.rotation.z = reactionKind === 'fall' ? slideDir * 0.72 * pulse : slideDir * 0.12 * pulse;
+        if (reactionKind === 'fall') {
+          arms[0].shoulder.rotation.x = -1.65;
+          arms[1].shoulder.rotation.x = -1.1;
+          legs[0].hip.rotation.x = 0.55 * pulse;
+          legs[1].hip.rotation.x = -0.42 * pulse;
+          legs[0].knee.rotation.x = 0.68 * pulse;
+          legs[1].knee.rotation.x = 0.24 * pulse;
+        } else {
+          arms[0].shoulder.rotation.x = reactionKind === 'protest' || reactionKind === 'ejected' ? -1.65 : -0.45;
+          arms[1].shoulder.rotation.x = reactionKind === 'protest' || reactionKind === 'ejected' ? -1.8 : -0.3;
+          legs[0].hip.rotation.x = 0.12 * pulse;
+          legs[1].hip.rotation.x = -0.12 * pulse;
+        }
         return;
       }
       if (celebrateTimer > 0) {
@@ -231,6 +309,7 @@ function createSimplePlayer3D(options = {}) {
         arms[1].shoulder.rotation.x = wave * swing * 0.7;
       }
       body.position.y = moving ? Math.abs(Math.sin(phase)) * 0.025 : 0;
+      body.rotation.x = 0;
       body.rotation.z = lean * 0.6;
       if (kickTimer > 0) {
         kickTimer = Math.max(0, kickTimer - dt);
@@ -627,6 +706,12 @@ export function createPlayer3D(options = {}) {
   let diveTimer = 0;
   let diveDir = 1;
   let cardTimer = 0;
+  let slideTimer = 0;
+  let slideDuration = 0.82;
+  let slideDir = 1;
+  let reactionTimer = 0;
+  let reactionDuration = 0;
+  let reactionKind = '';
 
   const api = {
     root,
@@ -644,6 +729,7 @@ export function createPlayer3D(options = {}) {
     },
     /** Mostra o cartão (amarelo ou vermelho) na mão direita. */
     showCard(color = 'yellow', duration = 1.7) {
+      signalTimer = 0;
       cardTimer = duration;
       cardMesh.visible = true;
       cardMesh.material.color.set(color === 'red' ? 0xe0303e : 0xf5c518);
@@ -652,6 +738,25 @@ export function createPlayer3D(options = {}) {
     dive(dir = 1) {
       diveTimer = 0.95;
       diveDir = dir >= 0 ? 1 : -1;
+    },
+    /** Carrinho com deslize, extensão das pernas e recuperação em duas fases. */
+    slideTackle(dir = 1, duration = 0.82) {
+      slideDir = dir >= 0 ? 1 : -1;
+      slideDuration = duration;
+      slideTimer = duration;
+      reactionTimer = 0;
+    },
+    /** Queda, impacto, protesto ou caminhada de expulsão. */
+    react(kind = 'fall', duration = 0.82) {
+      if (kind === 'ejected') {
+        slideTimer = 0;
+        diveTimer = 0;
+        cardTimer = 0;
+        signalTimer = 0;
+      }
+      reactionKind = kind;
+      reactionDuration = duration;
+      reactionTimer = duration;
     },
     /** Anima a corrida: a velocidade define o balanço das pernas. */
     update(dt, { speed = 0, moving = false, lean = 0 } = {}) {
@@ -717,6 +822,69 @@ export function createPlayer3D(options = {}) {
         head.rotation.x = -0.28;
         legs[0].hip.rotation.x = legs[1].hip.rotation.x = 0.06;
         legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.12;
+        return;
+      }
+      if (slideTimer > 0) {
+        slideTimer = Math.max(0, slideTimer - dt);
+        const progress = 1 - slideTimer / Math.max(0.01, slideDuration);
+        const recovery = Math.max(0, Math.min(1, (progress - 0.58) / 0.42));
+        body.position.y = 0.025 + recovery * 0.08;
+        body.rotation.x = 0.48 * (1 - recovery);
+        body.rotation.z = slideDir * 0.98 * (1 - recovery);
+        arms[0].shoulder.rotation.x = -1.62;
+        arms[1].shoulder.rotation.x = -1.54;
+        arms[0].shoulder.rotation.z = slideDir * 0.32;
+        arms[1].shoulder.rotation.z = slideDir * 0.32;
+        arms[0].forearm.rotation.x = -0.35;
+        arms[1].forearm.rotation.x = -0.35;
+        legs[0].hip.rotation.x = 0.9 * (1 - recovery) - 0.12 * recovery;
+        legs[1].hip.rotation.x = -0.76 * (1 - recovery) + 0.12 * recovery;
+        legs[0].knee.rotation.x = 0.64 * (1 - recovery);
+        legs[1].knee.rotation.x = 0.3 * (1 - recovery);
+        return;
+      }
+      if (reactionTimer > 0) {
+        reactionTimer = Math.max(0, reactionTimer - dt);
+        const progress = 1 - reactionTimer / Math.max(0.01, reactionDuration);
+        const pulse = Math.sin(Math.PI * Math.min(1, progress * 1.35));
+        if (reactionKind === 'ejected') {
+          phase += dt * (moving ? 5.5 : 1.2);
+          const step = Math.sin(phase);
+          body.position.y = moving ? Math.abs(Math.sin(phase * 2)) * 0.022 : 0;
+          body.rotation.x = 0.035;
+          body.rotation.z = 0;
+          arms[0].shoulder.rotation.x = -step * 0.2;
+          arms[1].shoulder.rotation.x = step * 0.2;
+          legs[0].hip.rotation.x = step * 0.24;
+          legs[1].hip.rotation.x = -step * 0.24;
+          legs[0].knee.rotation.x = Math.max(0, -step) * 0.28;
+          legs[1].knee.rotation.x = Math.max(0, step) * 0.28;
+          head.rotation.x = -0.17;
+          return;
+        }
+        body.position.y = reactionKind === 'fall' ? 0.04 + pulse * 0.12 : pulse * 0.04;
+        body.rotation.x = reactionKind === 'fall' ? 0.54 * pulse : 0.08 * pulse;
+        body.rotation.z = reactionKind === 'fall' ? slideDir * 0.82 * pulse : slideDir * 0.12 * pulse;
+        if (reactionKind === 'fall') {
+          arms[0].shoulder.rotation.x = -1.8;
+          arms[1].shoulder.rotation.x = -1.28;
+          arms[0].forearm.rotation.x = -0.2;
+          arms[1].forearm.rotation.x = 0.25;
+          legs[0].hip.rotation.x = 0.58 * pulse;
+          legs[1].hip.rotation.x = -0.45 * pulse;
+          legs[0].knee.rotation.x = 0.72 * pulse;
+          legs[1].knee.rotation.x = 0.25 * pulse;
+        } else {
+          const protesting = reactionKind === 'protest' || reactionKind === 'ejected';
+          arms[0].shoulder.rotation.x = protesting ? -1.65 : -0.45;
+          arms[1].shoulder.rotation.x = protesting ? -1.82 : -0.3;
+          arms[0].shoulder.rotation.z = 0.14;
+          arms[1].shoulder.rotation.z = -0.14;
+          legs[0].hip.rotation.x = 0.1 * pulse;
+          legs[1].hip.rotation.x = -0.1 * pulse;
+          legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.05;
+        }
+        head.rotation.x = reactionKind === 'fall' ? 0.18 : -0.12;
         return;
       }
       if (celebrateTimer > 0) {

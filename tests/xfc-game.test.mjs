@@ -501,6 +501,49 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'a barra de posse tem o preenchimento do mandante');
     assert.equal(await page.locator('.hud__tag').count(), 1,
       'a HUD mantém o elemento de etiqueta para o atleta controlado');
+    assert.equal(await page.locator('.hud__cards').count(), 1,
+      'o placar inclui o resumo dos cartões por equipe');
+    assert.equal(await page.locator('.hud__card-chip').count(), 4,
+      'o HUD identifica cartões amarelos e vermelhos para os dois times');
+
+    const kickoffIdle = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const state = match.world.snapshot();
+      return {
+        phase: match.phase.name,
+        side: match.phase.side,
+        userSide: match.world.userSide,
+        owner: match.ball.state.owner?.id || null,
+        controlled: match.controlled[match.world.userSide]?.id || null,
+        kickoffPositionsLegal: match.world.members(match.phase.side)
+          .filter(player => player !== match.ball.state.owner)
+          .every(player => match.world.attackSign(match.phase.side) * player.x <= 0)
+          && match.world.members(match.world.opponentOf(match.phase.side))
+            .every(player => match.world.attackSign(match.phase.side) * player.x >= 9.15),
+        shots: state.stats.home.shots + state.stats.away.shots,
+        passes: state.stats.home.passes + state.stats.away.passes
+      };
+    });
+    await page.waitForTimeout(300);
+    const kickoffAfterWait = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const state = match.world.snapshot();
+      return {
+        phase: match.phase.name,
+        owner: match.ball.state.owner?.id || null,
+        shots: state.stats.home.shots + state.stats.away.shots,
+        passes: state.stats.home.passes + state.stats.away.passes
+      };
+    });
+    assert.equal(kickoffIdle.phase, 'kickoff', 'a saída humana aguarda o comando do jogador');
+    assert.equal(kickoffIdle.side, kickoffIdle.userSide, 'o jogador controla a equipe que cobra a saída');
+    assert.equal(kickoffIdle.owner, kickoffIdle.controlled, 'o cobrador mantém a posse enquanto espera');
+    assert.ok(kickoffIdle.kickoffPositionsLegal,
+      'os times respeitam as metades do campo e a distância dos adversários na saída');
+    assert.deepEqual(kickoffAfterWait, {
+      phase: 'kickoff', owner: kickoffIdle.owner, shots: kickoffIdle.shots, passes: kickoffIdle.passes
+    }, 'a simulação não dispara passe ou chute sem ação explícita');
+
     const shotGestures = await page.evaluate(() => {
       const match = window.__xfcMatch;
       const button = document.querySelector('.ctrl-btn--shoot');
@@ -793,11 +836,23 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       match.world.tick(1 / 60);
       match.world.tick(1 / 60);
       const restart = match.phase.restart;
+      const shotsBeforeRestartInput = match.world.snapshot().stats.home.shots;
+      for (let index = 0; index < 90; index += 1) match.world.tick(1 / 60);
+      const restartWaitsForInput = match.phase.restart === restart
+        && match.phase.restart?.ready
+        && match.ball.state.owner === homeKeeper
+        && match.world.snapshot().stats.home.shots === shotsBeforeRestartInput;
+      const explicitShotAccepted = match.world.command('shoot', { strength: 0.7 });
       const result = {
         scored,
         noTouch,
         goalKick: restart?.type === 'goalkick' && restart.side === 'home',
         takerIsKeeper: restart?.taker === homeKeeper,
+        restartWaitsForInput,
+        explicitShotAccepted,
+        restartShotReleased: match.phase.name === 'play' && match.phase.restart === null
+          && match.world.snapshot().stats.home.shots === shotsBeforeRestartInput + 1
+          && match.ball.state.lastShotKind === 'direct',
         awayKeeperExists: Boolean(awayKeeper),
         awayShooterExists: Boolean(awayShooter)
       };
@@ -808,23 +863,103 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(goalAndGoalKick.noTouch, 'a bola que entra no gol sem desvio não mantém um toque fantasma');
     assert.ok(goalAndGoalKick.goalKick && goalAndGoalKick.takerIsKeeper,
       'a bola pela linha de fundo sem toque do goleiro gera tiro de meta cobrado pelo goleiro');
+    assert.ok(goalAndGoalKick.restartWaitsForInput,
+      'a reposição humana fica aguardando sem passe ou chute automático');
+    assert.ok(goalAndGoalKick.explicitShotAccepted && goalAndGoalKick.restartShotReleased,
+      'um comando explícito de chute cobra a bola parada e retoma o jogo');
     assert.ok(goalAndGoalKick.awayKeeperExists, 'o goleiro também existe no lado visitante');
+
+    const manualSlide = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const players = [...match.teams.home.players, ...match.teams.away.players];
+      const tackler = match.teams.home.players.find(player => !player.isKeeper);
+      const previousControl = match.controlled.home;
+      const previousPosition = { x: tackler.x, z: tackler.z };
+      const ballState = match.ball.state;
+      const previousBall = {
+        position: ballState.position.clone(),
+        velocity: ballState.velocity.clone(),
+        spin: ballState.spin.clone(),
+        owner: ballState.owner,
+        lastTouch: ballState.lastTouch,
+        guidance: ballState.guidance,
+        lastCollision: ballState.lastCollision,
+        lastShotKind: ballState.lastShotKind
+      };
+      for (const player of players) player.active = player === tackler;
+      tackler.x = 0;
+      tackler.z = 0;
+      tackler.vx = tackler.vz = 0;
+      tackler.slideTackle = null;
+      tackler.slideCooldownUntil = 0;
+      tackler.root.position.set(0, 0, 0);
+      match.controlled.home = tackler;
+      match.phase.name = 'play';
+      match.phase.timer = 0;
+      match.phase.restart = null;
+      match.ball.state.owner = null;
+      match.ball.state.position.set(2.8, 0.11, 0);
+      match.ball.state.velocity.set(0, 0, 0);
+      match.ball.state.spin.set(0, 0, 0);
+      match.ball.state.guidance = null;
+      match.ball.state.lastTouch = null;
+      match.ball.state.lastCollision = null;
+      const started = match.world.command('tackle');
+      for (let index = 0; index < 90; index += 1) match.world.tick(1 / 60);
+      const result = {
+        started,
+        cleanAcquisition: match.ball.state.owner === tackler,
+        recovered: !tackler.slideTackle,
+        noFoul: match.phase.name === 'play' && match.phase.restart === null
+      };
+      for (const player of players) player.active = true;
+      tackler.x = previousPosition.x;
+      tackler.z = previousPosition.z;
+      tackler.vx = tackler.vz = 0;
+      tackler.root.position.set(tackler.x, 0, tackler.z);
+      match.controlled.home = previousControl;
+      ballState.position.copy(previousBall.position);
+      ballState.velocity.copy(previousBall.velocity);
+      ballState.spin.copy(previousBall.spin);
+      ballState.owner = previousBall.owner;
+      ballState.lastTouch = previousBall.lastTouch;
+      ballState.guidance = previousBall.guidance;
+      ballState.lastCollision = previousBall.lastCollision;
+      ballState.lastShotKind = previousBall.lastShotKind;
+      match.ball.mesh.position.copy(ballState.position);
+      match.ball.shadow.position.set(ballState.position.x, 0.02, ballState.position.z);
+      return result;
+    });
+    assert.ok(manualSlide.started, 'o botão de carrinho inicia uma ação defensiva manual');
+    assert.ok(manualSlide.cleanAcquisition && manualSlide.recovered && manualSlide.noFoul,
+      'o carrinho limpo alcança a bola, recupera o atleta e mantém a partida em jogo');
 
     const disciplinary = await page.evaluate(() => {
       const match = window.__xfcMatch;
       const players = [...match.teams.home.players, ...match.teams.away.players];
       const offender = match.teams.home.players.find(player => !player.isKeeper);
       const victim = match.teams.away.players.find(player => !player.isKeeper);
+      const previousControl = match.controlled.home;
+      match.controlled.home = offender;
       for (const player of players) player.active = player === offender || player === victim;
       offender.x = 27; offender.z = 0; offender.root.position.set(27, 0, 0);
       victim.x = 28; victim.z = 0; victim.root.position.set(28, 0, 0);
       let firstYellowAt = null;
+      let firstRestart = null;
       let dismissed = false;
       for (let attempt = 0; attempt < 120 && !dismissed; attempt += 1) {
         match.phase.name = 'play';
         match.phase.restart = null;
         match.ball.attachTo(victim);
         match.world.tackle(offender);
+        if (!firstRestart && match.phase.restart) {
+          firstRestart = {
+            type: match.phase.restart.type,
+            side: match.phase.restart.side,
+            x: match.phase.restart.x,
+            z: match.phase.restart.z
+          };
+        }
         const yellows = match.teams.home.cards[offender.id] || 0;
         if (yellows === 1 && firstYellowAt === null) firstYellowAt = attempt;
         dismissed = !offender.active;
@@ -832,17 +967,24 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const result = {
         yellows: match.teams.home.cards[offender.id] || 0,
         firstYellowAt,
+        firstRestart,
         dismissed,
-        active: offender.active
+        active: offender.active,
+        replacementIsActive: match.controlled.home !== offender && Boolean(match.controlled.home?.active)
       };
       for (const player of players) player.active = true;
+      match.controlled.home = previousControl;
       match.phase.name = 'play';
       match.phase.restart = null;
       return result;
     });
-    assert.ok(disciplinary.firstYellowAt !== null, 'o carrinho perigoso recebe o primeiro amarelo');
+    assert.ok(disciplinary.firstYellowAt !== null, 'a entrada perigosa recebe o primeiro amarelo');
+    assert.deepEqual(disciplinary.firstRestart, { type: 'freekick', side: 'away', x: 28, z: 0 },
+      'a falta fora da área reinicia para o adversário no ponto do incidente');
     assert.ok(disciplinary.dismissed && !disciplinary.active && disciplinary.yellows >= 2,
       'o segundo amarelo vira vermelho e remove o atleta de campo');
+    assert.ok(disciplinary.replacementIsActive,
+      'a expulsão troca o controle para um atleta ativo, nunca para o jogador removido');
 
     // O jogo pausa no intervalo: o jogador volta com o botão do segundo tempo.
     await page.evaluate(async () => {

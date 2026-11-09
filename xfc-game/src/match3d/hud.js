@@ -50,6 +50,19 @@ export function createHud({ root, home, away }) {
     possTrack,
     possAwayPct
   );
+  const homeYellowCards = el('b', { text: '0' });
+  const homeRedCards = el('b', { text: '0' });
+  const awayYellowCards = el('b', { text: '0' });
+  const awayRedCards = el('b', { text: '0' });
+  const teamCards = (team, yellow, red, side) => el('span', { class: `hud__cards-team hud__cards-team--${side}` },
+    el('strong', { text: abbreviationOf(team) }),
+    el('i', { class: 'hud__card-chip hud__card-chip--yellow', 'aria-label': 'Amarelos' }), yellow,
+    el('i', { class: 'hud__card-chip hud__card-chip--red', 'aria-label': 'Vermelhos' }), red
+  );
+  const discipline = el('div', { class: 'hud__cards', 'aria-label': 'Cartões da partida' },
+    teamCards(home, homeYellowCards, homeRedCards, 'home'),
+    teamCards(away, awayYellowCards, awayRedCards, 'away')
+  );
 
   // Placar estilo transmissão: SIGLA gols – gols SIGLA, com o relógio embaixo.
   const scoreboard = el('div', { class: 'hud__scoreboard' },
@@ -68,6 +81,7 @@ export function createHud({ root, home, away }) {
       halfLabel
     ),
     possessionBar,
+    discipline,
     el('div', { class: 'hud__sc-bar' })
   );
 
@@ -263,6 +277,11 @@ export function createHud({ root, home, away }) {
       possFill.style.width = `${Math.max(0, Math.min(100, poss[0]))}%`;
       possHomePct.textContent = `${poss[0]}%`;
       possAwayPct.textContent = `${poss[1]}%`;
+      const cards = snapshot.discipline || {};
+      homeYellowCards.textContent = String(cards.home?.yellow ?? 0);
+      homeRedCards.textContent = String(cards.home?.red ?? 0);
+      awayYellowCards.textContent = String(cards.away?.yellow ?? 0);
+      awayRedCards.textContent = String(cards.away?.red ?? 0);
       const player = controlled?.player || null;
       const goalScorer = snapshot.phase === 'goal' ? snapshot.scorer : null;
       const focusPlayer = goalScorer || player;

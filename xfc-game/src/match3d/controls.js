@@ -18,7 +18,7 @@ const BUTTONS = [
   { id: 'shoot', label: 'CHUTE', className: 'ctrl-btn--shoot' },
   { id: 'lob', label: 'ENFIADA', className: 'ctrl-btn--lob' },
   { id: 'dribble', label: 'DRIBLE', className: 'ctrl-btn--dribble' },
-  { id: 'tackle', label: 'DESARME', className: 'ctrl-btn--tackle' },
+  { id: 'tackle', label: 'CARRINHO', className: 'ctrl-btn--tackle' },
   { id: 'switch', label: 'TROCAR', className: 'ctrl-btn--switch' },
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
 ];
@@ -36,8 +36,11 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   const SHOOT_FULL_MS = 1050;
   const SHOOT_MIN_STRENGTH = 0.3;
   let shootCharge = null;
+  let shootPointerId = null;
   let cancelActiveShot = () => {};
+  const cancelActiveActions = [];
   let movementVector = { x: 0, z: 0 };
+  let enabled = true;
 
   function shootUi(button, strength, kind, charging) {
     button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
@@ -76,7 +79,9 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
       dataset: { command: item.id },
       'aria-label': item.id === 'shoot'
         ? 'Chute: segure para carregar, arraste para cima para chute alto e curvado, para baixo para colocado ou para trás para superchute'
-        : item.label
+        : item.id === 'tackle'
+          ? 'Carrinho: toque para tentar desarmar o adversário próximo'
+          : item.label
     },
       el('span', { text: item.label }),
       item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: '↑ CURVADO · ↓ COLOCADO' })
@@ -86,6 +91,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
         event.stopPropagation();
+        if (!enabled || shootPointerId !== null) return;
+        shootPointerId = event.pointerId;
         button.setPointerCapture?.(event.pointerId);
         shootCharge = {
           startX: event.clientX,
@@ -97,14 +104,14 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
         shootUi(button, 0, 'normal', true);
       });
       button.addEventListener('pointermove', event => {
-        if (!shootCharge) return;
+        if (!shootCharge || event.pointerId !== shootPointerId) return;
         const elapsed = performance.now() - shootCharge.startedAt;
         shootCharge.strength = Math.max(0, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
         shootCharge.kind = shotGesture(shootCharge, event);
         shootUi(button, shootCharge.strength, shootCharge.kind, true);
       });
       const shootRelease = event => {
-        if (!shootCharge) return;
+        if (!shootCharge || event.pointerId !== shootPointerId) return;
         const shot = shootCharge;
         if (event?.clientX !== undefined) shot.kind = shotGesture(shot, event);
         const payload = {
@@ -113,11 +120,18 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
           kind: shot.kind
         };
         shootCharge = null;
+        shootPointerId = null;
         shootUi(button, 0, 'normal', false);
-        onCommand('shoot', payload);
+        if (enabled) onCommand('shoot', payload);
       };
-      const shootCancel = () => {
+      const shootCancel = event => {
+        if (event && shootPointerId !== null && event.pointerId !== shootPointerId) return;
+        const activePointer = shootPointerId;
         shootCharge = null;
+        shootPointerId = null;
+        if (!event && activePointer !== null && button.hasPointerCapture?.(activePointer)) {
+          button.releasePointerCapture?.(activePointer);
+        }
         shootUi(button, 0, 'normal', false);
       };
       cancelActiveShot = shootCancel;
@@ -126,9 +140,25 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
       return button;
     }
 
+    let actionPointerId = null;
+    const cancelAction = () => {
+      const activePointer = actionPointerId;
+      actionPointerId = null;
+      if (activePointer !== null && button.hasPointerCapture?.(activePointer)) {
+        button.releasePointerCapture?.(activePointer);
+      }
+      if (item.id === 'sprint') {
+        button.classList.remove('is-active');
+        if (activePointer !== null) onSprint(false);
+      }
+    };
+    cancelActiveActions.push(cancelAction);
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
       event.stopPropagation();
+      if (!enabled || actionPointerId !== null) return;
+      actionPointerId = event.pointerId;
+      button.setPointerCapture?.(event.pointerId);
       if (item.id === 'sprint') {
         onSprint(true);
         button.classList.add('is-active');
@@ -136,7 +166,9 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
         onCommand(item.id);
       }
     });
-    const release = () => {
+    const release = event => {
+      if (actionPointerId === null || (event?.pointerId !== undefined && event.pointerId !== actionPointerId)) return;
+      actionPointerId = null;
       if (item.id === 'sprint') {
         onSprint(false);
         button.classList.remove('is-active');
@@ -144,7 +176,6 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     };
     button.addEventListener('pointerup', release);
     button.addEventListener('pointercancel', release);
-    button.addEventListener('pointerleave', release);
     return button;
   });
 
@@ -164,8 +195,12 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     return { x: box.left + box.width / 2, y: box.top + box.height / 2, scale: box.width / STICK_BASE };
   }
 
-  function resetStick() {
+  function resetStick(releaseCapture = false) {
+    const activePointer = pointerId;
     pointerId = null;
+    if (releaseCapture && activePointer !== null && zone.hasPointerCapture?.(activePointer)) {
+      zone.releasePointerCapture?.(activePointer);
+    }
     knob.style.transform = 'translate(-50%, -50%)';
     movementVector = { x: 0, z: 0 };
     onMove(0, 0);
@@ -199,7 +234,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   }
 
   zone.addEventListener('pointerdown', event => {
-    if (pointerId !== null) return;
+    if (!enabled || pointerId !== null) return;
     pointerId = event.pointerId;
     zone.setPointerCapture(event.pointerId);
     const { dx, dy } = vectorFrom(event);
@@ -217,7 +252,9 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     if (event.pointerId !== pointerId) return;
     resetStick();
   });
-  zone.addEventListener('pointercancel', resetStick);
+  zone.addEventListener('pointercancel', event => {
+    if (event.pointerId === pointerId) resetStick();
+  });
 
   // ------------------------------------------------------------- teclado --
 
@@ -234,7 +271,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   let shootKeyStartedAt = null;
 
   function onKeyDown(event) {
-    if (event.repeat) return;
+    if (!enabled || event.repeat) return;
     keys.add(event.code);
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(true);
     if (event.code === 'KeyK' || event.code === 'KeyL') {
@@ -257,12 +294,17 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
         const elapsed = performance.now() - shootKeyStartedAt;
         const strength = Math.max(SHOOT_MIN_STRENGTH, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
         shootKeyStartedAt = null;
-        onCommand('shoot', { strength, placed: false });
+        if (enabled) onCommand('shoot', { strength, placed: false });
       }
     }
   }
 
   function readKeyboard() {
+    if (!enabled) {
+      movementVector = { x: 0, z: 0 };
+      onMove(0, 0);
+      return;
+    }
     let x = 0;
     let z = 0;
     if (keys.has('KeyW') || keys.has('ArrowUp')) z += 1;
@@ -278,18 +320,27 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
 
   const keyboardTimer = setInterval(readKeyboard, 40);
 
+  function setEnabled(value) {
+    enabled = Boolean(value);
+    container.classList.toggle('is-disabled', !enabled);
+    if (!enabled) {
+      resetStick(true);
+      cancelActiveShot();
+      for (const cancelAction of cancelActiveActions) cancelAction();
+      keys.clear();
+      shootKeyStartedAt = null;
+      movementVector = { x: 0, z: 0 };
+      onMove(0, 0);
+      onSprint(false);
+    }
+  }
+
   return {
     node: container,
     /** Liga ou desliga os controles (pausa, resultado...). */
-    setEnabled(enabled) {
-      container.classList.toggle('is-disabled', !enabled);
-      if (!enabled) {
-        resetStick();
-        cancelActiveShot();
-        onSprint(false);
-      }
-    },
+    setEnabled,
     dispose() {
+      setEnabled(false);
       clearInterval(keyboardTimer);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
