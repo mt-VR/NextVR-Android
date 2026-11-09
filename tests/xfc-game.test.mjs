@@ -993,6 +993,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const match = window.__xfcMatch;
       for (let index = 0; index < 60000; index += 1) {
         match.world.tick(1 / 60);
+        if (match.phase.name === 'kickoff' && match.phase.side === match.world.userSide) {
+          match.world.command('pass');
+        } else if (match.phase.name === 'restart' && match.phase.restart?.ready
+          && match.phase.restart.side === match.world.userSide) {
+          match.world.command('pass');
+        }
         if (match.phase.name === 'halftime') break;
       }
     });
@@ -1006,6 +1012,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const match = window.__xfcMatch;
       for (let index = 0; index < 60000; index += 1) {
         match.world.tick(1 / 60);
+        if (match.phase.name === 'kickoff' && match.phase.side === match.world.userSide) {
+          match.world.command('pass');
+        } else if (match.phase.name === 'restart' && match.phase.restart?.ready
+          && match.phase.restart.side === match.world.userSide) {
+          match.world.command('pass');
+        }
         if (match.phase.name === 'fulltime') break;
       }
       return match.world.snapshot();
