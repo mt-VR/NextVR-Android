@@ -95,7 +95,7 @@
 }
 
 /* Shared XFC 27 lockups */
-.menu__topbar {
+.screen--xfc-home .menu__topbar {
   position: absolute;
   inset: 22px 4.1% auto;
   height: 62px;
@@ -104,7 +104,7 @@
   pointer-events: none;
 }
 
-.menu__logo-xfc,
+.screen--xfc-home .menu__logo-xfc,
 .modes__logo,
 .customise__brand {
   display: flex;
@@ -113,7 +113,7 @@
   pointer-events: auto;
 }
 
-.menu__logo-badge,
+.screen--xfc-home .menu__logo-badge,
 .modes__badge,
 .customise__badge {
   display: block;
@@ -123,14 +123,14 @@
   filter: drop-shadow(0 2px 12px rgba(0,0,0,.45));
 }
 
-.menu__logo-badge svg,
+.screen--xfc-home .menu__logo-badge svg,
 .modes__badge svg,
 .customise__badge svg {
   width: 100%;
   height: 100%;
 }
 
-.menu__logo-word,
+.screen--xfc-home .menu__logo-word,
 .modes__wordmark,
 .customise__wordmark {
   display: block;
@@ -139,7 +139,7 @@
   filter: drop-shadow(0 2px 8px rgba(0,0,0,.4));
 }
 
-.menu__logo-word svg,
+.screen--xfc-home .menu__logo-word svg,
 .modes__wordmark svg,
 .customise__wordmark svg {
   display: block;
@@ -147,7 +147,7 @@
   height: auto;
 }
 
-.menu__logo-xfc .xfc-27-badge,
+.screen--xfc-home .menu__logo-xfc .xfc-27-badge,
 .modes__year,
 .customise__year {
   margin-left: -5px;
@@ -160,12 +160,12 @@
   text-shadow: 0 0 18px rgba(0, 117, 255, .5);
 }
 
-.menu__topbar-right {
+.screen--xfc-home .menu__topbar-right {
   gap: 16px;
   pointer-events: auto;
 }
 
-.menu__coins {
+.screen--xfc-home .menu__coins {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -178,13 +178,13 @@
   text-shadow: none;
 }
 
-.menu__coins svg {
+.screen--xfc-home .menu__coins svg {
   width: 18px;
   height: 18px;
   fill: #ffd14d;
 }
 
-.menu__profile {
+.screen--xfc-home .menu__profile {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -196,7 +196,7 @@
   font-size: 12px;
 }
 
-.menu__profile-avatar {
+.screen--xfc-home .menu__profile-avatar {
   display: grid;
   place-items: center;
   width: 30px;
@@ -207,8 +207,8 @@
   font-weight: 900;
 }
 
-.menu__profile-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu__profile-chevron { font-size: 16px; color: rgba(255,255,255,.7); }
+.screen--xfc-home .menu__profile-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen--xfc-home .menu__profile-chevron { font-size: 16px; color: rgba(255,255,255,.7); }
 
 /* Player art is a still image on the frontend. In-match athletes remain 3D. */
 .featured-player {
@@ -230,7 +230,7 @@
   mix-blend-mode: screen;
 }
 
-.menu__scene3d {
+.screen--xfc-home .menu__scene3d {
   top: 8%;
   right: 20%;
   bottom: 17%;
@@ -240,8 +240,8 @@
 
 
 
-.menu__player-name { position: static; left: auto; bottom: auto; transform: none; }
-.menu__player-num { position: static; left: auto; bottom: auto; transform: none; }
+.screen--xfc-home .menu__player-name { position: static; left: auto; bottom: auto; transform: none; }
+.screen--xfc-home .menu__player-num { position: static; left: auto; bottom: auto; transform: none; }
 
 /* Main training feature */
 .home__feature-card {
@@ -282,7 +282,7 @@
   letter-spacing: .2em;
 }
 
-.menu__hero-title {
+.screen--xfc-home .menu__hero-title {
   margin: 7px 0 14px;
   color: #fff;
   font-size: clamp(25px, 3.2vw, 34px);
@@ -385,7 +385,7 @@
 .home__cup-cta { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 34px; margin-top: auto; border-radius: 3px; color: #fff; background: linear-gradient(90deg,#ff9a00,#ff6b00); font-size: 11px; font-weight: 900; letter-spacing: .04em; }
 
 /* Five-button home navigation */
-.menu__nav {
+.screen--xfc-home .menu__nav {
   position: absolute;
   z-index: 10;
   top: auto;
@@ -397,7 +397,7 @@
   gap: 7px;
 }
 
-.menu__item {
+.screen--xfc-home .menu__item {
   position: relative;
   min-width: 0;
   height: 80px;
@@ -420,15 +420,15 @@
   animation: none;
 }
 
-.menu__item:hover { transform: translateY(-3px); border-color: #89c5ff; }
-.menu__item.is-focused {
+.screen--xfc-home .menu__item:hover { transform: translateY(-3px); border-color: #89c5ff; }
+.screen--xfc-home .menu__item.is-focused {
   color: #154cb0;
   background: linear-gradient(145deg, #f7fbff, #dbe9ff);
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px rgba(35,150,255,.8), 0 0 22px rgba(28,132,255,.7), 0 8px 20px rgba(0,0,0,.36);
 }
 
-.menu__item-label {
+.screen--xfc-home .menu__item-label {
   position: relative;
   z-index: 2;
   display: block;
@@ -440,7 +440,7 @@
   letter-spacing: -.02em;
 }
 
-.menu__item-icon {
+.screen--xfc-home .menu__item-icon {
   position: absolute;
   right: 7px;
   bottom: 5px;
@@ -452,11 +452,11 @@
   opacity: .96;
 }
 
-.menu__item-icon svg { display: block; width: 100%; height: 100%; fill: currentColor; }
-.menu__item.is-focused .menu__item-icon { color: #86a8d7; }
-.menu__item.is-focused .menu__item-label { color: #164ba5; }
+.screen--xfc-home .menu__item-icon svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.screen--xfc-home .menu__item.is-focused .menu__item-icon { color: #86a8d7; }
+.screen--xfc-home .menu__item.is-focused .menu__item-label { color: #164ba5; }
 
-.menu__footer {
+.screen--xfc-home .menu__footer {
   position: absolute;
   z-index: 10;
   left: 5%;
@@ -467,13 +467,13 @@
   pointer-events: none;
 }
 
-.menu__footer-context { display: flex; align-items: center; gap: 8px; color: #fff; }
-.menu__footer-text { color: rgba(255,255,255,.94); font-size: 14px; font-weight: 700; text-shadow: 0 2px 5px #000; }
+.screen--xfc-home .menu__footer-context { display: flex; align-items: center; gap: 8px; color: #fff; }
+.screen--xfc-home .menu__footer-text { color: rgba(255,255,255,.94); font-size: 14px; font-weight: 700; text-shadow: 0 2px 5px #000; }
 .home__pad-x { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid #fff; border-radius: 50%; font-size: 17px; font-weight: 900; }
 .home__controller-mini { margin-left: 14px; color: #fff; font-size: 25px; line-height: 1; text-shadow: 0 2px 5px #000; }
-.menu__footer-online { display: flex; align-items: center; gap: 8px; margin-left: auto; padding: 6px 10px; border-radius: 3px; background: rgba(2,14,40,.68); color: #fff; font-size: 14px; font-weight: 800; }
-.menu__footer-online svg { width: 22px; height: 22px; fill: currentColor; }
-.menu__online-key { padding: 4px 7px; border-radius: 3px; background: #fff; color: #0a214b; font-size: 11px; }
+.screen--xfc-home .menu__footer-online { display: flex; align-items: center; gap: 8px; margin-left: auto; padding: 6px 10px; border-radius: 3px; background: rgba(2,14,40,.68); color: #fff; font-size: 14px; font-weight: 800; }
+.screen--xfc-home .menu__footer-online svg { width: 22px; height: 22px; fill: currentColor; }
+.screen--xfc-home .menu__online-key { padding: 4px 7px; border-radius: 3px; background: #fff; color: #0a214b; font-size: 11px; }
 
 /* Play Modes / World Cup menu */
 .modes__topbar {
@@ -670,18 +670,18 @@
 @media (max-height: 620px) {
   .customise__grid { top: 22%; bottom: 15%; }
   .customise__tile-title { font-size: 22px; }
-  .menu__nav,.modes__options { bottom: 10%; }
-  .menu__item,.modes__option { height: 70px; }
+  .screen--xfc-home .menu__nav,.modes__options { bottom: 10%; }
+  .screen--xfc-home .menu__item,.modes__option { height: 70px; }
   .home__feature-card { top: 22%; height: 44%; }
 }
 
 @media (max-width: 950px) {
-  .menu__logo-badge { width: 50px; height: 50px; }
-  .menu__logo-word { width: 100px; }
-  .menu__logo-xfc .xfc-27-badge { font-size: 30px; }
+  .screen--xfc-home .menu__logo-badge { width: 50px; height: 50px; }
+  .screen--xfc-home .menu__logo-word { width: 100px; }
+  .screen--xfc-home .menu__logo-xfc .xfc-27-badge { font-size: 30px; }
   .home__feature-copy { padding: 15px; }
   .home__feature-description,.home__feature-instruction { font-size: 12px; }
-  .menu__item-label { font-size: 13px; }
+  .screen--xfc-home .menu__item-label { font-size: 13px; }
   .customise__tile-title { font-size: 21px; }
   .modes__hero-title { font-size: 30px; }
 }

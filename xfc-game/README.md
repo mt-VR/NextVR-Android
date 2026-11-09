@@ -14,7 +14,7 @@ rotação em paisagem (`sensorLandscape`).
 O XFC já reúne as telas principais e a partida de futebol em 3D:
 
 1. **Intro e abertura** — marca XF Esports/XFC e a arte do atleta; Entrar leva ao menu.
-2. **Menu inicial** — jogador em destaque por imagem estática (os jogadores controláveis continuam sendo modelos 3D), com atalhos para Play Modes, configurações e personalização.
+2. **Menu inicial** — menu clássico vermelho/magenta, com partículas, jogador 3D em destaque e navegação vertical para Copa, Kick Off, modos de jogo, partidas rápidas, personalização e Ultimate Team.
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
 4. **Modos de jogo** — a Copa do Mundo (edição ao vivo e 2027), World Cup Kick Off e partidas rápidas estão acessíveis no seletor.
 5. **Kick Off / Classic Match** — escolha de clubes, estádio, uniformes e elenco; o fluxo existente de blusas e gestão de equipe continua disponível.
@@ -95,7 +95,7 @@ CI e publica:
 | APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
 | Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
 
-A release [`xfc-menu-v1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v1)
+A release [`xfc-menu-v4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v4)
 também tem os dois arquivos anexados.
 
 ## Controles

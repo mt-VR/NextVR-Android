@@ -244,20 +244,21 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Menu XFC 27: imagem de destaque, atalhos de modos e configurações.
+    // Menu clássico do XFC 27: navegação vertical, partículas e jogador 3D.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     await imagesReady();
-    const navLabels = await page.locator('.menu__item').allTextContents();
-    assert.ok(navLabels.some(label => label.includes('PLAY MODES')), 'o menu abre os modos');
-    assert.ok(navLabels.some(label => label.includes('SETTINGS')), 'o menu abre personalização/configurações');
+    const navLabels = await page.locator('.menu__item-label').allTextContents();
+    assert.ok(navLabels.some(label => label.includes('Copa do Mundo Live')), 'o menu abre a campanha da Copa');
+    assert.ok(navLabels.some(label => label.includes('Kick Off')), 'o menu abre o Kick Off');
+    assert.ok(navLabels.some(label => label.includes('Ultimate Team')), 'o menu mantém o atalho do Ultimate Team');
     assert.ok(await page.locator('.menu__logo-xfc').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.menu__scene3d img').isVisible(), 'o jogador em destaque é uma imagem estática');
-    assert.equal(await page.locator('.menu__scene3d canvas').count(), 0, 'o menu não cria um modelo 3D para o destaque');
+    assert.ok(await page.locator('.menu__scene3d canvas').count() > 0, 'o destaque mantém a cena 3D do jogador');
+    assert.equal(await page.locator('.menu__scene3d img').count(), 0, 'o menu clássico não troca o jogador por uma imagem');
     assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o destaque XFC 27');
 
     // Loja do Ultimate Team: compra de carta, desconto de moedas e coleção salva.
     const coinsBeforePurchase = Number(await page.locator('.menu__coins span').textContent());
-    await page.locator('.menu__item[data-tab="ultimate"]').click();
+    await page.locator('.menu__item[data-menu-item="ultimate"]').click();
     await page.waitForSelector('.screen--ultimate');
     assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'a loja mostra cartas contratáveis');
     const buyButton = page.locator('.ultimate-card__buy').first();
@@ -272,7 +273,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Configurações e personalização: grade, diálogos e edição de perfil.
-    await page.locator('.menu__item[data-tab="settings"]').click();
+    await page.locator('.menu__item[data-menu-item="customise"]').click();
     await page.waitForSelector('.screen--customise');
     assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
     await page.locator('.customise__tile[data-tile="profile"]').click();
@@ -284,7 +285,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
-    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
     assert.equal(await page.locator('.modes__option').count(), 5, 'a tela lista os modos');
     assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
@@ -343,7 +344,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Kick Off continua acessível pela tela de modos.
-    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
     await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
     await page.locator('.modes__cta').click();
@@ -527,11 +528,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     const coinsBeforeMatch = Number(await page.locator('.menu__coins span').textContent());
 
-    // As partidas rápidas ficam no menu de modos (atalho Online Tournament).
-    await page.locator('.menu__item[data-tab="modes"]').click();
-    await page.waitForSelector('.screen--modes', { timeout: 15000 });
-    await page.locator('.modes__option[data-option="online"]').click();
-    await page.locator('.modes__cta').click();
+    // O atalho clássico leva direto à preparação de uma partida rápida.
+    await page.locator('.menu__item[data-menu-item="quick"]').click();
     await page.waitForSelector('.screen--quick', { timeout: 15000 });
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');

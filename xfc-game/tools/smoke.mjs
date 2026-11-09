@@ -33,6 +33,7 @@ global.document = dom.window.document;
 global.HTMLElement = dom.window.HTMLElement;
 global.Node = dom.window.Node;
 global.requestAnimationFrame = callback => setTimeout(callback, 0);
+global.cancelAnimationFrame = timer => clearTimeout(timer);
 global.localStorage = {
   store: new Map(),
   getItem(key) { return this.store.get(key) ?? null; },
@@ -62,21 +63,21 @@ document.querySelector('.launch__enter').click();
 // A entrada toca partículas por 460 ms antes de navegar ao menu.
 await new Promise(resolve => setTimeout(resolve, 500));
 check('Entrar leva ao menu principal', document.querySelector('.screen--menu'));
-check('o menu mostra os cinco atalhos principais',
-  document.querySelectorAll('.menu__item').length === 5);
-check('o menu usa uma imagem estática do jogador em destaque',
-  Boolean(document.querySelector('.menu__scene3d img')) && !document.querySelector('.menu__scene3d canvas'));
+check('o menu clássico mostra os atalhos principais',
+  document.querySelectorAll('.menu__item').length === 8);
+check('o menu mantém a cena 3D original do jogador',
+  Boolean(document.querySelector('.menu__scene3d canvas')) && !document.querySelector('.menu__scene3d img'));
 
 // Configurações e personalização ficam acessíveis pelo menu principal.
-document.querySelector('.menu__item[data-tab="settings"]').click();
-check('SETTINGS abre a tela de personalização', document.querySelector('.screen--customise'));
+document.querySelector('.menu__item[data-menu-item="customise"]').click();
+check('Customise abre a tela de personalização', document.querySelector('.screen--customise'));
 check('a tela de personalização mostra oito opções', document.querySelectorAll('.customise__tile').length === 8);
 press('Escape');
 check('Escape retorna ao menu principal', document.querySelector('.screen--menu'));
 
 // A Copa do Mundo está disponível no seletor de modos.
-document.querySelector('.menu__item[data-tab="modes"]').click();
-check('PLAY MODES abre o seletor de modos', document.querySelector('.screen--modes'));
+document.querySelector('.menu__item[data-menu-item="tournament"]').click();
+check('Torneio Online abre o seletor de modos', document.querySelector('.screen--modes'));
 check('a Copa está listada como modo de jogo',
   [...document.querySelectorAll('.modes__option')].some(item => item.textContent.includes('WORLD CUP')));
 document.querySelector('.modes__cta').click();
@@ -87,7 +88,7 @@ press('Escape');
 check('Escape dos modos retorna ao menu', document.querySelector('.screen--menu'));
 
 // O seletor de modos abre o confronto rápido em 3D.
-document.querySelector('.menu__item[data-tab="modes"]').click();
+document.querySelector('.menu__item[data-menu-item="tournament"]').click();
 document.querySelector('.modes__option[data-option="online"]').click();
 document.querySelector('.modes__cta').click();
 check('PARTIDAS RÁPIDAS abre a tela do confronto',
@@ -103,7 +104,7 @@ check('há o botão CONTINUAR para escolher o estádio',
 press('Escape');
 check('VOLTAR AO MENU funciona', Boolean(document.querySelector('.screen--menu')));
 
-document.querySelector('.menu__item[data-tab="modes"]').click();
+document.querySelector('.menu__item[data-menu-item="tournament"]').click();
 document.querySelector('.modes__option[data-option="worldcup-kickoff"]').click();
 document.querySelector('.modes__cta').click();
 check('World Cup Kick Off abre a escolha de times', document.querySelector('.screen--kickoff'));

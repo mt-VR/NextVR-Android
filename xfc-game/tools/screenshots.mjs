@@ -52,13 +52,10 @@ try {
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu');
     await waitForVisibleScreen();
-    await page.waitForFunction(() => {
-      const image = document.querySelector('.menu__scene3d img');
-      return image?.complete && image.naturalWidth > 0;
-    });
+    await page.waitForSelector('.menu__scene3d canvas');
     await shot('03-menu');
 
-    await page.click('.menu__item[data-tab="settings"]');
+    await page.click('.menu__item[data-menu-item="customise"]');
     await page.waitForSelector('.screen--customise');
     await shot('04-customise');
     await page.click('.customise__tile[data-tile="settings"]');
@@ -68,7 +65,7 @@ try {
     await page.keyboard.press('Escape');
     await waitForVisibleScreen();
 
-    await page.click('.menu__item[data-tab="modes"]');
+    await page.click('.menu__item[data-menu-item="tournament"]');
     await page.waitForSelector('.screen--modes');
     await waitForVisibleScreen();
     await shot('06-modes');
@@ -85,7 +82,7 @@ try {
     await page.keyboard.press('Escape');
     await waitForVisibleScreen();
 
-    await page.click('.menu__item[data-tab="modes"]');
+    await page.click('.menu__item[data-menu-item="tournament"]');
     await page.waitForSelector('.screen--modes');
     await waitForVisibleScreen();
     await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
