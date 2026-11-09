@@ -654,24 +654,26 @@ function buildLockerRoom() {
   const trim = new THREE.MeshLambertMaterial({ color: 0x8aaab4 });
   const glass = new THREE.MeshPhongMaterial({ color: 0x68c4d2, emissive: 0x12333c, transparent: true, opacity: 0.72, shininess: 46 });
   const dark = new THREE.MeshLambertMaterial({ color: 0x0d1c26 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(34, 10, 8.5), wall);
-  body.position.y = 5;
+  // Bloco de vestiários à frente da arquibancada de fundo, entre os bancos:
+  // é um volume baixo o suficiente para caber no enquadramento da câmera.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(22, 6.2, 5.2), wall);
+  body.position.y = 3.1;
   group.add(body);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(36, 0.7, 10), trim);
-  roof.position.set(0, 10.35, 0);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(23.4, 0.5, 6.2), trim);
+  roof.position.set(0, 6.45, 0);
   group.add(roof);
-  const entrance = new THREE.Mesh(new THREE.BoxGeometry(3.1, 4.5, 0.18), dark);
-  entrance.position.set(0, 2.35, 4.34);
+  const entrance = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.3, 0.16), dark);
+  entrance.position.set(0, 1.65, 2.66);
   group.add(entrance);
-  const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(2.25, 3.75, 0.1), glass);
-  doorGlass.position.set(0, 2.18, 4.48);
+  const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2.7, 0.1), glass);
+  doorGlass.position.set(0, 1.55, 2.76);
   group.add(doorGlass);
-  for (const x of [-11, -6, 6, 11]) {
-    const window = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.3, 0.12), glass);
-    window.position.set(x, 4.55, 4.34);
+  for (const x of [-6.6, 6.6]) {
+    const window = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.7, 0.12), glass);
+    window.position.set(x, 3.25, 2.62);
     group.add(window);
-    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.14, 0.19), trim);
-    windowFrame.position.set(x, 5.77, 4.35);
+    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.14, 0.19), trim);
+    windowFrame.position.set(x, 4.18, 2.63);
     group.add(windowFrame);
   }
   const signTexture = canvasTexture(768, 128, (context, width, height) => {
@@ -686,13 +688,13 @@ function buildLockerRoom() {
     context.textBaseline = 'middle';
     context.fillText('VESTIÁRIOS  ·  XFC', width / 2, height / 2 + 1);
   });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(15.5, 2.55), new THREE.MeshBasicMaterial({ map: signTexture }));
-  sign.position.set(0, 6.78, 4.39);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 1.4), new THREE.MeshBasicMaterial({ map: signTexture }));
+  sign.position.set(0, 5.5, 2.67);
   group.add(sign);
-  const foundation = new THREE.Mesh(new THREE.BoxGeometry(35, 0.36, 9), dark);
-  foundation.position.set(0, 0.1, 0);
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(23, 0.24, 6), dark);
+  foundation.position.set(0, 0.06, 0);
   group.add(foundation);
-  group.position.set(0, 0, -(PITCH.halfWidth + 31));
+  group.position.set(0, 0, -(PITCH.halfWidth + 6.8));
   return group;
 }
 
