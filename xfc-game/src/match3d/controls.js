@@ -36,49 +36,93 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   const SHOOT_FULL_MS = 1050;
   const SHOOT_MIN_STRENGTH = 0.3;
   let shootCharge = null;
-  let shootButton = null;
+  let cancelActiveShot = () => {};
+  let movementVector = { x: 0, z: 0 };
 
-  function shootUi(button, strength, placed, charging) {
+  function shootUi(button, strength, kind, charging) {
     button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
     button.classList.toggle('is-charging', Boolean(charging));
-    button.classList.toggle('is-placed', Boolean(charging && placed));
+    for (const shotKind of ['placed', 'curved', 'power']) {
+      button.classList.toggle(`is-${shotKind}`, Boolean(charging && kind === shotKind));
+    }
+    if (charging) button.dataset.shotType = kind || 'normal';
+    else delete button.dataset.shotType;
+  }
+
+  function shotGesture(shot, event) {
+    const dx = event.clientX - shot.startX;
+    const dy = event.clientY - shot.startY;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 28) return 'normal';
+
+    // O arrasto para trás é medido contra a direção atual do analógico.
+    // Sem direção, um swipe horizontal para a esquerda funciona como fallback.
+    const dragX = dx / distance;
+    const dragZ = -dy / distance;
+    const moveLength = Math.hypot(movementVector.x, movementVector.z);
+    const backward = moveLength > 0.28
+      ? dragX * (movementVector.x / moveLength) + dragZ * (movementVector.z / moveLength) < -0.58
+      : dx < -34 && Math.abs(dy) < Math.abs(dx) * 0.9;
+    if (backward) return 'power';
+    if (dy < -30) return 'curved';
+    if (dy > 30) return 'placed';
+    return 'normal';
   }
 
   const buttons = BUTTONS.map(item => {
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
       type: 'button',
-      dataset: { command: item.id }
-    }, el('span', { text: item.label }));
-    if (item.id === 'shoot') shootButton = button;
+      dataset: { command: item.id },
+      'aria-label': item.id === 'shoot'
+        ? 'Chute: segure para carregar, arraste para cima para chute alto e curvado, para baixo para colocado ou para trás para superchute'
+        : item.label
+    },
+      el('span', { text: item.label }),
+      item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: '↑ CURVADO · ↓ COLOCADO' })
+    );
 
     if (item.id === 'shoot') {
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
         event.stopPropagation();
         button.setPointerCapture?.(event.pointerId);
-        shootCharge = { startY: event.clientY, startedAt: performance.now(), strength: 0, placed: false };
-        shootUi(button, 0, false, true);
+        shootCharge = {
+          startX: event.clientX,
+          startY: event.clientY,
+          startedAt: performance.now(),
+          strength: 0,
+          kind: 'normal'
+        };
+        shootUi(button, 0, 'normal', true);
       });
       button.addEventListener('pointermove', event => {
         if (!shootCharge) return;
         const elapsed = performance.now() - shootCharge.startedAt;
         shootCharge.strength = Math.max(0, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
-        if (event.clientY - shootCharge.startY > 30) shootCharge.placed = true;
-        shootUi(button, shootCharge.strength, shootCharge.placed, true);
+        shootCharge.kind = shotGesture(shootCharge, event);
+        shootUi(button, shootCharge.strength, shootCharge.kind, true);
       });
-      const shootRelease = () => {
+      const shootRelease = event => {
         if (!shootCharge) return;
+        const shot = shootCharge;
+        if (event?.clientX !== undefined) shot.kind = shotGesture(shot, event);
         const payload = {
-          strength: Math.max(SHOOT_MIN_STRENGTH, shootCharge.strength),
-          placed: shootCharge.placed
+          strength: Math.max(SHOOT_MIN_STRENGTH, shot.strength),
+          placed: shot.kind === 'placed',
+          kind: shot.kind
         };
         shootCharge = null;
-        shootUi(button, 0, false, false);
+        shootUi(button, 0, 'normal', false);
         onCommand('shoot', payload);
       };
+      const shootCancel = () => {
+        shootCharge = null;
+        shootUi(button, 0, 'normal', false);
+      };
+      cancelActiveShot = shootCancel;
       button.addEventListener('pointerup', shootRelease);
-      button.addEventListener('pointercancel', shootRelease);
+      button.addEventListener('pointercancel', shootCancel);
       return button;
     }
 
@@ -123,6 +167,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   function resetStick() {
     pointerId = null;
     knob.style.transform = 'translate(-50%, -50%)';
+    movementVector = { x: 0, z: 0 };
     onMove(0, 0);
   }
 
@@ -144,10 +189,12 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     const ny = dy / STICK_RADIUS;
     const magnitude = Math.hypot(nx, ny);
     if (magnitude < DEAD_ZONE) {
+      movementVector = { x: 0, z: 0 };
       onMove(0, 0);
       return;
     }
     // "Para cima" no analógico é avançar (moveZ positivo).
+    movementVector = { x: nx, z: -ny };
     onMove(nx, -ny);
   }
 
@@ -222,7 +269,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     if (keys.has('KeyS') || keys.has('ArrowDown')) z -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
-    if (x || z) onMove(x, z);
+    movementVector = { x, z };
+    onMove(x, z);
   }
 
   window.addEventListener('keydown', onKeyDown);
@@ -237,6 +285,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
       container.classList.toggle('is-disabled', !enabled);
       if (!enabled) {
         resetStick();
+        cancelActiveShot();
         onSprint(false);
       }
     },

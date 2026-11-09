@@ -44,6 +44,22 @@ const MARKS = {
     <rect x="0" y="5.3" width="24" height="5.4" fill="#ffffff"/>
     <circle cx="12" cy="8" r="2.4" fill="#f6b40e"/>
   `,
+  fr: `
+    <rect x="0" y="0" width="8" height="16" fill="#0055a4"/>
+    <rect x="8" y="0" width="8" height="16" fill="#ffffff"/>
+    <rect x="16" y="0" width="8" height="16" fill="#ef4135"/>
+  `,
+  it: `
+    <rect x="0" y="0" width="8" height="16" fill="#009246"/>
+    <rect x="8" y="0" width="8" height="16" fill="#ffffff"/>
+    <rect x="16" y="0" width="8" height="16" fill="#ce2b37"/>
+  `,
+  pt: `
+    <rect x="0" y="0" width="10" height="16" fill="#006600"/>
+    <rect x="10" y="0" width="14" height="16" fill="#ff0000"/>
+    <circle cx="10" cy="8" r="3.1" fill="#ffcc33"/>
+    <circle cx="10" cy="8" r="1.7" fill="#ffffff"/>
+  `,
   nl: `
     <rect x="0" y="0" width="24" height="5.4" fill="#ae1c28"/>
     <rect x="0" y="5.4" width="24" height="5.3" fill="#ffffff"/>

@@ -7,28 +7,10 @@
 import { THREE, canvasTexture } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
+import { addGrassBlades } from './grass.js';
 
 const LINE = 0.12; // espessura das linhas em metros
 const PX_PER_METER = 2048 / PITCH.length;
-
-/** Carrega o gramado real (foto do usuário) — em cache de módulo para não
- *  recarregar entre partidas. A foto não existe ainda? O gramado procedural
- *  de antes continua sendo o plano B. */
-let grassImagePromise = null;
-function preloadGrass() {
-  if (grassImagePromise) return grassImagePromise;
-  grassImagePromise = new Promise(resolve => {
-    if (typeof Image === 'undefined') {
-      resolve(null);
-      return;
-    }
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = 'assets/textures/grass.jpg';
-  });
-  return grassImagePromise;
-}
 
 /** Textura da fachada das arquibancadas: cor sólida, "ribs" (mornéis verticais,
  *  como o MorumBis) ou "weave" (teia em diagonal, como a Arena da Amazônia). */
@@ -67,63 +49,84 @@ function drawFacade(context, width, height, kind, baseColor) {
   }
 }
 
-/** Desenha a base do gramado: foto real do gramado (quando já carregou) ou o
- *  gramado procedural de antes. */
-function drawPitchBase(context, width, height, grassImage) {
-  if (grassImage) {
-    // Gramado real: a foto do usuário é aplicada em faixas (repeat), sem
-    // distorcer o esquema. As faixas de corte e as linhas vem depois.
-    const tileW = grassImage.width;
-    const tileH = grassImage.height;
-    for (let x = 0; x < width; x += tileW) {
-      for (let y = 0; y < height; y += tileH) {
-        context.drawImage(grassImage, x, y, tileW, tileH);
-      }
-    }
-    // Um gradiente escuro nas laterais (como na transmissão).
-    const gradient = context.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
-    gradient.addColorStop(0.5, 'rgba(0,0,0,0.03)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.14)');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-    return;
-  }
-  // Gramado listrado com faixas de corte (direções alternadas).
-  const bands = 12;
-  const bandWidth = width / bands;
-  for (let band = 0; band < bands; band += 1) {
-    context.fillStyle = band % 2 === 0 ? '#46a24e' : '#37913f';
-    context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
-    // Corte: faixas mais claras em uma direção, mais escuras na outra.
-    context.fillStyle = band % 2 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
-    context.fillRect(band * bandWidth, 0, bandWidth / 2, height);
-  }
-  // Manchas de uso e variação de tom (semente estável para não "fervilhar").
-  let seed = 1234567;
+/**
+ * Base de gramado gerada em tempo real: variação de cor, faixas de corte,
+ * manchas de uso e milhares de pequenos traços de folhas. Não depende de uma
+ * imagem pronta/PNG para o campo parecer um gramado.
+ */
+function drawPitchBase(context, width, height) {
+  let seed = 0x27f00d;
   const rand = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
   };
-  for (let index = 0; index < 5200; index += 1) {
+
+  context.fillStyle = '#287b35';
+  context.fillRect(0, 0, width, height);
+
+  // Faixas alternadas de corte com bordas suaves, como no gramado de jogo.
+  const bands = 14;
+  const bandWidth = width / bands;
+  for (let band = 0; band < bands; band += 1) {
+    const shade = band % 2 === 0 ? '#3f9947' : '#32843b';
+    context.fillStyle = shade;
+    context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
+    const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
+    edge.addColorStop(0, 'rgba(0,0,0,0.06)');
+    edge.addColorStop(0.5, 'rgba(255,255,255,0.025)');
+    edge.addColorStop(1, 'rgba(0,0,0,0.075)');
+    context.fillStyle = edge;
+    context.fillRect(band * bandWidth, 0, bandWidth, height);
+  }
+
+  // Marcas largas e suaves de uso e variações de pigmento, sem ruído pontilhado.
+  for (let index = 0; index < 3200; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
-    const size = 1 + rand() * 3.2;
-    context.fillStyle = rand() < 0.5 ? 'rgba(255,255,255,0.055)' : 'rgba(0,40,10,0.075)';
+    const radius = 6 + rand() * 20;
+    context.fillStyle = rand() < 0.55
+      ? `rgba(11,52,20,${0.008 + rand() * 0.018})`
+      : `rgba(178,208,99,${0.008 + rand() * 0.018})`;
     context.beginPath();
-    context.ellipse(x, y, size * 2.6, size, rand() * Math.PI, 0, Math.PI * 2);
+    context.ellipse(x, y, radius * (0.9 + rand()), radius * (0.32 + rand() * 0.16), rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
   }
+
+  // Folhas finas em tons verdes naturais e com direção variada; translucidez
+  // baixa para formar textura de relva, não manchas pretas no enquadramento alto.
+  for (let index = 0; index < 16000; index += 1) {
+    const x = rand() * width;
+    const y = rand() * height;
+    const length = 3 + rand() * 9;
+    const angle = -0.5 + rand() * 1.0;
+    const tint = Math.floor(rand() * 56);
+    context.strokeStyle = rand() < 0.52
+      ? `rgba(${38 + tint},${102 + tint},${36 + Math.floor(tint * 0.45)},${0.035 + rand() * 0.075})`
+      : `rgba(${78 + Math.floor(tint * 0.45)},${145 + Math.floor(tint * 0.5)},${54 + Math.floor(tint * 0.35)},${0.035 + rand() * 0.075})`;
+    context.lineWidth = 0.45 + rand() * 0.5;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
+    context.stroke();
+  }
+
+  // Luz e sombra de transmissão, mantendo contraste nas linhas brancas.
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.055)');
+  gradient.addColorStop(0.48, 'rgba(0,0,0,0.015)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.14)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
 }
 
 /** Desenha o gramado com as marcações oficiais de campo. */
-function drawPitch(context, width, height, grassImage) {
+function drawPitch(context, width, height) {
   const scale = width / PITCH.length;
   const toX = x => (x + PITCH.halfLength) * scale;
   const toZ = z => (z + PITCH.halfWidth) * scale;
   const line = LINE * scale;
 
-  drawPitchBase(context, width, height, grassImage);
+  drawPitchBase(context, width, height);
 
   // Serrilhado suave nas bordas das faixas (o look "mow stripes").
   const bands = 12;
@@ -179,11 +182,16 @@ function drawPitch(context, width, height, grassImage) {
     context.beginPath();
     context.arc(toX(side * (PITCH.halfLength - 11)), toZ(0), 0.35 * scale, 0, Math.PI * 2);
     context.fill();
-    // meia-lua
+    // Meia-lua: desenha só o trecho que fica FORA da grande área.
+    // A linha da área corta o círculo exatamente nos dois pontos de encontro.
+    const penaltySpotX = side * (PITCH.halfLength - 11);
+    const boxLineX = side * (PITCH.halfLength - 16.5);
+    const relativeLine = (boxLineX - penaltySpotX) / 9.15;
+    const cutAngle = Math.acos(Math.max(-1, Math.min(1, relativeLine)));
+    const arcStart = side > 0 ? cutAngle : -cutAngle;
+    const arcEnd = side > 0 ? Math.PI * 2 - cutAngle : cutAngle;
     context.beginPath();
-    context.arc(toX(side * (PITCH.halfLength - 11)), toZ(0), 9.15 * scale,
-      side > 0 ? Math.PI / 2 : -Math.PI / 2,
-      side > 0 ? (Math.PI * 3) / 2 : Math.PI / 2);
+    context.arc(toX(penaltySpotX), toZ(0), 9.15 * scale, arcStart, arcEnd);
     context.stroke();
     // escanteios
     for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
@@ -229,14 +237,12 @@ function drawCrowd(context, width, height) {
       const hue = Math.random();
       let color;
       if (away) {
-        // Setor do visitante: predominância rubra e amarela.
         color = hue < 0.4
           ? `rgba(${222 + Math.random() * 30},${40 + Math.random() * 30},${46 + Math.random() * 25},1)`
           : hue < 0.72
             ? `rgba(245,${205 + Math.random() * 40},${70},1)`
             : 'rgba(240,240,240,0.95)';
       } else {
-        // Setor do mandante: predominância azul e branca.
         color = hue < 0.46
           ? `rgba(${45 + Math.random() * 40},${118 + Math.random() * 60},${205 + Math.random() * 45},1)`
           : hue < 0.74
@@ -257,6 +263,51 @@ function drawCrowd(context, width, height) {
       context.ellipse(x, y + rowHeight * 0.32, rowHeight * 0.3, rowHeight * 0.24, 0, 0, Math.PI * 2);
       context.fill();
     }
+  }
+
+  // Bandeiras levantadas pela torcida: verde-amarela do Brasil e faixas XFC,
+  // com a borda ondulada para quebrar a repetição dos assentos.
+  const flags = [
+    { x: .08, y: .23, kind: 'brazil' }, { x: .22, y: .53, kind: 'blue' },
+    { x: .39, y: .29, kind: 'red' }, { x: .53, y: .69, kind: 'brazil' },
+    { x: .66, y: .51, kind: 'brazil' }, { x: .78, y: .25, kind: 'blue' },
+    { x: .92, y: .54, kind: 'red' }
+  ];
+  for (const [index, flag] of flags.entries()) {
+    const x = width * flag.x;
+    const y = height * flag.y;
+    const fw = 64;
+    const fh = 40;
+    context.strokeStyle = 'rgba(240,245,255,.85)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(x, y - 12);
+    context.lineTo(x, y + fh + 13);
+    context.stroke();
+    context.save();
+    context.beginPath();
+    context.moveTo(x, y);
+    context.quadraticCurveTo(x + fw * .46, y - 3 + (index % 2) * 5, x + fw, y + 2);
+    context.lineTo(x + fw, y + fh);
+    context.quadraticCurveTo(x + fw * .5, y + fh - 3 - (index % 2) * 3, x, y + fh);
+    context.closePath();
+    context.clip();
+    if (flag.kind === 'brazil') {
+      context.fillStyle = '#009b3a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#ffdf00'; context.beginPath(); context.moveTo(x + fw * .5, y + 1); context.lineTo(x + fw - 2, y + fh * .5); context.lineTo(x + fw * .5, y + fh - 1); context.lineTo(x + 2, y + fh * .5); context.fill();
+      context.fillStyle = '#17499a'; context.beginPath(); context.arc(x + fw * .5, y + fh * .52, 4, 0, Math.PI * 2); context.fill();
+    } else if (flag.kind === 'blue') {
+      context.fillStyle = '#17499a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .4, fw, fh * .19); context.fillRect(x + fw * .38, y - 2, fw * .2, fh + 4);
+    } else {
+      context.fillStyle = '#ed2549'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .38, fw, fh * .24);
+      context.fillStyle = '#164b9f'; context.fillRect(x + fw * .38, y - 2, fw * .24, fh + 4);
+    }
+    context.restore();
+    context.strokeStyle = 'rgba(255,255,255,.42)';
+    context.lineWidth = 1;
+    context.strokeRect(x, y, fw, fh);
   }
 }
 
@@ -641,14 +692,7 @@ export function buildStadium(scene, options = {}) {
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
-
-  // Gramado real: quando a foto do usuário carrega, o gramado é
-  // redesenhado com ela (as linhas e as faixas de corte permanecem).
-  preloadGrass().then(image => {
-    if (!image) return;
-    drawPitch(pitchContext, 2048, 1328, image);
-    pitchTexture.needsUpdate = true;
-  });
+  addGrassBlades(group);
 
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(

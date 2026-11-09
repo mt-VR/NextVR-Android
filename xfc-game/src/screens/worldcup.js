@@ -1,61 +1,47 @@
-// Tela da Copa do Mundo XFC 27: mostra o grupo do Brasil, a classificação,
-// os resultados das quartas, semis e final, e o troféu se o Brasil for campeão.
-//
-// Usa os dados de seleções de src/data/worldcup.js e as bandeiras de ui/flags.js.
+// Campanha jogável da Copa do Mundo XFC 27: sorteio novo por campanha,
+// partidas do Brasil em campo, tabela calculada pelos resultados e mata-mata.
 
-import { el, svg, starRow } from '../ui/dom.js';
+import { el, starRow } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { flagSvg } from '../ui/flags.js';
+import { saveProfile } from '../state.js';
 import {
-  NATIONAL_TEAMS,
-  drawGroups,
-  computeGroupStandings,
-  simulateKnockout,
+  createWorldCupCampaign,
+  campaignStandings,
+  nextCampaignMatch,
+  recordCampaignMatchResult,
   getNationalTeam,
   USER_NATIONAL_TEAM_ID
 } from '../data/worldcup.js';
 
+const GROUP_LABELS = { A: 'Grupo A', B: 'Grupo B' };
+
 export function worldCupScreen(ctx, params = {}) {
-  // Modo: 'live' (acompanhar edição atual) ou '2027' (liderar seleção)
   const mode = params.mode || '2027';
-
-  // Semente fixa para reprodutibilidade
-  const seed = mode === 'live' ? 12345 : 67890;
-
-  // Sortear grupos
-  const groups = drawGroups(NATIONAL_TEAMS);
-
-  // Calcular classificação
-  const standings = computeGroupStandings(NATIONAL_TEAMS, groups, seed);
-
-  // Simular mata-mata
-  const knockout = simulateKnockout(NATIONAL_TEAMS, groups, standings, seed);
-
-  // Verificar se o Brasil venceu
-  const brazilChampion = knockout.final.winner === USER_NATIONAL_TEAM_ID;
-
-  // Encontrar o grupo do Brasil
-  const brazilGroup = groups.A.includes(USER_NATIONAL_TEAM_ID) ? 'A' : 'B';
-  const groupTeamIds = groups[brazilGroup];
-  const groupTeams = groupTeamIds.map(id => getNationalTeam(id));
-
-  // Classificação do grupo do Brasil
-  const groupStandings = standings
-    .filter(t => groupTeamIds.includes(t.id))
-    .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      const diffA = a.gf - a.ga;
-      const diffB = b.gf - b.ga;
-      if (diffB !== diffA) return diffB - diffA;
-      return b.gf - a.gf;
+  const profile = ctx.state.profile;
+  let campaign = profile.worldCupCampaign;
+  if (params.newCampaign || !isCampaignValid(campaign) || campaign.mode !== mode) {
+    campaign = createWorldCupCampaign({
+      mode,
+      previousGroups: profile.worldCupCampaign?.groups || null
     });
+    profile.worldCupCampaign = campaign;
+    saveProfile(ctx.state);
+  }
 
-  // ------------------------------------------------------- helper: team card --
-  function teamCard(team, opts = {}) {
-    const { showRank = false, rank = null } = opts;
-    return el('div', { class: 'worldcup__team' },
-      showRank && rank !== null && el('span', { class: 'worldcup__team-rank', text: `${rank}` }),
-      el('span', { class: 'worldcup__team-flag' }, flagSvg(team.flagCode)),
+  const brazilGroup = campaign.groups.A.includes(USER_NATIONAL_TEAM_ID) ? 'A' : 'B';
+  const groupTeams = campaign.groups[brazilGroup].map(getNationalTeam);
+  const standings = campaignStandings(campaign, brazilGroup);
+  const nextMatch = nextCampaignMatch(campaign);
+
+  function teamFlag(team, className = '') {
+    return el('span', { class: `worldcup__team-flag ${className}`.trim() }, flagSvg(team.flagCode));
+  }
+
+  function teamCard(team, rank) {
+    return el('div', { class: `worldcup__team${team.id === USER_NATIONAL_TEAM_ID ? ' is-user-team' : ''}` },
+      el('span', { class: 'worldcup__team-rank', text: String(rank) }),
+      teamFlag(team),
       el('span', { class: 'worldcup__team-name', text: team.name }),
       starRow(team.stars, { size: 14 })
     );
@@ -64,163 +50,219 @@ export function worldCupScreen(ctx, params = {}) {
   function standingsRow(entry, rank) {
     const team = getNationalTeam(entry.id);
     const diff = entry.gf - entry.ga;
-    return el('div', { class: 'worldcup__standings-row' },
-      el('span', { class: 'worldcup__standings-rank', text: `${rank}` }),
+    return el('div', {
+      class: `worldcup__standings-row${entry.id === USER_NATIONAL_TEAM_ID ? ' is-user-team' : ''}`,
+      dataset: { teamId: entry.id }
+    },
+      el('span', { class: 'worldcup__standings-rank', text: String(rank) }),
       flagSvg(team.flagCode),
       el('span', { class: 'worldcup__standings-name', text: team.name }),
-      el('span', { class: 'worldcup__standings-played', text: `${entry.played}` }),
-      el('span', { class: 'worldcup__standings-won', text: `${entry.won}` }),
-      el('span', { class: 'worldcup__standings-drawn', text: `${entry.drawn}` }),
-      el('span', { class: 'worldcup__standings-lost', text: `${entry.lost}` }),
-      el('span', { class: 'worldcup__standings-gf', text: `${entry.gf}` }),
-      el('span', { class: 'worldcup__standings-ga', text: `${entry.ga}` }),
-      el('span', { class: 'worldcup__standings-diff', text: `${diff >= 0 ? '+' : ''}${diff}` }),
-      el('span', { class: 'worldcup__standings-points', text: `${entry.points}` })
+      el('span', { class: 'worldcup__standings-played', text: String(entry.played) }),
+      el('span', { class: 'worldcup__standings-won', text: String(entry.won) }),
+      el('span', { class: 'worldcup__standings-drawn', text: String(entry.drawn) }),
+      el('span', { class: 'worldcup__standings-lost', text: String(entry.lost) }),
+      el('span', { class: 'worldcup__standings-gf', text: String(entry.gf) }),
+      el('span', { class: 'worldcup__standings-ga', text: String(entry.ga) }),
+      el('span', { class: 'worldcup__standings-diff', text: `${diff > 0 ? '+' : ''}${diff}` }),
+      el('span', { class: 'worldcup__standings-points', text: String(entry.points) })
     );
   }
 
-  function matchResultCard(match, result, opts = {}) {
-    const homeTeam = getNationalTeam(match.home);
-    const awayTeam = getNationalTeam(match.away);
-    return el('div', { class: `worldcup__match${result.winner === match.home ? ' is-home-win' : result.winner === match.away ? ' is-away-win' : ''}` },
-      el('div', { class: 'worldcup__match-team worldcup__match-home' },
-        el('span', { class: 'worldcup__match-flag' }, flagSvg(homeTeam.flagCode)),
-        el('span', { class: 'worldcup__match-name', text: homeTeam.name })
-      ),
-      el('div', { class: 'worldcup__match-score', text: `${result.homeGoals} - ${result.awayGoals}` }),
-      el('div', { class: 'worldcup__match-team worldcup__match-away' },
-        el('span', { class: 'worldcup__match-flag' }, flagSvg(awayTeam.flagCode)),
-        el('span', { class: 'worldcup__match-name', text: awayTeam.name })
-      )
+  function matchSide(teamId, side) {
+    const team = getNationalTeam(teamId);
+    return el('div', { class: `worldcup__match-team worldcup__match-${side}` },
+      teamFlag(team, 'worldcup__match-flag'),
+      el('span', { class: 'worldcup__match-name', text: team.name })
     );
   }
 
-  // ------------------------------------------------------- build screen ------
+  function matchRow(match, { allowPlay = false } = {}) {
+    const played = match.played;
+    const winnerClass = played && match.winner
+      ? match.winner === match.home ? ' is-home-win' : ' is-away-win'
+      : '';
+    const row = el('div', {
+      class: `worldcup__match${winnerClass}${match.id === nextMatch?.id ? ' is-next-match' : ''}`,
+      dataset: { matchId: match.id }
+    },
+      matchSide(match.home, 'home'),
+      el('div', { class: 'worldcup__match-score', text: played ? `${match.homeGoals} – ${match.awayGoals}` : 'VS' }),
+      matchSide(match.away, 'away')
+    );
+
+    const status = played
+      ? match.decidedBy === 'penalties' ? 'Decidido nos pênaltis' : match.stage === 'group' ? `Rodada ${match.round}` : 'Encerrado'
+      : match.id === nextMatch?.id ? 'Sua próxima partida' : 'Aguardando';
+    return el('article', { class: 'worldcup__fixture' },
+      row,
+      el('span', { class: `worldcup__fixture-status${match.id === nextMatch?.id ? ' is-next' : ''}`, text: status }),
+      allowPlay && match.id === nextMatch?.id && el('button', {
+        class: 'worldcup__play-match',
+        type: 'button',
+        dataset: { matchId: match.id },
+        onClick() { openCampaignMatch(match); }
+      }, 'JOGAR PARTIDA  →')
+    );
+  }
+
+  function openCampaignMatch(match) {
+    ctx.go('play', {
+      home: match.home,
+      away: match.away,
+      homeKit: 0,
+      awayKit: 0,
+      minutes: 6,
+      difficulty: 'normal',
+      stadium: 2,
+      userSide: match.home === USER_NATIONAL_TEAM_ID ? 'home' : 'away',
+      worldCupMatchId: match.id,
+      worldCupMode: campaign.mode
+    });
+  }
+
   const header = el('header', { class: 'topbar' },
     el('button', {
       class: 'topbar__back',
       type: 'button',
-      onClick() { ctx.go('menu'); },
+      'aria-label': 'Voltar aos modos',
+      onClick() { ctx.go('modes'); },
       html: '<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>'
     }),
     el('span', { class: 'topbar__mark', html: xfcWordmark() }),
     el('span', { class: 'topbar__title', text: 'Copa do Mundo' }),
     el('span', { class: 'topbar__sep', text: '|' }),
-    el('span', { class: 'topbar__subtitle', text: mode === 'live' ? 'Live 2026' : '2027' })
+    el('span', { class: 'topbar__subtitle', text: campaign.year })
   );
 
+  const phaseCopy = {
+    group: 'Jogue as três partidas do Brasil. Os outros resultados entram na tabela e definem quem avança.',
+    semifinal: 'O Brasil avançou. Vença a semifinal para chegar à decisão.',
+    final: 'A final chegou. Uma vitória coloca o Brasil no topo do mundo.',
+    champion: 'Campanha perfeita: o Brasil é campeão mundial!',
+    runnerup: 'O Brasil chegou à final. Uma nova campanha pode trazer a taça.',
+    eliminated: 'A fase de grupos terminou. Crie outra campanha para tentar novamente.'
+  };
   const lead = el('p', {
     class: 'worldcup__lead',
-    text: mode === 'live'
-      ? 'Acompanhe a edição atual da Copa do Mundo. Veja o grupo do Brasil, a classificação e os resultados do mata-mata.'
-      : 'Lidere a Seleção Brasileira até o título da Copa do Mundo 2027. Veja o grupo, a classificação e o caminho até a final.'
+    text: phaseCopy[campaign.stage] || phaseCopy.group
   });
 
-  // Group section
-  const groupSection = el('section', { class: 'worldcup__group' },
-    el('h2', { class: 'worldcup__section-title', text: `Grupo ${brazilGroup}` }),
-    el('div', { class: 'worldcup__group-teams' },
-      ...groupTeams.map(t => teamCard(t, { showRank: true }))
-    )
-  );
-
-  // Standings section
-  const standingsSection = el('section', { class: 'worldcup__standings' },
-    el('h2', { class: 'worldcup__section-title', text: `Tabela — Grupo ${brazilGroup}` }),
-    el('div', { class: 'worldcup__standings-header' },
-      el('span', { text: '#' }),
-      el('span', { text: 'Seleção' }),
-      el('span', { text: 'P' }),
-      el('span', { text: 'V' }),
-      el('span', { text: 'E' }),
-      el('span', { text: 'D' }),
-      el('span', { text: 'GF' }),
-      el('span', { text: 'GC' }),
-      el('span', { text: 'SG' }),
-      el('span', { text: 'Pts' })
+  const progressLabel = campaign.stage === 'group'
+    ? `${campaign.groupMatches.filter(match => match.playable && match.played).length}/3 jogos do Brasil`
+    : campaign.stage === 'semifinal' ? 'Semifinal' : campaign.stage === 'final' ? 'Final' : 'Campanha encerrada';
+  const hero = el('section', { class: 'worldcup__campaign-hero' },
+    el('div', { class: 'worldcup__campaign-copy' },
+      el('span', { class: 'worldcup__eyebrow', text: `XFC WORLD CUP™ ${campaign.year} · CAMPANHA` }),
+      el('h1', { class: 'worldcup__campaign-title', text: `Brasil · ${GROUP_LABELS[brazilGroup]}` }),
+      el('p', { class: 'worldcup__campaign-progress', text: progressLabel })
     ),
-    ...groupStandings.map((entry, index) => standingsRow(entry, index + 1))
-  );
-
-  // Knockout section
-  const knockoutSection = el('section', { class: 'worldcup__knockout' },
-    el('h2', { class: 'worldcup__section-title', text: 'Fase Final' }),
-    el('div', { class: 'worldcup__knockout-stage' },
-      el('div', { class: 'worldcup__knockout-round' },
-        el('h3', { class: 'worldcup__round-title', text: 'Quartas de Final' }),
-        matchResultCard(knockout.quartas[0], knockout.quartasResults[0]),
-        matchResultCard(knockout.quartas[1], knockout.quartasResults[1])
-      ),
-      el('div', { class: 'worldcup__knockout-round' },
-        el('h3', { class: 'worldcup__round-title', text: 'Semifinais' }),
-        matchResultCard(knockout.semis, knockout.semis)
-      ),
-      el('div', { class: 'worldcup__knockout-round' },
-        el('h3', { class: 'worldcup__round-title', text: 'Final' }),
-        matchResultCard(knockout.final, knockout.final)
-      )
+    el('div', { class: 'worldcup__campaign-badge', 'aria-label': 'Seleção Brasileira' },
+      flagSvg('br'),
+      el('b', { text: 'BRASIL' }),
+      el('span', { text: '★★★★★' })
     )
   );
 
-  // Trophy section (if Brazil won)
-  const trophySection = brazilChampion
-    ? el('section', { class: 'worldcup__trophy' },
-        el('div', { class: 'worldcup__trophy-icon', html: trophySvg() }),
-        el('h2', { class: 'worldcup__trophy-title', text: '🏆 Campeão Mundial!' }),
-        el('p', { class: 'worldcup__trophy-sub', text: 'Brasil levanta a taça da Copa do Mundo 2027!' }),
-        el('div', { class: 'worldcup__trophy-actions' },
-          el('button', {
-            class: 'worldcup__btn worldcup__btn--primary',
-            type: 'button',
-            onClick() { ctx.go('play', { home: 'brazil', away: knockout.final.away, minutes: 6, difficulty: 'normal', stadium: 2 }); }
-          }, 'Jogar Final'),
-          el('button', {
-            class: 'worldcup__btn',
-            type: 'button',
-            onClick() { ctx.go('menu'); }
-          }, 'Voltar ao Menu')
-        )
-      )
-    : el('section', { class: 'worldcup__trophy worldcup__trophy--lost' },
-        el('div', { class: 'worldcup__trophy-icon', html: trophySvg() }),
-        el('h2', { class: 'worldcup__trophy-title', text: 'Finalista' }),
-        el('p', { class: 'worldcup__trophy-sub', text: 'Brasil chegou à final mas não levou a taça. Tente novamente!' }),
-        el('div', { class: 'worldcup__trophy-actions' },
-          el('button', {
-            class: 'worldcup__btn worldcup__btn--primary',
-            type: 'button',
-            onClick() { ctx.go('menu'); }
-          }, 'Tentar Novamente'),
-          el('button', {
-            class: 'worldcup__btn',
-            type: 'button',
-            onClick() { ctx.go('menu'); }
-          }, 'Voltar ao Menu')
-        )
-      );
+  const groupSection = el('section', { class: 'worldcup__group' },
+    el('div', { class: 'worldcup__section-heading' },
+      el('h2', { class: 'worldcup__section-title', text: GROUP_LABELS[brazilGroup] }),
+      el('span', { class: 'worldcup__section-note', text: 'Grupos sorteados para esta campanha' })
+    ),
+    el('div', { class: 'worldcup__group-teams' },
+      ...groupTeams.map(team => teamCard(team, groupTeams.indexOf(team) + 1))
+    )
+  );
 
-  // ------------------------------------------------------- node assembly ----
+  const standingsSection = el('section', { class: 'worldcup__standings' },
+    el('div', { class: 'worldcup__section-heading' },
+      el('h2', { class: 'worldcup__section-title', text: `Classificação — ${GROUP_LABELS[brazilGroup]}` }),
+      el('span', { class: 'worldcup__section-note', text: 'Os dois primeiros avançam' })
+    ),
+    el('div', { class: 'worldcup__standings-header' },
+      el('span', { text: '#' }), el('span', { 'aria-hidden': 'true' }), el('span', { text: 'Seleção' }),
+      el('span', { text: 'J' }), el('span', { text: 'V' }), el('span', { text: 'E' }), el('span', { text: 'D' }),
+      el('span', { text: 'GF' }), el('span', { text: 'GC' }), el('span', { text: 'SG' }), el('span', { text: 'Pts' })
+    ),
+    ...standings.map((entry, index) => standingsRow(entry, index + 1))
+  );
+
+  const groupMatches = campaign.groupMatches
+    .filter(match => match.group === brazilGroup)
+    .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
+  const fixturesSection = el('section', { class: 'worldcup__fixtures' },
+    el('div', { class: 'worldcup__section-heading' },
+      el('h2', { class: 'worldcup__section-title', text: 'Jogos da fase de grupos' }),
+      el('span', { class: 'worldcup__section-note', text: 'Todos os resultados contam para a tabela' })
+    ),
+    ...groupMatches.map(match => matchRow(match, { allowPlay: true }))
+  );
+
+  const knockoutMatches = campaign.knockoutMatches || [];
+  const knockoutSection = el('section', { class: `worldcup__knockout${campaign.stage === 'group' ? ' is-locked' : ''}` },
+    el('div', { class: 'worldcup__section-heading' },
+      el('h2', { class: 'worldcup__section-title', text: 'Mata-mata' }),
+      el('span', { class: 'worldcup__section-note', text: campaign.stage === 'group' ? 'Desbloqueado após a fase de grupos' : 'Semifinais e final' })
+    ),
+    campaign.stage === 'group'
+      ? el('p', { class: 'worldcup__locked-copy', text: 'Conclua os três jogos do Brasil para conhecer os semifinalistas.' })
+      : knockoutMatches.map(match => matchRow(match, { allowPlay: true }))
+  );
+
+  const finalCopy = campaign.stage === 'champion'
+    ? ['🏆 Brasil campeão mundial!', 'A Seleção conquistou a Copa do Mundo. Comece uma nova campanha e faça outro sorteio.']
+    : campaign.stage === 'runnerup'
+      ? ['Brasil vice-campeão', 'A final foi decidida em campo. Tente novamente em uma nova campanha.']
+      : campaign.stage === 'eliminated'
+        ? ['Fim da campanha', 'O Brasil não avançou à próxima fase desta vez.']
+        : null;
+  const outcome = finalCopy && el('section', { class: 'worldcup__trophy' },
+    el('div', { class: 'worldcup__trophy-icon', html: trophySvg() }),
+    el('h2', { class: 'worldcup__trophy-title', text: finalCopy[0] }),
+    el('p', { class: 'worldcup__trophy-sub', text: finalCopy[1] })
+  );
+
+  const newCampaign = el('button', {
+    class: 'worldcup__new-campaign',
+    type: 'button',
+    onClick() {
+      profile.worldCupCampaign = createWorldCupCampaign({ mode, previousGroups: campaign.groups });
+      saveProfile(ctx.state);
+      ctx.go('worldcup', { mode });
+    }
+  }, 'NOVA CAMPANHA  ↻');
+
   const node = el('div', { class: 'screen screen--worldcup' },
     header,
     lead,
+    hero,
     el('div', { class: 'worldcup__content' },
       groupSection,
       standingsSection,
+      fixturesSection,
       knockoutSection,
-      trophySection
+      outcome,
+      newCampaign
     ),
-    el('div', { class: 'worldcup__hint', text: 'Pressione Esc para voltar ao menu' })
+    el('div', { class: 'worldcup__hint', text: 'ESC · VOLTAR AOS MODOS' })
   );
 
-  function onKey(event) {
-    if (event.key === 'Escape' || event.key === 'Backspace') {
-      ctx.go('menu');
-      return true;
+  return {
+    node,
+    onKey(event) {
+      if (event.key === 'Escape' || event.key === 'Backspace') {
+        ctx.go('modes');
+        return true;
+      }
+      return false;
     }
-    return false;
-  }
+  };
+}
 
-  return { node, onKey };
+function isCampaignValid(campaign) {
+  return Boolean(campaign?.groups?.A?.length === 4
+    && campaign?.groups?.B?.length === 4
+    && Array.isArray(campaign.groupMatches)
+    && campaign.groupMatches.length === 12);
 }
 
 /** SVG do troféu da Copa do Mundo. */

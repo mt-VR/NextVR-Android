@@ -57,7 +57,8 @@ export function createBall(scene) {
     lastTouch: null,
     // Evita que o mesmo jogador "mate" o chute em vários quadros seguidos.
     lastCollision: null,
-    lastCollisionAt: -1
+    lastCollisionAt: -1,
+    guidance: null
   };
 
   function reset(x = 0, z = 0) {
@@ -65,6 +66,7 @@ export function createBall(scene) {
     state.velocity.set(0, 0, 0);
     state.spin.set(0, 0, 0);
     state.owner = null;
+    state.guidance = null;
     mesh.position.copy(state.position);
   }
 
@@ -74,7 +76,7 @@ export function createBall(scene) {
     state,
     reset,
     /** Chute: aplica velocidade e um pouco de efeito. */
-    kick(direction, power = 18, lift = 0.18) {
+    kick(direction, power = 18, lift = 0.18, { guide = null } = {}) {
       state.velocity.set(
         direction.x * power,
         power * lift,
@@ -85,12 +87,14 @@ export function createBall(scene) {
         0,
         direction.x * power * 0.25
       );
+      state.guidance = guide ? { ...guide, elapsed: 0 } : null;
       state.owner = null;
     },
     /** Coloca a bola no pé de um jogador (domínio). */
     attachTo(player) {
       state.owner = player;
       state.velocity.set(0, 0, 0);
+      state.guidance = null;
     },
     /**
      * Avança a física. `players` é a lista de quem pode tocar a bola.
@@ -112,6 +116,31 @@ export function createBall(scene) {
         shadow.position.set(position.x, 0.02, position.z);
         shadow.scale.setScalar(1);
         return null;
+      }
+
+      // Passe assistido: corrige suavemente o rumo para o espaço de recepção,
+      // acompanhando a corrida do companheiro sem teletransportar a bola nem
+      // impedir uma interceptação adversária.
+      const guide = state.guidance;
+      if (guide) {
+        const receiver = guide.receiver;
+        if (!receiver?.active || guide.elapsed > 2.4) {
+          state.guidance = null;
+        } else {
+          guide.elapsed += dt;
+          const horizontalSpeed = Math.max(4, Math.hypot(velocity.x, velocity.z));
+          const distance = Math.hypot(guide.x - position.x, guide.z - position.z);
+          const flightTime = Math.max(0.08, Math.min(0.7, distance / horizontalSpeed));
+          const futureX = guide.x + (receiver.vx || 0) * flightTime * 0.45;
+          const futureZ = guide.z + (receiver.vz || 0) * flightTime * 0.45;
+          const dx = futureX - position.x;
+          const dz = futureZ - position.z;
+          const length = Math.hypot(dx, dz) || 1;
+          const response = Math.min(1, dt * (guide.through ? 2.1 : 2.9));
+          velocity.x += (dx / length * horizontalSpeed - velocity.x) * response;
+          velocity.z += (dz / length * horizontalSpeed - velocity.z) * response;
+          if (distance < 1.1) state.guidance = null;
+        }
       }
 
       // Gravidade e arrasto do ar (leve, como uma bola de verdade).

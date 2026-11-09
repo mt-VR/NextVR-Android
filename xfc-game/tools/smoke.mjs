@@ -57,32 +57,56 @@ check('a intro mostra a marca XF Esportes e o XFC',
   document.querySelector('.intro__badge svg') && document.querySelector('.intro__wordmark svg'));
 
 press('Enter');
-check('Enter leva ao menu', document.querySelector('.screen--menu'));
-check('o menu lista KICK OFF, PARTIDAS RÁPIDAS e os outros modos',
-  document.querySelectorAll('.menu__item').length === 10);
-check('KICK OFF e PARTIDAS RÁPIDAS estão liberados',
-  document.querySelectorAll('.menu__item--available').length === 2);
-check('a barra de XP mostra 3K/3K', document.querySelector('.menu__xp-text')?.textContent.includes('3K/3K'));
+check('Enter leva à tela de abertura', document.querySelector('.screen--launch'));
+document.querySelector('.launch__enter').click();
+// A entrada toca partículas por 460 ms antes de navegar ao menu.
+await new Promise(resolve => setTimeout(resolve, 500));
+check('Entrar leva ao menu principal', document.querySelector('.screen--menu'));
+check('o menu mostra os cinco atalhos principais',
+  document.querySelectorAll('.menu__item').length === 5);
+check('o menu usa uma imagem estática do jogador em destaque',
+  Boolean(document.querySelector('.menu__scene3d img')) && !document.querySelector('.menu__scene3d canvas'));
 
-// O atalho de PARTIDAS RÁPIDAS abre o confronto jogável em 3D.
-const quick = [...document.querySelectorAll('.menu__item')]
-  .find(item => item.textContent.includes('RÁPIDAS'));
-quick.click();
+// Configurações e personalização ficam acessíveis pelo menu principal.
+document.querySelector('.menu__item[data-tab="settings"]').click();
+check('SETTINGS abre a tela de personalização', document.querySelector('.screen--customise'));
+check('a tela de personalização mostra oito opções', document.querySelectorAll('.customise__tile').length === 8);
+press('Escape');
+check('Escape retorna ao menu principal', document.querySelector('.screen--menu'));
+
+// A Copa do Mundo está disponível no seletor de modos.
+document.querySelector('.menu__item[data-tab="modes"]').click();
+check('PLAY MODES abre o seletor de modos', document.querySelector('.screen--modes'));
+check('a Copa está listada como modo de jogo',
+  [...document.querySelectorAll('.modes__option')].some(item => item.textContent.includes('WORLD CUP')));
+document.querySelector('.modes__cta').click();
+check('a opção principal abre a Copa do Mundo', document.querySelector('.screen--worldcup'));
+press('Escape');
+check('Escape da Copa retorna aos modos', document.querySelector('.screen--modes'));
+press('Escape');
+check('Escape dos modos retorna ao menu', document.querySelector('.screen--menu'));
+
+// O seletor de modos abre o confronto rápido em 3D.
+document.querySelector('.menu__item[data-tab="modes"]').click();
+document.querySelector('.modes__option[data-option="online"]').click();
+document.querySelector('.modes__cta').click();
 check('PARTIDAS RÁPIDAS abre a tela do confronto',
   Boolean(document.querySelector('.screen--quick')));
 check('a tela traz HOME e AWAY com escudo e blusas',
   document.querySelectorAll('.quick__panel').length === 2 &&
   document.querySelectorAll('.quick__crest').length === 2 &&
   document.querySelectorAll('.quick__kit').length >= 6);
-check('há o INICIAR PARTIDA',
-  [...document.querySelectorAll('.btn')].some(button => button.textContent.includes('INICIAR PARTIDA')));
+check('há o botão CONTINUAR para escolher o estádio',
+  Boolean(document.querySelector('.quick__actions .continue-btn')));
 // A partida em si roda em WebGL: quem confere isso é o teste de navegador
 // (tests/xfc-game.test.mjs). Aqui só voltamos ao menu.
-document.querySelector('.quick__actions .btn:last-child').click();
+press('Escape');
 check('VOLTAR AO MENU funciona', Boolean(document.querySelector('.screen--menu')));
 
-document.querySelector('.menu__cta').click();
-check('o botão leva ao Kick Off', document.querySelector('.screen--kickoff'));
+document.querySelector('.menu__item[data-tab="modes"]').click();
+document.querySelector('.modes__option[data-option="worldcup-kickoff"]').click();
+document.querySelector('.modes__cta').click();
+check('World Cup Kick Off abre a escolha de times', document.querySelector('.screen--kickoff'));
 const names = [...document.querySelectorAll('.team-card__name')].map(node => node.textContent);
 check('a escolha de times mostra Barcelona e Real Madrid',
   names.includes('FC Barcelona') && names.includes('Real Madrid'));
@@ -99,11 +123,14 @@ check('as setas do escudo trocam de clube',
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 check('o carousel passa pelos clubes do pacote',
   ['aston-villa', 'brentford', 'panathinaikos', 'river-plate'].includes(
     document.querySelector('[data-slot="home"] .team-card').dataset.teamId));
 // Volta para o Barcelona para seguir o resto do roteiro.
-for (let step = 0; step < 4; step += 1) {
+for (let step = 0; step < 7; step += 1) {
   document.querySelector('[data-slot="home"] .picker-arrow--crest:first-child').click();
 }
 check('a seta anterior devolve o Barcelona',
@@ -118,14 +145,18 @@ check('o elenco abre com onze em campo e sete no banco',
   document.querySelectorAll('.pitch-player').length === 11 && document.querySelectorAll('.bench__slot').length === 7);
 check('o painel mostra o jogador selecionado',
   (document.querySelector('.player-panel__name')?.textContent || '').length > 2);
-check('os atributos do jogador são listados',
-  document.querySelectorAll('.attr').length === 6);
+check('o jogador tem atributos próprios, incluindo potência de chute',
+  document.querySelectorAll('.attr').length === 7 &&
+  [...document.querySelectorAll('.attr > span:first-child')].some(node => node.textContent === 'Potência'));
 
 press('Escape');
 check('Esc volta para a escolha de times', document.querySelector('.screen--kickoff'));
-[...document.querySelectorAll('.btn')].find(button => button.textContent.includes('Iniciar partida')).click();
-check('a partida mostra o confronto',
-  (document.querySelector('.match__teams')?.textContent || '').includes('FC Barcelona'));
+check('o Kick Off oferece CONTINUAR para escolher o estádio',
+  Boolean(document.querySelector('.continue-btn')));
+document.querySelector('.continue-btn').click();
+check('CONTINUAR abre a seleção de estádios', document.querySelector('.screen--stadiums'));
+check('a galeria oferece estádios para iniciar a partida',
+  document.querySelectorAll('.stadiums__card').length > 0);
 
 const failed = checks.filter(item => !item.ok);
 console.log(failed.length ? `\n${failed.length} verificação(ões) falharam` : '\nTudo certo');

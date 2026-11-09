@@ -4,10 +4,13 @@
 // O módulo cuida da interface; o motor (regras, IA, física) fica em
 // `src/match3d/match.js`.
 
-import { el, svg, ICONS, padButton } from '../ui/dom.js';
+import { el, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf } from '../data/kits.js';
+import { getNationalTeam, recordCampaignMatchResult } from '../data/worldcup.js';
+import { saveProfile } from '../state.js';
+import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
 import { createHud } from '../match3d/hud.js';
@@ -18,6 +21,82 @@ import { STADIUMS, attachStadiumDome } from '../match3d/stadiums.js';
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
 const projection = new THREE.Vector3();
+
+const NATIONAL_COLORS = {
+  brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' },
+  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542' },
+  france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222' },
+  england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523' },
+  spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a' },
+  portugal: { primary: '#b82132', secondary: '#176b43', trim: '#f0c743', keeperPrimary: '#e0e3eb', keeperSecondary: '#343a47' },
+  germany: { primary: '#f3f3f3', secondary: '#222222', trim: '#d6323b', keeperPrimary: '#f0bd32', keeperSecondary: '#222222' },
+  italy: { primary: '#1566a5', secondary: '#f5f5f5', trim: '#1f8b58', keeperPrimary: '#e5d644', keeperSecondary: '#263238' }
+};
+
+function playableNationalTeam(team) {
+  if (!team) return null;
+  const colors = NATIONAL_COLORS[team.id] || NATIONAL_COLORS.brazil;
+  const players = (team.players || []).map((player, index) => {
+    const rating = player.rating || 75;
+    const position = player.position || 'CM';
+    const forward = ['ST', 'LW', 'RW', 'CF'].includes(position);
+    return {
+      id: `${team.id}-${player.number || index + 1}-${index}`,
+      name: player.name,
+      fullName: player.name,
+      number: player.number || index + 1,
+      pos: position === 'AM' ? 'CAM' : position,
+      ovr: rating,
+      rating,
+      photo: null,
+      stats: {
+        pace: Math.min(99, rating + (forward ? 2 : -2)),
+        shooting: Math.min(99, Math.max(32, rating + (forward ? 2 : position === 'GK' ? -42 : -12))),
+        passing: Math.min(99, Math.max(35, rating - (forward ? 1 : 0))),
+        dribbling: Math.min(99, Math.max(34, rating + (forward ? 1 : -3))),
+        defending: Math.max(25, rating - (position === 'CB' || position === 'GK' ? -2 : 16)),
+        physical: Math.max(35, rating - 2)
+      }
+    };
+  });
+  return {
+    ...team,
+    isNationalTeam: true,
+    shortName: team.name,
+    crest: null,
+    league: 'Copa do Mundo',
+    formation: '4-3-3',
+    colors,
+    ratings: {
+      att: team.ratings.ATT,
+      mid: team.ratings.MID,
+      def: team.ratings.DEF,
+      ovr: Math.round((team.ratings.ATT + team.ratings.MID + team.ratings.DEF) / 3)
+    },
+    players
+  };
+}
+
+function resolvePlayableTeam(id) {
+  return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || getTeam('fc-barcelona');
+}
+
+function kitForTeam(team, index = 0) {
+  if (team.isNationalTeam) {
+    return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid' };
+  }
+  const kits = kitsOf(team.id);
+  return kits[index] || kits[0];
+}
+
+function teamMark(team, className = 'team-mark') {
+  if (team?.crest?.startsWith('assets/')) {
+    return el('img', { class: className, src: team.crest, alt: `Escudo do ${team.name}` });
+  }
+  return el('span', { class: `${className} team-mark--flag`, 'aria-label': `Bandeira de ${team.name}` },
+    flagSvg(team?.flagCode || 'br')
+  );
+}
 
 /** Projeta um ponto do mundo 3D para as coordenadas do palco (1280x720). */
 function projectToStage(camera, position) {
@@ -30,10 +109,13 @@ function projectToStage(camera, position) {
 }
 
 export function playScreen(ctx, params = {}) {
-  const home = getTeam(params.home) || getTeam(ctx.state.selection.home);
-  const away = getTeam(params.away) || getTeam(ctx.state.selection.away);
-  const homeKit = kitsOf(home.id)[params.homeKit ?? 0] || kitsOf(home.id)[0];
-  const awayKit = kitsOf(away.id)[params.awayKit ?? 0] || kitsOf(away.id)[0];
+  const home = resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const away = resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
+  const homeKit = kitForTeam(home, params.homeKit ?? 0);
+  const awayKit = kitForTeam(away, params.awayKit ?? 0);
+  const userSide = params.userSide === 'away' ? 'away' : 'home';
+  let matchReward = null;
+  let rewarded = false;
   const minutes = params.minutes ?? 6;
   const difficulty = params.difficulty ?? 'normal';
 
@@ -99,9 +181,9 @@ export function playScreen(ctx, params = {}) {
         stadiumName,
         stadiumTag,
         el('div', { class: 'showcase__matchup' },
-          el('img', { src: home.crest, alt: '' }),
-          el('span', { text: `${(home.shortName || home.name).toUpperCase?.() || home.name.toUpperCase()}  ×  ${(away.shortName || away.name).toUpperCase?.() || away.name.toUpperCase()}` }),
-          el('img', { src: away.crest, alt: '' })
+          teamMark(home, 'showcase__crest'),
+          el('span', { text: `${(home.shortName || home.name).toUpperCase()}  ×  ${(away.shortName || away.name).toUpperCase()}` }),
+          teamMark(away, 'showcase__crest')
         ),
         dots
       ),
@@ -141,6 +223,7 @@ export function playScreen(ctx, params = {}) {
       awayKit,
       minutes,
       difficulty,
+      userSide,
       onEvent: handleEvent,
       stadium: stadiumIndex
     });
@@ -179,6 +262,29 @@ export function playScreen(ctx, params = {}) {
     dome = attachStadiumDome(match.engine.scene, stadiumIndex);
   }
 
+  function creditMatch(event) {
+    if (rewarded) return;
+    rewarded = true;
+    const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
+    const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
+    const outcomeBonus = userGoals > rivalGoals ? 45 : userGoals === rivalGoals ? 25 : 0;
+    const coins = 65 + outcomeBonus + userGoals * 5;
+    matchReward = { coins, goals: userGoals };
+    ctx.state.profile.coins = Math.max(0, Number(ctx.state.profile.coins) || 0) + coins;
+    ctx.state.profile.matchesPlayed = (Number(ctx.state.profile.matchesPlayed) || 0) + 1;
+    ctx.state.profile.xp = (Number(ctx.state.profile.xp) || 0) + 120;
+
+    if (params.worldCupMatchId && ctx.state.profile.worldCupCampaign) {
+      recordCampaignMatchResult(
+        ctx.state.profile.worldCupCampaign,
+        params.worldCupMatchId,
+        event.score[0],
+        event.score[1]
+      );
+    }
+    saveProfile(ctx.state);
+  }
+
   function handleEvent(event) {
     if (!hud) return;
     switch (event.type) {
@@ -186,12 +292,14 @@ export function playScreen(ctx, params = {}) {
         const team = event.team === 'home' ? home : away;
         const [homeScore, awayScore] = event.score;
         cheer({ duration: 2.8, peak: 0.55 });
-        hud.showBanner(`GOOOL DO ${team.name.toUpperCase()}!  ${homeScore} × ${awayScore}`, 'goal', 3000);
-        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${event.scorer?.name || ''}`, 'goal');
-        // O autor do gol comemora de verdade (braços ao alto).
+        const scorerName = event.scorer?.name || 'GOL';
+        hud.showBanner(`${scorerName.toUpperCase()}  •  GOOOL!  ${homeScore} × ${awayScore}`, 'goal', 3400);
+        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
+        // A câmera fecha no autor, que corre com os braços erguidos; o nome
+        // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
           const scorer = event.scorer;
-          if (scorer?.model?.celebrate) scorer.model.celebrate(2.7);
+          if (scorer?.model?.celebrate) scorer.model.celebrate(3.4);
         } catch { /* comemoração é detalhe */ }
         break;
       }
@@ -221,6 +329,9 @@ export function playScreen(ctx, params = {}) {
         break;
       case 'fulltime':
         whistle('long');
+        creditMatch(event);
+        match?.world.setPaused(true);
+        controls?.setEnabled(false);
         setTimeout(() => {
           if (stage === 'live') showResult(event);
         }, 900);
@@ -296,15 +407,26 @@ export function playScreen(ctx, params = {}) {
     hud?.node.classList.remove('is-visible');
     applause();
     const [homeScore, awayScore] = event.score;
-    const winner = homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away';
+    const campaign = params.worldCupMatchId ? ctx.state.profile.worldCupCampaign : null;
+    const campaignResult = campaign && campaign.lastResult?.matchId === params.worldCupMatchId
+      ? campaign.lastResult
+      : null;
+    let winner = homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away';
+    if (!winner && campaignResult?.winner) winner = campaignResult.winner === home.id ? 'home' : 'away';
     const champion = winner === 'home' ? home : winner === 'away' ? away : null;
 
     overlay.replaceChildren(el('div', { class: 'result' },
       el('div', { class: 'result__flare' }),
       el('h2', { class: 'result__title', text: 'FIM DE JOGO' }),
+      matchReward && el('div', { class: 'result__reward' },
+        el('span', { class: 'result__reward-icon', text: '✦' }),
+        el('b', { text: `+${matchReward.coins} MOEDAS` }),
+        el('span', { text: 'adicionadas ao Ultimate Team' })
+      ),
+      campaignResult?.decidedBy === 'penalties' && el('div', { class: 'result__penalties', text: 'VITÓRIA NOS PÊNALTIS' }),
       el('div', { class: 'result__teams' },
         el('div', { class: `result__team${winner === 'home' ? ' is-winner' : ''}` },
-          el('img', { class: 'result__crest', src: home.crest, alt: `Escudo do ${home.name}` }),
+          teamMark(home, 'result__crest'),
           el('b', { class: 'result__name', text: home.name })
         ),
         el('div', { class: 'result__score' },
@@ -314,7 +436,7 @@ export function playScreen(ctx, params = {}) {
         ),
         el('div', { class: `result__team${winner === 'away' ? ' is-winner' : ''}` },
           el('b', { class: 'result__name', text: away.name }),
-          el('img', { class: 'result__crest', src: away.crest, alt: `Escudo do ${away.name}` })
+          teamMark(away, 'result__crest')
         )
       ),
       el('div', { class: 'result__stats' },
@@ -336,19 +458,25 @@ export function playScreen(ctx, params = {}) {
           el('span', { class: 'result__winner-label', text: 'EMPATE' })
         ),
       el('div', { class: 'result__actions' },
-        el('button', {
-          class: 'btn btn--primary',
-          type: 'button',
-          onClick: () => ctx.go('play', {
-            home: home.id,
-            away: away.id,
-            homeKit: params.homeKit ?? 0,
-            awayKit: params.awayKit ?? 0,
-            minutes,
-            difficulty,
-            stadium: params.stadium
-          })
-        }, 'REJOGAR'),
+        params.worldCupMatchId
+          ? el('button', {
+            class: 'btn btn--primary',
+            type: 'button',
+            onClick: () => ctx.go('worldcup', { mode: params.worldCupMode || campaign?.mode || '2027' })
+          }, 'CONTINUAR COPA')
+          : el('button', {
+            class: 'btn btn--primary',
+            type: 'button',
+            onClick: () => ctx.go('play', {
+              home: home.id,
+              away: away.id,
+              homeKit: params.homeKit ?? 0,
+              awayKit: params.awayKit ?? 0,
+              minutes,
+              difficulty,
+              stadium: params.stadium
+            })
+          }, 'REJOGAR'),
         el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'VOLTAR AO MENU')
       )
     ));
@@ -360,24 +488,156 @@ export function playScreen(ctx, params = {}) {
     paused = true;
     match?.world.setPaused(true);
     controls?.setEnabled(false);
-    overlay.replaceChildren(el('div', { class: 'pause' },
-      el('h2', { class: 'pause__title', text: 'PAUSA' }),
-      el('div', { class: 'pause__actions' },
-        el('button', {
-          class: 'btn btn--primary',
-          type: 'button',
-          onClick: () => {
-            stage = 'live';
-            paused = false;
-            match?.world.setPaused(false);
-            overlay.replaceChildren();
-            controls?.setEnabled(true);
-          }
-        }, 'CONTINUAR'),
-        el('button', { class: 'btn', type: 'button', onClick: () => ctx.go('menu') }, 'SAIR PARA O MENU')
+    const snapshot = match?.world.snapshot() || lastSnapshot;
+    lastSnapshot = snapshot;
+    const stats = snapshot.stats || {
+      home: { shots: 0, possession: 50, corners: 0, fouls: 0, cards: 0 },
+      away: { shots: 0, possession: 50, corners: 0, fouls: 0, cards: 0 }
+    };
+    const userTeam = userSide === 'home' ? home : away;
+    const scoreline = el('div', { class: 'pause__scoreline' },
+      el('div', { class: 'pause__score-team pause__score-team--home' },
+        teamMark(home, 'pause__crest'),
+        el('b', { text: home.shortName || home.name })
+      ),
+      el('div', { class: 'pause__score-value' },
+        el('b', { text: String(snapshot.score?.[0] ?? 0) }),
+        el('span', { text: '–' }),
+        el('b', { text: String(snapshot.score?.[1] ?? 0) })
+      ),
+      el('div', { class: 'pause__score-team pause__score-team--away' },
+        el('b', { text: away.shortName || away.name }),
+        teamMark(away, 'pause__crest')
       )
-    ));
+    );
+
+    const positions = [
+      { pos: 'GK', x: 50, y: 89 },
+      { pos: 'LB', x: 15, y: 70 }, { pos: 'CB', x: 39, y: 72 },
+      { pos: 'CB', x: 61, y: 72 }, { pos: 'RB', x: 85, y: 70 },
+      { pos: 'CM', x: 28, y: 51 }, { pos: 'CDM', x: 50, y: 58 }, { pos: 'CAM', x: 72, y: 51 },
+      { pos: 'LW', x: 16, y: 28 }, { pos: 'ST', x: 50, y: 23 }, { pos: 'RW', x: 84, y: 28 }
+    ];
+    const used = new Set();
+    const lineupPlayers = positions.map((slot, index) => {
+      const roster = userTeam.players || [];
+      let playerIndex = roster.findIndex((player, itemIndex) => !used.has(itemIndex) && player.pos === slot.pos);
+      if (playerIndex < 0) playerIndex = roster.findIndex((player, itemIndex) => !used.has(itemIndex));
+      if (playerIndex < 0) return null;
+      used.add(playerIndex);
+      const player = roster[playerIndex];
+      return el('div', {
+        class: 'pause__lineup-player',
+        style: { left: `${slot.x}%`, top: `${slot.y}%` },
+        title: `${player.name} · ${slot.pos}`
+      },
+        el('span', { class: 'pause__lineup-shirt', text: String(player.number || index + 1) }),
+        el('b', { text: player.name }),
+        el('i', { text: String(player.ovr || player.rating || '—') })
+      );
+    });
+    const lineup = el('section', { class: 'pause__lineup' },
+      el('div', { class: 'pause__lineup-head' },
+        el('div', {},
+          el('span', { class: 'pause__eyebrow', text: 'ESCALAÇÃO' }),
+          el('h3', { text: userTeam.name })
+        ),
+        el('b', { class: 'pause__formation', text: userTeam.formation || '4-3-3' })
+      ),
+      el('div', { class: 'pause__lineup-pitch' },
+        el('div', { class: 'pause__pitch-half' }),
+        el('div', { class: 'pause__pitch-circle' }),
+        ...lineupPlayers
+      ),
+      el('div', { class: 'pause__lineup-footer' },
+        el('span', { text: `${userTeam.players?.length || 11} JOGADORES` }),
+        el('span', { text: 'FORMAÇÃO ATIVA' })
+      )
+    );
+
+    const detail = el('div', { class: 'pause__detail' });
+    function setPauseDetail(title, description, rows = []) {
+      detail.replaceChildren(
+        el('div', { class: 'pause__detail-copy' },
+          el('span', { class: 'pause__eyebrow', text: 'CENTRAL DA PARTIDA' }),
+          el('b', { text: title }),
+          el('p', { text: description })
+        ),
+        ...(rows.length > 0 ? [el('div', { class: 'pause__detail-stats' },
+          ...rows.map(([label, left, right]) => el('div', { class: 'pause__detail-row' },
+            el('span', { text: String(left) }),
+            el('b', { text: label }),
+            el('span', { text: String(right) })
+          ))
+        )] : [])
+      );
+    }
+    setPauseDetail('PARTIDA PAUSADA', 'Escolha uma opção ou retome a partida quando estiver pronto.');
+
+    const options = [
+      { id: 'resume', icon: '▶', title: 'RESUMIR PARTIDA', sub: 'Voltar para o jogo', primary: true, action: resumeMatch },
+      { id: 'replay', icon: '▻', title: 'REPETIÇÃO INSTANTÂNEA', sub: 'Rever o último lance', action: () => setPauseDetail('REPETIÇÃO INSTANTÂNEA', 'Os lances continuam registrados na partida. A repetição de vídeo será adicionada em uma atualização futura.') },
+      { id: 'trainer', icon: '△', title: 'TREINADOR', sub: 'Dicas de controle', action: () => setPauseDetail('DICAS DO TREINADOR', 'Segure CHUTE para carregar. Arraste para cima para chutar alto e curvar, para baixo para colocar ou contra o movimento para dar um superchute.') },
+      { id: 'facts', icon: '▦', title: 'FATOS DA PARTIDA', sub: 'Estatísticas ao vivo', action: () => setPauseDetail('FATOS DA PARTIDA', `Relógio ${snapshot.display || "0'00"} · ${snapshot.half === 2 ? '2º tempo' : '1º tempo'}`, [
+        ['FINALIZAÇÕES', stats.home.shots, stats.away.shots],
+        ['POSSE DE BOLA', `${stats.home.possession}%`, `${stats.away.possession}%`],
+        ['ESCANTEIOS', stats.home.corners, stats.away.corners],
+        ['FALTAS', stats.home.fouls, stats.away.fouls],
+        ['CARTÕES', stats.home.cards, stats.away.cards]
+      ]) },
+      { id: 'settings', icon: '⚙', title: 'CONFIGURAÇÕES', sub: 'Controles e câmera', action: () => setPauseDetail('CONFIGURAÇÕES', 'Analógico esquerdo: movimentação · passe: J/Space · chute: K/L · corrida: Shift. No celular, use o analógico e os botões de ação na tela.') },
+      { id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA', sub: 'Voltar ao menu principal', danger: true, action: () => ctx.go('menu') }
+    ];
+    const tiles = el('div', { class: 'pause__tiles' }, ...options.map((option, index) => el('button', {
+      class: `pause__tile${option.primary ? ' is-primary' : ''}${option.danger ? ' is-danger' : ''}${index === 0 ? ' is-selected' : ''}`,
+      type: 'button',
+      dataset: { pauseAction: option.id },
+      onClick: option.action
+    },
+      el('span', { class: 'pause__tile-copy' },
+        el('b', { text: option.title }),
+        el('small', { text: option.sub })
+      ),
+      el('span', { class: 'pause__tile-icon', text: option.icon })
+    )));
+
+    const pause = el('div', { class: 'pause pause--fc' },
+      el('header', { class: 'pause__topline' },
+        el('span', { text: `${STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC'}  ·  ÁRBITRO OFICIAL` }),
+        el('b', { text: 'PARTIDA CLÁSSICA' }),
+        el('span', { text: `${snapshot.display || "0'00"}  ·  ${snapshot.half === 2 ? '2º TEMPO' : '1º TEMPO'}` })
+      ),
+      scoreline,
+      el('div', { class: 'pause__body' },
+        lineup,
+        el('section', { class: 'pause__menu' },
+          el('div', { class: 'pause__menu-heading' },
+            el('div', {},
+              el('span', { class: 'pause__eyebrow', text: 'XFC 27' }),
+              el('h2', { class: 'pause__title', text: 'PAUSA' })
+            ),
+            teamMark(userTeam, 'pause__menu-crest')
+          ),
+          tiles,
+          detail
+        )
+      ),
+      el('footer', { class: 'pause__footer' },
+        el('span', { class: 'pause__hint' }, padButton('cross', 'Select'), el('span', { text: 'Selecionar' })),
+        el('span', { class: 'pause__hint' }, padButton('circle', 'Resume'), el('span', { text: 'Retomar' }))
+      )
+    );
+    overlay.replaceChildren(pause);
     overlay.classList.add('is-visible');
+  }
+
+  function resumeMatch() {
+    stage = 'live';
+    paused = false;
+    match?.world.setPaused(false);
+    overlay.replaceChildren();
+    overlay.classList.remove('is-visible');
+    controls?.setEnabled(true);
   }
 
   // ------------------------------------------------------------- montagem --
@@ -439,9 +699,12 @@ export function playScreen(ctx, params = {}) {
           showPause();
           return true;
         }
+        if (stage === 'paused') {
+          resumeMatch();
+          return true;
+        }
         if (stage === 'prematch') {
-          if (event.key === 'Escape' || event.key === 'Backspace') ctx.go('menu');
-          else startMatch();
+          ctx.go('menu');
           return true;
         }
         ctx.go('menu');

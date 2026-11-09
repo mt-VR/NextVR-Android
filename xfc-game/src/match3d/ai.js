@@ -270,7 +270,10 @@ export function createTeamAI({ side, world }) {
           const predictedX = ball.position.x + ball.velocity.x * travel * 0.45;
           const predictedZ = ball.position.z + ball.velocity.z * travel * 0.45;
           const reach = 3.1;
-          targetX = predictedX;
+          const fieldOffset = Math.max(1.15, Math.min(6, (predictedX - myGoal) * attackSign));
+          // O goleiro acompanha a trajetória, mas permanece sempre à frente da
+          // linha de gol — nunca corre para dentro da rede.
+          targetX = myGoal + attackSign * fieldOffset;
           targetZ = player.z + Math.max(-reach, Math.min(reach, predictedZ - player.z));
           speed = CHASE_SPEED * 1.35;
           // Precisa se esticar: toca a defesa (animação de mergulho).
@@ -279,8 +282,9 @@ export function createTeamAI({ side, world }) {
             player.gkDiveCd = 0.9;
           }
         } else if (inBox && chaserDistance < 90) {
-          targetX = ball.position.x;
-          targetZ = ball.position.z;
+          const fieldOffset = Math.max(1.15, Math.min(6, (ball.position.x - myGoal) * attackSign));
+          targetX = myGoal + attackSign * fieldOffset;
+          targetZ = Math.max(-7, Math.min(7, ball.position.z));
           speed = CHASE_SPEED;
         }
         if (world.ball.state.owner === player) {

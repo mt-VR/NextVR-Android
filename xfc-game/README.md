@@ -11,88 +11,19 @@ tela. Num celular deitado (20:9) o palco fica mais largo que 1280, então as
 telas ganham espaço em vez de ficarem apertadas, e o app Android trava a
 rotação em paisagem (`sensorLandscape`).
 
-Nesta primeira etapa o jogo tem **o menu**:
+O XFC já reúne as telas principais e a partida de futebol em 3D:
 
-1. **Intro** — selo circular da XF Esports + logotipo XFC lado a lado sobre o
-   fundo geométrico azul/verde, com a barra de carregamento.
-1.1 **Abertura** — o atleta destaque (Neymar Jr.) em tela cheia, com o botão
-   **Entrar** sobre a arte; clicar nele leva ao menu principal.
-2. **Menu principal** — marca no canto superior esquerdo, barra de XP à direita,
-   lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
-   arte do jogador no gramado à direita, título *Dive straight into the action*
-   e o botão *Enter Kick Off*.
-3. **Kick Off / Classic Match (Select Teams)** — estádio escuro com o painel
-   verde grande no centro; em cada lado, a barra `Men's Teams` / `Women's
-   Teams`, a barra do país (nome no meio, bandeira na direita) e o cartão do
-   clube: nome, **escudo em destaque** com as setas dos lados (que trocam de
-   clube), estrelas, ATT/MID/DEF e a liga — tudo sobre um cartão levemente
-   transparente, com o emblema da liga e o trocador de blusa logo abaixo. No
-   meio, o interruptor de mando de campo, Advantage Settings, a mentalidade e
-   o Live Form; “HOME” e “AWAY” na vertical nas pontas da tela.
-4. **Escolher blusas (Select Kits)** — o jogador de cada lado veste o uniforme
-   escolhido, o texto READY fica no centro e, ao lado, o carrossel com a blusa
-   anterior, a atual e a próxima (as setas trocam; o Tab alterna entre HOME e
-   AWAY).
-5. **Elenco (Team Management)** — abas no topo, o campo com a formação 4-3-3
-   (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
-   painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
-   papel, foco, pé, skill moves e weak foot.
-6. **Preparação da partida** — o confronto aparece sobre o fundo do estádio;
-   o botão **é o estádio**: a foto do estádio oficial (com setas para trocar)
-   toma a tela e, ao tocar nele, abre o jogo 3D de verdade, com os times,
-   uniformes e estádio escolhidos. Não há botão de “Iniciar partida”: o
-   próprio estádio é o convite.
-7. **Partida 3D** — o mesmo jogo das Partidas Rápidas: câmera de transmissão
-   **aérea inclinada, lateral** (como no EA Sports FC Mobile — não é atrás do
-   jogador), acompanhando a bola e abraçando quase todo o gramado; placar de
-   transmissão no canto superior esquerdo (escudo, sigla, gols e relógio);
-   cartão do jogador controlado no canto inferior esquerdo (número, nome, OVR
-   e condição) e o **adversário mais próximo da bola** no canto inferior
-   direito; **barra de posse de bola** sob o relógio; radar tático no centro
-   inferior; os sete botões (PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e
-   TROCAR — atalhos: J, K, E, R, Shift, F, Tab); **anel azul luminoso com seta
-   flutuante** sob/acima do atleta controlado e **anel dourado** sob o dono da
-   bola (o destaque muda sozinho quando você troca de jogador); **analógico
-   fixo** no canto inferior esquerdo. A orientação do campo é única para todo
-   o motor (mandante ataca +x e defende o gol de -x): os jogadores olham para
-   onde correm — nada de correr de costas —, o assistente/árbitro central
-   entra em campo de uniforme preto e amarelo, segue a jogada com inteligência
-   (fica atrás da linha da bola e de lado, sem pisar nos jogadores) e levanta
-   o braço apitando no início, no intervalo, nas faltas, nos cartões, nos
-   impedimentos, nas retomadas e no fim. Áudio procedural sintetizado no
-   aparelho (apito do árbitro no início, no intervalo, no impedimento e no
-   fim; festa da torcida a cada gol; batida da bola nos chutes; aplausos no
-   apito final). O autor do gol comemora com os braços para o alto e a torcida
-   faz a festa.
-   Os bonecos de FC Barcelona e Real Madrid usam os **retratos reais** dos
-   jogadores como rosto. Ao fim do tempo, a tela de resultado mostra os
-   **escudos dos dois clubes** e o placar final sobre um fundo de estádio
-   escuro, no estilo dos cartões de resultado. A tela de resultado traz,
-   embaixo do placar, as estatísticas completas da partida (posse de bola,
-   finalizações, chutes ao gol, passes certos, defesas, escanteios, faltas e
-   cartões), além de REJOGAR e VOLTAR AO MENU.
-   Antes de apitar o início, o **pré-jogo** abre em tela cheia com a arte do
-   estádio escolhido: selo *XF Champions League*, o nome e o apelido do
-   estádio, o confronto (escudos + sigla × sigla), as setas laterais para
-   trocar de palco e o convite **TOQUE PARA ENTRAR EM CAMPO** — tocar na tela
-   entra direto em jogo.
-   O horizonte do 3D também é o próprio estádio: uma cúpula texturizada com a
-   arte do palco envolve todo o campo (nada de céu chapado).
-   **Chutes com personalidade** — tocar no botão CHUTE parte de primeira;
-   **segurar** carrega a força (o anel amarelo enche; soltar dispara o chute
-   forte, mais rápido e mais difícil de defender); **arrastar para baixo**
-   sobre o botão converte-o no **chute colocado** rasteiro no ângulo, do lado
-   indicado pelo analógico (anel ciano). No teclado, segure K para carregar e
-   solte para disparar.
-   **Goleiros mergulham** para defender (esticão para os lados, com recarga),
-   **faltas viram cartão** (amarelo/vermelho) para quem cometeu, o **passe
-   sai à frente** (a bola chega no pé do companheiro em movimento), a IA
-   **prefere companheiros livres** (penaliza impedidos e premia corredores de
-   passe limpos), os atacantes **se desmarcam** com arrancadas de apoio e a
-   bola **não atravessa a rede** (bate na malha, nas laterais do contorno e no
-   travessão).
+1. **Intro e abertura** — marca XF Esports/XFC e a arte do atleta; Entrar leva ao menu.
+2. **Menu inicial** — jogador em destaque por imagem estática (os jogadores controláveis continuam sendo modelos 3D), com atalhos para Play Modes, configurações e personalização.
+3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
+4. **Modos de jogo** — a Copa do Mundo (edição ao vivo e 2027), World Cup Kick Off e partidas rápidas estão acessíveis no seletor.
+5. **Kick Off / Classic Match** — escolha de clubes, estádio, uniformes e elenco; o fluxo existente de blusas e gestão de equipe continua disponível.
+6. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados).
+7. **Comemoração de gol** — câmera fecha no autor, acompanha a corrida e destaca seu nome na chamada de gol e na HUD.
 
-Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
+Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o joystick virtual permanece ancorado no mesmo ponto. Os modelos de atleta mantêm os personagens 3D existentes com anatomia de tronco e braços mais definida. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
+
+Por enquanto existem **vinte e um times**. FC Barcelona e Real Madrid (com os
 retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
 com nomes reais; os outros catorze clubes (Aston Villa, Brentford,
 Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt,

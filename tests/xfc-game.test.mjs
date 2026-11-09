@@ -5,6 +5,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
+import { createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, USER_NATIONAL_TEAM_ID } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { launchOrSkip } from './support/chromium.mjs';
@@ -59,6 +60,47 @@ test('orientação do campo: a casa ataca +X, cada time defende o próprio gol',
   assert.equal(insideGoalAreaFor(-46, 0, 'home'), false);
   assert.equal(insideGoalAreaFor(50, 0, 'away'), true);
   assert.equal(insideGoalAreaFor(46, 0, 'away'), false);
+});
+
+test('campanha da Copa sorteia grupos, joga três partidas e avança até a final', () => {
+  const campaign = createWorldCupCampaign({ mode: '2027', seed: 314159 });
+  assert.equal(campaign.groupMatches.length, 12, 'os dois grupos têm seis partidas cada');
+  assert.equal(campaign.groupMatches.filter(match => match.playable).length, 3,
+    'as três partidas do Brasil ficam jogáveis');
+  assert.ok(campaign.groupMatches.filter(match => !match.playable).every(match => match.played),
+    'os outros jogos entram como resultados simulados');
+
+  let match = nextCampaignMatch(campaign);
+  while (campaign.stage === 'group') {
+    assert.ok(match, 'há uma próxima partida do Brasil na fase de grupos');
+    const brazilAtHome = match.home === USER_NATIONAL_TEAM_ID;
+    recordCampaignMatchResult(campaign, match.id, brazilAtHome ? 10 : 0, brazilAtHome ? 0 : 10);
+    match = nextCampaignMatch(campaign);
+  }
+  assert.equal(campaign.stage, 'semifinal', 'três vitórias classificam o Brasil para a semifinal');
+  const table = campaignStandings(campaign, campaign.groups.A.includes(USER_NATIONAL_TEAM_ID) ? 'A' : 'B');
+  assert.equal(table.find(team => team.id === USER_NATIONAL_TEAM_ID).played, 3,
+    'a tabela registra os três jogos disputados');
+
+  const semifinal = nextCampaignMatch(campaign);
+  assert.ok(semifinal, 'o Brasil recebe uma semifinal jogável');
+  recordCampaignMatchResult(campaign, semifinal.id,
+    semifinal.home === USER_NATIONAL_TEAM_ID ? 3 : 0,
+    semifinal.away === USER_NATIONAL_TEAM_ID ? 3 : 0);
+  assert.equal(campaign.stage, 'final', 'vencer a semifinal cria a partida final');
+
+  const final = nextCampaignMatch(campaign);
+  assert.ok(final && final.stage === 'final', 'a final fica disponível para jogar');
+  recordCampaignMatchResult(campaign, final.id, 2, 0);
+  assert.equal(campaign.stage, 'champion', 'o resultado final encerra a campanha como campeã');
+  assert.equal(campaign.completed, true);
+});
+
+test('novo sorteio da Copa não repete os mesmos grupos consecutivos', () => {
+  const first = createWorldCupCampaign({ seed: 77123 });
+  const second = createWorldCupCampaign({ seed: first.seed, previousGroups: first.groups });
+  const normalize = groups => [groups.A, groups.B].map(ids => [...ids].sort().join(',')).sort().join('|');
+  assert.notEqual(normalize(first.groups), normalize(second.groups));
 });
 
 test('todo jogador com retrato tem a imagem disponível no pacote de assets', () => {
@@ -202,18 +244,109 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Menu XFC 27: identidade neon vermelho/magenta, Neymar 3D, items funcionais.
+    // Menu XFC 27: imagem de destaque, atalhos de modos e configurações.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
+    await imagesReady();
     const navLabels = await page.locator('.menu__item').allTextContents();
-    assert.ok(navLabels.some(label => label.includes('KICK OFF')), 'o menu tem KICK OFF');
-    assert.ok(navLabels.some(label => label.includes('COPA DO MUNDO')), 'o menu tem a Copa do Mundo');
-    assert.ok(navLabels.some(label => label.includes('PARTIDAS RÁPIDAS')), 'o menu tem PARTIDAS RÁPIDAS');
-    assert.ok(await page.locator('.menu__logo-xfc .brand-wordmark').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.menu__player-num').count() > 0, 'o menu mostra o Neymar 3D');
-    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o título XFC 27');
+    assert.ok(navLabels.some(label => label.includes('PLAY MODES')), 'o menu abre os modos');
+    assert.ok(navLabels.some(label => label.includes('SETTINGS')), 'o menu abre personalização/configurações');
+    assert.ok(await page.locator('.menu__logo-xfc').count() > 0, 'o menu mostra a marca XFC');
+    assert.ok(await page.locator('.menu__scene3d img').isVisible(), 'o jogador em destaque é uma imagem estática');
+    assert.equal(await page.locator('.menu__scene3d canvas').count(), 0, 'o menu não cria um modelo 3D para o destaque');
+    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o destaque XFC 27');
 
-    // Kick Off: os dois times disponíveis, com escudo, estrelas e ATT/MID/DEF.
-    await page.locator('.menu__item', { hasText: /KICK OFF/i }).first().click();
+    // Loja do Ultimate Team: compra de carta, desconto de moedas e coleção salva.
+    const coinsBeforePurchase = Number(await page.locator('.menu__coins span').textContent());
+    await page.locator('.menu__item[data-tab="ultimate"]').click();
+    await page.waitForSelector('.screen--ultimate');
+    assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'a loja mostra cartas contratáveis');
+    const buyButton = page.locator('.ultimate-card__buy').first();
+    const priceText = await buyButton.textContent();
+    await buyButton.click();
+    await page.waitForFunction(() => document.querySelectorAll('.ultimate-card__owned').length === 1);
+    const coinsAfterPurchase = Number(await page.locator('.ultimate__coin-value').textContent());
+    assert.ok(coinsAfterPurchase < coinsBeforePurchase, `a compra desconta moedas (${priceText})`);
+    assert.equal(await page.locator('.ultimate__tab.is-active').textContent(), 'MEU ELENCO',
+      'a compra leva para a coleção do jogador');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+
+    // Configurações e personalização: grade, diálogos e edição de perfil.
+    await page.locator('.menu__item[data-tab="settings"]').click();
+    await page.waitForSelector('.screen--customise');
+    assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
+    await page.locator('.customise__tile[data-tile="profile"]').click();
+    await page.waitForSelector('.customise__dialog[role="dialog"]');
+    await page.locator('input[aria-label="Nome do perfil"]').fill('XFC Tester');
+    await page.locator('.customise__dialog-save').click();
+    assert.ok(await page.locator('.customise__dialog').count() === 0, 'salvar o perfil fecha o diálogo');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+
+    // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes');
+    assert.equal(await page.locator('.modes__option').count(), 5, 'a tela lista os modos');
+    assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--worldcup');
+    assert.ok(await page.locator('.worldcup__group').isVisible(), 'o modo Copa abre o grupo');
+    assert.equal(await page.locator('.worldcup__standings-row').count(), 4, 'a tabela lista as quatro seleções do grupo');
+    const firstStanding = page.locator('.worldcup__standings-row').first();
+    const rankBox = await firstStanding.locator('.worldcup__standings-rank').boundingBox();
+    const pointsBox = await firstStanding.locator('.worldcup__standings-points').boundingBox();
+    assert.ok(rankBox && pointsBox && Math.abs(rankBox.y - pointsBox.y) < 2,
+      'a posição e os pontos permanecem alinhados na mesma linha');
+    assert.equal(await page.locator('.worldcup__fixture').count(), 6,
+      'a fase de grupos mostra os seis jogos do grupo');
+    assert.equal(await page.locator('.worldcup__play-match').count(), 1,
+      'a próxima partida do Brasil pode ser iniciada');
+    const campaignMatchId = await page.locator('.worldcup__play-match').getAttribute('data-match-id');
+    await page.locator('.worldcup__play-match').click();
+    await page.waitForSelector('.screen--play');
+    await page.waitForFunction(() => window.__xfcMatch?.teams?.home?.players?.length === 11);
+    const countryMatch = await page.locator('.showcase__matchup').textContent();
+    assert.ok(countryMatch?.toUpperCase().includes('BRASIL'), 'a partida de campanha abre com as seleções corretas');
+    assert.equal(await page.locator('.showcase__crest.team-mark--flag').count(), 2,
+      'as bandeiras das duas seleções aparecem no pré-jogo');
+    await page.click('.showcase__enter');
+    await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const userIsHome = match.teams.home.info.id === 'brazil';
+      match.world.setPaused(false);
+      match.teams.home.score = userIsHome ? 1 : 0;
+      match.teams.away.score = userIsHome ? 0 : 1;
+      match.phase.name = 'play';
+      match.clock.half = 2;
+      match.clock.minutes = 94;
+      match.clock.added = 4;
+      match.world.tick(1 / 60);
+    });
+    await page.waitForSelector('.result__title', { timeout: 6000 });
+    const persistedResult = await page.evaluate(matchId => {
+      const profile = JSON.parse(localStorage.getItem('xfc.profile.v1'));
+      return {
+        coins: profile.coins,
+        match: profile.worldCupCampaign.groupMatches.find(item => item.id === matchId)
+      };
+    }, campaignMatchId);
+    assert.ok(persistedResult.match?.played, 'o apito final registra o jogo na campanha salva');
+    assert.equal(persistedResult.match.winner, 'brazil', 'o resultado da partida conta para a classificação');
+    assert.ok(persistedResult.coins > coinsAfterPurchase, 'a partida da Copa também recompensa moedas');
+    await page.click('.result__actions .btn:has-text("CONTINUAR COPA")');
+    await page.waitForSelector('.screen--worldcup');
+    assert.equal(await page.locator('.worldcup__play-match').count(), 1,
+      'a Copa libera a próxima partida depois do resultado');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--modes');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+
+    // Kick Off continua acessível pela tela de modos.
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
+    await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--kickoff');
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
@@ -312,14 +445,56 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'o analógico fica fixo no canto inferior esquerdo');
     assert.ok((await page.locator('.hud__player .hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
+    const stickStyle = await page.locator('.controls__stick').evaluate(node => {
+      const style = getComputedStyle(node);
+      return [style.left, style.bottom];
+    });
+    assert.deepEqual(stickStyle, ['96px', '118px'], 'o joystick permanece na posição original');
+    const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
+    const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
+    assert.ok(passBox && runBox && passBox.width >= 96 && runBox.width >= 96,
+      'PASSE e CORRER têm botões maiores');
+    assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < 145,
+      'PASSE e CORRER trocaram de lado e ficaram próximos');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
     assert.ok(await page.locator('.hud__poss').isVisible(),
       'o HUD mostra a barra de posse de bola');
     assert.equal(await page.locator('.hud__poss-fill').count(), 1,
       'a barra de posse tem o preenchimento do mandante');
-    assert.equal(await page.locator('.hud__tag.is-visible').count(), 1,
-      'a etiqueta do nome aparece sobre o atleta controlado');
+    assert.equal(await page.locator('.hud__tag').count(), 1,
+      'a HUD mantém o elemento de etiqueta para o atleta controlado');
+    const shotGestures = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const button = document.querySelector('.ctrl-btn--shoot');
+      const originalCommand = match.world.command;
+      button.setPointerCapture = () => {};
+      const kinds = [];
+      match.world.command = (name, payload) => {
+        if (name === 'shoot') kinds.push(payload.kind);
+        originalCommand(name, payload);
+      };
+      const gesture = (dx, dy) => {
+        const base = { pointerId: 17, pointerType: 'touch', bubbles: true, cancelable: true };
+        button.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: 100, clientY: 100 }));
+        button.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: 100 + dx, clientY: 100 + dy }));
+        button.dispatchEvent(new PointerEvent('pointerup', { ...base, clientX: 100 + dx, clientY: 100 + dy }));
+      };
+      gesture(0, -48);
+      gesture(0, 48);
+      gesture(-48, 0);
+      match.world.command = originalCommand;
+      return kinds;
+    });
+    assert.deepEqual(shotGestures, ['curved', 'placed', 'power'],
+      'arrastar para cima curva, para baixo coloca e para trás gera o superchute');
+    const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
+    await page.locator('.ctrl-btn--switch').click();
+    await page.waitForFunction(name =>
+      document.querySelector('.hud__player .hud__player-name')?.textContent.trim() !== name,
+    controlledBefore, { timeout: 5000 });
+    assert.notEqual((await page.locator('.hud__player .hud__player-name').textContent()).trim(), controlledBefore,
+      'TROCAR seleciona outro atleta controlado');
 
     // O favicon não é servido pelo servidor do jogo: o ruído dele não interessa.
     const realErrors = errors.filter(message => !/favicon/i.test(message));
@@ -350,11 +525,13 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
+    const coinsBeforeMatch = Number(await page.locator('.menu__coins span').textContent());
 
-    // O menu ganha o modo PARTIDAS RÁPIDAS (o jogo de futebol 3D).
-    const quickItem = page.locator('.menu__item', { hasText: /RÁPIDAS/i }).first();
-    assert.ok(await quickItem.count(), 'o menu lista PARTIDAS RÁPIDAS');
-    await quickItem.click();
+    // As partidas rápidas ficam no menu de modos (atalho Online Tournament).
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes', { timeout: 15000 });
+    await page.locator('.modes__option[data-option="online"]').click();
+    await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--quick', { timeout: 15000 });
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
@@ -412,6 +589,19 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(await page.locator('.hud__poss').isVisible(),
       'o HUD mostra a barra de posse de bola');
 
+    // O painel de pausa segue a referência: placar, formação e blocos de opções.
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.pause--fc');
+    assert.ok(await page.locator('.pause__scoreline').isVisible(), 'a pausa mantém o placar no topo');
+    assert.equal(await page.locator('.pause__lineup-player').count(), 11, 'a pausa mostra a escalação completa');
+    assert.equal(await page.locator('.pause__tile').count(), 6, 'a pausa mostra as opções em blocos');
+    assert.ok(!(await page.locator('.pause__detail').textContent()).includes('false'),
+      'a pausa não deixa booleanos soltos no painel de detalhes');
+    await page.locator('.pause__tile[data-pause-action="facts"]').click();
+    assert.equal(await page.locator('.pause__detail-row').count(), 5, 'FATOS DA PARTIDA abre as estatísticas ao vivo');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.hud.is-visible');
+
     // A simulação realmente roda: o relógio anda, a bola se mexe e o placar
     // existe para as duas equipes.
     const running = await page.evaluate(async () => {
@@ -446,12 +636,136 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(shotKind, 'power', 'o tiro carregado sai como chute forte');
 
     // A defesa mergulhada do goleiro não pode derrubar a simulação.
-    await page.evaluate(() => {
+    const goalkeeperSave = await page.evaluate(() => {
       const match = window.__xfcMatch;
-      const keeper = match.world.members('away').find(player => player.isKeeper);
+      const players = [...match.world.members('home'), ...match.world.members('away')];
+      const keeper = players.find(player => player.side === 'away' && player.isKeeper);
+      const shooter = players.find(player => player.side === 'home' && !player.isKeeper);
+      for (const player of players) player.active = player === keeper;
+      match.phase.name = 'play';
+      match.phase.restart = null;
+      match.teams.home.score = 0;
+      match.teams.away.score = 0;
       match.world.diveKeeper(keeper, 1);
-      for (let index = 0; index < 90; index += 1) match.world.tick(1 / 60);
+      const savesBefore = match.world.snapshot().stats.away.saves;
+      let saved = false;
+      for (let attempt = 0; attempt < 40 && !saved; attempt += 1) {
+        keeper.x = 50.5;
+        keeper.z = 0;
+        keeper.root.position.set(keeper.x, 0, keeper.z);
+        match.ball.state.owner = null;
+        match.ball.state.position.set(52.45, 0.8, 0);
+        match.ball.state.velocity.set(8, 0, 0);
+        match.ball.state.spin.set(0, 0, 0);
+        match.ball.state.guidance = null;
+        match.ball.state.lastCollision = null;
+        match.ball.state.lastShotKind = 'normal';
+        match.ball.state.lastTouch = shooter;
+        match.world.tick(1 / 60);
+        saved = match.world.snapshot().stats.away.saves > savesBefore;
+        if (!saved) {
+          match.teams.home.score = 0;
+          match.teams.away.score = 0;
+          match.phase.name = 'play';
+          match.phase.timer = 0;
+        }
+      }
+      return {
+        score: match.world.snapshot().score,
+        saved,
+        lastTouchIsKeeper: match.ball.state.lastTouch === keeper,
+        keeperX: keeper.x
+      };
     });
+    assert.deepEqual(goalkeeperSave.score, [0, 0], 'o goleiro segura um chute alinhado antes da linha do gol');
+    assert.ok(goalkeeperSave.saved, 'o goleiro defende o chute antes de cruzar a linha');
+    assert.ok(goalkeeperSave.lastTouchIsKeeper, 'a defesa registra o goleiro como último toque da bola');
+
+    const goalAndGoalKick = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const players = [...match.teams.home.players, ...match.teams.away.players];
+      const homeKeeper = players.find(player => player.side === 'home' && player.isKeeper);
+      const awayKeeper = players.find(player => player.side === 'away' && player.isKeeper);
+      const awayShooter = players.find(player => player.side === 'away' && !player.isKeeper);
+      for (const player of players) player.active = false;
+      match.phase.name = 'play';
+      match.phase.restart = null;
+      match.ball.state.owner = null;
+      match.ball.state.position.set(52.45, 1.2, 0);
+      match.ball.state.velocity.set(20, 0, 0);
+      match.ball.state.spin.set(0, 0, 0);
+      match.ball.state.lastCollision = null;
+      match.ball.state.lastTouch = null;
+      match.world.tick(1 / 60);
+      const scored = match.world.snapshot().score;
+      const noTouch = match.ball.state.lastTouch === null;
+
+      homeKeeper.active = true;
+      homeKeeper.x = -48;
+      homeKeeper.z = 0;
+      homeKeeper.root.position.set(homeKeeper.x, 0, homeKeeper.z);
+      match.phase.name = 'play';
+      match.phase.timer = 0;
+      match.phase.restart = null;
+      match.ball.state.owner = null;
+      match.ball.state.position.set(-52.45, 0.18, 4.5);
+      match.ball.state.velocity.set(-20, 0, 0);
+      match.ball.state.spin.set(0, 0, 0);
+      match.ball.state.lastCollision = null;
+      match.ball.state.lastTouch = awayShooter;
+      match.world.tick(1 / 60);
+      match.world.tick(1 / 60);
+      const restart = match.phase.restart;
+      const result = {
+        scored,
+        noTouch,
+        goalKick: restart?.type === 'goalkick' && restart.side === 'home',
+        takerIsKeeper: restart?.taker === homeKeeper,
+        awayKeeperExists: Boolean(awayKeeper),
+        awayShooterExists: Boolean(awayShooter)
+      };
+      for (const player of players) player.active = true;
+      return result;
+    });
+    assert.deepEqual(goalAndGoalKick.scored, [1, 0], 'a bola que cruza a linha inteira entra no gol');
+    assert.ok(goalAndGoalKick.noTouch, 'a bola que entra no gol sem desvio não mantém um toque fantasma');
+    assert.ok(goalAndGoalKick.goalKick && goalAndGoalKick.takerIsKeeper,
+      'a bola pela linha de fundo sem toque do goleiro gera tiro de meta cobrado pelo goleiro');
+    assert.ok(goalAndGoalKick.awayKeeperExists, 'o goleiro também existe no lado visitante');
+
+    const disciplinary = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const players = [...match.teams.home.players, ...match.teams.away.players];
+      const offender = match.teams.home.players.find(player => !player.isKeeper);
+      const victim = match.teams.away.players.find(player => !player.isKeeper);
+      for (const player of players) player.active = player === offender || player === victim;
+      offender.x = 27; offender.z = 0; offender.root.position.set(27, 0, 0);
+      victim.x = 28; victim.z = 0; victim.root.position.set(28, 0, 0);
+      let firstYellowAt = null;
+      let dismissed = false;
+      for (let attempt = 0; attempt < 120 && !dismissed; attempt += 1) {
+        match.phase.name = 'play';
+        match.phase.restart = null;
+        match.ball.attachTo(victim);
+        match.world.tackle(offender);
+        const yellows = match.teams.home.cards[offender.id] || 0;
+        if (yellows === 1 && firstYellowAt === null) firstYellowAt = attempt;
+        dismissed = !offender.active;
+      }
+      const result = {
+        yellows: match.teams.home.cards[offender.id] || 0,
+        firstYellowAt,
+        dismissed,
+        active: offender.active
+      };
+      for (const player of players) player.active = true;
+      match.phase.name = 'play';
+      match.phase.restart = null;
+      return result;
+    });
+    assert.ok(disciplinary.firstYellowAt !== null, 'o carrinho perigoso recebe o primeiro amarelo');
+    assert.ok(disciplinary.dismissed && !disciplinary.active && disciplinary.yellows >= 2,
+      'o segundo amarelo vira vermelho e remove o atleta de campo');
 
     // O jogo pausa no intervalo: o jogador volta com o botão do segundo tempo.
     await page.evaluate(async () => {
@@ -477,12 +791,66 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     });
     assert.equal(finished.phase, 'fulltime', 'a partida termina');
     assert.ok(finished.display.startsWith('9'), `o relógio marca o fim do tempo: ${finished.display}`);
-    await page.waitForSelector('.result__title', { timeout: 20000 });
+    const resultShown = await page.waitForSelector('.result__title', { timeout: 6000 }).then(() => true).catch(() => false);
+    if (!resultShown) {
+      const diagnostic = await page.evaluate(() => ({
+        phase: window.__xfcMatch?.phase?.name,
+        score: window.__xfcMatch?.world?.snapshot()?.score,
+        overlay: document.querySelector('.play__overlay')?.innerText,
+        screen: document.querySelector('.screen--play')?.className,
+        profile: localStorage.getItem('xfc-profile')
+      }));
+      throw new Error(`resultado não apareceu: ${JSON.stringify({ diagnostic, errors })}`);
+    }
     assert.equal((await page.locator('.result__title').textContent()).trim(), 'FIM DE JOGO');
     assert.ok(await page.locator('.result__crest').count() === 2, 'o resultado mostra os dois escudos');
     assert.ok(await page.locator('.btn:has-text("REJOGAR")').count(), 'o resultado tem REJOGAR');
     assert.ok(await page.locator('.btn:has-text("VOLTAR AO MENU")').count(), 'o resultado tem VOLTAR AO MENU');
     assert.equal(await page.locator('.result__stat').count(), 8, 'a tela de resultado traz as estatísticas da partida');
+    assert.equal(await page.locator('.result__reward').count(), 1, 'o apito final mostra as moedas recebidas');
+    const profileAfterMatch = await page.evaluate(() => JSON.parse(localStorage.getItem('xfc.profile.v1')));
+    assert.ok(profileAfterMatch.coins > coinsBeforeMatch, 'a partida credita moedas para a loja');
+    assert.equal(profileAfterMatch.matchesPlayed, 1, 'o perfil registra a partida concluída');
+    assert.ok(profileAfterMatch.xp > 3000, 'o resultado também recompensa XP');
+
+    // Enfiada é um passe rasteiro guiado para espaço à frente, nunca um cruzamento.
+    const passBehavior = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const home = match.world.members('home');
+      const passer = home.find(player => player.role === 'CM');
+      const receiver = home.find(player => player.role === 'ST');
+      for (const player of home) {
+        player.x = -15;
+        player.z = player.role === 'LW' ? 30 : player.role === 'RW' ? -30 : 24;
+        player.vx = player.vz = 0;
+      }
+      passer.x = 0; passer.z = 0;
+      receiver.x = 8; receiver.z = 0; receiver.vx = 1.5; receiver.vz = 0;
+      for (const defender of match.world.members('away')) {
+        if (defender.isKeeper) continue;
+        defender.x = 22;
+        defender.z = 25;
+      }
+      match.controlled.home = passer;
+      match.ball.attachTo(passer);
+      match.world.kickBall(passer, receiver, { power: 17 });
+      const guidedPass = Boolean(match.ball.state.guidance?.receiver === receiver)
+        && !match.ball.state.guidance?.through;
+      match.ball.attachTo(passer);
+      match.world.command('lob');
+      return {
+        guidedPass,
+        throughPass: Boolean(match.ball.state.guidance?.receiver === receiver)
+          && match.ball.state.guidance?.through === true,
+        lift: match.ball.state.velocity.y,
+        targetX: match.ball.state.guidance?.x,
+        receiverX: receiver.x
+      };
+    });
+    assert.ok(passBehavior.guidedPass, 'o passe normal recebe assistência de direção');
+    assert.ok(passBehavior.throughPass, 'ENFIADA aponta para um recebedor no espaço');
+    assert.ok(passBehavior.lift < 2, 'a enfiada permanece rasteira, não vira cruzamento');
+    assert.ok(passBehavior.targetX > passBehavior.receiverX, 'a enfiada mira à frente do atacante');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);

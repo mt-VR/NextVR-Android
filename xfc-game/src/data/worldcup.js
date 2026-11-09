@@ -16,7 +16,7 @@ export const NATIONAL_TEAMS = [
       { name: 'Raphinha', number: 11, position: 'RW', rating: 87 },
       { name: 'Rodrygo', number: 9, position: 'ST', rating: 85 },
       { name: 'Casemiro', number: 5, position: 'CM', rating: 86 },
-      { name: 'Bruno Fernandes', number: 8, position: 'CM', rating: 87 },
+      { name: 'Bruno Guimarães', number: 8, position: 'CM', rating: 87 },
       { name: 'Éder Militão', number: 3, position: 'CB', rating: 83 },
       { name: 'Marquinhos', number: 4, position: 'CB', rating: 85 },
       { name: 'Alisson', number: 1, position: 'GK', rating: 88 },
@@ -44,7 +44,7 @@ export const NATIONAL_TEAMS = [
       { name: 'Romero', number: 13, position: 'CB', rating: 83 },
       { name: 'Molina', number: 26, position: 'RB', rating: 82 },
       { name: 'Acuña', number: 8, position: 'LB', rating: 82 },
-      { name: ' Lautaro', number: 10, position: 'ST', rating: 85 }
+      { name: 'Lautaro Martínez', number: 22, position: 'ST', rating: 88 }
     ]
   },
   {
@@ -58,13 +58,13 @@ export const NATIONAL_TEAMS = [
       { name: 'Mbappé', number: 10, position: 'LW', rating: 92 },
       { name: 'Griezmann', number: 7, position: 'ST', rating: 88 },
       { name: 'Giroud', number: 9, position: 'ST', rating: 86 },
-      { name: 'Campbell', number: 11, position: 'CM', rating: 85 },
+      { name: 'Camavinga', number: 6, position: 'CM', rating: 85 },
       { name: 'Tchouaméni', number: 14, position: 'CM', rating: 85 },
       { name: 'Rabiot', number: 14, position: 'CM', rating: 83 },
       { name: 'Hernández', number: 22, position: 'LB', rating: 82 },
       { name: 'Konaté', number: 4, position: 'CB', rating: 84 },
       { name: 'Saliba', number: 2, position: 'CB', rating: 85 },
-      { name: 'Lloris', number: 1, position: 'GK', rating: 87 },
+      { name: 'Maignan', number: 16, position: 'GK', rating: 87 },
       { name: 'Disasi', number: 5, position: 'RB', rating: 82 },
       { name: 'Kolo Muani', number: 12, position: 'ST', rating: 84 }
     ]
@@ -72,7 +72,7 @@ export const NATIONAL_TEAMS = [
   {
     id: 'england',
     name: 'Inglaterra',
-    flagCode: 'gb',
+    flagCode: 'en',
     crest: '🏴',
     stars: 4,
     ratings: { ATT: 86, MID: 85, DEF: 84 },
@@ -84,7 +84,7 @@ export const NATIONAL_TEAMS = [
       { name: 'Rice', number: 41, position: 'CM', rating: 86 },
       { name: 'Mount', number: 19, position: 'CM', rating: 83 },
       { name: 'Walker', number: 2, position: 'RB', rating: 83 },
-      { name: 'Stone', number: 5, position: 'CB', rating: 85 },
+      { name: 'Stones', number: 5, position: 'CB', rating: 85 },
       { name: 'Maguire', number: 6, position: 'CB', rating: 82 },
       { name: 'Pickford', number: 1, position: 'GK', rating: 86 },
       { name: 'Trippier', number: 12, position: 'LB', rating: 84 },
@@ -103,7 +103,7 @@ export const NATIONAL_TEAMS = [
       { name: 'Nico Williams', number: 10, position: 'LW', rating: 86 },
       { name: 'Morata', number: 7, position: 'ST', rating: 85 },
       { name: 'Pedri', number: 8, position: 'CM', rating: 87 },
-      { name: 'Galli', number: 6, position: 'CM', rating: 86 },
+      { name: 'Gavi', number: 6, position: 'CM', rating: 86 },
       { name: 'Rodri', number: 16, position: 'CM', rating: 88 },
       { name: 'Carvajal', number: 2, position: 'RB', rating: 84 },
       { name: 'Laporte', number: 3, position: 'CB', rating: 84 },
@@ -130,7 +130,7 @@ export const NATIONAL_TEAMS = [
       { name: 'Cancelo', number: 2, position: 'RB', rating: 83 },
       { name: 'Rúben Dias', number: 4, position: 'CB', rating: 86 },
       { name: 'Pepe', number: 3, position: 'CB', rating: 83 },
-      { name: 'Dybala', number: 9, position: 'ST', rating: 84 },
+      { name: 'Diogo Jota', number: 21, position: 'ST', rating: 84 },
       { name: 'Costa', number: 1, position: 'GK', rating: 84 },
       { name: 'Nélson Semedo', number: 12, position: 'RB', rating: 82 }
     ]
@@ -150,8 +150,8 @@ export const NATIONAL_TEAMS = [
       { name: 'Goretzka', number: 8, position: 'CM', rating: 85 },
       { name: 'Klostermann', number: 2, position: 'CB', rating: 84 },
       { name: 'Rüdiger', number: 5, position: 'CB', rating: 85 },
-      { name: 'Laboeur', number: 3, position: 'LB', rating: 83 },
-      { name: 'Navas', number: 1, position: 'GK', rating: 84 },
+      { name: 'Raum', number: 3, position: 'LB', rating: 83 },
+      { name: 'Neuer', number: 1, position: 'GK', rating: 85 },
       { name: 'Sabitzer', number: 7, position: 'RW', rating: 82 },
       { name: 'Führich', number: 11, position: 'RW', rating: 83 },
       { name: 'Frimpong', number: 12, position: 'LB', rating: 83 }
@@ -167,9 +167,9 @@ export const NATIONAL_TEAMS = [
     players: [
       { name: 'Retegui', number: 9, position: 'ST', rating: 85 },
       { name: 'Chiesa', number: 10, position: 'RW', rating: 84 },
-      { name: 'Pedro', number: 7, position: 'LW', rating: 84 },
+      { name: 'Pellegrini', number: 10, position: 'CM', rating: 84 },
       { name: 'Barella', number: 4, position: 'CM', rating: 86 },
-      { name: 'Pessi', number: 5, position: 'CM', rating: 85 },
+      { name: 'Jorginho', number: 5, position: 'CM', rating: 85 },
       { name: 'Donnarumma', number: 1, position: 'GK', rating: 88 },
       { name: 'Bastoni', number: 3, position: 'CB', rating: 85 },
       { name: 'Acerbi', number: 15, position: 'CB', rating: 84 },
@@ -188,8 +188,12 @@ export const USER_NATIONAL_TEAM_ID = 'brazil';
  * Sorteio de grupos de 8 seleções em 2 grupos de 4.
  * Semente estática para o sorteio ser reproduzível.
  */
-export function drawGroups(teams) {
-  const remaining = [...teams].sort(() => Math.random() - 0.5);
+export function drawGroups(teams, random = Math.random) {
+  const remaining = [...teams];
+  for (let index = remaining.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [remaining[index], remaining[swapIndex]] = [remaining[swapIndex], remaining[index]];
+  }
   const groups = {
     A: remaining.slice(0, 4).map(t => t.id),
     B: remaining.slice(4, 8).map(t => t.id)
@@ -336,4 +340,237 @@ export function getNationalTeam(teamId) {
 export function getTeamFlag(teamId) {
   const team = getNationalTeam(teamId);
   return team ? team.flagCode : 'br';
+}
+
+
+/** Cria os seis jogos de grupo em três rodadas (todos contra todos). */
+function roundRobinFixtures(ids, group) {
+  const pairs = [
+    [[ids[0], ids[1]], [ids[2], ids[3]]],
+    [[ids[0], ids[2]], [ids[3], ids[1]]],
+    [[ids[0], ids[3]], [ids[1], ids[2]]]
+  ];
+  return pairs.flatMap((games, index) => games.map(([home, away], gameIndex) => ({
+    id: `${group}-${index + 1}-${gameIndex + 1}-${home}-${away}`,
+    stage: 'group',
+    group,
+    round: index + 1,
+    home,
+    away,
+    homeGoals: null,
+    awayGoals: null,
+    played: false,
+    playable: home === USER_NATIONAL_TEAM_ID || away === USER_NATIONAL_TEAM_ID,
+    winner: null
+  })));
+}
+
+function nationalRating(teamId) {
+  return getNationalTeam(teamId)?.ratings?.ATT || 80;
+}
+
+function simulateFixtureScore(home, away, random) {
+  const difference = (nationalRating(home) - nationalRating(away)) / 12 + (random() - 0.5) * 3.2;
+  return {
+    homeGoals: Math.max(0, Math.round(1.15 + difference + random() * 1.7)),
+    awayGoals: Math.max(0, Math.round(1.05 - difference + random() * 1.7))
+  };
+}
+
+function tiedWinner(home, away, random) {
+  const homeOdds = nationalRating(home) / Math.max(1, nationalRating(home) + nationalRating(away));
+  return random() < homeOdds ? home : away;
+}
+
+function isSameDraw(first, second) {
+  if (!first || !second) return false;
+  const sortGroup = ids => [...ids].sort().join(',');
+  const firstA = sortGroup(first.A || []);
+  const firstB = sortGroup(first.B || []);
+  const secondA = sortGroup(second.A || []);
+  const secondB = sortGroup(second.B || []);
+  return (firstA === secondA && firstB === secondB) || (firstA === secondB && firstB === secondA);
+}
+
+/**
+ * Inicia uma campanha persistível: o Brasil joga seus três jogos de grupo,
+ * enquanto os outros confrontos são simulados para compor a classificação.
+ */
+export function createWorldCupCampaign({ mode = '2027', seed = Math.floor(Math.random() * 0x7fffffff), previousGroups = null } = {}) {
+  let groups;
+  let campaignSeed = seed >>> 0;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    groups = drawGroups(NATIONAL_TEAMS, mulberry32(campaignSeed));
+    if (!isSameDraw(groups, previousGroups)) break;
+    campaignSeed = (campaignSeed + 0x9e3779b9) >>> 0;
+  }
+
+  const random = mulberry32((campaignSeed ^ 0x85ebca6b) >>> 0);
+  const groupMatches = [
+    ...roundRobinFixtures(groups.A, 'A'),
+    ...roundRobinFixtures(groups.B, 'B')
+  ];
+  for (const match of groupMatches) {
+    if (match.playable) continue;
+    Object.assign(match, simulateFixtureScore(match.home, match.away, random), { played: true });
+    if (match.homeGoals !== match.awayGoals) match.winner = match.homeGoals > match.awayGoals ? match.home : match.away;
+  }
+
+  return {
+    id: `worldcup-${campaignSeed.toString(36)}-${Date.now().toString(36)}`,
+    seed: campaignSeed,
+    mode,
+    year: mode === 'live' ? '2026' : '2027',
+    userTeamId: USER_NATIONAL_TEAM_ID,
+    groups,
+    groupMatches,
+    knockoutMatches: [],
+    stage: 'group',
+    createdAt: Date.now(),
+    completed: false,
+    lastResult: null
+  };
+}
+
+/** Classificação real, recalculada só com partidas já disputadas. */
+export function campaignStandings(campaign, groupName) {
+  const teamIds = campaign?.groups?.[groupName] || [];
+  const table = new Map(teamIds.map(id => [id, {
+    id, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0
+  }]));
+  for (const match of campaign?.groupMatches || []) {
+    if (match.group !== groupName || !match.played) continue;
+    const home = table.get(match.home);
+    const away = table.get(match.away);
+    if (!home || !away) continue;
+    home.played += 1;
+    away.played += 1;
+    home.gf += match.homeGoals;
+    home.ga += match.awayGoals;
+    away.gf += match.awayGoals;
+    away.ga += match.homeGoals;
+    if (match.homeGoals > match.awayGoals) {
+      home.won += 1; home.points += 3; away.lost += 1;
+    } else if (match.awayGoals > match.homeGoals) {
+      away.won += 1; away.points += 3; home.lost += 1;
+    } else {
+      home.drawn += 1; away.drawn += 1; home.points += 1; away.points += 1;
+    }
+  }
+  return [...table.values()].sort((a, b) =>
+    b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || nationalRating(b.id) - nationalRating(a.id)
+  );
+}
+
+/** Próximo jogo que o usuário precisa disputar nesta campanha. */
+export function nextCampaignMatch(campaign) {
+  if (!campaign) return null;
+  const matches = campaign.stage === 'group' ? campaign.groupMatches : campaign.knockoutMatches;
+  return (matches || []).find(match => match.playable && !match.played) || null;
+}
+
+function addKnockoutFixture(campaign, home, away, stage, random, index) {
+  const playable = home === campaign.userTeamId || away === campaign.userTeamId;
+  const match = {
+    id: `${stage}-${index}-${home}-${away}`,
+    stage,
+    group: null,
+    round: null,
+    home,
+    away,
+    homeGoals: null,
+    awayGoals: null,
+    played: false,
+    playable,
+    winner: null,
+    decidedBy: null
+  };
+  if (!playable) {
+    const score = simulateFixtureScore(home, away, random);
+    Object.assign(match, score, { played: true });
+    match.winner = score.homeGoals === score.awayGoals
+      ? tiedWinner(home, away, random)
+      : score.homeGoals > score.awayGoals ? home : away;
+    if (score.homeGoals === score.awayGoals) match.decidedBy = 'penalties';
+  }
+  return match;
+}
+
+function prepareSemifinals(campaign) {
+  const firstA = campaignStandings(campaign, 'A');
+  const firstB = campaignStandings(campaign, 'B');
+  const brazilRank = firstA.findIndex(team => team.id === campaign.userTeamId) >= 0
+    ? firstA.findIndex(team => team.id === campaign.userTeamId)
+    : firstB.findIndex(team => team.id === campaign.userTeamId);
+  if (brazilRank < 0 || brazilRank > 1) {
+    campaign.stage = 'eliminated';
+    campaign.completed = true;
+    return;
+  }
+  const random = mulberry32((campaign.seed ^ 0xc2b2ae35) >>> 0);
+  campaign.knockoutMatches = [
+    addKnockoutFixture(campaign, firstA[0].id, firstB[1].id, 'semifinal', random, 1),
+    addKnockoutFixture(campaign, firstB[0].id, firstA[1].id, 'semifinal', random, 2)
+  ];
+  campaign.stage = 'semifinal';
+  resolveSemifinals(campaign);
+}
+
+function resolveSemifinals(campaign) {
+  const semis = campaign.knockoutMatches.filter(match => match.stage === 'semifinal');
+  if (semis.length !== 2 || semis.some(match => !match.played)) return;
+  const brazilSemi = semis.find(match => match.home === campaign.userTeamId || match.away === campaign.userTeamId);
+  if (!brazilSemi || brazilSemi.winner !== campaign.userTeamId) {
+    campaign.stage = 'eliminated';
+    campaign.completed = true;
+    return;
+  }
+  const otherSemi = semis.find(match => match !== brazilSemi);
+  campaign.knockoutMatches.push({
+    id: `final-${campaign.userTeamId}-${otherSemi.winner}`,
+    stage: 'final',
+    group: null,
+    round: null,
+    home: campaign.userTeamId,
+    away: otherSemi.winner,
+    homeGoals: null,
+    awayGoals: null,
+    played: false,
+    playable: true,
+    winner: null,
+    decidedBy: null
+  });
+  campaign.stage = 'final';
+}
+
+/**
+ * Registra o placar de uma partida jogada e avança a campanha pelos grupos,
+ * semifinais e final. Empate eliminatório é decidido por disputa de pênaltis.
+ */
+export function recordCampaignMatchResult(campaign, matchId, homeGoals, awayGoals) {
+  if (!campaign || campaign.completed) return campaign;
+  const allMatches = [...(campaign.groupMatches || []), ...(campaign.knockoutMatches || [])];
+  const match = allMatches.find(item => item.id === matchId);
+  if (!match || match.played) return campaign;
+  match.homeGoals = Math.max(0, Math.floor(Number(homeGoals) || 0));
+  match.awayGoals = Math.max(0, Math.floor(Number(awayGoals) || 0));
+  match.played = true;
+  if (match.homeGoals !== match.awayGoals) {
+    match.winner = match.homeGoals > match.awayGoals ? match.home : match.away;
+  } else if (match.stage !== 'group') {
+    match.winner = tiedWinner(match.home, match.away, mulberry32((campaign.seed ^ match.id.length ^ match.homeGoals) >>> 0));
+    match.decidedBy = 'penalties';
+  }
+  campaign.lastResult = { matchId, homeGoals: match.homeGoals, awayGoals: match.awayGoals, winner: match.winner, decidedBy: match.decidedBy };
+
+  if (match.stage === 'group') {
+    const pending = campaign.groupMatches.some(item => item.playable && !item.played);
+    if (!pending) prepareSemifinals(campaign);
+  } else if (match.stage === 'semifinal') {
+    resolveSemifinals(campaign);
+  } else if (match.stage === 'final') {
+    campaign.stage = match.winner === campaign.userTeamId ? 'champion' : 'runnerup';
+    campaign.completed = true;
+  }
+  return campaign;
 }

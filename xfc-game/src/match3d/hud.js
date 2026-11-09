@@ -8,6 +8,7 @@
 //   - aviso central de eventos (gol, cartão, intervalo).
 
 import { el } from '../ui/dom.js';
+import { flagSvg } from '../ui/flags.js';
 import { PITCH } from './constants.js';
 
 const TEAM_ABBR = {
@@ -23,9 +24,18 @@ function abbreviationOf(team) {
   return clean.slice(0, 3).toUpperCase() || '???';
 }
 
+function teamMark(team) {
+  if (team?.crest?.startsWith('assets/')) {
+    return el('img', { class: 'hud__crest', src: team.crest, alt: `Escudo do ${team.name}` });
+  }
+  return el('span', { class: 'hud__crest hud__crest--flag', 'aria-label': `Bandeira de ${team?.name || 'seleção'}` },
+    flagSvg(team?.flagCode || 'br')
+  );
+}
+
 export function createHud({ root, home, away }) {
-  const homeCrest = el('img', { class: 'hud__crest', src: home?.crest, alt: `Escudo do ${home?.name}` });
-  const awayCrest = el('img', { class: 'hud__crest', src: away?.crest, alt: `Escudo do ${away?.name}` });
+  const homeCrest = teamMark(home);
+  const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
   const awayScore = el('b', { class: 'hud__score', text: '0' });
   const clock = el('span', { class: 'hud__clock', text: "0'00" });
@@ -254,8 +264,10 @@ export function createHud({ root, home, away }) {
       possHomePct.textContent = `${poss[0]}%`;
       possAwayPct.textContent = `${poss[1]}%`;
       const player = controlled?.player || null;
+      const goalScorer = snapshot.phase === 'goal' ? snapshot.scorer : null;
+      const focusPlayer = goalScorer || player;
       drawRadar(players, ball, player);
-      paintChip(player);
+      paintChip(focusPlayer);
       paintFoe(nearestOpponent(players, ball, player));
 
       // Tags de nome para TODOS os jogadores ativos
@@ -279,7 +291,9 @@ export function createHud({ root, home, away }) {
           nameTagsLayer.appendChild(tagEl);
         }
         const isControlled = controlled?.player && p.id === controlled.player.id;
+        const isScorer = goalScorer && p.id === goalScorer.id;
         entry.el.classList.toggle('is-controlled', !!isControlled);
+        entry.el.classList.toggle('is-scorer', !!isScorer);
         entry.el.classList.add('is-visible');
         entry.el.style.left = `${p.x}px`;
         entry.el.style.top = `${p.y}px`;
@@ -293,14 +307,18 @@ export function createHud({ root, home, away }) {
         }
       }
 
-      // Tag do jogador controlado (cartão inferior — mantém a original)
-      if (controlled?.visible && player) {
-        tagName.textContent = String(player.name).toUpperCase();
-        tag.style.left = `${controlled.x}px`;
-        tag.style.top = `${controlled.y}px`;
+      // Tag sob a cabeça do controlado; durante o gol acompanha o autor.
+      const focusProjected = goalScorer
+        ? (players || []).find(item => item.id === goalScorer.id)
+        : controlled;
+      if (focusProjected?.visible && focusPlayer) {
+        tagName.textContent = String(focusPlayer.name).toUpperCase();
+        tag.style.left = `${focusProjected.x}px`;
+        tag.style.top = `${focusProjected.y}px`;
+        tag.classList.toggle('is-goal-focus', Boolean(goalScorer));
         tag.classList.add('is-visible');
       } else {
-        tag.classList.remove('is-visible');
+        tag.classList.remove('is-visible', 'is-goal-focus');
       }
     },
     /** Mostra um aviso grande (gol, cartão, intervalo). */
