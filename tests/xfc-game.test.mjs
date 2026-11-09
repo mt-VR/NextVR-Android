@@ -1056,7 +1056,9 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const home = match.world.members('home');
       const passer = home.find(player => player.role === 'CM');
       const receiver = home.find(player => player.role === 'ST');
+      match.world.setPaused(false);
       for (const player of home) {
+        player.active = true;
         player.x = -15;
         player.z = player.role === 'LW' ? 30 : player.role === 'RW' ? -30 : 24;
         player.vx = player.vz = 0;
@@ -1074,9 +1076,10 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const guidedPass = Boolean(match.ball.state.guidance?.receiver === receiver)
         && !match.ball.state.guidance?.through;
       match.ball.attachTo(passer);
-      match.world.command('lob');
+      const throughCommanded = match.world.command('lob');
       return {
         guidedPass,
+        throughCommanded,
         throughPass: Boolean(match.ball.state.guidance?.receiver === receiver)
           && match.ball.state.guidance?.through === true,
         lift: match.ball.state.velocity.y,
@@ -1085,6 +1088,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       };
     });
     assert.ok(passBehavior.guidedPass, 'o passe normal recebe assistência de direção');
+    assert.ok(passBehavior.throughCommanded, 'o comando ENFIADA é aceito durante o jogo');
     assert.ok(passBehavior.throughPass, 'ENFIADA aponta para um recebedor no espaço');
     assert.ok(passBehavior.lift < 2, 'a enfiada permanece rasteira, não vira cruzamento');
     assert.ok(passBehavior.targetX > passBehavior.receiverX, 'a enfiada mira à frente do atacante');
