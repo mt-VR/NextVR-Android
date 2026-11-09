@@ -1349,7 +1349,10 @@ export function createMatch(options = {}) {
     if (!restart?.ready || restart.side !== userSide || !taker || controlled[userSide] !== taker) return false;
     let acted = false;
     if (name === 'shoot') {
-      const gestureKind = opts.kind && opts.kind !== 'normal' ? opts.kind : setPieceOptions.kind;
+      const hasSetPieceTechnique = ['freekick', 'penalty', 'corner'].includes(restart.type);
+      const gestureKind = opts.kind && opts.kind !== 'normal'
+        ? opts.kind
+        : hasSetPieceTechnique ? setPieceOptions.kind : 'direct';
       const shotOptions = {
         ...setPieceOptions,
         ...opts,
