@@ -244,20 +244,31 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Menu clássico do XFC 27: navegação vertical, partículas e jogador 3D.
+    // Hub de futebol da referência: estádio em tela cheia, Kick Off selecionado,
+    // nove atalhos verticais, progressão no topo e ação principal.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     await imagesReady();
     const navLabels = await page.locator('.menu__item-label').allTextContents();
-    assert.ok(navLabels.some(label => label.includes('Copa do Mundo Live')), 'o menu abre a campanha da Copa');
-    assert.ok(navLabels.some(label => label.includes('Kick Off')), 'o menu abre o Kick Off');
-    assert.ok(navLabels.some(label => label.includes('Ultimate Team')), 'o menu mantém o atalho do Ultimate Team');
-    assert.ok(await page.locator('.menu__logo-xfc').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.menu__scene3d canvas').count() > 0, 'o destaque mantém a cena 3D do jogador');
-    assert.equal(await page.locator('.menu__scene3d img').count(), 0, 'o menu clássico não troca o jogador por uma imagem');
-    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o destaque XFC 27');
+    assert.deepEqual(navLabels, [
+      'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
+      'SEASONS', 'TOURNAMENTS', 'CO-OP SEASONS', 'ONLINE FRIENDLIES'
+    ], 'o menu mantém as opções do hub em uma lista vertical');
+    assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
+      'KICK OFF aparece selecionado por padrão');
+    assert.equal(await page.locator('.hub__background').getAttribute('src'), 'assets/bg/menu-hero.jpg',
+      'o menu usa a imagem de estádio em tela cheia');
+    assert.ok(await page.locator('.hub__wordmark svg').count() > 0, 'o menu mostra a marca XFC');
+    assert.ok(await page.locator('.hub__progress').isVisible(), 'a barra de XP aparece no topo');
+    assert.equal(await page.locator('.hub__xp-bar').getAttribute('role'), 'progressbar',
+      'o progresso de XP expõe uma barra acessível');
+    assert.equal(await page.locator('.hub__xp-bar').getAttribute('aria-valuenow'), '3000');
+    assert.equal(await page.locator('.hub__cta-label').textContent(), 'Enter Kick Off',
+      'a ação principal acompanha o modo selecionado');
+    assert.equal(await page.locator('.menu__scene3d canvas').count(), 0,
+      'o menu de referência usa arte de estádio em vez da cena 3D antiga');
 
     // Loja do Ultimate Team: compra de carta, desconto de moedas e coleção salva.
-    const coinsBeforePurchase = Number(await page.locator('.menu__coins span').textContent());
+    const coinsBeforePurchase = Number(await page.locator('.screen--menu').getAttribute('data-coins'));
     await page.locator('.menu__item[data-menu-item="ultimate"]').click();
     await page.waitForSelector('.screen--ultimate');
     assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'a loja mostra cartas contratáveis');
@@ -273,7 +284,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Configurações e personalização: grade, diálogos e edição de perfil.
-    await page.locator('.menu__item[data-menu-item="customise"]').click();
+    await page.locator('.hub__quick-button[data-action="settings"]').click();
     await page.waitForSelector('.screen--customise');
     assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
     await page.locator('.customise__tile[data-tile="profile"]').click();
@@ -526,9 +537,9 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
-    const coinsBeforeMatch = Number(await page.locator('.menu__coins span').textContent());
+    const coinsBeforeMatch = Number(await page.locator('.screen--menu').getAttribute('data-coins'));
 
-    // O atalho clássico leva direto à preparação de uma partida rápida.
+    // O atalho CO-OP SEASONS leva direto à preparação de uma partida rápida.
     await page.locator('.menu__item[data-menu-item="quick"]').click();
     await page.waitForSelector('.screen--quick', { timeout: 15000 });
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');

@@ -63,17 +63,39 @@ document.querySelector('.launch__enter').click();
 // A entrada toca partículas por 460 ms antes de navegar ao menu.
 await new Promise(resolve => setTimeout(resolve, 500));
 check('Entrar leva ao menu principal', document.querySelector('.screen--menu'));
-check('o menu clássico mostra os atalhos principais',
-  document.querySelectorAll('.menu__item').length === 8);
-check('o menu mantém a cena 3D original do jogador',
-  Boolean(document.querySelector('.menu__scene3d canvas')) && !document.querySelector('.menu__scene3d img'));
+check('o menu mostra as nove opções do hub de futebol',
+  document.querySelectorAll('.menu__item').length === 9 &&
+  document.querySelector('.menu__item[data-menu-item="news"]') &&
+  document.querySelector('.menu__item[data-menu-item="online-friendlies"]'));
+check('KICK OFF aparece selecionado e pronto para entrar',
+  document.querySelector('.menu__item[data-menu-item="kickoff"]')?.classList.contains('is-focused') &&
+  document.querySelector('.hub__cta-label')?.textContent === 'Enter Kick Off');
+check('o menu usa a imagem de estádio e a marca da referência',
+  document.querySelector('.hub__background')?.getAttribute('src') === 'assets/bg/menu-hero.jpg' &&
+  Boolean(document.querySelector('.hub__wordmark svg')));
+press('ArrowDown');
+check('as setas mudam o destaque e a chamada do modo',
+  document.querySelector('.menu__item[data-menu-item="grounds"]')?.classList.contains('is-focused') &&
+  document.querySelector('.hub__headline')?.textContent === 'Find your home ground');
+press('ArrowUp');
+check('a seta para cima volta ao Kick Off',
+  document.querySelector('.menu__item[data-menu-item="kickoff"]')?.classList.contains('is-focused') &&
+  document.querySelector('.hub__cta-label')?.textContent === 'Enter Kick Off');
 
-// Configurações e personalização ficam acessíveis pelo menu principal.
-document.querySelector('.menu__item[data-menu-item="customise"]').click();
+// Configurações e personalização ficam acessíveis pelo menu lateral.
+document.querySelector('.hub__quick-button[data-action="settings"]').click();
 check('Customise abre a tela de personalização', document.querySelector('.screen--customise'));
 check('a tela de personalização mostra oito opções', document.querySelectorAll('.customise__tile').length === 8);
 press('Escape');
 check('Escape retorna ao menu principal', document.querySelector('.screen--menu'));
+document.querySelector('.menu__item[data-menu-item="grounds"]').click();
+check('THE GROUNDS abre a galeria de estádios', document.querySelector('.screen--stadiums'));
+press('Escape');
+check('Escape dos estádios retorna ao hub', document.querySelector('.screen--menu'));
+document.querySelector('.menu__item[data-menu-item="seasons"]').click();
+check('SEASONS abre a campanha da Copa diretamente', document.querySelector('.screen--worldcup'));
+press('Escape');
+check('Escape da campanha iniciada no hub retorna ao hub', document.querySelector('.screen--menu'));
 
 // A Copa do Mundo está disponível no seletor de modos.
 document.querySelector('.menu__item[data-menu-item="tournament"]').click();

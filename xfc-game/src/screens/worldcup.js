@@ -18,6 +18,8 @@ const GROUP_LABELS = { A: 'Grupo A', B: 'Grupo B' };
 
 export function worldCupScreen(ctx, params = {}) {
   const mode = params.mode || '2027';
+  const returnTo = params.returnTo || 'modes';
+  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
   const profile = ctx.state.profile;
   let campaign = profile.worldCupCampaign;
   if (params.newCampaign || !isCampaignValid(campaign) || campaign.mode !== mode) {
@@ -116,7 +118,8 @@ export function worldCupScreen(ctx, params = {}) {
       stadium: 2,
       userSide: match.home === USER_NATIONAL_TEAM_ID ? 'home' : 'away',
       worldCupMatchId: match.id,
-      worldCupMode: campaign.mode
+      worldCupMode: campaign.mode,
+      worldCupReturnTo: returnTo
     });
   }
 
@@ -124,8 +127,8 @@ export function worldCupScreen(ctx, params = {}) {
     el('button', {
       class: 'topbar__back',
       type: 'button',
-      'aria-label': 'Voltar aos modos',
-      onClick() { ctx.go('modes'); },
+      'aria-label': returnLabel,
+      onClick() { ctx.go(returnTo); },
       html: '<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>'
     }),
     el('span', { class: 'topbar__mark', html: xfcWordmark() }),
@@ -227,7 +230,7 @@ export function worldCupScreen(ctx, params = {}) {
     onClick() {
       profile.worldCupCampaign = createWorldCupCampaign({ mode, previousGroups: campaign.groups });
       saveProfile(ctx.state);
-      ctx.go('worldcup', { mode });
+      ctx.go('worldcup', { mode, returnTo });
     }
   }, 'NOVA CAMPANHA  ↻');
 
@@ -243,14 +246,14 @@ export function worldCupScreen(ctx, params = {}) {
       outcome,
       newCampaign
     ),
-    el('div', { class: 'worldcup__hint', text: 'ESC · VOLTAR AOS MODOS' })
+    el('div', { class: 'worldcup__hint', text: `ESC · ${returnLabel.toUpperCase()}` })
   );
 
   return {
     node,
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('modes');
+        ctx.go(returnTo);
         return true;
       }
       return false;

@@ -161,7 +161,7 @@ export function modesScreen(ctx) {
 
   function openSelected() {
     const item = MODES[focusIndex];
-    if (item.action === 'worldcup') ctx.go('worldcup', { mode: item.mode });
+    if (item.action === 'worldcup') ctx.go('worldcup', { mode: item.mode, returnTo: 'modes' });
     else if (item.action === 'kickoff') ctx.go('kickoff');
     else if (item.action === 'quick') ctx.go('quick');
     else ctx.go('customise');

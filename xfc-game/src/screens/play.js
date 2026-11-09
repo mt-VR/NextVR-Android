@@ -462,7 +462,10 @@ export function playScreen(ctx, params = {}) {
           ? el('button', {
             class: 'btn btn--primary',
             type: 'button',
-            onClick: () => ctx.go('worldcup', { mode: params.worldCupMode || campaign?.mode || '2027' })
+            onClick: () => ctx.go('worldcup', {
+              mode: params.worldCupMode || campaign?.mode || '2027',
+              returnTo: params.worldCupReturnTo || 'modes'
+            })
           }, 'CONTINUAR COPA')
           : el('button', {
             class: 'btn btn--primary',

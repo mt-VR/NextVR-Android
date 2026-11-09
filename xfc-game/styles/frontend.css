@@ -685,3 +685,196 @@
   .customise__tile-title { font-size: 21px; }
   .modes__hero-title { font-size: 30px; }
 }
+
+/* ------------------------------------------------------- XFC main hub --- */
+.screen--xfc-home {
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff;
+  background: #183e65;
+}
+
+.screen--xfc-home .hub__background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.screen--xfc-home::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(3, 11, 16, .64) 0%, rgba(3, 11, 16, .4) 25%, rgba(3, 11, 16, .12) 48%, transparent 68%),
+    linear-gradient(0deg, rgba(2, 8, 5, .58) 0%, rgba(2, 8, 5, .15) 25%, transparent 52%),
+    linear-gradient(180deg, rgba(38, 80, 150, .18), transparent 28%);
+}
+
+.screen--xfc-home::after { display: none; }
+
+.screen--xfc-home .hub__topbar {
+  position: absolute;
+  z-index: 12;
+  top: 24px;
+  right: 4.1%;
+  left: 2.1%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  pointer-events: none;
+}
+
+.hub__brand { display: flex; align-items: center; gap: 25px; color: #fff; }
+.hub__esports-mark { display: flex; flex-direction: column; align-items: center; line-height: .82; }
+.hub__esports-mark b { font-size: 30px; font-weight: 900; letter-spacing: -.08em; }
+.hub__esports-mark small { margin-top: 4px; font-size: 8px; font-weight: 900; letter-spacing: .06em; }
+.hub__brand-divider { width: 1px; height: 35px; background: rgba(255,255,255,.7); }
+.hub__wordmark { display: block; width: 68px; color: #fff; }
+.hub__wordmark svg { display: block; width: 100%; height: auto; }
+
+.hub__progress { display: flex; align-items: center; gap: 12px; color: #f4f7fb; text-shadow: 0 1px 4px rgba(0,0,0,.4); transform: translateY(2px); }
+.hub__xp-bar { position: relative; width: 200px; height: 13px; overflow: hidden; background: rgba(255,255,255,.78); box-shadow: 0 1px 5px rgba(0,0,0,.15); }
+.hub__xp-fill { display: block; height: 100%; background: linear-gradient(90deg, #a6eee4, #f3e8fb 55%, #faf9fb); }
+.hub__level { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.hub__xp-badge { display: grid; place-items: center; width: 22px; height: 22px; clip-path: polygon(50% 0, 92% 23%, 92% 77%, 50% 100%, 8% 77%, 8% 23%); color: #fff; background: #26203d; filter: drop-shadow(0 0 1px #e84cff); font-size: 8px; font-weight: 900; text-shadow: 0 1px 2px #34104e; }
+.hub__xp-value { font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+.hub__quick-rail { position: absolute; z-index: 11; top: 15.2%; left: 2.2%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.hub__quick-stack { display: flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 12px; background: rgba(13, 25, 35, .88); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.hub__quick-button { display: grid; place-items: center; width: 29px; height: 29px; padding: 5px; border: 0; border-radius: 8px; color: #f4f8fa; background: transparent; cursor: pointer; }
+.hub__quick-button svg { width: 19px; height: 19px; fill: currentColor; }
+.hub__quick-button:hover,.hub__quick-button:focus-visible { color: #07212a; background: #b8f8ef; outline: none; }
+.hub__quick-button--single { width: 22px; height: 22px; border-radius: 50%; color: #25323a; background: rgba(255,255,255,.9); }
+.hub__quick-button--single svg { width: 13px; height: 13px; }
+
+.screen--xfc-home .menu__nav.hub__menu {
+  position: absolute;
+  z-index: 8;
+  top: 14.3%;
+  right: auto;
+  bottom: auto;
+  left: 7.75%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 245px;
+}
+
+.screen--xfc-home .menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  color: rgba(246, 248, 250, .67);
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+  animation: none;
+  transition: color 140ms ease, transform 140ms ease, text-shadow 140ms ease;
+}
+
+.screen--xfc-home .menu__item:hover { transform: translateX(4px); border: 0; color: #fff; }
+.screen--xfc-home .menu__item.is-focused { transform: translateX(0); border: 0; color: #fff; background: transparent; box-shadow: none; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
+.screen--xfc-home .menu__item::before { content: none; display: none; }
+.screen--xfc-home .menu__item-label { display: block; max-width: 100%; font-size: 16px; font-style: normal; font-weight: 850; line-height: 1; letter-spacing: .02em; }
+.screen--xfc-home .menu__item.is-focused .menu__item-label { color: #fff; font-size: 20px; }
+
+.hub__feature { position: absolute; z-index: 7; top: 51.4%; left: 29.2%; width: min(570px, 46%); color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,.3); }
+.hub__headline { margin: 0; color: #fff; font-size: 26px; font-weight: 850; line-height: 1.08; letter-spacing: -.025em; }
+.hub__subtitle { margin: 10px 0 0; color: #a8f6e8; font-size: 14px; font-weight: 700; line-height: 1.35; letter-spacing: .01em; }
+.hub__cta { display: inline-flex; align-items: center; gap: 12px; min-width: 162px; min-height: 44px; margin-top: 57px; padding: 0 15px; border: 1px solid rgba(255,255,255,.88); border-radius: 6px; color: #071b1c; background: linear-gradient(100deg, #8cf8ed, #fff 88%); box-shadow: 0 5px 20px rgba(0,0,0,.22); font-family: inherit; font-size: 14px; font-weight: 850; cursor: pointer; transition: transform 140ms ease, box-shadow 140ms ease; }
+.hub__cta:hover,.hub__cta:focus-visible { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.3); outline: 2px solid rgba(255,255,255,.65); outline-offset: 2px; }
+.hub__cta-key { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #8ffff0; background: #102022; font-size: 19px; font-weight: 500; line-height: 1; }
+
+.hub__objective { position: absolute; z-index: 10; right: 12.6%; bottom: 8.8%; display: flex; align-items: center; gap: 8px; min-height: 37px; padding: 7px 12px; border: 1px solid #36dfd1; border-radius: 7px; color: #9af6ed; background: rgba(4, 20, 18, .78); box-shadow: 0 2px 10px rgba(0,0,0,.3); font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.hub__objective::after { content: ''; position: absolute; right: 13px; bottom: -7px; width: 12px; height: 12px; border-right: 1px solid #36dfd1; border-bottom: 1px solid #36dfd1; background: rgba(4,20,18,.9); transform: rotate(45deg); }
+.hub__objective-icon { display: grid; place-items: center; width: 19px; height: 17px; border-radius: 2px; color: #082421; background: #dffcf7; font-size: 12px; }
+.hub__objective-icon svg { display: block; width: 15px; height: 15px; fill: currentColor; }
+
+.hub__footer { position: absolute; z-index: 10; right: 27px; bottom: 22px; left: 32px; display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.55); }
+.hub__footer-hints,.hub__footer-social,.hub__fc-hub,.hub__friends { display: flex; align-items: center; gap: 8px; }
+.hub__footer-hints { gap: 8px; }
+.hub__pad { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid rgba(255,255,255,.85); border-radius: 50%; font-size: 14px; line-height: 1; }
+.hub__pad--x { font-size: 19px; }
+.hub__pad--circle { margin-left: 12px; font-size: 15px; }
+.hub__footer-social { gap: 15px; }
+.hub__fc-hub { gap: 6px; }
+.hub__fc-hub svg,.hub__friends svg { width: 17px; height: 17px; fill: currentColor; }
+.hub__footer-icon { display: inline-grid; place-items: center; min-width: 20px; height: 20px; }
+.hub__r2 { padding: 0 4px; border: 1px solid rgba(255,255,255,.8); border-radius: 4px; font-size: 9px; }
+.hub__speaker { font-size: 17px; }
+.hub__online-count { color: #34e2bc; font-size: 12px; }
+.hub__friends { gap: 5px; }
+
+@media (max-width: 950px) {
+  .screen--xfc-home .hub__topbar { top: 16px; right: 20px; left: 20px; }
+  .hub__quick-rail { left: 15px; }
+  .screen--xfc-home .menu__nav.hub__menu { left: 7.2%; width: 215px; gap: 8px; }
+  .screen--xfc-home .menu__item { height: 30px; min-height: 30px; }
+  .screen--xfc-home .menu__item-label { font-size: 14px; }
+  .screen--xfc-home .menu__item.is-focused .menu__item-label { font-size: 17px; }
+  .hub__feature { top: 53%; left: 30%; width: 48%; }
+  .hub__headline { font-size: 22px; }
+  .hub__subtitle { font-size: 12px; }
+  .hub__cta { min-height: 39px; margin-top: 35px; font-size: 12px; }
+  .hub__objective { right: 10%; bottom: 9%; font-size: 10px; }
+  .hub__footer { right: 15px; bottom: 9px; left: 18px; font-size: 10px; }
+}
+
+@media (max-width: 560px) {
+  .screen--xfc-home .hub__topbar { right: 12px; left: 14px; }
+  .hub__esports-mark b { font-size: 21px; }
+  .hub__wordmark { width: 66px; }
+  .hub__progress { gap: 7px; }
+  .hub__xp-bar { width: 62px; height: 7px; }
+  .hub__level,.hub__xp-value { font-size: 10px; }
+  .hub__xp-badge { width: 18px; height: 18px; font-size: 7px; }
+  .hub__quick-rail { top: 17%; left: 10px; }
+  .hub__quick-stack { padding: 3px; gap: 2px; }
+  .hub__quick-button { width: 24px; height: 24px; }
+  .hub__quick-button svg { width: 16px; height: 16px; }
+  .screen--xfc-home .menu__nav.hub__menu { top: 17%; left: 7%; width: 175px; gap: 5px; }
+  .screen--xfc-home .menu__item { height: 27px; min-height: 27px; }
+  .screen--xfc-home .menu__item-label { font-size: 12px; }
+  .screen--xfc-home .menu__item.is-focused .menu__item-label { font-size: 14px; }
+  .hub__feature { top: 53%; left: 30%; width: 58%; }
+  .hub__headline { font-size: 18px; }
+  .hub__subtitle { font-size: 10px; }
+  .hub__cta { min-width: 135px; min-height: 34px; margin-top: 25px; padding: 0 10px; font-size: 10px; }
+  .hub__cta-key { width: 17px; height: 17px; font-size: 15px; }
+  .hub__objective { right: 10px; bottom: 14%; max-width: 48%; min-height: 30px; padding: 5px 7px; font-size: 8px; }
+  .hub__footer { right: 9px; left: 12px; bottom: 7px; font-size: 8px; }
+  .hub__footer-social { gap: 7px; }
+}
+
+@media (max-height: 620px) {
+  .screen--xfc-home .hub__topbar { top: 18px; }
+  .screen--xfc-home .menu__nav.hub__menu { top: 14.3%; gap: 16px; }
+  .screen--xfc-home .menu__item { height: 34px; min-height: 34px; }
+  .screen--xfc-home .menu__item-label { font-size: 18px; }
+  .screen--xfc-home .menu__item.is-focused .menu__item-label { font-size: 22px; }
+  .hub__feature { top: 51%; }
+  .hub__headline { font-size: 26px; }
+  .hub__subtitle { font-size: 14px; }
+  .hub__cta { margin-top: 57px; }
+  .hub__objective { bottom: 14%; font-size: 13px; }
+  .hub__footer { bottom: 7px; }
+}

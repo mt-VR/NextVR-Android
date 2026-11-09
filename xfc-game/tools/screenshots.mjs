@@ -52,10 +52,13 @@ try {
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu');
     await waitForVisibleScreen();
-    await page.waitForSelector('.menu__scene3d canvas');
+    await page.waitForFunction(() => {
+      const image = document.querySelector('.hub__background');
+      return image?.complete && image.naturalWidth > 0;
+    });
     await shot('03-menu');
 
-    await page.click('.menu__item[data-menu-item="customise"]');
+    await page.click('.hub__quick-button[data-action="settings"]');
     await page.waitForSelector('.screen--customise');
     await shot('04-customise');
     await page.click('.customise__tile[data-tile="settings"]');
