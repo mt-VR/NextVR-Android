@@ -130,7 +130,7 @@ jobs:
           echo "zip completo: index.html, src, styles, assets, vendor e app.bundle.js"
 
       - name: Publish to the xfc-dist branch
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -167,16 +167,11 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-menu-v1
-          NOTES=$(cat <<'EOF'
-          XFC — o jogo de futebol da XF Esports (menu: intro, menu principal, Kick Off e elenco).
-
-          * `xfc.apk` — aplicativo Android (o jogo roda offline dentro do APK).
-          * `xfc-game.zip` — o jogo em HTML/CSS/JS, para rodar no navegador (`node serve.mjs`).
-          EOF
-          )
+          TAG=xfc-menu-v3
+          NOTES="XFC 27 atualizado para Android. Versão 0.2.0 (versionCode 2), build do commit ${GITHUB_SHA}. O APK roda offline; também inclui o pacote web do jogo."
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC menu v1" --notes "$NOTES"
+            gh release create "$TAG" --title "XFC 27 — APK atualizado v0.2.0" \
+              --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
           # app-release.apk, então o anexo é renomeado para xfc.apk logo depois
