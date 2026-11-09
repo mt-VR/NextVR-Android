@@ -202,18 +202,53 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Menu XFC 27: identidade neon vermelho/magenta, Neymar 3D, items funcionais.
+    // Menu XFC 27: imagem de destaque, atalhos de modos e configurações.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
+    await imagesReady();
     const navLabels = await page.locator('.menu__item').allTextContents();
-    assert.ok(navLabels.some(label => label.includes('KICK OFF')), 'o menu tem KICK OFF');
-    assert.ok(navLabels.some(label => label.includes('COPA DO MUNDO')), 'o menu tem a Copa do Mundo');
-    assert.ok(navLabels.some(label => label.includes('PARTIDAS RÁPIDAS')), 'o menu tem PARTIDAS RÁPIDAS');
-    assert.ok(await page.locator('.menu__logo-xfc .brand-wordmark').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.menu__player-num').count() > 0, 'o menu mostra o Neymar 3D');
-    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o título XFC 27');
+    assert.ok(navLabels.some(label => label.includes('PLAY MODES')), 'o menu abre os modos');
+    assert.ok(navLabels.some(label => label.includes('SETTINGS')), 'o menu abre personalização/configurações');
+    assert.ok(await page.locator('.menu__logo-xfc').count() > 0, 'o menu mostra a marca XFC');
+    assert.ok(await page.locator('.menu__scene3d img').isVisible(), 'o jogador em destaque é uma imagem estática');
+    assert.equal(await page.locator('.menu__scene3d canvas').count(), 0, 'o menu não cria um modelo 3D para o destaque');
+    assert.ok(await page.locator('.menu__hero-title').count() > 0, 'o menu mostra o destaque XFC 27');
 
-    // Kick Off: os dois times disponíveis, com escudo, estrelas e ATT/MID/DEF.
-    await page.locator('.menu__item', { hasText: /KICK OFF/i }).first().click();
+    // Configurações e personalização: grade, diálogos e edição de perfil.
+    await page.locator('.menu__item[data-tab="settings"]').click();
+    await page.waitForSelector('.screen--customise');
+    assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
+    await page.locator('.customise__tile[data-tile="profile"]').click();
+    await page.waitForSelector('.customise__dialog[role="dialog"]');
+    await page.locator('input[aria-label="Nome do perfil"]').fill('XFC Tester');
+    await page.locator('.customise__dialog-save').click();
+    assert.ok(await page.locator('.customise__dialog').count() === 0, 'salvar o perfil fecha o diálogo');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+
+    // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes');
+    assert.equal(await page.locator('.modes__option').count(), 5, 'a tela lista os modos');
+    assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--worldcup');
+    assert.ok(await page.locator('.worldcup__group').isVisible(), 'o modo Copa abre o grupo');
+    assert.equal(await page.locator('.worldcup__standings-row').count(), 4, 'a tabela lista as quatro seleções do grupo');
+    const firstStanding = page.locator('.worldcup__standings-row').first();
+    const rankBox = await firstStanding.locator('.worldcup__standings-rank').boundingBox();
+    const pointsBox = await firstStanding.locator('.worldcup__standings-points').boundingBox();
+    assert.ok(rankBox && pointsBox && Math.abs(rankBox.y - pointsBox.y) < 2,
+      'a posição e os pontos permanecem alinhados na mesma linha');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--modes');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+
+    // Kick Off continua acessível pela tela de modos.
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes');
+    await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
+    await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--kickoff');
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
@@ -312,14 +347,32 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'o analógico fica fixo no canto inferior esquerdo');
     assert.ok((await page.locator('.hud__player .hud__player-name').textContent()).trim().length > 1,
       'o cartão mostra o nome do atleta controlado');
+    const stickStyle = await page.locator('.controls__stick').evaluate(node => {
+      const style = getComputedStyle(node);
+      return [style.left, style.bottom];
+    });
+    assert.deepEqual(stickStyle, ['96px', '118px'], 'o joystick permanece na posição original');
+    const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
+    const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
+    assert.ok(passBox && runBox && passBox.width >= 96 && runBox.width >= 96,
+      'PASSE e CORRER têm botões maiores');
+    assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < 145,
+      'PASSE e CORRER trocaram de lado e ficaram próximos');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
     assert.ok(await page.locator('.hud__poss').isVisible(),
       'o HUD mostra a barra de posse de bola');
     assert.equal(await page.locator('.hud__poss-fill').count(), 1,
       'a barra de posse tem o preenchimento do mandante');
-    assert.equal(await page.locator('.hud__tag.is-visible').count(), 1,
-      'a etiqueta do nome aparece sobre o atleta controlado');
+    assert.equal(await page.locator('.hud__tag').count(), 1,
+      'a HUD mantém o elemento de etiqueta para o atleta controlado');
+    const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
+    await page.locator('.ctrl-btn--switch').click();
+    await page.waitForFunction(name =>
+      document.querySelector('.hud__player .hud__player-name')?.textContent.trim() !== name,
+    controlledBefore, { timeout: 5000 });
+    assert.notEqual((await page.locator('.hud__player .hud__player-name').textContent()).trim(), controlledBefore,
+      'TROCAR seleciona outro atleta controlado');
 
     // O favicon não é servido pelo servidor do jogo: o ruído dele não interessa.
     const realErrors = errors.filter(message => !/favicon/i.test(message));
@@ -351,10 +404,11 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
 
-    // O menu ganha o modo PARTIDAS RÁPIDAS (o jogo de futebol 3D).
-    const quickItem = page.locator('.menu__item', { hasText: /RÁPIDAS/i }).first();
-    assert.ok(await quickItem.count(), 'o menu lista PARTIDAS RÁPIDAS');
-    await quickItem.click();
+    // As partidas rápidas ficam no menu de modos (atalho Online Tournament).
+    await page.locator('.menu__item[data-tab="modes"]').click();
+    await page.waitForSelector('.screen--modes', { timeout: 15000 });
+    await page.locator('.modes__option[data-option="online"]').click();
+    await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--quick', { timeout: 15000 });
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
@@ -483,6 +537,45 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(await page.locator('.btn:has-text("REJOGAR")').count(), 'o resultado tem REJOGAR');
     assert.ok(await page.locator('.btn:has-text("VOLTAR AO MENU")').count(), 'o resultado tem VOLTAR AO MENU');
     assert.equal(await page.locator('.result__stat').count(), 8, 'a tela de resultado traz as estatísticas da partida');
+
+    // Enfiada é um passe rasteiro guiado para espaço à frente, nunca um cruzamento.
+    const passBehavior = await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      const home = match.world.members('home');
+      const passer = home.find(player => player.role === 'CM');
+      const receiver = home.find(player => player.role === 'ST');
+      for (const player of home) {
+        player.x = -15;
+        player.z = player.role === 'LW' ? 30 : player.role === 'RW' ? -30 : 24;
+        player.vx = player.vz = 0;
+      }
+      passer.x = 0; passer.z = 0;
+      receiver.x = 8; receiver.z = 0; receiver.vx = 1.5; receiver.vz = 0;
+      for (const defender of match.world.members('away')) {
+        if (defender.isKeeper) continue;
+        defender.x = 22;
+        defender.z = 25;
+      }
+      match.controlled.home = passer;
+      match.ball.attachTo(passer);
+      match.world.kickBall(passer, receiver, { power: 17 });
+      const guidedPass = Boolean(match.ball.state.guidance?.receiver === receiver)
+        && !match.ball.state.guidance?.through;
+      match.ball.attachTo(passer);
+      match.world.command('lob');
+      return {
+        guidedPass,
+        throughPass: Boolean(match.ball.state.guidance?.receiver === receiver)
+          && match.ball.state.guidance?.through === true,
+        lift: match.ball.state.velocity.y,
+        targetX: match.ball.state.guidance?.x,
+        receiverX: receiver.x
+      };
+    });
+    assert.ok(passBehavior.guidedPass, 'o passe normal recebe assistência de direção');
+    assert.ok(passBehavior.throughPass, 'ENFIADA aponta para um recebedor no espaço');
+    assert.ok(passBehavior.lift < 2, 'a enfiada permanece rasteira, não vira cruzamento');
+    assert.ok(passBehavior.targetX > passBehavior.receiverX, 'a enfiada mira à frente do atacante');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);

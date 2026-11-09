@@ -86,6 +86,8 @@ export function createMatch(options = {}) {
   let cameraMode = 'cinematic';
   let cinematicAngle = 0;
   let manualCamera = null;
+  let goalScorer = null;
+  let goalCameraReady = false;
 
   // ------------------------------------------------------------- utilidades --
 
@@ -248,28 +250,38 @@ export function createMatch(options = {}) {
 
   // ------------------------------------------------------------------ ações --
 
-  /** Passe entre dois jogadores (com verificação de impedimento). */
-  function kickBall(player, target, { power = 18, lob = false } = {}) {
+  /** Passe guiado entre companheiros, com bola à frente e checagem de impedimento. */
+  function kickBall(player, target, { power = 18, lob = false, through = false } = {}) {
     if (!target) return;
-    // Passe à frente (leading): mira onde o companheiro VAI estar, não onde
-    // ele está — a bola chega no pé.
-    const lead = 0.38;
-    const aimX = target.x + (target.vx || 0) * lead;
-    const aimZ = target.z + (target.vz || 0) * lead;
+    const sign = attackSign(player.side);
+    // Passe normal antecipa a corrida curta; a enfiada procura o espaço à
+    // frente do atacante, em vez de levantar a bola para a linha lateral.
+    const lead = through ? 0.68 : 0.4;
+    const runLead = through
+      ? Math.max(2.2, Math.min(6.2, 2.7 + Math.max(0, sign * (target.vx || 0)) * 0.42))
+      : 0;
+    const aimX = Math.max(-PITCH.halfLength + 1.4, Math.min(PITCH.halfLength - 1.4,
+      target.x + (target.vx || 0) * lead + sign * runLead));
+    const aimZ = Math.max(-PITCH.halfWidth + 2, Math.min(PITCH.halfWidth - 2,
+      target.z + (target.vz || 0) * lead));
     const dx = aimX - player.x;
     const dz = aimZ - player.z;
     const distance = Math.hypot(dx, dz) || 1;
     const direction = { x: dx / distance, z: dz / distance };
-    const offside = isOffside(player, target);
-    // A velocidade do passe acompanha a distância: passes curtos ficam no
-    // pé, passes longos saem forte (sem virar um tiro de meta).
-    const speed = lob
-      ? Math.max(10, Math.min(20, distance * 0.7 + 5))
-      : Math.max(6, Math.min(18, distance * 0.62 + 3.5 + power * 0.08));
-    ball.kick(direction, speed, lob ? 0.42 : 0.16);
+    const offside = target.active ? isOffside(player, target) : false;
+    const speed = through
+      ? Math.max(11, Math.min(22, distance * 0.62 + 7))
+      : lob
+        ? Math.max(10, Math.min(20, distance * 0.7 + 5))
+        : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
+    const guide = target.active
+      ? { receiver: target, x: aimX, z: aimZ, through }
+      : null;
+    // Enfiada é rasteira e firme; só os cruzamentos/escanteios usam a bola alta.
+    ball.kick(direction, speed, lob ? 0.42 : through ? 0.055 : 0.11, { guide });
     ball.state.lastTouch = player;
     player.model.kick();
-    emit({ type: 'pass', team: player.side, player, target });
+    emit({ type: 'pass', team: player.side, player, target, through });
     if (offside) {
       refereeSignal(1.3);
       emit({ type: 'offside', team: opponentOf(player.side), player: target, minute: clock.minutes });
@@ -515,12 +527,11 @@ export function createMatch(options = {}) {
       const open = openSpace(mate);
       const distance = Math.hypot(mate.x - player.x, mate.z - player.z);
       if (distance > 45) continue;
-      // Corredor livre vale mais que correr na direção certa com a linha fechada.
       const lane = laneClearance(player.x, player.z, mate.x, mate.z, rivalSide);
       const offsidePenalty = isOffside(player, mate) ? 30 : 0;
-      const ovrBonus = (mate.ovr || 75) * 0.015;
+      const roleBonus = ['ST', 'CF', 'CAM'].includes(mate.role) ? 1.2 : 0;
       const score = (forward ? forwardness * 1.5 : forwardness * 0.8)
-        + open * 1.35 + lane * 2.1 - distance * 0.05 + ovrBonus - offsidePenalty;
+        + open * 1.35 + lane * 2.4 - distance * 0.05 + roleBonus - offsidePenalty;
       if (score > bestScore) {
         bestScore = score;
         best = mate;
@@ -529,8 +540,49 @@ export function createMatch(options = {}) {
     return best;
   }
 
+  /** Seleciona um atacante à frente e por dentro: a ENFIADA passa no chão
+   *  para um corredor, nunca mira a ponta para virar cruzamento. */
+  function bestThroughTarget(player) {
+    const sign = attackSign(player.side);
+    const rivals = opponentOf(player.side);
+    let best = null;
+    let bestScore = -Infinity;
+    for (const mate of members(player.side)) {
+      if (mate === player || mate.isKeeper) continue;
+      const forwardness = sign * (mate.x - player.x);
+      const lateral = Math.abs(mate.z - player.z);
+      const distance = Math.hypot(mate.x - player.x, mate.z - player.z);
+      if (forwardness < 2.2 || forwardness > 29 || lateral > 15 || distance > 34) continue;
+      if (isOffside(player, mate)) continue;
+      const leadX = mate.x + sign * 4.2;
+      const lane = laneClearance(player.x, player.z, leadX, mate.z, rivals);
+      const open = openSpace(mate);
+      const roleBonus = ['ST', 'CF', 'CAM'].includes(mate.role) ? 3.2 : ['LW', 'RW'].includes(mate.role) ? 0.8 : 0;
+      const score = forwardness * 0.72 + lane * 8.5 + Math.min(open, 12) * 0.38
+        + roleBonus - lateral * 0.72 - distance * 0.12;
+      if (score > bestScore) {
+        best = mate;
+        bestScore = score;
+      }
+    }
+    if (best) return best;
+
+    // Sem corredor perfeito disponível, não transforma ENFIADA em cruzamento:
+    // procura um companheiro não impedido e conduz a bola pelo chão à frente.
+    return members(player.side)
+      .filter(mate => mate !== player && !mate.isKeeper && !isOffside(player, mate))
+      .sort((a, b) => {
+        const score = mate => sign * (mate.x - player.x)
+          - Math.abs(mate.z - player.z) * 0.35
+          - Math.hypot(mate.x - player.x, mate.z - player.z) * 0.08;
+        return score(b) - score(a);
+      })[0] || null;
+  }
+
   /** Saída de bola. */
   function kickoff(side) {
+    goalScorer = null;
+    goalCameraReady = false;
     phase.name = 'kickoff';
     phase.timer = 0;
     phase.restart = null;
@@ -568,8 +620,12 @@ export function createMatch(options = {}) {
     phase.name = 'goal';
     phase.timer = 0;
     phase.conceding = opponentOf(side);
+    goalScorer = scorer || ball.state.lastTouch || null;
+    goalCameraReady = false;
+    if (goalScorer?.side === userSide) controlled[userSide] = goalScorer;
     ball.state.velocity.set(0, 0, 0);
     ball.state.owner = null;
+    ball.state.guidance = null;
     emit({
       type: 'goal',
       team: side,
@@ -735,8 +791,8 @@ export function createMatch(options = {}) {
         }
       } else if (name === 'lob') {
         if (owner === player) {
-          const mate = bestTeammateFor(player, true);
-          if (mate) kickBall(player, mate, { lob: true, power: 25 });
+          const mate = bestThroughTarget(player);
+          if (mate) kickBall(player, mate, { through: true, power: 23 });
         } else {
           runToBall(player);
         }
@@ -748,7 +804,7 @@ export function createMatch(options = {}) {
         // desarmado — o clássico "passa pelo marcador".
         player.burst = Math.max(player.burst ?? 0, 0.75);
       } else if (name === 'switch') {
-        switchPlayer();
+        world.switchPlayer();
       }
     },
 
@@ -805,6 +861,13 @@ export function createMatch(options = {}) {
         display: formatClock(),
           half: clock.half,
         phase: phase.name,
+        scorer: phase.name === 'goal' && goalScorer ? {
+          id: goalScorer.id,
+          name: goalScorer.name,
+          number: goalScorer.number,
+          ovr: goalScorer.ovr,
+          side: goalScorer.side
+        } : null,
         poss: (() => {
           const total = possession.home + possession.away;
           return total > 1
@@ -907,6 +970,50 @@ export function createMatch(options = {}) {
     }
   }
 
+  function updateGoalCelebration(dt) {
+    if (!goalScorer?.active) return;
+    const sign = attackSign(goalScorer.side);
+    const drift = Math.sign(goalScorer.z || 1);
+    const targetX = Math.max(-PITCH.halfLength + 3, Math.min(PITCH.halfLength - 3, goalScorer.x - sign * 2.8));
+    const targetZ = Math.max(-PITCH.halfWidth + 4, Math.min(PITCH.halfWidth - 4, goalScorer.z + drift * 4.2));
+    goalScorer.sprint = true;
+    steerPlayer(goalScorer, targetX, targetZ, dt, 6.8, { arrive: 0.35, turn: 11 });
+    if (!faceVelocity(goalScorer, dt, 10)) faceTowards(goalScorer, targetX, targetZ, dt, 8);
+    for (const player of allPlayers) {
+      if (player === goalScorer) continue;
+      player.vx *= Math.max(0, 1 - dt * 5);
+      player.vz *= Math.max(0, 1 - dt * 5);
+    }
+  }
+
+  /** Enquadramento baixo e próximo do autor do gol, correndo para comemorar. */
+  function updateGoalCamera(dt) {
+    if (!goalScorer?.active) {
+      updateCamera(dt);
+      return;
+    }
+    const sign = attackSign(goalScorer.side);
+    const side = Math.sign(goalScorer.z || 1);
+    const desiredX = goalScorer.x - sign * 6.2;
+    const desiredY = 5.2;
+    const desiredZ = goalScorer.z + side * 8.6;
+    const targetX = goalScorer.x + sign * 1.2;
+    const targetZ = goalScorer.z + side * 0.8;
+    const camera = engine.camera;
+    const smoothing = Math.min(1, dt * 4.2);
+    if (!goalCameraReady) {
+      goalCameraReady = true;
+      camera.fov = 49;
+      camera.updateProjectionMatrix();
+    }
+    camera.position.x += (desiredX - camera.position.x) * smoothing;
+    camera.position.y += (desiredY - camera.position.y) * smoothing;
+    camera.position.z += (desiredZ - camera.position.z) * smoothing;
+    cameraTarget.x += (targetX - cameraTarget.x) * smoothing;
+    cameraTarget.z += (targetZ - cameraTarget.z) * smoothing;
+    camera.lookAt(cameraTarget.x, 1.25, cameraTarget.z);
+  }
+
   // ----------------------------------------------------------------- update --
 
   function update(dt) {
@@ -969,39 +1076,43 @@ export function createMatch(options = {}) {
       if (phase.timer > 3.2) kickoff(phase.conceding);
     }
 
-    // Comandos do jogador.
-    updateHuman(dt);
+    if (phase.name === 'goal') {
+      updateGoalCelebration(dt);
+    } else {
+      // Comandos do jogador.
+      updateHuman(dt);
 
-    // IA dos dois times.
-    ais.home.update(dt);
-    ais.away.update(dt);
+      // IA dos dois times.
+      ais.home.update(dt);
+      ais.away.update(dt);
 
-    // Colisão entre jogadores: ninguém atravessa ninguém (separação suave).
-    for (let index = 0; index < allPlayers.length; index += 1) {
-      const a = allPlayers[index];
-      if (!a.active) continue;
-      for (let other = index + 1; other < allPlayers.length; other += 1) {
-        const b = allPlayers[other];
-        if (!b.active) continue;
-        const dx = b.x - a.x;
-        const dz = b.z - a.z;
-        const distance = Math.hypot(dx, dz);
-        if (distance > 0.001 && distance < 0.66) {
-          const overlap = (0.66 - distance) * 0.5;
-          const nx = dx / distance;
-          const nz = dz / distance;
-          a.x -= nx * overlap;
-          a.z -= nz * overlap;
-          b.x += nx * overlap;
-          b.z += nz * overlap;
+      // Colisão entre jogadores: ninguém atravessa ninguém (separação suave).
+      for (let index = 0; index < allPlayers.length; index += 1) {
+        const a = allPlayers[index];
+        if (!a.active) continue;
+        for (let other = index + 1; other < allPlayers.length; other += 1) {
+          const b = allPlayers[other];
+          if (!b.active) continue;
+          const dx = b.x - a.x;
+          const dz = b.z - a.z;
+          const distance = Math.hypot(dx, dz);
+          if (distance > 0.001 && distance < 0.66) {
+            const overlap = (0.66 - distance) * 0.5;
+            const nx = dx / distance;
+            const nz = dz / distance;
+            a.x -= nx * overlap;
+            a.z -= nz * overlap;
+            b.x += nx * overlap;
+            b.z += nz * overlap;
+          }
         }
       }
-    }
 
-    // Física e domínio de bola.
-    ball.update(dt, allPlayers);
-    handlePossession();
-    handleBoundaries();
+      // Física e domínio de bola.
+      ball.update(dt, allPlayers);
+      handlePossession();
+      handleBoundaries();
+    }
 
     // Posse para o resumo.
     const owner = ball.state.owner;
@@ -1016,13 +1127,14 @@ export function createMatch(options = {}) {
       player.model.lookAt(ball.state.position);
     }
 
-    // Árbitro acompanhando a jogada o tempo todo.
-    updateReferee(dt);
+    // Árbitro acompanha a jogada, mas sai do quadro da comemoração.
+    if (phase.name !== 'goal') updateReferee(dt);
 
     // Marcador azul acompanha o atleta controlado.
     updateMarker(dt);
 
-    if (cameraMode === 'cinematic') updateCinematicCamera(dt);
+    if (phase.name === 'goal') updateGoalCamera(dt);
+    else if (cameraMode === 'cinematic') updateCinematicCamera(dt);
     else if (cameraMode === 'manual' && manualCamera) {
       engine.camera.position.set(...manualCamera.position);
       engine.camera.lookAt(...manualCamera.target);

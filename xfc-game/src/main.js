@@ -16,6 +16,8 @@ import { quickMatchScreen } from './screens/quickmatch.js';
 import { playScreen } from './screens/play.js';
 import { stadiumsScreen } from './screens/stadiums.js';
 import { worldCupScreen } from './screens/worldcup.js';
+import { modesScreen } from './screens/modes.js';
+import { customiseScreen } from './screens/customise.js';
 import { unlockAudio } from './audio.js';
 
 // O áudio (apito, torcida) só pode começar após um gesto do usuário.
@@ -40,6 +42,8 @@ const registry = {
   quick: quickMatchScreen,
   play: playScreen,
   stadiums: stadiumsScreen,
+  modes: modesScreen,
+  customise: customiseScreen,
   worldcup: worldCupScreen
 };
 

@@ -266,16 +266,28 @@ export function createPlayer3D(options = {}) {
   neck.position.y = 1.475;
   body.add(neck);
 
-  // Tronco.
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.168, 0.28, 4, 12), jerseyMaterial);
-  torso.position.y = 1.21;
-  torso.scale.set(1, 1, 0.72);
+  // Tronco anatômico: ombros mais largos, cintura marcada e caixa torácica
+  // levemente afunilada (substitui a cápsula uniforme do boneco antigo).
+  const torsoProfile = [
+    new THREE.Vector2(0.13, 0),
+    new THREE.Vector2(0.16, 0.035),
+    new THREE.Vector2(0.175, 0.15),
+    new THREE.Vector2(0.16, 0.29),
+    new THREE.Vector2(0.205, 0.39),
+    new THREE.Vector2(0.235, 0.5),
+    new THREE.Vector2(0.205, 0.57),
+    new THREE.Vector2(0.11, 0.62),
+    new THREE.Vector2(0, 0.62)
+  ];
+  const torso = new THREE.Mesh(new THREE.LatheGeometry(torsoProfile, 18), jerseyMaterial);
+  torso.position.y = 0.84;
+  torso.scale.set(1, 1, 0.78);
   body.add(torso);
 
   for (const side of [-1, 1]) {
-    const deltoid = new THREE.Mesh(new THREE.SphereGeometry(0.078, 10, 8), jerseyMaterial);
-    deltoid.position.set(0.182 * side, 1.415, 0);
-    deltoid.scale.set(0.9, 0.9, 0.9);
+    const deltoid = new THREE.Mesh(new THREE.SphereGeometry(0.094, 12, 10), jerseyMaterial);
+    deltoid.position.set(0.205 * side, 1.375, 0);
+    deltoid.scale.set(1.02, 0.9, 0.88);
     body.add(deltoid);
   }
 
@@ -338,27 +350,55 @@ export function createPlayer3D(options = {}) {
   // Retrato real do atleta vira o rosto do boneco.
   if (photo) applyFacePhoto(head, photo, skinMaterial);
 
-  // Braços.
+  // Braços com ombro, bíceps, cotovelo, antebraço e mão articulados.
+  // As mangas terminam antes do cotovelo; goleiros usam luvas, atletas de
+  // linha têm palma e dedos simplificados em vez de uma esfera grande.
   const arms = [];
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Group();
-    shoulder.position.set(0.205 * side, 1.41, 0);
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.21, 3, 8), jerseyMaterial);
-    upper.position.y = -0.135;
+    shoulder.position.set(0.225 * side, 1.385, 0);
+
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.061, 0.16, 4, 10), jerseyMaterial);
+    upper.position.set(0.012 * side, -0.102, 0);
+    upper.scale.set(0.94, 1, 0.9);
     shoulder.add(upper);
+
+    const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.047, 10, 8), skinMaterial);
+    elbow.position.set(0.018 * side, -0.224, 0);
+    shoulder.add(elbow);
+
     const forearm = new THREE.Group();
-    forearm.position.y = -0.27;
-    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.19, 3, 8), skinMaterial);
-    lower.position.y = -0.115;
+    forearm.position.set(0.02 * side, -0.218, 0);
+    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.044, 0.18, 4, 10), skinMaterial);
+    lower.position.y = -0.11;
+    lower.scale.set(0.96, 1, 0.88);
     forearm.add(lower);
-    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.056, 8, 6), isKeeper
-      ? new THREE.MeshLambertMaterial({ color: 0xf25c2a })
-      : skinMaterial);
-    glove.position.y = -0.24;
-    forearm.add(glove);
+
+    if (isKeeper) {
+      const glove = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.07, 3, 8), new THREE.MeshLambertMaterial({ color: 0xf25c2a }));
+      glove.position.set(0, -0.235, 0.018);
+      forearm.add(glove);
+    } else {
+      const palm = new THREE.Mesh(new THREE.CapsuleGeometry(0.034, 0.065, 3, 8), skinMaterial);
+      palm.position.set(0, -0.238, 0.024);
+      palm.scale.set(0.84, 1, 0.68);
+      forearm.add(palm);
+      for (let finger = 0; finger < 4; finger += 1) {
+        const spread = (finger - 1.5) * 0.014;
+        const digit = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.038, 2, 6), skinMaterial);
+        digit.position.set(spread, -0.282 - (finger === 1 || finger === 2 ? 0.006 : 0), 0.035);
+        digit.rotation.z = (finger - 1.5) * 0.075;
+        forearm.add(digit);
+      }
+      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.011, 0.035, 2, 6), skinMaterial);
+      thumb.position.set(-0.038 * side, -0.245, 0.028);
+      thumb.rotation.z = 0.65 * side;
+      forearm.add(thumb);
+    }
+
     shoulder.add(forearm);
     body.add(shoulder);
-    arms.push({ shoulder, forearm });
+    arms.push({ shoulder, forearm, elbow });
   }
 
   // Pernas.
@@ -510,15 +550,24 @@ export function createPlayer3D(options = {}) {
       }
       if (celebrateTimer > 0) {
         celebrateTimer = Math.max(0, celebrateTimer - dt);
-        body.position.y = Math.abs(Math.sin(celebrateTimer * 5.4)) * 0.22;
-        body.rotation.x = -0.05;
-        body.rotation.z = 0;
-        arms[0].shoulder.rotation.x = -2.35;
-        arms[1].shoulder.rotation.x = -2.35;
-        arms[0].shoulder.rotation.z = 0.55;
-        arms[1].shoulder.rotation.z = -0.55;
-        arms[0].forearm.rotation.x = -0.5;
-        arms[1].forearm.rotation.x = -0.5;
+        const celebratingRun = moving && speed > 0.45;
+        if (celebratingRun) phase += dt * (6 + Math.min(speed / 6, 1) * 4);
+        const stride = celebratingRun ? Math.sin(phase) : Math.sin(phase * 0.7) * 0.12;
+        body.position.y = celebratingRun
+          ? Math.abs(Math.sin(phase * 2)) * 0.095
+          : Math.abs(Math.sin(celebrateTimer * 5.4)) * 0.16;
+        body.rotation.x = celebratingRun ? 0.04 : -0.05;
+        body.rotation.z = celebratingRun ? Math.sin(phase) * 0.025 : 0;
+        arms[0].shoulder.rotation.x = -2.25 - stride * 0.11;
+        arms[1].shoulder.rotation.x = -2.25 + stride * 0.11;
+        arms[0].shoulder.rotation.z = 0.52;
+        arms[1].shoulder.rotation.z = -0.52;
+        arms[0].forearm.rotation.x = -0.45;
+        arms[1].forearm.rotation.x = -0.45;
+        legs[0].hip.rotation.x = celebratingRun ? stride * 0.48 : 0.05;
+        legs[1].hip.rotation.x = celebratingRun ? -stride * 0.48 : 0.05;
+        legs[0].knee.rotation.x = celebratingRun ? Math.max(0, -stride) * 0.72 : 0.08;
+        legs[1].knee.rotation.x = celebratingRun ? Math.max(0, stride) * 0.72 : 0.08;
         head.rotation.x = -0.2;
         return;
       }

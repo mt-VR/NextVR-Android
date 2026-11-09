@@ -100,7 +100,7 @@ export function worldCupScreen(ctx, params = {}) {
     el('button', {
       class: 'topbar__back',
       type: 'button',
-      onClick() { ctx.go('menu'); },
+      onClick() { ctx.go('modes'); },
       html: '<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>'
     }),
     el('span', { class: 'topbar__mark', html: xfcWordmark() }),
@@ -129,6 +129,7 @@ export function worldCupScreen(ctx, params = {}) {
     el('h2', { class: 'worldcup__section-title', text: `Tabela — Grupo ${brazilGroup}` }),
     el('div', { class: 'worldcup__standings-header' },
       el('span', { text: '#' }),
+      el('span', { 'aria-hidden': 'true' }),
       el('span', { text: 'Seleção' }),
       el('span', { text: 'P' }),
       el('span', { text: 'V' }),
@@ -209,12 +210,12 @@ export function worldCupScreen(ctx, params = {}) {
       knockoutSection,
       trophySection
     ),
-    el('div', { class: 'worldcup__hint', text: 'Pressione Esc para voltar ao menu' })
+    el('div', { class: 'worldcup__hint', text: 'Pressione Esc para voltar aos modos de jogo' })
   );
 
   function onKey(event) {
     if (event.key === 'Escape' || event.key === 'Backspace') {
-      ctx.go('menu');
+      ctx.go('modes');
       return true;
     }
     return false;

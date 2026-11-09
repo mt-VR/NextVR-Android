@@ -254,8 +254,10 @@ export function createHud({ root, home, away }) {
       possHomePct.textContent = `${poss[0]}%`;
       possAwayPct.textContent = `${poss[1]}%`;
       const player = controlled?.player || null;
+      const goalScorer = snapshot.phase === 'goal' ? snapshot.scorer : null;
+      const focusPlayer = goalScorer || player;
       drawRadar(players, ball, player);
-      paintChip(player);
+      paintChip(focusPlayer);
       paintFoe(nearestOpponent(players, ball, player));
 
       // Tags de nome para TODOS os jogadores ativos
@@ -279,7 +281,9 @@ export function createHud({ root, home, away }) {
           nameTagsLayer.appendChild(tagEl);
         }
         const isControlled = controlled?.player && p.id === controlled.player.id;
+        const isScorer = goalScorer && p.id === goalScorer.id;
         entry.el.classList.toggle('is-controlled', !!isControlled);
+        entry.el.classList.toggle('is-scorer', !!isScorer);
         entry.el.classList.add('is-visible');
         entry.el.style.left = `${p.x}px`;
         entry.el.style.top = `${p.y}px`;
@@ -293,14 +297,18 @@ export function createHud({ root, home, away }) {
         }
       }
 
-      // Tag do jogador controlado (cartão inferior — mantém a original)
-      if (controlled?.visible && player) {
-        tagName.textContent = String(player.name).toUpperCase();
-        tag.style.left = `${controlled.x}px`;
-        tag.style.top = `${controlled.y}px`;
+      // Tag sob a cabeça do controlado; durante o gol acompanha o autor.
+      const focusProjected = goalScorer
+        ? (players || []).find(item => item.id === goalScorer.id)
+        : controlled;
+      if (focusProjected?.visible && focusPlayer) {
+        tagName.textContent = String(focusPlayer.name).toUpperCase();
+        tag.style.left = `${focusProjected.x}px`;
+        tag.style.top = `${focusProjected.y}px`;
+        tag.classList.toggle('is-goal-focus', Boolean(goalScorer));
         tag.classList.add('is-visible');
       } else {
-        tag.classList.remove('is-visible');
+        tag.classList.remove('is-visible', 'is-goal-focus');
       }
     },
     /** Mostra um aviso grande (gol, cartão, intervalo). */

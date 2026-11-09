@@ -186,12 +186,14 @@ export function playScreen(ctx, params = {}) {
         const team = event.team === 'home' ? home : away;
         const [homeScore, awayScore] = event.score;
         cheer({ duration: 2.8, peak: 0.55 });
-        hud.showBanner(`GOOOL DO ${team.name.toUpperCase()}!  ${homeScore} × ${awayScore}`, 'goal', 3000);
-        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${event.scorer?.name || ''}`, 'goal');
-        // O autor do gol comemora de verdade (braços ao alto).
+        const scorerName = event.scorer?.name || 'GOL';
+        hud.showBanner(`${scorerName.toUpperCase()}  •  GOOOL!  ${homeScore} × ${awayScore}`, 'goal', 3400);
+        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
+        // A câmera fecha no autor, que corre com os braços erguidos; o nome
+        // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
           const scorer = event.scorer;
-          if (scorer?.model?.celebrate) scorer.model.celebrate(2.7);
+          if (scorer?.model?.celebrate) scorer.model.celebrate(3.4);
         } catch { /* comemoração é detalhe */ }
         break;
       }

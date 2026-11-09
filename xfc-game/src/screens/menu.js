@@ -1,338 +1,177 @@
-// Menu principal do XFC 27: identidade visual vermelha/magenta neon,
-// estádio com partículas, jogador 3D destacado (Neymar com camisa amarela
-// do Brasil) no lado direito, logotipo XFC 27 no topo.
-//
-// Cada item do menu é funcional: Copa do Mundo Live, Copa do Mundo 2027,
-// Kick Off, Torneio Online e Customise — cada um abre sua respectiva tela.
+// Menu inicial XFC 27, inspirado na apresentação de estádio das referências.
+// O jogador em destaque é uma imagem estática; a partida mantém atletas 3D.
 
 import { el, svg, ICONS } from '../ui/dom.js';
-import { xfcWordmark } from '../ui/brand.js';
-import { createEngine, THREE } from '../match3d/engine.js';
-import { createPlayer3D } from '../match3d/player.js';
+import { xfEsportesBadge, xfcWordmark } from '../ui/brand.js';
+import { featuredPlayer } from './featured-player.js';
 
-const STAGE_W = 1280;
-const STAGE_H = 720;
-
-const MENU_ITEMS = [
-  {
-    id: 'worldcup-live',
-    icon: 'ball',
-    label: 'Copa do Mundo Live',
-    sub: 'Acompanhe a edição atual',
-    target: 'worldcup'
-  },
-  {
-    id: 'worldcup-2027',
-    icon: 'hub',
-    label: 'Copa do Mundo 2027',
-    sub: 'Lidere sua seleção até o título',
-    target: 'worldcup'
-  },
-  {
-    id: 'kickoff',
-    icon: 'cross',
-    label: 'Kick Off',
-    sub: 'Partida clássica',
-    target: 'kickoff'
-  },
-  {
-    id: 'tournament',
-    icon: 'friends',
-    label: 'Torneio Online',
-    sub: 'Competição online',
-    target: 'quick'
-  },
-  {
-    id: 'customise',
-    icon: 'gear',
-    label: 'Customise',
-    sub: 'Uniformes e elenco',
-    target: 'kits'
-  },
-  {
-    id: 'stadiums',
-    icon: 'camera',
-    label: 'Estádios',
-    sub: 'Escolha a casa do jogo',
-    target: 'stadiums'
-  },
-  {
-    id: 'quick',
-    icon: 'triangle',
-    label: 'Partidas Rápidas',
-    sub: 'Jogo direto',
-    target: 'quick'
-  }
+const HOME_TABS = [
+  { id: 'training', label: 'TRAINING CENTRE', icon: 'ball', title: 'TRAINING CENTRE', sub: 'Aprenda os fundamentos e aprimore suas habilidades.', action: 'Treinar agora' },
+  { id: 'ultimate', label: 'ULTIMATE TEAM', icon: 'hub', title: 'ULTIMATE TEAM', sub: 'Monte seu time e entre em campo.', target: 'quick', action: 'Jogar partida' },
+  { id: 'modes', label: 'PLAY MODES', icon: 'play', title: 'PLAY MODES', sub: 'Copa do Mundo, XFC World Cup e outros modos.', target: 'modes', action: 'Ver modos' },
+  { id: 'settings', label: 'SETTINGS', icon: 'gear', title: 'SETTINGS', sub: 'Ajuste seu perfil, elenco e preferências.', target: 'customise', action: 'Abrir configurações' },
+  { id: 'accessibility', label: 'ACCESSIBILITY', icon: 'accessibility', title: 'ACCESSIBILITY', sub: 'Personalize a experiência para jogar do seu jeito.', target: 'customise', params: { panel: 'accessibility' }, action: 'Acessibilidade' }
 ];
 
+const HOME_ICONS = {
+  ...ICONS,
+  play: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 2a22 22 0 1 0 0 44 22 22 0 0 0 0-44Zm0 3a19 19 0 1 1 0 38 19 19 0 0 1 0-38Zm-4.6 8.5v21l17-10.5-17-10.5Z"/></svg>'
+};
+
+function controllerSvg() {
+  return `<svg viewBox="0 0 300 190" role="img" aria-label="Controle de videogame">
+    <defs><linearGradient id="pad-body" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#b9c8e5"/></linearGradient><linearGradient id="pad-glass" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#25354f"/><stop offset="1" stop-color="#08101d"/></linearGradient></defs>
+    <path d="M55 42 Q70 27 98 29 L202 29 Q230 27 245 42 L279 130 Q285 151 270 161 Q256 170 242 154 L213 116 Q206 108 195 108 H105 Q94 108 87 116 L58 154 Q44 170 30 161 Q15 151 21 130Z" fill="url(#pad-body)" stroke="#edf4ff" stroke-width="4"/>
+    <path d="M103 31h94q10 0 11 10l4 41q1 10-11 10h-96q-12 0-11-10l4-41q1-10 11-10Z" fill="#dbe6fb" stroke="#9daecc" stroke-width="3"/>
+    <path d="M74 57v35M56.5 74.5h35" stroke="#788ba9" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="108" cy="116" r="21" fill="url(#pad-glass)" stroke="#39465b" stroke-width="4"/><circle cx="194" cy="116" r="21" fill="url(#pad-glass)" stroke="#39465b" stroke-width="4"/>
+    <circle cx="228" cy="56" r="8" fill="#dfeaff" stroke="#8290a7" stroke-width="2"/><circle cx="249" cy="75" r="8" fill="#dfeaff" stroke="#8290a7" stroke-width="2"/><circle cx="207" cy="75" r="8" fill="#dfeaff" stroke="#8290a7" stroke-width="2"/><circle cx="228" cy="94" r="8" fill="#dfeaff" stroke="#8290a7" stroke-width="2"/>
+    <path d="M141 105h18M150 96v18" stroke="#8290a7" stroke-width="3" stroke-linecap="round"/><path d="M135 130q15-9 30 0" fill="none" stroke="#080d16" stroke-width="3"/>
+  </svg>`;
+}
+
+function starSvg() {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.9 6 6.6.9-4.8 4.7 1.1 6.7L12 17.2l-5.8 3.1 1.1-6.7L2.5 9l6.6-.9L12 2Z"/></svg>';
+}
+
 export function menuScreen(ctx) {
-  const state = ctx.state;
   let focusIndex = 0;
+  const state = ctx.state;
+  const player = featuredPlayer({ className: 'menu__scene3d', name: 'Jogador em destaque no XFC' });
 
-  // ------------------------------------------------------- particles canvas --
-  const particlesCanvas = el('canvas', { class: 'menu__particles', width: STAGE_W, height: STAGE_H });
-  const particleCtx = particlesCanvas.getContext('2d');
-  const particles = [];
-  for (let i = 0; i < 40; i++) {
-    particles.push({
-      x: Math.random() * STAGE_W,
-      y: Math.random() * STAGE_H,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: -Math.random() * 0.4 - 0.1,
-      size: Math.random() * 2 + 0.5,
-      alpha: Math.random() * 0.5 + 0.2,
-      hue: Math.random() > 0.5 ? 330 : 300
-    });
-  }
+  const logo = el('div', { class: 'menu__logo-xfc', 'aria-label': 'XFC 27' },
+    el('span', { class: 'menu__logo-badge', html: xfEsportesBadge({ title: 'XF Esports' }) }),
+    el('span', { class: 'menu__logo-word', html: xfcWordmark() }),
+    el('span', { class: 'xfc-27-badge' }, '27')
+  );
 
-  function drawParticles() {
-    particleCtx.clearRect(0, 0, STAGE_W, STAGE_H);
-    for (const p of particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      if (p.y < -5) { p.y = STAGE_H + 5; p.x = Math.random() * STAGE_W; }
-      if (p.x < -5) p.x = STAGE_W + 5;
-      if (p.x > STAGE_W + 5) p.x = -5;
-      particleCtx.beginPath();
-      particleCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      particleCtx.fillStyle = `hsla(${p.hue}, 100%, 60%, ${p.alpha})`;
-      particleCtx.shadowBlur = 8;
-      particleCtx.shadowColor = `hsla(${p.hue}, 100%, 60%, 0.8)`;
-      particleCtx.fill();
-    }
-    particleCtx.shadowBlur = 0;
-  }
+  const profile = el('button', {
+    class: 'menu__profile', type: 'button', 'aria-label': 'Abrir perfil',
+    onClick() { ctx.go('customise', { focus: 'profile' }); }
+  },
+    el('span', { class: 'menu__profile-avatar', text: (state.profile.name || 'X').slice(0, 1).toUpperCase() }),
+    el('span', { class: 'menu__profile-name', text: state.profile.name || 'XFC Player' }),
+    el('span', { class: 'menu__profile-chevron', text: '⌄' })
+  );
 
-  // ------------------------------------------------------- 3D Neymar scene --
-  const scene3d = el('div', { class: 'menu__scene3d' });
-  const canvas3d = el('canvas', { width: 480, height: 720, 'aria-label': 'Neymar 3D' });
-  scene3d.appendChild(canvas3d);
-
-  let engine3d = null;
-  let neymarModel = null;
-  let neymarNameEl = null;
-  let neymarNumEl = null;
-  let sceneTime = 0;
-
-  function setupNeymar3D() {
-    try {
-      engine3d = createEngine(canvas3d, {
-      fov: 38,
-      background: 0x000000,
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 1.25)
-    });
-    engine3d.renderer.setSize(480, 720, false);
-    engine3d.renderer.setClearColor(0x000000, 0);
-    engine3d.renderer.shadowMap.enabled = true;
-
-    // Brasil kit: amarelo/verde/azul/branco
-    const brazilKit = {
-      primary: '#FFDF00',
-      secondary: '#009B3A',
-      accent: '#002776',
-      pattern: 'solid'
-    };
-
-    neymarModel = createPlayer3D({
-      kit: brazilKit,
-      number: 10,
-      isKeeper: false,
-      skinTone: 0xc68a5e,
-      hairColor: 0x1a1a1a,
-      hairStyle: 'mohawk',
-      heightScale: 1.05,
-      photo: null
-    });
-
-    // Posição: centro da cena, ligeiramente à frente
-    neymarModel.root.position.set(0, 0, 0);
-    neymarModel.root.rotation.y = -0.3;
-    engine3d.scene.add(neymarModel.root);
-
-    // Iluminação: neon rosa/magenta vindo da esquerda, amarelo da direita
-    const ambient = new THREE.AmbientLight(0x444444, 1.2);
-    engine3d.scene.add(ambient);
-
-    const pinkLight = new THREE.PointLight(0xff4080, 2.5, 300);
-    pinkLight.position.set(-120, 100, 80);
-    engine3d.scene.add(pinkLight);
-
-    const goldLight = new THREE.PointLight(0xffd84a, 1.8, 300);
-    goldLight.position.set(120, 80, 60);
-    engine3d.scene.add(goldLight);
-
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    rimLight.position.set(0, 200, -100);
-    engine3d.scene.add(rimLight);
-
-    // Piso reflexivo (plano simples)
-    const floorGeo = new THREE.PlaneGeometry(800, 400);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x1a0210,
-      metalness: 0.8,
-      roughness: 0.2,
-      transparent: true,
-      opacity: 0.4
-    });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.8;
-    floor.receiveShadow = true;
-    engine3d.scene.add(floor);
-
-    // Câmera: olhando para o jogador
-    engine3d.camera.position.set(0, 1.2, 3.2);
-    engine3d.camera.lookAt(0, 1.5, 0);
-
-    // Iniciar render loop com callback de animação
-    engine3d.start((dt) => {
-      sceneTime += dt;
-      // Animação do jogador: respirar/movimento suave
-      const breathe = Math.sin(sceneTime * 1.2) * 0.03;
-      neymarModel.root.position.y = breathe;
-      neymarModel.root.rotation.y = -0.3 + Math.sin(sceneTime * 0.5) * 0.1;
-    });
-    } catch (error) {
-      // WebGL pode não estar disponível (ex: headless sem GPU). O menu ainda
-      // funciona sem o 3D: só o jogador não é renderizado.
-      console.warn('menu 3D não disponível:', error?.message || error);
-      engine3d = null;
-      neymarModel = null;
-    }
-  }
-
-  function addPlayerOverlays() {
-    neymarNameEl = el('div', { class: 'menu__player-name', text: 'NEYMAR JR.' });
-    neymarNumEl = el('div', { class: 'menu__player-num', text: '10' });
-    scene3d.appendChild(neymarNumEl);
-    scene3d.appendChild(neymarNameEl);
-  }
-
-  // ------------------------------------------------------- top bar ---------
-  const topbar = el('div', { class: 'menu__topbar' },
-    el('div', { class: 'menu__logo-xfc' },
-      el('div', { html: xfcWordmark() }),
-      el('span', { class: 'xfc-27-badge', text: 'XFC 27' })
-    ),
+  const topbar = el('header', { class: 'menu__topbar' },
+    logo,
     el('div', { class: 'menu__topbar-right' },
-      el('div', { class: 'menu__coins' },
-        svg('<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="900" fill="currentColor">★</text></svg>'),
-        el('span', { text: `${state.profile.coins || 0}` })
-      ),
-      el('div', {
-        class: 'menu__profile',
-        role: 'button',
-        tabindex: '0',
-        onClick() { ctx.go('kits'); },
-        onKeyDown(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctx.go('kits'); } }
-      },
-        el('div', { class: 'menu__profile-avatar', text: (state.profile.name || 'P').slice(0, 1).toUpperCase() }),
-        el('span', { text: state.profile.name || 'Perfil' })
-      )
+      el('div', { class: 'menu__coins' }, svg(starSvg()), el('span', { text: `${state.profile.coins || 0}` })),
+      profile
     )
   );
 
-  // ------------------------------------------------------- rail icons ------
-  const rail = el('div', { class: 'menu__rail' });
-
-  function buildRail() {
-    rail.replaceChildren();
-    MENU_ITEMS.forEach((item, index) => {
-      const iconBtn = el('button', {
-        class: `menu__rail-icon${index === focusIndex ? ' is-active' : ''}`,
-        type: 'button',
-        'aria-label': item.label,
-        onClick() {
-          focusIndex = index;
-          rebuildNav();
-          rebuildRail();
-        }
-      }, svg(ICONS[item.icon] || ICONS.ball));
-      rail.appendChild(iconBtn);
-    });
-  }
-
-  function rebuildRail() {
-    Array.from(rail.children).forEach((child, index) => {
-      child.classList.toggle('is-active', index === focusIndex);
-    });
-  }
-
-  // ------------------------------------------------------- nav items --------
-  const nav = el('div', { class: 'menu__nav' });
-
-  function rebuildNav() {
-    nav.replaceChildren();
-    MENU_ITEMS.forEach((item, index) => {
-      const itemEl = el('div', {
-        class: `menu__item${index === focusIndex ? ' is-focused' : ''}`,
-        role: 'button',
-        tabindex: '0',
-        onClick() {
-          ctx.go(item.target);
-        },
-        onKeyDown(event) {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            ctx.go(item.target);
-          }
-        }
-      },
-        el('div', { class: 'menu__item-icon' }, svg(ICONS[item.icon] || ICONS.ball)),
-        el('div', { class: 'menu__item-text' },
-          el('span', { class: 'menu__item-label', text: item.label }),
-          el('span', { class: 'menu__item-sub', text: item.sub })
-        )
-      );
-      nav.appendChild(itemEl);
-    });
-  }
-
-  // ------------------------------------------------------- hero text -------
-  const hero = el('div', { class: 'menu__hero' },
-    el('h2', { class: 'menu__hero-title', text: 'XFC 27' }),
-    el('p', { class: 'menu__hero-sub', text: 'Copa do Mundo' })
+  const featureAction = el('button', {
+    class: 'home__feature-action', type: 'button',
+    onClick() { activate(focusIndex); }
+  },
+    el('span', { class: 'home__action-key', text: '✕' }),
+    el('span', { class: 'home__action-label', text: HOME_TABS[0].action })
   );
 
-  // ------------------------------------------------------- footer ----------
-  const footer = el('div', { class: 'menu__footer' },
-    el('div', { class: 'menu__hub' },
-      el('div', { class: 'menu__hub-item' }, svg(ICONS.hub), el('span', { text: 'XF Esports' })),
-      el('div', { class: 'menu__hub-item' }, svg(ICONS.profile), el('span', { text: `${state.profile.level || 1}º` }))
+  const featureCard = el('section', { class: 'home__feature-card', 'aria-label': 'XFC Training Centre' },
+    el('div', { class: 'home__feature-copy' },
+      el('span', { class: 'home__eyebrow', text: 'XFC 27  /  TREINO' }),
+      el('h1', { class: 'menu__hero-title', text: HOME_TABS[0].title }),
+      el('p', { class: 'home__feature-description', text: 'Learn the gameplay fundamentals and receive personalised feedback from your trainer to improve your skills on the pitch.' }),
+      el('p', { class: 'home__feature-instruction', text: 'Press the “Touchpad” to enter the Training Centre.' }),
+      featureAction
     ),
-    el('div', { class: 'menu__hints' },
-      el('span', { class: 'menu__hint' }, el('kbd', { text: '↑↓' }), el('span', { text: ' navegar' })),
-      el('span', { class: 'menu__hint' }, el('kbd', { text: 'Enter' }), el('span', { text: ' abrir' })),
-      el('span', { class: 'menu__hint' }, el('kbd', { text: '←' }), el('span', { text: ' voltar' }))
+    el('div', { class: 'home__controller' },
+      el('span', { class: 'home__controller-flame', text: '✦' }),
+      el('span', { class: 'home__controller-arrow', text: '↓' }),
+      svg(controllerSvg())
     )
   );
 
-  // ------------------------------------------------------- node assembly ---
-  const node = el('div', { class: 'screen screen--menu' },
-    particlesCanvas,
-    scene3d,
+  const cupPromo = el('button', {
+    class: 'home__cup-promo', type: 'button',
+    onClick() { ctx.go('modes'); }
+  },
+    el('span', { class: 'home__cup-kicker', text: 'XFC 27 • MODO DE JOGO' }),
+    el('span', { class: 'home__cup-title', text: 'WORLD CUP 2027' }),
+    el('span', { class: 'home__cup-crest', 'aria-hidden': 'true' },
+      el('span', { text: '🇧🇷' }),
+      el('b', { text: 'CBF' })
+    ),
+    el('span', { class: 'home__cup-copy', text: 'Leve o Brasil ao topo do mundo.' }),
+    el('span', { class: 'home__cup-cta' }, 'EXPLORAR  →')
+  );
+
+  const nav = el('nav', { class: 'menu__nav', 'aria-label': 'Menu principal' });
+  const navButtons = HOME_TABS.map((tab, index) => {
+    const button = el('button', {
+      class: `menu__item${index === focusIndex ? ' is-focused' : ''}`,
+      type: 'button',
+      dataset: { tab: tab.id },
+      'aria-label': tab.label,
+      'aria-pressed': index === focusIndex ? 'true' : 'false',
+      onClick() { activate(index); }
+    },
+      el('span', { class: 'menu__item-label' }, tab.label),
+      el('span', { class: 'menu__item-icon', html: HOME_ICONS[tab.icon] || ICONS.ball })
+    );
+    nav.appendChild(button);
+    return button;
+  });
+
+  const footer = el('footer', { class: 'menu__footer' },
+    el('div', { class: 'menu__footer-context' },
+      el('span', { class: 'home__pad-x', text: '✕' }),
+      el('span', { class: 'menu__footer-text', text: 'Select' }),
+      el('span', { class: 'home__controller-mini', text: '▤' }),
+      el('span', { class: 'menu__footer-text', text: 'Training Centre' })
+    ),
+    el('div', { class: 'menu__footer-online' },
+      el('span', { class: 'menu__online-key', text: 'R2' }),
+      svg(ICONS.friends),
+      el('span', { text: '4' })
+    )
+  );
+
+  const node = el('div', { class: 'screen screen--menu screen--xfc-home' },
+    el('div', { class: 'xfc-stadium-lights', 'aria-hidden': 'true' }),
+    player.node,
     topbar,
-    el('div', { class: 'menu__body' }, rail, nav, hero),
+    featureCard,
+    cupPromo,
+    nav,
     footer
   );
 
-  // ------------------------------------------------------- keyboard nav -----
+  function updateFocus() {
+    navButtons.forEach((button, index) => {
+      const selected = index === focusIndex;
+      button.classList.toggle('is-focused', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+  }
+
+  function activate(index) {
+    focusIndex = (index + HOME_TABS.length) % HOME_TABS.length;
+    updateFocus();
+    const tab = HOME_TABS[focusIndex];
+    if (tab.target) {
+      ctx.go(tab.target, tab.params || {});
+      return;
+    }
+    ctx.toast('O Training Centre está sendo preparado. Explore os modos do XFC enquanto isso.');
+  }
+
   function onKey(event) {
-    if (event.key === 'ArrowDown' || event.key === 'j') {
-      focusIndex = (focusIndex + 1) % MENU_ITEMS.length;
-      rebuildNav();
-      rebuildRail();
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'j') {
+      focusIndex = (focusIndex + 1) % HOME_TABS.length;
+      updateFocus();
       return true;
     }
-    if (event.key === 'ArrowUp' || event.key === 'k') {
-      focusIndex = (focusIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
-      rebuildNav();
-      rebuildRail();
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'k') {
+      focusIndex = (focusIndex - 1 + HOME_TABS.length) % HOME_TABS.length;
+      updateFocus();
       return true;
     }
     if (event.key === 'Enter' || event.key === ' ') {
-      const item = MENU_ITEMS[focusIndex];
-      ctx.go(item.target);
+      activate(focusIndex);
       return true;
     }
     if (event.key === 'Escape' || event.key === 'Backspace') {
@@ -342,40 +181,10 @@ export function menuScreen(ctx) {
     return false;
   }
 
-  // ------------------------------------------------------- lifecycle --------
-  let particleRaf = null;
-
-  function mount() {
-    buildRail();
-    rebuildNav();
-    setupNeymar3D();
-    addPlayerOverlays();
-
-    // Particle loop
-    function particleLoop() {
-      drawParticles();
-      particleRaf = requestAnimationFrame(particleLoop);
-    }
-    particleLoop();
-  }
-
-  function unmount() {
-    if (particleRaf) cancelAnimationFrame(particleRaf);
-    particleRaf = null;
-    if (engine3d) {
-      try {
-        engine3d.stop();
-        if (neymarModel) {
-          neymarModel.dispose();
-        }
-        engine3d.dispose();
-      } catch (error) {
-        // cleanup best-effort
-      }
-      engine3d = null;
-      neymarModel = null;
-    }
-  }
-
-  return { node, onKey, mount, unmount };
+  return {
+    node,
+    onKey,
+    mount() { player.mount(); },
+    unmount() { player.unmount(); }
+  };
 }

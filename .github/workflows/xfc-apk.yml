@@ -8,6 +8,12 @@ on:
   push:
     branches: [ "main", "arena/c478325b-nextvr-android" ]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publicar release e branch xfc-dist (não necessário para baixar artefatos)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -124,6 +130,7 @@ jobs:
           echo "zip completo: index.html, src, styles, assets, vendor e app.bundle.js"
 
       - name: Publish to the xfc-dist branch
+        if: github.event_name == 'push' || inputs.publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -154,6 +161,7 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
+        if: github.event_name == 'push' || inputs.publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -229,14 +229,12 @@ function drawCrowd(context, width, height) {
       const hue = Math.random();
       let color;
       if (away) {
-        // Setor do visitante: predominância rubra e amarela.
         color = hue < 0.4
           ? `rgba(${222 + Math.random() * 30},${40 + Math.random() * 30},${46 + Math.random() * 25},1)`
           : hue < 0.72
             ? `rgba(245,${205 + Math.random() * 40},${70},1)`
             : 'rgba(240,240,240,0.95)';
       } else {
-        // Setor do mandante: predominância azul e branca.
         color = hue < 0.46
           ? `rgba(${45 + Math.random() * 40},${118 + Math.random() * 60},${205 + Math.random() * 45},1)`
           : hue < 0.74
@@ -257,6 +255,51 @@ function drawCrowd(context, width, height) {
       context.ellipse(x, y + rowHeight * 0.32, rowHeight * 0.3, rowHeight * 0.24, 0, 0, Math.PI * 2);
       context.fill();
     }
+  }
+
+  // Bandeiras levantadas pela torcida: verde-amarela do Brasil e faixas XFC,
+  // com a borda ondulada para quebrar a repetição dos assentos.
+  const flags = [
+    { x: .08, y: .23, kind: 'brazil' }, { x: .22, y: .53, kind: 'blue' },
+    { x: .39, y: .29, kind: 'red' }, { x: .53, y: .69, kind: 'brazil' },
+    { x: .66, y: .51, kind: 'brazil' }, { x: .78, y: .25, kind: 'blue' },
+    { x: .92, y: .54, kind: 'red' }
+  ];
+  for (const [index, flag] of flags.entries()) {
+    const x = width * flag.x;
+    const y = height * flag.y;
+    const fw = 64;
+    const fh = 40;
+    context.strokeStyle = 'rgba(240,245,255,.85)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(x, y - 12);
+    context.lineTo(x, y + fh + 13);
+    context.stroke();
+    context.save();
+    context.beginPath();
+    context.moveTo(x, y);
+    context.quadraticCurveTo(x + fw * .46, y - 3 + (index % 2) * 5, x + fw, y + 2);
+    context.lineTo(x + fw, y + fh);
+    context.quadraticCurveTo(x + fw * .5, y + fh - 3 - (index % 2) * 3, x, y + fh);
+    context.closePath();
+    context.clip();
+    if (flag.kind === 'brazil') {
+      context.fillStyle = '#009b3a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#ffdf00'; context.beginPath(); context.moveTo(x + fw * .5, y + 1); context.lineTo(x + fw - 2, y + fh * .5); context.lineTo(x + fw * .5, y + fh - 1); context.lineTo(x + 2, y + fh * .5); context.fill();
+      context.fillStyle = '#17499a'; context.beginPath(); context.arc(x + fw * .5, y + fh * .52, 4, 0, Math.PI * 2); context.fill();
+    } else if (flag.kind === 'blue') {
+      context.fillStyle = '#17499a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .4, fw, fh * .19); context.fillRect(x + fw * .38, y - 2, fw * .2, fh + 4);
+    } else {
+      context.fillStyle = '#ed2549'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .38, fw, fh * .24);
+      context.fillStyle = '#164b9f'; context.fillRect(x + fw * .38, y - 2, fw * .24, fh + 4);
+    }
+    context.restore();
+    context.strokeStyle = 'rgba(255,255,255,.42)';
+    context.lineWidth = 1;
+    context.strokeRect(x, y, fw, fh);
   }
 }
 
