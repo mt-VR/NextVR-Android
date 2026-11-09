@@ -143,17 +143,16 @@ const homeTeam = document.querySelector('[data-slot="home"] .team-card').dataset
 document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
 check('as setas do escudo trocam de clube',
   document.querySelector('[data-slot="home"] .team-card').dataset.teamId !== homeTeam);
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
-document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+const extraClubIds = new Set(['aston-villa', 'brentford', 'panathinaikos', 'river-plate']);
+for (let step = 0; step < 32
+  && !extraClubIds.has(document.querySelector('[data-slot="home"] .team-card').dataset.teamId); step += 1) {
+  document.querySelector('[data-slot="home"] .picker-arrow--crest:last-child').click();
+}
 check('o carousel passa pelos clubes do pacote',
-  ['aston-villa', 'brentford', 'panathinaikos', 'river-plate'].includes(
-    document.querySelector('[data-slot="home"] .team-card').dataset.teamId));
+  extraClubIds.has(document.querySelector('[data-slot="home"] .team-card').dataset.teamId));
 // Volta para o Barcelona para seguir o resto do roteiro.
-for (let step = 0; step < 7; step += 1) {
+for (let step = 0; step < 32
+  && document.querySelector('[data-slot="home"] .team-card').dataset.teamId !== 'fc-barcelona'; step += 1) {
   document.querySelector('[data-slot="home"] .picker-arrow--crest:first-child').click();
 }
 check('a seta anterior devolve o Barcelona',

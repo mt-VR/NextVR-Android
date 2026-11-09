@@ -4,13 +4,72 @@
 // Tudo é construído por código (geometrias simples + texturas desenhadas em
 // canvas) para caber no APK e rodar bem no WebView do Android.
 
-import { THREE, canvasTexture } from './engine.js';
+import { THREE, canvasTexture, disposeObject } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
 import { addGrassBlades } from './grass.js';
 
 const LINE = 0.12; // espessura das linhas em metros
 const PX_PER_METER = 2048 / PITCH.length;
+
+const LIGHTING_PRESETS = Object.freeze({
+  day: Object.freeze({
+    sky: ['#6ca7d0', '#a8cfdf', '#d9ded4', '#e7e5d9'],
+    stars: 0,
+    fog: 0x8eafbd,
+    hemisphereSky: 0xe8f5ff,
+    hemisphereGround: 0x68834d,
+    hemisphereIntensity: 0.82,
+    keyColor: 0xfff1dc,
+    keyIntensity: 1.05,
+    fillColor: 0xd8eaff,
+    fillIntensity: 0.4,
+    crossIntensity: 0.16,
+    ambientIntensity: 0.18,
+    floodlightIntensity: 0.12,
+    lampsOn: false
+  }),
+  dusk: Object.freeze({
+    sky: ['#262d4a', '#82546b', '#d78b66', '#e8b67e'],
+    stars: 55,
+    fog: 0x392f40,
+    hemisphereSky: 0xd0d8f0,
+    hemisphereGround: 0x64543f,
+    hemisphereIntensity: 0.78,
+    keyColor: 0xffd3a0,
+    keyIntensity: 1.08,
+    fillColor: 0xb6d7ff,
+    fillIntensity: 0.4,
+    crossIntensity: 0.2,
+    ambientIntensity: 0.19,
+    floodlightIntensity: 0.3,
+    lampsOn: true
+  }),
+  night: Object.freeze({
+    sky: ['#071120', '#123049', '#1d4a5e', '#2a6270'],
+    stars: 260,
+    fog: 0x0a1a26,
+    hemisphereSky: 0xc5dff4,
+    hemisphereGround: 0x3c6340,
+    hemisphereIntensity: 0.76,
+    keyColor: 0xfff4de,
+    keyIntensity: 1.16,
+    fillColor: 0xbdd8ff,
+    fillIntensity: 0.46,
+    crossIntensity: 0.23,
+    ambientIntensity: 0.17,
+    floodlightIntensity: 0.38,
+    lampsOn: true
+  })
+});
+
+/** Perfil ambiental reutilizado por céu, refletores e luzes da partida. */
+export function lightingProfileFor(timeOfDay = 'night') {
+  const key = Object.prototype.hasOwnProperty.call(LIGHTING_PRESETS, timeOfDay)
+    ? timeOfDay
+    : 'night';
+  return { name: key, ...LIGHTING_PRESETS[key] };
+}
 
 /** Textura da fachada das arquibancadas: cor sólida, "ribs" (mornéis verticais,
  *  como o MorumBis) ou "weave" (teia em diagonal, como a Arena da Amazônia). */
@@ -79,33 +138,36 @@ function drawPitchBase(context, width, height, lowPower = false) {
     context.fillRect(band * bandWidth, 0, bandWidth, height);
   }
 
-  // Marcas longas e suaves de uso e variações de pigmento, sem ruído pontilhado.
-  const wearMarks = lowPower ? 800 : 3200;
+  // Desgaste suave e espaçado: as antigas manchas pequenas e de alto contraste
+  // viravam pontos isolados quando a textura era filtrada pela câmera distante.
+  const wearMarks = lowPower ? 260 : 900;
   for (let index = 0; index < wearMarks; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
-    const radius = 6 + rand() * 20;
+    const radius = 12 + rand() * 28;
+    const alpha = 0.006 + rand() * 0.008;
     context.fillStyle = rand() < 0.55
-      ? `rgba(11,52,20,${0.008 + rand() * 0.018})`
-      : `rgba(178,208,99,${0.008 + rand() * 0.018})`;
+      ? `rgba(26,86,36,${alpha})`
+      : `rgba(177,204,102,${alpha})`;
     context.beginPath();
-    context.ellipse(x, y, radius * (0.9 + rand()), radius * (0.32 + rand() * 0.16), rand() * Math.PI, 0, Math.PI * 2);
+    context.ellipse(x, y, radius * (1.2 + rand()), radius * (0.24 + rand() * 0.12), rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
   }
 
-  // Folhas finas em tons verdes naturais e com direção variada; translucidez
-  // baixa para formar textura de relva, não manchas pretas no enquadramento alto.
-  const grassStrokes = lowPower ? 4000 : 16000;
+  // Grão fino verde, sem pixels negros/escuros de contraste alto. O detalhe é
+  // deliberadamente subpixel na câmera de transmissão para evitar cintilação.
+  const grassStrokes = lowPower ? 1800 : 6200;
   for (let index = 0; index < grassStrokes; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
-    const length = 3 + rand() * 9;
-    const angle = -0.5 + rand() * 1.0;
-    const tint = Math.floor(rand() * 56);
-    context.strokeStyle = rand() < 0.52
-      ? `rgba(${38 + tint},${102 + tint},${36 + Math.floor(tint * 0.45)},${0.035 + rand() * 0.075})`
-      : `rgba(${78 + Math.floor(tint * 0.45)},${145 + Math.floor(tint * 0.5)},${54 + Math.floor(tint * 0.35)},${0.035 + rand() * 0.075})`;
-    context.lineWidth = 0.45 + rand() * 0.5;
+    const length = 5 + rand() * 13;
+    const angle = -0.36 + rand() * 0.72;
+    const tint = Math.floor(rand() * 36);
+    const alpha = 0.022 + rand() * 0.038;
+    context.strokeStyle = rand() < 0.5
+      ? `rgba(${55 + tint},${121 + tint},${43 + Math.floor(tint * 0.35)},${alpha})`
+      : `rgba(${92 + Math.floor(tint * 0.4)},${151 + Math.floor(tint * 0.45)},${61 + Math.floor(tint * 0.25)},${alpha})`;
+    context.lineWidth = 0.7 + rand() * 0.45;
     context.beginPath();
     context.moveTo(x, y);
     context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
@@ -209,6 +271,11 @@ function drawPitch(context, width, height, lowPower = false) {
 
 /** Textura da torcida: dois anéis de assentos, setores do mandante e do visitante. */
 function drawCrowd(context, width, height) {
+  let seed = 0xc0ffee;
+  const rand = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
   context.fillStyle = '#3a4c68';
   context.fillRect(0, 0, width, height);
 
@@ -233,28 +300,28 @@ function drawCrowd(context, width, height) {
     context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.22)';
     context.fillRect(0, row * rowHeight, width, rowHeight * 0.5);
     for (let seat = 0; seat < seats; seat += 1) {
-      if (Math.random() < 0.07) continue;
+      if (rand() < 0.07) continue;
       const u = seat / seats;
       const away = isAwaySection(u);
-      const hue = Math.random();
+      const hue = rand();
       let color;
       if (away) {
         color = hue < 0.4
-          ? `rgba(${222 + Math.random() * 30},${40 + Math.random() * 30},${46 + Math.random() * 25},1)`
+          ? `rgba(${222 + rand() * 30},${40 + rand() * 30},${46 + rand() * 25},1)`
           : hue < 0.72
-            ? `rgba(245,${205 + Math.random() * 40},${70},1)`
+            ? `rgba(245,${205 + rand() * 40},${70},1)`
             : 'rgba(240,240,240,0.95)';
       } else {
         color = hue < 0.46
-          ? `rgba(${45 + Math.random() * 40},${118 + Math.random() * 60},${205 + Math.random() * 45},1)`
+          ? `rgba(${45 + rand() * 40},${118 + rand() * 60},${205 + rand() * 45},1)`
           : hue < 0.74
             ? 'rgba(240,243,247,0.95)'
             : hue < 0.88
-              ? `rgba(${120 + Math.random() * 40},${215 + Math.random() * 35},255,1)`
-              : `rgba(${18 + Math.random() * 25},${40 + Math.random() * 30},${80 + Math.random() * 40},1)`;
+              ? `rgba(${120 + rand() * 40},${215 + rand() * 35},255,1)`
+              : `rgba(${18 + rand() * 25},${40 + rand() * 30},${80 + rand() * 40},1)`;
       }
       context.fillStyle = color;
-      const x = (seat + 0.5) * seatWidth + (Math.random() - 0.5) * 4;
+      const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 4;
       const y = row * rowHeight + rowHeight * 0.6;
       context.beginPath();
       context.arc(x, y, rowHeight * 0.34, 0, Math.PI * 2);
@@ -426,20 +493,26 @@ function drawNet(context, width, height) {
   }
 }
 
-/** Céu noturno com o brilho dos refletores. */
-function drawSky(context, width, height) {
+/** Céu procedural de dia, entardecer ou noite, com estrelas determinísticas. */
+function drawSky(context, width, height, timeOfDay = 'night') {
+  const profile = lightingProfileFor(timeOfDay);
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#071120');
-  gradient.addColorStop(0.5, '#123049');
-  gradient.addColorStop(0.82, '#1d4a5e');
-  gradient.addColorStop(1, '#2a6270');
+  const stops = [0, 0.5, 0.82, 1];
+  profile.sky.forEach((color, index) => gradient.addColorStop(stops[index], color));
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
-  for (let star = 0; star < 260; star += 1) {
-    const x = Math.random() * width;
-    const y = Math.random() * height * 0.6;
-    context.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.5})`;
-    context.fillRect(x, y, 1.6, 1.6);
+
+  let seed = profile.name === 'night' ? 0x51a7 : 0xd05c;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let star = 0; star < profile.stars; star += 1) {
+    const x = random() * width;
+    const y = random() * height * 0.58;
+    const alpha = profile.name === 'night' ? 0.15 + random() * 0.5 : 0.08 + random() * 0.18;
+    context.fillStyle = `rgba(255,255,255,${alpha})`;
+    context.fillRect(x, y, profile.name === 'night' ? 1.6 : 1, profile.name === 'night' ? 1.6 : 1);
   }
 }
 
@@ -631,15 +704,68 @@ function buildGoal(side) {
   top.rotation.x = -Math.PI / 2;
   top.position.set(side * GOAL.depth / 2, GOAL.height, 0);
   group.add(top);
+  // Os painéis têm mapas independentes para acertar a escala de cada face.
+  // Libera o material/textura-base que serviu apenas como molde dos clones.
+  netMaterial.dispose();
+  netTexture.dispose();
+
+  // Cordas em geometria tridimensional sobre os painéis: a rede mantém volume
+  // e paralaxe, em vez de parecer apenas uma imagem plana atrás da trave.
+  const netVertices = [];
+  const addNetLine = (x0, y0, z0, x1, y1, z1) => {
+    netVertices.push(x0, y0, z0, x1, y1, z1);
+  };
+  const cell = 0.24;
+  for (let z = -halfWidth; z <= halfWidth + 0.001; z += cell) {
+    const netZ = Math.min(halfWidth, z);
+    addNetLine(side * (GOAL.depth + 0.012), 0, netZ,
+      side * (GOAL.depth + 0.012), GOAL.height, netZ);
+  }
+  for (let y = 0.24; y <= GOAL.height; y += cell) {
+    addNetLine(side * (GOAL.depth + 0.012), y, -halfWidth,
+      side * (GOAL.depth + 0.012), y, halfWidth);
+  }
+  for (const netSide of [-1, 1]) {
+    const netZ = netSide * (halfWidth + 0.009);
+    for (let x = 0; x <= GOAL.depth + 0.001; x += cell) {
+      const netX = side * Math.min(GOAL.depth, x);
+      addNetLine(netX, 0, netZ, netX, GOAL.height, netZ);
+    }
+    for (let y = 0.24; y <= GOAL.height; y += cell) {
+      addNetLine(0, y, netZ, side * GOAL.depth, y, netZ);
+    }
+  }
+  for (let z = -halfWidth; z <= halfWidth + 0.001; z += cell) {
+    const netZ = Math.max(-halfWidth, Math.min(halfWidth, z));
+    addNetLine(0, GOAL.height + 0.009, netZ,
+      side * GOAL.depth, GOAL.height + 0.009, netZ);
+  }
+  for (let x = 0; x <= GOAL.depth + 0.001; x += cell) {
+    const netX = side * Math.min(GOAL.depth, x);
+    addNetLine(netX, GOAL.height + 0.009, -halfWidth,
+      netX, GOAL.height + 0.009, halfWidth);
+  }
+  const netGeometry = new THREE.BufferGeometry();
+  netGeometry.setAttribute('position', new THREE.Float32BufferAttribute(netVertices, 3));
+  const netWire = new THREE.LineSegments(netGeometry, new THREE.LineBasicMaterial({
+    color: 0xdfe7ec,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    toneMapped: false
+  }));
+  netWire.name = 'xfc-3d-goal-net';
+  netWire.renderOrder = 2;
+  group.add(netWire);
 
   group.position.x = side * PITCH.halfLength;
   return group;
 }
 
-function buildFloodlight(x, z) {
+function buildFloodlight(x, z, lampsOn = true) {
   const group = new THREE.Group();
   const mastMaterial = new THREE.MeshLambertMaterial({ color: 0x27333f });
-  const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xfdf6d8 });
+  const lampMaterial = new THREE.MeshBasicMaterial({ color: lampsOn ? 0xfff1d2 : 0x9aa8b2 });
 
   const mast = new THREE.Mesh(new THREE.BoxGeometry(0.9, 32, 0.9), mastMaterial);
   mast.position.y = 16;
@@ -671,12 +797,17 @@ export function buildStadium(scene, options = {}) {
   const lowPower = Boolean(options.lowPower);
   scene.add(group);
 
-  // Modelo do estádio: cobertura, fachada, altura e LED mudam por praça.
+  // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
   const model = STADIUMS[options.stadium]?.model || {};
   const standHeight = model.height || 17;
+  const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
+  const lighting = lightingProfileFor(timeOfDay);
+  scene.fog?.color.setHex(lighting.fog);
+  if (scene.background?.isColor) scene.background.setHex(lighting.fog);
 
   // Céu.
-  const skyTexture = canvasTexture(1024, 512, drawSky);
+  const skyTexture = canvasTexture(1024, 512,
+    (context, width, height) => drawSky(context, width, height, lighting.name));
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(320, 24, 16),
     new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false })
@@ -697,14 +828,23 @@ export function buildStadium(scene, options = {}) {
   const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
   pitchTexture.colorSpace = THREE.SRGBColorSpace;
   pitchTexture.anisotropy = lowPower ? 1 : 2;
+  const pitchMaterial = lowPower
+    ? new THREE.MeshLambertMaterial({ map: pitchTexture })
+    : new THREE.MeshPhongMaterial({
+      map: pitchTexture,
+      specular: 0x142a18,
+      shininess: 5
+    });
   const pitch = new THREE.Mesh(
     new THREE.PlaneGeometry(PITCH.length, PITCH.width),
-    new THREE.MeshLambertMaterial({ map: pitchTexture })
+    pitchMaterial
   );
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
-  addGrassBlades(group, lowPower ? 1800 : 7600);
+  // No perfil Android, a relva procedural já está na textura do campo. As
+  // lâminas subpixel piscavam como pontos escuros na câmera de transmissão.
+  if (!lowPower) addGrassBlades(group, 7600);
 
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
@@ -830,29 +970,33 @@ export function buildStadium(scene, options = {}) {
   const goals = { home: buildGoal(-1), away: buildGoal(1) };
   group.add(goals.home, goals.away);
 
-  // Bandeirinhas e refletores distantes: removidos no perfil econômico,
-  // pois quase não aparecem na câmera de jogo e somam muitas chamadas 3D.
-  if (!lowPower) {
-    for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
-      for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
-        group.add(buildCornerFlag(x, z));
-      }
+  // Elementos completos da arena também permanecem no perfil econômico; suas
+  // geometrias são simples e não alteram as regras nem o campo de jogo.
+  for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
+    for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
+      group.add(buildCornerFlag(x, z));
     }
-    for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
-      for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
-        group.add(buildFloodlight(x, z));
-      }
+  }
+  const floodlightPositions = [];
+  for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
+    for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
+      group.add(buildFloodlight(x, z, lighting.lampsOn));
+      floodlightPositions.push([x, z]);
     }
   }
 
-  // Iluminação de transmissão: key branco-quente, fill frio e uma luz cruzada
-  // aberta deixam gramado, rostos e uniformes legíveis sem achatar as sombras.
-  const hemisphere = new THREE.HemisphereLight(0xd9edff, 0x467b46, 1.15);
-  scene.add(hemisphere);
-  const key = new THREE.DirectionalLight(0xfff8e9, 1.7);
+  // Iluminação de transmissão com variação natural por horário: luz quente de
+  // chave, preenchimento frio moderado e sombras dinâmicas somente no PC.
+  const hemisphere = new THREE.HemisphereLight(
+    lighting.hemisphereSky,
+    lighting.hemisphereGround,
+    lighting.hemisphereIntensity
+  );
+  group.add(hemisphere);
+  const key = new THREE.DirectionalLight(lighting.keyColor, lighting.keyIntensity);
   key.position.set(-42, 72, 34);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
+  key.castShadow = !lowPower;
+  key.shadow.mapSize.set(lowPower ? 512 : 1024, lowPower ? 512 : 1024);
   key.shadow.camera.left = -75;
   key.shadow.camera.right = 75;
   key.shadow.camera.top = 60;
@@ -861,22 +1005,42 @@ export function buildStadium(scene, options = {}) {
   key.shadow.camera.far = 220;
   key.shadow.bias = -0.00045;
   key.shadow.normalBias = 0.6;
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0xc5dcff, 0.65);
+  group.add(key);
+  const fill = new THREE.DirectionalLight(lighting.fillColor, lighting.fillIntensity);
   fill.position.set(48, 46, -42);
-  scene.add(fill);
-  const crossFill = new THREE.DirectionalLight(0xeaf4ff, 0.28);
+  group.add(fill);
+  const crossFill = new THREE.DirectionalLight(0xeaf4ff, lighting.crossIntensity);
   crossFill.position.set(-8, 58, -54);
-  scene.add(crossFill);
-  const ambient = new THREE.AmbientLight(0xf5f8ff, 0.26);
-  scene.add(ambient);
+  group.add(crossFill);
+  const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
+  group.add(ambient);
+
+  // Refletores físicos sem shadow map: dois no Android para conter custo de
+  // iluminação por pixel, quatro em telas grandes para cobrir o campo inteiro.
+  const activeFloodlights = lowPower
+    ? floodlightPositions.filter((_, index) => index === 0 || index === 3)
+    : floodlightPositions;
+  for (const [x, z] of activeFloodlights) {
+    const floodlight = new THREE.SpotLight(
+      lighting.keyColor,
+      lighting.floodlightIntensity,
+      150,
+      Math.PI / 4.4,
+      0.62,
+      1.6
+    );
+    floodlight.position.set(x, 31.5, z);
+    floodlight.target.position.set(0, 0, 0);
+    floodlight.castShadow = false;
+    group.add(floodlight, floodlight.target);
+  }
 
   return {
     group,
     goals,
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
-      group.parent?.remove(group);
+      disposeObject(group);
     }
   };
 }

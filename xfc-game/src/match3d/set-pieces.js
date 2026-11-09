@@ -1,7 +1,8 @@
 // Cálculos determinísticos das bolas paradas: métricas de cobrança e uma
 // previsão leve da trajetória para HUD/câmera. Não altera a física da partida.
 
-import { GOAL, PITCH } from './constants.js';
+import { BALL, GOAL, PITCH } from './constants.js';
+import { applyBallAirForces, curveSpinRate } from './physics.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -125,7 +126,7 @@ export function cornerTarget({ attackSign = 1, aim = 0 } = {}) {
 
 /** Amostra uma curva balística compacta para desenhar a previsão no campo. */
 export function predictTrajectory({
-  start = { x: 0, y: 0.11, z: 0 },
+  start = { x: 0, y: BALL.radius, z: 0 },
   target = { x: 1, z: 0 },
   speed = 20,
   lift = 0.14,
@@ -135,29 +136,56 @@ export function predictTrajectory({
   const dx = target.x - start.x;
   const dz = target.z - start.z;
   const distance = Math.max(0.01, Math.hypot(dx, dz));
-  const horizontalSpeed = clamp(Number(speed) || 0, 6, 34);
+  const horizontalSpeed = clamp(Number(speed) || 0, 6, 42);
   const duration = clamp(distance / horizontalSpeed, 0.16, 2.4);
-  const vx = dx / distance * horizontalSpeed;
-  const vz = dz / distance * horizontalSpeed;
-  const vy = horizontalSpeed * clamp(Number(lift) || 0, 0, 0.55);
+  const dirX = dx / distance;
+  const dirZ = dz / distance;
+  const velocity = {
+    x: dirX * horizontalSpeed,
+    y: horizontalSpeed * clamp(Number(lift) || 0, 0, 0.55),
+    z: dirZ * horizontalSpeed
+  };
+  const spin = {
+    x: -dirZ * horizontalSpeed * 0.25,
+    y: curveSpinRate(horizontalSpeed, curve),
+    z: dirX * horizontalSpeed * 0.25
+  };
+  const position = {
+    x: Number(start.x) || 0,
+    y: Math.max(BALL.radius, Number(start.y) || BALL.radius),
+    z: Number(start.z) || 0
+  };
   const samples = Math.max(4, Math.round(segments));
-  const points = [];
+  const substepsPerSegment = 2;
+  const totalSteps = samples * substepsPerSegment;
+  const dt = duration / totalSteps;
+  const points = [{ ...position }];
   let bounced = false;
-  for (let index = 0; index <= samples; index += 1) {
-    const progress = index / samples;
-    const time = duration * progress;
-    let y = start.y + vy * time - 4.905 * time * time;
-    if (y <= 0.11) {
-      if (index > 0) bounced = true;
-      y = 0.11;
+
+  for (let step = 1; step <= totalSteps; step += 1) {
+    applyBallAirForces(velocity, spin, dt);
+    position.x += velocity.x * dt;
+    position.y += velocity.y * dt;
+    position.z += velocity.z * dt;
+    if (position.y <= BALL.radius) {
+      position.y = BALL.radius;
+      if (velocity.y < 0) velocity.y = -velocity.y * 0.58;
+      if (Math.abs(velocity.y) < 0.6) velocity.y = 0;
+      const groundSpeed = Math.hypot(velocity.x, velocity.z);
+      if (groundSpeed > 0.01) {
+        const friction = Math.max(0, 1 - (5.4 * dt) / groundSpeed);
+        velocity.x *= friction;
+        velocity.z *= friction;
+      }
+      const groundSpinDecay = 1 - Math.min(1.6 * dt, 0.4);
+      spin.x *= groundSpinDecay;
+      spin.y *= groundSpinDecay;
+      spin.z *= groundSpinDecay;
+      bounced = true;
     }
-    const bend = Number(curve) * Math.sin(Math.PI * progress) * Math.min(2.4, distance * 0.045);
-    points.push({
-      x: start.x + vx * time,
-      y,
-      z: start.z + vz * time + bend
-    });
-    if (bounced && index > samples * 0.6) break;
+
+    if (step % substepsPerSegment === 0) points.push({ ...position });
+    if (bounced && step > totalSteps * 0.65) break;
   }
   return points;
 }

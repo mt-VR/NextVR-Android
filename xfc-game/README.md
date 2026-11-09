@@ -88,14 +88,14 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.3/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.3/xfc-game.zip` |
+| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.4/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.4/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.3`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.3)
-traz a Copa do Mundo jogável com 32 seleções e eliminatórias, novos modos de torneio, Corinthians e Santos com os escudos enviados, um Neymar low-poly com penteado dedicado, câmera Pro fixa no treino e iluminação de estádio em estilo de transmissão (versionCode 9). O APK roda offline e o CI também anexa o jogo web completo.
+A release [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4)
+combina o conteúdo da Copa do Mundo (32 seleções e eliminatórias), modos de torneio, Corinthians e Santos, câmera Pro e iluminação de transmissão com o passe de apresentação 3D: uniformes com escudos, nomes e números, modelos móveis mais leves, câmera de transmissão fixa, física compartilhada da bola e estádios com perfis de dia, entardecer e noite (versionCode 10). O APK roda offline e o CI também anexa o jogo web completo.
 
-A release anterior [`xfc-gameplay-v0.5.2`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.2)
-permanece disponível para quem precisa do APK anterior.
+A release anterior [`xfc-gameplay-v0.5.3`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.3)
+permanece disponível para quem precisa da versão anterior.
 
 ## Controles
 

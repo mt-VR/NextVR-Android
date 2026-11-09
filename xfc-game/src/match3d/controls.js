@@ -72,6 +72,22 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     return 'normal';
   }
 
+  function shotCurve(shot, event) {
+    if (shot.kind !== 'curved') return 0;
+    const dx = event.clientX - shot.startX;
+    const swipeStrength = Math.min(1, Math.abs(dx) / 105);
+    const stickStrength = Math.min(1, Math.hypot(movementVector.x, movementVector.z));
+    const direction = Math.sign(dx)
+      || Math.sign(movementVector.x)
+      || -Math.sign(movementVector.z)
+      || 1;
+    // Quanto mais amplo o gesto lateral, maior o sidespin; o analógico serve
+    // como direção/intensidade alternativa quando o swipe é quase vertical.
+    return direction * (swipeStrength > 0.08
+      ? Math.max(0.22, swipeStrength)
+      : Math.max(0.3, stickStrength));
+  }
+
   const buttons = BUTTONS.map(item => {
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
@@ -117,7 +133,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
         const payload = {
           strength: Math.max(SHOOT_MIN_STRENGTH, shot.strength),
           placed: shot.kind === 'placed',
-          kind: shot.kind
+          kind: shot.kind,
+          curve: shotCurve(shot, event)
         };
         shootCharge = null;
         shootPointerId = null;

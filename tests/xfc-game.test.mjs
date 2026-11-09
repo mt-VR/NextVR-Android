@@ -9,6 +9,12 @@ import { NATIONAL_TEAMS, GROUP_NAMES, createWorldCupCampaign, campaignStandings,
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
+import { createPlayer3D } from '../xfc-game/src/match3d/player.js';
+import { applyBallAirForces, curveSpinRate } from '../xfc-game/src/match3d/physics.js';
+import { broadcastCameraPose, cornerCameraPose, worldMovementFromStick } from '../xfc-game/src/match3d/camera.js';
+import { predictGoalkeeperIntercept } from '../xfc-game/src/match3d/goalkeeper.js';
+import { predictTrajectory } from '../xfc-game/src/match3d/set-pieces.js';
+import { lightingProfileFor } from '../xfc-game/src/match3d/stadium.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
@@ -60,6 +66,153 @@ test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o bu
   const desktop = rendererProfileFor({ devicePixelRatio: 2, hardwareConcurrency: 8, deviceMemory: 8 });
   assert.equal(desktop.lowPower, false, 'desktop potente mantém o perfil de qualidade');
   assert.equal(desktop.initialPixelRatio, 1.5, 'a resolução desktop continua limitada a 1,5');
+});
+
+test('modelos simples e detalhados compartilham kit sem descartar textura ainda em uso', () => {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+  const gradient = { addColorStop() {} };
+  const context = new Proxy({
+    createLinearGradient: () => gradient,
+    createRadialGradient: () => gradient,
+    measureText: () => ({ width: 1 })
+  }, {
+    get(target, key) {
+      if (key in target) return target[key];
+      return () => {};
+    },
+    set(target, key, value) { target[key] = value; return true; }
+  });
+  const models = [];
+
+  try {
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        createElement(tag) {
+          return tag === 'canvas'
+            ? { width: 1, height: 1, getContext: () => context }
+            : {};
+        }
+      }
+    });
+    Object.defineProperty(globalThis, 'Image', {
+      configurable: true,
+      writable: true,
+      value: undefined
+    });
+
+    const kit = { primary: '#224488', secondary: '#112233', accent: '#ffee55', pattern: 'stripes' };
+    models.push(
+      createPlayer3D({ simplified: true, kit, number: 10, teamName: 'XFC' }),
+      createPlayer3D({ simplified: true, kit, number: 9, teamName: 'XFC' }),
+      createPlayer3D({ simplified: false, kit, number: 8, teamName: 'XFC', preferredFoot: 'Left' })
+    );
+    let jerseyTexture = null;
+    models[0].root.traverse(node => {
+      const texture = node.material?.map;
+      if (!jerseyTexture && texture?.userData?.cacheKey?.startsWith('#224488|')) {
+        jerseyTexture = texture;
+      }
+    });
+
+    assert.ok(jerseyTexture, 'o uniforme é desenhado em uma textura compartilhada');
+    let simpleMeshCount = 0;
+    models[0].root.traverse(object => { if (object.isMesh) simpleMeshCount += 1; });
+    assert.ok(simpleMeshCount <= 20,
+      'o modelo Android mantém no máximo vinte malhas por atleta');
+    assert.equal(jerseyTexture.userData.references, 3);
+    models[0].header();
+    models[0].update(1 / 60, { ownsBall: true, protecting: true, speed: 1 });
+    models[2].kick('shot');
+    models[2].update(1 / 60, { speed: 2, moving: true });
+
+    models[0].dispose();
+    assert.equal(jerseyTexture.userData.references, 2,
+      'mesmo usando a camisa em várias malhas, cada jogador solta só uma referência');
+    models[1].dispose();
+    models[2].dispose();
+    assert.equal(jerseyTexture.userData.references, 0);
+    assert.equal(jerseyTexture.userData.disposed, true,
+      'o último jogador libera a textura do kit');
+  } finally {
+    for (const model of models) {
+      if (!model.root.userData.disposed) model.dispose();
+    }
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+    if (previousImage) Object.defineProperty(globalThis, 'Image', previousImage);
+    else delete globalThis.Image;
+  }
+});
+
+test('curva da bola é proporcional ao gesto e compartilha gravidade, arrasto e Magnus', () => {
+  assert.equal(curveSpinRate(24, 0), 0, 'sem comando não há sidespin');
+  assert.ok(curveSpinRate(24, 0.8) > curveSpinRate(24, 0.35),
+    'um comando maior gera mais rotação lateral');
+  assert.equal(curveSpinRate(24, 2), curveSpinRate(24, 1),
+    'o sidespin é limitado para impedir trajetórias orbitais');
+
+  const straightVelocity = { x: 20, y: 2, z: 0 };
+  const straightSpin = { x: 0, y: 0, z: 0 };
+  const curvedVelocity = { x: 20, y: 2, z: 0 };
+  const curvedSpin = { x: 0, y: 6, z: 0 };
+  applyBallAirForces(straightVelocity, straightSpin, 1 / 60);
+  applyBallAirForces(curvedVelocity, curvedSpin, 1 / 60);
+  assert.ok(curvedVelocity.z < straightVelocity.z,
+    'o Magnus desloca a bola lateralmente durante o voo');
+  assert.ok(curvedVelocity.x > 0, 'o efeito lateral não inverte a velocidade de avanço');
+  assert.ok(curvedVelocity.y < 2, 'a bola sente gravidade durante o voo');
+});
+
+test('previsão do goleiro e linha de bola parada seguem a mesma física curva', () => {
+  const state = {
+    position: { x: 40, y: 1.2, z: 0 },
+    velocity: { x: 20, y: 0, z: 0 }
+  };
+  const straight = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 0, z: 0 } }, 52.5);
+  const curving = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 5, z: 0 } }, 52.5);
+  assert.ok(straight && curving, 'a bola chega ao plano do gol nas duas simulações');
+  assert.ok(curving.z < straight.z, 'a leitura do goleiro inclui o mesmo Magnus da bola');
+
+  const previewStraight = predictTrajectory({
+    start: { x: 0, y: 0.11, z: 0 }, target: { x: 30, z: 0 }, speed: 24, lift: 0.22, curve: 0
+  });
+  const previewCurved = predictTrajectory({
+    start: { x: 0, y: 0.11, z: 0 }, target: { x: 30, z: 0 }, speed: 24, lift: 0.22, curve: 0.8
+  });
+  assert.equal(previewStraight.length, previewCurved.length);
+  assert.ok(previewCurved[Math.floor(previewCurved.length / 2)].z
+    < previewStraight[Math.floor(previewStraight.length / 2)].z,
+  'a prévia do escanteio mostra a curva real, não uma parábola decorativa');
+});
+
+test('câmera fixa conserva o referencial vertical do analógico e enquadra o escanteio', () => {
+  assert.deepEqual(worldMovementFromStick(0, 1), { x: 0, z: -1 },
+    'cima no stick continua avançando para o mesmo lado do gramado');
+  assert.deepEqual(worldMovementFromStick(0, -1), { x: 0, z: 1 },
+    'baixo no stick continua recuando para o mesmo lado do gramado');
+  const nearCamera = broadcastCameraPose({ x: 0, y: 0.11, z: 22 });
+  const farCamera = broadcastCameraPose({ x: 0, y: 0.11, z: -22 });
+  assert.ok(nearCamera.position.z > 0 && farCamera.position.z > 0,
+    'a transmissão não cruza para o lado oposto quando a bola troca de lateral');
+  const corner = cornerCameraPose({ x: 52.1, z: 33.8 }, 1, { x: 44, z: 7 });
+  assert.ok(corner.position.z > 34 && corner.position.z < 37,
+    'a câmera fica próxima à bandeirinha, mas não dentro da arquibancada');
+  assert.ok(corner.position.x < 52.1 && corner.target.x > 40,
+    'o cobrador fica entre a câmera e a área de cruzamento');
+});
+
+test('estádios oferecem luz natural de dia, entardecer e noite', () => {
+  const day = lightingProfileFor('day');
+  const dusk = lightingProfileFor('dusk');
+  const night = lightingProfileFor('night');
+  assert.equal(day.stars, 0);
+  assert.equal(dusk.name, 'dusk');
+  assert.ok(night.stars > dusk.stars);
+  assert.notDeepEqual(day.sky, night.sky);
+  assert.equal(lightingProfileFor('invalid').name, 'night');
 });
 
 test('orientação do campo: a casa ataca +X, cada time defende o próprio gol', () => {

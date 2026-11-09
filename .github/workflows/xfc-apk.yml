@@ -175,20 +175,20 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.3
+          TAG=xfc-gameplay-v0.5.4
           NOTES=$(printf '%s\n' \
-            "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3 (versionCode 9), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — apresentação 3D v0.5.4 (versionCode 10), build do commit ${GITHUB_SHA}." \
             "" \
-            "Escolha uma das 32 seleções com elencos da Copa de 2022, dispute uma fase de grupos sorteada e avance pelas oitavas, quartas, semifinais e final. O carrossel de modos inclui UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away e Best of Series." \
+            "Refina os atletas com uniformes de frente e costas, escudos, nomes e números num atlas compartilhado, além de reduzir a contagem de malhas no perfil móvel." \
             "" \
-            "Adiciona Corinthians e Santos com os escudos enviados, além de um Neymar low-poly com penteado espetado inspirado na referência. A câmera Pro do treino mantém o enquadramento quando o analógico move o jogador, e a iluminação do estádio recebe camadas de luz branca quente e preenchimento frio para um visual de transmissão." \
+            "Fixa o lado da câmera de transmissão e mantém os controles no mesmo referencial. Bola, previsão do goleiro e bolas paradas compartilham gravidade, arrasto e efeito Magnus; o gesto lateral também controla a curva do chute." \
             "" \
-            "Mantém as melhorias anteriores de goleiros, bolas paradas e comemorações. O APK roda offline e o pacote web também está anexado.")
+            "Adiciona perfis de luz para dia, entardecer e noite, melhora o gramado no Android e reforça a liberação de recursos de jogadores e estádios. Mantém a Copa do Mundo e os modos anteriores. O APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3" \
+            gh release create "$TAG" --title "XFC 27 — apresentação 3D v0.5.4" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — Copa do Mundo, torneios e Santos v0.5.3" \
+            gh release edit "$TAG" --title "XFC 27 — apresentação 3D v0.5.4" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

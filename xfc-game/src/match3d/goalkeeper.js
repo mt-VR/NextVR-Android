@@ -3,8 +3,8 @@
 // escalares para não alocar vetores no loop da partida.
 
 import { BALL, GOAL } from './constants.js';
+import { applyBallAirForces } from './physics.js';
 
-const GRAVITY = -9.81;
 const GROUND_FRICTION = 5.4;
 const SIMULATION_STEP = 1 / 60;
 const MAX_PREDICTION_TIME = 3.2;
@@ -35,9 +35,12 @@ export function predictGoalkeeperIntercept(ballState, goalX, maxTime = MAX_PREDI
   let vx = velocity.x;
   let vy = Number.isFinite(velocity.y) ? velocity.y : 0;
   let vz = velocity.z;
-  let spinX = Number.isFinite(spin?.x) ? spin.x : 0;
-  let spinY = Number.isFinite(spin?.y) ? spin.y : 0;
-  let spinZ = Number.isFinite(spin?.z) ? spin.z : 0;
+  const spinVector = {
+    x: Number.isFinite(spin?.x) ? spin.x : 0,
+    y: Number.isFinite(spin?.y) ? spin.y : 0,
+    z: Number.isFinite(spin?.z) ? spin.z : 0
+  };
+  const velocityVector = { x: vx, y: vy, z: vz };
   const duration = clamp(Number.isFinite(maxTime) ? maxTime : MAX_PREDICTION_TIME, SIMULATION_STEP, 6);
   const steps = Math.ceil(duration / SIMULATION_STEP);
 
@@ -49,19 +52,13 @@ export function predictGoalkeeperIntercept(ballState, goalX, maxTime = MAX_PREDI
     const previousZ = z;
     const previousTime = index * SIMULATION_STEP;
 
-    vy += GRAVITY * dt;
-    const drag = 1 - Math.min(0.12 * dt, 0.05);
-    vx *= drag;
-    vy *= drag;
-    vz *= drag;
-
-    // Produto vetorial spin × velocidade, como na física da bola.
-    const magnusX = spinY * vz - spinZ * vy;
-    const magnusY = spinZ * vx - spinX * vz;
-    const magnusZ = spinX * vy - spinY * vx;
-    vx += magnusX * 0.06 * dt;
-    vy += magnusY * 0.06 * dt;
-    vz += magnusZ * 0.06 * dt;
+    velocityVector.x = vx;
+    velocityVector.y = vy;
+    velocityVector.z = vz;
+    applyBallAirForces(velocityVector, spinVector, dt);
+    vx = velocityVector.x;
+    vy = velocityVector.y;
+    vz = velocityVector.z;
 
     x += vx * dt;
     y += vy * dt;
@@ -77,9 +74,10 @@ export function predictGoalkeeperIntercept(ballState, goalX, maxTime = MAX_PREDI
         vx *= friction;
         vz *= friction;
       }
-      spinX *= 1 - Math.min(1.6 * dt, 0.4);
-      spinY *= 1 - Math.min(1.6 * dt, 0.4);
-      spinZ *= 1 - Math.min(1.6 * dt, 0.4);
+      const groundSpinDecay = 1 - Math.min(1.6 * dt, 0.4);
+      spinVector.x *= groundSpinDecay;
+      spinVector.y *= groundSpinDecay;
+      spinVector.z *= groundSpinDecay;
     }
 
     const crossedGoalPlane = (goalX - previousX) * (goalX - x) <= 0;

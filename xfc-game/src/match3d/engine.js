@@ -19,6 +19,7 @@ export const STAGE_HEIGHT = 720;
 const MAX_FRAME_DELTA = 0.1;
 const LOW_POWER_PIXEL_RATIO = 0.6;
 const QUALITY_STEPS = [1.5, 1.25, 1, 0.85, 0.7, 0.6];
+let sharedSoftShadowTexture = null;
 
 /**
  * Perfil inicial para o WebView: aparelhos móveis começam com uma resolução
@@ -201,19 +202,52 @@ export function createEngine(canvas, options = {}) {
 
 /** Descarta geometrias, materiais e texturas de um objeto e dos filhos. */
 export function disposeObject(root) {
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
   root.traverse(node => {
-    if (node.geometry) node.geometry.dispose();
-    const material = node.material;
-    if (!material) return;
-    for (const item of Array.isArray(material) ? material : [material]) {
-      for (const key of Object.keys(item)) {
-        const value = item[key];
-        if (value && value.isTexture) value.dispose();
+    if (node.geometry && !geometries.has(node.geometry)) {
+      geometries.add(node.geometry);
+      node.geometry.dispose();
+    }
+    const list = Array.isArray(node.material)
+      ? node.material
+      : node.material ? [node.material] : [];
+    for (const material of list) {
+      if (!material || materials.has(material)) continue;
+      materials.add(material);
+      for (const key of Object.keys(material)) {
+        const value = material[key];
+        if (value?.isTexture && !value.userData?.shared && !textures.has(value)) {
+          textures.add(value);
+          value.dispose();
+        }
       }
-      item.dispose();
+      material.dispose();
     }
   });
   root.parent?.remove(root);
+}
+
+/** Textura radial reutilizável para sombras suaves de jogadores e bola. */
+export function softShadowTexture() {
+  if (sharedSoftShadowTexture) return sharedSoftShadowTexture;
+  sharedSoftShadowTexture = canvasTexture(128, 128, (context, width, height) => {
+    const gradient = context.createRadialGradient(
+      width / 2, height / 2, width * 0.06,
+      width / 2, height / 2, width * 0.48
+    );
+    gradient.addColorStop(0, 'rgba(4, 10, 13, 0.34)');
+    gradient.addColorStop(0.42, 'rgba(4, 10, 13, 0.18)');
+    gradient.addColorStop(0.76, 'rgba(4, 10, 13, 0.055)');
+    gradient.addColorStop(1, 'rgba(4, 10, 13, 0)');
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+  }, { srgb: false });
+  sharedSoftShadowTexture.name = 'xfc-shared-soft-shadow';
+  sharedSoftShadowTexture.userData.shared = true;
+  return sharedSoftShadowTexture;
 }
 
 /** Cria uma textura 2D a partir de um canvas (gramado, placas, rede...). */

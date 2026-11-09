@@ -1,10 +1,10 @@
 // A bola: física simples (gravidade, quique, atrito, arrasto e efeito Magnus)
 // e a malha 3D com a textura clássica de gomos.
 
-import { THREE, canvasTexture } from './engine.js';
+import { THREE, canvasTexture, softShadowTexture } from './engine.js';
 import { BALL, PITCH, GOAL } from './constants.js';
+import { applyBallAirForces, curveSpinRate } from './physics.js';
 
-const GRAVITY = -9.81;
 /** Desaceleração da bola rolando no gramado (m/s²). */
 const GROUND_FRICTION = 5.4;
 
@@ -40,13 +40,20 @@ export function createBall(scene) {
   );
   mesh.castShadow = true;
   scene.add(mesh);
+  const rollAxis = new THREE.Vector3();
 
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(BALL.radius * 1.25, 12),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
+    new THREE.PlaneGeometry(BALL.radius * 7.2, BALL.radius * 5.2),
+    new THREE.MeshBasicMaterial({
+      map: softShadowTexture(),
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      toneMapped: false
+    })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.02;
+  shadow.position.y = 0.018;
   scene.add(shadow);
 
   const state = {
@@ -79,18 +86,15 @@ export function createBall(scene) {
     state,
     reset,
     /** Chute: aplica velocidade e um pouco de efeito. */
-    kick(direction, power = 18, lift = 0.18, { guide = null } = {}) {
+    kick(direction, power = 18, lift = 0.18, { guide = null, curve = 0 } = {}) {
+      const speed = Math.max(0, Number(power) || 0);
+      const dx = Number(direction?.x) || 0;
+      const dz = Number(direction?.z) || 0;
       state.flightId += 1;
-      state.velocity.set(
-        direction.x * power,
-        power * lift,
-        direction.z * power
-      );
-      state.spin.set(
-        -direction.z * power * 0.25,
-        0,
-        direction.x * power * 0.25
-      );
+      state.velocity.set(dx * speed, speed * lift, dz * speed);
+      // X/Z representam a rotação de rolamento; Y guarda apenas o efeito lateral.
+      // Separar o sidespin do rolamento evita forças verticais e curvas orbitais.
+      state.spin.set(-dz * speed * 0.25, curveSpinRate(speed, curve), dx * speed * 0.25);
       state.guidance = guide ? { ...guide, elapsed: 0 } : null;
       state.owner = null;
     },
@@ -147,14 +151,9 @@ export function createBall(scene) {
         }
       }
 
-      // Gravidade e arrasto do ar (leve, como uma bola de verdade).
-      velocity.y += GRAVITY * dt;
-      velocity.multiplyScalar(1 - Math.min(0.12 * dt, 0.05));
-
-      // Efeito Magnus: a bola curva conforme o giro.
-      const magnus = new THREE.Vector3().crossVectors(spin, velocity).multiplyScalar(0.06 * dt);
-      velocity.add(magnus);
-
+      // Gravidade, resistência do ar e Magnus limitado. O sidespin modifica a
+      // trajetória durante o voo sem substituir a velocidade de avanço.
+      applyBallAirForces(velocity, spin, dt);
       position.addScaledVector(velocity, dt);
 
       // Quique no gramado.
@@ -198,6 +197,7 @@ export function createBall(scene) {
             velocity.z += nz * (speed > 14 ? 0.35 : 1.4);
             state.lastCollision = player;
             state.lastCollisionAt = now;
+            if (position.y > 1.24) player.model?.header?.();
           }
           state.lastTouch = player;
         }
@@ -250,15 +250,13 @@ export function createBall(scene) {
       shadow.position.set(position.x, 0.02, position.z);
       const shadowScale = Math.max(0.55, 1 - position.y * 0.25);
       shadow.scale.setScalar(shadowScale);
-      shadow.material.opacity = 0.34 * shadowScale;
+      shadow.material.opacity = 0.9 * shadowScale;
 
       // A bola gira conforme anda.
       const speed = Math.hypot(velocity.x, velocity.z);
       if (speed > 0.05) {
-        mesh.rotateOnWorldAxis(
-          new THREE.Vector3(velocity.z, 0, -velocity.x).normalize(),
-          (speed * dt) / BALL.radius
-        );
+        rollAxis.set(velocity.z, 0, -velocity.x).normalize();
+        mesh.rotateOnWorldAxis(rollAxis, (speed * dt) / BALL.radius);
       }
       return null;
     },

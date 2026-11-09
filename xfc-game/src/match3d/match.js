@@ -12,6 +12,7 @@ import { createPlayer3D, lookFor } from './player.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
+import { BROADCAST_CAMERA_SIDE, broadcastCameraPose, cornerCameraPose, worldMovementFromStick } from './camera.js';
 import { attackSign, insidePenaltyAreaFor, ownGoalX as ownGoalXOf } from './sides.js';
 import {
   goalkeeperDiveDirection,
@@ -60,7 +61,11 @@ export function createMatch(options = {}) {
   } = options;
 
   const engine = createEngine(canvas);
-  const stadiumMesh = buildStadium(engine.scene, { stadium, lowPower: engine.lowPower });
+  const stadiumMesh = buildStadium(engine.scene, {
+    stadium,
+    lowPower: engine.lowPower,
+    timeOfDay: options.timeOfDay
+  });
   const ball = createBall(engine.scene);
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
@@ -128,7 +133,8 @@ export function createMatch(options = {}) {
     kind: 'placed'
   };
   let shotCamera = null;
-  let cameraSide = 1;
+  // O lado da transmissão é invariável durante toda a partida.
+  const cameraSide = BROADCAST_CAMERA_SIDE;
   let confrontation = null;
 
   // ------------------------------------------------------------- utilidades --
@@ -136,6 +142,28 @@ export function createMatch(options = {}) {
   const members = side => teams[side].players.filter(player => player.active);
   const opponentOf = side => (side === 'home' ? 'away' : 'home');
   const isUserControlled = player => player?.side === userSide && controlled[userSide] === player;
+
+  function modelMovementState(player) {
+    const speed = playerSpeed(player);
+    const ownsBall = player.active && ball.state.owner === player;
+    let protecting = false;
+    if (ownsBall) {
+      for (const rival of allPlayers) {
+        if (!rival.active || rival.side === player.side) continue;
+        if (Math.hypot(rival.x - player.x, rival.z - player.z) < 1.85) {
+          protecting = true;
+          break;
+        }
+      }
+    }
+    return {
+      speed,
+      moving: speed > 0.25,
+      lean: player.turnLean || 0,
+      ownsBall,
+      protecting
+    };
+  }
 
   function emit(event) {
     if (event.type === 'shot') stats[event.team].shots += 1;
@@ -255,13 +283,19 @@ export function createMatch(options = {}) {
       const model = createPlayer3D({
         kit: kitFor(team, team.kit, isKeeper),
         number: data.number || index + 1,
+        name: data.name || data.fullName || `Jogador ${index + 1}`,
+        teamName: team.info?.shortName || team.info?.name || 'XFC',
+        crest: team.info?.crest || null,
+        sponsor: team.kit?.sponsor || team.info?.sponsor || 'XFC',
+        brand: team.kit?.brand || 'XF',
+        preferredFoot: data.foot || 'Right',
         isKeeper,
         simplified: options.simplifiedPlayers ?? engine.lowPower,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
         heightScale: look.heightScale,
-        // O retrato real do atleta vira o rosto do boneco.
+        // O retrato pode enriquecer o rosto 3D; corpo e uniforme continuam em 3D.
         photo: data.photo || null
       });
       engine.scene.add(model.root);
@@ -344,8 +378,10 @@ export function createMatch(options = {}) {
       : null;
     // Enfiada é rasteira e firme; só os cruzamentos/escanteios usam a bola alta.
     const flightLift = lift ?? (lob ? 0.42 : through ? 0.055 : 0.11);
-    ball.kick(direction, speed, flightLift, { guide });
-    ball.state.spin.y += clampSetPiece(curve, -1, 1) * speed * (lob ? 0.42 : 0.22);
+    ball.kick(direction, speed, flightLift, {
+      guide,
+      curve: clampSetPiece(curve, -1, 1)
+    });
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
     player.model.kick(lob ? 'cross' : through ? 'through' : 'pass');
@@ -397,9 +433,12 @@ export function createMatch(options = {}) {
     const shootingRating = Math.max(30, Math.min(99, player.shotPower ?? player.shooting ?? 68));
     const powerScale = (0.78 + shootingRating * 0.0045) * (1 - Math.min(0.12, Math.abs(bodyError) * 0.035));
     const effectivePower = Math.max(13, power * powerScale);
-    ball.kick({ x: Math.cos(angle), z: Math.sin(angle) }, effectivePower, launch);
-    // Curva lateral controlada pelo gesto, além do efeito natural da bola.
-    ball.state.spin.y = Math.max(-1, Math.min(1, curve)) * effectivePower * 0.62;
+    ball.kick(
+      { x: Math.cos(angle), z: Math.sin(angle) },
+      effectivePower,
+      launch,
+      { curve: clampSetPiece(curve, -1, 1) }
+    );
     ball.state.lastTouch = player;
     ball.state.lastShotKind = kind;
     if (training.enabled && player === training.player) {
@@ -1358,7 +1397,9 @@ export function createMatch(options = {}) {
         target: { x: sign * PITCH.halfLength, z: lateral },
         kind: 'curved',
         lift: 0.28 + strength * 0.18,
-        curve: stick ? -stick : (rng() < 0.5 ? -1 : 1)
+        curve: Number.isFinite(Number(opts.curve))
+          ? clampSetPiece(Number(opts.curve), -1, 1)
+          : stick ? -stick : (rng() < 0.5 ? -1 : 1)
       });
     } else if (shotKind === 'power') {
       const lateral = stick !== 0 ? -stick * 2.1 : (rng() - 0.5) * 1.4;
@@ -1926,8 +1967,7 @@ export function createMatch(options = {}) {
     for (const player of [training.player, training.keeper]) {
       if (!player?.active) continue;
       player.root.position.set(player.x, 0, player.z);
-      const speed = playerSpeed(player);
-      player.model.update(dt, { speed, moving: speed > 0.25, lean: player.turnLean || 0 });
+      player.model.update(dt, modelMovementState(player));
       player.model.lookAt(ball.state.position);
     }
   }
@@ -2192,8 +2232,7 @@ export function createMatch(options = {}) {
     for (const player of allPlayers) {
       player.root.position.set(player.x, 0, player.z);
       player.root.visible = player.active || Boolean(player.dismissal);
-      const speed = playerSpeed(player);
-      player.model.update(dt, { speed, moving: speed > 0.25, lean: player.turnLean || 0 });
+      player.model.update(dt, modelMovementState(player));
       player.model.lookAt(ball.state.position);
     }
 
@@ -2281,8 +2320,7 @@ export function createMatch(options = {}) {
     const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      const worldDx = input.moveX;
-      const worldDz = -input.moveZ;
+      const { x: worldDx, z: worldDz } = worldMovementFromStick(input.moveX, input.moveZ);
       const targetX = player.x + worldDx * 6;
       const targetZ = player.z + worldDz * 6;
       steerPlayer(player, targetX, targetZ, dt, speed * Math.min(1, magnitude), { arrive: 0.2, turn: 10 });
@@ -2474,9 +2512,10 @@ export function createMatch(options = {}) {
       fov = 43;
     } else if (restart.type === 'corner') {
       const aim = analysis?.target || cornerTarget({ attackSign: sign, aim: setPieceOptions.aim });
-      position = { x: taker.x - sign * 5.2, y: 5.8, z: taker.z + side * 6.2 };
-      target = { x: aim.x, y: 1.25, z: aim.z * 0.55 };
-      fov = 53;
+      const pose = cornerCameraPose(taker, sign, aim);
+      position = pose.position;
+      target = pose.target;
+      fov = pose.fov;
     } else {
       // Ângulo lateral moderado mostra a barreira e mantém o cobrador no quadro.
       position = { x: taker.x - sign * 7.6, y: 4.55, z: taker.z + side * 5.6 };
@@ -2543,38 +2582,36 @@ export function createMatch(options = {}) {
    */
   function updateCamera(dt) {
     const position = ball.state.position;
-    // Cruza para a outra lateral apenas depois de ultrapassar uma faixa morta,
-    // evitando que a câmera oscile quando a bola percorre o centro do campo.
-    if (position.z > 7) cameraSide = 1;
-    else if (position.z < -7) cameraSide = -1;
-    const nearT = Math.min(1, Math.abs(position.z) / PITCH.halfWidth); // 0 centro · 1 na lateral
-    const endT = Math.min(1, Math.abs(position.x) / PITCH.halfLength); // 0 meio · 1 fundo
-    const desiredX = Math.max(-40, Math.min(40, position.x * 0.78));
-    const desiredZ = cameraSide * (30 + nearT * 3.7 + endT * 0.8);
-    const desiredY = 21.5 + nearT * 2.7 + Math.min(2.2, Math.abs(position.x) * 0.025);
-    const desiredFov = 48 + nearT * 4.5 + endT * 0.5;
-
+    const pose = broadcastCameraPose(position, cameraSide);
+    const desiredX = pose.position.x;
+    const desiredY = pose.position.y;
+    const desiredZ = pose.position.z;
+    const desiredFov = pose.fov;
     const camera = engine.camera;
+
     if (!cameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
-      cameraTarget.set(position.x, 0, position.z * 0.48);
+      cameraTarget.set(pose.target.x, pose.target.y, pose.target.z);
       camera.fov = desiredFov;
       camera.updateProjectionMatrix();
       cameraReady = true;
     }
+
+    // A posição e o referencial não atravessam o campo; o enquadramento segue
+    // a bola com amortecimento e zoom gradual, sem inverter cima/baixo no stick.
     const smoothing = 1 - Math.pow(0.0016, dt);
     camera.position.x += (desiredX - camera.position.x) * smoothing;
     camera.position.y += (desiredY - camera.position.y) * smoothing;
     camera.position.z += (desiredZ - camera.position.z) * smoothing;
-    // Zoom suave sem saltos de enquadramento.
     if (Math.abs(camera.fov - desiredFov) > 0.05) {
       camera.fov += (desiredFov - camera.fov) * Math.min(1, 3.2 * dt);
       camera.updateProjectionMatrix();
     }
 
-    cameraTarget.x += (Math.max(-42, Math.min(42, position.x * 0.85)) - cameraTarget.x) * smoothing;
-    cameraTarget.z += (position.z * 0.48 - cameraTarget.z) * smoothing;
-    camera.lookAt(cameraTarget.x, 0, cameraTarget.z);
+    cameraTarget.x += (pose.target.x - cameraTarget.x) * smoothing;
+    cameraTarget.y += (pose.target.y - cameraTarget.y) * smoothing;
+    cameraTarget.z += (pose.target.z - cameraTarget.z) * smoothing;
+    camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   }
 
   function snapshotStats() {
