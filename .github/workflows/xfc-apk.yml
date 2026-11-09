@@ -10,7 +10,12 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publicar release e branch xfc-dist (não necessário para baixar artefatos)'
+        description: 'Publicar também na branch xfc-dist'
+        required: false
+        type: boolean
+        default: false
+      publish_release:
+        description: 'Publicar a release do XFC (sem atualizar xfc-dist)'
         required: false
         type: boolean
         default: false
@@ -133,7 +138,7 @@ jobs:
           echo "zip completo: index.html, src, styles, assets, vendor e app.bundle.js"
 
       - name: Publish to the xfc-dist branch
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -164,24 +169,24 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.0
+          TAG=xfc-gameplay-v0.5.1
           NOTES=$(printf '%s\n' \
-            "XFC 27 — atualização de jogabilidade v0.5.0 (versionCode 6), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — goleiros e bolas paradas v0.5.1 (versionCode 7), build do commit ${GITHUB_SHA}." \
             "" \
-            "Inclui faltas e reinícios ligados à partida, cobranças humanas explícitas, barreiras de falta, pênaltis, árbitro 3D com gestos e cartões, expulsão, carrinho manual com recuperação e penalidades, controles sem ações ofensivas automáticas e câmera de jogo mais próxima e suave. Inspirada na experiência de EA SPORTS FC; não representa paridade técnica com as versões de console." \
+            "A IA do goleiro prevê a trajetória com gravidade, arrasto, curva e quique; reposiciona-se e mergulha no tempo e direção adequados, com alcance físico integrado à bola. Inclui cobranças configuráveis de faltas, pênaltis e escanteios, trajetória de prévia, câmera e reações disciplinares." \
             "" \
-            "O APK roda offline e instala como atualização da versão anterior; o pacote web do jogo também está anexado.")
+            "O APK roda offline, instala sobre a versão anterior e o pacote web do jogo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — jogabilidade v0.5.0" \
+            gh release create "$TAG" --title "XFC 27 — goleiros e bolas paradas v0.5.1" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — jogabilidade v0.5.0" \
+            gh release edit "$TAG" --title "XFC 27 — goleiros e bolas paradas v0.5.1" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

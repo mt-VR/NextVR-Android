@@ -88,19 +88,18 @@ do aplicativo é a arte oficial do XFC (Neymar Jr. com a camisa da seleção, em
 ```
 
 O workflow [`xfc-apk.yml`](../.github/workflows/xfc-apk.yml) faz esse build no
-CI e publica:
+CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
-| Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
+| APK | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.1/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.1/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.0`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.0)
-publica a atualização de jogabilidade v0.5.0 (versionCode 6), com APK e pacote web anexados. O APK
-pode ser baixado diretamente em
-[`xfc.apk`](https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.0/xfc.apk).
-A versão anterior [`xfc-menu-v6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v6)
-(v0.4.1) permanece como baseline da correção de cintilação e não contém esta atualização de jogo.
+A release [`xfc-gameplay-v0.5.1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.1)
+contém os goleiros com leitura de trajetória, mergulhos integrados à física e as melhorias de bolas
+paradas (versionCode 7), com APK e pacote web anexados. A versão anterior
+[`xfc-gameplay-v0.5.0`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.0)
+permanece disponível para quem precisa do APK anterior.
 
 ## Controles
 
