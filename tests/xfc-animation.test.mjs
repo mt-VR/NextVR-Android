@@ -348,3 +348,12 @@ test('na partida real a API de animação controla o protagonista e só ele proj
     server.close();
   }
 });
+
+test('sem o arquivo glTF a partida cai no rig procedural (o jogo nunca fica sem atleta)', async () => {
+  const models = await import('../xfc-game/src/match3d/models.js');
+  assert.equal(models.gltfPlayersEnabled(), false, 'o caminho glTF é opt-in (?models=glb)');
+  const pack = await models.preloadFootballerPack();
+  assert.equal(pack, null, 'sem assets/players/models/footballer.glb o pacote não carrega');
+  assert.equal(models.createGltfPlayer({ kit: { primary: '#fff', secondary: '#000' } }), null,
+    'sem pacote, createGltfPlayer devolve null e o chamador usa o procedimental');
+});

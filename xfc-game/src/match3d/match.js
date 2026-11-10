@@ -9,6 +9,7 @@ import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
 import { createPlayer3D, lookFor } from './player.js';
+import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
@@ -295,6 +296,14 @@ export function createMatch(options = {}) {
     });
   }
 
+  /**
+   * Modelo do atleta: o glTF/Mixamo quando o pacote já chegou, senão o rig
+   * procedural. O contrato dos dois é o mesmo — o resto do motor não muda.
+   */
+  function makePlayerModel(options) {
+    return (gltfPlayersEnabled() && createGltfPlayer(options)) || createPlayer3D(options);
+  }
+
   function buildTeam(team) {
     const lineup = team.info?.players || [];
     assignSlots(lineup).forEach(({ data, index, slot, slotIndex }) => {
@@ -304,7 +313,7 @@ export function createMatch(options = {}) {
         ...lookFor(index + (team.side === 'away' ? 3 : 0)),
         ...(data.appearance || {})
       };
-      const model = createPlayer3D({
+      const model = makePlayerModel({
         kit: kitFor(team, team.kit, isKeeper),
         number: data.number || index + 1,
         name: data.name || data.fullName || `Jogador ${index + 1}`,

@@ -123,6 +123,15 @@ function boot() {
     if (handled) event.preventDefault();
   });
   window.addEventListener('beforeunload', () => saveProfile(state));
+  // Pré-carrega o atleta glTF/Mixamo enquanto o jogador navega os menus: se
+  // chegar a tempo, a partida já nasce com o modelo 3D real; se não, o rig
+  // procedural entra no lugar e nada quebra.
+  import('./match3d/models.js')
+    .then(module => {
+      if (module.gltfPlayersEnabled()) return module.preloadFootballerPack();
+      return null;
+    })
+    .catch(() => {});
   go('intro');
 }
 

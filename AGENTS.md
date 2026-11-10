@@ -158,14 +158,23 @@ A API controla **só o protagonista** (`controlled[userSide]`). Joystick,
 botões de ação e câmera continuam mandando no jogo normal: as camadas são um
 verniz por cima da pose base, nunca um substituto do controle.
 
-### Alvo (quando houver modelo externo)
+### Modelo glTF externo (já implementado, desligado por padrão)
 
-1. Aceitar **modelos rigged em glTF** (`assets/players/models/`), com fallback
-   para o rig procedural — o jogo nunca pode ficar sem jogador.
-2. Ligar `THREE.AnimationMixer` ao mesmo controlador: o mapeamento
-   `máscara → ossos do glTF` é o mesmo (`rigFromModel`), e os clipes passam a
-   vir de `assets/animations/{idle,run,kick,celebrate,tackle}/`.
-3. Manter `window.__xfcAnim` com a mesma assinatura — é contrato com o LLM.
+`src/match3d/models.js` carrega `assets/players/models/footballer.glb` +
+`assets/animations/<ação>/<ação>.glb` (biblioteca mocap Mixamo no repositório),
+clona com `SkeletonUtils.clone`, pinta o uniforme nas cores do time e expõe o
+**mesmo contrato** do rig procedural (`update`, `kick`, `celebrate`, `dive`,
+`lookAt`, `setDynamicShadow`, `animation`).
+
+* Ligar: `?models=glb` na URL ou `window.__XFC_GLTF = true` antes do boot.
+* Máscaras: `maskClip()` recorta as trilhas do clipe pelos ossos do grupo
+  (`lower`, `upper`, `head`), então a camada só escreve nos ossos dela.
+* O arquivo do personagem **não está no pacote**: nenhum rigged de licença
+  compatível aparece no repositório/histórico. Basta copiar o `.glb` para o
+  caminho acima — se faltar, a partida continua no rig procedural.
+* O que foi testado e **não** ficou como padrão: retarget de mocap para o rig
+  procedural (torção nos braços, porque o Mixamo nasce em T-pose e nosso rig
+  não tem coluna) e o boneco Xbot do Mixamo (malha de teste, sem identidade).
 
 ### Nomenclatura de assets
 

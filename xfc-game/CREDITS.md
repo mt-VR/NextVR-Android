@@ -8,7 +8,8 @@ pastas também têm créditos detalhados por tipo (`assets/crests/CREDITS.md`,
 
 | Recurso | Versão | Licença | Onde |
 | --- | --- | --- | --- |
-| three.js | 0.160.0 (pacote npm) | MIT | `vendor/three.module.js` |
+| three.js | 0.160.0 (pacote npm) | MIT | `vendor/three.module.min.js` |
+| GLTFLoader, SkeletonUtils, BufferGeometryUtils (three.js) | 0.160.0 | MIT | `vendor/GLTFLoader.js`, `vendor/SkeletonUtils.js`, `vendor/BufferGeometryUtils.js` |
 | Inter (fonte) | — | SIL Open Font License 1.1 | `assets/fonts/*.woff2` |
 
 ## Arte das competições (v0.5.9)
@@ -36,6 +37,34 @@ arquivo de áudio de terceiros é usado.
 
 ## Modelos 3D
 
-O elenco é gerado por código (`src/match3d/player.js`) — não há modelo externo
-rigged no pacote. Quando um `.glb` de terceiros for adicionado, ele deve entrar
-aqui com autor, licença e URL **antes** do merge.
+O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que carrega
+uniforme, escudo, número e retrato.
+
+O jogo também sabe carregar um personagem glTF externo
+(`assets/players/models/footballer.glb`, ligado por `?models=glb`). O arquivo
+**não está no pacote** porque nenhum modelo rigged de licença compatível foi
+encontrado no repositório: basta copiar o `.glb` para esse caminho e a partida
+passa a usá-lo (`src/match3d/models.js`).
+
+### Animações (Mixamo)
+
+Biblioteca de clipes mocap em glTF, um clipe por arquivo, esqueleto
+`mixamorig:*`, usada pelo caminho glTF:
+
+| Pasta | Clipe | Origem |
+| --- | --- | --- |
+| `assets/animations/idle` | Soccer Idle | Mixamo (Adobe), via `MisterYI/deevid-mixamo-assets` |
+| `assets/animations/jog` | Jogging | idem |
+| `assets/animations/run` | Sprint | idem |
+| `assets/animations/kick` | Soccer Penalty Kick | idem |
+| `assets/animations/header` | Soccer Header | idem |
+| `assets/animations/tackle` | Soccer Tackle | idem |
+| `assets/animations/celebrate` | Cheering | idem |
+| `assets/animations/dive` | Goalkeeper Diving Save | idem |
+| `assets/animations/keeper-idle` | Goalkeeper Idle | idem |
+| `assets/animations/throw-in` | Throw In | idem |
+
+Licença: as animações vêm do Mixamo (Adobe), cujo uso em projetos é permitido
+pela licença Mixamo; não redistribua os arquivos fora do aplicativo. A licença
+do Mixamo não permite revender os assets "como estão" — dentro do XFC eles são
+usados apenas para animar o jogo.
