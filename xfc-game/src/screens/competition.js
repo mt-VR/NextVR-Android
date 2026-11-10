@@ -1,14 +1,17 @@
 // Menus das competições do XFC: UEFA Champions League, Copa América,
 // Libertadores e Copa do Mundo.
 //
-// Cada competição tem identidade própria (cores, troféu, iluminação do
-// estádio) e um menu lateral funcional: jogar, clubes/seleções, calendário,
-// classificação, fase de grupos, mata-mata, artilharia e final. As telas são
-// geradas a partir do mesmo motor de torneio (`data/tournament.js`), então
-// todas as opções mostram dados reais do campeonato — nada de imagem estática.
+// A tela segue o layout das referências enviadas: arte de fundo com o troféu,
+// menu lateral com ícones, carteira no topo e a faixa inferior com a próxima
+// partida, a fase atual e o destaque de cada campeonato. Tudo que a pessoa
+// aperta é DOM de verdade (botões com foco, hover e aria-pressed); só o
+// estádio, o troféu e o emblema ficam na imagem.
+//
+// As telas internas (jogar, calendário, classificação, grupos, mata-mata,
+// artilharia e final) continuam sendo geradas por `data/tournament.js`, então
+// cada opção mostra dados reais do campeonato.
 
 import { el, svg } from '../ui/dom.js';
-import { xfcWordmark } from '../ui/brand.js';
 import { flagSvg } from '../ui/flags.js';
 import { kitsOf, kitSvg } from '../data/kits.js';
 import { saveProfile } from '../state.js';
@@ -18,7 +21,6 @@ import {
   getCompetition,
   competitionTeams,
   competitionTeam,
-  startingEleven,
   createTournament,
   isTournamentValid,
   tournamentBracket,
@@ -32,24 +34,233 @@ import {
   knockoutName
 } from '../data/tournament.js';
 
-const MENU_BASE = [
-  { id: 'play', label: 'Jogar Partida', mark: '▶' },
-  { id: 'entity', label: 'Clubes', mark: '◉' },
-  { id: 'calendar', label: 'Calendário', mark: '▤' },
-  { id: 'standings', label: 'Classificação', mark: '▥' },
-  { id: 'groups', label: 'Fase de Grupos', mark: '⁙' },
-  { id: 'knockout', label: 'Mata-Mata', mark: '⑃' },
-  { id: 'scorers', label: 'Artilharia', mark: '◈' },
-  { id: 'final', label: 'Final', mark: '♛' }
-];
+/* --------------------------------------------------------------- ícones --- */
 
-function menuFor(competition) {
-  // A Champions não tem entrada de clubes no menu de referência: a escolha do
-  // time acontece dentro de "Jogar Partida".
-  return MENU_BASE
-    .filter(item => item.id !== 'entity' || competition.id !== 'uefa-champions-league')
-    .map(item => item.id === 'entity' ? { ...item, label: competition.entityLabel } : item);
+const ICONS = {
+  ball: `<circle cx="12" cy="12" r="9.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M12 6.9l4.2 3-1.6 5.1h-5.2L7.8 9.9z" fill="currentColor"/>
+    <path d="M12 2.9v4M3.4 9.4l4.4 1.4M20.6 9.4l-4.4 1.4M6.6 20.1l1.9-4.2M17.4 20.1l-1.9-4.2" stroke="currentColor" stroke-width="1.5"/>`,
+  trophy: `<path d="M6.2 3.4h11.6v5.2a5.8 5.8 0 0 1-11.6 0z" fill="currentColor"/>
+    <path d="M6.2 4.6H3.4v2.2a3.5 3.5 0 0 0 3.3 3.5M17.8 4.6h2.8v2.2a3.5 3.5 0 0 1-3.3 3.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <rect x="10.7" y="13.2" width="2.6" height="3.9" fill="currentColor"/>
+    <path d="M7.4 20.6h9.2l-1.1-3.5H8.5z" fill="currentColor"/>`,
+  cup: `<path d="M7.5 3.5h9v6.2a4.5 4.5 0 0 1-9 0z" fill="currentColor"/>
+    <path d="M7.5 5H4.9v1.9A3 3 0 0 0 7.6 9.8M16.5 5h2.6v1.9a3 3 0 0 1-2.7 2.9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M11.2 13.5h1.6v3.2h-1.6z" fill="currentColor"/>
+    <path d="M8.2 20.5h7.6l-1-3.2H9.2z" fill="currentColor"/>
+    <path d="M12 5.2l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z" fill="var(--comp-active-icon, #08172c)"/>`,
+  calendar: `<rect x="3.2" y="5.2" width="17.6" height="15.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M3.2 10h17.6" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M8 3.2v4M16 3.2v4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    <g fill="currentColor"><circle cx="7.6" cy="13.4" r="1.25"/><circle cx="12" cy="13.4" r="1.25"/><circle cx="16.4" cy="13.4" r="1.25"/><circle cx="7.6" cy="17.2" r="1.25"/><circle cx="12" cy="17.2" r="1.25"/></g>`,
+  chart: `<g fill="currentColor"><rect x="3.2" y="12.4" width="4" height="8.4" rx="1.1"/><rect x="10" y="6.6" width="4" height="14.2" rx="1.1"/><rect x="16.8" y="9.6" width="4" height="11.2" rx="1.1"/></g>`,
+  people: `<circle cx="9.3" cy="8.1" r="3.4" fill="currentColor"/>
+    <path d="M3.1 19.6c0-3.4 2.8-5.9 6.2-5.9s6.2 2.5 6.2 5.9z" fill="currentColor"/>
+    <circle cx="17.1" cy="9.4" r="2.6" fill="currentColor" opacity=".82"/>
+    <path d="M14.6 19.6c0-2.9 1.9-4.9 4.3-4.9s4.2 2 4.2 4.9z" fill="currentColor" opacity=".82"/>`,
+  bracket: `<g fill="currentColor"><rect x="2.6" y="3.4" width="6.4" height="4.2" rx="1.1"/><rect x="2.6" y="9.9" width="6.4" height="4.2" rx="1.1"/><rect x="2.6" y="16.4" width="6.4" height="4.2" rx="1.1"/><rect x="14.9" y="6.6" width="6.4" height="4.2" rx="1.1"/><rect x="14.9" y="13.2" width="6.4" height="4.2" rx="1.1"/></g>
+    <path d="M9 5.5h2.6v13.2H9M9 12.1h2.6M11.6 12.1h3.3M11.6 8.7h3.3M11.6 15.3h3.3" fill="none" stroke="currentColor" stroke-width="1.5"/>`,
+  boot: `<path d="M3.4 8.6h2.9l1.1 4.4h3.4c2.4 0 4.1.9 5.1 2.6l.7 1.2a1 1 0 0 1-.9 1.5H4.5a1.1 1.1 0 0 1-1.1-1.1z" fill="currentColor"/>
+    <path d="M6.3 8.6V5.4c0-.5.4-.8.9-.8h1.1c.5 0 .9.3.9.8v3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M12.2 13.2l1.5 1.4M14.9 15.1l1.6 1.1" stroke="var(--comp-active-icon, #08172c)" stroke-width="1.2" fill="none" opacity=".55"/>`,
+  back: `<path d="M15 4.2L7.2 12l7.8 7.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  gear: `<circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.9"/>
+    <path d="M18.9 14.6a1.5 1.5 0 0 0 .3 1.7l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.5 1.5 0 0 0-2.5 1.1v.3a1.9 1.9 0 1 1-3.8 0v-.2a1.5 1.5 0 0 0-2.6-1l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.5 1.5 0 0 0-1.1-2.5H3.6a1.9 1.9 0 1 1 0-3.8h.2a1.5 1.5 0 0 0 1-2.6l-.1-.1A1.9 1.9 0 1 1 7.4 4.8l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4V3.6a1.9 1.9 0 1 1 3.8 0v.2a1.5 1.5 0 0 0 2.5 1.1l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.5 1.5 0 0 0 1 2.6h.3a1.9 1.9 0 1 1 0 3.8h-.2a1.5 1.5 0 0 0-1.3.9z" fill="none" stroke="currentColor" stroke-width="1.55"/>`
+};
+
+const CHEVRON = `<path d="M9.2 4.4L16.4 12l-7.2 7.6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+function iconEl(name, className = 'comp__icon') {
+  return el('span', {
+    class: className,
+    'aria-hidden': 'true',
+    html: `<svg viewBox="0 0 24 24" focusable="false">${ICONS[name] || ICONS.ball}</svg>`
+  });
 }
+
+/* ------------------------------------------------------- carteira/topbar --- */
+
+const COIN = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <circle cx="12" cy="12" r="10" fill="#f6c945" stroke="#b8891b" stroke-width="1.2"/>
+  <circle cx="12" cy="12" r="7.1" fill="none" stroke="#c99a20" stroke-width="1.3"/>
+  <path d="M14.2 8.6c-2.6-.8-4.3.5-4.3 2.3 0 2.6 4 2.1 4 4 0 .9-.9 1.4-1.9 1.4-1 0-1.8-.4-2.2-1" fill="none" stroke="#8d5f0c" stroke-width="1.7" stroke-linecap="round"/>
+</svg>`;
+
+const GEM = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path d="M7.6 3.4h8.8l4.2 6.1L12 20.6 3.4 9.5z" fill="#2fe07c"/>
+  <path d="M7.6 3.4L6 9.5h12l-1.6-6.1z" fill="#6df2a6"/>
+  <path d="M12 20.6L6 9.5h12z" fill="#17b45f"/>
+</svg>`;
+
+/* --------------------------------------------------------------- layout --- */
+
+// Coordenadas em pixels do palco de 1280x720 (o mesmo das referências).
+const LAYOUT = {
+  'uefa-champions-league': {
+    menu: { x: 26, y: 112, w: 292, h: 380 },
+    deck: [
+      { x: 26, w: 475, kind: 'match', variant: 'wide' },
+      { x: 515, w: 212, kind: 'phase' },
+      { x: 730, w: 155, kind: 'rank' }
+    ],
+    phaseLabel: 'FASE ATUAL'
+  },
+  'copa-america': {
+    menu: { x: 26, y: 120, w: 292, h: 392 },
+    deck: [
+      { x: 26, w: 364, kind: 'match', variant: 'stack' },
+      { x: 401, w: 368, kind: 'phase' },
+      { x: 774, w: 412, kind: 'news' }
+    ],
+    phaseLabel: 'FASE ATUAL'
+  },
+  'conmebol-libertadores': {
+    menu: { x: 26, y: 125, w: 292, h: 347 },
+    deck: [
+      { x: 26, w: 381, kind: 'match', variant: 'stack' },
+      { x: 414, w: 355, kind: 'phase' },
+      { x: 774, w: 476, kind: 'news' }
+    ],
+    phaseLabel: 'FASE DE GRUPOS'
+  },
+  'world-cup': {
+    menu: { x: 26, y: 125, w: 292, h: 355 },
+    deck: [
+      { x: 26, w: 381, kind: 'match', variant: 'stack' },
+      { x: 414, w: 355, kind: 'phase' },
+      { x: 774, w: 476, kind: 'scorer' }
+    ],
+    phaseLabel: 'FASE DE GRUPOS'
+  }
+};
+
+const ART = {
+  'uefa-champions-league': 'assets/competitions/ucl.jpg',
+  'copa-america': 'assets/competitions/copa-america.jpg',
+  'conmebol-libertadores': 'assets/competitions/libertadores.jpg',
+  'world-cup': 'assets/competitions/world-cup.jpg'
+};
+
+const NEWS_ART = {
+  'copa-america': 'assets/competitions/copa-america-news.jpg',
+  'conmebol-libertadores': 'assets/competitions/libertadores-news.jpg',
+  'world-cup': 'assets/competitions/world-cup-news.jpg'
+};
+
+// Menus exatamente como nas referências de cada competição.
+const MENUS = {
+  'uefa-champions-league': [
+    { id: 'play', label: 'Jogar Partida', icon: 'ball' },
+    { id: 'calendar', label: 'Calendário', icon: 'calendar' },
+    { id: 'standings', label: 'Classificação', icon: 'trophy' },
+    { id: 'knockout', label: 'Mata-Mata', icon: 'bracket' },
+    { id: 'scorers', label: 'Estatísticas', icon: 'chart' },
+    { id: 'final', label: 'Final', icon: 'cup' }
+  ],
+  'copa-america': [
+    { id: 'play', label: 'Jogar Partida', icon: 'trophy' },
+    { id: 'entity', label: 'Seleções', icon: 'people' },
+    { id: 'calendar', label: 'Calendário', icon: 'calendar' },
+    { id: 'standings', label: 'Classificação', icon: 'chart' },
+    { id: 'groups', label: 'Fase de Grupos', icon: 'people' },
+    { id: 'knockout', label: 'Mata-Mata', icon: 'bracket' },
+    { id: 'scorers', label: 'Artilharia', icon: 'boot' },
+    { id: 'final', label: 'Final', icon: 'cup' }
+  ],
+  'conmebol-libertadores': [
+    { id: 'play', label: 'Jogar Partida', icon: 'trophy' },
+    { id: 'calendar', label: 'Calendário', icon: 'calendar' },
+    { id: 'standings', label: 'Classificação', icon: 'chart' },
+    { id: 'groups', label: 'Fase de Grupos', icon: 'people' },
+    { id: 'knockout', label: 'Mata-Mata', icon: 'bracket' },
+    { id: 'scorers', label: 'Artilharia', icon: 'boot' },
+    { id: 'final', label: 'Final', icon: 'cup' }
+  ],
+  'world-cup': [
+    { id: 'play', label: 'Jogar Partida', icon: 'trophy' },
+    { id: 'entity', label: 'Seleções', icon: 'people' },
+    { id: 'calendar', label: 'Calendário', icon: 'calendar' },
+    { id: 'standings', label: 'Classificação', icon: 'chart' },
+    { id: 'groups', label: 'Fase de Grupos', icon: 'people' },
+    { id: 'knockout', label: 'Mata-Mata', icon: 'bracket' },
+    { id: 'scorers', label: 'Artilharia', icon: 'boot' },
+    { id: 'final', label: 'Final', icon: 'cup' }
+  ]
+};
+
+const PANEL_IDS = new Set([
+  'home', 'play', 'entity', 'calendar', 'standings', 'groups', 'knockout', 'scorers', 'final'
+]);
+
+/* ------------------------------------------------------------- troféus --- */
+
+const TROPHIES = {
+  ucl: `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Champions League">
+    <defs>
+      <linearGradient id="uclSilver" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#c9d6e6"/>
+        <stop offset=".62" stop-color="#7f93ad"/><stop offset="1" stop-color="#e8f1fb"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="100" cy="286" rx="64" ry="12" fill="rgba(0,0,0,.45)"/>
+    <path d="M62 258h76l-6 22H68z" fill="#141a24"/>
+    <path d="M70 244h60v16H70z" fill="#232c3a"/>
+    <path d="M78 226h44l-4 20H82z" fill="url(#uclSilver)"/>
+    <path d="M84 150h32v78H84z" fill="url(#uclSilver)"/>
+    <path d="M46 78h108c0 52-18 80-54 80S46 130 46 78z" fill="url(#uclSilver)"/>
+    <circle cx="100" cy="112" r="26" fill="#0b1430" stroke="#dfe9f6" stroke-width="3"/>
+    <path d="M100 94l7 14 16 2-12 11 3 16-14-8-14 8 3-16-12-11 16-2z" fill="#ffffff"/>
+  </svg>`,
+  'copa-america': `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Copa América">
+    <defs>
+      <linearGradient id="caSilver" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".4" stop-color="#d8dee6"/>
+        <stop offset=".7" stop-color="#93a0af"/><stop offset="1" stop-color="#f2f6fa"/>
+      </linearGradient>
+      <linearGradient id="caWood" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#4a2d16"/><stop offset=".5" stop-color="#8a5b2c"/>
+        <stop offset="1" stop-color="#3a2210"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="100" cy="288" rx="62" ry="11" fill="rgba(0,0,0,.45)"/>
+    <path d="M40 248h120l-8 40H48z" fill="url(#caWood)"/>
+    <path d="M72 196h56l-6 44H78z" fill="url(#caSilver)"/>
+    <path d="M58 62h84c0 76-18 138-42 138S58 138 58 62z" fill="url(#caSilver)"/>
+  </svg>`,
+  libertadores: `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Libertadores">
+    <defs>
+      <linearGradient id="libGold" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffe9a8"/><stop offset=".35" stop-color="#e5b94e"/>
+        <stop offset=".7" stop-color="#a97b1c"/><stop offset="1" stop-color="#f7dc8c"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="100" cy="288" rx="66" ry="12" fill="rgba(0,0,0,.55)"/>
+    <path d="M40 244h120l-10 44H50z" fill="#3a2a0c"/>
+    <rect x="44" y="232" width="112" height="14" rx="4" fill="url(#libGold)"/>
+    <path d="M74 170h52l-4 62H78z" fill="url(#libGold)"/>
+    <path d="M54 60c22-10 70-10 92 0 6 40-4 96-46 108C58 156 48 100 54 60z" fill="url(#libGold)"/>
+    <circle cx="100" cy="96" r="22" fill="#2a1c06" stroke="#ffe9a8" stroke-width="2"/>
+  </svg>`,
+  'world-cup': `<svg viewBox="0 0 200 300" role="img" aria-label="Taça da Copa do Mundo">
+    <defs>
+      <linearGradient id="wcGold" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#fff2c0"/><stop offset=".3" stop-color="#f0c45a"/>
+        <stop offset=".62" stop-color="#b8862c"/><stop offset="1" stop-color="#ffe08a"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="100" cy="288" rx="56" ry="11" fill="rgba(0,0,0,.5)"/>
+    <path d="M58 250h84l-8 34H66z" fill="#2a0c12"/>
+    <rect x="58" y="240" width="84" height="12" rx="4" fill="url(#wcGold)"/>
+    <path d="M84 190h32l-2 52H86z" fill="url(#wcGold)"/>
+    <path d="M68 62c0 60 10 108 32 130 22-22 32-70 32-130-20-14-44-14-64 0z" fill="url(#wcGold)"/>
+  </svg>`
+};
+
+function trophySvg(competition, className = 'comp__trophy') {
+  return el('div', { class: className, 'aria-hidden': 'true', html: TROPHIES[competition.trophy] || TROPHIES.ucl });
+}
+
+/* ------------------------------------------------------------- ajudantes --- */
 
 function teamBadge(team, className = 'comp-badge') {
   if (team?.crest) return el('img', { class: className, src: team.crest, alt: `Escudo do ${team.name}` });
@@ -57,7 +268,7 @@ function teamBadge(team, className = 'comp-badge') {
     flagSvg(team?.flagCode || 'br'));
 }
 
-function teamName(teamId) {
+function competitionTeamName(teamId) {
   return competitionTeam(teamId)?.name || teamId;
 }
 
@@ -80,101 +291,25 @@ function storeTournament(ctx, tournament) {
   saveProfile(ctx.state);
 }
 
-/* ------------------------------------------------------------- troféus --- */
-
-const TROPHIES = {
-  ucl: `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Champions League">
-    <defs>
-      <linearGradient id="uclSilver" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#c9d6e6"/>
-        <stop offset=".62" stop-color="#7f93ad"/><stop offset="1" stop-color="#e8f1fb"/>
-      </linearGradient>
-    </defs>
-    <ellipse cx="100" cy="286" rx="64" ry="12" fill="rgba(0,0,0,.45)"/>
-    <path d="M62 258h76l-6 22H68z" fill="#141a24"/>
-    <path d="M70 244h60v16H70z" fill="#232c3a"/>
-    <path d="M78 226h44l-4 20H82z" fill="url(#uclSilver)"/>
-    <path d="M84 150h32v78H84z" fill="url(#uclSilver)"/>
-    <path d="M46 78h108c0 52-18 80-54 80S46 130 46 78z" fill="url(#uclSilver)"/>
-    <path d="M46 78c-18 0-26 10-26 24s10 24 24 24c8 0 12-4 12-10 0-4-4-6-8-6-6 0-10-4-10-10 0-8 6-12 14-12z" fill="url(#uclSilver)"/>
-    <path d="M154 78c18 0 26 10 26 24s-10 24-24 24c-8 0-12-4-12-10 0-4 4-6 8-6 6 0 10-4 10-10 0-8-6-12-14-12z" fill="url(#uclSilver)"/>
-    <circle cx="100" cy="112" r="26" fill="#0b1430" stroke="#dfe9f6" stroke-width="3"/>
-    <path d="M100 94l7 14 16 2-12 11 3 16-14-8-14 8 3-16-12-11 16-2z" fill="#ffffff"/>
-  </svg>`,
-  'copa-america': `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Copa América">
-    <defs>
-      <linearGradient id="caSilver" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ffffff"/><stop offset=".4" stop-color="#d8dee6"/>
-        <stop offset=".7" stop-color="#93a0af"/><stop offset="1" stop-color="#f2f6fa"/>
-      </linearGradient>
-      <linearGradient id="caWood" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#4a2d16"/><stop offset=".5" stop-color="#8a5b2c"/>
-        <stop offset="1" stop-color="#3a2210"/>
-      </linearGradient>
-    </defs>
-    <ellipse cx="100" cy="288" rx="62" ry="11" fill="rgba(0,0,0,.45)"/>
-    <path d="M40 248h120l-8 40H48z" fill="url(#caWood)"/>
-    <rect x="46" y="238" width="108" height="14" rx="4" fill="#2c1a0c"/>
-    <path d="M72 196h56l-6 44H78z" fill="url(#caSilver)"/>
-    <path d="M58 62h84c0 76-18 138-42 138S58 138 58 62z" fill="url(#caSilver)"/>
-    <path d="M58 62c-14 4-20 18-16 30 4 12 14 16 22 10l8-14z" fill="url(#caSilver)"/>
-    <path d="M142 62c14 4 20 18 16 30-4 12-14 16-22 10l-8-14z" fill="url(#caSilver)"/>
-    <path d="M52 70h96" stroke="#ffffff" stroke-width="3" opacity=".7"/>
-    <path d="M66 122h68M70 150h60" stroke="#8e9aa8" stroke-width="2" opacity=".8"/>
-    <circle cx="100" cy="96" r="18" fill="none" stroke="#ffffff" stroke-width="2.5" opacity=".85"/>
-    <path d="M94 96l4 6 8-12" fill="none" stroke="#ffffff" stroke-width="3"/>
-  </svg>`,
-  libertadores: `<svg viewBox="0 0 200 300" role="img" aria-label="Troféu da Libertadores">
-    <defs>
-      <linearGradient id="libGold" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ffe9a8"/><stop offset=".35" stop-color="#e5b94e"/>
-        <stop offset=".7" stop-color="#a97b1c"/><stop offset="1" stop-color="#f7dc8c"/>
-      </linearGradient>
-    </defs>
-    <ellipse cx="100" cy="288" rx="66" ry="12" fill="rgba(0,0,0,.55)"/>
-    <path d="M40 244h120l-10 44H50z" fill="#3a2a0c"/>
-    <rect x="44" y="232" width="112" height="14" rx="4" fill="url(#libGold)"/>
-    <path d="M74 170h52l-4 62H78z" fill="url(#libGold)"/>
-    <path d="M54 60c22-10 70-10 92 0 6 40-4 96-46 108C58 156 48 100 54 60z" fill="url(#libGold)"/>
-    <path d="M54 62c-16 2-24 16-20 30 4 12 16 16 24 8l6-18z" fill="url(#libGold)"/>
-    <path d="M146 62c16 2 24 16 20 30-4 12-16 16-24 8l-6-18z" fill="url(#libGold)"/>
-    <circle cx="100" cy="96" r="22" fill="#2a1c06" stroke="#ffe9a8" stroke-width="2"/>
-    <path d="M100 80l5 11 12 2-9 9 2 12-10-6-10 6 2-12-9-9 12-2z" fill="#ffe9a8"/>
-    <path d="M72 176h56" stroke="#7a5410" stroke-width="3" opacity=".8"/>
-  </svg>`,
-  'world-cup': `<svg viewBox="0 0 200 300" role="img" aria-label="Taça da Copa do Mundo">
-    <defs>
-      <linearGradient id="wcGold" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#fff2c0"/><stop offset=".3" stop-color="#f0c45a"/>
-        <stop offset=".62" stop-color="#b8862c"/><stop offset="1" stop-color="#ffe08a"/>
-      </linearGradient>
-    </defs>
-    <ellipse cx="100" cy="288" rx="56" ry="11" fill="rgba(0,0,0,.5)"/>
-    <path d="M58 250h84l-8 34H66z" fill="#2a0c12"/>
-    <rect x="58" y="240" width="84" height="12" rx="4" fill="url(#wcGold)"/>
-    <path d="M84 190h32l-2 52H86z" fill="url(#wcGold)"/>
-    <path d="M68 62c0 60 10 108 32 130 22-22 32-70 32-130-20-14-44-14-64 0z" fill="url(#wcGold)"/>
-    <path d="M68 62c-14 8-18 40-6 66 8 18 18 26 26 28l-4-42z" fill="url(#wcGold)"/>
-    <path d="M132 62c14 8 18 40 6 66-8 18-18 26-26 28l4-42z" fill="url(#wcGold)"/>
-    <circle cx="100" cy="76" r="20" fill="none" stroke="#fff6d0" stroke-width="3" opacity=".8"/>
-    <path d="M88 76a12 12 0 0 0 24 0" fill="none" stroke="#fff6d0" stroke-width="3" opacity=".8"/>
-  </svg>`
-};
-
-function trophySvg(competition, className = 'comp__trophy') {
-  return el('div', { class: className, 'aria-hidden': 'true', html: TROPHIES[competition.trophy] || TROPHIES.ucl });
+function formatNumber(value) {
+  const number = Math.max(0, Math.round(Number(value) || 0));
+  try {
+    return new Intl.NumberFormat('pt-BR').format(number);
+  } catch {
+    return String(number);
+  }
 }
 
 /* --------------------------------------------------------------- tela --- */
 
 export function competitionScreen(ctx, params = {}) {
   const competition = getCompetition(params.competitionId);
+  const layout = LAYOUT[competition.id] || LAYOUT['uefa-champions-league'];
+  const menuItems = MENUS[competition.id] || MENUS['uefa-champions-league'];
   const returnTo = params.returnTo || 'modes';
   const stadium = STADIUMS[competition.stadiumIndex] || STADIUMS[0];
-  let panel = params.panel && MENU_BASE.some(item => item.id === params.panel)
-    ? params.panel
-    : 'home';
-  if (params.panel === 'entity' && competition.id === 'uefa-champions-league') panel = 'play';
+  const baseURI = globalThis.document?.baseURI || 'about:blank';
+  let panel = PANEL_IDS.has(params.panel) ? params.panel : 'home';
   let tournament = tournamentOf(ctx, competition.id);
   if (tournament) simulateRound(tournament, { random: Math.random });
 
@@ -182,59 +317,82 @@ export function competitionScreen(ctx, params = {}) {
     class: `screen screen--competition theme--${competition.theme}`,
     dataset: { competition: competition.id }
   });
-  // A foto do estádio é usada dentro do CSS: o caminho precisa ser absoluto,
-  // senão o navegador resolve o relativo a partir da folha de estilo.
-  const photoUrl = new URL(stadium.file, globalThis.document?.baseURI || 'about:blank').href;
-  root.style.setProperty('--comp-photo', `url("${photoUrl}")`);
+  root.style.setProperty('--comp-art', `url("${new URL(ART[competition.id], baseURI).href}")`);
+  if (NEWS_ART[competition.id]) {
+    root.style.setProperty('--comp-news', `url("${new URL(NEWS_ART[competition.id], baseURI).href}")`);
+  }
 
-  const header = el('header', { class: 'comp__topbar' },
-    el('button', {
-      class: 'comp__back',
-      type: 'button',
-      'aria-label': returnTo === 'menu' ? 'Voltar ao menu principal' : 'Voltar aos modos',
-      onClick: () => ctx.go(returnTo)
-    }, svg('<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>')),
-    el('span', { class: 'comp__wordmark', html: xfcWordmark({ title: 'XFC' }) }),
-    el('span', { class: 'comp__topbar-divider' }),
-    el('span', { class: 'comp__topbar-mark', text: competition.mark }),
-    el('span', { class: 'comp__topbar-name', text: competition.name }),
-    el('button', {
-      class: 'comp__home',
-      type: 'button',
-      title: 'Voltar ao menu principal do XFC',
-      onClick: () => ctx.go('menu')
-    }, el('span', { 'aria-hidden': 'true', text: '⌂' }), el('span', { text: 'VOLTAR AO INÍCIO' }))
-  );
+  const artboard = el('div', { class: 'comp__artboard' });
+  const art = el('div', { class: 'comp__art', 'aria-hidden': 'true' });
+  // Em telas mais largas que 16:9 a arte continua para os lados como um
+  // espelho desfocado da própria borda, sem emenda visível.
+  const mirrorLeft = el('div', { class: 'comp__mirror comp__mirror--left', 'aria-hidden': 'true' });
+  const mirrorRight = el('div', { class: 'comp__mirror comp__mirror--right', 'aria-hidden': 'true' });
 
+  // O logo do XFC volta para o menu principal; fica sobre a arte, com foco
+  // visível para quem navega pelo teclado.
+  const brand = el('button', {
+    class: 'comp__home',
+    type: 'button',
+    title: 'Voltar ao menu principal do XFC',
+    'aria-label': 'Voltar ao menu principal do XFC',
+    onClick: () => ctx.go('menu')
+  });
+
+  const wallet = el('div', { class: 'comp__wallet', 'aria-label': 'Carteira e nível' });
   const menu = el('nav', { class: 'comp__menu', 'aria-label': `Menu da ${competition.name}` });
-  const stage = el('main', { class: 'comp__stage' });
-  const footer = el('footer', { class: 'comp__footer' });
+  menu.style.setProperty('--comp-menu-x', `${layout.menu.x}px`);
+  menu.style.setProperty('--comp-menu-y', `${layout.menu.y}px`);
+  menu.style.setProperty('--comp-menu-w', `${layout.menu.w}px`);
+  menu.style.setProperty('--comp-menu-h', `${layout.menu.h}px`);
 
-  root.append(
-    el('div', { class: 'comp__bg', 'aria-hidden': 'true' }),
-    el('div', { class: 'comp__glow', 'aria-hidden': 'true' }),
-    header,
-    el('div', { class: 'comp__body' }, menu, stage),
-    footer
-  );
+  const stage = el('main', { class: 'comp__stage' });
+  const deck = el('div', { class: 'comp__deck', 'aria-label': 'Resumo da competição' });
+  const hints = el('div', { class: 'comp__hints' });
+
+  artboard.append(mirrorLeft, mirrorRight, art, brand, wallet, menu, stage, deck, hints);
+  root.append(el('div', { class: 'comp__ambient', 'aria-hidden': 'true' }), artboard);
+
+  function paintWallet() {
+    const profile = ctx.state.profile;
+    const gems = Number(profile.gems ?? 1250);
+    const level = Number(profile.level ?? 6);
+    wallet.replaceChildren(
+      el('span', { class: 'comp__wallet-item', title: 'Moedas' },
+        el('span', { class: 'comp__wallet-icon', html: COIN }),
+        el('b', { class: 'comp__wallet-value', text: formatNumber(profile.coins ?? 1250) })
+      ),
+      el('span', { class: 'comp__wallet-item', title: 'Gemas' },
+        el('span', { class: 'comp__wallet-icon', html: GEM }),
+        el('b', { class: 'comp__wallet-value', text: formatNumber(gems) })
+      ),
+      el('span', { class: 'comp__wallet-level', title: `Nível ${level}`, text: String(level) }),
+      el('button', {
+        class: 'comp__gear',
+        type: 'button',
+        'aria-label': 'Configurações',
+        title: 'Configurações',
+        onClick: () => ctx.go('customise')
+      }, iconEl('gear', 'comp__gear-icon'))
+    );
+  }
 
   function paintMenu() {
-    const items = menuFor(competition);
-    // No palco inicial (herói), "Jogar Partida" fica destacado como na
-    // referência de cada competição.
     const activePanel = panel === 'home' ? 'play' : panel;
+    const items = menuItems.map(item => el('button', {
+      class: `comp__menu-item${activePanel === item.id ? ' is-active' : ''}`,
+      type: 'button',
+      dataset: { panel: item.id },
+      'aria-pressed': activePanel === item.id ? 'true' : 'false',
+      onClick: () => show(item.id === panel ? 'home' : item.id)
+    },
+      iconEl(item.icon),
+      el('span', { class: 'comp__menu-label', text: item.label }),
+      el('span', { class: 'comp__menu-chevron', 'aria-hidden': 'true', html: `<svg viewBox="0 0 24 24">${CHEVRON}</svg>` })
+    ));
+
     menu.replaceChildren(
-      ...items.map(item => el('button', {
-        class: `comp__menu-item${activePanel === item.id ? ' is-active' : ''}`,
-        type: 'button',
-        dataset: { panel: item.id },
-        'aria-pressed': activePanel === item.id ? 'true' : 'false',
-        onClick: () => show(item.id)
-      },
-        el('span', { class: 'comp__menu-mark', 'aria-hidden': 'true', text: item.mark }),
-        el('span', { class: 'comp__menu-label', text: item.label }),
-        el('span', { class: 'comp__menu-chevron', 'aria-hidden': 'true', text: '›' })
-      )),
+      ...items,
       el('span', { class: 'comp__menu-rule', 'aria-hidden': 'true' }),
       el('button', {
         class: 'comp__menu-item comp__menu-item--back',
@@ -242,7 +400,7 @@ export function competitionScreen(ctx, params = {}) {
         dataset: { panel: 'back' },
         onClick: () => ctx.go(returnTo)
       },
-        el('span', { class: 'comp__menu-mark', 'aria-hidden': 'true', text: '‹' }),
+        iconEl('back'),
         el('span', { class: 'comp__menu-label', text: returnTo === 'menu' ? 'Voltar ao Menu' : 'Voltar aos Modos' })
       )
     );
@@ -252,51 +410,165 @@ export function competitionScreen(ctx, params = {}) {
     panel = next;
     paintMenu();
     paintStage();
+    paintDeck();
     stage.scrollTop = 0;
   }
 
-  /* ---------------------------------------------------------- rodapé --- */
+  /* ---------------------------------------------------------- carteira --- */
 
-  function paintFooter() {
+  function userGroupPosition() {
+    if (!tournament) return null;
+    const tables = allGroupTables(tournament);
+    for (const { table } of tables) {
+      const index = table.findIndex(entry => entry.id === tournament.userTeamId);
+      if (index >= 0) return { position: index + 1, group: table };
+    }
+    return null;
+  }
+
+  function remainingFixtures() {
+    if (!tournament) return 0;
+    return tournament.fixtures.filter(fixture => !fixture.played
+      && (fixture.home === tournament.userTeamId || fixture.away === tournament.userTeamId)).length;
+  }
+
+  function lastResult() {
+    if (!tournament) return null;
+    const played = tournament.fixtures
+      .filter(fixture => fixture.played
+        && (fixture.home === tournament.userTeamId || fixture.away === tournament.userTeamId)
+        && fixture.home && fixture.away);
+    return played.length ? played[played.length - 1] : null;
+  }
+
+  function matchCard() {
     const upcoming = tournament ? nextTournamentFixture(tournament) : null;
-    const status = tournamentStatus(tournament);
-    const scorers = tournament ? tournamentScorers(tournament, 1) : [];
-    const topScorer = scorers[0];
-
-    const nextCard = upcoming
-      ? el('div', { class: 'comp__footer-match' },
-        el('span', { class: 'comp__footer-label', text: 'PRÓXIMA PARTIDA' }),
-        el('div', { class: 'comp__footer-teams' },
-          teamBadge(competitionTeam(upcoming.home), 'comp__footer-crest'),
-          el('b', { class: 'comp__footer-name', text: shortName(upcoming.home) }),
-          el('span', { class: 'comp__footer-vs', text: '×' }),
-          el('b', { class: 'comp__footer-name', text: shortName(upcoming.away) }),
-          teamBadge(competitionTeam(upcoming.away), 'comp__footer-crest')
-        ),
-        el('span', { class: 'comp__footer-meta', text: stageLabel(upcoming.stage) })
-      )
-      : el('div', { class: 'comp__footer-match' },
-        el('span', { class: 'comp__footer-label', text: 'PRÓXIMA PARTIDA' }),
-        el('b', { class: 'comp__footer-name', text: tournament ? status.label : 'Escolha seu time' }),
-        el('span', { class: 'comp__footer-meta', text: tournament ? status.detail : 'A fase de grupos começa no sorteio.' })
+    const wide = layout.deck[0].variant === 'wide';
+    if (!upcoming) {
+      return el('article', { class: 'comp__card comp__card--match' },
+        el('span', { class: 'comp__card-label', text: 'PRÓXIMA PARTIDA' }),
+        el('div', { class: 'comp__card-empty' },
+          el('b', { text: tournament ? tournamentStatus(tournament).label : 'Escolha o seu time' }),
+          el('span', { text: tournament ? tournamentStatus(tournament).detail : 'O sorteio cria grupos, calendário e mata-mata.' })
+        )
       );
-
-    footer.replaceChildren(
-      nextCard,
-      el('div', { class: 'comp__footer-phase' },
-        el('span', { class: 'comp__footer-label', text: 'FASE ATUAL' }),
-        el('b', { class: 'comp__footer-value', text: status.label }),
-        el('span', { class: 'comp__footer-meta', text: status.detail })
+    }
+    const meta = el('div', { class: `comp__card-meta${wide ? ' comp__card-meta--side' : ''}` },
+      el('span', { class: 'comp__card-meta-row' },
+        el('span', { class: 'comp__card-meta-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="10" ry="7" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 5v14M4.2 8.6c4.6 2.2 11.6 2.2 15.6 0M4.2 15.4c4.6-2.2 11.6-2.2 15.6 0" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>' }),
+        el('span', { text: stadium.name })
       ),
-      el('div', { class: 'comp__footer-scorer' },
-        el('span', { class: 'comp__footer-label', text: 'ARTILHARIA' }),
-        topScorer
-          ? el('div', { class: 'comp__footer-scorer-row' },
-            teamBadge(competitionTeam(topScorer.teamId), 'comp__footer-crest'),
-            el('b', { class: 'comp__footer-name', text: topScorer.name }),
-            el('b', { class: 'comp__footer-goals', text: `${topScorer.goals} GOL${topScorer.goals > 1 ? 'S' : ''}` })
+      el('span', { class: 'comp__card-meta-row' },
+        el('span', { class: 'comp__card-meta-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="5.4" width="17.2" height="15" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.4 10h17.2M8 3.4v4M16 3.4v4" stroke="currentColor" stroke-width="1.8"/></svg>' }),
+        el('span', { text: stageLabel(upcoming.stage) })
+      )
+    );
+    return el('article', { class: `comp__card comp__card--match comp__card--${wide ? 'wide' : 'stack'}` },
+      el('span', { class: 'comp__card-label', text: 'PRÓXIMA PARTIDA' }),
+      el('div', { class: 'comp__card-body' },
+        el('div', { class: 'comp__card-teams' },
+          el('div', { class: 'comp__card-side' },
+            teamBadge(competitionTeam(upcoming.home), 'comp__card-crest'),
+            el('b', { class: 'comp__card-team', text: shortName(upcoming.home) })
+          ),
+          el('span', { class: 'comp__card-x', text: 'X' }),
+          el('div', { class: 'comp__card-side' },
+            teamBadge(competitionTeam(upcoming.away), 'comp__card-crest'),
+            el('b', { class: 'comp__card-team', text: shortName(upcoming.away) })
           )
-          : el('span', { class: 'comp__footer-meta', text: 'Sem gols registrados ainda.' })
+        ),
+        meta
+      )
+    );
+  }
+
+  function phaseCard() {
+    const status = tournamentStatus(tournament);
+    const plain = competition.theme === 'ucl';
+    const position = userGroupPosition();
+    const value = position ? `GRUPO ${tournament.groups
+      ? Object.keys(tournament.groups).find(key => tournament.groups[key].includes(tournament.userTeamId))
+      : ''}` : status.label;
+    const remaining = remainingFixtures();
+    return el('article', { class: `comp__card comp__card--phase${plain ? ' comp__card--plain' : ''}` },
+      el('span', { class: 'comp__card-label', text: layout.phaseLabel }),
+      el('div', { class: 'comp__card-phase' },
+        !plain && el('span', { class: 'comp__card-emblem', 'aria-hidden': 'true', html: TROPHIES[competition.trophy] || TROPHIES.ucl }),
+        el('div', { class: 'comp__card-phase-copy' },
+          el('b', { class: 'comp__card-phase-title', text: position ? value : (tournament ? value : 'FASE DE GRUPOS') }),
+          el('span', { class: 'comp__card-phase-meta', text: `JOGOS RESTANTES: ${remaining}` })
+        )
+      )
+    );
+  }
+
+  function rankCard() {
+    const position = userGroupPosition();
+    return el('article', { class: 'comp__card comp__card--rank' },
+      el('span', { class: 'comp__card-label', text: 'CLASSIFICAÇÃO' }),
+      el('div', { class: 'comp__card-rank' },
+        el('span', { class: 'comp__card-rank-icon', 'aria-hidden': 'true', html: ICONS.trophy }),
+        el('b', { class: 'comp__card-rank-value', text: position ? `${position.position}º` : '—' })
+      )
+    );
+  }
+
+  function newsCard() {
+    const result = lastResult();
+    const text = result
+      ? `${shortName(result.home)} ${result.homeGoals}×${result.awayGoals} ${shortName(result.away)}`
+      : `O sorteio da ${competition.shortName} está pronto.`;
+    return el('article', { class: 'comp__card comp__card--news' },
+      el('span', { class: 'comp__card-label', text: 'ÚLTIMAS NOTÍCIAS' }),
+      el('div', { class: 'comp__card-news-copy' },
+        el('p', { text: result ? `Placar da última rodada: ${text}.` : text })
+      )
+    );
+  }
+
+  function scorerCard() {
+    const scorers = tournament ? tournamentScorers(tournament, 1) : [];
+    const top = scorers[0];
+    return el('article', { class: 'comp__card comp__card--scorer' },
+      el('span', { class: 'comp__card-label', text: 'ARTILHARIA' }),
+      el('div', { class: 'comp__card-scorer' },
+        top
+          ? [
+            el('b', { class: 'comp__card-scorer-name', text: top.name }),
+            el('span', { class: 'comp__card-scorer-goals', text: `${top.goals} ${top.goals > 1 ? 'GOLS' : 'GOL'}` })
+          ]
+          : el('span', { class: 'comp__card-scorer-empty', text: 'Nenhum gol marcado ainda.' })
+      )
+    );
+  }
+
+  function paintDeck() {
+    const builders = { match: matchCard, phase: phaseCard, rank: rankCard, news: newsCard, scorer: scorerCard };
+    deck.replaceChildren(...layout.deck.map(slot => {
+      const card = builders[slot.kind]();
+      card.style.left = `${slot.x}px`;
+      card.style.width = `${slot.w}px`;
+      return card;
+    }));
+  }
+
+  function paintHints() {
+    hints.replaceChildren(
+      el('button', {
+        class: 'comp__hint',
+        type: 'button',
+        onClick: () => (panel === 'home' ? ctx.go(returnTo) : show('home'))
+      },
+        el('span', { class: 'comp__hint-key', text: '✕' }),
+        el('span', { text: panel === 'home' ? 'Voltar' : 'Início' })
+      ),
+      el('button', {
+        class: 'comp__hint',
+        type: 'button',
+        onClick: () => show('play')
+      },
+        el('span', { class: 'comp__hint-key', text: 'Ⓛ' }),
+        el('span', { text: 'Jogar' })
       )
     );
   }
@@ -304,7 +576,12 @@ export function competitionScreen(ctx, params = {}) {
   /* ----------------------------------------------------------- estágio --- */
 
   function paintStage() {
-    paintFooter();
+    const isHome = panel === 'home';
+    root.classList.toggle('is-panel', !isHome);
+    if (isHome) {
+      stage.replaceChildren();
+      return;
+    }
     if (panel === 'play' || panel === 'entity') {
       stage.replaceChildren(panel === 'entity' && tournament ? entitiesPanel() : playPanel());
       return;
@@ -319,7 +596,7 @@ export function competitionScreen(ctx, params = {}) {
     };
     const builder = builders[panel];
     if (!builder) {
-      stage.replaceChildren(heroPanel());
+      stage.replaceChildren();
       return;
     }
     if (!tournament && panel !== 'calendar') {
@@ -347,24 +624,20 @@ export function competitionScreen(ctx, params = {}) {
     );
   }
 
-  /* --------------------------------------------------------------- herói --- */
-
-  function heroPanel() {
-    return el('section', { class: 'comp__hero' },
-      el('div', { class: 'comp__hero-copy' },
-        el('span', { class: 'comp__hero-eyebrow', text: `${competition.name.toUpperCase()} · ${competition.year}` }),
-        el('h1', { class: 'comp__hero-title', text: competition.shortName }),
-        el('p', { class: 'comp__hero-tagline', text: competition.tagline }),
-        el('button', {
-          class: 'comp__hero-cta', type: 'button',
-          onClick: () => show('play')
-        }, tournament ? 'CONTINUAR CAMPANHA  →' : 'COMEÇAR CAMPEONATO  →')
-      ),
-      trophySvg(competition)
-    );
-  }
-
   /* ------------------------------------------------------- jogar partida --- */
+
+  function kitsFor(team) {
+    if (!team) return [];
+    if (team.kind === 'club') return kitsOf(team.id);
+    const colors = team.colors || {};
+    return [
+      { id: 'home', name: 'Home', pattern: 'solid', colors },
+      {
+        id: 'away', name: 'Away', pattern: 'solid',
+        colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim }
+      }
+    ];
+  }
 
   function playPanel() {
     if (!tournament) {
@@ -410,18 +683,18 @@ export function competitionScreen(ctx, params = {}) {
     );
 
     const fixture = upcoming;
-    const matchCard = fixture
+    const matchCardNode = fixture
       ? el('div', { class: 'comp__match' },
         el('span', { class: 'comp__match-stage', text: stageLabel(fixture.stage) }),
         el('div', { class: 'comp__match-row' },
           el('div', { class: 'comp__match-side' },
             teamBadge(competitionTeam(fixture.home), 'comp__match-crest'),
-            el('b', { text: competitionTeam(fixture.home).name })
+            el('b', { text: competitionTeamName(fixture.home) })
           ),
           el('span', { class: 'comp__match-vs', text: 'VS' }),
           el('div', { class: 'comp__match-side comp__match-side--away' },
             teamBadge(competitionTeam(fixture.away), 'comp__match-crest'),
-            el('b', { text: competitionTeam(fixture.away).name })
+            el('b', { text: competitionTeamName(fixture.away) })
           )
         ),
         el('button', {
@@ -466,7 +739,7 @@ export function competitionScreen(ctx, params = {}) {
     return el('section', { class: 'comp__panel comp__panel--play' },
       header,
       el('div', { class: 'comp__play-grid' },
-        matchCard,
+        matchCardNode,
         el('aside', { class: 'comp__side' },
           sectionTitle('Uniformes', 'Escolha a blusa da sua equipe'),
           kitPicker,
@@ -488,19 +761,6 @@ export function competitionScreen(ctx, params = {}) {
         )
       )
     );
-  }
-
-  function kitsFor(team) {
-    if (!team) return [];
-    if (team.kind === 'club') return kitsOf(team.id);
-    const colors = team.colors || {};
-    return [
-      { id: 'home', name: 'Home', pattern: 'solid', colors },
-      {
-        id: 'away', name: 'Away', pattern: 'solid',
-        colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim }
-      }
-    ];
   }
 
   /* --------------------------------------------------- escolha do time --- */
@@ -562,7 +822,7 @@ export function competitionScreen(ctx, params = {}) {
     );
   }
 
-  /* ---------------------------------------------------------- adversário --- */
+  /* ---------------------------------------------------------- participantes --- */
 
   function entitiesPanel() {
     const teams = competitionTeams(competition.id);
@@ -605,6 +865,15 @@ export function competitionScreen(ctx, params = {}) {
   /* ----------------------------------------------------------- calendário --- */
 
   function calendarPanel() {
+    if (!tournament) {
+      return el('section', { class: 'comp__panel comp__panel--calendar' },
+        sectionTitle('Calendário', `${competition.name} · ${competition.year}`),
+        el('div', { class: 'comp__empty comp__empty--inline' },
+          el('h3', { class: 'comp__empty-title', text: 'Nenhum jogo sorteado ainda' }),
+          el('p', { class: 'comp__empty-copy', text: 'Escolha o seu time em “Jogar Partida” para gerar as rodadas.' })
+        )
+      );
+    }
     const fixtures = [...tournament.fixtures]
       .sort((first, second) => stageOrder(first) - stageOrder(second)
         || (first.round || 0) - (second.round || 0));
@@ -624,7 +893,7 @@ export function competitionScreen(ctx, params = {}) {
             teamBadge(competitionTeam(fixture.home), 'comp__fixture-crest'),
             el('span', { text: shortName(fixture.home) }),
             el('b', { class: 'comp__fixture-score', text: fixture.played ? `${fixture.homeGoals} – ${fixture.awayGoals}` : 'VS' }),
-            el('span', { text: shortName(fixture.away) },),
+            el('span', { text: shortName(fixture.away) }),
             teamBadge(competitionTeam(fixture.away), 'comp__fixture-crest')
           ),
           el('span', { class: 'comp__fixture-status', text: fixtureStatus(fixture) })
@@ -755,7 +1024,8 @@ export function competitionScreen(ctx, params = {}) {
   function scorersPanel() {
     const scorers = tournamentScorers(tournament, 24);
     return el('section', { class: 'comp__panel comp__panel--scorers' },
-      sectionTitle('Artilharia', 'Gols marcados no campeonato'),
+      sectionTitle(panel === 'scorers' && competition.theme === 'ucl' ? 'Estatísticas' : 'Artilharia',
+        'Gols marcados no campeonato'),
       el('div', { class: 'comp__scorers' },
         ...scorers.map((entry, index) => el('div', {
           class: `comp__scorer${entry.teamId === tournament.userTeamId ? ' is-user' : ''}`
@@ -781,12 +1051,12 @@ export function competitionScreen(ctx, params = {}) {
         el('div', { class: 'comp__final-teams' },
           el('div', { class: 'comp__final-side' },
             teamBadge(competitionTeam(finalFixture.home), 'comp__final-crest'),
-            el('b', { text: competitionTeam(finalFixture.home).name })
+            el('b', { text: competitionTeamName(finalFixture.home) })
           ),
           el('b', { class: 'comp__final-score', text: finalFixture.played ? `${finalFixture.homeGoals} × ${finalFixture.awayGoals}` : 'VS' }),
           el('div', { class: 'comp__final-side' },
             teamBadge(competitionTeam(finalFixture.away), 'comp__final-crest'),
-            el('b', { text: competitionTeam(finalFixture.away).name })
+            el('b', { text: competitionTeamName(finalFixture.away) })
           )
         ),
         finalFixture.played && finalFixture.decidedBy === 'penalties'
@@ -876,20 +1146,26 @@ export function competitionScreen(ctx, params = {}) {
     show('play');
   }
 
+  paintWallet();
   paintMenu();
   paintStage();
+  paintDeck();
+  paintHints();
 
   return {
     node: root,
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
+        if (panel !== 'home') {
+          show('home');
+          return true;
+        }
         ctx.go(returnTo);
         return true;
       }
       return false;
     },
     mount() {
-      // A câmera do estádio escolhido já está aplicada no fundo via CSS.
       root.classList.add('is-ready');
     }
   };
@@ -897,7 +1173,7 @@ export function competitionScreen(ctx, params = {}) {
 
 /** Atalho usado pelos modos de jogo e pelo menu principal. */
 export function competitionMenuParams(competitionId, returnTo = 'modes') {
-  return { competitionId, returnTo, panel: 'play' };
+  return { competitionId, returnTo, panel: 'home' };
 }
 
 export const COMPETITION_IDS = COMPETITIONS.map(item => item.id);

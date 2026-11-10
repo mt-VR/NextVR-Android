@@ -11,6 +11,7 @@ const DEFAULT_PROFILE = {
   xp: 3000,
   xpMax: 3000,
   coins: 1250,
+  gems: 1250,
   matchesPlayed: 0,
   favourite: null,
   worldCupCampaign: null,

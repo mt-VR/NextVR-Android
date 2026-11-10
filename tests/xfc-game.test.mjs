@@ -767,8 +767,11 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.locator('.comp__team-card[data-team-id="argentina"]').click();
     await page.locator('.comp__selection-preview .comp__cta').click();
     await page.waitForSelector('.comp__match');
-    // A campanha clássica (Seasons) segue intacta a partir do menu principal.
+    // Escape volta do painel para o menu da competição e, de novo, para os modos.
     await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--competition[data-competition="world-cup"] .comp__deck');
+    await page.keyboard.press('Escape');
+    // A campanha clássica (Seasons) segue intacta a partir do menu principal.
     await page.waitForSelector('.screen--modes');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
@@ -841,8 +844,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
     await page.locator('.modes__cta').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
-    assert.equal(await page.locator('.comp__menu-item').count(), 8,
-      'a Champions abre o menu próprio, com sete opções e o voltar');
+    assert.equal(await page.locator('.comp__menu-item').count(), 7,
+      'a Champions abre o menu próprio, com seis opções e o voltar');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');
     await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
@@ -1951,7 +1954,7 @@ test('os menus das competições são próprios e todas as opções abrem telas 
       {
         option: 'uefa-champions-league',
         id: 'uefa-champions-league',
-        labels: ['Jogar Partida', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+        labels: ['Jogar Partida', 'Calendário', 'Classificação', 'Mata-Mata', 'Estatísticas', 'Final']
       },
       {
         option: 'copa-america',
@@ -1961,7 +1964,7 @@ test('os menus das competições são próprios e todas as opções abrem telas 
       {
         option: 'conmebol-libertadores',
         id: 'conmebol-libertadores',
-        labels: ['Jogar Partida', 'Clubes', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+        labels: ['Jogar Partida', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
       },
       {
         option: 'worldcup-2027',
@@ -1977,9 +1980,10 @@ test('os menus das competições são próprios e todas as opções abrem telas 
       const menuLabels = (await page.locator('.comp__menu-label').allTextContents()).map(text => text.trim());
       assert.deepEqual(menuLabels, [...labels, 'Voltar aos Modos'],
         `${id}: o menu mostra exatamente as opções próprias da competição`);
-      assert.equal(await page.locator(`.screen--competition[data-competition="${id}"] .comp__trophy svg`).count(), 1,
-        `${id}: o troféu da competição aparece no palco`);
-      assert.ok(await page.locator('.comp__footer-match').isVisible(), `${id}: o rodapé mostra a próxima partida`);
+      assert.equal(await page.locator(`.screen--competition[data-competition="${id}"] .comp__art`).count(), 1,
+        `${id}: a arte da competição (estádio e troféu) aparece no palco`);
+      assert.equal(await page.locator('.comp__card').count(), 3, `${id}: a faixa inferior mostra os três cartões`);
+      assert.ok(await page.locator('.comp__card--match').isVisible(), `${id}: o cartão da próxima partida aparece`);
       await page.locator('.comp__home').click();
       await page.waitForSelector('.screen--menu', { timeout: 15000 });
       assert.equal(await page.locator('.screen--worldcup').count(), 0,
@@ -2008,8 +2012,10 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     await page.locator('.comp__menu-item[data-panel="calendar"]').click();
     assert.ok(await page.locator('.comp__fixture').count() >= 18, 'o calendário lista toda a fase de grupos');
 
-    await page.locator('.comp__menu-item[data-panel="groups"]').click();
-    assert.equal(await page.locator('.comp__group').count(), 3, 'a fase de grupos mostra os três grupos');
+    // A Champions da referência não tem uma opção "Fase de Grupos": a tabela
+    // dos grupos já aparece em "Classificação".
+    assert.equal(await page.locator('.comp__menu-item[data-panel="groups"]').count(), 0,
+      'o menu da Champions segue a referência, sem a opção de fase de grupos');
 
     await page.locator('.comp__menu-item[data-panel="knockout"]').click();
     assert.equal(await page.locator('.comp__bracket').count(), 0, 'o mata-mata fica bloqueado antes da classificação');

@@ -1,412 +1,684 @@
 /* Menus das competições (Champions, Copa América, Libertadores e Copa do Mundo).
-   Cada campeonato troca as variáveis do tema; a estrutura é a mesma para os
-   quatro, então as telas internas continuam consistentes. */
+   A tela é desenhada num palco de 1280x720 — o mesmo formato das referências —
+   com a arte do estádio, o troféu e o emblema na imagem e todo o resto em DOM:
+   menu lateral, carteira, faixa inferior e as telas internas de cada opção. */
 
 .screen--competition {
   --comp-accent: #4db4ff;
-  --comp-accent-2: #0b2a6b;
-  --comp-glow: rgba(77, 180, 255, 0.5);
   --comp-ink: #eaf3ff;
   --comp-muted: rgba(224, 238, 255, 0.66);
-  --comp-panel: rgba(6, 16, 36, 0.78);
-  --comp-panel-strong: rgba(8, 20, 44, 0.92);
+  --comp-panel: rgba(6, 16, 36, 0.82);
   --comp-line: rgba(120, 180, 255, 0.26);
-  --comp-gold: #f4d47c;
+  --comp-card-border: rgba(72, 138, 255, 0.55);
+  --comp-card-label: #ffffff;
+  --comp-card-bg-a: rgba(6, 14, 32, 0.88);
+  --comp-card-bg-b: rgba(3, 8, 20, 0.95);
+  --comp-active-a: #1b5cff;
+  --comp-active-b: #0a2ec4;
+  --comp-active-border: rgba(168, 214, 255, 0.85);
+  --comp-active-glow: rgba(60, 132, 255, 0.55);
+  --comp-active-icon: #08172c;
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-rows: 62px minmax(0, 1fr) 104px;
-  gap: 10px;
-  padding: 12px 22px 14px;
-  color: var(--comp-ink);
   overflow: hidden;
+  background: #01050d;
+  color: var(--comp-ink);
   font-family: inherit;
-}
-
-.screen--competition.theme--ucl {
-  --comp-accent: #49b6ff;
-  --comp-accent-2: #0a2b74;
-  --comp-glow: rgba(73, 182, 255, 0.55);
-  --comp-panel: rgba(4, 12, 34, 0.8);
-  --comp-panel-strong: rgba(6, 18, 48, 0.94);
-  --comp-line: rgba(110, 176, 255, 0.28);
 }
 
 .screen--competition.theme--copa-america {
   --comp-accent: #f2c94c;
-  --comp-accent-2: #07255c;
-  --comp-glow: rgba(242, 201, 76, 0.45);
   --comp-ink: #f4f8ff;
   --comp-muted: rgba(226, 236, 255, 0.7);
-  --comp-panel: rgba(5, 18, 48, 0.8);
-  --comp-panel-strong: rgba(6, 22, 58, 0.94);
-  --comp-line: rgba(242, 201, 76, 0.28);
+  --comp-panel: rgba(5, 18, 48, 0.84);
+  --comp-line: rgba(242, 201, 76, 0.3);
+  --comp-card-border: rgba(242, 201, 76, 0.5);
+  --comp-card-label: #f3d99a;
+  --comp-card-bg-a: rgba(5, 16, 40, 0.9);
+  --comp-card-bg-b: rgba(3, 9, 24, 0.96);
 }
 
 .screen--competition.theme--libertadores {
   --comp-accent: #e7b850;
-  --comp-accent-2: #1b1408;
-  --comp-glow: rgba(231, 184, 80, 0.4);
   --comp-ink: #fbf3df;
   --comp-muted: rgba(244, 232, 205, 0.66);
-  --comp-panel: rgba(12, 10, 6, 0.82);
-  --comp-panel-strong: rgba(18, 14, 8, 0.94);
-  --comp-line: rgba(231, 184, 80, 0.28);
+  --comp-panel: rgba(12, 10, 6, 0.84);
+  --comp-line: rgba(231, 184, 80, 0.3);
+  --comp-card-border: rgba(231, 184, 80, 0.52);
+  --comp-card-label: #f0d79a;
+  --comp-card-bg-a: rgba(14, 11, 6, 0.9);
+  --comp-card-bg-b: rgba(6, 5, 3, 0.96);
+  --comp-active-a: #d8a63c;
+  --comp-active-b: #a2741a;
+  --comp-active-border: rgba(255, 232, 160, 0.95);
+  --comp-active-glow: rgba(240, 196, 106, 0.5);
+  --comp-active-icon: #2a1a05;
 }
 
 .screen--competition.theme--world-cup {
   --comp-accent: #f0c46a;
-  --comp-accent-2: #4a0a1c;
-  --comp-glow: rgba(240, 196, 106, 0.42);
   --comp-ink: #fdf1e6;
   --comp-muted: rgba(250, 226, 214, 0.7);
-  --comp-panel: rgba(46, 8, 20, 0.8);
-  --comp-panel-strong: rgba(60, 10, 26, 0.92);
-  --comp-line: rgba(240, 196, 106, 0.3);
+  --comp-panel: rgba(46, 8, 20, 0.84);
+  --comp-line: rgba(240, 196, 106, 0.32);
+  --comp-card-border: rgba(240, 196, 106, 0.55);
+  --comp-card-label: #f4d79a;
+  --comp-card-bg-a: rgba(40, 8, 18, 0.9);
+  --comp-card-bg-b: rgba(18, 3, 8, 0.96);
+  --comp-active-a: #d9a93e;
+  --comp-active-b: #a5761c;
+  --comp-active-border: rgba(255, 234, 168, 0.95);
+  --comp-active-glow: rgba(240, 196, 106, 0.5);
+  --comp-active-icon: #2a1a05;
 }
 
-.comp__bg,
-.comp__glow {
+/* ----------------------------------------------------- arte e palco --- */
+
+.comp__ambient {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-}
-
-.comp__bg {
-  background-image:
-    linear-gradient(180deg, rgba(2, 6, 18, 0.72) 0%, rgba(2, 6, 18, 0.42) 34%, rgba(2, 6, 18, 0.86) 100%),
-    var(--comp-photo);
-  background-size: cover;
-  background-position: center 42%;
-  filter: saturate(1.05);
-}
-
-.theme--copa-america .comp__bg {
-  background-image:
-    linear-gradient(180deg, rgba(2, 10, 30, 0.74) 0%, rgba(3, 16, 46, 0.44) 38%, rgba(2, 8, 24, 0.88) 100%),
-    var(--comp-photo);
-}
-
-.theme--libertadores .comp__bg {
-  background-image:
-    linear-gradient(180deg, rgba(6, 4, 2, 0.82) 0%, rgba(10, 8, 4, 0.52) 40%, rgba(4, 3, 2, 0.92) 100%),
-    var(--comp-photo);
-}
-
-.theme--world-cup .comp__bg {
-  background-image:
-    linear-gradient(180deg, rgba(40, 4, 14, 0.78) 0%, rgba(52, 8, 20, 0.46) 38%, rgba(20, 2, 8, 0.9) 100%),
-    var(--comp-photo);
-}
-
-.comp__glow {
   background:
-    radial-gradient(60% 60% at 76% 26%, var(--comp-glow) 0%, transparent 62%),
-    radial-gradient(50% 50% at 8% 82%, color-mix(in srgb, var(--comp-accent) 22%, transparent) 0%, transparent 66%);
-  opacity: 0.5;
-  mix-blend-mode: screen;
+    radial-gradient(90% 130% at 50% 38%, rgba(12, 30, 60, 0.55) 0%, rgba(1, 5, 13, 0.96) 62%),
+    #01050d;
+  z-index: 0;
 }
 
-/* --------------------------------------------------------------- topbar --- */
-
-.comp__topbar {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 6px;
+.comp__artboard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1280px;
+  height: 720px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 70px 16px rgba(0, 0, 0, 0.55);
+  z-index: 1;
 }
 
-.comp__back {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  border: 1px solid var(--comp-line);
-  background: rgba(6, 14, 30, 0.6);
-  color: var(--comp-ink);
-  cursor: pointer;
-  transition: background 160ms ease, transform 160ms ease;
-  -webkit-tap-highlight-color: transparent;
+.comp__mirror {
+  position: absolute;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  background-image: var(--comp-art);
+  background-size: 1280px 720px;
+  background-repeat: no-repeat;
+  filter: blur(7px) brightness(0.78) saturate(1.1);
+  pointer-events: none;
+  z-index: 0;
 }
 
-.comp__back:hover { background: rgba(255, 255, 255, 0.12); }
-.comp__back:active { transform: scale(0.94); }
-.comp__back svg { width: 20px; height: 20px; }
-
-.comp__wordmark { display: flex; align-items: center; }
-.comp__wordmark svg { height: 30px; width: auto; }
-
-.comp__topbar-divider {
-  width: 1px;
-  height: 30px;
-  background: var(--comp-line);
+.comp__mirror--left {
+  left: 0;
+  background-position: left center;
+  transform: scaleX(-1);
+  transform-origin: left center;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 26px, transparent 300px);
+  mask-image: linear-gradient(90deg, #000 0, #000 26px, transparent 300px);
 }
 
-.comp__topbar-mark {
-  font-size: 22px;
-  color: var(--comp-accent);
-  text-shadow: 0 0 18px var(--comp-glow);
+.comp__mirror--right {
+  right: 0;
+  background-position: right center;
+  transform: scaleX(-1);
+  transform-origin: right center;
+  -webkit-mask-image: linear-gradient(270deg, #000 0, #000 26px, transparent 300px);
+  mask-image: linear-gradient(270deg, #000 0, #000 26px, transparent 300px);
 }
 
-.comp__topbar-name {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--comp-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.comp__art {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background-image: var(--comp-art);
+  background-size: 100% 100%;
+  background-position: center;
+  transition: filter 220ms ease;
+  /* Nas telas mais largas que 16:9 a arte é emoldurada: a borda se dissolve no
+     fundo desfocado em vez de cortar a imagem. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
 
 .comp__home {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 999px;
-  border: 1px solid var(--comp-line);
-  background: rgba(4, 10, 24, 0.62);
-  color: var(--comp-ink);
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  position: absolute;
+  left: 26px;
+  top: 10px;
+  width: 196px;
+  height: 76px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease;
+  z-index: 5;
   -webkit-tap-highlight-color: transparent;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.comp__home:hover {
-  background: color-mix(in srgb, var(--comp-accent) 22%, rgba(4, 10, 24, 0.7));
-  border-color: var(--comp-accent);
+.comp__home:hover,
+.comp__home:focus-visible {
+  background: rgba(120, 180, 255, 0.1);
+  border-color: rgba(160, 205, 255, 0.45);
+  box-shadow: 0 0 22px rgba(60, 130, 255, 0.28);
+  outline: none;
 }
 
-/* ----------------------------------------------------------------- corpo --- */
+/* ----------------------------------------------------------- carteira --- */
 
-.comp__body {
-  position: relative;
-  z-index: 2;
+.comp__wallet {
+  position: absolute;
+  left: 944px;
+  top: 15px;
+  width: 322px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 8px;
+  border-radius: 13px;
+  background: rgba(2, 8, 20, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  z-index: 4;
+}
+
+.comp__wallet-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
+.comp__wallet-icon { display: flex; }
+.comp__wallet-icon svg { width: 22px; height: 22px; display: block; }
+
+.comp__wallet-value {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.comp__wallet-level {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
-  gap: 16px;
-  min-height: 0;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  background: radial-gradient(circle at 34% 24%, #63a8ff 0%, #1f63e0 45%, #0a2f9c 100%);
+  border: 1.5px solid rgba(196, 224, 255, 0.9);
+  box-shadow: 0 2px 10px rgba(10, 40, 120, 0.55);
 }
+
+.comp__gear {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.comp__gear:hover,
+.comp__gear:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+  outline: none;
+}
+
+.comp__gear:active { transform: scale(0.94); }
+.comp__gear-icon { display: flex; }
+.comp__gear-icon svg { width: 24px; height: 24px; display: block; }
+
+/* --------------------------------------------------------------- menu --- */
 
 .comp__menu {
+  position: absolute;
+  left: var(--comp-menu-x, 26px);
+  top: var(--comp-menu-y, 112px);
+  width: var(--comp-menu-w, 292px);
+  height: var(--comp-menu-h, 380px);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid var(--comp-line);
-  background: linear-gradient(180deg, rgba(6, 14, 30, 0.82), rgba(4, 9, 20, 0.9));
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  overflow-y: auto;
-  scrollbar-width: thin;
+  padding: 6px 8px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(3, 9, 22, 0.9) 0%, rgba(2, 7, 18, 0.95) 100%);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  z-index: 4;
 }
 
-.theme--libertadores .comp__menu,
-.theme--world-cup .comp__menu {
-  background: linear-gradient(180deg, rgba(16, 12, 8, 0.84), rgba(8, 6, 4, 0.92));
+.comp__menu::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: calc(100% + 62px);
+  height: calc(100% + 4px);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(2, 7, 18, 0.96) 0%, rgba(2, 7, 18, 0.94) 74%, rgba(2, 7, 18, 0) 100%);
+  z-index: -1;
+  pointer-events: none;
 }
 
-.theme--world-cup .comp__menu {
-  background: linear-gradient(180deg, rgba(46, 8, 20, 0.86), rgba(26, 4, 12, 0.94));
+.theme--ucl .comp__menu {
+  border-color: rgba(120, 170, 255, 0.14);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .comp__menu-item {
+  flex: 1 1 0;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 16px;
+  grid-template-columns: 38px minmax(0, 1fr) 16px;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 0 12px;
+  gap: 6px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
-  color: var(--comp-ink);
-  font-size: 14.5px;
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
   text-align: left;
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease, color 150ms ease;
   -webkit-tap-highlight-color: transparent;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
-.comp__menu-item:hover { background: rgba(255, 255, 255, 0.08); }
-.comp__menu-item:active { transform: scale(0.985); }
+.comp__menu-item + .comp__menu-item { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 
-.comp__menu-item.is-active {
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--comp-accent) 34%, transparent) 0%,
-    rgba(255, 255, 255, 0.05) 78%);
-  border-color: color-mix(in srgb, var(--comp-accent) 60%, transparent);
-  box-shadow: inset 3px 0 0 var(--comp-accent), 0 0 24px color-mix(in srgb, var(--comp-accent) 26%, transparent);
+.comp__menu-item:hover { background: rgba(255, 255, 255, 0.07); }
+
+.comp__menu-item:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.comp__menu-item.is-active,
+.comp__menu-item.is-active:hover {
+  background: linear-gradient(90deg, var(--comp-active-a) 0%, var(--comp-active-b) 100%);
+  border-color: var(--comp-active-border);
+  box-shadow: 0 0 20px var(--comp-active-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   color: #ffffff;
 }
 
-.comp__menu-mark {
-  font-size: 15px;
-  color: var(--comp-accent);
-  text-align: center;
-}
+.comp__menu-item:active { transform: scale(0.99); }
+
+.comp__icon { display: flex; justify-content: center; }
+.comp__icon svg { width: 26px; height: 26px; display: block; }
 
 .comp__menu-label {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .comp__menu-chevron {
-  color: var(--comp-accent);
-  font-size: 18px;
-  opacity: 0.7;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 140ms ease;
 }
+
+.comp__menu-chevron svg { width: 17px; height: 17px; display: block; }
+.comp__menu-item.is-active .comp__menu-chevron { opacity: 1; }
 
 .comp__menu-rule {
-  height: 1px;
-  background: var(--comp-line);
-  margin: 6px 4px;
-  opacity: 0.7;
+  display: block;
+  height: 0;
+  flex: 0 0 auto;
+  margin: 5px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.comp__menu-item--back {
-  grid-template-columns: 24px minmax(0, 1fr);
-  color: var(--comp-muted);
+.comp__menu-item--back { flex: 1 1 0; min-height: 0; }
+.comp__menu-item--back .comp__icon svg { width: 22px; height: 22px; }
+
+/* ------------------------------------------------------------- faixa --- */
+
+.comp__deck {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
 }
 
-/* --------------------------------------------------------------- estágio --- */
+.comp__card {
+  position: absolute;
+  top: 512px;
+  height: 136px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 13px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--comp-card-border);
+  background: linear-gradient(180deg, var(--comp-card-bg-a), var(--comp-card-bg-b));
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.comp__card-label {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--comp-card-label);
+}
+
+.comp__card-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.comp__card-teams {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.comp__card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.comp__card-crest { width: 58px; height: 58px; object-fit: contain; flex: none; }
+
+/* Bandeiras entram como SVG (clubes usam escudo em <img>). */
+.comp-badge--flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comp-badge--flag svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 3px;
+}
+
+.comp__card-team {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 96px;
+}
+
+.comp__card-x {
+  font-size: 21px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.comp__card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.comp__card-meta--side {
+  padding-left: 13px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.comp__card--stack .comp__card-body { flex-direction: column; justify-content: center; gap: 6px; }
+.comp__card--stack .comp__card-meta { flex-direction: row; justify-content: center; gap: 14px; }
+
+.comp__card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comp__card-meta-icon { display: flex; color: var(--comp-card-label); }
+.comp__card-meta-icon svg { width: 16px; height: 16px; display: block; }
+
+.comp__card-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+.comp__card-empty b { font-size: 15px; }
+.comp__card-empty span { font-size: 11px; color: var(--comp-muted); }
+
+/* fase atual */
+
+.comp__card-phase {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.comp__card--phase.comp__card--plain .comp__card-phase {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.comp__card-emblem {
+  flex: none;
+  width: 42px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+
+.comp__card-emblem svg { width: 100%; height: 100%; }
+
+.comp__card-phase-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.comp__card-phase-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comp__card-phase-meta {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* classificação */
+
+.comp__card-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+
+.comp__card-rank-icon { color: var(--comp-card-label); }
+.comp__card-rank-icon svg { width: 40px; height: 40px; display: block; }
+.comp__card-rank-value { font-size: 26px; font-weight: 900; line-height: 1; }
+
+/* notícias e artilharia (com foto) */
+
+.comp__card--news,
+.comp__card--scorer {
+  background-image:
+    linear-gradient(90deg, rgba(4, 10, 24, 0.05) 0%, rgba(4, 10, 24, 0.45) 38%, rgba(3, 8, 20, 0.97) 60%);
+}
+
+/* A foto entra como camada desfocada: ela dá o clima do cartão sem prometer
+   que o retratado é o goleador da vez (o nome e os gols são os dados reais). */
+.comp__card--news::before,
+.comp__card--scorer::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  background-image: var(--comp-news);
+  background-size: cover;
+  background-position: left center;
+  filter: blur(1.4px) brightness(0.95);
+  z-index: 0;
+}
+
+.comp__card--news > *,
+.comp__card--scorer > * {
+  position: relative;
+  z-index: 1;
+}
+
+.comp__card--news .comp__card-label,
+.comp__card--scorer .comp__card-label { align-self: flex-start; }
+
+.comp__card-news-copy {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.comp__card-news-copy p {
+  margin: 0;
+  max-width: 52%;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+}
+
+.comp__card-scorer {
+  display: flex;
+  flex-direction: column;
+}
+
+.comp__card-scorer .comp__card-scorer-name,
+.comp__card-scorer .comp__card-scorer-goals {
+  align-self: flex-end;
+  text-align: right;
+  max-width: 58%;
+}
+
+.comp__card-scorer-name { font-size: 15px; font-weight: 800; }
+.comp__card-scorer-goals {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--comp-card-label);
+  margin-top: 2px;
+}
+
+.comp__card-scorer-empty { font-size: 11.5px; color: var(--comp-muted); }
+
+/* -------------------------------------------------------------- dicas --- */
+
+.comp__hints {
+  position: absolute;
+  left: 34px;
+  top: 670px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  z-index: 4;
+}
+
+.comp__hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.comp__hint:hover,
+.comp__hint:focus-visible {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.3);
+  outline: none;
+}
+
+.comp__hint-key {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.78);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ------------------------------------------------------------- painéis --- */
 
 .comp__stage {
-  position: relative;
-  min-height: 0;
+  position: absolute;
+  left: 332px;
+  top: 92px;
+  width: 906px;
+  height: 596px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 2px 6px 8px 2px;
+  padding: 4px 10px 10px 4px;
+  z-index: 3;
+  display: none;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--comp-accent) 55%, transparent) transparent;
 }
+
+.is-panel .comp__stage { display: block; }
+.is-panel .comp__deck,
+.is-panel .comp__hints { display: none; }
+.is-panel .comp__art { filter: blur(2.5px) brightness(0.36) saturate(0.85); }
 
 .comp__stage::-webkit-scrollbar { width: 8px; }
 .comp__stage::-webkit-scrollbar-thumb {
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--comp-accent) 55%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
 }
-
-/* herói (imagem de referência de cada competição) */
-
-.comp__hero {
-  height: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
-  align-items: center;
-  gap: 18px;
-  padding: 10px 26px;
-}
-
-.comp__hero-copy { display: flex; flex-direction: column; gap: 10px; }
-
-.comp__hero-eyebrow,
-.comp__panel-eyebrow {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--comp-accent);
-}
-
-.comp__hero-title {
-  margin: 0;
-  font-size: clamp(34px, 4.2vw, 58px);
-  line-height: 0.98;
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-  text-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
-}
-
-.comp__hero-tagline {
-  margin: 0;
-  max-width: 34ch;
-  font-size: 16px;
-  color: var(--comp-muted);
-}
-
-.comp__hero-cta,
-.comp__cta {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 26px;
-  border: 1px solid color-mix(in srgb, var(--comp-accent) 70%, transparent);
-  border-radius: 10px;
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--comp-accent) 88%, white 8%) 0%,
-    color-mix(in srgb, var(--comp-accent) 62%, black 20%) 100%);
-  color: #06101f;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  cursor: pointer;
-  box-shadow: 0 12px 26px color-mix(in srgb, var(--comp-accent) 26%, transparent);
-  transition: transform 150ms ease, filter 150ms ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.theme--libertadores .comp__hero-cta,
-.theme--libertadores .comp__cta,
-.theme--world-cup .comp__hero-cta,
-.theme--world-cup .comp__cta { color: #1a1206; }
-
-.comp__hero-cta:hover,
-.comp__cta:hover { filter: brightness(1.07); }
-.comp__hero-cta:active,
-.comp__cta:active { transform: scale(0.97); }
-
-.comp__cta--play { min-height: 52px; padding: 0 34px; font-size: 14px; }
-
-.comp__ghost {
-  align-self: flex-start;
-  min-height: 42px;
-  padding: 0 20px;
-  border-radius: 10px;
-  border: 1px solid var(--comp-line);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--comp-ink);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-}
-
-.comp__ghost:hover { background: rgba(255, 255, 255, 0.12); }
-
-.comp__trophy {
-  display: grid;
-  place-items: center;
-  filter: drop-shadow(0 26px 46px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 34px var(--comp-glow));
-  animation: comp-trophy-float 7s ease-in-out infinite;
-}
-
-.comp__trophy svg {
-  width: min(100%, 240px);
-  height: auto;
-}
-
-@keyframes comp-trophy-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-/* ---------------------------------------------------------------- painéis --- */
 
 .comp__panel {
   display: flex;
@@ -415,8 +687,8 @@
   padding: 18px 20px 22px;
   border-radius: 16px;
   border: 1px solid var(--comp-line);
-  background: linear-gradient(180deg, var(--comp-panel), color-mix(in srgb, var(--comp-panel) 82%, black));
-  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, var(--comp-panel), rgba(2, 6, 16, 0.94));
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: comp-panel-in 220ms ease;
 }
 
@@ -446,6 +718,15 @@
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--comp-muted);
+}
+
+.comp__panel-eyebrow,
+.comp__hero-eyebrow {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--comp-accent);
 }
 
 .comp__panel-team {
@@ -642,7 +923,7 @@
 .comp__selection-sub { font-size: 12px; color: var(--comp-muted); }
 .comp__selection-stars { color: var(--comp-accent); font-size: 13px; letter-spacing: 0.14em; }
 
-/* entidades do torneio */
+/* participantes do torneio */
 
 .comp__entity-user {
   display: flex;
@@ -959,6 +1240,8 @@
 
 .comp__champion-trophy { flex: none; width: 96px; }
 .comp__champion-trophy svg { width: 100%; height: auto; }
+.comp__trophy { display: flex; justify-content: center; }
+.comp__trophy svg { width: min(100%, 240px); height: auto; }
 .comp__champion-copy { display: flex; flex-direction: column; gap: 6px; }
 .comp__champion-name { margin: 0; font-size: 26px; }
 
@@ -979,115 +1262,55 @@
 .comp__empty-title { margin: 0; font-size: 20px; }
 .comp__empty-copy { margin: 0; max-width: 60ch; font-size: 13px; color: var(--comp-muted); }
 
-/* ---------------------------------------------------------------- rodapé --- */
+/* ---------------------------------------------------------------- botões --- */
 
-.comp__footer {
-  position: relative;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 0.85fr);
-  gap: 12px;
-}
-
-.comp__footer-match,
-.comp__footer-phase,
-.comp__footer-scorer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-  padding: 10px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--comp-line);
-  background: linear-gradient(180deg, rgba(6, 14, 30, 0.78), rgba(4, 9, 20, 0.9));
-  min-width: 0;
-}
-
-.theme--libertadores .comp__footer-match,
-.theme--libertadores .comp__footer-phase,
-.theme--libertadores .comp__footer-scorer {
-  background: linear-gradient(180deg, rgba(16, 12, 8, 0.82), rgba(8, 6, 4, 0.92));
-}
-
-.theme--world-cup .comp__footer-match,
-.theme--world-cup .comp__footer-phase,
-.theme--world-cup .comp__footer-scorer {
-  background: linear-gradient(180deg, rgba(46, 8, 20, 0.84), rgba(26, 4, 12, 0.94));
-}
-
-.comp__footer-label {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--comp-accent);
-}
-
-.comp__footer-teams {
-  display: flex;
+.comp__cta {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  min-width: 0;
+  min-height: 46px;
+  padding: 0 26px;
+  border-radius: 10px;
+  border: 1px solid var(--comp-active-border);
+  background: linear-gradient(180deg, var(--comp-active-a), var(--comp-active-b));
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: filter 140ms ease, transform 140ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.comp__footer-crest { width: 26px; height: 26px; object-fit: contain; flex: none; }
-.comp__footer-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.comp__footer-vs { color: var(--comp-muted); font-size: 11px; }
-.comp__footer-meta { font-size: 10.5px; color: var(--comp-muted); }
-.comp__footer-value { font-size: 14px; }
-.comp__footer-scorer-row { display: flex; align-items: center; gap: 8px; }
-.comp__footer-goals { margin-left: auto; font-size: 12px; color: var(--comp-accent); }
+.comp__cta:hover { filter: brightness(1.08); }
+.comp__cta:active { transform: scale(0.97); }
+.comp__cta--play { min-height: 52px; padding: 0 34px; font-size: 14px; }
 
-/* ------------------------------------------------------------- celular --- */
-
-@media (max-width: 1180px) {
-  .screen--competition { grid-template-rows: 54px minmax(0, 1fr) 88px; padding: 8px 12px 10px; gap: 8px; }
-  .comp__body { grid-template-columns: 212px minmax(0, 1fr); gap: 10px; }
-  .comp__menu { padding: 7px; border-radius: 12px; }
-  .comp__menu-item { min-height: 36px; font-size: 12.5px; grid-template-columns: 18px minmax(0, 1fr) 12px; }
-  .comp__menu-mark { font-size: 12px; }
-  .comp__hero { padding: 6px 12px; }
-  .comp__hero-title { font-size: clamp(26px, 4.6vw, 40px); }
-  .comp__trophy svg { width: min(100%, 168px); }
-  .comp__panel { padding: 14px; gap: 12px; }
-  .comp__panel-title { font-size: 20px; }
-  .comp__play-grid { grid-template-columns: minmax(0, 1fr); }
-  .comp__selection { grid-template-columns: minmax(0, 1fr); }
-  .comp__selection-preview { position: static; }
-  .comp__team-grid { max-height: 260px; }
-  .comp__footer { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
-  .comp__footer-match,
-  .comp__footer-phase,
-  .comp__footer-scorer { padding: 8px 12px; }
-  .comp__fixture { grid-template-columns: 96px minmax(0, 1fr) 108px; gap: 8px; }
-  .comp__scorer { grid-template-columns: 20px 26px minmax(0, 1fr) 110px 32px; }
+.comp__ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 10px;
+  border: 1px solid var(--comp-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--comp-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-@media (max-width: 860px) {
-  .screen--competition { grid-template-rows: 48px minmax(0, 1fr) 74px; }
-  .comp__body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .comp__menu {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    align-items: center;
-  }
-  .comp__menu-item { flex: none; min-height: 32px; padding: 0 10px; }
-  .comp__menu-rule { width: 1px; height: 22px; margin: 0 4px; }
-  .comp__menu-chevron { display: none; }
-  .comp__topbar-name { display: none; }
-  .comp__home { padding: 0 10px; font-size: 10px; }
-  .comp__footer { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .comp__footer-scorer { display: none; }
-  .comp__panel-head { gap: 10px; }
-}
+.comp__ghost:hover { background: rgba(255, 255, 255, 0.12); }
 
-@media (max-height: 560px) {
-  .comp__footer { display: none; }
-  .screen--competition { grid-template-rows: 48px minmax(0, 1fr); }
-}
-
-/* ------------------------------------------------------------- amistosos -- */
+/* ------------------------------------------------------------- amistosos --- */
 
 .comp__friendlies {
   display: flex;

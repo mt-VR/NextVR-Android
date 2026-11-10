@@ -175,22 +175,20 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.8
+          TAG=xfc-gameplay-v0.5.9
           NOTES=$(printf '%s\n' \
-            "XFC 27 — menus de competições v0.5.8 (versionCode 14), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — menus das competições v0.5.9 (versionCode 15), build do commit ${GITHUB_SHA}." \
             "" \
-            "Quatro menus de competição com identidade própria: UEFA Champions League (azul), Copa América (azul e dourado), Libertadores (preto e dourado) e Copa do Mundo (vinho e dourado)." \
+            "Os quatro menus agora são exatamente os das referências: arte do estádio com o troféu, menu lateral com ícones, carteira (moedas, gemas e nível) no topo e a faixa inferior com próxima partida, fase atual e o destaque de cada campeonato." \
             "" \
-            "Cada menu abre telas reais: escolha de clubes ou seleções, amistoso com adversário e uniformes, calendário, classificação, fase de grupos, chaveamento do mata-mata, artilharia e final — com resultados, sorteio e simulação dos outros jogos." \
+            "Champions League (azul, com classificação e estatísticas), Copa América (azul e dourado, com notícias), Libertadores (preto e dourado) e Copa do Mundo (vinho e dourado, com artilharia). Escolha de clube ou seleção, calendário, tabelas, grupos, mata-mata, artilharia, final, amistoso e uniformes continuam funcionando de verdade em cada uma." \
             "" \
-            "Pré-jogo com estádio, escudos, uniformes e escalação dos dois times, entrada cinematográfica pelo túnel e transição para o apito. Correção dos botões no Android (sem seleção de texto ou menu de link) e avisos de falta, pênalti e lateral removidos: só o gol aparece, no rodapé, com camisa e nome." \
-            "" \
-            "Preserva modos, regras, times e recursos existentes. O APK roda offline e o pacote web completo também está anexado.")
+            "Pré-jogo com estádio, escudos, uniformes e escalação, entrada cinematográfica pelo túnel e HUD apenas com o cartão de gol no rodapé. Preserva modos, regras, times e recursos existentes; o APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — menus de competições v0.5.8" \
+            gh release create "$TAG" --title "XFC 27 — menus das competições v0.5.9" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — menus de competições v0.5.8" \
+            gh release edit "$TAG" --title "XFC 27 — menus das competições v0.5.9" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
