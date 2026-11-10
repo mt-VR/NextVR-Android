@@ -140,7 +140,7 @@ function drawBall(context, width, height) {
   context.fillRect(0, 0, width, height);
 }
 
-export function createBall(scene, { lowPower = false } = {}) {
+export function createBall(scene, { lowPower = false, onNetImpact = () => {} } = {}) {
   const texture = canvasTexture(lowPower ? 768 : 1024, lowPower ? 384 : 512, drawBall);
   texture.anisotropy = lowPower ? 2 : 8;
   const geometry = new THREE.SphereGeometry(BALL.radius, lowPower ? 36 : 56, lowPower ? 24 : 36);
@@ -187,7 +187,8 @@ export function createBall(scene, { lowPower = false } = {}) {
     // Identifica cada passe/chute para que o goleiro não repita o mergulho
     // várias vezes durante a mesma trajetória.
     flightId: 0,
-    guidance: null
+    guidance: null,
+    goalPocket: 0
   };
 
   function reset(x = 0, z = 0) {
@@ -195,6 +196,7 @@ export function createBall(scene, { lowPower = false } = {}) {
     state.velocity.set(0, 0, 0);
     state.spin.set(0, 0, 0);
     state.owner = null;
+    state.goalPocket = 0;
     state.lastTouch = null;
     state.lastIntentionalTouch = null;
     state.guidance = null;
@@ -211,6 +213,7 @@ export function createBall(scene, { lowPower = false } = {}) {
       const speed = Math.max(0, Number(power) || 0);
       const dx = Number(direction?.x) || 0;
       const dz = Number(direction?.z) || 0;
+      state.goalPocket = 0;
       state.flightId += 1;
       state.velocity.set(dx * speed, speed * lift, dz * speed);
       // X/Z representam a rotação de rolamento; Y guarda apenas o efeito lateral.
@@ -221,6 +224,7 @@ export function createBall(scene, { lowPower = false } = {}) {
     },
     /** Coloca a bola no pé de um jogador (domínio). */
     attachTo(player) {
+      state.goalPocket = 0;
       state.owner = player;
       state.lastIntentionalTouch = player;
       state.velocity.set(0, 0, 0);
@@ -232,6 +236,10 @@ export function createBall(scene, { lowPower = false } = {}) {
      */
     update(dt, players = []) {
       const { position, velocity, spin } = state;
+      const previousX=position.x,previousY=position.y,previousZ=position.z;
+      // Reposições/teletransportes administrativos podem mudar a posição sem
+      // passar por kick/reset. Nunca levar o volume da rede para outra jogada.
+      if(state.goalPocket && previousX*state.goalPocket<PITCH.halfLength)state.goalPocket=0;
 
       if (state.owner) {
         // A bola fica presa ao pé do dono, um pouco à frente.
@@ -344,24 +352,29 @@ export function createBall(scene, { lowPower = false } = {}) {
         }
       }
 
-      // A rede segura a bola dentro do gol (fundo, laterais e teto).
-      if (Math.abs(position.x) > PITCH.halfLength && Math.abs(position.z) < GOAL.width / 2 + 0.25 && position.y < GOAL.height + 0.35) {
-        const back = PITCH.halfLength + GOAL.depth - 0.28;
-        if (Math.abs(position.x) > back) {
-          position.x = Math.sign(position.x) * back;
-          velocity.x *= -0.16;
-          velocity.y *= 0.55;
-          velocity.z *= 0.5;
+      // Só captura uma bola que atravessou a BOCA do gol, nunca um chute
+      // por fora. Teste varrido evita atravessar a rede em quadros lentos.
+      if(!state.goalPocket && Math.abs(position.x)>=PITCH.halfLength && Math.abs(previousX)<=PITCH.halfLength){
+        const side=Math.sign(position.x),denom=position.x-previousX;
+        const t=denom?Math.max(0,Math.min(1,(side*PITCH.halfLength-previousX)/denom)):1;
+        const y=previousY+(position.y-previousY)*t,z=previousZ+(position.z-previousZ)*t;
+        if(y<GOAL.height && Math.abs(z)<GOAL.width/2)state.goalPocket=side;
+      }
+      if(state.goalPocket){
+        const side=state.goalPocket,back=PITCH.halfLength+GOAL.depth-BALL.radius;
+        const hit=(surface,speed)=>{if(speed>.25)onNetImpact({side,surface,speed,point:{x:position.x,y:position.y,z:position.z}});};
+        if(Math.abs(position.x)>back){
+          position.x=side*back;hit('back',Math.abs(velocity.x));velocity.x=-side*Math.abs(velocity.x)*.16;velocity.y*=.65;velocity.z*=.65;
         }
-        const sideLimit = GOAL.width / 2 - 0.02;
-        if (Math.abs(position.z) > sideLimit) {
-          position.z = Math.sign(position.z) * sideLimit;
-          velocity.z *= -0.3;
+        const limit=GOAL.width/2-BALL.radius;
+        if(Math.abs(position.z)>limit){
+          const direction=Math.sign(position.z);position.z=direction*limit;hit(direction>0?'right':'left',Math.abs(velocity.z));velocity.z=-direction*Math.abs(velocity.z)*.22;
         }
-        if (position.y > GOAL.height) {
-          position.y = GOAL.height;
-          velocity.y = Math.min(0, velocity.y) * 0.3;
+        if(position.y>GOAL.height-BALL.radius){
+          position.y=GOAL.height-BALL.radius;hit('top',Math.max(0,velocity.y));velocity.y=-Math.abs(velocity.y)*.18;
         }
+        // A boca continua aberta: rebote pode sair de volta para o campo.
+        if(position.x*side<PITCH.halfLength)state.goalPocket=0;
       }
 
       // Limites da arena (as laterais tratam as regras depois).

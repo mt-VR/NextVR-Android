@@ -76,7 +76,7 @@ export function createMatch(options = {}) {
     lowPower: engine.lowPower,
     timeOfDay: options.timeOfDay
   });
-  const ball = createBall(engine.scene, { lowPower: engine.lowPower });
+  const ball = createBall(engine.scene, { lowPower: engine.lowPower, onNetImpact: event => stadiumMesh.hitNet(event) });
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
   const rng = options.seed ? makeRng(options.seed) : Math.random;
@@ -788,6 +788,7 @@ export function createMatch(options = {}) {
 
   /** Prepara uma retomada de jogo. */
   function setRestart(type, side, x, z, options = {}) {
+    ball.state.goalPocket = 0;
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
     clearSlideTackles();
     shotCamera = null;
@@ -1191,6 +1192,7 @@ export function createMatch(options = {}) {
 
   /** Saída de bola. */
   function kickoff(side) {
+    ball.state.goalPocket = 0;
     clearSlideTackles();
     goalScorer = null;
     goalCameraReady = false;
@@ -1255,7 +1257,7 @@ export function createMatch(options = {}) {
     goalCelebrationIndex += 1;
     goalCameraReady = false;
     if (goalScorer?.side === userSide) controlled[userSide] = goalScorer;
-    ball.state.velocity.set(0, 0, 0);
+    ball.state.goalPocket = side === 'home' ? 1 : -1;
     ball.state.owner = null;
     ball.state.guidance = null;
     emit({
@@ -2190,7 +2192,8 @@ export function createMatch(options = {}) {
     phase.timer = 0;
     ball.state.owner = null;
     ball.state.guidance = null;
-    ball.state.velocity.set(0, 0, 0);
+    if(result!=='goal')ball.state.velocity.set(0, 0, 0);
+    else ball.state.goalPocket=1;
     ball.state.spin.set(0, 0, 0);
     const player = result === 'save' ? training.keeper : training.player;
     if (result === 'save') {
@@ -2226,6 +2229,7 @@ export function createMatch(options = {}) {
 
   function updateTraining(dt) {
     if (phase.name.startsWith('training-')) {
+      if(phase.name==='training-goal')ball.update(dt,[]);
       elapsedWorldTime += dt;
       if (training.keeper) updateKeeperReach(training.keeper);
       phase.timer += dt;
@@ -2273,7 +2277,7 @@ export function createMatch(options = {}) {
     if (diveDirection && training.drill!=='keeper') diveKeeper(keeper, diveDirection, flightId);
     const keeperSpeed = prediction?.onTarget ? 7.2 : 5.8;
     if(training.drill!=='keeper') steerPlayer(keeper, keeperTarget.x, keeperTarget.z, dt, keeperSpeed, { arrive: 0.24, turn: 9 });
-    if (!faceVelocity(keeper, dt, 10)) faceTowards(keeper, ball.state.position.x, ball.state.position.z, dt, 9);
+    if (!keeper.gkDiving && !faceVelocity(keeper, dt, 10)) faceTowards(keeper, ball.state.position.x, ball.state.position.z, dt, 9);
     keeper.root.position.set(keeper.x, 0, keeper.z);
 
     if(training.drill==='keeper'&&!training.shotActive){
@@ -2430,6 +2434,7 @@ export function createMatch(options = {}) {
   function update(dt) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.
     if (paused) return;
+    stadiumMesh.update(dt);
     if (training.enabled) {
       updateTraining(dt);
       return;
@@ -2515,6 +2520,7 @@ export function createMatch(options = {}) {
     }
 
     if (phase.name === 'goal') {
+      ball.update(dt, []);
       updateGoalCelebration(dt);
     } else if (phase.name === 'play') {
       updateSlideTackles(dt);
@@ -2679,7 +2685,7 @@ export function createMatch(options = {}) {
       if (Math.hypot(player.vx, player.vz) < 0.035) player.vx = player.vz = 0;
     }
     player.sprint = Boolean(input.sprint && magnitude > 0.12);
-    if (!faceVelocity(player, dt, 11)) faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
+    if (!player.gkDiving && !faceVelocity(player, dt, 11)) faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
   }
 
   /** Quem está perto da bola assume o domínio. */
@@ -2742,6 +2748,7 @@ export function createMatch(options = {}) {
         const keeper = members(opponentOf(scoringSide)).find(player => player.isKeeper && player.active);
         if (keeper && keeperSaves(keeper, position)) {
           diveKeeper(keeper, Math.sign(position.z - keeper.z) || (position.z >= 0 ? 1 : -1));
+          ball.state.goalPocket = 0;
           ball.state.position.x = side * (PITCH.halfLength - 0.5);
           ball.state.velocity.set(-side * 5.5, 4.8, Math.sign(position.z || 1) * 6.5);
           ball.state.owner = null;
@@ -2775,6 +2782,7 @@ export function createMatch(options = {}) {
     if (Number.isFinite(keeper.diveCooldown) && now - keeper.diveCooldown < 0.75) return false;
     const direction = dir >= 0 ? 1 : -1;
     keeper.diveCooldown = now;
+    keeper.gkDiving = true;
     keeper.gkDiveAt = now;
     keeper.gkDiveUntil = now + 0.95;
     keeper.gkDiveDirection = direction;
@@ -2782,12 +2790,20 @@ export function createMatch(options = {}) {
     keeper.gkDiveFlightId = flightId;
     keeper.reach = 1.32;
     keeper.reachHeight = GOAL.height + 0.2;
-    keeper.model.dive?.(direction);
+    // Na impulsão o goleiro encara o campo (não a velocidade lateral de
+    // reposicionamento). Assim o eixo local X é paralelo à linha do gol.
+    keeper.facingAngle=attackSign(keeper.side)*Math.PI/2;
+    keeper.root.rotation.y=keeper.facingAngle;
+    keeper.facing.set(attackSign(keeper.side),0,0);
+    // Mundo Z → eixo lateral local; goleiros defendem gols opostos.
+    const localDirection=-attackSign(keeper.side)*direction;
+    keeper.model.dive?.(localDirection);
     return true;
   }
 
   function updateKeeperReach(keeper) {
     const diving = Number.isFinite(keeper.gkDiveUntil) && elapsedWorldTime < keeper.gkDiveUntil;
+    keeper.gkDiving = diving;
     keeper.reach = diving ? 1.32 : 0.95;
     keeper.reachHeight = diving ? GOAL.height + 0.2 : 1.8;
   }

@@ -399,7 +399,7 @@ export function createTeamAI({ side, world }) {
       targetZ = Math.max(-PITCH.halfWidth - 4, Math.min(PITCH.halfWidth + 4, targetZ));
 
       steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 1.4 });
-      if (!faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
+      if (!player.gkDiving && !faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
     }
   }
 

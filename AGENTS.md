@@ -334,3 +334,21 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Copa do Brasil/BR são edições compactas declaradas, não calendários oficiais:
   quatro clubes em mata-mata e seis em pontos corridos turno/returno.
 - Ver `docs/v0.5.17.md` e `tests/xfc-reference-menus.test.mjs`.
+
+## Atualização v0.5.18 — rede, relva e animação
+
+- `net-physics.js`: molas/tensão escalar, bordas fixas, subpassos de 1/120 s,
+  dt limitado e repouso automático. `goal-net.js`: quatro painéis por gol;
+  perfil econômico tem 712 nós/gol, buffers só mudam após impulso.
+- `ball.js` emite `onNetImpact` (lado/superfície/ponto/velocidade). `goalPocket`
+  só captura bola que atravessou a boca; reset/chute/domínio limpam o estado.
+- Não zerar a velocidade em `scoreGoal`: durante `goal`, atualizar bola sem
+  jogadores e sem repetir regras. Treino também deixa a bola chegar à rede.
+- Relva externa licenciada em CREDITS: uma amostra adicional no shader do
+  campo, sem draw/passe adicional. Descartar `turfDetail` com o estádio.
+- Preservar Android: pixel ratio fixo 0.6, sem MSAA/sombras/lâminas subpixel.
+  Desktop mantém lâminas curtas e qualidade adaptativa. Não prometer 60 FPS
+  em dispositivo físico só com resultados do Chromium do sandbox.
+- Locomoção tem fase compartilhada de trote/corrida, blend exponencial e
+  cadência limitada; gestos de chão atenuam o mixer para não correr deitado.
+  Mergulho converte lado mundial para lateral local e trava giro durante ação.

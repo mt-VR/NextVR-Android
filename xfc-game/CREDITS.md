@@ -112,3 +112,21 @@ sobre a malha Micah CC0 já creditada. Os escudos usam os arquivos existentes em
 não são scans/arquivos oficiais de uma temporada. Novas geometrias de estádios
 usam o construtor do projeto com configuração própria; os previews não provam
 fidelidade arquitetônica dos modelos 3D.
+
+## v0.5.18 — detalhe do gramado
+
+- `assets/textures/turf-detail.jpg`: **Dark grass / grasslight-big**, por
+  **qubodup**, a partir de Grass texture de **Blender Foundation
+  (apricot.blender.org, 2009)** e **Lamoot (2009)**; adaptação de qubodup (2010).
+  Licença **CC BY 3.0 Unported**, texto em
+  `assets/textures/licenses/CC-BY-3.0.txt` e
+  https://creativecommons.org/licenses/by/3.0/ .
+- Fonte e atribuição: https://opengameart.org/content/dark-grass .
+  Espelho utilizado: https://github.com/mrdoob/three.js/blob/7e89746a687bb88271253698fa108b1dd59825d0/examples/textures/terrain/grasslight-big.jpg
+  (licença indicada no `readme.txt` da mesma pasta).
+- Adaptação XFC: redução 2048→1024 px, recompressão JPEG qualidade 85;
+  luminosidade aplicada no shader ao gramado com linhas/faixas próprias,
+  repetição a cada 4 m e filtragem mipmap. Não implica endosso dos autores.
+- Rede elástica e ajustes de animação/iluminação são código próprio. Nenhum
+  asset ou código de EA Sports FC foi extraído ou incluído. A referência é
+  visual, não uma reprodução do motor, captura de movimento ou física do FC.

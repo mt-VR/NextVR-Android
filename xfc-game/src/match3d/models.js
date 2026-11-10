@@ -256,6 +256,7 @@ export function createGltfPlayer(options = {}) {
 
   const bones = {
     hips: findBone(model, 'Hips'),
+    spine: findBone(model, 'Spine'),
     spine2: findBone(model, 'Spine2'),
     neck: findBone(model, 'Neck'),
     head: findBone(model, 'Head'),
@@ -309,7 +310,7 @@ export function createGltfPlayer(options = {}) {
     kick: 0.46,
     header: 0.5,
     celebrate: 2.2,
-    dive: 0.9,
+    dive: 0.95,
     tackle: 0.8,
     react: 0.55,
     fall: 0.95,
@@ -352,6 +353,7 @@ export function createGltfPlayer(options = {}) {
     const w = gestureEnvelope();
     const dir = gesture.dir >= 0 ? 1 : -1;
     const wave = Math.sin(Math.PI * p);
+    const ease=(a,b)=>{const t=Math.max(0,Math.min(1,(p-a)/(b-a)));return t*t*(3-2*t);};
     switch (gesture.name) {
       case 'kick': {
         // Pernada: recua, chuta e volta. Joelho abre antes do contato.
@@ -385,25 +387,41 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'dive': {
-        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.62 * wave * w;
-        addBoneRotation(bones.spine2, -0.5 * wave, 0, 0, w);
-        addBoneRotation(bones.hips, 0, 0, -1.1 * wave * dir, w);
-        addBoneRotation(bones.leftArm, 0, 0, 1.5 * wave, w);
-        addBoneRotation(bones.rightArm, 0, 0, -1.5 * wave, w);
-        addBoneRotation(bones.leftUpLeg, -0.5 * wave, 0, 0, w);
-        addBoneRotation(bones.rightUpLeg, 0.4 * wave, 0, 0, w);
+        // Impulsão → extensão das duas mãos → contato lateral → recuperação.
+        const launch=ease(.06,.3),recover=ease(.7,1),pose=launch*(1-recover);
+        const land=ease(.42,.68)*(1-recover);
+        const crouch=Math.sin(Math.PI*Math.min(1,p/.25))*.16;
+        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*(crouch+.28*pose+.35*land)*w;
+        addBoneRotation(bones.hips, .1*pose, 0, -1.32*pose*dir,w);
+        addBoneRotation(bones.spine2,-.12*pose, .1*dir*pose,0,w);
+        // No espaço local, ambas as mãos apontam acima da cabeça; o giro
+        // do quadril leva esse alcance ao lado certo do gol.
+        addBoneRotation(bones.leftArm,-.2*pose,0,2.9*pose,w);
+        addBoneRotation(bones.rightArm,-.2*pose,0,-2.9*pose,w);
+        addBoneRotation(bones.leftForeArm,-.22*pose,0,0,w);
+        addBoneRotation(bones.rightForeArm,-.22*pose,0,0,w);
+        addBoneRotation(bones.leftUpLeg,-.25*pose,0,.12*dir*pose,w);
+        addBoneRotation(bones.rightUpLeg,.18*pose,0,-.12*dir*pose,w);
+        addBoneRotation(bones.leftLeg,.45*land,0,0,w);
+        addBoneRotation(bones.rightLeg,.6*land,0,0,w);
         break;
       }
       case 'tackle': {
-        // Carrinho: agacha, estica a perna da frente e inclina o tronco.
-        const slide = Math.sin(Math.PI * Math.min(1, p * 1.2));
-        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.67 * slide * w;
-        addBoneRotation(bones.leftUpLeg, -1.3 * slide, 0, 0, w);
-        addBoneRotation(bones.leftLeg, 0.2 * slide, 0, 0, w);
-        addBoneRotation(bones.rightUpLeg, -0.8 * slide, 0, 0, w);
-        addBoneRotation(bones.rightLeg, 1.4 * slide, 0, 0, w);
-        addBoneRotation(bones.spine2, 0.3 * slide, 0, 0, w);
-        addBoneRotation(bones.leftArm, 0, 0, 0.8 * slide, w);
+        // Uma perna estendida, outra recolhida. Segura o contato até o fim
+        // do deslizamento, depois apoia o braço e recupera sem levantar cedo.
+        const enter=ease(0,.22),recover=ease(.65,1),slide=enter*(1-recover);
+        const push=ease(.58,.78)*(1-ease(.78,1));
+        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*.72*slide*w;
+        addBoneRotation(bones.hips,-.18*slide,0,-.23*slide*dir,w);
+        addBoneRotation(bones.leftUpLeg,-1.48*slide,0,.12*slide,w);
+        addBoneRotation(bones.leftLeg,.13*slide+.45*push,0,0,w);
+        addBoneRotation(bones.leftFoot,.2*slide,0,0,w);
+        addBoneRotation(bones.rightUpLeg,-1.8*slide,0,-.18*slide,w);
+        addBoneRotation(bones.rightLeg,2.6*slide,0,0,w);
+        addBoneRotation(bones.rightFoot,-.65*slide,0,0,w);
+        addBoneRotation(bones.spine2,.32*slide+.2*push,0,0,w);
+        addBoneRotation(bones.leftArm,.35*slide,0,.7*slide,w);
+        addBoneRotation(bones.rightArm,.2*slide,0,-.65*slide,w);
         break;
       }
       case 'fall': {
@@ -485,7 +503,8 @@ export function createGltfPlayer(options = {}) {
   }
 
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
-  function updateLocomotion(speed) {
+  let gaitPhase=0;
+  function updateLocomotion(speed, dt) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
     let jog = 0;
@@ -501,18 +520,26 @@ export function createGltfPlayer(options = {}) {
       jog = 1 - t;
       run = t;
     }
-    state.locomotionWeights = { idle, jog, run };
-    for (const [name, weight] of Object.entries(state.locomotionWeights)) {
-      const action = actionFor(name, null, 'full');
-      if (!action) continue;
-      action.setLoop(THREE.LoopRepeat, Infinity);
-      action.setEffectiveWeight(weight);
-      if (weight > 0 && !action.isRunning()) action.play();
-      if (weight <= 0.001) action.stop();
+    const blend=1-Math.exp(-dt*12);
+    const targets={idle,jog,run};
+    const lowPose=['dive','tackle','fall'].includes(gesture.name) && gesture.maskName==='full';
+    const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
+    // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
+    const cadence=Math.max(.65,Math.min(1.85,value/4.5));
+    gaitPhase=(gaitPhase+dt*cadence*state.speed)%1;
+    for(const name of ['idle','jog','run']) {
+      const weight=state.locomotionWeights[name]+(targets[name]-state.locomotionWeights[name])*blend;
+      state.locomotionWeights[name]=weight;
+      const action=actionFor(name,null,'full');if(!action)continue;
+      action.setLoop(THREE.LoopRepeat,Infinity);
+      action.setEffectiveWeight(weight*locomotionGain);
+      // Não parar/resetar a cada transição: preserva a continuidade dos pés.
+      if(!action.isRunning())action.play();
+      if(name!=='idle'){
+        action.setEffectiveTimeScale(0);
+        action.time=gaitPhase*action.getClip().duration;
+      }
     }
-    // O clipe de "run" avança mais rápido proporcionalmente à corrida.
-    const runAction = actions.get('run|full');
-    if (runAction) runAction.setEffectiveTimeScale(0.85 + Math.min(1.1, value / 7));
   }
 
   const api = {
@@ -593,8 +620,13 @@ export function createGltfPlayer(options = {}) {
       mixer.timeScale = state.speed;
       bones.hips.position.y = bindHipY;
       for (const bone of rigBones) bone.quaternion.identity();
-      updateLocomotion(speed);
+      updateLocomotion(speed, step);
       mixer.update(step);
+      if(!['dive','tackle','fall'].includes(gesture.name)){
+        const running=state.locomotionWeights.run;
+        bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
+        addBoneRotation(bones.spine,Math.min(.12,speed*.016)*running,0,0,1);
+      }
       addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
       applyGesture(step);
       if (['dive', 'tackle', 'fall'].includes(gesture.name)) {

@@ -8,6 +8,7 @@ import { THREE, canvasTexture, disposeObject } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
 import { addGrassBlades } from './grass.js';
+import { createGoalNet } from './goal-net.js';
 
 const LINE = 0.12; // espessura das linhas em metros
 const PX_PER_METER = 2048 / PITCH.length;
@@ -19,9 +20,9 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x8eafbd,
     hemisphereSky: 0xe8f5ff,
     hemisphereGround: 0x68834d,
-    hemisphereIntensity: 0.82,
+    hemisphereIntensity: 0.72,
     keyColor: 0xfff1dc,
-    keyIntensity: 1.05,
+    keyIntensity: 1.22,
     fillColor: 0xd8eaff,
     fillIntensity: 0.4,
     crossIntensity: 0.16,
@@ -37,9 +38,9 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x392f40,
     hemisphereSky: 0xd0d8f0,
     hemisphereGround: 0x64543f,
-    hemisphereIntensity: 0.78,
+    hemisphereIntensity: 0.64,
     keyColor: 0xffd3a0,
-    keyIntensity: 1.08,
+    keyIntensity: 1.23,
     fillColor: 0xb6d7ff,
     fillIntensity: 0.4,
     crossIntensity: 0.2,
@@ -55,16 +56,16 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x0a1a26,
     hemisphereSky: 0xc5dff4,
     hemisphereGround: 0x3c6340,
-    hemisphereIntensity: 0.76,
+    hemisphereIntensity: 0.61,
     keyColor: 0xfff4de,
-    keyIntensity: 1.16,
+    keyIntensity: 1.3,
     fillColor: 0xbdd8ff,
     fillIntensity: 0.46,
     crossIntensity: 0.23,
-    ambientIntensity: 0.17,
+    ambientIntensity: 0.12,
     floodlightIntensity: 0.38,
     rimColor: 0xc7e2ff,
-    rimIntensity: 0.36,
+    rimIntensity: 0.43,
     lampsOn: true
   })
 });
@@ -150,7 +151,7 @@ function drawPitchBase(context, width, height, lowPower = false) {
   const bands = 14;
   const bandWidth = width / bands;
   for (let band = 0; band < bands; band += 1) {
-    const shade = band % 2 === 0 ? '#3f9947' : '#32843b';
+    const shade = band % 2 === 0 ? '#438847' : '#37743e';
     context.fillStyle = shade;
     context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
     const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
@@ -832,7 +833,7 @@ function buildCornerFlag(x, z) {
   return group;
 }
 
-function buildGoal(side) {
+function buildGoal(side, lowPower) {
   const group = new THREE.Group();
   const postMaterial = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
   const halfWidth = GOAL.width / 2;
@@ -851,103 +852,9 @@ function buildGoal(side) {
   crossbar.position.set(0, GOAL.height, 0);
   group.add(crossbar);
 
-  const netTexture = canvasTexture(256, 256, drawNet);
-  netTexture.wrapS = THREE.RepeatWrapping;
-  netTexture.wrapT = THREE.RepeatWrapping;
-  const netMaterial = new THREE.MeshBasicMaterial({
-    map: netTexture,
-    transparent: true,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    opacity: 0.55
-  });
-
-  // Fundo da rede.
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.width, GOAL.height), netMaterial);
-  back.position.set(side * GOAL.depth, GOAL.height / 2, 0);
-  back.rotation.y = Math.PI / 2;
-  back.material = netMaterial.clone();
-  back.material.map = netTexture.clone();
-  back.material.map.repeat.set(GOAL.width / 2, GOAL.height / 2);
-  back.material.map.needsUpdate = true;
-  group.add(back);
-
-  // Laterais.
-  for (const z of [-halfWidth, halfWidth]) {
-    const sidePanel = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.depth, GOAL.height), netMaterial);
-    const material = netMaterial.clone();
-    material.map = netTexture.clone();
-    material.map.repeat.set(GOAL.depth / 2, GOAL.height / 2);
-    material.map.needsUpdate = true;
-    sidePanel.material = material;
-    sidePanel.position.set(side * GOAL.depth / 2, GOAL.height / 2, z);
-    sidePanel.rotation.y = side > 0 ? 0 : Math.PI;
-    group.add(sidePanel);
-  }
-
-  // Teto da rede.
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.depth, GOAL.width), netMaterial);
-  const topMaterial = netMaterial.clone();
-  topMaterial.map = netTexture.clone();
-  topMaterial.map.repeat.set(GOAL.depth / 2, GOAL.width / 2);
-  topMaterial.map.needsUpdate = true;
-  top.material = topMaterial;
-  top.rotation.x = -Math.PI / 2;
-  top.position.set(side * GOAL.depth / 2, GOAL.height, 0);
-  group.add(top);
-  // Os painéis têm mapas independentes para acertar a escala de cada face.
-  // Libera o material/textura-base que serviu apenas como molde dos clones.
-  netMaterial.dispose();
-  netTexture.dispose();
-
-  // Cordas em geometria tridimensional sobre os painéis: a rede mantém volume
-  // e paralaxe, em vez de parecer apenas uma imagem plana atrás da trave.
-  const netVertices = [];
-  const addNetLine = (x0, y0, z0, x1, y1, z1) => {
-    netVertices.push(x0, y0, z0, x1, y1, z1);
-  };
-  const cell = 0.24;
-  for (let z = -halfWidth; z <= halfWidth + 0.001; z += cell) {
-    const netZ = Math.min(halfWidth, z);
-    addNetLine(side * (GOAL.depth + 0.012), 0, netZ,
-      side * (GOAL.depth + 0.012), GOAL.height, netZ);
-  }
-  for (let y = 0.24; y <= GOAL.height; y += cell) {
-    addNetLine(side * (GOAL.depth + 0.012), y, -halfWidth,
-      side * (GOAL.depth + 0.012), y, halfWidth);
-  }
-  for (const netSide of [-1, 1]) {
-    const netZ = netSide * (halfWidth + 0.009);
-    for (let x = 0; x <= GOAL.depth + 0.001; x += cell) {
-      const netX = side * Math.min(GOAL.depth, x);
-      addNetLine(netX, 0, netZ, netX, GOAL.height, netZ);
-    }
-    for (let y = 0.24; y <= GOAL.height; y += cell) {
-      addNetLine(0, y, netZ, side * GOAL.depth, y, netZ);
-    }
-  }
-  for (let z = -halfWidth; z <= halfWidth + 0.001; z += cell) {
-    const netZ = Math.max(-halfWidth, Math.min(halfWidth, z));
-    addNetLine(0, GOAL.height + 0.009, netZ,
-      side * GOAL.depth, GOAL.height + 0.009, netZ);
-  }
-  for (let x = 0; x <= GOAL.depth + 0.001; x += cell) {
-    const netX = side * Math.min(GOAL.depth, x);
-    addNetLine(netX, GOAL.height + 0.009, -halfWidth,
-      netX, GOAL.height + 0.009, halfWidth);
-  }
-  const netGeometry = new THREE.BufferGeometry();
-  netGeometry.setAttribute('position', new THREE.Float32BufferAttribute(netVertices, 3));
-  const netWire = new THREE.LineSegments(netGeometry, new THREE.LineBasicMaterial({
-    color: 0xdfe7ec,
-    transparent: true,
-    opacity: 0.38,
-    depthWrite: false,
-    toneMapped: false
-  }));
-  netWire.name = 'xfc-3d-goal-net';
-  netWire.renderOrder = 2;
-  group.add(netWire);
+  const net=createGoalNet(side,{lowPower});
+  group.add(net.group);
+  group.userData.net=net;
 
   group.position.x = side * PITCH.halfLength;
   return group;
@@ -1026,10 +933,28 @@ export function buildStadium(scene, options = {}) {
       specular: 0x142a18,
       shininess: 5
     });
+  // Detalhe real licenciado (CREDITS), uma amostra extra no MESMO draw.
+  // Mipmaps/aniso filtram as folhas ao longe; sem displacement, bloom ou passe extra.
+  const turfDetail=new THREE.TextureLoader().load('assets/textures/turf-detail.jpg');
+  turfDetail.wrapS=turfDetail.wrapT=THREE.RepeatWrapping;
+  turfDetail.anisotropy=lowPower?2:4;
+  pitchMaterial.onBeforeCompile=shader=>{
+    shader.uniforms.turfDetail={value:turfDetail};
+    shader.fragmentShader='uniform sampler2D turfDetail;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`
+      #include <map_fragment>
+      float turf=dot(texture2D(turfDetail,vMapUv*vec2(26.25,17.0)).rgb,vec3(.299,.587,.114));
+      float paint=smoothstep(.46,.8,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b)));
+      diffuseColor.rgb*=mix(clamp(.72+turf*.65,.78,1.2),1.0,paint);
+    `);
+  };
+  pitchMaterial.customProgramCacheKey=()=> 'xfc-turf-detail-v1';
   const pitch = new THREE.Mesh(
     new THREE.PlaneGeometry(PITCH.length, PITCH.width),
     pitchMaterial
   );
+  pitch.name='xfc-pitch';
+  pitch.userData.turfDetail=turfDetail;
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
@@ -1172,7 +1097,7 @@ export function buildStadium(scene, options = {}) {
   }
 
   // Gols.
-  const goals = { home: buildGoal(-1), away: buildGoal(1) };
+  const goals = { home: buildGoal(-1,lowPower), away: buildGoal(1,lowPower) };
   group.add(goals.home, goals.away);
 
   // Elementos completos da arena também permanecem no perfil econômico; suas
@@ -1253,8 +1178,11 @@ export function buildStadium(scene, options = {}) {
   return {
     group,
     goals,
+    hitNet(event){goals[event.side>0?'away':'home'].userData.net.impact(event);},
+    update(dt){goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
+      turfDetail.dispose();
       disposeObject(group);
     }
   };

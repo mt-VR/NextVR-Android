@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test tests/xfc-game.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test tests/xfc-{game,animation,footballer-regression,net-physics,reference-menus}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -175,22 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.17
+          TAG=xfc-gameplay-v0.5.18
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.17 (versionCode 23), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.18 (versionCode 24), commit ${GITHUB_SHA}." \
             "" \
-            "Aparência por identidade: Vinícius Jr. com pele escura/cabelo alto e Valverde com pele clara/cabelo curto; perfis explícitos para os titulares de Real Madrid e Barcelona e outros atletas. Rostos continuam genéricos. Desconhecidos usam aparência padrão, sem inferência por nacionalidade." \
+            "Corrida com transição suave e cadência sincronizada; carrinho com perna estendida, apoio e recuperação; goleiro com impulsão, extensão e aterrissagem, lado local corrigido e giro travado durante o mergulho." \
             "" \
-            "Uniformes reconstruídos com padrões, escudos, nomes/números, marcas cadastradas, shorts e meias independentes. Não são texturas oficiais licenciadas de temporada." \
+            "Rede elástica com impacto localizado no fundo, laterais e teto, bordas presas e amortecimento. A bola continua após o gol sem repetir o placar, inclusive no treino." \
             "" \
-            "Quatro artes enviadas pelo usuário integradas: torneios direto sem hub roxo; nova galeria de estádios; sete fundamentos de treino; nova abertura Neymar/Brasil. Controles DOM reais, teclado/toque e voltar preservados." \
+            "Textura licenciada de relva, luz ambiental/direcional reequilibrada. Android mantém resolução fixa e sem sombras dinâmicas, MSAA ou lâminas subpixel. Sem promessa de FPS em aparelho físico; não reproduz o motor do EA Sports FC." \
             "" \
-            "Copa do Brasil compacta (4 clubes, mata-mata); Brasileirão compacto (6 clubes, turno/returno). Treino de equipe e estádios anteriores continuam acessíveis. Documentação em docs/v0.5.17.md e CREDITS.md.")
+            "Modelo masculino importado, identidades, uniformes, menus e modos da v0.5.17 preservados. Documentação em docs/v0.5.18.md e CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — aparências, uniformes e menus v0.5.17" \
+            gh release create "$TAG" --title "XFC 27 — movimentos, rede e gramado v0.5.18" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — aparências, uniformes e menus v0.5.17" \
+            gh release edit "$TAG" --title "XFC 27 — movimentos, rede e gramado v0.5.18" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

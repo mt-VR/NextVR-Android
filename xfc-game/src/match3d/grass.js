@@ -8,8 +8,8 @@ import { PITCH } from './constants.js';
 export function addGrassBlades(parent, count = 7600) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute([
-    -0.018, 0, 0,   0.018, 0, 0,   0, 0.15, 0.012,
-     0, 0, -0.018,  0, 0, 0.018,   0.012, 0.135, 0
+    -0.018, 0, 0,   0.018, 0, 0,   0, 0.045, 0.012,
+     0, 0, -0.018,  0, 0, 0.018,   0.012, 0.04, 0
   ], 3));
   geometry.setIndex([0, 1, 2, 3, 4, 5]);
   geometry.computeVertexNormals();
