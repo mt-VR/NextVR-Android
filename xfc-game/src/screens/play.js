@@ -7,8 +7,15 @@
 import { el, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
-import { kitsOf } from '../data/kits.js';
+import { kitsOf, kitSvg } from '../data/kits.js';
 import { getNationalTeam, recordCampaignMatchResult } from '../data/worldcup.js';
+import {
+  getCompetition,
+  competitionTeam,
+  startingEleven,
+  recordTournamentResult,
+  nextTournamentFixture
+} from '../data/tournament.js';
 import { saveProfile } from '../state.js';
 import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
@@ -162,6 +169,42 @@ export function playScreen(ctx, params = {}) {
     : Math.floor(Math.random() * STADIUMS.length);
   let dome = null;
 
+  /** Uniforme do time para o pré-jogo (clube: blusa do kit; seleção: cores). */
+  function kitArt(team, kit) {
+    if (team.isNationalTeam) {
+      const colors = kit?.colors || {};
+      return `<svg viewBox="0 0 60 64" width="34" height="36" aria-hidden="true">
+        <path d="M20 6l10 5 10-5 12 8-6 10-4-2v30H18V22l-4 2-6-10z"
+          fill="${colors.primary || '#fff'}" stroke="${colors.secondary || '#111'}" stroke-width="2"/>
+      </svg>`;
+    }
+    return kit ? kitSvg(kit, { width: 34 }) : '';
+  }
+
+  /** Escalação resumida de um lado do pré-jogo. */
+  function lineupColumn(team, kit) {
+    const players = startingEleven(team.id);
+    const list = players.length
+      ? players
+      : (team.players || []).slice(0, 11).map((player, index) => ({
+        name: player.name, number: player.number ?? index + 1, position: player.pos || 'CM'
+      }));
+    return el('section', { class: 'showcase__lineup' },
+      el('header', { class: 'showcase__lineup-head' },
+        teamMark(team, 'showcase__lineup-crest'),
+        el('b', { text: team.shortName || team.name }),
+        el('span', { class: 'showcase__lineup-kit', html: kitArt(team, kit) })
+      ),
+      el('ul', { class: 'showcase__lineup-list' },
+        ...list.map(player => el('li', { class: 'showcase__lineup-player' },
+          el('b', { class: 'showcase__lineup-number', text: String(player.number) }),
+          el('span', { class: 'showcase__lineup-name', text: player.name }),
+          el('i', { class: 'showcase__lineup-pos', text: player.position || '' })
+        ))
+      )
+    );
+  }
+
   /** Pré-jogo: a foto do estádio envolvendo o 3D — toque na tela entra. */
   function prematchShowcase() {
     const stadiumName = el('b', { class: 'showcase__name' });
@@ -205,6 +248,10 @@ export function playScreen(ctx, params = {}) {
           teamMark(away, 'showcase__crest')
         ),
         dots
+      ),
+      el('div', { class: 'showcase__lineups' },
+        lineupColumn(home, homeKit),
+        lineupColumn(away, awayKit)
       ),
       el('div', { class: 'showcase__arrows' },
         arrow(-1, '‹'),
@@ -312,18 +359,35 @@ export function playScreen(ctx, params = {}) {
         event.score[1]
       );
     }
+    // Campeonatos (Champions, Libertadores, Copa América e Copa do Mundo):
+    // o resultado entra na tabela, no calendário e na artilharia.
+    if (params.tournamentMatchId && params.tournamentCompetitionId) {
+      const tournament = ctx.state.profile.tournaments?.[params.tournamentCompetitionId];
+      if (tournament) {
+        recordTournamentResult(tournament, params.tournamentMatchId, event.score[0], event.score[1]);
+      }
+    }
     saveProfile(ctx.state);
   }
 
   function handleEvent(event) {
     if (!hud) return;
     switch (event.type) {
+      case 'entrance-end': {
+        beginLive();
+        break;
+      }
       case 'goal': {
         const team = event.team === 'home' ? home : away;
         const [homeScore, awayScore] = event.score;
         cheer({ duration: 2.8, peak: 0.55 });
         const scorerName = event.scorer?.name || 'GOL';
-        hud.showBanner(`${scorerName.toUpperCase()}  •  GOOOL!  ${homeScore} × ${awayScore}`, 'goal', 3400);
+        // A comemoração fica no rodapé, com a camisa e o nome de quem fez o gol.
+        hud.showGoalCard({
+          number: event.scorer?.number,
+          name: scorerName,
+          score: `${homeScore} × ${awayScore}`
+        });
         hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
         // A câmera fecha no autor, que corre com os braços erguidos; o nome
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
@@ -342,10 +406,8 @@ export function playScreen(ctx, params = {}) {
         } catch { /* comemorações são detalhe visual */ }
         break;
       }
-      case 'kickoff': {
-        if (event.team === userSide) hud.showBanner('SAÍDA • PASSE OU CHUTE PARA COMEÇAR', 'restart', 3200);
+      case 'kickoff':
         break;
-      }
       case 'card': {
         const team = event.team === 'home' ? home : away;
         const color = event.color === 'red' ? '🟥' : '🟨';
@@ -369,8 +431,7 @@ export function playScreen(ctx, params = {}) {
           contact: 'contato irregular'
         };
         const label = names[event.kind] || 'contato irregular';
-        const decision = event.card === 'red' ? ' • VERMELHO' : event.card === 'yellow' ? ' • AMARELO' : '';
-        hud.showBanner(`FALTA • ${label}${decision}`, event.card === 'red' ? 'red' : 'foul', 2300);
+        // Sem aviso gigante: falta, pênalti e lateral aparecem só no feed.
         hud.pushEvent(`🚨 ${Math.floor(event.minute)}' ${event.player.name} • ${label}`, 'foul');
         break;
       }
@@ -383,7 +444,6 @@ export function playScreen(ctx, params = {}) {
             goalkick: ['TIRO DE META • PASSE OU LANÇAMENTO', 'TIRO DE META • escolha PASSE ou ENFIADA'],
             throwin: ['LATERAL • PASSE OU LANÇAMENTO', 'LATERAL • escolha PASSE ou ENFIADA']
           }[event.kind] || ['BOLA PARADA • PASSE OU CHUTE', 'BOLA PARADA • escolha PASSE ou CHUTE'];
-          hud.showBanner(instructions[0], 'restart', 3200);
           hud.pushEvent(instructions[1], 'restart');
         }
         break;
@@ -393,7 +453,7 @@ export function playScreen(ctx, params = {}) {
         hud.showBanner('INTERVALO', 'info', 2600);
         match?.world.setPaused(true);
         setTimeout(() => {
-          if (stage === 'live') showHalftime(event);
+          if (stage !== 'result' && stage !== 'paused') showHalftime(event);
         }, 1200);
         break;
       case 'fulltime':
@@ -402,7 +462,7 @@ export function playScreen(ctx, params = {}) {
         match?.world.setPaused(true);
         controls?.setEnabled(false);
         setTimeout(() => {
-          if (stage === 'live') showResult(event);
+          if (stage !== 'result' && stage !== 'paused') showResult(event);
         }, 900);
         break;
       default:
@@ -411,19 +471,43 @@ export function playScreen(ctx, params = {}) {
   }
 
   function startMatch() {
+    if (stage !== 'prematch') return;
     whistle('triple');
-    stage = 'live';
-    setPauseButtonVisible(true);
+    stage = 'entrance';
+    paused = false;
+    overlay.classList.add('is-visible', 'is-entrance');
+    overlay.replaceChildren(
+      el('div', { class: 'entrance' },
+        el('span', { class: 'entrance__eyebrow', text: STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC' }),
+        el('div', { class: 'entrance__teams' },
+          el('div', { class: 'entrance__side' },
+            teamMark(home, 'entrance__crest'),
+            el('b', { text: home.name })
+          ),
+          el('span', { class: 'entrance__vs', text: '×' }),
+          el('div', { class: 'entrance__side' },
+            teamMark(away, 'entrance__crest'),
+            el('b', { text: away.name })
+          )
+        ),
+        el('span', { class: 'entrance__caption', text: 'OS TIMES ESTÃO ENTRANDO EM CAMPO' })
+      )
+    );
     match?.world.setPaused(false);
     match?.engine.start();
+    const started = match?.world.startEntrance?.({ duration: 3.6 });
+    if (!started) beginLive();
+  }
+
+  /** Fim da entrada: HUD, controles e a saída de bola. */
+  function beginLive() {
+    stage = 'live';
     overlay.replaceChildren();
-    overlay.classList.remove('is-visible');
+    overlay.classList.remove('is-visible', 'is-entrance');
+    setPauseButtonVisible(true);
     match?.world.setCameraMode('play');
     hud?.node.classList.add('is-visible');
     controls?.setEnabled(true);
-    if (match?.phase.name === 'kickoff' && match.phase.side === userSide) {
-      hud?.showBanner('SAÍDA • PASSE OU CHUTE PARA COMEÇAR', 'restart', 3200);
-    }
   }
 
   function showHalftime(event) {
@@ -534,7 +618,17 @@ export function playScreen(ctx, params = {}) {
           el('span', { class: 'result__winner-label', text: 'EMPATE' })
         ),
       el('div', { class: 'result__actions' },
-        params.worldCupMatchId
+        params.tournamentMatchId
+          ? el('button', {
+            class: 'btn btn--primary',
+            type: 'button',
+            onClick: () => ctx.go('competition', {
+              competitionId: params.tournamentCompetitionId,
+              returnTo: params.tournamentReturnTo || 'modes',
+              panel: 'play'
+            })
+          }, 'CONTINUAR CAMPEONATO')
+          : params.worldCupMatchId
           ? el('button', {
             class: 'btn btn--primary',
             type: 'button',
@@ -566,7 +660,7 @@ export function playScreen(ctx, params = {}) {
         el('button', {
           class: 'btn',
           type: 'button',
-          onClick: () => ctx.go('modes')
+          onClick: () => ctx.go('menu')
         }, 'VOLTAR AO INÍCIO')
       )
     ));
@@ -677,8 +771,19 @@ export function playScreen(ctx, params = {}) {
         ['CARTÕES', stats.home.cards, stats.away.cards]
       ]) },
       { id: 'settings', icon: '⚙', title: 'CONFIGURAÇÕES', sub: 'Controles e câmera', action: () => setPauseDetail('CONFIGURAÇÕES', 'Analógico esquerdo: movimentação · passe: J/Space · chute: K/L · corrida: Shift. No celular, use o analógico e os botões de ação na tela.') },
-      { id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA', sub: 'Voltar ao menu principal', danger: true, action: () => ctx.go('menu') },
-      { id: 'mode-home', icon: '⌂', title: 'VOLTAR AO INÍCIO', sub: 'Ir direto à seleção de modos', action: () => ctx.go('modes') }
+      {
+        id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA',
+        sub: params.tournamentMatchId ? 'Voltar ao campeonato' : 'Voltar ao menu principal',
+        danger: true,
+        action: () => params.tournamentMatchId
+          ? ctx.go('competition', {
+            competitionId: params.tournamentCompetitionId,
+            returnTo: params.tournamentReturnTo || 'modes',
+            panel: 'play'
+          })
+          : ctx.go('menu')
+      },
+      { id: 'mode-home', icon: '⌂', title: 'VOLTAR AO INÍCIO', sub: 'Ir direto ao menu principal do XFC', action: () => ctx.go('menu') }
     ];
     const tiles = el('div', { class: 'pause__tiles' }, ...options.map((option, index) => el('button', {
       class: `pause__tile${option.primary ? ' is-primary' : ''}${option.danger ? ' is-danger' : ''}${index === 0 ? ' is-selected' : ''}`,

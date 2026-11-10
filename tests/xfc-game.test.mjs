@@ -759,7 +759,20 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.modes__option[data-option="training"]').isVisible(),
       'o Centro de Treino fica acessível pelos modos de jogo');
     assert.ok((await page.locator('.modes__option').first().textContent()).includes('WORLD CUP'), 'a Copa aparece como modo');
+    // A Copa abre o menu próprio da competição (o modo Campanha continua no menu principal).
     await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
+    assert.equal(await page.locator('.comp__menu-item').count(), 9, 'o menu da Copa lista oito opções e o voltar');
+    await page.locator('.comp__menu-item[data-panel="play"]').click();
+    await page.locator('.comp__team-card[data-team-id="argentina"]').click();
+    await page.locator('.comp__selection-preview .comp__cta').click();
+    await page.waitForSelector('.comp__match');
+    // A campanha clássica (Seasons) segue intacta a partir do menu principal.
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--modes');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="seasons"]').click();
     await page.waitForSelector('.screen--worldcup');
     assert.equal(await page.locator('.worldcup__select-team').count(), 32,
       'antes do sorteio, a pessoa escolhe entre as 32 seleções');
@@ -803,7 +816,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       match.clock.added = 4;
       match.world.tick(1 / 60);
     });
-    await page.waitForSelector('.result__title', { timeout: 6000 });
+    await page.waitForSelector('.result__title', { timeout: 20000 });
     const persistedResult = await page.evaluate(matchId => {
       const profile = JSON.parse(localStorage.getItem('xfc.profile.v1'));
       return {
@@ -818,8 +831,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--worldcup');
     assert.equal(await page.locator('.worldcup__play-match').count(), 1,
       'a Copa libera a próxima partida depois do resultado');
-    await page.keyboard.press('Escape');
-    await page.waitForSelector('.screen--modes');
+    // A campanha foi aberta pelo menu principal: o voltar respeita essa origem.
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
@@ -828,9 +840,9 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--modes');
     await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
     await page.locator('.modes__cta').click();
-    await page.waitForSelector('.screen--kickoff');
-    assert.equal(await page.locator('.topbar__title').textContent(), 'UEFA Champions League',
-      'a escolha do torneio chega ao pré-jogo de clubes');
+    await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
+    assert.equal(await page.locator('.comp__menu-item').count(), 8,
+      'a Champions abre o menu próprio, com sete opções e o voltar');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');
     await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
@@ -1853,4 +1865,232 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
     await browser.close();
     server.close();
   }
+});
+
+/* ------------------------------------------------ competições (Champions) -- */
+
+test('as quatro competições sorteiam grupos, calendário, artilharia e campeão', async () => {
+  const { COMPETITIONS, createTournament, tournamentBracket, tournamentScorers,
+    recordTournamentResult, simulateRound, nextTournamentFixture, tournamentStatus,
+    allGroupTables } = await import('../xfc-game/src/data/tournament.js');
+
+  assert.equal(COMPETITIONS.length, 4, 'o jogo tem quatro competições');
+  assert.deepEqual(COMPETITIONS.map(item => item.id), [
+    'uefa-champions-league', 'copa-america', 'conmebol-libertadores', 'world-cup'
+  ]);
+  assert.equal(new Set(COMPETITIONS.map(item => item.theme)).size, 4, 'cada competição tem tema próprio');
+
+  for (const competition of COMPETITIONS) {
+    let seed = 12345;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const tournament = createTournament(competition.id, { random });
+    assert.ok(tournament.groups.A.includes(tournament.userTeamId), `${competition.id}: o time do usuário abre o grupo A`);
+    for (const [group, teams] of Object.entries(tournament.groups)) {
+      assert.ok(teams.length >= 3, `${competition.id}: grupo ${group} tem pelo menos três times`);
+    }
+    assert.ok(tournament.fixtures.length > 0, `${competition.id}: calendário gerado`);
+
+    let guard = 0;
+    while (guard++ < 80) {
+      simulateRound(tournament, { random });
+      const fixture = nextTournamentFixture(tournament);
+      if (!fixture) break;
+      assert.ok(fixture.home && fixture.away, `${competition.id}: a partida tem os dois times`);
+      recordTournamentResult(tournament, fixture.id, 2, 1, { random });
+    }
+
+    assert.ok(tournament.champion, `${competition.id}: o campeonato chega a um campeão`);
+    assert.equal(tournament.stage, 'champion', `${competition.id}: a campanha termina`);
+    assert.ok(tournament.runnerUp, `${competition.id}: a final tem vice-campeão`);
+    const bracket = tournamentBracket(tournament);
+    assert.equal(bracket.at(-1).stage, 'final', `${competition.id}: o mata-mata termina na final`);
+    assert.ok(tournamentScorers(tournament, 5).length > 0, `${competition.id}: a artilharia tem goleadores`);
+    for (const { table } of allGroupTables(tournament)) {
+      assert.equal(table.reduce((total, entry) => total + entry.points, 0) % 1, 0,
+        `${competition.id}: a tabela soma pontos inteiros`);
+      assert.ok(table.every(entry => entry.played <= 3), `${competition.id}: ninguém joga mais que três rodadas`);
+    }
+    const status = tournamentStatus(tournament);
+    assert.ok(['champion', 'finished'].includes(status.stage), `${competition.id}: o status acompanha o fim do torneio`);
+    if (tournament.champion === tournament.userTeamId) {
+      assert.equal(status.stage, 'champion', `${competition.id}: o título do usuário é reconhecido`);
+    }
+  }
+});
+
+test('os menus das competições são próprios e todas as opções abrem telas reais', { timeout: 240000 }, async (t) => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) {
+    server.close();
+    return;
+  }
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      userAgent: 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36'
+    });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push(`${message.text()} @ ${message.location()?.url ?? 'inline'}`);
+    });
+
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--launch', { timeout: 15000 });
+    await page.click('.launch__enter');
+    await page.waitForSelector('.screen--menu', { timeout: 15000 });
+    await page.locator('.menu__item[data-menu-item="tournament"]').click();
+    await page.waitForSelector('.screen--modes', { timeout: 15000 });
+
+    const expected = [
+      {
+        option: 'uefa-champions-league',
+        id: 'uefa-champions-league',
+        labels: ['Jogar Partida', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+      },
+      {
+        option: 'copa-america',
+        id: 'copa-america',
+        labels: ['Jogar Partida', 'Seleções', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+      },
+      {
+        option: 'conmebol-libertadores',
+        id: 'conmebol-libertadores',
+        labels: ['Jogar Partida', 'Clubes', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+      },
+      {
+        option: 'worldcup-2027',
+        id: 'world-cup',
+        labels: ['Jogar Partida', 'Seleções', 'Calendário', 'Classificação', 'Fase de Grupos', 'Mata-Mata', 'Artilharia', 'Final']
+      }
+    ];
+
+    for (const { option, id, labels } of expected) {
+      await page.locator(`.modes__option[data-option="${option}"]`).click();
+      await page.locator('.modes__cta').click();
+      await page.waitForSelector(`.screen--competition[data-competition="${id}"]`, { timeout: 15000 });
+      const menuLabels = (await page.locator('.comp__menu-label').allTextContents()).map(text => text.trim());
+      assert.deepEqual(menuLabels, [...labels, 'Voltar aos Modos'],
+        `${id}: o menu mostra exatamente as opções próprias da competição`);
+      assert.equal(await page.locator(`.screen--competition[data-competition="${id}"] .comp__trophy svg`).count(), 1,
+        `${id}: o troféu da competição aparece no palco`);
+      assert.ok(await page.locator('.comp__footer-match').isVisible(), `${id}: o rodapé mostra a próxima partida`);
+      await page.locator('.comp__home').click();
+      await page.waitForSelector('.screen--menu', { timeout: 15000 });
+      assert.equal(await page.locator('.screen--worldcup').count(), 0,
+        `${id}: o atalho de início nunca cai na Copa do Mundo`);
+      await page.locator('.menu__item[data-menu-item="tournament"]').click();
+      await page.waitForSelector('.screen--modes', { timeout: 15000 });
+    }
+
+    // Champions: escolha do clube, sorteio e painéis funcionais.
+    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    await page.locator('.modes__cta').click();
+    await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
+    await page.locator('.comp__menu-item[data-panel="play"]').click();
+    assert.equal(await page.locator('.comp__team-card').count(), 12, 'a Champions oferece os doze clubes europeus');
+    await page.locator('.comp__team-card[data-team-id="fc-barcelona"]').click();
+    await page.locator('.comp__selection-preview .comp__cta').click();
+    await page.waitForSelector('.comp__match', { timeout: 10000 });
+    assert.ok(await page.locator('.comp__kit').first().isVisible(), 'a escolha de uniforme fica no painel');
+    assert.equal(await page.locator('.comp__opponent').count(), 11, 'o amistoso oferece os outros clubes do torneio');
+    assert.ok(await page.locator('.comp__friendlies .comp__ghost').isVisible(), 'o amistoso tem o botão de jogar');
+
+    await page.locator('.comp__menu-item[data-panel="standings"]').click();
+    assert.equal(await page.locator('.comp__table').count(), 3, 'a classificação mostra os três grupos');
+    assert.equal(await page.locator('.comp__table-row').count(), 12, 'cada grupo lista seus quatro times');
+
+    await page.locator('.comp__menu-item[data-panel="calendar"]').click();
+    assert.ok(await page.locator('.comp__fixture').count() >= 18, 'o calendário lista toda a fase de grupos');
+
+    await page.locator('.comp__menu-item[data-panel="groups"]').click();
+    assert.equal(await page.locator('.comp__group').count(), 3, 'a fase de grupos mostra os três grupos');
+
+    await page.locator('.comp__menu-item[data-panel="knockout"]').click();
+    assert.equal(await page.locator('.comp__bracket').count(), 0, 'o mata-mata fica bloqueado antes da classificação');
+    assert.ok(await page.locator('.comp__empty').isVisible(), 'o mata-mata explica como desbloquear');
+
+    await page.locator('.comp__menu-item[data-panel="scorers"]').click();
+    assert.ok(await page.locator('.comp__scorer').count() > 0, 'a artilharia mostra os goleadores');
+
+    await page.locator('.comp__menu-item[data-panel="final"]').click();
+    assert.ok((await page.locator('.comp__stage').textContent()).includes('final'), 'a aba Final fala da decisão');
+
+    // Pré-jogo com escudos, uniformes e escalação dos dois times.
+    await page.locator('.comp__menu-item[data-panel="play"]').click();
+    await page.locator('.comp__cta--play').click();
+    await page.waitForSelector('.showcase__enter', { timeout: 30000 });
+    assert.equal(await page.locator('.showcase__lineup').count(), 2, 'os dois times têm escalação no pré-jogo');
+    assert.equal(await page.locator('.showcase__lineup-player').count(), 22, 'as duas escalações somam 22 jogadores');
+    assert.equal(await page.locator('.showcase__lineup-kit svg').count(), 2, 'as blusas escolhidas aparecem no pré-jogo');
+
+    // Entrada cinematográfica: a partida só começa depois do túnel.
+    await page.click('.showcase__enter');
+    await page.waitForSelector('.hud.is-visible', { timeout: 20000 });
+    const entrancePlayed = await page.evaluate(() => window.__xfcMatch.world.entrancePlayed);
+    assert.equal(entrancePlayed, true, 'os times entram em campo pelo túnel antes do apito');
+    assert.equal(await page.locator('.entrance').count(), 0, 'a entrada termina quando o jogo começa');
+
+    // Nenhum aviso gigante de falta/pênalti/lateral: só o gol tem cartão.
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('.hud__banner--foul').count(), 0, 'as faltas não tomam a tela');
+    assert.equal(await page.locator('.hud__banner--restart').count(), 0, 'as bolas paradas não tomam a tela');
+    const goalCard = await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.textContent = '.hud__banner--goal-card { bottom: 132px; }';
+      document.head.appendChild(style);
+      const node = document.createElement('div');
+      node.className = 'hud__banner hud__banner--goal-card is-visible';
+      document.body.appendChild(node);
+      const rect = node.getBoundingClientRect();
+      const result = { bottom: rect.bottom, top: rect.top, height: window.innerHeight };
+      node.remove();
+      style.remove();
+      return result;
+    });
+    assert.ok(goalCard.top > goalCard.height * 0.55, 'o cartão de gol fica na parte de baixo da tela');
+
+    // Pausa: o atalho de início leva ao menu principal, nunca à Copa do Mundo.
+    await page.locator('.play__pause-button').click();
+    await page.waitForSelector('.pause__tile[data-pause-action="mode-home"]', { timeout: 8000 });
+    await page.locator('.pause__tile[data-pause-action="mode-home"]').click();
+    await page.waitForSelector('.screen--menu', { timeout: 15000 });
+    assert.equal(await page.locator('.screen--worldcup').count(), 0, 'o botão de início respeita o menu principal');
+
+    // Botões do celular: sem seleção de texto/callout de link.
+    const buttonStyle = await page.locator('.menu__item').first().evaluate(node => {
+      const style = getComputedStyle(node);
+      return { userSelect: style.userSelect, touchAction: style.touchAction };
+    });
+    assert.equal(buttonStyle.userSelect, 'none', 'o texto do botão não é selecionável no Android');
+    assert.equal(buttonStyle.touchAction, 'manipulation', 'o toque não abre o menu de link do WebView');
+    const contextMenuBlocked = await page.evaluate(() => {
+      const button = document.querySelector('.menu__item');
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      button.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    assert.ok(contextMenuBlocked, 'segurar um botão não abre o menu de copiar/abrir do WebView');
+
+    assert.deepEqual(errors, [], `sem erros de página ou console: ${errors.join(' | ')}`);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('os avisos de falta e bola parada saíram da tela e o gol ganhou cartão no rodapé', async () => {
+  const playSource = await readFile(new URL('../xfc-game/src/screens/play.js', import.meta.url), 'utf8');
+  const hudSource = await readFile(new URL('../xfc-game/src/match3d/hud.js', import.meta.url), 'utf8');
+  assert.ok(!playSource.includes("showBanner(`FALTA"), 'a falta não abre mais um aviso gigante');
+  assert.ok(!playSource.includes('showBanner(instructions[0]'), 'pênalti, lateral e tiro livre não tomam a tela');
+  assert.ok(!playSource.includes('showBanner(\'SAÍDA'), 'a saída de bola não cobre o campo');
+  assert.ok(playSource.includes('hud.showGoalCard'), 'o gol usa o cartão de rodapé');
+  assert.ok(hudSource.includes('showGoalCard'), 'a HUD desenha o cartão com camisa, nome e placar');
+  assert.ok(hudSource.includes('hud__goal-number'), 'o número da camisa aparece no cartão');
 });

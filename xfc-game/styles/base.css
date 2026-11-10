@@ -485,3 +485,36 @@ img {
   background: rgba(255, 255, 255, 0.08);
   font-size: 13px;
 }
+
+/* --------------------------------------------------- controles no Android -- */
+/* O WebView abria o balão azul de "abrir/copiar link" ao segurar um botão.
+   Os controles do jogo são botões reais: nada de seleção de texto, menu de
+   contexto ou callout de toque longo. Campos de texto seguem selecionáveis. */
+
+button,
+[role="button"],
+.btn,
+.continue-btn,
+.pad-btn {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button *,
+[role="button"] * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}

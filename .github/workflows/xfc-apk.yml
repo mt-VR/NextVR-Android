@@ -175,20 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.7
+          TAG=xfc-gameplay-v0.5.8
           NOTES=$(printf '%s\n' \
-            "XFC 27 — seis melhorias de jogabilidade v0.5.7 (versionCode 13), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — menus de competições v0.5.8 (versionCode 14), build do commit ${GITHUB_SHA}." \
             "" \
-            "Retorno direto aos modos a partir de qualquer tela de jogo, inclusive pela pausa. Centro de Treino com três exercícios jogáveis: bola parada, pênalti e jogo coletivo. IA com mais largura, opções de passe, apoios e recomposição defensiva." \
+            "Quatro menus de competição com identidade própria: UEFA Champions League (azul), Copa América (azul e dourado), Libertadores (preto e dourado) e Copa do Mundo (vinho e dourado)." \
             "" \
-            "Anatomia e proporções do atleta refinadas, estádio com torcida 3D, bancos de reservas e bloco de vestiários, e bola com gomos e costuras detalhados." \
+            "Cada menu abre telas reais: escolha de clubes ou seleções, amistoso com adversário e uniformes, calendário, classificação, fase de grupos, chaveamento do mata-mata, artilharia e final — com resultados, sorteio e simulação dos outros jogos." \
+            "" \
+            "Pré-jogo com estádio, escudos, uniformes e escalação dos dois times, entrada cinematográfica pelo túnel e transição para o apito. Correção dos botões no Android (sem seleção de texto ou menu de link) e avisos de falta, pênalti e lateral removidos: só o gol aparece, no rodapé, com camisa e nome." \
             "" \
             "Preserva modos, regras, times e recursos existentes. O APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — seis melhorias de jogabilidade v0.5.7" \
+            gh release create "$TAG" --title "XFC 27 — menus de competições v0.5.8" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — seis melhorias de jogabilidade v0.5.7" \
+            gh release edit "$TAG" --title "XFC 27 — menus de competições v0.5.8" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

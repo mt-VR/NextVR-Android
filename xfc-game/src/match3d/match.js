@@ -126,6 +126,10 @@ export function createMatch(options = {}) {
   let cameraReady = false;
   // 'play' (transmissão) ou 'cinematic' (volta sobre o estádio).
   let cameraMode = 'cinematic';
+  // Entrada cinematográfica: os 22 jogadores saem do vestiário e a câmera
+  // acompanha o time do usuário até o alinhamento no gramado.
+  let entrance = null;
+  let entrancePlayed = false;
   let cinematicAngle = 0;
   let manualCamera = null;
   let goalScorer = null;
@@ -1633,6 +1637,20 @@ export function createMatch(options = {}) {
       return setSetPieceOptions(options);
     },
 
+    /** Entrada cinematográfica do túnel até o alinhamento (usada no pré-jogo). */
+    startEntrance(options) {
+      return startEntrance(options);
+    },
+    get entranceActive() {
+      return Boolean(entrance);
+    },
+    get entrancePlayed() {
+      return entrancePlayed;
+    },
+    get entranceProgress() {
+      return entrance ? Math.min(1, entrance.time / entrance.duration) : 0;
+    },
+
     /** Alterna entre a câmera de transmissão e a cinematográfica. */
     setCameraMode(mode) {
       cameraMode = mode;
@@ -2230,6 +2248,108 @@ export function createMatch(options = {}) {
     updateTrainingCamera(dt);
   }
 
+  // ---------------------------------------------------------------- entrada --
+
+  // A boca do túnel fica na linha lateral: os jogadores surgem de trás do
+  // painel de publicidade já sobre o gramado, visíveis para a câmera.
+  const ENTRANCE_GATE = { x: 0, z: -(PITCH.halfWidth - 0.4) };
+
+  /** Posição de cada jogador no trajeto túnel → posição tática. */
+  function entrancePose(player, progress) {
+    const base = player.entranceBase || { x: player.x, z: player.z };
+    const spreadX = (player.order - 5) * 1.05;
+    const laneX = base.x * 0.45 + spreadX * 0.35;
+    const start = { x: spreadX * 0.4, z: ENTRANCE_GATE.z };
+    const middle = { x: laneX, z: -(PITCH.halfWidth + 1.4) };
+    const inverse = 1 - progress;
+    return {
+      x: inverse * inverse * start.x + 2 * inverse * progress * middle.x + progress * progress * base.x,
+      z: inverse * inverse * start.z + 2 * inverse * progress * middle.z + progress * progress * base.z
+    };
+  }
+
+  function startEntrance({ duration = 4 } = {}) {
+    if (entrance) return false;
+    if (phase.name !== 'kickoff') return false;
+    entrance = { time: 0, duration, side: phase.side, startedAt: globalThis.performance?.now?.() ?? Date.now() };
+    for (const player of allPlayers) {
+      player.entranceBase = { x: player.x, z: player.z };
+    }
+    phase.name = 'entrance';
+    phase.timer = 0;
+    paused = false;
+    emit({ type: 'entrance-start' });
+    return true;
+  }
+
+  function finishEntrance() {
+    const side = entrance?.side || 'home';
+    for (const player of allPlayers) {
+      if (player.entranceBase) {
+        player.x = player.entranceBase.x;
+        player.z = player.entranceBase.z;
+        player.entranceBase = null;
+      }
+      player.vx = 0;
+      player.vz = 0;
+      player.root.position.set(player.x, 0, player.z);
+    }
+    entrance = null;
+    entrancePlayed = true;
+    phase.name = 'kickoff';
+    phase.side = side;
+    phase.timer = 0;
+    cameraMode = 'play';
+    cameraReady = false;
+    emit({ type: 'entrance-end', side });
+  }
+
+  function updateEntrance(dt) {
+    // O relógio da entrada usa o tempo real: em aparelhos lentos a caminhada
+    // não pode durar o dobro por causa do passo limitado da física.
+    const now = globalThis.performance?.now?.() ?? Date.now();
+    entrance.time = Math.max(entrance.time + dt, (now - entrance.startedAt) / 1000);
+    const total = Math.min(1, entrance.time / entrance.duration);
+    const stagger = 0.3;
+    for (const player of allPlayers) {
+      const gate = (player.order / 10) * stagger;
+      const local = Math.max(0, Math.min(1, (total - gate) / (1 - stagger)));
+      const eased = local * local * (3 - 2 * local);
+      const pose = entrancePose(player, eased);
+      const previousX = player.x;
+      const previousZ = player.z;
+      player.x = pose.x;
+      player.z = pose.z;
+      const dx = player.x - previousX;
+      const dz = player.z - previousZ;
+      if (Math.hypot(dx, dz) > 0.0005) {
+        player.facingAngle = Math.atan2(dx, dz);
+        player.facing.set(Math.sin(player.facingAngle), 0, Math.cos(player.facingAngle));
+      }
+      player.root.position.set(player.x, 0, player.z);
+      player.root.rotation.y = player.facingAngle;
+      player.model.update(dt, { moving: local > 0.02 && local < 0.98, speed: 1.7, ownsBall: false });
+    }
+    updateEntranceCamera(total);
+    if (total >= 1) finishEntrance();
+  }
+
+  function updateEntranceCamera(progress) {
+    const camera = engine.camera;
+    const ease = progress * progress * (3 - 2 * progress);
+    // A câmera acompanha o grupo que sai do túnel: desloca-se com o centro
+    // do time, mantendo o enquadramento de transmissão até o alinhamento.
+    const group = members(entrance.side).filter(player => player.active);
+    const count = group.length || 1;
+    const centerX = group.reduce((total, player) => total + player.x, 0) / count;
+    const centerZ = group.reduce((total, player) => total + player.z, 0) / count;
+    const positionX = centerX + 7 + 4 * ease;
+    const positionY = 4.6 + 4.4 * ease;
+    const positionZ = Math.min(centerZ + 10, -8);
+    camera.position.set(positionX, positionY, positionZ);
+    camera.lookAt(centerX - 1.2, 1.5 + 0.8 * ease, centerZ + 1.2);
+  }
+
   // ----------------------------------------------------------------- update --
 
   function update(dt) {
@@ -2240,6 +2360,15 @@ export function createMatch(options = {}) {
       return;
     }
     elapsedWorldTime += dt;
+    if (entrance) {
+      // Um teste ou outro sistema que troque a fase à força cancela a entrada.
+      if (phase.name !== 'entrance') {
+        entrance = null;
+      } else {
+        updateEntrance(dt);
+        return;
+      }
+    }
     for (const player of allPlayers) {
       if (player.isKeeper) updateKeeperReach(player);
     }

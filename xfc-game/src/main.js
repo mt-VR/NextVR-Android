@@ -20,7 +20,15 @@ import { modesScreen } from './screens/modes.js';
 import { customiseScreen } from './screens/customise.js';
 import { ultimateTeamScreen } from './screens/ultimate.js';
 import { trainingScreen } from './screens/training.js';
+import { competitionScreen } from './screens/competition.js';
 import { unlockAudio } from './audio.js';
+
+// No Android, um toque longo em um botão abria o balão de "abrir/copiar" do
+// WebView. O jogo usa botões reais; o menu de contexto é bloqueado apenas
+// sobre controles da interface, sem atrapalhar campos de texto.
+document.addEventListener('contextmenu', event => {
+  if (event.target?.closest?.('button, [role="button"], .app')) event.preventDefault();
+});
 
 // O áudio (apito, torcida) só pode começar após um gesto do usuário.
 for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
@@ -48,7 +56,8 @@ const registry = {
   customise: customiseScreen,
   worldcup: worldCupScreen,
   ultimate: ultimateTeamScreen,
-  training: trainingScreen
+  training: trainingScreen,
+  competition: competitionScreen
 };
 
 let current = null;

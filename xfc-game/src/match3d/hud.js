@@ -558,6 +558,26 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
         banner.className = 'hud__banner';
       }, duration);
     },
+    /**
+     * Cartão de gol no rodapé: número da camisa, nome do autor e placar.
+     * Substitui o aviso gigante no meio do campo.
+     */
+    showGoalCard({ number = null, name = 'GOL', score = '' } = {}) {
+      banner.className = 'hud__banner hud__banner--goal-card is-visible';
+      banner.replaceChildren(
+        el('b', { class: 'hud__goal-number', text: String(number ?? '').trim() || '⚽' }),
+        el('span', { class: 'hud__goal-copy' },
+          el('span', { class: 'hud__goal-label', text: 'GOL!' }),
+          el('span', { class: 'hud__goal-name', text: String(name).toUpperCase() })
+        ),
+        score && el('span', { class: 'hud__goal-score', text: score })
+      );
+      clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.className = 'hud__banner';
+        banner.replaceChildren();
+      }, 3600);
+    },
     /** Acrescenta uma linha no feed de eventos. */
     pushEvent(text, kind = 'info') {
       const line = el('div', { class: `hud__event hud__event--${kind}`, text });

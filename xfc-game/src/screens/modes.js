@@ -13,7 +13,8 @@ const MODES = [
     title: 'XFC World Cup™, Live',
     subtitle: 'Escolha uma seleção, dispute a fase de grupos e tente chegar à final.',
     eyebrow: 'FIFA WORLD CUP™  •  LIVE',
-    action: 'worldcup',
+    action: 'competition',
+    competitionId: 'world-cup',
     mode: 'live',
     mark: '♜'
   },
@@ -23,7 +24,8 @@ const MODES = [
     title: 'XFC World Cup™ 2027',
     subtitle: 'Monte sua campanha, avance pelos grupos e leve sua seleção até a final.',
     eyebrow: 'TORNEIO INTERNACIONAL  •  2027',
-    action: 'worldcup',
+    action: 'competition',
+    competitionId: 'world-cup',
     mode: '2027',
     mark: '♜'
   },
@@ -42,7 +44,8 @@ const MODES = [
     title: 'UEFA Champions League',
     subtitle: 'Escolha seus clubes e jogue uma decisão com a identidade da maior noite europeia.',
     eyebrow: 'TORNEIO EUROPEU  •  NOITE DE DECISÃO',
-    action: 'kickoff',
+    action: 'competition',
+    competitionId: 'uefa-champions-league',
     mark: '✦',
     competition: { id: 'uefa-champions-league', title: 'UEFA Champions League', format: 'Final' }
   },
@@ -52,7 +55,8 @@ const MODES = [
     title: 'CONMEBOL Libertadores',
     subtitle: 'Leve dois clubes ao gramado e dispute uma partida com clima de Libertadores.',
     eyebrow: 'TORNEIO SUL-AMERICANO  •  A GLÓRIA ETERNA',
-    action: 'kickoff',
+    action: 'competition',
+    competitionId: 'conmebol-libertadores',
     mark: '✦',
     competition: { id: 'conmebol-libertadores', title: 'CONMEBOL Libertadores', format: 'Final' }
   },
@@ -92,7 +96,8 @@ const MODES = [
     title: 'Copa América',
     subtitle: 'Represente uma seleção sul-americana em uma partida especial de torneio.',
     eyebrow: 'TORNEIO INTERNACIONAL  •  AMÉRICA DO SUL',
-    action: 'kickoff',
+    action: 'competition',
+    competitionId: 'copa-america',
     mark: '★',
     competition: { id: 'copa-america', title: 'Copa América', format: 'Partida especial' }
   },
@@ -238,14 +243,16 @@ export function modesScreen(ctx) {
     brazilName.textContent = item.competition ? item.competition.id === 'uefa-champions-league' ? 'UEFA' : item.competition.id === 'conmebol-libertadores' ? 'CONMEBOL' : 'XFC' : 'BRASIL';
     cta.querySelector('span:nth-child(2)').textContent = item.action === 'customise' ? 'CUSTOMISE'
       : item.action === 'quick' ? 'PLAY ONLINE'
-        : item.action === 'kickoff' ? item.competition ? 'ESCOLHER CLUBES' : 'KICK OFF'
-          : item.action === 'training' ? 'TREINAR' : 'TAKE ME THERE';
+        : item.action === 'competition' ? 'ABRIR COMPETIÇÃO'
+          : item.action === 'kickoff' ? item.competition ? 'ESCOLHER CLUBES' : 'KICK OFF'
+            : item.action === 'training' ? 'TREINAR' : 'TAKE ME THERE';
     breadcrumb.lastElementChild.textContent = item.label;
   }
 
   function openSelected() {
     const item = MODES[focusIndex];
-    if (item.action === 'worldcup') ctx.go('worldcup', { mode: item.mode, returnTo: 'modes' });
+    if (item.action === 'competition') ctx.go('competition', { competitionId: item.competitionId, returnTo: 'modes' });
+    else if (item.action === 'worldcup') ctx.go('worldcup', { mode: item.mode, returnTo: 'modes' });
     else if (item.action === 'kickoff') ctx.go('kickoff', { competition: item.competition || null, returnTo: 'modes' });
     else if (item.action === 'quick') ctx.go('quick');
     else if (item.action === 'training') ctx.go('training', { returnTo: 'modes' });
