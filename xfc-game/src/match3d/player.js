@@ -236,16 +236,17 @@ function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}
     glintMesh.scale.set(0.0022, 0.0022, 0.0018);
     group.add(glintMesh);
 
-    const eyebrow = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.0068, 0.011), brow);
-    eyebrow.position.set(0.035 * side, 0.0335, 0.0792);
+    const eyebrow = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.0062, 0.008), brow);
+    eyebrow.position.set(0.035 * side, 0.0348, 0.0862);
     eyebrow.rotation.z = -0.1 * side;
+    eyebrow.rotation.y = 0.16 * side;
     group.add(eyebrow);
 
     // Pálpebra: só a borda superior, senão o olho parece inchado.
     if (!lowDetail) {
       const lid = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: skinTone }));
-      lid.position.set(0.034 * side, 0.0292, 0.0748);
-      lid.scale.set(0.0208, 0.0072, 0.0138);
+      lid.position.set(0.034 * side, 0.0306, 0.0752);
+      lid.scale.set(0.0204, 0.0042, 0.0134);
       group.add(lid);
     }
   }
