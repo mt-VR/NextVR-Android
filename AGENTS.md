@@ -188,25 +188,25 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
 
 ### Corpo humano de verdade (agora é o padrão)
 
-O elenco é uma malha humana masculina rigada: `assets/players/models/footballer.glb`
-(`Soldier.glb`, Mixamo Vanguard, dos exemplos do three.js — 49 ossos
-`mixamorig*`, 11.376 triângulos, atlas de 2 imagens). O rig procedural continua
-em `src/match3d/player.js` como reserva (`?models=2d` ou
-`window.__XFC_GLTF = false`).
+O elenco é `assets/players/models/footballer.glb` (`Xbot.glb`, Mixamo Beta, dos
+exemplos do three.js: 67 ossos `mixamorig*`, **sem textura**, com `idle`,
+`walk` e `run` embutidos). Como não há textura de roupa, o uniforme é
+construído por código em `buildKit()`: camisa, mangas, short, meiões, chuteiras
+e número, cada peça presa a um osso com `bone.attach()` e dimensionada pelas
+distâncias entre ossos (ombro↔ombro, quadril↔quadril, joelho↔pé).
 
 Regras aprendidas na marra:
 
-* **Animação de locomoção: usar os clipes que vêm dentro do `.glb`**
-  (`Idle`/`Walk`/`Run`). Eles são do mesmo esqueleto e sempre funcionam. O
-  carregador mapeia esses nomes sozinho (`OWN_CLIPS`).
-* **Gestos: escrever nos ossos, não retargetar** (`startGesture`/
-  `applyGesture`): rotações locais aditivas depois do `mixer.update`, com
-  envelope de entrada/saída. Foi a única forma de ter chute e comemoração
-  corretos neste esqueleto.
-* Retarget de clipe externo só compensa quando o repouso casa: `Michelle.glb`
-  (6,3° de delta médio) roda os clipes do repositório inteiros; `Soldier.glb`
-  (19,2°, com 180° no quadril e nas pernas) não roda — braços torcem nas três
-  variantes testadas (delta local, retarget no espaço de mundo, clipe cru).
+* **Locomoção: usar os clipes que vêm dentro do `.glb`** (`Idle`/`Walk`/`Run`).
+  O carregador mapeia esses nomes (`OWN_CLIPS`); sem retarget, animação limpa.
+* **Gestos: escrever nos ossos** (`startGesture`/`applyGesture`), rotações
+  locais aditivas depois do `mixer.update`, com envelope. Retarget de clipe
+  externo só funciona quando o repouso do esqueleto casa: `Michelle.glb`
+  (6,3° de delta médio) roda tudo; `Soldier.glb` (19,2°, 180° no quadril e nas
+  pernas) e `Xbot` (14,1°) não rodam — torcem os braços nas três variantes
+  testadas (delta local, retarget de mundo, clipe cru).
+* **Frente do modelo:** export Mixamo olha para -Z e o motor gira o atleta por
+  `atan2(dx, dz)` (+Z). Sem `model.rotation.y = Math.PI` ele corre de costas.
 * Medir altura só com `bindPoseBounds()` usando `mesh.applyBoneTransform()`:
   `Box3.setFromObject` em `SkinnedMesh` mente e, sem o bind por junta, modelos
   em centímetros com `bindMatrix` escalado saem 100× maiores.
@@ -214,10 +214,8 @@ Regras aprendidas na marra:
 * Trilhas `.position` dos clipes Mixamo vêm em outro referencial e afundam o
   atleta — descartar sempre (só `.quaternion` interessa).
 * O controlador glTF precisa expor `speed`, `mask`, `applyMask()`, `blend()`,
-  `trigger()`, `stop()`, `state()` **e** `stats()` (usado por `animation.js`);
-  sem `stats()` a API `window.__xfcAnim.state()` quebra.
-* Cor do time = tinta no material (`white.lerp(cor, 0.55)`); não há malha de
-  uniforme separada, então o time se diferencia pela cor da roupa do modelo.
+  `trigger()`, `stop()`, `state()` **e** `stats()`; sem `stats()` a API
+  `window.__xfcAnim.state()` quebra.
 
 ### Nomenclatura de assets
 

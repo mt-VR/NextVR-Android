@@ -346,6 +346,122 @@ function findBone(root, name) {
   return found;
 }
 
+/** Tons de pele usados no elenco (variedade sem depender de textura). */
+const SKIN_TONES = ['#c98d68', '#8d5a3b', '#e0b090', '#6b4226', '#a9714b'];
+
+/**
+ * Uniforme procedural em cima do esqueleto glTF.
+ *
+ * Cada peça é presa a um osso com `bone.attach()` — anda junto com a animação
+ * sem precisar de skinning próprio. É o que transforma o manequim em jogador:
+ * camisa, short, meiões e chuteiras nas cores do time.
+ */
+function buildKit(bones, root, kit, number, skinTone) {
+  const primary = new THREE.Color(kit.primary || '#2ef0a8');
+  const secondary = new THREE.Color(kit.secondary || '#0b2b3a');
+  const accent = new THREE.Color(kit.accent || '#ffffff');
+  const pieces = [];
+  root.updateMatrixWorld(true);
+
+  const material = (color, extra = {}) => new THREE.MeshStandardMaterial({
+    color: color.clone(),
+    roughness: 0.82,
+    metalness: 0,
+    ...extra
+  });
+  const cloth = material(primary);
+  const shortsMat = material(secondary);
+  const socksMat = material(primary.clone().lerp(accent, 0.35));
+  const bootMat = material(new THREE.Color('#101418'), { roughness: 0.55 });
+  const darkSkin = new THREE.Color(SKIN_TONES[skinTone % SKIN_TONES.length]);
+
+  function attach(bone, mesh, offset) {
+    if (!bone) return null;
+    const world = bone.getWorldPosition(new THREE.Vector3());
+    mesh.position.copy(world).add(offset || new THREE.Vector3());
+    root.add(mesh);
+    root.updateMatrixWorld(true);
+    bone.attach(mesh);
+    pieces.push(mesh);
+    return mesh;
+  }
+
+  // Medidas tiradas do próprio esqueleto: nada de tamanho fixo, funciona em
+  // qualquer humanoide do Mixamo.
+  const pos = bone => bone
+    ? bone.getWorldPosition(new THREE.Vector3())
+    : new THREE.Vector3();
+  const shoulderSpan = pos(bones.leftArm).distanceTo(pos(bones.rightArm)) || 0.4;
+  const hipSpan = pos(bones.leftUpLeg).distanceTo(pos(bones.rightUpLeg)) || 0.24;
+  const torsoHeight = Math.max(0.32, pos(bones.spine2).distanceTo(pos(bones.hips)) * 1.7);
+  const shinHeight = Math.max(0.24, pos(bones.leftLeg).distanceTo(pos(bones.leftFoot)) * 0.95);
+
+  // Camisa: do ombro até o quadril, mais larga no peito.
+  const neckPos = pos(bones.neck);
+  const hipsPos = pos(bones.hips);
+  const jerseyHeight = Math.max(0.46, neckPos.distanceTo(hipsPos) * 1.3);
+  const jerseyCenter = neckPos.clone().lerp(hipsPos, 0.6);
+  const jersey = new THREE.Mesh(new THREE.CylinderGeometry(
+    shoulderSpan * 0.54,
+    hipSpan * 0.82,
+    jerseyHeight,
+    18,
+    1,
+    true
+  ), cloth);
+  jersey.material.side = THREE.DoubleSide;
+  attach(bones.spine2, jersey, jerseyCenter.clone().sub(pos(bones.spine2)));
+
+  // Mangas curtas.
+  for (const [arm, sign] of [[bones.leftArm, 1], [bones.rightArm, -1]]) {
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(
+      shoulderSpan * 0.17, shoulderSpan * 0.15, shoulderSpan * 0.42, 12, 1, true
+    ), cloth);
+    sleeve.material.side = THREE.DoubleSide;
+    sleeve.rotation.z = Math.PI / 2;
+    attach(arm, sleeve, new THREE.Vector3(sign * shoulderSpan * 0.18, 0, 0));
+  }
+
+  // Short: do quadril até a metade da coxa.
+  const shortsHeight = hipSpan * 2.3;
+  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(
+    hipSpan * 0.94, hipSpan * 0.86, shortsHeight, 18, 1, false
+  ), shortsMat);
+  attach(bones.hips, shorts, new THREE.Vector3(0, -shortsHeight * 0.5, 0));
+
+  // Meiões e chuteiras.
+  for (const [knee, foot] of [[bones.leftLeg, bones.leftFoot], [bones.rightLeg, bones.rightFoot]]) {
+    const sockHeight = Math.max(0.26, pos(knee).distanceTo(pos(foot)) * 0.92);
+    const sock = new THREE.Mesh(new THREE.CylinderGeometry(
+      sockHeight * 0.15, sockHeight * 0.12, sockHeight * 1.05, 12, 1, false
+    ), socksMat);
+    attach(knee, sock, new THREE.Vector3(0, -sockHeight * 0.55, 0));
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(sockHeight * 0.3, sockHeight * 0.2, sockHeight * 0.62), bootMat);
+    attach(foot, boot, new THREE.Vector3(0, -sockHeight * 0.12, sockHeight * 0.17));
+  }
+
+  // Número nas costas, num plano com textura de canvas.
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  if (canvas && number) {
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#' + accent.getHexString();
+    ctx.font = 'bold 96px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(number), 64, 70);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24),
+      new THREE.MeshStandardMaterial({ map: texture, transparent: true, roughness: 0.9, metalness: 0 }));
+    back.rotation.y = Math.PI;
+    attach(bones.spine2, back, new THREE.Vector3(0, 0.02, -0.2));
+  }
+
+  return { pieces, materials: [cloth, shortsMat, socksMat, bootMat, darkSkin] };
+}
+
 /**
  * Atleta glTF com o mesmo contrato do rig procedural.
  * @returns {object|null} `null` quando o pacote ainda não chegou.
@@ -358,7 +474,8 @@ export function createGltfPlayer(options = {}) {
     isKeeper = false,
     heightScale = 1,
     simplified = false,
-    preferredFoot = 'Right'
+    preferredFoot = 'Right',
+    skinTone = 0
   } = options;
 
   const root = new THREE.Group();
@@ -368,6 +485,9 @@ export function createGltfPlayer(options = {}) {
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
+  // O export Mixamo olha para -Z; o motor gira o atleta para +Z (atan2 de
+  // movimento). Sem esta meia-volta ele corre de costas para onde anda.
+  model.rotation.y = Math.PI;
   root.add(model);
 
   // Normaliza a altura: o Mixamo exporta em metros, mas cada arquivo pode
@@ -402,6 +522,15 @@ export function createGltfPlayer(options = {}) {
       // O modelo vem com atlas de textura (armadura/tecido/pele no mesmo mapa).
       // Em vez de jogar a cor por cima — o que apagaria a textura e deixaria a
       // pele amarela — misturamos só parte da cor do time, mantendo o desenho.
+      if (!material.map) {
+        // Modelo sem textura (manequim): o corpo é pele, e o uniforme é
+        // construído em cima do esqueleto (buildKit). Nada de tingir a pele.
+        clone.color = new THREE.Color(SKIN_TONES[skinTone % SKIN_TONES.length]);
+        clone.roughness = 0.85;
+        clone.metalness = 0;
+        materials.push(clone);
+        return clone;
+      }
       const tint = /visor|glass|eye/i.test(name) ? secondary : primary;
       const strength = /visor|glass/i.test(name) ? 0.75 : 0.55;
       clone.color = clone.color.copy(new THREE.Color(1, 1, 1)).lerp(tint, strength);
@@ -446,6 +575,29 @@ export function createGltfPlayer(options = {}) {
     rightLeg: findBone(model, 'RightLeg'),
     rightFoot: findBone(model, 'RightFoot')
   };
+
+  // Modelo sem textura (manequim): veste o uniforme do time no próprio
+  // esqueleto. Modelos que já vêm com textura de roupa não recebem peças.
+  const hasTexture = model.children.length > 0 && (() => {
+    let textured = false;
+    model.traverse(object => {
+      if (textured || !object.isMesh) return;
+      if (materialList(object).some(material => material.map)) textured = true;
+    });
+    return textured;
+  })();
+  const kitParts = hasTexture ? null : buildKit(bones, root, {
+    primary: '#' + primary.getHexString(),
+    secondary: '#' + secondary.getHexString(),
+    accent: kit.accent || '#ffffff'
+  }, number, skinTone);
+  if (kitParts) {
+    for (const piece of kitParts.pieces) {
+      piece.castShadow = true;
+      piece.frustumCulled = false;
+      shadowMeshes.push(piece);
+    }
+  }
 
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;

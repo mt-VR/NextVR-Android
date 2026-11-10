@@ -40,24 +40,26 @@ arquivo de áudio de terceiros é usado.
 O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que carrega
 uniforme, escudo, número e retrato.
 
-### Elenco humano 3D (padrão do jogo)
+### Elenco humano 3D com uniforme (padrão do jogo)
 
-O time em campo é um **corpo humano masculino de verdade**, rigado e animado:
+O time em campo é um **corpo humano masculino rigado**, vestido por código com
+o uniforme do clube:
 
-| Arquivo | Origem | Licença | Onde |
+| Item | Origem | Licença | Onde |
 | --- | --- | --- | --- |
-| `assets/players/models/footballer.glb` | `Soldier.glb` (personagem Mixamo "Vanguard") dos exemplos do three.js (`mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 2,1 MB, 11.376 triângulos, 49 ossos `mixamorig*`, atlas de 2 texturas |
-| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo (chute, cabeceio, carrinho, comemoração, mergulho, goleiro, lateral) | Mixamo/Adobe | biblioteca mocap do repositório |
+| `assets/players/models/footballer.glb` | `Xbot.glb` (personagem Mixamo "Beta") dos exemplos do three.js (`mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 2,9 MB, 67 ossos `mixamorig*`, animações `idle`/`walk`/`run` embutidas |
+| Camisa, short, meiões, chuteiras e número | **gerados no jogo** (`buildKit` em `src/match3d/models.js`) | código do projeto | peças presas aos ossos, medidas tiradas do próprio esqueleto |
+| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo de futebol | Mixamo/Adobe | só como referência; não rodam neste esqueleto |
 
 Como o modelo toca cada coisa:
 
-* **Andar, correr e ficar parado** usam os clipes nativos dele (`Idle`, `Walk`,
-  `Run`), que vêm no próprio arquivo — animação perfeita, sem retarget.
+* **Andar, correr e ficar parado** usam os clipes nativos do arquivo
+  (`Idle`/`Walk`/`Run`), sem retarget.
 * **Chute, cabeceio, carrinho, mergulho e comemoração** são escritos direto nos
-  ossos (`startGesture` em `src/match3d/models.js`): rotações locais somadas à
-  pose do mixer, com entrada/saída suaves. Os clipes de futebol do repositório
-  foram exportados com outro repouso (180° no quadril e nas pernas) e torcem os
-  braços deste esqueleto, então eles só entram na biblioteca como referência.
+  ossos (`startGesture`), com entrada/saída suaves.
+* Modelos sem textura recebem tom de pele + uniforme procedural; modelos que já
+  vêm texturizados (o `Soldier.glb`) continuam jogáveis por `?models=glb` com o
+  arquivo trocado.
 
 O rig procedural continua no jogo como reserva (`?models=2d` ou
 `window.__XFC_GLTF = false`) e é o que roda se o `.glb` faltar.
