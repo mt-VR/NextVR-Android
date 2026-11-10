@@ -381,7 +381,7 @@ export function playScreen(ctx, params = {}) {
         const team = event.team === 'home' ? home : away;
         const [homeScore, awayScore] = event.score;
         cheer({ duration: 2.8, peak: 0.55 });
-        const scorerName = event.scorer?.name || 'GOL';
+        const scorerName = event.scorer?.name || (event.ownGoalBy ? `${event.ownGoalBy.name} (contra)` : 'GOL');
         // A comemoração fica no rodapé, com a camisa e o nome de quem fez o gol.
         hud.showGoalCard({
           number: event.scorer?.number,
@@ -392,11 +392,11 @@ export function playScreen(ctx, params = {}) {
         // A câmera fecha no autor, que corre com os braços erguidos; o nome
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
-          const scorer = event.scorer;
+          const scorer = event.scorer?.side === event.team ? event.scorer : null;
           const celebration = event.celebration || 'classic';
           scorer?.model?.celebrate?.(3.4, celebration);
           const teammates = scorer ? (match?.teams?.[event.team]?.players || [])
-            .filter(player => player.active && player !== scorer)
+            .filter(player => player.active && !player.isKeeper && player !== scorer)
             .sort((a, b) => Math.hypot(a.x - scorer.x, a.z - scorer.z)
               - Math.hypot(b.x - scorer.x, b.z - scorer.z))
             .slice(0, 2) : [];

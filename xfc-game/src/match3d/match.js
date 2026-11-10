@@ -8,6 +8,7 @@
 import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
+import { resolveGoalCredit } from './scoring.js';
 import { createPlayer3D, lookFor } from './player.js';
 import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
@@ -417,6 +418,7 @@ export function createMatch(options = {}) {
     });
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
+    ball.state.lastIntentionalTouch = player;
     if (training.enabled && training.drill === 'team' && player.side === userSide) {
       training.lastPassFrom = player.id;
     }
@@ -476,6 +478,7 @@ export function createMatch(options = {}) {
       { curve: clampSetPiece(curve, -1, 1) }
     );
     ball.state.lastTouch = player;
+    ball.state.lastIntentionalTouch = player;
     ball.state.lastShotKind = kind;
     if (training.enabled && player.side === userSide) {
       training.player = player;
@@ -501,6 +504,7 @@ export function createMatch(options = {}) {
     if (rng() < aiAccuracy * resistance) {
       ball.attachTo(player);
       ball.state.lastTouch = player;
+      ball.state.lastIntentionalTouch = player;
       player.model.kick();
       emit({ type: 'tackle', team: player.side, player, kind: 'standing', clean: true });
       return true;
@@ -585,6 +589,7 @@ export function createMatch(options = {}) {
             if (ballFirst) {
               ball.attachTo(player);
               ball.state.lastTouch = player;
+              ball.state.lastIntentionalTouch = player;
               player.model.kick('tackle');
               if (player.side === userSide) controlled[userSide] = player;
               if (bodyDistance < 1.05) owner.model.react?.('bump', 0.55);
@@ -620,6 +625,7 @@ export function createMatch(options = {}) {
             if (ballDistance <= 0.82 || rng() < 0.72) {
               ball.attachTo(player);
               ball.state.lastTouch = player;
+              ball.state.lastIntentionalTouch = player;
               player.model.kick('tackle');
               if (player.side === userSide) controlled[userSide] = player;
               emit({ type: 'tackle', team: player.side, player, kind: 'slide', clean: true });
@@ -897,6 +903,7 @@ export function createMatch(options = {}) {
     ball.state.velocity.set(0, 0, 0);
     ball.attachTo(taker);
     ball.state.lastTouch = taker;
+    ball.state.lastIntentionalTouch = taker;
     if (restart.type === 'corner') {
       const target = cornerTarget({ attackSign: sign, aim: setPieceOptions.aim });
       faceTowards(taker, target.x, target.z, 1, 12);
@@ -1061,6 +1068,7 @@ export function createMatch(options = {}) {
         ball.kick({ x: attackSign(taker.side), z: (rng() - 0.5) * 0.3 }, 17, 0.2);
         ball.state.lastShotKind = null;
         ball.state.lastTouch = taker;
+        ball.state.lastIntentionalTouch = taker;
       }
     } else if (restart.type === 'corner') {
       const sign = attackSign(taker.side);
@@ -1220,6 +1228,7 @@ export function createMatch(options = {}) {
     ball.state.velocity.set(0, 0, 0);
     ball.attachTo(kicker);
     ball.state.lastTouch = kicker;
+    ball.state.lastIntentionalTouch = kicker;
     if (side === userSide) controlled[userSide] = kicker;
     emit({ type: 'kickoff', team: side });
   }
@@ -1231,7 +1240,8 @@ export function createMatch(options = {}) {
     phase.name = 'goal';
     phase.timer = 0;
     phase.conceding = opponentOf(side);
-    goalScorer = scorer || ball.state.lastTouch || null;
+    const credit = resolveGoalCredit(side, scorer || ball.state.lastTouch, ball.state.lastIntentionalTouch);
+    goalScorer = credit.scorer;
     goalCelebrationStyle = GOAL_CELEBRATIONS[goalCelebrationIndex % GOAL_CELEBRATIONS.length];
     goalCelebrationIndex += 1;
     goalCameraReady = false;
@@ -1243,6 +1253,7 @@ export function createMatch(options = {}) {
       type: 'goal',
       team: side,
       scorer: goalScorer,
+      ownGoalBy: credit.ownGoalBy,
       celebration: goalCelebrationStyle,
       score: [teams.home.score, teams.away.score],
       minute: clock.minutes
@@ -2063,6 +2074,7 @@ export function createMatch(options = {}) {
     ball.reset(player.x, player.z);
     ball.attachTo(player);
     ball.state.lastTouch = player;
+    ball.state.lastIntentionalTouch = player;
     ball.state.lastShotKind = null;
     refereeModel.root.visible = false;
     cameraMode = 'pro';
@@ -2174,6 +2186,7 @@ export function createMatch(options = {}) {
     training.lastPassFrom = null;
     ball.attachTo(receiver);
     ball.state.lastTouch = receiver;
+    ball.state.lastIntentionalTouch = receiver;
     receiver.model.receive?.();
     if (receiver.side === userSide) {
       controlled[userSide] = receiver;
@@ -2662,6 +2675,7 @@ export function createMatch(options = {}) {
       if (last && last !== best && last.side === best.side) stats[best.side].passesOn += 1;
       ball.attachTo(best);
       ball.state.lastTouch = best;
+      ball.state.lastIntentionalTouch = best;
       best.model.receive?.();
       if (best.side === userSide) controlled[userSide] = best;
     }

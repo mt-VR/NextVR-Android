@@ -1,10 +1,10 @@
-// Modelo 3D real (glTF/Mixamo) do atleta, com animações mocap.
+// Modelo externo Innerscene/Micah CC0, vestido e texturizado na origem.
 //
 // O palco do jogo é um WebView offline: o pacote precisa carregar rápido e não
 // pode quebrar se o modelo faltar. Por isso este módulo:
 //
 //   1. carrega UMA vez o esqueleto + malha (`assets/players/models/footballer.glb`)
-//      e uma biblioteca de clipes (`assets/animations/<ação>/<ação>.glb`);
+//      com o rig e os clipes adaptados offline em tools/rig-footballer.py;
 //   2. clona o esqueleto para cada atleta (`SkeletonUtils.clone`);
 //   3. pinta o uniforme nas cores do time e liga o mixer com as camadas.
 //
@@ -19,19 +19,6 @@ import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
-const CLIP_URLS = Object.freeze({
-  idle: 'assets/animations/idle/idle.glb',
-  jog: 'assets/animations/jog/jog.glb',
-  run: 'assets/animations/run/run.glb',
-  kick: 'assets/animations/kick/kick.glb',
-  header: 'assets/animations/header/header.glb',
-  tackle: 'assets/animations/tackle/tackle.glb',
-  celebrate: 'assets/animations/celebrate/celebrate.glb',
-  dive: 'assets/animations/dive/dive.glb',
-  'keeper-idle': 'assets/animations/keeper-idle/keeper-idle.glb',
-  'throw-in': 'assets/animations/throw-in/throw-in.glb'
-});
-
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
 function bareBone(name) {
   return String(name || '').split(':').pop().split('_').pop().replace(/^mixamorig/i, '');
@@ -81,150 +68,6 @@ export function maskClip(clip, mask, key = 'full') {
   return masked;
 }
 
-/** Mapa osso → rotação de repouso (pose de bind do arquivo). */
-function restQuaternions(root) {
-  const map = new Map();
-  root.traverse(object => {
-    if (object.isBone || object.type === 'Object3D' || object.isObject3D) {
-      const key = bareBone(object.name);
-      if (key && !map.has(key)) map.set(key, object.quaternion.clone());
-    }
-  });
-  return map;
-}
-
-/**
- * Reencaixa um clipe de outra origem no nosso esqueleto.
- *
- * Os dois são Mixamo (mesma hierarquia e mesmos nomes de osso), mas cada
- * arquivo foi exportado com uma orientação de repouso própria — o Soldier, por
- * exemplo, tem o quadril e a coxa girados em relação ao arquivo do clipe.
- * Tocar o clipe cru deita o atleta. A correção é a clássica de retarget local:
- *
- *     q_alvo(t) = repouso_alvo · repouso_origem⁻¹ · q_origem(t)
- *
- * Como repouso_alvo · repouso_origem⁻¹ é uma constante por osso, ela pode ser
- * multiplicada em cada keyframe uma única vez, no carregamento.
- */
-function retargetClip(clip, targetRest, sourceRest) {
-  const tracks = [];
-  for (const track of clip.tracks) {
-    const isQuaternion = track.name.endsWith('.quaternion');
-    const isPosition = track.name.endsWith('.position');
-    const bone = trackBone(track.name);
-    if (!isQuaternion && !isPosition) { tracks.push(track); continue; }
-    const target = targetRest.get(bone);
-    const source = sourceRest.get(bone);
-    if (!target || !source) continue; // osso que não existe no nosso modelo
-    // Trilhas de posição: o deslocamento do quadril do arquivo de origem está
-    // em outro referencial e afunda o atleta no gramado. O corpo é posicionado
-    // pelo motor (raiz do atleta), então só as rotações são aproveitadas.
-    if (isPosition) continue;
-    const correction = target.clone().multiply(source.clone().invert());
-    const values = new Float32Array(track.values.length);
-    const q = new THREE.Quaternion();
-    for (let i = 0; i < track.values.length; i += 4) {
-      q.set(track.values[i], track.values[i + 1], track.values[i + 2], track.values[i + 3]);
-      q.premultiply(correction).normalize();
-      values[i] = q.x; values[i + 1] = q.y; values[i + 2] = q.z; values[i + 3] = q.w;
-    }
-    tracks.push(new THREE.QuaternionKeyframeTrack(track.name, Array.from(track.times), Array.from(values)));
-  }
-  return new THREE.AnimationClip(`${clip.name}-xfc`, clip.duration, tracks);
-}
-
-/** Rotação de mundo de cada osso (pose de bind ou pose animada). */
-function worldQuaternions(root, out = new Map()) {
-  root.updateMatrixWorld(true);
-  root.traverse(object => {
-    if (object.isBone) out.set(bareBone(object.name), object.getWorldQuaternion(new THREE.Quaternion()));
-  });
-  return out;
-}
-
-/**
- * Retarget de verdade: reescreve o clipe no espaço de MUNDO.
- *
- * A correção local (`retargetClip`) só funciona quando os dois esqueletos têm
- * a mesma orientação de repouso por osso. Quando o export gira o quadril ou a
- * coxa 180° (Soldier/Xbot), a constante por osso não dá conta e os braços
- * torcem. No espaço de mundo a conta é exata e independe do repouso:
- *
- *     A(osso)       = mundo_alvo(repouso) · mundo_origem(repouso)⁻¹
- *     mundo_alvo(t) = A(osso) · mundo_origem(t)
- *     local(t)      = mundo_alvo(pai)⁻¹ · mundo_alvo(osso)
- *
- * O `pai` é o objeto pai real (osso ou não), porque entre o Hips e a raiz do
- * modelo pode existir um nó de armadura com rotação/escala própria.
- * O clipe inteiro é assado a 30 fps uma única vez, no carregamento.
- */
-function bakeRetarget(clipGltf, clip, targetRoot, targetRest) {
-  const scene = clipGltf.scene;
-  const sourceRest = worldQuaternions(scene);
-  const align = new Map();
-  for (const [bone, rest] of targetRest) {
-    const source = sourceRest.get(bone);
-    if (source) align.set(bone, rest.clone().multiply(source.clone().invert()));
-  }
-  if (!align.size) return clip;
-
-  const mixer = new THREE.AnimationMixer(scene);
-  mixer.clipAction(clip).play();
-  const fps = 30;
-  const frames = Math.max(2, Math.round(clip.duration * fps) + 1);
-
-  const order = [];
-  targetRoot.traverse(object => {
-    if (object.isBone && align.has(bareBone(object.name))) order.push(object);
-  });
-  if (!order.length) { mixer.stopAllAction(); return clip; }
-
-  const values = new Map(order.map(bone => [bone, new Float32Array(frames * 4)]));
-  const source = new Map();
-  const targetWorld = new Map();
-  const local = new THREE.Quaternion();
-  const parentWorld = new THREE.Quaternion();
-  const inverse = new THREE.Quaternion();
-
-  for (let frame = 0; frame < frames; frame += 1) {
-    mixer.setTime(Math.min(clip.duration, frame / fps));
-    scene.updateMatrixWorld(true);
-    source.clear();
-    worldQuaternions(scene, source);
-    targetWorld.clear();
-    for (const bone of order) {
-      const key = bareBone(bone.name);
-      const sourceWorld = source.get(key);
-      if (sourceWorld) targetWorld.set(bone, align.get(key).clone().multiply(sourceWorld));
-    }
-    for (const bone of order) {
-      const world = targetWorld.get(bone);
-      if (!world) continue;
-      const parent = bone.parent;
-      let base = null;
-      if (parent && targetWorld.has(parent)) base = targetWorld.get(parent);
-      else if (parent) base = parent.getWorldQuaternion(parentWorld);
-      local.copy(world);
-      if (base) local.premultiply(inverse.copy(base).invert());
-      local.normalize();
-      const track = values.get(bone);
-      track[frame * 4] = local.x;
-      track[frame * 4 + 1] = local.y;
-      track[frame * 4 + 2] = local.z;
-      track[frame * 4 + 3] = local.w;
-    }
-  }
-  mixer.stopAllAction();
-  mixer.uncacheRoot(scene);
-
-  const times = Array.from({ length: frames }, (_, index) => index / fps);
-  const tracks = [];
-  for (const [bone, track] of values) {
-    tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, Array.from(track)));
-  }
-  return new THREE.AnimationClip(`${clip.name}-xfc`, times[times.length - 1], tracks);
-}
-
 function materialList(object) {
   if (!object.isMesh) return [];
   return Array.isArray(object.material) ? object.material : [object.material];
@@ -242,51 +85,20 @@ function loadGlb(url) {
 }
 
 /**
- * Carrega malha + clipes. Exportado para os testes e para o pré-carregamento
+ * Carrega a malha com seus clipes embutidos. Exportado para os testes e para o pré-carregamento
  * das telas; chamadas repetidas reaproveitam a mesma promessa.
  */
 export function preloadFootballerPack() {
   if (packPromise) return packPromise;
   packPromise = (async () => {
-    const [gltf, ...clips] = await Promise.all([
-      loadGlb(MODEL_URL),
-      ...Object.entries(CLIP_URLS).map(async ([name, url]) => {
-        try {
-          const clipGltf = await loadGlb(url);
-          return [name, clipGltf];
-        } catch (error) {
-          console.warn('[xfc] clipe indisponível', name, error?.message || error);
-          return [name, null];
-        }
-      })
-    ]);
-    const targetRestWorld = worldQuaternions(gltf.scene);
-    const targetRestLocal = restQuaternions(gltf.scene);
+    const gltf = await loadGlb(MODEL_URL);
     const library = new Map();
-    // Clipes que vêm DENTRO do modelo (Idle/Run/Walk do próprio Mixamo) rodam
-    // sem retarget: são do mesmo esqueleto, sempre perfeitos. Eles substituem
-    // a biblioteca externa nos nomes equivalentes.
-    const OWN_CLIPS = { idle: ['idle', 'idle_01', 'stand'], jog: ['walk', 'jog'], run: ['run', 'sprint'] };
+    const aliases = { idle: 'idle', walk: 'jog', jog: 'jog', run: 'run' };
     for (const animation of gltf.animations || []) {
-      const slug = String(animation.name || '').toLowerCase().trim();
-      for (const [name, aliases] of Object.entries(OWN_CLIPS)) {
-        if (!aliases.includes(slug)) continue;
-        library.set(name, new THREE.AnimationClip(`${name}-own`, animation.duration,
-          animation.tracks.filter(track => !track.name.endsWith('.position'))));
-      }
+      const name = aliases[animation.name.toLowerCase()] || animation.name;
+      library.set(name, animation);
     }
-    for (const [name, clipGltf] of clips) {
-      if (library.has(name)) continue;
-      const raw = clipGltf?.animations?.[0];
-      if (!raw) continue;
-      try {
-        library.set(name, bakeRetarget(clipGltf, raw, gltf.scene, targetRestWorld));
-      } catch (error) {
-        console.warn('[xfc] retarget de mundo falhou, usando delta local', name, error?.message || error);
-        library.set(name, retargetClip(raw, targetRestLocal, restQuaternions(clipGltf.scene)));
-      }
-    }
-    if (!library.size) throw new Error('nenhum clipe Mixamo carregou');
+    if (!library.size) throw new Error('nenhum clipe do atleta carregou');
     pack = { scene: gltf.scene, clips: library };
     return pack;
   })().catch(error => {
@@ -346,126 +158,6 @@ function findBone(root, name) {
   return found;
 }
 
-/** Tons de pele usados no elenco (variedade sem depender de textura). */
-const SKIN_TONES = ['#c98d68', '#8d5a3b', '#e0b090', '#6b4226', '#a9714b'];
-
-/**
- * Uniforme procedural em cima do esqueleto glTF.
- *
- * Cada peça é presa a um osso com `bone.attach()` — anda junto com a animação
- * sem precisar de skinning próprio. É o que transforma o manequim em jogador:
- * camisa, short, meiões e chuteiras nas cores do time.
- */
-function buildKit(bones, root, kit, number, skinTone) {
-  const primary = new THREE.Color(kit.primary || '#2ef0a8');
-  const secondary = new THREE.Color(kit.secondary || '#0b2b3a');
-  const accent = new THREE.Color(kit.accent || '#ffffff');
-  const pieces = [];
-  root.updateMatrixWorld(true);
-
-  const material = (color, extra = {}) => new THREE.MeshStandardMaterial({
-    color: color.clone(),
-    roughness: 0.82,
-    metalness: 0,
-    ...extra
-  });
-  const cloth = material(primary);
-  const shortsMat = material(secondary);
-  const socksMat = material(primary.clone().lerp(accent, 0.35));
-  const bootMat = material(new THREE.Color('#101418'), { roughness: 0.55 });
-  const darkSkin = new THREE.Color(SKIN_TONES[skinTone % SKIN_TONES.length]);
-
-  function attach(bone, mesh, offset) {
-    if (!bone) return null;
-    const world = bone.getWorldPosition(new THREE.Vector3());
-    mesh.position.copy(world).add(offset || new THREE.Vector3());
-    root.add(mesh);
-    root.updateMatrixWorld(true);
-    bone.attach(mesh);
-    pieces.push(mesh);
-    return mesh;
-  }
-
-  // Medidas tiradas do próprio esqueleto: nada de tamanho fixo, funciona em
-  // qualquer humanoide do Mixamo.
-  const pos = bone => bone
-    ? bone.getWorldPosition(new THREE.Vector3())
-    : new THREE.Vector3();
-  const shoulderSpan = pos(bones.leftArm).distanceTo(pos(bones.rightArm)) || 0.4;
-  const hipSpan = pos(bones.leftUpLeg).distanceTo(pos(bones.rightUpLeg)) || 0.24;
-  const torsoHeight = Math.max(0.32, pos(bones.spine2).distanceTo(pos(bones.hips)) * 1.7);
-  const shinHeight = Math.max(0.24, pos(bones.leftLeg).distanceTo(pos(bones.leftFoot)) * 0.95);
-
-  // Camisa: do ombro até o quadril, mais larga no peito.
-  const neckPos = pos(bones.neck);
-  const hipsPos = pos(bones.hips);
-  const jerseyHeight = Math.max(0.46, neckPos.distanceTo(hipsPos) * 1.3);
-  const jerseyCenter = neckPos.clone().lerp(hipsPos, 0.6);
-  const jersey = new THREE.Mesh(new THREE.CylinderGeometry(
-    shoulderSpan * 0.54,
-    hipSpan * 0.82,
-    jerseyHeight,
-    18,
-    1,
-    true
-  ), cloth);
-  jersey.material.side = THREE.DoubleSide;
-  attach(bones.spine2, jersey, jerseyCenter.clone().sub(pos(bones.spine2)));
-
-  // Mangas curtas.
-  for (const [arm, sign] of [[bones.leftArm, 1], [bones.rightArm, -1]]) {
-    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(
-      shoulderSpan * 0.17, shoulderSpan * 0.15, shoulderSpan * 0.42, 12, 1, true
-    ), cloth);
-    sleeve.material.side = THREE.DoubleSide;
-    sleeve.rotation.z = Math.PI / 2;
-    attach(arm, sleeve, new THREE.Vector3(sign * shoulderSpan * 0.18, 0, 0));
-  }
-
-  // Short: do quadril até a metade da coxa.
-  const shortsHeight = hipSpan * 2.3;
-  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(
-    hipSpan * 0.94, hipSpan * 0.86, shortsHeight, 18, 1, false
-  ), shortsMat);
-  attach(bones.hips, shorts, new THREE.Vector3(0, -shortsHeight * 0.5, 0));
-
-  // Meiões e chuteiras.
-  for (const [knee, foot] of [[bones.leftLeg, bones.leftFoot], [bones.rightLeg, bones.rightFoot]]) {
-    const sockHeight = Math.max(0.26, pos(knee).distanceTo(pos(foot)) * 0.92);
-    const sock = new THREE.Mesh(new THREE.CylinderGeometry(
-      sockHeight * 0.15, sockHeight * 0.12, sockHeight * 1.05, 12, 1, false
-    ), socksMat);
-    attach(knee, sock, new THREE.Vector3(0, -sockHeight * 0.55, 0));
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(sockHeight * 0.3, sockHeight * 0.2, sockHeight * 0.62), bootMat);
-    attach(foot, boot, new THREE.Vector3(0, -sockHeight * 0.12, sockHeight * 0.17));
-  }
-
-  // Número nas costas, num plano com textura de canvas.
-  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
-  if (canvas && number) {
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#' + accent.getHexString();
-    ctx.font = 'bold 96px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(number), 64, 70);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24),
-      new THREE.MeshStandardMaterial({ map: texture, transparent: true, roughness: 0.9, metalness: 0 }));
-    back.rotation.y = Math.PI;
-    attach(bones.spine2, back, new THREE.Vector3(0, 0.02, -0.2));
-  }
-
-  return { pieces, materials: [cloth, shortsMat, socksMat, bootMat, darkSkin] };
-}
-
-/**
- * Atleta glTF com o mesmo contrato do rig procedural.
- * @returns {object|null} `null` quando o pacote ainda não chegou.
- */
 export function createGltfPlayer(options = {}) {
   if (!pack) return null;
   const {
@@ -474,8 +166,7 @@ export function createGltfPlayer(options = {}) {
     isKeeper = false,
     heightScale = 1,
     simplified = false,
-    preferredFoot = 'Right',
-    skinTone = 0
+    preferredFoot = 'Right'
   } = options;
 
   const root = new THREE.Group();
@@ -485,12 +176,13 @@ export function createGltfPlayer(options = {}) {
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
-  // O export Mixamo olha para -Z; o motor gira o atleta para +Z (atan2 de
-  // movimento). Sem esta meia-volta ele corre de costas para onde anda.
-  model.rotation.y = Math.PI;
+  // Verified on the imported mesh: eyes and boot toes face +Z already.
+  // Root yaw = atan2(vx, vz). A blind PI rotation reverses every runner.
+  model.rotation.y = 0;
+  root.userData.frontAxis = '+Z';
   root.add(model);
 
-  // Normaliza a altura: o Mixamo exporta em metros, mas cada arquivo pode
+  // Normaliza a altura: o arquivo importado usa metros, mas cada arquivo pode
   // variar. A escala final precisa ser 1,8 m para o campo continuar correto.
   // Alguns exports vêm com Z para cima (3ds Max/Mixamo antigos). Detecta pela
   // caixa da pose de bind e gira para o Y do jogo antes de medir a altura.
@@ -519,22 +211,9 @@ export function createGltfPlayer(options = {}) {
     const list = materialList(object).map(material => {
       const clone = material.clone();
       const name = String(material.name || '');
-      // O modelo vem com atlas de textura (armadura/tecido/pele no mesmo mapa).
-      // Em vez de jogar a cor por cima — o que apagaria a textura e deixaria a
-      // pele amarela — misturamos só parte da cor do time, mantendo o desenho.
-      if (!material.map) {
-        // Modelo sem textura (manequim): o corpo é pele, e o uniforme é
-        // construído em cima do esqueleto (buildKit). Nada de tingir a pele.
-        clone.color = new THREE.Color(SKIN_TONES[skinTone % SKIN_TONES.length]);
-        clone.roughness = 0.85;
-        clone.metalness = 0;
-        materials.push(clone);
-        return clone;
-      }
-      const tint = /visor|glass|eye/i.test(name) ? secondary : primary;
-      const strength = /visor|glass/i.test(name) ? 0.75 : 0.55;
-      clone.color = clone.color.copy(new THREE.Color(1, 1, 1)).lerp(tint, strength);
-      clone.roughness = Math.min(1, (clone.roughness ?? 0.8) + 0.1);
+      // Recolour only the existing cloth materials. Never tint skin/face/hair.
+      if (name === 'Micah | top') clone.color.copy(primary);
+      if (name === 'Micah | bottom') clone.color.copy(secondary);
       clone.metalness = 0;
       materials.push(clone);
       return clone;
@@ -576,29 +255,6 @@ export function createGltfPlayer(options = {}) {
     rightFoot: findBone(model, 'RightFoot')
   };
 
-  // Modelo sem textura (manequim): veste o uniforme do time no próprio
-  // esqueleto. Modelos que já vêm com textura de roupa não recebem peças.
-  const hasTexture = model.children.length > 0 && (() => {
-    let textured = false;
-    model.traverse(object => {
-      if (textured || !object.isMesh) return;
-      if (materialList(object).some(material => material.map)) textured = true;
-    });
-    return textured;
-  })();
-  const kitParts = hasTexture ? null : buildKit(bones, root, {
-    primary: '#' + primary.getHexString(),
-    secondary: '#' + secondary.getHexString(),
-    accent: kit.accent || '#ffffff'
-  }, number, skinTone);
-  if (kitParts) {
-    for (const piece of kitParts.pieces) {
-      piece.castShadow = true;
-      piece.frustumCulled = false;
-      shadowMeshes.push(piece);
-    }
-  }
-
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
 
@@ -611,13 +267,23 @@ export function createGltfPlayer(options = {}) {
   // mixer), com entrada/saída suaves. Assim o andar/correr continua vindo dos
   // clipes nativos do modelo e o chute/comemoração são previsíveis.
   // ---------------------------------------------------------------------
-  const gesture = { name: null, time: 0, duration: 0, dir: 1 };
+  const rigBones = [];
+  model.traverse(object => { if (object.isBone) rigBones.push(object); });
+  const bindHipY = bones.hips.position.y;
+  const floorJoints = rigBones.filter(bone => /Foot|ToeBase|Hand|Leg$/.test(bone.name));
+  const floorPoint = new THREE.Vector3();
+  const gesture = { name: null, time: 0, duration: 0, dir: 1, mask: null, maskName: 'full', weight: 1 };
+  let applyingGesture = false;
   const gEuler = new THREE.Euler();
   const gQuat = new THREE.Quaternion();
   const gBlend = new THREE.Quaternion();
 
   function addBoneRotation(bone, x, y, z, weight) {
     if (!bone || weight <= 0.001) return;
+    if (applyingGesture) {
+      if (gesture.mask && !gesture.mask.has(bareBone(bone.name))) return;
+      weight *= gesture.weight;
+    }
     gQuat.setFromEuler(gEuler.set(x, y, z, 'XYZ'));
     gBlend.identity().slerp(gQuat, Math.min(1, weight));
     bone.quaternion.multiply(gBlend);
@@ -630,12 +296,17 @@ export function createGltfPlayer(options = {}) {
     dive: 0.9,
     tackle: 0.8,
     react: 0.55,
-    signal: 0.9
+    fall: 0.95,
+    signal: 0.9,
+    'throw-in': 1.0
   };
 
-  function startGesture(name, duration) {
+  function startGesture(name, duration, opts = {}) {
     if (!GESTURES[name]) return null;
     gesture.name = name;
+    gesture.maskName = opts.mask || 'full';
+    gesture.mask = mixamoMask(gesture.maskName);
+    gesture.weight = Math.max(0, Math.min(1, opts.weight ?? 1));
     gesture.time = 0;
     gesture.duration = Number.isFinite(duration) ? duration : GESTURES[name];
     return name;
@@ -660,6 +331,7 @@ export function createGltfPlayer(options = {}) {
       gesture.name = null;
       return;
     }
+    applyingGesture = true;
     const p = gesture.time / gesture.duration;
     const w = gestureEnvelope();
     const dir = gesture.dir >= 0 ? 1 : -1;
@@ -669,10 +341,10 @@ export function createGltfPlayer(options = {}) {
         // Pernada: recua, chuta e volta. Joelho abre antes do contato.
         const swing = p < 0.3 ? -0.9 * (p / 0.3) : 1.3 * Math.sin(((p - 0.3) / 0.7) * Math.PI);
         const knee = p < 0.45 ? 1.0 * Math.sin(Math.PI * Math.min(1, p / 0.45)) : 0.15;
-        addBoneRotation(bones.rightUpLeg, swing, 0, 0, w);
-        addBoneRotation(bones.rightLeg, -knee, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, -swing, 0, 0, w);
+        addBoneRotation(bones.rightLeg, knee, 0, 0, w);
         addBoneRotation(bones.rightFoot, knee * 0.4, 0, 0, w);
-        addBoneRotation(bones.leftUpLeg, -swing * 0.18, 0, 0, w);
+        addBoneRotation(bones.leftUpLeg, swing * 0.18, 0, 0, w);
         addBoneRotation(bones.spine2, -0.22 * wave, 0.12 * wave, 0, w);
         addBoneRotation(bones.leftArm, 0, 0, 0.55 * wave, w);
         addBoneRotation(bones.rightArm, 0, 0, -0.35 * wave, w);
@@ -697,8 +369,9 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'dive': {
+        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.62 * wave * w;
         addBoneRotation(bones.spine2, -0.5 * wave, 0, 0, w);
-        addBoneRotation(bones.hips, 0, 0, -0.35 * wave * dir, w);
+        addBoneRotation(bones.hips, 0, 0, -1.1 * wave * dir, w);
         addBoneRotation(bones.leftArm, 0, 0, 1.5 * wave, w);
         addBoneRotation(bones.rightArm, 0, 0, -1.5 * wave, w);
         addBoneRotation(bones.leftUpLeg, -0.5 * wave, 0, 0, w);
@@ -708,12 +381,22 @@ export function createGltfPlayer(options = {}) {
       case 'tackle': {
         // Carrinho: agacha, estica a perna da frente e inclina o tronco.
         const slide = Math.sin(Math.PI * Math.min(1, p * 1.2));
-        addBoneRotation(bones.leftUpLeg, 1.1 * slide, 0, 0, w);
-        addBoneRotation(bones.leftLeg, -0.5 * slide, 0, 0, w);
-        addBoneRotation(bones.rightUpLeg, -0.4 * slide, 0, 0, w);
-        addBoneRotation(bones.rightLeg, -1.2 * slide, 0, 0, w);
+        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.67 * slide * w;
+        addBoneRotation(bones.leftUpLeg, -1.3 * slide, 0, 0, w);
+        addBoneRotation(bones.leftLeg, 0.2 * slide, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, -0.8 * slide, 0, 0, w);
+        addBoneRotation(bones.rightLeg, 1.4 * slide, 0, 0, w);
         addBoneRotation(bones.spine2, 0.3 * slide, 0, 0, w);
         addBoneRotation(bones.leftArm, 0, 0, 0.8 * slide, w);
+        break;
+      }
+      case 'fall': {
+        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.64 * wave * w;
+        addBoneRotation(bones.hips, 1.15 * wave, 0, 0.25 * wave * dir, w);
+        addBoneRotation(bones.leftUpLeg, -0.6 * wave, 0, 0, w);
+        addBoneRotation(bones.rightLeg, 0.9 * wave, 0, 0, w);
+        addBoneRotation(bones.leftArm, -1.2 * wave, 0, 0.2 * wave, w);
+        addBoneRotation(bones.rightArm, -1.2 * wave, 0, -0.2 * wave, w);
         break;
       }
       case 'react': {
@@ -722,6 +405,7 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.rightArm, 0, 0, -1.1 * wave, w);
         break;
       }
+      case 'throw-in':
       case 'signal': {
         addBoneRotation(bones.rightArm, 0, 0, -2.2 * wave, w);
         addBoneRotation(bones.rightForeArm, 0, 0, -0.4 * wave, w);
@@ -731,6 +415,7 @@ export function createGltfPlayer(options = {}) {
       default:
         break;
     }
+    applyingGesture = false;
   }
 
   /** Ações vivas por clipe+máscara. */
@@ -853,8 +538,8 @@ export function createGltfPlayer(options = {}) {
       gesture.dir = dir;
       return startGesture('tackle', duration);
     },
-    react() {
-      return startGesture('react');
+    react(kind = 'bump', duration) {
+      return startGesture(kind === 'fall' ? 'fall' : 'react', duration);
     },
     signal(duration = 1.1) {
       return startGesture('signal', duration);
@@ -889,16 +574,20 @@ export function createGltfPlayer(options = {}) {
       const distance = Number.isFinite(movement.distance) ? movement.distance : state.lastDistance;
       state.lastDistance = distance;
       const speed = Math.max(0, Number(movement.speed) || 0);
-      if (distance > 62) return; // longe demais: nada de mixer
       mixer.timeScale = state.speed;
-      if (distance > 34 && step > 0) {
-        // LOD: atletas distantes animam a metade da taxa.
-        mixer.update(step * 0.5);
-        return;
-      }
+      bones.hips.position.y = bindHipY;
+      for (const bone of rigBones) bone.quaternion.identity();
       updateLocomotion(speed);
       mixer.update(step);
+      addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
       applyGesture(step);
+      if (['dive', 'tackle', 'fall'].includes(gesture.name)) {
+        // Keep contact landmarks above the turf during low poses.
+        root.updateMatrixWorld(true);
+        let minY = Infinity;
+        for (const joint of floorJoints) minY = Math.min(minY, joint.getWorldPosition(floorPoint).y - root.position.y);
+        if (minY < 0.065) bones.hips.position.y += (0.065 - minY) / model.scale.y;
+      }
       // Gestos com prazo: quando o clipe acaba, o peso volta a zero.
       for (let index = gestureTimers.length - 1; index >= 0; index -= 1) {
         const timer = gestureTimers[index];
@@ -938,10 +627,12 @@ export function createGltfPlayer(options = {}) {
       return state.mask;
     },
     blend(clipName, weight = 1, opts = {}) {
+      if (GESTURES[clipName]) return weight > 0 ? startGesture(clipName, opts.duration, { ...opts, mask: opts.mask || state.mask }) : api.animation.stop(clipName);
       const action = fadeAction(clipName, weight, opts);
       return action ? `${clipName}|${opts.mask || state.mask || 'full'}` : null;
     },
     trigger(clipName, opts = {}) {
+      if (GESTURES[clipName]) return startGesture(clipName, opts.duration, { ...opts, mask: opts.mask || state.mask });
       const duration = Number.isFinite(opts.duration)
         ? opts.duration
         : (pack.clips.get(clipName)?.duration || 0.6);
@@ -952,6 +643,7 @@ export function createGltfPlayer(options = {}) {
     },
     stop(clipName) {
       let stopped = 0;
+      if (!clipName || clipName === gesture.name) { gesture.name = null; stopped++; }
       for (const [key, action] of actions) {
         if (clipName && !key.startsWith(String(clipName))) continue;
         action.setEffectiveWeight(0);
@@ -973,7 +665,8 @@ export function createGltfPlayer(options = {}) {
             clip: key.split('|')[0],
             mask: key.split('|')[1],
             weight: Number(action.getEffectiveWeight().toFixed(3))
-          })),
+          })).concat(gesture.name ? [{ clip: gesture.name, mask: gesture.maskName, weight: gestureEnvelope() * gesture.weight }] : []),
+        gesture: gesture.name,
         distance: state.lastDistance
       };
     },

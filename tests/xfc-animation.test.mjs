@@ -387,7 +387,7 @@ test('no caminho glTF o protagonista é o corpo humano e a API continua valendo'
       };
     });
     assert.equal(before.isGltf, true, 'o protagonista é a malha humana glTF');
-    assert.ok(before.boneCount > 40, `o esqueleto tem os ossos Mixamo (achei ${before.boneCount})`);
+    assert.equal(before.boneCount, 22, 'o rig ajustado ao modelo Micah tem 22 juntas');
     assert.equal(before.state?.model, 'glb', 'o estado da animação vem do controlador glTF');
 
     const after = await page.evaluate(() => {

@@ -186,36 +186,40 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
 
 ### Modelo glTF externo (padrão do jogo)
 
-### Corpo humano de verdade (agora é o padrão)
+### Jogador importado: Micah / Innerscene (v0.5.16)
 
-O elenco é `assets/players/models/footballer.glb` (`Xbot.glb`, Mixamo Beta, dos
-exemplos do three.js: 67 ossos `mixamorig*`, **sem textura**, com `idle`,
-`walk` e `run` embutidos). Como não há textura de roupa, o uniforme é
-construído por código em `buildKit()`: camisa, mangas, short, meiões, chuteiras
-e número, cada peça presa a um osso com `bone.attach()` e dimensionada pelas
-distâncias entre ossos (ombro↔ombro, quadril↔quadril, joelho↔pé).
+`assets/players/models/footballer.glb` agora é um jogador masculino **já
+vestido na origem**, CC0: corpo, rosto, cabelo, camisa, short, meiões e
+chuteiras do Innerscene/MakeHuman. Origem, licença e hashes estão em
+`CREDITS.md` e `footballer.source.json`. Não voltar a Soldier, Michelle,
+Xbot ou ao `buildKit()` removido: o usuário rejeitou essas substituições.
 
-Regras aprendidas na marra:
+O arquivo de origem é estático. `tools/rig-footballer.py` preserva a malha e
+adiciona rig/pesos + idle/walk/run; exige o SHA-256 do arquivo de entrada.
+Para reproduzir, baixar o espelho GitHub **fixado** no manifesto, então:
+`python3 xfc-game/tools/rig-footballer.py source.glb xfc-game/assets/players/models/footballer.glb`.
+Em seguida: `node xfc-game/tools/optimize-footballer.mjs xfc-game/assets/players/models/footballer.glb`.
+Python 3 + ImageMagick + npm ci; não gera um novo corpo/uniforme.
+O resultado móvel tem 22.386 triângulos e ~1,81 MB. Separação das mãos
+usa conectividade da malha: limiar apenas por coordenadas rasga dedos/short.
 
-* **Locomoção: usar os clipes que vêm dentro do `.glb`** (`Idle`/`Walk`/`Run`).
-  O carregador mapeia esses nomes (`OWN_CLIPS`); sem retarget, animação limpa.
-* **Gestos: escrever nos ossos** (`startGesture`/`applyGesture`), rotações
-  locais aditivas depois do `mixer.update`, com envelope. Retarget de clipe
-  externo só funciona quando o repouso do esqueleto casa: `Michelle.glb`
-  (6,3° de delta médio) roda tudo; `Soldier.glb` (19,2°, 180° no quadril e nas
-  pernas) e `Xbot` (14,1°) não rodam — torcem os braços nas três variantes
-  testadas (delta local, retarget de mundo, clipe cru).
-* **Frente do modelo:** export Mixamo olha para -Z e o motor gira o atleta por
-  `atan2(dx, dz)` (+Z). Sem `model.rotation.y = Math.PI` ele corre de costas.
-* Medir altura só com `bindPoseBounds()` usando `mesh.applyBoneTransform()`:
-  `Box3.setFromObject` em `SkinnedMesh` mente e, sem o bind por junta, modelos
-  em centímetros com `bindMatrix` escalado saem 100× maiores.
-* Alguns exports são Z-up (`size.z > size.y · 1.25` → `rotation.x = -π/2`).
-* Trilhas `.position` dos clipes Mixamo vêm em outro referencial e afundam o
-  atleta — descartar sempre (só `.quaternion` interessa).
-* O controlador glTF precisa expor `speed`, `mask`, `applyMask()`, `blend()`,
-  `trigger()`, `stop()`, `state()` **e** `stats()`; sem `stats()` a API
-  `window.__xfcAnim.state()` quebra.
+Regras de integração:
+- **Frente verificada +Z**, e yaw do motor `atan2(vx, vz)`. A antiga afirmação
+  "Mixamo sempre olha para -Z" era errada. Nunca aplicar PI sem medir/ver.
+- Carregar somente os clipes do rig atual; não retargetar a biblioteca legada.
+- Restaurar pose antes dos gestos aditivos a cada quadro, inclusive distante.
+  `react('fall')` faz queda; `movement.lean` inclina nas curvas.
+- Recolorir apenas `Micah | top` e `Micah | bottom`; preservar a pele/olhos.
+- Medir SkinnedMesh via `applyBoneTransform`, não só Box3 da geometria.
+- API de animação mantém speed/mask/blend/trigger/stop/state/stats.
+
+**Gol e comemoração:** `lastTouch` serve às colisões e escanteios;
+`lastIntentionalTouch` guarda posse/passe/chute e não muda no desvio do goleiro.
+`resolveGoalCredit()` escolhe o atacante. Posse adversária deliberada encerra
+esse vínculo; gol contra tem `ownGoalBy`, sem comemoração do defensor.
+A tela ainda valida que o autor pertence ao time que marcou. Regressões em
+`xfc-goal-credit.test.mjs` e `xfc-footballer-regression.test.mjs` (olhos/velocidade
+nos quatro sentidos e gol com desvio, HUD/comemoração/controle corretos).
 
 ### Nomenclatura de assets
 

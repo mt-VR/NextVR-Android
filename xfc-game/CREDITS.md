@@ -37,37 +37,41 @@ arquivo de áudio de terceiros é usado.
 
 ## Modelos 3D
 
-O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que carrega
+O fallback é gerado por código (`src/match3d/player.js`) — é esse rig que carrega
 uniforme, escudo, número e retrato.
 
-### Elenco humano 3D com uniforme (padrão do jogo)
+### Jogador de futebol importado (padrão desde v0.5.16)
 
-O time em campo é um **corpo humano masculino rigado**, vestido por código com
-o uniforme do clube:
+**Micah / Soccer player, standing**, por **Innerscene**, adaptado dos assets
+CC0 do MakeHuman. O corpo, rosto, cabelo, camisa, short, meiões e chuteiras
+são malhas/texturas do arquivo externo — não são roupa ou corpo feitos por
+código no XFC. Não é Soldier, Michelle nem Xbot.
 
-| Item | Origem | Licença | Onde |
-| --- | --- | --- | --- |
-| `assets/players/models/footballer.glb` | `Xbot.glb` (personagem Mixamo "Beta") dos exemplos do three.js (`mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 2,9 MB, 67 ossos `mixamorig*`, animações `idle`/`walk`/`run` embutidas |
-| Camisa, short, meiões, chuteiras e número | **gerados no jogo** (`buildKit` em `src/match3d/models.js`) | código do projeto | peças presas aos ossos, medidas tiradas do próprio esqueleto |
-| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo de futebol | Mixamo/Adobe | só como referência; não rodam neste esqueleto |
+- [Página e dedicação CC0 do autor](https://www.innerscene.com/tools/library/3d-parts/soccer-player-standing-3d-person-team-sports-f55b1b4f).
+- [Termos de uso](https://www.innerscene.com/tools/library/terms): CC0 1.0,
+  permite uso, modificação e redistribuição comercial. Cópia da licença em
+  `assets/players/models/licenses/CC0-1.0.txt`.
+- Binário otimizado obtido pelo [espelho GitHub, commit fixado](https://github.com/niktolis/pitchvolt-ai/blob/7e5e192541c06c2788cf8341ae297d543e433b7b/web/public/assets/hero/neutral-59ee4cbe96e07698.glb).
+  Origem e hashes de entrada/saída em `assets/players/models/footballer.source.json`.
+- `tools/optimize-footballer.mjs` usa glTF-Transform/Meshoptimizer para reduzir
+  a malha a 22.386 triângulos (~1,81 MB), preservando UVs e pesos.
+- **O original é estático**, sem rig/animação. `tools/rig-footballer.py` adiciona
+  pesos, esqueleto de 22 juntas e clipes idle/walk/run feitos para esse repouso.
+  Mantém a geometria original; retira bola decorativa, número fixo e travas
+  instanciadas. Neutraliza somente as texturas de tecido para receber a cor
+  do time. Pele, cabelo e olhos não são tingidos.
+- Chute, cabeceio, carrinho, queda, mergulho e comemoração são gestos locais
+  em `models.js`; não são mocap recebido do autor.
+- Frente verificada: **+Z**, sem meia-volta extra. Teste mede os olhos da
+  malha deformada contra a velocidade, nos quatro sentidos.
 
-Como o modelo toca cada coisa:
-
-* **Andar, correr e ficar parado** usam os clipes nativos do arquivo
-  (`Idle`/`Walk`/`Run`), sem retarget.
-* **Chute, cabeceio, carrinho, mergulho e comemoração** são escritos direto nos
-  ossos (`startGesture`), com entrada/saída suaves.
-* Modelos sem textura recebem tom de pele + uniforme procedural; modelos que já
-  vêm texturizados (o `Soldier.glb`) continuam jogáveis por `?models=glb` com o
-  arquivo trocado.
-
-O rig procedural continua no jogo como reserva (`?models=2d` ou
-`window.__XFC_GLTF = false`) e é o que roda se o `.glb` faltar.
+O rig procedural antigo fica somente como fallback em caso de erro do GLB ou
+modo leve explícito (`?models=2d`). `buildKit()` foi removido.
 
 ### Animações (Mixamo)
 
 Biblioteca de clipes mocap em glTF, um clipe por arquivo, esqueleto
-`mixamorig:*`, usada pelo caminho glTF:
+`mixamorig:*`, biblioteca legada. Não é carregada pelo modelo Micah atual:
 
 | Pasta | Clipe | Origem |
 | --- | --- | --- |

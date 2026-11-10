@@ -180,6 +180,7 @@ export function createBall(scene, { lowPower = false } = {}) {
     spin: new THREE.Vector3(),
     owner: null,
     lastTouch: null,
+    lastIntentionalTouch: null,
     // Evita que o mesmo jogador "mate" o chute em vários quadros seguidos.
     lastCollision: null,
     lastCollisionAt: -1,
@@ -194,6 +195,8 @@ export function createBall(scene, { lowPower = false } = {}) {
     state.velocity.set(0, 0, 0);
     state.spin.set(0, 0, 0);
     state.owner = null;
+    state.lastTouch = null;
+    state.lastIntentionalTouch = null;
     state.guidance = null;
     mesh.position.copy(state.position);
   }
@@ -219,6 +222,7 @@ export function createBall(scene, { lowPower = false } = {}) {
     /** Coloca a bola no pé de um jogador (domínio). */
     attachTo(player) {
       state.owner = player;
+      state.lastIntentionalTouch = player;
       state.velocity.set(0, 0, 0);
       state.guidance = null;
     },
