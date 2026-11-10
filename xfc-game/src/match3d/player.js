@@ -8,7 +8,7 @@ import { createAnimationController, rigFromModel } from './animation.js';
 
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
-const HAIR_STYLES = ['short', 'afro', 'mohawk', 'side', 'bob', 'bald'];
+const HAIR_STYLES = ['short', 'curly', 'afro', 'mohawk', 'neymar', 'side', 'bob', 'bald'];
 const CELEBRATION_STYLES = new Set(['classic', 'airplane', 'point', 'knee-slide', 'fist-pump']);
 const JERSEY_TEXTURES = new Map();
 const UNIFORM_TEXTURES = new Map();
@@ -173,6 +173,96 @@ function uniformTextureFor({ number, name, crest, teamName, sponsor, brand, prim
     });
     return texture;
   });
+}
+
+function softFaceTextureFor() {
+  return cachedTexture(FACE_TEXTURES, 'footballer-face-shading-v1', () => canvasTexture(128, 128, context => {
+    context.clearRect(0, 0, 128, 128);
+    // Só sombra: órbitas, maçãs do rosto e um leve escurecimento nas têmporas.
+    for (const x of [39, 89]) {
+      const socket = context.createRadialGradient(x, 54, 2, x, 56, 17);
+      socket.addColorStop(0, 'rgba(58,38,30,.22)');
+      socket.addColorStop(1, 'rgba(58,38,30,0)');
+      context.fillStyle = socket;
+      context.beginPath();
+      context.ellipse(x, 57, 16, 13, 0, 0, Math.PI * 2);
+      context.fill();
+      const cheek = context.createRadialGradient(x + 2, 88, 3, x + 2, 88, 18);
+      cheek.addColorStop(0, 'rgba(196,92,70,.16)');
+      cheek.addColorStop(1, 'rgba(196,92,70,0)');
+      context.fillStyle = cheek;
+      context.beginPath();
+      context.ellipse(x + 2, 88, 17, 12, 0, 0, Math.PI * 2);
+      context.fill();
+    }
+  }));
+}
+
+/**
+ * Rosto estilizado em geometria: olhos com íris/pupila/brilho, sobrancelhas e
+ * boca. É o que dá "cara" ao craque — a versão antiga só pintava o rosto na
+ * textura e ficava chapada de perto.
+ */
+function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}) {
+  const group = new THREE.Group();
+  group.name = 'xfc-player-face-3d';
+  const white = new THREE.MeshLambertMaterial({ color: 0xf6f1e8 });
+  const iris = new THREE.MeshLambertMaterial({ color: 0x4a2c17 });
+  const pupil = new THREE.MeshLambertMaterial({ color: 0x120c08 });
+  const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const brow = new THREE.MeshLambertMaterial({ color: 0x241811 });
+  const lip = new THREE.MeshLambertMaterial({ color: 0x8d4a3c });
+  const segments = lowDetail ? 7 : 10;
+  const eyeball = new THREE.SphereGeometry(1, segments, Math.max(5, segments - 2));
+
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(eyeball, white);
+    eye.position.set(0.034 * side, 0.021, 0.0745);
+    eye.scale.set(0.0205, 0.0155, 0.0135);
+    group.add(eye);
+
+    const irisMesh = new THREE.Mesh(eyeball, iris);
+    irisMesh.position.set(0.034 * side, 0.0205, 0.0855);
+    irisMesh.scale.set(0.0092, 0.0092, 0.0052);
+    group.add(irisMesh);
+
+    const pupilMesh = new THREE.Mesh(eyeball, pupil);
+    pupilMesh.position.set(0.034 * side, 0.0205, 0.0885);
+    pupilMesh.scale.set(0.0046, 0.0046, 0.0032);
+    group.add(pupilMesh);
+
+    const glintMesh = new THREE.Mesh(eyeball, glint);
+    glintMesh.position.set(0.034 * side + 0.0028 * side, 0.0242, 0.0915);
+    glintMesh.scale.set(0.0022, 0.0022, 0.0018);
+    group.add(glintMesh);
+
+    const eyebrow = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.0068, 0.011), brow);
+    eyebrow.position.set(0.035 * side, 0.0335, 0.0792);
+    eyebrow.rotation.z = -0.1 * side;
+    group.add(eyebrow);
+
+    // Pálpebra: só a borda superior, senão o olho parece inchado.
+    if (!lowDetail) {
+      const lid = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: skinTone }));
+      lid.position.set(0.034 * side, 0.0292, 0.0748);
+      lid.scale.set(0.0208, 0.0072, 0.0138);
+      group.add(lid);
+    }
+  }
+
+  const mouth = new THREE.Mesh(eyeball, lip);
+  mouth.position.set(0, -0.0495, 0.0772);
+  mouth.scale.set(0.0172, 0.0055, 0.0062);
+  group.add(mouth);
+
+  if (!lowDetail) {
+    const lowerLip = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: 0xa9584a }));
+    lowerLip.position.set(0, -0.0555, 0.0758);
+    lowerLip.scale.set(0.0148, 0.0038, 0.0052);
+    group.add(lowerLip);
+  }
+  head.add(group);
+  return group;
 }
 
 function faceTextureFor() {
@@ -689,6 +779,41 @@ function applyFacePhoto(head, photoUrl, skinMaterial) {
 /** Constrói o penteado do atleta a partir do estilo sorteado. */
 function buildHair(style, hairMaterial) {
   switch (style) {
+    case 'curly': {
+      // Cachos low-poly: casquete que cobre o crânio + blocos irregulares por
+      // cima. A silhueta (topo alto e laterais curtas) é a assinatura do craque.
+      const curls = new THREE.Group();
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.115, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        hairMaterial
+      );
+      cap.position.set(0, 0.05, -0.008);
+      cap.scale.set(1.0, 0.94, 1.02);
+      curls.add(cap);
+      const blobGeometry = new THREE.IcosahedronGeometry(1, 0);
+      const blobs = [];
+      const ring = 11;
+      for (let index = 0; index < ring; index += 1) {
+        const angle = (index / ring) * Math.PI * 2;
+        const radius = 0.082 + (index % 2) * 0.012;
+        blobs.push([
+          Math.sin(angle) * radius,
+          0.104 + (index % 3) * 0.016,
+          Math.cos(angle) * radius * 0.92 - 0.006,
+          0.030 + (index % 3) * 0.004
+        ]);
+      }
+      blobs.push([0, 0.126, -0.004, 0.042], [-0.04, 0.118, -0.028, 0.036], [0.04, 0.118, -0.028, 0.036]);
+      for (let index = 0; index < blobs.length; index += 1) {
+        const [x, y, z, size] = blobs[index];
+        const curl = new THREE.Mesh(blobGeometry, hairMaterial);
+        curl.position.set(x, y, z);
+        curl.scale.set(size, size * 0.9, size);
+        curl.rotation.set(index * 0.7, index * 1.1, index * 0.5);
+        curls.add(curl);
+      }
+      return curls;
+    }
     case 'afro': {
       // Volume afro no topo; a borda termina acima das sobrancelhas para não
       // cobrir olhos/nariz no rosto visto de frente.
@@ -768,7 +893,8 @@ function buildHair(style, hairMaterial) {
  * @param {boolean} options.isKeeper usa a roupa do goleiro
  * @param {boolean} [options.simplified] reduz a tesselação sem trocar a anatomia do rig
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
- * @param {string} [options.hairStyle] penteado (short, afro, mohawk, neymar, side, bob, bald)
+ * @param {string} [options.hairStyle] penteado (short, curly, afro, mohawk, neymar, side, bob, bald)
+ * @param {boolean} [options.stylized] rosto 3D (olhos, sobrancelhas, boca) — padrão para todo o elenco
  * @param {number} [options.heightScale] variação de altura (0.94–1.07)
  */
 export function createPlayer3D(options = {}) {
@@ -787,7 +913,8 @@ export function createPlayer3D(options = {}) {
     hairStyle = 'short',
     heightScale = 1,
     photo = null,
-    simplified = false
+    simplified = false,
+    stylized = true
   } = options;
 
   const primary = isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary;
@@ -864,7 +991,7 @@ export function createPlayer3D(options = {}) {
       shininess: 13
     });
   const faceFeatureMaterial = new THREE.MeshLambertMaterial({
-    map: faceTextureFor(),
+    map: stylized ? softFaceTextureFor() : faceTextureFor(),
     transparent: true,
     side: THREE.DoubleSide,
     depthWrite: false
@@ -899,8 +1026,8 @@ export function createPlayer3D(options = {}) {
   for (const side of [-1, 1]) {
     const shoulderCap = new THREE.Mesh(ellipsoidGeometry(jointSegments, 8), jerseyMaterial);
     shoulderCap.name = side < 0 ? 'xfc-player-left-deltoid' : 'xfc-player-right-deltoid';
-    shoulderCap.position.set(0.18 * side, 1.365, 0);
-    shoulderCap.scale.set(0.078, 0.074, 0.068);
+    shoulderCap.position.set(0.176 * side, 1.352, 0);
+    shoulderCap.scale.set(0.062, 0.058, 0.056);
     body.add(shoulderCap);
   }
 
@@ -943,6 +1070,9 @@ export function createPlayer3D(options = {}) {
   const head = new THREE.Group();
   head.name = 'xfc-player-head';
   head.position.y = 1.655;
+  // Cabeça um pouco maior no modo estilizado: é o que dá leitura do rosto a
+  // poucos metros de câmera, no estilo do elenco de arcade.
+  if (stylized) head.scale.setScalar(1.1);
   body.add(head);
   const skull = new THREE.Mesh(ellipsoidGeometry(jointSegments + 2, 10), skinMaterial);
   skull.name = 'xfc-player-skull';
@@ -970,6 +1100,7 @@ export function createPlayer3D(options = {}) {
     innerEar.scale.set(0.009, 0.018, 0.006);
     head.add(innerEar);
   }
+  if (stylized) buildStylizedFace(head, { lowDetail, skinTone });
   const hair = buildHair(hairStyle, hairMaterial);
   if (hair) {
     hair.name = 'xfc-player-hair';
@@ -987,7 +1118,7 @@ export function createPlayer3D(options = {}) {
     const shoulder = new THREE.Group();
     shoulder.name = side < 0 ? 'xfc-player-left-shoulder' : 'xfc-player-right-shoulder';
     shoulder.position.set(0.205 * side, 1.36, 0);
-    shoulder.rotation.z = side * 0.085;
+    shoulder.rotation.z = side * 0.05;
 
     const sleeve = new THREE.Mesh(ringGeometry([
       { y: -0.257, rx: 0.031, rz: 0.032 },
@@ -1245,7 +1376,7 @@ export function createPlayer3D(options = {}) {
     body.rotation.set(0, 0, 0);
     head.rotation.set(0, 0, 0);
     for (let index = 0; index < arms.length; index += 1) {
-      arms[index].shoulder.rotation.set(0, 0, (index === 0 ? -1 : 1) * 0.085);
+      arms[index].shoulder.rotation.set(0, 0, (index === 0 ? -1 : 1) * 0.05);
       arms[index].forearm.rotation.set(0, 0, 0);
     }
     for (const leg of legs) {

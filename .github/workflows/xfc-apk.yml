@@ -175,7 +175,7 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.10
+          TAG=xfc-gameplay-v0.5.11
           NOTES=$(printf '%s\n' \
             "XFC 27 — animação em camadas v0.5.10 (versionCode 16), build do commit ${GITHUB_SHA}." \
             "" \

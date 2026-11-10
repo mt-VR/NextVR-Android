@@ -158,6 +158,21 @@ A API controla **só o protagonista** (`controlled[userSide]`). Joystick,
 botões de ação e câmera continuam mandando no jogo normal: as camadas são um
 verniz por cima da pose base, nunca um substituto do controle.
 
+### Elenco estilizado (padrão do jogo)
+
+O atleta é 100% gerado por código — nada de modelo de terceiros, nada de
+licença de imagem de jogador real. A cara do craque vem de geometria:
+
+* `buildStylizedFace()` em `src/match3d/player.js`: olhos com íris, pupila e
+  brilho, pálpebra, sobrancelha e boca (o rosto deixou de ser só uma textura
+  pintada, que ficava chapada de perto).
+* Cabeça 10% maior no modo estilizado (`stylized`, ligado por padrão): é o que
+  dá leitura do rosto a poucos metros de câmera.
+* Penteados: `short`, `curly` (cachos low-poly), `afro`, `mohawk`, `neymar`,
+  `side`, `bob`, `bald` — sorteados por `lookFor()`.
+* `stylized: false` volta ao rosto antigo (útil para quem usa retrato/foto).
+* Ombros e deltoides foram afinados para o uniforme não parecer ombreira.
+
 ### Modelo glTF externo (já implementado, desligado por padrão)
 
 `src/match3d/models.js` carrega `assets/players/models/footballer.glb` +
