@@ -175,20 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.9
+          TAG=xfc-gameplay-v0.5.10
           NOTES=$(printf '%s\n' \
-            "XFC 27 — menus das competições v0.5.9 (versionCode 15), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — animação em camadas v0.5.10 (versionCode 16), build do commit ${GITHUB_SHA}." \
             "" \
-            "Os quatro menus agora são exatamente os das referências: arte do estádio com o troféu, menu lateral com ícones, carteira (moedas, gemas e nível) no topo e a faixa inferior com próxima partida, fase atual e o destaque de cada campeonato." \
+            "Sistema de animação por camadas: máscaras de ossos (pernas, tronco/braços e cabeça), mistura suave entre clipes sem salto e disparo de eventos (chute, passe, cabeceio, carrinho, comemoração, recepção, salto)." \
             "" \
-            "Champions League (azul, com classificação e estatísticas), Copa América (azul e dourado, com notícias), Libertadores (preto e dourado) e Copa do Mundo (vinho e dourado, com artilharia). Escolha de clube ou seleção, calendário, tabelas, grupos, mata-mata, artilharia, final, amistoso e uniformes continuam funcionando de verdade em cada uma." \
+            "IK de contato: o joelho compensa a altura do gramado e a perna dominante mira a bola no chute. Iluminação com rim light recortando os atletas." \
             "" \
-            "Pré-jogo com estádio, escudos, uniformes e escalação, entrada cinematográfica pelo túnel e HUD apenas com o cartão de gol no rodapé. Preserva modos, regras, times e recursos existentes; o APK roda offline e o pacote web completo também está anexado.")
+            "Sombra dinâmica apenas no protagonista e na bola (o resto usa sombra de contato), LOD de animação por distância e API viva em window.__xfcAnim (setSpeed, setMask, blend, trigger, stop, state)." \
+            "" \
+            "Os quatro menus de competição continuam em tela cheia, idênticos às referências, com todos os botões funcionando. Pré-jogo com estádio, escudos, uniformes e escalação, entrada cinematográfica pelo túnel e HUD apenas com o cartão de gol no rodapé. Preserva modos, regras, times e recursos existentes; o APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — menus das competições v0.5.9" \
+            gh release create "$TAG" --title "XFC 27 — animação em camadas v0.5.10" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — menus das competições v0.5.9" \
+            gh release edit "$TAG" --title "XFC 27 — animação em camadas v0.5.10" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

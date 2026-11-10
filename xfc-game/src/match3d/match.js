@@ -9,6 +9,7 @@ import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
 import { createPlayer3D, lookFor } from './player.js';
+import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
@@ -170,12 +171,20 @@ export function createMatch(options = {}) {
         }
       }
     }
+    // Contexto extra das camadas de animação: distância à câmera (LOD), bola
+    // (IK de contato) e posição (projeção do alvo no plano do atleta).
+    const camera = engine.camera?.position;
+    const distance = camera ? Math.hypot(player.x - camera.x, player.z - camera.z) : 0;
     return {
       speed,
       moving: speed > 0.25,
       lean: player.turnLean || 0,
       ownsBall,
-      protecting
+      protecting,
+      distance,
+      x: player.x,
+      z: player.z,
+      ball: ball.state.position
     };
   }
 
@@ -2062,9 +2071,11 @@ export function createMatch(options = {}) {
   }
 
   function updateTrainingActors(dt) {
+    const hero = controlled[userSide];
     for (const player of allPlayers) {
       if (!player.active) continue;
       player.root.position.set(player.x, 0, player.z);
+      player.model.setDynamicShadow?.(player === hero);
       player.model.update(dt, modelMovementState(player));
       if (player === training.player || player.isKeeper || training.wallPlayers.includes(player)) {
         player.model.lookAt(ball.state.position);
@@ -2488,9 +2499,13 @@ export function createMatch(options = {}) {
 
     // Sincroniza os modelos 3D e mantém o expulso visível enquanto sai do campo.
     updateDismissals(dt);
+    const hero = controlled[userSide];
     for (const player of allPlayers) {
       player.root.position.set(player.x, 0, player.z);
       player.root.visible = player.active || Boolean(player.dismissal);
+      // Sombra dinâmica só no protagonista: o resto usa a sombra de contato,
+      // o que mantém um único personagem pagando o custo do shadow map.
+      player.model.setDynamicShadow?.(player === hero);
       player.model.update(dt, modelMovementState(player));
       player.model.lookAt(ball.state.position);
     }
@@ -2887,6 +2902,12 @@ export function createMatch(options = {}) {
       home: { ...stats.home, possession: total ? Math.round((possession.home / total) * 100) : 50 },
       away: { ...stats.away, possession: total ? Math.round((possession.away / total) * 100) : 50 }
     };
+  }
+
+  // API de animação para o LLM: aprende/experimenta no protagonista em tempo
+  // real (`window.__xfcAnim`). Os controles do jogador não passam por aqui.
+  if (typeof window !== 'undefined') {
+    installAnimationApi(window, () => controlled[userSide]?.model || null);
   }
 
   return {

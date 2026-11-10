@@ -74,55 +74,12 @@
 
 /* ----------------------------------------------------- arte e palco --- */
 
-.comp__ambient {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(90% 130% at 50% 38%, rgba(12, 30, 60, 0.55) 0%, rgba(1, 5, 13, 0.96) 62%),
-    #01050d;
-  z-index: 0;
-}
-
+/* A tela ocupa o palco inteiro (sem barras laterais): a arte é esticada junto
+   com o layout, então o menu e os cartões acompanham qualquer proporção. */
 .comp__artboard {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1280px;
-  height: 720px;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 70px 16px rgba(0, 0, 0, 0.55);
+  inset: 0;
   z-index: 1;
-}
-
-.comp__mirror {
-  position: absolute;
-  top: 0;
-  width: 1280px;
-  height: 720px;
-  background-image: var(--comp-art);
-  background-size: 1280px 720px;
-  background-repeat: no-repeat;
-  filter: blur(7px) brightness(0.78) saturate(1.1);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.comp__mirror--left {
-  left: 0;
-  background-position: left center;
-  transform: scaleX(-1);
-  transform-origin: left center;
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 26px, transparent 300px);
-  mask-image: linear-gradient(90deg, #000 0, #000 26px, transparent 300px);
-}
-
-.comp__mirror--right {
-  right: 0;
-  background-position: right center;
-  transform: scaleX(-1);
-  transform-origin: right center;
-  -webkit-mask-image: linear-gradient(270deg, #000 0, #000 26px, transparent 300px);
-  mask-image: linear-gradient(270deg, #000 0, #000 26px, transparent 300px);
 }
 
 .comp__art {
@@ -133,17 +90,13 @@
   background-size: 100% 100%;
   background-position: center;
   transition: filter 220ms ease;
-  /* Nas telas mais largas que 16:9 a arte é emoldurada: a borda se dissolve no
-     fundo desfocado em vez de cortar a imagem. */
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
 
 .comp__home {
   position: absolute;
-  left: 26px;
+  left: 2.0313%;
   top: 10px;
-  width: 196px;
+  width: 15.3125%;
   height: 76px;
   border-radius: 10px;
   border: 1px solid transparent;
@@ -166,9 +119,9 @@
 
 .comp__wallet {
   position: absolute;
-  left: 944px;
+  left: 73.75%;
   top: 15px;
-  width: 322px;
+  width: 25.1563%;
   height: 46px;
   display: flex;
   align-items: center;
@@ -218,6 +171,7 @@
   place-items: center;
   border-radius: 50%;
   border: 1px solid transparent;
+  background: rgba(2, 8, 20, 0.45);
   color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -259,10 +213,10 @@
   position: absolute;
   left: -2px;
   top: -2px;
-  width: calc(100% + 62px);
+  width: calc(100% + 96px);
   height: calc(100% + 4px);
   border-radius: 14px;
-  background: linear-gradient(90deg, rgba(2, 7, 18, 0.96) 0%, rgba(2, 7, 18, 0.94) 74%, rgba(2, 7, 18, 0) 100%);
+  background: linear-gradient(90deg, rgba(2, 7, 18, 0.96) 0%, rgba(2, 7, 18, 0.95) 84%, rgba(2, 7, 18, 0) 100%);
   z-index: -1;
   pointer-events: none;
 }
@@ -611,7 +565,7 @@
 
 .comp__hints {
   position: absolute;
-  left: 34px;
+  left: 2.6563%;
   top: 670px;
   display: flex;
   align-items: center;
@@ -657,9 +611,9 @@
 
 .comp__stage {
   position: absolute;
-  left: 332px;
+  left: 25.9375%;
   top: 92px;
-  width: 906px;
+  width: 70.7813%;
   height: 596px;
   overflow-y: auto;
   overflow-x: hidden;

@@ -27,6 +27,8 @@ const LIGHTING_PRESETS = Object.freeze({
     crossIntensity: 0.16,
     ambientIntensity: 0.18,
     floodlightIntensity: 0.12,
+    rimColor: 0xe8f4ff,
+    rimIntensity: 0.18,
     lampsOn: false
   }),
   dusk: Object.freeze({
@@ -43,6 +45,8 @@ const LIGHTING_PRESETS = Object.freeze({
     crossIntensity: 0.2,
     ambientIntensity: 0.19,
     floodlightIntensity: 0.3,
+    rimColor: 0xffcfa6,
+    rimIntensity: 0.32,
     lampsOn: true
   }),
   night: Object.freeze({
@@ -59,6 +63,8 @@ const LIGHTING_PRESETS = Object.freeze({
     crossIntensity: 0.23,
     ambientIntensity: 0.17,
     floodlightIntensity: 0.38,
+    rimColor: 0xc7e2ff,
+    rimIntensity: 0.36,
     lampsOn: true
   })
 });
@@ -1213,6 +1219,14 @@ export function buildStadium(scene, options = {}) {
   const crossFill = new THREE.DirectionalLight(0xeaf4ff, lighting.crossIntensity);
   crossFill.position.set(-8, 58, -54);
   group.add(crossFill);
+  // Rim light: uma luz fraca vinda de trás recorta a silhueta dos atletas
+  // contra a arquibancada. Sem sombra e com intensidade baixa, custa quase
+  // nada e resolve a leitura do jogador no meio do gramado.
+  const rim = new THREE.DirectionalLight(lighting.rimColor || 0xc7e2ff, lighting.rimIntensity ?? 0.34);
+  rim.position.set(34, 26, -56);
+  rim.castShadow = false;
+  rim.name = 'xfc-rim-light';
+  group.add(rim);
   const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
   group.add(ambient);
 

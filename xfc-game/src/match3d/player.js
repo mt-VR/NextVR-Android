@@ -4,6 +4,7 @@
 // troca o atleta por um boneco cilíndrico nem altera a anatomia do rig.
 
 import { THREE, canvasTexture, softShadowTexture } from './engine.js';
+import { createAnimationController, rigFromModel } from './animation.js';
 
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
@@ -1199,10 +1200,17 @@ export function createPlayer3D(options = {}) {
   arms[1].forearm.add(cardMesh);
 
   root.scale.setScalar(heightScale);
+  // A lista de malhas que projetam sombra é montada uma vez: o LOD liga e
+  // desliga a sombra dinâmica sem varrer o rig a cada quadro.
+  const shadowMeshes = [];
   root.traverse(object => {
-    if (object.isMesh && object !== shadow) object.castShadow = true;
+    if (object.isMesh && object !== shadow) {
+      object.castShadow = true;
+      shadowMeshes.push(object);
+    }
   });
   shadow.castShadow = false;
+  let castsDynamicShadow = true;
 
   let phase = Math.random() * Math.PI * 2;
   const kickLegIndex = String(preferredFoot).toLowerCase().startsWith('l') ? 0 : 1;
@@ -1230,6 +1238,22 @@ export function createPlayer3D(options = {}) {
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
+
+  /** Pose neutra do rig: base de todo quadro (as camadas somam sobre ela). */
+  function resetRigPose() {
+    body.position.set(0, 0, 0);
+    body.rotation.set(0, 0, 0);
+    head.rotation.set(0, 0, 0);
+    for (let index = 0; index < arms.length; index += 1) {
+      arms[index].shoulder.rotation.set(0, 0, (index === 0 ? -1 : 1) * 0.085);
+      arms[index].forearm.rotation.set(0, 0, 0);
+    }
+    for (const leg of legs) {
+      leg.hip.rotation.set(0, 0, 0);
+      leg.knee.rotation.set(0, 0, 0);
+      leg.foot.rotation.set(0, 0, 0);
+    }
+  }
 
   const api = {
     root,
@@ -1291,8 +1315,11 @@ export function createPlayer3D(options = {}) {
       reactionDuration = duration;
       reactionTimer = duration;
     },
-    /** Anima a corrida: a velocidade define o balanço das pernas. */
-    update(dt, { speed = 0, moving = false, lean = 0, ownsBall = false, protecting = false } = {}) {
+    /** Pose base por osso (corrida, chute, comemoração, defesa...). */
+    updateBase(dt, { speed = 0, moving = false, lean = 0, ownsBall = false, protecting = false } = {}) {
+      // Todo quadro parte de uma pose neutra: as camadas de animação (máscaras,
+      // blend, IK) escrevem DEPOIS e nunca acumulam offset de um quadro no outro.
+      resetRigPose();
       for (const leg of legs) leg.foot.rotation.x = 0;
       receiveTimer = Math.max(0, receiveTimer - dt);
       const receiveProgress = 1 - receiveTimer / receiveDuration;
@@ -1559,10 +1586,43 @@ export function createPlayer3D(options = {}) {
     lookAt(target) {
       lookTarget = target;
     },
+    /**
+     * Animação por camadas (máscaras, blend e eventos) — ver
+     * `match3d/animation.js` e `window.__xfcAnim`.
+     */
+    animation: null,
+    /** Liga/desliga a sombra dinâmica deste atleta (LOD de luz). */
+    setDynamicShadow(enabled) {
+      const next = Boolean(enabled);
+      if (next === castsDynamicShadow) return castsDynamicShadow;
+      castsDynamicShadow = next;
+      for (const mesh of shadowMeshes) mesh.castShadow = next;
+      return castsDynamicShadow;
+    },
+    get castsDynamicShadow() {
+      return castsDynamicShadow;
+    },
+    /**
+     * Quadro completo: pose base + camadas de animação + IK.
+     * O contexto aceita `speed/moving/lean/ownsBall/protecting` (pose base) e
+     * `distance`, `ball`, `x`, `z`, `facingAngle`, `groundOffset` (camadas/IK).
+     */
+    update(dt, state = {}) {
+      api.updateBase(dt, state);
+      api.animation.update(dt, {
+        ...state,
+        kickLeg: kickLegIndex === 0 ? 'L' : 'R',
+        facingAngle: root.rotation.y
+      });
+    },
     dispose() {
       disposePlayerObject(root);
     }
   };
+
+  // As camadas entram DEPOIS da pose base: nada do comportamento antigo muda,
+  // e o IK só corrige o que o gramado exigir.
+  api.animation = createAnimationController({ rig: rigFromModel(api), model: api });
 
   return api;
 }

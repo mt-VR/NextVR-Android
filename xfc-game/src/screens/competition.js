@@ -291,6 +291,13 @@ function storeTournament(ctx, tournament) {
   saveProfile(ctx.state);
 }
 
+// A tela ocupa o palco inteiro: as medidas horizontais viram porcentagem para
+// acompanharem telas mais largas que 16:9 (celulares 20:9, por exemplo).
+const STAGE_WIDTH = 1280;
+function pct(px) {
+  return `${(px / STAGE_WIDTH * 100).toFixed(4)}%`;
+}
+
 function formatNumber(value) {
   const number = Math.max(0, Math.round(Number(value) || 0));
   try {
@@ -324,10 +331,6 @@ export function competitionScreen(ctx, params = {}) {
 
   const artboard = el('div', { class: 'comp__artboard' });
   const art = el('div', { class: 'comp__art', 'aria-hidden': 'true' });
-  // Em telas mais largas que 16:9 a arte continua para os lados como um
-  // espelho desfocado da própria borda, sem emenda visível.
-  const mirrorLeft = el('div', { class: 'comp__mirror comp__mirror--left', 'aria-hidden': 'true' });
-  const mirrorRight = el('div', { class: 'comp__mirror comp__mirror--right', 'aria-hidden': 'true' });
 
   // O logo do XFC volta para o menu principal; fica sobre a arte, com foco
   // visível para quem navega pelo teclado.
@@ -341,17 +344,17 @@ export function competitionScreen(ctx, params = {}) {
 
   const wallet = el('div', { class: 'comp__wallet', 'aria-label': 'Carteira e nível' });
   const menu = el('nav', { class: 'comp__menu', 'aria-label': `Menu da ${competition.name}` });
-  menu.style.setProperty('--comp-menu-x', `${layout.menu.x}px`);
+  menu.style.setProperty('--comp-menu-x', pct(layout.menu.x));
   menu.style.setProperty('--comp-menu-y', `${layout.menu.y}px`);
-  menu.style.setProperty('--comp-menu-w', `${layout.menu.w}px`);
+  menu.style.setProperty('--comp-menu-w', pct(layout.menu.w));
   menu.style.setProperty('--comp-menu-h', `${layout.menu.h}px`);
 
   const stage = el('main', { class: 'comp__stage' });
   const deck = el('div', { class: 'comp__deck', 'aria-label': 'Resumo da competição' });
   const hints = el('div', { class: 'comp__hints' });
 
-  artboard.append(mirrorLeft, mirrorRight, art, brand, wallet, menu, stage, deck, hints);
-  root.append(el('div', { class: 'comp__ambient', 'aria-hidden': 'true' }), artboard);
+  artboard.append(art, brand, wallet, menu, stage, deck, hints);
+  root.append(artboard);
 
   function paintWallet() {
     const profile = ctx.state.profile;
@@ -546,8 +549,8 @@ export function competitionScreen(ctx, params = {}) {
     const builders = { match: matchCard, phase: phaseCard, rank: rankCard, news: newsCard, scorer: scorerCard };
     deck.replaceChildren(...layout.deck.map(slot => {
       const card = builders[slot.kind]();
-      card.style.left = `${slot.x}px`;
-      card.style.width = `${slot.w}px`;
+      card.style.left = pct(slot.x);
+      card.style.width = pct(slot.w);
       return card;
     }));
   }
