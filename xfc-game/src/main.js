@@ -127,10 +127,7 @@ function boot() {
   // chegar a tempo, a partida já nasce com o modelo 3D real; se não, o rig
   // procedural entra no lugar e nada quebra.
   import('./match3d/models.js')
-    .then(module => {
-      if (module.gltfPlayersEnabled()) return module.preloadFootballerPack();
-      return null;
-    })
+    .then(module => (module.gltfPlayersEnabled() ? module.preloadFootballerPack() : null))
     .catch(() => {});
   go('intro');
 }

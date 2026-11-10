@@ -41,10 +41,18 @@ O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que car
 uniforme, escudo, número e retrato.
 
 O jogo também sabe carregar um personagem glTF externo
-(`assets/players/models/footballer.glb`, ligado por `?models=glb`). O arquivo
-**não está no pacote** porque nenhum modelo rigged de licença compatível foi
-encontrado no repositório: basta copiar o `.glb` para esse caminho e a partida
-passa a usá-lo (`src/match3d/models.js`).
+(`assets/players/models/footballer.glb`, ligado por `?models=glb`), com
+`src/match3d/models.js` cuidando de escala, orientação, cor do time e clipes.
+
+| Arquivo | Origem | Licença |
+| --- | --- | --- |
+| `assets/players/models/footballer.glb` | `Soldier.glb` do repositório do three.js (personagem Mixamo "Vanguard") | Mixamo/Adobe (uso livre em projetos) + exemplo three.js (MIT) |
+
+Limitação conhecida: esse personagem foi exportado com orientação de repouso
+diferente da dos clipes de futebol do Mixamo, então as pernas e o tronco
+encaixam (via `retargetClip()`), mas os braços ficam torcidos nos gestos. Por
+isso o elenco visível do jogo continua sendo o rig procedural — o caminho glTF
+é opt-in.
 
 ### Animações (Mixamo)
 

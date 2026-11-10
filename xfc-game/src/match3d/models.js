@@ -81,6 +81,58 @@ export function maskClip(clip, mask, key = 'full') {
   return masked;
 }
 
+/** Mapa osso → rotação de repouso (pose de bind do arquivo). */
+function restQuaternions(root) {
+  const map = new Map();
+  root.traverse(object => {
+    if (object.isBone || object.type === 'Object3D' || object.isObject3D) {
+      const key = bareBone(object.name);
+      if (key && !map.has(key)) map.set(key, object.quaternion.clone());
+    }
+  });
+  return map;
+}
+
+/**
+ * Reencaixa um clipe de outra origem no nosso esqueleto.
+ *
+ * Os dois são Mixamo (mesma hierarquia e mesmos nomes de osso), mas cada
+ * arquivo foi exportado com uma orientação de repouso própria — o Soldier, por
+ * exemplo, tem o quadril e a coxa girados em relação ao arquivo do clipe.
+ * Tocar o clipe cru deita o atleta. A correção é a clássica de retarget local:
+ *
+ *     q_alvo(t) = repouso_alvo · repouso_origem⁻¹ · q_origem(t)
+ *
+ * Como repouso_alvo · repouso_origem⁻¹ é uma constante por osso, ela pode ser
+ * multiplicada em cada keyframe uma única vez, no carregamento.
+ */
+function retargetClip(clip, targetRest, sourceRest) {
+  const tracks = [];
+  for (const track of clip.tracks) {
+    const isQuaternion = track.name.endsWith('.quaternion');
+    const isPosition = track.name.endsWith('.position');
+    const bone = trackBone(track.name);
+    if (!isQuaternion && !isPosition) { tracks.push(track); continue; }
+    const target = targetRest.get(bone);
+    const source = sourceRest.get(bone);
+    if (!target || !source) continue; // osso que não existe no nosso modelo
+    // Trilhas de posição: o deslocamento do quadril do arquivo de origem está
+    // em outro referencial e afunda o atleta no gramado. O corpo é posicionado
+    // pelo motor (raiz do atleta), então só as rotações são aproveitadas.
+    if (isPosition) continue;
+    const correction = target.clone().multiply(source.clone().invert());
+    const values = new Float32Array(track.values.length);
+    const q = new THREE.Quaternion();
+    for (let i = 0; i < track.values.length; i += 4) {
+      q.set(track.values[i], track.values[i + 1], track.values[i + 2], track.values[i + 3]);
+      q.premultiply(correction).normalize();
+      values[i] = q.x; values[i + 1] = q.y; values[i + 2] = q.z; values[i + 3] = q.w;
+    }
+    tracks.push(new THREE.QuaternionKeyframeTrack(track.name, Array.from(track.times), Array.from(values)));
+  }
+  return new THREE.AnimationClip(`${clip.name}-xfc`, clip.duration, tracks);
+}
+
 function materialList(object) {
   if (!object.isMesh) return [];
   return Array.isArray(object.material) ? object.material : [object.material];
@@ -109,15 +161,20 @@ export function preloadFootballerPack() {
       ...Object.entries(CLIP_URLS).map(async ([name, url]) => {
         try {
           const clipGltf = await loadGlb(url);
-          return [name, clipGltf.animations[0] || null];
+          return [name, clipGltf];
         } catch (error) {
           console.warn('[xfc] clipe indisponível', name, error?.message || error);
           return [name, null];
         }
       })
     ]);
+    const targetRest = restQuaternions(gltf.scene);
     const library = new Map();
-    for (const [name, clip] of clips) if (clip) library.set(name, clip);
+    for (const [name, clipGltf] of clips) {
+      const raw = clipGltf?.animations?.[0];
+      if (!raw) continue;
+      library.set(name, retargetClip(raw, targetRest, restQuaternions(clipGltf.scene)));
+    }
     if (!library.size) throw new Error('nenhum clipe Mixamo carregou');
     pack = { scene: gltf.scene, clips: library };
     return pack;
@@ -134,20 +191,37 @@ export function footballerPackReady() {
 }
 
 /**
- * Os atletas glTF entram só quando pedidos explicitamente:
- * `?models=glb` na URL ou `window.__XFC_GLTF = true`.
+ * Atletas glTF entram por opt-in: `?models=glb` na URL ou `window.__XFC_GLTF`.
  *
- * O motivo é honesto: o único personagem rigged de licença livre que o
- * ambiente alcança hoje é um boneco de teste (Mixamo Xbot). Ele existe, tem
- * esqueleto e animações de verdade, e serve para validar o pipeline — mas o
- * atleta desenhado por código (com uniforme, escudo, número e retrato) tem
- * muito mais identidade visual. Quando o cliente enviar o `.glb` dele, basta
- * trocar o arquivo em `assets/players/models/footballer.glb` e ligar a flag.
+ * Por que não é o padrão: o único corpo humano rigado que dá para baixar aqui
+ * (o "Soldier" do three.js, Mixamo Vanguard) tem a orientação de repouso dos
+ * ossos diferente da dos clipes de futebol do Mixamo. As pernas e o tronco
+ * reencaixam com a correção de `retargetClip()`, mas os braços torcem — golpe
+ * de futebol com braço cruzado não passa. O elenco desenhado por código
+ * continua sendo o atleta do jogo até chegar um modelo cujas animações venham
+ * junto com ele (ex.: "Man Player" do Sketchfab, CC-BY, 20 clipes).
  */
 export function gltfPlayersEnabled() {
   if (typeof window === 'undefined') return false;
   if (window.__XFC_GLTF === true) return true;
+  if (window.__XFC_GLTF === false) return false;
   return /(?:^|[?&])models=glb(?:&|$)/.test(String(window.location?.search || ''));
+}
+
+/** Caixa do modelo na pose de bind (o Box3 do SkinnedMesh não serve). */
+function bindPoseBounds(object) {
+  const box = new THREE.Box3();
+  const point = new THREE.Vector3();
+  object.updateMatrixWorld(true);
+  object.traverse(mesh => {
+    if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+    const position = mesh.geometry.attributes.position;
+    for (let index = 0; index < position.count; index += 1) {
+      point.fromBufferAttribute(position, index).applyMatrix4(mesh.matrixWorld);
+      box.expandByPoint(point);
+    }
+  });
+  return box;
 }
 
 function findBone(root, name) {
@@ -184,9 +258,16 @@ export function createGltfPlayer(options = {}) {
 
   // Normaliza a altura: o Mixamo exporta em metros, mas cada arquivo pode
   // variar. A escala final precisa ser 1,8 m para o campo continuar correto.
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  box.getSize(size);
+  // Alguns exports vêm com Z para cima (3ds Max/Mixamo antigos). Detecta pela
+  // caixa da pose de bind e gira para o Y do jogo antes de medir a altura.
+  let box = bindPoseBounds(model);
+  let size = box.getSize(new THREE.Vector3());
+  if (size.z > size.y * 1.25) {
+    model.rotation.x = -Math.PI / 2;
+    model.updateMatrixWorld(true);
+    box = bindPoseBounds(model);
+    size = box.getSize(new THREE.Vector3());
+  }
   const targetHeight = 1.82 * (Number(heightScale) || 1);
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
@@ -204,10 +285,12 @@ export function createGltfPlayer(options = {}) {
     const list = materialList(object).map(material => {
       const clone = material.clone();
       const name = String(material.name || '');
-      // O Xbot tem uma malha "de juntas" escura e o corpo claro: pintar o corpo
-      // com a cor primária do time e as juntas com a secundária vira uniforme.
-      if (/joint/i.test(name)) clone.color = clone.color.copy(secondary);
-      else clone.color = clone.color.copy(primary);
+      // O modelo vem com atlas de textura (armadura/tecido/pele no mesmo mapa).
+      // Em vez de jogar a cor por cima — o que apagaria a textura e deixaria a
+      // pele amarela — misturamos só parte da cor do time, mantendo o desenho.
+      const tint = /visor|glass|eye/i.test(name) ? secondary : primary;
+      const strength = /visor|glass/i.test(name) ? 0.75 : 0.55;
+      clone.color = clone.color.copy(new THREE.Color(1, 1, 1)).lerp(tint, strength);
       clone.roughness = Math.min(1, (clone.roughness ?? 0.8) + 0.1);
       clone.metalness = 0;
       materials.push(clone);
