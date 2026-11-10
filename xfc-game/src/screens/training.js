@@ -2,6 +2,7 @@
 // coletivo com companheiros ativos para passar, receber, combinar e finalizar.
 
 import { el } from '../ui/dom.js';
+import { hotspot, referenceMenu, refNavigation, gridKeys } from '../ui/reference-menu.js';
 import { modeHomeButton } from '../ui/mode-home.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf } from '../data/kits.js';
@@ -46,6 +47,14 @@ const DRILLS = [
   }
 ];
 
+DRILLS.push(
+  {id:'free',name:'TREINO LIVRE',title:'TREINO LIVRE',instruction:'CONDUZA LIVREMENTE · CHUTE PARA FINALIZAR',status:'CAMPO LIVRE · MOVIMENTE-SE COM A BOLA.'},
+  {id:'shooting',name:'FINALIZAÇÕES',title:'FINALIZAÇÕES',instruction:'MIRE E CHUTE · OS ÂNGULOS ALTERNAM A CADA TENTATIVA',status:'FINALIZE DE DIFERENTES DISTÂNCIAS E ÂNGULOS.'},
+  {id:'corner',name:'ESCANTEIOS',title:'ESCANTEIOS',instruction:'PASSE: CRUZAR · TROQUE PARA O RECEPTOR E FINALIZE',status:'CRUZE PARA OS COMPANHEIROS NA ÁREA.'},
+  {id:'dribble',name:'DRIBLES',title:'DRIBLES',instruction:'CONTORNE OS CONES · PASSE PELOS PORTÕES EM ORDEM',status:'SLALOM · ALCANCE O PRIMEIRO PORTÃO.'},
+  {id:'keeper',name:'TREINO DE GOLEIRO',title:'TREINO DE GOLEIRO',instruction:'ANALÓGICO: POSICIONAR · CHUTE/DRIBLE: MERGULHAR',status:'VOCÊ CONTROLA O GOLEIRO · PREPARE-SE PARA DEFENDER.'}
+);
+
 function selectedTeam(ctx, side, fallback) {
   const requested = ctx.state.selection?.[side];
   return getTeam(requested) || getTeam(fallback);
@@ -62,81 +71,17 @@ export function trainingScreen(ctx, params = {}) {
 }
 
 function trainingSelectScreen(ctx, params = {}) {
-  const returnTo = returnTarget(params);
-  let focusIndex = 0;
-  const choices = DRILLS.map((item, index) => el('button', {
-    class: `training-select__choice${index === 0 ? ' is-focused' : ''}`,
-    type: 'button',
-    dataset: { drill: item.id },
-    onClick() { startDrill(item); }
-  },
-    el('span', { class: 'training-select__number', text: `EXERCÍCIO ${item.number}` }),
-    el('span', { class: 'training-select__icon', 'aria-hidden': 'true', text: item.icon }),
-    el('b', { class: 'training-select__title', text: item.title }),
-    el('span', { class: 'training-select__description', text: item.description }),
-    el('span', { class: 'training-select__start', text: 'COMEÇAR TREINO  →' })
-  ));
-  const node = el('div', { class: 'screen screen--training-select' },
-    modeHomeButton(ctx),
-    el('header', { class: 'training-select__brand' },
-      el('span', { class: 'training-select__eyebrow', text: 'XFC 27  ·  CENTRO DE TREINO' }),
-      el('h1', { text: 'ESCOLHA SEU EXERCÍCIO' })
-    ),
-    el('section', { class: 'training-select__content' },
-      el('p', { class: 'training-select__copy', text: 'Treine lances de bola parada ou entre em campo com seus companheiros. Cada exercício usa jogadores, posições e regras próprios.' }),
-      el('div', { class: 'training-select__grid', role: 'group', 'aria-label': 'Exercícios de treinamento' }, ...choices)
-    ),
-    el('button', {
-      class: 'training-select__back',
-      type: 'button',
-      onClick: () => ctx.go(returnTo)
-    }, '‹  VOLTAR'),
-    el('div', { class: 'training-select__footer' },
-      el('b', { text: 'XFC TRAINING' }),
-      el('span', { text: '  ·  3 EXERCÍCIOS JOGÁVEIS' })
-    )
-  );
-
-  function startDrill(item) {
-    ctx.go('training', { drill: item.id, returnTo });
-  }
-
-  function select(index) {
-    focusIndex = (index + DRILLS.length) % DRILLS.length;
-    choices.forEach((choice, choiceIndex) => {
-      choice.classList.toggle('is-focused', choiceIndex === focusIndex);
-      choice.setAttribute('aria-pressed', choiceIndex === focusIndex ? 'true' : 'false');
-    });
-  }
-  choices.forEach((choice, index) => {
-    choice.setAttribute('aria-pressed', index === 0 ? 'true' : 'false');
-    choice.addEventListener('focus', () => select(index));
-  });
-
-  return {
-    node,
-    onKey(event) {
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-        select(focusIndex + 1);
-        choices[focusIndex].focus();
-        return true;
-      }
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        select(focusIndex - 1);
-        choices[focusIndex].focus();
-        return true;
-      }
-      if (event.key === 'Enter' || event.key === ' ') {
-        startDrill(DRILLS[focusIndex]);
-        return true;
-      }
-      if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go(returnTo);
-        return true;
-      }
-      return false;
-    }
-  };
+  const returnTo=returnTarget(params),back=()=>ctx.go(returnTo);
+  const node=referenceMenu('screen--training-select','training','Centro de treino XFC');
+  const entries=[['free',[588,146,418,222]],['shooting',[1020,148,450,219]],
+    ['freekick',[578,386,430,182]],['penalty',[1016,386,450,182]],
+    ['corner',[575,594,280,175]],['dribble',[869,594,335,175]],['keeper',[1214,594,326,175]]];
+  const cards=entries.map(([id,rect])=>hotspot(DRILLS.find(d=>d.id===id).name,rect,()=>ctx.go('training',{drill:id,returnTo}),
+    {class:'ref-button training-select__choice',dataset:{drill:id}}));
+  node.append(...cards,hotspot('Selecionar treino',[48,813,150,65],()=>(cards.find(c=>c.classList.contains('ref-current'))||cards[0]).click()),
+    el('button',{type:'button',class:'ref-team-training',text:'Treino de equipe',onClick:()=>ctx.go('training',{drill:'team',returnTo})}));
+  refNavigation(node,ctx,[['Início',258,82,'menu'],['Jogar',356,90,'kickoff'],['Treino',460,105,'training'],['Competições',587,143,'modes'],['Configurações',747,170,'customise']],back);
+  return {node,onKey:gridKeys(cards,2,back)};
 }
 
 function trainingSessionScreen(ctx, params, drill) {
@@ -217,6 +162,9 @@ function trainingSessionScreen(ctx, params, drill) {
   let timer = 0;
 
   function showTrainingEvent(event) {
+    if(event.type==='training-dribble'){
+      status.textContent=`PORTÕES: ${event.completed} / ${event.total}`;return;
+    }
     if (event.type === 'shot') {
       status.textContent = drill.id === 'penalty'
         ? 'PÊNALTI BATIDO! OBSERVE O GOLEIRO E PREPARE A PRÓXIMA COBRANÇA.'
@@ -228,8 +176,8 @@ function trainingSessionScreen(ctx, params, drill) {
       status.textContent = 'DEFESA DO GOLEIRO · A PRÓXIMA TENTATIVA JÁ VEM.';
       hud?.showBanner('DEFESA DO GOLEIRO!', 'info', 1400);
     } else if (event.type === 'training-goal') {
-      status.textContent = drill.id === 'penalty' ? 'PÊNALTI CONVERTIDO! NOVA COBRANÇA EM INSTANTES.' : 'GOOOOL! NOVA TENTATIVA EM INSTANTES.';
-      hud?.showBanner('GOOOOL!', 'goal', 1600);
+      status.textContent = drill.id === 'keeper' ? 'GOL SOFRIDO · REPOSICIONE-SE PARA A PRÓXIMA BOLA.' : drill.id === 'penalty' ? 'PÊNALTI CONVERTIDO! NOVA COBRANÇA EM INSTANTES.' : 'GOOOOL! NOVA TENTATIVA EM INSTANTES.';
+      hud?.showBanner(drill.id==='keeper'?'GOL SOFRIDO':'GOOOOL!', 'goal', 1600);
     } else if (event.type === 'training-miss') {
       status.textContent = 'FOI PARA FORA · MUDE A DIREÇÃO E TENTE DE NOVO.';
       hud?.showBanner('TENTE OUTRO CHUTE', 'info', 1400);
@@ -257,6 +205,10 @@ function trainingSessionScreen(ctx, params, drill) {
       if (name === 'dribble') status.textContent = 'PIQUE & FINTA · USE O ANALÓGICO PARA CRIAR ESPAÇO.';
       if (name === 'shoot') status.textContent = 'CHUTE! ESCOLHA UM CANTO E FINALIZE.';
       if (name === 'pass' && drill.id === 'team') status.textContent = 'PASSE · MOVIMENTE-SE PARA ABRIR UMA NOVA LINHA.';
+      if(drill.id==='keeper' && ['shoot','dribble','tackle'].includes(name)){
+        match.world.trainingDive(match.world.input.moveX < 0 ? -1 : 1);return;
+      }
+      if(drill.id==='corner' && name==='pass'){match.world.trainingCross();return;}
       match.world.command(name, payload);
     },
     onMove: (x, z) => {

@@ -9,7 +9,8 @@ import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
 import { resolveGoalCredit } from './scoring.js';
-import { createPlayer3D, lookFor } from './player.js';
+import { appearanceFor } from '../data/appearance.js';
+import { createPlayer3D } from './player.js';
 import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
@@ -105,6 +106,13 @@ export function createMatch(options = {}) {
     passChain: 0,
     stats: { shots: 0, goals: 0, saves: 0, misses: 0, passes: 0, completedPasses: 0, combinations: 0 }
   };
+  const trainingCones = [];
+  if(training.enabled && training.drill==='dribble'){
+    const geometry=new THREE.ConeGeometry(.24,.55,10),material=new THREE.MeshLambertMaterial({color:0xff7b19});
+    for(let i=0;i<6;i++){
+      const cone=new THREE.Mesh(geometry,material);cone.name=`xfc-training-cone-${i}`;cone.position.set(19+i*4,.275,i%2?2:-2);engine.scene.add(cone);trainingCones.push(cone);
+    }
+  }
   let paused = false;
 
   const clock = {
@@ -268,7 +276,10 @@ export function createMatch(options = {}) {
       primary: colors.primary,
       secondary: colors.secondary,
       accent: colors.trim || colors.accent || '#ffffff',
-      pattern: kit?.pattern || 'solid'
+      pattern: kit?.pattern || 'solid',
+      shorts: kit?.shorts || colors.primary,
+      socks: kit?.socks || colors.primary,
+      print: kit?.print || colors.trim || '#ffffff'
     };
   }
 
@@ -310,18 +321,16 @@ export function createMatch(options = {}) {
     assignSlots(lineup).forEach(({ data, index, slot, slotIndex }) => {
       const role = slot.role;
       const isKeeper = role === 'GK';
-      const look = {
-        ...lookFor(index + (team.side === 'away' ? 3 : 0)),
-        ...(data.appearance || {})
-      };
+      const look = appearanceFor(data);
       const model = makePlayerModel({
         kit: kitFor(team, team.kit, isKeeper),
+        appearanceSource: look.source,
         number: data.number || index + 1,
         name: data.name || data.fullName || `Jogador ${index + 1}`,
         teamName: team.info?.shortName || team.info?.name || 'XFC',
         crest: team.info?.crest || null,
-        sponsor: team.kit?.sponsor || team.info?.sponsor || 'XFC',
-        brand: team.kit?.brand || 'XF',
+        sponsor: team.kit?.sponsor ?? team.info?.sponsor ?? '',
+        brand: team.kit?.brand || '',
         preferredFoot: data.foot || 'Right',
         isKeeper,
         simplified: options.simplifiedPlayers ?? engine.lowPower,
@@ -1579,6 +1588,17 @@ export function createMatch(options = {}) {
     attackSign,
     userSide,
     trainingMode: training.enabled,
+    trainingDive(dir=1){
+      if(!training.enabled||training.drill!=='keeper')return false;
+      const keeper=training.keeper;keeper.z=Math.max(-3.6,Math.min(3.6,keeper.z+dir*.8));
+      return diveKeeper(keeper,dir);
+    },
+    trainingCross(){
+      if(!training.enabled||training.drill!=='corner')return false;
+      const taker=ball.state.owner;if(!taker)return false;
+      const mate=teams.home.players.find(p=>p.active&&p!==taker&&!p.isKeeper);
+      if(!mate)return false;kickBall(taker,mate,{lob:true,power:18,lift:.42});controlled.home=mate;return true;
+    },
     get trainingDrill() {
       return training.drill;
     },
@@ -1988,7 +2008,7 @@ export function createMatch(options = {}) {
       { distance: 28, z: -10.5 },
       { distance: 31, z: 3.8 }
     ];
-    const scenario = drill === 'freekick'
+    const scenario = ['freekick','shooting'].includes(drill)
       ? scenarios[training.attemptIndex % scenarios.length]
       : null;
     if (scenario) training.attemptIndex += 1;
@@ -2003,7 +2023,7 @@ export function createMatch(options = {}) {
     training.passChain = 0;
     training.lastPassFrom = null;
 
-    const practicePlayers = drill === 'team'
+    const practicePlayers = ['team','corner'].includes(drill)
       ? teams.home.players.filter(item => !item.isKeeper)
       : [player];
     const activePlayers = new Set([keeper, ...practicePlayers, ...training.wallPlayers]);
@@ -2044,6 +2064,15 @@ export function createMatch(options = {}) {
       training.wallPlayers.forEach((wallPlayer, index) => {
         place(wallPlayer, wallX, wallCenterZ + wallOffsets[index], -1);
       });
+    } else if(drill==='keeper'){
+      place(player,PITCH.halfLength-17,0,1);
+    } else if(drill==='shooting'){
+      place(player,PITCH.halfLength-scenario.distance,scenario.z,1);
+    } else if(drill==='corner'){
+      practicePlayers.forEach((p,i)=>place(p,43+(i%3)*2,(i-4)*1.5,1));
+      place(player,PITCH.halfLength-1,PITCH.halfWidth-1,1);
+    } else if(drill==='free'||drill==='dribble'){
+      place(player,drill==='dribble'?14:0,0,1);
     } else if (drill === 'penalty') {
       // O ponto fica a 11 m da linha do gol; a bola presa ao pé fica à frente.
       place(player, PITCH.halfLength - 11.45, 0, 1);
@@ -2059,12 +2088,13 @@ export function createMatch(options = {}) {
     }
 
     place(keeper, PITCH.halfLength - 1.2, 0, -1);
-    controlled.home = player;
+    controlled.home = drill==='keeper'?keeper:player;
     controlled.away = null;
+    training.keeperDelay=0;training.dribbleGate=0;
     input.moveX = 0;
     input.moveZ = 0;
     input.sprint = false;
-    training.cameraForward = { x: 1, z: 0 };
+    training.cameraForward = { x: drill==='keeper'?-1:1, z: 0 };
     phase.name = 'play';
     phase.timer = 0;
     phase.restart = null;
@@ -2219,13 +2249,15 @@ export function createMatch(options = {}) {
 
     const [minX, maxX, maxZ] = training.drill === 'team'
       ? [5, PITCH.halfLength - 1.2, 31]
+      : training.drill === 'keeper' ? [PITCH.halfLength-2,PITCH.halfLength-.3,3.6]
+      : ['free','dribble','corner'].includes(training.drill) ? [-PITCH.halfLength+1,PITCH.halfLength-1,PITCH.halfWidth-1]
       : training.drill === 'penalty'
         ? [PITCH.halfLength - 17, PITCH.halfLength - 8, 4]
         : [18, PITCH.halfLength - 3.5, 28];
     player.x = Math.max(minX, Math.min(maxX, player.x));
     player.z = Math.max(-maxZ, Math.min(maxZ, player.z));
     if (Math.hypot(player.vx, player.vz) < 1.1) {
-      faceTowards(player, PITCH.halfLength, player.z * 0.2, dt, 8);
+      faceTowards(player, training.drill==='keeper'?training.player.x:PITCH.halfLength, player.z * 0.2, dt, 8);
     }
 
     const keeperGoalX = ownGoalXOf(keeper.side);
@@ -2238,16 +2270,26 @@ export function createMatch(options = {}) {
     const diveDirection = training.shotActive
       ? goalkeeperDiveDirection(keeper, prediction, flightId)
       : 0;
-    if (diveDirection) diveKeeper(keeper, diveDirection, flightId);
+    if (diveDirection && training.drill!=='keeper') diveKeeper(keeper, diveDirection, flightId);
     const keeperSpeed = prediction?.onTarget ? 7.2 : 5.8;
-    steerPlayer(keeper, keeperTarget.x, keeperTarget.z, dt, keeperSpeed, { arrive: 0.24, turn: 9 });
+    if(training.drill!=='keeper') steerPlayer(keeper, keeperTarget.x, keeperTarget.z, dt, keeperSpeed, { arrive: 0.24, turn: 9 });
     if (!faceVelocity(keeper, dt, 10)) faceTowards(keeper, ball.state.position.x, ball.state.position.z, dt, 9);
     keeper.root.position.set(keeper.x, 0, keeper.z);
 
+    if(training.drill==='keeper'&&!training.shotActive){
+      training.keeperDelay+=dt;
+      if(training.keeperDelay>1.4)shootBall(training.player,{power:17,target:{x:PITCH.halfLength,z:(rng()-.5)*6},kind:'normal',lift:.05,spread:.01});
+    }
+    if(training.drill==='dribble' && training.dribbleGate<trainingCones.length){
+      const i=training.dribbleGate,cone=trainingCones[i];
+      if(Math.hypot(player.x-cone.position.x,player.z-(cone.position.z>0?-1:1))<1.7){
+        training.dribbleGate++;emit({type:'training-dribble',completed:training.dribbleGate,total:trainingCones.length});
+      }
+    }
     const actors = allPlayers.filter(item => item.active);
     ball.update(dt, actors);
     const position = ball.state.position;
-    if (training.drill === 'team' && !training.shotActive && !ball.state.owner
+    if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner
       && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 12) {
       const receiver = teams.home.players
         .filter(item => item.active)
@@ -2949,6 +2991,8 @@ export function createMatch(options = {}) {
     },
     dispose() {
       world.dispose?.();
+      if(trainingCones.length){trainingCones[0].geometry.dispose();trainingCones[0].material.dispose();}
+      trainingCones.forEach(cone=>engine.scene.remove(cone));
       engine.scene.remove(refereeModel.root);
       refereeModel.dispose?.();
       engine.scene.remove(markerRing, markerDisc, markerChevron, carrierRing, previewTrajectory, previewTarget);

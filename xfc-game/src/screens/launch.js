@@ -29,7 +29,7 @@ export function launchScreen(ctx) {
     el('img', {
       class: 'launch__art',
       src: 'assets/brand/launch-neymar.jpg',
-      alt: 'XFC — Neymar Jr. vestindo a camisa do Santos com a taça'
+      alt: 'XFC — Neymar Jr. com a camisa do Brasil, arte XFC 27 fornecida pelo usuário'
     }),
     el('button', {
       class: 'launch__enter',

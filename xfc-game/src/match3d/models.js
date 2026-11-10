@@ -18,6 +18,8 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
+import { recolorSurface, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
 function bareBone(name) {
@@ -166,7 +168,8 @@ export function createGltfPlayer(options = {}) {
     isKeeper = false,
     heightScale = 1,
     simplified = false,
-    preferredFoot = 'Right'
+    preferredFoot = 'Right',
+    skinTone, hairColor = '#251a12', hairStyle = 'short'
   } = options;
 
   const root = new THREE.Group();
@@ -201,6 +204,8 @@ export function createGltfPlayer(options = {}) {
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
+  root.userData.appearance = { skinTone, hairColor, hairStyle, source: options.appearanceSource };
+  const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
   model.traverse(object => {
@@ -208,12 +213,23 @@ export function createGltfPlayer(options = {}) {
     object.castShadow = true;
     object.frustumCulled = false;
     shadowMeshes.push(object);
+    if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
+    if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
       const clone = material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
-      if (name === 'Micah | top') clone.color.copy(primary);
-      if (name === 'Micah | bottom') clone.color.copy(secondary);
+      if (name === 'Micah | top') {
+        clone.color.copy(primary);
+        if(options.crest || options.name){
+          clone.map = jerseyTexture({...options, kit:{...kit,primary:'#'+primary.getHexString()},number});
+          clone.color.set('#ffffff');clone.normalMap=null;ownedTextures.push(clone.map);
+        }
+      }
+      if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
+      if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
+      if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
+      if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
       clone.metalness = 0;
       materials.push(clone);
       return clone;
@@ -604,6 +620,7 @@ export function createGltfPlayer(options = {}) {
       mixer.stopAllAction();
       mixer.uncacheRoot(model);
       for (const material of materials) material.dispose();
+      for (const texture of ownedTextures) texture.dispose();
       shadow.geometry.dispose();
       shadow.material.dispose();
       root.traverse(object => { object.userData.disposed = true; });

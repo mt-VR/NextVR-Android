@@ -90,3 +90,25 @@ Licença: as animações vêm do Mixamo (Adobe), cujo uso em projetos é permiti
 pela licença Mixamo; não redistribua os arquivos fora do aplicativo. A licença
 do Mixamo não permite revender os assets "como estão" — dentro do XFC eles são
 usados apenas para animar o jogo.
+
+## Artes e integração enviadas pelo usuário (v0.5.17)
+
+| Arquivo no jogo | Arquivo fornecido na conversa | Tratamento |
+| --- | --- | --- |
+| `assets/menus/tournaments.jpg` | `file_000000002d40820eb6b32c3a5a826c3f.png` | JPEG; fundo do seletor direto de competições |
+| `assets/menus/stadiums.jpg` | `file_00000000a4ac820ebb45ce315df7f1d2.png` | JPEG; galeria de estádios |
+| `assets/menus/training.jpg` | `file_00000000084c820e9319de3989c9de2a.png` | JPEG; centro de treino |
+| `assets/brand/launch-neymar.jpg` | `file_000000001bbc820e8173eb1a51e7de62.png` | Substituição da abertura antiga |
+| `assets/stadiums/{bernabeu,camp-nou,allianz,wembley,monumental}-menu.jpg` | Imagem de estádios acima | Recortes dos cinco cartões; previews, não panoramas fotográficos |
+
+Material fornecido pelo usuário com pedido explícito de integração. Não foi
+obtido de banco externo nem recebe uma nova licença CC0 por estar no projeto.
+Direitos sobre fotografias, pessoas, marcas, escudos e troféus permanecem com
+seus titulares; a entrega não afirma licença oficial de ligas/clubes/atletas.
+
+Variações de pele/cabelo e atlas de uniformes são adaptações de código do projeto
+sobre a malha Micah CC0 já creditada. Os escudos usam os arquivos existentes em
+`assets/crests` (origens na pasta). Os uniformes são reconstruções estilizadas;
+não são scans/arquivos oficiais de uma temporada. Novas geometrias de estádios
+usam o construtor do projeto com configuração própria; os previews não provam
+fidelidade arquitetônica dos modelos 3D.

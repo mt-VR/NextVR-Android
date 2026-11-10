@@ -27,8 +27,8 @@ o código vence: atualize o arquivo na mesma mudança.
 3. **Português** nos comentários, textos de UI e mensagens de commit (o produto
    é pt-BR).
 4. **Tudo que é botão precisa funcionar.** Nada de imagem estática fingindo ser
-   menu; hotspot invisível só é aceitável em arte de marca, com foco/hover
-   visível.
+   menu; hotspots nas artes de referência precisam ser botões DOM com rótulos
+   acessíveis, ações reais e foco/hover visível, testados nas áreas desenhadas.
 
 ---
 
@@ -309,3 +309,28 @@ node xfc-game/tools/build-bundle.mjs
 # build do APK (CI faz o mesmo)
 cd xfc-game/android && ./gradlew assembleDebug
 ```
+
+## Atualização v0.5.17 — aparência e menus
+
+- `appearanceFor(player)` (`data/appearance.js`) é a fonte de pele/cabelo por
+  identidade. Não usar `lookFor(index)` para simular atletas reais. Há perfis
+  explícitos para os XI de Barcelona/Real Madrid e outros nomes conhecidos;
+  desconhecidos/fictícios têm `source: default-unverified`, sem inferir etnia.
+- `match3d/player-surface.js` adapta textura/UV/cabelo do Micah. Ao clonar
+  texturas, criar **THREE.Source independente** antes de substituir pixels:
+  `Texture.clone()` compartilha Source e contaminava a pele de outros atletas.
+- Uniformes: atlas frente/costas sobre a camisa importada, com escudo/nome/
+  número; short e meias separados. Configuração em `data/kits.js`. São
+  reconstruções estilizadas, não uniformes oficiais licenciados de temporada.
+- `modes` agora abre o seletor da arte diretamente. Não reintroduzir o hub roxo.
+  Copa América/campanha/formatos especiais ficam em Copas/Eventos Especiais.
+- Três artes novas em `assets/menus`; abertura Neymar/Brasil substitui a antiga.
+  `reference-menu.js` fornece botões reais, foco e coordenadas proporcionais.
+  Exceção de tamanho para estas referências: JPEG até 650 KB, sem rede externa.
+- Sete cartões de treino + botão extra de equipe; não mapear todos ao mesmo
+  exercício. `keeper` controla o goleiro, `corner` cruza, `dribble` usa cones.
+- Não mudar os primeiros seis índices de STADIUMS: saves antigos dependem deles.
+  FEATURED_STADIUMS escolhe a primeira página; os antigos continuam na segunda.
+- Copa do Brasil/BR são edições compactas declaradas, não calendários oficiais:
+  quatro clubes em mata-mata e seis em pontos corridos turno/returno.
+- Ver `docs/v0.5.17.md` e `tests/xfc-reference-menus.test.mjs`.

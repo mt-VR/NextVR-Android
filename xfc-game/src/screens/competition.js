@@ -324,7 +324,7 @@ export function competitionScreen(ctx, params = {}) {
     class: `screen screen--competition theme--${competition.theme}`,
     dataset: { competition: competition.id }
   });
-  root.style.setProperty('--comp-art', `url("${new URL(ART[competition.id], baseURI).href}")`);
+  root.style.setProperty('--comp-art', `url("${new URL(ART[competition.id] || 'assets/menus/tournaments.jpg', baseURI).href}")`);
   if (NEWS_ART[competition.id]) {
     root.style.setProperty('--comp-news', `url("${new URL(NEWS_ART[competition.id], baseURI).href}")`);
   }
@@ -355,6 +355,10 @@ export function competitionScreen(ctx, params = {}) {
 
   artboard.append(art, brand, wallet, menu, stage, deck, hints);
   root.append(artboard);
+  if(competition.theme==='brasil'){
+    root.classList.add('comp--domestic');
+    artboard.append(el('div',{class:'comp__domestic-title'},el('h1',{text:competition.name}),el('p',{text:competition.tagline})));
+  }
 
   function paintWallet() {
     const profile = ctx.state.profile;

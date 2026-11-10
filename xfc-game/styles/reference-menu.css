@@ -1,0 +1,30 @@
+.reference-screen {position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#071324!important;padding:0!important;}
+.reference-screen .ref-art {position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;}
+.reference-screen .ref-button {position:absolute;margin:0;padding:0;border:0;background:transparent;transform:none;min-width:0;min-height:0;border-radius:6px;cursor:pointer;z-index:2;box-shadow:none;}
+.reference-screen .ref-button:hover,.reference-screen .ref-button:focus-visible {outline:3px solid #fff;outline-offset:-3px;box-shadow:0 0 18px #397bff;background:#ffffff12;}
+.reference-screen .ref-sr {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.ref-profile{position:absolute;left:83.8%;top:3.7%;width:13%;height:5.4%;z-index:3;background:#111725;color:#fff;text-align:left;border:0;font:16px Arial;display:flex;flex-direction:column;justify-content:center;gap:3px;cursor:pointer;}
+.ref-profile small{font-size:13px;color:#cad3e6;}
+.ref-dialog {position:absolute;inset:15% 25%;z-index:9;background:#081426f5;border:1px solid #5d8dea;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 60px #000;}
+.ref-dialog h2{font-size:30px;color:white;margin:0 0 8px;}
+.ref-dialog button {background:#192c49;color:white;border:1px solid #7793bb;padding:14px;font-size:18px;text-align:left;cursor:pointer;}
+.ref-dialog button:focus-visible{outline:3px solid #70b5ff;}
+.screen--launch .launch__art{object-fit:fill;}
+.screen--launch .launch__enter{left:40.5%;top:84%;width:20%;height:8.5%;border-radius:5px;}
+.ref-stadium-info{position:absolute;left:26.5%;top:38%;width:25%;padding:18px;background:#071020ed;color:white;z-index:3;}
+.ref-stadium-info h2{font-size:32px;margin:0 0 6px;}
+.ref-stadium-info p{font-size:17px;line-height:1.4;margin:7px 0;}
+.reference-screen .stadiums__card{overflow:hidden;}
+.ref-stadium-selected{outline:3px solid white!important;box-shadow:0 0 15px #367cff!important;}
+.ref-stadium-replacement{position:absolute;inset:0;background:#081322;display:flex;flex-direction:column;}
+.ref-stadium-replacement img{height:73%;width:100%;object-fit:cover;}
+.ref-stadium-replacement span{color:white;font:600 16px Arial;padding:8px;}
+.comp--domestic .comp__art{background:linear-gradient(120deg,#071721 0%,#113e31 65%,#206243);}
+.comp__domestic-title{position:absolute;left:30%;top:20%;right:8%;color:white;pointer-events:none;}
+.comp__domestic-title h1{font-size:56px;font-style:italic;margin:0;}
+.comp__domestic-title p{font-size:19px;}
+.comp--domestic:has(.comp__panel) .comp__domestic-title{display:none;}
+.ref-team-training{position:absolute;left:48%;bottom:1.5%;z-index:3;border:1px solid #788baa;border-radius:4px;background:#081426d9;color:white;padding:8px 16px;font-size:16px;cursor:pointer;}
+.reference-screen .stadiums__grid{position:absolute;inset:0;display:block;width:100%;height:100%;padding:0;margin:0;gap:0;transform:none;}
+.reference-screen::before,.reference-screen::after{display:none!important;}
+.reference-screen [hidden]{display:none!important;}

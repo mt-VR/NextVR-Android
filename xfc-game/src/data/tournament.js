@@ -130,6 +130,12 @@ export const COMPETITIONS = [
   }
 ];
 
+// Edições compactas com os clubes brasileiros disponíveis no elenco local.
+COMPETITIONS.push(
+  {id:'copa-do-brasil',theme:'brasil',name:'Copa do Brasil',shortName:'Copa do Brasil',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:['flamengo','palmeiras','corinthians','santos'],groupCount:1,bestThirds:0,format:'knockout',stageTitle:'Semifinais · edição compacta',stadiumIndex:0,mark:'🏆',trophy:'libertadores',tagline:'Mata-mata com quatro clubes disponíveis',menuLabel:'COPA DO BRASIL'},
+  {id:'brasileirao',theme:'brasil',name:'Brasileirão',shortName:'Brasileirão',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:SOUTH_AMERICAN_CLUBS.filter(id=>id!=='river-plate'),groupCount:1,bestThirds:0,format:'league',stageTitle:'Pontos corridos · edição compacta',stadiumIndex:0,mark:'★',trophy:'libertadores',tagline:'Turno e returno com seis clubes disponíveis',menuLabel:'BRASILEIRÃO'}
+);
+
 export const GROUP_LETTERS = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
 
 const KNOCKOUT_ORDER = ['r16', 'qf', 'sf', 'final'];
@@ -289,6 +295,13 @@ export function createTournament(competitionId, { teamId, random = Math.random }
     kits: { [chosen]: 0 },
     createdAt: Date.now()
   };
+  if(competition.format==='knockout'){
+    tournament.stage='sf';tournament.knockoutStarted=true;
+    tournament.fixtures=[[ordered[0],ordered[1]],[ordered[2],ordered[3]]].map(([home,away],i)=>({id:`sf-${i+1}`,stage:'sf',round:1,group:null,home,away,played:false,homeGoals:null,awayGoals:null}));
+  }else if(competition.format==='league'){
+    const offset=Math.max(...tournament.fixtures.map(f=>f.round));
+    tournament.fixtures.push(...tournament.fixtures.map(f=>({...f,id:f.id+'-return',round:f.round+offset,home:f.away,away:f.home})));
+  }
   return tournament;
 }
 
@@ -619,6 +632,19 @@ export function nextTournamentFixture(tournament) {
 /** Simula a rodada do usuário, deixando a partida dele para ser jogada. */
 export function simulateRound(tournament, { random = Math.random } = {}) {
   if (!tournament) return tournament;
+  if(tournament.champion)return tournament;
+  if(getCompetition(tournament.competitionId).format==='league'){
+    const upcoming=nextTournamentFixture(tournament);
+    for(const fixture of tournament.fixtures){
+      if(fixture.played || fixture===upcoming || (upcoming&&fixture.round!==upcoming.round))continue;
+      if(fixture.home===tournament.userTeamId||fixture.away===tournament.userTeamId)continue;
+      const [hg,ag]=simulateScore(tournament,fixture.home,fixture.away,random);settleFixture(tournament,fixture,hg,ag,random);
+    }
+    if(groupStageComplete(tournament)){
+      const table=groupTable(tournament,'A');tournament.champion=table[0].id;tournament.runnerUp=table[1].id;tournament.stage='champion';
+    }
+    return tournament;
+  }
   const upcoming = nextTournamentFixture(tournament);
   if (tournament.stage === 'group') {
     if (groupStageComplete(tournament)) {
@@ -742,7 +768,7 @@ export function tournamentStatus(tournament) {
   if (!upcoming) {
     return { stage: 'waiting', label: 'Aguardando a rodada', detail: 'Os outros jogos estão em andamento.' };
   }
-  const stage = upcoming.stage === 'group' ? `Grupo ${upcoming.group} · Rodada ${upcoming.round}` : stageLabel(upcoming.stage);
+  const stage = upcoming.stage === 'group' ? `${competition.format==='league'?'Pontos corridos':'Grupo '+upcoming.group} · Rodada ${upcoming.round}` : stageLabel(upcoming.stage);
   return { stage: 'playing', label: stage, detail: 'Sua próxima partida está liberada.' };
 }
 

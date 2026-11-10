@@ -175,22 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.16
+          TAG=xfc-gameplay-v0.5.17
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.16 (versionCode 22), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.17 (versionCode 23), commit ${GITHUB_SHA}." \
             "" \
-            "Modelo pronto Micah/Innerscene (MakeHuman, CC0): corpo masculino com rosto, cabelo e uniforme do arquivo original. Substitui Xbot e remove buildKit. O original era estático: rig de 22 juntas e clipes de locomoção foram adicionados para o jogo, sem criar outro corpo ou roupa." \
+            "Aparência por identidade: Vinícius Jr. com pele escura/cabelo alto e Valverde com pele clara/cabelo curto; perfis explícitos para os titulares de Real Madrid e Barcelona e outros atletas. Rostos continuam genéricos. Desconhecidos usam aparência padrão, sem inferência por nacionalidade." \
             "" \
-            "Orientação +Z validada pelos olhos da malha contra a velocidade em quatro sentidos. Retirada a rotação extra de 180 graus. Chute, carrinho, queda, mergulho e comemoração usam o rig ajustado." \
+            "Uniformes reconstruídos com padrões, escudos, nomes/números, marcas cadastradas, shorts e meias independentes. Não são texturas oficiais licenciadas de temporada." \
             "" \
-            "Desvio do goleiro não troca mais o autor do gol: lastTouch separado de lastIntentionalTouch. HUD, controle e comemoração ficam com o atacante. Gol contra não faz o defensor comemorar." \
+            "Quatro artes enviadas pelo usuário integradas: torneios direto sem hub roxo; nova galeria de estádios; sete fundamentos de treino; nova abertura Neymar/Brasil. Controles DOM reais, teclado/toque e voltar preservados." \
             "" \
-            "Controles e navegação preservados. APK offline; licença, origem fixada, hashes e script de integração em CREDITS.md e footballer.source.json.")
+            "Copa do Brasil compacta (4 clubes, mata-mata); Brasileirão compacto (6 clubes, turno/returno). Treino de equipe e estádios anteriores continuam acessíveis. Documentação em docs/v0.5.17.md e CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — jogador importado e autoria do gol v0.5.16" \
+            gh release create "$TAG" --title "XFC 27 — aparências, uniformes e menus v0.5.17" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — jogador importado e autoria do gol v0.5.16" \
+            gh release edit "$TAG" --title "XFC 27 — aparências, uniformes e menus v0.5.17" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

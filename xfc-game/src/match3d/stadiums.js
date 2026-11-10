@@ -72,6 +72,17 @@ export const STADIUMS = [
   }
 ];
 
+// As praças brasileiras mantêm os índices de saves antigos. A galeria nova
+// mostra também os cinco estádios da referência do usuário.
+STADIUMS.push(
+  {id:'bernabeu',name:'Santiago Bernabéu',shortName:'Bernabéu',city:'Madrid · Espanha',capacity:'78.297',tag:'A CASA DO REAL MADRID',file:'assets/stadiums/bernabeu-menu.jpg',model:{roof:'plate',facade:0xc1c6cd,facadeTex:'ribs',led:'#edf2ff',height:25,timeOfDay:'night'}},
+  {id:'camp-nou',name:'Camp Nou',shortName:'Camp Nou',city:'Barcelona · Espanha',capacity:'99.354',tag:'A CASA DO BARCELONA',file:'assets/stadiums/camp-nou-menu.jpg',model:{roof:'open',facade:0x58648a,led:'#a61943',height:24,timeOfDay:'dusk'}},
+  {id:'allianz',name:'Allianz Arena',shortName:'Allianz',city:'Munique · Alemanha',capacity:'75.024',tag:'A ARENA DE MUNIQUE',file:'assets/stadiums/allianz-menu.jpg',model:{roof:'ring',facade:0xd62b39,facadeTex:'weave',led:'#ff2533',height:21,weave:true,timeOfDay:'night'}},
+  {id:'wembley',name:'Wembley Stadium',shortName:'Wembley',city:'Londres · Inglaterra',capacity:'90.000',tag:'O PALCO DE LONDRES',file:'assets/stadiums/wembley-menu.jpg',model:{roof:'arch',facade:0xb9bec9,led:'#eeeeff',height:22,arch:0xffffff,timeOfDay:'day'}},
+  {id:'monumental',name:'Monumental',shortName:'Monumental',city:'Buenos Aires · Argentina',capacity:'84.567',tag:'A CASA DO RIVER PLATE',file:'assets/stadiums/monumental-menu.jpg',model:{roof:'open',facade:0xa8a4a0,led:'#ee3333',height:23,timeOfDay:'day'}}
+);
+export const FEATURED_STADIUMS=[0,6,7,8,9,10];
+
 export const STADIUM_COUNT = STADIUMS.length;
 
 const loader = new THREE.TextureLoader();

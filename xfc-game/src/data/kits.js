@@ -252,6 +252,24 @@ function shirtMarkup(kit, clipId) {
  * Blusa em SVG. `pattern: 'stripes'` alterna listras verticais com as duas
  * cores; `solid` usa a cor principal com detalhes na secundária.
  */
+const CLUB_KIT_DETAILS = {
+  'real-madrid': {shorts:'#f7f7f7',socks:'#f7f7f7',print:'#19253c',sponsor:'Emirates FLY BETTER',brand:'adidas'},
+  'fc-barcelona': {shorts:'#004d98',socks:'#004d98',print:'#edbb00',sponsor:'Spotify',brand:'NIKE'},
+  flamengo: {shorts:'#f5f5f5',socks:'#bd1221',print:'#ffffff',sponsor:'',brand:'adidas',pattern:'hoops'},
+  santos: {shorts:'#ffffff',socks:'#ffffff',print:'#111111',sponsor:'',brand:'umbro'},
+  palmeiras: {shorts:'#ffffff',socks:'#00843d',print:'#ffffff',sponsor:'',brand:'PUMA'},
+  corinthians: {shorts:'#141414',socks:'#f4f4f2',print:'#141414',sponsor:'',brand:'NIKE'},
+  'river-plate': {shorts:'#111111',socks:'#ffffff',print:'#111111',sponsor:'',brand:'adidas',pattern:'sash'}
+};
+for(const [club,details] of Object.entries(CLUB_KIT_DETAILS)){
+  if(!KITS[club])continue;
+  KITS[club].forEach((kit,index)=>Object.assign(kit,index===0?details:{sponsor:details.sponsor,brand:details.brand,shorts:kit.colors.primary,socks:kit.colors.primary,print:kit.colors.trim}));
+}
+// Principais tradicionais: as cores secundárias desenham o padrão, não o short.
+KITS.corinthians[0].colors.primary='#f4f4f2';
+KITS.corinthians[0].colors.secondary='#141414';
+if(KITS['river-plate']){KITS['river-plate'][0].colors.primary='#ffffff';KITS['river-plate'][0].colors.secondary='#d71920';}
+
 export function kitSvg(kit, { className = '', width = 220, id = '' } = {}) {
   if (!kit) return '';
   const clipId = id || nextId('kit');
