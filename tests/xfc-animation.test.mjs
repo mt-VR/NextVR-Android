@@ -272,7 +272,7 @@ test('o rig real responde à camada de animação e ao LOD de sombra', () => {
   }
 });
 
-test('na partida real a API de animação controla o protagonista e só ele projeta sombra', { timeout: 120000 }, async (t) => {
+test('no rig procedural (fallback) a API de animação controla o protagonista e só ele projeta sombra', { timeout: 120000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) {
@@ -286,7 +286,9 @@ test('na partida real a API de animação controla o protagonista e só ele proj
     page.on('console', message => {
       if (message.type() === 'error') errors.push(message.text());
     });
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    // O caminho glTF é o padrão do jogo; aqui forçamos o rig procedural para
+    // continuar cobrindo o fallback (`?models=2d`).
+    await page.goto(url + '?models=2d', { waitUntil: 'domcontentloaded' });
     await page.keyboard.press('Enter');
     await page.waitForSelector('.screen--launch');
     await page.click('.launch__enter');
@@ -343,6 +345,68 @@ test('na partida real a API de animação controla o protagonista e só ele proj
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `a partida não deve gerar erro de console: ${realErrors.join(' | ')}`);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('no caminho glTF o protagonista é o corpo humano e a API continua valendo', { timeout: 120000 }, async (t) => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) {
+    server.close();
+    return;
+  }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.screen--launch');
+    await page.click('.launch__enter');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="learn"]').click();
+    await page.waitForSelector('.screen--training-select');
+    await page.locator('.training-select__choice[data-drill="penalty"]').click();
+    await page.waitForSelector('.screen--training .training__stage[data-drill="penalty"]');
+    await page.waitForFunction(() => window.__xfcTrainingMatch?.world.trainingMode === true);
+
+    const before = await page.evaluate(() => {
+      const model = window.__xfcAnim?.model;
+      const pose = [];
+      model?.root?.traverse(object => {
+        if (object.isBone) pose.push(`${object.name}:${object.quaternion.x.toFixed(3)},${object.quaternion.y.toFixed(3)},${object.quaternion.z.toFixed(3)}`);
+      });
+      return {
+        isGltf: Boolean(model?.isGltf),
+        boneCount: pose.length,
+        pose: pose.join('|'),
+        state: window.__xfcAnim?.state?.()
+      };
+    });
+    assert.equal(before.isGltf, true, 'o protagonista é a malha humana glTF');
+    assert.ok(before.boneCount > 40, `o esqueleto tem os ossos Mixamo (achei ${before.boneCount})`);
+    assert.equal(before.state?.model, 'glb', 'o estado da animação vem do controlador glTF');
+
+    const after = await page.evaluate(() => {
+      const match = window.__xfcTrainingMatch;
+      const anim = window.__xfcAnim;
+      anim.setSpeed(1);
+      anim.trigger('celebrate', { fade: 0.05 });
+      for (let frame = 0; frame < 40; frame += 1) match.world.tick(1 / 60);
+      const pose = [];
+      anim.model.root.traverse(object => {
+        if (object.isBone) pose.push(`${object.name}:${object.quaternion.x.toFixed(3)},${object.quaternion.y.toFixed(3)},${object.quaternion.z.toFixed(3)}`);
+      });
+      return { pose: pose.join('|'), state: anim.state() };
+    });
+    assert.notEqual(after.pose, before.pose, 'a comemoração disparada pela API move o esqueleto do protagonista');
+    assert.ok(after.state.layers.length >= 1, 'o estado mostra a camada ativa');
+
+    const realErrors = errors.filter(message => !/favicon/i.test(message));
+    assert.deepEqual(realErrors, [], `o caminho glTF não deve gerar erro: ${realErrors.join(' | ')}`);
   } finally {
     await browser.close();
     server.close();

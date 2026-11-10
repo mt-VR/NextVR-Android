@@ -158,7 +158,7 @@ A API controla **só o protagonista** (`controlled[userSide]`). Joystick,
 botões de ação e câmera continuam mandando no jogo normal: as camadas são um
 verniz por cima da pose base, nunca um substituto do controle.
 
-### Elenco estilizado (padrão do jogo)
+### Elenco estilizado (reserva procedural)
 
 O atleta é 100% gerado por código — nada de modelo de terceiros, nada de
 licença de imagem de jogador real. A cara do craque vem de geometria:
@@ -184,47 +184,36 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
   (calcanhar, peito do pé, bico), com entressola, colarinho, língua, cadarços e
   seis travas. Nada de elipsoide com bolacha embaixo.
 
-### Modelo glTF externo (já implementado, desligado por padrão)
+### Modelo glTF externo (padrão do jogo)
 
-### Corpo humano de verdade: o que já foi tentado (não repetir)
+### Corpo humano de verdade (agora é o padrão)
 
-Tentamos trocar o rig procedural por um humano rigado de licença livre baixado
-do GitHub: `Soldier.glb` do repositório do three.js (Mixamo "Vanguard", 49
-ossos `mixamorig*`, 11.376 triângulos, atlas de 2 imagens). Ele carrega e é
-escalado certo — mas **as animações de futebol do Mixamo não encaixam**, porque
-cada export guarda uma orientação de repouso própria para os ossos:
+O elenco é uma malha humana rigada: `assets/players/models/footballer.glb`
+(`Michelle.glb` dos exemplos do three.js — Mixamo, 65 ossos `mixamorig*`,
+16.340 vértices, 4 texturas). O rig procedural continua em
+`src/match3d/player.js` como reserva (`?models=2d` ou `window.__XFC_GLTF =
+false`).
 
-| Estratégia | Perna/tronco | Braços |
-| --- | --- | --- |
-| clipe cru (sem correção) | bom | sobem para a cabeça |
-| delta local (`q_alvo · q_origem⁻¹ · q(t)`) | bom | torcem / cruzam no peito |
-| retarget no espaço de mundo (`A · mundo(t)`) | ruim (corpo deita) | ruim |
+Como escolher o arquivo (o que dá errado com outros):
 
-Detalhe que confunde o diagnóstico: trilhas `.position` do quadril vêm em outro
-referencial e afundam o atleta — sempre descartar. `Box3.setFromObject` em
-`SkinnedMesh` mente; medir vértices em bind pose. O arquivo é Z-up
-(`size.z > size.y · 1.25` → `rotation.x = -π/2`).
-
-Conclusão: para usar malha humana de verdade, o personagem precisa vir **com as
-próprias animações** (mesmo esqueleto do clipe) — ex.: "Man Player" do
-Sketchfab (CC-BY, 12 MB, 20 clipes) ou um pacote Mixamo exportado junto. Aí não
-há retarget e o `createGltfPlayer` funciona como está.
-
-`src/match3d/models.js` carrega `assets/players/models/footballer.glb` +
-`assets/animations/<ação>/<ação>.glb` (biblioteca mocap Mixamo no repositório),
-clona com `SkeletonUtils.clone`, pinta o uniforme nas cores do time e expõe o
-**mesmo contrato** do rig procedural (`update`, `kick`, `celebrate`, `dive`,
-`lookAt`, `setDynamicShadow`, `animation`).
-
-* Ligar: `?models=glb` na URL ou `window.__XFC_GLTF = true` antes do boot.
-* Máscaras: `maskClip()` recorta as trilhas do clipe pelos ossos do grupo
-  (`lower`, `upper`, `head`), então a camada só escreve nos ossos dela.
-* O arquivo do personagem **não está no pacote**: nenhum rigged de licença
-  compatível aparece no repositório/histórico. Basta copiar o `.glb` para o
-  caminho acima — se faltar, a partida continua no rig procedural.
-* O que foi testado e **não** ficou como padrão: retarget de mocap para o rig
-  procedural (torção nos braços, porque o Mixamo nasce em T-pose e nosso rig
-  não tem coluna) e o boneco Xbot do Mixamo (malha de teste, sem identidade).
+* O modelo precisa ter **o mesmo esqueleto Mixamo dos clipes** e, de
+  preferência, repouso parecido. O `Soldier.glb` (Mixamo Vanguard) parece o
+  candidato óbvio, mas o repouso dele difere 180° em quadril e pernas: pernas e
+  tronco ainda encaixam com retarget, os braços torcem. O `Xbot.glb` (14° médio)
+  fica no limite; a `Michelle` (6,3° médio, só o quadril a 91°) roda limpa.
+  Comparar antes de integrar: ler as quaternions de repouso de
+  `assets/animations/run/run.glb` e do candidato, osso por osso.
+* Medir altura só com `bindPoseBounds()` usando `mesh.applyBoneTransform()`:
+  `Box3.setFromObject` em `SkinnedMesh` mente e, sem o bind por junta, modelos
+  em centímetros com `bindMatrix` escalado saem 100× maiores.
+* Alguns exports são Z-up (`size.z > size.y · 1.25` → `rotation.x = -π/2`).
+* Trilhas `.position` dos clipes Mixamo vêm em outro referencial e afundam o
+  atleta — descartar sempre (só `.quaternion` interessa).
+* O controlador glTF precisa expor `speed`, `mask`, `applyMask()`, `blend()`,
+  `trigger()`, `stop()`, `state()` **e** `stats()` (usado por `animation.js`);
+  sem `stats()` a API `window.__xfcAnim.state()` quebra.
+* Cor do time = tinta no material (`white.lerp(cor, 0.55)`); não há malha de
+  uniforme separada, então o time se diferencia pela cor da roupa do modelo.
 
 ### Nomenclatura de assets
 

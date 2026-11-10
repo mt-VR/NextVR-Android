@@ -191,21 +191,18 @@ export function footballerPackReady() {
 }
 
 /**
- * Atletas glTF entram por opt-in: `?models=glb` na URL ou `window.__XFC_GLTF`.
+ * Atletas glTF ligados por padrão: é o corpo humano de verdade do jogo.
  *
- * Por que não é o padrão: o único corpo humano rigado que dá para baixar aqui
- * (o "Soldier" do three.js, Mixamo Vanguard) tem a orientação de repouso dos
- * ossos diferente da dos clipes de futebol do Mixamo. As pernas e o tronco
- * reencaixam com a correção de `retargetClip()`, mas os braços torcem — golpe
- * de futebol com braço cruzado não passa. O elenco desenhado por código
- * continua sendo o atleta do jogo até chegar um modelo cujas animações venham
- * junto com ele (ex.: "Man Player" do Sketchfab, CC-BY, 20 clipes).
+ * O rig procedural continua como reserva — se o `.glb` faltar, falhar ou o
+ * aparelho pedir o modo leve (`?models=2d|none|procedural` ou
+ * `window.__XFC_GLTF = false`), `createGltfPlayer` devolve `null` e a partida
+ * usa `createPlayer3D`.
  */
 export function gltfPlayersEnabled() {
   if (typeof window === 'undefined') return false;
-  if (window.__XFC_GLTF === true) return true;
   if (window.__XFC_GLTF === false) return false;
-  return /(?:^|[?&])models=glb(?:&|$)/.test(String(window.location?.search || ''));
+  if (window.__XFC_GLTF === true) return true;
+  return !/(?:^|[?&])models=(?:2d|none|procedural)(?:&|$)/.test(String(window.location?.search || ''));
 }
 
 /** Caixa do modelo na pose de bind (o Box3 do SkinnedMesh não serve). */
@@ -216,8 +213,14 @@ function bindPoseBounds(object) {
   object.traverse(mesh => {
     if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
     const position = mesh.geometry.attributes.position;
+    const skinned = mesh.isSkinnedMesh && typeof mesh.applyBoneTransform === 'function';
     for (let index = 0; index < position.count; index += 1) {
-      point.fromBufferAttribute(position, index).applyMatrix4(mesh.matrixWorld);
+      point.fromBufferAttribute(position, index);
+      // `applyBoneTransform` devolve o vértice já na pose de bind com os pesos
+      // das juntas — é o único jeito de medir modelos cujo bind embute escala
+      // (Michelle/MakeHuman vem em centímetros e com bindMatrix escalado).
+      if (skinned) mesh.applyBoneTransform(index, point);
+      point.applyMatrix4(mesh.matrixWorld);
       box.expandByPoint(point);
     }
   });
@@ -576,6 +579,10 @@ export function createGltfPlayer(options = {}) {
           })),
         distance: state.lastDistance
       };
+    },
+    /** Alias exigido pela API de animação compartilhada (`animation.js`). */
+    stats() {
+      return api.animation.state();
     }
   };
 

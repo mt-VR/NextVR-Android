@@ -40,18 +40,23 @@ arquivo de áudio de terceiros é usado.
 O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que carrega
 uniforme, escudo, número e retrato.
 
-O jogo também sabe carregar um personagem glTF externo
-(`assets/players/models/footballer.glb`, ligado por `?models=glb`). O arquivo
-**não está no pacote**: o único corpo humano rigado de licença livre que deu
-para baixar aqui foi o `Soldier.glb` do repositório do three.js (personagem
-Mixamo "Vanguard", Mixamo/Adobe + exemplo MIT). Ele carrega, fica na altura
-certa e recebe a cor do time, mas os clipes de futebol do Mixamo (que vêm de
-outro export) não encaixam no esqueleto dele — pernas e tronco vão bem, braços
-sobem e torcem. Testados três caminhos: delta local por osso, retarget no
-espaço de mundo e clipe cru; os três erram os braços. Por isso o elenco visível
-continua sendo o rig procedural, e o caminho glTF fica pronto para um modelo que
-venha junto com as próprias animações: basta copiar o `.glb` para esse caminho
-(`src/match3d/models.js`).
+### Elenco humano 3D (padrão do jogo)
+
+O time em campo é um **corpo humano de verdade**, rigado e animado:
+
+| Arquivo | Origem | Licença | Onde |
+| --- | --- | --- | --- |
+| `assets/players/models/footballer.glb` | `Michelle.glb`, personagem Mixamo distribuído nos exemplos do three.js (repositório `mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 3,2 MB, 16.340 vértices, 65 ossos `mixamorig*`, 4 texturas de pele/roupa |
+| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo (idle, jog, run, chute, cabeceio, carrinho, comemoração, mergulho, goleiro, lateral) | Mixamo/Adobe | biblioteca mocap do repositório |
+
+O esqueleto do modelo casa com os clipes quase em repouso (delta médio de 6,3°
+por osso; só o quadril raiz difere ~91°, corrigido por `retargetClip()`), por
+isso a animação de futebol roda sem distorcer. A cor do time entra tingindo o
+material (`white.lerp(cor, 0.55)`), o que preserva a textura de pele e muda
+calça, camisa e chuteira.
+
+O rig procedural continua no jogo como reserva (`?models=2d` ou
+`window.__XFC_GLTF = false`) e é o que roda se o `.glb` faltar.
 
 ### Animações (Mixamo)
 
