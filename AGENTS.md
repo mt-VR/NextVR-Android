@@ -172,6 +172,17 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
   `side`, `bob`, `bald` — sorteados por `lookFor()`.
 * `stylized: false` volta ao rosto antigo (útil para quem usa retrato/foto).
 * Ombros e deltoides foram afinados para o uniforme não parecer ombreira.
+* `shapeHeadPoint()` / `headGeometry()`: o crânio é uma esfera deformada
+  (mandíbula estreita, queixo à frente, maçãs do rosto, têmporas, occipital).
+  `conformFacePatch()` mantém a máscara de sombra colada nesse formato.
+* Tronco com peitoral, dorsais e trapézio em geometria (`-pec`, `-lat`,
+  `-trapezius`) e perfil de anéis com cintura — o volume fica **dentro** da
+  camisa (se puser para fora, aparece como bolha).
+* Mão: palma achatada em anéis, tenar, 4 dedos em dois segmentos com curvatura
+  de descanso (`xfc-player-fingers`, `xfc-player-fingertips`) + nós.
+* Chuteira: `footShellGeometry()` empilha seções elípticas ao longo do pé
+  (calcanhar, peito do pé, bico), com entressola, colarinho, língua, cadarços e
+  seis travas. Nada de elipsoide com bolacha embaixo.
 
 ### Modelo glTF externo (já implementado, desligado por padrão)
 

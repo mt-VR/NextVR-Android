@@ -175,9 +175,9 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.11
+          TAG=xfc-gameplay-v0.5.12
           NOTES=$(printf '%s\n' \
-            "XFC 27 — craque estilizado v0.5.11 (versionCode 17), build do commit ${GITHUB_SHA}." \
+            "XFC 27 — corpo humano v0.5.12 (versionCode 18), build do commit ${GITHUB_SHA}." \
             "" \
             "Sistema de animação por camadas: máscaras de ossos (pernas, tronco/braços e cabeça), mistura suave entre clipes sem salto e disparo de eventos (chute, passe, cabeceio, carrinho, comemoração, recepção, salto)." \
             "" \
@@ -187,10 +187,10 @@ jobs:
             "" \
             "Os quatro menus de competição continuam em tela cheia, idênticos às referências, com todos os botões funcionando. Pré-jogo com estádio, escudos, uniformes e escalação, entrada cinematográfica pelo túnel e HUD apenas com o cartão de gol no rodapé. Preserva modos, regras, times e recursos existentes; o APK roda offline e o pacote web completo também está anexado.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — craque estilizado v0.5.11" \
+            gh release create "$TAG" --title "XFC 27 — corpo humano v0.5.12" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — craque estilizado v0.5.11" \
+            gh release edit "$TAG" --title "XFC 27 — corpo humano v0.5.12" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

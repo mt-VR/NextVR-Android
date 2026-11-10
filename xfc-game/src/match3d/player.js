@@ -217,27 +217,27 @@ function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}
 
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(eyeball, white);
-    eye.position.set(0.034 * side, 0.021, 0.0745);
-    eye.scale.set(0.0205, 0.0155, 0.0135);
+    eye.position.set(0.034 * side, 0.021, 0.0695);
+    eye.scale.set(0.0202, 0.0152, 0.0112);
     group.add(eye);
 
     const irisMesh = new THREE.Mesh(eyeball, iris);
-    irisMesh.position.set(0.034 * side, 0.0205, 0.0855);
+    irisMesh.position.set(0.034 * side, 0.0205, 0.0792);
     irisMesh.scale.set(0.0092, 0.0092, 0.0052);
     group.add(irisMesh);
 
     const pupilMesh = new THREE.Mesh(eyeball, pupil);
-    pupilMesh.position.set(0.034 * side, 0.0205, 0.0885);
+    pupilMesh.position.set(0.034 * side, 0.0205, 0.0816);
     pupilMesh.scale.set(0.0046, 0.0046, 0.0032);
     group.add(pupilMesh);
 
     const glintMesh = new THREE.Mesh(eyeball, glint);
-    glintMesh.position.set(0.034 * side + 0.0028 * side, 0.0242, 0.0915);
+    glintMesh.position.set(0.034 * side + 0.0028 * side, 0.0242, 0.0840);
     glintMesh.scale.set(0.0022, 0.0022, 0.0018);
     group.add(glintMesh);
 
     const eyebrow = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.0062, 0.008), brow);
-    eyebrow.position.set(0.035 * side, 0.0348, 0.0862);
+    eyebrow.position.set(0.035 * side, 0.0348, 0.0808);
     eyebrow.rotation.z = -0.1 * side;
     eyebrow.rotation.y = 0.16 * side;
     group.add(eyebrow);
@@ -245,21 +245,21 @@ function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}
     // Pálpebra: só a borda superior, senão o olho parece inchado.
     if (!lowDetail) {
       const lid = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: skinTone }));
-      lid.position.set(0.034 * side, 0.0306, 0.0752);
-      lid.scale.set(0.0204, 0.0042, 0.0134);
+      lid.position.set(0.034 * side, 0.0300, 0.0702);
+      lid.scale.set(0.0202, 0.0042, 0.0114);
       group.add(lid);
     }
   }
 
   const mouth = new THREE.Mesh(eyeball, lip);
-  mouth.position.set(0, -0.0495, 0.0772);
-  mouth.scale.set(0.0172, 0.0055, 0.0062);
+  mouth.position.set(0, -0.0495, 0.0708);
+  mouth.scale.set(0.0168, 0.0052, 0.0052);
   group.add(mouth);
 
   if (!lowDetail) {
     const lowerLip = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: 0xa9584a }));
-    lowerLip.position.set(0, -0.0555, 0.0758);
-    lowerLip.scale.set(0.0148, 0.0038, 0.0052);
+    lowerLip.position.set(0, -0.0552, 0.0698);
+    lowerLip.scale.set(0.0144, 0.0036, 0.0044);
     group.add(lowerLip);
   }
   head.add(group);
@@ -684,6 +684,117 @@ function facePatchGeometry(rx = 0.087, ry = 0.112, rz = 0.086, columns = 12, row
   return geometry;
 }
 
+/** Curva suave 0→1 usada para esculpir o crânio. */
+function smoothStep(edge0, edge1, x) {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Esculpe um ponto de esfera unitária no formato de um crânio humano: testa
+ * alta, têmporas afundadas, maçãs do rosto, mandíbula estreita e queixo à
+ * frente. Sem isso a cabeça é literalmente uma bola.
+ */
+function shapeHeadPoint(v) {
+  const y = v.y;
+  // Mandíbula: afina para baixo e joga o maxilar inferior para dentro.
+  const jaw = smoothStep(0.12, -0.92, y);
+  v.x *= 1 - jaw * 0.36;
+  v.z *= 1 - jaw * 0.24;
+  // Queixo: projeção à frente na parte mais baixa.
+  if (v.z > 0) v.z += jaw * 0.12;
+  // Maçãs do rosto: leve volume na altura dos olhos/cochechas.
+  const cheek = Math.exp(-Math.pow((y + 0.16) / 0.26, 2)) * Math.min(1, Math.abs(v.x) / 0.55);
+  v.x *= 1 + cheek * 0.07;
+  // Têmporas: uma cova discreta acima das orelhas.
+  const temple = Math.exp(-Math.pow((y - 0.34) / 0.22, 2)) * Math.min(1, Math.abs(v.x) / 0.6);
+  v.x *= 1 - temple * 0.06;
+  // Nuca: occipital levemente abaulado para trás.
+  if (v.z < 0) v.z *= 1 + 0.08 * smoothStep(-0.2, 0.45, y);
+  // Testa: um pouco mais plana na frente.
+  if (y > 0.2 && v.z > 0) v.z *= 1 + 0.05 * smoothStep(0.2, 0.8, y);
+  // Base do crânio: fecha em vez de terminar em ponta redonda.
+  if (y < -0.75) v.y *= 0.90;
+  return v;
+}
+
+/** Esfera deformada em crânio (ainda unitária; a escala vem do mesh). */
+function headGeometry(widthSegments = 16, heightSegments = 14) {
+  const geometry = new THREE.SphereGeometry(1, widthSegments, heightSegments);
+  const position = geometry.attributes.position;
+  const point = new THREE.Vector3();
+  for (let index = 0; index < position.count; index += 1) {
+    point.fromBufferAttribute(position, index);
+    shapeHeadPoint(point);
+    position.setXYZ(index, point.x, point.y, point.z);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Faz a máscara de sombra do rosto acompanhar o crânio esculpido. */
+function conformFacePatch(geometry, rx = 0.087, ry = 0.112, rz = 0.086) {
+  const position = geometry.attributes.position;
+  const point = new THREE.Vector3();
+  for (let index = 0; index < position.count; index += 1) {
+    point.set(
+      position.getX(index) / rx,
+      position.getY(index) / ry,
+      (position.getZ(index) - 0.002) / rz
+    );
+    shapeHeadPoint(point);
+    position.setXYZ(index, point.x * rx, point.y * ry, point.z * rz + 0.0035);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
+ * Casco de chuteira: seções elípticas empilhadas ao longo do pé (Z). Dá
+ * calcanhar alto, peito do pé rebaixado e bico fino — não um ovo.
+ */
+function footShellGeometry(stations, segments = 14) {
+  const positions = [];
+  const indices = [];
+  const stride = segments + 1;
+  for (const station of stations) {
+    for (let index = 0; index <= segments; index += 1) {
+      const angle = (index / segments) * Math.PI * 2;
+      positions.push(
+        Math.sin(angle) * station.width,
+        Math.cos(angle) * station.height + (station.cy || 0),
+        station.z
+      );
+    }
+  }
+  for (let row = 0; row < stations.length - 1; row += 1) {
+    for (let index = 0; index < segments; index += 1) {
+      const a = row * stride + index;
+      const b = a + 1;
+      const c = (row + 1) * stride + index;
+      const d = c + 1;
+      indices.push(a, b, c, b, d, c);
+    }
+  }
+  // Tampas do calcanhar e do bico.
+  const first = 0;
+  const last = (stations.length - 1) * stride;
+  for (let index = 0; index < segments; index += 1) {
+    indices.push(first, first + index + 1, first + index);
+    indices.push(last, last + index, last + index + 1);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 /** Geometria elipsoidal, sem transformar um segmento anatômico em cilindro. */
 function ellipsoidGeometry(widthSegments = 12, heightSegments = 8) {
   return new THREE.SphereGeometry(1, widthSegments, heightSegments);
@@ -788,8 +899,8 @@ function buildHair(style, hairMaterial) {
         new THREE.SphereGeometry(0.115, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
         hairMaterial
       );
-      cap.position.set(0, 0.05, -0.008);
-      cap.scale.set(1.0, 0.94, 1.02);
+      cap.position.set(0, 0.064, -0.010);
+      cap.scale.set(1.0, 0.9, 1.02);
       curls.add(cap);
       const blobGeometry = new THREE.IcosahedronGeometry(1, 0);
       const blobs = [];
@@ -799,12 +910,12 @@ function buildHair(style, hairMaterial) {
         const radius = 0.082 + (index % 2) * 0.012;
         blobs.push([
           Math.sin(angle) * radius,
-          0.104 + (index % 3) * 0.016,
+          0.116 + (index % 3) * 0.016,
           Math.cos(angle) * radius * 0.92 - 0.006,
           0.030 + (index % 3) * 0.004
         ]);
       }
-      blobs.push([0, 0.126, -0.004, 0.042], [-0.04, 0.118, -0.028, 0.036], [0.04, 0.118, -0.028, 0.036]);
+      blobs.push([0, 0.138, -0.006, 0.042], [-0.04, 0.130, -0.030, 0.036], [0.04, 0.130, -0.030, 0.036]);
       for (let index = 0; index < blobs.length; index += 1) {
         const [x, y, z, size] = blobs[index];
         const curl = new THREE.Mesh(blobGeometry, hairMaterial);
@@ -878,7 +989,7 @@ function buildHair(style, hairMaterial) {
     case 'short':
     default: {
       const short = new THREE.Mesh(new THREE.SphereGeometry(0.113, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMaterial);
-      short.position.set(0, 0.04, -0.008);
+      short.position.set(0, 0.052, -0.009);
       short.scale.set(0.95, 0.98, 1.0);
       return short;
     }
@@ -972,12 +1083,8 @@ export function createPlayer3D(options = {}) {
     ? new THREE.MeshLambertMaterial({ color: 0x171b20 })
     : new THREE.MeshPhongMaterial({ color: 0x171b20, specular: 0x50545a, shininess: 28 });
   const soleMaterial = lowDetail
-    ? new THREE.MeshLambertMaterial({ color: accent === '#ffffff' || accent === '#fff' ? 0xe9edf0 : accent })
-    : new THREE.MeshPhongMaterial({
-      color: accent === '#ffffff' || accent === '#fff' ? 0xe9edf0 : accent,
-      specular: 0x272a2c,
-      shininess: 16
-    });
+    ? new THREE.MeshLambertMaterial({ color: 0x2a2f36 })
+    : new THREE.MeshPhongMaterial({ color: 0x2a2f36, specular: 0x585d63, shininess: 22 });
   const skinMaterial = lowDetail
     ? new THREE.MeshLambertMaterial({ color: skinTone })
     : new THREE.MeshPhongMaterial({ color: skinTone, specular: 0x332820, shininess: 13 });
@@ -1002,18 +1109,22 @@ export function createPlayer3D(options = {}) {
   });
 
   // Caixa torácica atlética: ombros largos, cintura enxuta e volume real em 3D.
+  // Tronco humano: peito largo e profundo, cintura estreita, quadril de novo
+  // mais largo. A curva entre 1,0 e 1,3 é o que separa "caixa" de "atleta".
   const torsoProfile = [
-    { y: 0.855, rx: 0.105, rz: 0.072 },
-    { y: 0.875, rx: 0.134, rz: 0.091 },
-    { y: 0.915, rx: 0.151, rz: 0.101 },
-    { y: 0.995, rx: 0.151, rz: 0.101 },
-    { y: 1.085, rx: 0.165, rz: 0.106 },
-    { y: 1.18, rx: 0.184, rz: 0.112 },
-    { y: 1.285, rx: 0.211, rz: 0.116 },
-    { y: 1.355, rx: 0.219, rz: 0.108 },
-    { y: 1.402, rx: 0.192, rz: 0.096 },
-    { y: 1.432, rx: 0.132, rz: 0.073 },
-    { y: 1.442, rx: 0.064, rz: 0.045 }
+    { y: 0.855, rx: 0.112, rz: 0.075 },
+    { y: 0.878, rx: 0.140, rz: 0.094 },
+    { y: 0.918, rx: 0.150, rz: 0.099 },
+    { y: 0.968, rx: 0.150, rz: 0.096 },
+    { y: 1.012, rx: 0.152, rz: 0.094 },
+    { y: 1.062, rx: 0.147, rz: 0.094 },
+    { y: 1.132, rx: 0.167, rz: 0.103 },
+    { y: 1.205, rx: 0.192, rz: 0.112 },
+    { y: 1.278, rx: 0.212, rz: 0.119 },
+    { y: 1.336, rx: 0.221, rz: 0.116 },
+    { y: 1.382, rx: 0.203, rz: 0.103 },
+    { y: 1.418, rx: 0.148, rz: 0.082 },
+    { y: 1.442, rx: 0.068, rz: 0.048 }
   ];
   const torso = new THREE.Mesh(ringGeometry(torsoProfile, radialSegments), jerseyMaterial);
   torso.name = 'xfc-player-torso';
@@ -1022,6 +1133,27 @@ export function createPlayer3D(options = {}) {
   addUniformDetails(body, torsoProfile, {
     number, name, crest, teamName, sponsor, brand, primary, secondary, accent
   });
+
+  // Volume do corpo por baixo da camisa: peitoral, dorsais e trapézio.
+  for (const side of [-1, 1]) {
+    const pec = new THREE.Mesh(ellipsoidGeometry(10, 8), jerseyMaterial);
+    pec.name = side < 0 ? 'xfc-player-left-pec' : 'xfc-player-right-pec';
+    pec.position.set(0.074 * side, 1.296, 0.040);
+    pec.scale.set(0.080, 0.052, 0.050);
+    body.add(pec);
+
+    const lat = new THREE.Mesh(ellipsoidGeometry(9, 7), jerseyMaterial);
+    lat.name = side < 0 ? 'xfc-player-left-lat' : 'xfc-player-right-lat';
+    lat.position.set(0.122 * side, 1.172, -0.014);
+    lat.scale.set(0.052, 0.078, 0.072);
+    body.add(lat);
+
+    const trap = new THREE.Mesh(ellipsoidGeometry(8, 6), jerseyMaterial);
+    trap.name = side < 0 ? 'xfc-player-left-trapezius' : 'xfc-player-right-trapezius';
+    trap.position.set(0.086 * side, 1.398, -0.008);
+    trap.scale.set(0.072, 0.030, 0.056);
+    body.add(trap);
+  }
 
   // Deltoides arredondados conectam a camisa aos braços sem colá-los ao tronco.
   for (const side of [-1, 1]) {
@@ -1075,29 +1207,29 @@ export function createPlayer3D(options = {}) {
   // poucos metros de câmera, no estilo do elenco de arcade.
   if (stylized) head.scale.setScalar(1.1);
   body.add(head);
-  const skull = new THREE.Mesh(ellipsoidGeometry(jointSegments + 2, 10), skinMaterial);
+  const skull = new THREE.Mesh(headGeometry(lowDetail ? 14 : 20, lowDetail ? 12 : 16), skinMaterial);
   skull.name = 'xfc-player-skull';
   skull.scale.set(0.09, 0.118, 0.086);
   head.add(skull);
-  const face = new THREE.Mesh(facePatchGeometry(), faceFeatureMaterial);
+  const face = new THREE.Mesh(conformFacePatch(facePatchGeometry()), faceFeatureMaterial);
   face.name = 'xfc-player-face-features';
   face.userData.facePart = 'features';
   head.add(face);
   const nose = new THREE.Mesh(ellipsoidGeometry(8, 6), skinMaterial);
   nose.name = 'xfc-player-nose';
   nose.userData.facePart = 'nose';
-  nose.position.set(0, 0.003, 0.088);
-  nose.scale.set(0.012, 0.018, 0.015);
+  nose.position.set(0, 0.004, 0.0805);
+  nose.scale.set(0.0125, 0.019, 0.0145);
   head.add(nose);
   for (const side of [-1, 1]) {
     const ear = new THREE.Mesh(ellipsoidGeometry(8, 6), skinMaterial);
     ear.name = side < 0 ? 'xfc-player-left-ear' : 'xfc-player-right-ear';
-    ear.position.set(0.087 * side, -0.002, 0);
+    ear.position.set(0.086 * side, -0.004, -0.014);
     ear.scale.set(0.024, 0.032, 0.019);
     head.add(ear);
     const innerEar = new THREE.Mesh(ellipsoidGeometry(7, 5), earShadeMaterial);
     innerEar.name = side < 0 ? 'xfc-player-left-ear-detail' : 'xfc-player-right-ear-detail';
-    innerEar.position.set(0.093 * side, -0.001, 0.015);
+    innerEar.position.set(0.092 * side, -0.003, 0.001);
     innerEar.scale.set(0.009, 0.018, 0.006);
     head.add(innerEar);
   }
@@ -1163,30 +1295,80 @@ export function createPlayer3D(options = {}) {
     hand.name = side < 0 ? 'xfc-player-left-hand' : 'xfc-player-right-hand';
     hand.userData.fingerCount = 5;
     hand.position.set(0, -0.247, 0.002);
-    const palm = new THREE.Mesh(ellipsoidGeometry(8, 6), handMaterial);
+
+    // Palma achatada com dorso reto e base do polegar (tenar): mão tem lado,
+    // não é um ovo pendurado no punho.
+    const palm = new THREE.Mesh(ringGeometry([
+      { y: -0.062, rx: 0.021, rz: 0.009 },
+      { y: -0.052, rx: 0.026, rz: 0.0115 },
+      { y: -0.028, rx: 0.029, rz: 0.0125 },
+      { y: 0.000, rx: 0.027, rz: 0.012 },
+      { y: 0.014, rx: 0.023, rz: 0.0105 }
+    ], lowDetail ? 8 : 12), handMaterial);
     palm.name = 'xfc-player-palm';
-    palm.position.set(0, -0.035, 0.014);
-    palm.scale.set(isKeeper ? 0.039 : 0.031, 0.043, 0.021);
+    palm.position.set(0, -0.028, 0.012);
+    palm.scale.set(isKeeper ? 1.14 : 1, isKeeper ? 1.12 : 1, isKeeper ? 1.18 : 1);
     hand.add(palm);
-    const digits = new THREE.InstancedMesh(fingerGeometry, handMaterial, 5);
+
+    const thenar = new THREE.Mesh(ellipsoidGeometry(8, 6), handMaterial);
+    thenar.name = 'xfc-player-thenar';
+    thenar.position.set(0.021 * side, -0.062, 0.015);
+    thenar.scale.set(0.010, 0.016, 0.0085);
+    hand.add(thenar);
+
+    // Dedos em dois segmentos, com curvatura de descanso.
+    const proximalGeometry = new THREE.CapsuleGeometry(0.0048, 0.015, 2, lowDetail ? 5 : 7);
+    const distalGeometry = new THREE.CapsuleGeometry(0.0040, 0.011, 2, lowDetail ? 5 : 7);
+    const knuckleGeometry = new THREE.SphereGeometry(1, lowDetail ? 5 : 7, lowDetail ? 4 : 6);
+    const digits = new THREE.InstancedMesh(proximalGeometry, handMaterial, 5);
     digits.name = 'xfc-player-fingers';
     digits.userData.fingerCount = 5;
-    const fingerPose = new THREE.Object3D();
-    const fingerOffsets = [-0.021, -0.007, 0.007, 0.021];
+    const tips = new THREE.InstancedMesh(distalGeometry, handMaterial, 5);
+    tips.name = 'xfc-player-fingertips';
+    tips.userData.fingerCount = 5;
+    const knuckles = new THREE.InstancedMesh(knuckleGeometry, handMaterial, 4);
+    knuckles.name = 'xfc-player-knuckles';
+    const pose = new THREE.Object3D();
+    const fingerXs = [-0.0195, -0.0065, 0.0065, 0.0195];
+    const fingerLift = [0.001, 0.0, -0.001, -0.003];
+    const spread = [-0.10, -0.03, 0.04, 0.11];
+    const knuckleY = -0.086;
     for (let finger = 0; finger < 4; finger += 1) {
-      fingerPose.position.set(fingerOffsets[finger], -0.077, 0.019);
-      fingerPose.rotation.set(0, 0, (finger - 1.5) * 0.055);
-      fingerPose.scale.set(1, finger === 1 || finger === 2 ? 1.08 : 0.94, 1);
-      fingerPose.updateMatrix();
-      digits.setMatrixAt(finger, fingerPose.matrix);
+      const x = fingerXs[finger];
+      const baseY = knuckleY + fingerLift[finger];
+      pose.position.set(x, baseY - 0.0125, 0.012);
+      pose.rotation.set(-0.30, spread[finger] * side, spread[finger]);
+      pose.scale.set(1, finger === 1 || finger === 2 ? 1.12 : 0.98, 1);
+      pose.updateMatrix();
+      digits.setMatrixAt(finger, pose.matrix);
+
+      pose.position.set(x + spread[finger] * 0.05, baseY - 0.0255, 0.0158);
+      pose.rotation.set(-0.52, spread[finger] * side, spread[finger]);
+      pose.scale.set(1, finger === 1 || finger === 2 ? 1.08 : 0.94, 1);
+      pose.updateMatrix();
+      tips.setMatrixAt(finger, pose.matrix);
+
+      pose.position.set(x, baseY + 0.002, 0.0115);
+      pose.rotation.set(0, 0, 0);
+      pose.scale.set(0.0058, 0.0052, 0.0058);
+      pose.updateMatrix();
+      knuckles.setMatrixAt(finger, pose.matrix);
     }
-    fingerPose.position.set(side * 0.036, -0.043, 0.012);
-    fingerPose.rotation.set(0, 0, -side * 0.75);
-    fingerPose.scale.set(0.88, 0.9, 0.9);
-    fingerPose.updateMatrix();
-    digits.setMatrixAt(4, fingerPose.matrix);
+    // Polegar: sai do lado da palma, inclinado para dentro.
+    pose.position.set(0.026 * side, -0.059, 0.016);
+    pose.rotation.set(-0.30, 0, -0.88 * side);
+    pose.scale.set(0.95, 0.92, 0.95);
+    pose.updateMatrix();
+    digits.setMatrixAt(4, pose.matrix);
+    pose.position.set(0.035 * side, -0.066, 0.024);
+    pose.rotation.set(-0.62, 0, -0.88 * side);
+    pose.scale.set(0.9, 0.88, 0.9);
+    pose.updateMatrix();
+    tips.setMatrixAt(4, pose.matrix);
     digits.instanceMatrix.needsUpdate = true;
-    hand.add(digits);
+    tips.instanceMatrix.needsUpdate = true;
+    knuckles.instanceMatrix.needsUpdate = true;
+    hand.add(digits, tips, knuckles);
     forearm.add(hand);
     shoulder.add(forearm);
     body.add(shoulder);
@@ -1277,39 +1459,74 @@ export function createPlayer3D(options = {}) {
     const foot = new THREE.Group();
     foot.name = side < 0 ? 'xfc-player-left-ankle' : 'xfc-player-right-ankle';
     foot.position.set(0, -0.32, 0.014);
-    const boot = new THREE.Mesh(ellipsoidGeometry(12, 8), bootMaterial);
+    // Chuteira com forma de pé: calcanhar alto, peito do pé rebaixado, bico
+    // fino e entressola reta. Antes era um ovo com uma bolacha embaixo.
+    const boot = new THREE.Mesh(footShellGeometry([
+      { z: -0.082, width: 0.018, height: 0.020, cy: -0.026 },
+      { z: -0.070, width: 0.030, height: 0.034, cy: -0.018 },
+      { z: -0.048, width: 0.037, height: 0.038, cy: -0.014 },
+      { z: -0.012, width: 0.040, height: 0.033, cy: -0.019 },
+      { z: 0.028, width: 0.042, height: 0.026, cy: -0.024 },
+      { z: 0.070, width: 0.043, height: 0.020, cy: -0.028 },
+      { z: 0.108, width: 0.038, height: 0.015, cy: -0.031 },
+      { z: 0.138, width: 0.026, height: 0.010, cy: -0.033 },
+      { z: 0.152, width: 0.013, height: 0.006, cy: -0.034 }
+    ], lowDetail ? 10 : 16), bootMaterial);
     boot.name = 'xfc-player-boot';
-    boot.position.set(0, -0.019, 0.043);
-    boot.scale.set(0.057, 0.034, 0.115);
     foot.add(boot);
-    const sole = new THREE.Mesh(ellipsoidGeometry(10, 6), soleMaterial);
+
+    const sole = new THREE.Mesh(footShellGeometry([
+      { z: -0.086, width: 0.022, height: 0.008, cy: -0.049 },
+      { z: -0.072, width: 0.033, height: 0.009, cy: -0.048 },
+      { z: -0.040, width: 0.040, height: 0.009, cy: -0.048 },
+      { z: 0.000, width: 0.043, height: 0.009, cy: -0.048 },
+      { z: 0.060, width: 0.045, height: 0.009, cy: -0.049 },
+      { z: 0.110, width: 0.041, height: 0.008, cy: -0.050 },
+      { z: 0.140, width: 0.029, height: 0.007, cy: -0.051 },
+      { z: 0.154, width: 0.014, height: 0.005, cy: -0.051 }
+    ], lowDetail ? 10 : 14), soleMaterial);
     sole.name = 'xfc-player-boot-sole';
-    sole.position.set(0, -0.047, 0.043);
-    sole.scale.set(0.059, 0.012, 0.124);
     foot.add(sole);
 
-    const lace = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 0.003, 0.006), sockBandMaterial, 3);
+    // Colarinho do tornozelo e língua: o que faz a silhueta ler como chuteira.
+    const collar = new THREE.Mesh(
+      new THREE.TorusGeometry(0.030, 0.0065, lowDetail ? 4 : 6, lowDetail ? 10 : 16),
+      bootMaterial
+    );
+    collar.name = 'xfc-player-boot-collar';
+    collar.rotation.x = Math.PI / 2 - 0.12;
+    collar.position.set(0, 0.008, -0.030);
+    collar.scale.set(1, 1.1, 0.82);
+    foot.add(collar);
+
+    const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.004, 0.052), bootMaterial);
+    tongue.name = 'xfc-player-boot-tongue';
+    tongue.position.set(0, 0.007, 0.004);
+    tongue.rotation.x = -0.30;
+    foot.add(tongue);
+
+    const lace = new THREE.InstancedMesh(new THREE.BoxGeometry(0.024, 0.0025, 0.0035), sockBandMaterial, 4);
     lace.name = 'xfc-player-boot-laces';
     const lacePose = new THREE.Object3D();
-    for (let index = 0; index < 3; index += 1) {
-      lacePose.position.set(0, 0.017, 0.025 + index * 0.018);
-      lacePose.rotation.set(0, 0, index % 2 ? 0.12 : -0.12);
+    for (let index = 0; index < 4; index += 1) {
+      lacePose.position.set(0, 0.0135 - index * 0.0032, 0.008 + index * 0.014);
+      lacePose.rotation.set(-0.22, 0, index % 2 ? 0.16 : -0.16);
       lacePose.updateMatrix();
       lace.setMatrixAt(index, lacePose.matrix);
     }
     lace.instanceMatrix.needsUpdate = true;
     foot.add(lace);
 
-    const studGeometry = new THREE.CylinderGeometry(0.0045, 0.006, 0.016, 5);
-    const studs = new THREE.InstancedMesh(studGeometry, bootMaterial, 5);
+    const studGeometry = new THREE.CylinderGeometry(0.0042, 0.0058, 0.014, 5);
+    const studs = new THREE.InstancedMesh(studGeometry, bootMaterial, 6);
     studs.name = 'xfc-player-boot-studs';
     const studPose = new THREE.Object3D();
     const studSpots = [
-      [-0.034, 0.006], [-0.018, 0.052], [0, -0.025],
-      [0.018, 0.052], [0.034, 0.006]
+      [-0.030, -0.068], [0.030, -0.068], [-0.034, -0.020],
+      [0.034, -0.020], [-0.026, 0.062], [0.026, 0.062]
     ];
     studSpots.forEach(([x, z], index) => {
-      studPose.position.set(x, -0.062, z);
+      studPose.position.set(x, -0.058, z);
       studPose.updateMatrix();
       studs.setMatrixAt(index, studPose.matrix);
     });
