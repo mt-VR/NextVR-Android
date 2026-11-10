@@ -188,21 +188,25 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
 
 ### Corpo humano de verdade (agora é o padrão)
 
-O elenco é uma malha humana rigada: `assets/players/models/footballer.glb`
-(`Michelle.glb` dos exemplos do three.js — Mixamo, 65 ossos `mixamorig*`,
-16.340 vértices, 4 texturas). O rig procedural continua em
-`src/match3d/player.js` como reserva (`?models=2d` ou `window.__XFC_GLTF =
-false`).
+O elenco é uma malha humana masculina rigada: `assets/players/models/footballer.glb`
+(`Soldier.glb`, Mixamo Vanguard, dos exemplos do three.js — 49 ossos
+`mixamorig*`, 11.376 triângulos, atlas de 2 imagens). O rig procedural continua
+em `src/match3d/player.js` como reserva (`?models=2d` ou
+`window.__XFC_GLTF = false`).
 
-Como escolher o arquivo (o que dá errado com outros):
+Regras aprendidas na marra:
 
-* O modelo precisa ter **o mesmo esqueleto Mixamo dos clipes** e, de
-  preferência, repouso parecido. O `Soldier.glb` (Mixamo Vanguard) parece o
-  candidato óbvio, mas o repouso dele difere 180° em quadril e pernas: pernas e
-  tronco ainda encaixam com retarget, os braços torcem. O `Xbot.glb` (14° médio)
-  fica no limite; a `Michelle` (6,3° médio, só o quadril a 91°) roda limpa.
-  Comparar antes de integrar: ler as quaternions de repouso de
-  `assets/animations/run/run.glb` e do candidato, osso por osso.
+* **Animação de locomoção: usar os clipes que vêm dentro do `.glb`**
+  (`Idle`/`Walk`/`Run`). Eles são do mesmo esqueleto e sempre funcionam. O
+  carregador mapeia esses nomes sozinho (`OWN_CLIPS`).
+* **Gestos: escrever nos ossos, não retargetar** (`startGesture`/
+  `applyGesture`): rotações locais aditivas depois do `mixer.update`, com
+  envelope de entrada/saída. Foi a única forma de ter chute e comemoração
+  corretos neste esqueleto.
+* Retarget de clipe externo só compensa quando o repouso casa: `Michelle.glb`
+  (6,3° de delta médio) roda os clipes do repositório inteiros; `Soldier.glb`
+  (19,2°, com 180° no quadril e nas pernas) não roda — braços torcem nas três
+  variantes testadas (delta local, retarget no espaço de mundo, clipe cru).
 * Medir altura só com `bindPoseBounds()` usando `mesh.applyBoneTransform()`:
   `Box3.setFromObject` em `SkinnedMesh` mente e, sem o bind por junta, modelos
   em centímetros com `bindMatrix` escalado saem 100× maiores.

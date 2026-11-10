@@ -42,18 +42,22 @@ uniforme, escudo, número e retrato.
 
 ### Elenco humano 3D (padrão do jogo)
 
-O time em campo é um **corpo humano de verdade**, rigado e animado:
+O time em campo é um **corpo humano masculino de verdade**, rigado e animado:
 
 | Arquivo | Origem | Licença | Onde |
 | --- | --- | --- | --- |
-| `assets/players/models/footballer.glb` | `Michelle.glb`, personagem Mixamo distribuído nos exemplos do three.js (repositório `mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 3,2 MB, 16.340 vértices, 65 ossos `mixamorig*`, 4 texturas de pele/roupa |
-| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo (idle, jog, run, chute, cabeceio, carrinho, comemoração, mergulho, goleiro, lateral) | Mixamo/Adobe | biblioteca mocap do repositório |
+| `assets/players/models/footballer.glb` | `Soldier.glb` (personagem Mixamo "Vanguard") dos exemplos do three.js (`mrdoob/three.js`, MIT) | Mixamo/Adobe (uso livre) + exemplo three.js (MIT) | 2,1 MB, 11.376 triângulos, 49 ossos `mixamorig*`, atlas de 2 texturas |
+| `assets/animations/<ação>/<ação>.glb` | Clipes Mixamo (chute, cabeceio, carrinho, comemoração, mergulho, goleiro, lateral) | Mixamo/Adobe | biblioteca mocap do repositório |
 
-O esqueleto do modelo casa com os clipes quase em repouso (delta médio de 6,3°
-por osso; só o quadril raiz difere ~91°, corrigido por `retargetClip()`), por
-isso a animação de futebol roda sem distorcer. A cor do time entra tingindo o
-material (`white.lerp(cor, 0.55)`), o que preserva a textura de pele e muda
-calça, camisa e chuteira.
+Como o modelo toca cada coisa:
+
+* **Andar, correr e ficar parado** usam os clipes nativos dele (`Idle`, `Walk`,
+  `Run`), que vêm no próprio arquivo — animação perfeita, sem retarget.
+* **Chute, cabeceio, carrinho, mergulho e comemoração** são escritos direto nos
+  ossos (`startGesture` em `src/match3d/models.js`): rotações locais somadas à
+  pose do mixer, com entrada/saída suaves. Os clipes de futebol do repositório
+  foram exportados com outro repouso (180° no quadril e nas pernas) e torcem os
+  braços deste esqueleto, então eles só entram na biblioteca como referência.
 
 O rig procedural continua no jogo como reserva (`?models=2d` ou
 `window.__XFC_GLTF = false`) e é o que roda se o `.glb` faltar.

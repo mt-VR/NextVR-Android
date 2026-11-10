@@ -133,6 +133,98 @@ function retargetClip(clip, targetRest, sourceRest) {
   return new THREE.AnimationClip(`${clip.name}-xfc`, clip.duration, tracks);
 }
 
+/** Rotação de mundo de cada osso (pose de bind ou pose animada). */
+function worldQuaternions(root, out = new Map()) {
+  root.updateMatrixWorld(true);
+  root.traverse(object => {
+    if (object.isBone) out.set(bareBone(object.name), object.getWorldQuaternion(new THREE.Quaternion()));
+  });
+  return out;
+}
+
+/**
+ * Retarget de verdade: reescreve o clipe no espaço de MUNDO.
+ *
+ * A correção local (`retargetClip`) só funciona quando os dois esqueletos têm
+ * a mesma orientação de repouso por osso. Quando o export gira o quadril ou a
+ * coxa 180° (Soldier/Xbot), a constante por osso não dá conta e os braços
+ * torcem. No espaço de mundo a conta é exata e independe do repouso:
+ *
+ *     A(osso)       = mundo_alvo(repouso) · mundo_origem(repouso)⁻¹
+ *     mundo_alvo(t) = A(osso) · mundo_origem(t)
+ *     local(t)      = mundo_alvo(pai)⁻¹ · mundo_alvo(osso)
+ *
+ * O `pai` é o objeto pai real (osso ou não), porque entre o Hips e a raiz do
+ * modelo pode existir um nó de armadura com rotação/escala própria.
+ * O clipe inteiro é assado a 30 fps uma única vez, no carregamento.
+ */
+function bakeRetarget(clipGltf, clip, targetRoot, targetRest) {
+  const scene = clipGltf.scene;
+  const sourceRest = worldQuaternions(scene);
+  const align = new Map();
+  for (const [bone, rest] of targetRest) {
+    const source = sourceRest.get(bone);
+    if (source) align.set(bone, rest.clone().multiply(source.clone().invert()));
+  }
+  if (!align.size) return clip;
+
+  const mixer = new THREE.AnimationMixer(scene);
+  mixer.clipAction(clip).play();
+  const fps = 30;
+  const frames = Math.max(2, Math.round(clip.duration * fps) + 1);
+
+  const order = [];
+  targetRoot.traverse(object => {
+    if (object.isBone && align.has(bareBone(object.name))) order.push(object);
+  });
+  if (!order.length) { mixer.stopAllAction(); return clip; }
+
+  const values = new Map(order.map(bone => [bone, new Float32Array(frames * 4)]));
+  const source = new Map();
+  const targetWorld = new Map();
+  const local = new THREE.Quaternion();
+  const parentWorld = new THREE.Quaternion();
+  const inverse = new THREE.Quaternion();
+
+  for (let frame = 0; frame < frames; frame += 1) {
+    mixer.setTime(Math.min(clip.duration, frame / fps));
+    scene.updateMatrixWorld(true);
+    source.clear();
+    worldQuaternions(scene, source);
+    targetWorld.clear();
+    for (const bone of order) {
+      const key = bareBone(bone.name);
+      const sourceWorld = source.get(key);
+      if (sourceWorld) targetWorld.set(bone, align.get(key).clone().multiply(sourceWorld));
+    }
+    for (const bone of order) {
+      const world = targetWorld.get(bone);
+      if (!world) continue;
+      const parent = bone.parent;
+      let base = null;
+      if (parent && targetWorld.has(parent)) base = targetWorld.get(parent);
+      else if (parent) base = parent.getWorldQuaternion(parentWorld);
+      local.copy(world);
+      if (base) local.premultiply(inverse.copy(base).invert());
+      local.normalize();
+      const track = values.get(bone);
+      track[frame * 4] = local.x;
+      track[frame * 4 + 1] = local.y;
+      track[frame * 4 + 2] = local.z;
+      track[frame * 4 + 3] = local.w;
+    }
+  }
+  mixer.stopAllAction();
+  mixer.uncacheRoot(scene);
+
+  const times = Array.from({ length: frames }, (_, index) => index / fps);
+  const tracks = [];
+  for (const [bone, track] of values) {
+    tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, Array.from(track)));
+  }
+  return new THREE.AnimationClip(`${clip.name}-xfc`, times[times.length - 1], tracks);
+}
+
 function materialList(object) {
   if (!object.isMesh) return [];
   return Array.isArray(object.material) ? object.material : [object.material];
@@ -168,12 +260,31 @@ export function preloadFootballerPack() {
         }
       })
     ]);
-    const targetRest = restQuaternions(gltf.scene);
+    const targetRestWorld = worldQuaternions(gltf.scene);
+    const targetRestLocal = restQuaternions(gltf.scene);
     const library = new Map();
+    // Clipes que vêm DENTRO do modelo (Idle/Run/Walk do próprio Mixamo) rodam
+    // sem retarget: são do mesmo esqueleto, sempre perfeitos. Eles substituem
+    // a biblioteca externa nos nomes equivalentes.
+    const OWN_CLIPS = { idle: ['idle', 'idle_01', 'stand'], jog: ['walk', 'jog'], run: ['run', 'sprint'] };
+    for (const animation of gltf.animations || []) {
+      const slug = String(animation.name || '').toLowerCase().trim();
+      for (const [name, aliases] of Object.entries(OWN_CLIPS)) {
+        if (!aliases.includes(slug)) continue;
+        library.set(name, new THREE.AnimationClip(`${name}-own`, animation.duration,
+          animation.tracks.filter(track => !track.name.endsWith('.position'))));
+      }
+    }
     for (const [name, clipGltf] of clips) {
+      if (library.has(name)) continue;
       const raw = clipGltf?.animations?.[0];
       if (!raw) continue;
-      library.set(name, retargetClip(raw, targetRest, restQuaternions(clipGltf.scene)));
+      try {
+        library.set(name, bakeRetarget(clipGltf, raw, gltf.scene, targetRestWorld));
+      } catch (error) {
+        console.warn('[xfc] retarget de mundo falhou, usando delta local', name, error?.message || error);
+        library.set(name, retargetClip(raw, targetRestLocal, restQuaternions(clipGltf.scene)));
+      }
     }
     if (!library.size) throw new Error('nenhum clipe Mixamo carregou');
     pack = { scene: gltf.scene, clips: library };
@@ -339,6 +450,137 @@ export function createGltfPlayer(options = {}) {
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
 
+  // ---------------------------------------------------------------------
+  // Gestos por bone (camada aditiva)
+  //
+  // Os clipes de futebol do repositório foram exportados com outro repouso e
+  // torcem os braços deste esqueleto. Em vez de depender deles para os gestos,
+  // o gesto é escrito direto nos ossos (rotações locais somadas à pose do
+  // mixer), com entrada/saída suaves. Assim o andar/correr continua vindo dos
+  // clipes nativos do modelo e o chute/comemoração são previsíveis.
+  // ---------------------------------------------------------------------
+  const gesture = { name: null, time: 0, duration: 0, dir: 1 };
+  const gEuler = new THREE.Euler();
+  const gQuat = new THREE.Quaternion();
+  const gBlend = new THREE.Quaternion();
+
+  function addBoneRotation(bone, x, y, z, weight) {
+    if (!bone || weight <= 0.001) return;
+    gQuat.setFromEuler(gEuler.set(x, y, z, 'XYZ'));
+    gBlend.identity().slerp(gQuat, Math.min(1, weight));
+    bone.quaternion.multiply(gBlend);
+  }
+
+  const GESTURES = {
+    kick: 0.46,
+    header: 0.5,
+    celebrate: 2.2,
+    dive: 0.9,
+    tackle: 0.8,
+    react: 0.55,
+    signal: 0.9
+  };
+
+  function startGesture(name, duration) {
+    if (!GESTURES[name]) return null;
+    gesture.name = name;
+    gesture.time = 0;
+    gesture.duration = Number.isFinite(duration) ? duration : GESTURES[name];
+    return name;
+  }
+
+  /** Peso da camada de gesto: entra rápido, segura e sai antes do fim. */
+  function gestureEnvelope() {
+    const t = gesture.time;
+    const total = gesture.duration;
+    const fadeIn = Math.min(0.1, total * 0.25);
+    const fadeOut = Math.min(0.18, total * 0.3);
+    const rise = fadeIn > 0 ? Math.min(1, t / fadeIn) : 1;
+    const fall = fadeOut > 0 ? Math.min(1, Math.max(0, (total - t) / fadeOut)) : 1;
+    const smooth = value => value * value * (3 - 2 * value);
+    return smooth(Math.min(rise, fall));
+  }
+
+  function applyGesture(step) {
+    if (!gesture.name) return;
+    gesture.time += step;
+    if (gesture.time >= gesture.duration) {
+      gesture.name = null;
+      return;
+    }
+    const p = gesture.time / gesture.duration;
+    const w = gestureEnvelope();
+    const dir = gesture.dir >= 0 ? 1 : -1;
+    const wave = Math.sin(Math.PI * p);
+    switch (gesture.name) {
+      case 'kick': {
+        // Pernada: recua, chuta e volta. Joelho abre antes do contato.
+        const swing = p < 0.3 ? -0.9 * (p / 0.3) : 1.3 * Math.sin(((p - 0.3) / 0.7) * Math.PI);
+        const knee = p < 0.45 ? 1.0 * Math.sin(Math.PI * Math.min(1, p / 0.45)) : 0.15;
+        addBoneRotation(bones.rightUpLeg, swing, 0, 0, w);
+        addBoneRotation(bones.rightLeg, -knee, 0, 0, w);
+        addBoneRotation(bones.rightFoot, knee * 0.4, 0, 0, w);
+        addBoneRotation(bones.leftUpLeg, -swing * 0.18, 0, 0, w);
+        addBoneRotation(bones.spine2, -0.22 * wave, 0.12 * wave, 0, w);
+        addBoneRotation(bones.leftArm, 0, 0, 0.55 * wave, w);
+        addBoneRotation(bones.rightArm, 0, 0, -0.35 * wave, w);
+        break;
+      }
+      case 'header': {
+        addBoneRotation(bones.spine2, 0.35 * wave, 0, 0, w);
+        addBoneRotation(bones.neck, -0.5 * wave, 0, 0, w);
+        addBoneRotation(bones.head, -0.4 * wave, 0, 0, w);
+        addBoneRotation(bones.leftUpLeg, -0.25 * wave, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, 0.25 * wave, 0, 0, w);
+        break;
+      }
+      case 'celebrate': {
+        const lift = Math.sin(Math.PI * Math.min(1, p * 1.4));
+        addBoneRotation(bones.leftArm, -2.2 * lift, 0, 0, w);
+        addBoneRotation(bones.rightArm, -2.2 * lift, 0, 0, w);
+        addBoneRotation(bones.leftForeArm, -0.3 * lift, 0, 0, w);
+        addBoneRotation(bones.rightForeArm, -0.3 * lift, 0, 0, w);
+        addBoneRotation(bones.spine2, -0.12 * lift, 0, 0, w);
+        addBoneRotation(bones.head, -0.2 * lift, 0, 0, w);
+        break;
+      }
+      case 'dive': {
+        addBoneRotation(bones.spine2, -0.5 * wave, 0, 0, w);
+        addBoneRotation(bones.hips, 0, 0, -0.35 * wave * dir, w);
+        addBoneRotation(bones.leftArm, 0, 0, 1.5 * wave, w);
+        addBoneRotation(bones.rightArm, 0, 0, -1.5 * wave, w);
+        addBoneRotation(bones.leftUpLeg, -0.5 * wave, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, 0.4 * wave, 0, 0, w);
+        break;
+      }
+      case 'tackle': {
+        // Carrinho: agacha, estica a perna da frente e inclina o tronco.
+        const slide = Math.sin(Math.PI * Math.min(1, p * 1.2));
+        addBoneRotation(bones.leftUpLeg, 1.1 * slide, 0, 0, w);
+        addBoneRotation(bones.leftLeg, -0.5 * slide, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, -0.4 * slide, 0, 0, w);
+        addBoneRotation(bones.rightLeg, -1.2 * slide, 0, 0, w);
+        addBoneRotation(bones.spine2, 0.3 * slide, 0, 0, w);
+        addBoneRotation(bones.leftArm, 0, 0, 0.8 * slide, w);
+        break;
+      }
+      case 'react': {
+        addBoneRotation(bones.spine2, 0.25 * wave, 0, 0, w);
+        addBoneRotation(bones.leftArm, 0, 0, 1.1 * wave, w);
+        addBoneRotation(bones.rightArm, 0, 0, -1.1 * wave, w);
+        break;
+      }
+      case 'signal': {
+        addBoneRotation(bones.rightArm, 0, 0, -2.2 * wave, w);
+        addBoneRotation(bones.rightForeArm, 0, 0, -0.4 * wave, w);
+        addBoneRotation(bones.spine2, 0, 0.2 * wave, 0, w);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   /** Ações vivas por clipe+máscara. */
   const actions = new Map();
   const gestureTimers = [];
@@ -437,31 +679,33 @@ export function createGltfPlayer(options = {}) {
     isGltf: true,
 
     kick(type = 'shot') {
-      api.animation.trigger('kick', { mask: 'lower', weight: 1, fade: 0.08 });
+      return startGesture('kick');
     },
     pass(kind = 'pass') {
-      api.animation.trigger(kind === 'cross' ? 'kick' : 'kick', { mask: 'lower', duration: 0.34, fade: 0.07 });
+      return startGesture('kick', 0.34);
     },
     header(duration = 0.4) {
-      api.animation.trigger('header', { mask: 'upper+head', duration, fade: 0.08 });
+      return startGesture('header', duration);
     },
     celebrate(duration = 2.6) {
-      api.animation.trigger('celebrate', { mask: 'full', duration, fade: 0.12 });
+      return startGesture('celebrate', duration);
     },
     receive() {
-      api.animation.trigger('throw-in', { mask: 'upper', duration: 0.6, fade: 0.1 });
+      return startGesture('signal', 0.6);
     },
     dive(dir = 1) {
-      api.animation.trigger('dive', { mask: 'full', duration: 0.95, fade: 0.06 });
+      gesture.dir = dir;
+      return startGesture('dive');
     },
     slideTackle(dir = 1, duration = 0.82) {
-      api.animation.trigger('tackle', { mask: 'full', duration, fade: 0.1 });
+      gesture.dir = dir;
+      return startGesture('tackle', duration);
     },
     react() {
-      api.animation.trigger('tackle', { mask: 'lower', duration: 0.6, fade: 0.1 });
+      return startGesture('react');
     },
     signal(duration = 1.1) {
-      api.animation.trigger('throw-in', { mask: 'upper+head', duration, fade: 0.12 });
+      return startGesture('signal', duration);
     },
     prepareCard() {},
     showCard() {},
@@ -502,6 +746,7 @@ export function createGltfPlayer(options = {}) {
       }
       updateLocomotion(speed);
       mixer.update(step);
+      applyGesture(step);
       // Gestos com prazo: quando o clipe acaba, o peso volta a zero.
       for (let index = gestureTimers.length - 1; index >= 0; index -= 1) {
         const timer = gestureTimers[index];
