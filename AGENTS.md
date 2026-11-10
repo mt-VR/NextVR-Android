@@ -186,6 +186,30 @@ licença de imagem de jogador real. A cara do craque vem de geometria:
 
 ### Modelo glTF externo (já implementado, desligado por padrão)
 
+### Corpo humano de verdade: o que já foi tentado (não repetir)
+
+Tentamos trocar o rig procedural por um humano rigado de licença livre baixado
+do GitHub: `Soldier.glb` do repositório do three.js (Mixamo "Vanguard", 49
+ossos `mixamorig*`, 11.376 triângulos, atlas de 2 imagens). Ele carrega e é
+escalado certo — mas **as animações de futebol do Mixamo não encaixam**, porque
+cada export guarda uma orientação de repouso própria para os ossos:
+
+| Estratégia | Perna/tronco | Braços |
+| --- | --- | --- |
+| clipe cru (sem correção) | bom | sobem para a cabeça |
+| delta local (`q_alvo · q_origem⁻¹ · q(t)`) | bom | torcem / cruzam no peito |
+| retarget no espaço de mundo (`A · mundo(t)`) | ruim (corpo deita) | ruim |
+
+Detalhe que confunde o diagnóstico: trilhas `.position` do quadril vêm em outro
+referencial e afundam o atleta — sempre descartar. `Box3.setFromObject` em
+`SkinnedMesh` mente; medir vértices em bind pose. O arquivo é Z-up
+(`size.z > size.y · 1.25` → `rotation.x = -π/2`).
+
+Conclusão: para usar malha humana de verdade, o personagem precisa vir **com as
+próprias animações** (mesmo esqueleto do clipe) — ex.: "Man Player" do
+Sketchfab (CC-BY, 12 MB, 20 clipes) ou um pacote Mixamo exportado junto. Aí não
+há retarget e o `createGltfPlayer` funciona como está.
+
 `src/match3d/models.js` carrega `assets/players/models/footballer.glb` +
 `assets/animations/<ação>/<ação>.glb` (biblioteca mocap Mixamo no repositório),
 clona com `SkeletonUtils.clone`, pinta o uniforme nas cores do time e expõe o

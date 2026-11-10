@@ -41,18 +41,17 @@ O elenco é gerado por código (`src/match3d/player.js`) — é esse rig que car
 uniforme, escudo, número e retrato.
 
 O jogo também sabe carregar um personagem glTF externo
-(`assets/players/models/footballer.glb`, ligado por `?models=glb`), com
-`src/match3d/models.js` cuidando de escala, orientação, cor do time e clipes.
-
-| Arquivo | Origem | Licença |
-| --- | --- | --- |
-| `assets/players/models/footballer.glb` | `Soldier.glb` do repositório do three.js (personagem Mixamo "Vanguard") | Mixamo/Adobe (uso livre em projetos) + exemplo three.js (MIT) |
-
-Limitação conhecida: esse personagem foi exportado com orientação de repouso
-diferente da dos clipes de futebol do Mixamo, então as pernas e o tronco
-encaixam (via `retargetClip()`), mas os braços ficam torcidos nos gestos. Por
-isso o elenco visível do jogo continua sendo o rig procedural — o caminho glTF
-é opt-in.
+(`assets/players/models/footballer.glb`, ligado por `?models=glb`). O arquivo
+**não está no pacote**: o único corpo humano rigado de licença livre que deu
+para baixar aqui foi o `Soldier.glb` do repositório do three.js (personagem
+Mixamo "Vanguard", Mixamo/Adobe + exemplo MIT). Ele carrega, fica na altura
+certa e recebe a cor do time, mas os clipes de futebol do Mixamo (que vêm de
+outro export) não encaixam no esqueleto dele — pernas e tronco vão bem, braços
+sobem e torcem. Testados três caminhos: delta local por osso, retarget no
+espaço de mundo e clipe cru; os três erram os braços. Por isso o elenco visível
+continua sendo o rig procedural, e o caminho glTF fica pronto para um modelo que
+venha junto com as próprias animações: basta copiar o `.glb` para esse caminho
+(`src/match3d/models.js`).
 
 ### Animações (Mixamo)
 
