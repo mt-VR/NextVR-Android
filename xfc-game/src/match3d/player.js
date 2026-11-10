@@ -1490,26 +1490,26 @@ export function createPlayer3D(options = {}) {
 
     // Colarinho do tornozelo e língua: o que faz a silhueta ler como chuteira.
     const collar = new THREE.Mesh(
-      new THREE.TorusGeometry(0.030, 0.0065, lowDetail ? 4 : 6, lowDetail ? 10 : 16),
+      new THREE.TorusGeometry(0.027, 0.005, lowDetail ? 4 : 6, lowDetail ? 10 : 16),
       bootMaterial
     );
     collar.name = 'xfc-player-boot-collar';
-    collar.rotation.x = Math.PI / 2 - 0.12;
-    collar.position.set(0, 0.008, -0.030);
-    collar.scale.set(1, 1.1, 0.82);
+    collar.rotation.x = Math.PI / 2 - 0.14;
+    collar.position.set(0, 0.004, -0.034);
+    collar.scale.set(1, 1.05, 0.8);
     foot.add(collar);
 
-    const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.004, 0.052), bootMaterial);
+    const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.021, 0.0035, 0.044), bootMaterial);
     tongue.name = 'xfc-player-boot-tongue';
-    tongue.position.set(0, 0.007, 0.004);
-    tongue.rotation.x = -0.30;
+    tongue.position.set(0, 0.0045, 0.008);
+    tongue.rotation.x = -0.28;
     foot.add(tongue);
 
     const lace = new THREE.InstancedMesh(new THREE.BoxGeometry(0.024, 0.0025, 0.0035), sockBandMaterial, 4);
     lace.name = 'xfc-player-boot-laces';
     const lacePose = new THREE.Object3D();
     for (let index = 0; index < 4; index += 1) {
-      lacePose.position.set(0, 0.0135 - index * 0.0032, 0.008 + index * 0.014);
+      lacePose.position.set(0, 0.0120 - index * 0.0043, -0.005 + index * 0.0177);
       lacePose.rotation.set(-0.22, 0, index % 2 ? 0.16 : -0.16);
       lacePose.updateMatrix();
       lace.setMatrixAt(index, lacePose.matrix);
