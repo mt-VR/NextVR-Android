@@ -16,7 +16,19 @@ import { quickMatchScreen } from './screens/quickmatch.js';
 import { playScreen } from './screens/play.js';
 import { stadiumsScreen } from './screens/stadiums.js';
 import { worldCupScreen } from './screens/worldcup.js';
+import { modesScreen } from './screens/modes.js';
+import { customiseScreen } from './screens/customise.js';
+import { ultimateTeamScreen } from './screens/ultimate.js';
+import { trainingScreen } from './screens/training.js';
+import { competitionScreen } from './screens/competition.js';
 import { unlockAudio } from './audio.js';
+
+// No Android, um toque longo em um botão abria o balão de "abrir/copiar" do
+// WebView. O jogo usa botões reais; o menu de contexto é bloqueado apenas
+// sobre controles da interface, sem atrapalhar campos de texto.
+document.addEventListener('contextmenu', event => {
+  if (event.target?.closest?.('button, [role="button"], .app')) event.preventDefault();
+});
 
 // O áudio (apito, torcida) só pode começar após um gesto do usuário.
 for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
@@ -40,7 +52,12 @@ const registry = {
   quick: quickMatchScreen,
   play: playScreen,
   stadiums: stadiumsScreen,
-  worldcup: worldCupScreen
+  modes: modesScreen,
+  customise: customiseScreen,
+  worldcup: worldCupScreen,
+  ultimate: ultimateTeamScreen,
+  training: trainingScreen,
+  competition: competitionScreen
 };
 
 let current = null;
@@ -106,6 +123,12 @@ function boot() {
     if (handled) event.preventDefault();
   });
   window.addEventListener('beforeunload', () => saveProfile(state));
+  // Pré-carrega o atleta glTF/Mixamo enquanto o jogador navega os menus: se
+  // chegar a tempo, a partida já nasce com o modelo 3D real; se não, o rig
+  // procedural entra no lugar e nada quebra.
+  import('./match3d/models.js')
+    .then(module => (module.gltfPlayersEnabled() ? module.preloadFootballerPack() : null))
+    .catch(() => {});
   go('intro');
 }
 

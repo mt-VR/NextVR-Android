@@ -11,94 +11,20 @@ tela. Num celular deitado (20:9) o palco fica mais largo que 1280, então as
 telas ganham espaço em vez de ficarem apertadas, e o app Android trava a
 rotação em paisagem (`sensorLandscape`).
 
-Nesta primeira etapa o jogo tem **o menu**:
+O XFC já reúne as telas principais e a partida de futebol em 3D:
 
-1. **Intro** — selo circular da XF Esports + logotipo XFC lado a lado sobre o
-   fundo geométrico azul/verde, com a barra de carregamento.
-1.1 **Abertura** — o atleta destaque (Neymar Jr.) em tela cheia, com o botão
-   **Entrar** sobre a arte; clicar nele leva ao menu principal.
-2. **Menu principal** — marca no canto superior esquerdo, barra de XP à direita,
-   lista de modos na coluna esquerda (KICK OFF liberado, os demais apagados),
-   arte do jogador no gramado à direita, título *Dive straight into the action*
-   e o botão *Enter Kick Off*.
-3. **Kick Off / Classic Match (Select Teams)** — estádio escuro com o painel
-   verde grande no centro; em cada lado, a barra `Men's Teams` / `Women's
-   Teams`, a barra do país (nome no meio, bandeira na direita) e o cartão do
-   clube: nome, **escudo em destaque** com as setas dos lados (que trocam de
-   clube), estrelas, ATT/MID/DEF e a liga — tudo sobre um cartão levemente
-   transparente, com o emblema da liga e o trocador de blusa logo abaixo. No
-   meio, o interruptor de mando de campo, Advantage Settings, a mentalidade e
-   o Live Form; “HOME” e “AWAY” na vertical nas pontas da tela.
-4. **Escolher blusas (Select Kits)** — o jogador de cada lado veste o uniforme
-   escolhido, o texto READY fica no centro e, ao lado, o carrossel com a blusa
-   anterior, a atual e a próxima (as setas trocam; o Tab alterna entre HOME e
-   AWAY).
-5. **Elenco (Team Management)** — abas no topo, o campo com a formação 4-3-3
-   (retrato + nota + nome em cada posição), o banco de reservas embaixo e o
-   painel do jogador à direita com OVR/POT, os seis atributos, idade, altura,
-   papel, foco, pé, skill moves e weak foot.
-6. **Preparação da partida** — o confronto aparece sobre o fundo do estádio;
-   o botão **é o estádio**: a foto do estádio oficial (com setas para trocar)
-   toma a tela e, ao tocar nele, abre o jogo 3D de verdade, com os times,
-   uniformes e estádio escolhidos. Não há botão de “Iniciar partida”: o
-   próprio estádio é o convite.
-7. **Partida 3D** — o mesmo jogo das Partidas Rápidas: câmera de transmissão
-   **aérea inclinada, lateral** (como no EA Sports FC Mobile — não é atrás do
-   jogador), acompanhando a bola e abraçando quase todo o gramado; placar de
-   transmissão no canto superior esquerdo (escudo, sigla, gols e relógio);
-   cartão do jogador controlado no canto inferior esquerdo (número, nome, OVR
-   e condição) e o **adversário mais próximo da bola** no canto inferior
-   direito; **barra de posse de bola** sob o relógio; radar tático no centro
-   inferior; os sete botões (PASSE, CHUTE, ENFIADA, DRIBLE, CORRER, DESARME e
-   TROCAR — atalhos: J, K, E, R, Shift, F, Tab); **anel azul luminoso com seta
-   flutuante** sob/acima do atleta controlado e **anel dourado** sob o dono da
-   bola (o destaque muda sozinho quando você troca de jogador); **analógico
-   fixo** no canto inferior esquerdo. A orientação do campo é única para todo
-   o motor (mandante ataca +x e defende o gol de -x): os jogadores olham para
-   onde correm — nada de correr de costas —, o assistente/árbitro central
-   entra em campo de uniforme preto e amarelo, segue a jogada com inteligência
-   (fica atrás da linha da bola e de lado, sem pisar nos jogadores) e levanta
-   o braço apitando no início, no intervalo, nas faltas, nos cartões, nos
-   impedimentos, nas retomadas e no fim. Áudio procedural sintetizado no
-   aparelho (apito do árbitro no início, no intervalo, no impedimento e no
-   fim; festa da torcida a cada gol; batida da bola nos chutes; aplausos no
-   apito final). O autor do gol comemora com os braços para o alto e a torcida
-   faz a festa.
-   Os bonecos de FC Barcelona e Real Madrid usam os **retratos reais** dos
-   jogadores como rosto. Ao fim do tempo, a tela de resultado mostra os
-   **escudos dos dois clubes** e o placar final sobre um fundo de estádio
-   escuro, no estilo dos cartões de resultado. A tela de resultado traz,
-   embaixo do placar, as estatísticas completas da partida (posse de bola,
-   finalizações, chutes ao gol, passes certos, defesas, escanteios, faltas e
-   cartões), além de REJOGAR e VOLTAR AO MENU.
-   Antes de apitar o início, o **pré-jogo** abre em tela cheia com a arte do
-   estádio escolhido: selo *XF Champions League*, o nome e o apelido do
-   estádio, o confronto (escudos + sigla × sigla), as setas laterais para
-   trocar de palco e o convite **TOQUE PARA ENTRAR EM CAMPO** — tocar na tela
-   entra direto em jogo.
-   O horizonte do 3D também é o próprio estádio: uma cúpula texturizada com a
-   arte do palco envolve todo o campo (nada de céu chapado).
-   **Chutes com personalidade** — tocar no botão CHUTE parte de primeira;
-   **segurar** carrega a força (o anel amarelo enche; soltar dispara o chute
-   forte, mais rápido e mais difícil de defender); **arrastar para baixo**
-   sobre o botão converte-o no **chute colocado** rasteiro no ângulo, do lado
-   indicado pelo analógico (anel ciano). No teclado, segure K para carregar e
-   solte para disparar.
-   **Goleiros mergulham** para defender (esticão para os lados, com recarga),
-   **faltas viram cartão** (amarelo/vermelho) para quem cometeu, o **passe
-   sai à frente** (a bola chega no pé do companheiro em movimento), a IA
-   **prefere companheiros livres** (penaliza impedidos e premia corredores de
-   passe limpos), os atacantes **se desmarcam** com arrancadas de apoio e a
-   bola **não atravessa a rede** (bate na malha, nas laterais do contorno e no
-   travessão).
+1. **Intro e abertura** — marca XF Esports/XFC e a arte do atleta; Entrar leva ao menu.
+2. **Menu inicial** — hub de futebol com estádio em tela cheia, navegação vertical, Kick Off destacado, barra de XP e atalhos para os modos e configurações.
+3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
+4. **Modos e torneios** — carrossel com Copa do Mundo, UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away, Best of Series, Copa América e partidas rápidas.
+5. **Copa do Mundo jogável** — escolha uma das 32 seleções de 2022; o jogo sorteia aleatoriamente o grupo. Dispute os três jogos da fase de grupos; os dois primeiros de cada grupo avançam às oitavas, quartas, semifinais e final. A campanha termina se a seleção não se classificar.
+6. **Kick Off / Classic Match** — escolha entre 22 clubes, incluindo Corinthians e Santos, selecione estádio e uniforme e consulte os elencos.
+7. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
+8. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
 
-Por enquanto existem **dezoito times**. FC Barcelona e Real Madrid (com os
-retratos reais dos jogadores), Ibis Esporte e Paraná Clube mantêm os elencos
-com nomes reais; os outros catorze clubes (Aston Villa, Brentford,
-Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt,
-Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham
-United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir
-de pools de nomes de cada país.
+A simulação inclui árbitro 3D com apito, gestos, cartões e expulsão, contagem disciplinar na HUD e carrinho manual com colisão, recuperação e penalidades conforme a jogada. A IA não toma o controle do atleta humano nem executa carrinhos por ele. A câmera de transmissão enquadra a ação mais de perto e acompanha a bola suavemente; no centro de treino, a câmera Pro conserva o enquadramento e o yaw ao mover o atleta com o analógico. A iluminação em camadas do estádio combina luz principal quente e preenchimentos frios para um visual de transmissão. Os controles touch de PASSE e CORRER trocaram de posição, foram ampliados e aproximados; o botão CARRINHO é manual e o joystick virtual permanece ancorado no mesmo ponto. Todos os atletas usam o mesmo rig humanoide: tronco atlético, braços e pernas articulados, mãos com dedos e kit 3D, com tesselação reduzida no perfil móvel. A arquibancada procedural recebe torcida e bandeiras de seleção/clube.
+
+O elenco reúne **22 clubes**: FC Barcelona e Real Madrid têm retratos de jogadores; Ibis Esporte, Paraná Clube, Flamengo, Palmeiras, Corinthians e Santos contam com elencos próprios (Corinthians e Santos usam os escudos enviados pelo usuário). Os outros catorze clubes (Aston Villa, Brentford, Panathinaikos, River Plate, Levante, Huddersfield Town, Eintracht Frankfurt, Queens Park Rangers, Wrexham, Sheffield United, Northampton Town, Rotherham United, Wycombe Wanderers e RKC Waalwijk) entram com elencos gerados a partir de pools de nomes de cada país. No Santos, Neymar tem um penteado 3D low-poly dedicado, inspirado na referência fornecida.
 
 ## Estádios
 
@@ -135,12 +61,13 @@ node xfc-game/serve.mjs            # http://127.0.0.1:8080
 node xfc-game/serve.mjs --port 9000 --host 0.0.0.0
 ```
 
-Não há build: o jogo é HTML + CSS + JavaScript (módulos ES) puro, servido
-estaticamente. Abrir `index.html` direto pelo `file://` não roda os módulos
-ES — por isso o `index.html` tem uma rede de segurança: se o módulo principal
-não subir, ele injeta o `app.bundle.js` (o jogo empacotado num único script
-clássico, que o CI gera com esbuild e inclui no zip). Na falta do bundle, a
-página mostra as instruções em vez de ficar numa tela azul.
+Não há build de desenvolvimento: o jogo é HTML + CSS + JavaScript (módulos ES)
+puro, servido estaticamente. Abrir `index.html` direto pelo `file://` não roda
+os módulos ES — por isso o `index.html` tem uma rede de segurança: se o módulo
+principal não subir, ele injeta o `app.bundle.js` (um script clássico gerado
+com esbuild). O bundle é mantido junto do código e regenerado no CI antes de
+ser incluído no zip. Na falta dele, a página mostra instruções em vez de ficar
+numa tela azul.
 
 ## App Android (APK)
 
@@ -157,15 +84,18 @@ do aplicativo é a arte oficial do XFC (Neymar Jr. com a camisa da seleção, em
 ```
 
 O workflow [`xfc-apk.yml`](../.github/workflows/xfc-apk.yml) faz esse build no
-CI e publica:
+CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc.apk` |
-| Jogo em zip | `https://raw.githubusercontent.com/mt-VR/NextVR-Android/xfc-dist/dist/xfc-game.zip` |
+| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc-game.zip` |
 
-A release [`xfc-menu-v1`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-menu-v1)
-também tem os dois arquivos anexados.
+A release [`xfc-gameplay-v0.5.6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.6)
+reúne o rig humanoide compartilhado e os modos anteriores, corrige o analógico do Treino Livre para seguir a câmera sem alterar partidas comuns, suaviza o acompanhamento da câmera e acrescenta animação de recepção. O perfil completo usa materiais com reflexos discretos para tecido e chuteiras; no celular, a tesselação e os materiais econômicos são mantidos. Também refina gramado, torcida, publicidade, fachadas e sombras para reduzir ruído visual (versionCode 12). O APK roda offline e o CI anexa o jogo web completo.
+
+A versão [`xfc-gameplay-v0.5.5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.5)
+continua disponível, assim como a release anterior [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4).
 
 ## Controles
 
@@ -175,6 +105,8 @@ também tem os dois arquivos anexados.
 | Trocar de blusa | `←` `→` (com `Tab` entre HOME e AWAY) | setas do carrossel |
 | Confirmar | `Enter` | clicar |
 | Voltar | `Esc` / `Backspace` | — |
+
+Na partida: mova com `WASD` ou setas; `J`/`Espaço` passe, segure `K` ou `L` para carregar o chute, `E` para enfiada, `R` para drible, `F` para carrinho manual, `Tab`/`Q` para trocar de atleta e `Shift` para correr. No Android, as mesmas ações aparecem nos botões touch.
 
 ## Estrutura
 
@@ -186,10 +118,11 @@ xfc-game/
 ├── src/
 │   ├── main.js           roteador de telas + teclado global
 │   ├── state.js          perfil, XP, seleção de times e blusas
-│   ├── data/teams.js     os dezoito clubes, elencos, médias e formação
+│   ├── data/teams.js     os 22 clubes, elencos, médias e formação
+│   ├── data/worldcup.js  seleções de 2022, grupos e progressão da campanha
 │   ├── data/kits.js      as blusas (SVG) de cada clube + as fotos do pacote
-│   ├── ui/               helpers de DOM, as marcas e as bandeiras (SVG)
-│   └── screens/          intro, menu, kickoff, kits, squad, match
+│   ├── ui/               helpers de DOM, marcas e bandeiras (SVG)
+│   └── screens/          intro, menu, modos, Copa, kickoff, partida
 ├── vendor/               three.js r169 (offline; entra no APK e no zip — sem ele o jogo não sobe)
 ├── assets/
 │   ├── bg/               fundos da intro e do menu
@@ -201,10 +134,10 @@ xfc-game/
 └── tools/screenshots.mjs captura das telas (tela grande e celular deitado)
 ```
 
-O `app.bundle.js` não é commitado: quem o gera é o CI (passo “Build the
-offline bundle” do workflow `xfc-apk.yml`), e ele entra apenas no zip do jogo.
-Rodando `node xfc-game/tools/build-bundle.mjs` localmente, o arquivo aparece
-na pasta do jogo (e é servido pelo `serve.mjs` como qualquer outro arquivo).
+O `app.bundle.js` é mantido junto do código-fonte para suporte imediato ao
+`file://`; o workflow `xfc-apk.yml` o regenera no passo “Build the offline
+bundle” antes de anexar o zip. Para atualizá-lo localmente, rode
+`node xfc-game/tools/build-bundle.mjs`; o servidor estático também o serve.
 
 ## Testes
 
@@ -213,7 +146,7 @@ npm test                       # roda a suíte inteira do repositório
 node --test tests/xfc-game.test.mjs
 ```
 
-Os testes do XFC verificam os dados dos elencos (times,Notas, retratos no
+Os testes do XFC verificam os dados dos elencos (times, notas, retratos no
 disco) e percorrem as telas no Chromium empacotado do projeto. Se o Chromium
 não puder rodar na máquina, o teste de interface é pulado — os de dados
 continuam valendo.

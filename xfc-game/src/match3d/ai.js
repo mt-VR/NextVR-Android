@@ -4,13 +4,20 @@
 // futebol simples: quem está com a bola decide (chuta, passa ou dribla), o
 // mais próximo busca a bola, os companions acompanham e a defesa marca.
 
-import { PITCH, GOAL, FORMATION_433 } from './constants.js';
-import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
+import { PITCH, FORMATION_433 } from './constants.js';
+import { steerPlayer, faceTowards, faceVelocity } from './movement.js';
 import { attackSign as attackSignOf, ownGoalX as ownGoalXOf, attackedGoalX } from './sides.js';
+import {
+  goalkeeperDiveDirection,
+  goalkeeperPositionTarget,
+  predictGoalkeeperIntercept
+} from './goalkeeper.js';
 
 const RUN_SPEED = 6.3;
 const SPRINT_SPEED = 8.1;
 const CHASE_SPEED = 7.4;
+const KEEPER_POSITION_SPEED = 5.8;
+const KEEPER_REACTION_SPEED = 7.2;
 
 export function createTeamAI({ side, world }) {
   const attackSign = attackSignOf(side);
@@ -37,30 +44,35 @@ export function createTeamAI({ side, world }) {
     return dx * dx + dz * dz;
   }
 
-  /** Posição de referência do jogador, deslocada conforme a bola. */
+  /**
+   * Alvo de bloco: a formação desliza como uma unidade, sem todos correrem
+   * para a bola. As pontas preservam largura e a última linha recua em defesa.
+   */
   function shapeTarget(player) {
     const base = FORMATION_433[player.index] || FORMATION_433[0];
     const ball = world.ball.state.position;
-    let x = base.x * attackSign;
+    const owner = world.ball.state.owner;
+    const hasPossession = owner?.side === side;
+    const ballProgress = Math.max(-31, Math.min(31, ball.x * attackSign));
+    let x = base.x * attackSign + attackSign * ballProgress * (hasPossession ? 0.19 : 0.24);
     let z = base.z;
 
-    // O bloco inteiro anda com a bola (para frente e para os lados), mas sem
-    // desabar todo para cima da bola: a defesa mantém a linha.
-    const onBall = world.ball.state.owner && world.ball.state.owner.side === side;
-    const push = onBall ? 0.42 : 0.28;
-    x += Math.max(-32, Math.min(32, ball.x * attackSign)) * push;
-    x += onBall ? attackSign * 7 : -attackSign * 3;
-    z += Math.max(-24, Math.min(24, ball.z)) * 0.2;
-
-    return { x, z, role: base.role };
+    // A largura do 4-3-3 é preservada: a bola desloca o bloco apenas alguns
+    // metros lateralmente em vez de puxar onze atletas para o mesmo corredor.
+    const lateralShift = Math.max(-3.2, Math.min(3.2, (ball.z - base.z) * 0.12));
+    z += lateralShift;
+    if (hasPossession && ['LW', 'RW'].includes(base.role)) {
+      z = Math.sign(base.z || 1) * Math.max(17.5, Math.abs(z));
+    }
+    return { x, z, role: base.role, baseX: base.x * attackSign, baseZ: base.z };
   }
 
-  /** Marca o adversário mais próximo dentro da zona do jogador. */
-  function markTarget(player, target) {
+  /** Marca alvos diferentes; impede que toda a linha defensiva persiga o mesmo rival. */
+  function markTarget(player, target, assigned = new Set()) {
     let best = null;
     let bestScore = Infinity;
     for (const rival of opponents()) {
-      if (!rival.active) continue;
+      if (!rival.active || assigned.has(rival)) continue;
       const score = distance(rival.x, rival.z, target.x, target.z);
       if (score < bestScore && score < 100) {
         bestScore = score;
@@ -68,13 +80,46 @@ export function createTeamAI({ side, world }) {
       }
     }
     if (!best) return target;
-    // Fica entre o adversário e o próprio gol, sem colar nele.
+    assigned.add(best);
+    // Corpo entre o atacante e o gol; cada defensor conserva sua faixa.
     const dx = best.x - ownGoalX;
     const dz = best.z;
     const length = Math.hypot(dx, dz) || 1;
+    const cover = {
+      x: best.x - (dx / length) * 2.8,
+      z: best.z - (dz / length) * 2.8
+    };
     return {
-      x: best.x - (dx / length) * 2.4,
-      z: best.z - (dz / length) * 2.4
+      x: cover.x * 0.72 + target.x * 0.28,
+      z: cover.z * 0.72 + target.z * 0.28
+    };
+  }
+
+  /** Repulsão suave de companheiros próximos para preservar corredores de passe. */
+  function addTeamSpacing(player, target, owner, chaser) {
+    if (player.isKeeper || player === chaser) return target;
+    let pushX = 0;
+    let pushZ = 0;
+    let pressure = 0;
+    for (const mate of members()) {
+      if (!mate.active || mate === player || mate.isKeeper || mate === owner) continue;
+      const dx = target.x - mate.x;
+      const dz = target.z - mate.z;
+      const d = Math.hypot(dx, dz);
+      const minGap = mate === chaser ? 3.8 : 4.8;
+      if (d >= minGap) continue;
+      const strength = (minGap - d) / minGap;
+      const safeDistance = Math.max(0.2, d);
+      pushX += (dx / safeDistance) * strength;
+      pushZ += (dz / safeDistance) * strength;
+      pressure += strength;
+    }
+    if (pressure < 0.01) return target;
+    const scale = Math.min(1.7, 1.05 / pressure);
+    return {
+      ...target,
+      x: target.x + Math.max(-3.8, Math.min(3.8, pushX * scale * 2.4)),
+      z: target.z + Math.max(-4.8, Math.min(4.8, pushZ * scale * 2.8))
     };
   }
 
@@ -216,8 +261,9 @@ export function createTeamAI({ side, world }) {
 
     // Quem está com a bola (do meu time) decide — exceto o jogador que está
     // sob controle do usuário, que é movido pelos controles.
-    const humanHasControl = world.isUserControlled(owner) && world.hasInput();
-    // Só decide jogadas com a bola em jogo (nem na saída, nem em paralisações).
+    const humanHasControl = world.isUserControlled(owner);
+    // O portador controlado não chuta nem passa por decisão automática, mesmo
+    // quando o analógico está solto: ações ofensivas são sempre explícitas.
     if (owner && owner.side === side && !humanHasControl && world.isPlayable()) {
       onBall(owner, dt);
     }
@@ -237,12 +283,14 @@ export function createTeamAI({ side, world }) {
     }
 
     const myGoal = ownGoalX;
+    const assignedMarkers = new Set();
 
     for (const player of members()) {
       if (!player.active) continue;
-      // O jogador controlado pelo usuário é movido pelos controles; sem
-      // comando, a IA assume para o time não travar com a bola.
-      if (world.isUserControlled(player) && world.hasInput()) continue;
+      // O jogador humano fica sob controle direto e nunca recebe movimento
+      // ofensivo automático; carrinhos também são reservados ao comando humano.
+      if (player.slideTackle || world.isUserControlled(player)) continue;
+      if(world.ball.state.rainbow?.player===player&&world.ball.state.rainbow.time<.62)continue;
       if (player === owner) {
         // Com a bola no pé, o atleta olha para frente (a condução) e só
         // encara a bola quando está praticamente parado.
@@ -255,37 +303,35 @@ export function createTeamAI({ side, world }) {
       let targetZ = shape.z;
       let speed = player.sprint ? SPRINT_SPEED : RUN_SPEED;
 
+      if (player.isGK && world.updatePenaltyKeeper?.(player,dt)) continue;
       if (player.isGK) {
-        // O goleiro fica na linha entre a bola e o gol.
         const inBox = Math.abs(ball.position.x - myGoal) < 17 && Math.abs(ball.position.z) < 22;
-        targetX = myGoal + attackSign * 1.6;
-        targetZ = Math.max(-6.5, Math.min(6.5, ball.position.z * 0.32));
-        const shotSpeed = Math.hypot(ball.velocity.x, ball.velocity.z);
-        const towardsMyGoal = (myGoal - ball.position.x) * ball.velocity.x > 0;
-        player.gkDiveCd = Math.max(0, (player.gkDiveCd ?? 0) - dt);
-        if (shotSpeed > 9 && towardsMyGoal) {
-          // Mergulho para cortar o chute — o alcance do goleiro é limitado,
-          // então os chutes nos cantos saem.
-          const travel = Math.abs(ball.position.x - myGoal) / Math.max(6, Math.abs(ball.velocity.x));
-          const predictedX = ball.position.x + ball.velocity.x * travel * 0.45;
-          const predictedZ = ball.position.z + ball.velocity.z * travel * 0.45;
-          const reach = 3.1;
-          targetX = predictedX;
-          targetZ = player.z + Math.max(-reach, Math.min(reach, predictedZ - player.z));
-          speed = CHASE_SPEED * 1.35;
-          // Precisa se esticar: toca a defesa (animação de mergulho).
-          if (shotSpeed > 12.5 && Math.abs(predictedZ - player.z) > 1.05 && player.gkDiveCd === 0 && world.diveKeeper) {
-            world.diveKeeper(player, Math.sign(predictedZ - player.z) || 1);
-            player.gkDiveCd = 0.9;
+        const prediction = owner ? null : predictGoalkeeperIntercept(ball, myGoal);
+        const baseTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign);
+        targetX = baseTarget.x;
+        targetZ = baseTarget.z;
+        speed = KEEPER_POSITION_SPEED;
+
+        if (prediction?.onTarget) {
+          // O goleiro lê o ponto real de cruzamento (altura, curva e quique),
+          // mas sempre se desloca com aceleração — nunca teleporta para a bola.
+          const saveTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign, prediction);
+          targetX = saveTarget.x;
+          targetZ = saveTarget.z;
+          speed = KEEPER_REACTION_SPEED;
+          const flightId = ball.flightId ?? 0;
+          const diveDirection = goalkeeperDiveDirection(player, prediction, flightId);
+          if (diveDirection && world.diveKeeper) {
+            world.diveKeeper(player, diveDirection, flightId);
           }
-        } else if (inBox && chaserDistance < 90) {
-          targetX = ball.position.x;
-          targetZ = ball.position.z;
+        } else if (!owner && inBox && player === chaser
+          && ball.position.y < 1.7
+          && Math.hypot(ball.position.x - player.x, ball.position.z - player.z) < 7.5) {
+          // Só sai da linha para recolher uma bola solta quando é o defensor
+          // mais bem colocado; não larga o gol para disputar uma bola distante.
+          targetX = ball.position.x + ball.velocity.x * 0.16;
+          targetZ = ball.position.z + ball.velocity.z * 0.16;
           speed = CHASE_SPEED;
-        }
-        if (world.ball.state.owner === player) {
-          if (!faceVelocity(player, dt, 10)) faceTowards(player, attackSign > 0 ? PITCH.halfLength : -PITCH.halfLength, 0, dt, 6);
-          continue;
         }
       } else if (player === chaser && !owner) {
         // Persegue a bola com uma pequena antecipação.
@@ -300,28 +346,62 @@ export function createTeamAI({ side, world }) {
         speed = CHASE_SPEED;
         if (world.isPlayable() && chance(0.005, dt)) world.tackle(player);
       } else {
-        // Apoio: quem está com a bola vira o alvo dos companheiros.
-        const supports = owner && owner.side === side;
+        const supports = owner?.side === side;
+        const recovering = owner && owner.side !== side;
         if (supports) {
-          const forwardness = (targetX - player.x) * attackSign;
-          const isAttacker = shape.role === 'ST' || shape.role === 'LW' || shape.role === 'RW' || shape.role === 'CAM';
-          if (forwardness < 4) targetX += attackSign * (isAttacker ? 8.5 : 5);
-          if (Math.abs(targetZ) > 16) targetZ *= 0.6;
+          // Opções em alturas diferentes: pontas abertas, centroavante atacando
+          // profundidade e meias em diagonais para formar linhas de passe.
+          if (shape.role === 'LW' || shape.role === 'RW') {
+            targetX += attackSign * 6.2;
+            targetZ = Math.sign(shape.baseZ || targetZ || 1) * Math.max(18, Math.abs(shape.baseZ));
+          } else if (shape.role === 'ST' || shape.role === 'CF') {
+            targetX += attackSign * 9.2;
+            targetZ *= 0.48;
+          } else if (shape.role === 'CAM') {
+            targetX += attackSign * 5.2;
+            targetZ = Math.max(-12, Math.min(12, ball.position.z * 0.48 + shape.baseZ * 0.22));
+          } else if (shape.role === 'CM') {
+            targetX += attackSign * 3.4;
+            targetZ += Math.sign(shape.baseZ || 1) * 1.4;
+          } else if (shape.role === 'CDM') {
+            targetX += attackSign * 1.2;
+          } else if (shape.role === 'LB' || shape.role === 'RB') {
+            targetX += attackSign * 2.2;
+            targetZ = Math.sign(shape.baseZ || 1) * Math.max(15, Math.abs(targetZ));
+          }
+        } else if (recovering) {
+          // A equipe sem a bola recua em bloco; os atacantes recuperam a faixa
+          // central enquanto a última linha protege a área.
+          if (['ST', 'CF', 'LW', 'RW'].includes(shape.role)) {
+            targetX -= attackSign * 2.5;
+            targetZ *= 0.72;
+          }
+          if ((player.x - targetX) * attackSign > 3.5) speed = SPRINT_SPEED;
         }
-        // A defesa marca o adversário da zona.
-        if (shape.role === 'CB' || shape.role === 'LB' || shape.role === 'RB') {
-          const marked = markTarget(player, { x: targetX, z: targetZ });
+
+        const isBackLine = ['CB', 'LB', 'RB'].includes(shape.role);
+        if (recovering && isBackLine) {
+          const marked = markTarget(player, { x: targetX, z: targetZ }, assignedMarkers);
           targetX = marked.x;
           targetZ = marked.z;
+          // Os laterais mantêm largura para defender cruzamentos; os centrais
+          // não são arrastados para as mesmas coordenadas.
+          if (shape.role === 'LB' || shape.role === 'RB') {
+            targetZ = Math.sign(shape.baseZ || 1) * Math.max(10, Math.abs(targetZ));
+          }
         }
       }
 
-      // Fica dentro do campo.
+      // Um único perseguidor pressiona a bola; os demais mantêm distância dos
+      // companheiros e ocupam os canais laterais/centrais da formação.
+      const spaced = addTeamSpacing(player, { x: targetX, z: targetZ }, owner, chaser);
+      targetX = spaced.x;
+      targetZ = spaced.z;
       targetX = Math.max(-PITCH.halfLength - 4, Math.min(PITCH.halfLength + 4, targetX));
       targetZ = Math.max(-PITCH.halfWidth - 4, Math.min(PITCH.halfWidth + 4, targetZ));
 
       steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 1.4 });
-      if (!faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
+      if (!player.gkDiving && !faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
     }
   }
 

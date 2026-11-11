@@ -49,10 +49,11 @@ uninstalled once, because that one was signed with a generated key.
 
 ## XFC — the XF Esports football game
 
-`xfc-game/` holds **XFC**, the XF Esports football game — a regular football game, not VR. This
-stage ships the menu: the splash, the main menu, the Kick Off team picker (FC Barcelona vs Real
-Madrid, with the real crests and the players' faces) and the squad screen. It is a self-contained
-web app (HTML, CSS and ES modules, no build step) and does not touch the NextVR/VR code.
+`xfc-game/` holds **XFC**, the XF Esports football game — a regular football game, not VR. It
+includes the splash and hub, Kick Off team picker, squads, cup campaign and a 3D match with touch
+controls. Match play now includes explicit human actions for kick-offs and restarts, direct free
+kicks, referee discipline and manual sliding tackles. It is a self-contained web app (HTML, CSS and
+ES modules) packaged offline in its Android APK and does not touch the NextVR/VR code.
 
 ```bash
 node xfc-game/serve.mjs               # http://127.0.0.1:8080

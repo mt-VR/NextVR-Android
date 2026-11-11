@@ -6,12 +6,13 @@ import { el, svg, ICONS, padButton, starRow, initialsOf } from '../ui/dom.js';
 import { getTeam, FORMATION_433, POSITION_LABELS } from '../data/teams.js';
 
 const ATTRIBUTE_LABELS = [
-  ['pace', 'Pace'],
-  ['shooting', 'Shooting'],
-  ['passing', 'Passing'],
-  ['dribbling', 'Dribbling'],
-  ['defending', 'Defending'],
-  ['physical', 'Physical']
+  ['pace', 'Ritmo'],
+  ['shooting', 'Finalização'],
+  ['shotPower', 'Potência'],
+  ['passing', 'Passe'],
+  ['dribbling', 'Condução'],
+  ['defending', 'Defesa'],
+  ['physical', 'Físico']
 ];
 
 const PLAYSTYLES = ['F', 'T', 'P', 'L', 'S', 'C'];
@@ -87,10 +88,11 @@ export function squadScreen(ctx, params = {}) {
   const panel = el('aside', { class: 'player-panel' });
 
   const tabs = el('div', { class: 'squad__tabs' },
-    el('span', { class: 'squad__tab', text: 'Squad' }),
-    el('span', { class: 'squad__tab is-active', text: 'Team Management' }),
-    el('span', { class: 'squad__tab', text: 'Tactics' }),
-    el('span', { class: 'squad__tab', text: 'Assignments' })
+    el('span', { class: 'squad__tab is-active', text: 'ELENCO' }),
+    el('span', { class: 'squad__tab', text: 'ESQUEMAS' }),
+    el('span', { class: 'squad__tab', text: 'TÁTICAS' }),
+    el('span', { class: 'squad__tab', text: 'FUNÇÕES' }),
+    el('span', { class: 'squad__tab', text: 'INSTRUÇÕES' })
   );
 
   const footer = el('footer', { class: 'footer' },
@@ -132,11 +134,16 @@ export function squadScreen(ctx, params = {}) {
       slot.classList.toggle('is-selected', slot.dataset.playerId === selectedId);
     });
 
-    const attrs = ATTRIBUTE_LABELS.map(([key, label]) => el('div', { class: 'attr' },
-      el('span', { text: label }),
-      el('b', { text: String(player.stats[key]) }),
-      el('span', { class: 'attr__bar' }, el('span', { style: { width: `${Math.max(4, Math.min(100, player.stats[key]))}%` } }))
-    ));
+    const attrs = ATTRIBUTE_LABELS.map(([key, label]) => {
+      const value = key === 'shotPower'
+        ? Math.round(player.stats.shooting * 0.88 + player.stats.physical * 0.12)
+        : player.stats[key];
+      return el('div', { class: 'attr' },
+        el('span', { text: label }),
+        el('b', { text: String(value) }),
+        el('span', { class: 'attr__bar' }, el('span', { style: { width: `${Math.max(4, Math.min(100, value))}%` } }))
+      );
+    });
 
     panel.replaceChildren(
       el('div', { class: 'player-panel__head' },

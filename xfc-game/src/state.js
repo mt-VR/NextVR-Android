@@ -11,16 +11,23 @@ const DEFAULT_PROFILE = {
   xp: 3000,
   xpMax: 3000,
   coins: 1250,
+  gems: 1250,
   matchesPlayed: 0,
-  favourite: null
+  favourite: null,
+  worldCupCampaign: null,
+  ultimatePlayers: []
 };
 
 function loadProfile() {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_PROFILE };
+    if (!raw) return { ...DEFAULT_PROFILE, ultimatePlayers: [] };
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_PROFILE, ...parsed };
+    return {
+      ...DEFAULT_PROFILE,
+      ...parsed,
+      ultimatePlayers: Array.isArray(parsed.ultimatePlayers) ? [...parsed.ultimatePlayers] : []
+    };
   } catch {
     return { ...DEFAULT_PROFILE };
   }

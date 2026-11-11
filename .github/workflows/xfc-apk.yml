@@ -6,8 +6,19 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "main", "arena/c478325b-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android" ]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publicar também na branch xfc-dist'
+        required: false
+        type: boolean
+        default: false
+      publish_release:
+        description: 'Publicar a release do XFC (sem atualizar xfc-dist)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -42,9 +53,12 @@ jobs:
         id: xfc-tests
         continue-on-error: true
         run: |
-          set -o pipefail
-          node --test tests/xfc-game.test.mjs 2>&1 | tee /tmp/xfc-tests.log
-          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
+          set +e
+          node --test tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          TEST_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
 
       # O relatório dos testes vai para um check-run próprio: assim o resultado do
       # XFC fica legível na aba de checks do PR, mesmo quando a suíte do app de VR
@@ -77,7 +91,7 @@ jobs:
             --jq '"check-run: \(.html_url) (\(.conclusion))"'
 
       - name: Fail when the XFC tests fail
-        if: steps.xfc-tests.outputs.exit != '0'
+        if: steps.xfc-tests.outputs.exit == '' || steps.xfc-tests.outputs.exit != '0'
         run: exit 1
 
       - name: Set up Gradle cache
@@ -124,6 +138,7 @@ jobs:
           echo "zip completo: index.html, src, styles, assets, vendor e app.bundle.js"
 
       - name: Publish to the xfc-dist branch
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -154,21 +169,31 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-menu-v1
-          NOTES=$(cat <<'EOF'
-          XFC — o jogo de futebol da XF Esports (menu: intro, menu principal, Kick Off e elenco).
-
-          * `xfc.apk` — aplicativo Android (o jogo roda offline dentro do APK).
-          * `xfc-game.zip` — o jogo em HTML/CSS/JS, para rodar no navegador (`node serve.mjs`).
-          EOF
-          )
+          TAG=xfc-gameplay-v0.5.20
+          NOTES=$(printf '%s\n' \
+            "XFC 27 v0.5.20 (versionCode 26), commit ${GITHUB_SHA}." \
+            "" \
+            "Corrida refeita com apoio assimétrico, retorno curto atrás e contrabalanço dos braços. Goleiro com novo mergulho e poses de pegar/carregar/colocar a bola; mesmo modelo masculino importado." \
+            "" \
+            "Pênalti: toque tem prioridade sobre o timer do teclado; a mira fica na última direção ao soltar. Chapéu passa sobre o próprio executor; controle de bola altera a distância e o alcance da recuperação, sem posse automática." \
+            "" \
+            "Tiro de meta e escanteio: buscar a bola no local da saída, pegar, carregar nas mãos, colocar no chão, recuar e esperar o comando. Aproximação antes de cobrar. Não usa mais a preparação abreviada de 1,35 s." \
+            "" \
+            "69 camisas identificadas do HTML para 54 clubes; 47 novos clubes com escudos reais, sem duplicar existentes. Elencos novos fictícios sinalizados no menu. 27 fotos incertas omitidas conforme autorizado. Campo mais claro sem passes adicionais de sombra." \
+            "" \
+            "Android mantém resolução fixa, sem MSAA/sombras dinâmicas. Resultado final para de renderizar o estádio ao fundo. Sem promessa de FPS em celular físico ou equivalência ao EA Sports FC. docs/v0.5.20.md e CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC menu v1" --notes "$NOTES"
+            gh release create "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
+              --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
+          else
+            gh release edit "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
+              --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
           # app-release.apk, então o anexo é renomeado para xfc.apk logo depois

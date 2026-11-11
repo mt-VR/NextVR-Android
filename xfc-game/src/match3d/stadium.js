@@ -4,30 +4,78 @@
 // Tudo é construído por código (geometrias simples + texturas desenhadas em
 // canvas) para caber no APK e rodar bem no WebView do Android.
 
-import { THREE, canvasTexture } from './engine.js';
+import { THREE, canvasTexture, disposeObject } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
+import { addGrassBlades } from './grass.js';
+import { createGoalNet } from './goal-net.js';
 
 const LINE = 0.12; // espessura das linhas em metros
 const PX_PER_METER = 2048 / PITCH.length;
 
-/** Carrega o gramado real (foto do usuário) — em cache de módulo para não
- *  recarregar entre partidas. A foto não existe ainda? O gramado procedural
- *  de antes continua sendo o plano B. */
-let grassImagePromise = null;
-function preloadGrass() {
-  if (grassImagePromise) return grassImagePromise;
-  grassImagePromise = new Promise(resolve => {
-    if (typeof Image === 'undefined') {
-      resolve(null);
-      return;
-    }
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = 'assets/textures/grass.jpg';
-  });
-  return grassImagePromise;
+const LIGHTING_PRESETS = Object.freeze({
+  day: Object.freeze({
+    sky: ['#6ca7d0', '#a8cfdf', '#d9ded4', '#e7e5d9'],
+    stars: 0,
+    fog: 0x8eafbd,
+    hemisphereSky: 0xe8f5ff,
+    hemisphereGround: 0x68834d,
+    hemisphereIntensity: 0.92,
+    keyColor: 0xfff1dc,
+    keyIntensity: 1.22,
+    fillColor: 0xd8eaff,
+    fillIntensity: 0.4,
+    crossIntensity: 0.16,
+    ambientIntensity: 0.18,
+    floodlightIntensity: 0.12,
+    rimColor: 0xe8f4ff,
+    rimIntensity: 0.18,
+    lampsOn: false
+  }),
+  dusk: Object.freeze({
+    sky: ['#262d4a', '#82546b', '#d78b66', '#e8b67e'],
+    stars: 55,
+    fog: 0x392f40,
+    hemisphereSky: 0xd0d8f0,
+    hemisphereGround: 0x64543f,
+    hemisphereIntensity: 0.85,
+    keyColor: 0xffd3a0,
+    keyIntensity: 1.23,
+    fillColor: 0xb6d7ff,
+    fillIntensity: 0.4,
+    crossIntensity: 0.2,
+    ambientIntensity: 0.19,
+    floodlightIntensity: 0.3,
+    rimColor: 0xffcfa6,
+    rimIntensity: 0.32,
+    lampsOn: true
+  }),
+  night: Object.freeze({
+    sky: ['#071120', '#123049', '#1d4a5e', '#2a6270'],
+    stars: 260,
+    fog: 0x0a1a26,
+    hemisphereSky: 0xc5dff4,
+    hemisphereGround: 0x3c6340,
+    hemisphereIntensity: 0.98,
+    keyColor: 0xfff4de,
+    keyIntensity: 1.3,
+    fillColor: 0xbdd8ff,
+    fillIntensity: 0.72,
+    crossIntensity: 0.23,
+    ambientIntensity: 0.24,
+    floodlightIntensity: 0.38,
+    rimColor: 0xc7e2ff,
+    rimIntensity: 0.43,
+    lampsOn: true
+  })
+});
+
+/** Perfil ambiental reutilizado por céu, refletores e luzes da partida. */
+export function lightingProfileFor(timeOfDay = 'night') {
+  const key = Object.prototype.hasOwnProperty.call(LIGHTING_PRESETS, timeOfDay)
+    ? timeOfDay
+    : 'night';
+  return { name: key, ...LIGHTING_PRESETS[key] };
 }
 
 /** Textura da fachada das arquibancadas: cor sólida, "ribs" (mornéis verticais,
@@ -64,66 +112,109 @@ function drawFacade(context, width, height, kind, baseColor) {
       context.lineTo(x - height, height);
       context.stroke();
     }
+  } else if (kind === 'panels') {
+    // Revestimento de concreto com juntas largas e variação tonal suave;
+    // evita uma parede lisa sem virar faixas escuras na câmera do celular.
+    const columns = 14;
+    const columnWidth = width / columns;
+    for (let column = 0; column < columns; column += 1) {
+      context.fillStyle = column % 2 === 0
+        ? 'rgba(255,255,255,0.035)'
+        : 'rgba(0,0,0,0.025)';
+      context.fillRect(column * columnWidth, 0, columnWidth, height);
+      context.fillStyle = 'rgba(8,14,20,0.12)';
+      context.fillRect(column * columnWidth, 0, 1, height);
+    }
+    context.fillStyle = 'rgba(255,255,255,0.075)';
+    for (let row = 1; row < 7; row += 1) {
+      context.fillRect(0, (row / 7) * height, width, 1.5);
+    }
   }
 }
 
-/** Desenha a base do gramado: foto real do gramado (quando já carregou) ou o
- *  gramado procedural de antes. */
-function drawPitchBase(context, width, height, grassImage) {
-  if (grassImage) {
-    // Gramado real: a foto do usuário é aplicada em faixas (repeat), sem
-    // distorcer o esquema. As faixas de corte e as linhas vem depois.
-    const tileW = grassImage.width;
-    const tileH = grassImage.height;
-    for (let x = 0; x < width; x += tileW) {
-      for (let y = 0; y < height; y += tileH) {
-        context.drawImage(grassImage, x, y, tileW, tileH);
-      }
-    }
-    // Um gradiente escuro nas laterais (como na transmissão).
-    const gradient = context.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
-    gradient.addColorStop(0.5, 'rgba(0,0,0,0.03)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.14)');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-    return;
-  }
-  // Gramado listrado com faixas de corte (direções alternadas).
-  const bands = 12;
-  const bandWidth = width / bands;
-  for (let band = 0; band < bands; band += 1) {
-    context.fillStyle = band % 2 === 0 ? '#46a24e' : '#37913f';
-    context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
-    // Corte: faixas mais claras em uma direção, mais escuras na outra.
-    context.fillStyle = band % 2 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
-    context.fillRect(band * bandWidth, 0, bandWidth / 2, height);
-  }
-  // Manchas de uso e variação de tom (semente estável para não "fervilhar").
-  let seed = 1234567;
+/**
+ * Base de gramado gerada em tempo real: variação de cor, faixas de corte,
+ * manchas de uso e milhares de pequenos traços de folhas. Não depende de uma
+ * imagem pronta/PNG para o campo parecer um gramado.
+ */
+function drawPitchBase(context, width, height, lowPower = false) {
+  let seed = 0x27f00d;
   const rand = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
   };
-  for (let index = 0; index < 5200; index += 1) {
+
+  context.fillStyle = '#287b35';
+  context.fillRect(0, 0, width, height);
+
+  // Faixas alternadas de corte com bordas suaves, como no gramado de jogo.
+  const bands = 14;
+  const bandWidth = width / bands;
+  for (let band = 0; band < bands; band += 1) {
+    const shade = band % 2 === 0 ? '#56a750' : '#469245';
+    context.fillStyle = shade;
+    context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
+    const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
+    edge.addColorStop(0, 'rgba(0,0,0,0.06)');
+    edge.addColorStop(0.5, 'rgba(255,255,255,0.025)');
+    edge.addColorStop(1, 'rgba(0,0,0,0.075)');
+    context.fillStyle = edge;
+    context.fillRect(band * bandWidth, 0, bandWidth, height);
+  }
+
+  // Desgaste suave e espaçado: as antigas manchas pequenas e de alto contraste
+  // viravam pontos isolados quando a textura era filtrada pela câmera distante.
+  const wearMarks = lowPower ? 260 : 900;
+  for (let index = 0; index < wearMarks; index += 1) {
     const x = rand() * width;
     const y = rand() * height;
-    const size = 1 + rand() * 3.2;
-    context.fillStyle = rand() < 0.5 ? 'rgba(255,255,255,0.055)' : 'rgba(0,40,10,0.075)';
+    const radius = 12 + rand() * 28;
+    const alpha = 0.006 + rand() * 0.008;
+    context.fillStyle = rand() < 0.55
+      ? `rgba(26,86,36,${alpha})`
+      : `rgba(177,204,102,${alpha})`;
     context.beginPath();
-    context.ellipse(x, y, size * 2.6, size, rand() * Math.PI, 0, Math.PI * 2);
+    context.ellipse(x, y, radius * (1.2 + rand()), radius * (0.24 + rand() * 0.12), rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
   }
+
+  // Grão fino verde, sem pixels negros/escuros de contraste alto. O detalhe é
+  // deliberadamente subpixel na câmera de transmissão para evitar cintilação.
+  const grassStrokes = lowPower ? 3000 : 9800;
+  for (let index = 0; index < grassStrokes; index += 1) {
+    const x = rand() * width;
+    const y = rand() * height;
+    const length = 5 + rand() * 13;
+    const angle = -0.36 + rand() * 0.72;
+    const tint = Math.floor(rand() * 36);
+    const alpha = 0.022 + rand() * 0.038;
+    context.strokeStyle = rand() < 0.5
+      ? `rgba(${55 + tint},${121 + tint},${43 + Math.floor(tint * 0.35)},${alpha})`
+      : `rgba(${92 + Math.floor(tint * 0.4)},${151 + Math.floor(tint * 0.45)},${61 + Math.floor(tint * 0.25)},${alpha})`;
+    context.lineWidth = 0.7 + rand() * 0.45;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
+    context.stroke();
+  }
+
+  // Luz e sombra de transmissão, mantendo contraste nas linhas brancas.
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.055)');
+  gradient.addColorStop(0.48, 'rgba(0,0,0,0.015)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.14)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
 }
 
 /** Desenha o gramado com as marcações oficiais de campo. */
-function drawPitch(context, width, height, grassImage) {
+function drawPitch(context, width, height, lowPower = false) {
   const scale = width / PITCH.length;
   const toX = x => (x + PITCH.halfLength) * scale;
   const toZ = z => (z + PITCH.halfWidth) * scale;
   const line = LINE * scale;
 
-  drawPitchBase(context, width, height, grassImage);
+  drawPitchBase(context, width, height, lowPower);
 
   // Serrilhado suave nas bordas das faixas (o look "mow stripes").
   const bands = 12;
@@ -179,11 +270,16 @@ function drawPitch(context, width, height, grassImage) {
     context.beginPath();
     context.arc(toX(side * (PITCH.halfLength - 11)), toZ(0), 0.35 * scale, 0, Math.PI * 2);
     context.fill();
-    // meia-lua
+    // Meia-lua: desenha só o trecho que fica FORA da grande área.
+    // A linha da área corta o círculo exatamente nos dois pontos de encontro.
+    const penaltySpotX = side * (PITCH.halfLength - 11);
+    const boxLineX = side * (PITCH.halfLength - 16.5);
+    const relativeLine = (boxLineX - penaltySpotX) / 9.15;
+    const cutAngle = Math.acos(Math.max(-1, Math.min(1, relativeLine)));
+    const arcStart = side > 0 ? cutAngle : -cutAngle;
+    const arcEnd = side > 0 ? Math.PI * 2 - cutAngle : cutAngle;
     context.beginPath();
-    context.arc(toX(side * (PITCH.halfLength - 11)), toZ(0), 9.15 * scale,
-      side > 0 ? Math.PI / 2 : -Math.PI / 2,
-      side > 0 ? (Math.PI * 3) / 2 : Math.PI / 2);
+    context.arc(toX(penaltySpotX), toZ(0), 9.15 * scale, arcStart, arcEnd);
     context.stroke();
     // escanteios
     for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
@@ -199,64 +295,113 @@ function drawPitch(context, width, height, grassImage) {
 
 /** Textura da torcida: dois anéis de assentos, setores do mandante e do visitante. */
 function drawCrowd(context, width, height) {
-  context.fillStyle = '#3a4c68';
+  let seed = 0xc0ffee;
+  const rand = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  context.fillStyle = '#25354a';
   context.fillRect(0, 0, width, height);
 
   // Muro divisor entre o anel inferior e o superior.
-  const tierSplit = 0.44;
+  const tierSplit = 0.46;
   context.fillStyle = '#202c3e';
   context.fillRect(0, height * tierSplit - 7, width, 14);
   context.fillStyle = 'rgba(255,255,255,0.16)';
   context.fillRect(0, height * tierSplit - 8, width, 2);
   context.fillRect(0, height * tierSplit + 6, width, 2);
 
-  const rows = 26;
+  const rows = 24;
   const rowHeight = height / rows;
-  const seats = 66;
+  const seats = 88;
   const seatWidth = width / seats;
+  const homeColors = ['#2872b8', '#4388c7', '#dfe9f2', '#1a426e', '#78add5'];
+  const awayColors = ['#b92d43', '#d7434b', '#e4b94d', '#eee7d9', '#713447'];
+  const skinColors = ['#f0c49c', '#d99d70', '#b77950', '#8e5e41', '#68452f'];
 
   // Setores: as duas pontas pertencem ao visitante (rubro/amarelo);
   // as laterais, ao mandante (azul/branco), com um miolo amarelo na cabeceira.
   const isAwaySection = u => u < 0.14 || (u > 0.43 && u < 0.57) || u > 0.86;
 
   for (let row = 0; row < rows; row += 1) {
-    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.22)';
-    context.fillRect(0, row * rowHeight, width, rowHeight * 0.5);
+    const rowY = row * rowHeight;
+    context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.14)';
+    context.fillRect(0, rowY, width, rowHeight * 0.24);
     for (let seat = 0; seat < seats; seat += 1) {
-      if (Math.random() < 0.07) continue;
-      const u = seat / seats;
+      if (rand() < 0.045) continue;
+      const u = (seat + 0.5) / seats;
       const away = isAwaySection(u);
-      const hue = Math.random();
-      let color;
-      if (away) {
-        // Setor do visitante: predominância rubra e amarela.
-        color = hue < 0.4
-          ? `rgba(${222 + Math.random() * 30},${40 + Math.random() * 30},${46 + Math.random() * 25},1)`
-          : hue < 0.72
-            ? `rgba(245,${205 + Math.random() * 40},${70},1)`
-            : 'rgba(240,240,240,0.95)';
-      } else {
-        // Setor do mandante: predominância azul e branca.
-        color = hue < 0.46
-          ? `rgba(${45 + Math.random() * 40},${118 + Math.random() * 60},${205 + Math.random() * 45},1)`
-          : hue < 0.74
-            ? 'rgba(240,243,247,0.95)'
-            : hue < 0.88
-              ? `rgba(${120 + Math.random() * 40},${215 + Math.random() * 35},255,1)`
-              : `rgba(${18 + Math.random() * 25},${40 + Math.random() * 30},${80 + Math.random() * 40},1)`;
+      const palette = away ? awayColors : homeColors;
+      const jersey = palette[Math.floor(rand() * palette.length)];
+      const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 2.4;
+      const y = rowY + rowHeight * 0.57;
+
+      // Tronco, mangas e cabeça em camadas formam silhuetas de torcedores,
+      // em vez dos antigos pontos de cor que viravam ruído à distância.
+      context.fillStyle = 'rgba(12,19,29,0.62)';
+      context.beginPath();
+      context.ellipse(x, y + rowHeight * 0.2, seatWidth * 0.39, rowHeight * 0.24, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = jersey;
+      context.beginPath();
+      context.ellipse(x, y + rowHeight * 0.15, seatWidth * 0.34, rowHeight * 0.21, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = skinColors[Math.floor(rand() * skinColors.length)];
+      context.beginPath();
+      context.arc(x, y - rowHeight * 0.11, rowHeight * 0.14, 0, Math.PI * 2);
+      context.fill();
+
+      // Pequena variação de luz nas camisas sem manchas escuras de alto contraste.
+      if (rand() < 0.24) {
+        context.fillStyle = 'rgba(255,255,255,0.3)';
+        context.fillRect(x - seatWidth * 0.24, y + rowHeight * 0.1, seatWidth * 0.48, 1);
       }
-      context.fillStyle = color;
-      const x = (seat + 0.5) * seatWidth + (Math.random() - 0.5) * 4;
-      const y = row * rowHeight + rowHeight * 0.6;
-      context.beginPath();
-      context.arc(x, y, rowHeight * 0.34, 0, Math.PI * 2);
-      context.fill();
-      // Ombros: a silhueta da torcida.
-      context.fillStyle = 'rgba(18,24,34,0.6)';
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.32, rowHeight * 0.3, rowHeight * 0.24, 0, 0, Math.PI * 2);
-      context.fill();
     }
+  }
+
+  // Bandeiras levantadas pela torcida: verde-amarela do Brasil e faixas XFC,
+  // com a borda ondulada para quebrar a repetição dos assentos.
+  const flags = [
+    { x: .08, y: .23, kind: 'brazil' }, { x: .22, y: .53, kind: 'blue' },
+    { x: .39, y: .29, kind: 'red' }, { x: .53, y: .69, kind: 'brazil' },
+    { x: .66, y: .51, kind: 'brazil' }, { x: .78, y: .25, kind: 'blue' },
+    { x: .92, y: .54, kind: 'red' }
+  ];
+  for (const [index, flag] of flags.entries()) {
+    const x = width * flag.x;
+    const y = height * flag.y;
+    const fw = 64;
+    const fh = 40;
+    context.strokeStyle = 'rgba(240,245,255,.85)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(x, y - 12);
+    context.lineTo(x, y + fh + 13);
+    context.stroke();
+    context.save();
+    context.beginPath();
+    context.moveTo(x, y);
+    context.quadraticCurveTo(x + fw * .46, y - 3 + (index % 2) * 5, x + fw, y + 2);
+    context.lineTo(x + fw, y + fh);
+    context.quadraticCurveTo(x + fw * .5, y + fh - 3 - (index % 2) * 3, x, y + fh);
+    context.closePath();
+    context.clip();
+    if (flag.kind === 'brazil') {
+      context.fillStyle = '#009b3a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#ffdf00'; context.beginPath(); context.moveTo(x + fw * .5, y + 1); context.lineTo(x + fw - 2, y + fh * .5); context.lineTo(x + fw * .5, y + fh - 1); context.lineTo(x + 2, y + fh * .5); context.fill();
+      context.fillStyle = '#17499a'; context.beginPath(); context.arc(x + fw * .5, y + fh * .52, 4, 0, Math.PI * 2); context.fill();
+    } else if (flag.kind === 'blue') {
+      context.fillStyle = '#17499a'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .4, fw, fh * .19); context.fillRect(x + fw * .38, y - 2, fw * .2, fh + 4);
+    } else {
+      context.fillStyle = '#ed2549'; context.fillRect(x, y - 2, fw, fh + 4);
+      context.fillStyle = '#fff'; context.fillRect(x, y + fh * .38, fw, fh * .24);
+      context.fillStyle = '#164b9f'; context.fillRect(x + fw * .38, y - 2, fw * .24, fh + 4);
+    }
+    context.restore();
+    context.strokeStyle = 'rgba(255,255,255,.42)';
+    context.lineWidth = 1;
+    context.strokeRect(x, y, fw, fh);
   }
 }
 
@@ -312,44 +457,52 @@ function drawLed(context, width, height) {
   }
 }
 
-/** Placas de publicidade em volta do campo (marcas próprias do XFC). */
+/** Placas de publicidade XFC com quatro painéis legíveis em cada lateral. */
 function drawAds(context, width, height) {
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#0e3a63');
-  gradient.addColorStop(0.5, '#123a5e');
-  gradient.addColorStop(1, '#0a2740');
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
-  const slots = 6;
+  const slots = 4;
+  const cell = width / slots;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+
   for (let slot = 0; slot < slots; slot += 1) {
-    const x = (slot / slots) * width;
-    const w = width / slots;
-    if (slot % 2 === 0) {
-      // Faixa azul com a "XFC FOUNDATION" (a versão própria da fundação
-      // beneficente que aparece nos estádios de verdade).
-      context.fillStyle = '#164a7a';
-      context.fillRect(x + 3, 3, w - 6, height - 6);
-      context.fillStyle = '#ffffff';
-      context.font = `800 ${height * 0.36}px Inter, sans-serif`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText('XFC FOUNDATION', x + w / 2, height * 0.46);
-      context.fillStyle = 'rgba(255,255,255,0.7)';
-      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
-      context.fillText('FUTBOL PARA TODOS', x + w / 2, height * 0.76);
+    const x = slot * cell;
+    const isFoundation = slot % 2 === 0;
+    const gradient = context.createLinearGradient(0, 0, 0, height);
+    if (isFoundation) {
+      gradient.addColorStop(0, '#175183');
+      gradient.addColorStop(0.52, '#103d66');
+      gradient.addColorStop(1, '#0a2b49');
     } else {
-      context.fillStyle = 'rgba(46,240,168,0.9)';
-      context.font = `800 ${height * 0.4}px Inter, sans-serif`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText('XF ESPORTES', x + w / 2, height * 0.44);
-      context.fillStyle = 'rgba(255,255,255,0.75)';
-      context.font = `600 ${height * 0.19}px Inter, sans-serif`;
-      context.fillText('XF CHAMPIONS LEAGUE', x + w / 2, height * 0.74);
+      gradient.addColorStop(0, '#087d57');
+      gradient.addColorStop(0.52, '#07583f');
+      gradient.addColorStop(1, '#073c31');
     }
-    context.strokeStyle = 'rgba(255,255,255,0.16)';
+    context.fillStyle = gradient;
+    context.fillRect(x, 0, cell, height);
+
+    // Barra de cor e pequeno monograma dão leitura de placa física, sem
+    // repetir texto comprimido ao longo de todo o campo.
+    context.fillStyle = isFoundation ? '#55d5ff' : '#42f0ab';
+    context.fillRect(x + 2, 2, cell - 4, Math.max(3, height * 0.08));
+    context.fillStyle = isFoundation ? '#ffffff' : '#dfffee';
+    context.font = `900 ${height * 0.3}px Inter, sans-serif`;
+    context.fillText(
+      isFoundation ? 'XFC FOUNDATION' : 'XF ESPORTES',
+      x + cell / 2,
+      height * 0.47,
+      cell * 0.9
+    );
+    context.fillStyle = 'rgba(255,255,255,0.78)';
+    context.font = `600 ${height * 0.17}px Inter, sans-serif`;
+    context.fillText(
+      isFoundation ? 'FUTEBOL PARA TODOS' : 'XF CHAMPIONS LEAGUE',
+      x + cell / 2,
+      height * 0.77,
+      cell * 0.9
+    );
+    context.strokeStyle = 'rgba(255,255,255,0.3)';
     context.lineWidth = 2;
-    context.strokeRect(x + 4, 4, w - 8, height - 8);
+    context.strokeRect(x + 3, 3, cell - 6, height - 6);
   }
 }
 
@@ -373,34 +526,197 @@ function drawNet(context, width, height) {
   }
 }
 
-/** Céu noturno com o brilho dos refletores. */
-function drawSky(context, width, height) {
+/** Céu procedural de dia, entardecer ou noite, com estrelas determinísticas. */
+function drawSky(context, width, height, timeOfDay = 'night') {
+  const profile = lightingProfileFor(timeOfDay);
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#071120');
-  gradient.addColorStop(0.5, '#123049');
-  gradient.addColorStop(0.82, '#1d4a5e');
-  gradient.addColorStop(1, '#2a6270');
+  const stops = [0, 0.5, 0.82, 1];
+  profile.sky.forEach((color, index) => gradient.addColorStop(stops[index], color));
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
-  for (let star = 0; star < 260; star += 1) {
-    const x = Math.random() * width;
-    const y = Math.random() * height * 0.6;
-    context.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.5})`;
-    context.fillRect(x, y, 1.6, 1.6);
+
+  let seed = profile.name === 'night' ? 0x51a7 : 0xd05c;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let star = 0; star < profile.stars; star += 1) {
+    const x = random() * width;
+    const y = random() * height * 0.58;
+    const alpha = profile.name === 'night' ? 0.15 + random() * 0.5 : 0.08 + random() * 0.18;
+    context.fillStyle = `rgba(255,255,255,${alpha})`;
+    context.fillRect(x, y, profile.name === 'night' ? 1.6 : 1, profile.name === 'night' ? 1.6 : 1);
   }
+}
+
+/** Pequenos espectadores instanciados: silhuetas e roupas em cores variadas. */
+function addStandCrowd(group, width, depth, height, lowPower = false) {
+  const rows = lowPower ? 3 : 5;
+  const columns = Math.max(16, Math.floor(width / (lowPower ? 4.6 : 3.5)));
+  const count = rows * columns;
+  const bodies = new THREE.InstancedMesh(
+    new THREE.CapsuleGeometry(0.115, 0.23, 2, 6),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
+    count
+  );
+  const heads = new THREE.InstancedMesh(
+    new THREE.SphereGeometry(0.105, lowPower ? 6 : 8, lowPower ? 5 : 7),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10110f }),
+    count
+  );
+  bodies.name = 'xfc-crowd-simplified-bodies';
+  heads.name = 'xfc-crowd-simplified-heads';
+  bodies.castShadow = false;
+  heads.castShadow = false;
+  const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
+  const skin = [0xe4b995, 0xc98e64, 0x9e6849, 0xf0ccaa, 0x784c37, 0xd6a17b];
+  const pose = new THREE.Object3D();
+  const slopeAngle = 0.46;
+  const wallHeight = 2.4;
+  const seatHeight = height - wallHeight;
+  const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight*Math.tan(slopeAngle))*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
+  const slopeCenterZ = -0.6;
+  let instance = 0;
+  let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let row = 0; row < rows; row += 1) {
+    const z = depth * 0.42 - row * (depth * 0.205);
+    const surfaceY = slopeCenterY + 0.55 * Math.cos(slopeAngle)
+      - (z - slopeCenterZ) * Math.tan(slopeAngle);
+    for (let column = 0; column < columns; column += 1) {
+      const spacing = width / columns;
+      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.18) * spacing;
+      pose.position.set(x, surfaceY + 0.24, z);
+      pose.rotation.set(0, (random() - 0.5) * 0.24, 0);
+      pose.scale.set(0.84, 0.9 + random() * 0.16, 0.76);
+      pose.updateMatrix();
+      bodies.setMatrixAt(instance, pose.matrix);
+      bodies.setColorAt(instance, new THREE.Color(shirts[Math.floor(random() * shirts.length)]));
+
+      pose.position.set(x, surfaceY + 0.61, z - 0.035);
+      pose.rotation.set(0, 0, 0);
+      pose.scale.setScalar(0.92 + random() * 0.16);
+      pose.updateMatrix();
+      heads.setMatrixAt(instance, pose.matrix);
+      heads.setColorAt(instance, new THREE.Color(skin[Math.floor(random() * skin.length)]));
+      instance += 1;
+    }
+  }
+  bodies.instanceMatrix.needsUpdate = true;
+  heads.instanceMatrix.needsUpdate = true;
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+  group.add(bodies, heads);
+}
+
+/** Banco técnico coberto, com assentos repetidos e estrutura metálica simples. */
+function buildSidelineBench(x, z, side) {
+  const group = new THREE.Group();
+  group.name = 'xfc-sideline-bench';
+  const frame = new THREE.MeshLambertMaterial({ color: 0x27333b });
+  const seat = new THREE.MeshLambertMaterial({ color: 0x163e52, emissive: 0x07131a });
+  const cushion = new THREE.MeshLambertMaterial({ color: side < 0 ? 0x28c5a4 : 0x2d89ec });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x9fc9d6, transparent: true, opacity: 0.32, side: THREE.DoubleSide });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(15.8, 0.22, 2.6), frame);
+  base.position.y = 0.22;
+  group.add(base);
+
+  for (const postX of [-7.55, 7.55]) {
+    for (const postZ of [-1.05, 1.05]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 3.55, 0.13), frame);
+      post.position.set(postX, 1.95, postZ);
+      group.add(post);
+    }
+  }
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(16.3, 0.24, 3.2), frame);
+  canopy.position.set(0, 3.78, 0);
+  group.add(canopy);
+  const canopyTop = new THREE.Mesh(new THREE.BoxGeometry(16.0, 0.12, 3.0), cushion);
+  canopyTop.position.set(0, 3.95, 0);
+  group.add(canopyTop);
+  const backGlass = new THREE.Mesh(new THREE.BoxGeometry(15.4, 2.8, 0.045), glass);
+  backGlass.position.set(0, 1.95, -1.18);
+  group.add(backGlass);
+  for (let index = 0; index < 8; index += 1) {
+    const seatX = -6.65 + index * 1.9;
+    const chair = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.18, 0.66), cushion);
+    chair.position.set(seatX, 1.0, 0.12);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.8, 0.15), seat);
+    back.position.set(seatX, 1.42, -0.22);
+    group.add(chair, back);
+  }
+  group.rotation.y = side < 0 ? 0 : Math.PI;
+  group.position.set(x, 0, z);
+  return group;
+}
+
+/** Vestiário decorativo ao fundo da arena, com janelas e letreiro legível. */
+function buildLockerRoom() {
+  const group = new THREE.Group();
+  group.name = 'xfc-locker-room';
+  const wall = new THREE.MeshLambertMaterial({ color: 0x203748, emissive: 0x07121b });
+  const trim = new THREE.MeshLambertMaterial({ color: 0x8aaab4 });
+  const glass = new THREE.MeshPhongMaterial({ color: 0x68c4d2, emissive: 0x12333c, transparent: true, opacity: 0.72, shininess: 46 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x0d1c26 });
+  // Bloco de vestiários à frente da arquibancada de fundo, entre os bancos:
+  // é um volume baixo o suficiente para caber no enquadramento da câmera.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(22, 6.2, 5.2), wall);
+  body.position.y = 3.1;
+  group.add(body);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(23.4, 0.5, 6.2), trim);
+  roof.position.set(0, 6.45, 0);
+  group.add(roof);
+  const entrance = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.3, 0.16), dark);
+  entrance.position.set(0, 1.65, 2.66);
+  group.add(entrance);
+  const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2.7, 0.1), glass);
+  doorGlass.position.set(0, 1.55, 2.76);
+  group.add(doorGlass);
+  for (const x of [-6.6, 6.6]) {
+    const window = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.7, 0.12), glass);
+    window.position.set(x, 3.25, 2.62);
+    group.add(window);
+    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.14, 0.19), trim);
+    windowFrame.position.set(x, 4.18, 2.63);
+    group.add(windowFrame);
+  }
+  const signTexture = canvasTexture(768, 128, (context, width, height) => {
+    context.fillStyle = '#0b2535';
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = '#46d1b2';
+    context.lineWidth = 8;
+    context.strokeRect(5, 5, width - 10, height - 10);
+    context.fillStyle = '#ecfffa';
+    context.font = '900 56px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('VESTIÁRIOS  ·  XFC', width / 2, height / 2 + 1);
+  });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 1.4), new THREE.MeshBasicMaterial({ map: signTexture }));
+  sign.position.set(0, 5.5, 2.67);
+  group.add(sign);
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(23, 0.24, 6), dark);
+  foundation.position.set(0, 0.06, 0);
+  group.add(foundation);
+  group.position.set(0, 0, -(PITCH.halfWidth + 6.8));
+  return group;
 }
 
 function buildStand(width, depth, height, texture, options = {}) {
   const group = new THREE.Group();
-  const { rotation = 0, position = [0, 0, 0], model = {} } = options;
+  group.name = 'xfc-stadium-stand';
+  const { rotation = 0, position = [0, 0, 0], model = {}, simple = false } = options;
 
   // O modelo do estádio (vem de STADIUMS[i].model): a cobertura e a
   // fachada mudam conforme a praça — cada estádio tem seu próprio bowl.
   const roofMode = model.roof || 'box';
   const facadeColor = model.facade ?? 0x2c3a48;
-  const facadeKind = model.facadeTex || null;
+  const facadeMaterial = options.facadeMaterial || null;
 
-  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x3d5273 });
+  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
   const concreteMaterial = new THREE.MeshLambertMaterial({ color: facadeColor });
   const roofMaterial = new THREE.MeshLambertMaterial({
     color: roofMode === 'arch' ? 0xf4f4f2 : 0x16212c
@@ -418,21 +734,45 @@ function buildStand(width, depth, height, texture, options = {}) {
 
   // Arquibancada inclinada com a torcida.
   const slope = new THREE.Mesh(new THREE.BoxGeometry(width, 1.1, slopeLength), seatMaterial);
-  slope.position.set(0, wallHeight + seatHeight / 2, -0.6);
+  const slopeCenterY=wallHeight+slopeLength*Math.sin(angle)/2+.55/Math.cos(angle);
+  slope.position.set(0, slopeCenterY, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
+  addStandCrowd(group, width, depth, height, simple);
+  // Fecha o vão entre a borda inferior inclinada e o muro: antes aparecia
+  // o céu/void por baixo das cadeiras, especialmente na câmera de pênalti.
+  const supportGeometry=new THREE.BufferGeometry();
+  const extent=slopeLength*Math.cos(angle)/2;
+  const zs=[-.6-extent,-.6+extent];
+  const supportVertices=[];
+  for(const x of [-width/2,width/2])for(const z of zs){
+    const top=slopeCenterY-.55/Math.cos(angle)-Math.tan(angle)*(z+.6)-.06;
+    supportVertices.push(x,0,z,x,top,z);
+  }
+  supportGeometry.setAttribute('position',new THREE.Float32BufferAttribute(supportVertices,3));
+  supportGeometry.setIndex([0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,1,3,7,1,7,5,0,4,6,0,6,2]);
+  supportGeometry.computeVertexNormals();
+  const fascia=new THREE.Mesh(supportGeometry,new THREE.MeshLambertMaterial({color:0x293a43}));
+  fascia.name='xfc-stand-foundation';group.add(fascia);
 
-  // Fundo da arquibancada (com fachada texturizada quando o modelo pede).
-  const back = facadeKind
-    ? new THREE.Mesh(
-      new THREE.BoxGeometry(width, height, 1),
-      new THREE.MeshLambertMaterial({
-        map: canvasTexture(256, 128, (context, w, h) => drawFacade(context, w, h, facadeKind, '#2c3a48')),
-        emissive: 0x1a2430
-      }))
-    : new THREE.Mesh(new THREE.BoxGeometry(width, height, 1), concreteMaterial);
-  back.position.set(0, height / 2, -depth / 2 - 0.6);
+  // Fundo da arquibancada. No celular, um atlas pequeno com nervuras mantém
+  // leitura arquitetônica sem adicionar malhas ou custo de iluminação.
+  const backMaterials = facadeMaterial
+    ? [concreteMaterial, concreteMaterial, concreteMaterial, concreteMaterial,
+      facadeMaterial, concreteMaterial]
+    : concreteMaterial;
+  // A platibanda não deve atravessar a arquibancada inteira: isso virava uma
+  // parede maciça acima da torcida na câmera baixa do treino.
+  const backHeight = Math.max(wallHeight + 0.4, height * 0.18);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(width, backHeight, 1), backMaterials);
+  back.position.set(0, backHeight / 2, -depth / 2 - 0.6);
   group.add(back);
+
+  if (simple) {
+    group.rotation.y = rotation;
+    group.position.set(position[0], position[1], position[2]);
+    return group;
+  }
 
   // Cobertura: cada modelo tem seu jeito (box, open, arch, plate).
   if (roofMode === 'box') {
@@ -509,7 +849,7 @@ function buildCornerFlag(x, z) {
   return group;
 }
 
-function buildGoal(side) {
+function buildGoal(side, lowPower) {
   const group = new THREE.Group();
   const postMaterial = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
   const halfWidth = GOAL.width / 2;
@@ -528,59 +868,18 @@ function buildGoal(side) {
   crossbar.position.set(0, GOAL.height, 0);
   group.add(crossbar);
 
-  const netTexture = canvasTexture(256, 256, drawNet);
-  netTexture.wrapS = THREE.RepeatWrapping;
-  netTexture.wrapT = THREE.RepeatWrapping;
-  const netMaterial = new THREE.MeshBasicMaterial({
-    map: netTexture,
-    transparent: true,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    opacity: 0.55
-  });
-
-  // Fundo da rede.
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.width, GOAL.height), netMaterial);
-  back.position.set(side * GOAL.depth, GOAL.height / 2, 0);
-  back.rotation.y = Math.PI / 2;
-  back.material = netMaterial.clone();
-  back.material.map = netTexture.clone();
-  back.material.map.repeat.set(GOAL.width / 2, GOAL.height / 2);
-  back.material.map.needsUpdate = true;
-  group.add(back);
-
-  // Laterais.
-  for (const z of [-halfWidth, halfWidth]) {
-    const sidePanel = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.depth, GOAL.height), netMaterial);
-    const material = netMaterial.clone();
-    material.map = netTexture.clone();
-    material.map.repeat.set(GOAL.depth / 2, GOAL.height / 2);
-    material.map.needsUpdate = true;
-    sidePanel.material = material;
-    sidePanel.position.set(side * GOAL.depth / 2, GOAL.height / 2, z);
-    sidePanel.rotation.y = side > 0 ? 0 : Math.PI;
-    group.add(sidePanel);
-  }
-
-  // Teto da rede.
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(GOAL.depth, GOAL.width), netMaterial);
-  const topMaterial = netMaterial.clone();
-  topMaterial.map = netTexture.clone();
-  topMaterial.map.repeat.set(GOAL.depth / 2, GOAL.width / 2);
-  topMaterial.map.needsUpdate = true;
-  top.material = topMaterial;
-  top.rotation.x = -Math.PI / 2;
-  top.position.set(side * GOAL.depth / 2, GOAL.height, 0);
-  group.add(top);
+  const net=createGoalNet(side,{lowPower});
+  group.add(net.group);
+  group.userData.net=net;
 
   group.position.x = side * PITCH.halfLength;
   return group;
 }
 
-function buildFloodlight(x, z) {
+function buildFloodlight(x, z, lampsOn = true) {
   const group = new THREE.Group();
   const mastMaterial = new THREE.MeshLambertMaterial({ color: 0x27333f });
-  const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xfdf6d8 });
+  const lampMaterial = new THREE.MeshBasicMaterial({ color: lampsOn ? 0xfff1d2 : 0x9aa8b2 });
 
   const mast = new THREE.Mesh(new THREE.BoxGeometry(0.9, 32, 0.9), mastMaterial);
   mast.position.y = 16;
@@ -609,14 +908,20 @@ function buildFloodlight(x, z) {
  */
 export function buildStadium(scene, options = {}) {
   const group = new THREE.Group();
+  const lowPower = Boolean(options.lowPower);
   scene.add(group);
 
-  // Modelo do estádio: cobertura, fachada, altura e LED mudam por praça.
+  // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
   const model = STADIUMS[options.stadium]?.model || {};
   const standHeight = model.height || 17;
+  const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
+  const lighting = lightingProfileFor(timeOfDay);
+  scene.fog?.color.setHex(lighting.fog);
+  if (scene.background?.isColor) scene.background.setHex(lighting.fog);
 
   // Céu.
-  const skyTexture = canvasTexture(1024, 512, drawSky);
+  const skyTexture = canvasTexture(1024, 512,
+    (context, width, height) => drawSky(context, width, height, lighting.name));
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(320, 24, 16),
     new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false })
@@ -625,34 +930,60 @@ export function buildStadium(scene, options = {}) {
   sky.name = 'xfc-sky';
   group.add(sky);
 
-  // Gramado.
+  // Gramado. Em WebViews econômicos, a textura e as lâminas usam menos
+  // detalhe: o campo continua marcado, sem gastar CPU/GPU em pixels invisíveis.
   const pitchCanvas = document.createElement('canvas');
-  pitchCanvas.width = 2048;
-  pitchCanvas.height = 1328;
+  const pitchWidth = lowPower ? 1536 : 2048;
+  const pitchHeight = lowPower ? 996 : 1328;
+  pitchCanvas.width = pitchWidth;
+  pitchCanvas.height = pitchHeight;
   const pitchContext = pitchCanvas.getContext('2d');
-  drawPitch(pitchContext, 2048, 1328);
+  drawPitch(pitchContext, pitchWidth, pitchHeight, lowPower);
   const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
   pitchTexture.colorSpace = THREE.SRGBColorSpace;
-  pitchTexture.anisotropy = 2;
+  pitchTexture.anisotropy = lowPower ? 1 : 2;
+  const pitchMaterial = lowPower
+    ? new THREE.MeshLambertMaterial({ map: pitchTexture })
+    : new THREE.MeshPhongMaterial({
+      map: pitchTexture,
+      specular: 0x142a18,
+      shininess: 5
+    });
+  // Detalhe real licenciado (CREDITS), uma amostra extra no MESMO draw.
+  // Mipmaps/aniso filtram as folhas ao longe; sem displacement, bloom ou passe extra.
+  const turfDetail=new THREE.TextureLoader().load('assets/textures/turf-detail.jpg');
+  turfDetail.wrapS=turfDetail.wrapT=THREE.RepeatWrapping;
+  turfDetail.anisotropy=lowPower?2:4;
+  pitchMaterial.onBeforeCompile=shader=>{
+    shader.uniforms.turfDetail={value:turfDetail};
+    shader.fragmentShader='uniform sampler2D turfDetail;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`
+      #include <map_fragment>
+      float turf=dot(texture2D(turfDetail,vMapUv*vec2(26.25,17.0)).rgb,vec3(.299,.587,.114));
+      float paint=smoothstep(.46,.8,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b)));
+      diffuseColor.rgb*=mix(clamp(.72+turf*.65,.78,1.2),1.0,paint);
+    `);
+  };
+  pitchMaterial.customProgramCacheKey=()=> 'xfc-turf-detail-v1';
   const pitch = new THREE.Mesh(
     new THREE.PlaneGeometry(PITCH.length, PITCH.width),
-    new THREE.MeshLambertMaterial({ map: pitchTexture })
+    pitchMaterial
   );
+  pitch.name='xfc-pitch';
+  pitch.userData.turfDetail=turfDetail;
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
+  // No perfil Android, a relva procedural já está na textura do campo. As
+  // lâminas subpixel piscavam como pontos escuros na câmera de transmissão.
+  if (!lowPower) addGrassBlades(group, 7600);
 
-  // Gramado real: quando a foto do usuário carrega, o gramado é
-  // redesenhado com ela (as linhas e as faixas de corte permanecem).
-  preloadGrass().then(image => {
-    if (!image) return;
-    drawPitch(pitchContext, 2048, 1328, image);
-    pitchTexture.needsUpdate = true;
-  });
-
+  // Piso contínuo sob TODAS as arquibancadas e cantos, sem ver o vazio.
+  const foundation=new THREE.Mesh(new THREE.BoxGeometry(240,.7,190),new THREE.MeshLambertMaterial({color:0x384b3b}));
+  foundation.name='xfc-stadium-foundation';foundation.position.y=-.42;group.add(foundation);
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
-    new THREE.PlaneGeometry(PITCH.length + 8, PITCH.width + 8),
+    new THREE.PlaneGeometry(PITCH.length + 22, PITCH.width + 22),
     new THREE.MeshLambertMaterial({ color: 0x1f5c28 })
   );
   surround.rotation.x = -Math.PI / 2;
@@ -660,10 +991,16 @@ export function buildStadium(scene, options = {}) {
   group.add(surround);
 
   // Arquibancadas.
-  const crowdTexture = canvasTexture(512, 512, drawCrowd);
+  const crowdTexture = canvasTexture(1024, 512, drawCrowd);
   crowdTexture.wrapS = THREE.RepeatWrapping;
   crowdTexture.wrapT = THREE.RepeatWrapping;
-  crowdTexture.repeat.set(4, 1.4);
+  crowdTexture.repeat.set(3.2, 1.15);
+  const facadeBase = `#${new THREE.Color(model.facade ?? 0x2c3a48).getHexString()}`;
+  const facadeMaterial = new THREE.MeshLambertMaterial({
+    map: canvasTexture(512, 256, (context, width, height) =>
+      drawFacade(context, width, height, model.facadeTex || 'panels', facadeBase)),
+    emissive: 0x080d13
+  });
 
   const standOptions = [
     { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
@@ -672,12 +1009,26 @@ export function buildStadium(scene, options = {}) {
     { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
   ];
   for (const option of standOptions) {
-    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, { ...option, model }));
+    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
+      ...option,
+      model,
+      simple: lowPower,
+      facadeMaterial
+    }));
+  }
+
+  // Estruturas fora do gramado: vestiário ao fundo e bancos técnicos cobertos
+  // ao longo das duas laterais, sem alterar colisões nem regras da partida.
+  group.add(buildLockerRoom());
+  for (const side of [-1, 1]) {
+    for (const x of [-18, 18]) {
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 7.2), side));
+    }
   }
 
   // Cobertura de anel (Maracanã): coroa inclinada sobre as
   // arquibancadas, sem cobrir o gramado.
-  if (model.roof === 'ring') {
+  if (!lowPower && model.roof === 'ring') {
     const ring = new THREE.Mesh(
       new THREE.CylinderGeometry(78, 66, 7, 40, 1, true),
       new THREE.MeshLambertMaterial({ color: 0xe2e0d8, side: THREE.DoubleSide })
@@ -690,7 +1041,7 @@ export function buildStadium(scene, options = {}) {
 
   // Anel de mastros brancos inclinados (Mineirão): postes em volta da
   // arquibancada sustentando um cabo de anel no topo.
-  if (model.poles) {
+  if (!lowPower && model.poles) {
     const poleMaterial = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
     const radius = 64;
     const poleTop = standHeight + 9;
@@ -715,10 +1066,8 @@ export function buildStadium(scene, options = {}) {
   }
 
   // Placas de publicidade.
-  const adTexture = canvasTexture(1024, 96, drawAds);
-  adTexture.wrapS = THREE.RepeatWrapping;
-  adTexture.repeat.set(6, 1);
-  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x35543f });
+  const adTexture = canvasTexture(1024, 128, drawAds);
+  const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x07140d });
   const adHeight = 1.1;
   const ads = [
     { size: [PITCH.length, adHeight], position: [0, adHeight / 2, -(PITCH.halfWidth + 1.9)] },
@@ -736,7 +1085,7 @@ export function buildStadium(scene, options = {}) {
 
   // Faixa azul da XFC aplicada na face do muro das arquibancadas.
   const bannerTexture = canvasTexture(2048, 200, drawBanner);
-  const bannerMaterial = new THREE.MeshLambertMaterial({ map: bannerTexture, emissive: 0x0e2a42 });
+  const bannerMaterial = new THREE.MeshLambertMaterial({ map: bannerTexture, emissive: 0x071722 });
   // Letreiro de LED correndo no topo do muro.
   const ledTexture = canvasTexture(2048, 64, drawLed);
   ledTexture.wrapS = THREE.RepeatWrapping;
@@ -767,51 +1116,93 @@ export function buildStadium(scene, options = {}) {
   }
 
   // Gols.
-  const goals = { home: buildGoal(-1), away: buildGoal(1) };
+  const goals = { home: buildGoal(-1,lowPower), away: buildGoal(1,lowPower) };
   group.add(goals.home, goals.away);
 
-  // Bandeirinhas de escanteio.
+  // Elementos completos da arena também permanecem no perfil econômico; suas
+  // geometrias são simples e não alteram as regras nem o campo de jogo.
   for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
     for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
       group.add(buildCornerFlag(x, z));
     }
   }
-
-  // Refletores.
+  const floodlightPositions = [];
   for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
     for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
-      group.add(buildFloodlight(x, z));
+      group.add(buildFloodlight(x, z, lighting.lampsOn));
+      floodlightPositions.push([x, z]);
     }
   }
 
-  // Luzes.
-  const hemisphere = new THREE.HemisphereLight(0xaed4ff, 0x367a3c, 1.05);
-  scene.add(hemisphere);
-  const key = new THREE.DirectionalLight(0xfff6e4, 1.5);
-  key.position.set(-45, 70, 40);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
+  // Iluminação de transmissão com variação natural por horário: luz quente de
+  // chave, preenchimento frio moderado e sombras dinâmicas somente no PC.
+  const hemisphere = new THREE.HemisphereLight(
+    lighting.hemisphereSky,
+    lighting.hemisphereGround,
+    lighting.hemisphereIntensity
+  );
+  group.add(hemisphere);
+  const key = new THREE.DirectionalLight(lighting.keyColor, lighting.keyIntensity);
+  key.position.set(-42, 72, 34);
+  key.castShadow = !lowPower;
+  key.shadow.mapSize.set(lowPower ? 512 : 1024, lowPower ? 512 : 1024);
   key.shadow.camera.left = -75;
   key.shadow.camera.right = 75;
   key.shadow.camera.top = 60;
   key.shadow.camera.bottom = -60;
   key.shadow.camera.near = 10;
   key.shadow.camera.far = 220;
-  key.shadow.bias = -0.00045;
-  key.shadow.normalBias = 0.6;
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5);
-  fill.position.set(50, 40, -45);
-  scene.add(fill);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.22);
-  scene.add(ambient);
+  // Viés moderado: um deslocamento grande destaca a sombra do gramado e
+  // cria manchas escuras soltas perto dos atletas.
+  key.shadow.bias = -0.00018;
+  key.shadow.normalBias = 0.04;
+  group.add(key);
+  const fill = new THREE.DirectionalLight(lighting.fillColor, lighting.fillIntensity);
+  fill.position.set(48, 46, -42);
+  group.add(fill);
+  const crossFill = new THREE.DirectionalLight(0xeaf4ff, lighting.crossIntensity);
+  crossFill.position.set(-8, 58, -54);
+  group.add(crossFill);
+  // Rim light: uma luz fraca vinda de trás recorta a silhueta dos atletas
+  // contra a arquibancada. Sem sombra e com intensidade baixa, custa quase
+  // nada e resolve a leitura do jogador no meio do gramado.
+  const rim = new THREE.DirectionalLight(lighting.rimColor || 0xc7e2ff, lighting.rimIntensity ?? 0.34);
+  rim.position.set(34, 26, -56);
+  rim.castShadow = false;
+  rim.name = 'xfc-rim-light';
+  group.add(rim);
+  const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
+  group.add(ambient);
+
+  // Refletores físicos sem shadow map: dois no Android para conter custo de
+  // iluminação por pixel, quatro em telas grandes para cobrir o campo inteiro.
+  const activeFloodlights = lowPower
+    ? floodlightPositions.filter((_, index) => index === 0 || index === 3)
+    : floodlightPositions;
+  for (const [x, z] of activeFloodlights) {
+    const floodlight = new THREE.SpotLight(
+      lighting.keyColor,
+      lighting.floodlightIntensity,
+      150,
+      Math.PI / 4.4,
+      0.62,
+      1.6
+    );
+    floodlight.position.set(x, 31.5, z);
+    floodlight.target.position.set(0, 0, 0);
+    floodlight.castShadow = false;
+    group.add(floodlight, floodlight.target);
+  }
 
   return {
     group,
     goals,
+    hitNet(event){goals[event.side>0?'away':'home'].userData.net.impact(event);},
+    update(dt){goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
-      group.parent?.remove(group);
+      turfDetail.dispose();
+      disposeObject(group);
     }
   };
 }

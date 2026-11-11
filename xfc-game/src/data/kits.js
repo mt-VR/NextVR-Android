@@ -1,9 +1,7 @@
-// Blusas (kits) dos times do XFC.
-//
-// Cada clube tem três uniformes — principal, reserva e terceiro — desenhados em
-// SVG a partir das cores do escudo. Por serem vetores, a blusa fica nítida em
-// qualquer tela (inclusive no celular deitado) e o jogo não carrega nenhum
-// arquivo de imagem a mais.
+// Uniformes do XFC: kits anteriores preservados e fotos identificadas do HTML.
+// Fotos são usadas nos menus; cores/padrões alimentam a reconstrução em campo.
+
+import { SHIRT_COLLECTION } from './shirt-collection.js';
 
 export const KITS = {
   'fc-barcelona': [
@@ -159,6 +157,11 @@ export const KITS = {
     { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#141414', trim: '#0a5c9c' } },
     { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: '#0a5c9c', secondary: '#f4f4f2', trim: '#141414' } }
   ],
+  santos: [
+    { id: 'home', name: 'Home', pattern: 'solid', colors: { primary: '#f4f4f2', secondary: '#17191c', trim: '#17191c' } },
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: '#17191c', secondary: '#f4f4f2', trim: '#f4f4f2' } },
+    { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: '#f4f4f2', secondary: '#17191c', trim: '#b8bcc2' } }
+  ],
 
 };
 
@@ -200,6 +203,8 @@ function shirtMarkup(kit, clipId) {
   const { primary, secondary, trim } = kit.colors;
   const stripes = [];
 
+  if(kit.pattern==='halves')stripes.push(`<rect x="110" y="0" width="110" height="240" fill="${secondary}"/>`);
+  if(kit.pattern==='hoops')for(let y=40;y<240;y+=40)stripes.push(`<rect x="0" y="${y}" width="220" height="20" fill="${secondary}"/>`);
   if (kit.pattern === 'stripes') {
     // Seis faixas verticais do ombro à barra, alternando as duas cores.
     const bodyLeft = 54;
@@ -247,6 +252,31 @@ function shirtMarkup(kit, clipId) {
  * Blusa em SVG. `pattern: 'stripes'` alterna listras verticais com as duas
  * cores; `solid` usa a cor principal com detalhes na secundária.
  */
+const CLUB_KIT_DETAILS = {
+  'real-madrid': {shorts:'#f7f7f7',socks:'#f7f7f7',print:'#19253c',sponsor:'Emirates FLY BETTER',brand:'adidas'},
+  'fc-barcelona': {shorts:'#004d98',socks:'#004d98',print:'#edbb00',sponsor:'Spotify',brand:'NIKE'},
+  flamengo: {shorts:'#f5f5f5',socks:'#bd1221',print:'#ffffff',sponsor:'',brand:'adidas',pattern:'hoops'},
+  santos: {shorts:'#ffffff',socks:'#ffffff',print:'#111111',sponsor:'',brand:'umbro'},
+  palmeiras: {shorts:'#ffffff',socks:'#00843d',print:'#ffffff',sponsor:'',brand:'PUMA'},
+  corinthians: {shorts:'#141414',socks:'#f4f4f2',print:'#141414',sponsor:'',brand:'NIKE'},
+  'river-plate': {shorts:'#111111',socks:'#ffffff',print:'#111111',sponsor:'',brand:'adidas',pattern:'sash'}
+};
+for(const [club,details] of Object.entries(CLUB_KIT_DETAILS)){
+  if(!KITS[club])continue;
+  KITS[club].forEach((kit,index)=>Object.assign(kit,index===0?details:{sponsor:details.sponsor,brand:details.brand,shorts:kit.colors.primary,socks:kit.colors.primary,print:kit.colors.trim}));
+}
+// Principais tradicionais: as cores secundárias desenham o padrão, não o short.
+KITS.corinthians[0].colors.primary='#f4f4f2';
+KITS.corinthians[0].colors.secondary='#141414';
+if(KITS['river-plate']){KITS['river-plate'][0].colors.primary='#ffffff';KITS['river-plate'][0].colors.secondary='#d71920';}
+
+// Preserva os índices antigos dos saves e acrescenta cada foto ao clube certo.
+for (const shirt of SHIRT_COLLECTION) {
+  const list = KITS[shirt.teamId] ||= [];
+  list.push({ ...shirt, id: `collection-${shirt.number}`, shorts: shirt.colors.primary,
+    socks: shirt.colors.primary, print: shirt.colors.trim });
+}
+
 export function kitSvg(kit, { className = '', width = 220, id = '' } = {}) {
   if (!kit) return '';
   const clipId = id || nextId('kit');

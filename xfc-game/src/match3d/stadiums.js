@@ -18,7 +18,7 @@ export const STADIUMS = [
     capacity: '78.838',
     tag: 'A MAIOR CATEDRAL DO FUTEBOL',
     file: 'assets/stadiums/maracana.jpg',
-    model: { roof: 'ring', facade: 0x8d7d5c, facadeTex: null, led: '#ffe6a8', height: 19.5, arch: null, poles: false, weave: false }
+    model: { roof: 'ring', facade: 0x8d7d5c, facadeTex: null, led: '#ffe6a8', height: 19.5, arch: null, poles: false, weave: false, timeOfDay: 'night' }
   },
   {
     id: 'morumbis',
@@ -28,7 +28,7 @@ export const STADIUMS = [
     capacity: '66.795',
     tag: 'O TRICAMPEÃO PAULISTA',
     file: 'assets/stadiums/morumbis.jpg',
-    model: { roof: 'open', facade: 0x6f6a5d, facadeTex: 'ribs', led: '#ff5140', height: 22, arch: null, poles: false, weave: false }
+    model: { roof: 'open', facade: 0x6f6a5d, facadeTex: 'ribs', led: '#ff5140', height: 22, arch: null, poles: false, weave: false, timeOfDay: 'dusk' }
   },
   {
     id: 'niltonsantos',
@@ -38,7 +38,7 @@ export const STADIUMS = [
     capacity: '44.661',
     tag: 'O GIGANTE DE AÇO DO ENGENHÃO',
     file: 'assets/stadiums/nilton-santos.jpg',
-    model: { roof: 'arch', facade: 0x9aa6ad, facadeTex: null, led: '#46d6ff', height: 17.5, arch: 0xf4f4f2, poles: false, weave: false }
+    model: { roof: 'arch', facade: 0x9aa6ad, facadeTex: null, led: '#46d6ff', height: 17.5, arch: 0xf4f4f2, poles: false, weave: false, timeOfDay: 'day' }
   },
   {
     id: 'manegarrincha',
@@ -48,7 +48,7 @@ export const STADIUMS = [
     capacity: '68.009',
     tag: 'O GIGANTE DA CAPITAL FEDERAL',
     file: 'assets/stadiums/mane-garrincha.jpg',
-    model: { roof: 'plate', facade: 0xcfc8b4, facadeTex: null, led: '#ffb13d', height: 15, arch: null, poles: false, weave: false }
+    model: { roof: 'plate', facade: 0xcfc8b4, facadeTex: null, led: '#ffb13d', height: 15, arch: null, poles: false, weave: false, timeOfDay: 'day' }
   },
   {
     id: 'arenaamazonia',
@@ -58,7 +58,7 @@ export const STADIUMS = [
     capacity: '42.374',
     tag: 'A TEIA VERMELHA DA SELVA',
     file: 'assets/stadiums/arena-amazonia.jpg',
-    model: { roof: 'open', facade: 0xb8472c, facadeTex: 'weave', led: '#ff6a3a', height: 18, arch: null, poles: false, weave: true }
+    model: { roof: 'open', facade: 0xb8472c, facadeTex: 'weave', led: '#ff6a3a', height: 18, arch: null, poles: false, weave: true, timeOfDay: 'dusk' }
   },
   {
     id: 'mineirao',
@@ -68,9 +68,20 @@ export const STADIUMS = [
     capacity: '61.846',
     tag: 'O COLISEU MINEIRO',
     file: 'assets/stadiums/mineirao.jpg',
-    model: { roof: 'masts', facade: 0x2b4a75, facadeTex: null, led: '#ffd84a', height: 21, arch: null, poles: true, weave: false }
+    model: { roof: 'masts', facade: 0x2b4a75, facadeTex: null, led: '#ffd84a', height: 21, arch: null, poles: true, weave: false, timeOfDay: 'night' }
   }
 ];
+
+// As praças brasileiras mantêm os índices de saves antigos. A galeria nova
+// mostra também os cinco estádios da referência do usuário.
+STADIUMS.push(
+  {id:'bernabeu',name:'Santiago Bernabéu',shortName:'Bernabéu',city:'Madrid · Espanha',capacity:'78.297',tag:'A CASA DO REAL MADRID',file:'assets/stadiums/bernabeu-menu.jpg',model:{roof:'plate',facade:0xc1c6cd,facadeTex:'ribs',led:'#edf2ff',height:25,timeOfDay:'night'}},
+  {id:'camp-nou',name:'Camp Nou',shortName:'Camp Nou',city:'Barcelona · Espanha',capacity:'99.354',tag:'A CASA DO BARCELONA',file:'assets/stadiums/camp-nou-menu.jpg',model:{roof:'open',facade:0x58648a,led:'#a61943',height:24,timeOfDay:'dusk'}},
+  {id:'allianz',name:'Allianz Arena',shortName:'Allianz',city:'Munique · Alemanha',capacity:'75.024',tag:'A ARENA DE MUNIQUE',file:'assets/stadiums/allianz-menu.jpg',model:{roof:'ring',facade:0xd62b39,facadeTex:'weave',led:'#ff2533',height:21,weave:true,timeOfDay:'night'}},
+  {id:'wembley',name:'Wembley Stadium',shortName:'Wembley',city:'Londres · Inglaterra',capacity:'90.000',tag:'O PALCO DE LONDRES',file:'assets/stadiums/wembley-menu.jpg',model:{roof:'arch',facade:0xb9bec9,led:'#eeeeff',height:22,arch:0xffffff,timeOfDay:'day'}},
+  {id:'monumental',name:'Monumental',shortName:'Monumental',city:'Buenos Aires · Argentina',capacity:'84.567',tag:'A CASA DO RIVER PLATE',file:'assets/stadiums/monumental-menu.jpg',model:{roof:'open',facade:0xa8a4a0,led:'#ee3333',height:23,timeOfDay:'day'}}
+);
+export const FEATURED_STADIUMS=[0,6,7,8,9,10];
 
 export const STADIUM_COUNT = STADIUMS.length;
 

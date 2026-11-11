@@ -91,11 +91,11 @@ export function kitsScreen(ctx, params = {}) {
     const kit = list[indexFor(side)];
     // Com a foto do jogador no pacote de imagens, o preview é o próprio jogador
     // de corpo inteiro vestindo a blusa; sem foto, o boneco desenhado em SVG.
-    const render = kitRender(kit);
+    const render = kitRender(kit) || kitShirt(kit);
     return el('div', { class: `kits__preview kits__preview--${side}` },
       el('div', { class: 'kits__preview-figure' },
         render
-          ? el('img', { class: 'kits__preview-render', src: render, alt: `Jogador do ${team?.name} com a blusa ${kit?.name}` })
+          ? el('img', { class: 'kits__preview-render', src: render, alt: `Uniforme ${kit?.name} do ${team?.name}` })
           : el('span', { class: 'kits__preview-svg', html: kitFigureSvg(kit, { width: 260 }) })
       ),
       el('div', { class: 'kits__preview-team' },

@@ -1,8 +1,10 @@
-// Elenco e dados dos dois clubes que existem no XFC por enquanto.
+// Clubes do XFC; elencos novos da coleção são sinalizados como fictícios.
 //
 // Os retratos são gerados para o projeto (sem material de terceiros) e ficam em
 // `assets/players/`. As médias seguem o formato do menu de FC: overall, forma
 // recente e os seis atributos principais usados na tela de elenco.
+
+import { COLLECTION_CLUBS } from './shirt-collection.js';
 
 export const POSITION_LABELS = {
   GK: 'Goleiro',
@@ -307,7 +309,7 @@ export const TEAMS = [
     flag: 'br',
     league: 'Série A',
     stadium: 'Maracanã',
-    crest: 'assets/crests/flamengo.svg',
+    crest: 'assets/crests/flamengo.png',
     colors: { primary: '#c8102e', secondary: '#141414', accent: '#ffd84a' },
     ratings: { att: 88, mid: 85, def: 83, ovr: 85 },
     stars: 4.5,
@@ -345,7 +347,7 @@ export const TEAMS = [
     flag: 'br',
     league: 'Série A',
     stadium: 'MorumBis',
-    crest: 'assets/crests/palmeiras.svg',
+    crest: 'assets/crests/palmeiras.png',
     colors: { primary: '#00843d', secondary: '#f4f4f4', accent: '#f5d000' },
     ratings: { att: 85, mid: 86, def: 86, ovr: 86 },
     stars: 4.5,
@@ -383,7 +385,7 @@ export const TEAMS = [
     flag: 'br',
     league: 'Série A',
     stadium: 'Neo Química Arena',
-    crest: 'assets/crests/corinthians.svg',
+    crest: 'assets/crests/corinthians.png',
     colors: { primary: '#141414', secondary: '#f4f4f4', accent: '#0a5c9c' },
     ratings: { att: 83, mid: 82, def: 82, ovr: 82 },
     stars: 4.5,
@@ -409,6 +411,44 @@ export const TEAMS = [
       { id: 'cor-wendel', name: 'Wendel', fullName: 'Wendel Rafael da Silva', number: 13, pos: 'LB', ovr: 75, potential: 79, form: 'D', age: 25, height: 178, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 82, shooting: 52, passing: 72, dribbling: 74, defending: 68, physical: 72 } },
       { id: 'cor-antonio', name: 'Antônio', fullName: 'Antônio Édson da Silva', number: 17, pos: 'CM', ovr: 77, potential: 80, form: 'W', age: 24, height: 180, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 70, passing: 80, dribbling: 78, defending: 70, physical: 74 } },
       { id: 'cor-caio', name: 'Caio', fullName: 'Caio Alexandre Alves Pereira', number: 19, pos: 'ST', ovr: 76, potential: 80, form: 'D', age: 22, height: 183, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 74, passing: 64, dribbling: 68, defending: 34, physical: 82 } }
+    ]
+  },
+  {
+    id: 'santos',
+    name: 'Santos',
+    shortName: 'Santos',
+    nickname: 'Peixe',
+    city: 'Santos',
+    country: 'Brasil',
+    flag: 'br',
+    league: 'Série A',
+    stadium: 'Vila Belmiro',
+    crest: 'assets/crests/santos.png',
+    colors: { primary: '#f4f4f2', secondary: '#17191c', accent: '#17191c' },
+    ratings: { att: 84, mid: 81, def: 78, ovr: 81 },
+    stars: 4,
+    formation: '4-3-3',
+    players: [
+      { id: 'san-joao-paulo', name: 'João Paulo', fullName: 'João Paulo da Silva Martins', number: 34, pos: 'GK', ovr: 80, potential: 83, form: 'W', age: 30, height: 188, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 52, shooting: 22, passing: 72, dribbling: 56, defending: 30, physical: 80 } },
+      { id: 'san-aderlan', name: 'Aderlan', fullName: 'Aderlan de Lima Silva', number: 13, pos: 'RB', ovr: 76, potential: 78, form: 'W', age: 34, height: 177, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 76, shooting: 56, passing: 72, dribbling: 73, defending: 73, physical: 74 } },
+      { id: 'san-gil', name: 'Gil', fullName: 'Carlos Gilberto Nascimento Silva', number: 4, pos: 'CB', ovr: 79, potential: 79, form: 'W', age: 39, height: 192, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 58, shooting: 42, passing: 68, dribbling: 62, defending: 82, physical: 84 } },
+      { id: 'san-joaquim', name: 'Joaquim', fullName: 'Joaquim Henrique Nascimento', number: 28, pos: 'CB', ovr: 78, potential: 82, form: 'W', age: 27, height: 190, foot: 'Right', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 72, shooting: 46, passing: 72, dribbling: 66, defending: 80, physical: 82 } },
+      { id: 'san-escobar', name: 'Escobar', fullName: 'Gonzalo Escobar', number: 31, pos: 'LB', ovr: 76, potential: 78, form: 'W', age: 28, height: 171, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 79, shooting: 54, passing: 72, dribbling: 76, defending: 72, physical: 72 } },
+      { id: 'san-rincon', name: 'Tomás Rincón', fullName: 'Tomás Eduardo Rincón Hernández', number: 8, pos: 'CDM', ovr: 76, potential: 76, form: 'W', age: 38, height: 177, foot: 'Right', role: 'Anchor', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 65, shooting: 60, passing: 74, dribbling: 70, defending: 78, physical: 82 } },
+      { id: 'san-pituca', name: 'Diego Pituca', fullName: 'Diego de Oliveira Barbosa', number: 21, pos: 'CM', ovr: 79, potential: 80, form: 'W', age: 33, height: 175, foot: 'Left', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 72, shooting: 70, passing: 80, dribbling: 78, defending: 76, physical: 76 } },
+      { id: 'san-schmidt', name: 'João Schmidt', fullName: 'João Schmidt Urbano', number: 5, pos: 'CM', ovr: 77, potential: 79, form: 'W', age: 32, height: 183, foot: 'Right', role: 'Deep-lying Playmaker', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 69, shooting: 64, passing: 80, dribbling: 74, defending: 76, physical: 76 } },
+      { id: 'san-guilherme', name: 'Guilherme', fullName: 'Guilherme Augusto Vieira dos Santos', number: 11, pos: 'RW', ovr: 79, potential: 82, form: 'W', age: 30, height: 178, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 83, shooting: 78, passing: 76, dribbling: 82, defending: 40, physical: 72 } },
+      { id: 'san-neymar', name: 'Neymar Jr.', fullName: 'Neymar da Silva Santos Júnior', number: 10, pos: 'LW', ovr: 88, potential: 88, form: 'W', age: 34, height: 175, foot: 'Right', role: 'Inside Forward', focus: 'Attack', celebration: 'None', photo: null, appearance: { skinTone: '#bd8868', hairColor: '#241b15', hairStyle: 'neymar', heightScale: 1.01 }, stats: { pace: 84, shooting: 88, passing: 88, dribbling: 94, defending: 38, physical: 69 } },
+      { id: 'san-julio-furch', name: 'Julio Furch', fullName: 'Julio César Furch', number: 9, pos: 'ST', ovr: 78, potential: 78, form: 'W', age: 37, height: 188, foot: 'Right', role: 'Target Man', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 67, shooting: 82, passing: 72, dribbling: 72, defending: 38, physical: 84 } }
+    ],
+    substitutes: [
+      { id: 'san-kevin-mota', name: 'Kevin Mota', fullName: 'Kevin Mota', number: 50, pos: 'GK', ovr: 70, potential: 77, form: 'D', age: 20, height: 190, foot: 'Right', role: 'Shot Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 48, shooting: 20, passing: 62, dribbling: 48, defending: 28, physical: 74 } },
+      { id: 'san-joao-lucas', name: 'João Lucas', fullName: 'João Lucas de Almeida Carvalho', number: 13, pos: 'RB', ovr: 74, potential: 78, form: 'D', age: 28, height: 176, foot: 'Right', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 54, passing: 70, dribbling: 74, defending: 70, physical: 72 } },
+      { id: 'san-messias', name: 'Messias', fullName: 'Messias Rodrigues da Silva Júnior', number: 24, pos: 'CB', ovr: 75, potential: 76, form: 'D', age: 31, height: 186, foot: 'Right', role: 'Stopper', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 67, shooting: 42, passing: 66, dribbling: 60, defending: 78, physical: 80 } },
+      { id: 'san-joao-victor', name: 'João Victor', fullName: 'João Victor de Souza Menezes', number: 32, pos: 'CB', ovr: 73, potential: 80, form: 'D', age: 21, height: 187, foot: 'Right', role: 'Ball-Playing Defender', focus: 'Support', celebration: 'None', photo: null, stats: { pace: 74, shooting: 42, passing: 68, dribbling: 62, defending: 76, physical: 78 } },
+      { id: 'san-lateral', name: 'Hayner', fullName: 'Hayner William David', number: 3, pos: 'LB', ovr: 73, potential: 77, form: 'D', age: 30, height: 178, foot: 'Left', role: 'Fullback', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 78, shooting: 50, passing: 70, dribbling: 74, defending: 68, physical: 70 } },
+      { id: 'san-sandry', name: 'Sandry', fullName: 'Sandry Roberto Santos Goes', number: 6, pos: 'CM', ovr: 74, potential: 81, form: 'W', age: 24, height: 178, foot: 'Right', role: 'Box-to-Box', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 74, shooting: 64, passing: 76, dribbling: 74, defending: 72, physical: 72 } },
+      { id: 'san-otero', name: 'Rómulo Otero', fullName: 'Rómulo Otero Vásquez', number: 22, pos: 'RW', ovr: 75, potential: 76, form: 'W', age: 33, height: 165, foot: 'Left', role: 'Winger', focus: 'Attack', celebration: 'None', photo: null, stats: { pace: 75, shooting: 74, passing: 78, dribbling: 78, defending: 38, physical: 64 } }
     ]
   },
 
@@ -637,6 +677,16 @@ for (const club of EXTRA_CLUBS) {
     players: squad.players,
     substitutes: squad.substitutes
   });
+}
+
+// Não duplica clubes que já existiam; os novos elencos são explicitamente fictícios.
+for (const club of COLLECTION_CLUBS) {
+  if (TEAMS.some(team => team.id === club.id)) continue;
+  const squad = generatedSquad(club.id, FIRST_NAMES[club.flag] ? club.flag : 'en', 0, 75);
+  TEAMS.push({ ...club, shortName: club.name, nickname: club.name,
+    city: '', league: club.country, stadium: 'Elenco fictício', squadSource: 'generated',
+    crest: `assets/crests/${club.id}.png`, formation: '4-3-3', stars: 3.5,
+    ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, ...squad });
 }
 
 /** Times disponíveis no carousel da tela de escolha. */

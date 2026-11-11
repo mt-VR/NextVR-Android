@@ -8,7 +8,9 @@
 //   - aviso central de eventos (gol, cartão, intervalo).
 
 import { el } from '../ui/dom.js';
+import { flagSvg } from '../ui/flags.js';
 import { PITCH } from './constants.js';
+import { strikeFromImpact } from './set-pieces.js';
 
 const TEAM_ABBR = {
   'FC Barcelona': 'BAR',
@@ -23,9 +25,18 @@ function abbreviationOf(team) {
   return clean.slice(0, 3).toUpperCase() || '???';
 }
 
-export function createHud({ root, home, away }) {
-  const homeCrest = el('img', { class: 'hud__crest', src: home?.crest, alt: `Escudo do ${home?.name}` });
-  const awayCrest = el('img', { class: 'hud__crest', src: away?.crest, alt: `Escudo do ${away?.name}` });
+function teamMark(team) {
+  if (team?.crest?.startsWith('assets/')) {
+    return el('img', { class: 'hud__crest', src: team.crest, alt: `Escudo do ${team.name}` });
+  }
+  return el('span', { class: 'hud__crest hud__crest--flag', 'aria-label': `Bandeira de ${team?.name || 'seleção'}` },
+    flagSvg(team?.flagCode || 'br')
+  );
+}
+
+export function createHud({ root, home, away, userSide = 'home', onSetPieceChange = () => {} }) {
+  const homeCrest = teamMark(home);
+  const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
   const awayScore = el('b', { class: 'hud__score', text: '0' });
   const clock = el('span', { class: 'hud__clock', text: "0'00" });
@@ -40,6 +51,19 @@ export function createHud({ root, home, away }) {
     possTrack,
     possAwayPct
   );
+  const homeYellowCards = el('b', { text: '0' });
+  const homeRedCards = el('b', { text: '0' });
+  const awayYellowCards = el('b', { text: '0' });
+  const awayRedCards = el('b', { text: '0' });
+  const teamCards = (team, yellow, red, side) => el('span', { class: `hud__cards-team hud__cards-team--${side}` },
+    el('strong', { text: abbreviationOf(team) }),
+    el('i', { class: 'hud__card-chip hud__card-chip--yellow', 'aria-label': 'Amarelos' }), yellow,
+    el('i', { class: 'hud__card-chip hud__card-chip--red', 'aria-label': 'Vermelhos' }), red
+  );
+  const discipline = el('div', { class: 'hud__cards', 'aria-label': 'Cartões da partida' },
+    teamCards(home, homeYellowCards, homeRedCards, 'home'),
+    teamCards(away, awayYellowCards, awayRedCards, 'away')
+  );
 
   // Placar estilo transmissão: SIGLA gols – gols SIGLA, com o relógio embaixo.
   const scoreboard = el('div', { class: 'hud__scoreboard' },
@@ -47,17 +71,18 @@ export function createHud({ root, home, away }) {
       homeCrest,
       el('span', { class: 'hud__team', text: abbreviationOf(home) }),
       homeScore,
-      el('span', { class: 'hud__dash', text: '–' }),
+      el('span', { class: 'hud__dash', text: '×' }),
       awayScore,
       el('span', { class: 'hud__team', text: abbreviationOf(away) }),
-      awayCrest
+      awayCrest,
+      clock
     ),
     el('div', { class: 'hud__sc-foot' },
       el('span', { class: 'hud__live', text: 'AO VIVO' }),
-      clock,
       halfLabel
     ),
     possessionBar,
+    discipline,
     el('div', { class: 'hud__sc-bar' })
   );
 
@@ -108,6 +133,174 @@ export function createHud({ root, home, away }) {
   const feed = el('div', { class: 'hud__feed' });
   const banner = el('div', { class: 'hud__banner' });
 
+  const setPieceState = { aim: 0, power: 0.72, curve: 0, lift: 0.15, impactX: 0, impactY: 0, kind: 'placed' };
+  const setPieceTitle = el('b', { class: 'hud__setpiece-title', text: 'BOLA PARADA' });
+  const setPieceChanceLabel = el('span', { class: 'hud__setpiece-chance-label', text: 'CHANCE DE GOL' });
+  const setPieceChance = el('b', { class: 'hud__setpiece-chance', text: '—%' });
+  const setPiecePrecision = el('b', { class: 'hud__setpiece-precision', text: '—%' });
+  const setPiecePrecisionBar = el('i', { class: 'hud__setpiece-precision-fill' });
+  const setPieceDistance = el('span', { class: 'hud__setpiece-distance', text: '— m' });
+  const setPieceWall = el('span', { class: 'hud__setpiece-wall', text: '' });
+  const setPieceAimValue = el('b', { text: 'CENTRO' });
+  const setPiecePowerValue = el('b', { text: '72%' });
+  const setPieceCurveValue = el('b', { text: '0% —' });
+  const setPieceImpactCursor = el('i', { class: 'hud__setpiece-impact-cursor', 'aria-hidden': 'true' });
+  const setPieceImpactReadout = el('b', {
+    class: 'hud__setpiece-impact-readout',
+    id: 'hud-setpiece-impact-readout',
+    'aria-live': 'polite',
+    text: 'RETO · MEIA ALTURA'
+  });
+  let impactPointerId = null;
+  const setPieceImpactPad = el('div', {
+    class: 'hud__setpiece-impact-pad',
+    role: 'group',
+    tabindex: '0',
+    'aria-label': 'Ponto de contato na bola. Arraste o quadrado ou use as setas.',
+    'aria-describedby': 'hud-setpiece-impact-readout',
+    onPointerDown: event => {
+      if (event.button !== undefined && event.button !== 0) return;
+      impactPointerId = event.pointerId;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      changeImpactFromPointer(event);
+      event.preventDefault();
+    },
+    onPointerMove: event => {
+      if (impactPointerId === event.pointerId) changeImpactFromPointer(event);
+    },
+    onPointerUp: event => {
+      if (impactPointerId !== event.pointerId) return;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      impactPointerId = null;
+    },
+    onPointerCancel: () => { impactPointerId = null; },
+    onKeyDown: event => {
+      const step = event.shiftKey ? 0.25 : 0.1;
+      let x = setPieceState.impactX;
+      let y = setPieceState.impactY;
+      if (event.key === 'ArrowLeft') x -= step;
+      else if (event.key === 'ArrowRight') x += step;
+      else if (event.key === 'ArrowUp') y -= step;
+      else if (event.key === 'ArrowDown') y += step;
+      else return;
+      event.preventDefault();
+      event.stopPropagation();
+      setImpactPoint(x, y);
+    }
+  },
+    el('span', { class: 'hud__setpiece-impact-ball', 'aria-hidden': 'true' },
+      el('i', { class: 'hud__setpiece-impact-seam' })
+    ),
+    el('i', { class: 'hud__setpiece-impact-crosshair hud__setpiece-impact-crosshair--horizontal', 'aria-hidden': 'true' }),
+    el('i', { class: 'hud__setpiece-impact-crosshair hud__setpiece-impact-crosshair--vertical', 'aria-hidden': 'true' }),
+    setPieceImpactCursor
+  );
+  const setPieceAim = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--aim',
+    type: 'range', min: '-100', max: '100', step: '1', value: '0',
+    'aria-label': 'Direção da cobrança',
+    onInput: event => {
+      setPieceState.aim = Number(event.currentTarget.value) / 100;
+      setPieceAimValue.textContent = setPieceState.aim === 0
+        ? 'CENTRO' : setPieceState.aim < 0 ? 'ESQUERDA' : 'DIREITA';
+      onSetPieceChange({ ...setPieceState });
+    }
+  });
+  const setPiecePower = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--power',
+    type: 'range', min: '30', max: '100', step: '1', value: '72',
+    'aria-label': 'Força da cobrança',
+    onInput: event => {
+      setPieceState.power = Number(event.currentTarget.value) / 100;
+      setPiecePowerValue.textContent = `${event.currentTarget.value}%`;
+      onSetPieceChange({ ...setPieceState });
+    }
+  });
+  const setPieceCurve = el('input', {
+    class: 'hud__setpiece-range hud__setpiece-range--curve',
+    type: 'range', min: '-100', max: '100', step: '1', value: '0',
+    'aria-label': 'Curva da bola',
+    onInput: event => {
+      setImpactPoint(Number(event.currentTarget.value) / 100, setPieceState.impactY);
+    }
+  });
+  function impactDescription() {
+    const curve = setPieceState.impactX < -0.08 ? 'EFEITO À ESQUERDA'
+      : setPieceState.impactX > 0.08 ? 'EFEITO À DIREITA' : 'RETO';
+    const height = setPieceState.impactY < -0.36 ? 'RASTEIRO'
+      : setPieceState.impactY > 0.36 ? 'ALTO' : 'MEIA ALTURA';
+    return `${curve} · ${height}`;
+  }
+  function updateImpactPresentation() {
+    setPieceImpactCursor.style.left = `${50 + setPieceState.impactX * 35}%`;
+    setPieceImpactCursor.style.top = `${50 + setPieceState.impactY * 35}%`;
+    setPieceImpactReadout.textContent = impactDescription();
+    setPieceCurve.value = String(Math.round(setPieceState.curve * 100));
+    setPieceCurveValue.textContent = `${Math.round(Math.abs(setPieceState.curve) * 100)}% ${setPieceState.curve < 0 ? '←' : setPieceState.curve > 0 ? '→' : '—'}`;
+  }
+  function setImpactPoint(x, y, notify = true) {
+    const impact = strikeFromImpact({ x, y });
+    Object.assign(setPieceState, impact);
+    updateImpactPresentation();
+    if (notify) onSetPieceChange({ ...setPieceState });
+  }
+  function changeImpactFromPointer(event) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
+    const y = ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 2 - 1;
+    setImpactPoint(x, y);
+  }
+  const setPieceKinds = ['placed', 'power', 'curved'].map((kind, index) => el('button', {
+    class: `hud__setpiece-kind${kind === 'placed' ? ' is-selected' : ''}`,
+    type: 'button',
+    dataset: { kind },
+    'aria-pressed': kind === 'placed' ? 'true' : 'false',
+    onClick: () => {
+      setPieceState.kind = kind;
+      for (const button of setPieceKinds) {
+        const selected = button.dataset.kind === kind;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      }
+      onSetPieceChange({ ...setPieceState });
+    }
+  }, ['COLOCADA', 'FORTE', 'CURVADA'][index]));
+  const setPiecePanel = el('section', { class: 'hud__setpiece', 'aria-label': 'Ajustes de bola parada' },
+    el('div', { class: 'hud__setpiece-head' },
+      el('div', { class: 'hud__setpiece-heading' },
+        el('span', { text: 'XFC · SET PIECE' }),
+        setPieceTitle
+      ),
+      el('div', { class: 'hud__setpiece-chance-box' }, setPieceChanceLabel, setPieceChance)
+    ),
+    el('div', { class: 'hud__setpiece-meta' }, setPieceDistance, setPieceWall),
+    el('div', { class: 'hud__setpiece-precision-row' },
+      el('span', { text: 'PRECISÃO' }),
+      el('span', { class: 'hud__setpiece-precision-meter' }, setPiecePrecisionBar),
+      setPiecePrecision
+    ),
+    el('div', { class: 'hud__setpiece-kinds', role: 'group', 'aria-label': 'Técnica de cobrança' }, setPieceKinds),
+    el('div', { class: 'hud__setpiece-impact-row' },
+      el('div', { class: 'hud__setpiece-impact-stage' },
+        setPieceImpactPad,
+        el('small', { class: 'hud__setpiece-impact-height hud__setpiece-impact-height--top', text: 'BAIXA' }),
+        el('small', { class: 'hud__setpiece-impact-height hud__setpiece-impact-height--bottom', text: 'ALTA' })
+      ),
+      el('div', { class: 'hud__setpiece-impact-copy' },
+        el('span', { text: 'PONTO DE CONTATO' }),
+        setPieceImpactReadout,
+        el('small', { text: 'Lados dão efeito; toque embaixo da bola para levantar a trajetória.' })
+      )
+    ),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'MIRA' }), setPieceAim, setPieceAimValue),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'FORÇA' }), setPiecePower, setPiecePowerValue),
+    el('label', { class: 'hud__setpiece-control' },
+      el('span', { text: 'CURVA' }), setPieceCurve, setPieceCurveValue),
+    el('small', { class: 'hud__setpiece-hint', text: 'Lados dão curva; embaixo levanta a trajetória. A linha no campo é a prévia.' })
+  );
+
   const node = el('div', { class: 'hud' },
     scoreboard,
     playerChip,
@@ -116,7 +309,8 @@ export function createHud({ root, home, away }) {
     nameTagsLayer,
     feed,
     radar,
-    banner
+    banner,
+    setPiecePanel
   );
   root.appendChild(node);
 
@@ -253,9 +447,55 @@ export function createHud({ root, home, away }) {
       possFill.style.width = `${Math.max(0, Math.min(100, poss[0]))}%`;
       possHomePct.textContent = `${poss[0]}%`;
       possAwayPct.textContent = `${poss[1]}%`;
+      const cards = snapshot.discipline || {};
+      homeYellowCards.textContent = String(cards.home?.yellow ?? 0);
+      homeRedCards.textContent = String(cards.home?.red ?? 0);
+      awayYellowCards.textContent = String(cards.away?.yellow ?? 0);
+      awayRedCards.textContent = String(cards.away?.red ?? 0);
+
+      const restart = snapshot.restart;
+      const analysis = restart?.analysis;
+      const setPieceVisible = Boolean(restart?.ready && restart.side === userSide && analysis
+        && ['freekick', 'penalty', 'corner'].includes(restart.type));
+      setPiecePanel.classList.toggle('is-visible', setPieceVisible);
+      setPiecePanel.classList.toggle('is-freekick', setPieceVisible && restart.type === 'freekick');
+      if (setPieceVisible) {
+        const title = restart.type === 'freekick' ? 'FALTA DIRETA'
+          : restart.type === 'penalty' ? 'PÊNALTI' : 'ESCANTEIO';
+        setPieceTitle.textContent = title;
+        setPieceChanceLabel.textContent = analysis.label || 'CHANCE DE GOL';
+        setPieceChance.textContent = `${analysis.chancePercent}%`;
+        setPieceDistance.textContent = `${Number(analysis.distance).toFixed(1)} m${restart.type === 'corner' ? ' · ÁREA' : ` · ${Math.round(analysis.angleDegrees || 0)}°`}`;
+        setPieceWall.textContent = restart.type === 'freekick' ? `BARREIRA ${analysis.wallCount ?? 0}` : '';
+        setPiecePrecision.textContent = `${analysis.precisionPercent}%`;
+        setPiecePrecisionBar.style.width = `${analysis.precisionPercent}%`;
+        setPieceState.aim = analysis.aim ?? 0;
+        setPieceState.power = analysis.power ?? 0.72;
+        setPieceState.curve = analysis.curve ?? 0;
+        setPieceState.lift = analysis.lift ?? 0.15;
+        setPieceState.impactX = analysis.impactX ?? setPieceState.curve;
+        setPieceState.impactY = analysis.impactY ?? 0;
+        setPieceState.kind = analysis.kind || 'placed';
+        if (document.activeElement !== setPieceAim) setPieceAim.value = String(Math.round(setPieceState.aim * 100));
+        if (document.activeElement !== setPiecePower) setPiecePower.value = String(Math.round(setPieceState.power * 100));
+        if (document.activeElement !== setPieceCurve && document.activeElement !== setPieceImpactPad) {
+          updateImpactPresentation();
+        }
+        setPieceAimValue.textContent = setPieceState.aim === 0
+          ? 'CENTRO' : setPieceState.aim < 0 ? 'ESQUERDA' : 'DIREITA';
+        setPiecePowerValue.textContent = `${Math.round(setPieceState.power * 100)}%`;
+        for (const button of setPieceKinds) {
+          const selected = button.dataset.kind === setPieceState.kind;
+          button.classList.toggle('is-selected', selected);
+          button.setAttribute('aria-pressed', String(selected));
+        }
+      }
+
       const player = controlled?.player || null;
+      const goalScorer = snapshot.phase === 'goal' ? snapshot.scorer : null;
+      const focusPlayer = goalScorer || player;
       drawRadar(players, ball, player);
-      paintChip(player);
+      paintChip(focusPlayer);
       paintFoe(nearestOpponent(players, ball, player));
 
       // Tags de nome para TODOS os jogadores ativos
@@ -279,7 +519,9 @@ export function createHud({ root, home, away }) {
           nameTagsLayer.appendChild(tagEl);
         }
         const isControlled = controlled?.player && p.id === controlled.player.id;
+        const isScorer = goalScorer && p.id === goalScorer.id;
         entry.el.classList.toggle('is-controlled', !!isControlled);
+        entry.el.classList.toggle('is-scorer', !!isScorer);
         entry.el.classList.add('is-visible');
         entry.el.style.left = `${p.x}px`;
         entry.el.style.top = `${p.y}px`;
@@ -293,14 +535,18 @@ export function createHud({ root, home, away }) {
         }
       }
 
-      // Tag do jogador controlado (cartão inferior — mantém a original)
-      if (controlled?.visible && player) {
-        tagName.textContent = String(player.name).toUpperCase();
-        tag.style.left = `${controlled.x}px`;
-        tag.style.top = `${controlled.y}px`;
+      // Tag sob a cabeça do controlado; durante o gol acompanha o autor.
+      const focusProjected = goalScorer
+        ? (players || []).find(item => item.id === goalScorer.id)
+        : controlled;
+      if (focusProjected?.visible && focusPlayer) {
+        tagName.textContent = String(focusPlayer.name).toUpperCase();
+        tag.style.left = `${focusProjected.x}px`;
+        tag.style.top = `${focusProjected.y}px`;
+        tag.classList.toggle('is-goal-focus', Boolean(goalScorer));
         tag.classList.add('is-visible');
       } else {
-        tag.classList.remove('is-visible');
+        tag.classList.remove('is-visible', 'is-goal-focus');
       }
     },
     /** Mostra um aviso grande (gol, cartão, intervalo). */
@@ -311,6 +557,26 @@ export function createHud({ root, home, away }) {
       bannerTimer = setTimeout(() => {
         banner.className = 'hud__banner';
       }, duration);
+    },
+    /**
+     * Cartão de gol no rodapé: número da camisa, nome do autor e placar.
+     * Substitui o aviso gigante no meio do campo.
+     */
+    showGoalCard({ number = null, name = 'GOL', score = '' } = {}) {
+      banner.className = 'hud__banner hud__banner--goal-card is-visible';
+      banner.replaceChildren(
+        el('b', { class: 'hud__goal-number', text: String(number ?? '').trim() || '⚽' }),
+        el('span', { class: 'hud__goal-copy' },
+          el('span', { class: 'hud__goal-label', text: 'GOL!' }),
+          el('span', { class: 'hud__goal-name', text: String(name).toUpperCase() })
+        ),
+        score && el('span', { class: 'hud__goal-score', text: score })
+      );
+      clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.className = 'hud__banner';
+        banner.replaceChildren();
+      }, 3600);
     },
     /** Acrescenta uma linha no feed de eventos. */
     pushEvent(text, kind = 'info') {
